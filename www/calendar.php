@@ -1215,10 +1215,11 @@ function viewEvent(ev) {
         document.getElementById('vSignupBtn').dataset.eid = ev.id;
     }
     renderInvitesPanel(ev.id);
+    const _evRedir = '/calendar.php?m=' + ev.start_date.substring(0,7) + '&open=' + ev.id + '&date=' + ev.start_date;
     const vLoginBtn = document.getElementById('vLoginBtn');
-    if (vLoginBtn) vLoginBtn.href = '/login.php?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
+    if (vLoginBtn) vLoginBtn.href = '/login.php?redirect=' + encodeURIComponent(_evRedir);
     const vSignupLink = document.getElementById('vSignupLink');
-    if (vSignupLink) vSignupLink.href = '/register.php?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
+    if (vSignupLink) vSignupLink.href = '/register.php?redirect=' + encodeURIComponent(_evRedir);
     <?php if ($isAdmin): ?>
     document.getElementById('vDeleteId').value = ev.id;
     // Show/configure occurrence-delete only for recurring events
