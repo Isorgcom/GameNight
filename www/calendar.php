@@ -915,7 +915,6 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         <div id="vMeta"    class="ev-view-meta"></div>
         <div id="vRecurr" class="ev-view-meta" style="font-style:italic"></div>
         <div id="vDesc"    class="ev-view-desc"></div>
-        <div id="vInvites" style="display:none;margin:.25rem 0 0;padding:.6rem 0;border-top:1px solid #f1f5f9"></div>
         <?php if ($current): ?>
         <div id="vRsvpWrap" style="display:none;margin:.5rem 0 0;padding:.65rem .85rem;border:2px solid #bfdbfe;border-radius:10px;background:#eff6ff">
             <input type="hidden" id="vRsvpCsrf" value="<?= htmlspecialchars($token) ?>">
@@ -933,6 +932,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             </div>
         </div>
         <?php endif; ?>
+        <div id="vInvites" style="display:none;margin:.25rem 0 0;padding:.6rem 0;border-top:1px solid #f1f5f9"></div>
         <?php if ($current): ?>
         <div id="vSignupWrap" style="display:none;padding:.5rem 0;border-top:1px solid #f1f5f9">
             <button id="vSignupBtn" class="btn btn-primary" style="width:100%;font-size:.875rem">Sign up to attend</button>
