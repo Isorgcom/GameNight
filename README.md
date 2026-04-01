@@ -20,7 +20,93 @@ A self-hosted PHP web application for organizing game night events. Members can 
 - [PHPMailer](https://github.com/PHPMailer/PHPMailer)
 - [Jodit](https://xdsoft.net/jodit/) / [Quill](https://quilljs.com/) rich-text editors
 
-## Setup
+## Docker Install (recommended)
+
+This is the recommended way to run Game Night on a fresh server. These instructions assume you already have Docker and Nginx Proxy Manager running.
+
+### Prerequisites
+
+- Docker + Docker Compose installed on the server
+- Nginx Proxy Manager running with its network named `npm_default`
+
+If you need to set up Docker and Nginx Proxy Manager first, run `server-prep.sh` as root.
+
+---
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/Isorgcom/GameNight.git /root/docker/GameNight
+cd /root/docker/GameNight
+```
+
+### 2. Create the config file
+
+```bash
+cp config/config.example.php config/config.php
+```
+
+`config.php` is gitignored. You can leave it as-is to configure email/SMS through the admin panel later, or fill in SMTP/Twilio credentials now.
+
+### 3. Fix directory permissions
+
+The database and uploads directories must be writable by `www-data` (the Apache user inside the container):
+
+```bash
+chown -R www-data:www-data /root/docker/GameNight/db/
+chown -R www-data:www-data /root/docker/GameNight/uploads/
+```
+
+> **Important:** Do this step after every fresh clone. If the `db/` directory is owned by root, Apache cannot write the SQLite database and the site will return HTTP 500.
+
+### 4. Build and start the container
+
+```bash
+docker compose up -d --build
+```
+
+### 5. Connect to Nginx Proxy Manager
+
+1. Open Nginx Proxy Manager (default: `http://your-server:81`)
+2. Go to **Proxy Hosts → Add Proxy Host**
+3. Set:
+   - **Domain Names:** your domain (e.g. `gamenight.example.com`)
+   - **Scheme:** `http`
+   - **Forward Hostname/IP:** `gamenight`  ← the container name
+   - **Forward Port:** `80`
+4. Enable **"Block Common Exploits"**
+5. On the **SSL** tab, request a Let's Encrypt certificate
+
+The `gamenight` container and Nginx Proxy Manager are both on the `npm_default` Docker network, so NPM can reach the container by name.
+
+### 6. First login
+
+The database schema is created automatically on the first request. Default admin credentials are set in `config.php` (`admin` / `changeme` unless you edited it). **Change your password immediately** via the admin panel.
+
+---
+
+### Updating
+
+To pull new code and rebuild:
+
+```bash
+cd /root/docker/GameNight
+git pull
+docker compose down
+docker compose up -d --build
+```
+
+### Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| HTTP 500 on every page | `db/` owned by root | `chown -R www-data:www-data db/` |
+| HTTP 500 — `Invalid command 'RewriteEngine'` | Old image missing `mod_rewrite` | Rebuild: `docker compose up -d --build` |
+| NPM can't reach container | Container not on `npm_default` network | Check `docker-compose.yml` has `npm_default` external network |
+
+---
+
+## Manual Setup (without Docker)
 
 ### 1. Configuration
 
