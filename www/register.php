@@ -21,7 +21,7 @@ if (get_setting('allow_registration', '1') !== '1') {
         <link rel="stylesheet" href="/style.css">
     </head>
     <body>
-    <nav><div class="nav-top"><a class="brand" href="/"><?= htmlspecialchars($site_name) ?></a></div></nav>
+    <?php $nav_active = ''; require __DIR__ . '/_nav.php'; ?>
     <div class="card-wrap">
         <div class="card" style="text-align:center">
             <h2>Registration Closed</h2>
@@ -77,11 +77,7 @@ $site_name = get_setting('site_name', 'Game Night');
 </head>
 <body>
 
-<nav>
-    <div class="nav-top">
-        <a class="brand" href="/"><?= htmlspecialchars($site_name) ?></a>
-    </div>
-</nav>
+<?php $nav_active = ''; require __DIR__ . '/_nav.php'; ?>
 
 <div class="card-wrap">
     <div class="card">
