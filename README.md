@@ -86,7 +86,7 @@ The `gamenight` container and Nginx Proxy Manager are both on the `npm_default` 
 
 The database schema is created automatically on the first request. Log in with:
 
-- **Username:** `admin`
+- **Email:** `admin@localhost`
 - **Password:** `admin`
 
 You will be prompted to set a new password immediately after logging in.
