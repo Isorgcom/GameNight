@@ -1168,7 +1168,6 @@ const CAL_REDIR         = '/calendar.php?m=<?= htmlspecialchars($monthParam) ?>'
 const CAL_CSRF          = <?= json_encode($token) ?>;
 const CAL_CURRENT_ID    = <?= json_encode((int)($current['id'] ?? 0)) ?>;
 const IS_ADMIN = <?= $isAdmin ? 'true' : 'false' ?>;
-const AUTO_OPEN_EVENT = <?= $autoOpenEvent ? json_encode($autoOpenEvent) : 'null' ?>;
 <?php if ($isAdmin): ?>
 const ALL_USERS = <?= json_encode(array_values($allUsers)) ?>;
 <?php endif; ?>
@@ -1775,8 +1774,7 @@ function fmt12(t) {
 
 // ── Auto-open event from landing page link ────────────────────────────────────
 <?php if ($autoOpenEvent): ?>
-document.addEventListener('DOMContentLoaded', () =>
-    viewEvent(<?= json_encode($autoOpenEvent) ?>));
+viewEvent(<?= json_encode($autoOpenEvent) ?>);
 <?php endif; ?>
 
 // ── Week view rendering ───────────────────────────────────────────────────────
@@ -1950,9 +1948,6 @@ function initWeekView() {
 document.addEventListener('DOMContentLoaded', initWeekView);
 <?php endif; ?>
 
-if (AUTO_OPEN_EVENT) {
-    document.addEventListener('DOMContentLoaded', function() { viewEvent(AUTO_OPEN_EVENT); });
-}
 </script>
 
 </body>
