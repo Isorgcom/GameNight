@@ -151,8 +151,7 @@ function send_verification_email(int $user_id, string $email, string $username):
        ->execute([$user_id, $hash, $exp]);
 
     $site  = get_setting('site_name', 'Game Night');
-    $host  = $_SERVER['HTTP_HOST'] ?? 'gamenight.isorg.com';
-    $url   = 'https://' . $host . '/verify_email.php?token=' . $token;
+    $url   = 'https://' . $_SERVER['HTTP_HOST'] . '/verify_email.php?token=' . $token;
 
     require_once __DIR__ . '/mail.php';
     $html = '<p>Hi ' . htmlspecialchars($username) . ',</p>'
@@ -202,9 +201,8 @@ function send_sms(string $to, string $body): ?string {
  */
 function send_invite_notification(string $username, string $email, string $phone, string $preferred_contact, string $event_title, string $event_start, int $event_id = 0): void {
     $site  = get_setting('site_name', 'Game Night');
-    $host  = $_SERVER['HTTP_HOST'] ?? 'gamenight.isorg.com';
     $month = substr($event_start, 0, 7);
-    $url   = 'https://' . $host . '/calendar.php'
+    $url   = 'https://' . $_SERVER['HTTP_HOST'] . '/calendar.php'
            . ($event_id > 0 ? '?m=' . urlencode($month) . '&open=' . $event_id . '&date=' . urlencode($event_start) : '');
 
     if ($preferred_contact === 'sms' && $phone !== '') {

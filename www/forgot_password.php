@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db->prepare('INSERT INTO password_resets (user_id, token_hash, expires_at) VALUES (?, ?, ?)')
                ->execute([$user['id'], $token_hash, $expires]);
 
-            $reset_url = 'https://' . ($_SERVER['HTTP_HOST'] ?? 'gamenight.isorg.com') . '/reset_password.php?token=' . $token;
+            $reset_url = 'https://' . $_SERVER['HTTP_HOST'] . '/reset_password.php?token=' . $token;
 
             $html = '<p>Hi ' . htmlspecialchars($user['username']) . ',</p>'
                   . '<p>Someone requested a password reset for your ' . htmlspecialchars($site_name) . ' account.</p>'
