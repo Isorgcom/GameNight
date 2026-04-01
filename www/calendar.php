@@ -631,18 +631,21 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             #editModal .modal { max-width:min(96vw,1140px);max-height:92vh;display:flex;flex-direction:column;padding:0;overflow:hidden; }
             #editModal .modal-header { padding:1.1rem 1.75rem;margin-bottom:0;border-bottom:1px solid #e2e8f0;flex-shrink:0; }
             #editModal .edit-form-body { display:grid;grid-template-columns:1fr 1fr;flex:1;min-height:0;overflow:hidden; }
-            #editModal .edit-col-left { padding:1.25rem 1.5rem;overflow-y:auto;border-right:1px solid #e2e8f0; }
-            #editModal .edit-col-right { padding:1.25rem 1.5rem;display:flex;flex-direction:column;overflow:hidden; }
+            /* min-height:0 is critical on grid children — without it they ignore overflow */
+            #editModal .edit-col-left { padding:1.25rem 1.5rem;overflow-y:auto;border-right:1px solid #e2e8f0;min-height:0; }
+            #editModal .edit-col-right { padding:1.25rem 1.5rem;display:flex;flex-direction:column;min-height:0;overflow:hidden; }
             #editModal .edit-footer { padding:.75rem 1.5rem;border-top:1px solid #e2e8f0;margin-top:0;flex-shrink:0; }
             #editModal #eDesc { min-height:130px; }
             #eMobileInvites { display:none; }
             #eUserSelectWrap { display:none !important; }
-            #eUserChecklist { display:flex;flex-direction:column;flex:1 1 55%;min-height:0;overflow:hidden; }
-            #eChecklistItems { flex:1;overflow-y:auto;min-height:60px; }
-            .invited-section { display:flex;flex-direction:column;flex:1 1 45%;min-height:0;overflow:hidden;margin-top:.65rem; }
-            #eInviteList { flex:1;overflow-y:auto;min-height:0; }
-            #eInviteHeader { display:grid; }
-            #eAddCustomBtn { display:block; }
+            /* checklist takes half the column, scrolls internally */
+            #eUserChecklist { display:flex;flex-direction:column;flex:1 1 0;min-height:0;overflow:hidden; }
+            #eChecklistItems { flex:1 1 0;overflow-y:auto;min-height:0; }
+            /* invited list takes the other half, scrolls internally */
+            .invited-section { display:flex;flex-direction:column;flex:1 1 0;min-height:0;overflow:hidden;margin-top:.65rem;border-top:1px solid #f1f5f9;padding-top:.5rem; }
+            #eInviteList { flex:1 1 0;overflow-y:auto;min-height:0; }
+            #eInviteHeader { display:grid;flex-shrink:0; }
+            #eAddCustomBtn { display:block;flex-shrink:0; }
         }
         @keyframes rsvpSavedFade { 0%,60%{opacity:1} 100%{opacity:0} }
         .rsvp-saved-anim { animation: rsvpSavedFade 3s ease forwards; }
