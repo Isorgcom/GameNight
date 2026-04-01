@@ -900,7 +900,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                     <?php endforeach; ?>
                 </table>
                 <?php else: ?>
-                <p class="subtitle">Configure outgoing email, or define <code>SMTP_*</code> constants in <code>config.php</code> to manage settings there instead.</p>
+                <p class="subtitle">Configure outgoing email settings.</p>
                 <form method="post" action="/admin_settings.php">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                     <input type="hidden" name="action" value="email_settings">
@@ -942,6 +942,28 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                     <button type="submit" class="btn btn-primary" style="width:100%">Save Settings</button>
                 </form>
                 <?php endif; ?>
+
+                <hr style="margin:1.5rem 0;border:none;border-top:1px solid #e2e8f0">
+
+                <h3 style="margin-bottom:.75rem">Effective Settings (from DB)</h3>
+                <table style="width:100%;font-size:.8rem;border-collapse:collapse;margin-bottom:1rem">
+                <?php
+                $diag = [
+                    'Host'       => get_setting('smtp_host',''),
+                    'Port'       => get_setting('smtp_port',''),
+                    'Encryption' => get_setting('smtp_encryption',''),
+                    'Username'   => get_setting('smtp_user',''),
+                    'Password'   => get_setting('smtp_pass','') !== '' ? str_repeat('•',10) : '<em style="color:#ef4444">not set</em>',
+                    'From'       => get_setting('smtp_from',''),
+                    'From Name'  => get_setting('smtp_from_name',''),
+                ];
+                foreach ($diag as $label => $val): ?>
+                <tr style="border-bottom:1px solid #f1f5f9">
+                    <td style="padding:.3rem .5rem;color:#64748b;white-space:nowrap"><?= $label ?></td>
+                    <td style="padding:.3rem .5rem;font-family:monospace"><?= $val !== '' ? htmlspecialchars($val) : '<em style="color:#ef4444">not set</em>' ?></td>
+                </tr>
+                <?php endforeach; ?>
+                </table>
 
                 <hr style="margin:1.5rem 0;border:none;border-top:1px solid #e2e8f0">
 

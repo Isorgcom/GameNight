@@ -52,7 +52,7 @@ All subsequent steps use your current directory (`cd` into the repo first), so t
 cp config/config.example.php config/config.php
 ```
 
-`config.php` is gitignored. You can leave it as-is to configure email/SMS through the admin panel later, or fill in SMTP/Twilio credentials now.
+`config.php` is gitignored. Edit it to set `DB_PATH` if you need a non-default database location. All email and SMS settings are configured through the admin panel (Site Settings → Email / SMS).
 
 ### 3. Fix directory permissions
 
@@ -126,7 +126,7 @@ Copy the example config and fill in your values:
 cp config/config.example.php config/config.php
 ```
 
-Edit `config/config.php` — set your SMTP credentials, Twilio keys, and any default site settings. This file is gitignored and should never be committed.
+Edit `config/config.php` — set `DB_PATH` if you need a non-default database location. This file is gitignored and should never be committed. Email (SMTP) and SMS settings are managed through the admin panel after first login.
 
 ### 2. Web root
 
@@ -167,7 +167,7 @@ These are committed to the repo so branding deploys with the code.
 
 | Path | Reason |
 |---|---|
-| `config/config.php` | Contains SMTP/Twilio credentials |
+| `config/config.php` | Local overrides (DB path, etc.) — never commit |
 | `.claude/` | Local Claude Code settings |
 | `db/` | SQLite database |
 | `www/uploads/` | Runtime user uploads |

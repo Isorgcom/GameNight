@@ -31,8 +31,8 @@ function send_email(string $toAddress, string $toName, string $subject, string $
     // Prefer config.php constants; fall back to database values.
     $host     = defined('SMTP_HOST')       ? SMTP_HOST       : get_setting('smtp_host', '');
     $port     = defined('SMTP_PORT')       ? (int)SMTP_PORT  : (int)get_setting('smtp_port', '587');
-    $user     = defined('SMTP_USER')       ? SMTP_USER       : get_setting('smtp_username', '');
-    $pass     = defined('SMTP_PASS')       ? SMTP_PASS       : get_setting('smtp_password', '');
+    $user     = defined('SMTP_USER')       ? SMTP_USER       : get_setting('smtp_user', '');
+    $pass     = defined('SMTP_PASS')       ? SMTP_PASS       : get_setting('smtp_pass', '');
     $from     = defined('SMTP_FROM')       ? SMTP_FROM       : get_setting('smtp_from', '');
     $fromName = defined('SMTP_FROM_NAME')  ? SMTP_FROM_NAME  : get_setting('smtp_from_name', get_setting('site_name', 'App'));
     $enc      = defined('SMTP_ENCRYPTION') ? SMTP_ENCRYPTION : get_setting('smtp_encryption', 'tls');
