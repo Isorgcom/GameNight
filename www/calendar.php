@@ -921,6 +921,13 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             <button id="vSignupBtn" class="btn btn-primary" style="width:100%;font-size:.875rem">Sign up to attend</button>
         </div>
         <?php endif; ?>
+        <?php if (!$current): ?>
+        <div style="padding:.5rem 0;border-top:1px solid #f1f5f9">
+            <a id="vLoginBtn" href="/login.php" class="btn btn-primary" style="display:block;text-align:center;font-size:.875rem;text-decoration:none">
+                Login to join this event
+            </a>
+        </div>
+        <?php endif; ?>
         <?php if ($isAdmin): ?>
         <div class="ev-view-actions">
             <button class="btn btn-primary" onclick="editFromView()">Edit</button>
@@ -1186,6 +1193,8 @@ function viewEvent(ev) {
         document.getElementById('vSignupBtn').dataset.eid = ev.id;
     }
     renderInvitesPanel(ev.id);
+    const vLoginBtn = document.getElementById('vLoginBtn');
+    if (vLoginBtn) vLoginBtn.href = '/login.php?redirect=' + encodeURIComponent('/calendar.php?event=' + ev.id);
     <?php if ($isAdmin): ?>
     document.getElementById('vDeleteId').value = ev.id;
     // Show/configure occurrence-delete only for recurring events
