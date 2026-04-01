@@ -11,6 +11,7 @@ db/
 Dockerfile
 docker-compose.yml
 nginx.conf
+server-prep.sh
 
 # Runtime user-uploaded files (not source)
 www/uploads/
