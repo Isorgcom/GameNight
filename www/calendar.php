@@ -70,19 +70,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $sd) || ($ed && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $ed))) {
             $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid date format.'];
         } else {
+            $notify_invitees = !empty($_POST['notify_invitees']);
             if ($action === 'add') {
                 $db->prepare('INSERT INTO events (title, description, start_date, end_date, start_time, end_time, color, recurrence, recurrence_end, created_by)
                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
                    ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $recurrence, $recEnd, $current['id']]);
-                $save_invites((int)$db->lastInsertId());
+                $notify_eid = (int)$db->lastInsertId();
+                $save_invites($notify_eid);
                 db_log_activity($current['id'], "created event: $title");
                 $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event added.'];
             } else {
                 $db->prepare('UPDATE events SET title=?, description=?, start_date=?, end_date=?, start_time=?, end_time=?, color=?, recurrence=?, recurrence_end=? WHERE id=?')
                    ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $recurrence, $recEnd, $id]);
+                $notify_eid = $id;
                 $save_invites($id);
                 db_log_activity($current['id'], "edited event id: $id");
                 $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event updated.'];
+            }
+            if ($notify_invitees) {
+                require_once __DIR__ . '/mail.php';
+                $date_str = $sd . ($st ? ' at ' . date('g:i A', strtotime($st)) : '');
+                $subject  = 'You\'re invited: ' . $title;
+                $html     = '<p>You have been invited to <strong>' . htmlspecialchars($title) . '</strong> on ' . htmlspecialchars($date_str) . '.</p>'
+                          . ($desc ? '<p>' . nl2br(htmlspecialchars($desc)) . '</p>' : '')
+                          . '<p>Log in to ' . htmlspecialchars(get_setting('site_name', 'Game Night')) . ' to view the event and RSVP.</p>';
+                $inv_stmt = $db->prepare('SELECT email FROM event_invites WHERE event_id=? AND email IS NOT NULL AND email != \'\'');
+                $inv_stmt->execute([$notify_eid]);
+                foreach ($inv_stmt->fetchAll(PDO::FETCH_COLUMN) as $inv_email) {
+                    send_email($inv_email, $inv_email, $subject, $html);
+                }
             }
         }
     }
@@ -609,17 +625,22 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         .ci-badge-yes { background:#dcfce7;color:#166534; }
         .ci-badge-no  { background:#fee2e2;color:#991b1b; }
         .ci-badge-maybe { background:#fef9c3;color:#854d0e; }
+        .ci-info { flex:1;min-width:0; }
+        .ci-sub  { font-size:.72rem;color:#94a3b8;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
         @media (min-width:769px) {
-            #editModal .modal { max-width:940px;max-height:90vh;display:flex;flex-direction:column;padding:0;overflow:hidden; }
-            #editModal .modal-header { padding:1.25rem 1.75rem;margin-bottom:0;border-bottom:1px solid #e2e8f0;flex-shrink:0; }
+            #editModal .modal { max-width:min(96vw,1140px);max-height:92vh;display:flex;flex-direction:column;padding:0;overflow:hidden; }
+            #editModal .modal-header { padding:1.1rem 1.75rem;margin-bottom:0;border-bottom:1px solid #e2e8f0;flex-shrink:0; }
             #editModal .edit-form-body { display:grid;grid-template-columns:1fr 1fr;flex:1;min-height:0;overflow:hidden; }
             #editModal .edit-col-left { padding:1.25rem 1.5rem;overflow-y:auto;border-right:1px solid #e2e8f0; }
-            #editModal .edit-col-right { padding:1.25rem 1.5rem;overflow-y:auto;display:flex;flex-direction:column; }
-            #editModal .edit-footer { padding:.85rem 1.5rem;border-top:1px solid #e2e8f0;margin-top:0;flex-shrink:0; }
-            #editModal #eDesc { min-height:120px; }
+            #editModal .edit-col-right { padding:1.25rem 1.5rem;display:flex;flex-direction:column;overflow:hidden; }
+            #editModal .edit-footer { padding:.75rem 1.5rem;border-top:1px solid #e2e8f0;margin-top:0;flex-shrink:0; }
+            #editModal #eDesc { min-height:130px; }
             #eMobileInvites { display:none; }
             #eUserSelectWrap { display:none !important; }
-            #eUserChecklist { display:flex;flex-direction:column; }
+            #eUserChecklist { display:flex;flex-direction:column;flex:1 1 55%;min-height:0;overflow:hidden; }
+            #eChecklistItems { flex:1;overflow-y:auto;min-height:60px; }
+            .invited-section { display:flex;flex-direction:column;flex:1 1 45%;min-height:0;overflow:hidden;margin-top:.65rem; }
+            #eInviteList { flex:1;overflow-y:auto;min-height:0; }
             #eInviteHeader { display:grid; }
             #eAddCustomBtn { display:block; }
         }
@@ -1066,36 +1087,41 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
 
                 <!-- ── Right column: invites (desktop only) ── -->
                 <div class="edit-col-right">
-                    <label style="font-weight:600;font-size:.875rem;color:#374151;display:block;margin-bottom:.5rem">Invites</label>
+                    <label style="font-weight:600;font-size:.875rem;color:#374151;display:block;margin-bottom:.5rem;flex-shrink:0">Invites</label>
 
-                    <!-- Searchable user checklist -->
+                    <!-- Searchable user checklist (top half, scrolls) -->
                     <div id="eUserChecklist">
-                        <input type="text" id="eUserSearch" placeholder="Search users&hellip;"
+                        <input type="text" id="eUserSearch" placeholder="Search by name, email, or phone&hellip;"
                                oninput="filterChecklist(this.value)" autocomplete="off"
-                               style="width:100%;margin-bottom:.4rem;padding:.42rem .65rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.875rem;box-sizing:border-box">
-                        <div id="eChecklistItems" style="overflow-y:auto;border:1.5px solid #e2e8f0;border-radius:7px;margin-bottom:.75rem;min-height:80px;max-height:220px"></div>
+                               style="width:100%;margin-bottom:.4rem;padding:.42rem .65rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.875rem;box-sizing:border-box;flex-shrink:0">
+                        <div id="eChecklistItems" style="border:1.5px solid #e2e8f0;border-radius:7px;margin-bottom:.4rem"></div>
                     </div>
 
-                    <!-- Invite rows header + list (shared, rendered here on desktop) -->
-                    <div style="display:grid;grid-template-columns:2fr 1.5fr 2fr auto;gap:.25rem;margin-bottom:.3rem;padding:0 .1rem" id="eInviteHeader">
-                        <span style="font-size:.72rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Username *</span>
-                        <span style="font-size:.72rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Phone</span>
-                        <span style="font-size:.72rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Email</span>
-                        <span></span>
+                    <!-- Invited rows (bottom half, scrolls independently) -->
+                    <div class="invited-section">
+                        <div style="display:grid;grid-template-columns:2fr 1.5fr 2fr auto;gap:.25rem;margin-bottom:.3rem;padding:0 .1rem;flex-shrink:0" id="eInviteHeader">
+                            <span style="font-size:.72rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Username *</span>
+                            <span style="font-size:.72rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Phone</span>
+                            <span style="font-size:.72rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Email</span>
+                            <span></span>
+                        </div>
+                        <div id="eInviteList" style="display:flex;flex-direction:column;gap:.3rem"></div>
+                        <button type="button" id="eAddCustomBtn" class="btn btn-outline"
+                                style="font-size:.8rem;padding:.38rem .7rem;width:100%;margin-top:.5rem;flex-shrink:0"
+                                onclick="addBlankInviteRow()">+ Custom Invitee</button>
+                        <p class="hint" style="margin-top:.4rem;flex-shrink:0">Click a name to toggle. Use &ldquo;Custom&rdquo; for guests not in the user list.</p>
                     </div>
-                    <div id="eInviteList" style="display:flex;flex-direction:column;gap:.3rem"></div>
-
-                    <button type="button" id="eAddCustomBtn" class="btn btn-outline"
-                            style="font-size:.8rem;padding:.38rem .7rem;width:100%;margin-top:.65rem"
-                            onclick="addBlankInviteRow()">+ Custom Invitee</button>
-
-                    <p class="hint" style="margin-top:.6rem">Click a name to add or remove. Use &ldquo;Custom&rdquo; for guests not in the user list.</p>
                 </div>
 
             </div>
 
             <div class="edit-footer">
-                <button type="submit" class="btn btn-primary" style="flex:1" id="eSubmitBtn">Add Event</button>
+                <label style="display:flex;align-items:center;gap:.4rem;font-size:.875rem;cursor:pointer;user-select:none;white-space:nowrap">
+                    <input type="checkbox" name="notify_invitees" id="eNotifyInvitees" value="1">
+                    Notify invitees by email
+                </label>
+                <div style="flex:1"></div>
+                <button type="submit" class="btn btn-primary" id="eSubmitBtn">Add Event</button>
                 <button type="button" class="btn btn-outline" onclick="closeEdit()">Cancel</button>
             </div>
         </form>
@@ -1531,6 +1557,7 @@ function openAddModal(date) {
     selectColor('#2563eb');
     document.getElementById('eInviteList').innerHTML = '';
     document.getElementById('eUserSelect').selectedIndex = -1;
+    document.getElementById('eNotifyInvitees').checked = false;
     syncChecklistState();
     document.getElementById('editModal').classList.add('open');
     document.getElementById('eTitle').focus();
@@ -1555,6 +1582,7 @@ function openEditModal(ev) {
     document.getElementById('eInviteList').innerHTML = '';
     document.getElementById('eUserSelect').selectedIndex = -1;
     document.getElementById('eUserSearch').value = '';
+    document.getElementById('eNotifyInvitees').checked = false;
     filterChecklist('');
     (eventInvites[ev.id] || []).forEach(inv => addInviteRow(inv.username, inv.phone || '', inv.email || '', inv.rsvp || ''));
     syncChecklistState();
@@ -1608,9 +1636,13 @@ function buildChecklist() {
         const item = document.createElement('div');
         item.className = 'checklist-item';
         item.dataset.username = u.username.toLowerCase();
+        item.dataset.email    = (u.email   || '').toLowerCase();
+        item.dataset.phone    = (u.phone   || '').replace(/\D/g,'');
+        const sub = [u.email, u.phone].filter(Boolean).join(' · ');
         item.innerHTML =
             '<div class="ci-check">&#x2713;</div>' +
-            '<span class="ci-name">' + escHtml(u.username) + '</span>' +
+            '<div class="ci-info"><span class="ci-name">' + escHtml(u.username) + '</span>' +
+            (sub ? '<span class="ci-sub">' + escHtml(sub) + '</span>' : '') + '</div>' +
             '<span class="ci-badge"></span>';
         item.addEventListener('click', () => {
             toggleUserInvite(u.username, u.phone || '', u.email || '');
@@ -1619,9 +1651,15 @@ function buildChecklist() {
     });
 }
 function filterChecklist(q) {
-    q = q.toLowerCase();
+    q = q.toLowerCase().replace(/\D/g,'') || q.toLowerCase();
+    const raw = document.getElementById('eUserSearch').value.toLowerCase();
+    const digits = raw.replace(/\D/g,'');
     document.querySelectorAll('#eChecklistItems .checklist-item').forEach(item => {
-        item.style.display = item.dataset.username.includes(q) ? '' : 'none';
+        const match = !raw ||
+            item.dataset.username.includes(raw) ||
+            item.dataset.email.includes(raw) ||
+            (digits && item.dataset.phone.includes(digits));
+        item.style.display = match ? '' : 'none';
     });
 }
 function toggleUserInvite(username, phone, email) {
