@@ -48,10 +48,10 @@ services:
 EOF
 docker compose -f /opt/npm/docker-compose.yml up -d
 echo "Nginx Proxy Manager running."
-echo "  Admin UI:  http://198.46.254.149:81"
-echo "  Default login: admin@example.com / changeme"
 
+SERVER_IP=$(curl -4 -sf https://ifconfig.me || hostname -I | awk '{print $1}')
 echo ""
 echo "Done. Summary:"
-echo "  Portainer:           https://198.46.254.149:9443"
-echo "  Nginx Proxy Manager: http://198.46.254.149:81"
+echo "  Portainer:           https://${SERVER_IP}:9443"
+echo "  Nginx Proxy Manager: http://${SERVER_IP}:81"
+echo "  NPM default login:   admin@example.com / changeme"
