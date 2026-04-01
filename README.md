@@ -71,17 +71,16 @@ docker compose up -d --build
 
 ### 5. Connect to Nginx Proxy Manager
 
-1. Open Nginx Proxy Manager (default: `http://your-server:81`)
-2. Go to **Proxy Hosts → Add Proxy Host**
-3. Set:
-   - **Domain Names:** your domain (e.g. `gamenight.example.com`)
-   - **Scheme:** `http`
-   - **Forward Hostname/IP:** `gamenight`  ← the container name
-   - **Forward Port:** `80`
-4. Enable **"Block Common Exploits"**
-5. On the **SSL** tab, request a Let's Encrypt certificate
+Open your Nginx Proxy Manager admin UI and go to **Proxy Hosts → Add Proxy Host**, then set:
 
-The `gamenight` container and Nginx Proxy Manager are both on the `npm_default` Docker network, so NPM can reach the container by name.
+- **Domain Names:** your domain (e.g. `gamenight.example.com`)
+- **Scheme:** `http`
+- **Forward Hostname/IP:** `gamenight` ← the container name
+- **Forward Port:** `80`
+- Enable **"Block Common Exploits"**
+- On the **SSL** tab, request a Let's Encrypt certificate
+
+The `gamenight` container and Nginx Proxy Manager are both on the `npm_default` Docker network, so NPM can reach the container by name regardless of what ports NPM is exposed on.
 
 ### 6. First login
 
