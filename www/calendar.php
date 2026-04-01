@@ -591,6 +591,38 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         .invite-row select { flex-shrink:0; }
         .invite-row .inv-remove { flex-shrink:0; padding:.3rem .5rem; border:1px solid #e2e8f0; border-radius:6px; background:#fff; cursor:pointer; color:#94a3b8; font-size:.9rem; line-height:1; }
         .invite-row .inv-remove:hover { background:#fee2e2; color:#dc2626; border-color:#fca5a5; }
+        /* Edit modal layout */
+        .edit-form-body { display:contents; }
+        .edit-footer { display:flex; gap:.75rem; margin-top:1.25rem; }
+        #eInviteHeader { display:none; }
+        #eUserChecklist { display:none; }
+        #eAddCustomBtn { display:none; }
+        /* Checklist (desktop invites) */
+        .checklist-item { display:flex;align-items:center;gap:.65rem;padding:.5rem .75rem;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:.875rem;user-select:none; }
+        .checklist-item:last-child { border-bottom:none; }
+        .checklist-item:hover { background:#f8fafc; }
+        .checklist-item.ci-invited { background:#f0fdf4; }
+        .ci-check { width:17px;height:17px;border-radius:4px;border:2px solid #cbd5e1;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.65rem;color:#fff; }
+        .checklist-item.ci-invited .ci-check { background:#16a34a;border-color:#16a34a; }
+        .ci-name { flex:1;font-weight:500; }
+        .ci-badge { font-size:.7rem;font-weight:700;padding:.1rem .4rem;border-radius:4px; }
+        .ci-badge-yes { background:#dcfce7;color:#166534; }
+        .ci-badge-no  { background:#fee2e2;color:#991b1b; }
+        .ci-badge-maybe { background:#fef9c3;color:#854d0e; }
+        @media (min-width:769px) {
+            #editModal .modal { max-width:940px;max-height:90vh;display:flex;flex-direction:column;padding:0;overflow:hidden; }
+            #editModal .modal-header { padding:1.25rem 1.75rem;margin-bottom:0;border-bottom:1px solid #e2e8f0;flex-shrink:0; }
+            #editModal .edit-form-body { display:grid;grid-template-columns:1fr 1fr;flex:1;min-height:0;overflow:hidden; }
+            #editModal .edit-col-left { padding:1.25rem 1.5rem;overflow-y:auto;border-right:1px solid #e2e8f0; }
+            #editModal .edit-col-right { padding:1.25rem 1.5rem;overflow-y:auto;display:flex;flex-direction:column; }
+            #editModal .edit-footer { padding:.85rem 1.5rem;border-top:1px solid #e2e8f0;margin-top:0;flex-shrink:0; }
+            #editModal #eDesc { min-height:120px; }
+            #eMobileInvites { display:none; }
+            #eUserSelectWrap { display:none !important; }
+            #eUserChecklist { display:flex;flex-direction:column; }
+            #eInviteHeader { display:grid; }
+            #eAddCustomBtn { display:block; }
+        }
         @keyframes rsvpSavedFade { 0%,60%{opacity:1} 100%{opacity:0} }
         .rsvp-saved-anim { animation: rsvpSavedFade 3s ease forwards; }
         .rsvp-yes   { background:#dcfce7; color:#166534; border-radius:4px; padding:.1rem .4rem; font-size:.75rem; font-weight:600; }
@@ -954,85 +986,115 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             <input type="hidden" name="id" id="eId" value="">
             <input type="hidden" name="month_param" value="<?= htmlspecialchars($monthParam) ?>">
 
-            <div class="form-group">
-                <label>Title</label>
-                <input type="text" name="title" id="eTitle" required autocomplete="off">
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
-                <div class="form-group">
-                    <label>Start Date</label>
-                    <input type="date" name="start_date" id="eStartDate" required>
-                </div>
-                <div class="form-group">
-                    <label>End Date <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
-                    <input type="date" name="end_date" id="eEndDate">
-                </div>
-                <div class="form-group">
-                    <label>Start Time <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
-                    <input type="time" name="start_time" id="eStartTime">
-                </div>
-                <div class="form-group">
-                    <label>End Time <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
-                    <input type="time" name="end_time" id="eEndTime">
-                </div>
-            </div>
-            <div class="form-group">
-                <label>Description <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
-                <textarea name="description" id="eDesc" rows="3" style="width:100%;resize:vertical"></textarea>
-            </div>
-            <div class="form-group">
-                <label>Recurrence</label>
-                <select name="recurrence" id="eRecurrence" class="form-select"
-                        onchange="toggleRecEnd(this.value)">
-                    <option value="none">Does not repeat</option>
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly</option>
-                    <option value="monthly">Monthly</option>
-                    <option value="yearly">Yearly</option>
-                </select>
-            </div>
-            <div class="form-group" id="recEndGroup" style="display:none">
-                <label>Repeat until <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
-                <input type="date" name="recurrence_end" id="eRecEnd">
-            </div>
-            <div class="form-group">
-                <label>Color</label>
-                <div class="color-swatches" id="colorSwatches">
-                    <?php foreach (['#2563eb','#16a34a','#dc2626','#d97706','#7c3aed','#0891b2','#db2777'] as $c): ?>
-                        <div class="color-swatch" style="background:<?= $c ?>" data-color="<?= $c ?>"
-                             onclick="selectColor('<?= $c ?>')"></div>
-                    <?php endforeach; ?>
-                </div>
-                <input type="hidden" name="color" id="eColor" value="#2563eb">
-            </div>
-            <div class="form-group" style="margin-top:.5rem">
-                <label>Invites</label>
-                <div style="display:flex;gap:.5rem;margin-bottom:.4rem">
-                    <select id="eUserSelect" multiple
-                            style="flex:1;min-height:72px;border:1.5px solid #e2e8f0;border-radius:7px;padding:.35rem;font-size:.875rem">
-                        <?php foreach ($allUsers as $u): ?>
-                        <option value="<?= htmlspecialchars($u['username']) ?>"
-                                data-email="<?= htmlspecialchars($u['email'] ?? '') ?>"
-                                data-phone="<?= htmlspecialchars($u['phone'] ?? '') ?>">
-                            <?= htmlspecialchars($u['username']) ?>
-                        </option>
-                        <?php endforeach; ?>
-                    </select>
-                    <div style="display:flex;flex-direction:column;gap:.35rem;flex-shrink:0">
-                        <button type="button" class="btn btn-outline" style="font-size:.8rem;padding:.35rem .7rem;white-space:nowrap" onclick="addSelectedInvites()">+ Add Selected</button>
-                        <button type="button" class="btn btn-outline" style="font-size:.8rem;padding:.35rem .7rem;white-space:nowrap" onclick="addBlankInviteRow()">+ Custom</button>
+            <div class="edit-form-body">
+
+                <!-- ── Left column: event details ── -->
+                <div class="edit-col-left">
+                    <div class="form-group">
+                        <label>Title</label>
+                        <input type="text" name="title" id="eTitle" required autocomplete="off">
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
+                        <div class="form-group">
+                            <label>Start Date</label>
+                            <input type="date" name="start_date" id="eStartDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label>End Date <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
+                            <input type="date" name="end_date" id="eEndDate">
+                        </div>
+                        <div class="form-group">
+                            <label>Start Time <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
+                            <input type="time" name="start_time" id="eStartTime">
+                        </div>
+                        <div class="form-group">
+                            <label>End Time <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
+                            <input type="time" name="end_time" id="eEndTime">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Recurrence</label>
+                        <select name="recurrence" id="eRecurrence" class="form-select"
+                                onchange="toggleRecEnd(this.value)">
+                            <option value="none">Does not repeat</option>
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="monthly">Monthly</option>
+                            <option value="yearly">Yearly</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="recEndGroup" style="display:none">
+                        <label>Repeat until <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
+                        <input type="date" name="recurrence_end" id="eRecEnd">
+                    </div>
+                    <div class="form-group">
+                        <label>Color</label>
+                        <div class="color-swatches" id="colorSwatches">
+                            <?php foreach (['#2563eb','#16a34a','#dc2626','#d97706','#7c3aed','#0891b2','#db2777'] as $c): ?>
+                                <div class="color-swatch" style="background:<?= $c ?>" data-color="<?= $c ?>"
+                                     onclick="selectColor('<?= $c ?>')"></div>
+                            <?php endforeach; ?>
+                        </div>
+                        <input type="hidden" name="color" id="eColor" value="#2563eb">
+                    </div>
+                    <div class="form-group">
+                        <label>Description <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
+                        <textarea name="description" id="eDesc" rows="3" style="width:100%;resize:vertical"></textarea>
+                    </div>
+                    <!-- Mobile-only invite section -->
+                    <div id="eMobileInvites" class="form-group" style="margin-top:.5rem">
+                        <label>Invites</label>
+                        <div id="eUserSelectWrap" style="display:flex;gap:.5rem;margin-bottom:.4rem">
+                            <select id="eUserSelect" multiple
+                                    style="flex:1;min-height:72px;border:1.5px solid #e2e8f0;border-radius:7px;padding:.35rem;font-size:.875rem">
+                                <?php foreach ($allUsers as $u): ?>
+                                <option value="<?= htmlspecialchars($u['username']) ?>"
+                                        data-email="<?= htmlspecialchars($u['email'] ?? '') ?>"
+                                        data-phone="<?= htmlspecialchars($u['phone'] ?? '') ?>">
+                                    <?= htmlspecialchars($u['username']) ?>
+                                </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <div style="display:flex;flex-direction:column;gap:.35rem;flex-shrink:0">
+                                <button type="button" class="btn btn-outline" style="font-size:.8rem;padding:.35rem .7rem;white-space:nowrap" onclick="addSelectedInvites()">+ Add Selected</button>
+                                <button type="button" class="btn btn-outline" style="font-size:.8rem;padding:.35rem .7rem;white-space:nowrap" onclick="addBlankInviteRow()">+ Custom</button>
+                            </div>
+                        </div>
+                        <p class="hint">Select one or more users and click &ldquo;Add Selected&rdquo;, or &ldquo;Custom&rdquo; for unlisted invitees.</p>
                     </div>
                 </div>
-                <div style="display:grid;grid-template-columns:2fr 1.5fr 2fr auto;gap:.25rem;margin-bottom:.25rem;padding:0 .1rem" id="eInviteHeader" style="display:none">
-                    <span style="font-size:.72rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Username *</span>
-                    <span style="font-size:.72rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Phone</span>
-                    <span style="font-size:.72rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Email</span>
-                    <span></span>
+
+                <!-- ── Right column: invites (desktop only) ── -->
+                <div class="edit-col-right">
+                    <label style="font-weight:600;font-size:.875rem;color:#374151;display:block;margin-bottom:.5rem">Invites</label>
+
+                    <!-- Searchable user checklist -->
+                    <div id="eUserChecklist">
+                        <input type="text" id="eUserSearch" placeholder="Search users&hellip;"
+                               oninput="filterChecklist(this.value)" autocomplete="off"
+                               style="width:100%;margin-bottom:.4rem;padding:.42rem .65rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.875rem;box-sizing:border-box">
+                        <div id="eChecklistItems" style="overflow-y:auto;border:1.5px solid #e2e8f0;border-radius:7px;margin-bottom:.75rem;min-height:80px;max-height:220px"></div>
+                    </div>
+
+                    <!-- Invite rows header + list (shared, rendered here on desktop) -->
+                    <div style="display:grid;grid-template-columns:2fr 1.5fr 2fr auto;gap:.25rem;margin-bottom:.3rem;padding:0 .1rem" id="eInviteHeader">
+                        <span style="font-size:.72rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Username *</span>
+                        <span style="font-size:.72rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Phone</span>
+                        <span style="font-size:.72rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Email</span>
+                        <span></span>
+                    </div>
+                    <div id="eInviteList" style="display:flex;flex-direction:column;gap:.3rem"></div>
+
+                    <button type="button" id="eAddCustomBtn" class="btn btn-outline"
+                            style="font-size:.8rem;padding:.38rem .7rem;width:100%;margin-top:.65rem"
+                            onclick="addBlankInviteRow()">+ Custom Invitee</button>
+
+                    <p class="hint" style="margin-top:.6rem">Click a name to add or remove. Use &ldquo;Custom&rdquo; for guests not in the user list.</p>
                 </div>
-                <div id="eInviteList" style="display:flex;flex-direction:column;gap:.3rem"></div>
-                <p class="hint" style="margin-top:.35rem">Select one or more users and click &ldquo;Add Selected&rdquo;, or &ldquo;Custom&rdquo; for unlisted invitees. Username is required.</p>
+
             </div>
-            <div style="display:flex;gap:.75rem;margin-top:1.25rem">
+
+            <div class="edit-footer">
                 <button type="submit" class="btn btn-primary" style="flex:1" id="eSubmitBtn">Add Event</button>
                 <button type="button" class="btn btn-outline" onclick="closeEdit()">Cancel</button>
             </div>
@@ -1052,6 +1114,9 @@ const CAL_REDIR         = '/calendar.php?m=<?= htmlspecialchars($monthParam) ?>'
 const CAL_CSRF          = <?= json_encode($token) ?>;
 const CAL_CURRENT_ID    = <?= json_encode((int)($current['id'] ?? 0)) ?>;
 const IS_ADMIN = <?= $isAdmin ? 'true' : 'false' ?>;
+<?php if ($isAdmin): ?>
+const ALL_USERS = <?= json_encode(array_values($allUsers)) ?>;
+<?php endif; ?>
 
 // ── View modal ────────────────────────────────────────────────────────────────
 function viewEvent(ev) {
@@ -1466,6 +1531,7 @@ function openAddModal(date) {
     selectColor('#2563eb');
     document.getElementById('eInviteList').innerHTML = '';
     document.getElementById('eUserSelect').selectedIndex = -1;
+    syncChecklistState();
     document.getElementById('editModal').classList.add('open');
     document.getElementById('eTitle').focus();
 }
@@ -1488,7 +1554,10 @@ function openEditModal(ev) {
     selectColor(ev.color || '#2563eb');
     document.getElementById('eInviteList').innerHTML = '';
     document.getElementById('eUserSelect').selectedIndex = -1;
+    document.getElementById('eUserSearch').value = '';
+    filterChecklist('');
     (eventInvites[ev.id] || []).forEach(inv => addInviteRow(inv.username, inv.phone || '', inv.email || '', inv.rsvp || ''));
+    syncChecklistState();
     document.getElementById('editModal').classList.add('open');
     document.getElementById('eTitle').focus();
 }
@@ -1514,7 +1583,7 @@ function addInviteRow(username, phone, email, rsvp) {
             '<option value="no"'    + (rsvpVal==='no'    ? ' selected' : '') + '>No</option>' +
             '<option value="maybe"' + (rsvpVal==='maybe' ? ' selected' : '') + '>Maybe</option>' +
         '</select>' +
-        '<button type="button" class="inv-remove" onclick="this.closest(\'.invite-row\').remove()">&#x2715;</button>';
+        '<button type="button" class="inv-remove" onclick="this.closest(\'.invite-row\').remove();syncChecklistState()">&#x2715;</button>';
     list.appendChild(row);
 }
 function addSelectedInvites() {
@@ -1529,6 +1598,65 @@ function addSelectedInvites() {
     sel.selectedIndex = -1;
 }
 function addBlankInviteRow() { addInviteRow('', '', '', ''); }
+
+// ── Desktop invite checklist ──────────────────────────────────────────────────
+function buildChecklist() {
+    const container = document.getElementById('eChecklistItems');
+    if (!container) return;
+    container.innerHTML = '';
+    ALL_USERS.forEach(u => {
+        const item = document.createElement('div');
+        item.className = 'checklist-item';
+        item.dataset.username = u.username.toLowerCase();
+        item.innerHTML =
+            '<div class="ci-check">&#x2713;</div>' +
+            '<span class="ci-name">' + escHtml(u.username) + '</span>' +
+            '<span class="ci-badge"></span>';
+        item.addEventListener('click', () => {
+            toggleUserInvite(u.username, u.phone || '', u.email || '');
+        });
+        container.appendChild(item);
+    });
+}
+function filterChecklist(q) {
+    q = q.toLowerCase();
+    document.querySelectorAll('#eChecklistItems .checklist-item').forEach(item => {
+        item.style.display = item.dataset.username.includes(q) ? '' : 'none';
+    });
+}
+function toggleUserInvite(username, phone, email) {
+    const inputs  = Array.from(document.querySelectorAll('#eInviteList [name="invite_username[]"]'));
+    const match   = inputs.find(i => i.value.trim().toLowerCase() === username.toLowerCase());
+    if (match) {
+        match.closest('.invite-row').remove();
+    } else {
+        addInviteRow(username, phone, email, '');
+    }
+    syncChecklistState();
+}
+function syncChecklistState() {
+    const invited = Array.from(document.querySelectorAll('#eInviteList [name="invite_username[]"]'))
+        .map(i => {
+            const row = i.closest('.invite-row');
+            return { name: i.value.trim().toLowerCase(), rsvp: row ? row.querySelector('[name="invite_rsvp[]"]').value : '' };
+        });
+    document.querySelectorAll('#eChecklistItems .checklist-item').forEach(item => {
+        const inv = invited.find(i => i.name === item.dataset.username);
+        const badge = item.querySelector('.ci-badge');
+        if (inv) {
+            item.classList.add('ci-invited');
+            const rsvpMap = { yes:'Yes', no:'No', maybe:'Maybe?', '':'' };
+            const cls = inv.rsvp ? 'ci-badge ci-badge-' + inv.rsvp : 'ci-badge';
+            badge.className = cls;
+            badge.textContent = rsvpMap[inv.rsvp] || '';
+        } else {
+            item.classList.remove('ci-invited');
+            badge.className = 'ci-badge';
+            badge.textContent = '';
+        }
+    });
+}
+buildChecklist();
 
 function toggleRecEnd(val) {
     document.getElementById('recEndGroup').style.display = val === 'none' ? 'none' : '';
