@@ -98,15 +98,34 @@ function send_sms(string $to, string $body): ?string {
 
     switch ($provider) {
         case 'twilio':
-            return _sms_twilio($sid, $token, $from, $e164, $body);
+            $err = _sms_twilio($sid, $token, $from, $e164, $body); break;
         case 'plivo':
-            return _sms_plivo($sid, $token, $from, $e164, $body);
+            $err = _sms_plivo($sid, $token, $from, $e164, $body); break;
         case 'telnyx':
-            return _sms_telnyx($token, $from, $e164, $body);
+            $err = _sms_telnyx($token, $from, $e164, $body); break;
         case 'vonage':
-            return _sms_vonage($sid, $token, $from, $e164, $body);
+            $err = _sms_vonage($sid, $token, $from, $e164, $body); break;
         default:
-            return "Unknown SMS provider: $provider";
+            $err = "Unknown SMS provider: $provider";
+    }
+
+    sms_log('outbound', $e164, $body, $provider, $err === null ? 'sent' : 'failed', $err);
+    return $err;
+}
+
+/**
+ * Log an inbound SMS (called from sms_webhook.php).
+ */
+function sms_log_inbound(string $phone, string $body, string $provider): void {
+    sms_log('inbound', $phone, $body, $provider, 'received', null);
+}
+
+function sms_log(string $direction, string $phone, string $body, ?string $provider, string $status, ?string $error): void {
+    try {
+        get_db()->prepare('INSERT INTO sms_log (direction, phone, body, provider, status, error) VALUES (?, ?, ?, ?, ?, ?)')
+            ->execute([$direction, $phone, $body, $provider, $status, $error]);
+    } catch (Exception $e) {
+        // Don't let logging failures break SMS sending
     }
 }
 

@@ -60,6 +60,9 @@ if (strlen($digits) !== 10 || $body === '') {
     exit;
 }
 
+// Log inbound message
+sms_log_inbound($from, $body, $provider);
+
 // Normalize to XXX-XXX-XXXX for DB lookup
 $normalized = substr($digits, 0, 3) . '-' . substr($digits, 3, 3) . '-' . substr($digits, 6, 4);
 

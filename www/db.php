@@ -153,6 +153,18 @@ function db_init(PDO $pdo): void {
         FOREIGN KEY (user_id) REFERENCES users(id)
     )"); } catch (Exception $e) {}
 
+    // SMS log table
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS sms_log (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        direction  TEXT    NOT NULL DEFAULT 'outbound',
+        phone      TEXT    NOT NULL,
+        body       TEXT    NOT NULL,
+        provider   TEXT,
+        status     TEXT,
+        error      TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )"); } catch (Exception $e) {}
+
     // Add preferred_contact column if it doesn't exist yet
     try { $pdo->exec("ALTER TABLE users ADD COLUMN preferred_contact TEXT NOT NULL DEFAULT 'email'"); } catch (Exception $e) {}
 
