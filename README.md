@@ -11,7 +11,7 @@ this is still a work in progress!!
 - **Posts** — rich-text announcements with comment support
 - **Admin panel** — manage users, posts, events, and all site settings
 - **Email** — transactional mail via SMTP (SendGrid or any provider)
-- **SMS** — optional notifications via Twilio
+- **SMS** — multi-provider notifications with two-way RSVP (see [SMS](#sms) below)
 - **Branding** — custom banner/header images, nav colors, site name
 - **SQLite** — zero-config database, stored outside the web root
 
@@ -151,6 +151,51 @@ The web server user (`www-data`) needs write access to:
 ### 4. First run
 
 The database schema is created automatically on the first request. Log in with the default admin credentials set in `config.php` and update them immediately via the admin panel.
+
+## SMS
+
+Game Night supports SMS notifications through multiple providers. Configure your provider in **Admin Settings > SMS**.
+
+### Supported Providers
+
+| Provider | Send Cost | Receive Cost | Number Cost | Notes |
+|---|---|---|---|---|
+| **Twilio** | ~$0.0079/msg | ~$0.0075/msg | $1.15/mo | Most popular, official SDK |
+| **Vonage (Nexmo)** | ~$0.0068/msg | ~$0.0050/msg | $1.00/mo | Mature API |
+| **Plivo** | ~$0.0050/msg | Free inbound | $0.80/mo | Cheapest for two-way |
+| **Telnyx** | ~$0.0040/msg | ~$0.0020/msg | $1.00/mo | Cheapest at volume |
+
+### What SMS Does
+
+- **Event invites** — users are notified via their preferred method (email, SMS, or both) when invited to an event
+- **RSVP confirmations** — event creators are notified when someone RSVPs
+- **Event changes** — existing invitees are notified when an event is updated (when "notify invitees" is checked)
+- **Two-way RSVP** — users can reply YES, NO, or MAYBE to an SMS to update their RSVP
+
+### User Preferences
+
+Users choose their notification method in **My Settings > Preferred Contact Method**:
+- **Email** — email only
+- **SMS** — text message only
+- **Email & SMS** — both
+- **None** — no notifications
+
+Admins can override a user's preference from the user edit page.
+
+### Two-Way SMS Setup
+
+To enable inbound RSVP replies, configure your provider's inbound webhook URL to:
+
+```
+https://yourdomain.com/sms_webhook.php
+```
+
+When a user replies to an SMS notification with YES, NO, or MAYBE, the webhook:
+1. Looks up the user by phone number
+2. Finds their nearest upcoming event invite
+3. Updates the RSVP
+4. Sends a confirmation reply
+5. Notifies the event creator
 
 ## Branding
 
