@@ -7,6 +7,11 @@ db/
 # Claude Code settings (may contain passwords/keys)
 .claude/
 
+# Docker / server deployment files (server-specific, not for publishing)
+Dockerfile
+docker-compose.yml
+nginx.conf
+
 # Runtime user-uploaded files (not source)
 www/uploads/
 
