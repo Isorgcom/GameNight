@@ -1300,8 +1300,8 @@ function renderInvitesPanel(eid) {
     const rsvpClass = {yes:'rsvp-yes', no:'rsvp-no', maybe:'rsvp-maybe'};
     const rsvpText  = {yes:'Yes', no:'No', maybe:'Maybe'};
     if (invites.length) {
-        let ih = '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin-bottom:.4rem">Invites</div>';
-        ih += '<div style="display:flex;flex-direction:column;gap:.2rem">';
+        let ih = '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin-bottom:.4rem">Invites (' + invites.length + ')</div>';
+        ih += '<div style="display:flex;flex-direction:column;gap:.2rem;max-height:8.5rem;overflow-y:auto;padding-right:.25rem">';
         invites.forEach(inv => {
             const badge = inv.rsvp && rsvpClass[inv.rsvp]
                 ? '<span class="' + rsvpClass[inv.rsvp] + '">' + rsvpText[inv.rsvp] + '</span>'
