@@ -35,10 +35,14 @@ If you need to set up Docker and Nginx Proxy Manager first, run `server-prep.sh`
 
 ### 1. Clone the repository
 
+Clone into whatever directory you prefer, for example:
+
 ```bash
-git clone https://github.com/Isorgcom/GameNight.git /root/docker/GameNight
-cd /root/docker/GameNight
+git clone https://github.com/Isorgcom/GameNight.git ~/docker/GameNight
+cd ~/docker/GameNight
 ```
+
+All subsequent steps use your current directory (`cd` into the repo first), so the location doesn't matter.
 
 ### 2. Create the config file
 
@@ -53,8 +57,8 @@ cp config/config.example.php config/config.php
 The database and uploads directories must be writable by `www-data` (the Apache user inside the container):
 
 ```bash
-chown -R www-data:www-data /root/docker/GameNight/db/
-chown -R www-data:www-data /root/docker/GameNight/uploads/
+chown -R www-data:www-data db/
+chown -R www-data:www-data uploads/
 ```
 
 > **Important:** Do this step after every fresh clone. If the `db/` directory is owned by root, Apache cannot write the SQLite database and the site will return HTTP 500.
