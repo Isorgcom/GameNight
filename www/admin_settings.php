@@ -287,49 +287,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($action === 'sms_credentials') {
-            set_setting('twilio_sid',   trim($_POST['twilio_sid']   ?? ''));
-            set_setting('twilio_token', trim($_POST['twilio_token'] ?? ''));
-            set_setting('twilio_from',  trim($_POST['twilio_from']  ?? ''));
-            db_log_activity($current['id'], 'updated Twilio credentials');
-            $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Twilio credentials saved.'];
+            require_once __DIR__ . '/sms.php';
+            $prov = trim($_POST['sms_provider'] ?? 'twilio');
+            $providers = get_sms_providers();
+            if (!isset($providers[$prov])) $prov = 'twilio';
+            set_setting('sms_provider', $prov);
+            foreach ($providers[$prov]['fields'] as $key => $def) {
+                $val = trim($_POST[$key] ?? '');
+                if ($def['type'] === 'password' && $val === '') continue; // keep current
+                set_setting($key, $val);
+            }
+            db_log_activity($current['id'], "updated SMS credentials ($prov)");
+            $_SESSION['flash'] = ['type' => 'success', 'msg' => ucfirst($prov) . ' credentials saved.'];
             $post_tab = 'sms';
         }
 
         if ($action === 'sms_test') {
+            require_once __DIR__ . '/sms.php';
             $to   = normalize_phone(trim($_POST['to']   ?? ''));
             $body = trim($_POST['body'] ?? '');
 
             if (!$to || !$body) {
                 $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Phone number and message are required.'];
             } else {
-                $twilio_sid_val   = get_setting('twilio_sid');
-                $twilio_token_val = get_setting('twilio_token');
-                $twilio_from_val  = get_setting('twilio_from');
-
-                if (!$twilio_sid_val || !$twilio_token_val || !$twilio_from_val) {
-                    $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Twilio credentials not configured.'];
+                $err = send_sms($to, $body);
+                if ($err === null) {
+                    db_log_activity($current['id'], "sent test SMS to $to");
+                    $_SESSION['flash'] = ['type' => 'success', 'msg' => 'SMS sent successfully!'];
                 } else {
-                    $url  = 'https://api.twilio.com/2010-04-01/Accounts/' . $twilio_sid_val . '/Messages.json';
-                    $data = ['From' => $twilio_from_val, 'To' => $to, 'Body' => $body];
-
-                    $ch = curl_init($url);
-                    curl_setopt_array($ch, [
-                        CURLOPT_RETURNTRANSFER => true,
-                        CURLOPT_POST           => true,
-                        CURLOPT_POSTFIELDS     => http_build_query($data),
-                        CURLOPT_USERPWD        => $twilio_sid_val . ':' . $twilio_token_val,
-                    ]);
-                    $response = curl_exec($ch);
-                    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                    curl_close($ch);
-
-                    $json = json_decode($response, true);
-                    if ($httpCode === 201) {
-                        db_log_activity($current['id'], "sent test SMS to $to");
-                        $_SESSION['flash'] = ['type' => 'success', 'msg' => 'SMS sent! SID: ' . ($json['sid'] ?? 'unknown')];
-                    } else {
-                        $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Send failed: ' . ($json['message'] ?? "HTTP $httpCode")];
-                    }
+                    $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Send failed: ' . $err];
                 }
             }
             $post_tab = 'sms';
@@ -412,6 +398,15 @@ $token        = csrf_token();
 $twilio_sid   = get_setting('twilio_sid');
 $twilio_token = get_setting('twilio_token');
 $twilio_from  = get_setting('twilio_from');
+
+// SMS provider settings
+require_once __DIR__ . '/sms.php';
+$sms_provider  = get_setting('sms_provider', 'twilio');
+$sms_providers = get_sms_providers();
+$sms_sid       = get_setting('sms_sid')   ?: $twilio_sid;
+$sms_token     = get_setting('sms_token') ?: $twilio_token;
+$sms_from      = get_setting('sms_from')  ?: $twilio_from;
+$sms_configured = $sms_token && $sms_from;
 
 // ── Users data ───────────────────────────────────────────────────────────────
 $users = $db->query('SELECT id, username, email, role, created_at, last_login FROM users ORDER BY id')->fetchAll();
@@ -1116,41 +1111,52 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
     <div class="tab-panel <?= $tab === 'sms' ? 'active' : '' ?>">
         <div class="sms-grid">
 
-            <!-- Twilio Credentials -->
+            <!-- SMS Provider Credentials -->
             <div class="card" style="max-width:100%">
-                <h2>Twilio Credentials</h2>
-                <p class="subtitle">Stored in site settings. Keep your auth token private.</p>
-                <form method="post" action="/admin_settings.php">
+                <h2>SMS Provider</h2>
+                <p class="subtitle">Choose your SMS provider and enter credentials.</p>
+                <form method="post" action="/admin_settings.php" id="smsCredForm">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                     <input type="hidden" name="action" value="sms_credentials">
                     <input type="hidden" name="tab" value="sms">
 
                     <div class="form-group">
-                        <label for="twilio_sid">Account SID</label>
-                        <input type="text" id="twilio_sid" name="twilio_sid"
-                               value="<?= htmlspecialchars($twilio_sid) ?>"
-                               placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                               autocomplete="off">
+                        <label for="sms_provider">Provider</label>
+                        <select id="sms_provider" name="sms_provider"
+                                style="width:100%;padding:.5rem .75rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.95rem;background:#fff"
+                                onchange="toggleSmsFields()">
+                            <?php foreach ($sms_providers as $key => $prov): ?>
+                            <option value="<?= $key ?>"<?= $sms_provider === $key ? ' selected' : '' ?>><?= htmlspecialchars($prov['label']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
-                    <div class="form-group">
-                        <label for="twilio_token">Auth Token</label>
-                        <input type="password" id="twilio_token" name="twilio_token"
-                               value="<?= htmlspecialchars($twilio_token) ?>"
-                               placeholder="your_auth_token"
-                               autocomplete="new-password">
-                        <p class="cred-note">Token is stored as-is. Use environment variables in production.</p>
+
+                    <?php
+                    // Current values for each field
+                    $sms_field_values = [
+                        'sms_sid'   => $sms_sid,
+                        'sms_token' => $sms_token,
+                        'sms_from'  => $sms_from,
+                    ];
+                    foreach ($sms_providers as $pkey => $prov):
+                        foreach ($prov['fields'] as $fkey => $fdef):
+                    ?>
+                    <div class="form-group sms-field sms-field-<?= $pkey ?>" style="<?= $sms_provider !== $pkey ? 'display:none' : '' ?>">
+                        <label for="<?= $fkey ?>_<?= $pkey ?>"><?= htmlspecialchars($fdef['label']) ?></label>
+                        <input type="<?= $fdef['type'] ?>" id="<?= $fkey ?>_<?= $pkey ?>"
+                               name="<?= $fkey ?>"
+                               value="<?= $sms_provider === $pkey ? htmlspecialchars($sms_field_values[$fkey] ?? '') : '' ?>"
+                               placeholder="<?= htmlspecialchars($fdef['placeholder']) ?>"
+                               autocomplete="<?= $fdef['type'] === 'password' ? 'new-password' : 'off' ?>">
+                        <?php if ($fdef['type'] === 'password'): ?>
+                        <p class="cred-note">Leave blank to keep current value.</p>
+                        <?php endif; ?>
                     </div>
-                    <div class="form-group">
-                        <label for="twilio_from">From Number</label>
-                        <input type="text" id="twilio_from" name="twilio_from"
-                               value="<?= htmlspecialchars($twilio_from) ?>"
-                               placeholder="+12015550123">
-                        <p class="cred-note">Must be a Twilio-verified number or messaging service SID.</p>
-                    </div>
+                    <?php endforeach; endforeach; ?>
 
                     <div style="display:flex;align-items:center;gap:.75rem;margin-top:.25rem">
                         <button type="submit" class="btn btn-primary">Save Credentials</button>
-                        <?php if ($twilio_sid && $twilio_token && $twilio_from): ?>
+                        <?php if ($sms_configured): ?>
                             <span style="color:#16a34a;font-size:.8rem;font-weight:600">&#10003; Configured</span>
                         <?php else: ?>
                             <span style="color:#dc2626;font-size:.8rem;font-weight:600">&#9679; Not configured</span>
@@ -1162,7 +1168,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
             <!-- Send Test SMS -->
             <div class="card" style="max-width:100%">
                 <h2>Send Test Message</h2>
-                <p class="subtitle">Send a one-off SMS to any number to verify delivery.</p>
+                <p class="subtitle">Send a one-off SMS to verify delivery.</p>
                 <form method="post" action="/admin_settings.php">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                     <input type="hidden" name="action" value="sms_test">
@@ -1181,7 +1187,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                                   required>Hello from <?= htmlspecialchars($site_name) ?>! This is a test message.</textarea>
                     </div>
                     <button type="submit" class="btn btn-primary"
-                            <?= (!$twilio_sid || !$twilio_token || !$twilio_from) ? 'disabled title="Configure credentials first"' : '' ?>>
+                            <?= !$sms_configured ? 'disabled title="Configure credentials first"' : '' ?>>
                         Send SMS
                     </button>
                 </form>
@@ -1189,19 +1195,45 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
 
         </div>
 
-        <!-- Quick reference -->
-        <div class="table-card" style="margin-top:1.5rem;max-width:620px">
-            <h3>Twilio Quick Reference</h3>
+        <!-- Quick reference (dynamic per provider) -->
+        <?php $activeProv = $sms_providers[$sms_provider] ?? $sms_providers['twilio']; ?>
+        <?php foreach ($sms_providers as $pkey => $prov): ?>
+        <div class="table-card sms-help sms-help-<?= $pkey ?>" style="margin-top:1.5rem;max-width:620px;<?= $sms_provider !== $pkey ? 'display:none' : '' ?>">
+            <h3><?= htmlspecialchars($prov['label']) ?> Quick Reference</h3>
             <table>
                 <tbody>
-                    <tr><td style="color:#64748b;width:160px">Console</td><td><a href="https://console.twilio.com" target="_blank" rel="noopener">console.twilio.com</a></td></tr>
-                    <tr><td style="color:#64748b">Account SID</td><td>Found on Console dashboard, starts with <code>AC</code></td></tr>
-                    <tr><td style="color:#64748b">Auth Token</td><td>Found on Console dashboard (click to reveal)</td></tr>
-                    <tr><td style="color:#64748b">From Number</td><td>Buy a number under Phone Numbers &rsaquo; Manage</td></tr>
-                    <tr><td style="color:#64748b">Trial limits</td><td>Trial accounts can only send to verified numbers</td></tr>
+                    <?php foreach ($prov['help'] as $row): ?>
+                    <tr>
+                        <td style="color:#64748b;width:160px"><?= $row[0] ?></td>
+                        <td><?php
+                            if (str_starts_with($row[1], 'http')) {
+                                echo '<a href="' . htmlspecialchars($row[1]) . '" target="_blank" rel="noopener">' . htmlspecialchars($row[1]) . '</a>';
+                            } else {
+                                echo $row[1];
+                            }
+                        ?></td>
+                    </tr>
+                    <?php endforeach; ?>
                 </tbody>
             </table>
         </div>
+        <?php endforeach; ?>
+
+        <script>
+        function toggleSmsFields() {
+            var p = document.getElementById('sms_provider').value;
+            document.querySelectorAll('.sms-field').forEach(function(el) {
+                el.style.display = el.classList.contains('sms-field-' + p) ? '' : 'none';
+                // Disable hidden inputs so they don't submit
+                el.querySelectorAll('input').forEach(function(inp) {
+                    inp.disabled = !el.classList.contains('sms-field-' + p);
+                });
+            });
+            document.querySelectorAll('.sms-help').forEach(function(el) {
+                el.style.display = el.classList.contains('sms-help-' + p) ? '' : 'none';
+            });
+        }
+        </script>
     </div>
 
 </div>

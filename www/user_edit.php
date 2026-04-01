@@ -12,7 +12,7 @@ $id    = (int)($_GET['id'] ?? 0);
 $flash = ['type' => '', 'msg' => ''];
 
 // Load target user
-$stmt = $db->prepare('SELECT id, username, email, phone, role, created_at, last_login FROM users WHERE id = ?');
+$stmt = $db->prepare('SELECT id, username, email, phone, role, preferred_contact, created_at, last_login FROM users WHERE id = ?');
 $stmt->execute([$id]);
 $target = $stmt->fetch();
 
@@ -39,6 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $phone    = trim($_POST['phone'] ?? '');
             $phone    = $phone !== '' ? normalize_phone($phone) : '';
             $role     = in_array($_POST['role'] ?? '', ['admin', 'user']) ? $_POST['role'] : 'user';
+            $pref_contact = in_array($_POST['preferred_contact'] ?? '', ['email', 'sms', 'both', 'none']) ? $_POST['preferred_contact'] : 'email';
 
             if ($username === '') {
                 $flash = ['type' => 'error', 'msg' => 'Username cannot be empty.'];
@@ -65,8 +66,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
                 try {
-                    $db->prepare('UPDATE users SET username=?, email=?, phone=?, role=? WHERE id=?')
-                       ->execute([$username, $email, $phone ?: null, $role, $id]);
+                    $db->prepare('UPDATE users SET username=?, email=?, phone=?, role=?, preferred_contact=? WHERE id=?')
+                       ->execute([$username, $email, $phone ?: null, $role, $pref_contact, $id]);
                     db_log_activity($current['id'], "admin updated profile for user id: $id");
                     $flash = ['type' => 'success', 'msg' => 'Profile updated.'];
                     // Reload target
@@ -195,6 +196,15 @@ $site_name = get_setting('site_name', 'Game Night');
                     <select id="role" name="role" class="form-select">
                         <option value="user"  <?= $sel($target['role'], 'user') ?>>User</option>
                         <option value="admin" <?= $sel($target['role'], 'admin') ?>>Admin</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="preferred_contact">Notification Preference</label>
+                    <select id="preferred_contact" name="preferred_contact" class="form-select">
+                        <option value="email" <?= $sel($target['preferred_contact'] ?? 'email', 'email') ?>>Email</option>
+                        <option value="sms"   <?= $sel($target['preferred_contact'] ?? '', 'sms') ?>>SMS</option>
+                        <option value="both"  <?= $sel($target['preferred_contact'] ?? '', 'both') ?>>Email &amp; SMS</option>
+                        <option value="none"  <?= $sel($target['preferred_contact'] ?? '', 'none') ?>>None</option>
                     </select>
                 </div>
                 <button type="submit" class="btn btn-primary" style="width:100%">Save Profile</button>

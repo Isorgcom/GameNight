@@ -105,6 +105,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                    ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $recurrence, $recEnd, $id]);
                 $save_invites($id);
                 $notify_new_invitees($id, $old_inv, $title, $sd);
+
+                // Notify existing invitees about the change (if checkbox is checked)
+                if (!empty($_POST['notify_invitees'])) {
+                    $month = substr($sd, 0, 7);
+                    $evUrl = 'https://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/calendar.php?m=' . urlencode($month) . '&open=' . $id . '&date=' . urlencode($sd);
+                    $existInv = $db->prepare('SELECT ei.username, u.email, u.phone, u.preferred_contact FROM event_invites ei JOIN users u ON LOWER(u.username)=LOWER(ei.username) WHERE ei.event_id=? AND LOWER(ei.username) IN (' . implode(',', array_fill(0, max(1, count($old_inv)), '?')) . ')');
+                    $existInv->execute(array_merge([$id], $old_inv));
+                    foreach ($existInv->fetchAll() as $inv) {
+                        $smsBody  = "\"$title\" on $sd has been updated. View: $evUrl";
+                        $htmlBody = '<p>The event <strong>' . htmlspecialchars($title) . '</strong> on ' . htmlspecialchars($sd) . ' has been updated.</p>'
+                                  . '<p style="margin-top:1rem"><a href="' . htmlspecialchars($evUrl) . '" style="background:#2563eb;color:#fff;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600">View Event</a></p>';
+                        send_notification($inv['username'], $inv['email'] ?? '', $inv['phone'] ?? '',
+                            $inv['preferred_contact'] ?? 'email',
+                            "Event updated: $title ($sd)", $smsBody, $htmlBody);
+                    }
+                }
+
                 db_log_activity($current['id'], "edited event id: $id");
                 $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event updated.'];
             }

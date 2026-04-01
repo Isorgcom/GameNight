@@ -135,6 +135,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db->prepare('UPDATE event_invites SET rsvp=? WHERE event_id=? AND LOWER(username)=LOWER(?)')
                ->execute([$rsvp, $eid, $current['username']]);
             db_log_activity($current['id'], "updated RSVP for event id: $eid");
+
+            // Notify event creator about the RSVP
+            if ($rsvp) {
+                $evRow = $db->prepare('SELECT e.title, e.start_date, u.email, u.phone, u.preferred_contact, u.username FROM events e JOIN users u ON u.id=e.created_by WHERE e.id=?');
+                $evRow->execute([$eid]);
+                $creator = $evRow->fetch();
+                if ($creator && strtolower($creator['username']) !== strtolower($current['username'])) {
+                    require_once __DIR__ . '/auth_dl.php';
+                    $rsvpLabel = ucfirst($rsvp);
+                    $smsBody = $current['username'] . " RSVPed $rsvpLabel to \"" . $creator['title'] . '" on ' . $creator['start_date'];
+                    $htmlBody = '<p><strong>' . htmlspecialchars($current['username']) . '</strong> RSVPed <strong>' . $rsvpLabel . '</strong> to '
+                              . '<em>' . htmlspecialchars($creator['title']) . '</em> on ' . htmlspecialchars($creator['start_date']) . '.</p>';
+                    send_notification($creator['username'], $creator['email'] ?? '', $creator['phone'] ?? '',
+                        $creator['preferred_contact'] ?? 'email',
+                        $current['username'] . " RSVPed $rsvpLabel: " . $creator['title'],
+                        $smsBody, $htmlBody);
+                }
+            }
         }
         if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
             header('Content-Type: application/json');

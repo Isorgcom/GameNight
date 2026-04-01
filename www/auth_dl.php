@@ -167,33 +167,21 @@ function csrf_verify(): bool {
 }
 
 /**
- * Send an SMS via Twilio. Returns null on success, error string on failure.
+ * Send a notification via the user's preferred contact method.
+ * Routes to email, SMS, or both depending on preference.
  */
-function send_sms(string $to, string $body): ?string {
-    $digits = preg_replace('/\D/', '', $to);
-    if (strlen($digits) === 10) $digits = '1' . $digits;
-    if (strlen($digits) !== 11) return 'Invalid phone number.';
-    $e164 = '+' . $digits;
+function send_notification(string $username, string $email, string $phone, string $preferred_contact, string $subject, string $smsBody, string $htmlBody): void {
+    $doEmail = in_array($preferred_contact, ['email', 'both'], true) && $email !== '';
+    $doSms   = in_array($preferred_contact, ['sms',   'both'], true) && $phone !== '';
 
-    $sid   = get_setting('twilio_sid');
-    $token = get_setting('twilio_token');
-    $from  = get_setting('twilio_from');
-    if (!$sid || !$token || !$from) return 'SMS not configured.';
-
-    $url = 'https://api.twilio.com/2010-04-01/Accounts/' . $sid . '/Messages.json';
-    $ch  = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => http_build_query(['From' => $from, 'To' => $e164, 'Body' => $body]),
-        CURLOPT_USERPWD        => $sid . ':' . $token,
-    ]);
-    $response = curl_exec($ch);
-    $code     = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    if ($code === 201) return null;
-    $json = json_decode($response, true);
-    return $json['message'] ?? "HTTP $code";
+    if ($doEmail) {
+        require_once __DIR__ . '/mail.php';
+        send_email($email, $username, $subject, $htmlBody);
+    }
+    if ($doSms) {
+        require_once __DIR__ . '/sms.php';
+        send_sms($phone, $smsBody);
+    }
 }
 
 /**
@@ -202,18 +190,17 @@ function send_sms(string $to, string $body): ?string {
 function send_invite_notification(string $username, string $email, string $phone, string $preferred_contact, string $event_title, string $event_start, int $event_id = 0): void {
     $site  = get_setting('site_name', 'Game Night');
     $month = substr($event_start, 0, 7);
-    $url   = 'https://' . $_SERVER['HTTP_HOST'] . '/calendar.php'
+    $url   = 'https://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/calendar.php'
            . ($event_id > 0 ? '?m=' . urlencode($month) . '&open=' . $event_id . '&date=' . urlencode($event_start) : '');
 
-    if ($preferred_contact === 'sms' && $phone !== '') {
-        $msg = "You've been invited to \"$event_title\" on $event_start. View it at: $url";
-        send_sms($phone, $msg);
-    } elseif ($preferred_contact === 'email' && $email !== '') {
-        require_once __DIR__ . '/mail.php';
-        $html = '<p>Hi ' . htmlspecialchars($username) . ',</p>'
+    $smsBody = "You've been invited to \"$event_title\" on $event_start. View it at: $url";
+
+    $htmlBody = '<p>Hi ' . htmlspecialchars($username) . ',</p>'
               . '<p>You have been invited to <strong>' . htmlspecialchars($event_title) . '</strong> on ' . htmlspecialchars($event_start) . '.</p>'
               . '<p style="margin-top:1.5rem"><a href="' . htmlspecialchars($url) . '" style="background:#2563eb;color:#fff;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600">View Calendar</a></p>'
               . '<p style="color:#64748b;font-size:.875rem">You can update your RSVP after signing in.</p>';
-        send_email($email, $username, "You're invited: " . $event_title . ' (' . $event_start . ')', $html);
-    }
+
+    send_notification($username, $email, $phone, $preferred_contact,
+        "You're invited: " . $event_title . ' (' . $event_start . ')',
+        $smsBody, $htmlBody);
 }
