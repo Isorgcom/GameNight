@@ -173,6 +173,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
+// ── Auto-open event (e.g. after login redirect) ───────────────────────────────
+$autoOpenEvent = null;
+if (!empty($_GET['event']) && ctype_digit((string)$_GET['event'])) {
+    $aoRow = $db->prepare('SELECT * FROM events WHERE id = ?');
+    $aoRow->execute([(int)$_GET['event']]);
+    $aoRow = $aoRow->fetch();
+    if ($aoRow) {
+        $aoRow['recurrence']     = $aoRow['recurrence']     ?? 'none';
+        $aoRow['recurrence_end'] = $aoRow['recurrence_end'] ?? null;
+        $autoOpenEvent = $aoRow;
+        // Navigate to the correct month so the event is visible
+        if (!isset($_GET['m'])) {
+            $_GET['m'] = substr($aoRow['start_date'], 0, 7);
+        }
+    }
+}
+
 // ── Month navigation ──────────────────────────────────────────────────────────
 $mParam  = preg_match('/^\d{4}-\d{2}$/', $_GET['m'] ?? '') ? $_GET['m'] : null;
 $today   = new DateTime('now', $local_tz);
@@ -1151,6 +1168,7 @@ const CAL_REDIR         = '/calendar.php?m=<?= htmlspecialchars($monthParam) ?>'
 const CAL_CSRF          = <?= json_encode($token) ?>;
 const CAL_CURRENT_ID    = <?= json_encode((int)($current['id'] ?? 0)) ?>;
 const IS_ADMIN = <?= $isAdmin ? 'true' : 'false' ?>;
+const AUTO_OPEN_EVENT = <?= $autoOpenEvent ? json_encode($autoOpenEvent) : 'null' ?>;
 <?php if ($isAdmin): ?>
 const ALL_USERS = <?= json_encode(array_values($allUsers)) ?>;
 <?php endif; ?>
@@ -1931,6 +1949,10 @@ function initWeekView() {
 
 document.addEventListener('DOMContentLoaded', initWeekView);
 <?php endif; ?>
+
+if (AUTO_OPEN_EVENT) {
+    document.addEventListener('DOMContentLoaded', function() { viewEvent(AUTO_OPEN_EVENT); });
+}
 </script>
 
 </body>
