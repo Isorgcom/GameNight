@@ -1287,10 +1287,14 @@ function renderInvitesPanel(eid) {
         let ih = '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin-bottom:.4rem">Invites</div>';
         ih += '<div style="display:flex;flex-direction:column;gap:.2rem">';
         invites.forEach(inv => {
-            ih += '<div style="font-size:.875rem;color:#334155;display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">' + escHtml(inv.username);
+            const badge = inv.rsvp && rsvpClass[inv.rsvp]
+                ? '<span class="' + rsvpClass[inv.rsvp] + '">' + rsvpText[inv.rsvp] + '</span>'
+                : '<span style="font-size:.75rem;color:#cbd5e1;font-weight:600">--</span>';
+            ih += '<div style="font-size:.875rem;color:#334155;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">';
+            ih += '<span style="min-width:52px;text-align:center">' + badge + '</span>';
+            ih += escHtml(inv.username);
             if (inv.phone) ih += ' <span style="color:#64748b">&middot; ' + escHtml(inv.phone) + '</span>';
             if (inv.email) ih += ' <span style="color:#64748b">&middot; ' + escHtml(inv.email) + '</span>';
-            if (inv.rsvp && rsvpClass[inv.rsvp]) ih += ' <span class="' + rsvpClass[inv.rsvp] + '">' + rsvpText[inv.rsvp] + '</span>';
             ih += '</div>';
         });
         ih += '</div>';
