@@ -21,3 +21,8 @@ www/_backups/
 
 # PHP vendor dependencies (install via composer on the server)
 www/vendor/
+
+# Third-party DB admin tools (download/deploy separately)
+www/phpadmin/adminer.php
+www/phpadmin/phpliteadmin.php
+www/phpadmin/pla/
