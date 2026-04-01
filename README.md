@@ -89,7 +89,7 @@ The database schema is created automatically on the first request. Log in with:
 - **Email:** `admin@localhost`
 - **Password:** `admin`
 
-You will be prompted to set a new password immediately after logging in.
+You will be redirected to set a new password before accessing the site.
 
 ---
 

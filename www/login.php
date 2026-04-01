@@ -27,6 +27,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $result = attempt_login($email, $password);
             if ($result === true) {
+                $u = current_user();
+                if (!empty($u['must_change_password'])) {
+                    header('Location: /settings.php?must_change=1');
+                    exit;
+                }
                 header('Location: ' . $redirect);
                 exit;
             } elseif ($result === 'unverified') {
