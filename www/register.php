@@ -35,7 +35,11 @@ if (get_setting('allow_registration', '1') !== '1') {
     exit;
 }
 
-$error = '';
+$error    = '';
+$redirect = $_POST['redirect'] ?? $_GET['redirect'] ?? '';
+if ($redirect === '' || !str_starts_with($redirect, '/') || str_starts_with($redirect, '//')) {
+    $redirect = '/';
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     session_start_safe();
@@ -53,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $error = register_user($username, $email, $password, $phone) ?? '';
             if ($error === '') {
-                header('Location: /');
+                header('Location: ' . $redirect);
                 exit;
             }
         }
@@ -90,6 +94,7 @@ $site_name = get_setting('site_name', 'Game Night');
 
         <form method="post" action="/register.php" novalidate>
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+            <input type="hidden" name="redirect" value="<?= htmlspecialchars($redirect) ?>">
 
             <div class="form-group">
                 <label for="email">Email</label>

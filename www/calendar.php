@@ -922,10 +922,15 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         </div>
         <?php endif; ?>
         <?php if (!$current): ?>
-        <div style="padding:.5rem 0;border-top:1px solid #f1f5f9">
-            <a id="vLoginBtn" href="/login.php" class="btn btn-primary" style="display:block;text-align:center;font-size:.875rem;text-decoration:none">
-                Login to join this event
+        <div style="padding:.5rem 0;border-top:1px solid #f1f5f9;display:flex;gap:.5rem">
+            <a id="vLoginBtn" href="/login.php" class="btn btn-primary" style="flex:1;text-align:center;font-size:.875rem;text-decoration:none">
+                Login to join
             </a>
+            <?php if (get_setting('allow_registration', '1') === '1'): ?>
+            <a id="vSignupLink" href="/register.php" class="btn btn-outline" style="flex:1;text-align:center;font-size:.875rem;text-decoration:none">
+                Sign up
+            </a>
+            <?php endif; ?>
         </div>
         <?php endif; ?>
         <?php if ($isAdmin): ?>
@@ -1195,6 +1200,8 @@ function viewEvent(ev) {
     renderInvitesPanel(ev.id);
     const vLoginBtn = document.getElementById('vLoginBtn');
     if (vLoginBtn) vLoginBtn.href = '/login.php?redirect=' + encodeURIComponent('/calendar.php?event=' + ev.id);
+    const vSignupLink = document.getElementById('vSignupLink');
+    if (vSignupLink) vSignupLink.href = '/register.php?redirect=' + encodeURIComponent('/calendar.php?event=' + ev.id);
     <?php if ($isAdmin): ?>
     document.getElementById('vDeleteId').value = ev.id;
     // Show/configure occurrence-delete only for recurring events
