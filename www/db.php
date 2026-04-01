@@ -168,7 +168,7 @@ function db_init(PDO $pdo): void {
     if ((int)$count === 0) {
         $hash = password_hash('admin', PASSWORD_BCRYPT);
         $pdo->prepare(
-            "INSERT INTO users (username, password_hash, email, role, must_change_password) VALUES (?, ?, ?, 'admin', 1)"
+            "INSERT INTO users (username, password_hash, email, role, must_change_password, email_verified) VALUES (?, ?, ?, 'admin', 1, 1)"
         )->execute(['admin', $hash, 'admin@localhost']);
     }
 }
