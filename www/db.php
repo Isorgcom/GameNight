@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/version.php';
 // Load credentials from config file stored outside the web root
 if (file_exists('/var/config/config.php')) {
     require_once '/var/config/config.php';
