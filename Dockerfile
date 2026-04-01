@@ -16,8 +16,9 @@ RUN curl -fsSL https://www.sqlite.org/2026/sqlite-autoconf-3510300.tar.gz -o /tm
 RUN docker-php-ext-configure pdo_sqlite --with-pdo-sqlite=/usr/local \
     && docker-php-ext-install pdo pdo_sqlite
 
-# Enable .htaccess overrides
-RUN sed -i 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf
+# Enable .htaccess overrides and mod_rewrite
+RUN sed -i 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf \
+    && a2enmod rewrite
 
 # Raise PHP upload limits
 RUN echo "upload_max_filesize=20M\npost_max_size=22M" > /usr/local/etc/php/conf.d/uploads.ini
