@@ -69,7 +69,7 @@ if (!empty($_SESSION['flash'])) {
     unset($_SESSION['flash']);
 }
 
-$tab = in_array($_GET['tab'] ?? '', ['dashboard', 'general', 'appearance', 'logs', 'users', 'email']) ? $_GET['tab'] : 'dashboard';
+$tab = in_array($_GET['tab'] ?? '', ['dashboard', 'general', 'appearance', 'logs', 'users', 'email', 'sms']) ? $_GET['tab'] : 'dashboard';
 
 // ── POST ─────────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -286,6 +286,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $post_tab = 'appearance';
         }
 
+        if ($action === 'sms_credentials') {
+            set_setting('twilio_sid',   trim($_POST['twilio_sid']   ?? ''));
+            set_setting('twilio_token', trim($_POST['twilio_token'] ?? ''));
+            set_setting('twilio_from',  trim($_POST['twilio_from']  ?? ''));
+            db_log_activity($current['id'], 'updated Twilio credentials');
+            $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Twilio credentials saved.'];
+            $post_tab = 'sms';
+        }
+
+        if ($action === 'sms_test') {
+            $to   = normalize_phone(trim($_POST['to']   ?? ''));
+            $body = trim($_POST['body'] ?? '');
+
+            if (!$to || !$body) {
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Phone number and message are required.'];
+            } else {
+                $twilio_sid_val   = get_setting('twilio_sid');
+                $twilio_token_val = get_setting('twilio_token');
+                $twilio_from_val  = get_setting('twilio_from');
+
+                if (!$twilio_sid_val || !$twilio_token_val || !$twilio_from_val) {
+                    $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Twilio credentials not configured.'];
+                } else {
+                    $url  = 'https://api.twilio.com/2010-04-01/Accounts/' . $twilio_sid_val . '/Messages.json';
+                    $data = ['From' => $twilio_from_val, 'To' => $to, 'Body' => $body];
+
+                    $ch = curl_init($url);
+                    curl_setopt_array($ch, [
+                        CURLOPT_RETURNTRANSFER => true,
+                        CURLOPT_POST           => true,
+                        CURLOPT_POSTFIELDS     => http_build_query($data),
+                        CURLOPT_USERPWD        => $twilio_sid_val . ':' . $twilio_token_val,
+                    ]);
+                    $response = curl_exec($ch);
+                    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                    curl_close($ch);
+
+                    $json = json_decode($response, true);
+                    if ($httpCode === 201) {
+                        db_log_activity($current['id'], "sent test SMS to $to");
+                        $_SESSION['flash'] = ['type' => 'success', 'msg' => 'SMS sent! SID: ' . ($json['sid'] ?? 'unknown')];
+                    } else {
+                        $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Send failed: ' . ($json['message'] ?? "HTTP $httpCode")];
+                    }
+                }
+            }
+            $post_tab = 'sms';
+        }
+
         if ($action === 'banner_remove') {
             foreach (glob(__DIR__ . '/uploads/banner.*') ?: [] as $f) { @unlink($f); }
             set_setting('banner_path', '');
@@ -317,9 +366,12 @@ $log_rows  = $db->prepare("
 $log_rows->execute([$per_page, $offset]);
 $log_rows = $log_rows->fetchAll();
 
-$site_name = get_setting('site_name', 'Game Night');
-$timezone  = get_setting('timezone', 'UTC');
-$token     = csrf_token();
+$site_name    = get_setting('site_name', 'Game Night');
+$timezone     = get_setting('timezone', 'UTC');
+$token        = csrf_token();
+$twilio_sid   = get_setting('twilio_sid');
+$twilio_token = get_setting('twilio_token');
+$twilio_from  = get_setting('twilio_from');
 
 // ── Users data ───────────────────────────────────────────────────────────────
 $users = $db->query('SELECT id, username, email, role, created_at, last_login FROM users ORDER BY id')->fetchAll();
@@ -339,6 +391,9 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
     <link rel="stylesheet" href="/style.css">
     <style>
         .hint { font-size: .78rem; color: #94a3b8; margin-top: .35rem; }
+        .sms-grid { display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; }
+        @media (max-width:640px) { .sms-grid { grid-template-columns:1fr; } }
+        .cred-note { font-size:.78rem; color:#94a3b8; margin-top:.25rem; }
 
         .tabs {
             display: flex;
@@ -454,6 +509,8 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
            class="tab-btn <?= $tab === 'users' ? 'active' : '' ?>">Users</a>
         <a href="/admin_settings.php?tab=email"
            class="tab-btn <?= $tab === 'email' ? 'active' : '' ?>">Email</a>
+        <a href="/admin_settings.php?tab=sms"
+           class="tab-btn <?= $tab === 'sms' ? 'active' : '' ?>">SMS</a>
     </div>
 
     <!-- ── Dashboard tab ── -->
@@ -933,6 +990,98 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                 </form>
             </div>
 
+        </div>
+    </div>
+
+    <!-- ── SMS tab ── -->
+    <div class="tab-panel <?= $tab === 'sms' ? 'active' : '' ?>">
+        <div class="sms-grid">
+
+            <!-- Twilio Credentials -->
+            <div class="card" style="max-width:100%">
+                <h2>Twilio Credentials</h2>
+                <p class="subtitle">Stored in site settings. Keep your auth token private.</p>
+                <form method="post" action="/admin_settings.php">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                    <input type="hidden" name="action" value="sms_credentials">
+                    <input type="hidden" name="tab" value="sms">
+
+                    <div class="form-group">
+                        <label for="twilio_sid">Account SID</label>
+                        <input type="text" id="twilio_sid" name="twilio_sid"
+                               value="<?= htmlspecialchars($twilio_sid) ?>"
+                               placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                               autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="twilio_token">Auth Token</label>
+                        <input type="password" id="twilio_token" name="twilio_token"
+                               value="<?= htmlspecialchars($twilio_token) ?>"
+                               placeholder="your_auth_token"
+                               autocomplete="new-password">
+                        <p class="cred-note">Token is stored as-is. Use environment variables in production.</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="twilio_from">From Number</label>
+                        <input type="text" id="twilio_from" name="twilio_from"
+                               value="<?= htmlspecialchars($twilio_from) ?>"
+                               placeholder="+12015550123">
+                        <p class="cred-note">Must be a Twilio-verified number or messaging service SID.</p>
+                    </div>
+
+                    <div style="display:flex;align-items:center;gap:.75rem;margin-top:.25rem">
+                        <button type="submit" class="btn btn-primary">Save Credentials</button>
+                        <?php if ($twilio_sid && $twilio_token && $twilio_from): ?>
+                            <span style="color:#16a34a;font-size:.8rem;font-weight:600">&#10003; Configured</span>
+                        <?php else: ?>
+                            <span style="color:#dc2626;font-size:.8rem;font-weight:600">&#9679; Not configured</span>
+                        <?php endif; ?>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Send Test SMS -->
+            <div class="card" style="max-width:100%">
+                <h2>Send Test Message</h2>
+                <p class="subtitle">Send a one-off SMS to any number to verify delivery.</p>
+                <form method="post" action="/admin_settings.php">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                    <input type="hidden" name="action" value="sms_test">
+                    <input type="hidden" name="tab" value="sms">
+
+                    <div class="form-group">
+                        <label for="sms_to">To (phone number)</label>
+                        <input type="tel" id="sms_to" name="to"
+                               placeholder="+12015550199" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="sms_body">Message</label>
+                        <textarea id="sms_body" name="body" rows="4"
+                                  style="width:100%;resize:vertical"
+                                  placeholder="Hello from <?= htmlspecialchars($site_name) ?>!"
+                                  required>Hello from <?= htmlspecialchars($site_name) ?>! This is a test message.</textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary"
+                            <?= (!$twilio_sid || !$twilio_token || !$twilio_from) ? 'disabled title="Configure credentials first"' : '' ?>>
+                        Send SMS
+                    </button>
+                </form>
+            </div>
+
+        </div>
+
+        <!-- Quick reference -->
+        <div class="table-card" style="margin-top:1.5rem;max-width:620px">
+            <h3>Twilio Quick Reference</h3>
+            <table>
+                <tbody>
+                    <tr><td style="color:#64748b;width:160px">Console</td><td><a href="https://console.twilio.com" target="_blank" rel="noopener">console.twilio.com</a></td></tr>
+                    <tr><td style="color:#64748b">Account SID</td><td>Found on Console dashboard, starts with <code>AC</code></td></tr>
+                    <tr><td style="color:#64748b">Auth Token</td><td>Found on Console dashboard (click to reveal)</td></tr>
+                    <tr><td style="color:#64748b">From Number</td><td>Buy a number under Phone Numbers &rsaquo; Manage</td></tr>
+                    <tr><td style="color:#64748b">Trial limits</td><td>Trial accounts can only send to verified numbers</td></tr>
+                </tbody>
+            </table>
         </div>
     </div>
 
