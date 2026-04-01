@@ -758,7 +758,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                     <?php if ($header_banner_path): ?>
                     <div style="background:<?= htmlspecialchars(get_setting('nav_bg_color','') ?: '#0f172a') ?>;padding:.65rem 1rem;border-radius:8px;margin-bottom:.85rem;text-align:center">
                         <img src="<?= htmlspecialchars($header_banner_path) ?>?v=<?= time() ?>"
-                             alt="Current header banner" style="max-height:<?= max(20, min(200, (int)get_setting('header_banner_height','46'))) - 10 ?>px;max-width:100%">
+                             alt="Current header banner" style="max-height:<?= max(20, min(200, (int)get_setting('header_banner_height','140'))) - 10 ?>px;max-width:100%">
                     </div>
                     <form method="post" action="/admin_settings.php" style="margin-bottom:1rem">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
@@ -788,9 +788,9 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                         <input type="hidden" name="action" value="header_banner_height">
                         <input type="hidden" name="tab" value="appearance">
                         <div class="form-group">
-                            <label>Header Height: <strong id="hh_label"><?= (int)get_setting('header_banner_height','46') ?>px</strong></label>
+                            <label>Header Height: <strong id="hh_label"><?= (int)get_setting('header_banner_height','140') ?>px</strong></label>
                             <input type="range" name="header_banner_height" id="hh_slider"
-                                   min="20" max="200" value="<?= (int)get_setting('header_banner_height','46') ?>"
+                                   min="20" max="200" value="<?= (int)get_setting('header_banner_height','140') ?>"
                                    style="width:100%;margin:.5rem 0"
                                    oninput="document.getElementById('hh_label').textContent=this.value+'px'">
                             <p class="hint">Controls the nav bar height when a header banner is displayed (20–200 px, default 46).</p>

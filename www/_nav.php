@@ -10,7 +10,7 @@ $_nu                   = $nav_user ?? $current ?? $user ?? null;
 $_active               = $nav_active ?? '';
 $_banner               = get_setting('banner_path', '');
 $_header_banner        = get_setting('header_banner_path', '');
-$_header_banner_height = max(20, min(200, (int)get_setting('header_banner_height', '46')));
+$_header_banner_height = max(20, min(200, (int)get_setting('header_banner_height', '140')));
 
 // Cache-busting version strings using file modification time
 $_banner_v        = $_banner        ? @filemtime(__DIR__ . $_banner)        : 0;
