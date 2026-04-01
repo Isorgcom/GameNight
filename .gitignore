@@ -8,10 +8,8 @@ db/
 .claude/
 
 # Docker / server deployment files (server-specific, not for publishing)
-Dockerfile
 docker-compose.yml
 nginx.conf
-server-prep.sh
 
 # Runtime user-uploaded files (not source)
 www/uploads/
@@ -19,8 +17,8 @@ www/uploads/
 # Backups
 www/_backups/
 
-# PHP vendor dependencies (composer-managed — uncomment if using composer)
-# www/vendor/
+# PHP vendor dependencies (downloaded by docker-entrypoint.sh on first start)
+www/vendor/
 
 # Third-party DB admin tools (download/deploy separately)
 www/phpadmin/adminer.php

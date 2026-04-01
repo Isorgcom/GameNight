@@ -28,4 +28,9 @@ COPY www/ /var/www/html/
 # Create the DB directory owned by www-data so SQLite can write at runtime
 RUN mkdir -p /var/db && chown www-data:www-data /var/db
 
+# Entrypoint downloads vendor libs on first start (written to mounted ./www/vendor/)
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 EXPOSE 80
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
