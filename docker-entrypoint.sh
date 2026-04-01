@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 VENDOR="/var/www/html/vendor"
 
@@ -18,8 +18,8 @@ fi
 if [ ! -f "$VENDOR/jodit/jodit.min.js" ]; then
     echo "[entrypoint] Downloading Jodit 4.2.7..."
     mkdir -p "$VENDOR/jodit"
-    curl -fsSL https://cdn.jsdelivr.net/npm/jodit@4.2.7/build/jodit.min.js  -o "$VENDOR/jodit/jodit.min.js"
-    curl -fsSL https://cdn.jsdelivr.net/npm/jodit@4.2.7/build/jodit.min.css -o "$VENDOR/jodit/jodit.min.css"
+    curl -fsSL https://cdn.jsdelivr.net/npm/jodit@4.2.7/es2021/jodit.min.js  -o "$VENDOR/jodit/jodit.min.js"
+    curl -fsSL https://cdn.jsdelivr.net/npm/jodit@4.2.7/es2021/jodit.min.css -o "$VENDOR/jodit/jodit.min.css"
 fi
 
 if [ ! -f "$VENDOR/quill/quill.min.js" ]; then
