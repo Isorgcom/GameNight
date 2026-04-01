@@ -900,15 +900,15 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         <div id="vDesc"    class="ev-view-desc"></div>
         <div id="vInvites" style="display:none;margin:.25rem 0 0;padding:.6rem 0;border-top:1px solid #f1f5f9"></div>
         <?php if ($current): ?>
-        <div id="vRsvpWrap" style="display:none;padding:.6rem 0;border-top:1px solid #f1f5f9">
+        <div id="vRsvpWrap" style="display:none;margin:.5rem 0 0;padding:.65rem .85rem;border:2px solid #bfdbfe;border-radius:10px;background:#eff6ff">
             <input type="hidden" id="vRsvpCsrf" value="<?= htmlspecialchars($token) ?>">
             <input type="hidden" id="vRsvpEventId" value="">
-            <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin-bottom:.4rem">My RSVP</div>
+            <div style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#2563eb;margin-bottom:.5rem">Are you coming? &mdash; RSVP</div>
             <div style="display:flex;gap:.75rem;align-items:center">
                 <div id="vRsvpStatus" style="min-width:62px;text-align:center"></div>
                 <select id="vRsvpSelect"
-                        style="padding:.38rem .6rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.875rem;background:#fff">
-                    <option value="">--</option>
+                        style="padding:.42rem .7rem;border:1.5px solid #93c5fd;border-radius:7px;font-size:.9rem;background:#fff;color:#1e3a5f;font-weight:500">
+                    <option value="">-- select --</option>
                     <option value="yes">Yes</option>
                     <option value="no">No</option>
                     <option value="maybe">Maybe</option>
