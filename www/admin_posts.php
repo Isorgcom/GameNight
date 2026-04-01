@@ -451,7 +451,7 @@ $now_local = (new DateTime('now', $local_tz))->format('Y-m-d H:i:s');
     </div>
 </div>
 
-<footer>&copy; <?= (new DateTime('now', new DateTimeZone(get_setting('timezone', 'UTC'))))->format('Y') ?> <?= htmlspecialchars($site_name) ?> &nbsp;&mdash;&nbsp; <?= (new DateTime('now', new DateTimeZone(get_setting('timezone', 'UTC'))))->format('F j, Y g:i A')s*?> &nbsp;&mdash;&nbsp; v<?= htmlspecialchars(APP_VERSION) ?></footer>
+<footer>&copy; <?= (new DateTime('now', new DateTimeZone(get_setting('timezone', 'UTC'))))->format('Y') ?> <?= htmlspecialchars($site_name) ?> &nbsp;&mdash;&nbsp; <?= (new DateTime('now', new DateTimeZone(get_setting('timezone', 'UTC'))))->format('F j, Y g:i A') ?> &nbsp;&mdash;&nbsp; v<?= htmlspecialchars(APP_VERSION) ?></footer>
 
 <script src="/vendor/jodit/jodit.min.js"></script>
 <script>

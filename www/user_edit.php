@@ -261,7 +261,7 @@ $site_name = get_setting('site_name', 'Game Night');
 
 </div>
 
-<footer>&copy; <?= (new DateTime('now', new DateTimeZone(get_setting('timezone', 'UTC'))))->format('Y') ?> <?= htmlspecialchars($site_name) ?> &nbsp;&mdash;&nbsp; <?= (new DateTime('now', new DateTimeZone(get_setting('timezone', 'UTC'))))->format('F j, Y g:i A')s*?> &nbsp;&mdash;&nbsp; v<?= htmlspecialchars(APP_VERSION) ?></footer>
+<footer>&copy; <?= (new DateTime('now', new DateTimeZone(get_setting('timezone', 'UTC'))))->format('Y') ?> <?= htmlspecialchars($site_name) ?> &nbsp;&mdash;&nbsp; <?= (new DateTime('now', new DateTimeZone(get_setting('timezone', 'UTC'))))->format('F j, Y g:i A') ?> &nbsp;&mdash;&nbsp; v<?= htmlspecialchars(APP_VERSION) ?></footer>
 
 </body>
 </html>
