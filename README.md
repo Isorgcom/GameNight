@@ -4,6 +4,8 @@ A self-hosted PHP web application for organizing game night events. Members can 
 
 ## Features
 
+this is still a work in progress!!  
+
 - **User accounts** — registration with email verification, login, forgot/reset password
 - **Calendar** — create and RSVP to events, view upcoming events
 - **Posts** — rich-text announcements with comment support
