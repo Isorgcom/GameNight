@@ -901,23 +901,19 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         <div id="vInvites" style="display:none;margin:.25rem 0 0;padding:.6rem 0;border-top:1px solid #f1f5f9"></div>
         <?php if ($current): ?>
         <div id="vRsvpWrap" style="display:none;padding:.6rem 0;border-top:1px solid #f1f5f9">
-            <form method="post" action="/calendar.php" id="vRsvpForm">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
-                <input type="hidden" name="action" value="update_rsvp">
-                <input type="hidden" name="event_id" id="vRsvpEventId" value="">
-                <input type="hidden" name="month_param" value="<?= htmlspecialchars($monthParam) ?>">
-                <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin-bottom:.4rem">My RSVP</div>
-                <div style="display:flex;gap:.5rem;align-items:center">
-                    <select name="rsvp" id="vRsvpSelect"
-                            style="padding:.38rem .6rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.875rem;background:#fff">
-                        <option value="">--</option>
-                        <option value="yes">Yes</option>
-                        <option value="no">No</option>
-                        <option value="maybe">Maybe</option>
-                    </select>
-                    <button type="submit" class="btn btn-primary" style="padding:.38rem .85rem;font-size:.875rem">Save</button>
-                </div>
-            </form>
+            <input type="hidden" id="vRsvpCsrf" value="<?= htmlspecialchars($token) ?>">
+            <input type="hidden" id="vRsvpEventId" value="">
+            <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin-bottom:.4rem">My RSVP</div>
+            <div style="display:flex;gap:.75rem;align-items:center">
+                <div id="vRsvpStatus" style="min-width:62px;text-align:center"></div>
+                <select id="vRsvpSelect"
+                        style="padding:.38rem .6rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.875rem;background:#fff">
+                    <option value="">--</option>
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                    <option value="maybe">Maybe</option>
+                </select>
+            </div>
         </div>
         <?php endif; ?>
         <?php if ($current): ?>
@@ -1177,6 +1173,7 @@ function viewEvent(ev) {
         if (isInvited) {
             document.getElementById('vRsvpEventId').value = ev.id;
             document.getElementById('vRsvpSelect').value  = myInvite.rsvp || '';
+            updateRsvpStatusBadge(myInvite.rsvp || '');
             vRsvpWrap.style.display = '';
         } else {
             vRsvpWrap.style.display = 'none';
@@ -1290,7 +1287,7 @@ function renderInvitesPanel(eid) {
         let ih = '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin-bottom:.4rem">Invites</div>';
         ih += '<div style="display:flex;flex-direction:column;gap:.2rem">';
         invites.forEach(inv => {
-            ih += '<div style="font-size:.875rem;color:#334155;display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">&#128100; ' + escHtml(inv.username);
+            ih += '<div style="font-size:.875rem;color:#334155;display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">' + escHtml(inv.username);
             if (inv.phone) ih += ' <span style="color:#64748b">&middot; ' + escHtml(inv.phone) + '</span>';
             if (inv.email) ih += ' <span style="color:#64748b">&middot; ' + escHtml(inv.email) + '</span>';
             if (inv.rsvp && rsvpClass[inv.rsvp]) ih += ' <span class="' + rsvpClass[inv.rsvp] + '">' + rsvpText[inv.rsvp] + '</span>';
@@ -1362,11 +1359,28 @@ if (vCommentForm) {
     });
 }
 
-const vRsvpForm = document.getElementById('vRsvpForm');
-if (vRsvpForm) {
-    vRsvpForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        const data = new FormData(this);
+function updateRsvpStatusBadge(rsvp) {
+    const el = document.getElementById('vRsvpStatus');
+    if (!el) return;
+    const cls  = {yes:'rsvp-yes', no:'rsvp-no', maybe:'rsvp-maybe'};
+    const text = {yes:'Yes',      no:'No',       maybe:'Maybe'};
+    if (rsvp && cls[rsvp]) {
+        el.innerHTML = '<span class="' + cls[rsvp] + '">' + text[rsvp] + '</span>';
+    } else {
+        el.innerHTML = '<span style="font-size:.78rem;color:#94a3b8">--</span>';
+    }
+}
+
+const vRsvpSelect = document.getElementById('vRsvpSelect');
+if (vRsvpSelect) {
+    vRsvpSelect.addEventListener('change', function() {
+        const eid  = parseInt(document.getElementById('vRsvpEventId').value);
+        const rsvp = this.value;
+        const data = new FormData();
+        data.append('csrf_token', document.getElementById('vRsvpCsrf').value);
+        data.append('action',     'update_rsvp');
+        data.append('event_id',   eid);
+        data.append('rsvp',       rsvp);
         fetch('/calendar.php', {
             method: 'POST',
             body: data,
@@ -1375,14 +1389,12 @@ if (vRsvpForm) {
         .then(r => r.json())
         .then(res => {
             if (!res.ok) return;
-            // Update in-memory invite and re-render the panel
-            const eid  = parseInt(document.getElementById('vRsvpEventId').value);
-            const rsvp = document.getElementById('vRsvpSelect').value;
             const list = eventInvites[eid];
             if (list) {
                 const inv = list.find(i => i.username.toLowerCase() === CURRENT_USERNAME.toLowerCase());
                 if (inv) inv.rsvp = rsvp || null;
             }
+            updateRsvpStatusBadge(rsvp);
             renderInvitesPanel(eid);
             showSavedBar();
         })
@@ -1415,6 +1427,7 @@ if (vSignupBtn) {
             if (vRsvpW) {
                 document.getElementById('vRsvpEventId').value = eid;
                 document.getElementById('vRsvpSelect').value  = '';
+                updateRsvpStatusBadge('');
                 vRsvpW.style.display = '';
             }
             showSavedBar('Signed up!');
