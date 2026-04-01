@@ -54,11 +54,11 @@ cp config/config.example.php config/config.php
 
 ### 3. Fix directory permissions
 
-The database and uploads directories must be writable by `www-data` (the Apache user inside the container):
+The `db/` directory is gitignored and won't exist after a fresh clone. Create it and set ownership so `www-data` (the Apache user inside the container) can write to it:
 
 ```bash
-chown -R www-data:www-data db/
-chown -R www-data:www-data uploads/
+mkdir -p db uploads
+chown -R www-data:www-data db/ uploads/
 ```
 
 > **Important:** Do this step after every fresh clone. If the `db/` directory is owned by root, Apache cannot write the SQLite database and the site will return HTTP 500.
