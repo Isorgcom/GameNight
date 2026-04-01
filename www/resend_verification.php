@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/auth_dl.php';
 
 if (current_user()) { header('Location: /'); exit; }
 
