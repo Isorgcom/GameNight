@@ -343,6 +343,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $post_tab = 'appearance';
         }
 
+        if ($action === 'header_banner_upload') {
+            if (isset($_FILES['header_banner']) && $_FILES['header_banner']['error'] === UPLOAD_ERR_OK) {
+                $tmp  = $_FILES['header_banner']['tmp_name'];
+                $mime = mime_content_type($tmp);
+                $allowed_mime = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp'];
+                if (isset($allowed_mime[$mime]) && $_FILES['header_banner']['size'] <= 4 * 1024 * 1024) {
+                    $ext  = $allowed_mime[$mime];
+                    $dest = __DIR__ . '/uploads/header_banner.' . $ext;
+                    foreach (glob(__DIR__ . '/uploads/header_banner.*') ?: [] as $old) { @unlink($old); }
+                    if (move_uploaded_file($tmp, $dest)) {
+                        set_setting('header_banner_path', '/uploads/header_banner.' . $ext);
+                        db_log_activity($current['id'], 'uploaded header banner');
+                        $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Header banner uploaded.'];
+                    } else {
+                        $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Upload failed — check directory permissions.'];
+                    }
+                } else {
+                    $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid file. Use JPEG, PNG, GIF, or WebP under 4 MB.'];
+                }
+            } else {
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'No file received.'];
+            }
+            $post_tab = 'appearance';
+        }
+
+        if ($action === 'header_banner_remove') {
+            foreach (glob(__DIR__ . '/uploads/header_banner.*') ?: [] as $f) { @unlink($f); }
+            set_setting('header_banner_path', '');
+            db_log_activity($current['id'], 'removed header banner');
+            $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Header banner removed.'];
+            $post_tab = 'appearance';
+        }
+
+        if ($action === 'header_banner_height') {
+            $h = max(20, min(200, (int)($_POST['header_banner_height'] ?? 46)));
+            set_setting('header_banner_height', (string)$h);
+            $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Header height saved.'];
+            $post_tab = 'appearance';
+        }
+
         done:
     }
     header("Location: /admin_settings.php?tab=$post_tab");
@@ -705,6 +745,59 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                     </div>
                     <button type="submit" class="btn btn-primary" style="width:100%">Upload</button>
                 </form>
+            </div>
+        </div>
+
+        <!-- Header Banner -->
+        <div class="card" style="max-width:860px;margin-top:1.5rem">
+            <h2>Header Banner</h2>
+            <p class="subtitle">Large banner displayed in the center of the nav bar. JPEG, PNG, GIF, or WebP &mdash; max 4 MB.</p>
+            <?php $header_banner_path = get_setting('header_banner_path', ''); ?>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start">
+                <div>
+                    <?php if ($header_banner_path): ?>
+                    <div style="background:<?= htmlspecialchars(get_setting('nav_bg_color','') ?: '#0f172a') ?>;padding:.65rem 1rem;border-radius:8px;margin-bottom:.85rem;text-align:center">
+                        <img src="<?= htmlspecialchars($header_banner_path) ?>?v=<?= time() ?>"
+                             alt="Current header banner" style="max-height:<?= max(20, min(200, (int)get_setting('header_banner_height','46'))) - 10 ?>px;max-width:100%">
+                    </div>
+                    <form method="post" action="/admin_settings.php" style="margin-bottom:1rem">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                        <input type="hidden" name="action" value="header_banner_remove">
+                        <input type="hidden" name="tab" value="appearance">
+                        <button type="submit" class="btn btn-outline"
+                                style="color:#ef4444;border-color:#fca5a5;font-size:.82rem"
+                                onclick="return confirm('Remove the header banner?')">&#x2715; Remove Header Banner</button>
+                    </form>
+                    <?php endif; ?>
+                    <form method="post" action="/admin_settings.php" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                        <input type="hidden" name="action" value="header_banner_upload">
+                        <input type="hidden" name="tab" value="appearance">
+                        <div class="form-group">
+                            <label><?= $header_banner_path ? 'Replace Header Banner' : 'Upload Header Banner' ?></label>
+                            <input type="file" name="header_banner" required
+                                   accept="image/jpeg,image/png,image/gif,image/webp"
+                                   style="display:block;width:100%;padding:.45rem 0;font-size:.875rem">
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="width:100%">Upload</button>
+                    </form>
+                </div>
+                <div>
+                    <form method="post" action="/admin_settings.php">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                        <input type="hidden" name="action" value="header_banner_height">
+                        <input type="hidden" name="tab" value="appearance">
+                        <div class="form-group">
+                            <label>Header Height: <strong id="hh_label"><?= (int)get_setting('header_banner_height','46') ?>px</strong></label>
+                            <input type="range" name="header_banner_height" id="hh_slider"
+                                   min="20" max="200" value="<?= (int)get_setting('header_banner_height','46') ?>"
+                                   style="width:100%;margin:.5rem 0"
+                                   oninput="document.getElementById('hh_label').textContent=this.value+'px'">
+                            <p class="hint">Controls the nav bar height when a header banner is displayed (20–200 px, default 46).</p>
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="width:100%">Save Height</button>
+                    </form>
+                </div>
             </div>
         </div>
 
