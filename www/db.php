@@ -156,10 +156,21 @@ function db_init(PDO $pdo): void {
     try { $pdo->exec("ALTER TABLE users ADD COLUMN preferred_contact TEXT NOT NULL DEFAULT 'email'"); } catch (Exception $e) {}
 
     // Seed default site_settings on a fresh DB (INSERT OR IGNORE — never overwrites existing values)
+    $ins = $pdo->prepare('INSERT OR IGNORE INTO site_settings (key, value) VALUES (?, ?)');
+
     if (defined('DEFAULT_SETTINGS') && is_array(DEFAULT_SETTINGS)) {
-        $ins = $pdo->prepare('INSERT OR IGNORE INTO site_settings (key, value) VALUES (?, ?)');
         foreach (DEFAULT_SETTINGS as $k => $v) {
             $ins->execute([$k, $v]);
+        }
+    }
+
+    // Auto-seed banner paths if the files shipped with the repo are present
+    foreach ([
+        'banner_path'        => '/uploads/banner.png',
+        'header_banner_path' => '/uploads/header_banner.png',
+    ] as $key => $path) {
+        if (file_exists(__DIR__ . $path)) {
+            $ins->execute([$key, $path]);
         }
     }
 
