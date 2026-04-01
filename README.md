@@ -84,7 +84,12 @@ The `gamenight` container and Nginx Proxy Manager are both on the `npm_default` 
 
 ### 6. First login
 
-The database schema is created automatically on the first request. Default admin credentials are set in `config.php` (`admin` / `changeme` unless you edited it). **Change your password immediately** via the admin panel.
+The database schema is created automatically on the first request. Log in with:
+
+- **Username:** `admin`
+- **Password:** `admin`
+
+You will be prompted to set a new password immediately after logging in.
 
 ---
 
