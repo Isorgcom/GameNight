@@ -1,0 +1,17 @@
+# Credentials — never commit the real config
+config/config.php
+
+# SQLite database
+db/
+
+# Claude Code settings (may contain passwords/keys)
+.claude/
+
+# Runtime user-uploaded files (not source)
+www/uploads/
+
+# Backups
+www/_backups/
+
+# PHP vendor dependencies (install via composer on the server)
+www/vendor/

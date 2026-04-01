@@ -1,0 +1,19 @@
+# Disable directory listing
+Options -Indexes
+
+# Route favicon.ico requests to favicon.php (serves the uploaded site icon)
+RewriteEngine On
+RewriteRule ^favicon\.ico$ /favicon.php [L,R=302]
+
+# Hide PHP errors from the browser
+php_flag display_errors Off
+
+# Block direct web access to internal/partial PHP files
+<FilesMatch "^(auth|db|_nav|config|mail)\.php$">
+    Require all denied
+</FilesMatch>
+
+# Block any file named config.php anywhere in the webroot (defense-in-depth)
+<Files "config.php">
+    Require all denied
+</Files>

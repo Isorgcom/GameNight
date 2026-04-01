@@ -1,0 +1,19 @@
+services:
+  gamenight:
+    build: .
+    container_name: gamenight
+    restart: unless-stopped
+    expose:
+      - "80"
+    volumes:
+      - ./www:/var/www/html
+      - ./uploads:/var/www/html/uploads
+      - ./db:/var/db
+      - ./config:/var/config:ro
+    networks:
+      - default
+      - npm_default
+
+networks:
+  npm_default:
+    external: true
