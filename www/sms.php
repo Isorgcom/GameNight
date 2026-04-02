@@ -160,7 +160,110 @@ function sms_log(string $direction, string $phone, string $body, ?string $provid
     }
 }
 
-/* ── Provider implementations ─────────────────────────────────────────────── */
+/* ── WhatsApp via Meta Cloud API ──────────────────────────────────────────── */
+
+/**
+ * Send a WhatsApp message via Meta Cloud API.
+ * Uses a pre-approved template for business-initiated messages,
+ * or plain text if within a 24-hour reply window.
+ *
+ * Returns null on success, error string on failure.
+ */
+function send_whatsapp(string $to, string $body): ?string {
+    $e164 = sms_normalize_phone($to);
+    if (!$e164) return 'Invalid phone number.';
+
+    $phone_id = get_setting('wa_phone_id');
+    $token    = get_setting('wa_token');
+    if (!$phone_id || !$token) return 'WhatsApp not configured.';
+
+    // Auto-shorten URLs if enabled
+    if (get_setting('url_shortener_enabled') === '1') {
+        $body = preg_replace_callback(
+            '#https?://[^\s]+#',
+            fn($m) => shorten_url($m[0]),
+            $body
+        );
+    }
+
+    $raw = '';
+    $err = _wa_send_text($phone_id, $token, $e164, $body, $raw);
+    sms_log('outbound', $e164, $body, 'whatsapp', $err === null ? 'sent' : 'failed', $err, $raw);
+    return $err;
+}
+
+function _wa_send_text(string $phoneId, string $token, string $to, string $body, string &$raw = ''): ?string {
+    $url = 'https://graph.facebook.com/v21.0/' . $phoneId . '/messages';
+    $payload = [
+        'messaging_product' => 'whatsapp',
+        'to'                => preg_replace('/\D/', '', $to), // strip + for WhatsApp
+        'type'              => 'text',
+        'text'              => ['body' => $body],
+    ];
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_HTTPHEADER     => [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $token,
+        ],
+        CURLOPT_POSTFIELDS     => json_encode($payload),
+    ]);
+    $response = curl_exec($ch);
+    $code     = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    $raw = $response;
+    if ($code >= 200 && $code < 300) return null;
+    $json = json_decode($response, true);
+    $errMsg = $json['error']['message'] ?? null;
+    // If text fails (outside 24h window), try template
+    if ($errMsg && str_contains($errMsg, 'template')) {
+        return _wa_send_template($phoneId, $token, $to, $body, $raw);
+    }
+    return $errMsg ?? "HTTP $code";
+}
+
+/**
+ * Fallback: send via a pre-approved WhatsApp message template.
+ * Requires a template named in wa_template setting (default: 'event_notification').
+ */
+function _wa_send_template(string $phoneId, string $token, string $to, string $body, string &$raw = ''): ?string {
+    $template = get_setting('wa_template', 'hello_world');
+    $lang     = get_setting('wa_template_lang', 'en_US');
+    $url = 'https://graph.facebook.com/v21.0/' . $phoneId . '/messages';
+    $payload = [
+        'messaging_product' => 'whatsapp',
+        'to'                => preg_replace('/\D/', '', $to),
+        'type'              => 'template',
+        'template'          => [
+            'name'     => $template,
+            'language' => ['code' => $lang],
+            'components' => [
+                ['type' => 'body', 'parameters' => [['type' => 'text', 'text' => $body]]],
+            ],
+        ],
+    ];
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_HTTPHEADER     => [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $token,
+        ],
+        CURLOPT_POSTFIELDS     => json_encode($payload),
+    ]);
+    $response = curl_exec($ch);
+    $code     = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    $raw = $response;
+    if ($code >= 200 && $code < 300) return null;
+    $json = json_decode($response, true);
+    return $json['error']['message'] ?? "HTTP $code (template)";
+}
+
+/* ── SMS Provider implementations ────────────────────────────────────────── */
 
 function _sms_twilio(string $sid, string $token, string $from, string $to, string $body, string &$raw = ''): ?string {
     if (!$sid) return 'Twilio Account SID is required.';

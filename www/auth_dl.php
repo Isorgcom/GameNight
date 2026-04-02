@@ -171,8 +171,9 @@ function csrf_verify(): bool {
  * Routes to email, SMS, or both depending on preference.
  */
 function send_notification(string $username, string $email, string $phone, string $preferred_contact, string $subject, string $smsBody, string $htmlBody): void {
-    $doEmail = in_array($preferred_contact, ['email', 'both'], true) && $email !== '';
-    $doSms   = in_array($preferred_contact, ['sms',   'both'], true) && $phone !== '';
+    $doEmail    = in_array($preferred_contact, ['email', 'both'], true) && $email !== '';
+    $doSms      = in_array($preferred_contact, ['sms',   'both'], true) && $phone !== '';
+    $doWhatsApp = in_array($preferred_contact, ['whatsapp'], true) && $phone !== '';
 
     if ($doEmail) {
         require_once __DIR__ . '/mail.php';
@@ -181,6 +182,10 @@ function send_notification(string $username, string $email, string $phone, strin
     if ($doSms) {
         require_once __DIR__ . '/sms.php';
         send_sms($phone, $smsBody);
+    }
+    if ($doWhatsApp) {
+        require_once __DIR__ . '/sms.php';
+        send_whatsapp($phone, $smsBody);
     }
 }
 

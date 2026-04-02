@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $email    = strtolower(trim($_POST['email'] ?? ''));
             $phone    = trim($_POST['phone'] ?? '');
             $phone    = $phone !== '' ? normalize_phone($phone) : '';
-            $pref_contact = in_array($_POST['preferred_contact'] ?? '', ['email', 'sms', 'none'])
+            $pref_contact = in_array($_POST['preferred_contact'] ?? '', ['email', 'sms', 'whatsapp', 'none'])
                             ? $_POST['preferred_contact'] : 'email';
 
             if ($username === '') {
@@ -153,6 +153,7 @@ $site_name = get_setting('site_name', 'Game Night');
                     <select id="preferred_contact" name="preferred_contact" style="width:100%;padding:.5rem .75rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.95rem;background:#fff">
                         <option value="email"<?= ($me['preferred_contact'] ?? 'email') === 'email' ? ' selected' : '' ?>>Email</option>
                         <option value="sms"<?= ($me['preferred_contact'] ?? '') === 'sms'   ? ' selected' : '' ?>>SMS (text message)</option>
+                        <option value="whatsapp"<?= ($me['preferred_contact'] ?? '') === 'whatsapp' ? ' selected' : '' ?>>WhatsApp</option>
                         <option value="both"<?= ($me['preferred_contact'] ?? '') === 'both'  ? ' selected' : '' ?>>Email &amp; SMS</option>
                         <option value="none"<?= ($me['preferred_contact'] ?? '') === 'none'  ? ' selected' : '' ?>>None (do not notify me)</option>
                     </select>

@@ -337,6 +337,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $post_tab = 'sms';
         }
 
+        if ($action === 'wa_credentials') {
+            $phone_id     = trim($_POST['wa_phone_id'] ?? '');
+            $token        = trim($_POST['wa_token'] ?? '');
+            $verify_token = trim($_POST['wa_verify_token'] ?? '');
+            $template     = trim($_POST['wa_template'] ?? 'hello_world');
+            $lang         = trim($_POST['wa_template_lang'] ?? 'en_US');
+            if ($phone_id) set_setting('wa_phone_id', $phone_id);
+            if ($token)    set_setting('wa_token', $token);
+            set_setting('wa_verify_token', $verify_token);
+            set_setting('wa_template', $template);
+            set_setting('wa_template_lang', $lang);
+            db_log_activity($current['id'], 'updated WhatsApp credentials');
+            $_SESSION['flash'] = ['type' => 'success', 'msg' => 'WhatsApp credentials saved.'];
+            $post_tab = 'sms';
+        }
+
+        if ($action === 'wa_test') {
+            require_once __DIR__ . '/sms.php';
+            $to   = normalize_phone(trim($_POST['to'] ?? ''));
+            $body = trim($_POST['body'] ?? '');
+            if (!$to || !$body) {
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Phone number and message are required.'];
+            } else {
+                $err = send_whatsapp($to, $body);
+                if ($err === null) {
+                    db_log_activity($current['id'], "sent test WhatsApp to $to");
+                    $_SESSION['flash'] = ['type' => 'success', 'msg' => 'WhatsApp message sent!'];
+                } else {
+                    $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Send failed: ' . $err];
+                }
+            }
+            $post_tab = 'sms';
+        }
+
         if ($action === 'banner_remove') {
             foreach (glob(__DIR__ . '/uploads/banner.*') ?: [] as $f) { @unlink($f); }
             set_setting('banner_path', '');
@@ -424,6 +458,13 @@ $sms_token     = get_setting('sms_token') ?: $twilio_token;
 $sms_from      = get_setting('sms_from')  ?: $twilio_from;
 $sms_configured = $sms_token && $sms_from;
 $url_shortener_enabled = get_setting('url_shortener_enabled') === '1';
+
+// WhatsApp settings
+$wa_phone_id      = get_setting('wa_phone_id', '');
+$wa_token         = get_setting('wa_token', '');
+$wa_template      = get_setting('wa_template', 'hello_world');
+$wa_template_lang = get_setting('wa_template_lang', 'en_US');
+$wa_configured    = $wa_phone_id && $wa_token;
 
 // ── Users data ───────────────────────────────────────────────────────────────
 $users = $db->query('SELECT id, username, email, role, created_at, last_login FROM users ORDER BY id')->fetchAll();
@@ -1290,6 +1331,107 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
             </p>
         </div>
 
+
+        <!-- WhatsApp Section -->
+        <h3 style="margin-top:2rem;padding-top:1.5rem;border-top:2px solid #e2e8f0">WhatsApp (Meta Cloud API)</h3>
+        <div class="sms-grid">
+            <!-- WhatsApp Credentials -->
+            <div class="card" style="max-width:100%">
+                <h2>WhatsApp Credentials</h2>
+                <p class="subtitle">Connect to the <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener">Meta WhatsApp Business API</a>.</p>
+                <form method="post" action="/admin_settings.php">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                    <input type="hidden" name="action" value="wa_credentials">
+                    <input type="hidden" name="tab" value="sms">
+
+                    <div class="form-group">
+                        <label for="wa_phone_id">Phone Number ID</label>
+                        <input type="text" id="wa_phone_id" name="wa_phone_id"
+                               value="<?= htmlspecialchars($wa_phone_id) ?>"
+                               placeholder="123456789012345" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="wa_token">Permanent Access Token</label>
+                        <input type="password" id="wa_token" name="wa_token"
+                               value="" placeholder="EAAxxxxxxx..."
+                               autocomplete="new-password">
+                        <p class="cred-note">Leave blank to keep current value.</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="wa_verify_token">Webhook Verify Token</label>
+                        <input type="text" id="wa_verify_token" name="wa_verify_token"
+                               value="<?= htmlspecialchars(get_setting('wa_verify_token', '')) ?>"
+                               placeholder="any-secret-string" autocomplete="off">
+                        <p class="cred-note">Set the same string in Meta's webhook configuration for verification.</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="wa_template">Message Template Name</label>
+                        <input type="text" id="wa_template" name="wa_template"
+                               value="<?= htmlspecialchars($wa_template) ?>"
+                               placeholder="hello_world" autocomplete="off">
+                        <p class="cred-note">Used for business-initiated messages outside the 24h window. Default: <code>hello_world</code></p>
+                    </div>
+                    <div class="form-group">
+                        <label for="wa_template_lang">Template Language</label>
+                        <input type="text" id="wa_template_lang" name="wa_template_lang"
+                               value="<?= htmlspecialchars($wa_template_lang) ?>"
+                               placeholder="en_US" autocomplete="off">
+                    </div>
+
+                    <div style="display:flex;align-items:center;gap:.75rem;margin-top:.25rem">
+                        <button type="submit" class="btn btn-primary">Save Credentials</button>
+                        <?php if ($wa_configured): ?>
+                            <span style="color:#16a34a;font-size:.8rem;font-weight:600">&#10003; Configured</span>
+                        <?php else: ?>
+                            <span style="color:#dc2626;font-size:.8rem;font-weight:600">&#9679; Not configured</span>
+                        <?php endif; ?>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Send Test WhatsApp -->
+            <div class="card" style="max-width:100%">
+                <h2>Send Test WhatsApp</h2>
+                <p class="subtitle">Send a one-off WhatsApp message to verify delivery.</p>
+                <form method="post" action="/admin_settings.php">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                    <input type="hidden" name="action" value="wa_test">
+                    <input type="hidden" name="tab" value="sms">
+
+                    <div class="form-group">
+                        <label for="wa_to">To (phone number)</label>
+                        <input type="tel" id="wa_to" name="to"
+                               placeholder="+12015550199" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="wa_body">Message</label>
+                        <textarea id="wa_body" name="body" rows="4"
+                                  style="width:100%;resize:vertical"
+                                  placeholder="Hello from <?= htmlspecialchars($site_name) ?>!"
+                                  required>Hello from <?= htmlspecialchars($site_name) ?>! This is a test message.</textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary"
+                            <?= !$wa_configured ? 'disabled title="Configure credentials first"' : '' ?>>
+                        Send WhatsApp
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- WhatsApp Quick Reference -->
+        <div class="table-card" style="margin-top:1.5rem;max-width:620px">
+            <h3>WhatsApp Setup Guide</h3>
+            <table>
+                <tbody>
+                    <tr><td style="color:#64748b;width:160px">Meta Developer Portal</td><td><a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener">developers.facebook.com/apps</a></td></tr>
+                    <tr><td style="color:#64748b">Phone Number ID</td><td>App Dashboard &rsaquo; WhatsApp &rsaquo; API Setup &rsaquo; Phone Number ID</td></tr>
+                    <tr><td style="color:#64748b">Access Token</td><td>Create a System User under Business Settings &rsaquo; generate a permanent token with <code>whatsapp_business_messaging</code> permission</td></tr>
+                    <tr><td style="color:#64748b">Message Templates</td><td>WhatsApp Manager &rsaquo; Message Templates &mdash; required for messages outside the 24h reply window</td></tr>
+                    <tr><td style="color:#64748b">Webhook (inbound)</td><td>App Dashboard &rsaquo; WhatsApp &rsaquo; Configuration &rsaquo; Webhook URL: <code><?= htmlspecialchars('https://' . $_SERVER['HTTP_HOST'] . '/wa_webhook.php') ?></code></td></tr>
+                    <tr><td style="color:#64748b">Verify Token</td><td>Set in your app's webhook config &mdash; use any secret string</td></tr>
+                </tbody>
+            </table>
+        </div>
 
         <script>
         function toggleSmsFields() {
