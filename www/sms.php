@@ -77,23 +77,14 @@ function sms_normalize_phone(string $to): ?string {
 }
 
 /**
- * Shorten a URL via t.ly. Returns the short URL on success, original URL on failure.
+ * Shorten a URL via is.gd (free, no API key required).
+ * Returns the short URL on success, original URL on any failure.
  */
 function shorten_url(string $url): string {
-    $api_key = get_setting('tly_api_key');
-    if (!$api_key) return $url;
-
-    $ch = curl_init('https://t.ly/api/v1/link/shorten');
+    $ch = curl_init('https://is.gd/create.php?format=json&url=' . urlencode($url));
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST           => true,
-        CURLOPT_HTTPHEADER     => [
-            'Content-Type: application/json',
-            'Authorization: Bearer ' . $api_key,
-            'Accept: application/json',
-        ],
-        CURLOPT_POSTFIELDS => json_encode(['long_url' => $url]),
-        CURLOPT_TIMEOUT    => 5,
+        CURLOPT_TIMEOUT        => 5,
     ]);
     $response = curl_exec($ch);
     $code     = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -101,7 +92,7 @@ function shorten_url(string $url): string {
 
     if ($code === 200) {
         $json = json_decode($response, true);
-        return $json['short_url'] ?? $url;
+        return $json['shorturl'] ?? $url;
     }
     return $url; // Fallback to original URL on any error
 }
@@ -114,8 +105,8 @@ function send_sms(string $to, string $body): ?string {
     $e164 = sms_normalize_phone($to);
     if (!$e164) return 'Invalid phone number.';
 
-    // Auto-shorten any URLs in the body if t.ly is configured
-    if (get_setting('tly_api_key')) {
+    // Auto-shorten any URLs in the body if URL shortener is enabled
+    if (get_setting('url_shortener_enabled') === '1') {
         $body = preg_replace_callback(
             '#https?://[^\s]+#',
             fn($m) => shorten_url($m[0]),
