@@ -1226,6 +1226,31 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
         </div>
         <?php endforeach; ?>
 
+        <!-- Inbound Webhook URL -->
+        <?php $webhook_url = 'https://' . $_SERVER['HTTP_HOST'] . '/sms_webhook.php'; ?>
+        <div class="table-card" style="margin-top:1.5rem;max-width:620px">
+            <h3>Inbound Webhook URL</h3>
+            <p style="font-size:.85rem;color:#64748b;margin:.25rem 0 .75rem">
+                Paste this URL into your provider's inbound message webhook / messaging profile so incoming SMS replies are received by this app.
+            </p>
+            <div style="display:flex;gap:.5rem;align-items:center">
+                <input type="text" id="webhook-url-field" readonly value="<?= htmlspecialchars($webhook_url) ?>"
+                       style="flex:1;font-family:monospace;font-size:.85rem;background:#f1f5f9;border:1.5px solid #e2e8f0;border-radius:7px;padding:.5rem .75rem;color:#1e293b;cursor:text">
+                <button type="button" onclick="
+                    navigator.clipboard.writeText(document.getElementById('webhook-url-field').value).then(function(){
+                        var b = this; b.textContent = 'Copied!';
+                        setTimeout(function(){ b.textContent = 'Copy'; }, 1500);
+                    }.bind(this));
+                " style="white-space:nowrap" class="btn btn-outline btn-sm">Copy</button>
+            </div>
+            <p style="font-size:.78rem;color:#94a3b8;margin-top:.6rem">
+                <strong>Telnyx:</strong> Messaging &rsaquo; Messaging Profiles &rsaquo; your profile &rsaquo; Inbound Settings &rsaquo; Webhook URL<br>
+                <strong>Twilio:</strong> Phone Numbers &rsaquo; your number &rsaquo; Messaging &rsaquo; Webhook (HTTP POST)<br>
+                <strong>Plivo:</strong> Phone Numbers &rsaquo; your number &rsaquo; Message URL<br>
+                <strong>Vonage:</strong> Numbers &rsaquo; your number &rsaquo; Edit &rsaquo; Inbound Webhook URL
+            </p>
+        </div>
+
         <!-- SMS Log -->
         <?php
         $smsLogCount = (int)$db->query('SELECT COUNT(*) FROM sms_log')->fetchColumn();
