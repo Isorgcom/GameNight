@@ -393,13 +393,14 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
 }
 
 /* ── Password show/hide toggle ── */
-.pw-wrap { position: relative; }
-.pw-wrap input { padding-right: 2.5rem; }
+.pw-wrap { position: relative; display: block; }
+.pw-wrap input { padding-right: 2.6rem !important; }
 .pw-toggle {
     position: absolute;
-    right: .6rem;
-    top: 50%;
-    transform: translateY(-50%);
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 2.4rem;
     background: none;
     border: none;
     padding: 0;
@@ -407,7 +408,7 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
     color: #94a3b8;
     display: flex;
     align-items: center;
-    line-height: 1;
+    justify-content: center;
 }
 .pw-toggle:hover { color: #475569; }
 
