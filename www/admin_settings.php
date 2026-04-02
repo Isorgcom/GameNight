@@ -1126,6 +1126,12 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
 
     <!-- ── SMS tab ── -->
     <div class="tab-panel <?= $tab === 'sms' ? 'active' : '' ?>">
+        <?php $smsLogCount = (int)$db->query('SELECT COUNT(*) FROM sms_log')->fetchColumn(); ?>
+        <div style="margin-bottom:1.5rem">
+            <a href="/sms_log.php" class="btn btn-outline" style="font-size:.85rem;padding:.5rem 1rem">
+                View SMS Log (<?= $smsLogCount ?>)
+            </a>
+        </div>
         <div class="sms-grid">
 
             <!-- SMS Provider Credentials -->
@@ -1284,13 +1290,6 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
             </p>
         </div>
 
-        <!-- SMS Log link -->
-        <?php $smsLogCount = (int)$db->query('SELECT COUNT(*) FROM sms_log')->fetchColumn(); ?>
-        <div style="margin-top:1.5rem">
-            <a href="/sms_log.php" class="btn btn-outline" style="font-size:.85rem;padding:.5rem 1rem">
-                View SMS Log (<?= $smsLogCount ?>)
-            </a>
-        </div>
 
         <script>
         function toggleSmsFields() {
