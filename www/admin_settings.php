@@ -1312,7 +1312,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                 <p style="color:#94a3b8;font-size:.875rem">No SMS messages logged yet.</p>
             <?php else: ?>
             <div style="overflow-x:auto">
-                <table style="font-size:.8rem;width:100%">
+                <table style="font-size:.8rem;width:100%;min-width:700px">
                     <thead>
                         <tr>
                             <th style="white-space:nowrap">Time</th>
