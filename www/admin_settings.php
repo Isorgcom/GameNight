@@ -321,6 +321,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $post_tab = 'sms';
         }
 
+        if ($action === 'tly_credentials') {
+            $val = trim($_POST['tly_api_key'] ?? '');
+            if ($val !== '') {
+                set_setting('tly_api_key', $val);
+                db_log_activity($current['id'], 'updated t.ly API token');
+            }
+            $tly_api_key = get_setting('tly_api_key'); // refresh
+            $_SESSION['flash'] = ['type' => 'success', 'msg' => $val !== '' ? 't.ly API token saved.' : 'No changes — token unchanged.'];
+            $post_tab = 'sms';
+        }
+
         if ($action === 'sms_clear_log') {
             get_db()->exec('DELETE FROM sms_log');
             db_log_activity($current['id'], 'cleared SMS log');
@@ -414,6 +425,7 @@ $sms_sid       = get_setting('sms_sid')   ?: $twilio_sid;
 $sms_token     = get_setting('sms_token') ?: $twilio_token;
 $sms_from      = get_setting('sms_from')  ?: $twilio_from;
 $sms_configured = $sms_token && $sms_from;
+$tly_api_key    = get_setting('tly_api_key');
 
 // ── Users data ───────────────────────────────────────────────────────────────
 $users = $db->query('SELECT id, username, email, role, created_at, last_login FROM users ORDER BY id')->fetchAll();
@@ -1197,6 +1209,40 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                             <?= !$sms_configured ? 'disabled title="Configure credentials first"' : '' ?>>
                         Send SMS
                     </button>
+                </form>
+            </div>
+
+            <!-- t.ly URL Shortener -->
+            <div class="card" style="max-width:100%">
+                <h2>URL Shortener</h2>
+                <p class="subtitle">Automatically shorten URLs in outgoing SMS via <a href="https://t.ly" target="_blank" rel="noopener">t.ly</a>.</p>
+                <form method="post" action="/admin_settings.php">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                    <input type="hidden" name="action" value="tly_credentials">
+                    <input type="hidden" name="tab" value="sms">
+
+                    <div class="form-group">
+                        <label for="tly_api_key">t.ly API Token</label>
+                        <input type="password" id="tly_api_key" name="tly_api_key"
+                               placeholder="your_api_token"
+                               autocomplete="new-password">
+                        <?php if ($tly_api_key): ?>
+                        <p class="cred-note">Leave blank to keep current token.</p>
+                        <?php endif; ?>
+                    </div>
+                    <p style="font-size:.8rem;color:#64748b;margin:-.25rem 0 .75rem">
+                        Get your token at <a href="https://app.t.ly/settings/api" target="_blank" rel="noopener">app.t.ly &rsaquo; Settings &rsaquo; API</a>.
+                        When set, any <code>http://</code> or <code>https://</code> URL in an outgoing SMS is automatically replaced with a short <code>t.ly/xxxx</code> link.
+                    </p>
+
+                    <div style="display:flex;align-items:center;gap:.75rem">
+                        <button type="submit" class="btn btn-primary">Save Token</button>
+                        <?php if ($tly_api_key): ?>
+                            <span style="color:#16a34a;font-size:.8rem;font-weight:600">&#10003; Configured</span>
+                        <?php else: ?>
+                            <span style="color:#94a3b8;font-size:.8rem">Not configured &mdash; URLs sent as-is</span>
+                        <?php endif; ?>
+                    </div>
                 </form>
             </div>
 
