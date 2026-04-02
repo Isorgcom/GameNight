@@ -31,8 +31,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $action        = $_POST['action'] ?? '';
 
-    // Non-admins may only update their own RSVP or self-signup
-    if (!$isAdmin && $action !== 'update_rsvp' && $action !== 'self_signup') {
+    // Non-admins may only update their own RSVP, self-signup, or self-remove
+    if (!$isAdmin && $action !== 'update_rsvp' && $action !== 'self_signup' && $action !== 'self_remove') {
         http_response_code(403); exit('Access denied.');
     }
     $inv_usernames = array_map('trim', (array)($_POST['invite_username'] ?? []));
@@ -184,6 +184,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
         $_SESSION['flash'] = ['type' => 'success', 'msg' => 'You have been added to the event.'];
+    }
+
+    if ($action === 'self_remove' && $current) {
+        $eid = (int)($_POST['event_id'] ?? 0);
+        if ($eid > 0) {
+            $db->prepare('DELETE FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?)')
+               ->execute([$eid, $current['username']]);
+            db_log_activity($current['id'], "removed self from event id: $eid");
+        }
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
+            header('Content-Type: application/json');
+            echo json_encode(['ok' => true]);
+            exit;
+        }
+        $_SESSION['flash'] = ['type' => 'success', 'msg' => 'You have been removed from the event.'];
     }
 
     $back = $_POST['month_param'] ?? '';
@@ -955,6 +970,9 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         <div id="vSignupWrap" style="display:none;padding:.5rem 0;border-top:1px solid #f1f5f9">
             <button id="vSignupBtn" class="btn btn-primary" style="width:100%;font-size:.875rem">Sign up to attend</button>
         </div>
+        <div id="vLeaveWrap" style="display:none;padding:.5rem 0;border-top:1px solid #f1f5f9">
+            <button id="vLeaveBtn" class="btn btn-outline" style="width:100%;font-size:.875rem;color:#dc2626;border-color:#fca5a5">Leave this event</button>
+        </div>
         <?php endif; ?>
         <?php if (!$current): ?>
         <div style="padding:.5rem 0;border-top:1px solid #f1f5f9;display:flex;gap:.5rem">
@@ -1182,6 +1200,7 @@ let currentEvent = null;
 const eventComments   = <?= json_encode($ev_comments) ?>;
 const eventInvites    = <?= json_encode($ev_invites) ?>;
 const CURRENT_USERNAME  = <?= json_encode($current['username'] ?? '') ?>;
+const CURRENT_USER_ID   = <?= json_encode($current['id'] ?? null) ?>;
 const CAL_REDIR         = '/calendar.php?m=<?= htmlspecialchars($monthParam) ?>';
 const CAL_CSRF          = <?= json_encode($token) ?>;
 const CAL_CURRENT_ID    = <?= json_encode((int)($current['id'] ?? 0)) ?>;
@@ -1231,6 +1250,13 @@ function viewEvent(ev) {
     if (vSignupWrap) {
         vSignupWrap.style.display = isInvited ? 'none' : '';
         document.getElementById('vSignupBtn').dataset.eid = ev.id;
+    }
+    // Leave button (shown when invited and not the event creator)
+    const vLeaveWrap = document.getElementById('vLeaveWrap');
+    if (vLeaveWrap) {
+        const isCreator = CURRENT_USER_ID && ev.created_by == CURRENT_USER_ID;
+        vLeaveWrap.style.display = (isInvited && !isCreator) ? '' : 'none';
+        document.getElementById('vLeaveBtn').dataset.eid = ev.id;
     }
     renderInvitesPanel(ev.id);
     const _evRedir = '/calendar.php?m=' + ev.start_date.substring(0,7) + '&open=' + ev.id + '&date=' + ev.start_date;
@@ -1487,6 +1513,43 @@ if (vSignupBtn) {
                 vRsvpW.style.display = '';
             }
             showSavedBar('Signed up!');
+            // Show leave button, hide signup
+            const vLW = document.getElementById('vLeaveWrap');
+            if (vLW) { vLW.style.display = ''; document.getElementById('vLeaveBtn').dataset.eid = eid; }
+        })
+        .catch(() => {});
+    });
+}
+
+const vLeaveBtn = document.getElementById('vLeaveBtn');
+if (vLeaveBtn) {
+    vLeaveBtn.addEventListener('click', function() {
+        if (!confirm('Remove yourself from this event?')) return;
+        const eid  = parseInt(this.dataset.eid);
+        const data = new FormData();
+        data.append('csrf_token', CAL_CSRF);
+        data.append('action', 'self_remove');
+        data.append('event_id', eid);
+        fetch('/calendar.php', {
+            method: 'POST',
+            body: data,
+            headers: {'X-Requested-With': 'XMLHttpRequest'}
+        })
+        .then(r => r.json())
+        .then(res => {
+            if (!res.ok) return;
+            // Remove from local invites array
+            if (eventInvites[eid]) {
+                eventInvites[eid] = eventInvites[eid].filter(i => i.username.toLowerCase() !== CURRENT_USERNAME.toLowerCase());
+            }
+            renderInvitesPanel(eid);
+            // Hide RSVP + leave, show signup
+            const vRsvpW = document.getElementById('vRsvpWrap');
+            if (vRsvpW) vRsvpW.style.display = 'none';
+            document.getElementById('vLeaveWrap').style.display = 'none';
+            document.getElementById('vSignupWrap').style.display = '';
+            document.getElementById('vSignupBtn').dataset.eid = eid;
+            showSavedBar('Removed');
         })
         .catch(() => {});
     });
