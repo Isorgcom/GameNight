@@ -1284,94 +1284,12 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
             </p>
         </div>
 
-        <!-- SMS Log -->
-        <?php
-        $smsLogCount = (int)$db->query('SELECT COUNT(*) FROM sms_log')->fetchColumn();
-        $smsLogPage  = max(1, (int)($_GET['sms_page'] ?? 1));
-        $smsPerPage  = 25;
-        $smsOffset   = ($smsLogPage - 1) * $smsPerPage;
-        $smsLogPages = max(1, (int)ceil($smsLogCount / $smsPerPage));
-        $smsLogs     = $db->prepare('SELECT * FROM sms_log ORDER BY created_at DESC LIMIT ? OFFSET ?');
-        $smsLogs->execute([$smsPerPage, $smsOffset]);
-        $smsRows = $smsLogs->fetchAll();
-        ?>
-        <div class="table-card" style="margin-top:1.5rem">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
-                <h3 style="margin:0">SMS Log (<?= $smsLogCount ?>)</h3>
-                <?php if ($smsLogCount > 0): ?>
-                <form method="post" action="/admin_settings.php" style="margin:0"
-                      onsubmit="return confirm('Clear all SMS logs?')">
-                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
-                    <input type="hidden" name="action" value="sms_clear_log">
-                    <input type="hidden" name="tab" value="sms">
-                    <button type="submit" class="btn btn-outline" style="font-size:.75rem;padding:.25rem .6rem;color:#dc2626;border-color:#fca5a5">Clear Log</button>
-                </form>
-                <?php endif; ?>
-            </div>
-            <?php if (empty($smsRows)): ?>
-                <p style="color:#94a3b8;font-size:.875rem">No SMS messages logged yet.</p>
-            <?php else: ?>
-            <div style="overflow-x:auto">
-                <table style="font-size:.8rem;width:100%;min-width:700px">
-                    <thead>
-                        <tr>
-                            <th style="white-space:nowrap">Time</th>
-                            <th>Dir</th>
-                            <th>Phone</th>
-                            <th style="min-width:200px">Message</th>
-                            <th>Provider</th>
-                            <th>Status</th>
-                            <th style="white-space:nowrap">Raw</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($smsRows as $log): ?>
-                        <tr>
-                            <td style="white-space:nowrap;color:#64748b"><?= htmlspecialchars($log['created_at']) ?></td>
-                            <td>
-                                <?php if ($log['direction'] === 'inbound'): ?>
-                                    <span style="color:#16a34a;font-weight:600" title="Inbound">&#x2B07;</span>
-                                <?php else: ?>
-                                    <span style="color:#2563eb;font-weight:600" title="Outbound">&#x2B06;</span>
-                                <?php endif; ?>
-                            </td>
-                            <td style="white-space:nowrap"><?= htmlspecialchars($log['phone']) ?></td>
-                            <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="<?= htmlspecialchars($log['body']) ?>"><?= htmlspecialchars($log['body']) ?></td>
-                            <td><?= htmlspecialchars($log['provider'] ?? '') ?></td>
-                            <td>
-                                <?php if ($log['status'] === 'sent' || $log['status'] === 'received'): ?>
-                                    <span style="color:#16a34a;font-weight:600"><?= htmlspecialchars($log['status']) ?></span>
-                                <?php else: ?>
-                                    <span style="color:#dc2626;font-weight:600" title="<?= htmlspecialchars($log['error'] ?? '') ?>"><?= htmlspecialchars($log['status']) ?></span>
-                                <?php endif; ?>
-                            </td>
-                            <td style="white-space:nowrap">
-                                <?php if (!empty($log['raw_response'])): ?>
-                                    <button type="button"
-                                            data-raw="<?= htmlspecialchars($log['raw_response'], ENT_QUOTES) ?>"
-                                            onclick="navigator.clipboard.writeText(this.dataset.raw).then(function(){ var b=event.target; b.textContent='Copied!'; setTimeout(function(){ b.textContent='Copy'; },1500); });"
-                                            class="btn btn-outline btn-sm">Copy</button>
-                                <?php else: ?>
-                                    <span style="color:#94a3b8">—</span>
-                                <?php endif; ?>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-            <?php if ($smsLogPages > 1): ?>
-            <div style="display:flex;justify-content:center;gap:.5rem;margin-top:.75rem">
-                <?php if ($smsLogPage > 1): ?>
-                <a href="?tab=sms&sms_page=<?= $smsLogPage - 1 ?>" class="btn btn-outline" style="font-size:.75rem;padding:.25rem .6rem">&laquo; Prev</a>
-                <?php endif; ?>
-                <span style="font-size:.8rem;color:#64748b;line-height:2">Page <?= $smsLogPage ?> of <?= $smsLogPages ?></span>
-                <?php if ($smsLogPage < $smsLogPages): ?>
-                <a href="?tab=sms&sms_page=<?= $smsLogPage + 1 ?>" class="btn btn-outline" style="font-size:.75rem;padding:.25rem .6rem">Next &raquo;</a>
-                <?php endif; ?>
-            </div>
-            <?php endif; ?>
-            <?php endif; ?>
+        <!-- SMS Log link -->
+        <?php $smsLogCount = (int)$db->query('SELECT COUNT(*) FROM sms_log')->fetchColumn(); ?>
+        <div style="margin-top:1.5rem">
+            <a href="/sms_log.php" class="btn btn-outline" style="font-size:.85rem;padding:.5rem 1rem">
+                View SMS Log (<?= $smsLogCount ?>)
+            </a>
         </div>
 
         <script>
