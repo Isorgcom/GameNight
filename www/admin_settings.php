@@ -1397,7 +1397,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
     </div>
 </div>
 
-<footer>&copy; <?= (new DateTime('now', new DateTimeZone(get_setting('timezone', 'UTC'))))->format('Y') ?> <?= htmlspecialchars($site_name) ?> &nbsp;&mdash;&nbsp; <?= (new DateTime('now', new DateTimeZone(get_setting('timezone', 'UTC'))))->format('F j, Y g:i A') ?> &nbsp;&mdash;&nbsp; v<?= htmlspecialchars(APP_VERSION) ?></footer>
+<?php require __DIR__ . '/_footer.php'; ?>
 
 <script>
 function openUserModal() {

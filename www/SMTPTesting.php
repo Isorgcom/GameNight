@@ -186,6 +186,6 @@ $configured     = $smtp_host && $smtp_username && $smtp_password && $smtp_from;
     </div>
 
 </div>
-<footer>&copy; <?= (new DateTime('now', new DateTimeZone(get_setting('timezone', 'UTC'))))->format('Y') ?> <?= htmlspecialchars($site_name) ?> &nbsp;&mdash;&nbsp; <?= (new DateTime('now', new DateTimeZone(get_setting('timezone', 'UTC'))))->format('F j, Y g:i A') ?> &nbsp;&mdash;&nbsp; v<?= htmlspecialchars(APP_VERSION) ?></footer>
+<?php require __DIR__ . '/_footer.php'; ?>
 </body>
 </html>

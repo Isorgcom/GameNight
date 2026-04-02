@@ -9,7 +9,7 @@ RewriteRule ^favicon\.ico$ /favicon.php [L,R=302]
 php_flag display_errors Off
 
 # Block direct web access to internal/partial PHP files
-<FilesMatch "^(auth|db|_nav|config|mail)\.php$">
+<FilesMatch "^(auth|db|_nav|_footer|config|mail)\.php$">
     Require all denied
 </FilesMatch>
 

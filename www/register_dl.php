@@ -160,7 +160,13 @@ $site_name = get_setting('site_name', 'Game Night');
             </button>
         </form>
 
-        <p style="text-align:center;margin-top:1.25rem;font-size:.875rem;color:#64748b">
+        <p style="text-align:center;margin-top:1rem;font-size:.8125rem;color:#94a3b8;line-height:1.5">
+            By creating an account you agree to our
+            <a href="/terms.php">Terms &amp; Conditions</a>
+            and <a href="/privacy.php">Privacy Policy</a>.
+        </p>
+
+        <p style="text-align:center;margin-top:.75rem;font-size:.875rem;color:#64748b">
             Already have an account? <a href="/login.php">Sign in</a>
         </p>
         <?php endif; ?>
