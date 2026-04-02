@@ -1321,7 +1321,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                             <th style="min-width:200px">Message</th>
                             <th>Provider</th>
                             <th>Status</th>
-                            <th>Raw</th>
+                            <th style="white-space:nowrap">Raw</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1345,7 +1345,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                                     <span style="color:#dc2626;font-weight:600" title="<?= htmlspecialchars($log['error'] ?? '') ?>"><?= htmlspecialchars($log['status']) ?></span>
                                 <?php endif; ?>
                             </td>
-                            <td>
+                            <td style="white-space:nowrap">
                                 <?php if (!empty($log['raw_response'])): ?>
                                     <button type="button"
                                             data-raw="<?= htmlspecialchars($log['raw_response'], ENT_QUOTES) ?>"
