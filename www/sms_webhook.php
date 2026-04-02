@@ -17,6 +17,17 @@ $provider = get_setting('sms_provider', 'twilio');
 $raw_input  = file_get_contents('php://input');
 $raw_post   = !empty($_POST) ? json_encode($_POST, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) : '';
 
+// ── Ignore outbound delivery receipt events (e.g. Telnyx message.finalized) ──
+if ($raw_input !== '') {
+    $event_check = json_decode($raw_input, true);
+    $event_type  = $event_check['data']['event_type'] ?? $event_check['event_type'] ?? '';
+    if ($event_type !== '' && $event_type !== 'message.received') {
+        // Delivery receipt or other status event — acknowledge and stop
+        http_response_code(200);
+        exit;
+    }
+}
+
 // ── Parse inbound message from the provider ──────────────────────────────────
 $from = '';
 $body = '';
