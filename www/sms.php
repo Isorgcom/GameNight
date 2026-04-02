@@ -147,8 +147,8 @@ function send_sms(string $to, string $body): ?string {
 /**
  * Log an inbound SMS (called from sms_webhook.php).
  */
-function sms_log_inbound(string $phone, string $body, string $provider): void {
-    sms_log('inbound', $phone, $body, $provider, 'received', null);
+function sms_log_inbound(string $phone, string $body, string $provider, string $raw = ''): void {
+    sms_log('inbound', $phone, $body, $provider, 'received', null, $raw);
 }
 
 function sms_log(string $direction, string $phone, string $body, ?string $provider, string $status, ?string $error, string $raw = ''): void {

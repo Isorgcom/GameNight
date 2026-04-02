@@ -13,38 +13,48 @@ require_once __DIR__ . '/sms.php';
 
 $provider = get_setting('sms_provider', 'twilio');
 
+// ── Capture raw payload before any parsing (php://input can only be read once) ─
+$raw_input  = file_get_contents('php://input');
+$raw_post   = !empty($_POST) ? json_encode($_POST, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) : '';
+
 // ── Parse inbound message from the provider ──────────────────────────────────
 $from = '';
 $body = '';
+$raw  = '';
 
 switch ($provider) {
     case 'twilio':
         // Twilio sends form-encoded POST
         $from = $_POST['From'] ?? '';
         $body = trim($_POST['Body'] ?? '');
+        $raw  = $raw_post;
         break;
     case 'plivo':
         // Plivo sends form-encoded POST
         $from = $_POST['From'] ?? '';
         $body = trim($_POST['Text'] ?? '');
+        $raw  = $raw_post;
         break;
     case 'telnyx':
         // Telnyx sends JSON POST
-        $json = json_decode(file_get_contents('php://input'), true);
+        $json = json_decode($raw_input, true);
         $payload = $json['data']['payload'] ?? [];
         $from = $payload['from']['phone_number'] ?? '';
         $body = trim($payload['text'] ?? '');
+        $raw  = $raw_input;
         break;
     case 'vonage':
         // Vonage sends JSON or form-encoded depending on config
         $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
         if (str_contains($contentType, 'json')) {
-            $json = json_decode(file_get_contents('php://input'), true);
+            $json = json_decode($raw_input, true);
             $from = $json['msisdn'] ?? '';
             $body = trim($json['text'] ?? '');
+            $raw  = $raw_input;
         } else {
             $from = $_POST['msisdn'] ?? $_GET['msisdn'] ?? '';
             $body = trim($_POST['text'] ?? $_GET['text'] ?? '');
+            $raw  = $raw_post;
         }
         break;
 }
@@ -60,8 +70,8 @@ if (strlen($digits) !== 10 || $body === '') {
     exit;
 }
 
-// Log inbound message
-sms_log_inbound($from, $body, $provider);
+// Log inbound message with full raw payload
+sms_log_inbound($from, $body, $provider, $raw);
 
 // Normalize to XXX-XXX-XXXX for DB lookup
 $normalized = substr($digits, 0, 3) . '-' . substr($digits, 3, 3) . '-' . substr($digits, 6, 4);
