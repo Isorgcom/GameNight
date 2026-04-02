@@ -513,21 +513,6 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
         .tab-panel { display: none; }
         .tab-panel.active { display: block; }
 
-        .tab-dropdown { position:relative; }
-        .tab-dropdown .tab-btn { cursor:pointer; user-select:none; }
-        .tab-dropdown .tab-dd-menu {
-            display:none; position:absolute; top:calc(100% + 2px); left:0; z-index:10;
-            background:#fff; border:1px solid #e2e8f0; border-radius:8px;
-            box-shadow:0 4px 12px rgba(0,0,0,.1); min-width:160px; overflow:hidden;
-        }
-        .tab-dropdown.open .tab-dd-menu { display:block; }
-        .tab-dd-menu a {
-            display:block; padding:.55rem 1rem; font-size:.85rem; color:#334155;
-            text-decoration:none; white-space:nowrap;
-        }
-        .tab-dd-menu a:hover { background:#f1f5f9; }
-        .tab-dd-menu a.active { color:#2563eb; font-weight:600; background:#eff6ff; }
-
         .subtabs { display:flex; gap:0; margin-bottom:1.5rem; }
         .subtab-btn {
             padding:.45rem 1rem; font-size:.82rem; font-weight:500; color:#64748b;
@@ -626,21 +611,8 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
            class="tab-btn <?= $tab === 'logs' ? 'active' : '' ?>">Logs</a>
         <a href="/admin_settings.php?tab=users"
            class="tab-btn <?= $tab === 'users' ? 'active' : '' ?>">Users</a>
-        <div class="tab-dropdown" id="commDropdown">
-            <span class="tab-btn <?= $isCommTab ? 'active' : '' ?>"
-                  onclick="document.getElementById('commDropdown').classList.toggle('open')">Communication &#9662;</span>
-            <div class="tab-dd-menu">
-                <a href="/admin_settings.php?tab=email" class="<?= $tab === 'email' ? 'active' : '' ?>">Email</a>
-                <a href="/admin_settings.php?tab=sms" class="<?= $tab === 'sms' ? 'active' : '' ?>">SMS</a>
-                <a href="/admin_settings.php?tab=whatsapp" class="<?= $tab === 'whatsapp' ? 'active' : '' ?>">WhatsApp</a>
-            </div>
-        </div>
-        <script>
-        document.addEventListener('click', function(e) {
-            var dd = document.getElementById('commDropdown');
-            if (dd && !dd.contains(e.target)) dd.classList.remove('open');
-        });
-        </script>
+        <a href="/admin_settings.php?tab=email"
+           class="tab-btn <?= $isCommTab ? 'active' : '' ?>">Communication</a>
     </div>
 
     <!-- ── Dashboard tab ── -->
