@@ -208,17 +208,6 @@ Place your banner images in `uploads/` at the repo root:
 
 These are committed to the repo so branding deploys with the code.
 
-## Gitignored — do not commit
-
-| Path | Reason |
-|---|---|
-| `config/config.php` | Local overrides (DB path, etc.) — never commit |
-| `.claude/` | Local Claude Code settings |
-| `db/` | SQLite database |
-| `www/uploads/` | Runtime user uploads |
-| `www/_backups/` | Local backup snapshots |
-| `www/vendor/` | PHP dependencies |
-
 ## License
 
 See [LICENSE](LICENSE).
