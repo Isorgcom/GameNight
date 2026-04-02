@@ -69,7 +69,8 @@ if (!empty($_SESSION['flash'])) {
     unset($_SESSION['flash']);
 }
 
-$tab = in_array($_GET['tab'] ?? '', ['dashboard', 'general', 'appearance', 'logs', 'users', 'email', 'sms']) ? $_GET['tab'] : 'dashboard';
+$tab = in_array($_GET['tab'] ?? '', ['dashboard', 'general', 'appearance', 'logs', 'users', 'email', 'sms', 'whatsapp']) ? $_GET['tab'] : 'dashboard';
+$isCommTab = in_array($tab, ['email', 'sms', 'whatsapp']);
 
 // ── POST ─────────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -350,7 +351,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             set_setting('wa_template_lang', $lang);
             db_log_activity($current['id'], 'updated WhatsApp credentials');
             $_SESSION['flash'] = ['type' => 'success', 'msg' => 'WhatsApp credentials saved.'];
-            $post_tab = 'sms';
+            $post_tab = 'whatsapp';
         }
 
         if ($action === 'wa_test') {
@@ -368,7 +369,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Send failed: ' . $err];
                 }
             }
-            $post_tab = 'sms';
+            $post_tab = 'whatsapp';
         }
 
         if ($action === 'banner_remove') {
@@ -512,6 +513,32 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
         .tab-panel { display: none; }
         .tab-panel.active { display: block; }
 
+        .tab-dropdown { position:relative; display:inline-block; }
+        .tab-dropdown .tab-btn { cursor:pointer; }
+        .tab-dropdown .tab-dd-menu {
+            display:none; position:absolute; top:100%; left:0; z-index:10;
+            background:#fff; border:1px solid #e2e8f0; border-radius:8px;
+            box-shadow:0 4px 12px rgba(0,0,0,.1); min-width:160px; margin-top:4px; overflow:hidden;
+        }
+        .tab-dropdown:hover .tab-dd-menu,
+        .tab-dropdown:focus-within .tab-dd-menu { display:block; }
+        .tab-dd-menu a {
+            display:block; padding:.55rem 1rem; font-size:.85rem; color:#334155;
+            text-decoration:none; white-space:nowrap;
+        }
+        .tab-dd-menu a:hover { background:#f1f5f9; }
+        .tab-dd-menu a.active { color:#2563eb; font-weight:600; background:#eff6ff; }
+
+        .subtabs { display:flex; gap:0; margin-bottom:1.5rem; }
+        .subtab-btn {
+            padding:.45rem 1rem; font-size:.82rem; font-weight:500; color:#64748b;
+            background:#f8fafc; border:1px solid #e2e8f0; border-bottom:none;
+            cursor:pointer; text-decoration:none; margin-right:-1px;
+        }
+        .subtab-btn:first-child { border-radius:8px 0 0 0; }
+        .subtab-btn:last-child  { border-radius:0 8px 0 0; margin-right:0; }
+        .subtab-btn.active { background:#fff; color:#2563eb; font-weight:600; border-bottom:1px solid #fff; position:relative; z-index:1; }
+
         .pagination { display:flex; gap:.4rem; margin-top:1rem; flex-wrap:wrap; }
         .pagination a, .pagination span {
             display:inline-block; padding:.3rem .75rem; border-radius:6px;
@@ -600,10 +627,14 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
            class="tab-btn <?= $tab === 'logs' ? 'active' : '' ?>">Logs</a>
         <a href="/admin_settings.php?tab=users"
            class="tab-btn <?= $tab === 'users' ? 'active' : '' ?>">Users</a>
-        <a href="/admin_settings.php?tab=email"
-           class="tab-btn <?= $tab === 'email' ? 'active' : '' ?>">Email</a>
-        <a href="/admin_settings.php?tab=sms"
-           class="tab-btn <?= $tab === 'sms' ? 'active' : '' ?>">SMS</a>
+        <div class="tab-dropdown">
+            <span class="tab-btn <?= $isCommTab ? 'active' : '' ?>">Communication &#9662;</span>
+            <div class="tab-dd-menu">
+                <a href="/admin_settings.php?tab=email" class="<?= $tab === 'email' ? 'active' : '' ?>">Email</a>
+                <a href="/admin_settings.php?tab=sms" class="<?= $tab === 'sms' ? 'active' : '' ?>">SMS</a>
+                <a href="/admin_settings.php?tab=whatsapp" class="<?= $tab === 'whatsapp' ? 'active' : '' ?>">WhatsApp</a>
+            </div>
+        </div>
     </div>
 
     <!-- ── Dashboard tab ── -->
@@ -1021,6 +1052,11 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
 
     <!-- ── Email tab ── -->
     <div class="tab-panel <?= $tab === 'email' ? 'active' : '' ?>">
+        <div class="subtabs">
+            <a href="/admin_settings.php?tab=email" class="subtab-btn active">Email</a>
+            <a href="/admin_settings.php?tab=sms" class="subtab-btn">SMS</a>
+            <a href="/admin_settings.php?tab=whatsapp" class="subtab-btn">WhatsApp</a>
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start">
 
             <!-- SMTP settings -->
@@ -1167,6 +1203,11 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
 
     <!-- ── SMS tab ── -->
     <div class="tab-panel <?= $tab === 'sms' ? 'active' : '' ?>">
+        <div class="subtabs">
+            <a href="/admin_settings.php?tab=email" class="subtab-btn">Email</a>
+            <a href="/admin_settings.php?tab=sms" class="subtab-btn active">SMS</a>
+            <a href="/admin_settings.php?tab=whatsapp" class="subtab-btn">WhatsApp</a>
+        </div>
         <?php $smsLogCount = (int)$db->query('SELECT COUNT(*) FROM sms_log')->fetchColumn(); ?>
         <div style="margin-bottom:1.5rem">
             <a href="/sms_log.php" class="btn btn-outline" style="font-size:.85rem;padding:.5rem 1rem">
@@ -1332,8 +1373,30 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
         </div>
 
 
-        <!-- WhatsApp Section -->
-        <h3 style="margin-top:2rem;padding-top:1.5rem;border-top:2px solid #e2e8f0">WhatsApp (Meta Cloud API)</h3>
+        <script>
+        function toggleSmsFields() {
+            var p = document.getElementById('sms_provider').value;
+            document.querySelectorAll('.sms-field').forEach(function(el) {
+                el.style.display = el.classList.contains('sms-field-' + p) ? '' : 'none';
+                el.querySelectorAll('input').forEach(function(inp) {
+                    inp.disabled = !el.classList.contains('sms-field-' + p);
+                });
+            });
+            document.querySelectorAll('.sms-help').forEach(function(el) {
+                el.style.display = el.classList.contains('sms-help-' + p) ? '' : 'none';
+            });
+        }
+        </script>
+    </div>
+
+    <!-- ── WhatsApp tab ── -->
+    <div class="tab-panel <?= $tab === 'whatsapp' ? 'active' : '' ?>">
+        <div class="subtabs">
+            <a href="/admin_settings.php?tab=email" class="subtab-btn">Email</a>
+            <a href="/admin_settings.php?tab=sms" class="subtab-btn">SMS</a>
+            <a href="/admin_settings.php?tab=whatsapp" class="subtab-btn active">WhatsApp</a>
+        </div>
+
         <div class="sms-grid">
             <!-- WhatsApp Credentials -->
             <div class="card" style="max-width:100%">
@@ -1342,7 +1405,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                 <form method="post" action="/admin_settings.php">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                     <input type="hidden" name="action" value="wa_credentials">
-                    <input type="hidden" name="tab" value="sms">
+                    <input type="hidden" name="tab" value="whatsapp">
 
                     <div class="form-group">
                         <label for="wa_phone_id">Phone Number ID</label>
@@ -1396,7 +1459,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                 <form method="post" action="/admin_settings.php">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                     <input type="hidden" name="action" value="wa_test">
-                    <input type="hidden" name="tab" value="sms">
+                    <input type="hidden" name="tab" value="whatsapp">
 
                     <div class="form-group">
                         <label for="wa_to">To (phone number)</label>
@@ -1433,20 +1496,24 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
             </table>
         </div>
 
-        <script>
-        function toggleSmsFields() {
-            var p = document.getElementById('sms_provider').value;
-            document.querySelectorAll('.sms-field').forEach(function(el) {
-                el.style.display = el.classList.contains('sms-field-' + p) ? '' : 'none';
-                el.querySelectorAll('input').forEach(function(inp) {
-                    inp.disabled = !el.classList.contains('sms-field-' + p);
-                });
-            });
-            document.querySelectorAll('.sms-help').forEach(function(el) {
-                el.style.display = el.classList.contains('sms-help-' + p) ? '' : 'none';
-            });
-        }
-        </script>
+        <!-- WhatsApp Webhook URL -->
+        <?php $wa_webhook_url = 'https://' . $_SERVER['HTTP_HOST'] . '/wa_webhook.php'; ?>
+        <div class="table-card" style="margin-top:1.5rem;max-width:620px">
+            <h3>Inbound Webhook URL</h3>
+            <p style="font-size:.85rem;color:#64748b;margin:.25rem 0 .75rem">
+                Paste this URL into your Meta App's WhatsApp webhook configuration.
+            </p>
+            <div style="display:flex;gap:.5rem;align-items:center">
+                <input type="text" id="wa-webhook-url-field" readonly value="<?= htmlspecialchars($wa_webhook_url) ?>"
+                       style="flex:1;font-family:monospace;font-size:.85rem;background:#f1f5f9;border:1.5px solid #e2e8f0;border-radius:7px;padding:.5rem .75rem;color:#1e293b;cursor:text">
+                <button type="button" onclick="
+                    navigator.clipboard.writeText(document.getElementById('wa-webhook-url-field').value).then(function(){
+                        var b = this; b.textContent = 'Copied!';
+                        setTimeout(function(){ b.textContent = 'Copy'; }, 1500);
+                    }.bind(this));
+                " style="white-space:nowrap" class="btn btn-outline btn-sm">Copy</button>
+            </div>
+        </div>
     </div>
 
 </div>
