@@ -165,6 +165,9 @@ function db_init(PDO $pdo): void {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )"); } catch (Exception $e) {}
 
+    // Add raw API response to SMS log for debugging
+    try { $pdo->exec("ALTER TABLE sms_log ADD COLUMN raw_response TEXT"); } catch (Exception $e) {}
+
     // Add preferred_contact column if it doesn't exist yet
     try { $pdo->exec("ALTER TABLE users ADD COLUMN preferred_contact TEXT NOT NULL DEFAULT 'email'"); } catch (Exception $e) {}
 

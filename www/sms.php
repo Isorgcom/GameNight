@@ -96,20 +96,21 @@ function send_sms(string $to, string $body): ?string {
 
     if (!$token || !$from) return 'SMS not configured.';
 
+    $raw = '';
     switch ($provider) {
         case 'twilio':
-            $err = _sms_twilio($sid, $token, $from, $e164, $body); break;
+            $err = _sms_twilio($sid, $token, $from, $e164, $body, $raw); break;
         case 'plivo':
-            $err = _sms_plivo($sid, $token, $from, $e164, $body); break;
+            $err = _sms_plivo($sid, $token, $from, $e164, $body, $raw); break;
         case 'telnyx':
-            $err = _sms_telnyx($token, $from, $e164, $body); break;
+            $err = _sms_telnyx($token, $from, $e164, $body, $raw); break;
         case 'vonage':
-            $err = _sms_vonage($sid, $token, $from, $e164, $body); break;
+            $err = _sms_vonage($sid, $token, $from, $e164, $body, $raw); break;
         default:
             $err = "Unknown SMS provider: $provider";
     }
 
-    sms_log('outbound', $e164, $body, $provider, $err === null ? 'sent' : 'failed', $err);
+    sms_log('outbound', $e164, $body, $provider, $err === null ? 'sent' : 'failed', $err, $raw);
     return $err;
 }
 
@@ -120,10 +121,10 @@ function sms_log_inbound(string $phone, string $body, string $provider): void {
     sms_log('inbound', $phone, $body, $provider, 'received', null);
 }
 
-function sms_log(string $direction, string $phone, string $body, ?string $provider, string $status, ?string $error): void {
+function sms_log(string $direction, string $phone, string $body, ?string $provider, string $status, ?string $error, string $raw = ''): void {
     try {
-        get_db()->prepare('INSERT INTO sms_log (direction, phone, body, provider, status, error) VALUES (?, ?, ?, ?, ?, ?)')
-            ->execute([$direction, $phone, $body, $provider, $status, $error]);
+        get_db()->prepare('INSERT INTO sms_log (direction, phone, body, provider, status, error, raw_response) VALUES (?, ?, ?, ?, ?, ?, ?)')
+            ->execute([$direction, $phone, $body, $provider, $status, $error, $raw !== '' ? $raw : null]);
     } catch (Exception $e) {
         // Don't let logging failures break SMS sending
     }
@@ -131,7 +132,7 @@ function sms_log(string $direction, string $phone, string $body, ?string $provid
 
 /* ── Provider implementations ─────────────────────────────────────────────── */
 
-function _sms_twilio(string $sid, string $token, string $from, string $to, string $body): ?string {
+function _sms_twilio(string $sid, string $token, string $from, string $to, string $body, string &$raw = ''): ?string {
     if (!$sid) return 'Twilio Account SID is required.';
     $url = 'https://api.twilio.com/2010-04-01/Accounts/' . $sid . '/Messages.json';
     $ch  = curl_init($url);
@@ -144,12 +145,13 @@ function _sms_twilio(string $sid, string $token, string $from, string $to, strin
     $response = curl_exec($ch);
     $code     = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
+    $raw = $response;
     if ($code === 201) return null;
     $json = json_decode($response, true);
     return $json['message'] ?? "HTTP $code";
 }
 
-function _sms_plivo(string $authId, string $authToken, string $from, string $to, string $body): ?string {
+function _sms_plivo(string $authId, string $authToken, string $from, string $to, string $body, string &$raw = ''): ?string {
     if (!$authId) return 'Plivo Auth ID is required.';
     $url = 'https://api.plivo.com/v1/Account/' . $authId . '/Message/';
     $ch  = curl_init($url);
@@ -163,12 +165,13 @@ function _sms_plivo(string $authId, string $authToken, string $from, string $to,
     $response = curl_exec($ch);
     $code     = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
+    $raw = $response;
     if ($code >= 200 && $code < 300) return null;
     $json = json_decode($response, true);
     return $json['error'] ?? $json['message'] ?? "HTTP $code";
 }
 
-function _sms_telnyx(string $apiKey, string $from, string $to, string $body): ?string {
+function _sms_telnyx(string $apiKey, string $from, string $to, string $body, string &$raw = ''): ?string {
     $url = 'https://api.telnyx.com/v2/messages';
     $ch  = curl_init($url);
     curl_setopt_array($ch, [
@@ -183,12 +186,13 @@ function _sms_telnyx(string $apiKey, string $from, string $to, string $body): ?s
     $response = curl_exec($ch);
     $code     = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
+    $raw = $response;
     if ($code >= 200 && $code < 300) return null;
     $json = json_decode($response, true);
     return $json['errors'][0]['detail'] ?? $json['message'] ?? "HTTP $code";
 }
 
-function _sms_vonage(string $apiKey, string $apiSecret, string $from, string $to, string $body): ?string {
+function _sms_vonage(string $apiKey, string $apiSecret, string $from, string $to, string $body, string &$raw = ''): ?string {
     $url = 'https://rest.nexmo.com/sms/json';
     $ch  = curl_init($url);
     curl_setopt_array($ch, [
@@ -205,6 +209,7 @@ function _sms_vonage(string $apiKey, string $apiSecret, string $from, string $to
     $response = curl_exec($ch);
     $code     = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
+    $raw = $response;
     if ($code !== 200) return "HTTP $code";
     $json = json_decode($response, true);
     $msg  = $json['messages'][0] ?? [];

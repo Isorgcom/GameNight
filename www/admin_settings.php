@@ -1263,6 +1263,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                             <th style="min-width:200px">Message</th>
                             <th>Provider</th>
                             <th>Status</th>
+                            <th style="min-width:200px">Raw Response</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1284,6 +1285,13 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                                     <span style="color:#16a34a;font-weight:600"><?= htmlspecialchars($log['status']) ?></span>
                                 <?php else: ?>
                                     <span style="color:#dc2626;font-weight:600" title="<?= htmlspecialchars($log['error'] ?? '') ?>"><?= htmlspecialchars($log['status']) ?></span>
+                                <?php endif; ?>
+                            </td>
+                            <td style="max-width:320px;font-family:monospace;font-size:.72rem;color:#475569;white-space:pre-wrap;word-break:break-all">
+                                <?php if (!empty($log['raw_response'])): ?>
+                                    <?= htmlspecialchars(mb_strimwidth($log['raw_response'], 0, 300, '…')) ?>
+                                <?php else: ?>
+                                    <span style="color:#94a3b8">—</span>
                                 <?php endif; ?>
                             </td>
                         </tr>
