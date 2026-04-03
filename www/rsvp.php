@@ -32,6 +32,8 @@ if (!$invite) {
     exit;
 }
 
+$rsvp_changed = ($invite['rsvp'] ?? '') !== $rsvp;
+
 // Update the RSVP
 $db->prepare('UPDATE event_invites SET rsvp = ? WHERE id = ?')
    ->execute([$rsvp, $invite['id']]);
@@ -39,28 +41,29 @@ $db->prepare('UPDATE event_invites SET rsvp = ? WHERE id = ?')
 $label   = ucfirst($rsvp);
 $date_str = $invite['start_date'] . ($invite['start_time'] ? ' at ' . date('g:i A', strtotime($invite['start_time'])) : '');
 
-// Log activity
+// Log activity and notify creator only if RSVP actually changed
 $userStmt = $db->prepare('SELECT id FROM users WHERE LOWER(username) = LOWER(?)');
 $userStmt->execute([$invite['username']]);
 $userRow = $userStmt->fetch();
-if ($userRow) {
+if ($rsvp_changed && $userRow) {
     $db->prepare('INSERT INTO activity_log (user_id, action, ip) VALUES (?, ?, ?)')
        ->execute([$userRow['id'], "Email RSVP $rsvp for event id: " . $invite['event_id'], $_SERVER['REMOTE_ADDR'] ?? '']);
 }
 
-// Notify event creator
-$creatorStmt = $db->prepare('SELECT u.username, u.email, u.phone, u.preferred_contact FROM events e JOIN users u ON u.id=e.created_by WHERE e.id=?');
-$creatorStmt->execute([$invite['event_id']]);
-$creator = $creatorStmt->fetch();
-if ($creator && strtolower($creator['username']) !== strtolower($invite['username'])) {
-    require_once __DIR__ . '/auth_dl.php';
-    $smsBody  = $invite['username'] . " RSVPed $label to \"{$invite['title']}\" on {$invite['start_date']}";
-    $htmlBody = '<p><strong>' . htmlspecialchars($invite['username']) . '</strong> RSVPed <strong>' . $label . '</strong> to '
-              . '<em>' . htmlspecialchars($invite['title']) . '</em> on ' . htmlspecialchars($invite['start_date']) . '.</p>';
-    send_notification($creator['username'], $creator['email'] ?? '', $creator['phone'] ?? '',
-        $creator['preferred_contact'] ?? 'email',
-        $invite['username'] . " RSVPed $label: " . $invite['title'],
-        $smsBody, $htmlBody);
+if ($rsvp_changed) {
+    $creatorStmt = $db->prepare('SELECT u.username, u.email, u.phone, u.preferred_contact FROM events e JOIN users u ON u.id=e.created_by WHERE e.id=?');
+    $creatorStmt->execute([$invite['event_id']]);
+    $creator = $creatorStmt->fetch();
+    if ($creator && strtolower($creator['username']) !== strtolower($invite['username'])) {
+        require_once __DIR__ . '/auth_dl.php';
+        $smsBody  = $invite['username'] . " RSVPed $label to \"{$invite['title']}\" on {$invite['start_date']}";
+        $htmlBody = '<p><strong>' . htmlspecialchars($invite['username']) . '</strong> RSVPed <strong>' . $label . '</strong> to '
+                  . '<em>' . htmlspecialchars($invite['title']) . '</em> on ' . htmlspecialchars($invite['start_date']) . '.</p>';
+        send_notification($creator['username'], $creator['email'] ?? '', $creator['phone'] ?? '',
+            $creator['preferred_contact'] ?? 'email',
+            $invite['username'] . " RSVPed $label: " . $invite['title'],
+            $smsBody, $htmlBody);
+    }
 }
 
 $title = "RSVP: $label";

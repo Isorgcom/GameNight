@@ -190,12 +190,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $eid  = (int)($_POST['event_id'] ?? 0);
         $rsvp = in_array($_POST['rsvp'] ?? '', ['', 'yes', 'no', 'maybe'], true) ? ($_POST['rsvp'] ?: null) : null;
         if ($eid > 0) {
+            // Check current RSVP before updating
+            $oldRsvpStmt = $db->prepare('SELECT rsvp FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?)');
+            $oldRsvpStmt->execute([$eid, $current['username']]);
+            $oldRsvp = ($oldRsvpStmt->fetchColumn()) ?: null;
+
             $db->prepare('UPDATE event_invites SET rsvp=? WHERE event_id=? AND LOWER(username)=LOWER(?)')
                ->execute([$rsvp, $eid, $current['username']]);
             db_log_activity($current['id'], "updated RSVP for event id: $eid");
 
-            // Notify event creator about the RSVP
-            if ($rsvp) {
+            // Notify event creator only if RSVP actually changed
+            if ($rsvp && $rsvp !== $oldRsvp) {
                 $evRow = $db->prepare('SELECT e.title, e.start_date, u.email, u.phone, u.preferred_contact, u.username FROM events e JOIN users u ON u.id=e.created_by WHERE e.id=?');
                 $evRow->execute([$eid]);
                 $creator = $evRow->fetch();
