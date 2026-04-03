@@ -27,6 +27,7 @@ $_accent        = get_setting('accent_color', '');
 <?php if ($_header_banner): ?>
 @media(min-width:641px){.nav-top{height:<?= $_header_banner_height ?>px !important;align-items:flex-start !important;padding-top:8px !important;}}
 @media(max-width:640px){.nav-top{height:48px !important;align-items:flex-start !important;padding-top:6px !important;}.nav-banner-img{max-height:34px !important;}}
+@media(max-width:768px)and(orientation:landscape){.nav-top{height:50px !important;padding-top:0 !important;align-items:center !important;}.nav-banner-img{max-height:40px !important;}}
 <?php endif; ?>
 </style>
 <?php endif; ?>
