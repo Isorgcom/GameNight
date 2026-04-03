@@ -89,11 +89,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             if ($notify_invitees) {
                 require_once __DIR__ . '/mail.php';
-                $date_str = $sd . ($st ? ' at ' . date('g:i A', strtotime($st)) : '');
+                require_once __DIR__ . '/sms.php';
+                $date_str  = $sd . ($st ? ' at ' . date('g:i A', strtotime($st)) : '');
+                $month_str = substr($sd, 0, 7);
+                $event_url = 'https://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/calendar.php?m=' . urlencode($month_str) . '&open=' . $notify_eid . '&date=' . urlencode($sd);
+                if (get_setting('url_shortener_enabled') === '1') {
+                    $event_url = shorten_url($event_url);
+                }
                 $subject  = 'You\'re invited: ' . $title;
                 $html     = '<p>You have been invited to <strong>' . htmlspecialchars($title) . '</strong> on ' . htmlspecialchars($date_str) . '.</p>'
                           . ($desc ? '<p>' . nl2br(htmlspecialchars($desc)) . '</p>' : '')
-                          . '<p>Log in to ' . htmlspecialchars(get_setting('site_name', 'Game Night')) . ' to view the event and RSVP.</p>';
+                          . '<p style="margin-top:1.5rem"><a href="' . htmlspecialchars($event_url) . '" style="background:#2563eb;color:#fff;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600">View Event &amp; RSVP</a></p>'
+                          . '<p style="color:#64748b;font-size:.875rem">Log in to ' . htmlspecialchars(get_setting('site_name', 'Game Night')) . ' to update your RSVP.</p>';
                 $inv_stmt = $db->prepare('SELECT email FROM event_invites WHERE event_id=? AND email IS NOT NULL AND email != \'\'');
                 $inv_stmt->execute([$notify_eid]);
                 foreach ($inv_stmt->fetchAll(PDO::FETCH_COLUMN) as $inv_email) {

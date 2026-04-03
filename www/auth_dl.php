@@ -193,16 +193,20 @@ function send_notification(string $username, string $email, string $phone, strin
  * Send an event invite notification via the user's preferred contact method.
  */
 function send_invite_notification(string $username, string $email, string $phone, string $preferred_contact, string $event_title, string $event_start, int $event_id = 0): void {
+    require_once __DIR__ . '/sms.php';
     $site  = get_setting('site_name', 'Game Night');
     $month = substr($event_start, 0, 7);
     $url   = 'https://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/calendar.php'
            . ($event_id > 0 ? '?m=' . urlencode($month) . '&open=' . $event_id . '&date=' . urlencode($event_start) : '');
+    if (get_setting('url_shortener_enabled') === '1') {
+        $url = shorten_url($url);
+    }
 
     $smsBody = "You've been invited to \"$event_title\" on $event_start. View it at: $url";
 
     $htmlBody = '<p>Hi ' . htmlspecialchars($username) . ',</p>'
               . '<p>You have been invited to <strong>' . htmlspecialchars($event_title) . '</strong> on ' . htmlspecialchars($event_start) . '.</p>'
-              . '<p style="margin-top:1.5rem"><a href="' . htmlspecialchars($url) . '" style="background:#2563eb;color:#fff;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600">View Calendar</a></p>'
+              . '<p style="margin-top:1.5rem"><a href="' . htmlspecialchars($url) . '" style="background:#2563eb;color:#fff;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600">View Event &amp; RSVP</a></p>'
               . '<p style="color:#64748b;font-size:.875rem">You can update your RSVP after signing in.</p>';
 
     send_notification($username, $email, $phone, $preferred_contact,
