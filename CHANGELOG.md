@@ -4,6 +4,17 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.01553] — 2026-04-03
+
+### Fixed
+- **Calendar 500 error — cannot redeclare `build_event_by_date`.** A prior commit
+  moved `build_event_by_date` and `load_exceptions` into `db.php` but did not
+  remove them from `calendar.php`. PHP fataled on the duplicate declaration for
+  every calendar page request. Removed the duplicate definitions from `calendar.php`
+  and `calendar_dl.php`; canonical home is now `db.php`.
+
+---
+
 ## [v0.01552] — 2026-04-03
 
 ### Added
