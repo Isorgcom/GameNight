@@ -779,10 +779,7 @@ $tlMonths = $tlStmt->fetchAll();
 })();
 </script>
 
-<?php if ($user): ?>
 <script>
-const _csrf = <?= json_encode($csrf) ?>;
-
 function toggleComments(postId) {
     const body = document.getElementById('cmts-body-' + postId);
     const hdr  = body.previousElementSibling;
@@ -790,6 +787,11 @@ function toggleComments(postId) {
     body.style.display = opening ? '' : 'none';
     hdr.classList.toggle('open', opening);
 }
+</script>
+
+<?php if ($user): ?>
+<script>
+const _csrf = <?= json_encode($csrf) ?>;
 
 function editComment(id, btn) {
     const bodyEl  = document.getElementById('cbody-' + id);
