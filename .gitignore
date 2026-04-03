@@ -10,6 +10,9 @@ db/
 # Docker / server deployment files (server-specific, not for publishing)
 docker-compose.yml
 nginx.conf
+deploy.sh
+deploy.bat
+deploy.ps1
 
 # Runtime user-uploaded files (not source)
 www/uploads/
