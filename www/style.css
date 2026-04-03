@@ -313,18 +313,18 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
     to   { transform: none; opacity: 1; }
 }
 
+/* Mobile — hide horizontal nav bar, show all links in hamburger dropdown */
+@media (max-width: 768px) {
+    .nav-links { display: none; }
+    .nav-mobile-link { display: block !important; }
+    .nav-mobile-divider { display: block !important; }
+}
+
 /* Mobile */
 @media (max-width: 640px) {
     /* ── Nav ── */
     .nav-top { padding: 0 .75rem; height: 48px; }
     nav .brand img { max-height: 32px !important; width: auto; }
-    /* Logged-in: collapse nav-links into hamburger via .nav-has-user class */
-    .nav-has-user .nav-links { display: none; }
-    /* Guest: keep nav-links but make it more tappable */
-    .nav-links { padding: 0 .5rem; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    .nav-links a { padding: 0 .75rem; font-size: .85rem; white-space: nowrap; min-height: 40px; }
-    .nav-mobile-link { display: block !important; }
-    .nav-mobile-divider { display: block !important; }
 
     /* ── Content ── */
     .dash-wrap { padding: 0 .75rem; margin: 1rem auto; }
