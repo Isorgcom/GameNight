@@ -4,7 +4,43 @@ All notable changes to GameNight are documented here.
 
 ---
 
-## [v0.0154] — 2026-04-03
+## [v0.016] — 2026-04-03
+
+### Added
+- **My Events page.** Logged-in users can view all events they are involved in
+  (invited to or created) from a dedicated page, split into Upcoming and Past
+  sections. Each card shows RSVP status, date/time, and a direct calendar link.
+  "My Events" appears in both the desktop nav bar and the mobile hamburger menu.
+- **Per-occurrence invites and RSVP for recurring events.** Each occurrence of a
+  repeating event can now have its own invite list and RSVP statuses, independent
+  of other occurrences in the series.
+- **Maybe RSVP toggle.** Admins can enable or disable the "Maybe" response option
+  site-wide from Site Settings → General. When disabled, Maybe is removed from RSVP
+  buttons, invite emails, calendar dropdowns, and the one-click RSVP endpoint.
+- **Failed login logging.** Failed login attempts are recorded in the activity log
+  with `critical` severity and displayed in red in the admin Logs tab.
+- **ROADMAP.md** added to the repository documenting planned milestones through v0.1.
+
+### Fixed
+- **Recurring event edit modal — save button clipped.** The edit modal uses
+  `overflow:hidden` and `max-height:92vh` to stay within the viewport, but the
+  `<form>` element was a plain block rather than a flex container. This meant
+  `flex:1` on the body and `flex-shrink:0` on the footer had no effect — when a
+  recurring event's extra scope UI added enough height, the footer with the Save
+  button was pushed below the clipped edge and became unreachable. Fixed by making
+  the form a flex column so the footer is always pinned at the bottom.
+- **Upcoming events strip overflowing the page width.** The 7-column week grid used
+  `grid-template-columns: repeat(7, 1fr)` but grid items default to
+  `min-width: auto`, so the browser sized each column to the longest event title
+  rather than the available 1fr share. Adding `min-width: 0` to `.wk-cell` lets
+  the existing `text-overflow: ellipsis` take effect and keeps the strip within
+  the page.
+- Maybe RSVP option was missing from invite notification emails; now included when
+  the Maybe toggle is enabled.
+
+---
+
+## [v0.015] — 2026-04-03
 
 ### Added
 - **My Events page.** Logged-in users can now see all events they are involved in
