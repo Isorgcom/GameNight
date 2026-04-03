@@ -53,7 +53,7 @@ error_log('[GameNight nav] UA: ' . ($_SERVER['HTTP_USER_AGENT'] ?? 'none') . ' |
             <?php if ($_nu): ?>
                 <span><?= htmlspecialchars($_nu['username']) ?></span>
                 <div class="nav-dropdown-wrap">
-                    <button class="nav-hamburger" title="Menu">&#9776;</button>
+                    <button class="nav-hamburger" title="Menu" onclick="var d=this.nextElementSibling;d.style.display=d.style.display==='block'?'none':'block';">&#9776;</button>
                     <div class="nav-dropdown">
                         <!-- Page links shown only on mobile (nav-links row hidden) -->
                         <a href="/" class="nav-mobile-link<?= $_active === 'home' ? ' active' : '' ?>">Home</a>
