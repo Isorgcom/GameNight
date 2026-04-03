@@ -393,6 +393,34 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
     }
 }
 
+/* ── Landscape mobile: slim nav bar ── */
+@media (max-width: 768px) and (orientation: landscape) {
+    /* Collapse top row height and tighten padding */
+    nav .nav-top {
+        height: 36px !important;
+        padding: 0 .75rem !important;
+        padding-top: 0 !important;
+    }
+    /* Shrink brand logo image */
+    nav .brand img { max-height: 24px !important; }
+    /* Shrink header banner image */
+    .nav-banner-img { max-height: 26px !important; }
+    /* Slim down the nav-links row */
+    .nav-links {
+        height: 30px;
+        padding: 0 .5rem;
+    }
+    .nav-links a {
+        font-size: .78rem;
+        padding: 0 .6rem;
+        min-height: 30px;
+    }
+    /* Keep hamburger button reachable */
+    .nav-hamburger { padding: .18rem .45rem; font-size: .9rem; }
+    /* Username label: hide on very narrow landscape to save space */
+    .nav-user > span { display: none; }
+}
+
 /* ── Password show/hide toggle — all styles are inline on the elements ── */
 
 /* ── Comments ───────────────────────────────────────────────────────────────── */
