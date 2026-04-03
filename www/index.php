@@ -394,6 +394,7 @@ $tlMonths = $tlStmt->fetchAll();
         .wk-cell {
             border: 1px solid #f1f5f9; border-radius: 8px;
             padding: .4rem .35rem; min-height: 68px; background: #fafafa;
+            min-width: 0;
         }
         .wk-cell.wk-today { background: #eff6ff; border-color: #bfdbfe; }
         .wk-day {
