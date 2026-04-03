@@ -18,7 +18,8 @@ $_header_banner_v = $_header_banner ? @filemtime(__DIR__ . $_header_banner) : 0;
 $_nav_bg        = get_setting('nav_bg_color', '');
 $_nav_text      = get_setting('nav_text_color', '');
 $_accent        = get_setting('accent_color', '');
-$_is_mobile     = (bool) preg_match('/Mobile|Android|iPhone|iPad/i', $_SERVER['HTTP_USER_AGENT'] ?? '');
+$_is_mobile     = (bool) preg_match('/Mobile|Android|iPhone|iPad|iPod|CriOS|FxiOS/i', $_SERVER['HTTP_USER_AGENT'] ?? '');
+error_log('[GameNight nav] UA: ' . ($_SERVER['HTTP_USER_AGENT'] ?? 'none') . ' | is_mobile: ' . ($_is_mobile ? 'YES' : 'NO'));
 ?>
 <?php if ($_nav_bg || $_nav_text || $_accent || $_header_banner): ?>
 <style>
@@ -31,7 +32,7 @@ $_is_mobile     = (bool) preg_match('/Mobile|Android|iPhone|iPad/i', $_SERVER['H
 </style>
 <?php endif; ?>
 <nav<?= $_nu ? ' class="nav-has-user"' : '' ?>>
-    <div class="nav-top"<?= $_is_mobile ? ' style="height:56px;overflow:hidden;"' : '' ?>>
+    <div class="nav-top">
         <a class="brand" href="/">
             <?php if ($_banner): ?>
                 <img src="<?= htmlspecialchars($_banner) ?>?v=<?= $_banner_v ?>" alt="<?= htmlspecialchars($site_name) ?>"
