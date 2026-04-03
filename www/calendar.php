@@ -149,9 +149,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $month_str = substr($sd, 0, 7);
                 $event_url = $base_url . '/calendar.php?m=' . urlencode($month_str) . '&open=' . $notify_eid . '&date=' . urlencode($sd);
-                if (get_setting('url_shortener_enabled') === '1') {
-                    $event_url = shorten_url($event_url);
-                }
 
                 $html = '<p>You have been invited to <strong>' . htmlspecialchars($title) . '</strong> on ' . htmlspecialchars($date_str) . '.</p>'
                       . ($desc ? '<p>' . nl2br(htmlspecialchars($desc)) . '</p>' : '')
