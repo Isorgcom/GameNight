@@ -11,8 +11,8 @@ this is still a work in progress!!
 - **Posts** — rich-text announcements with comment support
 - **Admin panel** — manage users, posts, events, and all site settings
 - **Email** — transactional mail via SMTP (SendGrid or any provider)
-- **SMS** — multi-provider notifications with two-way RSVP (see [SMS](#sms) below)
-- **WhatsApp** — send event notifications via Meta WhatsApp Cloud API with two-way RSVP
+- **SMS** *(alpha)* — multi-provider notifications with two-way RSVP (see [SMS](#sms) below)
+- **WhatsApp** *(roadmap)* — event notifications via Meta WhatsApp Cloud API with two-way RSVP
 - **One-click RSVP** — invitees can RSVP directly from email links without logging in
 - **Branding** — custom banner/header images, nav colors, site name
 - **SQLite** — zero-config database, stored outside the web root
@@ -154,7 +154,9 @@ The web server user (`www-data`) needs write access to:
 
 The database schema is created automatically on the first request. Log in with the default admin credentials set in `config.php` and update them immediately via the admin panel.
 
-## SMS
+## SMS *(alpha)*
+
+> **Note:** SMS support is in alpha. Core functionality works but may have rough edges.
 
 Game Night supports SMS notifications through multiple providers. Configure your provider in **Admin Settings > SMS**.
 
