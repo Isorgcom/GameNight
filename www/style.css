@@ -393,10 +393,11 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
     }
 }
 
-/* ── Mobile: always cap banner image to slim bar ── */
+/* ── Mobile: always cap banner/header to slim bar ── */
 @media (max-width: 768px) {
-    .nav-banner-img { max-height: 40px !important; width: auto; display: inline-block; }
-    nav .nav-top { height: 48px !important; padding-top: 0 !important; align-items: center !important; }
+    nav .nav-top { height: 48px !important; padding-top: 0 !important; align-items: center !important; overflow: hidden; }
+    .nav-banner-wrap { max-height: 40px !important; overflow: hidden !important; display: flex !important; align-items: center; justify-content: center; }
+    .nav-banner-img { height: 40px !important; width: auto !important; max-height: 40px !important; object-fit: contain; display: block; }
 }
 
 /* ── Password show/hide toggle — all styles are inline on the elements ── */

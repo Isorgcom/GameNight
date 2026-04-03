@@ -25,7 +25,7 @@ $_accent        = get_setting('accent_color', '');
 <?php if ($_nav_bg): ?>nav{background:<?= htmlspecialchars($_nav_bg,ENT_QUOTES) ?> !important;}<?php endif; ?>
 <?php if ($_nav_text): ?>nav .brand,nav .brand:hover{color:<?= htmlspecialchars($_nav_text,ENT_QUOTES) ?> !important;}<?php endif; ?>
 <?php if ($_header_banner): ?>
-@media(min-width:769px){.nav-top{height:<?= $_header_banner_height ?>px !important;align-items:flex-start !important;padding-top:8px !important;}.nav-banner-img{max-height:<?= $_header_banner_height - 10 ?>px;}}
+@media(min-width:769px){.nav-top{height:<?= $_header_banner_height ?>px !important;align-items:flex-start !important;padding-top:8px !important;}.nav-banner-wrap{max-height:<?= $_header_banner_height - 10 ?>px;}.nav-banner-img{height:<?= $_header_banner_height - 10 ?>px;width:auto;object-fit:contain;}}
 <?php endif; ?>
 </style>
 <?php endif; ?>
@@ -40,7 +40,7 @@ $_accent        = get_setting('accent_color', '');
             <?php endif; ?>
         </a>
         <?php if ($_header_banner): ?>
-        <div style="flex:1;text-align:center;padding:0 .5rem;overflow:hidden">
+        <div class="nav-banner-wrap" style="flex:1;text-align:center;padding:0 .5rem">
             <img class="nav-banner-img" src="<?= htmlspecialchars($_header_banner) ?>?v=<?= $_header_banner_v ?>" alt="<?= htmlspecialchars($site_name) ?>">
         </div>
         <?php else: ?>
