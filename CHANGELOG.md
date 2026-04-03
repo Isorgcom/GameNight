@@ -4,7 +4,7 @@ All notable changes to GameNight are documented here.
 
 ---
 
-## [v0.016] — 2026-04-03
+## [v0.01552] — 2026-04-03
 
 ### Added
 - **My Events page.** Logged-in users can view all events they are involved in
