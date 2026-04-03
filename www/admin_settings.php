@@ -340,6 +340,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $post_tab = 'sms';
         }
 
+        if ($action === 'cron_settings') {
+            $tok = trim($_POST['cron_token'] ?? '');
+            if ($tok !== '') set_setting('cron_token', $tok);
+            db_log_activity($current['id'], 'updated cron token');
+            $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Cron token saved.'];
+            $post_tab = 'email';
+        }
+
         if ($action === 'wa_credentials') {
             $phone_id     = trim($_POST['wa_phone_id'] ?? '');
             $token        = trim($_POST['wa_token'] ?? '');
@@ -1196,6 +1204,44 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                 </form>
             </div>
 
+        </div>
+
+        <!-- Reminder Cron Setup -->
+        <div class="card" style="max-width:100%;margin-top:1.5rem">
+            <h2>Reminder Notifications (Cron)</h2>
+            <p class="subtitle">Automated 2-day and 12-hour reminders for event invitees. Requires a server-side cron job.</p>
+
+            <form method="post" action="/admin_settings.php" style="margin-bottom:1.25rem">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                <input type="hidden" name="action" value="cron_settings">
+                <input type="hidden" name="tab" value="email">
+                <div class="form-group">
+                    <label>Cron Token <span style="color:#94a3b8;font-weight:400">(secret — used to authenticate cron.php)</span></label>
+                    <div style="display:flex;gap:.5rem">
+                        <input type="text" name="cron_token" id="cronTokenInput"
+                               value="<?= htmlspecialchars(get_setting('cron_token','')) ?>"
+                               placeholder="Leave blank to keep current"
+                               autocomplete="off" style="flex:1;font-family:monospace">
+                        <button type="button" class="btn btn-outline" style="white-space:nowrap"
+                                onclick="document.getElementById('cronTokenInput').value = Array.from(crypto.getRandomValues(new Uint8Array(20))).map(b=>b.toString(16).padStart(2,'0')).join('')">
+                            Generate
+                        </button>
+                    </div>
+                    <p class="hint">Only non-empty values are saved. Generate a new token if compromised.</p>
+                </div>
+                <button type="submit" class="btn btn-primary">Save Token</button>
+            </form>
+
+            <hr style="margin:1.25rem 0;border:none;border-top:1px solid #e2e8f0">
+            <h3 style="margin-bottom:.75rem">Cron Job Setup</h3>
+            <p style="font-size:.875rem;color:#475569;margin-bottom:.75rem">
+                Add the following line to your server's crontab (<code>crontab -e</code>) to run reminders every 30 minutes:
+            </p>
+            <pre style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:.75rem 1rem;font-size:.8rem;overflow-x:auto;margin-bottom:.75rem">*/30 * * * * curl -s "https://<?= htmlspecialchars($_SERVER['HTTP_HOST'] ?? 'yourdomain.com') ?>/cron.php?token=<?= htmlspecialchars(get_setting('cron_token','YOUR_CRON_TOKEN')) ?>" > /dev/null</pre>
+            <p style="font-size:.8rem;color:#94a3b8">
+                The cron endpoint sends 2-day and 12-hour reminders to invitees, deduplicating via the
+                <code>event_notifications_sent</code> table so each reminder fires at most once per occurrence.
+            </p>
         </div>
     </div>
 

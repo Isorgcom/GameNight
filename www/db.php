@@ -180,6 +180,23 @@ function db_init(PDO $pdo): void {
     // Per-occurrence invite/RSVP support for recurring events
     try { $pdo->exec("ALTER TABLE event_invites ADD COLUMN occurrence_date TEXT"); } catch (Exception $e) {}
 
+    // Series cancellation: cancelled_from=YYYY-MM-DD means no occurrences on/after that date
+    try { $pdo->exec("ALTER TABLE events ADD COLUMN cancelled_from TEXT"); } catch (Exception $e) {}
+
+    // valid_from for mid-series invitees: NULL=from series start, date=only occurrences >= that date
+    try { $pdo->exec("ALTER TABLE event_invites ADD COLUMN valid_from TEXT"); } catch (Exception $e) {}
+
+    // Event notification deduplication for cron reminders
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS event_notifications_sent (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id INTEGER NOT NULL,
+        occurrence_date TEXT NOT NULL,
+        user_identifier TEXT NOT NULL,
+        notification_type TEXT NOT NULL,
+        sent_at TEXT NOT NULL,
+        UNIQUE(event_id, occurrence_date, user_identifier, notification_type)
+    )"); } catch (Exception $e) {}
+
     // Seed default site_settings on a fresh DB (INSERT OR IGNORE — never overwrites existing values)
     $ins = $pdo->prepare('INSERT OR IGNORE INTO site_settings (key, value) VALUES (?, ?)');
 

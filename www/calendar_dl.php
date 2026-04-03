@@ -51,19 +51,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     };
 
-    // Notify newly-added invitees via their preferred contact method
-    $notify_new_invitees = function(int $eid, array $old_usernames, string $evt_title, string $evt_start) use ($db): void {
-        $rows = $db->prepare('SELECT username FROM event_invites WHERE event_id = ?');
-        $rows->execute([$eid]);
-        foreach ($rows->fetchAll() as $inv) {
-            $uname = strtolower(trim($inv['username']));
-            if (in_array($uname, $old_usernames, true)) continue;
-            $urow = $db->prepare('SELECT email, phone, preferred_contact FROM users WHERE LOWER(username) = ?');
+    // Notify newly-added invitees via their preferred contact method.
+    // $new_usernames: list of lowercase usernames that are new (already computed).
+    // $next_occ_date: the next upcoming occurrence date to use in the notification.
+    $notify_new_invitees = function(int $eid, array $new_usernames, string $evt_title, string $next_occ_date) use ($db): void {
+        foreach ($new_usernames as $uname) {
+            $urow = $db->prepare('SELECT username, email, phone, preferred_contact FROM users WHERE LOWER(username) = ?');
             $urow->execute([$uname]);
             $udata = $urow->fetch();
             if (!$udata) continue;
             $contact = $udata['preferred_contact'] ?? 'email';
-            send_invite_notification($inv['username'], $udata['email'] ?? '', $udata['phone'] ?? '', $contact, $evt_title, $evt_start, $eid);
+            send_invite_notification($udata['username'], $udata['email'] ?? '', $udata['phone'] ?? '', $contact, $evt_title, $next_occ_date, $eid);
+            // Log invite notification so cron won't double-send
+            try {
+                $db->prepare("INSERT OR IGNORE INTO event_notifications_sent (event_id, occurrence_date, user_identifier, notification_type, sent_at) VALUES (?, ?, ?, 'invite', ?)")
+                   ->execute([$eid, $next_occ_date, $uname, date('Y-m-d H:i:s')]);
+            } catch (Exception $e) {}
         }
     };
 
@@ -92,33 +95,72 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                    ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $recurrence, $recEnd, $current['id']]);
                 $new_eid = (int)$db->lastInsertId();
                 $save_invites($new_eid);
-                $notify_new_invitees($new_eid, [], $title, $sd);
+                // For a new event all invitees are "new"; notify with the series start date
+                $all_new = array_map('strtolower', array_filter($inv_usernames, fn($u) => $u !== ''));
+                $notify_new_invitees($new_eid, $all_new, $title, $sd);
                 db_log_activity($current['id'], "created event: $title");
                 $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event added.'];
             } else {
-                // Capture existing invites before save so we only notify new ones
-                $stmt_old = $db->prepare('SELECT LOWER(username) as u FROM event_invites WHERE event_id=?');
+                // Capture existing BASE invites before save so we only notify new ones
+                $stmt_old = $db->prepare('SELECT LOWER(username) as u FROM event_invites WHERE event_id=? AND occurrence_date IS NULL');
                 $stmt_old->execute([$id]);
                 $old_inv = array_column($stmt_old->fetchAll(), 'u');
 
                 $db->prepare('UPDATE events SET title=?, description=?, start_date=?, end_date=?, start_time=?, end_time=?, color=?, recurrence=?, recurrence_end=? WHERE id=?')
                    ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $recurrence, $recEnd, $id]);
-                $save_invites($id);
-                $notify_new_invitees($id, $old_inv, $title, $sd);
+
+                // ── Feature 1: Only delete/replace BASE rows; leave per-occurrence overrides intact ──
+                $db->prepare('DELETE FROM event_invites WHERE event_id=? AND occurrence_date IS NULL')->execute([$id]);
+
+                $today_date   = date('Y-m-d');
+                $isRecurring  = $recurrence !== 'none';
+                $ins_base     = $db->prepare('INSERT INTO event_invites (event_id, username, phone, email, rsvp, valid_from) VALUES (?, ?, ?, ?, ?, ?)');
+                $new_inv      = [];
+                $form_inv     = [];
+                for ($i = 0; $i < count($inv_usernames); $i++) {
+                    if ($inv_usernames[$i] === '') continue;
+                    $uname      = strtolower(trim($inv_usernames[$i]));
+                    $form_inv[] = $uname;
+                    $rsvp       = in_array($inv_rsvps[$i] ?? '', $valid_rsvps, true) ? ($inv_rsvps[$i] ?: null) : null;
+                    $pnorm      = $inv_phones[$i] !== '' ? normalize_phone($inv_phones[$i]) : '';
+                    $is_new     = !in_array($uname, $old_inv, true);
+                    // New mid-series invitees on recurring events get valid_from = today
+                    $vf = ($isRecurring && $is_new) ? $today_date : null;
+                    $ins_base->execute([$id, $uname, $pnorm ?: null, $inv_emails[$i] ?: null, $rsvp, $vf]);
+                    if ($is_new) $new_inv[] = $uname;
+                }
+                // Clean up future per-occurrence rows for REMOVED invitees
+                $removed = array_diff($old_inv, $form_inv);
+                if (!empty($removed)) {
+                    $ph = implode(',', array_fill(0, count($removed), '?'));
+                    $db->prepare("DELETE FROM event_invites WHERE event_id=? AND LOWER(username) IN ($ph) AND occurrence_date >= ?")
+                       ->execute(array_merge([$id], array_values($removed), [$today_date]));
+                }
+
+                // Notify new invitees for the next upcoming occurrence
+                if (!empty($new_inv)) {
+                    $ev_row = $db->prepare('SELECT * FROM events WHERE id=?');
+                    $ev_row->execute([$id]);
+                    $ev_row = $ev_row->fetch();
+                    $exc = load_exceptions($db, [$ev_row]);
+                    $next_occ = get_next_occurrence($ev_row, $exc[$id] ?? [], $today_date);
+                    $notify_new_invitees($id, $new_inv, $title, $next_occ ?? $sd);
+                }
 
                 // Notify existing invitees about the change (if checkbox is checked)
-                if (!empty($_POST['notify_invitees'])) {
+                if (!empty($_POST['notify_invitees']) && !empty($old_inv)) {
                     $month = substr($sd, 0, 7);
                     $evUrl = 'https://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/calendar.php?m=' . urlencode($month) . '&open=' . $id . '&date=' . urlencode($sd);
-                    $existInv = $db->prepare('SELECT ei.username, u.email, u.phone, u.preferred_contact FROM event_invites ei JOIN users u ON LOWER(u.username)=LOWER(ei.username) WHERE ei.event_id=? AND LOWER(ei.username) IN (' . implode(',', array_fill(0, max(1, count($old_inv)), '?')) . ')');
+                    $ph = implode(',', array_fill(0, count($old_inv), '?'));
+                    $existInv = $db->prepare("SELECT ei.username, u.email, u.phone, u.preferred_contact FROM event_invites ei JOIN users u ON LOWER(u.username)=LOWER(ei.username) WHERE ei.event_id=? AND LOWER(ei.username) IN ($ph)");
                     $existInv->execute(array_merge([$id], $old_inv));
                     foreach ($existInv->fetchAll() as $inv) {
-                        $smsBody  = "\"$title\" on $sd has been updated. View: $evUrl";
-                        $htmlBody = '<p>The event <strong>' . htmlspecialchars($title) . '</strong> on ' . htmlspecialchars($sd) . ' has been updated.</p>'
+                        $smsBody  = "\"$title\" has been updated. View: $evUrl";
+                        $htmlBody = '<p>The event <strong>' . htmlspecialchars($title) . '</strong> has been updated.</p>'
                                   . '<p style="margin-top:1rem"><a href="' . htmlspecialchars($evUrl) . '" style="background:#2563eb;color:#fff;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600">View Event</a></p>';
                         send_notification($inv['username'], $inv['email'] ?? '', $inv['phone'] ?? '',
                             $inv['preferred_contact'] ?? 'email',
-                            "Event updated: $title ($sd)", $smsBody, $htmlBody);
+                            "Event updated: $title", $smsBody, $htmlBody);
                     }
                 }
 
@@ -148,25 +190,168 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($id > 0 && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
             $db->prepare('INSERT OR IGNORE INTO event_exceptions (event_id, date) VALUES (?, ?)')
                ->execute([$id, $date]);
+
+            // ── Feature 2: Send cancellation notifications to RSVPed invitees ──
+            $evt_r = $db->prepare('SELECT title FROM events WHERE id=?');
+            $evt_r->execute([$id]);
+            $evt_title = $evt_r->fetchColumn();
+            if ($evt_title) {
+                $occ_inv = get_occurrence_invitees($db, $id, $date, true);
+                foreach ($occ_inv as $inv) {
+                    if (!in_array($inv['rsvp'] ?? '', ['yes', 'maybe'])) continue;
+                    $subject  = 'Cancelled: ' . $evt_title . ' on ' . $date;
+                    $smsBody  = "The event \"$evt_title\" on $date has been cancelled.";
+                    $htmlBody = '<p>The occurrence of <strong>' . htmlspecialchars($evt_title) . '</strong> on <strong>' . htmlspecialchars($date) . '</strong> has been <strong>cancelled</strong>.</p>';
+                    send_notification($inv['username'], $inv['email'] ?? '', $inv['phone'] ?? '',
+                        $inv['preferred_contact'] ?? 'email', $subject, $smsBody, $htmlBody);
+                }
+            }
+
             db_log_activity($current['id'], "removed occurrence $date from event id: $id");
             $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Occurrence removed.'];
         }
     }
 
+    // ── Feature 3: Cancel future occurrences of a recurring series ──
+    if ($action === 'cancel_series') {
+        $id          = (int)($_POST['id'] ?? 0);
+        $cancel_from = trim($_POST['cancel_from'] ?? date('Y-m-d'));
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $cancel_from)) $cancel_from = date('Y-m-d');
+        if ($id > 0) {
+            $db->prepare('UPDATE events SET cancelled_from=? WHERE id=?')->execute([$cancel_from, $id]);
+            // Notify all invitees (base rows) of the cancellation
+            $evt_r = $db->prepare('SELECT title FROM events WHERE id=?');
+            $evt_r->execute([$id]);
+            $evt_title = $evt_r->fetchColumn();
+            if ($evt_title) {
+                $all_inv = $db->prepare("SELECT ei.username, u.email, u.phone, u.preferred_contact
+                                         FROM event_invites ei JOIN users u ON LOWER(u.username)=LOWER(ei.username)
+                                         WHERE ei.event_id=? AND ei.occurrence_date IS NULL");
+                $all_inv->execute([$id]);
+                foreach ($all_inv->fetchAll() as $inv) {
+                    $subject  = 'Cancelled: ' . $evt_title . ' (series from ' . $cancel_from . ')';
+                    $smsBody  = "All future occurrences of \"$evt_title\" from $cancel_from have been cancelled.";
+                    $htmlBody = '<p>All future occurrences of <strong>' . htmlspecialchars($evt_title) . '</strong> from <strong>' . htmlspecialchars($cancel_from) . '</strong> onwards have been <strong>cancelled</strong>.</p>';
+                    send_notification($inv['username'], $inv['email'] ?? '', $inv['phone'] ?? '',
+                        $inv['preferred_contact'] ?? 'email', $subject, $smsBody, $htmlBody);
+                }
+            }
+            db_log_activity($current['id'], "cancelled series from $cancel_from for event id: $id");
+            if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
+                header('Content-Type: application/json');
+                echo json_encode(['ok' => true, 'cancelled_from' => $cancel_from]);
+                exit;
+            }
+            $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Future occurrences cancelled.'];
+        }
+    }
+
+    // ── Feature 3: Uncancel a series ──
+    if ($action === 'uncancel_series') {
+        $id = (int)($_POST['id'] ?? 0);
+        if ($id > 0) {
+            $db->prepare('UPDATE events SET cancelled_from=NULL WHERE id=?')->execute([$id]);
+            db_log_activity($current['id'], "uncancelled series for event id: $id");
+            if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
+                header('Content-Type: application/json');
+                echo json_encode(['ok' => true]);
+                exit;
+            }
+            $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Series resumed.'];
+        }
+    }
+
+    // ── Feature 5: Remove an invitee from all future occurrences ──
+    if ($action === 'remove_invitee') {
+        $id          = (int)($_POST['id'] ?? 0);
+        $target_user = strtolower(trim($_POST['target_username'] ?? ''));
+        $today_date  = date('Y-m-d');
+        if ($id > 0 && $target_user !== '') {
+            // Delete base row and future per-occurrence rows
+            $db->prepare("DELETE FROM event_invites WHERE event_id=? AND LOWER(username)=? AND (occurrence_date IS NULL OR occurrence_date >= ?)")
+               ->execute([$id, $target_user, $today_date]);
+            // Send removal notification
+            $evt_r = $db->prepare('SELECT title FROM events WHERE id=?');
+            $evt_r->execute([$id]);
+            $evt_title = $evt_r->fetchColumn();
+            $urow = $db->prepare('SELECT username, email, phone, preferred_contact FROM users WHERE LOWER(username)=?');
+            $urow->execute([$target_user]);
+            $udata = $urow->fetch();
+            if ($udata && $evt_title) {
+                $subject  = 'Removed from event: ' . $evt_title;
+                $smsBody  = "You have been removed from the event series \"$evt_title\".";
+                $htmlBody = '<p>You have been removed from the event series <strong>' . htmlspecialchars($evt_title) . '</strong>.</p>';
+                send_notification($udata['username'], $udata['email'] ?? '', $udata['phone'] ?? '',
+                    $udata['preferred_contact'] ?? 'email', $subject, $smsBody, $htmlBody);
+            }
+            db_log_activity($current['id'], "removed $target_user from all occurrences of event id: $id");
+            if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
+                header('Content-Type: application/json');
+                echo json_encode(['ok' => true]);
+                exit;
+            }
+            $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Invitee removed from all future occurrences.'];
+        }
+    }
+
     if ($action === 'update_rsvp' && $current) {
-        $eid  = (int)($_POST['event_id'] ?? 0);
-        $rsvp = in_array($_POST['rsvp'] ?? '', ['', 'yes', 'no', 'maybe'], true) ? ($_POST['rsvp'] ?: null) : null;
-        if ($eid > 0) {
-            $db->prepare('UPDATE event_invites SET rsvp=? WHERE event_id=? AND LOWER(username)=LOWER(?)')
-               ->execute([$rsvp, $eid, $current['username']]);
-            db_log_activity($current['id'], "updated RSVP for event id: $eid");
+        $eid      = (int)($_POST['event_id'] ?? 0);
+        $occ_date = trim($_POST['occurrence_date'] ?? '');
+        if ($occ_date && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $occ_date)) $occ_date = '';
+        $rsvp     = in_array($_POST['rsvp'] ?? '', ['', 'yes', 'no', 'maybe'], true) ? ($_POST['rsvp'] ?: null) : null;
+
+        // ── Feature 6: RSVP cutoff — non-admins locked within 1 hour of start ──
+        $rsvp_locked = false;
+        if (!$isAdmin && $eid > 0) {
+            $ev_chk = $db->prepare('SELECT start_date, start_time FROM events WHERE id=?');
+            $ev_chk->execute([$eid]);
+            $ev_chk = $ev_chk->fetch();
+            if ($ev_chk && $ev_chk['start_time']) {
+                $use_date = $occ_date ?: $ev_chk['start_date'];
+                $startDt  = new DateTime($use_date . ' ' . $ev_chk['start_time'], $local_tz);
+                $nowDt    = new DateTime('now', $local_tz);
+                if ($startDt->getTimestamp() - $nowDt->getTimestamp() < 3600) {
+                    $rsvp_locked = true;
+                }
+            }
         }
-        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
-            header('Content-Type: application/json');
-            echo json_encode(['ok' => true]);
-            exit;
+
+        if ($rsvp_locked) {
+            if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
+                header('Content-Type: application/json');
+                echo json_encode(['ok' => false, 'locked' => true, 'msg' => 'RSVP is locked — this event starts in less than an hour.']);
+                exit;
+            }
+            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'RSVP is locked — this event starts in less than an hour.'];
+        } elseif ($eid > 0) {
+            if ($occ_date) {
+                // Per-occurrence RSVP: update or insert occurrence-specific row
+                $chk = $db->prepare('SELECT id FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date=?');
+                $chk->execute([$eid, $current['username'], $occ_date]);
+                if ($chk->fetch()) {
+                    $db->prepare('UPDATE event_invites SET rsvp=? WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date=?')
+                       ->execute([$rsvp, $eid, $current['username'], $occ_date]);
+                } else {
+                    // Copy contact info from base row if available
+                    $base_stmt2 = $db->prepare('SELECT phone, email FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL');
+                    $base_stmt2->execute([$eid, $current['username']]);
+                    $base_row2 = $base_stmt2->fetch() ?: [];
+                    $db->prepare('INSERT INTO event_invites (event_id, username, phone, email, rsvp, occurrence_date) VALUES (?, ?, ?, ?, ?, ?)')
+                       ->execute([$eid, strtolower($current['username']), $base_row2['phone'] ?? null, $base_row2['email'] ?? null, $rsvp, $occ_date]);
+                }
+            } else {
+                // Non-recurring: update base row
+                $db->prepare('UPDATE event_invites SET rsvp=? WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL')
+                   ->execute([$rsvp, $eid, $current['username']]);
+            }
+            db_log_activity($current['id'], "updated RSVP for event id: $eid" . ($occ_date ? " ($occ_date)" : ''));
+            if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
+                header('Content-Type: application/json');
+                echo json_encode(['ok' => true]);
+                exit;
+            }
+            $_SESSION['flash'] = ['type' => 'success', 'msg' => 'RSVP updated.'];
         }
-        $_SESSION['flash'] = ['type' => 'success', 'msg' => 'RSVP updated.'];
     }
 
     if ($action === 'self_signup' && $current) {
@@ -265,12 +450,14 @@ function build_event_by_date(array $events, string $rangeStart, string $rangeEnd
                 $cur->modify('+1 day');
             }
         } else {
-            $recEnd = $ev['recurrence_end'] ? new DateTime($ev['recurrence_end'], $tz) : null;
+            $recEnd      = $ev['recurrence_end'] ? new DateTime($ev['recurrence_end'], $tz) : null;
+            $cancelFrom  = !empty($ev['cancelled_from']) ? $ev['cancelled_from'] : null;
             $cur    = clone $startDt;
             $limit  = 1000;
             while ($cur <= $rangeE && $limit-- > 0) {
                 if ($recEnd && $cur > $recEnd) break;
                 $occDate = $cur->format('Y-m-d');
+                if ($cancelFrom && $occDate >= $cancelFrom) break;
                 if (!in_array($occDate, $skip, true)) {
                     $instEnd = (clone $cur)->modify("+{$duration} days");
                     if ($instEnd >= $rangeS) {
@@ -307,6 +494,60 @@ function load_exceptions(PDO $db, array $events): array {
     $out  = [];
     foreach ($stmt->fetchAll() as $row) $out[$row['event_id']][] = $row['date'];
     return $out;
+}
+
+/**
+ * Get the effective invite list for a specific occurrence.
+ * Base rows (occurrence_date IS NULL, valid_from <= occ_date) are merged with
+ * occurrence-specific override rows (which take precedence).
+ * Returns array of rows each with: username, rsvp (and optionally email, phone, preferred_contact).
+ */
+function get_occurrence_invitees(PDO $db, int $event_id, string $occurrence_date, bool $with_contact = true): array {
+    $cols = $with_contact ? 'ei.username, ei.rsvp, u.email, u.phone, u.preferred_contact' : 'ei.username, ei.rsvp';
+    $join = $with_contact ? 'JOIN users u ON LOWER(u.username) = LOWER(ei.username)' : '';
+
+    $base = $db->prepare("SELECT $cols FROM event_invites ei $join
+                          WHERE ei.event_id = ? AND ei.occurrence_date IS NULL
+                          AND (ei.valid_from IS NULL OR ei.valid_from <= ?)");
+    $base->execute([$event_id, $occurrence_date]);
+    $invitees = [];
+    foreach ($base->fetchAll() as $row) {
+        $invitees[strtolower($row['username'])] = $row;
+    }
+    $occ = $db->prepare("SELECT $cols FROM event_invites ei $join
+                         WHERE ei.event_id = ? AND ei.occurrence_date = ?");
+    $occ->execute([$event_id, $occurrence_date]);
+    foreach ($occ->fetchAll() as $row) {
+        $invitees[strtolower($row['username'])] = $row; // override
+    }
+    return array_values($invitees);
+}
+
+/**
+ * Find the next occurrence date of a recurring event on or after $from_date.
+ */
+function get_next_occurrence(array $ev, array $skip, string $from_date): ?string {
+    if (($ev['recurrence'] ?? 'none') === 'none') {
+        return $ev['start_date'] >= $from_date ? $ev['start_date'] : null;
+    }
+    $tz     = new DateTimeZone(get_setting('timezone', 'UTC'));
+    $cur    = new DateTime($ev['start_date'], $tz);
+    $recEnd = $ev['recurrence_end'] ?? null;
+    $limit  = 500;
+    while ($limit-- > 0) {
+        if ($recEnd && $cur->format('Y-m-d') > $recEnd) break;
+        $occDate = $cur->format('Y-m-d');
+        if (!empty($ev['cancelled_from']) && $occDate >= $ev['cancelled_from']) break;
+        if ($occDate >= $from_date && !in_array($occDate, $skip, true)) return $occDate;
+        switch ($ev['recurrence']) {
+            case 'daily':   $cur->modify('+1 day');   break;
+            case 'weekly':  $cur->modify('+1 week');  break;
+            case 'monthly': $cur->modify('+1 month'); break;
+            case 'yearly':  $cur->modify('+1 year');  break;
+            default: break 2;
+        }
+    }
+    return null;
 }
 
 $exceptions = load_exceptions($db, $allEvents);
@@ -372,11 +613,11 @@ if (!empty($allPageEids)) {
     foreach ($cs->fetchAll() as $c) $ev_comments[$c['content_id']][] = $c;
 }
 
-// Batch-load invites for all events on this page
+// Batch-load BASE invites for all events on this page (occurrence_date IS NULL)
 $ev_invites = [];
 if (!empty($allPageEids)) {
     $iph = implode(',', array_fill(0, count($allPageEids), '?'));
-    $is  = $db->prepare("SELECT event_id, username, phone, email, rsvp FROM event_invites WHERE event_id IN ($iph) ORDER BY username");
+    $is  = $db->prepare("SELECT event_id, username, phone, email, rsvp FROM event_invites WHERE event_id IN ($iph) AND occurrence_date IS NULL ORDER BY username");
     $is->execute($allPageEids);
     foreach ($is->fetchAll() as $inv) $ev_invites[$inv['event_id']][] = $inv;
 }
@@ -388,6 +629,18 @@ if (!$isAdmin) {
         }
     }
     unset($_invList, $_inv);
+}
+
+// Batch-load occurrence-specific RSVPs for the current user
+// Structure: [event_id][occurrence_date] = rsvp_value
+$ev_my_occ_rsvps = [];
+if ($current && !empty($allPageEids)) {
+    $iph2 = implode(',', array_fill(0, count($allPageEids), '?'));
+    $ors  = $db->prepare("SELECT event_id, occurrence_date, rsvp FROM event_invites WHERE event_id IN ($iph2) AND LOWER(username)=LOWER(?) AND occurrence_date IS NOT NULL");
+    $ors->execute(array_merge($allPageEids, [$current['username']]));
+    foreach ($ors->fetchAll() as $r) {
+        $ev_my_occ_rsvps[$r['event_id']][$r['occurrence_date']] = $r['rsvp'];
+    }
 }
 
 // Auto-open a specific event when ?open=ID&date=DATE is present (from landing page links)
@@ -917,8 +1170,12 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <input type="hidden" name="action" value="update_rsvp">
                 <input type="hidden" name="event_id" id="vRsvpEventId" value="">
+                <input type="hidden" name="occurrence_date" id="vRsvpOccDate" value="">
                 <input type="hidden" name="month_param" value="<?= htmlspecialchars($monthParam) ?>">
                 <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin-bottom:.4rem">My RSVP</div>
+                <div id="vRsvpLocked" style="display:none;font-size:.8rem;color:#dc2626;font-style:italic;margin-bottom:.35rem">
+                    RSVP is locked — this event starts in less than an hour.
+                </div>
                 <div style="display:flex;gap:.5rem;align-items:center">
                     <select name="rsvp" id="vRsvpSelect"
                             style="padding:.38rem .6rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.875rem;background:#fff">
@@ -1117,7 +1374,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         </form>
         <!-- Delete entire event (edit mode only) -->
         <form method="post" action="/calendar.php" id="eDeleteForm"
-              style="display:none;padding:0 1.25rem .65rem;flex-shrink:0"
+              style="display:none;padding:0 1.25rem 0;flex-shrink:0"
               onsubmit="return confirm(currentEvent && currentEvent.recurrence !== 'none' ? 'Delete the entire repeating series? This cannot be undone.' : 'Delete this event?')">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
             <input type="hidden" name="action" value="delete">
@@ -1125,6 +1382,19 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             <input type="hidden" name="month_param" value="<?= htmlspecialchars($monthParam) ?>">
             <button type="submit" class="btn" style="width:100%;background:#dc2626;color:#fff">Delete Event</button>
         </form>
+        <!-- Cancel/Uncancel series (recurring events only, edit mode) -->
+        <div id="eCancelSeriesWrap" style="display:none;padding:.45rem 1.25rem .65rem;flex-shrink:0;border-top:1px solid #f1f5f9;margin-top:.1rem">
+            <button id="eCancelSeriesBtn" type="button"
+                    style="width:100%;padding:.4rem;border:1.5px solid #f87171;border-radius:7px;background:#fff;color:#dc2626;font-size:.82rem;cursor:pointer;font-weight:600"
+                    onclick="cancelSeriesClick()">
+                Cancel future occurrences
+            </button>
+            <button id="eUncancelSeriesBtn" type="button"
+                    style="display:none;width:100%;padding:.4rem;border:1.5px solid #86efac;border-radius:7px;background:#fff;color:#16a34a;font-size:.82rem;cursor:pointer;font-weight:600"
+                    onclick="uncancelSeriesClick()">
+                Uncancel series (resume)
+            </button>
+        </div>
     </div>
 </div>
 <?php endif; ?>
@@ -1133,13 +1403,15 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
 
 <script>
 let currentEvent = null;
-const eventComments   = <?= json_encode($ev_comments) ?>;
-const eventInvites    = <?= json_encode($ev_invites) ?>;
+const eventComments     = <?= json_encode($ev_comments) ?>;
+const eventInvites      = <?= json_encode($ev_invites) ?>;
+const EV_MY_OCC_RSVPS  = <?= json_encode($ev_my_occ_rsvps) ?>;
 const CURRENT_USERNAME  = <?= json_encode($current['username'] ?? '') ?>;
 const CAL_REDIR         = '/calendar.php?m=<?= htmlspecialchars($monthParam) ?>';
 const CAL_CSRF          = <?= json_encode($token) ?>;
 const CAL_CURRENT_ID    = <?= json_encode((int)($current['id'] ?? 0)) ?>;
-const IS_ADMIN = <?= $isAdmin ? 'true' : 'false' ?>;
+const IS_ADMIN          = <?= $isAdmin ? 'true' : 'false' ?>;
+const SERVER_NOW_TS     = <?= time() ?>;
 
 // ── View modal ────────────────────────────────────────────────────────────────
 function viewEvent(ev) {
@@ -1169,8 +1441,28 @@ function viewEvent(ev) {
     const vRsvpWrap = document.getElementById('vRsvpWrap');
     if (vRsvpWrap) {
         if (isInvited) {
+            const occDate = ev.occurrence_start || ev.start_date;
             document.getElementById('vRsvpEventId').value = ev.id;
-            document.getElementById('vRsvpSelect').value  = myInvite.rsvp || '';
+            document.getElementById('vRsvpOccDate').value = (ev.recurrence && ev.recurrence !== 'none') ? occDate : '';
+
+            // Determine effective RSVP: occurrence-specific takes precedence over base
+            const occRsvps = EV_MY_OCC_RSVPS[ev.id] || {};
+            const occRsvp  = occRsvps[occDate];
+            const baseRsvp = myInvite.rsvp || '';
+            const effectiveRsvp = (occRsvp !== undefined) ? (occRsvp || '') : baseRsvp;
+            document.getElementById('vRsvpSelect').value = effectiveRsvp;
+
+            // ── Feature 6: RSVP cutoff — lock RSVP within 1 hour of start ──
+            const lockedEl = document.getElementById('vRsvpLocked');
+            const rsvpSel  = document.getElementById('vRsvpSelect');
+            let rsvpLocked = false;
+            if (!IS_ADMIN && ev.start_time) {
+                const startTs = (new Date(occDate + 'T' + ev.start_time).getTime() / 1000);
+                rsvpLocked = (startTs - SERVER_NOW_TS) < 3600;
+            }
+            if (lockedEl) lockedEl.style.display = rsvpLocked ? '' : 'none';
+            if (rsvpSel)  rsvpSel.disabled = rsvpLocked;
+
             vRsvpWrap.style.display = '';
         } else {
             vRsvpWrap.style.display = 'none';
@@ -1381,8 +1673,10 @@ if (vCommentForm) {
 const vRsvpSelect = document.getElementById('vRsvpSelect');
 if (vRsvpSelect) {
     vRsvpSelect.addEventListener('change', function() {
+        if (this.disabled) return;
         const form = document.getElementById('vRsvpForm');
         const data = new FormData(form);
+        const prevVal = currentEvent ? ((EV_MY_OCC_RSVPS[currentEvent.id] || {})[document.getElementById('vRsvpOccDate').value || ''] || (eventInvites[currentEvent.id] || []).find(i => i.username.toLowerCase() === CURRENT_USERNAME.toLowerCase())?.rsvp || '') : '';
         fetch('/calendar.php', {
             method: 'POST',
             body: data,
@@ -1390,13 +1684,29 @@ if (vRsvpSelect) {
         })
         .then(r => r.json())
         .then(res => {
-            if (!res.ok) return;
-            const eid  = parseInt(document.getElementById('vRsvpEventId').value);
-            const rsvp = vRsvpSelect.value;
-            const list = eventInvites[eid];
-            if (list) {
-                const inv = list.find(i => i.username.toLowerCase() === CURRENT_USERNAME.toLowerCase());
-                if (inv) inv.rsvp = rsvp || null;
+            if (!res.ok) {
+                if (res.locked) {
+                    const lockedEl = document.getElementById('vRsvpLocked');
+                    if (lockedEl) lockedEl.style.display = '';
+                    this.disabled = true;
+                    this.value = prevVal;
+                } else {
+                    showSavedBar(res.msg || 'Error');
+                }
+                return;
+            }
+            const eid     = parseInt(document.getElementById('vRsvpEventId').value);
+            const occDate = document.getElementById('vRsvpOccDate').value;
+            const rsvp    = vRsvpSelect.value;
+            if (occDate) {
+                if (!EV_MY_OCC_RSVPS[eid]) EV_MY_OCC_RSVPS[eid] = {};
+                EV_MY_OCC_RSVPS[eid][occDate] = rsvp || null;
+            } else {
+                const list = eventInvites[eid];
+                if (list) {
+                    const inv = list.find(i => i.username.toLowerCase() === CURRENT_USERNAME.toLowerCase());
+                    if (inv) inv.rsvp = rsvp || null;
+                }
             }
             renderInvitesPanel(eid);
             showSavedBar();
@@ -1631,9 +1941,20 @@ function openEditModal(ev) {
     selectColor(ev.color || '#2563eb');
     document.getElementById('eInviteList').innerHTML = '';
     document.querySelectorAll('.eUserChk').forEach(c => c.checked = false);
-    (eventInvites[ev.id] || []).forEach(inv => addInviteRow(inv.username, inv.phone || '', inv.email || '', inv.rsvp || ''));
+    const isRec = ev.recurrence && ev.recurrence !== 'none';
+    (eventInvites[ev.id] || []).forEach(inv => addInviteRow(inv.username, inv.phone || '', inv.email || '', inv.rsvp || '', isRec, ev.id));
     document.getElementById('eDeleteId').value       = ev.id;
     document.getElementById('eDeleteForm').style.display = '';
+    // Cancel/Uncancel series controls
+    const cancelWrap = document.getElementById('eCancelSeriesWrap');
+    const cancelBtn  = document.getElementById('eCancelSeriesBtn');
+    const uncancelBtn= document.getElementById('eUncancelSeriesBtn');
+    if (cancelWrap) {
+        cancelWrap.style.display = isRec ? '' : 'none';
+        const isCancelled = !!(ev.cancelled_from);
+        cancelBtn.style.display   = isCancelled ? 'none' : '';
+        uncancelBtn.style.display = isCancelled ? '' : 'none';
+    }
     document.getElementById('editModal').classList.add('open');
     document.getElementById('eTitle').focus();
 }
@@ -1644,11 +1965,15 @@ function escHtml(s) {
     return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 const RSVP_LABELS = {'':'', yes:'Yes', no:'No', maybe:'Maybe'};
-function addInviteRow(username, phone, email, rsvp) {
+function addInviteRow(username, phone, email, rsvp, showRemoveAll, eid) {
     const list = document.getElementById('eInviteList');
     const row  = document.createElement('div');
     row.className = 'invite-row';
+    row.dataset.username = username.toLowerCase();
     const rsvpVal = RSVP_LABELS.hasOwnProperty(rsvp) ? rsvp : '';
+    const removeAllLink = (showRemoveAll && username)
+        ? '<button type="button" style="flex-shrink:0;padding:.28rem .45rem;font-size:.72rem;border:1px solid #fca5a5;border-radius:5px;background:#fff;color:#dc2626;cursor:pointer;white-space:nowrap" title="Remove from all future occurrences" onclick="removeInviteeFromAll(\'' + escHtml(username.toLowerCase()) + '\',' + (eid||0) + ',this.closest(\'.invite-row\'))">&#x2715; All</button>'
+        : '';
     row.innerHTML =
         '<input type="text"  name="invite_username[]" value="' + escHtml(username) + '" placeholder="Username *" required>' +
         '<input type="text"  name="invite_phone[]"    value="' + escHtml(phone)    + '" placeholder="Phone">' +
@@ -1659,21 +1984,88 @@ function addInviteRow(username, phone, email, rsvp) {
             '<option value="no"'    + (rsvpVal==='no'    ? ' selected' : '') + '>No</option>' +
             '<option value="maybe"' + (rsvpVal==='maybe' ? ' selected' : '') + '>Maybe</option>' +
         '</select>' +
+        removeAllLink +
         '<button type="button" class="inv-remove" onclick="this.closest(\'.invite-row\').remove()">&#x2715;</button>';
     list.appendChild(row);
 }
+function addBlankInviteRow() { addInviteRow('', '', '', ''); }
 function addCheckedInvites() {
+    const isRec = currentEvent && currentEvent.recurrence && currentEvent.recurrence !== 'none';
+    const eid   = currentEvent ? currentEvent.id : 0;
     const existing = Array.from(document.querySelectorAll('#eInviteList [name="invite_username[]"]'))
                           .map(i => i.value.trim().toLowerCase());
     document.querySelectorAll('.eUserChk:checked').forEach(chk => {
         if (!existing.includes(chk.value.toLowerCase())) {
-            addInviteRow(chk.value, chk.dataset.phone || '', chk.dataset.email || '', '');
+            addInviteRow(chk.value, chk.dataset.phone || '', chk.dataset.email || '', '', isRec, eid);
             existing.push(chk.value.toLowerCase());
         }
         chk.checked = false;
     });
 }
-function addBlankInviteRow() { addInviteRow('', '', '', ''); }
+
+// ── Feature 5: Remove invitee from all future occurrences ──
+function removeInviteeFromAll(username, eid, rowEl) {
+    if (!confirm('Remove ' + username + ' from all future occurrences of this event?\nA notification will be sent.')) return;
+    const data = new FormData();
+    data.append('csrf_token', CAL_CSRF);
+    data.append('action', 'remove_invitee');
+    data.append('id', eid);
+    data.append('target_username', username);
+    fetch('/calendar.php', { method: 'POST', body: data, headers: {'X-Requested-With': 'XMLHttpRequest'} })
+    .then(r => r.json())
+    .then(res => {
+        if (!res.ok) { alert('Error removing invitee.'); return; }
+        if (rowEl) rowEl.remove();
+        // Remove from in-memory invites
+        if (eventInvites[eid]) {
+            eventInvites[eid] = eventInvites[eid].filter(i => i.username.toLowerCase() !== username);
+        }
+    })
+    .catch(() => alert('Error removing invitee.'));
+}
+
+// ── Feature 3: Cancel / uncancel series ──
+function cancelSeriesClick() {
+    if (!currentEvent) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const d = prompt('Cancel all occurrences from date (YYYY-MM-DD):', today);
+    if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
+    if (!confirm('This will cancel all occurrences from ' + d + ' and notify all invitees. Continue?')) return;
+    const data = new FormData();
+    data.append('csrf_token', CAL_CSRF);
+    data.append('action', 'cancel_series');
+    data.append('id', currentEvent.id);
+    data.append('cancel_from', d);
+    fetch('/calendar.php', { method: 'POST', body: data, headers: {'X-Requested-With': 'XMLHttpRequest'} })
+    .then(r => r.json())
+    .then(res => {
+        if (!res.ok) { alert('Error cancelling series.'); return; }
+        currentEvent.cancelled_from = res.cancelled_from;
+        document.getElementById('eCancelSeriesBtn').style.display = 'none';
+        document.getElementById('eUncancelSeriesBtn').style.display = '';
+        alert('Series cancelled from ' + res.cancelled_from + '. Notifications sent.');
+    })
+    .catch(() => alert('Error cancelling series.'));
+}
+
+function uncancelSeriesClick() {
+    if (!currentEvent) return;
+    if (!confirm('Resume this event series? Future occurrences will reappear on the calendar.')) return;
+    const data = new FormData();
+    data.append('csrf_token', CAL_CSRF);
+    data.append('action', 'uncancel_series');
+    data.append('id', currentEvent.id);
+    fetch('/calendar.php', { method: 'POST', body: data, headers: {'X-Requested-With': 'XMLHttpRequest'} })
+    .then(r => r.json())
+    .then(res => {
+        if (!res.ok) { alert('Error uncancelling series.'); return; }
+        currentEvent.cancelled_from = null;
+        document.getElementById('eCancelSeriesBtn').style.display = '';
+        document.getElementById('eUncancelSeriesBtn').style.display = 'none';
+        alert('Series resumed.');
+    })
+    .catch(() => alert('Error uncancelling series.'));
+}
 
 function toggleRecEnd(val) {
     document.getElementById('recEndGroup').style.display = val === 'none' ? 'none' : '';
