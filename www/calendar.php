@@ -810,6 +810,8 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         @media (min-width:769px) {
             #editModal .modal { max-width:min(96vw,1140px);max-height:92vh;display:flex;flex-direction:column;padding:0;overflow:hidden; }
             #editModal .modal-header { padding:1.1rem 1.75rem;margin-bottom:0;border-bottom:1px solid #e2e8f0;flex-shrink:0; }
+            /* form must be a flex column so edit-form-body/edit-footer can use flex sizing */
+            #editModal form { display:flex;flex-direction:column;flex:1;min-height:0; }
             #editModal .edit-form-body { display:grid;grid-template-columns:1fr 1fr;flex:1;min-height:0;overflow:hidden; }
             /* min-height:0 is critical on grid children — without it they ignore overflow */
             #editModal .edit-col-left { padding:1.25rem 1.5rem;overflow-y:auto;border-right:1px solid #e2e8f0;min-height:0; }
