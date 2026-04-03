@@ -56,6 +56,7 @@ function attempt_login(string $email, string $password): bool|string {
     $row = $stmt->fetch();
 
     if (!$row || !password_verify($password, $row['password_hash'])) {
+        db_log_anon_activity('failed_login: ' . strtolower(trim($email)), 'critical');
         return false;
     }
     if (!(int)$row['email_verified']) {

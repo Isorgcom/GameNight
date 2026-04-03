@@ -174,6 +174,9 @@ function db_init(PDO $pdo): void {
     // Add preferred_contact column if it doesn't exist yet
     try { $pdo->exec("ALTER TABLE users ADD COLUMN preferred_contact TEXT NOT NULL DEFAULT 'email'"); } catch (Exception $e) {}
 
+    // Severity level for log entries (info, warning, critical)
+    try { $pdo->exec("ALTER TABLE activity_log ADD COLUMN severity TEXT NOT NULL DEFAULT 'info'"); } catch (Exception $e) {}
+
     // Seed default site_settings on a fresh DB (INSERT OR IGNORE — never overwrites existing values)
     $ins = $pdo->prepare('INSERT OR IGNORE INTO site_settings (key, value) VALUES (?, ?)');
 
@@ -366,9 +369,16 @@ function sanitize_html(string $html): string {
     return $out;
 }
 
-function db_log_activity(int $user_id, string $action): void {
+function db_log_activity(int $user_id, string $action, string $severity = 'info'): void {
     $stmt = get_db()->prepare(
-        'INSERT INTO activity_log (user_id, action, ip) VALUES (?, ?, ?)'
+        'INSERT INTO activity_log (user_id, action, ip, severity) VALUES (?, ?, ?, ?)'
     );
-    $stmt->execute([$user_id, $action, get_client_ip()]);
+    $stmt->execute([$user_id, $action, get_client_ip(), $severity]);
+}
+
+function db_log_anon_activity(string $action, string $severity = 'info'): void {
+    $stmt = get_db()->prepare(
+        'INSERT INTO activity_log (user_id, action, ip, severity) VALUES (0, ?, ?, ?)'
+    );
+    $stmt->execute([$action, get_client_ip(), $severity]);
 }

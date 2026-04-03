@@ -435,9 +435,9 @@ $offset   = ($page - 1) * $per_page;
 $log_total = (int)$db->query('SELECT COUNT(*) FROM activity_log')->fetchColumn();
 $log_pages = max(1, (int)ceil($log_total / $per_page));
 $log_rows  = $db->prepare("
-    SELECT a.action, a.ip, a.created_at, u.username
+    SELECT a.action, a.ip, a.created_at, a.severity, COALESCE(u.username, '—') AS username
     FROM   activity_log a
-    JOIN   users u ON u.id = a.user_id
+    LEFT JOIN users u ON u.id = a.user_id AND a.user_id != 0
     ORDER  BY a.id DESC
     LIMIT  ? OFFSET ?
 ");
@@ -927,7 +927,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                 </thead>
                 <tbody>
                 <?php foreach ($log_rows as $a): ?>
-                    <tr>
+                    <tr<?= $a['severity'] === 'critical' ? ' style="background:#fef2f2;color:#991b1b;font-weight:500"' : '' ?>>
                         <td style="white-space:nowrap">
                             <?= htmlspecialchars(
                                 (new DateTime($a['created_at'], new DateTimeZone('UTC')))
