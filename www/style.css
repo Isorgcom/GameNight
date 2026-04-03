@@ -367,8 +367,9 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
     .stat-card .value { font-size: 1.5rem; }
 
     /* ── Calendar month chips ── */
-    .cal-cell { min-height: 64px; padding: .2rem .15rem; }
+    .cal-cell { min-height: 64px; padding: .2rem .15rem; min-width: 0; overflow: hidden; }
     .cal-event { font-size: .62rem; padding: 1px 3px; margin-bottom: 1px; }
+    .cal-event .ev-label { max-width: 100%; }
     .cal-day { font-size: .72rem; }
     .cal-cell.today .cal-day { width: 18px; height: 18px; font-size: .65rem; }
 

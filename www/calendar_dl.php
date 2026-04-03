@@ -455,18 +455,20 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         .cal-grid {
             display: grid; grid-template-columns: repeat(7, 1fr);
             border-left: 1.5px solid #e2e8f0; border-top: 1.5px solid #e2e8f0;
-            border-radius: 10px; overflow: hidden;
+            border-radius: 10px; overflow: hidden; width: 100%;
         }
         .cal-dow {
             background: #f8fafc; padding: .45rem .5rem;
             text-align: center; font-size: .75rem; font-weight: 600;
             color: #64748b; text-transform: uppercase; letter-spacing: .04em;
             border-right: 1.5px solid #e2e8f0; border-bottom: 1.5px solid #e2e8f0;
+            min-width: 0; overflow: hidden;
         }
         .cal-cell {
             min-height: 100px; padding: .35rem .4rem;
             border-right: 1.5px solid #e2e8f0; border-bottom: 1.5px solid #e2e8f0;
             background: #fff; vertical-align: top; position: relative;
+            min-width: 0; overflow: hidden;
         }
         .cal-cell.other-month { background: #f8fafc; }
         .cal-cell.today { background: #eff6ff; }
