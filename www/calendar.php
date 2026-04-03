@@ -133,7 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $date_str  = $sd . ($st ? ' at ' . date('g:i A', strtotime($st)) : '');
             $base_url  = 'https://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
 
-            $build_invite_email = function(string $invite_username) use ($db, $notify_eid, $title, $desc, $date_str, $base_url, $sd): ?array {
+            $build_invite_email = function(string $invite_username) use ($db, $notify_eid, $title, $desc, $date_str, $base_url, $sd, $allowMaybe): ?array {
                 // Look up invite token and email
                 $inv = $db->prepare('SELECT ei.rsvp_token, COALESCE(NULLIF(ei.email, \'\'), u.email) as email, u.username
                     FROM event_invites ei
