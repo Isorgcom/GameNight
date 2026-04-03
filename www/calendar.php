@@ -1852,7 +1852,11 @@ function addInviteRow(username, phone, email, rsvp) {
     } else {
         html += '<input type="hidden" name="invite_phone[]" value="">' +
                 '<input type="hidden" name="invite_email[]" value="">' +
-                '<input type="hidden" name="invite_rsvp[]" value="">';
+                '<input type="hidden" name="invite_rsvp[]" value="' + escHtml(rsvpVal) + '">';
+        if (rsvpVal) {
+            const rsvpColors = {yes:'#16a34a', no:'#dc2626', maybe:'#d97706'};
+            html += '<span style="font-size:.8rem;font-weight:600;color:' + (rsvpColors[rsvpVal]||'#94a3b8') + '">' + (RSVP_LABELS[rsvpVal]||'--') + '</span>';
+        }
     }
     html += '<button type="button" class="inv-remove" onclick="this.closest(\'.invite-row\').remove();syncChecklistState()">&#x2715;</button>';
     row.innerHTML = html;
