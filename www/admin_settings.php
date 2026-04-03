@@ -94,6 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 set_setting('allow_user_events', isset($_POST['allow_user_events']) ? '1' : '0');
                 set_setting('show_upcoming_events', isset($_POST['show_upcoming_events']) ? '1' : '0');
                 set_setting('show_calendar', isset($_POST['show_calendar']) ? '1' : '0');
+                set_setting('allow_maybe_rsvp', isset($_POST['allow_maybe_rsvp']) ? '1' : '0');
                 db_log_activity($current['id'], 'updated site settings');
                 $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Settings saved.'];
             }
@@ -719,6 +720,15 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                         Enable Calendar
                     </label>
                     <p class="hint">When unchecked, the Calendar page is disabled and the nav link is hidden.</p>
+                </div>
+                <div class="form-group" style="margin-top:.5rem">
+                    <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer;font-weight:500">
+                        <input type="checkbox" name="allow_maybe_rsvp" value="1"
+                               <?= get_setting('allow_maybe_rsvp', '1') === '1' ? 'checked' : '' ?>
+                               style="width:16px;height:16px;accent-color:#2563eb">
+                        Allow &ldquo;Maybe&rdquo; RSVP response
+                    </label>
+                    <p class="hint">When unchecked, the Maybe option is removed from RSVP buttons and invite emails.</p>
                 </div>
                 <button type="submit" class="btn btn-primary" style="width:100%;margin-top:.25rem">
                     Save

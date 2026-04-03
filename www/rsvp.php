@@ -7,9 +7,10 @@
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/version.php';
 
-$token = trim($_GET['token'] ?? '');
-$rsvp  = strtolower(trim($_GET['r'] ?? ''));
-$valid = ['yes', 'no', 'maybe'];
+$token      = trim($_GET['token'] ?? '');
+$rsvp       = strtolower(trim($_GET['r'] ?? ''));
+$allowMaybe = get_setting('allow_maybe_rsvp', '1') === '1';
+$valid       = array_merge(['yes', 'no'], $allowMaybe ? ['maybe'] : []);
 
 $site_name = get_setting('site_name', 'Game Night');
 

@@ -6,7 +6,8 @@ $current = current_user();
 $isAdmin = $current && $current['role'] === 'admin';
 $allowUserEvents = get_setting('allow_user_events', '0') === '1';
 $canCreateEvents = $isAdmin || ($current && $allowUserEvents);
-$allUsers = $db->query('SELECT username, email, phone FROM users ORDER BY username')->fetchAll();
+$allUsers   = $db->query('SELECT username, email, phone FROM users ORDER BY username')->fetchAll();
+$allowMaybe = get_setting('allow_maybe_rsvp', '1') === '1';
 
 if (get_setting('show_calendar', '1') !== '1') {
     http_response_code(403);
@@ -45,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $inv_phones    = array_map('trim', (array)($_POST['invite_phone']    ?? []));
     $inv_emails    = array_map('trim', (array)($_POST['invite_email']    ?? []));
     $inv_rsvps     = array_map('trim', (array)($_POST['invite_rsvp']     ?? []));
-    $valid_rsvps   = ['', 'yes', 'no', 'maybe'];
+    $valid_rsvps   = array_merge(['', 'yes', 'no'], $allowMaybe ? ['maybe'] : []);
     $save_invites  = function(int $eid, array &$new_usernames = []) use ($db, $inv_usernames, $inv_phones, $inv_emails, $inv_rsvps, $valid_rsvps): void {
         // Capture existing invitees before deleting
         $old = $db->prepare('SELECT LOWER(username) as uname FROM event_invites WHERE event_id=?');
@@ -156,7 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                       . '<p>'
                       . '<a href="' . htmlspecialchars($yes_url) . '" style="display:inline-block;margin:.25rem .3rem;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;background:#16a34a;color:#fff">Yes</a>'
                       . '<a href="' . htmlspecialchars($no_url) . '" style="display:inline-block;margin:.25rem .3rem;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;background:#dc2626;color:#fff">No</a>'
-                      . '<a href="' . htmlspecialchars($maybe_url) . '" style="display:inline-block;margin:.25rem .3rem;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;background:#d97706;color:#fff">Maybe</a>'
+                      . ($allowMaybe ? '<a href="' . htmlspecialchars($maybe_url) . '" style="display:inline-block;margin:.25rem .3rem;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;background:#d97706;color:#fff">Maybe</a>' : '')
                       . '</p>'
                       . '<p style="margin-top:1rem"><a href="' . htmlspecialchars($event_url) . '" style="display:inline-block;padding:.5rem 1.5rem;border-radius:6px;text-decoration:none;font-weight:600;background:#2563eb;color:#fff">Event Details</a></p>';
 
@@ -213,7 +214,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'update_rsvp' && $current) {
         $eid  = (int)($_POST['event_id'] ?? 0);
-        $rsvp = in_array($_POST['rsvp'] ?? '', ['', 'yes', 'no', 'maybe'], true) ? ($_POST['rsvp'] ?: null) : null;
+        $rsvp = in_array($_POST['rsvp'] ?? '', array_merge(['', 'yes', 'no'], $allowMaybe ? ['maybe'] : []), true) ? ($_POST['rsvp'] ?: null) : null;
         if ($eid > 0) {
             // Check current RSVP before updating
             $oldRsvpStmt = $db->prepare('SELECT rsvp FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?)');
@@ -1050,7 +1051,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
                     <option value="">-- select --</option>
                     <option value="yes">Yes</option>
                     <option value="no">No</option>
-                    <option value="maybe">Maybe</option>
+                    <?php if ($allowMaybe): ?><option value="maybe">Maybe</option><?php endif; ?>
                 </select>
             </div>
         </div>
@@ -1832,7 +1833,8 @@ function closeEdit() { document.getElementById('editModal').classList.remove('op
 function escHtml(s) {
     return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
-const RSVP_LABELS = {'':'', yes:'Yes', no:'No', maybe:'Maybe'};
+const ALLOW_MAYBE = <?= $allowMaybe ? 'true' : 'false' ?>;
+const RSVP_LABELS = {'':'', yes:'Yes', no:'No', ...(ALLOW_MAYBE ? {maybe:'Maybe'} : {})};
 function addInviteRow(username, phone, email, rsvp) {
     const list = document.getElementById('eInviteList');
     const row  = document.createElement('div');
@@ -1846,7 +1848,7 @@ function addInviteRow(username, phone, email, rsvp) {
                     '<option value=""'      + (rsvpVal===''      ? ' selected' : '') + '>--</option>' +
                     '<option value="yes"'   + (rsvpVal==='yes'   ? ' selected' : '') + '>Yes</option>' +
                     '<option value="no"'    + (rsvpVal==='no'    ? ' selected' : '') + '>No</option>' +
-                    '<option value="maybe"' + (rsvpVal==='maybe' ? ' selected' : '') + '>Maybe</option>' +
+                    (ALLOW_MAYBE ? '<option value="maybe"' + (rsvpVal==='maybe' ? ' selected' : '') + '>Maybe</option>' : '') +
                 '</select>';
     } else {
         html += '<input type="hidden" name="invite_phone[]" value="">' +
@@ -1855,7 +1857,7 @@ function addInviteRow(username, phone, email, rsvp) {
                     '<option value=""'      + (rsvpVal===''      ? ' selected' : '') + '>--</option>' +
                     '<option value="yes"'   + (rsvpVal==='yes'   ? ' selected' : '') + '>Yes</option>' +
                     '<option value="no"'    + (rsvpVal==='no'    ? ' selected' : '') + '>No</option>' +
-                    '<option value="maybe"' + (rsvpVal==='maybe' ? ' selected' : '') + '>Maybe</option>' +
+                    (ALLOW_MAYBE ? '<option value="maybe"' + (rsvpVal==='maybe' ? ' selected' : '') + '>Maybe</option>' : '') +
                 '</select>';
     }
     html += '<button type="button" class="inv-remove" onclick="this.closest(\'.invite-row\').remove();syncChecklistState()">&#x2715;</button>';
