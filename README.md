@@ -7,11 +7,13 @@ A self-hosted PHP web application for organizing game night events. Members can 
 this is still a work in progress!!  
 
 - **User accounts** — registration with email verification, login, forgot/reset password
-- **Calendar** — create and RSVP to events, view upcoming events
+- **Calendar** — create and RSVP to events, view upcoming events; optionally allow registered users to create and manage their own events
 - **Posts** — rich-text announcements with comment support
 - **Admin panel** — manage users, posts, events, and all site settings
 - **Email** — transactional mail via SMTP (SendGrid or any provider)
 - **SMS** — multi-provider notifications with two-way RSVP (see [SMS](#sms) below)
+- **WhatsApp** — send event notifications via Meta WhatsApp Cloud API with two-way RSVP
+- **One-click RSVP** — invitees can RSVP directly from email links without logging in
 - **Branding** — custom banner/header images, nav colors, site name
 - **SQLite** — zero-config database, stored outside the web root
 
@@ -181,6 +183,20 @@ Users choose their notification method in **My Settings > Preferred Contact Meth
 - **None** — no notifications
 
 Admins can override a user's preference from the user edit page.
+
+## User-Created Events
+
+By default only admins can create events. To let registered users create their own events, enable **"Allow users to create events"** in **Admin Settings > General**.
+
+When enabled:
+
+- Registered users see the **+ Add Event** button and can create events, invite other users, and set RSVP statuses
+- Users can only **edit and delete their own events** — they cannot modify events created by others or by admins
+- Other users' **phone numbers and emails are hidden** from the invite picker — only usernames are shown
+- Users can still provide an email for custom (non-registered) invitees so notifications are sent
+- Contact info is auto-filled from user profiles on the server side, so invite notifications still work
+
+Admins retain full control over all events regardless of this setting.
 
 ### Two-Way SMS Setup
 
