@@ -4,6 +4,35 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.0154] — 2026-04-03
+
+### Added
+- **My Events page.** Logged-in users can now see all events they are involved in
+  (invited to or created) from a single page. Events are split into Upcoming
+  (chronological) and Past (reverse chronological) sections. Each card shows the
+  RSVP status, Organizer/Recurring badges, date/time, and a direct link to the
+  event on the calendar.
+- "My Events" nav link added to both the desktop nav bar and the mobile hamburger
+  dropdown for all logged-in users.
+
+### Added (v0.0153)
+- Fixed guests being unable to expand post comments — the `toggleComments()` JS
+  function was inside a logged-in-only `<?php if ($user): ?>` block.
+
+### Added (v0.0152)
+- **Maybe RSVP toggle.** Admins can enable or disable the "Maybe" response option
+  sitewide from Site Settings → General. When disabled, Maybe is removed from RSVP
+  buttons, invite emails, calendar dropdowns, and the tokenized RSVP endpoint.
+
+### Added (v0.0151)
+- **Failed login logging.** Failed login attempts are now recorded in the activity
+  log with severity `critical` and displayed in red in the admin Logs tab.
+- `severity` column added to `activity_log` (defaults to `info`).
+- Anonymous activity logging support (`db_log_anon_activity`) for events with no
+  authenticated user.
+
+---
+
 ## [v0.015] — 2026-04-03
 
 ### Added
