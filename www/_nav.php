@@ -42,7 +42,7 @@ error_log('[GameNight nav] UA: ' . ($_SERVER['HTTP_USER_AGENT'] ?? 'none') . ' |
             <?php endif; ?>
         </a>
         <?php if ($_header_banner): ?>
-        <div class="nav-banner-wrap" style="flex:1;text-align:center;padding:0 .5rem">
+        <div class="nav-banner-wrap" style="flex:1;min-width:0;overflow:hidden;text-align:center;padding:0 .5rem">
             <img class="nav-banner-img" src="<?= htmlspecialchars($_header_banner) ?>?v=<?= $_header_banner_v ?>" alt="<?= htmlspecialchars($site_name) ?>"
                  style="max-height:<?= $_is_mobile ? '45' : ($_header_banner_height - 10) ?>px;width:auto;display:block;margin:0 auto;">
         </div>
