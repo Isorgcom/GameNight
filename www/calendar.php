@@ -47,14 +47,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $inv_emails    = array_map('trim', (array)($_POST['invite_email']    ?? []));
     $inv_rsvps     = array_map('trim', (array)($_POST['invite_rsvp']     ?? []));
     $valid_rsvps   = array_merge(['', 'yes', 'no'], $allowMaybe ? ['maybe'] : []);
-    $save_invites  = function(int $eid, array &$new_usernames = []) use ($db, $inv_usernames, $inv_phones, $inv_emails, $inv_rsvps, $valid_rsvps): void {
-        // Capture existing invitees before deleting
-        $old = $db->prepare('SELECT LOWER(username) as uname FROM event_invites WHERE event_id=?');
-        $old->execute([$eid]);
-        $old_names = array_column($old->fetchAll(), 'uname');
+    // occurrence_date: null = manage base (all occurrences), date = manage this date only
+    $invite_occ_date = (preg_match('/^\d{4}-\d{2}-\d{2}$/', $_POST['occurrence_date'] ?? '')) ? $_POST['occurrence_date'] : null;
+    $save_invites  = function(int $eid, array &$new_usernames = []) use ($db, $inv_usernames, $inv_phones, $inv_emails, $inv_rsvps, $valid_rsvps, $invite_occ_date): void {
+        if ($invite_occ_date) {
+            // Occurrence-specific: only manage rows for this date; leave base rows untouched
+            $old = $db->prepare('SELECT LOWER(username) as uname FROM event_invites WHERE event_id=? AND occurrence_date=?');
+            $old->execute([$eid, $invite_occ_date]);
+            $old_names = array_column($old->fetchAll(), 'uname');
+            $db->prepare('DELETE FROM event_invites WHERE event_id=? AND occurrence_date=?')->execute([$eid, $invite_occ_date]);
+        } else {
+            // Base (all occurrences): only manage rows where occurrence_date IS NULL
+            $old = $db->prepare('SELECT LOWER(username) as uname FROM event_invites WHERE event_id=? AND occurrence_date IS NULL');
+            $old->execute([$eid]);
+            $old_names = array_column($old->fetchAll(), 'uname');
+            $db->prepare('DELETE FROM event_invites WHERE event_id=? AND occurrence_date IS NULL')->execute([$eid]);
+        }
 
-        $db->prepare('DELETE FROM event_invites WHERE event_id=?')->execute([$eid]);
-        $ins = $db->prepare('INSERT INTO event_invites (event_id, username, phone, email, rsvp, rsvp_token) VALUES (?, ?, ?, ?, ?, ?)');
+        $ins = $db->prepare('INSERT INTO event_invites (event_id, username, phone, email, rsvp, rsvp_token, occurrence_date) VALUES (?, ?, ?, ?, ?, ?, ?)');
         // Build a lookup of user contact info for auto-filling
         $userLookup = [];
         $uAll = $db->query('SELECT username, email, phone FROM users ORDER BY username')->fetchAll();
@@ -69,8 +79,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $email_raw = $inv_emails[$i] !== '' ? $inv_emails[$i] : ($userLookup[$uKey]['email'] ?? '');
             $phone_norm = $phone_raw !== '' ? normalize_phone($phone_raw) : '';
             $token = bin2hex(random_bytes(16));
-            $ins->execute([$eid, strtolower($inv_usernames[$i]), $phone_norm ?: null, $email_raw ?: null, $rsvp, $token]);
-            if (!in_array(strtolower($inv_usernames[$i]), $old_names, true)) {
+            $ins->execute([$eid, strtolower($inv_usernames[$i]), $phone_norm ?: null, $email_raw ?: null, $rsvp, $token, $invite_occ_date]);
+            // Only track new invitees for base (all-occurrence) saves so notifications go out
+            if (!$invite_occ_date && !in_array(strtolower($inv_usernames[$i]), $old_names, true)) {
                 $new_usernames[] = strtolower($inv_usernames[$i]);
             }
         }
@@ -213,17 +224,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'update_rsvp' && $current) {
-        $eid  = (int)($_POST['event_id'] ?? 0);
-        $rsvp = in_array($_POST['rsvp'] ?? '', array_merge(['', 'yes', 'no'], $allowMaybe ? ['maybe'] : []), true) ? ($_POST['rsvp'] ?: null) : null;
+        $eid     = (int)($_POST['event_id'] ?? 0);
+        $rsvp    = in_array($_POST['rsvp'] ?? '', array_merge(['', 'yes', 'no'], $allowMaybe ? ['maybe'] : []), true) ? ($_POST['rsvp'] ?: null) : null;
+        $occDate = (preg_match('/^\d{4}-\d{2}-\d{2}$/', $_POST['occurrence_date'] ?? '')) ? $_POST['occurrence_date'] : null;
         if ($eid > 0) {
-            // Check current RSVP before updating
-            $oldRsvpStmt = $db->prepare('SELECT rsvp FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?)');
-            $oldRsvpStmt->execute([$eid, $current['username']]);
-            $oldRsvp = ($oldRsvpStmt->fetchColumn()) ?: null;
-
-            $db->prepare('UPDATE event_invites SET rsvp=? WHERE event_id=? AND LOWER(username)=LOWER(?)')
-               ->execute([$rsvp, $eid, $current['username']]);
-            db_log_activity($current['id'], "updated RSVP for event id: $eid");
+            if ($occDate) {
+                // Per-occurrence RSVP: upsert occurrence-specific row
+                $chk = $db->prepare('SELECT id, rsvp FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date=?');
+                $chk->execute([$eid, $current['username'], $occDate]);
+                $existing = $chk->fetch();
+                $oldRsvp  = $existing ? ($existing['rsvp'] ?: null) : null;
+                if ($existing) {
+                    $db->prepare('UPDATE event_invites SET rsvp=? WHERE id=?')->execute([$rsvp, $existing['id']]);
+                } else {
+                    // Copy contact info from base invite row
+                    $baseStmt = $db->prepare('SELECT phone, email FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL');
+                    $baseStmt->execute([$eid, $current['username']]);
+                    $baseRow = $baseStmt->fetch();
+                    $db->prepare('INSERT INTO event_invites (event_id, username, phone, email, rsvp, rsvp_token, occurrence_date) VALUES (?, ?, ?, ?, ?, ?, ?)')
+                       ->execute([$eid, strtolower($current['username']), $baseRow['phone'] ?? null, $baseRow['email'] ?? null, $rsvp, bin2hex(random_bytes(16)), $occDate]);
+                }
+            } else {
+                // Base RSVP (non-recurring or updating all-occurrence default)
+                $oldRsvpStmt = $db->prepare('SELECT rsvp FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL');
+                $oldRsvpStmt->execute([$eid, $current['username']]);
+                $oldRsvp = ($oldRsvpStmt->fetchColumn()) ?: null;
+                $db->prepare('UPDATE event_invites SET rsvp=? WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL')
+                   ->execute([$rsvp, $eid, $current['username']]);
+            }
+            db_log_activity($current['id'], "updated RSVP for event id: $eid" . ($occDate ? " on $occDate" : ''));
 
             // Notify event creator only if RSVP actually changed
             if ($rsvp && $rsvp !== $oldRsvp) {
@@ -471,22 +500,32 @@ if (!empty($allPageEids)) {
     foreach ($cs->fetchAll() as $c) $ev_comments[$c['content_id']][] = $c;
 }
 
-// Batch-load invites for all events on this page
-$ev_invites = [];
+// Batch-load invites for all events on this page (base + occurrence-specific)
+$ev_invites     = [];  // [eid][] — base rows (occurrence_date IS NULL)
+$ev_invites_occ = [];  // [eid][occ_date][] — per-occurrence rows
 if (!empty($allPageEids)) {
     $iph = implode(',', array_fill(0, count($allPageEids), '?'));
-    $is  = $db->prepare("SELECT event_id, username, phone, email, rsvp FROM event_invites WHERE event_id IN ($iph) ORDER BY username");
+    $is  = $db->prepare("SELECT event_id, username, phone, email, rsvp, occurrence_date FROM event_invites WHERE event_id IN ($iph) ORDER BY username");
     $is->execute($allPageEids);
-    foreach ($is->fetchAll() as $inv) $ev_invites[$inv['event_id']][] = $inv;
+    foreach ($is->fetchAll() as $inv) {
+        if ($inv['occurrence_date'] === null) {
+            $ev_invites[$inv['event_id']][] = $inv;
+        } else {
+            $ev_invites_occ[$inv['event_id']][$inv['occurrence_date']][] = $inv;
+        }
+    }
 }
 // Non-admins only see username + rsvp (no contact details)
 if (!$isAdmin) {
     foreach ($ev_invites as &$_invList) {
-        foreach ($_invList as &$_inv) {
-            unset($_inv['phone'], $_inv['email']);
+        foreach ($_invList as &$_inv) { unset($_inv['phone'], $_inv['email']); }
+    }
+    foreach ($ev_invites_occ as &$_occMap) {
+        foreach ($_occMap as &$_invList) {
+            foreach ($_invList as &$_inv) { unset($_inv['phone'], $_inv['email']); }
         }
     }
-    unset($_invList, $_inv);
+    unset($_invList, $_inv, $_occMap);
 }
 
 // Auto-open a specific event when ?open=ID&date=DATE is present (from landing page links)
@@ -1043,6 +1082,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         <div id="vRsvpWrap" style="display:none;margin:.5rem 0 0;padding:.65rem .85rem;border:2px solid #bfdbfe;border-radius:10px;background:#eff6ff">
             <input type="hidden" id="vRsvpCsrf" value="<?= htmlspecialchars($token) ?>">
             <input type="hidden" id="vRsvpEventId" value="">
+            <input type="hidden" id="vRsvpOccDate" value="">
             <div style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#2563eb;margin-bottom:.5rem">Are you coming? &mdash; RSVP</div>
             <div style="display:flex;gap:.75rem;align-items:center">
                 <div id="vRsvpStatus" style="min-width:62px;text-align:center"></div>
@@ -1161,6 +1201,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             <input type="hidden" name="action" id="eAction" value="add">
             <input type="hidden" name="id" id="eId" value="">
             <input type="hidden" name="month_param" value="<?= htmlspecialchars($monthParam) ?>">
+            <input type="hidden" name="occurrence_date" id="eOccDate" value="">
 
             <div class="edit-form-body">
 
@@ -1216,6 +1257,18 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
                     <div class="form-group">
                         <label>Description <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
                         <textarea name="description" id="eDesc" rows="3" style="width:100%;resize:vertical"></textarea>
+                    </div>
+                    <!-- Recurring event invite scope toggle (shown by JS when editing a recurring event) -->
+                    <div id="eRecurringScope" style="display:none;margin-bottom:.75rem;padding:.65rem .85rem;background:#fffbeb;border:1.5px solid #fcd34d;border-radius:8px;font-size:.85rem">
+                        <div style="font-weight:600;color:#92400e;margin-bottom:.4rem">&#128257; Recurring event &mdash; editing invites for:</div>
+                        <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;margin-bottom:.25rem">
+                            <input type="radio" name="invite_scope" value="all" checked onchange="setInviteScope('all')">
+                            All occurrences (default)
+                        </label>
+                        <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer">
+                            <input type="radio" name="invite_scope" value="this" onchange="setInviteScope('this')">
+                            <span id="eInviteScopeLabel">This date only</span>
+                        </label>
                     </div>
                     <!-- Mobile-only invite section -->
                     <div id="eMobileInvites" class="form-group" style="margin-top:.5rem">
@@ -1290,8 +1343,9 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
 
 <script>
 let currentEvent = null;
-const eventComments   = <?= json_encode($ev_comments) ?>;
-const eventInvites    = <?= json_encode($ev_invites) ?>;
+const eventComments      = <?= json_encode($ev_comments) ?>;
+const eventInvites       = <?= json_encode($ev_invites) ?>;
+const eventInvitesByOcc  = <?= json_encode($ev_invites_occ) ?>;
 const CURRENT_USERNAME  = <?= json_encode($current['username'] ?? '') ?>;
 const CURRENT_USER_ID   = <?= json_encode($current['id'] ?? null) ?>;
 const CAL_REDIR         = '/calendar.php?m=<?= htmlspecialchars($monthParam) ?>';
@@ -1327,7 +1381,9 @@ function viewEvent(ev) {
 
     document.getElementById('vDesc').textContent = ev.description || '';
 
-    const invites  = eventInvites[ev.id] || [];
+    const isRecurring = ev.recurrence && ev.recurrence !== 'none';
+    const occDate  = isRecurring ? (ev.occurrence_start || null) : null;
+    const invites  = getEffectiveInvites(ev.id, occDate);
     const myInvite = CURRENT_USERNAME ? invites.find(inv => inv.username.toLowerCase() === CURRENT_USERNAME.toLowerCase()) : undefined;
     const isInvited = myInvite !== undefined;
 
@@ -1335,8 +1391,9 @@ function viewEvent(ev) {
     const vRsvpWrap = document.getElementById('vRsvpWrap');
     if (vRsvpWrap) {
         if (isInvited) {
-            document.getElementById('vRsvpEventId').value = ev.id;
-            document.getElementById('vRsvpSelect').value  = myInvite.rsvp || '';
+            document.getElementById('vRsvpEventId').value  = ev.id;
+            document.getElementById('vRsvpOccDate').value  = occDate || '';
+            document.getElementById('vRsvpSelect').value   = myInvite.rsvp || '';
             updateRsvpStatusBadge(myInvite.rsvp || '');
             vRsvpWrap.style.display = '';
         } else {
@@ -1460,7 +1517,9 @@ function renderCommentsPanel(eid) {
     }).join('');
 }
 function renderInvitesPanel(eid) {
-    const invites  = eventInvites[eid] || [];
+    const _isRec = currentEvent && currentEvent.recurrence && currentEvent.recurrence !== 'none';
+    const _occ   = _isRec ? (currentEvent.occurrence_start || null) : null;
+    const invites = getEffectiveInvites(eid, _occ);
     const vInvDiv  = document.getElementById('vInvites');
     const rsvpClass = {yes:'rsvp-yes', no:'rsvp-no', maybe:'rsvp-maybe'};
     const rsvpText  = {yes:'Yes', no:'No', maybe:'Maybe'};
@@ -1485,6 +1544,23 @@ function renderInvitesPanel(eid) {
         vInvDiv.innerHTML = '';
         vInvDiv.style.display = 'none';
     }
+}
+// Returns the effective invite list for an event occurrence.
+// Base rows are used as the invite list; occurrence-specific rows override each person's RSVP,
+// and any occ-only rows (not on the base list) are appended.
+function getEffectiveInvites(eid, occDate) {
+    const base = eventInvites[eid] || [];
+    if (!occDate) return base;
+    const occRows = (eventInvitesByOcc[eid] || {})[occDate] || [];
+    const merged = base.map(inv => {
+        const ov = occRows.find(o => o.username.toLowerCase() === inv.username.toLowerCase());
+        return ov ? Object.assign({}, inv, {rsvp: ov.rsvp}) : inv;
+    });
+    occRows.forEach(occ => {
+        if (!merged.find(m => m.username.toLowerCase() === occ.username.toLowerCase()))
+            merged.push(Object.assign({}, occ));
+    });
+    return merged;
 }
 function closeView() { document.getElementById('viewModal').classList.remove('open'); }
 
@@ -1559,13 +1635,15 @@ function updateRsvpStatusBadge(rsvp) {
 const vRsvpSelect = document.getElementById('vRsvpSelect');
 if (vRsvpSelect) {
     vRsvpSelect.addEventListener('change', function() {
-        const eid  = parseInt(document.getElementById('vRsvpEventId').value);
-        const rsvp = this.value;
+        const eid     = parseInt(document.getElementById('vRsvpEventId').value);
+        const rsvp    = this.value;
+        const occDate = document.getElementById('vRsvpOccDate').value || '';
         const data = new FormData();
-        data.append('csrf_token', document.getElementById('vRsvpCsrf').value);
-        data.append('action',     'update_rsvp');
-        data.append('event_id',   eid);
-        data.append('rsvp',       rsvp);
+        data.append('csrf_token',     document.getElementById('vRsvpCsrf').value);
+        data.append('action',         'update_rsvp');
+        data.append('event_id',       eid);
+        data.append('rsvp',           rsvp);
+        data.append('occurrence_date', occDate);
         fetch('/calendar.php', {
             method: 'POST',
             body: data,
@@ -1574,10 +1652,20 @@ if (vRsvpSelect) {
         .then(r => r.json())
         .then(res => {
             if (!res.ok) return;
-            const list = eventInvites[eid];
-            if (list) {
-                const inv = list.find(i => i.username.toLowerCase() === CURRENT_USERNAME.toLowerCase());
-                if (inv) inv.rsvp = rsvp || null;
+            if (occDate) {
+                // Update or add occurrence-specific RSVP in local cache
+                if (!eventInvitesByOcc[eid]) eventInvitesByOcc[eid] = {};
+                if (!eventInvitesByOcc[eid][occDate]) eventInvitesByOcc[eid][occDate] = [];
+                const occList = eventInvitesByOcc[eid][occDate];
+                const occInv  = occList.find(i => i.username.toLowerCase() === CURRENT_USERNAME.toLowerCase());
+                if (occInv) { occInv.rsvp = rsvp || null; }
+                else { occList.push({username: CURRENT_USERNAME, rsvp: rsvp || null}); }
+            } else {
+                const list = eventInvites[eid];
+                if (list) {
+                    const inv = list.find(i => i.username.toLowerCase() === CURRENT_USERNAME.toLowerCase());
+                    if (inv) inv.rsvp = rsvp || null;
+                }
             }
             updateRsvpStatusBadge(rsvp);
             renderInvitesPanel(eid);
@@ -1800,12 +1888,30 @@ function openAddModal(date) {
     document.getElementById('editModal').classList.add('open');
     document.getElementById('eTitle').focus();
 }
+function loadInvitesForScope(ev, scope) {
+    document.getElementById('eInviteList').innerHTML = '';
+    document.getElementById('eUserSelect').selectedIndex = -1;
+    const occDate = (scope === 'this') ? (ev.occurrence_start || '') : '';
+    document.getElementById('eOccDate').value = occDate;
+    let rows;
+    if (scope === 'this' && occDate) {
+        rows = ((eventInvitesByOcc[ev.id] || {})[occDate]) || [];
+    } else {
+        rows = eventInvites[ev.id] || [];
+    }
+    rows.forEach(inv => addInviteRow(inv.username, inv.phone || '', inv.email || '', inv.rsvp || ''));
+    syncChecklistState();
+}
+function setInviteScope(scope) {
+    loadInvitesForScope(currentEvent, scope);
+}
 function openEditModal(ev) {
     currentEvent = ev;
     closeView();
     document.getElementById('editModalTitle').textContent = 'Edit Event';
     document.getElementById('eAction').value    = 'edit';
     document.getElementById('eId').value        = ev.id;
+    document.getElementById('eOccDate').value   = '';
     document.getElementById('eTitle').value     = ev.title;
     document.getElementById('eStartDate').value = ev.start_date;
     document.getElementById('eEndDate').value   = ev.end_date || '';
@@ -1822,6 +1928,18 @@ function openEditModal(ev) {
     document.getElementById('eUserSearch').value = '';
     document.getElementById('eNotifyInvitees').checked = false;
     filterChecklist('');
+    // Show/hide recurring scope toggle
+    const isRecurring = ev.recurrence && ev.recurrence !== 'none';
+    const scopeDiv = document.getElementById('eRecurringScope');
+    if (scopeDiv) {
+        scopeDiv.style.display = isRecurring ? '' : 'none';
+        if (isRecurring) {
+            // Reset to "all occurrences" scope
+            scopeDiv.querySelector('input[value="all"]').checked = true;
+            document.getElementById('eInviteScopeLabel').textContent =
+                'This date only (' + (ev.occurrence_start || ev.start_date) + ')';
+        }
+    }
     (eventInvites[ev.id] || []).forEach(inv => addInviteRow(inv.username, inv.phone || '', inv.email || '', inv.rsvp || ''));
     syncChecklistState();
     document.getElementById('editModal').classList.add('open');

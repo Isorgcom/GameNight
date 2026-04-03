@@ -177,6 +177,9 @@ function db_init(PDO $pdo): void {
     // Severity level for log entries (info, warning, critical)
     try { $pdo->exec("ALTER TABLE activity_log ADD COLUMN severity TEXT NOT NULL DEFAULT 'info'"); } catch (Exception $e) {}
 
+    // Per-occurrence invite/RSVP support for recurring events
+    try { $pdo->exec("ALTER TABLE event_invites ADD COLUMN occurrence_date TEXT"); } catch (Exception $e) {}
+
     // Seed default site_settings on a fresh DB (INSERT OR IGNORE — never overwrites existing values)
     $ins = $pdo->prepare('INSERT OR IGNORE INTO site_settings (key, value) VALUES (?, ?)');
 
