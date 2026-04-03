@@ -1776,7 +1776,7 @@ function prepareCalBulkDelete(form) {
     return true;
 }
 
-<?php if ($isAdmin): ?>
+<?php if ($canCreateEvents): ?>
 // ── Edit / Add modal ──────────────────────────────────────────────────────────
 function openAddModal(date) {
     document.getElementById('editModalTitle').textContent = 'Add Event';
@@ -1953,7 +1953,7 @@ selectColor('#2563eb');
 <?php endif; ?>
 
 document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeView(); <?php if ($isAdmin): ?>closeEdit();<?php endif; ?> }
+    if (e.key === 'Escape') { closeView(); <?php if ($canCreateEvents): ?>closeEdit();<?php endif; ?> }
 });
 
 function fmt12(t) {
