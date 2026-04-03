@@ -4,6 +4,8 @@ require_once __DIR__ . '/auth.php';
 $db      = get_db();
 $current = current_user();
 $isAdmin = $current && $current['role'] === 'admin';
+$allowUserEvents = get_setting('allow_user_events', '0') === '1';
+$canCreateEvents = $isAdmin || ($current && $allowUserEvents);
 $allUsers = $db->query('SELECT username, email, phone FROM users ORDER BY username')->fetchAll();
 
 if (get_setting('show_calendar', '1') !== '1') {
@@ -32,8 +34,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action        = $_POST['action'] ?? '';
 
     // Non-admins may only update their own RSVP, self-signup, or self-remove
-    if (!$isAdmin && $action !== 'update_rsvp' && $action !== 'self_signup' && $action !== 'self_remove') {
-        http_response_code(403); exit('Access denied.');
+    // When allow_user_events is on, logged-in users can also add/edit/delete their own events
+    $userEventActions = ['add', 'edit', 'delete', 'delete_occurrence'];
+    if (!$isAdmin && !in_array($action, ['update_rsvp', 'self_signup', 'self_remove'], true)) {
+        if (!$canCreateEvents || !in_array($action, $userEventActions, true)) {
+            http_response_code(403); exit('Access denied.');
+        }
     }
     $inv_usernames = array_map('trim', (array)($_POST['invite_username'] ?? []));
     $inv_phones    = array_map('trim', (array)($_POST['invite_phone']    ?? []));
@@ -48,17 +54,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $db->prepare('DELETE FROM event_invites WHERE event_id=?')->execute([$eid]);
         $ins = $db->prepare('INSERT INTO event_invites (event_id, username, phone, email, rsvp, rsvp_token) VALUES (?, ?, ?, ?, ?, ?)');
+        // Build a lookup of user contact info for auto-filling
+        $userLookup = [];
+        $uAll = $db->query('SELECT username, email, phone FROM users ORDER BY username')->fetchAll();
+        foreach ($uAll as $uRow) $userLookup[strtolower($uRow['username'])] = $uRow;
+
         for ($i = 0; $i < count($inv_usernames); $i++) {
             if ($inv_usernames[$i] === '') continue;
             $rsvp = in_array($inv_rsvps[$i] ?? '', $valid_rsvps, true) ? ($inv_rsvps[$i] ?: null) : null;
-            $phone_norm = $inv_phones[$i] !== '' ? normalize_phone($inv_phones[$i]) : '';
+            // Auto-fill phone/email from user record if not provided
+            $uKey = strtolower($inv_usernames[$i]);
+            $phone_raw = $inv_phones[$i] !== '' ? $inv_phones[$i] : ($userLookup[$uKey]['phone'] ?? '');
+            $email_raw = $inv_emails[$i] !== '' ? $inv_emails[$i] : ($userLookup[$uKey]['email'] ?? '');
+            $phone_norm = $phone_raw !== '' ? normalize_phone($phone_raw) : '';
             $token = bin2hex(random_bytes(16));
-            $ins->execute([$eid, strtolower($inv_usernames[$i]), $phone_norm ?: null, $inv_emails[$i] ?: null, $rsvp, $token]);
+            $ins->execute([$eid, strtolower($inv_usernames[$i]), $phone_norm ?: null, $email_raw ?: null, $rsvp, $token]);
             if (!in_array(strtolower($inv_usernames[$i]), $old_names, true)) {
                 $new_usernames[] = strtolower($inv_usernames[$i]);
             }
         }
     };
+
+    // Ownership check: non-admins can only edit/delete their own events
+    if (!$isAdmin && in_array($action, ['edit', 'delete', 'delete_occurrence'], true)) {
+        $chkId = (int)($_POST['id'] ?? 0);
+        if ($chkId > 0) {
+            $ownerStmt = $db->prepare('SELECT created_by FROM events WHERE id=?');
+            $ownerStmt->execute([$chkId]);
+            $ownerRow = $ownerStmt->fetch();
+            if (!$ownerRow || (int)$ownerRow['created_by'] !== (int)$current['id']) {
+                http_response_code(403); exit('You can only modify your own events.');
+            }
+        }
+    }
 
     if ($action === 'add' || $action === 'edit') {
         $id    = (int)($_POST['id'] ?? 0);
@@ -859,7 +887,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             </div>
             <?php endif; ?>
         </div>
-        <?php if ($isAdmin): ?>
+        <?php if ($canCreateEvents): ?>
             <button class="btn btn-primary" onclick="openAddModal('')">&#43; Add Event</button>
         <?php endif; ?>
     </div>
@@ -896,13 +924,13 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
                             <?php endif; ?>
                             <?= htmlspecialchars($ev['title']) ?>
                         </span>
-                        <?php if ($isAdmin): ?>
+                        <?php if ($isAdmin || ($canCreateEvents && (int)$ev['created_by'] === (int)$current['id'])): ?>
                         <button class="ev-edit-btn" title="Edit event"
                                 onclick="event.stopPropagation();openEditModal(<?= htmlspecialchars(json_encode($ev)) ?>)">&#9998;</button>
                         <?php endif; ?>
                     </div>
                 <?php endforeach; ?>
-                <?php if ($isAdmin): ?>
+                <?php if ($canCreateEvents): ?>
                     <button class="cal-add-btn" onclick="openAddModal('<?= $dateStr ?>')" title="Add event">&#43;</button>
                 <?php endif; ?>
             </div>
@@ -958,7 +986,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
                     <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">
                         <?= htmlspecialchars($ev['title']) ?>
                     </span>
-                    <?php if ($isAdmin): ?>
+                    <?php if ($isAdmin || ($canCreateEvents && (int)$ev['created_by'] === (int)$current['id'])): ?>
                     <button class="ev-edit-btn" title="Edit event"
                             onclick="event.stopPropagation();openEditModal(<?= htmlspecialchars(json_encode($ev)) ?>)">&#9998;</button>
                     <?php endif; ?>
@@ -1049,8 +1077,8 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             <?php endif; ?>
         </div>
         <?php endif; ?>
-        <?php if ($isAdmin): ?>
-        <div class="ev-view-actions">
+        <?php if ($canCreateEvents): ?>
+        <div class="ev-view-actions" id="vEventActions" style="display:none">
             <button class="btn btn-primary" onclick="editFromView()">Edit</button>
             <!-- Delete this occurrence only (shown for recurring events) -->
             <form method="post" action="/calendar.php" style="margin:0" id="vDeleteOccForm"
@@ -1120,7 +1148,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
     </div>
 </div>
 
-<?php if ($isAdmin): ?>
+<?php if ($canCreateEvents): ?>
 <!-- ── Add / Edit Event Modal ── -->
 <div class="modal-overlay" id="editModal" onclick="if(event.target===this)closeEdit()">
     <div class="modal">
@@ -1197,8 +1225,8 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
                                     style="flex:1;min-height:72px;border:1.5px solid #e2e8f0;border-radius:7px;padding:.35rem;font-size:.875rem">
                                 <?php foreach ($allUsers as $u): ?>
                                 <option value="<?= htmlspecialchars($u['username']) ?>"
-                                        data-email="<?= htmlspecialchars($u['email'] ?? '') ?>"
-                                        data-phone="<?= htmlspecialchars($u['phone'] ?? '') ?>">
+                                        data-email="<?= $isAdmin ? htmlspecialchars($u['email'] ?? '') : '' ?>"
+                                        data-phone="<?= $isAdmin ? htmlspecialchars($u['phone'] ?? '') : '' ?>">
                                     <?= htmlspecialchars($u['username']) ?>
                                 </option>
                                 <?php endforeach; ?>
@@ -1218,7 +1246,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
 
                     <!-- Searchable user checklist (top half, scrolls) -->
                     <div id="eUserChecklist">
-                        <input type="text" id="eUserSearch" placeholder="Search by name, email, or phone&hellip;"
+                        <input type="text" id="eUserSearch" placeholder="<?= $isAdmin ? 'Search by name, email, or phone&hellip;' : 'Search by name&hellip;' ?>"
                                oninput="filterChecklist(this.value)" autocomplete="off"
                                style="width:100%;margin-bottom:.4rem;padding:.42rem .65rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.875rem;box-sizing:border-box;flex-shrink:0">
                         <div id="eChecklistItems" style="border:1.5px solid #e2e8f0;border-radius:7px;margin-bottom:.4rem"></div>
@@ -1226,10 +1254,12 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
 
                     <!-- Invited rows (bottom half, scrolls independently) -->
                     <div class="invited-section">
-                        <div style="display:grid;grid-template-columns:2fr 1.5fr 2fr auto;gap:.25rem;margin-bottom:.3rem;padding:0 .1rem;flex-shrink:0" id="eInviteHeader">
+                        <div style="display:grid;grid-template-columns:<?= $isAdmin ? '2fr 1.5fr 2fr auto' : '2fr auto' ?>;gap:.25rem;margin-bottom:.3rem;padding:0 .1rem;flex-shrink:0" id="eInviteHeader">
                             <span style="font-size:.72rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Username *</span>
+                            <?php if ($isAdmin): ?>
                             <span style="font-size:.72rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Phone</span>
                             <span style="font-size:.72rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Email</span>
+                            <?php endif; ?>
                             <span></span>
                         </div>
                         <div id="eInviteList" style="display:flex;flex-direction:column;gap:.3rem"></div>
@@ -1268,8 +1298,13 @@ const CAL_REDIR         = '/calendar.php?m=<?= htmlspecialchars($monthParam) ?>'
 const CAL_CSRF          = <?= json_encode($token) ?>;
 const CAL_CURRENT_ID    = <?= json_encode((int)($current['id'] ?? 0)) ?>;
 const IS_ADMIN = <?= $isAdmin ? 'true' : 'false' ?>;
+const CAN_CREATE_EVENTS = <?= $canCreateEvents ? 'true' : 'false' ?>;
+<?php if ($canCreateEvents): ?>
 <?php if ($isAdmin): ?>
 const ALL_USERS = <?= json_encode(array_values($allUsers)) ?>;
+<?php else: ?>
+const ALL_USERS = <?= json_encode(array_values(array_map(function($u) { return ['username' => $u['username']]; }, $allUsers))) ?>;
+<?php endif; ?>
 <?php endif; ?>
 
 // ── View modal ────────────────────────────────────────────────────────────────
@@ -1327,16 +1362,21 @@ function viewEvent(ev) {
     if (vLoginBtn) vLoginBtn.href = '/login.php?redirect=' + encodeURIComponent(_evRedir);
     const vSignupLink = document.getElementById('vSignupLink');
     if (vSignupLink) vSignupLink.href = '/register.php?redirect=' + encodeURIComponent(_evRedir);
-    <?php if ($isAdmin): ?>
-    document.getElementById('vDeleteId').value = ev.id;
-    // Show/configure occurrence-delete only for recurring events
-    const isRecurring = ev.recurrence && ev.recurrence !== 'none';
-    const occForm = document.getElementById('vDeleteOccForm');
-    if (occForm) {
-        occForm.style.display = isRecurring ? '' : 'none';
-        document.getElementById('vDeleteOccId').value   = ev.id;
-        document.getElementById('vDeleteOccDate').value = ev.occurrence_start || ev.start_date;
-        document.getElementById('vDeleteAllBtn').textContent = isRecurring ? 'Delete all' : 'Delete';
+    <?php if ($canCreateEvents): ?>
+    // Show edit/delete actions only for admins or event owner
+    const canManageThis = IS_ADMIN || (CAN_CREATE_EVENTS && CURRENT_USER_ID && ev.created_by == CURRENT_USER_ID);
+    const actionsDiv = document.getElementById('vEventActions');
+    if (actionsDiv) actionsDiv.style.display = canManageThis ? '' : 'none';
+    if (canManageThis) {
+        document.getElementById('vDeleteId').value = ev.id;
+        const isRecurring = ev.recurrence && ev.recurrence !== 'none';
+        const occForm = document.getElementById('vDeleteOccForm');
+        if (occForm) {
+            occForm.style.display = isRecurring ? '' : 'none';
+            document.getElementById('vDeleteOccId').value   = ev.id;
+            document.getElementById('vDeleteOccDate').value = ev.occurrence_start || ev.start_date;
+            document.getElementById('vDeleteAllBtn').textContent = isRecurring ? 'Delete all' : 'Delete';
+        }
     }
     <?php endif; ?>
 
@@ -1434,8 +1474,8 @@ function renderInvitesPanel(eid) {
             ih += '<div style="font-size:.875rem;color:#334155;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">';
             ih += '<span style="min-width:52px;text-align:center">' + badge + '</span>';
             ih += escHtml(inv.username);
-            if (inv.phone) ih += ' <span style="color:#64748b">&middot; ' + escHtml(inv.phone) + '</span>';
-            if (inv.email) ih += ' <span style="color:#64748b">&middot; ' + escHtml(inv.email) + '</span>';
+            if (IS_ADMIN && inv.phone) ih += ' <span style="color:#64748b">&middot; ' + escHtml(inv.phone) + '</span>';
+            if (IS_ADMIN && inv.email) ih += ' <span style="color:#64748b">&middot; ' + escHtml(inv.email) + '</span>';
             ih += '</div>';
         });
         ih += '</div>';
@@ -1799,17 +1839,23 @@ function addInviteRow(username, phone, email, rsvp) {
     const row  = document.createElement('div');
     row.className = 'invite-row';
     const rsvpVal = RSVP_LABELS.hasOwnProperty(rsvp) ? rsvp : '';
-    row.innerHTML =
-        '<input type="text"  name="invite_username[]" value="' + escHtml(username) + '" placeholder="Username *" required>' +
-        '<input type="text"  name="invite_phone[]"    value="' + escHtml(phone)    + '" placeholder="Phone">' +
-        '<input type="email" name="invite_email[]"    value="' + escHtml(email)    + '" placeholder="Email">' +
-        '<select name="invite_rsvp[]" style="padding:.38rem .4rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.85rem;min-width:0;background:#fff">' +
-            '<option value=""'      + (rsvpVal===''      ? ' selected' : '') + '>--</option>' +
-            '<option value="yes"'   + (rsvpVal==='yes'   ? ' selected' : '') + '>Yes</option>' +
-            '<option value="no"'    + (rsvpVal==='no'    ? ' selected' : '') + '>No</option>' +
-            '<option value="maybe"' + (rsvpVal==='maybe' ? ' selected' : '') + '>Maybe</option>' +
-        '</select>' +
-        '<button type="button" class="inv-remove" onclick="this.closest(\'.invite-row\').remove();syncChecklistState()">&#x2715;</button>';
+    let html = '<input type="text"  name="invite_username[]" value="' + escHtml(username) + '" placeholder="Username *" required>';
+    if (IS_ADMIN) {
+        html += '<input type="text"  name="invite_phone[]"    value="' + escHtml(phone)    + '" placeholder="Phone">' +
+                '<input type="email" name="invite_email[]"    value="' + escHtml(email)    + '" placeholder="Email">' +
+                '<select name="invite_rsvp[]" style="padding:.38rem .4rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.85rem;min-width:0;background:#fff">' +
+                    '<option value=""'      + (rsvpVal===''      ? ' selected' : '') + '>--</option>' +
+                    '<option value="yes"'   + (rsvpVal==='yes'   ? ' selected' : '') + '>Yes</option>' +
+                    '<option value="no"'    + (rsvpVal==='no'    ? ' selected' : '') + '>No</option>' +
+                    '<option value="maybe"' + (rsvpVal==='maybe' ? ' selected' : '') + '>Maybe</option>' +
+                '</select>';
+    } else {
+        html += '<input type="hidden" name="invite_phone[]" value="">' +
+                '<input type="hidden" name="invite_email[]" value="">' +
+                '<input type="hidden" name="invite_rsvp[]" value="">';
+    }
+    html += '<button type="button" class="inv-remove" onclick="this.closest(\'.invite-row\').remove();syncChecklistState()">&#x2715;</button>';
+    row.innerHTML = html;
     list.appendChild(row);
 }
 function addSelectedInvites() {
@@ -1836,7 +1882,7 @@ function buildChecklist() {
         item.dataset.username = u.username.toLowerCase();
         item.dataset.email    = (u.email   || '').toLowerCase();
         item.dataset.phone    = (u.phone   || '').replace(/\D/g,'');
-        const sub = [u.email, u.phone].filter(Boolean).join(' · ');
+        const sub = IS_ADMIN ? [u.email, u.phone].filter(Boolean).join(' · ') : '';
         item.innerHTML =
             '<div class="ci-check">&#x2713;</div>' +
             '<div class="ci-info"><span class="ci-name">' + escHtml(u.username) + '</span>' +
@@ -2049,7 +2095,7 @@ function renderDayCol(col, date) {
         chip.innerHTML = '<span class="week-event-title">' + escHtml(ev.title) + '</span>'
             + (heightPx >= 32 ? '<span class="week-event-time">' + escHtml(timeStr) + '</span>' : '');
 
-        if (IS_ADMIN) {
+        if (IS_ADMIN || (CAN_CREATE_EVENTS && CURRENT_USER_ID && ev.created_by == CURRENT_USER_ID)) {
             const editBtn = document.createElement('button');
             editBtn.className = 'ev-edit-btn';
             editBtn.title = 'Edit event';

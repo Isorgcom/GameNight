@@ -91,6 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 set_setting('site_name', $site_name);
                 if ($timezone !== '') set_setting('timezone', $timezone);
                 set_setting('allow_registration', isset($_POST['allow_registration']) ? '1' : '0');
+                set_setting('allow_user_events', isset($_POST['allow_user_events']) ? '1' : '0');
                 set_setting('show_upcoming_events', isset($_POST['show_upcoming_events']) ? '1' : '0');
                 set_setting('show_calendar', isset($_POST['show_calendar']) ? '1' : '0');
                 db_log_activity($current['id'], 'updated site settings');
@@ -691,6 +692,15 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                         Allow new user registration
                     </label>
                     <p class="hint">When unchecked, the Sign Up page returns a 403 and the link is hidden from the login page.</p>
+                </div>
+                <div class="form-group" style="margin-top:.5rem">
+                    <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer;font-weight:500">
+                        <input type="checkbox" name="allow_user_events" value="1"
+                               <?= get_setting('allow_user_events', '0') === '1' ? 'checked' : '' ?>
+                               style="width:16px;height:16px;accent-color:#2563eb">
+                        Allow users to create events
+                    </label>
+                    <p class="hint">When checked, registered users can create events and invite others. Users can only edit/delete their own events.</p>
                 </div>
                 <div class="form-group" style="margin-top:.5rem">
                     <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer;font-weight:500">
