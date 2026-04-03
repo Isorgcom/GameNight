@@ -35,11 +35,8 @@ if (get_setting('allow_registration', '1') !== '1') {
     exit;
 }
 
-$error    = '';
-$redirect = $_POST['redirect'] ?? $_GET['redirect'] ?? '';
-if ($redirect === '' || !str_starts_with($redirect, '/') || str_starts_with($redirect, '//')) {
-    $redirect = '/';
-}
+$error            = '';
+$registered_email = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     session_start_safe();
@@ -55,10 +52,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($password !== $password2) {
             $error = 'Passwords do not match.';
         } else {
-            $error = register_user($username, $email, $password, $phone) ?? '';
-            if ($error === '') {
-                header('Location: ' . $redirect);
-                exit;
+            $result = register_user($username, $email, $password, $phone);
+            if ($result === null) {
+                $registered_email = strtolower(trim($email));
+            } else {
+                $error = $result;
             }
         }
     }
@@ -81,6 +79,17 @@ $site_name = get_setting('site_name', 'Game Night');
 
 <div class="card-wrap">
     <div class="card">
+        <?php if ($registered_email): ?>
+        <h2>Check Your Email</h2>
+        <p class="subtitle">Account created!</p>
+        <div class="alert alert-success">
+            We've sent a verification link to <strong><?= htmlspecialchars($registered_email) ?></strong>.<br>
+            Click the link in the email to activate your account.
+        </div>
+        <p style="text-align:center;margin-top:1.25rem;font-size:.875rem;color:#64748b">
+            Didn't get it? <a href="/resend_verification.php?email=<?= urlencode($registered_email) ?>">Resend verification email</a>
+        </p>
+        <?php else: ?>
         <h2>Create Account</h2>
         <p class="subtitle">Join <?= htmlspecialchars($site_name) ?>.</p>
 
@@ -90,7 +99,6 @@ $site_name = get_setting('site_name', 'Game Night');
 
         <form method="post" action="/register.php" novalidate>
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
-            <input type="hidden" name="redirect" value="<?= htmlspecialchars($redirect) ?>">
 
             <div class="form-group">
                 <label for="email">Email</label>
@@ -159,6 +167,7 @@ $site_name = get_setting('site_name', 'Game Night');
         <p style="text-align:center;margin-top:.75rem;font-size:.875rem;color:#64748b">
             Already have an account? <a href="/login.php">Sign in</a>
         </p>
+        <?php endif; ?>
     </div>
 </div>
 

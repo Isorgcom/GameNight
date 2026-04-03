@@ -17,7 +17,7 @@ function session_start_safe(): void {
             'path'     => '/',
             'secure'   => false,
             'httponly' => true,
-            'samesite' => 'Strict',
+            'samesite' => 'Lax',
         ]);
         session_start();
     }
@@ -50,23 +50,26 @@ function require_login(): array {
     return $user;
 }
 
-function attempt_login(string $email, string $password): bool {
-    $stmt = get_db()->prepare('SELECT id, password_hash FROM users WHERE LOWER(email) = ?');
+function attempt_login(string $email, string $password): bool|string {
+    $stmt = get_db()->prepare('SELECT id, password_hash, email_verified FROM users WHERE LOWER(email) = ?');
     $stmt->execute([strtolower(trim($email))]);
     $row = $stmt->fetch();
 
-    if ($row && password_verify($password, $row['password_hash'])) {
-        session_start_safe();
-        session_regenerate_id(true);
-        $_SESSION['user_id'] = $row['id'];
-
-        $db = get_db();
-        $db->prepare('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?')
-           ->execute([$row['id']]);
-        db_log_activity($row['id'], 'login');
-        return true;
+    if (!$row || !password_verify($password, $row['password_hash'])) {
+        return false;
     }
-    return false;
+    if (!(int)$row['email_verified']) {
+        return 'unverified';
+    }
+    session_start_safe();
+    session_regenerate_id(true);
+    $_SESSION['user_id'] = $row['id'];
+
+    $db = get_db();
+    $db->prepare('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?')
+       ->execute([$row['id']]);
+    db_log_activity($row['id'], 'login');
+    return true;
 }
 
 function logout(): void {
@@ -87,6 +90,7 @@ function csrf_token(): string {
 
 /**
  * Register a new user. Returns null on success or an error string on failure.
+ * New users are created with email_verified=0 and must verify before logging in.
  */
 function register_user(string $username, string $email, string $password, string $phone = ''): ?string {
     $username = trim($username);
@@ -123,19 +127,90 @@ function register_user(string $username, string $email, string $password, string
     }
 
     $hash = password_hash($password, PASSWORD_BCRYPT);
-    $db->prepare('INSERT INTO users (username, password_hash, email, phone, role) VALUES (?, ?, ?, ?, ?)')
+    $db->prepare('INSERT INTO users (username, password_hash, email, phone, role, email_verified) VALUES (?, ?, ?, ?, ?, 0)')
        ->execute([$username, $hash, $email !== '' ? $email : null, $phone !== '' ? $phone : null, 'user']);
 
     $id = (int)$db->lastInsertId();
-    session_start_safe();
-    session_regenerate_id(true);
-    $_SESSION['user_id'] = $id;
-    $db->prepare('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?')->execute([$id]);
     db_log_activity($id, 'registered');
+
+    // Send verification email — user cannot log in until verified
+    send_verification_email($id, $email, $username);
+
     return null;
+}
+
+function send_verification_email(int $user_id, string $email, string $username): void {
+    $db    = get_db();
+    $token = bin2hex(random_bytes(32));
+    $hash  = hash('sha256', $token);
+    $exp   = date('Y-m-d H:i:s', strtotime('+24 hours'));
+
+    // Invalidate any previous unused tokens
+    $db->prepare('UPDATE email_verifications SET used=1 WHERE user_id=? AND used=0')
+       ->execute([$user_id]);
+    $db->prepare('INSERT INTO email_verifications (user_id, token_hash, expires_at) VALUES (?, ?, ?)')
+       ->execute([$user_id, $hash, $exp]);
+
+    $site  = get_setting('site_name', 'Game Night');
+    $url   = 'https://' . $_SERVER['HTTP_HOST'] . '/verify_email.php?token=' . $token;
+
+    require_once __DIR__ . '/mail.php';
+    $html = '<p>Hi ' . htmlspecialchars($username) . ',</p>'
+          . '<p>Thanks for signing up for ' . htmlspecialchars($site) . '! Please verify your email address to activate your account.</p>'
+          . '<p><a href="' . $url . '" style="background:#2563eb;color:#fff;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600">Verify Email Address</a></p>'
+          . '<p style="color:#64748b;font-size:.875rem">This link expires in 24 hours.</p>';
+    send_email($email, $username, 'Verify your ' . $site . ' email address', $html);
 }
 
 function csrf_verify(): bool {
     $token = $_POST['csrf_token'] ?? '';
     return hash_equals($_SESSION['csrf_token'] ?? '', $token);
+}
+
+/**
+ * Send a notification via the user's preferred contact method.
+ * Routes to email, SMS, or both depending on preference.
+ */
+function send_notification(string $username, string $email, string $phone, string $preferred_contact, string $subject, string $smsBody, string $htmlBody): void {
+    $doEmail    = in_array($preferred_contact, ['email', 'both'], true) && $email !== '';
+    $doSms      = in_array($preferred_contact, ['sms',   'both'], true) && $phone !== '';
+    $doWhatsApp = in_array($preferred_contact, ['whatsapp'], true) && $phone !== '';
+
+    if ($doEmail) {
+        require_once __DIR__ . '/mail.php';
+        send_email($email, $username, $subject, $htmlBody);
+    }
+    if ($doSms) {
+        require_once __DIR__ . '/sms.php';
+        send_sms($phone, $smsBody);
+    }
+    if ($doWhatsApp) {
+        require_once __DIR__ . '/sms.php';
+        send_whatsapp($phone, $smsBody);
+    }
+}
+
+/**
+ * Send an event invite notification via the user's preferred contact method.
+ */
+function send_invite_notification(string $username, string $email, string $phone, string $preferred_contact, string $event_title, string $event_start, int $event_id = 0): void {
+    require_once __DIR__ . '/sms.php';
+    $site  = get_setting('site_name', 'Game Night');
+    $month = substr($event_start, 0, 7);
+    $url   = 'https://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/calendar.php'
+           . ($event_id > 0 ? '?m=' . urlencode($month) . '&open=' . $event_id . '&date=' . urlencode($event_start) : '');
+    if (get_setting('url_shortener_enabled') === '1') {
+        $url = shorten_url($url);
+    }
+
+    $smsBody = "You've been invited to \"$event_title\" on $event_start. View it at: $url";
+
+    $htmlBody = '<p>Hi ' . htmlspecialchars($username) . ',</p>'
+              . '<p>You have been invited to <strong>' . htmlspecialchars($event_title) . '</strong> on ' . htmlspecialchars($event_start) . '.</p>'
+              . '<p style="margin-top:1.5rem"><a href="' . htmlspecialchars($url) . '" style="background:#2563eb;color:#fff;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600">View Event &amp; RSVP</a></p>'
+              . '<p style="color:#64748b;font-size:.875rem">You can update your RSVP after signing in.</p>';
+
+    send_notification($username, $email, $phone, $preferred_contact,
+        "You're invited: " . $event_title . ' (' . $event_start . ')',
+        $smsBody, $htmlBody);
 }
