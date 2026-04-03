@@ -60,6 +60,7 @@ error_log('[GameNight nav] UA: ' . ($_SERVER['HTTP_USER_AGENT'] ?? 'none') . ' |
                         <?php if (get_setting('show_calendar', '1') === '1'): ?>
                         <a href="/calendar.php" class="nav-mobile-link<?= $_active === 'calendar' ? ' active' : '' ?>">Calendar</a>
                         <?php endif; ?>
+                        <a href="/my_events.php" class="nav-mobile-link<?= $_active === 'my-events' ? ' active' : '' ?>">My Events</a>
                         <?php if ($_nu && $_nu['role'] === 'admin'): ?>
                         <a href="/admin_posts.php" class="nav-mobile-link<?= $_active === 'posts' ? ' active' : '' ?>">Posts</a>
                         <a href="/admin_settings.php" class="nav-mobile-link<?= $_active === 'site-settings' ? ' active' : '' ?>">Site Settings</a>
@@ -81,6 +82,9 @@ error_log('[GameNight nav] UA: ' . ($_SERVER['HTTP_USER_AGENT'] ?? 'none') . ' |
         <a href="/"<?= $_active === 'home' ? ' class="active"' : '' ?>>Home</a>
         <?php if (get_setting('show_calendar', '1') === '1'): ?>
         <a href="/calendar.php"<?= $_active === 'calendar' ? ' class="active"' : '' ?>>Calendar</a>
+        <?php endif; ?>
+        <?php if ($_nu): ?>
+        <a href="/my_events.php"<?= $_active === 'my-events' ? ' class="active"' : '' ?>>My Events</a>
         <?php endif; ?>
         <?php if ($_nu && $_nu['role'] === 'admin'): ?>
             <a href="/admin_posts.php"<?= $_active === 'posts' ? ' class="active"' : '' ?>>Posts</a>
