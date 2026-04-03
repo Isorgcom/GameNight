@@ -77,6 +77,28 @@ foreach ($others as $alt) {
 }
 $msg .= '<p style="margin-top:1.5rem;color:#64748b">Changed your mind? ' . $links . '</p>';
 
+// Build event redirect URL for login/register
+$month_str = substr($invite['start_date'], 0, 7);
+$event_redirect = '/calendar.php?m=' . urlencode($month_str) . '&open=' . $invite['event_id'] . '&date=' . urlencode($invite['start_date']);
+
+// Check if invitee has an account
+$has_account = (bool)$userRow;
+$allow_reg   = get_setting('allow_registration', '1') === '1';
+
+$auth_links  = '<div style="margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid #e2e8f0">';
+if ($has_account) {
+    $auth_links .= '<p style="color:#64748b;font-size:.875rem;margin-bottom:.75rem">View the full event details and comments:</p>'
+                 . '<a href="/login.php?redirect=' . urlencode($event_redirect) . '" style="display:inline-block;padding:.5rem 1.5rem;border-radius:6px;text-decoration:none;font-weight:600;background:#2563eb;color:#fff;font-size:.9rem">Log in to ' . htmlspecialchars($site_name) . '</a>';
+} else {
+    $auth_links .= '<p style="color:#64748b;font-size:.875rem;margin-bottom:.75rem">Create an account to view event details, comment, and manage your RSVPs:</p>'
+                 . '<a href="/login.php?redirect=' . urlencode($event_redirect) . '" style="display:inline-block;margin:.25rem .3rem;padding:.5rem 1.5rem;border-radius:6px;text-decoration:none;font-weight:600;background:#2563eb;color:#fff;font-size:.9rem">Log in</a>';
+    if ($allow_reg) {
+        $auth_links .= '<a href="/register.php?redirect=' . urlencode($event_redirect) . '" style="display:inline-block;margin:.25rem .3rem;padding:.5rem 1.5rem;border-radius:6px;text-decoration:none;font-weight:600;border:2px solid #2563eb;color:#2563eb;background:#fff;font-size:.9rem">Create Account</a>';
+    }
+}
+$auth_links .= '</div>';
+$msg .= $auth_links;
+
 show_page($title, $msg, 'success');
 
 // ── Render a simple branded page ────────────────────────────────────────────
