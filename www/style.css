@@ -393,12 +393,10 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
     }
 }
 
-/* ── Landscape mobile: cap banner/header image height ── */
-@media (max-width: 768px) and (orientation: landscape) {
-    nav .nav-top { height: 50px !important; padding-top: 0 !important; align-items: center !important; }
-    .nav-banner-img { max-height: 40px !important; width: auto; }
-    nav .brand img  { max-height: 32px !important; }
-    nav .nav-top > div[style] { overflow: hidden; }
+/* ── Mobile: always cap banner image to slim bar ── */
+@media (max-width: 768px) {
+    .nav-banner-img { max-height: 40px !important; width: auto; display: inline-block; }
+    nav .nav-top { height: 48px !important; padding-top: 0 !important; align-items: center !important; }
 }
 
 /* ── Password show/hide toggle — all styles are inline on the elements ── */
