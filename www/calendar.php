@@ -1254,12 +1254,12 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
 
                     <!-- Invited rows (bottom half, scrolls independently) -->
                     <div class="invited-section">
-                        <div style="display:grid;grid-template-columns:<?= $isAdmin ? '2fr 1.5fr 2fr auto' : '2fr auto' ?>;gap:.25rem;margin-bottom:.3rem;padding:0 .1rem;flex-shrink:0" id="eInviteHeader">
+                        <div style="display:grid;grid-template-columns:<?= $isAdmin ? '2fr 1.5fr 2fr auto' : '2fr 2fr auto' ?>;gap:.25rem;margin-bottom:.3rem;padding:0 .1rem;flex-shrink:0" id="eInviteHeader">
                             <span style="font-size:.72rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Username *</span>
                             <?php if ($isAdmin): ?>
                             <span style="font-size:.72rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Phone</span>
-                            <span style="font-size:.72rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Email</span>
                             <?php endif; ?>
+                            <span style="font-size:.72rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Email</span>
                             <span></span>
                         </div>
                         <div id="eInviteList" style="display:flex;flex-direction:column;gap:.3rem"></div>
@@ -1851,7 +1851,7 @@ function addInviteRow(username, phone, email, rsvp) {
                 '</select>';
     } else {
         html += '<input type="hidden" name="invite_phone[]" value="">' +
-                '<input type="hidden" name="invite_email[]" value="">' +
+                '<input type="email" name="invite_email[]" value="' + escHtml(email) + '" placeholder="Email">' +
                 '<select name="invite_rsvp[]" style="padding:.38rem .4rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.85rem;min-width:0;background:#fff">' +
                     '<option value=""'      + (rsvpVal===''      ? ' selected' : '') + '>--</option>' +
                     '<option value="yes"'   + (rsvpVal==='yes'   ? ' selected' : '') + '>Yes</option>' +
