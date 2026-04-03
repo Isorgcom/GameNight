@@ -133,7 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                       . '<a href="' . htmlspecialchars($no_url) . '" style="display:inline-block;margin:.25rem .3rem;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;background:#dc2626;color:#fff">No</a>'
                       . '<a href="' . htmlspecialchars($maybe_url) . '" style="display:inline-block;margin:.25rem .3rem;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;background:#d97706;color:#fff">Maybe</a>'
                       . '</p>'
-                      . '<p style="margin-top:1rem"><a href="' . htmlspecialchars($event_url) . '" style="color:#2563eb;text-decoration:underline;font-size:.875rem">View event details</a></p>';
+                      . '<p style="margin-top:1rem"><a href="' . htmlspecialchars($event_url) . '" style="display:block;text-align:center;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;background:#2563eb;color:#fff">Event Details</a></p>';
 
                 return ['email' => $row['email'], 'html' => $html];
             };
