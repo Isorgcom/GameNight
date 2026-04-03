@@ -1852,11 +1852,12 @@ function addInviteRow(username, phone, email, rsvp) {
     } else {
         html += '<input type="hidden" name="invite_phone[]" value="">' +
                 '<input type="hidden" name="invite_email[]" value="">' +
-                '<input type="hidden" name="invite_rsvp[]" value="' + escHtml(rsvpVal) + '">';
-        if (rsvpVal) {
-            const rsvpColors = {yes:'#16a34a', no:'#dc2626', maybe:'#d97706'};
-            html += '<span style="font-size:.8rem;font-weight:600;color:' + (rsvpColors[rsvpVal]||'#94a3b8') + '">' + (RSVP_LABELS[rsvpVal]||'--') + '</span>';
-        }
+                '<select name="invite_rsvp[]" style="padding:.38rem .4rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.85rem;min-width:0;background:#fff">' +
+                    '<option value=""'      + (rsvpVal===''      ? ' selected' : '') + '>--</option>' +
+                    '<option value="yes"'   + (rsvpVal==='yes'   ? ' selected' : '') + '>Yes</option>' +
+                    '<option value="no"'    + (rsvpVal==='no'    ? ' selected' : '') + '>No</option>' +
+                    '<option value="maybe"' + (rsvpVal==='maybe' ? ' selected' : '') + '>Maybe</option>' +
+                '</select>';
     }
     html += '<button type="button" class="inv-remove" onclick="this.closest(\'.invite-row\').remove();syncChecklistState()">&#x2715;</button>';
     row.innerHTML = html;
