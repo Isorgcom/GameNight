@@ -40,7 +40,6 @@ nav {
     height: 52px;
     flex-wrap: nowrap;
     max-width: 100%;
-    overflow: hidden;
 }
 nav .brand {
     color: #fff;
@@ -241,10 +240,12 @@ tr:hover td { background: #f8fafc; }
 .nav-dropdown-wrap {
     position: relative;
 }
+.nav-hamburger * { pointer-events: none; }
 .nav-hamburger {
     background: none;
     border: 1px solid rgba(255,255,255,.2);
     color: #94a3b8;
+    touch-action: manipulation;
     border-radius: 6px;
     padding: .28rem .55rem;
     cursor: pointer;
