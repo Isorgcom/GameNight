@@ -18,19 +18,20 @@ $_header_banner_v = $_header_banner ? @filemtime(__DIR__ . $_header_banner) : 0;
 $_nav_bg        = get_setting('nav_bg_color', '');
 $_nav_text      = get_setting('nav_text_color', '');
 $_accent        = get_setting('accent_color', '');
+$_is_mobile     = (bool) preg_match('/Mobile|Android|iPhone|iPad/i', $_SERVER['HTTP_USER_AGENT'] ?? '');
 ?>
 <?php if ($_nav_bg || $_nav_text || $_accent || $_header_banner): ?>
 <style>
 <?php if ($_accent): ?>:root{--accent:<?= htmlspecialchars($_accent,ENT_QUOTES) ?>;--accent-h:<?= htmlspecialchars($_accent,ENT_QUOTES) ?>;}<?php endif; ?>
 <?php if ($_nav_bg): ?>nav{background:<?= htmlspecialchars($_nav_bg,ENT_QUOTES) ?> !important;}<?php endif; ?>
 <?php if ($_nav_text): ?>nav .brand,nav .brand:hover{color:<?= htmlspecialchars($_nav_text,ENT_QUOTES) ?> !important;}<?php endif; ?>
-<?php if ($_header_banner): ?>
-@media(min-width:769px){.nav-top{height:<?= $_header_banner_height ?>px !important;align-items:flex-start !important;padding-top:8px !important;}.nav-banner-wrap{max-height:<?= $_header_banner_height - 10 ?>px;}.nav-banner-img{height:<?= $_header_banner_height - 10 ?>px;width:auto;object-fit:contain;}}
+<?php if ($_header_banner && !$_is_mobile): ?>
+.nav-top{height:<?= $_header_banner_height ?>px !important;align-items:flex-start !important;padding-top:8px !important;}
 <?php endif; ?>
 </style>
 <?php endif; ?>
 <nav<?= $_nu ? ' class="nav-has-user"' : '' ?>>
-    <div class="nav-top">
+    <div class="nav-top"<?= $_is_mobile ? ' style="height:56px;overflow:hidden;"' : '' ?>>
         <a class="brand" href="/">
             <?php if ($_banner): ?>
                 <img src="<?= htmlspecialchars($_banner) ?>?v=<?= $_banner_v ?>" alt="<?= htmlspecialchars($site_name) ?>"
@@ -41,7 +42,8 @@ $_accent        = get_setting('accent_color', '');
         </a>
         <?php if ($_header_banner): ?>
         <div class="nav-banner-wrap" style="flex:1;text-align:center;padding:0 .5rem">
-            <img class="nav-banner-img" src="<?= htmlspecialchars($_header_banner) ?>?v=<?= $_header_banner_v ?>" alt="<?= htmlspecialchars($site_name) ?>">
+            <img class="nav-banner-img" src="<?= htmlspecialchars($_header_banner) ?>?v=<?= $_header_banner_v ?>" alt="<?= htmlspecialchars($site_name) ?>"
+                 style="max-height:<?= $_is_mobile ? '45' : ($_header_banner_height - 10) ?>px;width:auto;display:block;margin:0 auto;">
         </div>
         <?php else: ?>
         <div style="flex:1"></div>
