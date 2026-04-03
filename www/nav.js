@@ -1,16 +1,16 @@
-document.addEventListener('DOMContentLoaded', function() {
+(function() {
     var btn = document.querySelector('.nav-hamburger');
     if (btn) {
         function toggleMenu(e) {
             e.preventDefault();
+            e.stopPropagation();
             btn.nextElementSibling.classList.toggle('open');
         }
         btn.addEventListener('touchend', toggleMenu);
         btn.addEventListener('click', function(e) {
-            // touchend already handled it; skip the synthetic click that follows
-            if (e.sourceCapabilities && !e.sourceCapabilities.firesTouchEvents) {
-                toggleMenu(e);
-            } else if (!('ontouchstart' in window)) {
+            if (!e.isTrusted) return;
+            // Only handle real mouse clicks; touch devices fire touchend above
+            if (!('ontouchstart' in window)) {
                 toggleMenu(e);
             }
         });
@@ -26,4 +26,4 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     document.addEventListener('click', closeDropdowns);
     document.addEventListener('touchend', closeDropdowns);
-});
+})();

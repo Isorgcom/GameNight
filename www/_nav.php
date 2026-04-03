@@ -97,4 +97,4 @@ error_log('[GameNight nav] UA: ' . ($_SERVER['HTTP_USER_AGENT'] ?? 'none') . ' |
 })();
 </script>
 <?php endif; ?>
-<script src="/nav.js"></script>
+<script src="/nav.js" defer></script>
