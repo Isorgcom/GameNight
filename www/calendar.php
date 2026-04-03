@@ -40,14 +40,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $inv_emails    = array_map('trim', (array)($_POST['invite_email']    ?? []));
     $inv_rsvps     = array_map('trim', (array)($_POST['invite_rsvp']     ?? []));
     $valid_rsvps   = ['', 'yes', 'no', 'maybe'];
-    $save_invites  = function(int $eid) use ($db, $inv_usernames, $inv_phones, $inv_emails, $inv_rsvps, $valid_rsvps): void {
+    $save_invites  = function(int $eid, array &$new_usernames = []) use ($db, $inv_usernames, $inv_phones, $inv_emails, $inv_rsvps, $valid_rsvps): void {
+        // Capture existing invitees before deleting
+        $old = $db->prepare('SELECT LOWER(username) as uname FROM event_invites WHERE event_id=?');
+        $old->execute([$eid]);
+        $old_names = array_column($old->fetchAll(), 'uname');
+
         $db->prepare('DELETE FROM event_invites WHERE event_id=?')->execute([$eid]);
-        $ins = $db->prepare('INSERT INTO event_invites (event_id, username, phone, email, rsvp) VALUES (?, ?, ?, ?, ?)');
+        $ins = $db->prepare('INSERT INTO event_invites (event_id, username, phone, email, rsvp, rsvp_token) VALUES (?, ?, ?, ?, ?, ?)');
         for ($i = 0; $i < count($inv_usernames); $i++) {
             if ($inv_usernames[$i] === '') continue;
             $rsvp = in_array($inv_rsvps[$i] ?? '', $valid_rsvps, true) ? ($inv_rsvps[$i] ?: null) : null;
             $phone_norm = $inv_phones[$i] !== '' ? normalize_phone($inv_phones[$i]) : '';
-            $ins->execute([$eid, strtolower($inv_usernames[$i]), $phone_norm ?: null, $inv_emails[$i] ?: null, $rsvp]);
+            $token = bin2hex(random_bytes(16));
+            $ins->execute([$eid, strtolower($inv_usernames[$i]), $phone_norm ?: null, $inv_emails[$i] ?: null, $rsvp, $token]);
+            if (!in_array(strtolower($inv_usernames[$i]), $old_names, true)) {
+                $new_usernames[] = strtolower($inv_usernames[$i]);
+            }
         }
     };
 
@@ -71,40 +80,82 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid date format.'];
         } else {
             $notify_invitees = !empty($_POST['notify_invitees']);
+            $new_invitee_usernames = [];
             if ($action === 'add') {
                 $db->prepare('INSERT INTO events (title, description, start_date, end_date, start_time, end_time, color, recurrence, recurrence_end, created_by)
                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
                    ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $recurrence, $recEnd, $current['id']]);
                 $notify_eid = (int)$db->lastInsertId();
-                $save_invites($notify_eid);
+                $save_invites($notify_eid, $new_invitee_usernames);
                 db_log_activity($current['id'], "created event: $title");
                 $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event added.'];
             } else {
                 $db->prepare('UPDATE events SET title=?, description=?, start_date=?, end_date=?, start_time=?, end_time=?, color=?, recurrence=?, recurrence_end=? WHERE id=?')
                    ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $recurrence, $recEnd, $id]);
                 $notify_eid = $id;
-                $save_invites($id);
+                $save_invites($id, $new_invitee_usernames);
                 db_log_activity($current['id'], "edited event id: $id");
                 $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event updated.'];
             }
-            if ($notify_invitees) {
-                require_once __DIR__ . '/mail.php';
-                require_once __DIR__ . '/sms.php';
-                $date_str  = $sd . ($st ? ' at ' . date('g:i A', strtotime($st)) : '');
+
+            // Build invite email helper
+            require_once __DIR__ . '/mail.php';
+            require_once __DIR__ . '/sms.php';
+            $date_str  = $sd . ($st ? ' at ' . date('g:i A', strtotime($st)) : '');
+            $base_url  = 'https://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
+
+            $build_invite_email = function(string $invite_username) use ($db, $notify_eid, $title, $desc, $date_str, $base_url, $sd): ?array {
+                // Look up invite token and email
+                $inv = $db->prepare('SELECT ei.rsvp_token, COALESCE(NULLIF(ei.email, \'\'), u.email) as email, u.username
+                    FROM event_invites ei
+                    LEFT JOIN users u ON LOWER(u.username) = LOWER(ei.username)
+                    WHERE ei.event_id = ? AND LOWER(ei.username) = LOWER(?)');
+                $inv->execute([$notify_eid, $invite_username]);
+                $row = $inv->fetch();
+                if (!$row || empty($row['email'])) return null;
+
+                $rsvp_base = $base_url . '/rsvp.php?token=' . urlencode($row['rsvp_token']);
+                $yes_url   = $rsvp_base . '&r=yes';
+                $no_url    = $rsvp_base . '&r=no';
+                $maybe_url = $rsvp_base . '&r=maybe';
+
                 $month_str = substr($sd, 0, 7);
-                $event_url = 'https://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/calendar.php?m=' . urlencode($month_str) . '&open=' . $notify_eid . '&date=' . urlencode($sd);
+                $event_url = $base_url . '/calendar.php?m=' . urlencode($month_str) . '&open=' . $notify_eid . '&date=' . urlencode($sd);
                 if (get_setting('url_shortener_enabled') === '1') {
                     $event_url = shorten_url($event_url);
                 }
-                $subject  = 'You\'re invited: ' . $title;
-                $html     = '<p>You have been invited to <strong>' . htmlspecialchars($title) . '</strong> on ' . htmlspecialchars($date_str) . '.</p>'
-                          . ($desc ? '<p>' . nl2br(htmlspecialchars($desc)) . '</p>' : '')
-                          . '<p style="margin-top:1.5rem"><a href="' . htmlspecialchars($event_url) . '" style="background:#2563eb;color:#fff;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600">View Event &amp; RSVP</a></p>'
-                          . '<p style="color:#64748b;font-size:.875rem">Log in to ' . htmlspecialchars(get_setting('site_name', 'Game Night')) . ' to update your RSVP.</p>';
-                $inv_stmt = $db->prepare('SELECT email FROM event_invites WHERE event_id=? AND email IS NOT NULL AND email != \'\'');
-                $inv_stmt->execute([$notify_eid]);
-                foreach ($inv_stmt->fetchAll(PDO::FETCH_COLUMN) as $inv_email) {
-                    send_email($inv_email, $inv_email, $subject, $html);
+
+                $html = '<p>You have been invited to <strong>' . htmlspecialchars($title) . '</strong> on ' . htmlspecialchars($date_str) . '.</p>'
+                      . ($desc ? '<p>' . nl2br(htmlspecialchars($desc)) . '</p>' : '')
+                      . '<p style="margin-top:1.5rem">RSVP now:</p>'
+                      . '<p>'
+                      . '<a href="' . htmlspecialchars($yes_url) . '" style="display:inline-block;margin:.25rem .3rem;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;background:#16a34a;color:#fff">Yes</a>'
+                      . '<a href="' . htmlspecialchars($no_url) . '" style="display:inline-block;margin:.25rem .3rem;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;background:#dc2626;color:#fff">No</a>'
+                      . '<a href="' . htmlspecialchars($maybe_url) . '" style="display:inline-block;margin:.25rem .3rem;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;background:#d97706;color:#fff">Maybe</a>'
+                      . '</p>'
+                      . '<p style="margin-top:1rem"><a href="' . htmlspecialchars($event_url) . '" style="color:#2563eb;text-decoration:underline;font-size:.875rem">View event details</a></p>';
+
+                return ['email' => $row['email'], 'html' => $html];
+            };
+
+            // Always notify newly added invitees
+            if (!empty($new_invitee_usernames)) {
+                $subject = 'You\'re invited: ' . $title;
+                foreach ($new_invitee_usernames as $new_user) {
+                    $data = $build_invite_email($new_user);
+                    if ($data) send_email($data['email'], $new_user, $subject, $data['html']);
+                }
+            }
+
+            // If notify_invitees checked, also email ALL existing invitees (event updated)
+            if ($notify_invitees) {
+                $subject = 'Event updated: ' . $title;
+                $all_inv = $db->prepare('SELECT LOWER(username) as uname FROM event_invites WHERE event_id=?');
+                $all_inv->execute([$notify_eid]);
+                foreach ($all_inv->fetchAll(PDO::FETCH_COLUMN) as $uname) {
+                    if (in_array($uname, $new_invitee_usernames, true)) continue; // already notified
+                    $data = $build_invite_email($uname);
+                    if ($data) send_email($data['email'], $uname, $subject, $data['html']);
                 }
             }
         }
@@ -178,8 +229,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $chk = $db->prepare('SELECT id FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?)');
             $chk->execute([$eid, $current['username']]);
             if (!$chk->fetch()) {
-                $db->prepare('INSERT INTO event_invites (event_id, username, phone, email, rsvp) VALUES (?, ?, ?, ?, NULL)')
-                   ->execute([$eid, strtolower($current['username']), $udata['phone'] ?? null, $udata['email'] ?? null]);
+                $db->prepare('INSERT INTO event_invites (event_id, username, phone, email, rsvp, rsvp_token) VALUES (?, ?, ?, ?, NULL, ?)')
+                   ->execute([$eid, strtolower($current['username']), $udata['phone'] ?? null, $udata['email'] ?? null, bin2hex(random_bytes(16))]);
                 db_log_activity($current['id'], "signed up for event id: $eid");
             }
         }

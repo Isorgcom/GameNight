@@ -125,6 +125,9 @@ function db_init(PDO $pdo): void {
     // Add rsvp to event_invites if it doesn't exist yet
     try { $pdo->exec("ALTER TABLE event_invites ADD COLUMN rsvp TEXT"); } catch (Exception $e) {}
 
+    // Add rsvp_token to event_invites for email RSVP without login
+    try { $pdo->exec("ALTER TABLE event_invites ADD COLUMN rsvp_token TEXT"); } catch (Exception $e) {}
+
     // Unique index on lowercase email (login identifier) — safe on existing DBs
     try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(LOWER(email)) WHERE email IS NOT NULL"); } catch (Exception $e) {}
 
