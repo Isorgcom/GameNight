@@ -200,11 +200,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $id    = (int)($_POST['id'] ?? 0);
             $field = $_POST['field'] ?? '';
             $value = trim($_POST['value'] ?? '');
-            $allowed_fields = ['title', 'start_date', 'end_date', 'start_time', 'end_time', 'recurrence', 'recurrence_end'];
+            $allowed_fields = ['title', 'start_date', 'end_date', 'start_time', 'end_time'];
             if ($id > 0 && in_array($field, $allowed_fields, true)) {
-                if ($field === 'recurrence' && !in_array($value, ['none','daily','weekly','biweekly','monthly','yearly'], true)) {
-                    $value = 'none';
-                }
                 $db->prepare("UPDATE events SET $field = ? WHERE id = ?")->execute([$value ?: null, $id]);
                 db_log_activity($current['id'], "updated event #$id $field");
                 $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event updated.'];
@@ -513,11 +510,10 @@ $users = $db->query('SELECT id, username, email, role, created_at, last_login FR
 
 // ── Events data ──────────────────────────────────────────────────────────────
 $events_filter = trim($_GET['ef'] ?? '');
-$events_sort   = in_array($_GET['es'] ?? '', ['id','title','start_date','recurrence','creator','invites']) ? $_GET['es'] : 'start_date';
+$events_sort   = in_array($_GET['es'] ?? '', ['id','title','start_date','creator','invites']) ? $_GET['es'] : 'start_date';
 $events_dir    = ($_GET['ed'] ?? 'asc') === 'desc' ? 'DESC' : 'ASC';
 $events_sql = "
     SELECT e.id, e.title, e.start_date, e.end_date, e.start_time, e.end_time,
-           e.recurrence, e.recurrence_end,
            COALESCE(u.username,'—') AS creator,
            (SELECT COUNT(*) FROM event_invites WHERE event_id = e.id) AS invites
     FROM   events e
@@ -528,7 +524,7 @@ if ($events_filter !== '') {
     $events_sql .= " WHERE e.title LIKE ? OR COALESCE(u.username,'') LIKE ?";
     $events_params = ["%$events_filter%", "%$events_filter%"];
 }
-$col_map = ['id'=>'e.id','title'=>'e.title','start_date'=>'e.start_date','recurrence'=>'e.recurrence','creator'=>'u.username','invites'=>'invites'];
+$col_map = ['id'=>'e.id','title'=>'e.title','start_date'=>'e.start_date','creator'=>'u.username','invites'=>'invites'];
 $events_sql .= " ORDER BY {$col_map[$events_sort]} $events_dir";
 $stmt = $db->prepare($events_sql);
 $stmt->execute($events_params);
@@ -1256,7 +1252,6 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
             $f = htmlspecialchars($filter);
             return "<a href=\"/admin_settings.php?tab=events&es=$col&ed=$dir&ef=$f\">$label$arrow</a>";
         }
-        $rec_labels = ['none'=>'None','daily'=>'Daily','weekly'=>'Weekly','biweekly'=>'Bi-weekly','monthly'=>'Monthly','yearly'=>'Yearly'];
         ?>
 
         <div class="ev-grid-wrap">
@@ -1289,8 +1284,6 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                         <th style="min-width:110px">End Date</th>
                         <th style="min-width:90px">Start Time</th>
                         <th style="min-width:90px">End Time</th>
-                        <th style="min-width:130px"><?= ev_sort_link('recurrence', 'Recurrence', $events_sort, $events_dir, $events_filter) ?></th>
-                        <th style="min-width:110px">Recur End</th>
                         <th style="min-width:110px"><?= ev_sort_link('creator', 'Created By', $events_sort, $events_dir, $events_filter) ?></th>
                         <th class="ev-invites-cell"><?= ev_sort_link('invites', 'Invites', $events_sort, $events_dir, $events_filter) ?></th>
                         <th class="ev-del-cell"></th>
@@ -1321,18 +1314,6 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                                 data-field="end_time" data-id="<?= $eid ?>"
                                 value="<?= htmlspecialchars($ev['end_time'] ?? '') ?>"></td>
 
-                        <td>
-                            <select class="ev-cell-select" data-field="recurrence" data-id="<?= $eid ?>">
-                                <?php foreach ($rec_labels as $val => $lbl): ?>
-                                    <option value="<?= $val ?>"<?= ($ev['recurrence'] ?? 'none') === $val ? ' selected' : '' ?>><?= $lbl ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </td>
-
-                        <td><input class="ev-cell-input" type="date"
-                                data-field="recurrence_end" data-id="<?= $eid ?>"
-                                value="<?= htmlspecialchars($ev['recurrence_end'] ?? '') ?>"></td>
-
                         <td class="ev-creator-cell"><span class="ev-cell"><?= htmlspecialchars($ev['creator']) ?></span></td>
 
                         <td class="ev-invites-cell"><span class="ev-cell"><?= (int)$ev['invites'] ?></span></td>
@@ -1350,7 +1331,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                     </tr>
                 <?php endforeach; ?>
                 <?php if (empty($admin_events)): ?>
-                    <tr><td colspan="11" style="text-align:center;color:#94a3b8;padding:2rem">No events found.</td></tr>
+                    <tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:2rem">No events found.</td></tr>
                 <?php endif; ?>
                 </tbody>
             </table>

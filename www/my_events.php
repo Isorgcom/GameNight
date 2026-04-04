@@ -11,7 +11,7 @@ $today     = (new DateTime('now', $local_tz))->format('Y-m-d');
 // UNION deduplicates: invited rows take priority (have RSVP); created-only rows get null RSVP
 $stmt = $db->prepare("
     SELECT e.id, e.title, e.description, e.start_date, e.end_date,
-           e.start_time, e.end_time, e.color, e.recurrence, e.created_by,
+           e.start_time, e.end_time, e.color, e.created_by,
            ei.rsvp,
            CASE WHEN e.created_by = :uid THEN 1 ELSE 0 END AS is_creator
     FROM events e
@@ -92,9 +92,6 @@ function rsvp_badge(?string $rsvp): string {
                     <?= rsvp_badge($ev['rsvp']) ?>
                     <?php if ($ev['is_creator']): ?>
                     <span style="background:#ede9fe;color:#5b21b6;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">Organizer</span>
-                    <?php endif; ?>
-                    <?php if ($ev['recurrence'] !== 'none'): ?>
-                    <span style="background:#f0f9ff;color:#0369a1;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">Recurring</span>
                     <?php endif; ?>
                 </div>
                 <div style="font-size:.85rem;color:#64748b">

@@ -115,10 +115,6 @@ function db_init(PDO $pdo): void {
     try { $pdo->exec("ALTER TABLE posts ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE posts ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
 
-    // Add recurrence columns if they don't exist yet (safe on existing DBs)
-    try { $pdo->exec("ALTER TABLE events ADD COLUMN recurrence TEXT NOT NULL DEFAULT 'none'"); } catch (Exception $e) {}
-    try { $pdo->exec("ALTER TABLE events ADD COLUMN recurrence_end TEXT"); } catch (Exception $e) {}
-
     // Add phone to users if it doesn't exist yet
     try { $pdo->exec("ALTER TABLE users ADD COLUMN phone TEXT"); } catch (Exception $e) {}
 
@@ -176,15 +172,6 @@ function db_init(PDO $pdo): void {
 
     // Severity level for log entries (info, warning, critical)
     try { $pdo->exec("ALTER TABLE activity_log ADD COLUMN severity TEXT NOT NULL DEFAULT 'info'"); } catch (Exception $e) {}
-
-    // Per-occurrence invite/RSVP support for recurring events
-    try { $pdo->exec("ALTER TABLE event_invites ADD COLUMN occurrence_date TEXT"); } catch (Exception $e) {}
-
-    // Series cancellation: cancelled_from=YYYY-MM-DD means no occurrences on/after that date
-    try { $pdo->exec("ALTER TABLE events ADD COLUMN cancelled_from TEXT"); } catch (Exception $e) {}
-
-    // valid_from for mid-series invitees: NULL=from series start, date=only occurrences >= that date
-    try { $pdo->exec("ALTER TABLE event_invites ADD COLUMN valid_from TEXT"); } catch (Exception $e) {}
 
     // Event notification deduplication for cron reminders
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS event_notifications_sent (
@@ -406,75 +393,27 @@ function db_log_anon_activity(string $action, string $severity = 'info'): void {
 /**
  * Expand a list of events into a by-date map within [rangeStart, rangeEnd].
  * Each entry is array_merged with ['occurrence_start' => YYYY-MM-DD].
- * Respects cancelled_from, recurrence_end, and exception dates.
  */
 function build_event_by_date(array $events, string $rangeStart, string $rangeEnd, DateTimeZone $tz, array $exceptions = []): array {
     $byDate = [];
-    $rangeS = new DateTime($rangeStart, $tz);
-    $rangeE = new DateTime($rangeEnd, $tz);
-
     foreach ($events as $ev) {
-        $recurrence = $ev['recurrence'] ?? 'none';
-        $startDt    = new DateTime($ev['start_date'], $tz);
-        $endDt      = $ev['end_date'] ? new DateTime($ev['end_date'], $tz) : clone $startDt;
-        $duration   = (int)$startDt->diff($endDt)->days;
-        $skip       = $exceptions[$ev['id']] ?? [];
-
-        if ($recurrence === 'none') {
-            $cur = clone $startDt;
-            while ($cur <= $endDt) {
-                $k = $cur->format('Y-m-d');
-                if ($k >= $rangeStart && $k <= $rangeEnd) {
-                    $byDate[$k][] = array_merge($ev, ['occurrence_start' => $ev['start_date']]);
-                }
-                $cur->modify('+1 day');
+        $startDt = new DateTime($ev['start_date'], $tz);
+        $endDt   = $ev['end_date'] ? new DateTime($ev['end_date'], $tz) : clone $startDt;
+        $cur = clone $startDt;
+        while ($cur <= $endDt) {
+            $k = $cur->format('Y-m-d');
+            if ($k >= $rangeStart && $k <= $rangeEnd) {
+                $byDate[$k][] = array_merge($ev, ['occurrence_start' => $ev['start_date']]);
             }
-        } else {
-            $recEnd      = $ev['recurrence_end'] ? new DateTime($ev['recurrence_end'], $tz) : null;
-            $cancelFrom  = !empty($ev['cancelled_from']) ? $ev['cancelled_from'] : null;
-            $cur    = clone $startDt;
-            $limit  = 1000;
-            while ($cur <= $rangeE && $limit-- > 0) {
-                if ($recEnd && $cur > $recEnd) break;
-                $occDate = $cur->format('Y-m-d');
-                if ($cancelFrom && $occDate >= $cancelFrom) break;
-                if (!in_array($occDate, $skip, true)) {
-                    $instEnd = (clone $cur)->modify("+{$duration} days");
-                    if ($instEnd >= $rangeS) {
-                        $day = clone $cur;
-                        while ($day <= $instEnd) {
-                            $k = $day->format('Y-m-d');
-                            if ($k >= $rangeStart && $k <= $rangeEnd) {
-                                $byDate[$k][] = array_merge($ev, ['occurrence_start' => $occDate]);
-                            }
-                            $day->modify('+1 day');
-                        }
-                    }
-                }
-                switch ($recurrence) {
-                    case 'daily':   $cur->modify('+1 day');   break;
-                    case 'weekly':  $cur->modify('+1 week');  break;
-                    case 'monthly': $cur->modify('+1 month'); break;
-                    case 'yearly':  $cur->modify('+1 year');  break;
-                    default: break 2;
-                }
-            }
+            $cur->modify('+1 day');
         }
     }
     return $byDate;
 }
 
 /**
- * Load exception dates (skipped occurrences) for all recurring events.
- * Returns [event_id => [date, ...], ...]
+ * Stub kept for compatibility — recurrence was removed; always returns [].
  */
 function load_exceptions(PDO $db, array $events): array {
-    $ids = array_column(array_filter($events, fn($e) => ($e['recurrence'] ?? 'none') !== 'none'), 'id');
-    if (empty($ids)) return [];
-    $ph   = implode(',', array_fill(0, count($ids), '?'));
-    $stmt = $db->prepare("SELECT event_id, date FROM event_exceptions WHERE event_id IN ($ph)");
-    $stmt->execute(array_values($ids));
-    $out  = [];
-    foreach ($stmt->fetchAll() as $row) $out[$row['event_id']][] = $row['date'];
-    return $out;
+    return [];
 }

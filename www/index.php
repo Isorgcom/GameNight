@@ -20,72 +20,13 @@ $weekEndStr   = $weekEnd->format('Y-m-d');
 
 $wkStmt = $db->prepare(
     "SELECT * FROM events WHERE
-       (recurrence = 'none' AND start_date <= ? AND (end_date >= ? OR (end_date IS NULL AND start_date >= ?)))
-       OR
-       (recurrence != 'none' AND start_date <= ? AND (recurrence_end IS NULL OR recurrence_end >= ?))
+       start_date <= ? AND (end_date >= ? OR (end_date IS NULL AND start_date >= ?))
      ORDER BY start_date, start_time"
 );
-$wkStmt->execute([$weekEndStr, $weekStartStr, $weekStartStr, $weekEndStr, $weekStartStr]);
+$wkStmt->execute([$weekEndStr, $weekStartStr, $weekStartStr]);
 $wkEvents = $wkStmt->fetchAll();
 
-// Load exceptions (deleted occurrences) for any recurring events
-$_recurIds = array_column(
-    array_filter($wkEvents, fn($e) => ($e['recurrence'] ?? 'none') !== 'none'),
-    'id'
-);
-$wkExceptions = [];
-if (!empty($_recurIds)) {
-    $_ph    = implode(',', array_fill(0, count($_recurIds), '?'));
-    $_exSt  = $db->prepare("SELECT event_id, date FROM event_exceptions WHERE event_id IN ($_ph)");
-    $_exSt->execute(array_values($_recurIds));
-    foreach ($_exSt->fetchAll() as $_row) $wkExceptions[$_row['event_id']][] = $_row['date'];
-}
-
-$wkByDate = [];
-foreach ($wkEvents as $ev) {
-    $recurrence = $ev['recurrence'] ?? 'none';
-    $startDt    = new DateTime($ev['start_date'], $local_tz);
-    $endDt      = $ev['end_date'] ? new DateTime($ev['end_date'], $local_tz) : clone $startDt;
-    $duration   = (int)$startDt->diff($endDt)->days;
-    $skip       = $wkExceptions[$ev['id']] ?? [];
-
-    if ($recurrence === 'none') {
-        $cur = clone $startDt;
-        while ($cur <= $endDt) {
-            $k = $cur->format('Y-m-d');
-            if ($k >= $weekStartStr && $k <= $weekEndStr)
-                $wkByDate[$k][] = array_merge($ev, ['occurrence_start' => $ev['start_date']]);
-            $cur->modify('+1 day');
-        }
-    } else {
-        $recEnd = $ev['recurrence_end'] ? new DateTime($ev['recurrence_end'], $local_tz) : null;
-        $cur    = clone $startDt;
-        $limit  = 1000;
-        while ($cur <= $weekEnd && $limit-- > 0) {
-            if ($recEnd && $cur > $recEnd) break;
-            $occDate = $cur->format('Y-m-d');
-            if (!in_array($occDate, $skip, true)) {
-                $instEnd = (clone $cur)->modify("+{$duration} days");
-                if ($instEnd >= $weekStart) {
-                    $day = clone $cur;
-                    while ($day <= $instEnd) {
-                        $k = $day->format('Y-m-d');
-                        if ($k >= $weekStartStr && $k <= $weekEndStr)
-                            $wkByDate[$k][] = array_merge($ev, ['occurrence_start' => $occDate]);
-                        $day->modify('+1 day');
-                    }
-                }
-            }
-            switch ($recurrence) {
-                case 'daily':   $cur->modify('+1 day');   break;
-                case 'weekly':  $cur->modify('+1 week');  break;
-                case 'monthly': $cur->modify('+1 month'); break;
-                case 'yearly':  $cur->modify('+1 year');  break;
-                default: break 2;
-            }
-        }
-    }
-}
+$wkByDate = build_event_by_date($wkEvents, $weekStartStr, $weekEndStr, $local_tz);
 
 if ($monthFilter) {
     $cnt = $db->prepare("SELECT COUNT(*) FROM posts WHERE created_at <= ? AND hidden = 0 AND strftime('%Y-%m', datetime(created_at)) = ?");

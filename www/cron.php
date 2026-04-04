@@ -1,8 +1,8 @@
 <?php
 /**
- * cron.php — Reminder notification system for recurring events.
+ * cron.php — Reminder notification system for upcoming events.
  *
- * Sends 2-day and 12-hour reminders to invitees of upcoming occurrences.
+ * Sends 2-day and 12-hour reminders to invitees of upcoming events.
  * Deduplicates via event_notifications_sent table.
  *
  * Recommended cron schedule (every 30 minutes):
@@ -29,12 +29,10 @@ $now      = new DateTime('now', $local_tz);
 $today    = $now->format('Y-m-d');
 $in3days  = (clone $now)->modify('+3 days')->format('Y-m-d');
 
-// ── Load upcoming events (recurring + single) ─────────────────────────────────
+// ── Load upcoming events ──────────────────────────────────────────────────────
 $stmt = $db->prepare(
     "SELECT * FROM events WHERE
-       start_date <= ?
-       AND (recurrence_end IS NULL OR recurrence_end >= ?)
-       AND (cancelled_from IS NULL OR cancelled_from > ?)
+       start_date <= ? AND (end_date >= ? OR (end_date IS NULL AND start_date >= ?))
      ORDER BY start_date, start_time"
 );
 $stmt->execute([$in3days, $today, $today]);
@@ -44,9 +42,8 @@ if (empty($all_events)) {
     exit("OK: 0 notifications sent.\n");
 }
 
-// ── Expand into occurrences within the window ─────────────────────────────────
-$exceptions = load_exceptions($db, $all_events);
-$by_date    = build_event_by_date($all_events, $today, $in3days, $local_tz, $exceptions);
+// ── Expand into a date-keyed array ────────────────────────────────────────────
+$by_date = build_event_by_date($all_events, $today, $in3days, $local_tz);
 
 // Collect unique (event_id, occurrence_date) pairs (avoid dupes from multi-day spans)
 $seen        = [];
@@ -87,30 +84,16 @@ foreach ($occurrences as $occ) {
     $notif_type = $send_2day ? '2day' : '12hour';
     $time_label = $send_2day ? '2 days' : '12 hours';
 
-    // ── Get effective invitees for this occurrence ────────────────────────────
-    // Base rows (valid_from respects mid-series adds)
-    $base_stmt = $db->prepare(
+    // ── Get invitees for this event ──────────────────────────────────────────
+    $inv_stmt = $db->prepare(
         "SELECT ei.username, u.email, u.phone, u.preferred_contact
          FROM event_invites ei
          JOIN users u ON LOWER(u.username) = LOWER(ei.username)
-         WHERE ei.event_id = ? AND ei.occurrence_date IS NULL
-           AND (ei.valid_from IS NULL OR ei.valid_from <= ?)"
+         WHERE ei.event_id = ?"
     );
-    $base_stmt->execute([$ev['id'], $occ_date]);
+    $inv_stmt->execute([$ev['id']]);
     $invitees = [];
-    foreach ($base_stmt->fetchAll() as $row) {
-        $invitees[strtolower($row['username'])] = $row;
-    }
-
-    // Per-occurrence overrides (take precedence)
-    $occ_stmt = $db->prepare(
-        "SELECT ei.username, u.email, u.phone, u.preferred_contact
-         FROM event_invites ei
-         JOIN users u ON LOWER(u.username) = LOWER(ei.username)
-         WHERE ei.event_id = ? AND ei.occurrence_date = ?"
-    );
-    $occ_stmt->execute([$ev['id'], $occ_date]);
-    foreach ($occ_stmt->fetchAll() as $row) {
+    foreach ($inv_stmt->fetchAll() as $row) {
         $invitees[strtolower($row['username'])] = $row;
     }
 

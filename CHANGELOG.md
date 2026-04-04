@@ -4,6 +4,19 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.01556] — 2026-04-03
+
+### Removed
+- **Recurring events.** Recurrence fields (`recurrence`, `recurrence_end`),
+  the Recurrence dropdown in the create/edit modal, the per-occurrence invite
+  scope toggle, the "Delete this date" occurrence button, and the "Recurring"
+  badge on My Events have all been removed. All event queries now use a simple
+  date-overlap filter. `build_event_by_date` simplified to single-pass;
+  `load_exceptions` stubbed out. Admin Manage Events grid drops the Recurrence
+  and Recur End columns.
+
+---
+
 ## [v0.01555] — 2026-04-03
 
 ### Added

@@ -110,10 +110,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $et    = trim($_POST['end_time'] ?? '') ?: null;
         $color = in_array($_POST['color'] ?? '', ['#2563eb','#16a34a','#dc2626','#d97706','#7c3aed','#0891b2','#db2777'])
                  ? $_POST['color'] : '#2563eb';
-        $recurrence = in_array($_POST['recurrence'] ?? '', ['none','daily','weekly','monthly','yearly'])
-                      ? $_POST['recurrence'] : 'none';
-        $recEnd = trim($_POST['recurrence_end'] ?? '') ?: null;
-
         if ($title === '' || $sd === '') {
             $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Title and start date are required.'];
         } elseif (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $sd) || ($ed && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $ed))) {
@@ -122,16 +118,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $notify_invitees = !empty($_POST['notify_invitees']);
             $new_invitee_usernames = [];
             if ($action === 'add') {
-                $db->prepare('INSERT INTO events (title, description, start_date, end_date, start_time, end_time, color, recurrence, recurrence_end, created_by)
-                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $recurrence, $recEnd, $current['id']]);
+                $db->prepare('INSERT INTO events (title, description, start_date, end_date, start_time, end_time, color, created_by)
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $current['id']]);
                 $notify_eid = (int)$db->lastInsertId();
                 $save_invites($notify_eid, $new_invitee_usernames);
                 db_log_activity($current['id'], "created event: $title");
                 $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event added.'];
             } else {
-                $db->prepare('UPDATE events SET title=?, description=?, start_date=?, end_date=?, start_time=?, end_time=?, color=?, recurrence=?, recurrence_end=? WHERE id=?')
-                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $recurrence, $recEnd, $id]);
+                $db->prepare('UPDATE events SET title=?, description=?, start_date=?, end_date=?, start_time=?, end_time=?, color=? WHERE id=?')
+                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $id]);
                 $notify_eid = $id;
                 $save_invites($id, $new_invitee_usernames);
                 db_log_activity($current['id'], "edited event id: $id");
@@ -331,8 +327,6 @@ if (!empty($_GET['event']) && ctype_digit((string)$_GET['event'])) {
     $aoRow->execute([(int)$_GET['event']]);
     $aoRow = $aoRow->fetch();
     if ($aoRow) {
-        $aoRow['recurrence']     = $aoRow['recurrence']     ?? 'none';
-        $aoRow['recurrence_end'] = $aoRow['recurrence_end'] ?? null;
         $autoOpenEvent = $aoRow;
         // Navigate to the correct month so the event is visible
         if (!isset($_GET['m'])) {
@@ -357,16 +351,13 @@ $daysInMonth = (int)$display->format('t');
 $monthStart = $display->format('Y-m-01');
 $monthEnd   = $display->format('Y-m-') . $daysInMonth;
 
-// Fetch events: non-recurring that overlap the month, plus any recurring that
-// started before month-end and haven't expired before month-start.
+// Fetch events that overlap the month
 $evQuery = $db->prepare(
     "SELECT * FROM events WHERE
-       (recurrence = 'none' AND start_date <= ? AND (end_date >= ? OR (end_date IS NULL AND start_date >= ?)))
-       OR
-       (recurrence != 'none' AND start_date <= ? AND (recurrence_end IS NULL OR recurrence_end >= ?))
+       start_date <= ? AND (end_date >= ? OR (end_date IS NULL AND start_date >= ?))
      ORDER BY start_date, start_time"
 );
-$evQuery->execute([$monthEnd, $monthStart, $monthStart, $monthEnd, $monthStart]);
+$evQuery->execute([$monthEnd, $monthStart, $monthStart]);
 $allEvents = $evQuery->fetchAll();
 
 
@@ -408,15 +399,12 @@ if ($viewMode === 'week') {
 
     $wkEvQ = $db->prepare(
         "SELECT * FROM events WHERE
-           (recurrence = 'none' AND start_date <= ? AND (end_date >= ? OR (end_date IS NULL AND start_date >= ?)))
-           OR
-           (recurrence != 'none' AND start_date <= ? AND (recurrence_end IS NULL OR recurrence_end >= ?))
+           start_date <= ? AND (end_date >= ? OR (end_date IS NULL AND start_date >= ?))
          ORDER BY start_date, start_time"
     );
-    $wkEvQ->execute([$wkEndStr, $wkStartStr, $wkStartStr, $wkEndStr, $wkStartStr]);
-    $wkAllEvents  = $wkEvQ->fetchAll();
-    $wkExceptions = load_exceptions($db, $wkAllEvents);
-    $wkByDate     = build_event_by_date($wkAllEvents, $wkStartStr, $wkEndStr, $local_tz, $wkExceptions);
+    $wkEvQ->execute([$wkEndStr, $wkStartStr, $wkStartStr]);
+    $wkAllEvents = $wkEvQ->fetchAll();
+    $wkByDate    = build_event_by_date($wkAllEvents, $wkStartStr, $wkEndStr, $local_tz);
 }
 
 // Batch-load comments for all events on this page (month view, preview, and week view)
@@ -1055,24 +1043,20 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         <?php if ($canCreateEvents): ?>
         <div class="ev-view-actions" id="vEventActions" style="display:none">
             <button class="btn btn-primary" onclick="editFromView()">Edit</button>
-            <!-- Delete this occurrence only (shown for recurring events) -->
-            <form method="post" action="/calendar.php" style="margin:0" id="vDeleteOccForm"
-                  onsubmit="return confirm('Remove just this occurrence?')">
+            <form method="post" action="/calendar.php" style="margin:0" id="vDeleteOccForm" style="display:none">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <input type="hidden" name="action" value="delete_occurrence">
                 <input type="hidden" name="id" id="vDeleteOccId" value="">
                 <input type="hidden" name="occurrence_date" id="vDeleteOccDate" value="">
                 <input type="hidden" name="month_param" value="<?= htmlspecialchars($monthParam) ?>">
-                <button type="submit" class="btn btn-outline" style="color:#dc2626;border-color:#fca5a5">Delete this date</button>
             </form>
-            <!-- Delete entire event -->
             <form method="post" action="/calendar.php" style="margin:0"
-                  onsubmit="return confirm(currentEvent && currentEvent.recurrence !== 'none' ? 'Delete the entire repeating series? This cannot be undone.' : 'Delete this event?')">
+                  onsubmit="return confirm('Delete this event?')">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <input type="hidden" name="action" value="delete">
                 <input type="hidden" name="id" id="vDeleteId">
                 <input type="hidden" name="month_param" value="<?= htmlspecialchars($monthParam) ?>">
-                <button type="submit" id="vDeleteAllBtn" class="btn" style="background:#dc2626;color:#fff">Delete</button>
+                <button type="submit" class="btn" style="background:#dc2626;color:#fff">Delete</button>
             </form>
         </div>
         <?php endif; ?>
@@ -1165,21 +1149,6 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
                         </div>
                     </div>
                     <div class="form-group">
-                        <label>Recurrence</label>
-                        <select name="recurrence" id="eRecurrence" class="form-select"
-                                onchange="toggleRecEnd(this.value)">
-                            <option value="none">Does not repeat</option>
-                            <option value="daily">Daily</option>
-                            <option value="weekly">Weekly</option>
-                            <option value="monthly">Monthly</option>
-                            <option value="yearly">Yearly</option>
-                        </select>
-                    </div>
-                    <div class="form-group" id="recEndGroup" style="display:none">
-                        <label>Repeat until <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
-                        <input type="date" name="recurrence_end" id="eRecEnd">
-                    </div>
-                    <div class="form-group">
                         <label>Color</label>
                         <div class="color-swatches" id="colorSwatches">
                             <?php foreach (['#2563eb','#16a34a','#dc2626','#d97706','#7c3aed','#0891b2','#db2777'] as $c): ?>
@@ -1192,18 +1161,6 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
                     <div class="form-group">
                         <label>Description <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
                         <textarea name="description" id="eDesc" rows="3" style="width:100%;resize:vertical"></textarea>
-                    </div>
-                    <!-- Recurring event invite scope toggle (shown by JS when editing a recurring event) -->
-                    <div id="eRecurringScope" style="display:none;margin-bottom:.75rem;padding:.65rem .85rem;background:#fffbeb;border:1.5px solid #fcd34d;border-radius:8px;font-size:.85rem">
-                        <div style="font-weight:600;color:#92400e;margin-bottom:.4rem">&#128257; Recurring event &mdash; editing invites for:</div>
-                        <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;margin-bottom:.25rem">
-                            <input type="radio" name="invite_scope" value="all" checked onchange="setInviteScope('all')">
-                            All occurrences (default)
-                        </label>
-                        <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer">
-                            <input type="radio" name="invite_scope" value="this" onchange="setInviteScope('this')">
-                            <span id="eInviteScopeLabel">This date only</span>
-                        </label>
                     </div>
                     <!-- Mobile-only invite section -->
                     <div id="eMobileInvites" class="form-group" style="margin-top:.5rem">
@@ -1309,15 +1266,11 @@ function viewEvent(ev) {
     }
     document.getElementById('vMeta').textContent = meta;
 
-    const recLabels = {none:'',daily:'Repeats daily',weekly:'Repeats weekly',monthly:'Repeats monthly',yearly:'Repeats yearly'};
-    let recTxt = recLabels[ev.recurrence] || '';
-    if (recTxt && ev.recurrence_end) recTxt += ' until ' + ev.recurrence_end;
-    document.getElementById('vRecurr').textContent = recTxt;
+    document.getElementById('vRecurr').textContent = '';
 
     document.getElementById('vDesc').textContent = ev.description || '';
 
-    const isRecurring = ev.recurrence && ev.recurrence !== 'none';
-    const occDate  = isRecurring ? (ev.occurrence_start || null) : null;
+    const occDate  = null;
     const invites  = getEffectiveInvites(ev.id, occDate);
     const myInvite = CURRENT_USERNAME ? invites.find(inv => inv.username.toLowerCase() === CURRENT_USERNAME.toLowerCase()) : undefined;
     const isInvited = myInvite !== undefined;
@@ -1361,13 +1314,9 @@ function viewEvent(ev) {
     if (actionsDiv) actionsDiv.style.display = canManageThis ? '' : 'none';
     if (canManageThis) {
         document.getElementById('vDeleteId').value = ev.id;
-        const isRecurring = ev.recurrence && ev.recurrence !== 'none';
         const occForm = document.getElementById('vDeleteOccForm');
         if (occForm) {
-            occForm.style.display = isRecurring ? '' : 'none';
-            document.getElementById('vDeleteOccId').value   = ev.id;
-            document.getElementById('vDeleteOccDate').value = ev.occurrence_start || ev.start_date;
-            document.getElementById('vDeleteAllBtn').textContent = isRecurring ? 'Delete all' : 'Delete';
+            occForm.style.display = 'none';
         }
     }
     <?php endif; ?>
@@ -1452,9 +1401,7 @@ function renderCommentsPanel(eid) {
     }).join('');
 }
 function renderInvitesPanel(eid) {
-    const _isRec = currentEvent && currentEvent.recurrence && currentEvent.recurrence !== 'none';
-    const _occ   = _isRec ? (currentEvent.occurrence_start || null) : null;
-    const invites = getEffectiveInvites(eid, _occ);
+    const invites = getEffectiveInvites(eid, null);
     const vInvDiv  = document.getElementById('vInvites');
     const rsvpClass = {yes:'rsvp-yes', no:'rsvp-no', maybe:'rsvp-maybe'};
     const rsvpText  = {yes:'Yes', no:'No', maybe:'Maybe'};
@@ -1811,9 +1758,6 @@ function openAddModal(date) {
     document.getElementById('eStartTime').value = '';
     document.getElementById('eEndTime').value   = '';
     document.getElementById('eDesc').value      = '';
-    document.getElementById('eRecurrence').value = 'none';
-    document.getElementById('eRecEnd').value      = '';
-    toggleRecEnd('none');
     document.getElementById('eSubmitBtn').textContent = 'Add Event';
     selectColor('#2563eb');
     document.getElementById('eInviteList').innerHTML = '';
@@ -1823,23 +1767,7 @@ function openAddModal(date) {
     document.getElementById('editModal').classList.add('open');
     document.getElementById('eTitle').focus();
 }
-function loadInvitesForScope(ev, scope) {
-    document.getElementById('eInviteList').innerHTML = '';
-    document.getElementById('eUserSelect').selectedIndex = -1;
-    const occDate = (scope === 'this') ? (ev.occurrence_start || '') : '';
-    document.getElementById('eOccDate').value = occDate;
-    let rows;
-    if (scope === 'this' && occDate) {
-        rows = ((eventInvitesByOcc[ev.id] || {})[occDate]) || [];
-    } else {
-        rows = eventInvites[ev.id] || [];
-    }
-    rows.forEach(inv => addInviteRow(inv.username, inv.phone || '', inv.email || '', inv.rsvp || ''));
-    syncChecklistState();
-}
-function setInviteScope(scope) {
-    loadInvitesForScope(currentEvent, scope);
-}
+
 function openEditModal(ev) {
     currentEvent = ev;
     closeView();
@@ -1853,9 +1781,6 @@ function openEditModal(ev) {
     document.getElementById('eStartTime').value = ev.start_time || '';
     document.getElementById('eEndTime').value   = ev.end_time || '';
     document.getElementById('eDesc').value      = ev.description || '';
-    document.getElementById('eRecurrence').value  = ev.recurrence || 'none';
-    document.getElementById('eRecEnd').value      = ev.recurrence_end || '';
-    toggleRecEnd(ev.recurrence || 'none');
     document.getElementById('eSubmitBtn').textContent = 'Save Changes';
     selectColor(ev.color || '#2563eb');
     document.getElementById('eInviteList').innerHTML = '';
@@ -1863,18 +1788,6 @@ function openEditModal(ev) {
     document.getElementById('eUserSearch').value = '';
     document.getElementById('eNotifyInvitees').checked = false;
     filterChecklist('');
-    // Show/hide recurring scope toggle
-    const isRecurring = ev.recurrence && ev.recurrence !== 'none';
-    const scopeDiv = document.getElementById('eRecurringScope');
-    if (scopeDiv) {
-        scopeDiv.style.display = isRecurring ? '' : 'none';
-        if (isRecurring) {
-            // Reset to "all occurrences" scope
-            scopeDiv.querySelector('input[value="all"]').checked = true;
-            document.getElementById('eInviteScopeLabel').textContent =
-                'This date only (' + (ev.occurrence_start || ev.start_date) + ')';
-        }
-    }
     (eventInvites[ev.id] || []).forEach(inv => addInviteRow(inv.username, inv.phone || '', inv.email || '', inv.rsvp || ''));
     syncChecklistState();
     document.getElementById('editModal').classList.add('open');
@@ -1999,9 +1912,6 @@ function syncChecklistState() {
 }
 buildChecklist();
 
-function toggleRecEnd(val) {
-    document.getElementById('recEndGroup').style.display = val === 'none' ? 'none' : '';
-}
 
 function selectColor(c) {
     document.getElementById('eColor').value = c;
