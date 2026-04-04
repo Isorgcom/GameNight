@@ -4,7 +4,7 @@ require_once __DIR__ . '/../auth.php';
 session_start_safe();
 $user = current_user();
 if (!$user || $user['role'] !== 'admin') {
-    header('Location: /login.php');
+    header('Location: /login.php?redirect=' . urlencode('/phpadmin/'));
     exit;
 }
 
