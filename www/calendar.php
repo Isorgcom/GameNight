@@ -710,56 +710,78 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             width: 100%; max-width: 480px; padding: 1.75rem;
             animation: modalIn .15s ease;
         }
-        #editModal .modal { max-width: 600px; }
-        .invite-row { display:flex; gap:.35rem; align-items:center; }
-        .invite-row input { padding:.38rem .6rem; border:1.5px solid #e2e8f0; border-radius:6px; font-size:.85rem; min-width:0; }
-        .invite-row input:nth-child(1) { flex:2; }
-        .invite-row input:nth-child(2) { flex:1.5; }
-        .invite-row input:nth-child(3) { flex:2; }
-        .invite-row select { flex-shrink:0; }
-        .invite-row .inv-remove { flex-shrink:0; padding:.3rem .5rem; border:1px solid #e2e8f0; border-radius:6px; background:#fff; cursor:pointer; color:#94a3b8; font-size:.9rem; line-height:1; }
-        .invite-row .inv-remove:hover { background:#fee2e2; color:#dc2626; border-color:#fca5a5; }
-        /* Edit modal layout */
-        .edit-form-body { display:contents; }
-        .edit-footer { display:flex; gap:.75rem; margin-top:1.25rem; }
-        #eInviteHeader { display:none; }
-        #eUserChecklist { display:none; }
-        #eAddCustomBtn { display:none; }
-        /* Checklist (desktop invites) */
-        .checklist-item { display:flex;align-items:center;gap:.65rem;padding:.5rem .75rem;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:.875rem;user-select:none; }
-        .checklist-item:last-child { border-bottom:none; }
-        .checklist-item:hover { background:#f8fafc; }
-        .checklist-item.ci-invited { background:#f0fdf4; }
-        .ci-check { width:17px;height:17px;border-radius:4px;border:2px solid #cbd5e1;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.65rem;color:#fff; }
-        .checklist-item.ci-invited .ci-check { background:#16a34a;border-color:#16a34a; }
-        .ci-name { flex:1;font-weight:500; }
-        .ci-badge { font-size:.7rem;font-weight:700;padding:.1rem .4rem;border-radius:4px; }
-        .ci-badge-yes { background:#dcfce7;color:#166534; }
-        .ci-badge-no  { background:#fee2e2;color:#991b1b; }
-        .ci-badge-maybe { background:#fef9c3;color:#854d0e; }
-        .ci-info { flex:1;min-width:0; }
-        .ci-sub  { font-size:.72rem;color:#94a3b8;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
-        @media (min-width:769px) {
-            #editModal .modal { max-width:min(96vw,1140px);max-height:92vh;display:flex;flex-direction:column;padding:0;overflow:hidden; }
-            #editModal .modal-header { padding:1.1rem 1.75rem;margin-bottom:0;border-bottom:1px solid #e2e8f0;flex-shrink:0; }
-            /* form must be a flex column so edit-form-body/edit-footer can use flex sizing */
-            #editModal form { display:flex;flex-direction:column;flex:1;min-height:0; }
-            #editModal .edit-form-body { display:grid;grid-template-columns:1fr 1fr;flex:1;min-height:0;overflow:hidden; }
-            /* min-height:0 is critical on grid children — without it they ignore overflow */
-            #editModal .edit-col-left { padding:1.25rem 1.5rem;overflow-y:auto;border-right:1px solid #e2e8f0;min-height:0; }
-            #editModal .edit-col-right { padding:1.25rem 1.5rem;display:flex;flex-direction:column;min-height:0;overflow:hidden; }
-            #editModal .edit-footer { padding:.75rem 1.5rem;border-top:1px solid #e2e8f0;margin-top:0;flex-shrink:0; }
-            #editModal #eDesc { min-height:130px; }
-            #eMobileInvites { display:none; }
-            #eUserSelectWrap { display:none !important; }
-            /* checklist takes half the column, scrolls internally */
-            #eUserChecklist { display:flex;flex-direction:column;flex:1 1 0;min-height:0;overflow:hidden; }
-            #eChecklistItems { flex:1 1 0;overflow-y:auto;min-height:0; }
-            /* invited list takes the other half, scrolls internally */
-            .invited-section { display:flex;flex-direction:column;flex:1 1 0;min-height:0;overflow:hidden;margin-top:.65rem;border-top:1px solid #f1f5f9;padding-top:.5rem; }
-            #eInviteList { flex:1 1 0;overflow-y:auto;min-height:0; }
-            #eInviteHeader { display:grid;flex-shrink:0; }
-            #eAddCustomBtn { display:block;flex-shrink:0; }
+        /* ── Edit modal ── */
+        #editModal .modal { max-width:min(96vw,860px);display:flex;flex-direction:column;padding:0;overflow:hidden; }
+        #editModal .modal-header { padding:.9rem 1.25rem;margin-bottom:0;border-bottom:1px solid #e2e8f0;flex-shrink:0; }
+        #editModal form { display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto; }
+
+        /* Header row: color dot + title + date + time + duration */
+        .edit-header-row { display:flex;align-items:center;gap:.6rem;padding:1rem 1.25rem .75rem;flex-wrap:wrap;flex-shrink:0; }
+        .edit-header-row .form-group { margin:0; }
+        #eColorDot { width:38px;height:38px;border-radius:50%;cursor:pointer;border:3px solid transparent;flex-shrink:0;transition:border-color .15s,box-shadow .15s;position:relative; }
+        #eColorDot:hover { border-color:#1e293b; }
+        #eColorDot.open { box-shadow:0 0 0 3px rgba(37,99,235,.3);border-color:#2563eb; }
+        #eColorPicker { position:absolute;top:calc(100% + 6px);left:0;background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;padding:.6rem .75rem;display:none;gap:.5rem;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,.15); }
+        #eColorPicker.open { display:flex; }
+        #eColorPicker .color-swatch { width:26px;height:26px; }
+        #eColorDotWrap { position:relative;flex-shrink:0; }
+        .edit-title-input { flex:1;min-width:140px;padding:.45rem .7rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.95rem;font-weight:500; }
+        .edit-title-input:focus { outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
+        .edit-hdr-label { font-size:.72rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.2rem;display:block; }
+        .edit-hdr-field { display:flex;flex-direction:column; }
+        .edit-hdr-dur { display:flex;align-items:center;gap:.3rem; }
+        .edit-hdr-dur input { width:4.5rem;padding:.45rem .5rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.875rem;text-align:center; }
+        .edit-hdr-dur input:focus { outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
+        .edit-hdr-dur span { font-size:.8rem;color:#64748b;white-space:nowrap; }
+        .edit-time-selects { display:flex;gap:.25rem; }
+        .edit-time-selects select { padding:.42rem .3rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.875rem;background:#fff;cursor:pointer; }
+        .edit-time-selects select:focus { outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
+
+        /* Invite panel */
+        .edit-invite-panel { display:grid;grid-template-columns:1fr 1fr;gap:.75rem;padding:0 1.25rem;flex-shrink:0; }
+        .invite-pane { display:flex;flex-direction:column;border:1.5px solid #e2e8f0;border-radius:8px;overflow:hidden;height:220px; }
+        .invite-pane-header { background:#f8fafc;padding:.35rem .65rem;font-size:.7rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;flex-shrink:0;border-bottom:1px solid #e2e8f0; }
+        .invite-pane-search { width:100%;padding:.38rem .65rem;border:none;border-bottom:1.5px solid #e2e8f0;font-size:.85rem;box-sizing:border-box;flex-shrink:0; }
+        .invite-pane-search:focus { outline:none;border-color:#2563eb; }
+        .invite-pane-list { flex:1;overflow-y:auto;list-style:none;margin:0;padding:.2rem; }
+        .invite-pane-list li { padding:.35rem .6rem;border-radius:5px;font-size:.875rem;cursor:pointer;user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+        .invite-pane-list li:hover { background:#f1f5f9; }
+        .invite-pane-list li.dimmed { color:#cbd5e1;cursor:default; }
+        .invite-pane-list li.dimmed:hover { background:transparent; }
+        .invite-pane-list li.custom-row { padding:.2rem .4rem;cursor:default; }
+        .invite-pane-list li.custom-row:hover { background:transparent; }
+        .custom-row-inner { display:flex;gap:.3rem;align-items:center; }
+        .custom-row-inner input { padding:.28rem .45rem;border:1.5px solid #e2e8f0;border-radius:5px;font-size:.8rem;min-width:0; }
+        .custom-row-inner .cr-name { flex:2; }
+        .custom-row-inner .cr-email { flex:2.5; }
+        .custom-row-inner .cr-remove { flex-shrink:0;padding:.2rem .4rem;border:1px solid #e2e8f0;border-radius:5px;background:#fff;cursor:pointer;color:#94a3b8;font-size:.85rem;line-height:1; }
+        .custom-row-inner .cr-remove:hover { background:#fee2e2;color:#dc2626;border-color:#fca5a5; }
+        /* hidden invite inputs container */
+        #eInviteData { display:none; }
+
+        /* Bottom row */
+        .edit-bottom-row { display:grid;grid-template-columns:1fr auto;gap:.75rem;padding:.75rem 1.25rem 1rem;align-items:end;flex-shrink:0; }
+        .edit-bottom-row textarea { width:100%;resize:vertical;min-height:72px;padding:.5rem .7rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.875rem;box-sizing:border-box;font-family:inherit; }
+        .edit-bottom-row textarea:focus { outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
+        .edit-bottom-actions { display:flex;flex-direction:column;gap:.5rem;align-items:flex-end;justify-content:flex-end; }
+        .edit-notify-row { display:flex;align-items:center;gap:.4rem;font-size:.8rem;cursor:pointer;user-select:none;white-space:nowrap;color:#64748b; }
+
+        /* Color swatches (legacy — kept for color picker) */
+        .color-swatches { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .25rem; }
+        .color-swatch {
+            width: 28px; height: 28px; border-radius: 50%; cursor: pointer;
+            border: 3px solid transparent; transition: border-color .15s;
+        }
+        .color-swatch.selected,
+        .color-swatch:hover { border-color: #1e293b; }
+
+        @media (max-width: 640px) {
+            .edit-header-row { gap:.45rem; }
+            .edit-title-input { min-width:100%;order:-1;flex-basis:100%; }
+            .edit-invite-panel { grid-template-columns:1fr;height:auto; }
+            .invite-pane { height:160px; }
+            .edit-bottom-row { grid-template-columns:1fr;gap:.5rem; }
+            .edit-bottom-actions { flex-direction:row;justify-content:flex-end;flex-wrap:wrap; }
         }
         @keyframes rsvpSavedFade { 0%,60%{opacity:1} 100%{opacity:0} }
         .rsvp-saved-anim { animation: rsvpSavedFade 3s ease forwards; }
@@ -1126,116 +1148,110 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             <h2 id="editModalTitle">Add Event</h2>
             <button class="modal-close" onclick="closeEdit()">&#x2715;</button>
         </div>
-        <form method="post" action="/calendar.php">
+        <form method="post" action="/calendar.php" id="editForm">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
             <input type="hidden" name="action" id="eAction" value="add">
             <input type="hidden" name="id" id="eId" value="">
             <input type="hidden" name="month_param" value="<?= htmlspecialchars($monthParam) ?>">
             <input type="hidden" name="occurrence_date" id="eOccDate" value="">
+            <input type="hidden" name="end_date" id="eEndDate" value="">
+            <input type="hidden" name="end_time" id="eEndTime" value="">
+            <input type="hidden" name="color" id="eColor" value="#2563eb">
 
-            <div class="edit-form-body">
-
-                <!-- ── Left column: event details ── -->
-                <div class="edit-col-left">
-                    <div class="form-group">
-                        <label>Title</label>
-                        <input type="text" name="title" id="eTitle" required autocomplete="off">
-                    </div>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
-                        <div class="form-group">
-                            <label>Start Date</label>
-                            <input type="date" name="start_date" id="eStartDate" required>
-                        </div>
-                        <div class="form-group">
-                            <label>End Date <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
-                            <input type="date" name="end_date" id="eEndDate">
-                        </div>
-                        <div class="form-group">
-                            <label>Start Time <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
-                            <input type="time" name="start_time" id="eStartTime">
-                        </div>
-                        <div class="form-group">
-                            <label>End Time <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
-                            <input type="time" name="end_time" id="eEndTime">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Color</label>
-                        <div class="color-swatches" id="colorSwatches">
-                            <?php foreach (['#2563eb','#16a34a','#dc2626','#d97706','#7c3aed','#0891b2','#db2777'] as $c): ?>
-                                <div class="color-swatch" style="background:<?= $c ?>" data-color="<?= $c ?>"
-                                     onclick="selectColor('<?= $c ?>')"></div>
-                            <?php endforeach; ?>
-                        </div>
-                        <input type="hidden" name="color" id="eColor" value="#2563eb">
-                    </div>
-                    <div class="form-group">
-                        <label>Description <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
-                        <textarea name="description" id="eDesc" rows="3" style="width:100%;resize:vertical"></textarea>
-                    </div>
-                    <!-- Mobile-only invite section -->
-                    <div id="eMobileInvites" class="form-group" style="margin-top:.5rem">
-                        <label>Invites</label>
-                        <div id="eUserSelectWrap" style="display:flex;gap:.5rem;margin-bottom:.4rem">
-                            <select id="eUserSelect" multiple
-                                    style="flex:1;min-height:72px;border:1.5px solid #e2e8f0;border-radius:7px;padding:.35rem;font-size:.875rem">
-                                <?php foreach ($allUsers as $u): ?>
-                                <option value="<?= htmlspecialchars($u['username']) ?>"
-                                        data-email="<?= $isAdmin ? htmlspecialchars($u['email'] ?? '') : '' ?>"
-                                        data-phone="<?= $isAdmin ? htmlspecialchars($u['phone'] ?? '') : '' ?>">
-                                    <?= htmlspecialchars($u['username']) ?>
-                                </option>
-                                <?php endforeach; ?>
-                            </select>
-                            <div style="display:flex;flex-direction:column;gap:.35rem;flex-shrink:0">
-                                <button type="button" class="btn btn-outline" style="font-size:.8rem;padding:.35rem .7rem;white-space:nowrap" onclick="addSelectedInvites()">+ Add Selected</button>
-                                <button type="button" class="btn btn-outline" style="font-size:.8rem;padding:.35rem .7rem;white-space:nowrap" onclick="addBlankInviteRow()">+ Custom</button>
-                            </div>
-                        </div>
-                        <p class="hint">Select one or more users and click &ldquo;Add Selected&rdquo;, or &ldquo;Custom&rdquo; for unlisted invitees.</p>
+            <!-- ── Row 1: color dot + title + date + time + duration ── -->
+            <div class="edit-header-row">
+                <div id="eColorDotWrap">
+                    <div id="eColorDot" style="background:#2563eb" onclick="toggleColorPicker(event)" title="Pick color"></div>
+                    <div id="eColorPicker">
+                        <?php foreach (['#2563eb','#16a34a','#dc2626','#d97706','#7c3aed','#0891b2','#db2777'] as $c): ?>
+                            <div class="color-swatch" style="background:<?= $c ?>" data-color="<?= $c ?>"
+                                 onclick="selectColor('<?= $c ?>')"></div>
+                        <?php endforeach; ?>
                     </div>
                 </div>
-
-                <!-- ── Right column: invites (desktop only) ── -->
-                <div class="edit-col-right">
-                    <label style="font-weight:600;font-size:.875rem;color:#374151;display:block;margin-bottom:.5rem;flex-shrink:0">Invites</label>
-
-                    <!-- Searchable user checklist (top half, scrolls) -->
-                    <div id="eUserChecklist">
-                        <input type="text" id="eUserSearch" placeholder="<?= $isAdmin ? 'Search by name, email, or phone&hellip;' : 'Search by name&hellip;' ?>"
-                               oninput="filterChecklist(this.value)" autocomplete="off"
-                               style="width:100%;margin-bottom:.4rem;padding:.42rem .65rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.875rem;box-sizing:border-box;flex-shrink:0">
-                        <div id="eChecklistItems" style="border:1.5px solid #e2e8f0;border-radius:7px;margin-bottom:.4rem"></div>
-                    </div>
-
-                    <!-- Invited rows (bottom half, scrolls independently) -->
-                    <div class="invited-section">
-                        <div style="display:grid;grid-template-columns:<?= $isAdmin ? '2fr 1.5fr 2fr auto' : '2fr 2fr auto' ?>;gap:.25rem;margin-bottom:.3rem;padding:0 .1rem;flex-shrink:0" id="eInviteHeader">
-                            <span style="font-size:.72rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Username *</span>
-                            <?php if ($isAdmin): ?>
-                            <span style="font-size:.72rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Phone</span>
-                            <?php endif; ?>
-                            <span style="font-size:.72rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Email</span>
-                            <span></span>
-                        </div>
-                        <div id="eInviteList" style="display:flex;flex-direction:column;gap:.3rem"></div>
-                        <button type="button" id="eAddCustomBtn" class="btn btn-outline"
-                                style="font-size:.8rem;padding:.38rem .7rem;width:100%;margin-top:.5rem;flex-shrink:0"
-                                onclick="addBlankInviteRow()">+ Custom Invitee</button>
-                        <p class="hint" style="margin-top:.4rem;flex-shrink:0">Click a name to toggle. Use &ldquo;Custom&rdquo; for guests not in the user list.</p>
-                    </div>
+                <input type="text" name="title" id="eTitle" class="edit-title-input" placeholder="Event title" required autocomplete="off">
+                <div class="edit-hdr-field">
+                    <span class="edit-hdr-label">Date</span>
+                    <input type="date" name="start_date" id="eStartDate" required style="padding:.42rem .5rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.875rem;">
                 </div>
-
+                <div class="edit-hdr-field">
+                    <span class="edit-hdr-label">Start Time</span>
+                    <div class="edit-time-selects">
+                        <select id="eTimeHour">
+                            <option value="">--</option>
+                            <?php for ($h = 1; $h <= 12; $h++): ?>
+                            <option value="<?= $h ?>"><?= $h ?></option>
+                            <?php endfor; ?>
+                        </select>
+                        <select id="eTimeMin">
+                            <option value="00">00</option>
+                            <option value="15">15</option>
+                            <option value="30">30</option>
+                            <option value="45">45</option>
+                        </select>
+                        <select id="eTimeAmPm">
+                            <option value="AM">AM</option>
+                            <option value="PM">PM</option>
+                        </select>
+                    </div>
+                    <input type="hidden" name="start_time" id="eStartTime">
+                </div>
+                <div class="edit-hdr-field">
+                    <span class="edit-hdr-label">Duration</span>
+                    <select id="eDuration" style="padding:.42rem .4rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.875rem;background:#fff;cursor:pointer;">
+                        <option value="">—</option>
+                        <option value="0.25">15 min</option>
+                        <option value="0.5">30 min</option>
+                        <option value="0.75">45 min</option>
+                        <option value="1">1 hr</option>
+                        <option value="1.5">1.5 hrs</option>
+                        <option value="2">2 hrs</option>
+                        <option value="2.5">2.5 hrs</option>
+                        <option value="3">3 hrs</option>
+                        <option value="4">4 hrs</option>
+                        <option value="6">6 hrs</option>
+                        <option value="8">8 hrs</option>
+                    </select>
+                </div>
             </div>
 
-            <div class="edit-footer">
-                <label style="display:flex;align-items:center;gap:.4rem;font-size:.875rem;cursor:pointer;user-select:none;white-space:nowrap">
-                    <input type="checkbox" name="notify_invitees" id="eNotifyInvitees" value="1">
-                    Notify invitees by email
-                </label>
-                <div style="flex:1"></div>
-                <button type="submit" class="btn btn-primary" id="eSubmitBtn">Add Event</button>
-                <button type="button" class="btn btn-outline" onclick="closeEdit()">Cancel</button>
+            <!-- ── Row 2: dual-pane invite panel ── -->
+            <div class="edit-invite-panel">
+                <!-- Left: all users -->
+                <div class="invite-pane">
+                    <div class="invite-pane-header">All Users &mdash; double-click to invite</div>
+                    <input type="text" id="eUserSearch" class="invite-pane-search"
+                           placeholder="<?= $isAdmin ? 'Search name, email, phone&hellip;' : 'Search name&hellip;' ?>"
+                           oninput="filterAllUsers(this.value)" autocomplete="off">
+                    <ul class="invite-pane-list" id="eAllUsersList"></ul>
+                </div>
+                <!-- Right: invited users -->
+                <div class="invite-pane">
+                    <div class="invite-pane-header">Invited &mdash; double-click to remove</div>
+                    <ul class="invite-pane-list" id="eInvitedList"></ul>
+                </div>
+            </div>
+            <!-- Hidden inputs synced from invite lists -->
+            <div id="eInviteData"></div>
+
+            <!-- ── Row 3: description + actions ── -->
+            <div class="edit-bottom-row">
+                <div>
+                    <span class="edit-hdr-label" style="margin-bottom:.3rem">Description <span style="color:#94a3b8;font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></span>
+                    <textarea name="description" id="eDesc" rows="3"></textarea>
+                </div>
+                <div class="edit-bottom-actions">
+                    <button type="button" class="btn btn-outline" style="font-size:.8rem;white-space:nowrap" onclick="addBlankInviteRow()">+ Custom Invitee</button>
+                    <div style="flex:1"></div>
+                    <label class="edit-notify-row">
+                        <input type="checkbox" name="notify_invitees" id="eNotifyInvitees" value="1">
+                        Notify by email
+                    </label>
+                    <div style="display:flex;gap:.5rem;">
+                        <button type="submit" class="btn btn-primary" id="eSubmitBtn">Add Event</button>
+                        <button type="button" class="btn btn-outline" onclick="closeEdit()">Cancel</button>
+                    </div>
+                </div>
             </div>
         </form>
     </div>
@@ -1810,176 +1826,231 @@ function prepareCalBulkDelete(form) {
 <?php if ($canCreateEvents): ?>
 // ── Edit / Add modal ──────────────────────────────────────────────────────────
 function openAddModal(date) {
-    document.getElementById('editModalTitle').textContent = 'Add Event';
-    document.getElementById('eAction').value  = 'add';
-    document.getElementById('eId').value      = '';
-    document.getElementById('eTitle').value   = '';
-    document.getElementById('eStartDate').value = date || '';
-    document.getElementById('eEndDate').value   = '';
-    document.getElementById('eStartTime').value = '';
-    document.getElementById('eEndTime').value   = '';
-    document.getElementById('eDesc').value      = '';
-    document.getElementById('eSubmitBtn').textContent = 'Add Event';
-    selectColor('#2563eb');
-    document.getElementById('eInviteList').innerHTML = '';
-    document.getElementById('eUserSelect').selectedIndex = -1;
-    document.getElementById('eNotifyInvitees').checked = false;
-    syncChecklistState();
-    document.getElementById('editModal').classList.add('open');
-    document.getElementById('eTitle').focus();
+    openEditModal(null);
+    if (date) document.getElementById('eStartDate').value = date;
 }
+
+// ── Color picker ──────────────────────────────────────────────────────────────
+function selectColor(c) {
+    document.getElementById('eColor').value = c;
+    document.getElementById('eColorDot').style.background = c;
+    document.querySelectorAll('#eColorPicker .color-swatch').forEach(s =>
+        s.classList.toggle('selected', s.dataset.color === c));
+    closeColorPicker();
+}
+function toggleColorPicker(e) {
+    e.stopPropagation();
+    const picker = document.getElementById('eColorPicker');
+    const dot    = document.getElementById('eColorDot');
+    const open   = picker.classList.toggle('open');
+    dot.classList.toggle('open', open);
+}
+function closeColorPicker() {
+    document.getElementById('eColorPicker').classList.remove('open');
+    document.getElementById('eColorDot').classList.remove('open');
+}
+document.addEventListener('click', e => {
+    if (!document.getElementById('eColorDotWrap').contains(e.target)) closeColorPicker();
+});
+selectColor('#2563eb');
+
+// ── All-users pane ────────────────────────────────────────────────────────────
+function buildAllUsersList() {
+    const ul = document.getElementById('eAllUsersList');
+    ul.innerHTML = '';
+    ALL_USERS.forEach(u => {
+        const li = document.createElement('li');
+        li.dataset.username = u.username.toLowerCase();
+        li.dataset.email    = (u.email || '').toLowerCase();
+        li.dataset.phone    = (u.phone || '').replace(/\D/g,'');
+        li.dataset.uname    = u.username;
+        li.dataset.uemail   = u.email   || '';
+        li.dataset.uphone   = u.phone   || '';
+        li.textContent = u.username;
+        li.title = 'Double-click to invite';
+        li.addEventListener('dblclick', () => inviteUser(li.dataset.uname, li.dataset.uphone, li.dataset.uemail));
+        ul.appendChild(li);
+    });
+}
+
+function filterAllUsers(q) {
+    const raw    = q.toLowerCase();
+    const digits = raw.replace(/\D/g,'');
+    document.querySelectorAll('#eAllUsersList li:not(.custom-row)').forEach(li => {
+        const match = !raw ||
+            li.dataset.username.includes(raw) ||
+            li.dataset.email.includes(raw) ||
+            (digits && li.dataset.phone.includes(digits));
+        li.style.display = match ? '' : 'none';
+    });
+}
+
+// ── Invited pane ──────────────────────────────────────────────────────────────
+function inviteUser(username, phone, email, rsvp) {
+    // Skip if already invited
+    const existing = Array.from(document.querySelectorAll('#eInvitedList li[data-iname]'))
+        .map(li => li.dataset.iname.toLowerCase());
+    if (existing.includes(username.toLowerCase())) return;
+
+    const li = document.createElement('li');
+    li.dataset.iname  = username;
+    li.dataset.iphone = phone  || '';
+    li.dataset.iemail = email  || '';
+    li.dataset.irsvp  = rsvp   || '';
+    li.textContent = username;
+    li.title = 'Double-click to remove';
+    li.addEventListener('dblclick', () => removeInvite(username));
+    document.getElementById('eInvitedList').appendChild(li);
+    syncInviteState();
+}
+
+function removeInvite(username) {
+    const li = Array.from(document.querySelectorAll('#eInvitedList li[data-iname]'))
+        .find(l => l.dataset.iname.toLowerCase() === username.toLowerCase());
+    if (li) li.remove();
+    syncInviteState();
+}
+
+function addBlankInviteRow() {
+    const ul = document.getElementById('eInvitedList');
+    const li = document.createElement('li');
+    li.className = 'custom-row';
+    li.innerHTML = '<div class="custom-row-inner">' +
+        '<input type="text"  class="cr-name"  placeholder="Username *">' +
+        '<input type="email" class="cr-email" placeholder="Email">' +
+        '<button type="button" class="cr-remove" onclick="this.closest(\'li\').remove()">&times;</button>' +
+        '</div>';
+    ul.appendChild(li);
+    li.querySelector('.cr-name').focus();
+}
+
+function syncInviteState() {
+    const invited = Array.from(document.querySelectorAll('#eInvitedList li[data-iname]'))
+        .map(li => li.dataset.iname.toLowerCase());
+    document.querySelectorAll('#eAllUsersList li').forEach(li => {
+        const isDimmed = invited.includes(li.dataset.username);
+        li.classList.toggle('dimmed', isDimmed);
+        li.title = isDimmed ? 'Already invited' : 'Double-click to invite';
+    });
+}
+
+// Sync hidden inputs from invited pane before submit
+// ── Time dropdown helpers ─────────────────────────────────────────────────────
+function setTimePicker(hhmm) {
+    // hhmm: '14:30' (24h) or '' to clear
+    const hour  = document.getElementById('eTimeHour');
+    const min   = document.getElementById('eTimeMin');
+    const ampm  = document.getElementById('eTimeAmPm');
+    if (!hhmm) {
+        hour.value = ''; min.value = '00'; ampm.value = 'AM';
+        return;
+    }
+    const [h24, m] = hhmm.split(':').map(Number);
+    const isPm  = h24 >= 12;
+    const h12   = h24 % 12 || 12;
+    hour.value  = h12;
+    min.value   = String(m).padStart(2, '0');
+    ampm.value  = isPm ? 'PM' : 'AM';
+}
+function getTimePicker() {
+    // Returns HH:MM (24h) or '' if no hour selected
+    const h = parseInt(document.getElementById('eTimeHour').value);
+    if (!h) return '';
+    const m    = document.getElementById('eTimeMin').value;
+    const isPm = document.getElementById('eTimeAmPm').value === 'PM';
+    const h24  = isPm ? (h === 12 ? 12 : h + 12) : (h === 12 ? 0 : h);
+    return String(h24).padStart(2, '0') + ':' + m;
+}
+
+document.getElementById('editForm').addEventListener('submit', function() {
+    // Sync time picker → hidden input
+    const st = getTimePicker();
+    document.getElementById('eStartTime').value = st;
+
+    // Calculate end_time from start_time + duration
+    const dur = parseFloat(document.getElementById('eDuration').value) || 0;
+    if (st && dur > 0) {
+        const [h, m] = st.split(':').map(Number);
+        const total  = h * 60 + m + Math.round(dur * 60);
+        const eh = Math.floor(total / 60) % 24;
+        const em = total % 60;
+        document.getElementById('eEndTime').value = String(eh).padStart(2,'0') + ':' + String(em).padStart(2,'0');
+    } else {
+        document.getElementById('eEndTime').value = '';
+    }
+
+    // Build hidden invite inputs from both panes
+    const container = document.getElementById('eInviteData');
+    container.innerHTML = '';
+    function addHidden(name, val) {
+        const inp = document.createElement('input');
+        inp.type = 'hidden'; inp.name = name; inp.value = val;
+        container.appendChild(inp);
+    }
+    // Regular invited users
+    document.querySelectorAll('#eInvitedList li[data-iname]').forEach(li => {
+        addHidden('invite_username[]', li.dataset.iname);
+        addHidden('invite_phone[]',    li.dataset.iphone);
+        addHidden('invite_email[]',    li.dataset.iemail);
+        addHidden('invite_rsvp[]',     li.dataset.irsvp);
+    });
+    // Custom rows
+    document.querySelectorAll('#eInvitedList li.custom-row').forEach(li => {
+        const uname = li.querySelector('.cr-name').value.trim();
+        const email = li.querySelector('.cr-email').value.trim();
+        if (!uname) return;
+        addHidden('invite_username[]', uname);
+        addHidden('invite_phone[]',    '');
+        addHidden('invite_email[]',    email);
+        addHidden('invite_rsvp[]',     '');
+    });
+});
 
 function openEditModal(ev) {
     currentEvent = ev;
     closeView();
-    document.getElementById('editModalTitle').textContent = 'Edit Event';
-    document.getElementById('eAction').value    = 'edit';
-    document.getElementById('eId').value        = ev.id;
+    document.getElementById('editModalTitle').textContent = ev ? 'Edit Event' : 'Add Event';
+    document.getElementById('eAction').value    = ev ? 'edit' : 'add';
+    document.getElementById('eId').value        = ev ? ev.id : '';
     document.getElementById('eOccDate').value   = '';
-    document.getElementById('eTitle').value     = ev.title;
-    document.getElementById('eStartDate').value = ev.start_date;
-    document.getElementById('eEndDate').value   = ev.end_date || '';
-    document.getElementById('eStartTime').value = ev.start_time || '';
-    document.getElementById('eEndTime').value   = ev.end_time || '';
-    document.getElementById('eDesc').value      = ev.description || '';
-    document.getElementById('eSubmitBtn').textContent = 'Save Changes';
-    selectColor(ev.color || '#2563eb');
-    document.getElementById('eInviteList').innerHTML = '';
-    document.getElementById('eUserSelect').selectedIndex = -1;
-    document.getElementById('eUserSearch').value = '';
+    document.getElementById('eTitle').value     = ev ? ev.title : '';
+    document.getElementById('eStartDate').value = ev ? ev.start_date : new Date().toLocaleDateString('en-CA');
+    setTimePicker(ev ? (ev.start_time || '') : '');
+    document.getElementById('eDesc').value      = ev ? (ev.description || '') : '';
     document.getElementById('eNotifyInvitees').checked = false;
-    filterChecklist('');
-    (eventInvites[ev.id] || []).forEach(inv => addInviteRow(inv.username, inv.phone || '', inv.email || '', inv.rsvp || ''));
-    syncChecklistState();
+    document.getElementById('eUserSearch').value = '';
+    document.getElementById('eSubmitBtn').textContent = ev ? 'Save Changes' : 'Add Event';
+
+    // Pre-fill duration from start_time/end_time diff
+    const dur = document.getElementById('eDuration');
+    if (ev && ev.start_time && ev.end_time) {
+        const [sh, sm] = ev.start_time.split(':').map(Number);
+        const [eh, em] = ev.end_time.split(':').map(Number);
+        const diff = (eh * 60 + em) - (sh * 60 + sm);
+        dur.value = diff > 0 ? (diff / 60) : '';
+    } else {
+        dur.value = '';
+    }
+
+    selectColor((ev && ev.color) ? ev.color : '#2563eb');
+
+    // Rebuild all-users list and invited pane
+    buildAllUsersList();
+    document.getElementById('eInvitedList').innerHTML = '';
+    if (ev) {
+        (eventInvites[ev.id] || []).forEach(inv =>
+            inviteUser(inv.username, inv.phone || '', inv.email || '', inv.rsvp || ''));
+    }
+    syncInviteState();
+    filterAllUsers('');
+
     document.getElementById('editModal').classList.add('open');
     document.getElementById('eTitle').focus();
 }
 function editFromView() { openEditModal(currentEvent); }
 function closeEdit() { document.getElementById('editModal').classList.remove('open'); }
 
-function escHtml(s) {
-    return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-const ALLOW_MAYBE = <?= $allowMaybe ? 'true' : 'false' ?>;
-const RSVP_LABELS = {'':'', yes:'Yes', no:'No', ...(ALLOW_MAYBE ? {maybe:'Maybe'} : {})};
-function addInviteRow(username, phone, email, rsvp) {
-    const list = document.getElementById('eInviteList');
-    const row  = document.createElement('div');
-    row.className = 'invite-row';
-    const rsvpVal = RSVP_LABELS.hasOwnProperty(rsvp) ? rsvp : '';
-    let html = '<input type="text"  name="invite_username[]" value="' + escHtml(username) + '" placeholder="Username *" required>';
-    if (IS_ADMIN) {
-        html += '<input type="text"  name="invite_phone[]"    value="' + escHtml(phone)    + '" placeholder="Phone">' +
-                '<input type="email" name="invite_email[]"    value="' + escHtml(email)    + '" placeholder="Email">' +
-                '<select name="invite_rsvp[]" style="padding:.38rem .4rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.85rem;min-width:0;background:#fff">' +
-                    '<option value=""'      + (rsvpVal===''      ? ' selected' : '') + '>--</option>' +
-                    '<option value="yes"'   + (rsvpVal==='yes'   ? ' selected' : '') + '>Yes</option>' +
-                    '<option value="no"'    + (rsvpVal==='no'    ? ' selected' : '') + '>No</option>' +
-                    (ALLOW_MAYBE ? '<option value="maybe"' + (rsvpVal==='maybe' ? ' selected' : '') + '>Maybe</option>' : '') +
-                '</select>';
-    } else {
-        html += '<input type="hidden" name="invite_phone[]" value="">' +
-                '<input type="email" name="invite_email[]" value="' + escHtml(email) + '" placeholder="Email">' +
-                '<select name="invite_rsvp[]" style="padding:.38rem .4rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.85rem;min-width:0;background:#fff">' +
-                    '<option value=""'      + (rsvpVal===''      ? ' selected' : '') + '>--</option>' +
-                    '<option value="yes"'   + (rsvpVal==='yes'   ? ' selected' : '') + '>Yes</option>' +
-                    '<option value="no"'    + (rsvpVal==='no'    ? ' selected' : '') + '>No</option>' +
-                    (ALLOW_MAYBE ? '<option value="maybe"' + (rsvpVal==='maybe' ? ' selected' : '') + '>Maybe</option>' : '') +
-                '</select>';
-    }
-    html += '<button type="button" class="inv-remove" onclick="this.closest(\'.invite-row\').remove();syncChecklistState()">&#x2715;</button>';
-    row.innerHTML = html;
-    list.appendChild(row);
-}
-function addSelectedInvites() {
-    const sel      = document.getElementById('eUserSelect');
-    const existing = Array.from(document.querySelectorAll('#eInviteList [name="invite_username[]"]'))
-                          .map(i => i.value.trim().toLowerCase());
-    Array.from(sel.selectedOptions).forEach(opt => {
-        if (existing.includes(opt.value.toLowerCase())) return;
-        addInviteRow(opt.value, opt.dataset.phone || '', opt.dataset.email || '', '');
-        existing.push(opt.value.toLowerCase());
-    });
-    sel.selectedIndex = -1;
-}
-function addBlankInviteRow() { addInviteRow('', '', '', ''); }
-
-// ── Desktop invite checklist ──────────────────────────────────────────────────
-function buildChecklist() {
-    const container = document.getElementById('eChecklistItems');
-    if (!container) return;
-    container.innerHTML = '';
-    ALL_USERS.forEach(u => {
-        const item = document.createElement('div');
-        item.className = 'checklist-item';
-        item.dataset.username = u.username.toLowerCase();
-        item.dataset.email    = (u.email   || '').toLowerCase();
-        item.dataset.phone    = (u.phone   || '').replace(/\D/g,'');
-        const sub = IS_ADMIN ? [u.email, u.phone].filter(Boolean).join(' · ') : '';
-        item.innerHTML =
-            '<div class="ci-check">&#x2713;</div>' +
-            '<div class="ci-info"><span class="ci-name">' + escHtml(u.username) + '</span>' +
-            (sub ? '<span class="ci-sub">' + escHtml(sub) + '</span>' : '') + '</div>' +
-            '<span class="ci-badge"></span>';
-        item.addEventListener('click', () => {
-            toggleUserInvite(u.username, u.phone || '', u.email || '');
-        });
-        container.appendChild(item);
-    });
-}
-function filterChecklist(q) {
-    q = q.toLowerCase().replace(/\D/g,'') || q.toLowerCase();
-    const raw = document.getElementById('eUserSearch').value.toLowerCase();
-    const digits = raw.replace(/\D/g,'');
-    document.querySelectorAll('#eChecklistItems .checklist-item').forEach(item => {
-        const match = !raw ||
-            item.dataset.username.includes(raw) ||
-            item.dataset.email.includes(raw) ||
-            (digits && item.dataset.phone.includes(digits));
-        item.style.display = match ? '' : 'none';
-    });
-}
-function toggleUserInvite(username, phone, email) {
-    const inputs  = Array.from(document.querySelectorAll('#eInviteList [name="invite_username[]"]'));
-    const match   = inputs.find(i => i.value.trim().toLowerCase() === username.toLowerCase());
-    if (match) {
-        match.closest('.invite-row').remove();
-    } else {
-        addInviteRow(username, phone, email, '');
-    }
-    syncChecklistState();
-}
-function syncChecklistState() {
-    const invited = Array.from(document.querySelectorAll('#eInviteList [name="invite_username[]"]'))
-        .map(i => {
-            const row = i.closest('.invite-row');
-            return { name: i.value.trim().toLowerCase(), rsvp: row ? row.querySelector('[name="invite_rsvp[]"]').value : '' };
-        });
-    document.querySelectorAll('#eChecklistItems .checklist-item').forEach(item => {
-        const inv = invited.find(i => i.name === item.dataset.username);
-        const badge = item.querySelector('.ci-badge');
-        if (inv) {
-            item.classList.add('ci-invited');
-            const rsvpMap = { yes:'Yes', no:'No', maybe:'Maybe?', '':'' };
-            const cls = inv.rsvp ? 'ci-badge ci-badge-' + inv.rsvp : 'ci-badge';
-            badge.className = cls;
-            badge.textContent = rsvpMap[inv.rsvp] || '';
-        } else {
-            item.classList.remove('ci-invited');
-            badge.className = 'ci-badge';
-            badge.textContent = '';
-        }
-    });
-}
-buildChecklist();
-
-
-function selectColor(c) {
-    document.getElementById('eColor').value = c;
-    document.querySelectorAll('.color-swatch').forEach(s =>
-        s.classList.toggle('selected', s.dataset.color === c));
-}
-selectColor('#2563eb');
+buildAllUsersList();
 <?php endif; ?>
 
 document.addEventListener('keydown', e => {
