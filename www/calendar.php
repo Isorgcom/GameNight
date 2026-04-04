@@ -1339,6 +1339,10 @@ function viewEvent(ev) {
     <?php endif; ?>
     renderCommentsPanel(ev.id);
 
+    <?php if ($isAdmin): ?>
+    startRsvpPoll(ev.id);
+    <?php endif; ?>
+
     document.getElementById('viewModal').classList.add('open');
 }
 function showSavedBar(msg) {
@@ -1455,7 +1459,53 @@ function getEffectiveInvites(eid, occDate) {
     });
     return merged;
 }
-function closeView() { document.getElementById('viewModal').classList.remove('open'); }
+function closeView() {
+    document.getElementById('viewModal').classList.remove('open');
+    stopRsvpPoll();
+}
+
+<?php if ($isAdmin): ?>
+// ── Live RSVP polling for admins ─────────────────────────────────────────────
+let _rsvpPollTimer = null;
+let _rsvpPollEid   = null;
+
+function startRsvpPoll(eid) {
+    stopRsvpPoll();
+    _rsvpPollEid = eid;
+    _rsvpPollTimer = setInterval(() => pollRsvps(eid), 4000);
+}
+
+function stopRsvpPoll() {
+    if (_rsvpPollTimer) { clearInterval(_rsvpPollTimer); _rsvpPollTimer = null; }
+    _rsvpPollEid = null;
+}
+
+function pollRsvps(eid) {
+    if (!document.getElementById('viewModal').classList.contains('open')) { stopRsvpPoll(); return; }
+    fetch('/event_invites_dl.php?eid=' + eid, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+            if (!data || !data.ok) return;
+            // Update local cache and re-render only if anything changed
+            const oldJson = JSON.stringify(eventInvites[eid] || []);
+            const newJson = JSON.stringify(data.base);
+            if (oldJson !== newJson) {
+                eventInvites[eid] = data.base;
+                if (currentEvent && currentEvent.id == eid) renderInvitesPanel(eid);
+            }
+            // Merge occ overrides
+            if (data.occ) {
+                const oldOccJson = JSON.stringify((eventInvitesByOcc[eid] || {}));
+                const newOccJson = JSON.stringify(data.occ);
+                if (oldOccJson !== newOccJson) {
+                    eventInvitesByOcc[eid] = data.occ;
+                    if (currentEvent && currentEvent.id == eid) renderInvitesPanel(eid);
+                }
+            }
+        })
+        .catch(() => {});
+}
+<?php endif; ?>
 
 const vCommentForm = document.getElementById('vCommentForm');
 if (vCommentForm) {
