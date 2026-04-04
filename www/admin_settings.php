@@ -196,6 +196,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $post_tab = 'events';
         }
 
+        if ($action === 'update_event') {
+            $id    = (int)($_POST['id'] ?? 0);
+            $field = $_POST['field'] ?? '';
+            $value = trim($_POST['value'] ?? '');
+            $allowed_fields = ['title', 'start_date', 'end_date', 'start_time', 'end_time', 'recurrence', 'recurrence_end'];
+            if ($id > 0 && in_array($field, $allowed_fields, true)) {
+                if ($field === 'recurrence' && !in_array($value, ['none','daily','weekly','biweekly','monthly','yearly'], true)) {
+                    $value = 'none';
+                }
+                $db->prepare("UPDATE events SET $field = ? WHERE id = ?")->execute([$value ?: null, $id]);
+                db_log_activity($current['id'], "updated event #$id $field");
+                $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event updated.'];
+            }
+            $post_tab = 'events';
+        }
+
         if ($action === 'email_settings') {
             require_once __DIR__ . '/mail.php';
             set_setting('smtp_host',       trim($_POST['smtp_host'] ?? ''));
@@ -500,7 +516,8 @@ $events_filter = trim($_GET['ef'] ?? '');
 $events_sort   = in_array($_GET['es'] ?? '', ['id','title','start_date','recurrence','creator','invites']) ? $_GET['es'] : 'start_date';
 $events_dir    = ($_GET['ed'] ?? 'asc') === 'desc' ? 'DESC' : 'ASC';
 $events_sql = "
-    SELECT e.id, e.title, e.start_date, e.end_date, e.start_time, e.recurrence,
+    SELECT e.id, e.title, e.start_date, e.end_date, e.start_time, e.end_time,
+           e.recurrence, e.recurrence_end,
            COALESCE(u.username,'—') AS creator,
            (SELECT COUNT(*) FROM event_invites WHERE event_id = e.id) AS invites
     FROM   events e
@@ -1098,83 +1115,290 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
     </div>
 
     <!-- ── Events tab ── -->
-    <div class="tab-panel <?= $tab === 'events' ? 'active' : '' ?>">
+    <div class="tab-panel <?= $tab === 'events' ? 'active' : '' ?>" id="eventsTabPanel">
+        <style>
+            /* Break out of the 960px dash-wrap for the events grid */
+            #eventsTabPanel { margin: 0 -1.5rem; }
+            .ev-grid-wrap {
+                width: 100%;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                border: 1px solid #e2e8f0;
+                border-radius: 10px;
+                background: #fff;
+            }
+            .ev-toolbar {
+                display: flex;
+                align-items: center;
+                gap: .75rem;
+                flex-wrap: wrap;
+                padding: .9rem 1rem;
+                border-bottom: 1px solid #e2e8f0;
+                background: #f8fafc;
+                border-radius: 10px 10px 0 0;
+            }
+            #eventsGrid {
+                border-collapse: collapse;
+                width: 100%;
+                font-size: .85rem;
+            }
+            #eventsGrid th {
+                background: #f1f5f9;
+                color: #475569;
+                font-weight: 600;
+                font-size: .78rem;
+                text-transform: uppercase;
+                letter-spacing: .04em;
+                padding: .6rem .75rem;
+                border-bottom: 2px solid #e2e8f0;
+                border-right: 1px solid #e2e8f0;
+                white-space: nowrap;
+                position: sticky;
+                top: 0;
+                z-index: 2;
+            }
+            #eventsGrid th a { color: inherit; text-decoration: none; }
+            #eventsGrid th a:hover { color: #2563eb; }
+            #eventsGrid td {
+                padding: 0;
+                border-bottom: 1px solid #e2e8f0;
+                border-right: 1px solid #e2e8f0;
+                vertical-align: middle;
+            }
+            #eventsGrid tr:last-child td { border-bottom: none; }
+            #eventsGrid td:last-child, #eventsGrid th:last-child { border-right: none; }
+            #eventsGrid tr:hover td { background: #f8fafc; }
 
-        <form method="get" action="/admin_settings.php"
-              style="display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem;flex-wrap:wrap">
-            <input type="hidden" name="tab" value="events">
-            <input type="hidden" name="es" value="<?= htmlspecialchars($events_sort) ?>">
-            <input type="hidden" name="ed" value="<?= htmlspecialchars($events_dir === 'DESC' ? 'desc' : 'asc') ?>">
-            <input type="search" name="ef" value="<?= htmlspecialchars($events_filter) ?>"
-                   placeholder="Filter by title or creator…"
-                   style="padding:.5rem .85rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.9rem;width:260px">
-            <button type="submit" class="btn btn-outline" style="padding:.5rem 1rem">Filter</button>
-            <?php if ($events_filter !== ''): ?>
-                <a href="/admin_settings.php?tab=events" class="btn btn-outline" style="padding:.5rem 1rem">Clear</a>
-            <?php endif; ?>
-            <span style="color:#64748b;font-size:.875rem;margin-left:auto"><?= count($admin_events) ?> event<?= count($admin_events) !== 1 ? 's' : '' ?></span>
-        </form>
+            /* Cell contents */
+            .ev-cell {
+                display: block;
+                width: 100%;
+                padding: .45rem .75rem;
+                box-sizing: border-box;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            /* Editable cells — text inputs */
+            .ev-cell-input {
+                width: 100%;
+                padding: .42rem .6rem;
+                border: none;
+                background: transparent;
+                font-size: .85rem;
+                font-family: inherit;
+                color: #1e293b;
+                box-sizing: border-box;
+                outline: none;
+                cursor: text;
+            }
+            .ev-cell-input:focus {
+                background: #eff6ff;
+                outline: 2px solid #2563eb;
+                outline-offset: -2px;
+                border-radius: 2px;
+            }
+            /* Editable cells — select boxes */
+            .ev-cell-select {
+                width: 100%;
+                padding: .42rem .4rem;
+                border: none;
+                background: transparent;
+                font-size: .85rem;
+                font-family: inherit;
+                color: #1e293b;
+                cursor: pointer;
+                box-sizing: border-box;
+                outline: none;
+                appearance: auto;
+            }
+            .ev-cell-select:focus {
+                background: #eff6ff;
+                outline: 2px solid #2563eb;
+                outline-offset: -2px;
+                border-radius: 2px;
+            }
+            .ev-id-cell { color: #94a3b8; font-size: .78rem; text-align: center; width: 44px; }
+            .ev-invites-cell { text-align: center; width: 60px; color: #475569; }
+            .ev-creator-cell { color: #475569; }
+            .ev-del-cell { text-align: center; width: 44px; }
+            .ev-del-btn {
+                background: none; border: none; cursor: pointer;
+                color: #ef4444; font-size: 1rem; padding: .3rem .5rem;
+                border-radius: 5px; line-height: 1;
+            }
+            .ev-del-btn:hover { background: #fee2e2; }
+            .ev-save-indicator {
+                display: none;
+                position: fixed;
+                bottom: 1.5rem;
+                right: 1.5rem;
+                background: #16a34a;
+                color: #fff;
+                padding: .5rem 1rem;
+                border-radius: 8px;
+                font-size: .85rem;
+                font-weight: 600;
+                box-shadow: 0 4px 12px rgba(0,0,0,.15);
+                z-index: 999;
+                animation: fadeInUp .2s ease;
+            }
+            @keyframes fadeInUp {
+                from { opacity: 0; transform: translateY(6px); }
+                to   { opacity: 1; transform: none; }
+            }
+        </style>
 
         <?php
         function ev_sort_link(string $col, string $label, string $cur_sort, string $cur_dir, string $filter): string {
             $dir = ($cur_sort === $col && $cur_dir === 'ASC') ? 'desc' : 'asc';
             $arrow = $cur_sort === $col ? ($cur_dir === 'ASC' ? ' &#9650;' : ' &#9660;') : '';
             $f = htmlspecialchars($filter);
-            return "<a href=\"/admin_settings.php?tab=events&es=$col&ed=$dir&ef=$f\" style=\"color:inherit;text-decoration:none\">$label$arrow</a>";
+            return "<a href=\"/admin_settings.php?tab=events&es=$col&ed=$dir&ef=$f\">$label$arrow</a>";
         }
+        $rec_labels = ['none'=>'None','daily'=>'Daily','weekly'=>'Weekly','biweekly'=>'Bi-weekly','monthly'=>'Monthly','yearly'=>'Yearly'];
         ?>
 
-        <div class="table-card">
-            <table id="eventsTable" style="min-width:700px">
+        <div class="ev-grid-wrap">
+            <div class="ev-toolbar">
+                <form method="get" action="/admin_settings.php"
+                      style="display:contents">
+                    <input type="hidden" name="tab" value="events">
+                    <input type="hidden" name="es" value="<?= htmlspecialchars($events_sort) ?>">
+                    <input type="hidden" name="ed" value="<?= htmlspecialchars($events_dir === 'DESC' ? 'desc' : 'asc') ?>">
+                    <input type="search" name="ef" value="<?= htmlspecialchars($events_filter) ?>"
+                           placeholder="Filter by title or creator…"
+                           style="padding:.45rem .8rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.85rem;width:240px">
+                    <button type="submit" class="btn btn-outline" style="padding:.45rem .9rem;font-size:.85rem">Filter</button>
+                    <?php if ($events_filter !== ''): ?>
+                        <a href="/admin_settings.php?tab=events" class="btn btn-outline" style="padding:.45rem .9rem;font-size:.85rem">Clear</a>
+                    <?php endif; ?>
+                </form>
+                <span style="color:#64748b;font-size:.82rem;margin-left:auto">
+                    <?= count($admin_events) ?> event<?= count($admin_events) !== 1 ? 's' : '' ?>
+                </span>
+                <span style="color:#94a3b8;font-size:.75rem">Click any cell to edit &bull; Changes save automatically</span>
+            </div>
+
+            <table id="eventsGrid">
                 <thead>
                     <tr>
-                        <th><?= ev_sort_link('id',         '#',           $events_sort, $events_dir, $events_filter) ?></th>
-                        <th><?= ev_sort_link('title',      'Title',       $events_sort, $events_dir, $events_filter) ?></th>
-                        <th><?= ev_sort_link('start_date', 'Date',        $events_sort, $events_dir, $events_filter) ?></th>
-                        <th>Time</th>
-                        <th><?= ev_sort_link('recurrence', 'Recurrence',  $events_sort, $events_dir, $events_filter) ?></th>
-                        <th><?= ev_sort_link('creator',    'Created By',  $events_sort, $events_dir, $events_filter) ?></th>
-                        <th><?= ev_sort_link('invites',    'Invites',     $events_sort, $events_dir, $events_filter) ?></th>
-                        <th></th>
+                        <th class="ev-id-cell"><?= ev_sort_link('id', '#', $events_sort, $events_dir, $events_filter) ?></th>
+                        <th style="min-width:220px"><?= ev_sort_link('title', 'Title', $events_sort, $events_dir, $events_filter) ?></th>
+                        <th style="min-width:110px"><?= ev_sort_link('start_date', 'Start Date', $events_sort, $events_dir, $events_filter) ?></th>
+                        <th style="min-width:110px">End Date</th>
+                        <th style="min-width:90px">Start Time</th>
+                        <th style="min-width:90px">End Time</th>
+                        <th style="min-width:130px"><?= ev_sort_link('recurrence', 'Recurrence', $events_sort, $events_dir, $events_filter) ?></th>
+                        <th style="min-width:110px">Recur End</th>
+                        <th style="min-width:110px"><?= ev_sort_link('creator', 'Created By', $events_sort, $events_dir, $events_filter) ?></th>
+                        <th class="ev-invites-cell"><?= ev_sort_link('invites', 'Invites', $events_sort, $events_dir, $events_filter) ?></th>
+                        <th class="ev-del-cell"></th>
                     </tr>
                 </thead>
                 <tbody>
-                <?php foreach ($admin_events as $ev): ?>
-                    <tr>
-                        <td><?= (int)$ev['id'] ?></td>
-                        <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
-                            title="<?= htmlspecialchars($ev['title']) ?>">
-                            <?= htmlspecialchars($ev['title']) ?>
-                        </td>
-                        <td style="white-space:nowrap"><?= htmlspecialchars($ev['start_date']) ?><?= $ev['end_date'] && $ev['end_date'] !== $ev['start_date'] ? ' – ' . htmlspecialchars($ev['end_date']) : '' ?></td>
-                        <td style="white-space:nowrap"><?= $ev['start_time'] ? htmlspecialchars($ev['start_time']) . ($ev['end_time'] ?? '' ? '–' . htmlspecialchars($ev['end_time']) : '') : '—' ?></td>
-                        <td><?php
-                            $rec = $ev['recurrence'] ?? 'none';
-                            $labels = ['none'=>'—','daily'=>'Daily','weekly'=>'Weekly','biweekly'=>'Bi-weekly','monthly'=>'Monthly','yearly'=>'Yearly'];
-                            echo htmlspecialchars($labels[$rec] ?? ucfirst($rec));
-                        ?></td>
-                        <td><?= htmlspecialchars($ev['creator']) ?></td>
-                        <td style="text-align:center"><?= (int)$ev['invites'] ?></td>
+                <?php foreach ($admin_events as $ev): $eid = (int)$ev['id']; ?>
+                    <tr data-id="<?= $eid ?>">
+                        <td class="ev-id-cell"><span class="ev-cell"><?= $eid ?></span></td>
+
+                        <td><input class="ev-cell-input" type="text"
+                                data-field="title" data-id="<?= $eid ?>"
+                                value="<?= htmlspecialchars($ev['title']) ?>"></td>
+
+                        <td><input class="ev-cell-input" type="date"
+                                data-field="start_date" data-id="<?= $eid ?>"
+                                value="<?= htmlspecialchars($ev['start_date']) ?>"></td>
+
+                        <td><input class="ev-cell-input" type="date"
+                                data-field="end_date" data-id="<?= $eid ?>"
+                                value="<?= htmlspecialchars($ev['end_date'] ?? '') ?>"></td>
+
+                        <td><input class="ev-cell-input" type="time"
+                                data-field="start_time" data-id="<?= $eid ?>"
+                                value="<?= htmlspecialchars($ev['start_time'] ?? '') ?>"></td>
+
+                        <td><input class="ev-cell-input" type="time"
+                                data-field="end_time" data-id="<?= $eid ?>"
+                                value="<?= htmlspecialchars($ev['end_time'] ?? '') ?>"></td>
+
                         <td>
-                            <div class="action-btns">
-                                <form method="post" action="/admin_settings.php"
-                                      onsubmit="return confirm('Delete event &quot;<?= addslashes(htmlspecialchars($ev['title'])) ?>&quot;? This cannot be undone.')">
-                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
-                                    <input type="hidden" name="action" value="delete_event">
-                                    <input type="hidden" name="tab" value="events">
-                                    <input type="hidden" name="id" value="<?= (int)$ev['id'] ?>">
-                                    <button type="submit" class="btn-icon danger" title="Delete">&#128465;</button>
-                                </form>
-                            </div>
+                            <select class="ev-cell-select" data-field="recurrence" data-id="<?= $eid ?>">
+                                <?php foreach ($rec_labels as $val => $lbl): ?>
+                                    <option value="<?= $val ?>"<?= ($ev['recurrence'] ?? 'none') === $val ? ' selected' : '' ?>><?= $lbl ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </td>
+
+                        <td><input class="ev-cell-input" type="date"
+                                data-field="recurrence_end" data-id="<?= $eid ?>"
+                                value="<?= htmlspecialchars($ev['recurrence_end'] ?? '') ?>"></td>
+
+                        <td class="ev-creator-cell"><span class="ev-cell"><?= htmlspecialchars($ev['creator']) ?></span></td>
+
+                        <td class="ev-invites-cell"><span class="ev-cell"><?= (int)$ev['invites'] ?></span></td>
+
+                        <td class="ev-del-cell">
+                            <form method="post" action="/admin_settings.php"
+                                  onsubmit="return confirm('Delete event &quot;<?= addslashes(htmlspecialchars($ev['title'])) ?>&quot;? This cannot be undone.')">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                                <input type="hidden" name="action" value="delete_event">
+                                <input type="hidden" name="tab" value="events">
+                                <input type="hidden" name="id" value="<?= $eid ?>">
+                                <button type="submit" class="ev-del-btn" title="Delete event">&#128465;</button>
+                            </form>
                         </td>
                     </tr>
                 <?php endforeach; ?>
                 <?php if (empty($admin_events)): ?>
-                    <tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:2rem">No events found.</td></tr>
+                    <tr><td colspan="11" style="text-align:center;color:#94a3b8;padding:2rem">No events found.</td></tr>
                 <?php endif; ?>
                 </tbody>
             </table>
         </div>
+
+        <div class="ev-save-indicator" id="evSaveIndicator">Saved</div>
+
+        <script>
+        (function () {
+            const csrf   = <?= json_encode($token) ?>;
+            const ind    = document.getElementById('evSaveIndicator');
+            let saveTimer;
+
+            function showSaved() {
+                ind.style.display = 'block';
+                clearTimeout(saveTimer);
+                saveTimer = setTimeout(() => { ind.style.display = 'none'; }, 1800);
+            }
+
+            function saveField(id, field, value) {
+                const fd = new FormData();
+                fd.append('csrf_token', csrf);
+                fd.append('action', 'update_event');
+                fd.append('tab', 'events');
+                fd.append('id', id);
+                fd.append('field', field);
+                fd.append('value', value);
+                fetch('/admin_settings.php', { method: 'POST', body: fd })
+                    .then(r => { if (r.ok) showSaved(); });
+            }
+
+            // Text / date / time inputs — save on blur if changed
+            document.querySelectorAll('#eventsGrid .ev-cell-input').forEach(inp => {
+                const orig = inp.value;
+                inp.dataset.orig = orig;
+                inp.addEventListener('change', function () {
+                    saveField(this.dataset.id, this.dataset.field, this.value);
+                });
+            });
+
+            // Select boxes — save immediately on change
+            document.querySelectorAll('#eventsGrid .ev-cell-select').forEach(sel => {
+                sel.addEventListener('change', function () {
+                    saveField(this.dataset.id, this.dataset.field, this.value);
+                });
+            });
+        })();
+        </script>
 
     </div>
 
