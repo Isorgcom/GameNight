@@ -22,21 +22,6 @@ if [ ! -f "$VENDOR/jodit/jodit.min.js" ]; then
     curl -fsSL https://cdn.jsdelivr.net/npm/jodit@4.2.7/es2021/jodit.min.css -o "$VENDOR/jodit/jodit.min.css"
 fi
 
-if [ ! -f "$VENDOR/quill/quill.min.js" ]; then
-    echo "[entrypoint] Downloading Quill 1.3.7..."
-    mkdir -p "$VENDOR/quill"
-    curl -fsSL https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js       -o "$VENDOR/quill/quill.min.js"
-    curl -fsSL https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.core.min.css -o "$VENDOR/quill/quill.core.min.css"
-    curl -fsSL https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.min.css -o "$VENDOR/quill/quill.snow.min.css"
-fi
-
-if [ ! -f "$VENDOR/quill-better-table/quill-better-table.js" ]; then
-    echo "[entrypoint] Downloading quill-better-table 1.2.3..."
-    mkdir -p "$VENDOR/quill-better-table"
-    curl -fsSL https://cdn.jsdelivr.net/npm/quill-better-table@1.2.3/dist/quill-better-table.js  -o "$VENDOR/quill-better-table/quill-better-table.js"
-    curl -fsSL https://cdn.jsdelivr.net/npm/quill-better-table@1.2.3/dist/quill-better-table.css -o "$VENDOR/quill-better-table/quill-better-table.css"
-fi
-
 PHPADMIN="/var/www/html/phpadmin"
 if [ ! -f "$PHPADMIN/phpliteadmin.php" ]; then
     echo "[entrypoint] Downloading pla-ng 2.0.4..."
