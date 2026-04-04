@@ -69,7 +69,7 @@ if (!empty($_SESSION['flash'])) {
     unset($_SESSION['flash']);
 }
 
-$tab = in_array($_GET['tab'] ?? '', ['dashboard', 'general', 'appearance', 'logs', 'users', 'email', 'sms', 'whatsapp']) ? $_GET['tab'] : 'dashboard';
+$tab = in_array($_GET['tab'] ?? '', ['dashboard', 'general', 'appearance', 'logs', 'users', 'events', 'email', 'sms', 'whatsapp']) ? $_GET['tab'] : 'dashboard';
 $isCommTab = in_array($tab, ['email', 'sms', 'whatsapp']);
 
 // ── POST ─────────────────────────────────────────────────────────────────────
@@ -179,6 +179,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($skipped) $msg .= " $skipped skipped (last admin).";
             $_SESSION['flash'] = ['type' => $deleted > 0 ? 'success' : 'error', 'msg' => $msg];
             $post_tab = 'users';
+        }
+
+        if ($action === 'delete_event') {
+            $id = (int)($_POST['id'] ?? 0);
+            if ($id > 0) {
+                $erow = $db->prepare('SELECT title FROM events WHERE id = ?');
+                $erow->execute([$id]);
+                $erow = $erow->fetch();
+                $db->prepare('DELETE FROM event_invites WHERE event_id = ?')->execute([$id]);
+                $db->prepare('DELETE FROM event_exceptions WHERE event_id = ?')->execute([$id]);
+                $db->prepare('DELETE FROM events WHERE id = ?')->execute([$id]);
+                db_log_activity($current['id'], 'deleted event: ' . ($erow['title'] ?? $id));
+                $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event deleted.'];
+            }
+            $post_tab = 'events';
         }
 
         if ($action === 'email_settings') {
@@ -480,6 +495,28 @@ $wa_configured    = $wa_phone_id && $wa_token;
 // ── Users data ───────────────────────────────────────────────────────────────
 $users = $db->query('SELECT id, username, email, role, created_at, last_login FROM users ORDER BY id')->fetchAll();
 
+// ── Events data ──────────────────────────────────────────────────────────────
+$events_filter = trim($_GET['ef'] ?? '');
+$events_sort   = in_array($_GET['es'] ?? '', ['id','title','start_date','recurrence','creator','invites']) ? $_GET['es'] : 'start_date';
+$events_dir    = ($_GET['ed'] ?? 'asc') === 'desc' ? 'DESC' : 'ASC';
+$events_sql = "
+    SELECT e.id, e.title, e.start_date, e.end_date, e.start_time, e.recurrence,
+           COALESCE(u.username,'—') AS creator,
+           (SELECT COUNT(*) FROM event_invites WHERE event_id = e.id) AS invites
+    FROM   events e
+    LEFT JOIN users u ON u.id = e.created_by
+";
+$events_params = [];
+if ($events_filter !== '') {
+    $events_sql .= " WHERE e.title LIKE ? OR COALESCE(u.username,'') LIKE ?";
+    $events_params = ["%$events_filter%", "%$events_filter%"];
+}
+$col_map = ['id'=>'e.id','title'=>'e.title','start_date'=>'e.start_date','recurrence'=>'e.recurrence','creator'=>'u.username','invites'=>'invites'];
+$events_sql .= " ORDER BY {$col_map[$events_sort]} $events_dir";
+$stmt = $db->prepare($events_sql);
+$stmt->execute($events_params);
+$admin_events = $stmt->fetchAll();
+
 // ── Dashboard stats ───────────────────────────────────────────────────────────
 $dash_users  = (int)$db->query('SELECT COUNT(*) FROM users')->fetchColumn();
 $dash_logins = (int)$db->query("SELECT COUNT(*) FROM activity_log WHERE action = 'login'")->fetchColumn();
@@ -621,6 +658,8 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
            class="tab-btn <?= $tab === 'logs' ? 'active' : '' ?>">Logs</a>
         <a href="/admin_settings.php?tab=users"
            class="tab-btn <?= $tab === 'users' ? 'active' : '' ?>">Users</a>
+        <a href="/admin_settings.php?tab=events"
+           class="tab-btn <?= $tab === 'events' ? 'active' : '' ?>">Events</a>
         <a href="/admin_settings.php?tab=email"
            class="tab-btn <?= $isCommTab ? 'active' : '' ?>">Communication</a>
     </div>
@@ -660,6 +699,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
 
         <div style="display:flex;gap:.75rem;margin-top:1.5rem;flex-wrap:wrap">
             <a href="/admin_settings.php?tab=users" class="btn btn-primary">Manage Users</a>
+            <a href="/admin_settings.php?tab=events" class="btn btn-outline">Manage Events</a>
             <a href="/admin_settings.php?tab=logs" class="btn btn-outline">View Logs</a>
             <a href="/phpadmin/" class="btn btn-outline" target="_blank">Database Admin</a>
         </div>
@@ -1051,6 +1091,87 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                         </td>
                     </tr>
                 <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <!-- ── Events tab ── -->
+    <div class="tab-panel <?= $tab === 'events' ? 'active' : '' ?>">
+
+        <form method="get" action="/admin_settings.php"
+              style="display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem;flex-wrap:wrap">
+            <input type="hidden" name="tab" value="events">
+            <input type="hidden" name="es" value="<?= htmlspecialchars($events_sort) ?>">
+            <input type="hidden" name="ed" value="<?= htmlspecialchars($events_dir === 'DESC' ? 'desc' : 'asc') ?>">
+            <input type="search" name="ef" value="<?= htmlspecialchars($events_filter) ?>"
+                   placeholder="Filter by title or creator…"
+                   style="padding:.5rem .85rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.9rem;width:260px">
+            <button type="submit" class="btn btn-outline" style="padding:.5rem 1rem">Filter</button>
+            <?php if ($events_filter !== ''): ?>
+                <a href="/admin_settings.php?tab=events" class="btn btn-outline" style="padding:.5rem 1rem">Clear</a>
+            <?php endif; ?>
+            <span style="color:#64748b;font-size:.875rem;margin-left:auto"><?= count($admin_events) ?> event<?= count($admin_events) !== 1 ? 's' : '' ?></span>
+        </form>
+
+        <?php
+        function ev_sort_link(string $col, string $label, string $cur_sort, string $cur_dir, string $filter): string {
+            $dir = ($cur_sort === $col && $cur_dir === 'ASC') ? 'desc' : 'asc';
+            $arrow = $cur_sort === $col ? ($cur_dir === 'ASC' ? ' &#9650;' : ' &#9660;') : '';
+            $f = htmlspecialchars($filter);
+            return "<a href=\"/admin_settings.php?tab=events&es=$col&ed=$dir&ef=$f\" style=\"color:inherit;text-decoration:none\">$label$arrow</a>";
+        }
+        ?>
+
+        <div class="table-card">
+            <table id="eventsTable" style="min-width:700px">
+                <thead>
+                    <tr>
+                        <th><?= ev_sort_link('id',         '#',           $events_sort, $events_dir, $events_filter) ?></th>
+                        <th><?= ev_sort_link('title',      'Title',       $events_sort, $events_dir, $events_filter) ?></th>
+                        <th><?= ev_sort_link('start_date', 'Date',        $events_sort, $events_dir, $events_filter) ?></th>
+                        <th>Time</th>
+                        <th><?= ev_sort_link('recurrence', 'Recurrence',  $events_sort, $events_dir, $events_filter) ?></th>
+                        <th><?= ev_sort_link('creator',    'Created By',  $events_sort, $events_dir, $events_filter) ?></th>
+                        <th><?= ev_sort_link('invites',    'Invites',     $events_sort, $events_dir, $events_filter) ?></th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php foreach ($admin_events as $ev): ?>
+                    <tr>
+                        <td><?= (int)$ev['id'] ?></td>
+                        <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+                            title="<?= htmlspecialchars($ev['title']) ?>">
+                            <?= htmlspecialchars($ev['title']) ?>
+                        </td>
+                        <td style="white-space:nowrap"><?= htmlspecialchars($ev['start_date']) ?><?= $ev['end_date'] && $ev['end_date'] !== $ev['start_date'] ? ' – ' . htmlspecialchars($ev['end_date']) : '' ?></td>
+                        <td style="white-space:nowrap"><?= $ev['start_time'] ? htmlspecialchars($ev['start_time']) . ($ev['end_time'] ?? '' ? '–' . htmlspecialchars($ev['end_time']) : '') : '—' ?></td>
+                        <td><?php
+                            $rec = $ev['recurrence'] ?? 'none';
+                            $labels = ['none'=>'—','daily'=>'Daily','weekly'=>'Weekly','biweekly'=>'Bi-weekly','monthly'=>'Monthly','yearly'=>'Yearly'];
+                            echo htmlspecialchars($labels[$rec] ?? ucfirst($rec));
+                        ?></td>
+                        <td><?= htmlspecialchars($ev['creator']) ?></td>
+                        <td style="text-align:center"><?= (int)$ev['invites'] ?></td>
+                        <td>
+                            <div class="action-btns">
+                                <form method="post" action="/admin_settings.php"
+                                      onsubmit="return confirm('Delete event &quot;<?= addslashes(htmlspecialchars($ev['title'])) ?>&quot;? This cannot be undone.')">
+                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                                    <input type="hidden" name="action" value="delete_event">
+                                    <input type="hidden" name="tab" value="events">
+                                    <input type="hidden" name="id" value="<?= (int)$ev['id'] ?>">
+                                    <button type="submit" class="btn-icon danger" title="Delete">&#128465;</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+                <?php if (empty($admin_events)): ?>
+                    <tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:2rem">No events found.</td></tr>
+                <?php endif; ?>
                 </tbody>
             </table>
         </div>
