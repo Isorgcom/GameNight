@@ -38,7 +38,7 @@ if [ ! -f "$VENDOR/quill-better-table/quill-better-table.js" ]; then
 fi
 
 PHPADMIN="/var/www/html/phpadmin"
-if [ ! -f "$PHPADMIN/adminer.php" ]; then
+if [ ! -f "$PHPADMIN/adminer-src.php" ]; then
     echo "[entrypoint] Downloading Adminer 4.8.1..."
     mkdir -p "$PHPADMIN"
     # Download as adminer-src.php; adminer.php is the wrapper that loads config
