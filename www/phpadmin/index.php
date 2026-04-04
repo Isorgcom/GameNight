@@ -8,6 +8,6 @@ if (!$user || $user['role'] !== 'admin') {
     exit;
 }
 
-// Hand off to phpLiteAdmin
-header('Location: /phpadmin/phpliteadmin.php');
+// Hand off to Adminer
+header('Location: /phpadmin/adminer.php');
 exit;

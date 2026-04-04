@@ -24,4 +24,4 @@ www/_backups/
 www/vendor/
 
 # Third-party DB admin tools (downloaded by docker-entrypoint.sh on first start)
-www/phpadmin/phpliteadmin.php
+www/phpadmin/adminer-src.php
