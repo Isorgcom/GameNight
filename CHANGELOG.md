@@ -4,6 +4,17 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.01554] — 2026-04-03
+
+### Added
+- **Database Admin tool.** pla-ng (phpLiteAdmin fork, PHP 8 compatible) is now
+  available at `/phpadmin/`. Access is gated behind the GameNight admin session —
+  non-admins are redirected to login. The tool is downloaded at container startup
+  by `docker-entrypoint.sh` and is not stored in the repo. A "Database Admin"
+  button was added to the admin dashboard for quick access.
+
+---
+
 ## [v0.01553] — 2026-04-03
 
 ### Fixed
