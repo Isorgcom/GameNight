@@ -37,4 +37,13 @@ if [ ! -f "$VENDOR/quill-better-table/quill-better-table.js" ]; then
     curl -fsSL https://cdn.jsdelivr.net/npm/quill-better-table@1.2.3/dist/quill-better-table.css -o "$VENDOR/quill-better-table/quill-better-table.css"
 fi
 
+PHPADMIN="/var/www/html/phpadmin"
+if [ ! -f "$PHPADMIN/phpliteadmin.php" ]; then
+    echo "[entrypoint] Downloading phpLiteAdmin 1.9.8.2..."
+    mkdir -p "$PHPADMIN"
+    curl -fsSL "https://bitbucket.org/phpliteadmin/public/downloads/phpLiteAdmin_v1-9-8-2.zip" -o /tmp/pla.zip
+    unzip -p /tmp/pla.zip phpliteadmin.php > "$PHPADMIN/phpliteadmin.php"
+    rm /tmp/pla.zip
+fi
+
 exec docker-php-entrypoint apache2-foreground

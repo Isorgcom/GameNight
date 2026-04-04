@@ -9,5 +9,5 @@ if (!$user || $user['role'] !== 'admin') {
 }
 
 // Hand off to phpLiteAdmin
-header('Location: /phpadmin/pla/');
+header('Location: /phpadmin/phpliteadmin.php');
 exit;

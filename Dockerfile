@@ -1,7 +1,7 @@
 FROM php:8.5-apache
 
 # Build and install latest SQLite from source
-RUN apt-get update && apt-get install -y gcc make && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y gcc make unzip && rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSL https://www.sqlite.org/2026/sqlite-autoconf-3510300.tar.gz -o /tmp/sqlite.tar.gz \
     && tar -xzf /tmp/sqlite.tar.gz -C /tmp \
