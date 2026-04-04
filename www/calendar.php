@@ -145,7 +145,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $inv = $db->prepare('SELECT ei.rsvp_token, COALESCE(NULLIF(ei.email, \'\'), u.email) as email, u.username
                     FROM event_invites ei
                     LEFT JOIN users u ON LOWER(u.username) = LOWER(ei.username)
-                    WHERE ei.event_id = ? AND LOWER(ei.username) = LOWER(?)');
+                    WHERE ei.event_id = ? AND LOWER(ei.username) = LOWER(?) AND ei.occurrence_date IS NULL');
                 $inv->execute([$notify_eid, $invite_username]);
                 $row = $inv->fetch();
                 if (!$row || empty($row['email'])) return null;
@@ -172,11 +172,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             };
 
             // Always notify newly added invitees
+            if (empty($new_invitee_usernames) && !empty($inv_usernames) && array_filter($inv_usernames)) {
+                db_log_activity($current['id'], "invite emails: 0 new invitees detected (all were existing) for event $notify_eid", 'info');
+            }
             if (!empty($new_invitee_usernames)) {
                 $subject = 'You\'re invited: ' . $title;
                 foreach ($new_invitee_usernames as $new_user) {
                     $data = $build_invite_email($new_user);
-                    if ($data) send_email($data['email'], $new_user, $subject, $data['html']);
+                    if ($data) {
+                        $err = send_email($data['email'], $new_user, $subject, $data['html']);
+                        if ($err) db_log_activity($current['id'], "invite email failed for $new_user: $err", 'warning');
+                    } else {
+                        db_log_activity($current['id'], "invite email skipped for $new_user: no email address found", 'warning');
+                    }
                 }
             }
 
@@ -188,7 +196,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 foreach ($all_inv->fetchAll(PDO::FETCH_COLUMN) as $uname) {
                     if (in_array($uname, $new_invitee_usernames, true)) continue; // already notified
                     $data = $build_invite_email($uname);
-                    if ($data) send_email($data['email'], $uname, $subject, $data['html']);
+                    if ($data) {
+                        $err = send_email($data['email'], $uname, $subject, $data['html']);
+                        if ($err) db_log_activity($current['id'], "update email failed for $uname: $err", 'warning');
+                    }
                 }
             }
         }
