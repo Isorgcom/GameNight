@@ -12,7 +12,7 @@ $id    = (int)($_GET['id'] ?? 0);
 $flash = ['type' => '', 'msg' => ''];
 
 // Load target user
-$stmt = $db->prepare('SELECT id, username, email, phone, role, preferred_contact, created_at, last_login FROM users WHERE id = ?');
+$stmt = $db->prepare('SELECT id, username, email, phone, role, preferred_contact, notes, created_at, last_login FROM users WHERE id = ?');
 $stmt->execute([$id]);
 $target = $stmt->fetch();
 
@@ -40,6 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $phone    = $phone !== '' ? normalize_phone($phone) : '';
             $role     = in_array($_POST['role'] ?? '', ['admin', 'user']) ? $_POST['role'] : 'user';
             $pref_contact = in_array($_POST['preferred_contact'] ?? '', ['email', 'sms', 'both', 'none']) ? $_POST['preferred_contact'] : 'email';
+            $notes    = trim($_POST['notes'] ?? '');
 
             if ($username === '') {
                 $flash = ['type' => 'error', 'msg' => 'Username cannot be empty.'];
@@ -66,8 +67,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
                 try {
-                    $db->prepare('UPDATE users SET username=?, email=?, phone=?, role=?, preferred_contact=? WHERE id=?')
-                       ->execute([$username, $email, $phone ?: null, $role, $pref_contact, $id]);
+                    $db->prepare('UPDATE users SET username=?, email=?, phone=?, role=?, preferred_contact=?, notes=? WHERE id=?')
+                       ->execute([$username, $email, $phone ?: null, $role, $pref_contact, $notes ?: null, $id]);
                     db_log_activity($current['id'], "admin updated profile for user id: $id");
                     $flash = ['type' => 'success', 'msg' => 'Profile updated.'];
                     // Reload target
@@ -206,6 +207,11 @@ $site_name = get_setting('site_name', 'Game Night');
                         <option value="both"  <?= $sel($target['preferred_contact'] ?? '', 'both') ?>>Email &amp; SMS</option>
                         <option value="none"  <?= $sel($target['preferred_contact'] ?? '', 'none') ?>>None</option>
                     </select>
+                </div>
+                <div class="form-group">
+                    <label for="notes">Notes</label>
+                    <textarea id="notes" name="notes" rows="4"
+                              style="width:100%;resize:vertical"><?= htmlspecialchars($target['notes'] ?? '') ?></textarea>
                 </div>
                 <button type="submit" class="btn btn-primary" style="width:100%">Save Profile</button>
             </form>

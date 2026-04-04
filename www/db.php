@@ -173,6 +173,9 @@ function db_init(PDO $pdo): void {
     // Severity level for log entries (info, warning, critical)
     try { $pdo->exec("ALTER TABLE activity_log ADD COLUMN severity TEXT NOT NULL DEFAULT 'info'"); } catch (Exception $e) {}
 
+    // Admin notes field for users
+    try { $pdo->exec("ALTER TABLE users ADD COLUMN notes TEXT"); } catch (Exception $e) {}
+
     // Event notification deduplication for cron reminders
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS event_notifications_sent (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

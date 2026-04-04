@@ -37,6 +37,10 @@ There are no tests and no build step — this is a runtime PHP application.
 | `www/auth.php` | Session management, `require_login()`, security headers |
 | `www/mail.php` | PHPMailer wrapper |
 | `www/sms.php` | SMS provider abstraction |
+| `www/upload.php` | File upload handler; stores files under `uploads/` |
+| `www/_nav.php` | Shared navigation partial (included in page views) |
+| `www/_footer.php` | Shared footer partial |
+| `www/cron.php` | Scheduled tasks (called by cron/container timer) |
 | `config/config.php` | Only required config: `DB_PATH` (gitignored) |
 
 **Key DB helpers** (all in `db.php`):
@@ -46,6 +50,9 @@ get_setting($key)         // Read from site_settings table
 set_setting($key, $val)   // Write to site_settings table
 db_log_activity(...)      // Audit log
 db_init()                 // Auto-creates schema + runs migrations on first call
+sanitize_html($html)      // Strip disallowed tags before storing rich text
+normalize_phone($phone)   // Normalize to E.164 format
+build_event_by_date(...)  // Expand recurring events into date-keyed array
 ```
 
 **Auth helpers** (in `auth.php`):

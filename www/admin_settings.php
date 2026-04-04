@@ -181,6 +181,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $post_tab = 'users';
         }
 
+        if ($action === 'update_user') {
+            $id    = (int)($_POST['id'] ?? 0);
+            $field = $_POST['field'] ?? '';
+            $value = trim($_POST['value'] ?? '');
+            $allowed_fields = ['username', 'email', 'phone', 'role', 'preferred_contact', 'notes'];
+            if ($id > 0 && in_array($field, $allowed_fields, true)) {
+                if ($field === 'role') {
+                    if (!in_array($value, ['admin', 'user'], true)) {
+                        http_response_code(400); exit;
+                    }
+                    // Guard: cannot demote last admin
+                    if ($value !== 'admin') {
+                        $urow = $db->prepare('SELECT role FROM users WHERE id = ?');
+                        $urow->execute([$id]);
+                        $urow = $urow->fetch();
+                        if ($urow && $urow['role'] === 'admin') {
+                            $adminCount = (int)$db->query("SELECT COUNT(*) FROM users WHERE role='admin'")->fetchColumn();
+                            if ($adminCount <= 1) { http_response_code(409); exit('last_admin'); }
+                        }
+                    }
+                }
+                if ($field === 'preferred_contact' && !in_array($value, ['email','sms','both','none'], true)) {
+                    http_response_code(400); exit;
+                }
+                if ($field === 'phone' && $value !== '') {
+                    $value = normalize_phone($value);
+                }
+                $db->prepare("UPDATE users SET $field = ? WHERE id = ?")->execute([$value ?: null, $id]);
+                db_log_activity($current['id'], "admin inline-updated user #$id $field");
+            }
+            http_response_code(200); exit;
+        }
+
+        if ($action === 'bulk_role') {
+            $ids  = array_map('intval', (array)($_POST['ids'] ?? []));
+            $ids  = array_filter($ids, fn($i) => $i > 0);
+            $role = in_array($_POST['role'] ?? '', ['admin', 'user']) ? $_POST['role'] : null;
+            if ($role && $ids) {
+                $adminCount = (int)$db->query("SELECT COUNT(*) FROM users WHERE role='admin'")->fetchColumn();
+                $skipped = 0;
+                foreach ($ids as $id) {
+                    if ($role !== 'admin') {
+                        $urow = $db->prepare('SELECT role FROM users WHERE id = ?');
+                        $urow->execute([$id]);
+                        $urow = $urow->fetch();
+                        if ($urow && $urow['role'] === 'admin' && $adminCount <= 1) { $skipped++; continue; }
+                        if ($urow && $urow['role'] === 'admin') $adminCount--;
+                    }
+                    $db->prepare("UPDATE users SET role = ? WHERE id = ?")->execute([$role, $id]);
+                    db_log_activity($current['id'], "admin bulk set role=$role for user #$id");
+                }
+                $msg = 'Role updated.';
+                if ($skipped) $msg .= " $skipped skipped (last admin).";
+                $_SESSION['flash'] = ['type' => 'success', 'msg' => $msg];
+            }
+            $post_tab = 'users';
+        }
+
         if ($action === 'delete_event') {
             $id = (int)($_POST['id'] ?? 0);
             if ($id > 0) {
@@ -506,7 +564,7 @@ $wa_template_lang = get_setting('wa_template_lang', 'en_US');
 $wa_configured    = $wa_phone_id && $wa_token;
 
 // ── Users data ───────────────────────────────────────────────────────────────
-$users = $db->query('SELECT id, username, email, role, created_at, last_login FROM users ORDER BY id')->fetchAll();
+$users = $db->query('SELECT id, username, email, phone, role, preferred_contact, notes, created_at, last_login FROM users ORDER BY id')->fetchAll();
 
 // ── Events data ──────────────────────────────────────────────────────────────
 $events_filter = trim($_GET['ef'] ?? '');
@@ -593,13 +651,77 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
         .pagination .current { background:#2563eb; color:#fff; border-color:#2563eb; }
 
         /* ── Users tab ── */
-        #bulkBar {
-            display: none; align-items: center; gap: .75rem;
+        #usersTabPanel { margin: 0 -1.5rem; }
+        .ug-wrap {
+            width: 100%; overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            border: 1px solid #e2e8f0; border-radius: 10px; background: #fff;
+        }
+        .ug-toolbar {
+            display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
+            padding: .9rem 1rem; border-bottom: 1px solid #e2e8f0;
+            background: #f8fafc; border-radius: 10px 10px 0 0;
+        }
+        #usersGrid {
+            border-collapse: collapse; width: 100%; font-size: .85rem;
+        }
+        #usersGrid th {
+            background: #f1f5f9; color: #475569; font-weight: 600;
+            font-size: .78rem; text-transform: uppercase; letter-spacing: .04em;
+            padding: .6rem .75rem; border-bottom: 2px solid #e2e8f0;
+            border-right: 1px solid #e2e8f0; white-space: nowrap;
+            position: sticky; top: 0; z-index: 2;
+        }
+        #usersGrid td {
+            padding: 0; border-bottom: 1px solid #e2e8f0;
+            border-right: 1px solid #e2e8f0; vertical-align: middle;
+        }
+        #usersGrid tr:last-child td { border-bottom: none; }
+        #usersGrid td:last-child, #usersGrid th:last-child { border-right: none; }
+        #usersGrid tr:hover td { background: #f8fafc; }
+        #usersGrid tr.ug-selected td { background: #eff6ff !important; }
+        .ug-cell-input {
+            width: 100%; padding: .42rem .6rem; border: none;
+            background: transparent; font-size: .85rem; font-family: inherit;
+            color: #1e293b; box-sizing: border-box; outline: none; cursor: text;
+        }
+        .ug-cell-input:focus {
+            background: #eff6ff; outline: 2px solid #2563eb;
+            outline-offset: -2px; border-radius: 2px;
+        }
+        .ug-cell-select {
+            width: 100%; padding: .42rem .4rem; border: none;
+            background: transparent; font-size: .85rem; font-family: inherit;
+            color: #1e293b; cursor: pointer; box-sizing: border-box;
+            outline: none; appearance: auto;
+        }
+        .ug-cell-select:focus {
+            background: #eff6ff; outline: 2px solid #2563eb;
+            outline-offset: -2px; border-radius: 2px;
+        }
+        .ug-id-cell   { color: #94a3b8; font-size: .78rem; text-align: center; width: 44px; }
+        .ug-cb-cell   { width: 36px; text-align: center; }
+        .ug-act-cell  { text-align: center; width: 44px; }
+        .ug-del-btn {
+            background: none; border: none; cursor: pointer;
+            color: #ef4444; font-size: 1rem; padding: .3rem .5rem;
+            border-radius: 5px; line-height: 1;
+        }
+        .ug-del-btn:hover { background: #fee2e2; }
+        .ug-edit-btn {
+            background: none; border: none; cursor: pointer;
+            color: #2563eb; font-size: .8rem; padding: .3rem .5rem;
+            border-radius: 5px; line-height: 1; text-decoration: none;
+            display: inline-block;
+        }
+        .ug-edit-btn:hover { background: #eff6ff; }
+        #ugBulkBar {
+            display: none; align-items: center; gap: .75rem; flex-wrap: wrap;
             background: #eff6ff; border: 1px solid #bfdbfe;
             border-radius: 8px; padding: .5rem 1rem;
-            font-size: .875rem; color: #1e40af; margin-bottom: 1rem;
+            font-size: .875rem; color: #1e40af; margin: .75rem 1.5rem;
         }
-        #bulkBar .bulk-label { font-weight: 600; }
+        #ugBulkBar .bulk-label { font-weight: 600; }
         .cb-col { width: 40px; text-align: center; }
         input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: #2563eb; }
         .action-btns { display: flex; gap: .4rem; }
@@ -612,6 +734,13 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
         .btn-icon:hover { background: #f1f5f9; border-color: #cbd5e1; text-decoration: none; color: #1e293b; }
         .btn-icon.danger { border-color: #fca5a5; color: #ef4444; }
         .btn-icon.danger:hover { background: #fee2e2; border-color: #f87171; }
+        .ug-save-indicator {
+            display: none; position: fixed; bottom: 1.5rem; right: 1.5rem;
+            background: #16a34a; color: #fff; padding: .5rem 1rem;
+            border-radius: 8px; font-size: .85rem; font-weight: 600;
+            box-shadow: 0 4px 12px rgba(0,0,0,.15); z-index: 999;
+            animation: fadeInUp .2s ease;
+        }
         .modal-overlay {
             display: none; position: fixed; inset: 0;
             background: rgba(0,0,0,.45); z-index: 200;
@@ -1039,74 +1168,255 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
     </div>
 
     <!-- ── Users tab ── -->
-    <div class="tab-panel <?= $tab === 'users' ? 'active' : '' ?>">
+    <div class="tab-panel <?= $tab === 'users' ? 'active' : '' ?>" id="usersTabPanel">
 
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:1rem">
-            <span style="color:#64748b;font-size:.875rem"><?= count($users) ?> user<?= count($users) !== 1 ? 's' : '' ?></span>
-            <button class="btn btn-primary" onclick="openUserModal()">+ New User</button>
-        </div>
+        <div class="ug-wrap">
+            <div class="ug-toolbar">
+                <input type="search" id="ugFilter" placeholder="Filter users…"
+                       style="padding:.45rem .8rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.85rem;width:220px">
+                <span style="color:#64748b;font-size:.82rem;margin-left:auto" id="ugCount">
+                    <?= count($users) ?> user<?= count($users) !== 1 ? 's' : '' ?>
+                </span>
+                <span style="color:#94a3b8;font-size:.75rem">Click any cell to edit &bull; Changes save automatically</span>
+                <button class="btn btn-primary btn-sm" onclick="openUserModal()" style="padding:.4rem .85rem;font-size:.82rem">+ New User</button>
+            </div>
 
-        <div id="bulkBar">
-            <span class="bulk-label"><span id="bulkCount">0</span> selected</span>
-            <form id="bulkForm" method="post" action="/admin_settings.php"
-                  onsubmit="return confirm('Delete selected users? This cannot be undone.')">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
-                <input type="hidden" name="action" value="bulk_delete">
-                <input type="hidden" name="tab" value="users">
-                <button type="submit" class="btn btn-sm" style="background:#ef4444;color:#fff">Delete Selected</button>
-            </form>
-            <button class="btn btn-sm btn-outline" onclick="clearSelection()">Clear</button>
-        </div>
+            <div id="ugBulkBar">
+                <span class="bulk-label"><span id="ugBulkCount">0</span> selected</span>
+                <form id="ugBulkDeleteForm" method="post" action="/admin_settings.php"
+                      onsubmit="return confirm('Delete selected users? This cannot be undone.')">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                    <input type="hidden" name="action" value="bulk_delete">
+                    <input type="hidden" name="tab" value="users">
+                    <button type="submit" class="btn btn-sm" style="background:#ef4444;color:#fff">Delete Selected</button>
+                </form>
+                <form id="ugBulkRoleForm" method="post" action="/admin_settings.php" style="display:flex;gap:.4rem;align-items:center">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                    <input type="hidden" name="action" value="bulk_role">
+                    <input type="hidden" name="tab" value="users">
+                    <select name="role" style="padding:.3rem .5rem;border:1px solid #bfdbfe;border-radius:6px;font-size:.82rem;background:#fff">
+                        <option value="user">Set role: User</option>
+                        <option value="admin">Set role: Admin</option>
+                    </select>
+                    <button type="submit" class="btn btn-sm btn-outline">Apply</button>
+                </form>
+                <button class="btn btn-sm btn-outline" onclick="ugClearSelection()">Clear</button>
+            </div>
 
-        <div class="table-card">
-            <table id="userTable">
+            <table id="usersGrid">
                 <thead>
                     <tr>
-                        <th class="cb-col"><input type="checkbox" id="selectAll" title="Select all"></th>
-                        <th>#</th>
-                        <th>Username</th>
-                        <th>Email</th>
-                        <th>Role</th>
-                        <th>Last Login</th>
-                        <th></th>
+                        <th class="ug-cb-cell"><input type="checkbox" id="ugSelectAll" title="Select all"></th>
+                        <th class="ug-id-cell">#</th>
+                        <th style="min-width:130px">Username</th>
+                        <th style="min-width:180px">Email</th>
+                        <th style="min-width:120px">Phone</th>
+                        <th style="min-width:90px">Role</th>
+                        <th style="min-width:110px">Notification</th>
+                        <th style="min-width:200px">Notes</th>
+                        <th style="min-width:120px">Last Login</th>
+                        <th class="ug-act-cell"></th>
+                        <th class="ug-act-cell"></th>
                     </tr>
                 </thead>
                 <tbody>
-                <?php foreach ($users as $u): ?>
-                    <tr>
-                        <td class="cb-col">
-                            <?php if ((int)$u['id'] !== (int)$current['id']): ?>
-                            <input type="checkbox" class="row-check"
-                                   name="ids[]" value="<?= (int)$u['id'] ?>" form="bulkForm">
+                <?php foreach ($users as $u): $uid = (int)$u['id']; $isSelf = $uid === (int)$current['id']; ?>
+                    <tr data-id="<?= $uid ?>" data-username="<?= htmlspecialchars(strtolower($u['username'])) ?>">
+                        <td class="ug-cb-cell">
+                            <?php if (!$isSelf): ?>
+                            <input type="checkbox" class="ug-row-check" value="<?= $uid ?>"
+                                   form="ugBulkDeleteForm">
                             <?php endif; ?>
                         </td>
-                        <td><?= (int)$u['id'] ?></td>
-                        <td><?= htmlspecialchars($u['username']) ?></td>
-                        <td><?= htmlspecialchars($u['email'] ?? '') ?></td>
-                        <td><span class="badge badge-<?= $u['role'] === 'admin' ? 'admin' : 'user' ?>">
-                            <?= htmlspecialchars($u['role']) ?></span></td>
-                        <td><?= htmlspecialchars($u['last_login'] ?? 'Never') ?></td>
+                        <td class="ug-id-cell"><?= $uid ?></td>
+
+                        <td><input class="ug-cell-input" type="text"
+                                data-field="username" data-id="<?= $uid ?>"
+                                value="<?= htmlspecialchars($u['username']) ?>"></td>
+
+                        <td><input class="ug-cell-input" type="email"
+                                data-field="email" data-id="<?= $uid ?>"
+                                value="<?= htmlspecialchars($u['email'] ?? '') ?>"></td>
+
+                        <td><input class="ug-cell-input" type="tel"
+                                data-field="phone" data-id="<?= $uid ?>"
+                                value="<?= htmlspecialchars($u['phone'] ?? '') ?>"></td>
+
                         <td>
-                            <div class="action-btns">
-                                <a href="/user_edit.php?id=<?= (int)$u['id'] ?>"
-                                   class="btn-icon" title="Edit">&#9881;</a>
-                                <?php if ((int)$u['id'] !== (int)$current['id']): ?>
-                                <form method="post" action="/admin_settings.php"
-                                      onsubmit="return confirm('Delete ' + <?= json_encode($u['username']) ?> + '?')">
-                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
-                                    <input type="hidden" name="action" value="delete">
-                                    <input type="hidden" name="tab" value="users">
-                                    <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
-                                    <button type="submit" class="btn-icon danger" title="Delete">&#128465;</button>
-                                </form>
-                                <?php endif; ?>
-                            </div>
+                            <select class="ug-cell-select" data-field="role" data-id="<?= $uid ?>"
+                                    <?= $isSelf ? 'disabled title="Cannot change your own role"' : '' ?>>
+                                <option value="user"  <?= $u['role'] === 'user'  ? 'selected' : '' ?>>user</option>
+                                <option value="admin" <?= $u['role'] === 'admin' ? 'selected' : '' ?>>admin</option>
+                            </select>
+                        </td>
+
+                        <td>
+                            <select class="ug-cell-select" data-field="preferred_contact" data-id="<?= $uid ?>">
+                                <?php foreach (['email'=>'email','sms'=>'sms','both'=>'both','none'=>'none'] as $v=>$l): ?>
+                                <option value="<?= $v ?>" <?= ($u['preferred_contact'] ?? 'email') === $v ? 'selected' : '' ?>><?= $l ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </td>
+
+                        <td><input class="ug-cell-input" type="text"
+                                data-field="notes" data-id="<?= $uid ?>"
+                                value="<?= htmlspecialchars($u['notes'] ?? '') ?>"
+                                placeholder="—"></td>
+
+                        <td style="padding:.45rem .6rem;color:#64748b;font-size:.8rem;white-space:nowrap">
+                            <?= htmlspecialchars($u['last_login'] ?? 'Never') ?>
+                        </td>
+
+                        <td class="ug-act-cell">
+                            <a href="/user_edit.php?id=<?= $uid ?>" class="ug-edit-btn" title="Full edit">&#9881;</a>
+                        </td>
+
+                        <td class="ug-act-cell">
+                            <?php if (!$isSelf): ?>
+                            <form method="post" action="/admin_settings.php"
+                                  onsubmit="return confirm('Delete <?= addslashes(htmlspecialchars($u['username'])) ?>? This cannot be undone.')">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="tab" value="users">
+                                <input type="hidden" name="id" value="<?= $uid ?>">
+                                <button type="submit" class="ug-del-btn" title="Delete">&#128465;</button>
+                            </form>
+                            <?php endif; ?>
                         </td>
                     </tr>
                 <?php endforeach; ?>
+                <?php if (empty($users)): ?>
+                    <tr><td colspan="11" style="text-align:center;color:#94a3b8;padding:2rem">No users found.</td></tr>
+                <?php endif; ?>
                 </tbody>
             </table>
         </div>
+
+        <div class="ug-save-indicator" id="ugSaveIndicator">Saved</div>
+
+        <script>
+        (function () {
+            const csrf = <?= json_encode($token) ?>;
+            const ind  = document.getElementById('ugSaveIndicator');
+            let saveTimer;
+
+            function showSaved() {
+                ind.style.display = 'block';
+                clearTimeout(saveTimer);
+                saveTimer = setTimeout(() => { ind.style.display = 'none'; }, 1800);
+            }
+
+            function saveField(id, field, value, el) {
+                const fd = new FormData();
+                fd.append('csrf_token', csrf);
+                fd.append('action', 'update_user');
+                fd.append('tab', 'users');
+                fd.append('id', id);
+                fd.append('field', field);
+                fd.append('value', value);
+                fetch('/admin_settings.php', { method: 'POST', body: fd })
+                    .then(r => {
+                        if (r.ok) { showSaved(); }
+                        else if (r.status === 409 && el) {
+                            // last admin — revert
+                            el.value = el.dataset.orig;
+                            alert('Cannot demote the last admin.');
+                        }
+                    });
+            }
+
+            // Text inputs — save on change (blur or enter)
+            document.querySelectorAll('#usersGrid .ug-cell-input').forEach(inp => {
+                inp.dataset.orig = inp.value;
+                inp.addEventListener('change', function () {
+                    saveField(this.dataset.id, this.dataset.field, this.value, this);
+                    this.dataset.orig = this.value;
+                });
+            });
+
+            // Selects — save immediately
+            document.querySelectorAll('#usersGrid .ug-cell-select').forEach(sel => {
+                sel.dataset.orig = sel.value;
+                sel.addEventListener('change', function () {
+                    saveField(this.dataset.id, this.dataset.field, this.value, this);
+                    this.dataset.orig = this.value;
+                });
+            });
+
+            // ── Multi-select ──────────────────────────────────────────────
+            const selectAll  = document.getElementById('ugSelectAll');
+            const bulkBar    = document.getElementById('ugBulkBar');
+            const bulkCount  = document.getElementById('ugBulkCount');
+            const deleteForm = document.getElementById('ugBulkDeleteForm');
+            const roleForm   = document.getElementById('ugBulkRoleForm');
+
+            function getChecked() { return document.querySelectorAll('.ug-row-check:checked'); }
+
+            function syncHiddenIds() {
+                // keep both bulk forms' ids[] in sync
+                [deleteForm, roleForm].forEach(form => {
+                    form.querySelectorAll('input[name="ids[]"]').forEach(i => i.remove());
+                    getChecked().forEach(cb => {
+                        const h = document.createElement('input');
+                        h.type = 'hidden'; h.name = 'ids[]'; h.value = cb.value;
+                        form.appendChild(h);
+                    });
+                });
+            }
+
+            function updateBulkBar() {
+                const n   = getChecked().length;
+                const all = document.querySelectorAll('.ug-row-check');
+                bulkBar.style.display = n > 0 ? 'flex' : 'none';
+                bulkCount.textContent = n;
+                if (selectAll) {
+                    selectAll.indeterminate = n > 0 && n < all.length;
+                    selectAll.checked = n > 0 && n === all.length;
+                }
+                // highlight rows
+                document.querySelectorAll('#usersGrid tbody tr').forEach(tr => {
+                    const cb = tr.querySelector('.ug-row-check');
+                    tr.classList.toggle('ug-selected', !!(cb && cb.checked));
+                });
+                syncHiddenIds();
+            }
+
+            window.ugClearSelection = function () {
+                document.querySelectorAll('.ug-row-check').forEach(cb => cb.checked = false);
+                if (selectAll) selectAll.checked = false;
+                updateBulkBar();
+            };
+
+            if (selectAll) {
+                selectAll.addEventListener('change', function () {
+                    document.querySelectorAll('.ug-row-check').forEach(cb => cb.checked = this.checked);
+                    updateBulkBar();
+                });
+            }
+            document.querySelectorAll('.ug-row-check').forEach(cb => cb.addEventListener('change', updateBulkBar));
+
+            // ── Client-side filter ────────────────────────────────────────
+            document.getElementById('ugFilter').addEventListener('input', function () {
+                const q = this.value.toLowerCase();
+                let visible = 0;
+                document.querySelectorAll('#usersGrid tbody tr[data-id]').forEach(tr => {
+                    const text = tr.querySelectorAll('.ug-cell-input, .ug-cell-select');
+                    let match = !q;
+                    if (q) {
+                        tr.querySelectorAll('.ug-cell-input').forEach(inp => {
+                            if (inp.value.toLowerCase().includes(q)) match = true;
+                        });
+                        tr.querySelectorAll('.ug-cell-select').forEach(sel => {
+                            if (sel.value.toLowerCase().includes(q)) match = true;
+                        });
+                    }
+                    tr.style.display = match ? '' : 'none';
+                    if (match) visible++;
+                });
+                document.getElementById('ugCount').textContent = visible + ' user' + (visible !== 1 ? 's' : '');
+            });
+        })();
+        </script>
 
     </div>
 
@@ -1961,33 +2271,6 @@ document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') closeUserModal();
 });
 
-const selectAll = document.getElementById('selectAll');
-const bulkBar   = document.getElementById('bulkBar');
-const bulkCount = document.getElementById('bulkCount');
-
-function getChecked() { return document.querySelectorAll('.row-check:checked'); }
-function updateBulkBar() {
-    const n = getChecked().length;
-    bulkBar.style.display = n > 0 ? 'flex' : 'none';
-    bulkCount.textContent = n;
-    const all = document.querySelectorAll('.row-check');
-    if (selectAll) {
-        selectAll.indeterminate = n > 0 && n < all.length;
-        selectAll.checked = n > 0 && n === all.length;
-    }
-}
-function clearSelection() {
-    document.querySelectorAll('.row-check').forEach(cb => cb.checked = false);
-    if (selectAll) selectAll.checked = false;
-    updateBulkBar();
-}
-if (selectAll) {
-    selectAll.addEventListener('change', function() {
-        document.querySelectorAll('.row-check').forEach(cb => cb.checked = this.checked);
-        updateBulkBar();
-    });
-}
-document.querySelectorAll('.row-check').forEach(cb => cb.addEventListener('change', updateBulkBar));
 
 // ── Appearance tab ─────────────────────────────────────────────────────────────
 function syncText(textId, val) {
