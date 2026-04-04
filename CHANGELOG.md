@@ -4,6 +4,20 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.01555] — 2026-04-03
+
+### Added
+- **Manage Events tab in Site Settings.** Admins can now view and edit all
+  events from a full-width spreadsheet-style grid under Site Settings → Events.
+  Every cell is directly editable — title, dates, times, and recurrence — with
+  changes saving automatically via AJAX and a "Saved" toast confirming each
+  update. Recurrence is a dropdown select; all other fields are inline
+  text/date/time inputs. The grid horizontally scrolls and breaks out of the
+  960 px container so no columns are clipped. A "Manage Events" shortcut button
+  was also added to the admin dashboard.
+
+---
+
 ## [v0.01554] — 2026-04-03
 
 ### Added
