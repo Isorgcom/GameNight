@@ -658,9 +658,10 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
             </div>
         </div>
 
-        <div style="display:flex;gap:.75rem;margin-top:1.5rem">
+        <div style="display:flex;gap:.75rem;margin-top:1.5rem;flex-wrap:wrap">
             <a href="/admin_settings.php?tab=users" class="btn btn-primary">Manage Users</a>
             <a href="/admin_settings.php?tab=logs" class="btn btn-outline">View Logs</a>
+            <a href="/phpadmin/" class="btn btn-outline" target="_blank">Database Admin</a>
         </div>
 
     </div>
