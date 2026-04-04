@@ -1290,6 +1290,7 @@ const CAL_CSRF          = <?= json_encode($token) ?>;
 const CAL_CURRENT_ID    = <?= json_encode((int)($current['id'] ?? 0)) ?>;
 const IS_ADMIN = <?= $isAdmin ? 'true' : 'false' ?>;
 const CAN_CREATE_EVENTS = <?= $canCreateEvents ? 'true' : 'false' ?>;
+const ALLOW_MAYBE = <?= $allowMaybe ? 'true' : 'false' ?>;
 <?php if ($canCreateEvents): ?>
 <?php if ($isAdmin): ?>
 const ALL_USERS = <?= json_encode(array_values($allUsers)) ?>;
@@ -1346,24 +1347,23 @@ function viewEvent(ev) {
         vLeaveWrap.style.display = (isInvited && !isCreator) ? '' : 'none';
         document.getElementById('vLeaveBtn').dataset.eid = ev.id;
     }
-    renderInvitesPanel(ev.id);
     const _evRedir = '/calendar.php?m=' + ev.start_date.substring(0,7) + '&open=' + ev.id + '&date=' + ev.start_date;
     const vLoginBtn = document.getElementById('vLoginBtn');
     if (vLoginBtn) vLoginBtn.href = '/login.php?redirect=' + encodeURIComponent(_evRedir);
     const vSignupLink = document.getElementById('vSignupLink');
     if (vSignupLink) vSignupLink.href = '/register.php?redirect=' + encodeURIComponent(_evRedir);
     window._calCanManage = IS_ADMIN || (CURRENT_USER_ID && ev.created_by == CURRENT_USER_ID);
+    renderInvitesPanel(ev.id);
     <?php if ($canCreateEvents): ?>
     // Show edit/delete actions only for admins or event owner
     const canManageThis = window._calCanManage;
     const actionsDiv = document.getElementById('vEventActions');
     if (actionsDiv) actionsDiv.style.display = canManageThis ? '' : 'none';
     if (canManageThis) {
-        document.getElementById('vDeleteId').value = ev.id;
+        const delId = document.getElementById('vDeleteId');
+        if (delId) delId.value = ev.id;
         const occForm = document.getElementById('vDeleteOccForm');
-        if (occForm) {
-            occForm.style.display = 'none';
-        }
+        if (occForm) occForm.style.display = 'none';
     }
     <?php endif; ?>
 
@@ -1670,7 +1670,9 @@ if (vInvDiv) {
         const username = sel.dataset.username;
         const rsvp     = sel.value;
         const data = new FormData();
-        data.append('csrf_token',      document.getElementById('vRsvpCsrf').value);
+        const csrfEl = document.getElementById('vRsvpCsrf');
+        if (!csrfEl) return;
+        data.append('csrf_token',      csrfEl.value);
         data.append('action',          'update_rsvp');
         data.append('event_id',        eid);
         data.append('rsvp',            rsvp);
@@ -1889,13 +1891,6 @@ function openAddModal(date) {
 }
 
 // ── Color picker ──────────────────────────────────────────────────────────────
-function selectColor(c) {
-    document.getElementById('eColor').value = c;
-    document.getElementById('eColorDot').style.background = c;
-    document.querySelectorAll('#eColorPicker .color-swatch').forEach(s =>
-        s.classList.toggle('selected', s.dataset.color === c));
-    closeColorPicker();
-}
 function toggleColorPicker(e) {
     e.stopPropagation();
     const picker = document.getElementById('eColorPicker');
@@ -1904,12 +1899,24 @@ function toggleColorPicker(e) {
     dot.classList.toggle('open', open);
 }
 function closeColorPicker() {
-    document.getElementById('eColorPicker').classList.remove('open');
-    document.getElementById('eColorDot').classList.remove('open');
+    const picker = document.getElementById('eColorPicker');
+    const dot    = document.getElementById('eColorDot');
+    if (picker) picker.classList.remove('open');
+    if (dot)    dot.classList.remove('open');
 }
 document.addEventListener('click', e => {
-    if (!document.getElementById('eColorDotWrap').contains(e.target)) closeColorPicker();
+    const wrap = document.getElementById('eColorDotWrap');
+    if (wrap && !wrap.contains(e.target)) closeColorPicker();
 });
+function selectColor(c) {
+    const colorInput = document.getElementById('eColor');
+    const dot        = document.getElementById('eColorDot');
+    if (colorInput) colorInput.value = c;
+    if (dot) dot.style.background = c;
+    document.querySelectorAll('#eColorPicker .color-swatch').forEach(s =>
+        s.classList.toggle('selected', s.dataset.color === c));
+    closeColorPicker();
+}
 selectColor('#2563eb');
 
 // ── All-users pane ────────────────────────────────────────────────────────────
