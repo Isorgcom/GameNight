@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.01557] — 2026-04-04
+
+### Added
+- **Event edit link in admin Events grid.** Each row in the Site Settings → Events spreadsheet now has a ▶ button that opens the event's calendar modal in a new tab, letting admins view and edit the full event details.
+
+---
+
 ## [v0.01556] — 2026-04-03
 
 ### Removed

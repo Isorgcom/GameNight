@@ -1218,6 +1218,14 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
             .ev-invites-cell { text-align: center; width: 60px; color: #475569; }
             .ev-creator-cell { color: #475569; }
             .ev-del-cell { text-align: center; width: 44px; }
+            .ev-open-cell { text-align: center; width: 44px; }
+            .ev-open-btn {
+                background: none; border: none; cursor: pointer;
+                color: #2563eb; font-size: 1rem; padding: .3rem .5rem;
+                border-radius: 5px; line-height: 1; text-decoration: none;
+                display: inline-block;
+            }
+            .ev-open-btn:hover { background: #eff6ff; }
             .ev-del-btn {
                 background: none; border: none; cursor: pointer;
                 color: #ef4444; font-size: 1rem; padding: .3rem .5rem;
@@ -1286,6 +1294,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                         <th style="min-width:90px">End Time</th>
                         <th style="min-width:110px"><?= ev_sort_link('creator', 'Created By', $events_sort, $events_dir, $events_filter) ?></th>
                         <th class="ev-invites-cell"><?= ev_sort_link('invites', 'Invites', $events_sort, $events_dir, $events_filter) ?></th>
+                        <th class="ev-open-cell"></th>
                         <th class="ev-del-cell"></th>
                     </tr>
                 </thead>
@@ -1318,6 +1327,14 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
 
                         <td class="ev-invites-cell"><span class="ev-cell"><?= (int)$ev['invites'] ?></span></td>
 
+                        <td class="ev-open-cell">
+                            <?php
+                            $ev_month = substr($ev['start_date'], 0, 7);
+                            $ev_edit_url = '/calendar.php?m=' . urlencode($ev_month) . '&open=' . $eid . '&date=' . urlencode($ev['start_date']);
+                            ?>
+                            <a href="<?= htmlspecialchars($ev_edit_url) ?>" class="ev-open-btn" title="View/edit event" target="_blank">&#9654;</a>
+                        </td>
+
                         <td class="ev-del-cell">
                             <form method="post" action="/admin_settings.php"
                                   onsubmit="return confirm('Delete event &quot;<?= addslashes(htmlspecialchars($ev['title'])) ?>&quot;? This cannot be undone.')">
@@ -1331,7 +1348,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                     </tr>
                 <?php endforeach; ?>
                 <?php if (empty($admin_events)): ?>
-                    <tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:2rem">No events found.</td></tr>
+                    <tr><td colspan="10" style="text-align:center;color:#94a3b8;padding:2rem">No events found.</td></tr>
                 <?php endif; ?>
                 </tbody>
             </table>
