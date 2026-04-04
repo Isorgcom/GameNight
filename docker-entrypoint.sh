@@ -39,10 +39,10 @@ fi
 
 PHPADMIN="/var/www/html/phpadmin"
 if [ ! -f "$PHPADMIN/adminer.php" ]; then
-    echo "[entrypoint] Downloading Adminer 5.4.2..."
+    echo "[entrypoint] Downloading Adminer 4.8.1..."
     mkdir -p "$PHPADMIN"
     # Download as adminer-src.php; adminer.php is the wrapper that loads config
-    curl -fsSL "https://github.com/vrana/adminer/releases/download/v5.4.2/adminer-5.4.2.php" -o "$PHPADMIN/adminer-src.php"
+    curl -fsSL "https://github.com/vrana/adminer/releases/download/v4.8.1/adminer-4.8.1.php" -o "$PHPADMIN/adminer-src.php"
 fi
 
 exec docker-php-entrypoint apache2-foreground

@@ -7,13 +7,15 @@ if (!defined('DB_PATH')) {
     define('DB_PATH', '/var/db/app.db');
 }
 
-// Adminer auto-login: bypass login form and connect directly to the SQLite DB
+// adminer_object() is called by Adminer after its own classes are loaded,
+// so extending Adminer here is safe.
 function adminer_object() {
     class AdminerAutoLogin extends Adminer {
         public function login($login, $password) {
             return true;
         }
         public function credentials() {
+            // [server, username, password, database]
             return ['', DB_PATH, '', ''];
         }
         public function database() {
@@ -23,5 +25,5 @@ function adminer_object() {
     return new AdminerAutoLogin();
 }
 
-// Load the downloaded Adminer source
+// Load the downloaded Adminer source (calls adminer_object() internally)
 require __DIR__ . '/adminer-src.php';
