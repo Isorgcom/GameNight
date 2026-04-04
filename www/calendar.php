@@ -1053,7 +1053,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         <?php endif; ?>
         <?php if ($canCreateEvents): ?>
         <div class="ev-view-actions" id="vEventActions" style="display:none">
-            <button class="btn btn-primary" onclick="editFromView()">Edit</button>
+            <button type="button" class="btn btn-primary" onclick="editFromView()">Edit</button>
             <form method="post" action="/calendar.php" style="margin:0" id="vDeleteOccForm" style="display:none">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <input type="hidden" name="action" value="delete_occurrence">
