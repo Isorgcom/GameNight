@@ -112,6 +112,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $email    = trim($_POST['email'] ?? '');
             $role     = in_array($_POST['role'] ?? '', ['admin', 'user']) ? $_POST['role'] : 'user';
             $password = $_POST['password'] ?? '';
+            $phone    = trim($_POST['phone'] ?? '');
+            $phone    = $phone !== '' ? normalize_phone($phone) : '';
+            $notes    = trim($_POST['notes'] ?? '');
             if ($username === '' || $password === '') {
                 $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Username and password are required.'];
             } elseif (strlen($password) < 12) {
@@ -119,8 +122,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 try {
                     $hash = password_hash($password, PASSWORD_BCRYPT);
-                    $db->prepare('INSERT INTO users (username, password_hash, email, role) VALUES (?, ?, ?, ?)')
-                       ->execute([$username, $hash, $email ?: null, $role]);
+                    $db->prepare('INSERT INTO users (username, password_hash, email, role, phone, notes) VALUES (?, ?, ?, ?, ?, ?)')
+                       ->execute([$username, $hash, $email ?: null, $role, $phone ?: null, $notes ?: null]);
                     db_log_activity($current['id'], "created user: $username");
                     $_SESSION['flash'] = ['type' => 'success', 'msg' => "User \"$username\" created."];
                 } catch (PDOException $e) {
@@ -2236,6 +2239,10 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                 <input type="email" id="m_email" name="email">
             </div>
             <div class="form-group">
+                <label for="m_phone">Phone</label>
+                <input type="tel" id="m_phone" name="phone">
+            </div>
+            <div class="form-group">
                 <label for="m_role">Role</label>
                 <select id="m_role" name="role">
                     <option value="user">User</option>
@@ -2245,6 +2252,10 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
             <div class="form-group">
                 <label for="m_password">Password</label>
                 <input type="password" id="m_password" name="password" autocomplete="new-password" required>
+            </div>
+            <div class="form-group">
+                <label for="m_notes">Notes</label>
+                <textarea id="m_notes" name="notes" rows="3" style="width:100%;resize:vertical"></textarea>
             </div>
             <div style="display:flex;gap:.75rem;margin-top:1.5rem">
                 <button type="submit" class="btn btn-primary" style="flex:1">Create User</button>
