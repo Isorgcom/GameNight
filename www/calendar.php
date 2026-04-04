@@ -115,7 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $sd) || ($ed && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $ed))) {
             $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid date format.'];
         } else {
-            $notify_invitees = !empty($_POST['notify_invitees']);
+            $suppress_notify = !empty($_POST['suppress_notify']);
             $new_invitee_usernames = [];
             if ($action === 'add') {
                 $db->prepare('INSERT INTO events (title, description, start_date, end_date, start_time, end_time, color, created_by)
@@ -171,34 +171,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 return ['email' => $row['email'], 'html' => $html];
             };
 
-            // Always notify newly added invitees
-            if (empty($new_invitee_usernames) && !empty($inv_usernames) && array_filter($inv_usernames)) {
-                db_log_activity($current['id'], "invite emails: 0 new invitees detected (all were existing) for event $notify_eid", 'info');
-            }
-            if (!empty($new_invitee_usernames)) {
-                $subject = 'You\'re invited: ' . $title;
-                foreach ($new_invitee_usernames as $new_user) {
-                    $data = $build_invite_email($new_user);
-                    if ($data) {
-                        $err = send_email($data['email'], $new_user, $subject, $data['html']);
-                        if ($err) db_log_activity($current['id'], "invite email failed for $new_user: $err", 'warning');
-                    } else {
-                        db_log_activity($current['id'], "invite email skipped for $new_user: no email address found", 'warning');
+            // Notify newly added invitees unless suppressed
+            if (!$suppress_notify) {
+                if (empty($new_invitee_usernames) && !empty($inv_usernames) && array_filter($inv_usernames)) {
+                    db_log_activity($current['id'], "invite emails: 0 new invitees detected (all were existing) for event $notify_eid", 'info');
+                }
+                if (!empty($new_invitee_usernames)) {
+                    $subject = 'You\'re invited: ' . $title;
+                    foreach ($new_invitee_usernames as $new_user) {
+                        $data = $build_invite_email($new_user);
+                        if ($data) {
+                            $err = send_email($data['email'], $new_user, $subject, $data['html']);
+                            if ($err) db_log_activity($current['id'], "invite email failed for $new_user: $err", 'warning');
+                        } else {
+                            db_log_activity($current['id'], "invite email skipped for $new_user: no email address found", 'warning');
+                        }
                     }
                 }
-            }
 
-            // If notify_invitees checked, also email ALL existing invitees (event updated)
-            if ($notify_invitees) {
-                $subject = 'Event updated: ' . $title;
-                $all_inv = $db->prepare('SELECT LOWER(username) as uname FROM event_invites WHERE event_id=?');
-                $all_inv->execute([$notify_eid]);
-                foreach ($all_inv->fetchAll(PDO::FETCH_COLUMN) as $uname) {
-                    if (in_array($uname, $new_invitee_usernames, true)) continue; // already notified
-                    $data = $build_invite_email($uname);
-                    if ($data) {
-                        $err = send_email($data['email'], $uname, $subject, $data['html']);
-                        if ($err) db_log_activity($current['id'], "update email failed for $uname: $err", 'warning');
+                // On edit, also notify all existing invitees of the update
+                if ($action === 'edit') {
+                    $subject = 'Event updated: ' . $title;
+                    $all_inv = $db->prepare('SELECT LOWER(username) as uname FROM event_invites WHERE event_id=?');
+                    $all_inv->execute([$notify_eid]);
+                    foreach ($all_inv->fetchAll(PDO::FETCH_COLUMN) as $uname) {
+                        if (in_array($uname, $new_invitee_usernames, true)) continue; // already notified
+                        $data = $build_invite_email($uname);
+                        if ($data) {
+                            $err = send_email($data['email'], $uname, $subject, $data['html']);
+                            if ($err) db_log_activity($current['id'], "update email failed for $uname: $err", 'warning');
+                        }
                     }
                 }
             }
@@ -234,11 +236,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $eid     = (int)($_POST['event_id'] ?? 0);
         $rsvp    = in_array($_POST['rsvp'] ?? '', array_merge(['', 'yes', 'no'], $allowMaybe ? ['maybe'] : []), true) ? ($_POST['rsvp'] ?: null) : null;
         $occDate = (preg_match('/^\d{4}-\d{2}-\d{2}$/', $_POST['occurrence_date'] ?? '')) ? $_POST['occurrence_date'] : null;
+
+        // Admins and event owners may update any invitee's RSVP via target_username
+        $target_username = $current['username'];
+        $on_behalf = false;
+        if (!empty($_POST['target_username']) && trim($_POST['target_username']) !== $current['username']) {
+            $evOwner = $db->prepare('SELECT created_by FROM events WHERE id=?');
+            $evOwner->execute([$eid]);
+            $ownerRow = $evOwner->fetch();
+            $isOwner  = $ownerRow && (int)$ownerRow['created_by'] === (int)$current['id'];
+            if ($isAdmin || $isOwner) {
+                $target_username = trim($_POST['target_username']);
+                $on_behalf = true;
+            }
+        }
+
         if ($eid > 0) {
             if ($occDate) {
                 // Per-occurrence RSVP: upsert occurrence-specific row
                 $chk = $db->prepare('SELECT id, rsvp FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date=?');
-                $chk->execute([$eid, $current['username'], $occDate]);
+                $chk->execute([$eid, $target_username, $occDate]);
                 $existing = $chk->fetch();
                 $oldRsvp  = $existing ? ($existing['rsvp'] ?: null) : null;
                 if ($existing) {
@@ -246,23 +263,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } else {
                     // Copy contact info from base invite row
                     $baseStmt = $db->prepare('SELECT phone, email FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL');
-                    $baseStmt->execute([$eid, $current['username']]);
+                    $baseStmt->execute([$eid, $target_username]);
                     $baseRow = $baseStmt->fetch();
                     $db->prepare('INSERT INTO event_invites (event_id, username, phone, email, rsvp, rsvp_token, occurrence_date) VALUES (?, ?, ?, ?, ?, ?, ?)')
-                       ->execute([$eid, strtolower($current['username']), $baseRow['phone'] ?? null, $baseRow['email'] ?? null, $rsvp, bin2hex(random_bytes(16)), $occDate]);
+                       ->execute([$eid, strtolower($target_username), $baseRow['phone'] ?? null, $baseRow['email'] ?? null, $rsvp, bin2hex(random_bytes(16)), $occDate]);
                 }
             } else {
                 // Base RSVP (non-recurring or updating all-occurrence default)
                 $oldRsvpStmt = $db->prepare('SELECT rsvp FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL');
-                $oldRsvpStmt->execute([$eid, $current['username']]);
+                $oldRsvpStmt->execute([$eid, $target_username]);
                 $oldRsvp = ($oldRsvpStmt->fetchColumn()) ?: null;
                 $db->prepare('UPDATE event_invites SET rsvp=? WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL')
-                   ->execute([$rsvp, $eid, $current['username']]);
+                   ->execute([$rsvp, $eid, $target_username]);
             }
-            db_log_activity($current['id'], "updated RSVP for event id: $eid" . ($occDate ? " on $occDate" : ''));
+            db_log_activity($current['id'], "updated RSVP for event id: $eid" . ($occDate ? " on $occDate" : '') . ($on_behalf ? " (on behalf of $target_username)" : ''));
 
-            // Notify event creator only if RSVP actually changed
-            if ($rsvp && $rsvp !== $oldRsvp) {
+            // Notify event creator only if RSVP actually changed and editor is not acting on behalf
+            if (!$on_behalf && $rsvp && $rsvp !== $oldRsvp) {
                 $evRow = $db->prepare('SELECT e.title, e.start_date, u.email, u.phone, u.preferred_contact, u.username FROM events e JOIN users u ON u.id=e.created_by WHERE e.id=?');
                 $evRow->execute([$eid]);
                 $creator = $evRow->fetch();
@@ -788,6 +805,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         .rsvp-yes   { background:#dcfce7; color:#166534; border-radius:4px; padding:.1rem .4rem; font-size:.75rem; font-weight:600; }
         .rsvp-no    { background:#fee2e2; color:#991b1b; border-radius:4px; padding:.1rem .4rem; font-size:.75rem; font-weight:600; }
         .rsvp-maybe { background:#fef9c3; color:#854d0e; border-radius:4px; padding:.1rem .4rem; font-size:.75rem; font-weight:600; }
+        .inv-rsvp-sel { font-size:.75rem; padding:.15rem .3rem; border:1px solid #e2e8f0; border-radius:5px; background:#fff; cursor:pointer; min-width:58px; }
         @keyframes modalIn {
             from { transform: translateY(-10px); opacity: 0; }
             to   { transform: none; opacity: 1; }
@@ -1244,8 +1262,8 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
                     <button type="button" class="btn btn-outline" style="font-size:.8rem;white-space:nowrap" onclick="addBlankInviteRow()">+ Custom Invitee</button>
                     <div style="flex:1"></div>
                     <label class="edit-notify-row">
-                        <input type="checkbox" name="notify_invitees" id="eNotifyInvitees" value="1">
-                        Notify by email
+                        <input type="checkbox" name="suppress_notify" id="eSuppressNotify" value="1">
+                        Don't Notify
                     </label>
                     <div style="display:flex;gap:.5rem;">
                         <button type="submit" class="btn btn-primary" id="eSubmitBtn">Add Event</button>
@@ -1334,9 +1352,10 @@ function viewEvent(ev) {
     if (vLoginBtn) vLoginBtn.href = '/login.php?redirect=' + encodeURIComponent(_evRedir);
     const vSignupLink = document.getElementById('vSignupLink');
     if (vSignupLink) vSignupLink.href = '/register.php?redirect=' + encodeURIComponent(_evRedir);
+    window._calCanManage = IS_ADMIN || (CURRENT_USER_ID && ev.created_by == CURRENT_USER_ID);
     <?php if ($canCreateEvents): ?>
     // Show edit/delete actions only for admins or event owner
-    const canManageThis = IS_ADMIN || (CAN_CREATE_EVENTS && CURRENT_USER_ID && ev.created_by == CURRENT_USER_ID);
+    const canManageThis = window._calCanManage;
     const actionsDiv = document.getElementById('vEventActions');
     if (actionsDiv) actionsDiv.style.display = canManageThis ? '' : 'none';
     if (canManageThis) {
@@ -1355,9 +1374,7 @@ function viewEvent(ev) {
     <?php endif; ?>
     renderCommentsPanel(ev.id);
 
-    <?php if ($isAdmin): ?>
     startRsvpPoll(ev.id);
-    <?php endif; ?>
 
     document.getElementById('viewModal').classList.add('open');
 }
@@ -1432,19 +1449,30 @@ function renderCommentsPanel(eid) {
     }).join('');
 }
 function renderInvitesPanel(eid) {
-    const invites = getEffectiveInvites(eid, null);
-    const vInvDiv  = document.getElementById('vInvites');
-    const rsvpClass = {yes:'rsvp-yes', no:'rsvp-no', maybe:'rsvp-maybe'};
-    const rsvpText  = {yes:'Yes', no:'No', maybe:'Maybe'};
+    const invites    = getEffectiveInvites(eid, null);
+    const vInvDiv    = document.getElementById('vInvites');
+    const canManage  = window._calCanManage || false;
+    const rsvpClass  = {yes:'rsvp-yes', no:'rsvp-no', maybe:'rsvp-maybe'};
+    const rsvpText   = {yes:'Yes', no:'No', maybe:'Maybe'};
     if (invites.length) {
         let ih = '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin-bottom:.4rem">Invites (' + invites.length + ')</div>';
         ih += '<div style="display:flex;flex-direction:column;gap:.2rem;max-height:8.5rem;overflow-y:auto;padding-right:.25rem">';
         invites.forEach(inv => {
-            const badge = inv.rsvp && rsvpClass[inv.rsvp]
-                ? '<span class="' + rsvpClass[inv.rsvp] + '">' + rsvpText[inv.rsvp] + '</span>'
-                : '<span style="font-size:.75rem;color:#cbd5e1;font-weight:600">--</span>';
             ih += '<div style="font-size:.875rem;color:#334155;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">';
-            ih += '<span style="min-width:52px;text-align:center">' + badge + '</span>';
+            if (canManage) {
+                const r = inv.rsvp || '';
+                ih += '<select class="inv-rsvp-sel" data-eid="' + eid + '" data-username="' + escHtml(inv.username) + '">'
+                    + '<option value=""'      + (r===''      ?' selected':'') + '>--</option>'
+                    + '<option value="yes"'   + (r==='yes'   ?' selected':'') + '>Yes</option>'
+                    + '<option value="no"'    + (r==='no'    ?' selected':'') + '>No</option>'
+                    + (ALLOW_MAYBE ? '<option value="maybe"' + (r==='maybe'?' selected':'') + '>Maybe</option>' : '')
+                    + '</select>';
+            } else {
+                const badge = inv.rsvp && rsvpClass[inv.rsvp]
+                    ? '<span class="' + rsvpClass[inv.rsvp] + '">' + rsvpText[inv.rsvp] + '</span>'
+                    : '<span style="font-size:.75rem;color:#cbd5e1;font-weight:600">--</span>';
+                ih += '<span style="min-width:52px;text-align:center">' + badge + '</span>';
+            }
             ih += escHtml(inv.username);
             if (IS_ADMIN && inv.phone) ih += ' <span style="color:#64748b">&middot; ' + escHtml(inv.phone) + '</span>';
             if (IS_ADMIN && inv.email) ih += ' <span style="color:#64748b">&middot; ' + escHtml(inv.email) + '</span>';
@@ -1480,8 +1508,7 @@ function closeView() {
     if (typeof stopRsvpPoll === 'function') stopRsvpPoll();
 }
 
-<?php if ($isAdmin): ?>
-// ── Live RSVP polling for admins ─────────────────────────────────────────────
+// ── Live RSVP polling (all users) ────────────────────────────────────────────
 let _rsvpPollTimer = null;
 let _rsvpPollEid   = null;
 
@@ -1521,7 +1548,6 @@ function pollRsvps(eid) {
         })
         .catch(() => {});
 }
-<?php endif; ?>
 
 const vCommentForm = document.getElementById('vCommentForm');
 if (vCommentForm) {
@@ -1631,6 +1657,38 @@ if (vRsvpSelect) {
             showSavedBar();
         })
         .catch(() => {});
+    });
+}
+
+// Delegated listener: owner/admin RSVP dropdowns in the invites panel
+const vInvDiv = document.getElementById('vInvites');
+if (vInvDiv) {
+    vInvDiv.addEventListener('change', function(e) {
+        const sel = e.target.closest('.inv-rsvp-sel');
+        if (!sel) return;
+        const eid      = parseInt(sel.dataset.eid);
+        const username = sel.dataset.username;
+        const rsvp     = sel.value;
+        const data = new FormData();
+        data.append('csrf_token',      document.getElementById('vRsvpCsrf').value);
+        data.append('action',          'update_rsvp');
+        data.append('event_id',        eid);
+        data.append('rsvp',            rsvp);
+        data.append('occurrence_date', '');
+        data.append('target_username', username);
+        fetch('/calendar.php', {method:'POST', body:data, headers:{'X-Requested-With':'XMLHttpRequest'}})
+            .then(r => r.json())
+            .then(res => {
+                if (!res.ok) return;
+                const list = eventInvites[eid];
+                if (list) {
+                    const inv = list.find(i => i.username.toLowerCase() === username.toLowerCase());
+                    if (inv) inv.rsvp = rsvp || null;
+                }
+                renderInvitesPanel(eid);
+                showSavedBar();
+            })
+            .catch(() => {});
     });
 }
 
@@ -2017,7 +2075,7 @@ function openEditModal(ev) {
     document.getElementById('eStartDate').value = ev ? ev.start_date : new Date().toLocaleDateString('en-CA');
     setTimePicker(ev ? (ev.start_time || '') : '');
     document.getElementById('eDesc').value      = ev ? (ev.description || '') : '';
-    document.getElementById('eNotifyInvitees').checked = false;
+    document.getElementById('eSuppressNotify').checked = false;
     document.getElementById('eUserSearch').value = '';
     document.getElementById('eSubmitBtn').textContent = ev ? 'Save Changes' : 'Add Event';
 

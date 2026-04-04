@@ -8,11 +8,7 @@
 require_once __DIR__ . '/auth.php';
 
 $current = current_user();
-if (!$current || $current['role'] !== 'admin') {
-    http_response_code(403);
-    echo json_encode(['ok' => false]);
-    exit;
-}
+$isAdmin = $current && $current['role'] === 'admin';
 
 $eid = (int)($_GET['eid'] ?? 0);
 if ($eid <= 0) {
@@ -34,7 +30,9 @@ $base = [];
 $occ  = [];
 foreach ($stmt->fetchAll() as $inv) {
     if ($inv['occurrence_date'] === null) {
-        $base[] = ['username' => $inv['username'], 'phone' => $inv['phone'], 'email' => $inv['email'], 'rsvp' => $inv['rsvp']];
+        $row = ['username' => $inv['username'], 'rsvp' => $inv['rsvp']];
+        if ($isAdmin) { $row['phone'] = $inv['phone']; $row['email'] = $inv['email']; }
+        $base[] = $row;
     } else {
         $occ[$inv['occurrence_date']][] = ['username' => $inv['username'], 'rsvp' => $inv['rsvp']];
     }
