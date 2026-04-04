@@ -1461,7 +1461,7 @@ function getEffectiveInvites(eid, occDate) {
 }
 function closeView() {
     document.getElementById('viewModal').classList.remove('open');
-    stopRsvpPoll();
+    if (typeof stopRsvpPoll === 'function') stopRsvpPoll();
 }
 
 <?php if ($isAdmin): ?>
