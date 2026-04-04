@@ -9,6 +9,20 @@ if ($current['role'] !== 'admin') {
 
 $db = get_db();
 
+// ── CSV Export (must happen before any output) ────────────────────────────────
+if (($_GET['action'] ?? '') === 'export_users') {
+    $rows = $db->query('SELECT id, username, email, phone, role, preferred_contact, notes, created_at, last_login FROM users ORDER BY id')->fetchAll();
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="users_' . date('Ymd_His') . '.csv"');
+    $out = fopen('php://output', 'w');
+    fputcsv($out, ['id', 'username', 'email', 'phone', 'role', 'preferred_contact', 'notes', 'created_at', 'last_login']);
+    foreach ($rows as $r) {
+        fputcsv($out, [$r['id'], $r['username'], $r['email'] ?? '', $r['phone'] ?? '', $r['role'], $r['preferred_contact'] ?? 'email', $r['notes'] ?? '', $r['created_at'] ?? '', $r['last_login'] ?? '']);
+    }
+    fclose($out);
+    exit;
+}
+
 // Named timezones — DST-aware where applicable
 $tz_offsets = [
     'UTC-12:00 — International Date Line West'          => 'Etc/GMT+12',
@@ -238,6 +252,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $msg = 'Role updated.';
                 if ($skipped) $msg .= " $skipped skipped (last admin).";
                 $_SESSION['flash'] = ['type' => 'success', 'msg' => $msg];
+            }
+            $post_tab = 'users';
+        }
+
+        if ($action === 'import_users') {
+            $file = $_FILES['csv_file'] ?? null;
+            if (!$file || $file['error'] !== UPLOAD_ERR_OK) {
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'No file uploaded.'];
+            } else {
+                $handle = fopen($file['tmp_name'], 'r');
+                $header = fgetcsv($handle); // skip header row
+                $imported = 0; $skipped = 0; $errors = [];
+                while (($row = fgetcsv($handle)) !== false) {
+                    if (count($row) < 2) continue;
+                    // Support both full export format and simple username,email,phone,role,notes
+                    // Detect by header: if first col is 'id' treat as full export (skip col 0)
+                    $offset = (isset($header[0]) && strtolower(trim($header[0])) === 'id') ? 1 : 0;
+                    $username = strtolower(trim($row[$offset] ?? ''));
+                    $email    = strtolower(trim($row[$offset + 1] ?? ''));
+                    $phone    = trim($row[$offset + 2] ?? '');
+                    $role     = in_array(trim($row[$offset + 3] ?? ''), ['admin','user']) ? trim($row[$offset + 3]) : 'user';
+                    $pref     = in_array(trim($row[$offset + 4] ?? ''), ['email','sms','both','none']) ? trim($row[$offset + 4]) : 'email';
+                    $notes    = trim($row[$offset + 5] ?? '');
+                    if ($username === '') continue;
+                    $phone = $phone !== '' ? normalize_phone($phone) : '';
+                    // Check if username already exists
+                    $exists = $db->prepare('SELECT id FROM users WHERE LOWER(username)=?');
+                    $exists->execute([$username]);
+                    if ($exists->fetch()) { $skipped++; continue; }
+                    // Generate a random temp password
+                    $tmp_pw = bin2hex(random_bytes(8));
+                    $hash   = password_hash($tmp_pw, PASSWORD_BCRYPT);
+                    try {
+                        $db->prepare('INSERT INTO users (username, password_hash, email, phone, role, preferred_contact, notes, must_change_password, email_verified) VALUES (?,?,?,?,?,?,?,1,1)')
+                           ->execute([$username, $hash, $email ?: null, $phone ?: null, $role, $pref, $notes ?: null]);
+                        db_log_activity($current['id'], "imported user: $username");
+                        $imported++;
+                    } catch (PDOException $e) {
+                        $errors[] = $username;
+                    }
+                }
+                fclose($handle);
+                $msg = "Imported $imported user" . ($imported !== 1 ? 's' : '') . ".";
+                if ($skipped) $msg .= " $skipped skipped (already exist).";
+                if ($errors)  $msg .= " Failed: " . implode(', ', $errors) . ".";
+                $_SESSION['flash'] = ['type' => $imported > 0 ? 'success' : 'error', 'msg' => $msg];
             }
             $post_tab = 'users';
         }
@@ -1181,7 +1241,26 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                     <?= count($users) ?> user<?= count($users) !== 1 ? 's' : '' ?>
                 </span>
                 <span style="color:#94a3b8;font-size:.75rem">Click any cell to edit &bull; Changes save automatically</span>
+                <a href="/admin_settings.php?action=export_users" class="btn btn-outline btn-sm" style="padding:.4rem .85rem;font-size:.82rem">&#8681; Export CSV</a>
+                <button class="btn btn-outline btn-sm" onclick="document.getElementById('ugImportWrap').style.display=document.getElementById('ugImportWrap').style.display==='none'?'flex':'none'" style="padding:.4rem .85rem;font-size:.82rem">&#8679; Import CSV</button>
                 <button class="btn btn-primary btn-sm" onclick="openUserModal()" style="padding:.4rem .85rem;font-size:.82rem">+ New User</button>
+            </div>
+
+            <div id="ugImportWrap" style="display:none;align-items:center;gap:.75rem;flex-wrap:wrap;padding:.75rem 1rem;border-bottom:1px solid #e2e8f0;background:#f8fafc">
+                <form method="post" action="/admin_settings.php" enctype="multipart/form-data"
+                      style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                    <input type="hidden" name="action" value="import_users">
+                    <input type="hidden" name="tab" value="users">
+                    <input type="file" name="csv_file" accept=".csv" required
+                           style="font-size:.82rem;border:1.5px solid #e2e8f0;border-radius:7px;padding:.3rem .5rem;background:#fff">
+                    <button type="submit" class="btn btn-primary btn-sm" style="padding:.4rem .85rem;font-size:.82rem">Import</button>
+                </form>
+                <span style="font-size:.78rem;color:#94a3b8">
+                    CSV columns: <code>username, email, phone, role, preferred_contact, notes</code>
+                    &bull; Existing usernames are skipped &bull; Imported users must change password on first login
+                    &bull; <a href="/sample_users.csv" download style="color:#2563eb">Download sample CSV</a>
+                </span>
             </div>
 
             <div id="ugBulkBar">

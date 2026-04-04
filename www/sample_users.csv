@@ -1,0 +1,5 @@
+username,email,phone,role,preferred_contact,notes
+jsmith,jsmith@example.com,+12065551234,user,email,Board game nights only
+mjohnson,mjohnson@example.com,+13105559876,user,sms,
+sdavis,sdavis@example.com,,user,both,Allergic to nuts — check snacks
+tbrown,tbrown@example.com,,admin,email,Co-organizer
