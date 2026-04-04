@@ -31,9 +31,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $action        = $_POST['action'] ?? '';
 
-    // Non-admins may only update their own RSVP, self-signup, or remove themselves
-    if (!$isAdmin && $action !== 'update_rsvp' && $action !== 'self_signup' && $action !== 'remove_self') {
-        http_response_code(403); exit('Access denied.');
+    // Permission check: admins can do anything; non-admins are restricted by role and ownership
+    $allowUserEvents = get_setting('allow_user_events', '0') === '1';
+    $canCreateEvents = $isAdmin || ($current && $allowUserEvents);
+
+    if (!$isAdmin) {
+        $ownerActions = ['edit', 'delete', 'delete_occurrence'];
+        if ($action === 'add') {
+            if (!$canCreateEvents) { http_response_code(403); exit('Access denied.'); }
+        } elseif (in_array($action, $ownerActions, true)) {
+            // Allow only if the user owns this event
+            $chkId    = (int)($_POST['id'] ?? 0);
+            $ownerStmt = $db->prepare('SELECT created_by FROM events WHERE id=?');
+            $ownerStmt->execute([$chkId]);
+            $ownerRow = $ownerStmt->fetch();
+            if (!$ownerRow || (int)$ownerRow['created_by'] !== (int)$current['id']) {
+                http_response_code(403); exit('Access denied.');
+            }
+        } elseif (!in_array($action, ['update_rsvp', 'self_signup', 'remove_self'], true)) {
+            http_response_code(403); exit('Access denied.');
+        }
     }
     $inv_usernames = array_map('trim', (array)($_POST['invite_username'] ?? []));
     $inv_phones    = array_map('trim', (array)($_POST['invite_phone']    ?? []));
