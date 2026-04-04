@@ -81,7 +81,7 @@ Schema and migrations live entirely in `db_init()` inside `www/db.php`. New colu
 
 ## Deployment Notes
 
-- Production server: `198.46.254.149` — SSH access via key auth
+- Production server: see memory/reference for IP — SSH access via key auth
 - `www/` is the web root; `config/` and `db/` must stay outside it
 - The container connects to the `npm_default` Docker network for Nginx Proxy Manager
 - `db/` and `uploads/` directories must be owned by `www-data`
