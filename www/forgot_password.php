@@ -28,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Generate token
             $token      = bin2hex(random_bytes(32));
             $token_hash = hash('sha256', $token);
-            $expires    = date('Y-m-d H:i:s', strtotime('+1 hour'));
+            $expires    = gmdate('Y-m-d H:i:s', strtotime('+1 hour'));
 
             $db->prepare('INSERT INTO password_resets (user_id, token_hash, expires_at) VALUES (?, ?, ?)')
                ->execute([$user['id'], $token_hash, $expires]);
