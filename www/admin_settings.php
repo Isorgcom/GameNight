@@ -103,6 +103,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid timezone selected.'];
             } else {
                 set_setting('site_name', $site_name);
+                $site_url = trim($_POST['site_url'] ?? '');
+                set_setting('site_url', $site_url);
                 if ($timezone !== '') set_setting('timezone', $timezone);
                 set_setting('allow_registration', isset($_POST['allow_registration']) ? '1' : '0');
                 set_setting('allow_user_events', isset($_POST['allow_user_events']) ? '1' : '0');
@@ -926,6 +928,14 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                            value="<?= htmlspecialchars($site_name) ?>"
                            autocomplete="off" required>
                     <p class="hint">Shown in the nav bar, page titles, and footer.</p>
+                </div>
+                <div class="form-group">
+                    <label for="site_url">Site URL</label>
+                    <input type="url" id="site_url" name="site_url"
+                           value="<?= htmlspecialchars(get_setting('site_url')) ?>"
+                           placeholder="https://yourdomain.com"
+                           autocomplete="off">
+                    <p class="hint">Full URL (e.g. <code>https://gamenight.example.com</code>). Used in emails and notifications. Leave blank to auto-detect from request.</p>
                 </div>
                 <div class="form-group">
                     <label for="timezone">Timezone</label>
@@ -1973,7 +1983,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
             <p style="font-size:.875rem;color:#475569;margin-bottom:.75rem">
                 Add the following line to your server's crontab (<code>crontab -e</code>) to run reminders every 30 minutes:
             </p>
-            <pre style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:.75rem 1rem;font-size:.8rem;overflow-x:auto;margin-bottom:.75rem">*/30 * * * * curl -s "https://<?= htmlspecialchars($_SERVER['HTTP_HOST'] ?? 'yourdomain.com') ?>/cron.php?token=<?= htmlspecialchars(get_setting('cron_token','YOUR_CRON_TOKEN')) ?>" > /dev/null</pre>
+            <pre style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:.75rem 1rem;font-size:.8rem;overflow-x:auto;margin-bottom:.75rem">*/30 * * * * curl -s "<?= htmlspecialchars(get_site_url()) ?>/cron.php?token=<?= htmlspecialchars(get_setting('cron_token','YOUR_CRON_TOKEN')) ?>" > /dev/null</pre>
             <p style="font-size:.8rem;color:#94a3b8">
                 The cron endpoint sends 2-day and 12-hour reminders to invitees, deduplicating via the
                 <code>event_notifications_sent</code> table so each reminder fires at most once per occurrence.
@@ -2128,7 +2138,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
         <?php endforeach; ?>
 
         <!-- Inbound Webhook URL -->
-        <?php $webhook_url = 'https://' . $_SERVER['HTTP_HOST'] . '/sms_webhook.php'; ?>
+        <?php $webhook_url = get_site_url() . '/sms_webhook.php'; ?>
         <div class="table-card" style="margin-top:1.5rem;max-width:620px">
             <h3>Inbound Webhook URL</h3>
             <p style="font-size:.85rem;color:#64748b;margin:.25rem 0 .75rem">
@@ -2270,14 +2280,14 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                     <tr><td style="color:#64748b">Phone Number ID</td><td>App Dashboard &rsaquo; WhatsApp &rsaquo; API Setup &rsaquo; Phone Number ID</td></tr>
                     <tr><td style="color:#64748b">Access Token</td><td>Create a System User under Business Settings &rsaquo; generate a permanent token with <code>whatsapp_business_messaging</code> permission</td></tr>
                     <tr><td style="color:#64748b">Message Templates</td><td>WhatsApp Manager &rsaquo; Message Templates &mdash; required for messages outside the 24h reply window</td></tr>
-                    <tr><td style="color:#64748b">Webhook (inbound)</td><td>App Dashboard &rsaquo; WhatsApp &rsaquo; Configuration &rsaquo; Webhook URL: <code><?= htmlspecialchars('https://' . $_SERVER['HTTP_HOST'] . '/wa_webhook.php') ?></code></td></tr>
+                    <tr><td style="color:#64748b">Webhook (inbound)</td><td>App Dashboard &rsaquo; WhatsApp &rsaquo; Configuration &rsaquo; Webhook URL: <code><?= htmlspecialchars(get_site_url() . '/wa_webhook.php') ?></code></td></tr>
                     <tr><td style="color:#64748b">Verify Token</td><td>Set in your app's webhook config &mdash; use any secret string</td></tr>
                 </tbody>
             </table>
         </div>
 
         <!-- WhatsApp Webhook URL -->
-        <?php $wa_webhook_url = 'https://' . $_SERVER['HTTP_HOST'] . '/wa_webhook.php'; ?>
+        <?php $wa_webhook_url = get_site_url() . '/wa_webhook.php'; ?>
         <div class="table-card" style="margin-top:1.5rem;max-width:620px">
             <h3>Inbound Webhook URL</h3>
             <p style="font-size:.85rem;color:#64748b;margin:.25rem 0 .75rem">

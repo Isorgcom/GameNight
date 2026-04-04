@@ -167,7 +167,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Notify existing invitees about the change (if checkbox is checked)
                 if (!empty($_POST['notify_invitees']) && !empty($old_inv)) {
                     $month = substr($sd, 0, 7);
-                    $evUrl = 'https://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/calendar.php?m=' . urlencode($month) . '&open=' . $id . '&date=' . urlencode($sd);
+                    $evUrl = get_site_url() . '/calendar.php?m=' . urlencode($month) . '&open=' . $id . '&date=' . urlencode($sd);
                     $ph = implode(',', array_fill(0, count($old_inv), '?'));
                     $existInv = $db->prepare("SELECT ei.username, u.email, u.phone, u.preferred_contact FROM event_invites ei JOIN users u ON LOWER(u.username)=LOWER(ei.username) WHERE ei.event_id=? AND LOWER(ei.username) IN ($ph)");
                     $existInv->execute(array_merge([$id], $old_inv));

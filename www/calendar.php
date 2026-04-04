@@ -138,7 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             require_once __DIR__ . '/mail.php';
             require_once __DIR__ . '/sms.php';
             $date_str  = $sd . ($st ? ' at ' . date('g:i A', strtotime($st)) : '');
-            $base_url  = 'https://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
+            $base_url  = get_site_url();
 
             $build_invite_email = function(string $invite_username) use ($db, $notify_eid, $title, $desc, $date_str, $base_url, $sd, $allowMaybe): ?array {
                 // Look up invite token and email

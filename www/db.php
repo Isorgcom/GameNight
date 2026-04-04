@@ -233,6 +233,14 @@ function set_setting(string $key, string $value): void {
         ->execute([$key, $value]);
 }
 
+function get_site_url(): string {
+    $url = get_setting('site_url');
+    if ($url !== '') return rtrim($url, '/');
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    return $scheme . '://' . $host;
+}
+
 function normalize_phone(string $phone): string {
     $digits = preg_replace('/\D/', '', $phone);
     // Strip leading country code 1

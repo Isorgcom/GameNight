@@ -60,7 +60,7 @@ foreach ($by_date as $date => $evs_on_date) {
 
 $sent_count = 0;
 $site       = get_setting('site_name', 'Game Night');
-$host       = $_SERVER['HTTP_HOST'] ?? (defined('APP_HOST') ? APP_HOST : 'localhost');
+$site_url   = get_site_url();
 
 foreach ($occurrences as $occ) {
     $ev       = $occ['event'];
@@ -101,7 +101,7 @@ foreach ($occurrences as $occ) {
 
     // Build event URL for this occurrence
     $month  = substr($occ_date, 0, 7);
-    $ev_url = 'https://' . $host . '/calendar.php?m=' . urlencode($month)
+    $ev_url = $site_url . '/calendar.php?m=' . urlencode($month)
             . '&open=' . $ev['id'] . '&date=' . urlencode($occ_date);
 
     foreach ($invitees as $uname => $inv) {

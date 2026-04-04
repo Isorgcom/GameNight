@@ -151,7 +151,7 @@ function send_verification_email(int $user_id, string $email, string $username):
        ->execute([$user_id, $hash, $exp]);
 
     $site  = get_setting('site_name', 'Game Night');
-    $url   = 'https://' . $_SERVER['HTTP_HOST'] . '/verify_email.php?token=' . $token;
+    $url   = get_site_url() . '/verify_email.php?token=' . $token;
 
     require_once __DIR__ . '/mail.php';
     $html = '<p>Hi ' . htmlspecialchars($username) . ',</p>'
@@ -196,7 +196,7 @@ function send_invite_notification(string $username, string $email, string $phone
     require_once __DIR__ . '/sms.php';
     $site  = get_setting('site_name', 'Game Night');
     $month = substr($event_start, 0, 7);
-    $url   = 'https://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/calendar.php'
+    $url   = get_site_url() . '/calendar.php'
            . ($event_id > 0 ? '?m=' . urlencode($month) . '&open=' . $event_id . '&date=' . urlencode($event_start) : '');
     if (get_setting('url_shortener_enabled') === '1') {
         $url = shorten_url($url);

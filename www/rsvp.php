@@ -71,7 +71,7 @@ $title = "RSVP: $label";
 $msg   = 'Your RSVP for <strong>' . htmlspecialchars($invite['title']) . '</strong> on ' . htmlspecialchars($date_str) . ' has been set to <strong>' . $label . '</strong>.';
 
 // Build change-mind links
-$base = 'https://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/rsvp.php?token=' . urlencode($token);
+$base = get_site_url() . '/rsvp.php?token=' . urlencode($token);
 $others = array_diff($valid, [$rsvp]);
 $links = '';
 foreach ($others as $alt) {
