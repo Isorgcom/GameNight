@@ -8,6 +8,6 @@ if (!$user || $user['role'] !== 'admin') {
     exit;
 }
 
-// Hand off to Adminer
-header('Location: /phpadmin/adminer.php');
+// Hand off to pla-ng
+header('Location: /phpadmin/phpliteadmin.php');
 exit;

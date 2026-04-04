@@ -38,11 +38,10 @@ if [ ! -f "$VENDOR/quill-better-table/quill-better-table.js" ]; then
 fi
 
 PHPADMIN="/var/www/html/phpadmin"
-if [ ! -f "$PHPADMIN/adminer-src.php" ]; then
-    echo "[entrypoint] Downloading Adminer 4.8.1..."
+if [ ! -f "$PHPADMIN/phpliteadmin.php" ]; then
+    echo "[entrypoint] Downloading pla-ng 2.0.4..."
     mkdir -p "$PHPADMIN"
-    # Download as adminer-src.php; adminer.php is the wrapper that loads config
-    curl -fsSL "https://github.com/vrana/adminer/releases/download/v4.8.1/adminer-4.8.1.php" -o "$PHPADMIN/adminer-src.php"
+    curl -fsSL "https://github.com/emanueleg/pla-ng/releases/download/v2.0.4/phpliteadmin.php" -o "$PHPADMIN/phpliteadmin.php"
 fi
 
 exec docker-php-entrypoint apache2-foreground
