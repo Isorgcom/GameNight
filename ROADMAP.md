@@ -1,13 +1,13 @@
 # GameNight App — Product Roadmap
 
-> **Current version:** v0.015
+> **Current version:** v0.01567
 > Last updated: April 2026
 
 This roadmap outlines the planned development path for GameNight, a self-hosted PHP/SQLite web app for organizing game nights and group events. Milestones are organized by theme and priority, with near-term focus on unblocking SMS messaging and stabilizing WhatsApp, followed by wider public release readiness, and longer-term feature expansion.
 
 ---
 
-## v0.016 — SMS Unblocked
+## v0.018 — SMS Unblocked
 *Theme: Get SMS working in production for real users*
 
 The biggest blocker right now is 10DLC carrier registration. This milestone is entirely focused on getting SMS into a reliable, production-ready state.
@@ -32,7 +32,7 @@ The biggest blocker right now is 10DLC carrier registration. This milestone is e
 
 ---
 
-## v0.017 — WhatsApp Stability & Two-Way Messaging
+## v0.020 — WhatsApp Stability & Two-Way Messaging
 *Theme: Make WhatsApp a first-class, reliable messaging channel*
 
 **WhatsApp Hardening**
@@ -54,7 +54,7 @@ The biggest blocker right now is 10DLC carrier registration. This milestone is e
 
 ---
 
-## v0.018 — Public Release Readiness
+## v0.025 — Public Release Readiness
 *Theme: Make GameNight safe and usable for strangers, not just one friend group*
 
 **Multi-Instance & Isolation**
@@ -81,7 +81,7 @@ The biggest blocker right now is 10DLC carrier registration. This milestone is e
 
 ---
 
-## v0.019 — Documentation & Developer Experience
+## v0.030 — Documentation & Developer Experience
 *Theme: Make it easy to self-host, contribute to, and trust*
 
 **End-User Documentation**
@@ -102,7 +102,7 @@ The biggest blocker right now is 10DLC carrier registration. This milestone is e
 
 ---
 
-## v0.020 — Feature Expansion: Notifications & Engagement
+## v0.040 — Feature Expansion: Notifications & Engagement
 *Theme: Keep people engaged without requiring them to log in*
 
 **Push Notifications (PWA)**
@@ -157,12 +157,12 @@ The biggest blocker right now is 10DLC carrier registration. This milestone is e
 
 | Version | Theme | Status |
 |---------|-------|--------|
-| v0.015 | Auth, calendar, RSVP, posts, SMS/WhatsApp alpha | ✅ Current |
-| v0.016 | SMS unblocked (10DLC guidance, delivery tracking) | 🔜 Next |
-| v0.017 | WhatsApp stability & two-way messaging | 🔜 Planned |
-| v0.018 | Public release readiness | 🔜 Planned |
-| v0.019 | Documentation & developer experience | 🔜 Planned |
-| v0.020 | Push notifications, reminders, calendar integrations | 🔜 Planned |
+| v0.015–v0.017x | Auth, calendar, RSVP, posts, SMS/WhatsApp alpha, UX improvements | ✅ In Progress |
+| v0.018 | SMS unblocked (10DLC guidance, delivery tracking) | 🔜 Next |
+| v0.020 | WhatsApp stability & two-way messaging | 🔜 Planned |
+| v0.025 | Public release readiness | 🔜 Planned |
+| v0.030 | Documentation & developer experience | 🔜 Planned |
+| v0.040 | Push notifications, reminders, calendar integrations | 🔜 Planned |
 | v0.1 | Public launch polish, performance, API | 🔜 Future |
 
 ---
