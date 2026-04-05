@@ -271,6 +271,32 @@ function db_init(PDO $pdo): void {
             "INSERT INTO users (username, password_hash, email, role, must_change_password, email_verified) VALUES (?, ?, ?, 'admin', 1, 1)"
         )->execute(['admin', $hash, 'admin@localhost']);
     }
+
+    // Seed a welcome post if no posts exist
+    $postCount = $pdo->query('SELECT COUNT(*) FROM posts')->fetchColumn();
+    if ((int)$postCount === 0) {
+        $welcomeContent = '<img src="/uploads/header_banner.png" alt="Welcome to Game Night" style="width:100%;border-radius:8px;margin-bottom:1rem">'
+            . '<p style="font-size:1.1rem">Hey there, welcome to <strong>Game Night</strong>! You\'ve just set up your very own hub for organizing game nights, poker tournaments, and get-togethers with friends. This is your home base &mdash; let\'s show you around.</p>'
+            . '<h3>What Can You Do Here?</h3>'
+            . '<ul>'
+            . '<li><strong>Plan Events</strong> &mdash; Create game nights, set the date and time, and invite your crew. Everyone gets notified and can RSVP so you know who\'s showing up.</li>'
+            . '<li><strong>Run Poker Games</strong> &mdash; Got a poker night? Toggle "Poker Game" on any event to unlock the full check-in dashboard. Track buy-ins, rebuys, eliminations, payouts &mdash; the works. Supports both tournaments and cash games.</li>'
+            . '<li><strong>RSVP Tracking</strong> &mdash; No more "wait, are you coming?" texts. Invitees can RSVP Yes, No, or Maybe right from their notification or the calendar.</li>'
+            . '<li><strong>Post Updates</strong> &mdash; Use posts (like this one!) to share news, house rules, trash talk, or anything else with your group.</li>'
+            . '<li><strong>Customize Everything</strong> &mdash; Head to <em>Admin &gt; Settings</em> to change your site name, upload a logo, pick your colors, set your timezone, and configure email/SMS notifications.</li>'
+            . '</ul>'
+            . '<h3>Getting Started</h3>'
+            . '<ol>'
+            . '<li><strong>Change your password</strong> &mdash; You\'re logged in as <code>admin</code> with the default password. Change it now (seriously).</li>'
+            . '<li><strong>Invite your friends</strong> &mdash; Have them sign up, or create their accounts in Admin &gt; Users.</li>'
+            . '<li><strong>Create your first event</strong> &mdash; Hit the Calendar, tap the <strong>+</strong> button, and set up your next game night.</li>'
+            . '<li><strong>Make it yours</strong> &mdash; Upload your own banner, pick a site name, and delete this post when you\'re ready.</li>'
+            . '</ol>'
+            . '<p style="margin-top:1.5rem;padding:1rem;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0">'
+            . 'This post is pinned to the top so new visitors see it first. When you\'re ready to roll, just delete it or unpin it and start posting your own updates. Have fun out there!</p>';
+        $pdo->prepare('INSERT INTO posts (title, content, pinned) VALUES (?, ?, 1)')
+            ->execute(['Welcome to Game Night!', $welcomeContent]);
+    }
 }
 
 function get_setting(string $key, string $default = ''): string {
