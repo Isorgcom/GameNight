@@ -19,6 +19,9 @@ All notable changes to GameNight are documented here.
 - **RSVP Yes filter.** Filter button on check-in screen to show only players who RSVP'd yes.
 - **Game settings panel.** Configure buy-in/rebuy/add-on amounts, rebuys allowed, max rebuys, add-ons allowed, starting chips, number of tables, and payout structure. Switch between tournament and cash game types.
 
+### Fixed
+- **Payout percentages can no longer exceed 100%.** Client-side and server-side validation blocks saving if payout structure totals over 100%.
+
 ### Changed
 - **Sliding toggle switches replace checkboxes.** "Poker Game" and "Don't Notify" on the event form now use sliding yes/no toggles instead of plain checkboxes.
 

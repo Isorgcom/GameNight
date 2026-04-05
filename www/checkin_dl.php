@@ -508,6 +508,13 @@ if ($action === 'update_payouts') {
     $places = $_POST['places'] ?? [];
     $percentages = $_POST['percentages'] ?? [];
 
+    $totalPct = 0;
+    for ($i = 0; $i < count($percentages); $i++) $totalPct += (float)$percentages[$i];
+    if ($totalPct > 100) {
+        echo json_encode(['ok' => false, 'error' => 'Payout percentages cannot exceed 100%']);
+        exit;
+    }
+
     $db->prepare('DELETE FROM poker_payouts WHERE session_id = ?')->execute([$session_id]);
     $ins = $db->prepare('INSERT INTO poker_payouts (session_id, place, percentage) VALUES (?, ?, ?)');
     for ($i = 0; $i < count($places); $i++) {

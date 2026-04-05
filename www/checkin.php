@@ -868,10 +868,15 @@ function saveSettings() {
         // Save payouts too (tournament only)
         var inputs = document.querySelectorAll('.payout-pct');
         if (inputs.length > 0 && SESSION.game_type === 'tournament') {
-            var places = [], pcts = [];
+            var places = [], pcts = [], pctSum = 0;
             for (var i = 0; i < inputs.length; i++) {
                 places.push(inputs[i].getAttribute('data-place'));
                 pcts.push(inputs[i].value);
+                pctSum += parseFloat(inputs[i].value || 0);
+            }
+            if (pctSum > 100) {
+                alert('Payout percentages total ' + pctSum.toFixed(1) + '% — cannot exceed 100%.');
+                return;
             }
             var fd = new FormData();
             fd.append('csrf_token', CSRF);
