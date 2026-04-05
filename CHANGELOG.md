@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.02102] — 2026-04-05
+
+### Fixed
+- **Cashout Enter key.** Pressing Enter in the cashout modal now submits the form. Input is auto-focused and selected when the modal opens.
+
+---
+
 ## [v0.02101] — 2026-04-05
 
 ### Fixed

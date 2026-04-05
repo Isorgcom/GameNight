@@ -822,8 +822,12 @@ function openCashout(pid) {
     var p = PLAYERS.find(function(p) { return parseInt(p.id) === pid; });
     // Pre-fill with total in as a starting suggestion
     var totalIn = p ? playerTotalIn(p) : 0;
-    document.getElementById('cashoutAmount').value = (totalIn / 100).toFixed(2);
+    var inp = document.getElementById('cashoutAmount');
+    inp.value = (totalIn / 100).toFixed(2);
     document.getElementById('cashoutModal').classList.add('open');
+    inp.focus();
+    inp.select();
+    inp.onkeydown = function(e) { if (e.key === 'Enter') saveCashout(); };
 }
 
 function closeCashout() {
