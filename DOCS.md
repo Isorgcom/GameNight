@@ -58,7 +58,7 @@ docker compose up -d --build
 ```
 
 Open your browser to the server's address. Log in with:
-- **Username:** `admin`
+- **Username:** `admin@localhost`
 - **Password:** `admin`
 
 You'll be prompted to change your password immediately.
