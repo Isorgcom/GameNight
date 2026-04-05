@@ -1,13 +1,12 @@
 # GameNight App — Product Roadmap
 
-> **Current version:** v0.01567
 > Last updated: April 2026
 
 This roadmap outlines the planned development path for GameNight, a self-hosted PHP/SQLite web app for organizing game nights and group events. Milestones are organized by theme and priority, with near-term focus on unblocking SMS messaging and stabilizing WhatsApp, followed by wider public release readiness, and longer-term feature expansion.
 
 ---
 
-## v0.018 — SMS Unblocked
+## SMS Unblocked
 *Theme: Get SMS working in production for real users*
 
 The biggest blocker right now is 10DLC carrier registration. This milestone is entirely focused on getting SMS into a reliable, production-ready state.
@@ -32,7 +31,7 @@ The biggest blocker right now is 10DLC carrier registration. This milestone is e
 
 ---
 
-## v0.020 — WhatsApp Stability & Two-Way Messaging
+## WhatsApp Stability & Two-Way Messaging
 *Theme: Make WhatsApp a first-class, reliable messaging channel*
 
 **WhatsApp Hardening**
@@ -54,7 +53,7 @@ The biggest blocker right now is 10DLC carrier registration. This milestone is e
 
 ---
 
-## v0.025 — Public Release Readiness
+## Public Release Readiness
 *Theme: Make GameNight safe and usable for strangers, not just one friend group*
 
 **Multi-Instance & Isolation**
@@ -81,7 +80,7 @@ The biggest blocker right now is 10DLC carrier registration. This milestone is e
 
 ---
 
-## v0.030 — Documentation & Developer Experience
+## Documentation & Developer Experience
 *Theme: Make it easy to self-host, contribute to, and trust*
 
 **End-User Documentation**
@@ -102,7 +101,7 @@ The biggest blocker right now is 10DLC carrier registration. This milestone is e
 
 ---
 
-## v0.040 — Feature Expansion: Notifications & Engagement
+## Feature Expansion: Notifications & Engagement
 *Theme: Keep people engaged without requiring them to log in*
 
 **Push Notifications (PWA)**
@@ -121,7 +120,7 @@ The biggest blocker right now is 10DLC carrier registration. This milestone is e
 
 ---
 
-## v0.1 — Wider Public Launch
+## Wider Public Launch
 *Theme: Stable, polished, and ready for a broader audience*
 
 **Polish & UX**
@@ -153,17 +152,16 @@ The biggest blocker right now is 10DLC carrier registration. This milestone is e
 
 ---
 
-## Version Summary
+## Milestone Summary
 
-| Version | Theme | Status |
-|---------|-------|--------|
-| v0.015–v0.017x | Auth, calendar, RSVP, posts, SMS/WhatsApp alpha, UX improvements | ✅ In Progress |
-| v0.018 | SMS unblocked (10DLC guidance, delivery tracking) | 🔜 Next |
-| v0.020 | WhatsApp stability & two-way messaging | 🔜 Planned |
-| v0.025 | Public release readiness | 🔜 Planned |
-| v0.030 | Documentation & developer experience | 🔜 Planned |
-| v0.040 | Push notifications, reminders, calendar integrations | 🔜 Planned |
-| v0.1 | Public launch polish, performance, API | 🔜 Future |
+| Theme | Status |
+|-------|--------|
+| SMS unblocked (10DLC guidance, delivery tracking) | 🔜 Next |
+| WhatsApp stability & two-way messaging | 🔜 Planned |
+| Public release readiness | 🔜 Planned |
+| Documentation & developer experience | 🔜 Planned |
+| Push notifications, reminders, calendar integrations | 🔜 Planned |
+| Public launch polish, performance, API | 🔜 Future |
 
 ---
 
