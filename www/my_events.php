@@ -44,10 +44,10 @@ function fmt_date(string $date, ?string $time, DateTimeZone $tz): string {
 }
 
 function rsvp_badge(?string $rsvp): string {
-    if ($rsvp === 'yes')   return '<span style="background:#dcfce7;color:#166534;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">Yes</span>';
-    if ($rsvp === 'no')    return '<span style="background:#fee2e2;color:#991b1b;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">No</span>';
-    if ($rsvp === 'maybe') return '<span style="background:#fef9c3;color:#854d0e;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">Maybe</span>';
-    return '<span style="background:#f1f5f9;color:#64748b;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">No response</span>';
+    if ($rsvp === 'yes')   return '<span class="me-badge" style="background:#dcfce7;color:#166534;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">Yes</span>';
+    if ($rsvp === 'no')    return '<span class="me-badge" style="background:#fee2e2;color:#991b1b;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">No</span>';
+    if ($rsvp === 'maybe') return '<span class="me-badge" style="background:#fef9c3;color:#854d0e;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">Maybe</span>';
+    return '<span class="me-badge" style="background:#f1f5f9;color:#64748b;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">No response</span>';
 }
 ?>
 <!DOCTYPE html>
@@ -57,6 +57,12 @@ function rsvp_badge(?string $rsvp): string {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Events — <?= htmlspecialchars($site_name) ?></title>
     <link rel="stylesheet" href="/style.css">
+    <style>
+        @media (max-width: 1024px) {
+            .me-view-btn { min-height:44px !important;font-size:.9rem !important;padding:.5rem .85rem !important;display:inline-flex;align-items:center; }
+            .me-badge { padding:.2rem .6rem !important;font-size:.8rem !important; }
+        }
+    </style>
 </head>
 <body>
 
@@ -91,9 +97,9 @@ function rsvp_badge(?string $rsvp): string {
                     </a>
                     <?= rsvp_badge($ev['rsvp']) ?>
                     <?php if ($ev['is_creator']): ?>
-                    <span style="background:#ede9fe;color:#5b21b6;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">Organizer</span>
+                    <span class="me-badge" style="background:#ede9fe;color:#5b21b6;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">Organizer</span>
                     <?php if (!empty($ev['is_poker'])): ?>
-                    <a href="/checkin.php?event_id=<?= $ev['id'] ?>" style="background:#059669;color:#fff;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600;text-decoration:none">Manage Game</a>
+                    <a href="/checkin.php?event_id=<?= $ev['id'] ?>" class="me-badge" style="background:#059669;color:#fff;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600;text-decoration:none">Manage Game</a>
                     <?php endif; ?>
                     <?php endif; ?>
                 </div>
@@ -112,7 +118,7 @@ function rsvp_badge(?string $rsvp): string {
                 <?php endif; ?>
             </div>
             <a href="<?= htmlspecialchars($cal_url) ?>"
-               style="flex-shrink:0;font-size:.8rem;color:#2563eb;text-decoration:none;white-space:nowrap;padding:.3rem .7rem;border:1px solid #bfdbfe;border-radius:6px">
+               class="me-view-btn" style="flex-shrink:0;font-size:.8rem;color:#2563eb;text-decoration:none;white-space:nowrap;padding:.3rem .7rem;border:1px solid #bfdbfe;border-radius:6px">
                 View
             </a>
         </div>

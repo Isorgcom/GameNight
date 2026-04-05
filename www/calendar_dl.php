@@ -35,17 +35,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $allowUserEvents = get_setting('allow_user_events', '0') === '1';
     $canCreateEvents = $isAdmin || ($current && $allowUserEvents);
 
+    // Helper: check if current user is a manager of the given event
+    $isEventManager = function(int $eid) use ($db, $current): bool {
+        if (!$current) return false;
+        $ms = $db->prepare("SELECT 1 FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND event_role='manager' LIMIT 1");
+        $ms->execute([$eid, $current['username']]);
+        return (bool)$ms->fetch();
+    };
+
     if (!$isAdmin) {
         $ownerActions = ['edit', 'delete', 'delete_occurrence'];
         if ($action === 'add') {
             if (!$canCreateEvents) { http_response_code(403); exit('Access denied.'); }
         } elseif (in_array($action, $ownerActions, true)) {
-            // Allow only if the user owns this event
+            // Allow if the user owns this event or is a manager
             $chkId    = (int)($_POST['id'] ?? 0);
             $ownerStmt = $db->prepare('SELECT created_by FROM events WHERE id=?');
             $ownerStmt->execute([$chkId]);
             $ownerRow = $ownerStmt->fetch();
-            if (!$ownerRow || (int)$ownerRow['created_by'] !== (int)$current['id']) {
+            $isOwner = $ownerRow && (int)$ownerRow['created_by'] === (int)$current['id'];
+            if (!$isOwner && !$isEventManager($chkId)) {
                 http_response_code(403); exit('Access denied.');
             }
         } elseif (!in_array($action, ['update_rsvp', 'self_signup', 'remove_self'], true)) {
@@ -56,15 +65,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $inv_phones    = array_map('trim', (array)($_POST['invite_phone']    ?? []));
     $inv_emails    = array_map('trim', (array)($_POST['invite_email']    ?? []));
     $inv_rsvps     = array_map('trim', (array)($_POST['invite_rsvp']     ?? []));
+    $inv_roles     = array_map('trim', (array)($_POST['invite_role']     ?? []));
     $valid_rsvps   = ['', 'yes', 'no', 'maybe'];
-    $save_invites  = function(int $eid) use ($db, $inv_usernames, $inv_phones, $inv_emails, $inv_rsvps, $valid_rsvps): void {
+    $save_invites  = function(int $eid) use ($db, $inv_usernames, $inv_phones, $inv_emails, $inv_rsvps, $inv_roles, $valid_rsvps): void {
         $db->prepare('DELETE FROM event_invites WHERE event_id=?')->execute([$eid]);
-        $ins = $db->prepare('INSERT INTO event_invites (event_id, username, phone, email, rsvp) VALUES (?, ?, ?, ?, ?)');
+        $ins = $db->prepare('INSERT INTO event_invites (event_id, username, phone, email, rsvp, event_role) VALUES (?, ?, ?, ?, ?, ?)');
         for ($i = 0; $i < count($inv_usernames); $i++) {
             if ($inv_usernames[$i] === '') continue;
             $rsvp = in_array($inv_rsvps[$i] ?? '', $valid_rsvps, true) ? ($inv_rsvps[$i] ?: null) : null;
+            $role = in_array($inv_roles[$i] ?? '', ['invitee', 'manager'], true) ? $inv_roles[$i] : 'invitee';
             $phone_norm = $inv_phones[$i] !== '' ? normalize_phone($inv_phones[$i]) : '';
-            $ins->execute([$eid, strtolower($inv_usernames[$i]), $phone_norm ?: null, $inv_emails[$i] ?: null, $rsvp]);
+            $ins->execute([$eid, strtolower($inv_usernames[$i]), $phone_norm ?: null, $inv_emails[$i] ?: null, $rsvp, $role]);
         }
     };
 

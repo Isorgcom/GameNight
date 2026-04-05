@@ -835,6 +835,25 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
             border-radius: 7px; font-size: .95rem; background: #f8fafc;
         }
         .modal select:focus { outline: none; border-color: #2563eb; background: #fff; }
+
+        /* ── Mobile/tablet touch optimization ── */
+        @media (max-width: 1024px) {
+            .tabs { overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap; }
+            .tab-btn { white-space:nowrap;padding:.55rem .85rem;font-size:.85rem; }
+            #usersGrid { font-size:.9rem; }
+            .ug-cell-input { font-size:1rem;padding:.5rem .6rem;min-height:44px; }
+            .ug-cell-select { font-size:1rem;padding:.5rem .4rem;min-height:44px; }
+            input[type="checkbox"] { width:22px;height:22px; }
+            .ug-del-btn, .ug-edit-btn { padding:.4rem .6rem; }
+            .btn-icon { width:40px;height:40px; }
+            .ug-toolbar { padding:.75rem .75rem;gap:.5rem; }
+            .ug-toolbar input { font-size:1rem;min-height:44px; }
+            .ug-toolbar .btn, .ug-toolbar button { min-height:44px;font-size:.85rem; }
+            #ugBulkBar { margin:.75rem .75rem;font-size:.9rem; }
+            #ugBulkBar select { font-size:1rem;min-height:40px;padding:.35rem .5rem; }
+            #ugBulkBar button { min-height:40px; }
+            .modal select { font-size:1rem;min-height:44px; }
+        }
     </style>
 </head>
 <body>

@@ -26,9 +26,14 @@ function verify_event_access($db, $event_id, $current, $isAdmin) {
         exit;
     }
     if (!$isAdmin && (int)$event['created_by'] !== (int)$current['id']) {
-        http_response_code(403);
-        echo json_encode(['ok' => false, 'error' => 'Access denied']);
-        exit;
+        // Check if user is a manager of this event
+        $mgrStmt = $db->prepare("SELECT 1 FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND event_role='manager' LIMIT 1");
+        $mgrStmt->execute([$event_id, $current['username']]);
+        if (!$mgrStmt->fetch()) {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'Access denied']);
+            exit;
+        }
     }
 }
 

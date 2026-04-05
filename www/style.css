@@ -320,8 +320,8 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
     .nav-mobile-divider { display: block !important; }
 }
 
-/* Mobile */
-@media (max-width: 640px) {
+/* Mobile + Tablet */
+@media (max-width: 1024px) {
     /* ── Nav ── */
     .nav-top { padding: 0 0.5rem; height: 48px; }
     nav .brand img { max-height: 32px !important; width: auto; }

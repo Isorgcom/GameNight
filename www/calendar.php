@@ -6,6 +6,13 @@ $current = current_user();
 $isAdmin = $current && $current['role'] === 'admin';
 $allowUserEvents = get_setting('allow_user_events', '0') === '1';
 $canCreateEvents = $isAdmin || ($current && $allowUserEvents);
+$isAnyEventManager = false;
+if ($current && !$isAdmin) {
+    $mgrCheck = $db->prepare("SELECT 1 FROM event_invites WHERE LOWER(username)=LOWER(?) AND event_role='manager' LIMIT 1");
+    $mgrCheck->execute([$current['username']]);
+    $isAnyEventManager = (bool)$mgrCheck->fetch();
+}
+$canEditEvents = $canCreateEvents || $isAnyEventManager;
 $allUsers   = $db->query('SELECT username, email, phone FROM users ORDER BY username')->fetchAll();
 $allowMaybe = get_setting('allow_maybe_rsvp', '1') === '1';
 
@@ -34,11 +41,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $action        = $_POST['action'] ?? '';
 
+    // Helper: check if current user is a manager of the given event
+    $isEventManager = function(int $eid) use ($db, $current): bool {
+        if (!$current) return false;
+        $ms = $db->prepare("SELECT 1 FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND event_role='manager' LIMIT 1");
+        $ms->execute([$eid, $current['username']]);
+        return (bool)$ms->fetch();
+    };
+
     // Non-admins may only update their own RSVP, self-signup, or self-remove
     // When allow_user_events is on, logged-in users can also add/edit/delete their own events
+    // Event managers can also edit/delete events they manage
     $userEventActions = ['add', 'edit', 'delete', 'delete_occurrence'];
     if (!$isAdmin && !in_array($action, ['update_rsvp', 'self_signup', 'self_remove'], true)) {
-        if (!$canCreateEvents || !in_array($action, $userEventActions, true)) {
+        $chkIdForMgr = (int)($_POST['id'] ?? 0);
+        $isMgr = ($chkIdForMgr > 0 && in_array($action, ['edit', 'delete', 'delete_occurrence'], true)) ? $isEventManager($chkIdForMgr) : false;
+        if (!$isMgr && (!$canCreateEvents || !in_array($action, $userEventActions, true))) {
             http_response_code(403); exit('Access denied.');
         }
     }
@@ -46,10 +64,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $inv_phones    = array_map('trim', (array)($_POST['invite_phone']    ?? []));
     $inv_emails    = array_map('trim', (array)($_POST['invite_email']    ?? []));
     $inv_rsvps     = array_map('trim', (array)($_POST['invite_rsvp']     ?? []));
+    $inv_roles     = array_map('trim', (array)($_POST['invite_role']     ?? []));
     $valid_rsvps   = array_merge(['', 'yes', 'no'], $allowMaybe ? ['maybe'] : []);
     // occurrence_date: null = manage base (all occurrences), date = manage this date only
     $invite_occ_date = (preg_match('/^\d{4}-\d{2}-\d{2}$/', $_POST['occurrence_date'] ?? '')) ? $_POST['occurrence_date'] : null;
-    $save_invites  = function(int $eid, array &$new_usernames = []) use ($db, $inv_usernames, $inv_phones, $inv_emails, $inv_rsvps, $valid_rsvps, $invite_occ_date): void {
+    $save_invites  = function(int $eid, array &$new_usernames = []) use ($db, $inv_usernames, $inv_phones, $inv_emails, $inv_rsvps, $inv_roles, $valid_rsvps, $invite_occ_date): void {
         if ($invite_occ_date) {
             // Occurrence-specific: only manage rows for this date; leave base rows untouched
             $old = $db->prepare('SELECT LOWER(username) as uname FROM event_invites WHERE event_id=? AND occurrence_date=?');
@@ -64,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db->prepare('DELETE FROM event_invites WHERE event_id=? AND occurrence_date IS NULL')->execute([$eid]);
         }
 
-        $ins = $db->prepare('INSERT INTO event_invites (event_id, username, phone, email, rsvp, rsvp_token, occurrence_date) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        $ins = $db->prepare('INSERT INTO event_invites (event_id, username, phone, email, rsvp, rsvp_token, occurrence_date, event_role) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
         // Build a lookup of user contact info for auto-filling
         $userLookup = [];
         $uAll = $db->query('SELECT username, email, phone FROM users ORDER BY username')->fetchAll();
@@ -73,13 +92,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         for ($i = 0; $i < count($inv_usernames); $i++) {
             if ($inv_usernames[$i] === '') continue;
             $rsvp = in_array($inv_rsvps[$i] ?? '', $valid_rsvps, true) ? ($inv_rsvps[$i] ?: null) : null;
+            $role = in_array($inv_roles[$i] ?? '', ['invitee', 'manager'], true) ? $inv_roles[$i] : 'invitee';
             // Auto-fill phone/email from user record if not provided
             $uKey = strtolower($inv_usernames[$i]);
             $phone_raw = $inv_phones[$i] !== '' ? $inv_phones[$i] : ($userLookup[$uKey]['phone'] ?? '');
             $email_raw = $inv_emails[$i] !== '' ? $inv_emails[$i] : ($userLookup[$uKey]['email'] ?? '');
             $phone_norm = $phone_raw !== '' ? normalize_phone($phone_raw) : '';
             $token = bin2hex(random_bytes(16));
-            $ins->execute([$eid, strtolower($inv_usernames[$i]), $phone_norm ?: null, $email_raw ?: null, $rsvp, $token, $invite_occ_date]);
+            $ins->execute([$eid, strtolower($inv_usernames[$i]), $phone_norm ?: null, $email_raw ?: null, $rsvp, $token, $invite_occ_date, $role]);
             // Only track new invitees for base (all-occurrence) saves so notifications go out
             if (!$invite_occ_date && !in_array(strtolower($inv_usernames[$i]), $old_names, true)) {
                 $new_usernames[] = strtolower($inv_usernames[$i]);
@@ -87,14 +107,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     };
 
-    // Ownership check: non-admins can only edit/delete their own events
+    // Ownership check: non-admins can only edit/delete their own events or events they manage
     if (!$isAdmin && in_array($action, ['edit', 'delete', 'delete_occurrence'], true)) {
         $chkId = (int)($_POST['id'] ?? 0);
         if ($chkId > 0) {
             $ownerStmt = $db->prepare('SELECT created_by FROM events WHERE id=?');
             $ownerStmt->execute([$chkId]);
             $ownerRow = $ownerStmt->fetch();
-            if (!$ownerRow || (int)$ownerRow['created_by'] !== (int)$current['id']) {
+            $isOwner = $ownerRow && (int)$ownerRow['created_by'] === (int)$current['id'];
+            if (!$isOwner && !$isEventManager($chkId)) {
                 http_response_code(403); exit('You can only modify your own events.');
             }
         }
@@ -455,7 +476,7 @@ $ev_invites     = [];  // [eid][] — base rows (occurrence_date IS NULL)
 $ev_invites_occ = [];  // [eid][occ_date][] — per-occurrence rows
 if (!empty($allPageEids)) {
     $iph = implode(',', array_fill(0, count($allPageEids), '?'));
-    $is  = $db->prepare("SELECT event_id, username, phone, email, rsvp, occurrence_date FROM event_invites WHERE event_id IN ($iph) ORDER BY username");
+    $is  = $db->prepare("SELECT event_id, username, phone, email, rsvp, occurrence_date, event_role FROM event_invites WHERE event_id IN ($iph) ORDER BY username");
     $is->execute($allPageEids);
     foreach ($is->fetchAll() as $inv) {
         if ($inv['occurrence_date'] === null) {
@@ -465,10 +486,34 @@ if (!empty($allPageEids)) {
         }
     }
 }
-// Non-admins only see username + rsvp (no contact details)
+// Build list of event IDs the current user manages
+$managedEventIds = [];
+if ($current && !$isAdmin) {
+    foreach ($ev_invites as $eid => $_invList) {
+        foreach ($_invList as $_inv) {
+            if (strcasecmp($_inv['username'], $current['username']) === 0 && ($_inv['event_role'] ?? '') === 'manager') {
+                $managedEventIds[] = (int)$eid;
+            }
+        }
+    }
+}
+
+// Build set of event IDs where current user is creator (for contact visibility)
+$createdEventIds = [];
+if ($current && !$isAdmin && !empty($allPageEids)) {
+    $cph = implode(',', array_fill(0, count($allPageEids), '?'));
+    $cStmt = $db->prepare("SELECT id FROM events WHERE id IN ($cph) AND created_by = ?");
+    $cStmt->execute(array_merge($allPageEids, [(int)$current['id']]));
+    $createdEventIds = array_map('intval', $cStmt->fetchAll(PDO::FETCH_COLUMN));
+}
+$canSeeContactEids = array_unique(array_merge($managedEventIds, $createdEventIds));
+
+// Non-admins only see username + rsvp (no contact details) — except managers/creators see contacts for their events
 if (!$isAdmin) {
-    foreach ($ev_invites as &$_invList) {
-        foreach ($_invList as &$_inv) { unset($_inv['phone'], $_inv['email']); }
+    foreach ($ev_invites as $eid => &$_invList) {
+        if (!in_array((int)$eid, $canSeeContactEids, true)) {
+            foreach ($_invList as &$_inv) { unset($_inv['phone'], $_inv['email']); }
+        }
     }
     foreach ($ev_invites_occ as &$_occMap) {
         foreach ($_occMap as &$_invList) {
@@ -751,9 +796,17 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         .edit-hdr-dur input { width:4.5rem;padding:.45rem .5rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.875rem;text-align:center; }
         .edit-hdr-dur input:focus { outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
         .edit-hdr-dur span { font-size:.8rem;color:#64748b;white-space:nowrap; }
-        .edit-time-selects { display:flex;gap:.25rem; }
-        .edit-time-selects select { padding:.42rem .3rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.875rem;background:#fff;cursor:pointer; }
-        .edit-time-selects select:focus { outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
+        #eTimeNative:focus { outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
+
+        /* Manager toggle in invite pane */
+        .inv-name-text { flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis; }
+        .mgr-toggle { display:inline-flex;align-items:center;gap:.25rem;margin-left:auto;cursor:pointer;flex-shrink:0;user-select:none; }
+        .mgr-label { font-size:.65rem;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.03em; }
+        .pk-toggle-sm { position:relative;width:28px;height:16px;background:#cbd5e1;border-radius:99px;transition:background .2s;flex-shrink:0; }
+        .pk-toggle-sm::after { content:'';position:absolute;top:2px;left:2px;width:12px;height:12px;background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 1px 2px rgba(0,0,0,.2); }
+        .pk-toggle-input:checked + .pk-toggle-sm { background:#7c3aed; }
+        .pk-toggle-input:checked + .pk-toggle-sm::after { transform:translateX(12px); }
+        #eInvitedList li[data-iname] { display:flex;align-items:center;gap:.4rem; }
 
         /* Invite panel */
         .edit-invite-panel { display:grid;grid-template-columns:1fr 1fr;gap:.75rem;padding:0 1.25rem;flex-shrink:0; }
@@ -798,16 +851,13 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         .color-swatch.selected,
         .color-swatch:hover { border-color: #1e293b; }
 
-        @media (max-width: 640px) {
+        @media (max-width: 1024px) {
             /* Stack header fields vertically */
             .edit-header-row { flex-wrap:wrap;align-items:center;gap:.75rem;padding:1rem; }
             #eColorDotWrap { order:-1; }
             .edit-title-input { order:-1;flex:1 1 calc(100% - 50px);height:auto; }
-            .edit-hdr-field { width:calc(50% - .5rem); }
             .edit-hdr-field { width:100%; }
             .edit-hdr-label { font-size:.85rem; }
-            .edit-time-selects { gap:.5rem; }
-            .edit-time-selects select,
             .edit-hdr-field select,
             .edit-hdr-field input,
             .edit-hdr-dur select { min-height:44px;font-size:1rem;padding:.4rem .5rem; }
@@ -818,6 +868,8 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             .invite-pane { height:200px; }
             .invite-pane-list li { padding:.5rem .75rem;font-size:.95rem; }
             .invite-pane input[type="text"] { min-height:44px;font-size:1rem; }
+            #eAllUsersList li:not(.dimmed):not(.custom-row)::after { content:'+';float:right;color:#22c55e;font-weight:700;font-size:1.1rem; }
+            #eInvitedList li[data-iname]::after { content:'\00d7';float:right;color:#dc2626;font-weight:700;font-size:1.1rem; }
 
             /* Bottom actions full-width */
             .edit-bottom-row { grid-template-columns:1fr;gap:.75rem;padding:.75rem 1rem 1rem; }
@@ -862,10 +914,19 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         .color-swatch.selected,
         .color-swatch:hover { border-color: #1e293b; }
 
-        @media (max-width: 640px) {
-            /* Month view: already handled by global style.css breakpoint */
+        @media (max-width: 1024px) {
+            /* Month view */
             .cal-header { gap: .5rem; }
             .cal-nav .month-label { min-width: 120px; font-size: .9rem; }
+
+            /* Show hover-only buttons on touch devices (touch has no hover) */
+            .cal-event .ev-edit-btn { display:block;padding:2px 6px;font-size:.85rem; }
+            .cal-add-btn { display:flex !important;width:28px;height:28px; }
+            .week-allday-chip .ev-edit-btn { display:block;font-size:.75rem;padding:2px 6px; }
+            .week-event .ev-edit-btn { display:block;padding:4px 6px;font-size:.8rem; }
+
+            /* Bigger RSVP selects */
+            .inv-rsvp-sel { min-height:36px;font-size:.85rem !important;padding:.3rem .5rem !important; }
 
             /* Week view: constrain to viewport, scroll internally */
             .week-outer {
@@ -977,7 +1038,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
                             <?php endif; ?>
                             <?= htmlspecialchars($ev['title']) ?>
                         </span>
-                        <?php if ($isAdmin || ($canCreateEvents && (int)$ev['created_by'] === (int)$current['id'])): ?>
+                        <?php if ($isAdmin || ($canCreateEvents && (int)$ev['created_by'] === (int)$current['id']) || in_array((int)$ev['id'], $managedEventIds, true)): ?>
                         <button class="ev-edit-btn" title="Edit event"
                                 onclick="event.stopPropagation();openEditModal(<?= htmlspecialchars(json_encode($ev)) ?>)">&#9998;</button>
                         <?php endif; ?>
@@ -1039,7 +1100,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
                     <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">
                         <?= htmlspecialchars($ev['title']) ?>
                     </span>
-                    <?php if ($isAdmin || ($canCreateEvents && (int)$ev['created_by'] === (int)$current['id'])): ?>
+                    <?php if ($isAdmin || ($canCreateEvents && (int)$ev['created_by'] === (int)$current['id']) || in_array((int)$ev['id'], $managedEventIds, true)): ?>
                     <button class="ev-edit-btn" title="Edit event"
                             onclick="event.stopPropagation();openEditModal(<?= htmlspecialchars(json_encode($ev)) ?>)">&#9998;</button>
                     <?php endif; ?>
@@ -1131,7 +1192,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             <?php endif; ?>
         </div>
         <?php endif; ?>
-        <?php if ($canCreateEvents): ?>
+        <?php if ($canEditEvents): ?>
         <div class="ev-view-actions" id="vEventActions" style="display:none">
             <a id="vManageGameBtn" href="#" class="btn" style="background:#059669;color:#fff;text-decoration:none">Manage Game</a>
             <button type="button" class="btn btn-primary" onclick="editFromView()">Edit</button>
@@ -1199,7 +1260,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
     </div>
 </div>
 
-<?php if ($canCreateEvents): ?>
+<?php if ($canEditEvents): ?>
 <!-- ── Add / Edit Event Modal ── -->
 <div class="modal-overlay" id="editModal" onclick="if(event.target===this)closeEdit()">
     <div class="modal">
@@ -1235,24 +1296,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
                 </div>
                 <div class="edit-hdr-field">
                     <span class="edit-hdr-label">Start Time</span>
-                    <div class="edit-time-selects">
-                        <select id="eTimeHour">
-                            <option value="">--</option>
-                            <?php for ($h = 1; $h <= 12; $h++): ?>
-                            <option value="<?= $h ?>"><?= $h ?></option>
-                            <?php endfor; ?>
-                        </select>
-                        <select id="eTimeMin">
-                            <option value="00">00</option>
-                            <option value="15">15</option>
-                            <option value="30">30</option>
-                            <option value="45">45</option>
-                        </select>
-                        <select id="eTimeAmPm">
-                            <option value="AM">AM</option>
-                            <option value="PM">PM</option>
-                        </select>
-                    </div>
+                    <input type="time" id="eTimeNative" style="padding:.42rem .5rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.875rem;">
                     <input type="hidden" name="start_time" id="eStartTime">
                 </div>
                 <div class="edit-hdr-field">
@@ -1278,7 +1322,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             <div class="edit-invite-panel">
                 <!-- Left: all users -->
                 <div class="invite-pane">
-                    <div class="invite-pane-header">All Users &mdash; double-click to invite</div>
+                    <div class="invite-pane-header">All Users &mdash; <span class="invite-action-hint">double-click</span> to invite</div>
                     <input type="text" id="eUserSearch" class="invite-pane-search"
                            placeholder="<?= $isAdmin ? 'Search name, email, phone&hellip;' : 'Search name&hellip;' ?>"
                            oninput="filterAllUsers(this.value)" autocomplete="off">
@@ -1286,7 +1330,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
                 </div>
                 <!-- Right: invited users -->
                 <div class="invite-pane">
-                    <div class="invite-pane-header">Invited &mdash; double-click to remove</div>
+                    <div class="invite-pane-header">Invited &mdash; <span class="invite-action-hint">double-click</span> to remove</div>
                     <ul class="invite-pane-list" id="eInvitedList"></ul>
                 </div>
             </div>
@@ -1338,7 +1382,8 @@ const CAL_CURRENT_ID    = <?= json_encode((int)($current['id'] ?? 0)) ?>;
 const IS_ADMIN = <?= $isAdmin ? 'true' : 'false' ?>;
 const CAN_CREATE_EVENTS = <?= $canCreateEvents ? 'true' : 'false' ?>;
 const ALLOW_MAYBE = <?= $allowMaybe ? 'true' : 'false' ?>;
-<?php if ($canCreateEvents): ?>
+const MANAGED_EVENT_IDS = <?= json_encode(array_values($managedEventIds)) ?>;
+<?php if ($canEditEvents): ?>
 <?php if ($isAdmin): ?>
 const ALL_USERS = <?= json_encode(array_values($allUsers)) ?>;
 <?php else: ?>
@@ -1399,10 +1444,10 @@ function viewEvent(ev) {
     if (vLoginBtn) vLoginBtn.href = '/login.php?redirect=' + encodeURIComponent(_evRedir);
     const vSignupLink = document.getElementById('vSignupLink');
     if (vSignupLink) vSignupLink.href = '/register.php?redirect=' + encodeURIComponent(_evRedir);
-    window._calCanManage = IS_ADMIN || (CURRENT_USER_ID && ev.created_by == CURRENT_USER_ID);
+    window._calCanManage = IS_ADMIN || (CURRENT_USER_ID && ev.created_by == CURRENT_USER_ID) || MANAGED_EVENT_IDS.includes(ev.id);
     renderInvitesPanel(ev.id);
-    <?php if ($canCreateEvents): ?>
-    // Show edit/delete actions only for admins or event owner
+    <?php if ($canEditEvents): ?>
+    // Show edit/delete actions only for admins, event owner, or managers
     const canManageThis = window._calCanManage;
     const actionsDiv = document.getElementById('vEventActions');
     if (actionsDiv) actionsDiv.style.display = canManageThis ? '' : 'none';
@@ -1939,7 +1984,7 @@ function prepareCalBulkDelete(form) {
     return true;
 }
 
-<?php if ($canCreateEvents): ?>
+<?php if ($canEditEvents): ?>
 // ── Edit / Add modal ──────────────────────────────────────────────────────────
 function openAddModal(date) {
     openEditModal(null);
@@ -1975,6 +2020,13 @@ function selectColor(c) {
 }
 selectColor('#2563eb');
 
+// ── Mobile detection for invite tap behavior ────────────────────────────────
+const isMobileInvite = window.matchMedia('(max-width: 1024px)').matches;
+(function() {
+    const hints = document.querySelectorAll('.invite-action-hint');
+    if (isMobileInvite) hints.forEach(el => el.textContent = 'tap');
+})();
+
 // ── All-users pane ────────────────────────────────────────────────────────────
 function buildAllUsersList() {
     const ul = document.getElementById('eAllUsersList');
@@ -1988,8 +2040,8 @@ function buildAllUsersList() {
         li.dataset.uemail   = u.email   || '';
         li.dataset.uphone   = u.phone   || '';
         li.textContent = u.username;
-        li.title = 'Double-click to invite';
-        li.addEventListener('dblclick', () => inviteUser(li.dataset.uname, li.dataset.uphone, li.dataset.uemail));
+        li.title = isMobileInvite ? 'Tap to invite' : 'Double-click to invite';
+        li.addEventListener(isMobileInvite ? 'click' : 'dblclick', () => inviteUser(li.dataset.uname, li.dataset.uphone, li.dataset.uemail));
         ul.appendChild(li);
     });
 }
@@ -2007,7 +2059,7 @@ function filterAllUsers(q) {
 }
 
 // ── Invited pane ──────────────────────────────────────────────────────────────
-function inviteUser(username, phone, email, rsvp) {
+function inviteUser(username, phone, email, rsvp, role) {
     // Skip if already invited
     const existing = Array.from(document.querySelectorAll('#eInvitedList li[data-iname]'))
         .map(li => li.dataset.iname.toLowerCase());
@@ -2018,9 +2070,38 @@ function inviteUser(username, phone, email, rsvp) {
     li.dataset.iphone = phone  || '';
     li.dataset.iemail = email  || '';
     li.dataset.irsvp  = rsvp   || '';
-    li.textContent = username;
-    li.title = 'Double-click to remove';
-    li.addEventListener('dblclick', () => removeInvite(username));
+    li.dataset.irole  = role   || 'invitee';
+
+    // Build content: name + manager toggle (only for admins/creators)
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = username;
+    nameSpan.className = 'inv-name-text';
+    li.appendChild(nameSpan);
+
+    // Manager toggle — only shown to admins and event creators
+    const editingEvId = parseInt(document.getElementById('eId').value) || 0;
+    const editingCreatedBy = currentEvent ? currentEvent.created_by : null;
+    const canGrantManager = IS_ADMIN || (CURRENT_USER_ID && editingCreatedBy == CURRENT_USER_ID);
+    if (canGrantManager) {
+        const tog = document.createElement('label');
+        tog.className = 'mgr-toggle';
+        tog.title = 'Grant manager access';
+        tog.innerHTML = '<input type="checkbox" class="pk-toggle-input mgr-toggle-cb"' + (li.dataset.irole === 'manager' ? ' checked' : '') + '><span class="pk-toggle-slider pk-toggle-sm"></span><span class="mgr-label">Mgr</span>';
+        tog.querySelector('.mgr-toggle-cb').addEventListener('change', function(e) {
+            e.stopPropagation();
+            li.dataset.irole = this.checked ? 'manager' : 'invitee';
+        });
+        tog.addEventListener(isMobileInvite ? 'click' : 'click', function(e) { e.stopPropagation(); });
+        tog.addEventListener('dblclick', function(e) { e.stopPropagation(); });
+        li.appendChild(tog);
+    }
+
+    li.title = isMobileInvite ? 'Tap to remove' : 'Double-click to remove';
+    const removeHandler = (e) => {
+        if (e.target.closest('.mgr-toggle')) return; // Don't remove when clicking toggle
+        removeInvite(username);
+    };
+    li.addEventListener(isMobileInvite ? 'click' : 'dblclick', removeHandler);
     document.getElementById('eInvitedList').appendChild(li);
     syncInviteState();
 }
@@ -2056,31 +2137,16 @@ function syncInviteState() {
 }
 
 // Sync hidden inputs from invited pane before submit
-// ── Time dropdown helpers ─────────────────────────────────────────────────────
+// ── Time picker helpers ──────────────────────────────────────────────────────
 function setTimePicker(hhmm) {
-    // hhmm: '14:30' (24h) or '' to clear
-    const hour  = document.getElementById('eTimeHour');
-    const min   = document.getElementById('eTimeMin');
-    const ampm  = document.getElementById('eTimeAmPm');
     if (!hhmm) {
-        hour.value = ''; min.value = '00'; ampm.value = 'AM';
-        return;
+        const now = new Date();
+        hhmm = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
     }
-    const [h24, m] = hhmm.split(':').map(Number);
-    const isPm  = h24 >= 12;
-    const h12   = h24 % 12 || 12;
-    hour.value  = h12;
-    min.value   = String(m).padStart(2, '0');
-    ampm.value  = isPm ? 'PM' : 'AM';
+    document.getElementById('eTimeNative').value = hhmm;
 }
 function getTimePicker() {
-    // Returns HH:MM (24h) or '' if no hour selected
-    const h = parseInt(document.getElementById('eTimeHour').value);
-    if (!h) return '';
-    const m    = document.getElementById('eTimeMin').value;
-    const isPm = document.getElementById('eTimeAmPm').value === 'PM';
-    const h24  = isPm ? (h === 12 ? 12 : h + 12) : (h === 12 ? 0 : h);
-    return String(h24).padStart(2, '0') + ':' + m;
+    return document.getElementById('eTimeNative').value || '';
 }
 
 document.getElementById('editForm').addEventListener('submit', function() {
@@ -2114,6 +2180,7 @@ document.getElementById('editForm').addEventListener('submit', function() {
         addHidden('invite_phone[]',    li.dataset.iphone);
         addHidden('invite_email[]',    li.dataset.iemail);
         addHidden('invite_rsvp[]',     li.dataset.irsvp);
+        addHidden('invite_role[]',     li.dataset.irole || 'invitee');
     });
     // Custom rows
     document.querySelectorAll('#eInvitedList li.custom-row').forEach(li => {
@@ -2124,6 +2191,7 @@ document.getElementById('editForm').addEventListener('submit', function() {
         addHidden('invite_phone[]',    '');
         addHidden('invite_email[]',    email);
         addHidden('invite_rsvp[]',     '');
+        addHidden('invite_role[]',     'invitee');
     });
 });
 
@@ -2161,7 +2229,7 @@ function openEditModal(ev) {
     document.getElementById('eInvitedList').innerHTML = '';
     if (ev) {
         (eventInvites[ev.id] || []).forEach(inv =>
-            inviteUser(inv.username, inv.phone || '', inv.email || '', inv.rsvp || ''));
+            inviteUser(inv.username, inv.phone || '', inv.email || '', inv.rsvp || '', inv.event_role || 'invitee'));
     }
     syncInviteState();
     filterAllUsers('');
@@ -2176,7 +2244,7 @@ buildAllUsersList();
 <?php endif; ?>
 
 document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeView(); <?php if ($canCreateEvents): ?>closeEdit();<?php endif; ?> }
+    if (e.key === 'Escape') { closeView(); <?php if ($canEditEvents): ?>closeEdit();<?php endif; ?> }
 });
 
 function fmt12(t) {
@@ -2318,7 +2386,7 @@ function renderDayCol(col, date) {
         chip.innerHTML = '<span class="week-event-title">' + escHtml(ev.title) + '</span>'
             + (heightPx >= 32 ? '<span class="week-event-time">' + escHtml(timeStr) + '</span>' : '');
 
-        if (IS_ADMIN || (CAN_CREATE_EVENTS && CURRENT_USER_ID && ev.created_by == CURRENT_USER_ID)) {
+        if (IS_ADMIN || (CAN_CREATE_EVENTS && CURRENT_USER_ID && ev.created_by == CURRENT_USER_ID) || MANAGED_EVENT_IDS.includes(ev.id)) {
             const editBtn = document.createElement('button');
             editBtn.className = 'ev-edit-btn';
             editBtn.title = 'Edit event';

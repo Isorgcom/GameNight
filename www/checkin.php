@@ -14,7 +14,12 @@ $evStmt->execute([$event_id]);
 $event = $evStmt->fetch();
 if (!$event) { http_response_code(404); exit('Event not found'); }
 if (!$isAdmin && (int)$event['created_by'] !== (int)$current['id']) {
-    http_response_code(403); exit('Access denied');
+    // Check if user is a manager of this event
+    $mgrStmt = $db->prepare("SELECT 1 FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND event_role='manager' LIMIT 1");
+    $mgrStmt->execute([$event_id, $current['username']]);
+    if (!$mgrStmt->fetch()) {
+        http_response_code(403); exit('Access denied');
+    }
 }
 
 $site_name = get_setting('site_name', 'Game Night');
@@ -149,6 +154,38 @@ $session = $sessStmt->fetch();
     .pk-modal-actions{display:flex;gap:.5rem;justify-content:flex-end;margin-top:.75rem}
     .pk-modal-actions button{padding:.4rem 1rem;border-radius:6px;font-size:.85rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border,#e2e8f0)}
     .pk-modal-actions .pk-save{background:var(--accent,#2563eb);color:#fff;border-color:transparent}
+
+    /* ── Mobile/tablet touch optimization ── */
+    @media (max-width: 1024px) {
+        .pk-stats { padding:.75rem 1rem; }
+        .pk-stat { min-width:0;flex:1 1 calc(50% - .5rem); }
+        .pk-grid { padding:.75rem 1rem; }
+        .pk-toolbar { gap:.4rem; }
+        .pk-toolbar input[type=text] { width:100%;font-size:1rem;min-height:44px; }
+        .pk-toolbar button { min-height:44px;font-size:.85rem; }
+        .pk-actions button, .pk-actions a { min-height:44px;font-size:.85rem;padding:.5rem .8rem; }
+        .pk-filter button { min-height:40px;font-size:.85rem;padding:.4rem .7rem; }
+        .pk-counter button { width:36px;height:36px;font-size:1rem; }
+        .pk-counter span { min-width:28px;font-size:.95rem; }
+        .pk-tbl-input { width:48px;padding:.4rem .3rem;font-size:1rem;min-height:36px; }
+        .pk-cash-input { width:80px;padding:.4rem .3rem;font-size:1rem;min-height:36px; }
+        .pk-act-btn { min-height:36px;font-size:.85rem;padding:.35rem .5rem; }
+        .pk-check { width:24px;height:24px; }
+        .pk-table { font-size:.9rem; }
+        .pk-table th { font-size:.7rem;padding:.45rem .5rem; }
+        .pk-table td { padding:.45rem .5rem; }
+        .pk-settings-panel { margin:.75rem 1rem; }
+        .pk-settings-grid input, .pk-settings-grid select { font-size:1rem;min-height:44px; }
+        .pk-setup { margin:1.5rem 1rem;padding:1.5rem; }
+        .pk-setup input, .pk-setup select { font-size:1rem;min-height:44px; }
+        .pk-modal { width:95%;padding:1.25rem; }
+        .pk-modal textarea { font-size:1rem; }
+        .pk-modal-actions button { min-height:44px;font-size:.9rem; }
+        .pk-payout-editor input { font-size:1rem;min-height:36px; }
+        .pk-payout-editor button { min-height:36px;font-size:.85rem; }
+        .pk-settings-save { min-height:44px;font-size:.95rem; }
+        .pk-rsvp-select { font-size:1rem !important;padding:.35rem .5rem !important;min-height:36px; }
+    }
     </style>
 </head>
 <body>
