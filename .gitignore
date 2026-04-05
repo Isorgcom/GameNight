@@ -8,8 +8,6 @@ db/
 .claude/
 
 # Docker / server deployment files (server-specific, not for publishing)
-docker-compose.yml
-nginx.conf
 deploy.sh
 deploy.bat
 deploy.ps1
