@@ -4,6 +4,17 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.01900] — 2026-04-05
+
+### Added
+- **Global notifications toggle.** New "Enable Notifications" setting in Admin > General. Defaults to off for new installs — admin must explicitly enable. When off, all email, SMS, and WhatsApp notifications are suppressed (invites, reminders, updates). Test messages from Email/SMS tabs still work.
+
+### Changed
+- **Calendar defaults to Week view.** Calendar now loads in week view by default. View toggle reordered to "Week | Month".
+- **Sliding toggles in General settings.** All yes/no settings on the General tab now use sliding toggle switches instead of plain checkboxes.
+
+---
+
 ## [v0.01800] — 2026-04-05
 
 ### Added

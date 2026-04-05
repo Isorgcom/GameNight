@@ -176,6 +176,7 @@ function csrf_verify(): bool {
  * Routes to email, SMS, or both depending on preference.
  */
 function send_notification(string $username, string $email, string $phone, string $preferred_contact, string $subject, string $smsBody, string $htmlBody): void {
+    if (get_setting('notifications_enabled', '0') !== '1') return;
     $doEmail    = in_array($preferred_contact, ['email', 'both'], true) && $email !== '';
     $doSms      = in_array($preferred_contact, ['sms',   'both'], true) && $phone !== '';
     $doWhatsApp = in_array($preferred_contact, ['whatsapp'], true) && $phone !== '';
@@ -198,6 +199,7 @@ function send_notification(string $username, string $email, string $phone, strin
  * Send an event invite notification via the user's preferred contact method.
  */
 function send_invite_notification(string $username, string $email, string $phone, string $preferred_contact, string $event_title, string $event_start, int $event_id = 0): void {
+    if (get_setting('notifications_enabled', '0') !== '1') return;
     require_once __DIR__ . '/sms.php';
     $site  = get_setting('site_name', 'Game Night');
     $month = substr($event_start, 0, 7);

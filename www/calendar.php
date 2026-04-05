@@ -193,8 +193,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 return ['email' => $row['email'], 'html' => $html];
             };
 
-            // Notify newly added invitees unless suppressed
-            if (!$suppress_notify) {
+            // Notify newly added invitees unless suppressed or notifications disabled globally
+            if (!$suppress_notify && get_setting('notifications_enabled', '0') === '1') {
                 if (empty($new_invitee_usernames) && !empty($inv_usernames) && array_filter($inv_usernames)) {
                     db_log_activity($current['id'], "invite emails: 0 new invitees detected (all were existing) for event $notify_eid", 'info');
                 }
@@ -417,7 +417,7 @@ $byDate     = build_event_by_date($allEvents, $monthStart, $monthEnd, $local_tz,
 $pvEvents = [];
 
 // ── View mode (month / week) ───────────────────────────────────────────────────
-$viewMode = (($_GET['view'] ?? '') === 'week') ? 'week' : 'month';
+$viewMode = (($_GET['view'] ?? '') === 'month') ? 'month' : 'week';
 
 // Current week start (Sunday) — used for the Week toggle link
 $_cwDow      = (int)$today->format('w');
@@ -978,10 +978,10 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
     <div class="cal-header">
         <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
             <div class="view-toggle">
-                <a href="/calendar.php?m=<?= $monthParam ?>"
-                   class="<?= $viewMode === 'month' ? 'vt-active' : '' ?>">Month</a>
                 <a href="/calendar.php?view=week&amp;wk=<?= $currentWeekStr ?>"
                    class="<?= $viewMode === 'week' ? 'vt-active' : '' ?>">Week</a>
+                <a href="/calendar.php?view=month&amp;m=<?= $monthParam ?>"
+                   class="<?= $viewMode === 'month' ? 'vt-active' : '' ?>">Month</a>
             </div>
             <?php if ($viewMode === 'month'): ?>
             <div class="cal-nav">

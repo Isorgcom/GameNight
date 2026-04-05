@@ -111,6 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 set_setting('show_upcoming_events', isset($_POST['show_upcoming_events']) ? '1' : '0');
                 set_setting('show_calendar', isset($_POST['show_calendar']) ? '1' : '0');
                 set_setting('allow_maybe_rsvp', isset($_POST['allow_maybe_rsvp']) ? '1' : '0');
+                set_setting('notifications_enabled', isset($_POST['notifications_enabled']) ? '1' : '0');
                 db_log_activity($current['id'], 'updated site settings');
                 $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Settings saved.'];
             }
@@ -668,6 +669,12 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
     <link rel="stylesheet" href="/style.css">
     <style>
         .hint { font-size: .78rem; color: #94a3b8; margin-top: .35rem; }
+        .pk-toggle-input { display:none; }
+        .pk-toggle-slider { position:relative;width:36px;height:20px;background:#cbd5e1;border-radius:99px;transition:background .2s;flex-shrink:0;cursor:pointer; }
+        .pk-toggle-slider::after { content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.2); }
+        .pk-toggle-input:checked + .pk-toggle-slider { background:#22c55e; }
+        .pk-toggle-input:checked + .pk-toggle-slider::after { transform:translateX(16px); }
+        .form-group .setting-toggle { display:flex !important;align-items:center;gap:.6rem;cursor:pointer;font-weight:500;margin-bottom:0; }
         .sms-grid { display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; }
         @media (max-width:640px) { .sms-grid { grid-template-columns:1fr; } }
         .cred-note { font-size:.78rem; color:#94a3b8; margin-top:.25rem; }
@@ -969,49 +976,58 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                     <p class="hint">Current server time: <strong><?= date('Y-m-d H:i:s') ?></strong></p>
                 </div>
                 <div class="form-group" style="margin-top:.5rem">
-                    <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer;font-weight:500">
-                        <input type="checkbox" name="allow_registration" value="1"
-                               <?= get_setting('allow_registration', '1') === '1' ? 'checked' : '' ?>
-                               style="width:16px;height:16px;accent-color:#2563eb">
+                    <label class="setting-toggle">
+                        <input type="checkbox" name="allow_registration" value="1" class="pk-toggle-input"
+                               <?= get_setting('allow_registration', '1') === '1' ? 'checked' : '' ?>>
+                        <span class="pk-toggle-slider"></span>
                         Allow new user registration
                     </label>
-                    <p class="hint">When unchecked, the Sign Up page returns a 403 and the link is hidden from the login page.</p>
+                    <p class="hint">When off, the Sign Up page returns a 403 and the link is hidden from the login page.</p>
                 </div>
                 <div class="form-group" style="margin-top:.5rem">
-                    <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer;font-weight:500">
-                        <input type="checkbox" name="allow_user_events" value="1"
-                               <?= get_setting('allow_user_events', '0') === '1' ? 'checked' : '' ?>
-                               style="width:16px;height:16px;accent-color:#2563eb">
+                    <label class="setting-toggle">
+                        <input type="checkbox" name="allow_user_events" value="1" class="pk-toggle-input"
+                               <?= get_setting('allow_user_events', '0') === '1' ? 'checked' : '' ?>>
+                        <span class="pk-toggle-slider"></span>
                         Allow users to create events
                     </label>
-                    <p class="hint">When checked, registered users can create events and invite others. Users can only edit/delete their own events.</p>
+                    <p class="hint">When on, registered users can create events and invite others. Users can only edit/delete their own events.</p>
                 </div>
                 <div class="form-group" style="margin-top:.5rem">
-                    <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer;font-weight:500">
-                        <input type="checkbox" name="show_upcoming_events" value="1"
-                               <?= get_setting('show_upcoming_events', '1') === '1' ? 'checked' : '' ?>
-                               style="width:16px;height:16px;accent-color:#2563eb">
+                    <label class="setting-toggle">
+                        <input type="checkbox" name="show_upcoming_events" value="1" class="pk-toggle-input"
+                               <?= get_setting('show_upcoming_events', '1') === '1' ? 'checked' : '' ?>>
+                        <span class="pk-toggle-slider"></span>
                         Show &ldquo;Upcoming Events&rdquo; on the landing page
                     </label>
-                    <p class="hint">When unchecked, the upcoming-events section is hidden for all visitors.</p>
+                    <p class="hint">When off, the upcoming-events section is hidden for all visitors.</p>
                 </div>
                 <div class="form-group" style="margin-top:.5rem">
-                    <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer;font-weight:500">
-                        <input type="checkbox" name="show_calendar" value="1"
-                               <?= get_setting('show_calendar', '1') === '1' ? 'checked' : '' ?>
-                               style="width:16px;height:16px;accent-color:#2563eb">
+                    <label class="setting-toggle">
+                        <input type="checkbox" name="show_calendar" value="1" class="pk-toggle-input"
+                               <?= get_setting('show_calendar', '1') === '1' ? 'checked' : '' ?>>
+                        <span class="pk-toggle-slider"></span>
                         Enable Calendar
                     </label>
-                    <p class="hint">When unchecked, the Calendar page is disabled and the nav link is hidden.</p>
+                    <p class="hint">When off, the Calendar page is disabled and the nav link is hidden.</p>
                 </div>
                 <div class="form-group" style="margin-top:.5rem">
-                    <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer;font-weight:500">
-                        <input type="checkbox" name="allow_maybe_rsvp" value="1"
-                               <?= get_setting('allow_maybe_rsvp', '1') === '1' ? 'checked' : '' ?>
-                               style="width:16px;height:16px;accent-color:#2563eb">
+                    <label class="setting-toggle">
+                        <input type="checkbox" name="allow_maybe_rsvp" value="1" class="pk-toggle-input"
+                               <?= get_setting('allow_maybe_rsvp', '1') === '1' ? 'checked' : '' ?>>
+                        <span class="pk-toggle-slider"></span>
                         Allow &ldquo;Maybe&rdquo; RSVP response
                     </label>
-                    <p class="hint">When unchecked, the Maybe option is removed from RSVP buttons and invite emails.</p>
+                    <p class="hint">When off, the Maybe option is removed from RSVP buttons and invite emails.</p>
+                </div>
+                <div class="form-group" style="margin-top:.5rem">
+                    <label class="setting-toggle">
+                        <input type="checkbox" name="notifications_enabled" value="1" class="pk-toggle-input"
+                               <?= get_setting('notifications_enabled', '0') === '1' ? 'checked' : '' ?>>
+                        <span class="pk-toggle-slider"></span>
+                        Enable Notifications
+                    </label>
+                    <p class="hint">When off, no email, SMS, or WhatsApp notifications will be sent (invites, reminders, updates). Test messages from the Email/SMS tabs still work.</p>
                 </div>
                 <button type="submit" class="btn btn-primary" style="width:100%;margin-top:.25rem">
                     Save
