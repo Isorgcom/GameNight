@@ -824,6 +824,10 @@ function openCashout(pid) {
     var totalIn = p ? playerTotalIn(p) : 0;
     var inp = document.getElementById('cashoutAmount');
     inp.value = (totalIn / 100).toFixed(2);
+    // Set max to money remaining on the table (add back this player's existing cashout if re-cashing)
+    var oldCashout = (p && p.cash_out !== null && p.cash_out !== undefined) ? parseInt(p.cash_out) : 0;
+    var remaining = (POOL.pool_total - POOL.total_cash_out + oldCashout);
+    inp.max = (remaining / 100).toFixed(2);
     document.getElementById('cashoutModal').classList.add('open');
     inp.focus();
     inp.select();
@@ -838,6 +842,13 @@ function closeCashout() {
 function saveCashout() {
     if (!cashoutPlayerId) return;
     var amt = Math.round(parseFloat(document.getElementById('cashoutAmount').value || 0) * 100);
+    var p = PLAYERS.find(function(p) { return parseInt(p.id) === cashoutPlayerId; });
+    var oldCashout = (p && p.cash_out !== null && p.cash_out !== undefined) ? parseInt(p.cash_out) : 0;
+    var remaining = POOL.pool_total - POOL.total_cash_out + oldCashout;
+    if (amt > remaining) {
+        alert('Cash-out ($' + (amt / 100).toFixed(2) + ') exceeds money remaining on the table ($' + (remaining / 100).toFixed(2) + ').');
+        return;
+    }
     postAction('set_cashout', { player_id: cashoutPlayerId, cash_out: amt }, function(j) {
         updatePlayer(j.player);
         POOL = j.pool;

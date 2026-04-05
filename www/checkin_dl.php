@@ -651,6 +651,19 @@ if ($action === 'set_cashout') {
     if (!$session) { echo json_encode(['ok' => false, 'error' => 'Player not found']); exit; }
     verify_event_access($db, $session['event_id'], $current, $isAdmin);
 
+    // Validate cashout doesn't exceed money remaining on the table
+    if ($cash_out !== null) {
+        $pool = calc_pool($db, $session['id']);
+        $old = $db->prepare('SELECT cash_out FROM poker_players WHERE id = ?');
+        $old->execute([$player_id]);
+        $old_cashout = (int)($old->fetchColumn() ?? 0);
+        $remaining = $pool['pool_total'] - $pool['total_cash_out'] + $old_cashout;
+        if ($cash_out > $remaining) {
+            echo json_encode(['ok' => false, 'error' => 'Cash-out exceeds money remaining on the table ($' . number_format($remaining / 100, 2) . ')']);
+            exit;
+        }
+    }
+
     $db->prepare('UPDATE poker_players SET cash_out = ? WHERE id = ?')->execute([$cash_out, $player_id]);
 
     $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');

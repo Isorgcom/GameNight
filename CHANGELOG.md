@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.02103] — 2026-04-05
+
+### Fixed
+- **Cashout cap at table money.** Cashout amount is now validated against money remaining on the table, both client-side and server-side. Prevents impossible accounting from over-cashing out.
+
+---
+
 ## [v0.02102] — 2026-04-05
 
 ### Fixed
