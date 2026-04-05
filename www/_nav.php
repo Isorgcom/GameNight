@@ -31,9 +31,9 @@ error_log('[GameNight nav] UA: ' . ($_SERVER['HTTP_USER_AGENT'] ?? 'none') . ' |
 <?php endif; ?>
 </style>
 <?php endif; ?>
-<nav<?= $_nu ? ' class="nav-has-user"' : '' ?>>
+<nav<?= $_nu ? ' class="nav-has-user"' : '' ?> id="mainNav">
     <div class="nav-top">
-        <a class="brand" href="/">
+        <a class="brand nav-collapsible" href="/">
             <?php if ($_banner): ?>
                 <img src="<?= htmlspecialchars($_banner) ?>?v=<?= $_banner_v ?>" alt="<?= htmlspecialchars($site_name) ?>"
                      style="max-height:38px;width:auto;display:block">
@@ -42,16 +42,16 @@ error_log('[GameNight nav] UA: ' . ($_SERVER['HTTP_USER_AGENT'] ?? 'none') . ' |
             <?php endif; ?>
         </a>
         <?php if ($_header_banner): ?>
-        <div class="nav-banner-wrap" style="flex:1;min-width:0;overflow:hidden;text-align:center;padding:0 .5rem">
+        <div class="nav-banner-wrap nav-collapsible" style="flex:1;min-width:0;overflow:hidden;text-align:center;padding:0 .5rem">
             <img class="nav-banner-img" src="<?= htmlspecialchars($_header_banner) ?>?v=<?= $_header_banner_v ?>" alt="<?= htmlspecialchars($site_name) ?>"
                  style="max-height:<?= $_is_mobile ? '45' : ($_header_banner_height - 10) ?>px;width:auto;display:block;margin:0 auto;">
         </div>
         <?php else: ?>
-        <div style="flex:1"></div>
+        <div class="nav-collapsible" style="flex:1"></div>
         <?php endif; ?>
         <div class="nav-user">
             <?php if ($_nu): ?>
-                <span><?= htmlspecialchars($_nu['username']) ?></span>
+                <span class="nav-collapsible"><?= htmlspecialchars($_nu['username']) ?></span>
                 <div class="nav-dropdown-wrap">
                     <button class="nav-hamburger" title="Menu" onclick="var d=this.nextElementSibling;d.style.display=d.style.display==='block'?'none':'block';">&#9776;</button>
                     <div class="nav-dropdown">
@@ -77,8 +77,9 @@ error_log('[GameNight nav] UA: ' . ($_SERVER['HTTP_USER_AGENT'] ?? 'none') . ' |
                 <a href="/login.php" class="btn btn-outline btn-sm">Login</a>
             <?php endif; ?>
         </div>
+        <button class="nav-collapse-btn" id="navCollapseBtn" title="Toggle navigation" onclick="toggleNavCollapse()">&#x25B2;</button>
     </div>
-    <div class="nav-links">
+    <div class="nav-links nav-collapsible">
         <a href="/"<?= $_active === 'home' ? ' class="active"' : '' ?>>Home</a>
         <?php if (get_setting('show_calendar', '1') === '1'): ?>
         <a href="/calendar.php"<?= $_active === 'calendar' ? ' class="active"' : '' ?>>Calendar</a>
@@ -101,4 +102,27 @@ error_log('[GameNight nav] UA: ' . ($_SERVER['HTTP_USER_AGENT'] ?? 'none') . ' |
 })();
 </script>
 <?php endif; ?>
+<style>
+.nav-collapse-btn{background:transparent;border:none;color:#64748b;cursor:pointer;font-size:.7rem;padding:.2rem .4rem;margin-left:.3rem;border-radius:4px;line-height:1;transition:transform .2s}
+.nav-collapse-btn:hover{color:#fff;background:rgba(255,255,255,.1)}
+nav.nav-collapsed .nav-collapsible{display:none !important}
+nav.nav-collapsed .nav-top{height:32px !important;padding:0 .5rem !important}
+nav.nav-collapsed .nav-collapse-btn{transform:rotate(180deg)}
+nav.nav-collapsed .nav-hamburger{font-size:1rem}
+nav.nav-collapsed .nav-dropdown-wrap{position:static}
+</style>
+<script>
+function toggleNavCollapse(){
+    var nav=document.getElementById('mainNav');
+    if(!nav)return;
+    nav.classList.toggle('nav-collapsed');
+    localStorage.setItem('nav_collapsed',nav.classList.contains('nav-collapsed')?'1':'0');
+}
+(function(){
+    if(localStorage.getItem('nav_collapsed')==='1'){
+        var nav=document.getElementById('mainNav');
+        if(nav)nav.classList.add('nav-collapsed');
+    }
+})();
+</script>
 <script src="/nav.js" defer></script>

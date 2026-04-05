@@ -116,18 +116,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid date format.'];
         } else {
             $suppress_notify = !empty($_POST['suppress_notify']);
+            $is_poker = !empty($_POST['is_poker']) ? 1 : 0;
             $new_invitee_usernames = [];
             if ($action === 'add') {
-                $db->prepare('INSERT INTO events (title, description, start_date, end_date, start_time, end_time, color, created_by)
-                              VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $current['id']]);
+                $db->prepare('INSERT INTO events (title, description, start_date, end_date, start_time, end_time, color, created_by, is_poker)
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $current['id'], $is_poker]);
                 $notify_eid = (int)$db->lastInsertId();
                 $save_invites($notify_eid, $new_invitee_usernames);
                 db_log_activity($current['id'], "created event: $title");
                 $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event added.'];
             } else {
-                $db->prepare('UPDATE events SET title=?, description=?, start_date=?, end_date=?, start_time=?, end_time=?, color=? WHERE id=?')
-                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $id]);
+                $db->prepare('UPDATE events SET title=?, description=?, start_date=?, end_date=?, start_time=?, end_time=?, color=?, is_poker=? WHERE id=?')
+                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $is_poker, $id]);
                 $notify_eid = $id;
                 $save_invites($id, $new_invitee_usernames);
                 db_log_activity($current['id'], "edited event id: $id");
@@ -782,6 +783,11 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         .edit-bottom-row textarea:focus { outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
         .edit-bottom-actions { display:flex;flex-direction:column;gap:.5rem;align-items:flex-end;justify-content:flex-end; }
         .edit-notify-row { display:flex;align-items:center;gap:.4rem;font-size:.8rem;cursor:pointer;user-select:none;white-space:nowrap;color:#64748b; }
+        .pk-toggle-input { display:none; }
+        .pk-toggle-slider { position:relative;width:36px;height:20px;background:#cbd5e1;border-radius:99px;transition:background .2s;flex-shrink:0; }
+        .pk-toggle-slider::after { content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.2); }
+        .pk-toggle-input:checked + .pk-toggle-slider { background:#22c55e; }
+        .pk-toggle-input:checked + .pk-toggle-slider::after { transform:translateX(16px); }
 
         /* Color swatches (legacy — kept for color picker) */
         .color-swatches { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .25rem; }
@@ -1093,6 +1099,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         <?php endif; ?>
         <?php if ($canCreateEvents): ?>
         <div class="ev-view-actions" id="vEventActions" style="display:none">
+            <a id="vManageGameBtn" href="#" class="btn" style="background:#059669;color:#fff;text-decoration:none">Manage Game</a>
             <button type="button" class="btn btn-primary" onclick="editFromView()">Edit</button>
             <form method="post" action="/calendar.php" style="margin:0" id="vDeleteOccForm" style="display:none">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
@@ -1261,9 +1268,15 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
                 <div class="edit-bottom-actions">
                     <button type="button" class="btn btn-outline" style="font-size:.8rem;white-space:nowrap" onclick="addBlankInviteRow()">+ Custom Invitee</button>
                     <div style="flex:1"></div>
-                    <label class="edit-notify-row">
-                        <input type="checkbox" name="suppress_notify" id="eSuppressNotify" value="1">
-                        Don't Notify
+                    <label class="edit-notify-row" style="display:flex;align-items:center;gap:.5rem;cursor:pointer">
+                        <span style="font-size:.82rem;color:#475569">Poker Game</span>
+                        <input type="checkbox" name="is_poker" id="eIsPoker" value="1" class="pk-toggle-input">
+                        <span class="pk-toggle-slider"></span>
+                    </label>
+                    <label class="edit-notify-row" style="display:flex;align-items:center;gap:.5rem;cursor:pointer">
+                        <span style="font-size:.82rem;color:#475569">Don't Notify</span>
+                        <input type="checkbox" name="suppress_notify" id="eSuppressNotify" value="1" class="pk-toggle-input">
+                        <span class="pk-toggle-slider"></span>
                     </label>
                     <div style="display:flex;gap:.5rem;">
                         <button type="submit" class="btn btn-primary" id="eSubmitBtn">Add Event</button>
@@ -1364,6 +1377,15 @@ function viewEvent(ev) {
         if (delId) delId.value = ev.id;
         const occForm = document.getElementById('vDeleteOccForm');
         if (occForm) occForm.style.display = 'none';
+        const mgBtn = document.getElementById('vManageGameBtn');
+        if (mgBtn) {
+            if (parseInt(ev.is_poker)) {
+                mgBtn.href = '/checkin.php?event_id=' + ev.id;
+                mgBtn.style.display = 'inline-block';
+            } else {
+                mgBtn.style.display = 'none';
+            }
+        }
     }
     <?php endif; ?>
 
@@ -2083,6 +2105,7 @@ function openEditModal(ev) {
     setTimePicker(ev ? (ev.start_time || '') : '');
     document.getElementById('eDesc').value      = ev ? (ev.description || '') : '';
     document.getElementById('eSuppressNotify').checked = false;
+    document.getElementById('eIsPoker').checked = ev ? !!parseInt(ev.is_poker) : true;
     document.getElementById('eUserSearch').value = '';
     document.getElementById('eSubmitBtn').textContent = ev ? 'Save Changes' : 'Add Event';
 

@@ -187,6 +187,60 @@ function db_init(PDO $pdo): void {
         UNIQUE(event_id, occurrence_date, user_identifier, notification_type)
     )"); } catch (Exception $e) {}
 
+    // Poker game night tables
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS poker_sessions (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id        INTEGER NOT NULL UNIQUE,
+        buyin_amount    INTEGER NOT NULL DEFAULT 2000,
+        rebuy_amount    INTEGER NOT NULL DEFAULT 2000,
+        addon_amount    INTEGER NOT NULL DEFAULT 1000,
+        rebuy_allowed   INTEGER NOT NULL DEFAULT 1,
+        addon_allowed   INTEGER NOT NULL DEFAULT 1,
+        max_rebuys      INTEGER NOT NULL DEFAULT 0,
+        starting_chips  INTEGER NOT NULL DEFAULT 5000,
+        num_tables      INTEGER NOT NULL DEFAULT 1,
+        status          TEXT NOT NULL DEFAULT 'setup',
+        notes           TEXT,
+        created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+    )"); } catch (Exception $e) {}
+
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS poker_players (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id      INTEGER NOT NULL,
+        user_id         INTEGER,
+        display_name    TEXT NOT NULL,
+        checked_in      INTEGER NOT NULL DEFAULT 0,
+        bought_in       INTEGER NOT NULL DEFAULT 0,
+        rebuys          INTEGER NOT NULL DEFAULT 0,
+        addons          INTEGER NOT NULL DEFAULT 0,
+        table_number    INTEGER,
+        seat_number     INTEGER,
+        eliminated      INTEGER NOT NULL DEFAULT 0,
+        finish_position INTEGER,
+        payout          INTEGER NOT NULL DEFAULT 0,
+        notes           TEXT,
+        created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (session_id) REFERENCES poker_sessions(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    )"); } catch (Exception $e) {}
+
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS poker_payouts (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id   INTEGER NOT NULL,
+        place        INTEGER NOT NULL,
+        percentage   REAL NOT NULL,
+        UNIQUE(session_id, place),
+        FOREIGN KEY (session_id) REFERENCES poker_sessions(id) ON DELETE CASCADE
+    )"); } catch (Exception $e) {}
+
+    // Poker schema migrations
+    try { $pdo->exec("ALTER TABLE events ADD COLUMN is_poker INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN game_type TEXT NOT NULL DEFAULT 'tournament'"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN cash_out INTEGER"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN cash_in INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN rsvp TEXT DEFAULT NULL"); } catch (Exception $e) {}
+
     // Seed default site_settings on a fresh DB (INSERT OR IGNORE — never overwrites existing values)
     $ins = $pdo->prepare('INSERT OR IGNORE INTO site_settings (key, value) VALUES (?, ?)');
 
