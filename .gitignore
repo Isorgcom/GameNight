@@ -14,7 +14,6 @@ deploy.ps1
 
 # Local helper scripts
 commit.sh
-server-prep.sh
 
 # Sample data
 www/sample_users.csv
