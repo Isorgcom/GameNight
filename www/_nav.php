@@ -103,13 +103,14 @@ error_log('[GameNight nav] UA: ' . ($_SERVER['HTTP_USER_AGENT'] ?? 'none') . ' |
 </script>
 <?php endif; ?>
 <style>
-.nav-collapse-btn{background:transparent;border:none;color:#64748b;cursor:pointer;font-size:.7rem;padding:.2rem .4rem;margin-left:.3rem;border-radius:4px;line-height:1;transition:transform .2s}
+.nav-collapse-btn{background:transparent;border:none;color:#64748b;cursor:pointer;font-size:.7rem;padding:.2rem .4rem;margin-right:.3rem;border-radius:4px;line-height:1;transition:transform .2s;order:-1}
 .nav-collapse-btn:hover{color:#fff;background:rgba(255,255,255,.1)}
 nav.nav-collapsed .nav-collapsible{display:none !important}
 nav.nav-collapsed .nav-top{height:32px !important;padding:0 .5rem !important}
 nav.nav-collapsed .nav-collapse-btn{transform:rotate(180deg)}
 nav.nav-collapsed .nav-hamburger{font-size:1rem}
 nav.nav-collapsed .nav-dropdown-wrap{position:static}
+nav.nav-collapsed .nav-top{justify-content:space-between}
 </style>
 <script>
 function toggleNavCollapse(){
