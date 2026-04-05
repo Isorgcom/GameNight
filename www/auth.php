@@ -10,6 +10,9 @@ header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
 // CSP: allow inline scripts/styles (required by Jodit editor), block everything else external
 header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
 
+// ── Mobile detection (available to all pages) ────────────────────────────────
+$_is_mobile = (bool) preg_match('/Mobile|Android|iPhone|iPad|iPod|CriOS|FxiOS/i', $_SERVER['HTTP_USER_AGENT'] ?? '');
+
 function session_start_safe(): void {
     if (session_status() === PHP_SESSION_NONE) {
         session_set_cookie_params([

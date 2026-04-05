@@ -183,7 +183,7 @@ $tlMonths = $tlStmt->fetchAll();
 
         /* Hide sidebar when viewport is too narrow (sidebar would overlap centered content) */
         @media (max-width: 1140px) { .timeline-sidebar { display: none; } }
-        @media (max-width: 640px)  { .page-layout { padding: 0 .75rem; margin-top: 1rem; } }
+        @media (max-width: 640px)  { .page-layout { padding: 0; margin-top: .5rem; } }
 
         .post-card {
             background: #fff;

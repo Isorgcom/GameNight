@@ -799,12 +799,31 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         .color-swatch:hover { border-color: #1e293b; }
 
         @media (max-width: 640px) {
-            .edit-header-row { gap:.45rem; }
-            .edit-title-input { min-width:100%;order:-1;flex-basis:100%; }
-            .edit-invite-panel { grid-template-columns:1fr;height:auto; }
-            .invite-pane { height:160px; }
-            .edit-bottom-row { grid-template-columns:1fr;gap:.5rem; }
-            .edit-bottom-actions { flex-direction:row;justify-content:flex-end;flex-wrap:wrap; }
+            /* Stack header fields vertically */
+            .edit-header-row { flex-wrap:wrap;align-items:center;gap:.75rem;padding:1rem; }
+            #eColorDotWrap { order:-1; }
+            .edit-title-input { order:-1;flex:1 1 calc(100% - 50px);height:auto; }
+            .edit-hdr-field { width:calc(50% - .5rem); }
+            .edit-hdr-field { width:100%; }
+            .edit-hdr-label { font-size:.85rem; }
+            .edit-time-selects { gap:.5rem; }
+            .edit-time-selects select,
+            .edit-hdr-field select,
+            .edit-hdr-field input,
+            .edit-hdr-dur select { min-height:44px;font-size:1rem;padding:.4rem .5rem; }
+            #eColorDot { width:32px;height:32px; }
+
+            /* Invite panes */
+            .edit-invite-panel { grid-template-columns:1fr;height:auto;padding:0 1rem; }
+            .invite-pane { height:200px; }
+            .invite-pane-list li { padding:.5rem .75rem;font-size:.95rem; }
+            .invite-pane input[type="text"] { min-height:44px;font-size:1rem; }
+
+            /* Bottom actions full-width */
+            .edit-bottom-row { grid-template-columns:1fr;gap:.75rem;padding:.75rem 1rem 1rem; }
+            .edit-bottom-actions { flex-direction:column;gap:.5rem; }
+            .edit-bottom-actions button,
+            .edit-bottom-actions .btn { width:100%;min-height:44px;font-size:.95rem; }
         }
         @keyframes rsvpSavedFade { 0%,60%{opacity:1} 100%{opacity:0} }
         .rsvp-saved-anim { animation: rsvpSavedFade 3s ease forwards; }
@@ -863,6 +882,21 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             }
             .week-scroll { height: 480px; }
 
+            /* Full-screen modals on mobile */
+            .modal-overlay {
+                padding: 0 !important;
+                background: #fff !important;
+                align-items: stretch !important;
+            }
+            .modal-overlay .modal {
+                max-width: 100% !important;
+                max-height: 100vh !important;
+                width: 100% !important;
+                height: 100% !important;
+                border-radius: 0 !important;
+                box-shadow: none !important;
+                overflow-y: auto !important;
+            }
         }
     </style>
 </head>

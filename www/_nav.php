@@ -18,8 +18,7 @@ $_header_banner_v = $_header_banner ? @filemtime(__DIR__ . $_header_banner) : 0;
 $_nav_bg        = get_setting('nav_bg_color', '');
 $_nav_text      = get_setting('nav_text_color', '');
 $_accent        = get_setting('accent_color', '');
-$_is_mobile     = (bool) preg_match('/Mobile|Android|iPhone|iPad|iPod|CriOS|FxiOS/i', $_SERVER['HTTP_USER_AGENT'] ?? '');
-error_log('[GameNight nav] UA: ' . ($_SERVER['HTTP_USER_AGENT'] ?? 'none') . ' | is_mobile: ' . ($_is_mobile ? 'YES' : 'NO'));
+// $_is_mobile is set in auth.php
 ?>
 <?php if ($_nav_bg || $_nav_text || $_accent || $_header_banner): ?>
 <style>
@@ -33,16 +32,13 @@ error_log('[GameNight nav] UA: ' . ($_SERVER['HTTP_USER_AGENT'] ?? 'none') . ' |
 <?php endif; ?>
 <nav<?= $_nu ? ' class="nav-has-user"' : '' ?> id="mainNav">
     <div class="nav-top">
+        <?php if (!$_banner): ?>
         <a class="brand nav-collapsible" href="/">
-            <?php if ($_banner): ?>
-                <img src="<?= htmlspecialchars($_banner) ?>?v=<?= $_banner_v ?>" alt="<?= htmlspecialchars($site_name) ?>"
-                     style="max-height:38px;width:auto;display:block">
-            <?php else: ?>
-                <?= htmlspecialchars($site_name) ?>
-            <?php endif; ?>
+            <?= htmlspecialchars($site_name) ?>
         </a>
+        <?php endif; ?>
         <?php if ($_header_banner): ?>
-        <div class="nav-banner-wrap nav-collapsible" style="flex:1;min-width:0;overflow:hidden;text-align:center;padding:0 .5rem">
+        <div class="nav-banner-wrap" style="flex:1;min-width:0;overflow:hidden;text-align:center;padding:0 .5rem">
             <img class="nav-banner-img" src="<?= htmlspecialchars($_header_banner) ?>?v=<?= $_header_banner_v ?>" alt="<?= htmlspecialchars($site_name) ?>"
                  style="max-height:<?= $_is_mobile ? '45' : ($_header_banner_height - 10) ?>px;width:auto;display:block;margin:0 auto;">
         </div>
@@ -77,7 +73,14 @@ error_log('[GameNight nav] UA: ' . ($_SERVER['HTTP_USER_AGENT'] ?? 'none') . ' |
                 <a href="/login.php" class="btn btn-outline btn-sm">Login</a>
             <?php endif; ?>
         </div>
+        <?php if ($_banner): ?>
+        <img class="nav-collapse-btn nav-collapse-banner" id="navCollapseBtn"
+             src="<?= htmlspecialchars($_banner) ?>?v=<?= $_banner_v ?>"
+             alt="<?= htmlspecialchars($site_name) ?>"
+             onclick="toggleNavCollapse()" title="Toggle navigation">
+        <?php else: ?>
         <button class="nav-collapse-btn" id="navCollapseBtn" title="Toggle navigation" onclick="toggleNavCollapse()">&#x25B2;</button>
+        <?php endif; ?>
     </div>
     <div class="nav-links nav-collapsible">
         <a href="/"<?= $_active === 'home' ? ' class="active"' : '' ?>>Home</a>
@@ -105,9 +108,12 @@ error_log('[GameNight nav] UA: ' . ($_SERVER['HTTP_USER_AGENT'] ?? 'none') . ' |
 <style>
 .nav-collapse-btn{background:transparent;border:none;color:#64748b;cursor:pointer;font-size:.7rem;padding:.2rem .4rem;margin-right:.3rem;border-radius:4px;line-height:1;transition:transform .2s;order:-1}
 .nav-collapse-btn:hover{color:#fff;background:rgba(255,255,255,.1)}
+.nav-collapse-banner{max-height:38px;width:auto;cursor:pointer;padding:0;border:none;border-radius:0}
 nav.nav-collapsed .nav-collapsible{display:none !important}
 nav.nav-collapsed .nav-top{height:32px !important;padding:0 .5rem !important}
-nav.nav-collapsed .nav-collapse-btn{transform:rotate(180deg)}
+nav.nav-collapsed .nav-collapse-btn:not(.nav-collapse-banner){transform:rotate(180deg)}
+nav.nav-collapsed .nav-collapse-banner{max-height:24px}
+nav.nav-collapsed .nav-banner-img{max-height:24px !important}
 nav.nav-collapsed .nav-hamburger{font-size:1rem}
 nav.nav-collapsed .nav-dropdown-wrap{position:static}
 nav.nav-collapsed .nav-top{justify-content:space-between}
@@ -120,9 +126,13 @@ function toggleNavCollapse(){
     localStorage.setItem('nav_collapsed',nav.classList.contains('nav-collapsed')?'1':'0');
 }
 (function(){
-    if(localStorage.getItem('nav_collapsed')==='1'){
-        var nav=document.getElementById('mainNav');
-        if(nav)nav.classList.add('nav-collapsed');
+    var nav=document.getElementById('mainNav');
+    if(!nav)return;
+    var isMobile=<?= $_is_mobile ? 'true' : 'false' ?>;
+    if(isMobile){
+        nav.classList.add('nav-collapsed');
+    }else if(localStorage.getItem('nav_collapsed')==='1'){
+        nav.classList.add('nav-collapsed');
     }
 })();
 </script>
