@@ -4,6 +4,26 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.01600] — 2026-04-05
+
+### Added
+- **Poker game check-in/management screen.** New full-screen dashboard (`/checkin.php`) for event creators and admins to manage poker game nights. Accessible via "Manage Game" button on poker events.
+- **Tournament mode.** Track player check-ins, fixed buy-ins, rebuys, add-ons, table assignments, eliminations with finish positions, and percentage-based payout structure.
+- **Cash game mode.** Flexible per-player buy-in amounts (add/subtract/edit directly), cash-out tracking, and automatic profit/loss calculation per player.
+- **RSVP integration on check-in screen.** All event invitees are shown with their RSVP status. RSVP can be edited directly from the check-in page and syncs back to the event. RSVP=No rows are struck through with controls disabled.
+- **Walk-in player support.** Add players not on the original invite list directly from the check-in screen.
+- **Per-player notes.** Add notes to any player via a modal dialog.
+- **Game lifecycle management.** Sessions progress through Setup → Active → Finished with status controls in the header.
+- **Poker Game toggle on events.** Sliding yes/no toggle on event create/edit form (defaults to on). "Manage Game" button only appears on events marked as poker games.
+- **Collapsible navigation bar.** Click the ▲ button to collapse the nav to just the hamburger menu, maximizing screen space. State persists across pages via localStorage.
+- **RSVP Yes filter.** Filter button on check-in screen to show only players who RSVP'd yes.
+- **Game settings panel.** Configure buy-in/rebuy/add-on amounts, rebuys allowed, max rebuys, add-ons allowed, starting chips, number of tables, and payout structure. Switch between tournament and cash game types.
+
+### Changed
+- **Sliding toggle switches replace checkboxes.** "Poker Game" and "Don't Notify" on the event form now use sliding yes/no toggles instead of plain checkboxes.
+
+---
+
 ## [v0.01567] — 2026-04-04
 
 ### Fixed
