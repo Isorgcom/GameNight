@@ -127,6 +127,9 @@ function db_init(PDO $pdo): void {
     // Add event_role to event_invites for per-event manager permissions
     try { $pdo->exec("ALTER TABLE event_invites ADD COLUMN event_role TEXT NOT NULL DEFAULT 'invitee'"); } catch (Exception $e) {}
 
+    // Add occurrence_date to event_invites for per-occurrence invite tracking
+    try { $pdo->exec("ALTER TABLE event_invites ADD COLUMN occurrence_date TEXT"); } catch (Exception $e) {}
+
     // Unique index on lowercase email (login identifier) — safe on existing DBs
     try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(LOWER(email)) WHERE email IS NOT NULL"); } catch (Exception $e) {}
 

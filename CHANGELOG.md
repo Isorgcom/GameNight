@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.02101] — 2026-04-05
+
+### Fixed
+- **Calendar crash on clean install.** Adding the missing `occurrence_date` column migration for `event_invites` — creating an event on a fresh database caused calendar.php to fail with a SQL error.
+
+---
+
 ## [v0.02100] — 2026-04-05
 
 ### Added
