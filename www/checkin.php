@@ -363,6 +363,9 @@ function renderDashboard() {
     h += '<span class="pk-badge ' + statusClass + '" id="statusBadge">' + SESSION.status.toUpperCase() + '</span>';
     h += '<div class="pk-actions">';
     h += '<button class="pk-btn-settings" onclick="toggleSettings()">&#9881; Settings</button>';
+    if (isTourney()) {
+        h += '<a class="pk-btn-settings" href="/timer.php?event_id=' + <?= json_encode($event['id']) ?> + '" style="text-decoration:none">&#9201; Timer</a>';
+    }
     if (SESSION.status === 'setup') {
         h += '<button class="pk-btn-start" onclick="changeStatus(\'active\')">&#9654; Start Game</button>';
     } else if (SESSION.status === 'active') {

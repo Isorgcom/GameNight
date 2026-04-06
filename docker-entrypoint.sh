@@ -29,4 +29,14 @@ if [ ! -f "$PHPADMIN/phpliteadmin.php" ]; then
     curl -fsSL "https://github.com/emanueleg/pla-ng/releases/download/v2.0.4/phpliteadmin.php" -o "$PHPADMIN/phpliteadmin.php"
 fi
 
+if [ ! -f "$VENDOR/qrcode.min.js" ]; then
+    echo "[entrypoint] Downloading qrcode-generator 1.4.4..."
+    curl -fsSL https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js -o "$VENDOR/qrcode.min.js"
+fi
+
+if [ ! -f "$VENDOR/nosleep.min.js" ]; then
+    echo "[entrypoint] Downloading NoSleep.js 0.12.0..."
+    curl -fsSL https://cdn.jsdelivr.net/npm/nosleep.js@0.12.0/dist/NoSleep.min.js -o "$VENDOR/nosleep.min.js"
+fi
+
 exec docker-php-entrypoint apache2-foreground

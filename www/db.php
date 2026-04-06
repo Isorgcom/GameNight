@@ -253,6 +253,81 @@ function db_init(PDO $pdo): void {
     try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN cash_in INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN rsvp TEXT DEFAULT NULL"); } catch (Exception $e) {}
 
+    // Blind structure presets for poker timer
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS blind_presets (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        name        TEXT NOT NULL,
+        created_by  INTEGER NOT NULL DEFAULT 0,
+        is_default  INTEGER NOT NULL DEFAULT 0,
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    )"); } catch (Exception $e) {}
+
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS blind_preset_levels (
+        id               INTEGER PRIMARY KEY AUTOINCREMENT,
+        preset_id        INTEGER NOT NULL,
+        level_number     INTEGER NOT NULL,
+        small_blind      INTEGER NOT NULL,
+        big_blind        INTEGER NOT NULL,
+        ante             INTEGER NOT NULL DEFAULT 0,
+        duration_minutes INTEGER NOT NULL DEFAULT 15,
+        is_break         INTEGER NOT NULL DEFAULT 0,
+        UNIQUE(preset_id, level_number),
+        FOREIGN KEY (preset_id) REFERENCES blind_presets(id) ON DELETE CASCADE
+    )"); } catch (Exception $e) {}
+
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS timer_state (
+        id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id             INTEGER NOT NULL UNIQUE,
+        preset_id              INTEGER,
+        current_level          INTEGER NOT NULL DEFAULT 1,
+        time_remaining_seconds INTEGER NOT NULL DEFAULT 900,
+        is_running             INTEGER NOT NULL DEFAULT 0,
+        remote_key             TEXT,
+        started_at             DATETIME,
+        updated_at             DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (session_id) REFERENCES poker_sessions(id) ON DELETE CASCADE,
+        FOREIGN KEY (preset_id) REFERENCES blind_presets(id) ON DELETE SET NULL
+    )"); } catch (Exception $e) {}
+
+    try { $pdo->exec("ALTER TABLE timer_state ADD COLUMN commanded_at DATETIME"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE timer_state ADD COLUMN warning_seconds INTEGER NOT NULL DEFAULT 60"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE timer_state ADD COLUMN alarm_sound TEXT"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE timer_state ADD COLUMN warning_sound TEXT"); } catch (Exception $e) {}
+
+    // Seed default blind structure if none exists
+    $presetCount = $pdo->query('SELECT COUNT(*) FROM blind_presets WHERE is_default = 1')->fetchColumn();
+    if ((int)$presetCount === 0) {
+        $pdo->prepare('INSERT INTO blind_presets (name, created_by, is_default) VALUES (?, 0, 1)')
+            ->execute(['Standard Tournament']);
+        $defaultPresetId = (int)$pdo->lastInsertId();
+        $lvlIns = $pdo->prepare('INSERT INTO blind_preset_levels (preset_id, level_number, small_blind, big_blind, ante, duration_minutes, is_break) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        $defaultLevels = [
+            [1,  25,    50,    0,    15, 0],
+            [2,  50,    100,   0,    15, 0],
+            [3,  75,    150,   0,    15, 0],
+            [4,  100,   200,   0,    15, 0],
+            [5,  150,   300,   25,   15, 0],
+            [6,  0,     0,     0,    10, 1],  // Break
+            [7,  200,   400,   50,   15, 0],
+            [8,  300,   600,   75,   15, 0],
+            [9,  400,   800,   100,  15, 0],
+            [10, 0,     0,     0,    10, 1],  // Break
+            [11, 500,   1000,  100,  12, 0],
+            [12, 600,   1200,  200,  12, 0],
+            [13, 800,   1600,  200,  12, 0],
+            [14, 1000,  2000,  300,  10, 0],
+            [15, 1500,  3000,  400,  10, 0],
+            [16, 2000,  4000,  500,  10, 0],
+            [17, 3000,  6000,  1000, 10, 0],
+            [18, 4000,  8000,  1000, 10, 0],
+            [19, 5000,  10000, 2000, 10, 0],
+            [20, 10000, 20000, 3000, 10, 0],
+        ];
+        foreach ($defaultLevels as $lv) {
+            $lvlIns->execute([$defaultPresetId, $lv[0], $lv[1], $lv[2], $lv[3], $lv[4], $lv[5]]);
+        }
+    }
+
     // Seed default site_settings on a fresh DB (INSERT OR IGNORE — never overwrites existing values)
     $ins = $pdo->prepare('INSERT OR IGNORE INTO site_settings (key, value) VALUES (?, ?)');
 
