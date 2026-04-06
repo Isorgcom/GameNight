@@ -1132,11 +1132,13 @@ function previewSound(type) {
 // ─── Levels editor ────────────────────────────────────────
 function openLevels() {
     loadPresetList();
+    levelsCollected = true; // skip collecting from stale/empty DOM
     renderLevelsTable();
     document.getElementById('levelsOverlay').classList.add('open');
 }
 function closeLevels() {
     document.getElementById('levelsOverlay').classList.remove('open');
+    document.getElementById('levelsBody').innerHTML = ''; // clear stale inputs
 }
 
 var dragSrcIdx = null;
@@ -1324,6 +1326,7 @@ function loadPreset() {
                     if (s.ok && s.levels) {
                         LEVELS = s.levels;
                         CURRENT_PRESET_ID = pid;
+                        levelsCollected = true; // skip collecting stale DOM values
                         renderLevelsTable();
                         document.getElementById('presetSelect').value = pid;
                     }

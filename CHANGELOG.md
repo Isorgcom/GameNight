@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.03101] — 2026-04-06
+
+### Fixed
+- **Level editor: stale values when switching presets.** Loading preset A then B then A again showed B's empty fields in A's rows. `collectLevelsFromTable()` was reading old DOM inputs back into the freshly loaded `LEVELS` array. Now skips DOM collection when loading a preset or reopening the panel, and clears the table body on close.
+
+---
+
 ## [v0.03100] — 2026-04-06
 
 ### Added
