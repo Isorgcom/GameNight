@@ -4,6 +4,37 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.03100] — 2026-04-06
+
+### Added
+- **Standalone timer mode.** Tournament Timer accessible from the hamburger menu for all logged-in users — no event required. Player count and pool are hidden when not linked to an event.
+- **Drag-and-drop level reorder.** Blind structure editor rows can be dragged by the handle to rearrange order.
+- **Insert level/break buttons.** Each row in the level editor has + (insert level) and clock (insert break) buttons to add entries at any position.
+- **Reset Timer control.** New "Reset Timer" button (red) resets the entire timer back to Level 1 with confirmation dialog. Separate from "Reset Level" which only resets the current level's clock.
+- **Grouped time adjust control.** Replaced separate +1 min / -1 min buttons with a compact `▼ Min ▲` group.
+- **Sound settings panel.** Configurable warning alert timing (off/30s/60s/2min/5min), custom sound uploads for level change and warning (MP3, M4A, WAV, OGG, max 5 MB), and test buttons for each sound.
+- **Split level change sounds.** End timer (3 descending beeps over 3 seconds), start timer (1-second long tone), and warning (5 quick beeps) — each distinct.
+- **Audio unlock for mobile.** Silent buffer played on first user interaction to unlock AudioContext on iOS/Android so timer sounds work on remote viewers.
+- **Fullscreen button for all users.** Moved from host-only to the always-visible toolbar so remote viewers on iPads/tablets can go fullscreen.
+- **Tournament Timer link in hamburger menu.** All logged-in users can access the standalone timer from the navigation dropdown.
+
+### Fixed
+- **Remote controls not appearing.** Standalone timers returned `can_control: false` because access check required an event. Now checks timer ownership for standalone timers.
+- **Remote controls disappearing on click.** Poll was overwriting `can_control` to false for standalone timers.
+- **Level editor: delete removed wrong level.** `collectLevelsFromTable()` was called twice (once explicitly, once inside `renderLevelsTable`), corrupting array indices after splice.
+- **Level editor: poll overwrote local edits.** Server poll no longer updates `LEVELS` while the editor panel is open.
+- **Load preset button not working.** Loading a preset now fetches levels directly instead of relying on poll (which was blocked by the panel-open guard).
+- **Preset dropdown resetting to default.** Editor now tracks `CURRENT_PRESET_ID` and selects the active preset when the dropdown is rebuilt.
+- **Save Changes closing the panel.** Now shows a green "Saved!" confirmation for 2 seconds instead of closing.
+- **X close button added** to the level editor panel header.
+- **Input fields not selectable.** Moved `draggable` attribute from the table row to only the drag handle cell so number inputs can be clicked/selected normally.
+
+### Changed
+- **Larger timer clock.** Clock font uses `min(25vw, 35vh)` with no hard cap — scales to fill available space on any screen size.
+- **Larger "Next" level text.** Bumped from `clamp(0.9rem, 2vw, 1.4rem)` to `clamp(1.1rem, 2.5vw, 1.8rem)`.
+
+---
+
 ## [v0.03000] — 2026-04-05
 
 ### Added

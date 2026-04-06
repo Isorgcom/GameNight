@@ -61,6 +61,7 @@ $_accent        = get_setting('accent_color', '');
                         <a href="/admin_posts.php" class="nav-mobile-link<?= $_active === 'posts' ? ' active' : '' ?>">Posts</a>
                         <a href="/admin_settings.php" class="nav-mobile-link<?= $_active === 'site-settings' ? ' active' : '' ?>">Site Settings</a>
                         <?php endif; ?>
+                        <a href="/timer.php" class="nav-mobile-link">Tournament Timer</a>
                         <div class="nav-mobile-divider"></div>
                         <a href="/settings.php"<?= $_active === 'settings' ? ' class="active"' : '' ?>>My Settings</a>
                         <a href="/logout.php" class="nav-dropdown-signout">Sign out</a>

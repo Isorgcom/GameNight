@@ -56,51 +56,86 @@ if (isset($_GET['view']) && $_GET['view'] === 'remote' && !empty($_GET['key'])) 
     $isAdmin = $current['role'] === 'admin';
 
     $event_id = (int)($_GET['event_id'] ?? 0);
-    if (!$event_id) {
-        header('Location: /calendar.php');
-        exit;
-    }
 
-    verify_event_access($db, $event_id, $current, $isAdmin);
+    if ($event_id) {
+        // Event-linked timer
+        verify_event_access($db, $event_id, $current, $isAdmin);
 
-    $ev = $db->prepare('SELECT * FROM events WHERE id = ?');
-    $ev->execute([$event_id]);
-    $event = $ev->fetch();
+        $ev = $db->prepare('SELECT * FROM events WHERE id = ?');
+        $ev->execute([$event_id]);
+        $event = $ev->fetch();
 
-    $sess = $db->prepare('SELECT * FROM poker_sessions WHERE event_id = ?');
-    $sess->execute([$event_id]);
-    $session = $sess->fetch();
+        $sess = $db->prepare('SELECT * FROM poker_sessions WHERE event_id = ?');
+        $sess->execute([$event_id]);
+        $session = $sess->fetch();
 
-    if (!$session) {
-        header('Location: /checkin.php?event_id=' . $event_id);
-        exit;
-    }
-
-    // Initialize timer if needed
-    $ts = $db->prepare('SELECT * FROM timer_state WHERE session_id = ?');
-    $ts->execute([$session['id']]);
-    $timer = $ts->fetch();
-
-    if (!$timer) {
-        $preset = $db->prepare('SELECT id FROM blind_presets WHERE is_default = 1 LIMIT 1');
-        $preset->execute();
-        $defaultPreset = $preset->fetch();
-        $preset_id = $defaultPreset ? (int)$defaultPreset['id'] : null;
-
-        $duration = 900;
-        if ($preset_id) {
-            $flvl = $db->prepare('SELECT duration_minutes FROM blind_preset_levels WHERE preset_id = ? AND level_number = 1');
-            $flvl->execute([$preset_id]);
-            $fl = $flvl->fetch();
-            if ($fl) $duration = (int)$fl['duration_minutes'] * 60;
+        if (!$session) {
+            header('Location: /checkin.php?event_id=' . $event_id);
+            exit;
         }
 
-        $remote_key = bin2hex(random_bytes(8));
-        $db->prepare("INSERT INTO timer_state (session_id, preset_id, current_level, time_remaining_seconds, is_running, remote_key, updated_at) VALUES (?, ?, 1, ?, 0, ?, datetime('now'))")
-            ->execute([$session['id'], $preset_id, $duration, $remote_key]);
-
+        // Initialize timer if needed
+        $ts = $db->prepare('SELECT * FROM timer_state WHERE session_id = ?');
         $ts->execute([$session['id']]);
         $timer = $ts->fetch();
+
+        if (!$timer) {
+            $preset = $db->prepare('SELECT id FROM blind_presets WHERE is_default = 1 LIMIT 1');
+            $preset->execute();
+            $defaultPreset = $preset->fetch();
+            $preset_id = $defaultPreset ? (int)$defaultPreset['id'] : null;
+
+            $duration = 900;
+            if ($preset_id) {
+                $flvl = $db->prepare('SELECT duration_minutes FROM blind_preset_levels WHERE preset_id = ? AND level_number = 1');
+                $flvl->execute([$preset_id]);
+                $fl = $flvl->fetch();
+                if ($fl) $duration = (int)$fl['duration_minutes'] * 60;
+            }
+
+            $remote_key = bin2hex(random_bytes(8));
+            $db->prepare("INSERT INTO timer_state (session_id, preset_id, current_level, time_remaining_seconds, is_running, remote_key, updated_at) VALUES (?, ?, 1, ?, 0, ?, datetime('now'))")
+                ->execute([$session['id'], $preset_id, $duration, $remote_key]);
+
+            $ts->execute([$session['id']]);
+            $timer = $ts->fetch();
+        }
+
+        $pool = calc_pool($db, (int)$session['id']);
+        $session['event_title'] = $event['title'];
+
+    } else {
+        // Standalone timer (no event) — use negative user_id as session_id to stay unique
+        $standalone_sid = -1 * (int)$current['id'];
+        $ts = $db->prepare('SELECT * FROM timer_state WHERE session_id = ?');
+        $ts->execute([$standalone_sid]);
+        $timer = $ts->fetch();
+
+        if (!$timer) {
+            $preset = $db->prepare('SELECT id FROM blind_presets WHERE is_default = 1 LIMIT 1');
+            $preset->execute();
+            $defaultPreset = $preset->fetch();
+            $preset_id = $defaultPreset ? (int)$defaultPreset['id'] : null;
+
+            $duration = 900;
+            if ($preset_id) {
+                $flvl = $db->prepare('SELECT duration_minutes FROM blind_preset_levels WHERE preset_id = ? AND level_number = 1');
+                $flvl->execute([$preset_id]);
+                $fl = $flvl->fetch();
+                if ($fl) $duration = (int)$fl['duration_minutes'] * 60;
+            }
+
+            $remote_key = bin2hex(random_bytes(8));
+            $db->prepare("INSERT INTO timer_state (session_id, preset_id, current_level, time_remaining_seconds, is_running, remote_key, user_id, updated_at) VALUES (?, ?, 1, ?, 0, ?, ?, datetime('now'))")
+                ->execute([$standalone_sid, $preset_id, $duration, $remote_key, $current['id']]);
+
+            $ts->execute([$standalone_sid]);
+            $timer = $ts->fetch();
+        }
+
+        $session = null;
+        $event = null;
+        $pool = null;
     }
 
     $remote_key = $timer['remote_key'];
@@ -111,11 +146,8 @@ if (isset($_GET['view']) && $_GET['view'] === 'remote' && !empty($_GET['key'])) 
         $levels = $lvl->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    $pool = calc_pool($db, (int)$session['id']);
     $can_control = true;
     $csrf = csrf_token();
-
-    $session['event_title'] = $event['title'];
 }
 
 // Compute corrected remaining time
@@ -220,7 +252,7 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
             font-weight: 500;
         }
         .timer-clock {
-            font-size: clamp(2.5rem, 12vw, 12rem);
+            font-size: min(25vw, 35vh);
             font-weight: 800;
             font-variant-numeric: tabular-nums;
             line-height: 1;
@@ -243,7 +275,7 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
             50% { opacity: 0.5; }
         }
         .timer-next {
-            font-size: clamp(0.9rem, 2vw, 1.4rem);
+            font-size: clamp(1.1rem, 2.5vw, 1.8rem);
             color: #64748b;
         }
 
@@ -287,6 +319,29 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
             border-color: #dc2626;
         }
         .timer-controls button.btn-play.is-running:hover { background: #b91c1c; }
+        .timer-min-group, .timer-reset-group {
+            display: inline-flex;
+            align-items: center;
+            gap: 0;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .timer-min-group button, .timer-reset-group button {
+            border: none !important;
+            border-radius: 0 !important;
+            padding: 0.6rem 0.7rem;
+        }
+        .timer-min-group button:first-child { border-right: 1px solid #334155 !important; }
+        .timer-min-group button:last-child { border-left: 1px solid #334155 !important; }
+        .timer-reset-group button:first-child { border-right: 1px solid #334155 !important; }
+        .timer-min-label {
+            padding: 0 0.5rem;
+            color: #94a3b8;
+            font-size: clamp(0.75rem, 1.3vw, 0.9rem);
+            font-weight: 600;
+            user-select: none;
+        }
 
         /* ── Back link ── */
         .timer-back {
@@ -436,7 +491,7 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
                 padding: 0.4rem 1rem;
             }
             .timer-blinds { font-size: clamp(1.8rem, 8vw, 5rem); }
-            .timer-clock { font-size: clamp(3rem, 12vw, 8rem); }
+            .timer-clock { font-size: min(22vw, 30vh); }
             .timer-level-label { font-size: clamp(0.9rem, 2.5vw, 1.5rem); }
         }
         @media (max-width: 500px) {
@@ -458,7 +513,7 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
             .timer-level-label { font-size: 1rem; }
             .timer-blinds { font-size: clamp(1.5rem, 6vw, 3rem); }
             .timer-ante { font-size: 0.85rem; }
-            .timer-clock { font-size: clamp(2.5rem, 10vw, 5rem); }
+            .timer-clock { font-size: min(20vw, 25vh); }
             .timer-paused-label { font-size: 0.9rem; min-height: 1.2em; }
             .timer-next { font-size: 0.8rem; }
             .timer-controls { padding: 0.2rem 0; gap: 0.25rem; }
@@ -475,15 +530,21 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
 </div>
 
 <?php if (!$is_remote): ?>
+<?php if ($event): ?>
 <a class="timer-back" href="/checkin.php?event_id=<?= (int)$event['id'] ?>">&larr; Back to Check-in</a>
+<?php else: ?>
+<a class="timer-back" href="/">&larr; Home</a>
+<?php endif; ?>
 <?php endif; ?>
 
 <div class="timer-container">
     <!-- Info bar -->
     <div class="timer-info-bar">
-        <span class="timer-event-name" id="eventName"><?= htmlspecialchars($session['event_title'] ?? '') ?></span>
-        <span class="timer-stat">Players: <b id="playerCount"><?= (int)($pool['still_playing'] ?? 0) ?>/<?= (int)($pool['bought_in'] ?? 0) ?></b></span>
-        <span class="timer-stat">Pool: <b id="poolTotal">$<?= number_format(($pool['pool_total'] ?? 0) / 100, 2) ?></b></span>
+        <span class="timer-event-name" id="eventName"><?= htmlspecialchars($session['event_title'] ?? 'Tournament Timer') ?></span>
+        <?php if ($pool && ($pool['bought_in'] ?? 0) > 0): ?>
+        <span class="timer-stat" id="playerWrap">Players: <b id="playerCount"><?= (int)($pool['still_playing'] ?? 0) ?>/<?= (int)($pool['bought_in'] ?? 0) ?></b></span>
+        <span class="timer-stat" id="poolWrap">Pool: <b id="poolTotal">$<?= number_format(($pool['pool_total'] ?? 0) / 100, 2) ?></b></span>
+        <?php endif; ?>
     </div>
 
     <!-- Main display -->
@@ -496,9 +557,10 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
         <div class="timer-next" id="nextLevel"></div>
     </div>
 
-    <!-- Sound toggle (always visible for all users) -->
+    <!-- Sound & fullscreen (always visible for all users) -->
     <div class="timer-controls" style="padding:0.2rem 0;justify-content:center">
         <button id="btnSound" onclick="toggleSound()">&#128276; Sound: On</button>
+        <button onclick="goFullscreen()">&#9974; Fullscreen</button>
     </div>
 
     <!-- Controls (host or remote controller) -->
@@ -506,13 +568,18 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
         <button onclick="skipLevel(-1)" title="Previous Level">&#9198; Prev</button>
         <button class="btn-play" id="btnPlay" onclick="togglePlay()">&#9654; Start</button>
         <button onclick="skipLevel(1)" title="Next Level">Next &#9197;</button>
-        <button onclick="adjustTime(-60)">-1 min</button>
-        <button onclick="adjustTime(60)">+1 min</button>
-        <button onclick="resetLevel()">&#8635; Reset</button>
+        <span class="timer-min-group">
+            <button onclick="adjustTime(-60)" title="Subtract 1 minute">&#9660;</button>
+            <span class="timer-min-label">Min</span>
+            <button onclick="adjustTime(60)" title="Add 1 minute">&#9650;</button>
+        </span>
+        <span class="timer-reset-group">
+            <button onclick="resetLevel()" title="Reset current level clock">&#8635; Level</button>
+            <button onclick="resetTimer()" title="Reset entire timer to level 1" style="color:#ef4444">&#8635; Timer</button>
+        </span>
         <?php if (!$is_remote): ?>
         <button onclick="openLevels()">&#128203; Levels</button>
         <button onclick="openSoundSettings()">&#9881; Sounds</button>
-        <button onclick="goFullscreen()">&#9974; Fullscreen</button>
         <?php endif; ?>
     </div>
 </div>
@@ -525,7 +592,8 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
 <?php if (!$is_remote): ?>
 <!-- Levels editor overlay -->
 <div class="timer-levels-overlay" id="levelsOverlay" onclick="if(event.target===this)closeLevels()">
-    <div class="timer-levels-panel">
+    <div class="timer-levels-panel" style="position:relative">
+        <button onclick="closeLevels()" style="position:absolute;top:0.75rem;right:0.75rem;background:none;border:none;color:#94a3b8;font-size:1.5rem;cursor:pointer;line-height:1;padding:0.25rem">&times;</button>
         <h3>Blind Structure</h3>
         <div class="timer-preset-bar">
             <select id="presetSelect"><option value="">Loading...</option></select>
@@ -534,7 +602,7 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
             <button onclick="deletePreset()">Delete</button>
         </div>
         <table class="timer-levels-table">
-            <thead><tr><th>#</th><th>SB</th><th>BB</th><th>Ante</th><th>Min</th><th>Break</th><th></th></tr></thead>
+            <thead><tr><th style="width:3rem">#</th><th>SB</th><th>BB</th><th>Ante</th><th>Min</th><th>Type</th><th></th></tr></thead>
             <tbody id="levelsBody"></tbody>
         </table>
         <div class="timer-level-btns">
@@ -629,6 +697,7 @@ var soundEnabled = true;
 var localInterval = null;
 var lastSyncTime = Date.now();
 var audioCtx = null;
+var CURRENT_PRESET_ID = <?= json_encode($timer['preset_id'] ? (int)$timer['preset_id'] : null) ?>;
 var SOUNDS = {
     warning_seconds: <?= (int)($timer['warning_seconds'] ?? 60) ?>,
     alarm_sound: <?= json_encode($timer['alarm_sound'] ?? null) ?>,
@@ -703,8 +772,13 @@ function renderAll() {
 
     // Stats
     if (POOL) {
-        el('playerCount').textContent = (POOL.still_playing || 0) + '/' + (POOL.bought_in || 0);
-        el('poolTotal').textContent = fmtMoney(POOL.pool_total || 0);
+        var pc = el('playerCount'), pt = el('poolTotal');
+        if (pc) pc.textContent = (POOL.still_playing || 0) + '/' + (POOL.bought_in || 0);
+        if (pt) pt.textContent = fmtMoney(POOL.pool_total || 0);
+        // Show/hide player and pool if players joined mid-game
+        var pw = el('playerWrap'), plw = el('poolWrap');
+        if (pw) pw.style.display = (POOL.bought_in > 0) ? '' : 'none';
+        if (plw) plw.style.display = (POOL.bought_in > 0) ? '' : 'none';
     }
 
     // Paused label
@@ -733,17 +807,19 @@ function renderPlayBtn() {
     }
 }
 
+// Helper: append session or key identifier to FormData
+function appendTimerId(fd) {
+    if (SESSION_ID) fd.append('session_id', SESSION_ID);
+    else fd.append('key', REMOTE_KEY);
+}
+
 // ─── Send command to server API ───────────────────────────
 function sendCommand(cmd) {
     var fd = new FormData();
     fd.append('csrf_token', CSRF);
     fd.append('action', 'command');
     fd.append('cmd', cmd);
-    if (IS_REMOTE) {
-        fd.append('key', REMOTE_KEY);
-    } else {
-        fd.append('session_id', SESSION_ID);
-    }
+    appendTimerId(fd);
     fetch('/timer_dl.php', { method: 'POST', body: fd })
         .then(function(r) { return r.json(); })
         .then(function(j) {
@@ -758,10 +834,10 @@ function sendCommand(cmd) {
 var prevLevel = TIMER.current_level;
 function pollState() {
     var url;
-    if (IS_REMOTE) {
-        url = '/timer_dl.php?action=get_state&key=' + encodeURIComponent(REMOTE_KEY);
-    } else {
+    if (SESSION_ID) {
         url = '/timer_dl.php?action=get_state&session_id=' + SESSION_ID;
+    } else {
+        url = '/timer_dl.php?action=get_state&key=' + encodeURIComponent(REMOTE_KEY);
     }
     fetch(url).then(function(r) { return r.json(); }).then(function(j) {
         if (!j.ok) return;
@@ -776,7 +852,9 @@ function pollState() {
                 endTimerFired = false;
             }
         }
-        if (j.levels) LEVELS = j.levels;
+        // Don't overwrite levels while the editor panel is open (user may be editing)
+        var levelsOpen = document.getElementById('levelsOverlay') && document.getElementById('levelsOverlay').classList.contains('open');
+        if (j.levels && !levelsOpen) LEVELS = j.levels;
         if (j.sounds) {
             SOUNDS.warning_seconds = j.sounds.warning_seconds;
             SOUNDS.alarm_sound = j.sounds.alarm_sound;
@@ -827,6 +905,7 @@ function togglePlay() { sendCommand('toggle_play'); }
 function skipLevel(dir) { sendCommand(dir > 0 ? 'skip_next' : 'skip_prev'); }
 function adjustTime(delta) { sendCommand(delta > 0 ? 'add_time' : 'sub_time'); }
 function resetLevel() { sendCommand('reset_level'); }
+function resetTimer() { if (confirm('Reset entire timer to Level 1?')) sendCommand('reset_timer'); }
 
 function toggleSound() {
     soundEnabled = !soundEnabled;
@@ -998,7 +1077,7 @@ function uploadSound(type) {
     var fd = new FormData();
     fd.append('csrf_token', CSRF);
     fd.append('action', 'upload_sound');
-    fd.append('session_id', SESSION_ID);
+    appendTimerId(fd);
     fd.append('sound', input.files[0]);
     fetch('/timer_dl.php', { method: 'POST', body: fd })
         .then(function(r) { return r.json(); })
@@ -1025,7 +1104,7 @@ function saveSoundSettings() {
     var fd = new FormData();
     fd.append('csrf_token', CSRF);
     fd.append('action', 'update_sounds');
-    fd.append('session_id', SESSION_ID);
+    appendTimerId(fd);
     fd.append('warning_seconds', SOUNDS.warning_seconds);
     fd.append('alarm_sound', SOUNDS.alarm_sound || '');
     fd.append('warning_sound', SOUNDS.warning_sound || '');
@@ -1060,7 +1139,12 @@ function closeLevels() {
     document.getElementById('levelsOverlay').classList.remove('open');
 }
 
+var dragSrcIdx = null;
+
+var levelsCollected = false;
 function renderLevelsTable() {
+    if (!levelsCollected) collectLevelsFromTable(); // preserve any in-progress edits
+    levelsCollected = false;
     var tb = document.getElementById('levelsBody');
     var h = '';
     for (var i = 0; i < LEVELS.length; i++) {
@@ -1068,38 +1152,101 @@ function renderLevelsTable() {
         var brk = parseInt(lv.is_break);
         var cls = brk ? ' class="is-break"' : '';
         if (parseInt(lv.level_number) === TIMER.current_level) cls = ' class="current-level"';
-        h += '<tr' + cls + '>';
-        h += '<td>' + lv.level_number + '</td>';
+        h += '<tr' + cls + ' data-idx="' + i + '" ondragover="onDragOver(event)" ondrop="onDrop(event)">';
+        h += '<td draggable="true" ondragstart="onDragStart(event)" ondragend="onDragEnd()" style="cursor:grab;color:#64748b;user-select:none" title="Drag to reorder">&#9776; ' + (i + 1) + '</td>';
         h += '<td><input type="number" value="' + (brk ? 0 : lv.small_blind) + '" data-idx="' + i + '" data-field="small_blind"' + (brk ? ' disabled' : '') + '></td>';
         h += '<td><input type="number" value="' + (brk ? 0 : lv.big_blind) + '" data-idx="' + i + '" data-field="big_blind"' + (brk ? ' disabled' : '') + '></td>';
         h += '<td><input type="number" value="' + (brk ? 0 : lv.ante) + '" data-idx="' + i + '" data-field="ante"' + (brk ? ' disabled' : '') + '></td>';
         h += '<td><input type="number" value="' + lv.duration_minutes + '" data-idx="' + i + '" data-field="duration_minutes" style="width:55px"></td>';
         h += '<td>' + (brk ? 'BREAK' : 'Play') + '</td>';
-        h += '<td class="lvl-actions"><button onclick="removeLevel(' + i + ')" title="Remove">&times;</button></td>';
+        h += '<td class="lvl-actions">';
+        h += '<button onclick="insertLevel(' + i + ', false)" title="Insert level here" style="color:#22c55e;font-size:0.9rem">+</button>';
+        h += '<button onclick="insertLevel(' + i + ', true)" title="Insert break here" style="color:#fbbf24;font-size:0.9rem">&#9202;</button>';
+        h += '<button onclick="removeLevel(' + i + ')" title="Remove">&times;</button>';
+        h += '</td>';
         h += '</tr>';
     }
     tb.innerHTML = h;
 }
 
+// ─── Drag and drop reorder ───────────────────────────────
+function onDragStart(e) {
+    var row = e.currentTarget.closest('tr');
+    dragSrcIdx = parseInt(row.dataset.idx);
+    row.style.opacity = '0.4';
+    e.dataTransfer.effectAllowed = 'move';
+}
+function onDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    var row = e.currentTarget.closest ? e.currentTarget.closest('tr') : e.currentTarget;
+    var rows = document.querySelectorAll('#levelsBody tr');
+    rows.forEach(function(r) { r.style.borderTop = ''; r.style.borderBottom = ''; });
+    var targetIdx = parseInt(row.dataset.idx);
+    if (targetIdx < dragSrcIdx) {
+        row.style.borderTop = '2px solid #2563eb';
+    } else {
+        row.style.borderBottom = '2px solid #2563eb';
+    }
+}
+function onDrop(e) {
+    e.preventDefault();
+    var row = e.currentTarget.closest ? e.currentTarget.closest('tr') : e.currentTarget;
+    var targetIdx = parseInt(row.dataset.idx);
+    if (dragSrcIdx === null || dragSrcIdx === targetIdx) return;
+    collectLevelsFromTable(); levelsCollected = true;
+    var item = LEVELS.splice(dragSrcIdx, 1)[0];
+    LEVELS.splice(targetIdx, 0, item);
+    renumberLevels();
+    renderLevelsTable();
+    dragSrcIdx = null;
+}
+function onDragEnd() {
+    dragSrcIdx = null;
+    var rows = document.querySelectorAll('#levelsBody tr');
+    rows.forEach(function(r) { r.style.opacity = ''; r.style.borderTop = ''; r.style.borderBottom = ''; });
+}
+
+// ─── Insert level at position ────────────────────────────
+function insertLevel(beforeIdx, isBreak) {
+    collectLevelsFromTable(); levelsCollected = true;
+    var prevLv = beforeIdx > 0 ? LEVELS[beforeIdx - 1] : null;
+    var newLv;
+    if (isBreak) {
+        newLv = { level_number: 0, small_blind: 0, big_blind: 0, ante: 0, duration_minutes: 10, is_break: 1 };
+    } else {
+        var sb = prevLv && !parseInt(prevLv.is_break) ? parseInt(prevLv.big_blind) : 100;
+        newLv = { level_number: 0, small_blind: sb, big_blind: sb * 2, ante: 0, duration_minutes: 15, is_break: 0 };
+    }
+    LEVELS.splice(beforeIdx + 1, 0, newLv);
+    renumberLevels();
+    renderLevelsTable();
+}
+
 function addLevel(isBreak) {
-    var lastNum = LEVELS.length > 0 ? parseInt(LEVELS[LEVELS.length - 1].level_number) : 0;
+    collectLevelsFromTable(); levelsCollected = true;
     var lastLv = LEVELS.length > 0 ? LEVELS[LEVELS.length - 1] : null;
     var newLv;
     if (isBreak) {
-        newLv = { level_number: lastNum + 1, small_blind: 0, big_blind: 0, ante: 0, duration_minutes: 10, is_break: 1 };
+        newLv = { level_number: 0, small_blind: 0, big_blind: 0, ante: 0, duration_minutes: 10, is_break: 1 };
     } else {
         var sb = lastLv && !parseInt(lastLv.is_break) ? parseInt(lastLv.big_blind) : 100;
-        newLv = { level_number: lastNum + 1, small_blind: sb, big_blind: sb * 2, ante: 0, duration_minutes: 15, is_break: 0 };
+        newLv = { level_number: 0, small_blind: sb, big_blind: sb * 2, ante: 0, duration_minutes: 15, is_break: 0 };
     }
     LEVELS.push(newLv);
+    renumberLevels();
     renderLevelsTable();
 }
 
 function removeLevel(idx) {
+    collectLevelsFromTable(); levelsCollected = true;
     LEVELS.splice(idx, 1);
-    // Renumber
-    for (var i = 0; i < LEVELS.length; i++) LEVELS[i].level_number = i + 1;
+    renumberLevels();
     renderLevelsTable();
+}
+
+function renumberLevels() {
+    for (var i = 0; i < LEVELS.length; i++) LEVELS[i].level_number = i + 1;
 }
 
 function collectLevelsFromTable() {
@@ -1119,14 +1266,20 @@ function saveLevels() {
     var fd = new FormData();
     fd.append('csrf_token', CSRF);
     fd.append('action', 'update_levels');
-    fd.append('session_id', SESSION_ID);
+    appendTimerId(fd);
     fd.append('levels', JSON.stringify(LEVELS));
     fetch('/timer_dl.php', { method: 'POST', body: fd })
         .then(function(r) { return r.json(); })
         .then(function(j) {
             if (j.ok) {
-                closeLevels();
+                if (j.preset_id) { CURRENT_PRESET_ID = j.preset_id; loadPresetList(); }
                 renderAll();
+                var btn = document.querySelector('.timer-level-btns .btn-save');
+                if (btn) {
+                    btn.textContent = 'Saved!';
+                    btn.style.background = '#16a34a';
+                    setTimeout(function() { btn.textContent = 'Save Changes'; btn.style.background = ''; }, 2000);
+                }
             } else {
                 alert(j.error || 'Error saving levels');
             }
@@ -1146,6 +1299,8 @@ function loadPresetList() {
                 opt.textContent = p.name + (parseInt(p.is_default) ? ' (Default)' : '');
                 sel.appendChild(opt);
             });
+            // Select the currently active preset
+            if (CURRENT_PRESET_ID) sel.value = String(CURRENT_PRESET_ID);
         });
 }
 
@@ -1155,13 +1310,27 @@ function loadPreset() {
     var fd = new FormData();
     fd.append('csrf_token', CSRF);
     fd.append('action', 'load_preset');
-    fd.append('session_id', SESSION_ID);
+    appendTimerId(fd);
     fd.append('preset_id', pid);
     fetch('/timer_dl.php', { method: 'POST', body: fd })
         .then(function(r) { return r.json(); })
         .then(function(j) {
-            if (j.ok) location.reload();
-            else alert(j.error || 'Error loading preset');
+            if (j.ok) {
+                // Fetch updated levels directly (bypass panel-open guard)
+                var url;
+                if (SESSION_ID) url = '/timer_dl.php?action=get_state&session_id=' + SESSION_ID;
+                else url = '/timer_dl.php?action=get_state&key=' + encodeURIComponent(REMOTE_KEY);
+                fetch(url).then(function(r) { return r.json(); }).then(function(s) {
+                    if (s.ok && s.levels) {
+                        LEVELS = s.levels;
+                        CURRENT_PRESET_ID = pid;
+                        renderLevelsTable();
+                        document.getElementById('presetSelect').value = pid;
+                    }
+                });
+            } else {
+                alert(j.error || 'Error loading preset');
+            }
         });
 }
 
