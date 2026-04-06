@@ -366,6 +366,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $back = $_POST['month_param'] ?? '';
+    // After add: navigate to the event's month so user can see it
+    if ($action === 'add' && !empty($sd)) {
+        $back = substr($sd, 0, 7);
+    }
     header('Location: /calendar.php' . ($back ? '?m=' . urlencode($back) : ''));
     exit;
 }
@@ -985,10 +989,10 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             </div>
             <?php if ($viewMode === 'month'): ?>
             <div class="cal-nav">
-                <a href="/calendar.php?m=<?= $prevMonth ?>" title="Previous month">&#8249;</a>
+                <a href="/calendar.php?m=<?= $prevMonth ?>&view=month" title="Previous month">&#8249;</a>
                 <span class="month-label"><?= $display->format('F Y') ?></span>
-                <a href="/calendar.php?m=<?= $nextMonth ?>" title="Next month">&#8250;</a>
-                <a href="/calendar.php" style="font-size:.75rem;width:auto;padding:0 .65rem;font-weight:600" title="Today">Today</a>
+                <a href="/calendar.php?m=<?= $nextMonth ?>&view=month" title="Next month">&#8250;</a>
+                <a href="/calendar.php?view=month" style="font-size:.75rem;width:auto;padding:0 .65rem;font-weight:600" title="Today">Today</a>
             </div>
             <?php else: ?>
             <div class="cal-nav">

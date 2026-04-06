@@ -3,9 +3,22 @@ require_once __DIR__ . '/auth.php';
 
 $current   = require_login();
 $db        = get_db();
+
+// Handle range changes from inline selects
+$allowed_past = [7,14,30,60,90,180,365];
+if (isset($_GET['past_days'])) {
+    if (in_array((int)$_GET['past_days'], $allowed_past)) {
+        $db->prepare('UPDATE users SET my_events_past_days = ? WHERE id = ?')->execute([(int)$_GET['past_days'], $current['id']]);
+    }
+    header('Location: /my_events.php');
+    exit;
+}
+
 $site_name = get_setting('site_name', 'Game Night');
 $local_tz  = new DateTimeZone(get_setting('timezone', 'UTC'));
-$today     = (new DateTime('now', $local_tz))->format('Y-m-d');
+$now       = new DateTime('now', $local_tz);
+$past_days   = (int)($current['my_events_past_days'] ?? 30);
+$cutoff_past = (clone $now)->modify("-{$past_days} days")->format('Y-m-d');
 
 // All events the user is invited to OR created, with their RSVP status
 // UNION deduplicates: invited rows take priority (have RSVP); created-only rows get null RSVP
@@ -23,18 +36,27 @@ $stmt = $db->prepare("
 $stmt->execute([':uid' => $current['id'], ':uname' => $current['username'], ':uid2' => $current['id']]);
 $all_events = $stmt->fetchAll();
 
-// Split into upcoming and past
+// Split into upcoming and past using full datetime (end_time > start_time > end of day)
 $upcoming = [];
 $past     = [];
 foreach ($all_events as $ev) {
-    if ($ev['start_date'] >= $today) {
+    $ev_end_time = $ev['end_time'] ?: $ev['start_time'] ?: '23:59';
+    $ev_end_date = $ev['end_date'] ?: $ev['start_date'];
+    $ev_end = new DateTime($ev_end_date . ' ' . $ev_end_time, $local_tz);
+    if ($ev_end >= $now) {
         $upcoming[] = $ev;
     } else {
-        $past[] = $ev;
+        if ($ev['start_date'] >= $cutoff_past) {
+            $past[] = $ev;
+        }
     }
 }
-// Past events: most recent first
-$past = array_reverse($past);
+// Past events: most recent event date first
+usort($past, function($a, $b) use ($local_tz) {
+    $da = new DateTime($a['start_date'] . ' ' . ($a['start_time'] ?? '00:00'), $local_tz);
+    $db_dt = new DateTime($b['start_date'] . ' ' . ($b['start_time'] ?? '00:00'), $local_tz);
+    return $db_dt <=> $da;
+});
 
 $token = csrf_token();
 
@@ -70,7 +92,18 @@ function rsvp_badge(?string $rsvp): string {
 
 <div style="max-width:760px;margin:2rem auto;padding:0 1rem">
 
-    <h2 style="font-size:1.4rem;font-weight:700;color:#1e293b;margin-bottom:1.75rem">My Events</h2>
+    <div style="display:flex;align-items:center;flex-wrap:wrap;gap:.75rem;margin-bottom:1.75rem">
+        <h2 style="font-size:1.4rem;font-weight:700;color:#1e293b;margin:0">My Events</h2>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:.5rem;font-size:.8rem;color:#64748b">
+            <label>Past:
+                <select onchange="window.location='/my_events.php?past_days='+this.value" style="padding:.2rem .4rem;border:1px solid #e2e8f0;border-radius:5px;font-size:.8rem;background:#fff">
+                    <?php foreach ([7=>'7d',14=>'14d',30=>'30d',60=>'60d',90=>'90d',180=>'6mo',365=>'1yr'] as $v=>$l): ?>
+                    <option value="<?= $v ?>"<?= $past_days === $v ? ' selected' : '' ?>><?= $l ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </label>
+        </div>
+    </div>
 
     <!-- Upcoming -->
     <h3 style="font-size:.8rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.75rem">

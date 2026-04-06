@@ -4,6 +4,19 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.02109] — 2026-04-05
+
+### Fixed
+- **My Events time-aware sorting.** Events that ended today now correctly appear in "Past" instead of "Upcoming". Past events sorted by event date, not creation order.
+- **My Events range filter.** Per-user "Past range" setting on My Events page and Account Settings. All future events always show in upcoming.
+- **Calendar month view navigation.** Prev/next month and "Today" buttons now stay in month view instead of reverting to week view.
+- **Calendar redirect after add.** Creating an event for a different month now navigates to that month so you can see it.
+- **Cashout Enter key.** Pressing Enter in the cashout modal now submits the form. Input auto-focused on open.
+- **Cashout cap at table money.** Cashout validated against money remaining on the table, client-side and server-side.
+- **Calendar crash on clean install.** Added missing `occurrence_date` column migration for `event_invites`.
+
+---
+
 ## [v0.02103] — 2026-04-05
 
 ### Fixed

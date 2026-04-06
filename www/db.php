@@ -182,6 +182,12 @@ function db_init(PDO $pdo): void {
     // Admin notes field for users
     try { $pdo->exec("ALTER TABLE users ADD COLUMN notes TEXT"); } catch (Exception $e) {}
 
+    // Per-user My Events time range preferences
+    try { $pdo->exec("ALTER TABLE users ADD COLUMN my_events_past_days INTEGER NOT NULL DEFAULT 30"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE users ADD COLUMN my_events_future_days INTEGER NOT NULL DEFAULT 7"); } catch (Exception $e) {}
+    // Update existing users from old default of 90 to new default of 7
+    try { $pdo->exec("UPDATE users SET my_events_future_days = 7 WHERE my_events_future_days = 90"); } catch (Exception $e) {}
+
     // Event notification deduplication for cron reminders
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS event_notifications_sent (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -24,6 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $phone    = $phone !== '' ? normalize_phone($phone) : '';
             $pref_contact = in_array($_POST['preferred_contact'] ?? '', ['email', 'sms', 'whatsapp', 'none'])
                             ? $_POST['preferred_contact'] : 'email';
+            $past_days = in_array((int)($_POST['my_events_past_days'] ?? 30), [7,14,30,60,90,180,365]) ? (int)$_POST['my_events_past_days'] : 30;
 
             if ($username === '') {
                 $flash = ['type' => 'error', 'msg' => 'Username cannot be empty.'];
@@ -36,8 +37,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $flash = ['type' => 'error', 'msg' => 'That email is already in use.'];
                 } else {
                     try {
-                        $db->prepare('UPDATE users SET username = ?, email = ?, phone = ?, preferred_contact = ? WHERE id = ?')
-                           ->execute([$username, $email, $phone ?: null, $pref_contact, $current['id']]);
+                        $db->prepare('UPDATE users SET username = ?, email = ?, phone = ?, preferred_contact = ?, my_events_past_days = ? WHERE id = ?')
+                           ->execute([$username, $email, $phone ?: null, $pref_contact, $past_days, $current['id']]);
                         db_log_activity($current['id'], 'updated profile');
                         $flash = ['type' => 'success', 'msg' => 'Profile updated.'];
                     } catch (PDOException $e) {
@@ -78,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Reload fresh user data after possible username change
-$me = $db->prepare('SELECT username, email, phone, preferred_contact, role, created_at, last_login FROM users WHERE id = ?');
+$me = $db->prepare('SELECT username, email, phone, preferred_contact, my_events_past_days, my_events_future_days, role, created_at, last_login FROM users WHERE id = ?');
 $me->execute([$current['id']]);
 $me = $me->fetch();
 
@@ -158,6 +159,15 @@ $site_name = get_setting('site_name', 'Game Night');
                         <option value="none"<?= ($me['preferred_contact'] ?? '') === 'none'  ? ' selected' : '' ?>>None (do not notify me)</option>
                     </select>
                     <p class="hint">How you want to be notified when invited to an event.</p>
+                </div>
+                <div class="form-group">
+                    <label for="my_events_past_days">My Events — Past Range</label>
+                    <select id="my_events_past_days" name="my_events_past_days" style="width:100%;padding:.5rem .75rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.95rem;background:#fff">
+                        <?php foreach ([7=>'7 days',14=>'14 days',30=>'30 days',60=>'60 days',90=>'90 days',180=>'6 months',365=>'1 year'] as $v=>$l): ?>
+                        <option value="<?= $v ?>"<?= (int)($me['my_events_past_days'] ?? 30) === $v ? ' selected' : '' ?>><?= $l ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <p class="hint">How far back past events appear on the My Events page.</p>
                 </div>
                 <button type="submit" class="btn btn-primary" style="width:100%">Save Profile</button>
             </form>
