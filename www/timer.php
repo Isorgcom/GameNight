@@ -834,7 +834,9 @@ function sendCommand(cmd) {
 var prevLevel = TIMER.current_level;
 function pollState() {
     var url;
-    if (SESSION_ID) {
+    // Remote viewers are not authenticated — always use the public key endpoint.
+    // session_id endpoint requires login and would return {ok:false} for QR-scan visitors.
+    if (!IS_REMOTE && SESSION_ID) {
         url = '/timer_dl.php?action=get_state&session_id=' + SESSION_ID;
     } else {
         url = '/timer_dl.php?action=get_state&key=' + encodeURIComponent(REMOTE_KEY);
@@ -945,9 +947,13 @@ requestWakeLock();
 // Acquire on user interaction (required by iOS Safari)
 document.addEventListener('click', function() { requestWakeLock(); }, true);
 document.addEventListener('touchend', function() { requestWakeLock(); }, true);
-// Re-acquire when tab becomes visible
+// Re-acquire when tab becomes visible and immediately resync timer state
 document.addEventListener('visibilitychange', function() {
-    if (document.visibilityState === 'visible') { wakeLockAcquired = false; requestWakeLock(); }
+    if (document.visibilityState === 'visible') {
+        wakeLockAcquired = false;
+        requestWakeLock();
+        pollState(); // resync immediately — Android may have throttled intervals while hidden
+    }
 });
 
 // ─── Sound alert ──────────────────────────────────────────
