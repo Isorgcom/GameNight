@@ -4,6 +4,20 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.03300] — 2026-04-07
+
+### Added
+- **Walk-up QR registration.** Admins can now generate a QR code for any event via the "📱 QR" button in the event view modal. Walk-up attendees scan the code on their phone, fill out a short form (name, email, optional phone), and are registered. If the email matches an existing account they are RSVPed Yes; otherwise a soft account is created, they are RSVPed Yes, and a verification email is sent so they can set a password later.
+- **Walk-up registration page (`/walkin.php`).** Public, no login required. Validates the per-event secret token, shows event details at the top, rate-limits to 5 submissions per IP per hour, and handles duplicate-username collisions by appending a numeric suffix.
+- **Walk-up token regeneration.** Admins can invalidate the current walk-up link from the event edit modal with "Regenerate walk-up link." A new token is generated instantly via AJAX.
+- **Copy link in QR modal.** The QR modal includes the full URL and a "Copy link" button for sharing digitally.
+
+### Database
+- New column `events.walkin_token TEXT` — per-event secret token for the walk-up registration URL.
+- New table `walkin_attempts` — IP-based rate limiting for walk-up registration form submissions.
+
+---
+
 ## [v0.03200] — 2026-04-06
 
 ### Added

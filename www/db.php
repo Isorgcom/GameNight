@@ -295,6 +295,16 @@ function db_init(PDO $pdo): void {
     try { $pdo->exec("ALTER TABLE timer_state ADD COLUMN alarm_sound TEXT"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE timer_state ADD COLUMN warning_sound TEXT"); } catch (Exception $e) {}
 
+    // Walk-up QR registration token per event
+    try { $pdo->exec("ALTER TABLE events ADD COLUMN walkin_token TEXT"); } catch (Exception $e) {}
+
+    // Rate-limit table for walk-up registration submissions
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS walkin_attempts (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        ip         TEXT    NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )"); } catch (Exception $e) {}
+
     // Seed default blind structure if none exists
     $presetCount = $pdo->query('SELECT COUNT(*) FROM blind_presets WHERE is_default = 1')->fetchColumn();
     if ((int)$presetCount === 0) {
