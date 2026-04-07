@@ -360,19 +360,14 @@ function renderDashboard() {
     h += '<a href="/calendar.php" class="pk-btn-back" title="Back to Calendar" style="text-decoration:none">&larr;</a>';
     h += '<h1>' + escHtml(<?= json_encode($event['title']) ?>) + ' <a href="/calendar.php">Calendar</a></h1>';
     h += '<span class="pk-badge ' + typeClass + '">' + typeLabel + '</span>';
-    h += '<span class="pk-badge ' + statusClass + '" id="statusBadge">' + SESSION.status.toUpperCase() + '</span>';
     h += '<div class="pk-actions">';
     h += '<button class="pk-btn-settings" onclick="toggleSettings()">&#9881; Settings</button>';
     if (isTourney()) {
         h += '<a class="pk-btn-settings" href="/timer.php?event_id=' + <?= json_encode($event['id']) ?> + '" style="text-decoration:none">&#9201; Timer</a>';
     }
     h += '<a class="pk-btn-settings" href="/walkin_display.php?event_id=' + <?= json_encode($event['id']) ?> + '" target="_blank" style="text-decoration:none">&#128241; QR Registration</a>';
-    if (SESSION.status === 'setup') {
-        h += '<button class="pk-btn-start" onclick="changeStatus(\'active\')">&#9654; Start Game</button>';
-    } else if (SESSION.status === 'active') {
-        h += '<button class="pk-btn-end" onclick="if(confirm(\'End the game?\'))changeStatus(\'finished\')">&#9632; End Game</button>';
-    } else {
-        h += '<button class="pk-btn-start" onclick="changeStatus(\'active\')">&#9654; Reopen</button>';
+    if (isTourney()) {
+        h += '<button class="pk-btn-settings" onclick="openDealSplit()">&#128176; Payout Calc</button>';
     }
     h += '</div>';
     if (isCash()) {
@@ -662,7 +657,10 @@ function renderSettingsPanel() {
         h += payoutRowHtml(PAYOUTS[i].place, PAYOUTS[i].percentage);
     }
     h += '</div>';
-    h += '<button onclick="addPayoutRow()" style="margin-top:.3rem">+ Add Place</button>';
+    h += '<div style="display:flex;gap:.5rem;margin-top:.3rem;flex-wrap:wrap">';
+    h += '<button onclick="addPayoutRow()">+ Add Place</button>';
+    h += '<button onclick="autoSplitPayouts()">Auto Split</button>';
+    h += '</div>';
     h += '<div id="payoutSum" style="margin-top:.3rem;font-size:.8rem;color:#64748b"></div>';
     h += '</div>';
 
@@ -681,6 +679,40 @@ function addPayoutRow() {
     var div = document.createElement('div');
     div.innerHTML = payoutRowHtml(nextPlace, 0);
     document.getElementById('payoutRows').appendChild(div.firstChild);
+    autoSplitPayouts();
+}
+
+function autoSplitPayouts() {
+    var inputs = document.querySelectorAll('.payout-pct');
+    var count = inputs.length;
+    if (count === 0) return;
+    // Standard weighted tournament payout structures
+    var structures = {
+        1: [100],
+        2: [65, 35],
+        3: [50, 30, 20],
+        4: [40, 30, 20, 10],
+        5: [35, 25, 20, 12, 8],
+        6: [30, 22, 18, 13, 10, 7],
+        7: [28, 20, 16, 13, 10, 8, 5],
+        8: [25, 18, 14, 12, 10, 9, 7, 5],
+        9: [24, 17, 13, 11, 10, 9, 7, 5, 4],
+        10: [22, 16, 12, 10, 9, 8, 7, 6, 5, 5]
+    };
+    var pcts = structures[count];
+    if (!pcts) {
+        // For >10 places, give top 3 standard split then divide remainder
+        pcts = [30, 20, 15];
+        var remaining = 35;
+        var extra = count - 3;
+        for (var i = 0; i < extra; i++) {
+            var share = Math.round((remaining / extra) * 10) / 10;
+            pcts.push(share);
+        }
+    }
+    for (var i = 0; i < count; i++) {
+        inputs[i].value = (pcts[i] || 0).toFixed(1);
+    }
     updatePayoutSum();
 }
 
@@ -1049,6 +1081,191 @@ setInterval(function() {
         })
         .catch(function() {});
 }, 10000);
+
+// ─── DEAL SPLIT MODAL ────────────────────────────────────
+function openDealSplit() {
+    var remaining = PLAYERS.filter(function(p) { return !parseInt(p.eliminated) && parseInt(p.bought_in); });
+    if (remaining.length < 2) { alert('Need at least 2 active players for a deal split.'); return; }
+
+    var modal = document.getElementById('dealSplitModal');
+    var body = document.getElementById('dealSplitBody');
+    var poolTotal = POOL.pool_total;
+
+    // Build chip entry form
+    var h = '<div style="margin-bottom:1rem">';
+    h += '<p style="font-size:.85rem;color:#64748b;margin-bottom:.75rem">Enter each remaining player\'s chip count, then choose a split method.</p>';
+    h += '<div style="font-weight:600;margin-bottom:.5rem">Prize Pool: ' + formatMoney(poolTotal) + ' &mdash; ' + remaining.length + ' players remaining</div>';
+    h += '</div>';
+
+    h += '<table style="width:100%;border-collapse:collapse;font-size:.9rem;margin-bottom:1rem">';
+    h += '<thead><tr style="border-bottom:2px solid #e2e8f0"><th style="text-align:left;padding:.4rem">Player</th><th style="text-align:right;padding:.4rem;width:120px">Chips</th><th style="text-align:right;padding:.4rem;width:100px">Payout</th></tr></thead>';
+    h += '<tbody id="dealRows">';
+    for (var i = 0; i < remaining.length; i++) {
+        h += '<tr data-player-id="' + remaining[i].id + '" style="border-bottom:1px solid #f1f5f9">';
+        h += '<td style="padding:.4rem">' + escHtml(remaining[i].display_name) + '</td>';
+        h += '<td style="padding:.4rem"><input type="number" class="deal-chips" min="0" step="1" value="" placeholder="0" style="width:100%;padding:.3rem .5rem;border:1.5px solid #e2e8f0;border-radius:4px;text-align:right;font-size:.9rem" oninput="recalcDeal()"></td>';
+        h += '<td style="padding:.4rem;text-align:right;font-weight:600" class="deal-payout">-</td>';
+        h += '</tr>';
+    }
+    h += '</tbody></table>';
+
+    h += '<div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap">';
+    h += '<button class="btn btn-primary" onclick="calcDeal(\'icm\')" id="btnICM">ICM Split</button>';
+    h += '<button class="btn btn-outline" onclick="calcDeal(\'standard\')">Standard Split</button>';
+    h += '<button class="btn btn-outline" onclick="calcDeal(\'chip_chop\')">Chip Chop</button>';
+    h += '</div>';
+
+    h += '<div id="dealResult" style="display:none;background:#f0fdf4;border:1.5px solid #86efac;border-radius:8px;padding:1rem;margin-bottom:1rem"></div>';
+
+    body.innerHTML = h;
+    modal.style.display = 'flex';
+}
+
+function closeDealSplit() {
+    document.getElementById('dealSplitModal').style.display = 'none';
+}
+
+function getChipInputs() {
+    var inputs = document.querySelectorAll('.deal-chips');
+    var chips = [];
+    for (var i = 0; i < inputs.length; i++) {
+        chips.push(parseInt(inputs[i].value) || 0);
+    }
+    return chips;
+}
+
+function recalcDeal() {
+    // Clear payouts on chip change
+    var cells = document.querySelectorAll('.deal-payout');
+    for (var i = 0; i < cells.length; i++) cells[i].textContent = '-';
+    document.getElementById('dealResult').style.display = 'none';
+}
+
+function calcDeal(method) {
+    var chips = getChipInputs();
+    var totalChips = 0;
+    for (var i = 0; i < chips.length; i++) totalChips += chips[i];
+    var poolTotal = POOL.pool_total;
+    var numPlayers = chips.length;
+
+    if (method !== 'standard' && totalChips === 0) {
+        alert('Enter chip counts for all remaining players.');
+        return;
+    }
+
+    var payouts = [];
+
+    if (method === 'standard') {
+        // Use current payout structure percentages
+        // Sort players by chips (or original order if no chips)
+        var indexed = chips.map(function(c, i) { return { idx: i, chips: c }; });
+        indexed.sort(function(a, b) { return b.chips - a.chips; });
+        for (var i = 0; i < numPlayers; i++) {
+            var pct = (PAYOUTS[i] ? parseFloat(PAYOUTS[i].percentage) : 0);
+            payouts[indexed[i].idx] = Math.round(poolTotal * pct / 100);
+        }
+
+    } else if (method === 'chip_chop') {
+        // Simple: each player gets pool * (their chips / total chips)
+        for (var i = 0; i < numPlayers; i++) {
+            payouts[i] = Math.round(poolTotal * (chips[i] / totalChips));
+        }
+
+    } else if (method === 'icm') {
+        // ICM calculation
+        payouts = calcICM(chips, poolTotal, PAYOUTS);
+    }
+
+    // Display results
+    var cells = document.querySelectorAll('.deal-payout');
+    var resultHtml = '<div style="font-weight:700;margin-bottom:.5rem">Proposed Split (' + method.toUpperCase().replace('_', ' ') + ')</div>';
+    var rows = document.querySelectorAll('#dealRows tr');
+    var totalPayout = 0;
+    for (var i = 0; i < numPlayers; i++) {
+        var amt = payouts[i] || 0;
+        totalPayout += amt;
+        if (cells[i]) cells[i].textContent = formatMoney(amt);
+        var name = rows[i] ? rows[i].querySelector('td').textContent : ('Player ' + (i+1));
+        resultHtml += '<div style="display:flex;justify-content:space-between;padding:.2rem 0"><span>' + escHtml(name) + '</span><span style="font-weight:600;color:#22c55e">' + formatMoney(amt) + '</span></div>';
+    }
+    // Handle rounding remainder
+    var diff = poolTotal - totalPayout;
+    if (diff !== 0 && payouts.length > 0) {
+        payouts[0] += diff;
+        if (cells[0]) cells[0].textContent = formatMoney(payouts[0]);
+    }
+    resultHtml += '<div style="border-top:1px solid #86efac;margin-top:.4rem;padding-top:.4rem;font-weight:700;display:flex;justify-content:space-between"><span>Total</span><span>' + formatMoney(poolTotal) + '</span></div>';
+
+    var resultEl = document.getElementById('dealResult');
+    resultEl.innerHTML = resultHtml;
+    resultEl.style.display = '';
+}
+
+// ICM (Independent Chip Model) calculation
+// Uses the Malmuth-Harville method to compute equity for each player
+function calcICM(chips, poolTotal, payoutStructure) {
+    var n = chips.length;
+    var totalChips = 0;
+    for (var i = 0; i < n; i++) totalChips += chips[i];
+    if (totalChips === 0) return chips.map(function() { return 0; });
+
+    // Get payout amounts from structure
+    var prizes = [];
+    for (var i = 0; i < n; i++) {
+        var pct = (payoutStructure[i] ? parseFloat(payoutStructure[i].percentage) : 0);
+        prizes.push(poolTotal * pct / 100);
+    }
+
+    // Calculate ICM equity for each player
+    var equity = new Array(n).fill(0);
+
+    // Recursive probability calculation
+    // prob(player i finishes in position p) using Malmuth-Harville
+    function calcEquity(remaining, prizeIdx) {
+        if (prizeIdx >= prizes.length || remaining.length === 0) return;
+        var totalRemaining = 0;
+        for (var i = 0; i < remaining.length; i++) totalRemaining += remaining[i].chips;
+        if (totalRemaining === 0) return;
+
+        for (var i = 0; i < remaining.length; i++) {
+            var prob = remaining[i].chips / totalRemaining;
+            equity[remaining[i].idx] += prob * prizes[prizeIdx];
+
+            // Recurse with this player removed
+            if (prizeIdx + 1 < prizes.length && remaining.length > 1) {
+                var next = [];
+                for (var j = 0; j < remaining.length; j++) {
+                    if (j !== i) next.push(remaining[j]);
+                }
+                // Scale recursion by probability
+                var savedEquity = equity.slice();
+                calcEquity(next, prizeIdx + 1);
+                // Weight the recursive result by this player's probability
+                for (var j = 0; j < n; j++) {
+                    var added = equity[j] - savedEquity[j];
+                    equity[j] = savedEquity[j] + added * prob;
+                }
+            }
+        }
+    }
+
+    var remaining = [];
+    for (var i = 0; i < n; i++) remaining.push({ idx: i, chips: chips[i] });
+    calcEquity(remaining, 0);
+
+    return equity.map(function(e) { return Math.round(e); });
+}
 </script>
+
+<!-- Deal Split Modal -->
+<div id="dealSplitModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;align-items:center;justify-content:center;padding:1rem" onclick="if(event.target===this)closeDealSplit()">
+    <div style="background:#fff;border-radius:12px;padding:1.5rem;width:100%;max-width:520px;max-height:85vh;overflow-y:auto;position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
+        <button onclick="closeDealSplit()" style="position:absolute;top:.75rem;right:.75rem;background:none;border:none;font-size:1.3rem;cursor:pointer;color:#64748b">&times;</button>
+        <h2 style="font-size:1.1rem;font-weight:700;margin:0 0 1rem">Deal Split Calculator</h2>
+        <div id="dealSplitBody"></div>
+        <button class="btn" onclick="closeDealSplit()" style="width:100%;background:#f1f5f9;color:#475569;margin-top:.5rem">Close</button>
+    </div>
+</div>
+
 </body>
 </html>

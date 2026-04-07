@@ -41,6 +41,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
             } elseif ($result === 'unverified') {
                 $error = 'Please verify your email address before signing in. <a href="/resend_verification.php?email=' . urlencode($email) . '">Resend verification email</a>';
+            } elseif ($result === 'rate_limited') {
+                $error = 'Too many failed login attempts. Please try again in 15 minutes.';
             } else {
                 $error = 'Invalid email or password.';
             }

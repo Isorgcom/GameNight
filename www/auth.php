@@ -9,16 +9,25 @@ header('Referrer-Policy: strict-origin-when-cross-origin');
 header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
 // CSP: allow inline scripts/styles (required by Jodit editor), block everything else external
 header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
+// HSTS: enforce HTTPS for 1 year (only sent when already on HTTPS)
+if ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https')) {
+    header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+}
 
 // ── Mobile detection (available to all pages) ────────────────────────────────
 $_is_mobile = (bool) preg_match('/Mobile|Android|iPhone|iPad|iPod|CriOS|FxiOS/i', $_SERVER['HTTP_USER_AGENT'] ?? '');
+
+function _is_https(): bool {
+    return (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+}
 
 function session_start_safe(): void {
     if (session_status() === PHP_SESSION_NONE) {
         session_set_cookie_params([
             'lifetime' => 0,
             'path'     => '/',
-            'secure'   => false,
+            'secure'   => _is_https(),
             'httponly' => true,
             'samesite' => 'Lax',
         ]);
@@ -53,12 +62,27 @@ function require_login(): array {
     return $user;
 }
 
+function login_rate_limited(): bool {
+    $ip = function_exists('get_client_ip') ? get_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? '');
+    $db = get_db();
+    $stmt = $db->prepare("SELECT COUNT(*) FROM activity_log WHERE ip = ? AND action LIKE 'failed_login:%' AND created_at > datetime('now', '-15 minutes')");
+    $stmt->execute([$ip]);
+    return (int)$stmt->fetchColumn() >= 5;
+}
+
 function attempt_login(string $email, string $password): bool|string {
+    // Brute force protection: 5 failed attempts per IP per 15 minutes
+    if (login_rate_limited()) {
+        return 'rate_limited';
+    }
+
     $stmt = get_db()->prepare('SELECT id, password_hash, email_verified FROM users WHERE LOWER(email) = ?');
     $stmt->execute([strtolower(trim($email))]);
     $row = $stmt->fetch();
 
-    if (!$row || !password_verify($password, $row['password_hash'])) {
+    // Constant-time: always run password_verify even if user not found
+    $hash = $row ? $row['password_hash'] : '$2y$10$dummyhashtopreventtimingattacks000000000000000000000';
+    if (!$row || !password_verify($password, $hash)) {
         db_log_anon_activity('failed_login: ' . strtolower(trim($email)), 'critical');
         return false;
     }

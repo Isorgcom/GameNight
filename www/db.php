@@ -8,6 +8,37 @@ if (!defined('DB_PATH')) {
     define('DB_PATH', '/var/db/app.db'); // fallback for local dev
 }
 
+// ── Encryption key for sensitive settings (auto-generated if missing) ────────
+if (!defined('APP_SECRET')) {
+    $secretFile = dirname(DB_PATH) . '/.app_secret';
+    if (file_exists($secretFile)) {
+        define('APP_SECRET', trim(file_get_contents($secretFile)));
+    } else {
+        $generated = bin2hex(random_bytes(32));
+        @file_put_contents($secretFile, $generated);
+        @chmod($secretFile, 0600);
+        define('APP_SECRET', $generated);
+    }
+}
+
+function encrypt_value(string $plaintext): string {
+    $key = hash('sha256', APP_SECRET, true);
+    $iv = random_bytes(16);
+    $encrypted = openssl_encrypt($plaintext, 'aes-256-cbc', $key, OPENSSL_RAW_DATA, $iv);
+    return 'enc:' . base64_encode($iv . $encrypted);
+}
+
+function decrypt_value(string $stored): string {
+    if (!str_starts_with($stored, 'enc:')) return $stored; // plaintext (not yet encrypted)
+    $key = hash('sha256', APP_SECRET, true);
+    $data = base64_decode(substr($stored, 4));
+    if ($data === false || strlen($data) < 17) return '';
+    $iv = substr($data, 0, 16);
+    $encrypted = substr($data, 16);
+    $decrypted = openssl_decrypt($encrypted, 'aes-256-cbc', $key, OPENSSL_RAW_DATA, $iv);
+    return $decrypted !== false ? $decrypted : '';
+}
+
 function get_db(): PDO {
     static $pdo = null;
     if ($pdo === null) {
@@ -395,21 +426,42 @@ function db_init(PDO $pdo): void {
     }
 }
 
+// Settings that contain secrets — automatically encrypted at rest
+define('ENCRYPTED_SETTINGS', [
+    'smtp_pass', 'smtp_password',
+    'sms_token', 'sms_auth_token',
+    'wa_token',
+]);
+
+$_settings_cache = [];
+
 function get_setting(string $key, string $default = ''): string {
-    static $cache = [];
-    if (!isset($cache[$key])) {
+    global $_settings_cache;
+    if (!isset($_settings_cache[$key])) {
         $stmt = get_db()->prepare('SELECT value FROM site_settings WHERE key = ?');
         $stmt->execute([$key]);
         $row = $stmt->fetchColumn();
-        $cache[$key] = $row !== false ? $row : $default;
+        $val = $row !== false ? $row : $default;
+        // Decrypt sensitive settings
+        if (in_array($key, ENCRYPTED_SETTINGS, true) && $val !== '' && $val !== $default) {
+            $val = decrypt_value($val);
+        }
+        $_settings_cache[$key] = $val;
     }
-    return $cache[$key];
+    return $_settings_cache[$key];
 }
 
 function set_setting(string $key, string $value): void {
+    global $_settings_cache;
+    // Encrypt sensitive settings before storing
+    $store = $value;
+    if (in_array($key, ENCRYPTED_SETTINGS, true) && $value !== '') {
+        $store = encrypt_value($value);
+    }
     get_db()->prepare('INSERT INTO site_settings (key, value) VALUES (?, ?)
         ON CONFLICT(key) DO UPDATE SET value = excluded.value')
-        ->execute([$key, $value]);
+        ->execute([$key, $store]);
+    $_settings_cache[$key] = $value; // cache the decrypted value
 }
 
 function get_site_url(): string {

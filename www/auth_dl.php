@@ -10,12 +10,17 @@ header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
 // CSP: allow inline scripts/styles (required by Jodit editor), block everything else external
 header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
 
+function _is_https(): bool {
+    return (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+}
+
 function session_start_safe(): void {
     if (session_status() === PHP_SESSION_NONE) {
         session_set_cookie_params([
             'lifetime' => 0,
             'path'     => '/',
-            'secure'   => false,
+            'secure'   => _is_https(),
             'httponly' => true,
             'samesite' => 'Lax',
         ]);

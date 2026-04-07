@@ -111,8 +111,8 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 db_log_anon_activity("walkin_rsvp: existing user $username for event $event_id");
                 // Remember for next walk-up (30 days)
-                setcookie('walkin_name', $display_name, time() + 86400 * 30, '/', '', true, false);
-                setcookie('walkin_email', $email, time() + 86400 * 30, '/', '', true, false);
+                setcookie('walkin_name', $display_name, time() + 86400 * 30, '/', '', true, true);
+                setcookie('walkin_email', $email, time() + 86400 * 30, '/', '', true, true);
                 $success = "Welcome back, " . htmlspecialchars($username) . "! You're registered for <strong>" . htmlspecialchars($event['title']) . "</strong>.";
 
             } else {

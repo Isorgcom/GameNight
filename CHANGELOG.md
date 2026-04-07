@@ -4,6 +4,24 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.03500] — 2026-04-07
+
+### Added
+- **Payout Calculator (ICM, Standard, Chip Chop).** New "Payout Calc" button on tournament check-in page opens a modal with chip count entry for remaining players. Three split methods: ICM (Malmuth-Harville model), Standard (weighted payout structure), and Chip Chop (proportional to chip stacks).
+- **Weighted auto-split for payout structure.** Auto Split button in settings now uses standard tournament weighting (e.g., 3 places = 50/30/20) instead of equal split. Configurable for 1-10+ places.
+- **Login brute force protection.** 5 failed login attempts per IP per 15 minutes. Shows "Too many failed attempts" message. Constant-time password verification prevents timing attacks.
+- **Credential encryption at rest.** SMTP passwords, SMS tokens, and WhatsApp tokens are AES-256-CBC encrypted in the database. Auto-generated encryption key stored in `/var/db/.app_secret`. Backward-compatible with existing plaintext values.
+- **HSTS header.** `Strict-Transport-Security` sent when accessed over HTTPS.
+
+### Fixed
+- **Session cookie secure flag.** Now dynamically set based on `X-Forwarded-Proto` header so cookies are secure when behind a reverse proxy with HTTPS.
+- **Walk-in cookies now HttpOnly.** Prevents XSS access to remembered name/email cookies.
+
+### Removed
+- **Start Game / End Game buttons** from check-in page. The status lifecycle (setup/active/finished) was confusing and didn't affect functionality.
+
+---
+
 ## [v0.03401] — 2026-04-07
 
 ### Added
