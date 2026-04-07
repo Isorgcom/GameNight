@@ -12,6 +12,8 @@ $event = null;
 $timer = null;
 $levels = [];
 $pool = [];
+$payouts = [];
+$game_type = null;
 $remote_key = '';
 $csrf = '';
 
@@ -102,6 +104,8 @@ if (isset($_GET['view']) && $_GET['view'] === 'remote' && !empty($_GET['key'])) 
         }
 
         $pool = calc_pool($db, (int)$session['id']);
+        $game_type = $session['game_type'] ?? null;
+        $payouts = ($game_type === 'tournament') ? get_payouts($db, (int)$session['id']) : [];
         $session['event_title'] = $event['title'];
 
     } else {
@@ -136,6 +140,8 @@ if (isset($_GET['view']) && $_GET['view'] === 'remote' && !empty($_GET['key'])) 
         $session = null;
         $event = null;
         $pool = null;
+        $payouts = [];
+        $game_type = null;
     }
 
     $remote_key = $timer['remote_key'];
@@ -355,6 +361,33 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
         }
         .timer-back:hover { color: #e2e8f0; }
 
+        /* ── Payout display ── */
+        .timer-payouts {
+            position: absolute;
+            top: 3rem;
+            right: 0.75rem;
+            background: rgba(30,41,59,0.85);
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 0.5rem 0.75rem;
+            font-size: clamp(0.7rem, 1.2vw, 0.9rem);
+            line-height: 1.6;
+            color: #94a3b8;
+            z-index: 10;
+        }
+        .timer-payouts-title {
+            font-weight: 700;
+            color: #e2e8f0;
+            margin-bottom: 0.2rem;
+            font-size: clamp(0.75rem, 1.3vw, 0.95rem);
+        }
+        .timer-payouts .payout-row b {
+            color: #e2e8f0;
+        }
+        @media (max-width: 500px) {
+            .timer-payouts { font-size: 0.65rem; padding: 0.35rem 0.5rem; }
+        }
+
         /* ── QR code ── */
         .timer-qr {
             position: absolute;
@@ -538,6 +571,12 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
 <?php endif; ?>
 
 <div class="timer-container">
+    <!-- Payout display (tournaments only) -->
+    <div class="timer-payouts" id="payoutsWrap" style="display:none">
+        <div class="timer-payouts-title">Payouts</div>
+        <div id="payoutsBody"></div>
+    </div>
+
     <!-- Info bar -->
     <div class="timer-info-bar">
         <span class="timer-event-name" id="eventName"><?= htmlspecialchars($session['event_title'] ?? 'Tournament Timer') ?></span>
@@ -698,6 +737,8 @@ var localInterval = null;
 var lastSyncTime = Date.now();
 var audioCtx = null;
 var CURRENT_PRESET_ID = <?= json_encode($timer['preset_id'] ? (int)$timer['preset_id'] : null) ?>;
+var PAYOUTS = <?= json_encode($payouts) ?>;
+var GAME_TYPE = <?= json_encode($game_type) ?>;
 var SOUNDS = {
     warning_seconds: <?= (int)($timer['warning_seconds'] ?? 60) ?>,
     alarm_sound: <?= json_encode($timer['alarm_sound'] ?? null) ?>,
@@ -781,6 +822,25 @@ function renderAll() {
         if (plw) plw.style.display = (POOL.bought_in > 0) ? '' : 'none';
     }
 
+    // Payouts (tournament only)
+    var payWrap = el('payoutsWrap');
+    var payBody = el('payoutsBody');
+    if (payWrap && payBody) {
+        if (GAME_TYPE === 'tournament' && PAYOUTS && PAYOUTS.length > 0 && POOL && POOL.pool_total > 0) {
+            var h = '';
+            var ordinals = ['1st','2nd','3rd','4th','5th','6th','7th','8th','9th','10th'];
+            for (var i = 0; i < PAYOUTS.length; i++) {
+                var pct = parseFloat(PAYOUTS[i].percentage) || 0;
+                var amt = Math.round(POOL.pool_total * pct / 100);
+                h += '<div class="payout-row">' + (ordinals[i] || (i+1)+'th') + ': <b>' + fmtMoney(amt) + '</b> (' + pct + '%)</div>';
+            }
+            payBody.innerHTML = h;
+            payWrap.style.display = '';
+        } else {
+            payWrap.style.display = 'none';
+        }
+    }
+
     // Paused label
     el('pausedLabel').textContent = TIMER.is_running ? '' : 'PAUSED';
 }
@@ -857,6 +917,8 @@ function pollState() {
         // Don't overwrite levels while the editor panel is open (user may be editing)
         var levelsOpen = document.getElementById('levelsOverlay') && document.getElementById('levelsOverlay').classList.contains('open');
         if (j.levels && !levelsOpen) LEVELS = j.levels;
+        if (j.payouts) PAYOUTS = j.payouts;
+        if (j.game_type) GAME_TYPE = j.game_type;
         if (j.sounds) {
             SOUNDS.warning_seconds = j.sounds.warning_seconds;
             SOUNDS.alarm_sound = j.sounds.alarm_sound;

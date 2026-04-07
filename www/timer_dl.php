@@ -111,11 +111,20 @@ if ($action === 'get_state') {
     $session = null;
     $pool = null;
 
+    $payouts = [];
+    $game_type = null;
+
     if ($session_id > 0) {
         $sess = $db->prepare('SELECT ps.*, e.title as event_title, e.id as event_id FROM poker_sessions ps JOIN events e ON ps.event_id = e.id WHERE ps.id = ?');
         $sess->execute([$session_id]);
         $session = $sess->fetch();
         $pool = calc_pool($db, $session_id);
+        if ($session) {
+            $game_type = $session['game_type'] ?? null;
+            if ($game_type === 'tournament') {
+                $payouts = get_payouts($db, $session_id);
+            }
+        }
     }
 
     $levels = [];
@@ -145,6 +154,8 @@ if ($action === 'get_state') {
         'timer' => $live,
         'levels' => $levels,
         'pool' => $pool,
+        'payouts' => $payouts,
+        'game_type' => $game_type,
         'event_title' => $session ? $session['event_title'] : '',
         'session_status' => $session ? $session['status'] : '',
         'can_control' => $can_control,

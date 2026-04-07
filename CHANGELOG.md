@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.03401] — 2026-04-07
+
+### Added
+- **Prize payout display on timer.** Tournament timers show the payout structure (1st, 2nd, 3rd, etc.) in the upper-right corner with dollar amounts calculated from the live pool. Updates dynamically as rebuys/add-ons change the pool. Hidden for cash games and standalone timers.
+
+---
+
 ## [v0.03400] — 2026-04-07
 
 ### Added
