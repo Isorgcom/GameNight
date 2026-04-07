@@ -365,6 +365,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['flash'] = ['type' => 'success', 'msg' => 'You have been removed from the event.'];
     }
 
+    if ($action === 'regenerate_walkin_token' && $isAdmin) {
+        $eid = (int)($_POST['event_id'] ?? 0);
+        if ($eid > 0) {
+            $new_token = bin2hex(random_bytes(16));
+            $db->prepare('UPDATE events SET walkin_token = ? WHERE id = ?')->execute([$new_token, $eid]);
+            db_log_activity($current['id'], "regenerated walkin_token for event id: $eid");
+            header('Content-Type: application/json');
+            echo json_encode(['ok' => true, 'walkin_token' => $new_token,
+                'url' => get_site_url() . '/walkin.php?event_id=' . $eid . '&token=' . $new_token]);
+            exit;
+        }
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => false]);
+        exit;
+    }
+
     $back = $_POST['month_param'] ?? '';
     // After add: navigate to the event's month so user can see it
     if ($action === 'add' && !empty($sd)) {
@@ -964,6 +980,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             }
         }
     </style>
+    <?php if ($isAdmin): ?><script src="/vendor/qrcode.min.js"></script><?php endif; ?>
 </head>
 <body>
 
@@ -1200,6 +1217,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         <div class="ev-view-actions" id="vEventActions" style="display:none">
             <a id="vManageGameBtn" href="#" class="btn" style="background:#059669;color:#fff;text-decoration:none">Manage Game</a>
             <button type="button" class="btn btn-primary" onclick="editFromView()">Edit</button>
+            <?php if ($isAdmin): ?><button type="button" class="btn btn-outline" title="Walk-up QR code" onclick="openWalkinQR()" style="font-size:1rem;padding:.38rem .65rem">&#x1F4F1; QR</button><?php endif; ?>
             <form method="post" action="/calendar.php" style="margin:0" id="vDeleteOccForm" style="display:none">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <input type="hidden" name="action" value="delete_occurrence">
@@ -1263,6 +1281,22 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         </div>
     </div>
 </div>
+
+<?php if ($isAdmin): ?>
+<!-- ── Walk-up QR Modal ── -->
+<div class="modal-overlay" id="walkinModal" onclick="if(event.target===this)closeWalkinQR()">
+    <div class="modal" style="max-width:380px;text-align:center">
+        <div class="modal-header" style="justify-content:space-between">
+            <h2 style="font-size:1rem;font-weight:700">Walk-up Registration</h2>
+            <button class="modal-close" onclick="closeWalkinQR()">&#x2715;</button>
+        </div>
+        <div id="walkinQRCode" style="display:flex;justify-content:center;margin:.5rem 0 1rem"></div>
+        <div id="walkinQRUrl" style="font-size:.72rem;color:#64748b;word-break:break-all;margin-bottom:.75rem;padding:0 .5rem"></div>
+        <button class="btn btn-outline" onclick="copyWalkinLink()" style="width:100%;margin-bottom:.5rem" id="walkinCopyBtn">Copy link</button>
+        <button class="btn" onclick="closeWalkinQR()" style="width:100%;background:#f1f5f9;color:#475569">Close</button>
+    </div>
+</div>
+<?php endif; ?>
 
 <?php if ($canEditEvents): ?>
 <!-- ── Add / Edit Event Modal ── -->
@@ -1367,6 +1401,15 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
                 </div>
             </div>
         </form>
+        <?php if ($isAdmin): ?>
+        <div id="eRegenWalkinWrap" style="display:none;padding:.4rem 1rem .6rem;flex-shrink:0">
+            <button type="button" id="eRegenWalkinBtn"
+                    style="width:100%;padding:.38rem;border:1.5px solid #cbd5e1;border-radius:7px;background:#fff;color:#64748b;font-size:.78rem;cursor:pointer;font-weight:600"
+                    onclick="regenWalkinFromEdit()">
+                Regenerate walk-up link
+            </button>
+        </div>
+        <?php endif; ?>
     </div>
 </div>
 <?php endif; ?>
@@ -2240,6 +2283,10 @@ function openEditModal(ev) {
 
     document.getElementById('editModal').classList.add('open');
     document.getElementById('eTitle').focus();
+    <?php if ($isAdmin): ?>
+    var regenWrap = document.getElementById('eRegenWalkinWrap');
+    if (regenWrap) regenWrap.style.display = ev ? '' : 'none';
+    <?php endif; ?>
 }
 function editFromView() { openEditModal(currentEvent); }
 function closeEdit() { document.getElementById('editModal').classList.remove('open'); }
@@ -2434,6 +2481,90 @@ function initWeekView() {
 document.addEventListener('DOMContentLoaded', initWeekView);
 <?php endif; ?>
 
+<?php if ($isAdmin): ?>
+// ── Walk-up QR modal ──────────────────────────────────────────────────────────
+function buildQRCanvas(url, size) {
+    if (typeof qrcode === 'undefined') return null;
+    var qr = qrcode(0, 'M');
+    qr.addData(url);
+    qr.make();
+    var modules = qr.getModuleCount();
+    var canvas = document.createElement('canvas');
+    canvas.width = size; canvas.height = size;
+    var ctx = canvas.getContext('2d');
+    var cell = size / modules;
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = '#000000';
+    for (var r = 0; r < modules; r++)
+        for (var c = 0; c < modules; c++)
+            if (qr.isDark(r, c)) ctx.fillRect(c * cell, r * cell, cell + 0.5, cell + 0.5);
+    return canvas;
+}
+
+function openWalkinQR() {
+    var ev = currentEvent;
+    if (!ev) return;
+    if (!ev.walkin_token) {
+        regenerateWalkinToken(ev, function(newToken) {
+            ev.walkin_token = newToken;
+            currentEvent.walkin_token = newToken;
+            renderWalkinQR(ev);
+        });
+        return;
+    }
+    renderWalkinQR(ev);
+}
+
+function renderWalkinQR(ev) {
+    var modal  = document.getElementById('walkinModal');
+    var qrWrap = document.getElementById('walkinQRCode');
+    var urlEl  = document.getElementById('walkinQRUrl');
+    qrWrap.innerHTML = '';
+    var url = location.origin + '/walkin.php?event_id=' + ev.id + '&token=' + encodeURIComponent(ev.walkin_token);
+    var canvas = buildQRCanvas(url, 220);
+    if (canvas) qrWrap.appendChild(canvas);
+    urlEl.textContent = url;
+    modal.classList.add('open');
+}
+
+function closeWalkinQR() {
+    document.getElementById('walkinModal').classList.remove('open');
+}
+
+function copyWalkinLink() {
+    var urlEl = document.getElementById('walkinQRUrl');
+    var btn   = document.getElementById('walkinCopyBtn');
+    navigator.clipboard.writeText(urlEl.textContent).then(function() {
+        btn.textContent = 'Copied!';
+        setTimeout(function() { btn.textContent = 'Copy link'; }, 2000);
+    });
+}
+
+function regenWalkinFromEdit() {
+    var ev = currentEvent;
+    if (!ev) return;
+    var btn = document.getElementById('eRegenWalkinBtn');
+    btn.textContent = 'Regenerating…';
+    btn.disabled = true;
+    regenerateWalkinToken(ev, function(newToken) {
+        ev.walkin_token = newToken;
+        currentEvent.walkin_token = newToken;
+        btn.textContent = 'Link regenerated!';
+        setTimeout(function() { btn.textContent = 'Regenerate walk-up link'; btn.disabled = false; }, 2500);
+    });
+}
+
+function regenerateWalkinToken(ev, callback) {
+    var fd = new FormData();
+    fd.append('action', 'regenerate_walkin_token');
+    fd.append('csrf_token', CAL_CSRF);
+    fd.append('event_id', ev.id);
+    fetch('/calendar.php', { method: 'POST', body: fd,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    .then(function(r) { return r.json(); })
+    .then(function(j) { if (j.ok && j.walkin_token && typeof callback === 'function') callback(j.walkin_token); });
+}
+<?php endif; ?>
 </script>
 
 </body>
