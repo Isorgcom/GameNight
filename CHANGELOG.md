@@ -4,6 +4,29 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.03200] — 2026-04-06
+
+### Added
+- **Recurring event cancellation.** New `cancelled_from` column on events. Admin edit modal shows "Cancel future occurrences" button (prompts for effective date) and "Uncancel series" button. All base invitees receive a cancellation notification. Occurrence expansion stops at the cancellation date.
+- **Cancellation notification when skipping an occurrence.** When an admin skips a specific occurrence (deletes it from the calendar), invitees who RSVPed Yes or Maybe for that date automatically receive a cancellation email/SMS/WhatsApp.
+- **Series cancellation without deletion.** Cancelling future occurrences marks the series as cancelled from a date forward; it does not delete the event or past occurrences. History is preserved.
+- **Cron reminder system.** New token-protected endpoint (`/cron.php`) sends 2-day-ahead and 12-hour-ahead reminders for upcoming event occurrences. `CRON_TOKEN` is configurable in Admin → Settings → Email tab with a Generate button and ready-to-copy cron command. Reminders are deduplicated via a new `event_notifications_sent` table — no double-sends.
+- **Mid-series invite management.** New invitees added to a recurring event receive `valid_from = today` so they are not retroactively included in past occurrences. Each invitee row in the edit modal has a "✕ All" button that removes them from all future occurrences and sends a removal notification.
+- **RSVP cutoff.** Non-admin users cannot change their RSVP within 1 hour of the event start time. The RSVP select is disabled and a "RSVP is locked — event starts soon" message is shown. Admins are exempt. Cutoff enforced server-side (`{ok:false, locked:true}`) and client-side.
+- **Per-occurrence RSVP overrides.** When a user RSVPs for a specific occurrence of a recurring event, an occurrence-specific row is stored. That override takes precedence over the base row, allowing per-date RSVP tracking without affecting the rest of the series.
+
+### Fixed
+- **Timer remote viewer frozen on Android.** QR-scan visitors are unauthenticated. The polling path using `?session_id=` requires login and was returning `{ok:false}` silently, freezing the display after initial PHP render. Remote viewers now always poll via the public `?key=` endpoint (no auth required), regardless of whether `SESSION_ID` is set.
+- **Timer resync after Android tab backgrounding.** Added an immediate `pollState()` call on `visibilitychange → visible` so the timer resyncs as soon as the user returns to the tab after Android throttled or suspended it.
+- **Cron function availability.** `build_event_by_date()` and `load_exceptions()` were defined only in `calendar_dl.php` but called from `cron.php`, causing fatal errors at runtime. Both functions moved to `db.php` which is already included by all consumers.
+
+### Database
+- New column `events.cancelled_from TEXT` — date from which future occurrences are suppressed.
+- New column `event_invites.valid_from TEXT` — occurrence date from which a mid-series invitee is included (NULL = from series start).
+- New table `event_notifications_sent` — deduplicates cron reminders: `(event_id, occurrence_date, user_identifier, notification_type)` UNIQUE constraint.
+
+---
+
 ## [v0.03101] — 2026-04-06
 
 ### Fixed
