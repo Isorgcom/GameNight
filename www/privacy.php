@@ -34,26 +34,40 @@ $site_name = get_setting('site_name', 'Game Night');
             <li>Maintain security and investigate abuse.</li>
         </ul>
 
-        <h3 style="margin-top:1.5rem">3. Data Sharing</h3>
+        <h3 style="margin-top:1.5rem">3. SMS / Text Messaging</h3>
+        <p>If you provide a phone number and consent to SMS notifications, <?= htmlspecialchars($site_name) ?> may send you text messages related to:</p>
+        <ul>
+            <li>Event invitations and updates</li>
+            <li>RSVP confirmations and changes</li>
+            <li>Event reminders</li>
+        </ul>
+        <p><strong>Opt-in:</strong> You opt in by entering your phone number and checking the SMS consent checkbox on the registration or account settings page at <code>gamenight.isorg.com</code>.</p>
+        <p><strong>Message frequency:</strong> Varies based on event activity. You will only receive messages related to events you are invited to or have created.</p>
+        <p><strong>Message and data rates:</strong> Standard message and data rates may apply depending on your mobile carrier and plan.</p>
+        <p><strong>Opt-out:</strong> You can stop receiving SMS messages at any time by replying <strong>STOP</strong> to any message, or by changing your preferred contact method to "Email" or "None" in your account settings.</p>
+        <p><strong>Help:</strong> Reply <strong>HELP</strong> to any message for assistance, or contact a site administrator.</p>
+        <p><strong>Service provider:</strong> SMS messages are delivered through Telnyx and/or other third-party messaging providers solely for the purpose of delivering the messages you have requested. Your phone number is not shared for marketing purposes.</p>
+
+        <h3 style="margin-top:1.5rem">4. Data Sharing</h3>
         <p>We do <strong>not</strong> sell or share your personal information with third parties for marketing purposes. Your data may be shared only:</p>
         <ul>
             <li>With SMS/email delivery providers (e.g., Twilio, Telnyx) solely to deliver messages you have requested.</li>
             <li>When required by law or to protect the rights and safety of our users.</li>
         </ul>
 
-        <h3 style="margin-top:1.5rem">4. Data Retention</h3>
+        <h3 style="margin-top:1.5rem">5. Data Retention</h3>
         <p>Your account data is retained while your account is active. You may request deletion of your account and associated data by contacting an administrator.</p>
 
-        <h3 style="margin-top:1.5rem">5. Cookies &amp; Sessions</h3>
+        <h3 style="margin-top:1.5rem">6. Cookies &amp; Sessions</h3>
         <p>We use a single session cookie to keep you signed in. No third-party tracking cookies are used.</p>
 
-        <h3 style="margin-top:1.5rem">6. Security</h3>
+        <h3 style="margin-top:1.5rem">7. Security</h3>
         <p>Passwords are stored using strong one-way hashing (bcrypt). We use HTTPS to encrypt data in transit. While we take reasonable precautions, no system is completely secure.</p>
 
-        <h3 style="margin-top:1.5rem">7. Changes to This Policy</h3>
+        <h3 style="margin-top:1.5rem">8. Changes to This Policy</h3>
         <p>We may update this policy from time to time. Continued use of the site after changes constitutes acceptance of the updated policy.</p>
 
-        <h3 style="margin-top:1.5rem">8. Contact</h3>
+        <h3 style="margin-top:1.5rem">9. Contact</h3>
         <p>Questions about this policy? Contact a site administrator.</p>
 
         <p style="margin-top:2rem">

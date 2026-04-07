@@ -62,7 +62,7 @@ function calc_pool($db, $session_id) {
         SUM(CASE WHEN cash_out IS NOT NULL THEN 1 ELSE 0 END) as cashed_out,
         SUM(COALESCE(cash_out, 0)) as total_cash_out,
         SUM(COALESCE(cash_in, 0)) as total_cash_in
-    FROM poker_players WHERE session_id = ?');
+    FROM poker_players WHERE session_id = ? AND removed = 0');
     $stats->execute([$session_id]);
     $r = $stats->fetch();
 
@@ -99,6 +99,7 @@ function calc_pool($db, $session_id) {
 
 // Sync invitees from event_invites into poker_players
 function sync_invitees($db, $session_id, $event_id) {
+    // Include removed players so they don't get re-added
     $existing = $db->prepare('SELECT LOWER(display_name) as dn FROM poker_players WHERE session_id = ?');
     $existing->execute([$session_id]);
     $existingNames = array_column($existing->fetchAll(), 'dn');
@@ -118,9 +119,9 @@ function sync_invitees($db, $session_id, $event_id) {
     }
 }
 
-// Get all players for a session
+// Get all players for a session (excludes removed players)
 function get_players($db, $session_id) {
-    $stmt = $db->prepare("SELECT * FROM poker_players WHERE session_id = ? ORDER BY CASE WHEN rsvp='no' THEN 2 WHEN rsvp IS NULL THEN 1 ELSE 0 END, eliminated ASC, display_name ASC");
+    $stmt = $db->prepare("SELECT * FROM poker_players WHERE session_id = ? AND removed = 0 ORDER BY CASE WHEN rsvp='no' THEN 2 WHEN rsvp IS NULL THEN 1 ELSE 0 END, eliminated ASC, display_name ASC");
     $stmt->execute([$session_id]);
     return $stmt->fetchAll();
 }

@@ -148,6 +148,7 @@ $site_name = get_setting('site_name', 'Game Night');
                     <input type="tel" id="phone" name="phone"
                            autocomplete="tel"
                            value="<?= htmlspecialchars($me['phone'] ?? '') ?>">
+                    <p style="margin-top:.4rem;font-size:.75rem;line-height:1.4;color:#64748b">By providing your phone number, you consent to receive event-related SMS messages (invites, reminders, RSVP updates). Message frequency varies. Message and data rates may apply. Reply STOP to unsubscribe, HELP for help. <a href="/privacy.php" target="_blank">Privacy Policy</a>.</p>
                 </div>
                 <div class="form-group">
                     <label for="preferred_contact">Preferred Contact Method</label>

@@ -370,7 +370,20 @@ if ($action === 'remove_player') {
     if (!$session) { echo json_encode(['ok' => false, 'error' => 'Player not found']); exit; }
     verify_event_access($db, $session['event_id'], $current, $isAdmin);
 
-    $db->prepare('DELETE FROM poker_players WHERE id = ?')->execute([$player_id]);
+    // Get player name before removing
+    $pl = $db->prepare('SELECT display_name FROM poker_players WHERE id = ?');
+    $pl->execute([$player_id]);
+    $player = $pl->fetch();
+
+    // Soft-delete from poker session
+    $db->prepare('UPDATE poker_players SET removed = 1 WHERE id = ?')->execute([$player_id]);
+
+    // Also remove from event invites
+    if ($player) {
+        $db->prepare('DELETE FROM event_invites WHERE event_id = ? AND LOWER(username) = LOWER(?)')
+           ->execute([$session['event_id'], $player['display_name']]);
+    }
+
     echo json_encode([
         'ok'   => true,
         'pool' => calc_pool($db, $session['id']),

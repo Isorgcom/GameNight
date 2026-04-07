@@ -122,6 +122,10 @@ $site_name = get_setting('site_name', 'Game Night');
                 <input type="tel" id="phone" name="phone"
                        value="<?= htmlspecialchars($_POST['phone'] ?? '') ?>"
                        autocomplete="tel">
+                <div style="margin-top:.5rem;padding:.75rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:.8rem;line-height:1.5;color:#475569;text-align:left;display:flex;align-items:flex-start;gap:.5rem">
+                    <input type="checkbox" id="sms_consent" name="sms_consent" value="1" style="flex-shrink:0;width:16px;height:16px;margin-top:2px"<?= !empty($_POST['sms_consent']) ? ' checked' : '' ?>>
+                    <span>I agree to receive event-related SMS messages (e.g., invites, reminders, RSVP updates). Message frequency varies. Message and data rates may apply. Reply STOP to unsubscribe, HELP for help. <a href="/privacy.php" target="_blank">Privacy Policy</a>.</span>
+                </div>
             </div>
 
             <div class="form-group">

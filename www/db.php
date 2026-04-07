@@ -252,6 +252,7 @@ function db_init(PDO $pdo): void {
     try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN cash_out INTEGER"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN cash_in INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN rsvp TEXT DEFAULT NULL"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN removed INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
 
     // Blind structure presets for poker timer
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS blind_presets (
@@ -415,7 +416,9 @@ function get_site_url(): string {
     $url = get_setting('site_url');
     if ($url !== '') return rtrim($url, '/');
     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+           || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https')
+        ? 'https' : 'http';
     return $scheme . '://' . $host;
 }
 

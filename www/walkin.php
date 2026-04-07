@@ -28,16 +28,16 @@ $invalid = ($event === null);
 
 // ── Rate limiting: max 5 submissions per IP per hour ──────────────────────────
 function walkin_rate_limited(PDO $db): bool {
-    $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+    $ip = get_client_ip();
     // Purge old entries first
     $db->prepare("DELETE FROM walkin_attempts WHERE created_at < datetime('now', '-1 hour')")->execute();
     $count = $db->prepare("SELECT COUNT(*) FROM walkin_attempts WHERE ip = ? AND created_at > datetime('now', '-1 hour')");
     $count->execute([$ip]);
-    return (int)$count->fetchColumn() >= 5;
+    return (int)$count->fetchColumn() >= 20;
 }
 
 function walkin_record_attempt(PDO $db): void {
-    $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+    $ip = get_client_ip();
     $db->prepare('INSERT INTO walkin_attempts (ip) VALUES (?)')->execute([$ip]);
 }
 
@@ -110,6 +110,9 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
                        ->execute([$event_id, $username, $email, 'yes']);
                 }
                 db_log_anon_activity("walkin_rsvp: existing user $username for event $event_id");
+                // Remember for next walk-up (30 days)
+                setcookie('walkin_name', $display_name, time() + 86400 * 30, '/', '', true, false);
+                setcookie('walkin_email', $email, time() + 86400 * 30, '/', '', true, false);
                 $success = "Welcome back, " . htmlspecialchars($username) . "! You're registered for <strong>" . htmlspecialchars($event['title']) . "</strong>.";
 
             } else {
@@ -141,12 +144,20 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Send verification email so they can set a password
                     send_verification_email($new_id, $email, $final_username);
 
+                    // Remember for next walk-up (30 days)
+                    setcookie('walkin_name', $display_name, time() + 86400 * 30, '/', '', true, false);
+                    setcookie('walkin_email', $email, time() + 86400 * 30, '/', '', true, false);
+
                     $success = "You're registered for <strong>" . htmlspecialchars($event['title']) . "</strong>! Check your email to verify your account and set a password.";
                 }
             }
         }
     }
 }
+
+// Read remembered values from cookie
+$remembered_name  = $_COOKIE['walkin_name'] ?? '';
+$remembered_email = $_COOKIE['walkin_email'] ?? '';
 
 $csrf_token = csrf_token();
 ?>
@@ -271,7 +282,7 @@ $csrf_token = csrf_token();
                 <label for="wi_name">Your name <span style="color:#ef4444">*</span></label>
                 <input type="text" id="wi_name" name="display_name" required
                        maxlength="40" autocomplete="name" placeholder="Jane Smith"
-                       value="<?= htmlspecialchars($_POST['display_name'] ?? '') ?>"
+                       value="<?= htmlspecialchars($_POST['display_name'] ?? $remembered_name) ?>"
                        style="width:100%">
             </div>
 
@@ -279,7 +290,7 @@ $csrf_token = csrf_token();
                 <label for="wi_email">Email address <span style="color:#ef4444">*</span></label>
                 <input type="email" id="wi_email" name="email" required
                        autocomplete="email" placeholder="you@example.com"
-                       value="<?= htmlspecialchars($_POST['email'] ?? '') ?>"
+                       value="<?= htmlspecialchars($_POST['email'] ?? $remembered_email) ?>"
                        style="width:100%">
             </div>
 

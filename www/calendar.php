@@ -1293,6 +1293,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         <div id="walkinQRCode" style="display:flex;justify-content:center;margin:.5rem 0 1rem"></div>
         <div id="walkinQRUrl" style="font-size:.72rem;color:#64748b;word-break:break-all;margin-bottom:.75rem;padding:0 .5rem"></div>
         <button class="btn btn-outline" onclick="copyWalkinLink()" style="width:100%;margin-bottom:.5rem" id="walkinCopyBtn">Copy link</button>
+        <button class="btn btn-outline" onclick="openWalkinSeparate()" style="width:100%;margin-bottom:.5rem">Open on separate screen</button>
         <button class="btn" onclick="closeWalkinQR()" style="width:100%;background:#f1f5f9;color:#475569">Close</button>
     </div>
 </div>
@@ -2529,6 +2530,12 @@ function renderWalkinQR(ev) {
 
 function closeWalkinQR() {
     document.getElementById('walkinModal').classList.remove('open');
+}
+
+function openWalkinSeparate() {
+    var ev = currentEvent;
+    if (!ev) return;
+    window.open('/walkin_display.php?event_id=' + ev.id, '_blank');
 }
 
 function copyWalkinLink() {

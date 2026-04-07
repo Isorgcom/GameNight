@@ -366,6 +366,7 @@ function renderDashboard() {
     if (isTourney()) {
         h += '<a class="pk-btn-settings" href="/timer.php?event_id=' + <?= json_encode($event['id']) ?> + '" style="text-decoration:none">&#9201; Timer</a>';
     }
+    h += '<a class="pk-btn-settings" href="/walkin_display.php?event_id=' + <?= json_encode($event['id']) ?> + '" target="_blank" style="text-decoration:none">&#128241; QR Registration</a>';
     if (SESSION.status === 'setup') {
         h += '<button class="pk-btn-start" onclick="changeStatus(\'active\')">&#9654; Start Game</button>';
     } else if (SESSION.status === 'active') {
@@ -1020,6 +1021,34 @@ function escHtml(s) {
 
 // ─── INIT ──────────────────────────────────────────────
 loadSession();
+
+// Auto-refresh every 10 seconds
+// Uses poll=1 to skip sync_invitees (prevents re-adding removed players)
+// Pool stats update silently; player list refreshes only if count changes
+setInterval(function() {
+    if (!SESSION) return;
+    fetch('/checkin_dl.php?action=get_session&event_id=' + EVENT_ID)
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+            if (!j.ok || !j.session) return;
+            POOL = j.pool;
+            var poolEl = document.getElementById('poolTotal');
+            if (poolEl) {
+                if (SESSION.game_type === 'cash') {
+                    poolEl.innerHTML = '<small>Money In Play</small>' + formatMoney(POOL.total_cash_in);
+                } else {
+                    poolEl.innerHTML = '<small>Prize Pool</small>' + formatMoney(POOL.pool_total);
+                }
+            }
+            if (j.players.length !== PLAYERS.length) {
+                SESSION = j.session;
+                PLAYERS = j.players;
+                PAYOUTS = j.payouts;
+                refreshUI();
+            }
+        })
+        .catch(function() {});
+}, 10000);
 </script>
 </body>
 </html>

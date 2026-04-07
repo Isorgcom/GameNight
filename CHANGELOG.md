@@ -4,6 +4,29 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.03400] — 2026-04-07
+
+### Added
+- **Standalone QR registration display page** (`walkin_display.php`). Full-screen dark-themed page showing the walk-up QR code, event name, date, and "Scan to register" instructions. Designed for an iPad or tablet at a registration table. Includes copy link, regenerate QR, fullscreen, and wake lock.
+- **"Open on separate screen" button** in calendar QR modal. Opens the standalone QR display in a new window/tab for use on a separate device.
+- **QR Registration button on check-in page.** Opens the standalone QR display for the current event directly from the poker check-in dashboard.
+- **Check-in auto-refresh.** Player list and pool stats poll every 10 seconds. New walk-up registrations appear automatically without manual page refresh.
+- **Remember me on login.** Checkbox on the login page extends the session cookie to 30 days.
+- **Walk-up form remembers returning users.** Name and email saved in a 30-day cookie after registration. Auto-fills on next QR scan.
+- **SMS consent language (Telnyx compliance).** Registration and settings pages show opt-in checkbox/text for SMS messages with frequency, data rates, STOP/HELP, and Privacy Policy link.
+- **Privacy Policy: SMS section.** New Section 3 covers SMS opt-in, message types, frequency, data rates, opt-out (STOP), help (HELP), and Telnyx as provider.
+
+### Fixed
+- **HTTPS URLs behind proxy.** `get_site_url()` now checks `X-Forwarded-Proto` header so all generated URLs (QR codes, email verification, walkin links) use `https://` when behind Nginx Proxy Manager.
+- **Walk-up rate limiter using proxy IP.** Changed from `$_SERVER['REMOTE_ADDR']` to `get_client_ip()` so each visitor gets their own rate limit, not shared across all users behind the proxy. Limit raised to 20/hour.
+- **Removed players re-appearing on check-in.** Players are now soft-deleted (`removed=1`) instead of hard-deleted. `sync_invitees` skips removed players. `get_players` and `calc_pool` exclude them.
+- **Remove player also removes from event.** Removing a player from the check-in page now also deletes their `event_invites` row, fully removing them from the event.
+
+### Database
+- New column `poker_players.removed INTEGER NOT NULL DEFAULT 0` — soft-delete flag for removed players.
+
+---
+
 ## [v0.03300] — 2026-04-07
 
 ### Added

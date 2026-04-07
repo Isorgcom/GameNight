@@ -27,6 +27,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $result = attempt_login($email, $password);
             if ($result === true) {
+                // Extend session if "Remember me" checked (30 days)
+                if (!empty($_POST['remember_me'])) {
+                    $params = session_get_cookie_params();
+                    setcookie(session_name(), session_id(), time() + 86400 * 30, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
+                }
                 $u = current_user();
                 if (!empty($u['must_change_password'])) {
                     header('Location: /settings.php?must_change=1');
@@ -92,12 +97,16 @@ $site_name = get_setting('site_name', 'Game Night');
                 </div>
             </div>
 
-            <button type="submit" class="btn btn-primary" style="width:100%;margin-top:.5rem">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:.75rem">
+                <label style="display:flex;align-items:center;gap:.4rem;font-size:.85rem;color:#64748b;cursor:pointer">
+                    <input type="checkbox" name="remember_me" value="1"> Remember me
+                </label>
+                <a href="/forgot_password.php" style="font-size:.8rem;color:#64748b">Forgot password?</a>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width:100%;margin-top:.75rem">
                 Sign In
             </button>
-            <p style="text-align:right;margin-top:.6rem;font-size:.8rem">
-                <a href="/forgot_password.php" style="color:#64748b">Forgot password?</a>
-            </p>
         </form>
 
         <?php if (get_setting('allow_registration', '1') === '1'): ?>
