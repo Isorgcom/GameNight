@@ -7,6 +7,7 @@
  */
 require_once __DIR__ . '/auth.php';
 
+require_login();
 $current = current_user();
 $isAdmin = $current && $current['role'] === 'admin';
 
