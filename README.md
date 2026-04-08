@@ -1,20 +1,25 @@
 # Game Night
 
-A self-hosted PHP web application for organizing game night events. Members can register, RSVP to events on a shared calendar, read posts/announcements, and manage their profiles. Admins get a full dashboard for managing users, events, posts, and site settings.
+A self-hosted PHP web application for organizing game night events with full poker tournament management. Members can register, RSVP to events on a shared calendar, read posts/announcements, and manage their profiles. Admins get a full dashboard for managing users, events, posts, and site settings.
 
 ## Features
 
-this is still a work in progress!!  
-
-- **User accounts** — registration with email verification, login, forgot/reset password
+- **User accounts** — registration with email verification, login with remember me, forgot/reset password, brute force protection
 - **Calendar** — create and RSVP to events, view upcoming events; optionally allow registered users to create and manage their own events
 - **Posts** — rich-text announcements with comment support
-- **Admin panel** — manage users, posts, events, and all site settings
+- **Poker tournament management** — full check-in dashboard for tournaments and cash games with buy-ins, rebuys, add-ons, eliminations, and prize pool tracking
+- **Table management** — auto-assign players to tables, table view with move/balance controls, break up tables, seats-per-table limits, button/blind protection during rebalancing
+- **Tournament timer** — full-screen blind level timer with remote viewer (QR code), remote control for managers, customizable blind structures with presets, configurable sounds, wake lock for mobile devices
+- **Payout calculator** — ICM (Malmuth-Harville), Standard, and Chip Chop split methods for end-of-tournament deal making
+- **Prize payout display** — live payout structure on the timer screen, updates dynamically as the pool changes
+- **Walk-up QR registration** — iPad/tablet display page with QR code for walk-up player registration, shows table assignment on success
+- **Admin panel** — manage users (with account settings like email verification, password reset, notification preferences), posts, events, and all site settings
 - **Email** — transactional mail via SMTP (SendGrid or any provider)
-- **SMS** *(alpha)* — multi-provider notifications with two-way RSVP (see [SMS](#sms) below)
-- **WhatsApp** *(roadmap)* — event notifications via Meta WhatsApp Cloud API with two-way RSVP
+- **SMS** — multi-provider notifications with two-way RSVP (see [SMS](#sms) below)
+- **WhatsApp** — event notifications via Meta WhatsApp Cloud API with two-way RSVP
 - **One-click RSVP** — invitees can RSVP directly from email links without logging in
 - **Branding** — custom banner/header images, nav colors, site name
+- **Security** — CSRF protection, rate limiting, credential encryption at rest, secure session cookies, CSP headers, HSTS
 - **SQLite** — zero-config database, stored outside the web root
 
 ## Stack
@@ -23,6 +28,8 @@ this is still a work in progress!!
 - SQLite (via PDO)
 - [PHPMailer](https://github.com/PHPMailer/PHPMailer)
 - [Jodit](https://xdsoft.net/jodit/) / [Quill](https://quilljs.com/) rich-text editors
+- [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) — QR codes for remote timer/registration
+- Vanilla JS — no frontend framework dependencies
 
 ## Docker Install (recommended)
 
@@ -154,11 +161,9 @@ The web server user (`www-data`) needs write access to:
 
 The database schema is created automatically on the first request. Log in with the default admin credentials set in `config.php` and update them immediately via the admin panel.
 
-## SMS *(alpha)*
+## SMS
 
-> **Note:** SMS support is in alpha. Core functionality works but may have rough edges.
-
-Game Night supports SMS notifications through multiple providers. Configure your provider in **Admin Settings > SMS**.
+Game Night supports SMS notifications through multiple providers. Configure your provider in **Admin Settings > Communication > SMS**.
 
 ### Supported Providers
 
