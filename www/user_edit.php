@@ -12,7 +12,7 @@ $id    = (int)($_GET['id'] ?? 0);
 $flash = ['type' => '', 'msg' => ''];
 
 // Load target user
-$stmt = $db->prepare('SELECT id, username, email, phone, role, preferred_contact, notes, created_at, last_login FROM users WHERE id = ?');
+$stmt = $db->prepare('SELECT id, username, email, phone, role, preferred_contact, notes, created_at, last_login, email_verified, must_change_password, my_events_past_days, my_events_future_days FROM users WHERE id = ?');
 $stmt->execute([$id]);
 $target = $stmt->fetch();
 
@@ -66,9 +66,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         exit;
                     }
                 }
+                $email_verified = (int)($_POST['email_verified'] ?? $target['email_verified'] ?? 0);
+                $must_change_pw = (int)($_POST['must_change_password'] ?? 0);
+                $past_days = (int)($_POST['my_events_past_days'] ?? 30);
+                $future_days = (int)($_POST['my_events_future_days'] ?? 7);
+
                 try {
-                    $db->prepare('UPDATE users SET username=?, email=?, phone=?, role=?, preferred_contact=?, notes=? WHERE id=?')
-                       ->execute([$username, $email, $phone ?: null, $role, $pref_contact, $notes ?: null, $id]);
+                    $db->prepare('UPDATE users SET username=?, email=?, phone=?, role=?, preferred_contact=?, notes=?, email_verified=?, must_change_password=?, my_events_past_days=?, my_events_future_days=? WHERE id=?')
+                       ->execute([$username, $email, $phone ?: null, $role, $pref_contact, $notes ?: null, $email_verified, $must_change_pw, $past_days, $future_days, $id]);
                     db_log_activity($current['id'], "admin updated profile for user id: $id");
                     $flash = ['type' => 'success', 'msg' => 'Profile updated.'];
                     // Reload target
@@ -213,7 +218,38 @@ $site_name = get_setting('site_name', 'Game Night');
                     <textarea id="notes" name="notes" rows="4"
                               style="width:100%;resize:vertical"><?= htmlspecialchars($target['notes'] ?? '') ?></textarea>
                 </div>
-                <button type="submit" class="btn btn-primary" style="width:100%">Save Profile</button>
+
+                <hr style="margin:1rem 0;border:none;border-top:1px solid #e2e8f0">
+                <h3 style="font-size:.9rem;color:#475569;margin-bottom:.75rem">Account Settings</h3>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
+                    <div class="form-group" style="margin-bottom:0">
+                        <label for="email_verified">Email Verified</label>
+                        <select id="email_verified" name="email_verified" class="form-select">
+                            <option value="1" <?= $sel((int)($target['email_verified'] ?? 0), 1) ?>>Yes</option>
+                            <option value="0" <?= $sel((int)($target['email_verified'] ?? 0), 0) ?>>No</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0">
+                        <label for="must_change_password">Must Change Password</label>
+                        <select id="must_change_password" name="must_change_password" class="form-select">
+                            <option value="1" <?= $sel((int)($target['must_change_password'] ?? 0), 1) ?>>Yes</option>
+                            <option value="0" <?= $sel((int)($target['must_change_password'] ?? 0), 0) ?>>No</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0">
+                        <label for="my_events_past_days">My Events: Past Days</label>
+                        <input type="number" id="my_events_past_days" name="my_events_past_days"
+                               value="<?= (int)($target['my_events_past_days'] ?? 30) ?>" min="0" max="365">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0">
+                        <label for="my_events_future_days">My Events: Future Days</label>
+                        <input type="number" id="my_events_future_days" name="my_events_future_days"
+                               value="<?= (int)($target['my_events_future_days'] ?? 7) ?>" min="0" max="365">
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="width:100%;margin-top:1rem">Save Profile</button>
             </form>
         </div>
 
@@ -250,6 +286,8 @@ $site_name = get_setting('site_name', 'Game Night');
                 <tr><td style="color:#64748b">Role</td>
                     <td><span class="badge badge-<?= $target['role'] === 'admin' ? 'admin' : 'user' ?>">
                         <?= htmlspecialchars($target['role']) ?></span></td></tr>
+                <tr><td style="color:#64748b">Email Verified</td>
+                    <td><?= (int)($target['email_verified'] ?? 0) ? '<span style="color:#22c55e;font-weight:600">Yes</span>' : '<span style="color:#ef4444;font-weight:600">No</span>' ?></td></tr>
                 <tr><td style="color:#64748b">Member since</td><td><?= htmlspecialchars($target['created_at']) ?></td></tr>
                 <tr><td style="color:#64748b">Last login</td><td><?= htmlspecialchars($target['last_login'] ?? 'Never') ?></td></tr>
             </tbody>

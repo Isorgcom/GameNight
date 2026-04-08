@@ -554,7 +554,13 @@ if ($action === 'set_cashin') {
     if (!$session) { echo json_encode(['ok' => false, 'error' => 'Player not found']); exit; }
     verify_event_access($db, $session['event_id'], $current, $isAdmin);
 
-    $db->prepare('UPDATE poker_players SET cash_in = ? WHERE id = ?')->execute([max(0, $amount), $player_id]);
+    $amt = max(0, $amount);
+    if ($amt > 0) {
+        $db->prepare('UPDATE poker_players SET cash_in = ?, bought_in = 1, checked_in = 1 WHERE id = ?')->execute([$amt, $player_id]);
+        auto_assign_table($db, $session['id'], $player_id);
+    } else {
+        $db->prepare('UPDATE poker_players SET cash_in = ? WHERE id = ?')->execute([$amt, $player_id]);
+    }
 
     $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
     $p->execute([$player_id]);

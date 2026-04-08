@@ -4,6 +4,18 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.04100] — 2026-04-07
+
+### Added
+- **Admin user account settings.** User edit page now includes Email Verified toggle, Must Change Password toggle, My Events Past Days, and My Events Future Days fields under a new "Account Settings" section.
+- **Email verification status in account info.** User edit page Account Info table shows verified/unverified status with color indicator.
+
+### Fixed
+- **Cash game manual cash-in status.** Manually entering a Total In value and pressing Enter now correctly marks the player as bought in and checked in, matching the + button behavior.
+- **Cash-in Enter key advances focus.** Pressing Enter on a cash-in field saves the value and moves focus to the next player's input for quick entry.
+
+---
+
 ## [v0.04000] — 2026-04-07
 
 ### Added

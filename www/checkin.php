@@ -552,7 +552,7 @@ function renderPlayerRows() {
                 h += '<td><span style="color:#94a3b8">—</span></td>';
                 h += '<td><span style="color:#94a3b8">—</span></td>';
             } else {
-                h += '<td><div class="pk-counter"><button onclick="adjustMoney(' + p.id + ',-1)">-</button><input type="text" class="pk-cash-input" value="' + (cashIn/100).toFixed(2) + '" onchange="setCashIn(' + p.id + ',this.value)" style="border:none;min-width:60px"><button onclick="adjustMoney(' + p.id + ',1)">+</button></div></td>';
+                h += '<td><div class="pk-counter"><button onclick="adjustMoney(' + p.id + ',-1)">-</button><input type="text" class="pk-cash-input" data-pid="' + p.id + '" value="' + (cashIn/100).toFixed(2) + '" onchange="setCashIn(' + p.id + ',this.value)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();setCashIn(' + p.id + ',this.value);focusNextCashInput(this);}" style="border:none;min-width:60px"><button onclick="adjustMoney(' + p.id + ',1)">+</button></div></td>';
                 if (hasCashedOut) {
                     h += '<td>' + formatMoney(parseInt(p.cash_out)) + '</td>';
                     var prof = parseInt(p.cash_out) - cashIn;
@@ -1299,6 +1299,15 @@ function refreshUI() {
     if (poolCard) poolCard.innerHTML = renderPoolCard();
     var payoutCard = document.getElementById('payoutCard');
     if (payoutCard) payoutCard.innerHTML = renderPayoutCard();
+}
+
+function focusNextCashInput(el) {
+    var inputs = Array.from(document.querySelectorAll('.pk-cash-input'));
+    var idx = inputs.indexOf(el);
+    if (idx >= 0 && idx < inputs.length - 1) {
+        inputs[idx + 1].focus();
+        inputs[idx + 1].select();
+    }
 }
 
 function escHtml(s) {
