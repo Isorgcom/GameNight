@@ -4,6 +4,19 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.05100] — 2026-04-08
+
+### Changed
+- **Clean money display.** Cash game amounts show `$20` instead of `$20.00`. Cents only shown when non-zero (e.g. `$20.50`). Applied to pool totals, cash-in/out, profit, and compact stats bar.
+- **Compact mobile stats bar.** On mobile, 6 large stat boxes replaced with a single inline bar: `Players: 12 | In: 10 | Playing: 8 | Pool: $200`.
+- **Scrollable mobile player list.** Player cards on mobile now scroll independently within the viewport instead of pushing the page infinitely.
+- **Sidebar hidden on mobile.** Pool Summary and Payout cards no longer appear below the player list on mobile (info already in compact stats).
+
+### Fixed
+- **Banner flash on page load.** The site banner image briefly flashed at full size before CSS loaded. Fixed with inline size constraints and early CSS.
+
+---
+
 ## [v0.05000] — 2026-04-08
 
 ### Added

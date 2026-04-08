@@ -20,8 +20,9 @@ $_nav_text      = get_setting('nav_text_color', '');
 $_accent        = get_setting('accent_color', '');
 // $_is_mobile is set in auth.php
 ?>
-<?php if ($_nav_bg || $_nav_text || $_accent || $_header_banner): ?>
+<?php if ($_nav_bg || $_nav_text || $_accent || $_header_banner || $_banner): ?>
 <style>
+.nav-collapse-banner{max-height:38px;width:auto}
 <?php if ($_accent): ?>:root{--accent:<?= htmlspecialchars($_accent,ENT_QUOTES) ?>;--accent-h:<?= htmlspecialchars($_accent,ENT_QUOTES) ?>;}<?php endif; ?>
 <?php if ($_nav_bg): ?>nav{background:<?= htmlspecialchars($_nav_bg,ENT_QUOTES) ?> !important;}<?php endif; ?>
 <?php if ($_nav_text): ?>nav .brand,nav .brand:hover{color:<?= htmlspecialchars($_nav_text,ENT_QUOTES) ?> !important;}<?php endif; ?>
@@ -78,6 +79,7 @@ $_accent        = get_setting('accent_color', '');
         <img class="nav-collapse-btn nav-collapse-banner" id="navCollapseBtn"
              src="<?= htmlspecialchars($_banner) ?>?v=<?= $_banner_v ?>"
              alt="<?= htmlspecialchars($site_name) ?>"
+             style="max-height:38px;width:auto"
              onclick="toggleNavCollapse()" title="Toggle navigation">
         <?php else: ?>
         <button class="nav-collapse-btn" id="navCollapseBtn" title="Toggle navigation" onclick="toggleNavCollapse()">&#x25B2;</button>

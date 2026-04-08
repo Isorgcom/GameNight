@@ -147,6 +147,13 @@ $session = $sessStmt->fetch();
     .pk-tv-actions{display:flex;align-items:center;gap:.3rem}
     .pk-tv-move{font-size:.75rem;padding:.2rem .4rem;border:1px solid #e2e8f0;border-radius:4px;background:#fff;cursor:pointer}
 
+    /* Compact stats bar (mobile only) */
+    .pk-stats-compact{display:none;padding:.4rem .75rem;background:var(--surface,#fff);border-bottom:1.5px solid var(--border,#e2e8f0);font-size:.78rem;color:#475569;gap:.3rem;flex-wrap:wrap;align-items:center}
+    .pk-stats-compact span{white-space:nowrap}
+    .pk-stats-compact .sep{color:#cbd5e1}
+    .pk-stats-compact b{color:var(--accent,#2563eb);font-weight:700}
+    .pk-stats-compact .pool-val{color:#22c55e;font-weight:700}
+
     /* Mobile player cards */
     .pk-mobile-card{background:var(--surface,#fff);border:1.5px solid var(--border,#e2e8f0);border-radius:8px;margin-bottom:.5rem;overflow:hidden}
     .pk-mobile-card.elim{opacity:.5}
@@ -166,13 +173,13 @@ $session = $sessStmt->fetch();
     .pk-mobile-actions .danger{color:#ef4444;border-color:#fca5a5}
     @media(max-width:768px){
         .pk-table-wrap{display:none}
-        .pk-mobile-list{display:block}
+        .pk-mobile-list{display:block;max-height:calc(100dvh - 210px);overflow-y:auto;-webkit-overflow-scrolling:touch}
         .pk-header{padding:.5rem .75rem;gap:.5rem}
         .pk-header h1{font-size:1rem}
         .pk-pool{font-size:1.1rem}
-        .pk-stats{padding:.5rem .75rem;gap:.4rem}
-        .pk-stat{min-width:0;flex:1 1 calc(33% - .3rem);padding:.35rem .5rem}
-        .pk-stat-value{font-size:1rem}
+        .pk-stats{display:none}
+        .pk-stats-compact{display:flex}
+        .pk-sidebar{display:none}
         .pk-grid{padding:.5rem .75rem}
         .pk-toolbar{gap:.35rem}
         .pk-toolbar input[type=text]{width:100%;min-width:0}
@@ -289,12 +296,15 @@ function isCash() { return SESSION && SESSION.game_type === 'cash'; }
 function isTourney() { return !SESSION || SESSION.game_type === 'tournament'; }
 
 function formatMoney(cents) {
-    return '$' + (cents / 100).toFixed(2);
+    var val = cents / 100;
+    return '$' + (val % 1 === 0 ? val.toFixed(0) : val.toFixed(2));
 }
 function formatProfit(cents) {
-    if (cents > 0) return '+$' + (cents / 100).toFixed(2);
-    if (cents < 0) return '-$' + (Math.abs(cents) / 100).toFixed(2);
-    return '$0.00';
+    var val = Math.abs(cents) / 100;
+    var str = val % 1 === 0 ? val.toFixed(0) : val.toFixed(2);
+    if (cents > 0) return '+$' + str;
+    if (cents < 0) return '-$' + str;
+    return '$0';
 }
 
 function rsvpBg(r) {
@@ -437,6 +447,9 @@ function renderDashboard() {
     h += '<div class="pk-stats" id="statsRow">';
     h += renderStats();
     h += '</div>';
+    h += '<div class="pk-stats-compact" id="statsCompact">';
+    h += renderStatsCompact();
+    h += '</div>';
 
     // Grid
     h += '<div class="pk-grid">';
@@ -499,6 +512,23 @@ function renderTableHeader() {
     }
     if (parseInt(SESSION.num_tables) > 1) h += '<th>Table</th>';
     h += '<th>Status</th><th>Actions</th>';
+    return h;
+}
+
+function renderStatsCompact() {
+    var h = '';
+    var s = '<span class="sep">|</span>';
+    h += '<span>Players: <b>' + POOL.total_players + '</b></span>' + s;
+    h += '<span>In: <b>' + POOL.checked_in + '</b></span>' + s;
+    if (isTourney()) {
+        h += '<span>Playing: <b>' + POOL.still_playing + '</b></span>' + s;
+        h += '<span>Out: <b>' + POOL.eliminated + '</b></span>' + s;
+        h += '<span>Pool: <span class="pool-val">' + formatMoney(POOL.pool_total) + '</span></span>';
+    } else {
+        var active = POOL.bought_in - POOL.cashed_out;
+        h += '<span>Active: <b>' + active + '</b></span>' + s;
+        h += '<span>On Table: <span class="pool-val">' + formatMoney(POOL.total_cash_in - POOL.total_cash_out) + '</span></span>';
+    }
     return h;
 }
 
@@ -591,7 +621,7 @@ function renderPlayerRows() {
                 h += '<td><span style="color:#94a3b8">—</span></td>';
                 h += '<td><span style="color:#94a3b8">—</span></td>';
             } else {
-                h += '<td><div class="pk-counter"><button onclick="adjustMoney(' + p.id + ',-1)">-</button><input type="text" class="pk-cash-input" data-pid="' + p.id + '" value="' + (cashIn/100).toFixed(2) + '" onchange="setCashIn(' + p.id + ',this.value)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();setCashIn(' + p.id + ',this.value);focusNextCashInput(this);}" style="border:none;min-width:60px"><button onclick="adjustMoney(' + p.id + ',1)">+</button></div></td>';
+                h += '<td><div class="pk-counter"><button onclick="adjustMoney(' + p.id + ',-1)">-</button><input type="text" class="pk-cash-input" data-pid="' + p.id + '" value="' + (cashIn/100) + '" onchange="setCashIn(' + p.id + ',this.value)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();setCashIn(' + p.id + ',this.value);focusNextCashInput(this);}" style="border:none;min-width:60px"><button onclick="adjustMoney(' + p.id + ',1)">+</button></div></td>';
                 if (hasCashedOut) {
                     h += '<td>' + formatMoney(parseInt(p.cash_out)) + '</td>';
                     var prof = parseInt(p.cash_out) - cashIn;
@@ -729,7 +759,7 @@ function renderMobileCards() {
             } else {
                 var cashIn = parseInt(p.cash_in) || 0;
                 h += '<div class="pk-mobile-row">';
-                h += '<label>Cash In</label><div class="pk-counter"><button onclick="adjustMoney(' + p.id + ',-1)">-</button><input type="text" class="pk-cash-input" value="' + (cashIn/100).toFixed(2) + '" onchange="setCashIn(' + p.id + ',this.value)" style="border:none;min-width:50px"><button onclick="adjustMoney(' + p.id + ',1)">+</button></div>';
+                h += '<label>Cash In</label><div class="pk-counter"><button onclick="adjustMoney(' + p.id + ',-1)">-</button><input type="text" class="pk-cash-input" value="' + (cashIn/100) + '" onchange="setCashIn(' + p.id + ',this.value)" style="border:none;min-width:50px"><button onclick="adjustMoney(' + p.id + ',1)">+</button></div>';
                 h += '</div>';
                 if (hasCashedOut) {
                     var prof = parseInt(p.cash_out) - cashIn;
@@ -1266,11 +1296,11 @@ function openCashout(pid) {
     // Pre-fill with total in as a starting suggestion
     var totalIn = p ? playerTotalIn(p) : 0;
     var inp = document.getElementById('cashoutAmount');
-    inp.value = (totalIn / 100).toFixed(2);
+    inp.value = (totalIn / 100);
     // Set max to money remaining on the table (add back this player's existing cashout if re-cashing)
     var oldCashout = (p && p.cash_out !== null && p.cash_out !== undefined) ? parseInt(p.cash_out) : 0;
     var remaining = (POOL.pool_total - POOL.total_cash_out + oldCashout);
-    inp.max = (remaining / 100).toFixed(2);
+    inp.max = (remaining / 100);
     document.getElementById('cashoutModal').classList.add('open');
     inp.focus();
     inp.select();
@@ -1289,7 +1319,7 @@ function saveCashout() {
     var oldCashout = (p && p.cash_out !== null && p.cash_out !== undefined) ? parseInt(p.cash_out) : 0;
     var remaining = POOL.pool_total - POOL.total_cash_out + oldCashout;
     if (amt > remaining) {
-        alert('Cash-out ($' + (amt / 100).toFixed(2) + ') exceeds money remaining on the table ($' + (remaining / 100).toFixed(2) + ').');
+        alert('Cash-out ($' + (amt / 100) + ') exceeds money remaining on the table ($' + (remaining / 100) + ').');
         return;
     }
     postAction('set_cashout', { player_id: cashoutPlayerId, cash_out: amt }, function(j) {
@@ -1453,6 +1483,8 @@ function refreshUI() {
     }
     var stats = document.getElementById('statsRow');
     if (stats) stats.innerHTML = renderStats();
+    var statsC = document.getElementById('statsCompact');
+    if (statsC) statsC.innerHTML = renderStatsCompact();
     var poolEl = document.getElementById('poolTotal');
     if (poolEl) {
         if (isCash()) {
