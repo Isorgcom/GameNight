@@ -4,6 +4,22 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.05000] — 2026-04-08
+
+### Added
+- **Mobile check-in cards.** On screens ≤768px, the check-in player table is replaced with stacked player cards. Tap a card to expand and access all controls (check-in, buy-in, rebuys, add-ons, table, RSVP, eliminate, notes, remove). Desktop layout unchanged.
+- **Timer player management panel.** Slide-out panel on the timer page for hosts and managers. Manage rebuys, add-ons, eliminations, and buy-ins without leaving the timer screen. Available for both host and remote managers.
+- **Timer swipe-up controls tray.** Primary controls (Prev, Play, Next) always visible. Secondary controls (±Min, Reset, Sound, Fullscreen, Levels, Sounds, Players) in a slide-up tray — tap the handle bar to reveal. Desktop shows all controls by default.
+
+### Fixed
+- **Event managers access denied.** Managers could not add walk-ins, edit settings, update payouts, break up tables, or rebalance tables — only the event creator and admins could. Added `is_owner_or_manager()` helper and applied to all 6 affected check-in actions.
+- **Timer Players button missing on remote.** Remote managers couldn't see the Players button because `$event` wasn't loaded in the remote viewer code path.
+- **QR code overlapping controls on mobile.** QR code now hidden on screens ≤500px to prevent overlap with timer buttons.
+- **Fullscreen button hidden on iOS.** iPhones don't support the Fullscreen API — button is now hidden on iOS devices.
+- **Event edit notification spam removed.** Editing an event no longer sends "Event updated" notifications to all existing invitees. Only new invitees get notified. Use the explicit "Notify invitees" checkbox for update notifications.
+
+---
+
 ## [v0.04700] — 2026-04-08
 
 ### Added

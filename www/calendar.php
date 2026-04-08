@@ -206,25 +206,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
 
-                // On edit, also notify all existing invitees of the update
-                if ($action === 'edit') {
-                    $update_subject = 'Event updated: ' . $title;
-                    $update_url = $base_url . '/calendar.php?m=' . urlencode(substr($sd, 0, 7)) . '&open=' . $notify_eid . '&date=' . urlencode($sd);
-                    $update_sms = "Event \"$title\" on $date_str has been updated. View: " . $update_url;
-                    $update_html = '<p>The event <strong>' . htmlspecialchars($title) . '</strong> on ' . htmlspecialchars($date_str) . ' has been updated.</p>'
-                                 . '<p><a href="' . htmlspecialchars($update_url) . '" style="background:#2563eb;color:#fff;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600">View Event</a></p>';
-                    $all_inv = $db->prepare('SELECT LOWER(username) as uname FROM event_invites WHERE event_id=? AND occurrence_date IS NULL');
-                    $all_inv->execute([$notify_eid]);
-                    foreach ($all_inv->fetchAll(PDO::FETCH_COLUMN) as $uname) {
-                        if (in_array($uname, $new_invitee_usernames, true)) continue;
-                        $urow = $db->prepare('SELECT username, email, phone, preferred_contact FROM users WHERE LOWER(username) = ?');
-                        $urow->execute([$uname]);
-                        $udata = $urow->fetch();
-                        if (!$udata) continue;
-                        send_notification($udata['username'], $udata['email'] ?? '', $udata['phone'] ?? '',
-                            $udata['preferred_contact'] ?? 'email', $update_subject, $update_sms, $update_html);
-                    }
-                }
+                // On edit, only notify existing invitees if the "notify invitees" checkbox is NOT suppressed
+                // This prevents spam when only changing permissions or invite list
+                // (calendar_dl.php uses an explicit opt-in checkbox; here we use the suppress_notify flag)
             }
         }
     }

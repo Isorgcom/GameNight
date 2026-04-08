@@ -147,6 +147,42 @@ $session = $sessStmt->fetch();
     .pk-tv-actions{display:flex;align-items:center;gap:.3rem}
     .pk-tv-move{font-size:.75rem;padding:.2rem .4rem;border:1px solid #e2e8f0;border-radius:4px;background:#fff;cursor:pointer}
 
+    /* Mobile player cards */
+    .pk-mobile-card{background:var(--surface,#fff);border:1.5px solid var(--border,#e2e8f0);border-radius:8px;margin-bottom:.5rem;overflow:hidden}
+    .pk-mobile-card.elim{opacity:.5}
+    .pk-mobile-card.cashed-out{opacity:.7}
+    .pk-mobile-card.rsvp-no{opacity:.45}
+    .pk-mobile-summary{display:flex;justify-content:space-between;align-items:center;padding:.65rem .8rem;cursor:pointer;-webkit-tap-highlight-color:transparent}
+    .pk-mobile-summary:active{background:#f1f5f9}
+    .pk-mobile-name{font-weight:600;font-size:.9rem}
+    .pk-mobile-status{font-size:.75rem;font-weight:600;padding:.15rem .5rem;border-radius:4px}
+    .pk-mobile-expand{display:none;padding:.5rem .8rem;border-top:1px solid #f1f5f9;background:#f8fafc}
+    .pk-mobile-expand.open{display:block}
+    .pk-mobile-row{display:flex;align-items:center;justify-content:space-between;padding:.35rem 0;gap:.5rem;flex-wrap:wrap}
+    .pk-mobile-row label{font-size:.75rem;color:#64748b;font-weight:600;min-width:70px}
+    .pk-mobile-actions{display:flex;gap:.4rem;flex-wrap:wrap;padding-top:.4rem;border-top:1px solid #e2e8f0;margin-top:.3rem}
+    .pk-mobile-actions button{padding:.35rem .7rem;border-radius:6px;font-size:.78rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border,#e2e8f0);background:#fff}
+    .pk-mobile-actions button:active{background:#e2e8f0}
+    .pk-mobile-actions .danger{color:#ef4444;border-color:#fca5a5}
+    @media(max-width:768px){
+        .pk-table-wrap{display:none}
+        .pk-mobile-list{display:block}
+        .pk-header{padding:.5rem .75rem;gap:.5rem}
+        .pk-header h1{font-size:1rem}
+        .pk-pool{font-size:1.1rem}
+        .pk-stats{padding:.5rem .75rem;gap:.4rem}
+        .pk-stat{min-width:0;flex:1 1 calc(33% - .3rem);padding:.35rem .5rem}
+        .pk-stat-value{font-size:1rem}
+        .pk-grid{padding:.5rem .75rem}
+        .pk-toolbar{gap:.35rem}
+        .pk-toolbar input[type=text]{width:100%;min-width:0}
+        .pk-filter{margin-left:0}
+        .pk-settings-panel{margin:.5rem .75rem}
+    }
+    @media(min-width:769px){
+        .pk-mobile-list{display:none}
+    }
+
     /* Setup screen */
     .pk-setup{max-width:500px;margin:3rem auto;background:var(--surface,#fff);border:1.5px solid var(--border,#e2e8f0);border-radius:12px;padding:2rem}
     .pk-setup h2{margin:0 0 .3rem;font-size:1.3rem}
@@ -433,6 +469,9 @@ function renderDashboard() {
         h += '<tbody id="playerBody">';
         h += renderPlayerRows();
         h += '</tbody></table></div>';
+        h += '<div class="pk-mobile-list" id="mobileList">';
+        h += renderMobileCards();
+        h += '</div>';
     }
     h += '</div>';
 
@@ -625,6 +664,126 @@ function renderPlayerRows() {
         h += '<tr><td colspan="' + cols + '" style="text-align:center;padding:2rem;color:#94a3b8">No players</td></tr>';
     }
     return h;
+}
+
+function renderMobileCards() {
+    var h = '';
+    var filtered = PLAYERS.filter(function(p) {
+        if (FILTER === 'rsvp_yes') return p.rsvp === 'yes';
+        if (isCash()) {
+            if (FILTER === 'playing') return parseInt(p.bought_in) && (p.cash_out === null || p.cash_out === undefined);
+            if (FILTER === 'eliminated') return p.cash_out !== null && p.cash_out !== undefined;
+        } else {
+            if (FILTER === 'playing') return !parseInt(p.eliminated) && parseInt(p.bought_in);
+            if (FILTER === 'eliminated') return parseInt(p.eliminated);
+        }
+        return true;
+    });
+    for (var i = 0; i < filtered.length; i++) {
+        var p = filtered[i];
+        var isElim = parseInt(p.eliminated);
+        var hasCashedOut = isCash() && p.cash_out !== null && p.cash_out !== undefined;
+        var isNo = p.rsvp === 'no';
+        var cardClass = isElim ? 'elim' : (hasCashedOut ? 'cashed-out' : (isNo ? 'rsvp-no' : ''));
+
+        // Status text and color
+        var statusText = '\u2014', statusColor = '#94a3b8', statusBg = '#f1f5f9';
+        if (isTourney()) {
+            if (isElim) { statusText = '#' + (p.finish_position || '?'); statusColor = '#ef4444'; statusBg = '#fef2f2'; }
+            else if (parseInt(p.bought_in)) { statusText = 'Playing'; statusColor = '#16a34a'; statusBg = '#f0fdf4'; }
+            else if (parseInt(p.checked_in)) { statusText = 'Checked In'; statusColor = '#2563eb'; statusBg = '#eff6ff'; }
+        } else {
+            if (hasCashedOut) { statusText = 'Out'; statusColor = '#64748b'; statusBg = '#f1f5f9'; }
+            else if (parseInt(p.bought_in)) { statusText = 'Playing'; statusColor = '#16a34a'; statusBg = '#f0fdf4'; }
+            else if (parseInt(p.checked_in)) { statusText = 'Checked In'; statusColor = '#2563eb'; statusBg = '#eff6ff'; }
+        }
+
+        h += '<div class="pk-mobile-card ' + cardClass + '" data-pid="' + p.id + '">';
+        h += '<div class="pk-mobile-summary" onclick="toggleMobileExpand(' + p.id + ')">';
+        h += '<span class="pk-mobile-name">' + escHtml(p.display_name) + '</span>';
+        h += '<span class="pk-mobile-status" style="color:' + statusColor + ';background:' + statusBg + '">' + statusText + '</span>';
+        h += '</div>';
+
+        // Expandable panel
+        h += '<div class="pk-mobile-expand" id="mexp_' + p.id + '">';
+        if (!isNo) {
+            // Check-in + Buy-in row
+            h += '<div class="pk-mobile-row">';
+            h += '<label>Check In</label><input type="checkbox" class="pk-check" ' + (parseInt(p.checked_in)?'checked':'') + ' onchange="toggleCheckin(' + p.id + ')">';
+            h += '</div>';
+
+            if (isTourney()) {
+                h += '<div class="pk-mobile-row">';
+                h += '<label>Buy In</label><input type="checkbox" class="pk-check" ' + (parseInt(p.bought_in)?'checked':'') + ' onchange="toggleBuyin(' + p.id + ')">';
+                h += '</div>';
+                if (parseInt(SESSION.rebuy_allowed)) {
+                    h += '<div class="pk-mobile-row">';
+                    h += '<label>Rebuys</label><div class="pk-counter"><button onclick="updateRebuys(' + p.id + ',-1)">-</button><span>' + p.rebuys + '</span><button onclick="updateRebuys(' + p.id + ',1)">+</button></div>';
+                    h += '</div>';
+                }
+                if (parseInt(SESSION.addon_allowed)) {
+                    h += '<div class="pk-mobile-row">';
+                    h += '<label>Add-ons</label><div class="pk-counter"><button onclick="updateAddons(' + p.id + ',-1)">-</button><span>' + p.addons + '</span><button onclick="updateAddons(' + p.id + ',1)">+</button></div>';
+                    h += '</div>';
+                }
+            } else {
+                var cashIn = parseInt(p.cash_in) || 0;
+                h += '<div class="pk-mobile-row">';
+                h += '<label>Cash In</label><div class="pk-counter"><button onclick="adjustMoney(' + p.id + ',-1)">-</button><input type="text" class="pk-cash-input" value="' + (cashIn/100).toFixed(2) + '" onchange="setCashIn(' + p.id + ',this.value)" style="border:none;min-width:50px"><button onclick="adjustMoney(' + p.id + ',1)">+</button></div>';
+                h += '</div>';
+                if (hasCashedOut) {
+                    var prof = parseInt(p.cash_out) - cashIn;
+                    h += '<div class="pk-mobile-row"><label>Cash Out</label><span>' + formatMoney(parseInt(p.cash_out)) + '</span></div>';
+                    h += '<div class="pk-mobile-row"><label>Profit</label><span class="' + (prof>0?'pk-profit-pos':prof<0?'pk-profit-neg':'pk-profit-zero') + '">' + formatProfit(prof) + '</span></div>';
+                }
+            }
+
+            if (parseInt(SESSION.num_tables) > 1) {
+                h += '<div class="pk-mobile-row">';
+                h += '<label>Table</label><input type="number" class="pk-tbl-input" value="' + (p.table_number||'') + '" min="1" max="' + SESSION.num_tables + '" onchange="setTable(' + p.id + ',this.value)" style="width:50px">';
+                h += '</div>';
+            }
+
+            // RSVP
+            h += '<div class="pk-mobile-row">';
+            h += '<label>RSVP</label><select onchange="updateRsvp(' + p.id + ',this.value)" style="font-size:.8rem;padding:.25rem .4rem;border-radius:4px;border:1px solid #e2e8f0">';
+            var rsvp = p.rsvp || '';
+            h += '<option value=""' + (rsvp===''?' selected':'') + '>\u2014</option>';
+            h += '<option value="yes"' + (rsvp==='yes'?' selected':'') + '>Yes</option>';
+            h += '<option value="no"' + (rsvp==='no'?' selected':'') + '>No</option>';
+            h += '<option value="maybe"' + (rsvp==='maybe'?' selected':'') + '>Maybe</option>';
+            h += '</select></div>';
+        }
+
+        // Action buttons
+        h += '<div class="pk-mobile-actions">';
+        if (!isNo) {
+            if (isTourney()) {
+                if (!isElim && parseInt(p.bought_in)) h += '<button onclick="eliminatePlayer(' + p.id + ')">Eliminate</button>';
+                if (isElim) h += '<button onclick="uneliminate(' + p.id + ')">Undo Elim</button>';
+            } else {
+                if (parseInt(p.bought_in) && !hasCashedOut) h += '<button onclick="openCashout(' + p.id + ')">Cash Out</button>';
+                if (hasCashedOut) h += '<button onclick="undoCashout(' + p.id + ')">Undo Cash Out</button>';
+                if (!isElim && parseInt(p.bought_in)) h += '<button onclick="eliminatePlayer(' + p.id + ')">Eliminate</button>';
+                if (isElim) h += '<button onclick="uneliminate(' + p.id + ')">Undo Elim</button>';
+            }
+        }
+        h += '<button onclick="openNotes(' + p.id + ')">Notes</button>';
+        h += '<button class="danger" onclick="if(confirm(\'Remove ' + escHtml(p.display_name) + '?\'))removePlayer(' + p.id + ')">Remove</button>';
+        h += '</div>';
+
+        h += '</div>'; // pk-mobile-expand
+        h += '</div>'; // pk-mobile-card
+    }
+    if (filtered.length === 0) {
+        h += '<div style="text-align:center;padding:2rem;color:#94a3b8">No players</div>';
+    }
+    return h;
+}
+
+function toggleMobileExpand(pid) {
+    var el = document.getElementById('mexp_' + pid);
+    if (el) el.classList.toggle('open');
 }
 
 function renderPoolCard() {
@@ -1289,6 +1448,8 @@ function refreshUI() {
     } else {
         var body = document.getElementById('playerBody');
         if (body) body.innerHTML = renderPlayerRows();
+        var mobileList = document.getElementById('mobileList');
+        if (mobileList) mobileList.innerHTML = renderMobileCards();
     }
     var stats = document.getElementById('statsRow');
     if (stats) stats.innerHTML = renderStats();

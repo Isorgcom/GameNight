@@ -16,6 +16,19 @@ $isAdmin = $current['role'] === 'admin';
 
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
+// Helper: check if current user is owner or manager of an event
+function is_owner_or_manager($db, $event_id, $current, $isAdmin): bool {
+    if ($isAdmin) return true;
+    $ev = $db->prepare('SELECT created_by FROM events WHERE id = ?');
+    $ev->execute([$event_id]);
+    $row = $ev->fetch();
+    if (!$row) return false;
+    if ((int)$row['created_by'] === (int)$current['id']) return true;
+    $mgr = $db->prepare("SELECT 1 FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND event_role='manager' LIMIT 1");
+    $mgr->execute([$event_id, $current['username']]);
+    return (bool)$mgr->fetch();
+}
+
 // ─── ACTIONS ───────────────────────────────────────────────
 
 if ($action === 'get_session') {
@@ -116,7 +129,7 @@ if ($action === 'update_config') {
     $sess->execute([$session_id]);
     $s = $sess->fetch();
     if (!$s) { echo json_encode(['ok' => false, 'error' => 'Session not found']); exit; }
-    if (!$isAdmin && (int)$s['created_by'] !== (int)$current['id']) {
+    if (!is_owner_or_manager($db, $s['event_id'], $current, $isAdmin)) {
         http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Access denied']); exit;
     }
 
@@ -174,7 +187,7 @@ if ($action === 'update_status') {
     $sess->execute([$session_id]);
     $s = $sess->fetch();
     if (!$s) { echo json_encode(['ok' => false, 'error' => 'Session not found']); exit; }
-    if (!$isAdmin && (int)$s['created_by'] !== (int)$current['id']) {
+    if (!is_owner_or_manager($db, $s['event_id'], $current, $isAdmin)) {
         http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Access denied']); exit;
     }
 
@@ -375,7 +388,7 @@ if ($action === 'add_walkin') {
     $sess->execute([$session_id]);
     $s = $sess->fetch();
     if (!$s) { echo json_encode(['ok' => false, 'error' => 'Session not found']); exit; }
-    if (!$isAdmin && (int)$s['created_by'] !== (int)$current['id']) {
+    if (!is_owner_or_manager($db, $s['event_id'], $current, $isAdmin)) {
         http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Access denied']); exit;
     }
 
@@ -434,7 +447,7 @@ if ($action === 'update_payouts') {
     $sess->execute([$session_id]);
     $s = $sess->fetch();
     if (!$s) { echo json_encode(['ok' => false, 'error' => 'Session not found']); exit; }
-    if (!$isAdmin && (int)$s['created_by'] !== (int)$current['id']) {
+    if (!is_owner_or_manager($db, $s['event_id'], $current, $isAdmin)) {
         http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Access denied']); exit;
     }
 
@@ -648,7 +661,7 @@ if ($action === 'break_up_table') {
     $sess->execute([$session_id]);
     $s = $sess->fetch();
     if (!$s) { echo json_encode(['ok' => false, 'error' => 'Session not found']); exit; }
-    if (!$isAdmin && (int)$s['created_by'] !== (int)$current['id']) {
+    if (!is_owner_or_manager($db, $s['event_id'], $current, $isAdmin)) {
         http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Access denied']); exit;
     }
 
@@ -712,7 +725,7 @@ if ($action === 'rebalance_tables') {
     $sess->execute([$session_id]);
     $s = $sess->fetch();
     if (!$s) { echo json_encode(['ok' => false, 'error' => 'Session not found']); exit; }
-    if (!$isAdmin && (int)$s['created_by'] !== (int)$current['id']) {
+    if (!is_owner_or_manager($db, $s['event_id'], $current, $isAdmin)) {
         http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Access denied']); exit;
     }
 

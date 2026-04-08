@@ -42,6 +42,15 @@ if (isset($_GET['view']) && $_GET['view'] === 'remote' && !empty($_GET['key'])) 
     }
 
     $pool = calc_pool($db, $session_id);
+    $game_type = $session['game_type'] ?? null;
+    $payouts = ($game_type === 'tournament') ? get_payouts($db, $session_id) : [];
+
+    // Load event for remote access
+    if ($session) {
+        $evStmt = $db->prepare('SELECT * FROM events WHERE id = ?');
+        $evStmt->execute([(int)$session['event_id']]);
+        $event = $evStmt->fetch();
+    }
 
     // Check if logged-in user can control
     $current = current_user();
@@ -286,17 +295,55 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
         }
 
         /* ── Controls ── */
-        .timer-controls {
+        .timer-primary-controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.4rem 0;
+            width: 100%;
+            max-width: 900px;
+            flex: 0 0 auto;
+        }
+        .timer-tray-handle {
+            width: 100%;
+            max-width: 900px;
+            padding: 0.3rem 0;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .timer-tray-grip {
+            width: 40px;
+            height: 4px;
+            background: #475569;
+            border-radius: 2px;
+        }
+        .timer-tray {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            width: 100%;
+            max-width: 900px;
+        }
+        .timer-tray.open {
+            max-height: 200px;
+        }
+        .timer-tray-grid {
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 0.4rem;
             flex-wrap: wrap;
-            padding: 0.5rem 0;
-            width: 100%;
-            max-width: 900px;
-            flex: 0 0 auto;
+            padding: 0.3rem 0 0.5rem;
         }
+        @media (min-width: 769px) {
+            .timer-tray { max-height: 200px; }
+            .timer-tray-handle { display: none; }
+        }
+        .timer-primary-controls button,
+        .timer-tray-grid button,
         .timer-controls button {
             background: #1e293b;
             color: #e2e8f0;
@@ -511,16 +558,15 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
         /* ── Responsive ── */
         @media (max-width: 900px) {
             .timer-info-bar { gap: 0.5rem; padding: 0.25rem 0.5rem; }
-            .timer-controls {
+            .timer-primary-controls, .timer-tray-grid {
                 gap: 0.3rem;
-                padding: 0.4rem 0.25rem;
             }
-            .timer-controls button {
+            .timer-primary-controls button, .timer-tray-grid button, .timer-controls button {
                 padding: 0.4rem 0.6rem;
                 font-size: 0.75rem;
                 border-radius: 6px;
             }
-            .timer-controls button.btn-play {
+            .timer-primary-controls button.btn-play, .timer-controls button.btn-play {
                 padding: 0.4rem 1rem;
             }
             .timer-blinds { font-size: clamp(1.8rem, 8vw, 5rem); }
@@ -528,15 +574,14 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
             .timer-level-label { font-size: clamp(0.9rem, 2.5vw, 1.5rem); }
         }
         @media (max-width: 500px) {
-            .timer-controls button {
+            .timer-primary-controls button, .timer-tray-grid button, .timer-controls button {
                 padding: 0.35rem 0.5rem;
                 font-size: 0.7rem;
             }
-            .timer-controls button.btn-play {
+            .timer-primary-controls button.btn-play, .timer-controls button.btn-play {
                 padding: 0.35rem 0.8rem;
             }
-            .timer-qr { bottom: 0.5rem; right: 0.5rem; }
-            .timer-qr canvas { width: 70px !important; height: 70px !important; }
+            .timer-qr { display: none; }
         }
         /* Landscape phones: shrink everything to fit */
         @media (max-height: 500px) {
@@ -549,10 +594,30 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
             .timer-clock { font-size: min(20vw, 25vh); }
             .timer-paused-label { font-size: 0.9rem; min-height: 1.2em; }
             .timer-next { font-size: 0.8rem; }
-            .timer-controls { padding: 0.2rem 0; gap: 0.25rem; }
-            .timer-controls button { padding: 0.3rem 0.5rem; font-size: 0.7rem; }
-            .timer-controls button.btn-play { padding: 0.3rem 0.8rem; }
+            .timer-primary-controls, .timer-tray-grid { padding: 0.2rem 0; gap: 0.25rem; }
+            .timer-primary-controls button, .timer-tray-grid button, .timer-controls button { padding: 0.3rem 0.5rem; font-size: 0.7rem; }
+            .timer-primary-controls button.btn-play, .timer-controls button.btn-play { padding: 0.3rem 0.8rem; }
         }
+
+        /* Player management panel */
+        .player-panel-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:200}
+        .player-panel{position:fixed;top:0;right:-320px;width:300px;max-width:85vw;height:100%;background:#1e293b;z-index:201;transition:right .25s ease;display:flex;flex-direction:column}
+        .player-panel.open{right:0}
+        .player-panel-header{display:flex;justify-content:space-between;align-items:center;padding:.75rem 1rem;border-bottom:1px solid #334155;color:#f1f5f9;font-weight:700;font-size:.95rem;flex-shrink:0}
+        .player-panel-body{flex:1;overflow-y:auto;padding:.5rem}
+        .pp-card{background:#0f172a;border:1px solid #334155;border-radius:6px;padding:.5rem .65rem;margin-bottom:.4rem}
+        .pp-card.elim{opacity:.4}
+        .pp-name{font-weight:600;font-size:.85rem;color:#f1f5f9}
+        .pp-status{font-size:.7rem;font-weight:600;margin-left:.4rem}
+        .pp-actions{display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.35rem}
+        .pp-actions button{padding:.25rem .5rem;border-radius:4px;font-size:.7rem;font-weight:600;cursor:pointer;border:1px solid #475569;background:#1e293b;color:#94a3b8}
+        .pp-actions button:active{background:#334155}
+        .pp-actions .pp-elim{color:#ef4444;border-color:#7f1d1d}
+        .pp-actions .pp-undo{color:#fbbf24;border-color:#78350f}
+        .pp-counter{display:inline-flex;align-items:center;gap:0;border:1px solid #475569;border-radius:4px;overflow:hidden}
+        .pp-counter button{width:22px;height:22px;border:none;background:#334155;color:#f1f5f9;cursor:pointer;font-weight:700;font-size:.8rem;display:flex;align-items:center;justify-content:center}
+        .pp-counter button:active{background:#475569}
+        .pp-counter span{min-width:18px;text-align:center;font-weight:600;font-size:.75rem;color:#f1f5f9;padding:0 2px}
     </style>
 </head>
 <body class="timer-body">
@@ -596,32 +661,56 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
         <div class="timer-next" id="nextLevel"></div>
     </div>
 
-    <!-- Sound & fullscreen (always visible for all users) -->
-    <div class="timer-controls" style="padding:0.2rem 0;justify-content:center">
-        <button id="btnSound" onclick="toggleSound()">&#128276; Sound: On</button>
-        <button onclick="goFullscreen()">&#9974; Fullscreen</button>
-    </div>
-
-    <!-- Controls (host or remote controller) -->
-    <div class="timer-controls" id="controls" style="<?= $can_control ? '' : 'display:none' ?>">
+    <!-- Primary controls (always visible) -->
+    <div class="timer-primary-controls" id="controls" style="<?= $can_control ? '' : 'display:none' ?>">
         <button onclick="skipLevel(-1)" title="Previous Level">&#9198; Prev</button>
         <button class="btn-play" id="btnPlay" onclick="togglePlay()">&#9654; Start</button>
         <button onclick="skipLevel(1)" title="Next Level">Next &#9197;</button>
-        <span class="timer-min-group">
-            <button onclick="adjustTime(-60)" title="Subtract 1 minute">&#9660;</button>
-            <span class="timer-min-label">Min</span>
-            <button onclick="adjustTime(60)" title="Add 1 minute">&#9650;</button>
-        </span>
-        <span class="timer-reset-group">
-            <button onclick="resetLevel()" title="Reset current level clock">&#8635; Level</button>
-            <button onclick="resetTimer()" title="Reset entire timer to level 1" style="color:#ef4444">&#8635; Timer</button>
-        </span>
-        <?php if (!$is_remote): ?>
-        <button onclick="openLevels()">&#128203; Levels</button>
-        <button onclick="openSoundSettings()">&#9881; Sounds</button>
-        <?php endif; ?>
+    </div>
+
+    <!-- Tray handle -->
+    <div class="timer-tray-handle" onclick="toggleTray()">
+        <div class="timer-tray-grip"></div>
+    </div>
+
+    <!-- Secondary controls tray -->
+    <div class="timer-tray" id="timerTray">
+        <div class="timer-tray-grid">
+            <span class="timer-min-group" style="<?= $can_control ? '' : 'display:none' ?>">
+                <button onclick="adjustTime(-60)" title="Subtract 1 minute">&#9660;</button>
+                <span class="timer-min-label">Min</span>
+                <button onclick="adjustTime(60)" title="Add 1 minute">&#9650;</button>
+            </span>
+            <span class="timer-reset-group" style="<?= $can_control ? '' : 'display:none' ?>">
+                <button onclick="resetLevel()" title="Reset current level clock">&#8635; Level</button>
+                <button onclick="resetTimer()" title="Reset entire timer to level 1" style="color:#ef4444">&#8635; Timer</button>
+            </span>
+            <button id="btnSound" onclick="toggleSound()">&#128276; Sound: On</button>
+            <button id="btnFullscreen" onclick="goFullscreen()">&#9974; Fullscreen</button>
+            <?php if (!$is_remote): ?>
+            <button onclick="openLevels()">&#128203; Levels</button>
+            <button onclick="openSoundSettings()">&#9881; Sounds</button>
+            <?php endif; ?>
+            <?php if ($can_control && $event && $session): ?>
+            <button onclick="togglePlayerPanel()">&#128101; Players</button>
+            <?php endif; ?>
+        </div>
     </div>
 </div>
+
+<?php if ($can_control && $event && $session): ?>
+<!-- Player management slide-out panel -->
+<div class="player-panel-overlay" id="playerPanelOverlay" onclick="togglePlayerPanel()" style="display:none"></div>
+<div class="player-panel" id="playerPanel">
+    <div class="player-panel-header">
+        <span>Players</span>
+        <button onclick="togglePlayerPanel()" style="background:none;border:none;color:#94a3b8;font-size:1.3rem;cursor:pointer">&times;</button>
+    </div>
+    <div class="player-panel-body" id="playerPanelBody">
+        <div style="text-align:center;padding:2rem;color:#64748b">Loading...</div>
+    </div>
+</div>
+<?php endif; ?>
 
 <?php if (!$is_remote): ?>
 <!-- QR code for remote viewer -->
@@ -739,6 +828,8 @@ var audioCtx = null;
 var CURRENT_PRESET_ID = <?= json_encode($timer['preset_id'] ? (int)$timer['preset_id'] : null) ?>;
 var PAYOUTS = <?= json_encode($payouts) ?>;
 var GAME_TYPE = <?= json_encode($game_type) ?>;
+var EVENT_ID = <?= json_encode($event ? (int)$event['id'] : null) ?>;
+var POKER_SESSION_ID = <?= json_encode($session ? (int)$session['id'] : null) ?>;
 var SOUNDS = {
     warning_seconds: <?= (int)($timer['warning_seconds'] ?? 60) ?>,
     alarm_sound: <?= json_encode($timer['alarm_sound'] ?? null) ?>,
@@ -966,6 +1057,10 @@ function startLocalTick() {
 
 // ─── Controls (all send commands to server) ───────────────
 function togglePlay() { sendCommand('toggle_play'); }
+function toggleTray() {
+    var tray = document.getElementById('timerTray');
+    if (tray) tray.classList.toggle('open');
+}
 function skipLevel(dir) { sendCommand(dir > 0 ? 'skip_next' : 'skip_prev'); }
 function adjustTime(delta) { sendCommand(delta > 0 ? 'add_time' : 'sub_time'); }
 function resetLevel() { sendCommand('reset_level'); }
@@ -1448,6 +1543,18 @@ renderAll();
 startLocalTick(); // smooth second-by-second display between polls
 setInterval(pollState, POLL_INTERVAL); // everyone polls server — server is master
 
+// Open tray by default on desktop
+if (window.innerWidth > 768) {
+    var tray = document.getElementById('timerTray');
+    if (tray) tray.classList.add('open');
+}
+
+// Hide fullscreen button on iOS (not supported)
+if (/iPhone|iPad|iPod/.test(navigator.userAgent) && !document.fullscreenEnabled && !document.webkitFullscreenEnabled) {
+    var fsBtn = document.getElementById('btnFullscreen');
+    if (fsBtn) fsBtn.style.display = 'none';
+}
+
 if (!IS_REMOTE) {
 
     // Generate QR code using qrcode-generator library
@@ -1484,6 +1591,134 @@ if (!IS_REMOTE) {
             });
         });
     }
+}
+
+// ─── Player Panel ────────────────────────────────────────────
+var PP_PLAYERS = [];
+var PP_SESSION = null;
+var PP_OPEN = false;
+
+function togglePlayerPanel() {
+    var panel = document.getElementById('playerPanel');
+    var overlay = document.getElementById('playerPanelOverlay');
+    if (!panel) return;
+    PP_OPEN = !PP_OPEN;
+    panel.classList.toggle('open', PP_OPEN);
+    if (overlay) overlay.style.display = PP_OPEN ? '' : 'none';
+    if (PP_OPEN) fetchPlayers();
+}
+
+function fetchPlayers() {
+    if (!EVENT_ID) return;
+    var fd = new FormData();
+    fd.append('action', 'get_session');
+    fd.append('event_id', EVENT_ID);
+    fetch('/checkin_dl.php?action=get_session&event_id=' + EVENT_ID, { credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+            if (j.ok && j.players) {
+                PP_PLAYERS = j.players;
+                PP_SESSION = j.session || PP_SESSION;
+                POOL = j.pool || POOL;
+                renderPlayerPanel();
+            }
+        })
+        .catch(function() {});
+}
+
+function renderPlayerPanel() {
+    var body = document.getElementById('playerPanelBody');
+    if (!body) return;
+    var h = '';
+    var isTourney = GAME_TYPE === 'tournament';
+    var activePlayers = PP_PLAYERS.filter(function(p) { return !parseInt(p.removed); });
+
+    for (var i = 0; i < activePlayers.length; i++) {
+        var p = activePlayers[i];
+        var isElim = parseInt(p.eliminated);
+        var hasCashedOut = !isTourney && p.cash_out !== null && p.cash_out !== undefined;
+
+        var statusText = '', statusColor = '#94a3b8';
+        if (isTourney) {
+            if (isElim) { statusText = ' #' + (p.finish_position || '?'); statusColor = '#ef4444'; }
+            else if (parseInt(p.bought_in)) { statusText = ' Playing'; statusColor = '#22c55e'; }
+        } else {
+            if (hasCashedOut) { statusText = ' Out'; statusColor = '#64748b'; }
+            else if (parseInt(p.bought_in)) { statusText = ' Playing'; statusColor = '#22c55e'; }
+        }
+
+        h += '<div class="pp-card' + (isElim ? ' elim' : '') + '">';
+        h += '<span class="pp-name">' + escHtml(p.display_name) + '</span>';
+        if (statusText) h += '<span class="pp-status" style="color:' + statusColor + '">' + statusText + '</span>';
+        h += '<div class="pp-actions">';
+
+        if (!isElim && !hasCashedOut) {
+            if (isTourney) {
+                if (parseInt(p.bought_in)) {
+                    if (PP_SESSION && parseInt(PP_SESSION.rebuy_allowed)) {
+                        h += '<div class="pp-counter"><button onclick="ppRebuy(' + p.id + ',-1)">-</button><span>' + (p.rebuys||0) + '</span><button onclick="ppRebuy(' + p.id + ',1)">+</button></div>';
+                    }
+                    if (PP_SESSION && parseInt(PP_SESSION.addon_allowed)) {
+                        h += '<div class="pp-counter"><button onclick="ppAddon(' + p.id + ',-1)">-</button><span>' + (p.addons||0) + '</span><button onclick="ppAddon(' + p.id + ',1)">+</button></div>';
+                    }
+                    h += '<button class="pp-elim" onclick="ppEliminate(' + p.id + ')">Elim</button>';
+                } else {
+                    h += '<button onclick="ppBuyin(' + p.id + ')">Buy In</button>';
+                }
+            } else {
+                if (parseInt(p.bought_in)) {
+                    h += '<button onclick="ppCashout(' + p.id + ')">Cash Out</button>';
+                } else {
+                    h += '<button onclick="ppCashin(' + p.id + ')">Cash In</button>';
+                }
+            }
+        }
+        if (isElim) h += '<button class="pp-undo" onclick="ppUnelim(' + p.id + ')">Undo</button>';
+        if (hasCashedOut) h += '<button class="pp-undo" onclick="ppUndoCashout(' + p.id + ')">Undo</button>';
+        h += '</div></div>';
+    }
+    if (activePlayers.length === 0) h = '<div style="text-align:center;padding:2rem;color:#64748b">No players</div>';
+    body.innerHTML = h;
+}
+
+function ppPost(action, data, cb) {
+    var fd = new FormData();
+    fd.append('csrf_token', CSRF);
+    fd.append('action', action);
+    for (var k in data) fd.append(k, data[k]);
+    fetch('/checkin_dl.php', { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(j) { if (j.ok) { fetchPlayers(); if (cb) cb(j); } })
+        .catch(function() {});
+}
+
+function ppBuyin(pid) { ppPost('toggle_buyin', { player_id: pid }); }
+function ppRebuy(pid, d) { ppPost('update_rebuys', { player_id: pid, delta: d }); }
+function ppAddon(pid, d) { ppPost('update_addons', { player_id: pid, delta: d }); }
+function ppEliminate(pid) {
+    var playing = PP_PLAYERS.filter(function(p) { return !parseInt(p.eliminated) && parseInt(p.bought_in); }).length;
+    var pos = prompt('Finish position? (suggested: ' + playing + ')', playing);
+    if (pos === null) return;
+    ppPost('eliminate_player', { player_id: pid, finish_position: parseInt(pos) || playing });
+}
+function ppUnelim(pid) { ppPost('uneliminate_player', { player_id: pid }); }
+function ppCashin(pid) {
+    var amt = prompt('Cash in amount ($):', '20');
+    if (amt === null) return;
+    ppPost('add_cashin', { player_id: pid, amount: Math.round(parseFloat(amt) * 100) });
+}
+function ppCashout(pid) {
+    var amt = prompt('Cash out amount ($):');
+    if (amt === null) return;
+    ppPost('set_cashout', { player_id: pid, cash_out: Math.round(parseFloat(amt) * 100) });
+}
+function ppUndoCashout(pid) { ppPost('set_cashout', { player_id: pid, cash_out: '' }); }
+
+function escHtml(s) {
+    if (!s) return '';
+    var d = document.createElement('div');
+    d.appendChild(document.createTextNode(s));
+    return d.innerHTML;
 }
 </script>
 </body>
