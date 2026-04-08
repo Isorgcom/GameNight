@@ -3,6 +3,7 @@ Options -Indexes
 
 # Route favicon.ico requests to favicon.php (serves the uploaded site icon)
 RewriteEngine On
+RewriteRule ^s/([a-zA-Z0-9]+)$ /s.php?code=$1 [L,QSA]
 RewriteRule ^favicon\.ico$ /favicon.php [L,R=302]
 
 # Hide PHP errors from the browser

@@ -97,24 +97,31 @@ function sms_normalize_phone(string $to): ?string {
 }
 
 /**
- * Shorten a URL via TinyURL (free, no API key required).
- * Returns the short URL on success, original URL on any failure.
+ * Shorten a URL using the built-in self-hosted shortener.
+ * Stores in short_links table, returns a /s/CODE URL.
+ * Falls back to the original URL on any failure.
  */
 function shorten_url(string $url): string {
-    $ch = curl_init('https://tinyurl.com/api-create.php?url=' . urlencode($url));
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 5,
-        CURLOPT_FOLLOWLOCATION => true,
-    ]);
-    $response = curl_exec($ch);
-    $curlErr  = curl_error($ch);
-    $code     = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    try {
+        $db = get_db();
+        // Check if this URL is already shortened
+        $existing = $db->prepare('SELECT code FROM short_links WHERE target_url = ?');
+        $existing->execute([$url]);
+        $code = $existing->fetchColumn();
+        if ($code) return get_site_url() . '/s/' . $code;
 
-    if (!$curlErr && $code === 200 && str_starts_with($response, 'https://')) {
-        return $response;
-    }
+        // Generate a unique 6-char code
+        $chars = 'abcdefghijkmnpqrstuvwxyz23456789'; // no l/1/o/0 to avoid confusion
+        for ($attempt = 0; $attempt < 10; $attempt++) {
+            $code = '';
+            for ($i = 0; $i < 6; $i++) $code .= $chars[random_int(0, strlen($chars) - 1)];
+            $stmt = $db->prepare('INSERT OR IGNORE INTO short_links (code, target_url) VALUES (?, ?)');
+            $stmt->execute([$code, $url]);
+            if ($stmt->rowCount() > 0) {
+                return get_site_url() . '/s/' . $code;
+            }
+        }
+    } catch (Exception $e) {}
     return $url; // Fallback to original URL on any error
 }
 

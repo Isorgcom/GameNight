@@ -204,6 +204,13 @@ function db_init(PDO $pdo): void {
     // Add raw API response to SMS log for debugging
     try { $pdo->exec("ALTER TABLE sms_log ADD COLUMN raw_response TEXT"); } catch (Exception $e) {}
 
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS short_links (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        code       TEXT UNIQUE NOT NULL,
+        target_url TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )"); } catch (Exception $e) {}
+
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS sms_pending_rsvp (
         user_id    INTEGER PRIMARY KEY,
         rsvp_value TEXT NOT NULL,

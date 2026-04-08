@@ -4,6 +4,16 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.04600] — 2026-04-08
+
+### Added
+- **Self-hosted URL shortener.** Replaced TinyURL dependency with a built-in shortener. Short URLs like `https://yourdomain.com/s/abc123` are stored in the database and redirect via 301 — no preview pages, no third-party dependencies, no rate limits. Reuses existing codes for the same target URL.
+
+### Removed
+- **TinyURL API dependency.** Third-party URL shorteners were unreliable (is.gd blocked by Cloudflare, TinyURL showing preview pages). The self-hosted shortener replaces all external shortener calls.
+
+---
+
 ## [v0.04500] — 2026-04-08
 
 ### Added
