@@ -14,12 +14,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $email = strtolower(trim($_POST['email'] ?? ''));
         $db    = get_db();
-        $stmt  = $db->prepare('SELECT id, username, email_verified FROM users WHERE LOWER(email)=?');
-        $stmt->execute([$email]);
-        $user  = $stmt->fetch();
 
-        if ($user && !(int)$user['email_verified']) {
-            send_verification_email($user['id'], $email, $user['username']);
+        // Rate limit: max 3 resend requests per IP per hour
+        $ip = function_exists('get_client_ip') ? get_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? '');
+        $rlStmt = $db->prepare("SELECT COUNT(*) FROM activity_log WHERE ip = ? AND action LIKE 'resend_verification%' AND created_at > datetime('now', '-1 hour')");
+        $rlStmt->execute([$ip]);
+        if ((int)$rlStmt->fetchColumn() < 3) {
+            db_log_anon_activity('resend_verification: ' . $email);
+            $stmt = $db->prepare('SELECT id, username, email_verified FROM users WHERE LOWER(email)=?');
+            $stmt->execute([$email]);
+            $user = $stmt->fetch();
+
+            if ($user && !(int)$user['email_verified']) {
+                send_verification_email($user['id'], $email, $user['username']);
+            }
         }
         $sent = true; // always show success
     }

@@ -4,6 +4,23 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.04200] — 2026-04-07
+
+### Security
+- **Rate limiting on password reset.** Max 3 requests per IP per hour. Silently drops excess requests without revealing rate limiting to attackers.
+- **Rate limiting on email verification resend.** Max 3 requests per IP per hour. Prevents email spam attacks.
+- **Rate limiting on registration.** Max 5 registration attempts per IP per hour.
+- **Cron token empty-string bypass fixed.** Empty cron_token or empty provided token now both rejected, preventing unauthenticated cron execution.
+- **Password policy consistency.** Registration now requires 12 characters minimum, matching password reset and settings (was 8).
+- **Walk-in cookies HttpOnly.** New user walk-in cookies now set `httponly=true`, preventing JavaScript access. Previously only existing user path was protected.
+- **Walk-in rate limit corrected.** Fixed from 20 to 5 attempts per IP per hour (code didn't match documented limit).
+- **CSP form-action directive.** Added `form-action 'self'` to Content-Security-Policy to prevent form hijacking.
+- **Password reset token moved to POST.** Reset token now submitted via hidden form field instead of URL query string, removing exposure from browser history, server logs, and referrer headers.
+- **MIME detection modernized.** Replaced deprecated `mime_content_type()` with `finfo(FILEINFO_MIME_TYPE)` in banner upload handlers.
+- **Walk-in token entropy increased.** Increased from 128-bit (16 bytes) to 256-bit (32 bytes), matching CSRF and email verification token strength.
+
+---
+
 ## [v0.04100] — 2026-04-07
 
 ### Added

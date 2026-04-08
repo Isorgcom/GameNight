@@ -5,7 +5,7 @@ if (current_user()) { header('Location: /'); exit; }
 
 $site_name = get_setting('site_name', 'Game Night');
 $db        = get_db();
-$token_raw = trim($_GET['token'] ?? '');
+$token_raw = trim($_POST['reset_token'] ?? $_GET['token'] ?? '');
 $token_hash = $token_raw !== '' ? hash('sha256', $token_raw) : '';
 $flash     = '';
 $success   = false;
@@ -86,8 +86,9 @@ $token = csrf_token();
                 <div class="alert alert-error"><?= htmlspecialchars($flash) ?></div>
             <?php endif; ?>
 
-            <form method="post" action="/reset_password.php?token=<?= urlencode($token_raw) ?>" novalidate>
+            <form method="post" action="/reset_password.php" novalidate>
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                <input type="hidden" name="reset_token" value="<?= htmlspecialchars($token_raw) ?>">
                 <div class="form-group">
                     <label for="new_password">New Password</label>
                     <input type="password" id="new_password" name="new_password"

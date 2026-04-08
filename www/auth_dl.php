@@ -107,8 +107,8 @@ function register_user(string $username, string $email, string $password, string
     if (!preg_match('/^[a-zA-Z0-9_]{3,30}$/', $username)) {
         return 'Username must be 3-30 characters (letters, numbers, underscores).';
     }
-    if (strlen($password) < 8) {
-        return 'Password must be at least 8 characters.';
+    if (strlen($password) < 12) {
+        return 'Password must be at least 12 characters.';
     }
     if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
         return 'A valid email address is required.';

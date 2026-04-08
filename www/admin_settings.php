@@ -419,7 +419,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($action === 'banner_upload') {
             if (isset($_FILES['banner']) && $_FILES['banner']['error'] === UPLOAD_ERR_OK) {
                 $tmp  = $_FILES['banner']['tmp_name'];
-                $mime = mime_content_type($tmp);
+                $finfo = new finfo(FILEINFO_MIME_TYPE);
+                $mime = $finfo->file($tmp);
                 $allowed_mime = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp'];
                 if (isset($allowed_mime[$mime]) && $_FILES['banner']['size'] <= 2 * 1024 * 1024) {
                     $ext  = $allowed_mime[$mime];
@@ -545,7 +546,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($action === 'header_banner_upload') {
             if (isset($_FILES['header_banner']) && $_FILES['header_banner']['error'] === UPLOAD_ERR_OK) {
                 $tmp  = $_FILES['header_banner']['tmp_name'];
-                $mime = mime_content_type($tmp);
+                $finfo = new finfo(FILEINFO_MIME_TYPE);
+                $mime = $finfo->file($tmp);
                 $allowed_mime = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp'];
                 if (isset($allowed_mime[$mime]) && $_FILES['header_banner']['size'] <= 4 * 1024 * 1024) {
                     $ext  = $allowed_mime[$mime];

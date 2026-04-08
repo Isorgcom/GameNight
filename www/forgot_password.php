@@ -16,6 +16,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $email = strtolower(trim($_POST['email'] ?? ''));
         $db    = get_db();
 
+        // Rate limit: max 3 password reset requests per IP per hour
+        $ip = function_exists('get_client_ip') ? get_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? '');
+        $rlStmt = $db->prepare("SELECT COUNT(*) FROM activity_log WHERE ip = ? AND action LIKE 'password_reset_request%' AND created_at > datetime('now', '-1 hour')");
+        $rlStmt->execute([$ip]);
+        if ((int)$rlStmt->fetchColumn() >= 3) {
+            $sent = true; // Show success to not reveal rate limiting
+        } else {
+        db_log_anon_activity('password_reset_request: ' . $email);
+
         $stmt = $db->prepare('SELECT id, username FROM users WHERE LOWER(email) = ?');
         $stmt->execute([$email]);
         $user = $stmt->fetch();
@@ -45,6 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Always show success — don't reveal whether email exists
         $sent = true;
+        } // end rate limit else
     }
 }
 

@@ -424,7 +424,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'regenerate_walkin_token' && $isAdmin) {
         $eid = (int)($_POST['event_id'] ?? 0);
         if ($eid > 0) {
-            $new_token = bin2hex(random_bytes(16));
+            $new_token = bin2hex(random_bytes(32));
             $db->prepare('UPDATE events SET walkin_token = ? WHERE id = ?')->execute([$new_token, $eid]);
             db_log_activity($current['id'], "regenerated walkin_token for event id: $eid");
             header('Content-Type: application/json');

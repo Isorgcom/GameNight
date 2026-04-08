@@ -34,7 +34,7 @@ function walkin_rate_limited(PDO $db): bool {
     $db->prepare("DELETE FROM walkin_attempts WHERE created_at < datetime('now', '-1 hour')")->execute();
     $count = $db->prepare("SELECT COUNT(*) FROM walkin_attempts WHERE ip = ? AND created_at > datetime('now', '-1 hour')");
     $count->execute([$ip]);
-    return (int)$count->fetchColumn() >= 20;
+    return (int)$count->fetchColumn() >= 5;
 }
 
 function walkin_record_attempt(PDO $db): void {
@@ -161,8 +161,8 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     send_verification_email($new_id, $email, $final_username);
 
                     // Remember for next walk-up (30 days)
-                    setcookie('walkin_name', $display_name, time() + 86400 * 30, '/', '', true, false);
-                    setcookie('walkin_email', $email, time() + 86400 * 30, '/', '', true, false);
+                    setcookie('walkin_name', $display_name, time() + 86400 * 30, '/', '', true, true);
+                    setcookie('walkin_email', $email, time() + 86400 * 30, '/', '', true, true);
 
                     $success = "You're registered for <strong>" . htmlspecialchars($event['title']) . "</strong>! Check your email to verify your account and set a password.";
 

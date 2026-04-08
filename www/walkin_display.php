@@ -39,7 +39,7 @@ if (!$isAdmin && (int)$event['created_by'] !== (int)$current['id']) {
 // Generate walkin_token if not set
 $walkin_token = $event['walkin_token'] ?? '';
 if ($walkin_token === '') {
-    $walkin_token = bin2hex(random_bytes(16));
+    $walkin_token = bin2hex(random_bytes(32));
     $db->prepare('UPDATE events SET walkin_token = ? WHERE id = ?')->execute([$walkin_token, $event_id]);
 }
 

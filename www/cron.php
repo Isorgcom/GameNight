@@ -18,7 +18,7 @@ require_once __DIR__ . '/mail.php';
 // ── Token protection ──────────────────────────────────────────────────────────
 $cron_token = get_setting('cron_token', '');
 $provided   = $_GET['token'] ?? '';
-if ($cron_token === '' || !hash_equals($cron_token, $provided)) {
+if ($cron_token === '' || $provided === '' || !hash_equals($cron_token, $provided)) {
     http_response_code(403);
     exit('Forbidden');
 }
