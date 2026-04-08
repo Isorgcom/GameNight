@@ -83,7 +83,7 @@ if (!empty($_SESSION['flash'])) {
     unset($_SESSION['flash']);
 }
 
-$tab = in_array($_GET['tab'] ?? '', ['dashboard', 'general', 'appearance', 'logs', 'users', 'events', 'email', 'sms', 'whatsapp']) ? $_GET['tab'] : 'dashboard';
+$tab = in_array($_GET['tab'] ?? '', ['dashboard', 'general', 'appearance', 'logs', 'users', 'events', 'email', 'sms', 'whatsapp', 'backup']) ? $_GET['tab'] : 'dashboard';
 $isCommTab = in_array($tab, ['email', 'sms', 'whatsapp']);
 
 // ── POST ─────────────────────────────────────────────────────────────────────
@@ -93,6 +93,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid request token.'];
     } else {
         $action = $_POST['action'] ?? '';
+
+        // ── Backup download (streams file, exits early) ──
+        if ($action === 'backup_download') {
+            db_log_activity($current['id'], 'downloaded database backup');
+            $dbPath = DB_PATH;
+            // Close PDO to release locks
+            // PDO connection released on exit/redirect
+            $filename = 'gamenight_backup_' . date('Y-m-d_His') . '.db';
+            header('Content-Type: application/octet-stream');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            header('Content-Length: ' . filesize($dbPath));
+            readfile($dbPath);
+            exit;
+        }
+
+        // ── Backup restore (upload) ──
+        if ($action === 'backup_restore') {
+            if (!isset($_FILES['backup_file']) || $_FILES['backup_file']['error'] !== UPLOAD_ERR_OK) {
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'No file uploaded.'];
+            } else {
+                $tmp = $_FILES['backup_file']['tmp_name'];
+                // Validate: must be a valid SQLite database with a users table
+                try {
+                    $testDb = new PDO('sqlite:' . $tmp);
+                    $testDb->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+                    $check = $testDb->query("SELECT name FROM sqlite_master WHERE type='table' AND name='users'");
+                    if (!$check->fetch()) {
+                        throw new Exception('Not a valid GameNight database (missing users table).');
+                    }
+                    $testDb = null;
+
+                    // Auto-backup current DB before restore
+                    $backupPath = DB_PATH . '.before_restore';
+                    copy(DB_PATH, $backupPath);
+
+                    // Close current DB connection and replace
+                    // PDO connection released on exit/redirect
+                    if (copy($tmp, DB_PATH)) {
+                        db_log_activity($current['id'], 'restored database from backup');
+                        $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Database restored successfully. Previous database saved as backup.'];
+                    } else {
+                        $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Failed to write database file. Check permissions.'];
+                    }
+                } catch (Exception $e) {
+                    $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid backup file: ' . $e->getMessage()];
+                }
+            }
+            $post_tab = 'backup';
+        }
 
         if ($action === 'general') {
             $site_name = trim($_POST['site_name'] ?? '');
@@ -897,6 +946,8 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
            class="tab-btn <?= $tab === 'events' ? 'active' : '' ?>">Events</a>
         <a href="/admin_settings.php?tab=email"
            class="tab-btn <?= $isCommTab ? 'active' : '' ?>">Communication</a>
+        <a href="/admin_settings.php?tab=backup"
+           class="tab-btn <?= $tab === 'backup' ? 'active' : '' ?>">Backup</a>
     </div>
 
     <!-- ── Dashboard tab ── -->
@@ -2392,6 +2443,53 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
         </form>
     </div>
 </div>
+
+    <!-- ── Backup tab ── -->
+    <div class="tab-panel <?= $tab === 'backup' ? 'active' : '' ?>">
+        <h2>Database Backup &amp; Restore</h2>
+        <p class="subtitle">Download a full backup of the database or restore from a previous backup.</p>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;max-width:700px;margin-top:1.5rem">
+            <!-- Download backup -->
+            <div class="card" style="max-width:100%">
+                <h3 style="margin-top:0">Download Backup</h3>
+                <p style="font-size:.85rem;color:#64748b;margin-bottom:1rem">Download a copy of the entire database including all users, events, settings, and game data.</p>
+                <form method="post" action="/admin_settings.php?tab=backup">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                    <input type="hidden" name="action" value="backup_download">
+                    <input type="hidden" name="tab" value="backup">
+                    <button type="submit" class="btn btn-primary" style="width:100%">Download Backup</button>
+                </form>
+                <?php
+                    $dbSize = file_exists(DB_PATH) ? filesize(DB_PATH) : 0;
+                    $dbSizeStr = $dbSize < 1024*1024
+                        ? round($dbSize / 1024, 1) . ' KB'
+                        : round($dbSize / (1024*1024), 2) . ' MB';
+                ?>
+                <p style="font-size:.75rem;color:#94a3b8;margin-top:.75rem">Database size: <?= $dbSizeStr ?></p>
+            </div>
+
+            <!-- Restore backup -->
+            <div class="card" style="max-width:100%;border-color:#fca5a5">
+                <h3 style="margin-top:0;color:#dc2626">Restore from Backup</h3>
+                <p style="font-size:.85rem;color:#64748b;margin-bottom:1rem">Upload a previously downloaded <code>.db</code> backup file. This will <strong>replace all current data</strong>.</p>
+                <form method="post" action="/admin_settings.php?tab=backup" enctype="multipart/form-data"
+                      onsubmit="return confirm('This will REPLACE ALL current data with the backup. The current database will be saved as a safety copy. Continue?')">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                    <input type="hidden" name="action" value="backup_restore">
+                    <input type="hidden" name="tab" value="backup">
+                    <div class="form-group" style="margin-bottom:1rem">
+                        <input type="file" name="backup_file" accept=".db" required
+                               style="width:100%;padding:.4rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.85rem">
+                    </div>
+                    <button type="submit" class="btn" style="width:100%;background:#dc2626;color:#fff;border:none">Restore Backup</button>
+                </form>
+                <?php if (file_exists(DB_PATH . '.before_restore')): ?>
+                <p style="font-size:.75rem;color:#94a3b8;margin-top:.75rem">Pre-restore backup saved: <?= date('Y-m-d H:i:s', filemtime(DB_PATH . '.before_restore')) ?></p>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
 
 <?php require __DIR__ . '/_footer.php'; ?>
 

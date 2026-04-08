@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.05300] — 2026-04-08
+
+### Added
+- **Database backup & restore.** New "Backup" tab in Admin Settings. Download a full SQLite database backup as a timestamped `.db` file. Restore from a previously downloaded backup with validation (checks for valid SQLite with users table). Auto-saves current database before restore as a safety copy. All actions logged.
+
+---
+
 ## [v0.05200] — 2026-04-08
 
 ### Added
