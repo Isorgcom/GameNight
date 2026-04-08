@@ -1036,6 +1036,11 @@ function renderTableView() {
 }
 
 function eliminatePlayer(pid) {
+    var player = PLAYERS.find(function(p) { return parseInt(p.id) === pid; });
+    if (player && !parseInt(player.bought_in)) {
+        alert('This player has not bought in yet. Buy them in before eliminating.');
+        return;
+    }
     var playing = PLAYERS.filter(function(p) { return !parseInt(p.eliminated) && parseInt(p.bought_in); }).length;
     var pos = prompt('Finish position? (suggested: ' + playing + ')', playing);
     if (pos === null) return;

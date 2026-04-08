@@ -4,6 +4,14 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.04301] — 2026-04-08
+
+### Fixed
+- **Single table auto-assign.** Players in a 1-table game are now assigned to table 1 instead of showing as unassigned in table view. Balance Tables also works with a single table.
+- **Eliminate without buy-in blocked.** Attempting to eliminate a player who hasn't bought in now shows a warning instead of setting finish position 0.
+
+---
+
 ## [v0.04300] — 2026-04-08
 
 ### Security

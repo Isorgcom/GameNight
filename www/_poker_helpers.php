@@ -131,7 +131,20 @@ function auto_assign_table($db, $session_id, $player_id): ?int {
     $sess = $db->prepare('SELECT num_tables, auto_assign_tables, seats_per_table FROM poker_sessions WHERE id = ?');
     $sess->execute([$session_id]);
     $s = $sess->fetch();
-    if (!$s || (int)$s['num_tables'] <= 1 || !(int)$s['auto_assign_tables']) return null;
+    if (!$s || !(int)$s['auto_assign_tables']) return null;
+
+    // Single table: just assign to table 1
+    if ((int)$s['num_tables'] <= 1) {
+        $cur = $db->prepare('SELECT table_number FROM poker_players WHERE id = ?');
+        $cur->execute([$player_id]);
+        $row = $cur->fetch();
+        if ($row && $row['table_number'] !== null) return (int)$row['table_number'];
+        $seatStmt = $db->prepare('SELECT COALESCE(MAX(seat_number), 0) + 1 FROM poker_players WHERE session_id = ? AND table_number = 1');
+        $seatStmt->execute([$session_id]);
+        $seat = (int)$seatStmt->fetchColumn();
+        $db->prepare('UPDATE poker_players SET table_number = 1, seat_number = ? WHERE id = ?')->execute([$seat, $player_id]);
+        return 1;
+    }
 
     // Check if player already has a table
     $cur = $db->prepare('SELECT table_number FROM poker_players WHERE id = ?');
@@ -180,7 +193,23 @@ function rebalance_tables($db, $session_id, array $protected_ids = []): array {
     $sess = $db->prepare('SELECT num_tables, seats_per_table FROM poker_sessions WHERE id = ?');
     $sess->execute([$session_id]);
     $s = $sess->fetch();
-    if (!$s || (int)$s['num_tables'] <= 1) return [];
+    if (!$s) return [];
+
+    // Single table: assign all unassigned players to table 1
+    if ((int)$s['num_tables'] <= 1) {
+        $moves = [];
+        $unassigned = $db->prepare('SELECT id, display_name FROM poker_players WHERE session_id = ? AND removed = 0 AND eliminated = 0 AND checked_in = 1 AND table_number IS NULL');
+        $unassigned->execute([$session_id]);
+        $maxSeat = $db->prepare('SELECT COALESCE(MAX(seat_number), 0) FROM poker_players WHERE session_id = ? AND table_number = 1');
+        $maxSeat->execute([$session_id]);
+        $seat = (int)$maxSeat->fetchColumn();
+        foreach ($unassigned->fetchAll() as $p) {
+            $seat++;
+            $db->prepare('UPDATE poker_players SET table_number = 1, seat_number = ? WHERE id = ?')->execute([$seat, $p['id']]);
+            $moves[] = ['player_id' => (int)$p['id'], 'display_name' => $p['display_name'], 'old_table' => null, 'new_table' => 1];
+        }
+        return $moves;
+    }
 
     $num = (int)$s['num_tables'];
 
