@@ -63,6 +63,26 @@ function get_sms_providers(): array {
                 ['Pricing', 'Outbound ~$0.0068/msg, inbound ~$0.005/msg'],
             ],
         ],
+        'surge' => [
+            'label'  => 'Surge',
+            'fields' => [
+                'sms_sid'           => ['label' => 'Account ID',      'type' => 'text',     'placeholder' => 'acct_01j...'],
+                'sms_token'         => ['label' => 'API Key',          'type' => 'password', 'placeholder' => 'your_api_key'],
+                'sms_from'          => ['label' => 'From Number',      'type' => 'text',     'placeholder' => '+12015550123'],
+                'sms_webhook_secret' => ['label' => 'Signing Secret',  'type' => 'password', 'placeholder' => 'whsec_...'],
+            ],
+            'help' => [
+                ['Dashboard', 'https://surge.app'],
+                ['Account ID', 'Found on the Surge dashboard, starts with <code>acct_</code> (not <code>usr_</code>)'],
+                ['API Key', 'Create under Settings &rsaquo; API Keys'],
+                ['From Number', 'Buy a number under Phone Numbers'],
+                ['Webhook URL', 'Set to <code>https://yourdomain.com/sms_webhook.php</code>'],
+                ['Webhook Events', 'Subscribe to <code>message.received</code> in your webhook settings or inbound replies won&rsquo;t work'],
+                ['Signing Secret', 'Copy from your webhook&rsquo;s Signing Secret field to verify inbound requests are from Surge'],
+                ['Pricing', 'Outbound ~$0.008/msg, inbound ~$0.008/msg'],
+                ['10DLC', 'Fast A2P registration (24-48 hours) via Campaigns'],
+            ],
+        ],
     ];
 }
 
@@ -77,22 +97,23 @@ function sms_normalize_phone(string $to): ?string {
 }
 
 /**
- * Shorten a URL via is.gd (free, no API key required).
+ * Shorten a URL via TinyURL (free, no API key required).
  * Returns the short URL on success, original URL on any failure.
  */
 function shorten_url(string $url): string {
-    $ch = curl_init('https://is.gd/create.php?format=json&url=' . urlencode($url));
+    $ch = curl_init('https://tinyurl.com/api-create.php?url=' . urlencode($url));
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT        => 5,
+        CURLOPT_FOLLOWLOCATION => true,
     ]);
     $response = curl_exec($ch);
+    $curlErr  = curl_error($ch);
     $code     = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 
-    if ($code === 200) {
-        $json = json_decode($response, true);
-        return $json['shorturl'] ?? $url;
+    if (!$curlErr && $code === 200 && str_starts_with($response, 'https://')) {
+        return $response;
     }
     return $url; // Fallback to original URL on any error
 }
@@ -136,6 +157,8 @@ function send_sms(string $to, string $body): ?string {
             $err = _sms_telnyx($token, $from, $e164, $body, $raw); break;
         case 'vonage':
             $err = _sms_vonage($sid, $token, $from, $e164, $body, $raw); break;
+        case 'surge':
+            $err = _sms_surge($sid, $token, $from, $e164, $body, $raw); break;
         default:
             $err = "Unknown SMS provider: $provider";
     }
@@ -276,9 +299,11 @@ function _sms_twilio(string $sid, string $token, string $from, string $to, strin
         CURLOPT_USERPWD        => $sid . ':' . $token,
     ]);
     $response = curl_exec($ch);
+    $curlErr  = curl_error($ch);
     $code     = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
-    $raw = $response;
+    $raw = $response ?: '';
+    if ($curlErr) return 'Connection error: ' . $curlErr;
     if ($code === 201) return null;
     $json = json_decode($response, true);
     return $json['message'] ?? "HTTP $code";
@@ -296,9 +321,11 @@ function _sms_plivo(string $authId, string $authToken, string $from, string $to,
         CURLOPT_USERPWD        => $authId . ':' . $authToken,
     ]);
     $response = curl_exec($ch);
+    $curlErr  = curl_error($ch);
     $code     = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
-    $raw = $response;
+    $raw = $response ?: '';
+    if ($curlErr) return 'Connection error: ' . $curlErr;
     if ($code >= 200 && $code < 300) return null;
     $json = json_decode($response, true);
     return $json['error'] ?? $json['message'] ?? "HTTP $code";
@@ -317,12 +344,41 @@ function _sms_telnyx(string $apiKey, string $from, string $to, string $body, str
         CURLOPT_POSTFIELDS     => json_encode(['from' => $from, 'to' => $to, 'text' => $body]),
     ]);
     $response = curl_exec($ch);
+    $curlErr  = curl_error($ch);
     $code     = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
-    $raw = $response;
+    $raw = $response ?: '';
+    if ($curlErr) return 'Connection error: ' . $curlErr;
     if ($code >= 200 && $code < 300) return null;
     $json = json_decode($response, true);
     return $json['errors'][0]['detail'] ?? $json['message'] ?? "HTTP $code";
+}
+
+function _sms_surge(string $accountId, string $apiKey, string $from, string $to, string $body, string &$raw = ''): ?string {
+    if (!$accountId) return 'Surge Account ID is required.';
+    $url = 'https://api.surge.app/accounts/' . $accountId . '/messages';
+    $ch  = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_HTTPHEADER     => [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $apiKey,
+        ],
+        CURLOPT_POSTFIELDS     => json_encode([
+            'conversation' => ['contact' => ['phone_number' => $to]],
+            'body'         => $body,
+        ]),
+    ]);
+    $response = curl_exec($ch);
+    $curlErr  = curl_error($ch);
+    $code     = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    $raw = $response ?: '';
+    if ($curlErr) return 'Connection error: ' . $curlErr;
+    if ($code >= 200 && $code < 300) return null;
+    $json = json_decode($response, true);
+    return $json['error']['message'] ?? $json['message'] ?? "HTTP $code";
 }
 
 function _sms_vonage(string $apiKey, string $apiSecret, string $from, string $to, string $body, string &$raw = ''): ?string {
@@ -340,9 +396,11 @@ function _sms_vonage(string $apiKey, string $apiSecret, string $from, string $to
         ]),
     ]);
     $response = curl_exec($ch);
+    $curlErr  = curl_error($ch);
     $code     = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
-    $raw = $response;
+    $raw = $response ?: '';
+    if ($curlErr) return 'Connection error: ' . $curlErr;
     if ($code !== 200) return "HTTP $code";
     $json = json_decode($response, true);
     $msg  = $json['messages'][0] ?? [];

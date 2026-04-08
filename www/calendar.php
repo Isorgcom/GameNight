@@ -195,34 +195,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Notify newly added invitees unless suppressed or notifications disabled globally
             if (!$suppress_notify && get_setting('notifications_enabled', '0') === '1') {
-                if (empty($new_invitee_usernames) && !empty($inv_usernames) && array_filter($inv_usernames)) {
-                    db_log_activity($current['id'], "invite emails: 0 new invitees detected (all were existing) for event $notify_eid", 'info');
-                }
                 if (!empty($new_invitee_usernames)) {
-                    $subject = 'You\'re invited: ' . $title;
                     foreach ($new_invitee_usernames as $new_user) {
-                        $data = $build_invite_email($new_user);
-                        if ($data) {
-                            $err = send_email($data['email'], $new_user, $subject, $data['html']);
-                            if ($err) db_log_activity($current['id'], "invite email failed for $new_user: $err", 'warning');
-                        } else {
-                            db_log_activity($current['id'], "invite email skipped for $new_user: no email address found", 'warning');
-                        }
+                        $urow = $db->prepare('SELECT username, email, phone, preferred_contact FROM users WHERE LOWER(username) = ?');
+                        $urow->execute([$new_user]);
+                        $udata = $urow->fetch();
+                        if (!$udata) continue;
+                        $contact = $udata['preferred_contact'] ?? 'email';
+                        send_invite_notification($udata['username'], $udata['email'] ?? '', $udata['phone'] ?? '', $contact, $title, $sd, $notify_eid);
                     }
                 }
 
                 // On edit, also notify all existing invitees of the update
                 if ($action === 'edit') {
-                    $subject = 'Event updated: ' . $title;
-                    $all_inv = $db->prepare('SELECT LOWER(username) as uname FROM event_invites WHERE event_id=?');
+                    $update_subject = 'Event updated: ' . $title;
+                    $update_url = $base_url . '/calendar.php?m=' . urlencode(substr($sd, 0, 7)) . '&open=' . $notify_eid . '&date=' . urlencode($sd);
+                    $update_sms = "Event \"$title\" on $date_str has been updated. View: " . $update_url;
+                    $update_html = '<p>The event <strong>' . htmlspecialchars($title) . '</strong> on ' . htmlspecialchars($date_str) . ' has been updated.</p>'
+                                 . '<p><a href="' . htmlspecialchars($update_url) . '" style="background:#2563eb;color:#fff;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600">View Event</a></p>';
+                    $all_inv = $db->prepare('SELECT LOWER(username) as uname FROM event_invites WHERE event_id=? AND occurrence_date IS NULL');
                     $all_inv->execute([$notify_eid]);
                     foreach ($all_inv->fetchAll(PDO::FETCH_COLUMN) as $uname) {
-                        if (in_array($uname, $new_invitee_usernames, true)) continue; // already notified
-                        $data = $build_invite_email($uname);
-                        if ($data) {
-                            $err = send_email($data['email'], $uname, $subject, $data['html']);
-                            if ($err) db_log_activity($current['id'], "update email failed for $uname: $err", 'warning');
-                        }
+                        if (in_array($uname, $new_invitee_usernames, true)) continue;
+                        $urow = $db->prepare('SELECT username, email, phone, preferred_contact FROM users WHERE LOWER(username) = ?');
+                        $urow->execute([$uname]);
+                        $udata = $urow->fetch();
+                        if (!$udata) continue;
+                        send_notification($udata['username'], $udata['email'] ?? '', $udata['phone'] ?? '',
+                            $udata['preferred_contact'] ?? 'email', $update_subject, $update_sms, $update_html);
                     }
                 }
             }

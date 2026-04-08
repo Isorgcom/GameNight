@@ -4,6 +4,22 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.04400] — 2026-04-08
+
+### Added
+- **Surge SMS provider.** Added Surge (surge.app) as an SMS provider option alongside Twilio, Plivo, Telnyx, and Vonage. Supports sending, receiving (webhook), and HMAC signature verification via `Surge-Signature` header. Includes webhook signing secret field with encrypted storage.
+- **Surge webhook signature verification.** Inbound Surge webhooks are verified using HMAC-SHA256 with a 5-minute timestamp window to prevent forged requests.
+
+### Fixed
+- **SMS credentials not saving.** The SMS credentials form rendered hidden input fields for all providers with duplicate `name` attributes. The browser submitted the last (empty) field, overwriting entered values. Fixed by adding `disabled` attribute to hidden provider fields.
+- **Event notifications email-only.** Creating or editing events in `calendar.php` only sent email notifications, ignoring the user's preferred contact method (SMS, WhatsApp, both). Now routes through `send_invite_notification()` and `send_notification()` which respect user preferences.
+- **Event invite URL missing date parameter.** SMS/email invite links were missing `&date=` causing the calendar to open on the month view instead of directly to the event. Fixed in both `calendar.php` invite and update notification URLs.
+- **URL shortener broken.** is.gd was blocking server-side requests with Cloudflare. Switched to TinyURL API which works reliably from servers.
+- **Curl error handling in SMS providers.** All SMS provider functions (Twilio, Plivo, Telnyx, Vonage, Surge) now catch and report curl connection errors (SSL, DNS, timeout) instead of failing silently.
+- **Dead `sms_auth_token` removed from encrypted settings.** Cleaned up unused entry in `ENCRYPTED_SETTINGS`.
+
+---
+
 ## [v0.04301] — 2026-04-08
 
 ### Fixed

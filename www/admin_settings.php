@@ -2066,9 +2066,10 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                     <?php
                     // Current values for each field
                     $sms_field_values = [
-                        'sms_sid'   => $sms_sid,
-                        'sms_token' => $sms_token,
-                        'sms_from'  => $sms_from,
+                        'sms_sid'            => $sms_sid,
+                        'sms_token'          => $sms_token,
+                        'sms_from'           => $sms_from,
+                        'sms_webhook_secret' => get_setting('sms_webhook_secret'),
                     ];
                     foreach ($sms_providers as $pkey => $prov):
                         foreach ($prov['fields'] as $fkey => $fdef):
@@ -2079,7 +2080,8 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                                name="<?= $fkey ?>"
                                value="<?= $sms_provider === $pkey ? htmlspecialchars($sms_field_values[$fkey] ?? '') : '' ?>"
                                placeholder="<?= htmlspecialchars($fdef['placeholder']) ?>"
-                               autocomplete="<?= $fdef['type'] === 'password' ? 'new-password' : 'off' ?>">
+                               autocomplete="<?= $fdef['type'] === 'password' ? 'new-password' : 'off' ?>"
+                               <?= $sms_provider !== $pkey ? 'disabled' : '' ?>>
                         <?php if ($fdef['type'] === 'password'): ?>
                         <p class="cred-note">Leave blank to keep current value.</p>
                         <?php endif; ?>

@@ -20,11 +20,40 @@ $raw_post   = !empty($_POST) ? json_encode($_POST, JSON_PRETTY_PRINT | JSON_UNES
 // ── Ignore outbound delivery receipt events (e.g. Telnyx message.finalized) ──
 if ($raw_input !== '') {
     $event_check = json_decode($raw_input, true);
-    $event_type  = $event_check['data']['event_type'] ?? $event_check['event_type'] ?? '';
+    $event_type  = $event_check['data']['event_type'] ?? $event_check['event_type'] ?? $event_check['type'] ?? '';
     if ($event_type !== '' && $event_type !== 'message.received') {
         // Delivery receipt or other status event — acknowledge and stop
         http_response_code(200);
         exit;
+    }
+}
+
+// ── Verify webhook signature (Surge) ─────────────────────────────────────────
+if ($provider === 'surge') {
+    $secret = get_setting('sms_webhook_secret');
+    $sigHeader = $_SERVER['HTTP_SURGE_SIGNATURE'] ?? '';
+    if ($secret !== '' && $sigHeader !== '') {
+        // Parse t= and v1= from header
+        $parts = [];
+        foreach (explode(',', $sigHeader) as $part) {
+            [$k, $v] = explode('=', $part, 2) + [1 => ''];
+            $parts[$k] = $v;
+        }
+        $timestamp = $parts['t'] ?? '';
+        $signature = $parts['v1'] ?? '';
+        // Reject if timestamp is older than 5 minutes
+        if ($timestamp && abs(time() - (int)$timestamp) > 300) {
+            http_response_code(403);
+            exit;
+        }
+        // Verify HMAC
+        if ($timestamp && $signature) {
+            $expected = hash_hmac('sha256', $timestamp . '.' . $raw_input, $secret);
+            if (!hash_equals($expected, $signature)) {
+                http_response_code(403);
+                exit;
+            }
+        }
     }
 }
 
@@ -67,6 +96,13 @@ switch ($provider) {
             $body = trim($_POST['text'] ?? '');
             $raw  = $raw_post;
         }
+        break;
+    case 'surge':
+        // Surge sends JSON with message.received event
+        $json = json_decode($raw_input, true);
+        $from = $json['data']['conversation']['contact']['phone_number'] ?? '';
+        $body = trim($json['data']['body'] ?? '');
+        $raw  = $raw_input;
         break;
 }
 
@@ -188,6 +224,7 @@ function respond_to_provider(string $provider, string $message): void {
             break;
         case 'telnyx':
         case 'vonage':
+        case 'surge':
             // These providers use API calls for replies, not webhook responses.
             // Send an outbound SMS instead.
             global $from;
