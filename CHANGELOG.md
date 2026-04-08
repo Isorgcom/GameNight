@@ -4,6 +4,22 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.04500] — 2026-04-08
+
+### Added
+- **SMS HELP command.** Text HELP (or H, ?, COMMANDS) to see all available SMS commands.
+- **SMS EVENTS/STATUS command.** Text EVENTS (or LIST, E, STATUS, S) to see upcoming events with RSVP status.
+- **SMS STOP/START commands.** Text STOP to opt out of SMS notifications (switches to email-only). Text START to re-enable SMS.
+- **SMS multi-event RSVP.** When a user has multiple upcoming event invites, replying YES/NO/MAYBE shows a numbered list. Reply with a number to select, or ALL to update all events.
+- **SMS direct "N RSVP" format.** Reply "1 yes", "2 no", "3 maybe", or "all yes" to RSVP to a specific event by number in a single message, skipping the two-step flow.
+- **SMS opt-out compliance.** All outbound SMS messages now append "Reply STOP to unsubscribe, HELP for commands." for carrier compliance.
+- **Event deletion notifications.** Deleting an event now notifies all invitees via their preferred contact method (SMS/email/both) before deletion. Previously invitees received no notification.
+- **Occurrence deletion notifications.** Removing a single occurrence from a recurring event now notifies RSVPed invitees in `calendar.php` (was already working in `calendar_dl.php`).
+- **SMS invite reply hint.** Invite SMS now includes "Reply YES, NO, or MAYBE to RSVP" so users know they can reply directly.
+- **SMS providers marked as untested.** Twilio, Plivo, Telnyx, and Vonage labeled "(untested)" in provider dropdown since only Surge has been verified.
+
+---
+
 ## [v0.04400] — 2026-04-08
 
 ### Added

@@ -201,9 +201,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'delete') {
         $id = (int)($_POST['id'] ?? 0);
         if ($id > 0) {
-            $row = $db->prepare('SELECT title FROM events WHERE id=?');
+            $row = $db->prepare('SELECT title, start_date FROM events WHERE id=?');
             $row->execute([$id]);
-            $t = $row->fetchColumn() ?? $id;
+            $evt = $row->fetch();
+            $t = $evt['title'] ?? $id;
+
+            // Notify invitees before deleting
+            if ($evt && get_setting('notifications_enabled', '0') === '1') {
+                $invStmt = $db->prepare("SELECT ei.username, u.email, u.phone, u.preferred_contact
+                    FROM event_invites ei JOIN users u ON LOWER(u.username)=LOWER(ei.username)
+                    WHERE ei.event_id=? AND ei.occurrence_date IS NULL");
+                $invStmt->execute([$id]);
+                foreach ($invStmt->fetchAll() as $inv) {
+                    $subject  = 'Cancelled: ' . $t;
+                    $smsBody  = "The event \"$t\" on {$evt['start_date']} has been cancelled.";
+                    $htmlBody = '<p>The event <strong>' . htmlspecialchars($t) . '</strong> on <strong>' . htmlspecialchars($evt['start_date']) . '</strong> has been <strong>cancelled</strong>.</p>';
+                    send_notification($inv['username'], $inv['email'] ?? '', $inv['phone'] ?? '',
+                        $inv['preferred_contact'] ?? 'email', $subject, $smsBody, $htmlBody);
+                }
+            }
+
             $db->prepare('DELETE FROM event_exceptions WHERE event_id=?')->execute([$id]);
             $db->prepare('DELETE FROM event_invites WHERE event_id=?')->execute([$id]);
             $db->prepare('DELETE FROM events WHERE id=?')->execute([$id]);

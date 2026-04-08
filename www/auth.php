@@ -233,7 +233,7 @@ function send_invite_notification(string $username, string $email, string $phone
         $url = shorten_url($url);
     }
 
-    $smsBody = "You've been invited to \"$event_title\" on $event_start. View it at: $url";
+    $smsBody = "You've been invited to \"$event_title\" on $event_start. Reply YES, NO, or MAYBE to RSVP. View: $url";
 
     $htmlBody = '<p>Hi ' . htmlspecialchars($username) . ',</p>'
               . '<p>You have been invited to <strong>' . htmlspecialchars($event_title) . '</strong> on ' . htmlspecialchars($event_start) . '.</p>'

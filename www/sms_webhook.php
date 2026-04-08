@@ -136,8 +136,67 @@ if (!$user) {
     exit;
 }
 
-// ── Parse RSVP keyword ───────────────────────────────────────────────────────
+// ── Parse keyword ────────────────────────────────────────────────────────────
 $keyword = strtolower(trim($body));
+
+$helpText = "Commands:\nYES/NO/MAYBE - RSVP to your next event\nEVENTS - List upcoming events\nSTATUS - Show your RSVP status\nSTOP - Opt out of SMS\nSTART - Re-enable SMS\nHELP - Show this message";
+
+// ── HELP command ────────────────────────────────────────────────────────────
+if (in_array($keyword, ['help', 'h', '?', 'commands'], true)) {
+    http_response_code(200);
+    respond_to_provider($provider, $helpText);
+    exit;
+}
+
+// ── EVENTS / STATUS command ─────────────────────────────────────────────────
+if (in_array($keyword, ['events', 'list', 'e', 'status', 's'], true)) {
+    $evStmt = $db->prepare("
+        SELECT e.title, e.start_date, ei.rsvp
+        FROM event_invites ei
+        JOIN events e ON e.id = ei.event_id
+        WHERE LOWER(ei.username) = LOWER(?)
+          AND e.start_date >= date('now')
+        ORDER BY e.start_date ASC
+        LIMIT 10
+    ");
+    $evStmt->execute([$user['username']]);
+    $events = $evStmt->fetchAll();
+    if (empty($events)) {
+        http_response_code(200);
+        respond_to_provider($provider, "You don't have any upcoming event invites.");
+        exit;
+    }
+    $reply = "Your upcoming events:\n";
+    foreach ($events as $i => $ev) {
+        $n = $i + 1;
+        $date = date('M j', strtotime($ev['start_date']));
+        $rsvpLabel = $ev['rsvp'] ? ucfirst($ev['rsvp']) : '(none)';
+        $reply .= "$n. {$ev['title']} ($date) - RSVP: $rsvpLabel\n";
+    }
+    http_response_code(200);
+    respond_to_provider($provider, trim($reply));
+    exit;
+}
+
+// ── STOP command ────────────────────────────────────────────────────────────
+if (in_array($keyword, ['stop', 'unsubscribe', 'quit'], true)) {
+    $db->prepare('UPDATE users SET preferred_contact = ? WHERE id = ?')->execute(['email', $user['id']]);
+    db_log_activity($user['id'], 'SMS opt-out via STOP command');
+    http_response_code(200);
+    respond_to_provider($provider, "You've been unsubscribed from SMS notifications. You'll still receive emails. Text START to re-enable.");
+    exit;
+}
+
+// ── START command ───────────────────────────────────────────────────────────
+if (in_array($keyword, ['start', 'subscribe'], true)) {
+    $db->prepare('UPDATE users SET preferred_contact = ? WHERE id = ?')->execute(['sms', $user['id']]);
+    db_log_activity($user['id'], 'SMS opt-in via START command');
+    http_response_code(200);
+    respond_to_provider($provider, 'SMS notifications re-enabled.');
+    exit;
+}
+
+// ── Parse RSVP keyword ───────────────────────────────────────────────────────
 $rsvpMap = [
     'yes'   => 'yes',   'y' => 'yes', 'going' => 'yes', 'attend' => 'yes',
     'no'    => 'no',     'n' => 'no',  'not going' => 'no', 'decline' => 'no',
@@ -145,14 +204,29 @@ $rsvpMap = [
 ];
 
 $rsvp = $rsvpMap[$keyword] ?? null;
+$isNumber = preg_match('/^\d+$/', $keyword);
+$isAll = $keyword === 'all';
 
-if (!$rsvp) {
-    http_response_code(200);
-    respond_to_provider($provider, 'Reply YES, NO, or MAYBE to update your RSVP.');
-    exit;
+// ── Parse combined "N RSVP" format (e.g. "1 yes", "2 no", "all maybe") ─────
+$directNumber = null;
+$directAll = false;
+if (!$rsvp && !$isNumber && !$isAll) {
+    $parts = preg_split('/\s+/', $keyword, 2);
+    if (count($parts) === 2) {
+        $partRsvp = $rsvpMap[$parts[1]] ?? null;
+        if ($partRsvp) {
+            if (preg_match('/^\d+$/', $parts[0])) {
+                $directNumber = (int)$parts[0];
+                $rsvp = $partRsvp;
+            } elseif ($parts[0] === 'all') {
+                $directAll = true;
+                $rsvp = $partRsvp;
+            }
+        }
+    }
 }
 
-// ── Find the user's most recent event invite ─────────────────────────────────
+// ── Fetch all upcoming invites for this user ────────────────────────────────
 $invStmt = $db->prepare("
     SELECT ei.event_id, ei.id as invite_id, ei.rsvp as old_rsvp, e.title, e.start_date
     FROM event_invites ei
@@ -160,36 +234,145 @@ $invStmt = $db->prepare("
     WHERE LOWER(ei.username) = LOWER(?)
       AND e.start_date >= date('now')
     ORDER BY e.start_date ASC
-    LIMIT 1
+    LIMIT 10
 ");
 $invStmt->execute([$user['username']]);
-$invite = $invStmt->fetch();
+$invites = $invStmt->fetchAll();
 
-if (!$invite) {
+// ── Handle direct "N RSVP" format (e.g. "1 yes", "all no") ─────────────────
+if ($directNumber !== null || $directAll) {
+    if (empty($invites)) {
+        http_response_code(200);
+        respond_to_provider($provider, 'You don\'t have any upcoming event invites to RSVP for.');
+        exit;
+    }
+    if ($directAll) {
+        $count = 0;
+        foreach ($invites as $inv) {
+            $db->prepare('UPDATE event_invites SET rsvp = ? WHERE id = ?')->execute([$rsvp, $inv['invite_id']]);
+            $db->prepare('INSERT INTO activity_log (user_id, action, ip) VALUES (?, ?, ?)')
+               ->execute([$user['id'], "SMS RSVP $rsvp for event id: " . $inv['event_id'], $from]);
+            $count++;
+            notify_creator_of_rsvp($db, $user, $inv, $rsvp, $from);
+        }
+        http_response_code(200);
+        respond_to_provider($provider, "Updated all $count events to: " . ucfirst($rsvp) . ".");
+        exit;
+    }
+    $idx = $directNumber - 1;
+    if ($idx >= 0 && $idx < count($invites)) {
+        $invite = $invites[$idx];
+        $db->prepare('UPDATE event_invites SET rsvp = ? WHERE id = ?')->execute([$rsvp, $invite['invite_id']]);
+        $db->prepare('INSERT INTO activity_log (user_id, action, ip) VALUES (?, ?, ?)')
+           ->execute([$user['id'], "SMS RSVP $rsvp for event id: " . $invite['event_id'], $from]);
+        $label = ucfirst($rsvp);
+        http_response_code(200);
+        respond_to_provider($provider, "Got it! Your RSVP for \"{$invite['title']}\" on {$invite['start_date']} is now: $label.");
+        notify_creator_of_rsvp($db, $user, $invite, $rsvp, $from);
+        exit;
+    }
+    http_response_code(200);
+    respond_to_provider($provider, "Invalid selection. Reply with a number 1-" . count($invites) . ".");
+    exit;
+}
+
+// ── Check for pending RSVP selection (number or ALL reply) ──────────────────
+if ($isNumber || $isAll) {
+    // Clean up expired pending RSVPs (older than 10 minutes)
+    $db->prepare("DELETE FROM sms_pending_rsvp WHERE created_at < datetime('now', '-10 minutes')")->execute();
+
+    $pending = $db->prepare('SELECT rsvp_value FROM sms_pending_rsvp WHERE user_id = ?');
+    $pending->execute([$user['id']]);
+    $pendingRow = $pending->fetch();
+
+    if ($pendingRow) {
+        $rsvp = $pendingRow['rsvp_value'];
+        $db->prepare('DELETE FROM sms_pending_rsvp WHERE user_id = ?')->execute([$user['id']]);
+
+        if ($isAll) {
+            // Update all upcoming invites
+            $count = 0;
+            foreach ($invites as $inv) {
+                $db->prepare('UPDATE event_invites SET rsvp = ? WHERE id = ?')->execute([$rsvp, $inv['invite_id']]);
+                $db->prepare('INSERT INTO activity_log (user_id, action, ip) VALUES (?, ?, ?)')
+                   ->execute([$user['id'], "SMS RSVP $rsvp for event id: " . $inv['event_id'], $from]);
+                $count++;
+                notify_creator_of_rsvp($db, $user, $inv, $rsvp, $from);
+            }
+            http_response_code(200);
+            respond_to_provider($provider, "Updated all $count events to: " . ucfirst($rsvp) . ".");
+            exit;
+        }
+
+        $idx = (int)$keyword - 1;
+        if ($idx >= 0 && $idx < count($invites)) {
+            $invite = $invites[$idx];
+            $db->prepare('UPDATE event_invites SET rsvp = ? WHERE id = ?')->execute([$rsvp, $invite['invite_id']]);
+            $db->prepare('INSERT INTO activity_log (user_id, action, ip) VALUES (?, ?, ?)')
+               ->execute([$user['id'], "SMS RSVP $rsvp for event id: " . $invite['event_id'], $from]);
+            $label = ucfirst($rsvp);
+            http_response_code(200);
+            respond_to_provider($provider, "Got it! Your RSVP for \"{$invite['title']}\" on {$invite['start_date']} is now: $label.");
+            notify_creator_of_rsvp($db, $user, $invite, $rsvp, $from);
+            exit;
+        }
+
+        http_response_code(200);
+        respond_to_provider($provider, "Invalid selection. Reply with a number 1-" . count($invites) . " or ALL.");
+        exit;
+    }
+}
+
+// ── Not a valid RSVP keyword, number, or ALL ────────────────────────────────
+if (!$rsvp) {
+    http_response_code(200);
+    respond_to_provider($provider, $helpText);
+    exit;
+}
+
+// ── No upcoming invites ─────────────────────────────────────────────────────
+if (empty($invites)) {
     http_response_code(200);
     respond_to_provider($provider, 'You don\'t have any upcoming event invites to RSVP for.');
     exit;
 }
 
-$rsvp_changed = ($invite['old_rsvp'] ?? '') !== $rsvp;
+// ── Single invite: update immediately ───────────────────────────────────────
+if (count($invites) === 1) {
+    $invite = $invites[0];
+    $db->prepare('UPDATE event_invites SET rsvp = ? WHERE id = ?')->execute([$rsvp, $invite['invite_id']]);
+    $db->prepare('INSERT INTO activity_log (user_id, action, ip) VALUES (?, ?, ?)')
+       ->execute([$user['id'], "SMS RSVP $rsvp for event id: " . $invite['event_id'], $from]);
+    $label = ucfirst($rsvp);
+    http_response_code(200);
+    respond_to_provider($provider, "Got it! Your RSVP for \"{$invite['title']}\" on {$invite['start_date']} is now: $label.");
+    notify_creator_of_rsvp($db, $user, $invite, $rsvp, $from);
+    exit;
+}
 
-// ── Update the RSVP ──────────────────────────────────────────────────────────
-$db->prepare('UPDATE event_invites SET rsvp = ? WHERE id = ?')
-   ->execute([$rsvp, $invite['invite_id']]);
+// ── Multiple invites: store intent and send numbered list ───────────────────
+$db->prepare('INSERT OR REPLACE INTO sms_pending_rsvp (user_id, rsvp_value, created_at) VALUES (?, ?, datetime(\'now\'))')
+   ->execute([$user['id'], $rsvp]);
 
-// Log the activity
-$db->prepare('INSERT INTO activity_log (user_id, action, ip) VALUES (?, ?, ?)')
-   ->execute([$user['id'], "SMS RSVP $rsvp for event id: " . $invite['event_id'], $from]);
-
-// ── Send confirmation reply ──────────────────────────────────────────────────
 $label = ucfirst($rsvp);
-$reply = "Got it! Your RSVP for \"{$invite['title']}\" on {$invite['start_date']} is now: $label.";
+$reply = "You have " . count($invites) . " upcoming events:\n";
+foreach ($invites as $i => $inv) {
+    $n = $i + 1;
+    $date = date('M j', strtotime($inv['start_date']));
+    $reply .= "$n. {$inv['title']} ($date)\n";
+}
+$reply .= "Reply 1-" . count($invites) . " or ALL to RSVP $label.";
 
 http_response_code(200);
 respond_to_provider($provider, $reply);
 
-// ── Notify event creator only if RSVP changed ──────────────────────────────
-if ($rsvp_changed) {
+exit;
+
+// ── Notify event creator of RSVP change ─────────────────────────────────────
+function notify_creator_of_rsvp($db, $user, $invite, $rsvp, $from): void {
+    $rsvp_changed = ($invite['old_rsvp'] ?? '') !== $rsvp;
+    if (!$rsvp_changed) return;
+    $label = ucfirst($rsvp);
     $creatorStmt = $db->prepare('SELECT u.username, u.email, u.phone, u.preferred_contact FROM events e JOIN users u ON u.id=e.created_by WHERE e.id=?');
     $creatorStmt->execute([$invite['event_id']]);
     $creator = $creatorStmt->fetch();
@@ -204,8 +387,6 @@ if ($rsvp_changed) {
             $smsBody, $htmlBody);
     }
 }
-
-exit;
 
 // ── Provider-specific response helpers ───────────────────────────────────────
 function respond_to_provider(string $provider, string $message): void {

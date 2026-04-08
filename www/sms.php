@@ -8,7 +8,7 @@ require_once __DIR__ . '/db.php';
 function get_sms_providers(): array {
     return [
         'twilio' => [
-            'label'  => 'Twilio',
+            'label'  => 'Twilio (untested)',
             'fields' => [
                 'sms_sid'   => ['label' => 'Account SID',  'type' => 'text',     'placeholder' => 'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'],
                 'sms_token' => ['label' => 'Auth Token',    'type' => 'password', 'placeholder' => 'your_auth_token'],
@@ -23,7 +23,7 @@ function get_sms_providers(): array {
             ],
         ],
         'plivo' => [
-            'label'  => 'Plivo',
+            'label'  => 'Plivo (untested)',
             'fields' => [
                 'sms_sid'   => ['label' => 'Auth ID',    'type' => 'text',     'placeholder' => 'your_auth_id'],
                 'sms_token' => ['label' => 'Auth Token',  'type' => 'password', 'placeholder' => 'your_auth_token'],
@@ -37,7 +37,7 @@ function get_sms_providers(): array {
             ],
         ],
         'telnyx' => [
-            'label'  => 'Telnyx',
+            'label'  => 'Telnyx (untested)',
             'fields' => [
                 'sms_token' => ['label' => 'API Key',     'type' => 'password', 'placeholder' => 'KEY0...'],
                 'sms_from'  => ['label' => 'From Number',  'type' => 'text',     'placeholder' => '+12015550123'],
@@ -50,7 +50,7 @@ function get_sms_providers(): array {
             ],
         ],
         'vonage' => [
-            'label'  => 'Vonage (Nexmo)',
+            'label'  => 'Vonage (Nexmo) (untested)',
             'fields' => [
                 'sms_sid'   => ['label' => 'API Key',     'type' => 'text',     'placeholder' => 'your_api_key'],
                 'sms_token' => ['label' => 'API Secret',   'type' => 'password', 'placeholder' => 'your_api_secret'],
@@ -125,6 +125,9 @@ function shorten_url(string $url): string {
 function send_sms(string $to, string $body): ?string {
     $e164 = sms_normalize_phone($to);
     if (!$e164) return 'Invalid phone number.';
+
+    // Append opt-out instruction for carrier compliance
+    $body .= "\nReply STOP to unsubscribe, HELP for commands.";
 
     // Auto-shorten any URLs in the body if URL shortener is enabled
     if (get_setting('url_shortener_enabled') === '1') {

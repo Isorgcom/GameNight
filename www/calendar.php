@@ -232,9 +232,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'delete') {
         $id = (int)($_POST['id'] ?? 0);
         if ($id > 0) {
-            $row = $db->prepare('SELECT title FROM events WHERE id=?');
+            $row = $db->prepare('SELECT title, start_date FROM events WHERE id=?');
             $row->execute([$id]);
-            $t = $row->fetchColumn() ?? $id;
+            $evt = $row->fetch();
+            $t = $evt['title'] ?? $id;
+
+            // Notify invitees before deleting
+            if ($evt && get_setting('notifications_enabled', '0') === '1') {
+                require_once __DIR__ . '/sms.php';
+                $invStmt = $db->prepare("SELECT ei.username, u.email, u.phone, u.preferred_contact
+                    FROM event_invites ei JOIN users u ON LOWER(u.username)=LOWER(ei.username)
+                    WHERE ei.event_id=? AND ei.occurrence_date IS NULL");
+                $invStmt->execute([$id]);
+                foreach ($invStmt->fetchAll() as $inv) {
+                    $subject  = 'Cancelled: ' . $t;
+                    $smsBody  = "The event \"$t\" on {$evt['start_date']} has been cancelled.";
+                    $htmlBody = '<p>The event <strong>' . htmlspecialchars($t) . '</strong> on <strong>' . htmlspecialchars($evt['start_date']) . '</strong> has been <strong>cancelled</strong>.</p>';
+                    send_notification($inv['username'], $inv['email'] ?? '', $inv['phone'] ?? '',
+                        $inv['preferred_contact'] ?? 'email', $subject, $smsBody, $htmlBody);
+                }
+            }
+
             $db->prepare('DELETE FROM event_exceptions WHERE event_id=?')->execute([$id]);
             $db->prepare('DELETE FROM event_invites WHERE event_id=?')->execute([$id]);
             $db->prepare('DELETE FROM events WHERE id=?')->execute([$id]);
@@ -249,6 +267,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($id > 0 && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
             $db->prepare('INSERT OR IGNORE INTO event_exceptions (event_id, date) VALUES (?, ?)')
                ->execute([$id, $date]);
+
+            // Notify RSVPed invitees of the cancelled occurrence
+            if (get_setting('notifications_enabled', '0') === '1') {
+                $evt_r = $db->prepare('SELECT title FROM events WHERE id=?');
+                $evt_r->execute([$id]);
+                $evt_title = $evt_r->fetchColumn();
+                if ($evt_title) {
+                    require_once __DIR__ . '/sms.php';
+                    $occ_inv = get_occurrence_invitees($db, $id, $date, true);
+                    foreach ($occ_inv as $inv) {
+                        if (!in_array($inv['rsvp'] ?? '', ['yes', 'maybe'])) continue;
+                        $subject  = 'Cancelled: ' . $evt_title . ' on ' . $date;
+                        $smsBody  = "The event \"$evt_title\" on $date has been cancelled.";
+                        $htmlBody = '<p>The occurrence of <strong>' . htmlspecialchars($evt_title) . '</strong> on <strong>' . htmlspecialchars($date) . '</strong> has been <strong>cancelled</strong>.</p>';
+                        send_notification($inv['username'], $inv['email'] ?? '', $inv['phone'] ?? '',
+                            $inv['preferred_contact'] ?? 'email', $subject, $smsBody, $htmlBody);
+                    }
+                }
+            }
+
             db_log_activity($current['id'], "removed occurrence $date from event id: $id");
             $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Occurrence removed.'];
         }
