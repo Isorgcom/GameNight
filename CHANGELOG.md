@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.04700] — 2026-04-08
+
+### Added
+- **Phone number verification via Surge.** Users can verify their phone number from the Settings page using Surge's verification API. A 6-digit SMS code is sent and verified in-app. Phone field shows green "Verified" or orange "Unverified" badge. Verification resets automatically when the phone number is changed. Only available when Surge is the configured SMS provider.
+
+---
+
 ## [v0.04600] — 2026-04-08
 
 ### Added

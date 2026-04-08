@@ -97,6 +97,68 @@ function sms_normalize_phone(string $to): ?string {
 }
 
 /**
+ * Send a phone verification code via Surge API.
+ * Returns ['id' => 'vfn_...'] on success, or ['error' => 'message'] on failure.
+ */
+function surge_send_verification(string $phone): array {
+    $e164 = sms_normalize_phone($phone);
+    if (!$e164) return ['error' => 'Invalid phone number.'];
+
+    $token = get_setting('sms_token');
+    if (!$token) return ['error' => 'SMS not configured.'];
+
+    $ch = curl_init('https://api.surge.app/verifications');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_HTTPHEADER     => [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $token,
+        ],
+        CURLOPT_POSTFIELDS     => json_encode(['phone_number' => $e164]),
+    ]);
+    $response = curl_exec($ch);
+    $curlErr  = curl_error($ch);
+    $code     = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($curlErr) return ['error' => 'Connection error: ' . $curlErr];
+    $json = json_decode($response, true);
+    if ($code === 201 && !empty($json['id'])) {
+        return ['id' => $json['id']];
+    }
+    return ['error' => $json['error']['message'] ?? $json['message'] ?? "HTTP $code"];
+}
+
+/**
+ * Check a phone verification code via Surge API.
+ * Returns 'ok', 'incorrect', 'exhausted', 'expired', or error string.
+ */
+function surge_check_verification(string $id, string $code): string {
+    $token = get_setting('sms_token');
+    if (!$token) return 'SMS not configured.';
+
+    $ch = curl_init('https://api.surge.app/verifications/' . urlencode($id) . '/checks');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_HTTPHEADER     => [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $token,
+        ],
+        CURLOPT_POSTFIELDS     => json_encode(['code' => $code]),
+    ]);
+    $response = curl_exec($ch);
+    $curlErr  = curl_error($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($curlErr) return 'Connection error: ' . $curlErr;
+    $json = json_decode($response, true);
+    return $json['result'] ?? $json['error']['message'] ?? "HTTP $httpCode";
+}
+
+/**
  * Shorten a URL using the built-in self-hosted shortener.
  * Stores in short_links table, returns a /s/CODE URL.
  * Falls back to the original URL on any failure.
