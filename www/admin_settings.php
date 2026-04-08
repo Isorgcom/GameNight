@@ -2159,12 +2159,12 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                 <tbody>
                     <?php foreach ($prov['help'] as $row): ?>
                     <tr>
-                        <td style="color:#64748b;width:160px"><?= $row[0] ?></td>
+                        <td style="color:#64748b;width:160px"><?= htmlspecialchars($row[0]) ?></td>
                         <td><?php
                             if (str_starts_with($row[1], 'http')) {
                                 echo '<a href="' . htmlspecialchars($row[1]) . '" target="_blank" rel="noopener">' . htmlspecialchars($row[1]) . '</a>';
                             } else {
-                                echo $row[1];
+                                echo htmlspecialchars($row[1]);
                             }
                         ?></td>
                     </tr>

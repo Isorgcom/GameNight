@@ -63,8 +63,8 @@ switch ($provider) {
             $body = trim($json['text'] ?? '');
             $raw  = $raw_input;
         } else {
-            $from = $_POST['msisdn'] ?? $_GET['msisdn'] ?? '';
-            $body = trim($_POST['text'] ?? $_GET['text'] ?? '');
+            $from = $_POST['msisdn'] ?? '';
+            $body = trim($_POST['text'] ?? '');
             $raw  = $raw_post;
         }
         break;
@@ -95,7 +95,8 @@ $user = $stmt->fetch();
 
 if (!$user) {
     http_response_code(200);
-    respond_to_provider($provider, 'Sorry, we don\'t recognize this phone number. Make sure your phone is set in your profile.');
+    // Generic response — don't reveal whether phone is registered
+    respond_to_provider($provider, 'Thanks for your message.');
     exit;
 }
 

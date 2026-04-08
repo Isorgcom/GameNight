@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     };
 
     if (!$isAdmin) {
-        $ownerActions = ['edit', 'delete', 'delete_occurrence'];
+        $ownerActions = ['edit', 'delete', 'delete_occurrence', 'cancel_series', 'uncancel_series', 'remove_invitee'];
         if ($action === 'add') {
             if (!$canCreateEvents) { http_response_code(403); exit('Access denied.'); }
         } elseif (in_array($action, $ownerActions, true)) {

@@ -1419,23 +1419,23 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
 
 <script>
 let currentEvent = null;
-const eventComments      = <?= json_encode($ev_comments) ?>;
-const eventInvites       = <?= json_encode($ev_invites) ?>;
-const eventInvitesByOcc  = <?= json_encode($ev_invites_occ) ?>;
-const CURRENT_USERNAME  = <?= json_encode($current['username'] ?? '') ?>;
-const CURRENT_USER_ID   = <?= json_encode($current['id'] ?? null) ?>;
+const eventComments      = <?= json_encode($ev_comments, JSON_HEX_TAG) ?>;
+const eventInvites       = <?= json_encode($ev_invites, JSON_HEX_TAG) ?>;
+const eventInvitesByOcc  = <?= json_encode($ev_invites_occ, JSON_HEX_TAG) ?>;
+const CURRENT_USERNAME  = <?= json_encode($current['username'] ?? '', JSON_HEX_TAG) ?>;
+const CURRENT_USER_ID   = <?= json_encode($current['id'] ?? null, JSON_HEX_TAG) ?>;
 const CAL_REDIR         = '/calendar.php?m=<?= htmlspecialchars($monthParam) ?>';
-const CAL_CSRF          = <?= json_encode($token) ?>;
-const CAL_CURRENT_ID    = <?= json_encode((int)($current['id'] ?? 0)) ?>;
+const CAL_CSRF          = <?= json_encode($token, JSON_HEX_TAG) ?>;
+const CAL_CURRENT_ID    = <?= (int)($current['id'] ?? 0) ?>;
 const IS_ADMIN = <?= $isAdmin ? 'true' : 'false' ?>;
 const CAN_CREATE_EVENTS = <?= $canCreateEvents ? 'true' : 'false' ?>;
 const ALLOW_MAYBE = <?= $allowMaybe ? 'true' : 'false' ?>;
-const MANAGED_EVENT_IDS = <?= json_encode(array_values($managedEventIds)) ?>;
+const MANAGED_EVENT_IDS = <?= json_encode(array_values($managedEventIds), JSON_HEX_TAG) ?>;
 <?php if ($canEditEvents): ?>
 <?php if ($isAdmin): ?>
-const ALL_USERS = <?= json_encode(array_values($allUsers)) ?>;
+const ALL_USERS = <?= json_encode(array_values($allUsers), JSON_HEX_TAG) ?>;
 <?php else: ?>
-const ALL_USERS = <?= json_encode(array_values(array_map(function($u) { return ['username' => $u['username']]; }, $allUsers))) ?>;
+const ALL_USERS = <?= json_encode(array_values(array_map(function($u) { return ['username' => $u['username']]; }, $allUsers)), JSON_HEX_TAG) ?>;
 <?php endif; ?>
 <?php endif; ?>
 
@@ -2308,7 +2308,7 @@ function fmt12(t) {
 
 // ── Auto-open event from landing page link ────────────────────────────────────
 <?php if ($autoOpenEvent): ?>
-viewEvent(<?= json_encode($autoOpenEvent) ?>);
+viewEvent(<?= json_encode($autoOpenEvent, JSON_HEX_TAG) ?>);
 <?php endif; ?>
 
 // ── Week view rendering ───────────────────────────────────────────────────────

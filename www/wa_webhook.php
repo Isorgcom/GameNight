@@ -69,7 +69,8 @@ $stmt->execute([$normalized, $digits]);
 $user = $stmt->fetch();
 
 if (!$user) {
-    send_whatsapp($from, "Sorry, we don't recognize this phone number. Make sure your phone is set in your profile.");
+    // Generic response — don't reveal whether phone is registered
+    send_whatsapp($from, "Thanks for your message.");
     exit;
 }
 

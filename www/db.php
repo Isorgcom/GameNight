@@ -623,6 +623,8 @@ function sanitize_html(string $html): string {
 }
 
 function db_log_activity(int $user_id, string $action, string $severity = 'info'): void {
+    // Strip control characters to prevent log injection
+    $action = preg_replace('/[\x00-\x1F\x7F]/', '', $action);
     $stmt = get_db()->prepare(
         'INSERT INTO activity_log (user_id, action, ip, severity) VALUES (?, ?, ?, ?)'
     );
@@ -630,6 +632,7 @@ function db_log_activity(int $user_id, string $action, string $severity = 'info'
 }
 
 function db_log_anon_activity(string $action, string $severity = 'info'): void {
+    $action = preg_replace('/[\x00-\x1F\x7F]/', '', $action);
     $stmt = get_db()->prepare(
         'INSERT INTO activity_log (user_id, action, ip, severity) VALUES (0, ?, ?, ?)'
     );

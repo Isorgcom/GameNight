@@ -19,6 +19,22 @@ if ($eid <= 0) {
 }
 
 $db   = get_db();
+
+// Verify user has access to this event (owner, manager, or admin)
+$evStmt = $db->prepare('SELECT created_by FROM events WHERE id = ?');
+$evStmt->execute([$eid]);
+$ev = $evStmt->fetch();
+if (!$ev) { http_response_code(404); echo json_encode(['ok' => false]); exit; }
+if (!$isAdmin && (int)$ev['created_by'] !== (int)$current['id']) {
+    $mgrStmt = $db->prepare("SELECT 1 FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND event_role='manager' LIMIT 1");
+    $mgrStmt->execute([$eid, $current['username']]);
+    if (!$mgrStmt->fetch()) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => 'Access denied']);
+        exit;
+    }
+}
+
 $stmt = $db->prepare(
     'SELECT username, phone, email, rsvp, occurrence_date
      FROM event_invites

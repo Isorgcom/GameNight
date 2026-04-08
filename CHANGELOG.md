@@ -4,6 +4,20 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.04300] — 2026-04-08
+
+### Security
+- **Event invites IDOR fixed.** The event invites endpoint now verifies the user is the event owner, a manager, or an admin before returning invite data. Previously any logged-in user could view any event's invite list.
+- **JSON XSS prevention.** All `json_encode()` calls embedded in `<script>` tags now use `JSON_HEX_TAG` flag to prevent `</script>` breakout attacks.
+- **Vonage GET parameter injection blocked.** SMS webhook no longer accepts GET parameters for Vonage provider, preventing URL-based CSRF-like attacks via image tags or links.
+- **Event action ownership checks hardened.** `cancel_series`, `uncancel_series`, and `remove_invitee` calendar actions now require event ownership or manager role (defense-in-depth).
+- **Phone number enumeration prevented.** SMS and WhatsApp webhooks now return a generic "Thanks for your message" for unrecognized phone numbers instead of revealing registration status.
+- **Race condition protection.** Check-in and buy-in toggle operations wrapped in database transactions to prevent concurrent double-toggle.
+- **Log injection prevention.** Activity log functions now strip control characters (newlines, tabs, null bytes) from action strings to prevent log forging.
+- **Admin help text escaped.** SMS provider help text in admin settings now properly HTML-escaped.
+
+---
+
 ## [v0.04200] — 2026-04-07
 
 ### Security

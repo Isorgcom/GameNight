@@ -238,9 +238,9 @@ $session = $sessStmt->fetch();
 <?php require __DIR__ . '/_footer.php'; ?>
 
 <script>
-var CSRF = <?= json_encode($csrf) ?>;
+var CSRF = <?= json_encode($csrf, JSON_HEX_TAG) ?>;
 var EVENT_ID = <?= $event_id ?>;
-var SESSION = <?= $session ? json_encode($session) : 'null' ?>;
+var SESSION = <?= $session ? json_encode($session, JSON_HEX_TAG) : 'null' ?>;
 var PLAYERS = [];
 var PAYOUTS = [];
 var POOL = {};
@@ -311,7 +311,7 @@ var setupGameType = 'tournament';
 function renderSetup() {
     var h = '<div class="pk-setup">';
     h += '<h2>Start Poker Session</h2>';
-    h += '<p>Configure the game for <strong>' + escHtml(<?= json_encode($event['title']) ?>) + '</strong></p>';
+    h += '<p>Configure the game for <strong>' + escHtml(<?= json_encode($event['title'], JSON_HEX_TAG) ?>) + '</strong></p>';
     h += '<label>Game Type</label>';
     h += '<div class="pk-type-toggle" id="typeToggle">';
     h += '<button class="t-tournament active" onclick="setSetupType(\'tournament\')">Tournament</button>';
@@ -375,14 +375,14 @@ function renderDashboard() {
     // Header
     h += '<div class="pk-header">';
     h += '<a href="/calendar.php" class="pk-btn-back" title="Back to Calendar" style="text-decoration:none">&larr;</a>';
-    h += '<h1>' + escHtml(<?= json_encode($event['title']) ?>) + ' <a href="/calendar.php">Calendar</a></h1>';
+    h += '<h1>' + escHtml(<?= json_encode($event['title'], JSON_HEX_TAG) ?>) + ' <a href="/calendar.php">Calendar</a></h1>';
     h += '<span class="pk-badge ' + typeClass + '">' + typeLabel + '</span>';
     h += '<div class="pk-actions">';
     h += '<button class="pk-btn-settings" onclick="toggleSettings()">&#9881; Settings</button>';
     if (isTourney()) {
-        h += '<a class="pk-btn-settings" href="/timer.php?event_id=' + <?= json_encode($event['id']) ?> + '" style="text-decoration:none">&#9201; Timer</a>';
+        h += '<a class="pk-btn-settings" href="/timer.php?event_id=' + <?= (int)$event['id'] ?> + '" style="text-decoration:none">&#9201; Timer</a>';
     }
-    h += '<a class="pk-btn-settings" href="/walkin_display.php?event_id=' + <?= json_encode($event['id']) ?> + '" target="_blank" style="text-decoration:none">&#128241; QR Registration</a>';
+    h += '<a class="pk-btn-settings" href="/walkin_display.php?event_id=' + <?= (int)$event['id'] ?> + '" target="_blank" style="text-decoration:none">&#128241; QR Registration</a>';
     if (isTourney()) {
         h += '<button class="pk-btn-settings" onclick="openDealSplit()">&#128176; Payout Calc</button>';
     }
