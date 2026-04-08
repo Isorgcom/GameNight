@@ -81,8 +81,11 @@ function resolve_timer_from_post($db, $current, $isAdmin) {
         $s = $sess->fetch();
         if ($s) verify_event_access($db, (int)$s['event_id'], $current, $isAdmin);
     } else {
-        // Standalone timer (session_id <= 0) — must be owner or admin
-        if (!$isAdmin && (int)($timer['user_id'] ?? 0) !== (int)$current['id']) {
+        // Standalone timer (session_id <= 0)
+        $timer_uid = (int)($timer['user_id'] ?? 0);
+        if ($timer_uid === 0) {
+            // Guest timer — allow access (verified by session-based session_id)
+        } elseif (!$current || (!$isAdmin && $timer_uid !== (int)$current['id'])) {
             http_response_code(403);
             echo json_encode(['ok' => false, 'error' => 'Access denied']);
             exit;
@@ -138,14 +141,16 @@ if ($action === 'get_state') {
 
     $can_control = false;
     $current = current_user();
-    if ($current) {
+    $timer_uid = (int)($timer['user_id'] ?? 0);
+    if ($timer_uid === 0 && $session_id !== null && $session_id <= 0) {
+        // Guest timer — anyone can control
+        $can_control = true;
+    } elseif ($current) {
         $isAdmin = $current['role'] === 'admin';
         if ($session) {
-            // Event-linked timer: check event access
             $can_control = check_event_access($db, (int)$session['event_id'], $current, $isAdmin);
         } elseif ($session_id !== null && $session_id <= 0) {
-            // Standalone timer: owner or admin can control
-            $can_control = $isAdmin || (int)($timer['user_id'] ?? 0) === (int)$current['id'];
+            $can_control = $isAdmin || $timer_uid === (int)$current['id'];
         }
     }
 
@@ -169,14 +174,17 @@ if ($action === 'get_state') {
     exit;
 }
 
-// ─── All other actions require authentication ─────────────
+// ─── Authentication ───────────────────────────────────────
 $current = current_user();
-if (!$current) {
+$isAdmin = $current ? $current['role'] === 'admin' : false;
+
+// Guest-allowed actions (command, update_levels on guest timers)
+$guest_allowed_actions = ['command', 'update_levels'];
+if (!$current && !in_array($action, $guest_allowed_actions, true)) {
     http_response_code(401);
-    echo json_encode(['ok' => false, 'error' => 'Not authenticated']);
+    echo json_encode(['ok' => false, 'error' => 'Not authenticated. Create an account to use this feature.']);
     exit;
 }
-$isAdmin = $current['role'] === 'admin';
 
 // ─── POST actions require CSRF ────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

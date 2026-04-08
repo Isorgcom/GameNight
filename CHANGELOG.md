@@ -4,6 +4,22 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.05200] — 2026-04-08
+
+### Added
+- **Guest timer access.** The tournament timer no longer requires login. Guests can use the timer with full playback controls (start/stop, skip levels, ±min, reset) and edit blind levels in-session. Nothing persists after the browser session ends.
+- **Blind structure export.** Logged-in users can export the current blind structure as a JSON file from the levels editor.
+- **Blind structure import.** Logged-in users can import a JSON blind structure file, review the levels, and save.
+- **Timer in nav for all visitors.** The "Tournament Timer" link now appears in the hamburger menu for non-logged-in users alongside Login/Sign Up.
+
+### Changed
+- **Guest restrictions.** Guests see a prompt to create an account when trying to save presets, export/import blinds, or use custom sounds. QR remote sharing and player panel are hidden for guests.
+
+### Fixed
+- **Guest timer controls hidden.** The poll response was setting `can_control = false` for guest timers because the user wasn't authenticated. Now guest timers (`user_id = 0`) always return `can_control = true`.
+
+---
+
 ## [v0.05100] — 2026-04-08
 
 ### Changed

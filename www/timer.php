@@ -6,6 +6,7 @@ $db = get_db();
 $site_name = get_setting('site_name', 'Game Night');
 
 $is_remote = false;
+$is_guest = false;
 $can_control = false;
 $session = null;
 $event = null;
@@ -62,14 +63,15 @@ if (isset($_GET['view']) && $_GET['view'] === 'remote' && !empty($_GET['key'])) 
 
 // ─── Host mode ────────────────────────────────────────────
 } else {
-    require_login();
     $current = current_user();
-    $isAdmin = $current['role'] === 'admin';
+    $isAdmin = $current ? $current['role'] === 'admin' : false;
+    $is_guest = !$current;
 
     $event_id = (int)($_GET['event_id'] ?? 0);
 
     if ($event_id) {
-        // Event-linked timer
+        // Event-linked timer requires login
+        if (!$current) { header('Location: /login.php?redirect=' . urlencode($_SERVER['REQUEST_URI'])); exit; }
         verify_event_access($db, $event_id, $current, $isAdmin);
 
         $ev = $db->prepare('SELECT * FROM events WHERE id = ?');
@@ -118,8 +120,15 @@ if (isset($_GET['view']) && $_GET['view'] === 'remote' && !empty($_GET['key'])) 
         $session['event_title'] = $event['title'];
 
     } else {
-        // Standalone timer (no event) — use negative user_id as session_id to stay unique
-        $standalone_sid = -1 * (int)$current['id'];
+        // Standalone timer — works for logged-in users AND guests
+        session_start_safe();
+        if ($current) {
+            $standalone_sid = -1 * (int)$current['id'];
+        } else {
+            // Guest: use session-based ID (negative, large to avoid collision with user IDs)
+            $standalone_sid = -1 * abs(crc32(session_id()));
+        }
+
         $ts = $db->prepare('SELECT * FROM timer_state WHERE session_id = ?');
         $ts->execute([$standalone_sid]);
         $timer = $ts->fetch();
@@ -139,8 +148,9 @@ if (isset($_GET['view']) && $_GET['view'] === 'remote' && !empty($_GET['key'])) 
             }
 
             $remote_key = bin2hex(random_bytes(8));
+            $user_id = $current ? (int)$current['id'] : 0;
             $db->prepare("INSERT INTO timer_state (session_id, preset_id, current_level, time_remaining_seconds, is_running, remote_key, user_id, updated_at) VALUES (?, ?, 1, ?, 0, ?, ?, datetime('now'))")
-                ->execute([$standalone_sid, $preset_id, $duration, $remote_key, $current['id']]);
+                ->execute([$standalone_sid, $preset_id, $duration, $remote_key, $user_id]);
 
             $ts->execute([$standalone_sid]);
             $timer = $ts->fetch();
@@ -163,6 +173,7 @@ if (isset($_GET['view']) && $_GET['view'] === 'remote' && !empty($_GET['key'])) 
 
     $can_control = true;
     $csrf = csrf_token();
+    $is_guest = !$current;
 }
 
 // Compute corrected remaining time
@@ -689,7 +700,9 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
             <button id="btnFullscreen" onclick="goFullscreen()">&#9974; Fullscreen</button>
             <?php if (!$is_remote): ?>
             <button onclick="openLevels()">&#128203; Levels</button>
+            <?php if (!$is_guest): ?>
             <button onclick="openSoundSettings()">&#9881; Sounds</button>
+            <?php endif; ?>
             <?php endif; ?>
             <?php if ($can_control && $event && $session): ?>
             <button onclick="togglePlayerPanel()">&#128101; Players</button>
@@ -712,7 +725,7 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
 </div>
 <?php endif; ?>
 
-<?php if (!$is_remote): ?>
+<?php if (!$is_remote && !$is_guest): ?>
 <!-- QR code for remote viewer -->
 <div class="timer-qr" id="qrWrap" title="Scan to view timer on your phone"></div>
 <?php endif; ?>
@@ -723,12 +736,21 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
     <div class="timer-levels-panel" style="position:relative">
         <button onclick="closeLevels()" style="position:absolute;top:0.75rem;right:0.75rem;background:none;border:none;color:#94a3b8;font-size:1.5rem;cursor:pointer;line-height:1;padding:0.25rem">&times;</button>
         <h3>Blind Structure</h3>
+        <?php if (!$is_guest): ?>
         <div class="timer-preset-bar">
             <select id="presetSelect"><option value="">Loading...</option></select>
             <button onclick="loadPreset()">Load</button>
             <button onclick="savePresetAs()">Save As...</button>
             <button onclick="deletePreset()">Delete</button>
+            <button onclick="exportLevels()">Export</button>
+            <button onclick="document.getElementById('importFile').click()">Import</button>
+            <input type="file" id="importFile" accept=".json" style="display:none" onchange="importLevels(this)">
         </div>
+        <?php else: ?>
+        <div class="timer-preset-bar" style="justify-content:center">
+            <span style="color:#94a3b8;font-size:.8rem"><a href="/register.php" style="color:#60a5fa">Create an account</a> to save presets, export/import blinds</span>
+        </div>
+        <?php endif; ?>
         <table class="timer-levels-table">
             <thead><tr><th style="width:3rem">#</th><th>SB</th><th>BB</th><th>Ante</th><th>Min</th><th>Type</th><th></th></tr></thead>
             <tbody id="levelsBody"></tbody>
@@ -808,6 +830,7 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
 <script>
 // ─── Config from PHP ──────────────────────────────────────
 var IS_REMOTE = <?= json_encode($is_remote) ?>;
+var IS_GUEST = <?= json_encode($is_guest) ?>;
 var CAN_CONTROL = <?= json_encode($can_control) ?>;
 var SESSION_ID = <?= json_encode($session ? (int)$session['id'] : null) ?>;
 var REMOTE_KEY = <?= json_encode($remote_key) ?>;
@@ -1719,6 +1742,52 @@ function escHtml(s) {
     var d = document.createElement('div');
     d.appendChild(document.createTextNode(s));
     return d.innerHTML;
+}
+
+// ─── Export/Import Blind Structures ──────────────────────────
+function exportLevels() {
+    var levels = collectLevelsFromTable();
+    var presetName = document.getElementById('presetSelect');
+    var name = presetName ? (presetName.options[presetName.selectedIndex]?.text || 'custom') : 'custom';
+    var data = { name: name, levels: levels };
+    var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'blinds_' + name.replace(/[^a-zA-Z0-9]/g, '_') + '.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+}
+
+function importLevels(input) {
+    var file = input.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            var data = JSON.parse(e.target.result);
+            if (!data.levels || !Array.isArray(data.levels) || data.levels.length === 0) {
+                alert('Invalid file: no levels found.');
+                return;
+            }
+            LEVELS = data.levels.map(function(l, i) {
+                return {
+                    level_number: i + 1,
+                    small_blind: parseInt(l.small_blind) || 0,
+                    big_blind: parseInt(l.big_blind) || 0,
+                    ante: parseInt(l.ante) || 0,
+                    duration_minutes: parseInt(l.duration_minutes) || 15,
+                    is_break: parseInt(l.is_break) || 0
+                };
+            });
+            levelsCollected = true;
+            renderLevelsTable();
+            alert('Imported ' + LEVELS.length + ' levels from "' + (data.name || 'file') + '". Click Save Changes to apply.');
+        } catch (ex) {
+            alert('Invalid JSON file.');
+        }
+    };
+    reader.readAsText(file);
+    input.value = '';
 }
 </script>
 </body>

@@ -69,10 +69,17 @@ $_accent        = get_setting('accent_color', '');
                     </div>
                 </div>
             <?php else: ?>
-                <?php if (get_setting('allow_registration', '1') === '1'): ?>
-                <a href="/register.php" class="btn btn-outline btn-sm">Sign Up</a>
-                <?php endif; ?>
-                <a href="/login.php" class="btn btn-outline btn-sm">Login</a>
+                <div class="nav-dropdown-wrap">
+                    <button class="nav-hamburger" title="Menu" onclick="var d=this.nextElementSibling;d.style.display=d.style.display==='block'?'none':'block';">&#9776;</button>
+                    <div class="nav-dropdown">
+                        <a href="/timer.php" class="nav-mobile-link">Tournament Timer</a>
+                        <div class="nav-mobile-divider"></div>
+                        <?php if (get_setting('allow_registration', '1') === '1'): ?>
+                        <a href="/register.php">Sign Up</a>
+                        <?php endif; ?>
+                        <a href="/login.php">Login</a>
+                    </div>
+                </div>
             <?php endif; ?>
         </div>
         <?php if ($_banner): ?>
