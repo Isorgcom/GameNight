@@ -5,6 +5,7 @@
  */
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/_poker_helpers.php';
 
 session_start_safe();
 
@@ -58,6 +59,7 @@ function fmt_event_display(array $ev): string {
 // ── POST handler ──────────────────────────────────────────────────────────────
 $error   = '';
 $success = '';
+$assigned_table = null;
 
 if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
@@ -115,6 +117,20 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 setcookie('walkin_email', $email, time() + 86400 * 30, '/', '', true, true);
                 $success = "Welcome back, " . htmlspecialchars($username) . "! You're registered for <strong>" . htmlspecialchars($event['title']) . "</strong>.";
 
+                // Auto-assign table if poker session exists
+                $psess = $db->prepare('SELECT id FROM poker_sessions WHERE event_id = ?');
+                $psess->execute([$event_id]);
+                $psRow = $psess->fetch();
+                if ($psRow) {
+                    sync_invitees($db, $psRow['id'], $event_id);
+                    $pp = $db->prepare('SELECT id FROM poker_players WHERE session_id = ? AND LOWER(display_name) = LOWER(?) AND removed = 0');
+                    $pp->execute([$psRow['id'], $username]);
+                    $ppRow = $pp->fetch();
+                    if ($ppRow) {
+                        $assigned_table = auto_assign_table($db, $psRow['id'], $ppRow['id']);
+                    }
+                }
+
             } else {
                 // New user — create soft account
                 $base_username = $username_raw;
@@ -149,6 +165,20 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     setcookie('walkin_email', $email, time() + 86400 * 30, '/', '', true, false);
 
                     $success = "You're registered for <strong>" . htmlspecialchars($event['title']) . "</strong>! Check your email to verify your account and set a password.";
+
+                    // Auto-assign table if poker session exists
+                    $psess = $db->prepare('SELECT id FROM poker_sessions WHERE event_id = ?');
+                    $psess->execute([$event_id]);
+                    $psRow = $psess->fetch();
+                    if ($psRow) {
+                        sync_invitees($db, $psRow['id'], $event_id);
+                        $pp = $db->prepare('SELECT id FROM poker_players WHERE session_id = ? AND LOWER(display_name) = LOWER(?) AND removed = 0');
+                        $pp->execute([$psRow['id'], $final_username]);
+                        $ppRow = $pp->fetch();
+                        if ($ppRow) {
+                            $assigned_table = auto_assign_table($db, $psRow['id'], $ppRow['id']);
+                        }
+                    }
                 }
             }
         }
@@ -263,6 +293,12 @@ $csrf_token = csrf_token();
             <div class="walkin-event-meta"><?= htmlspecialchars(fmt_event_display($event)) ?></div>
         </div>
         <div class="walkin-success"><?= $success ?></div>
+        <?php if ($assigned_table !== null): ?>
+        <div style="margin-top:1rem;padding:1.2rem;background:#eff6ff;border:2px solid #3b82f6;border-radius:10px;text-align:center">
+            <div style="font-size:.85rem;color:#3b82f6;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Your Table</div>
+            <div style="font-size:2.5rem;font-weight:800;color:#1e40af;line-height:1.2">Table <?= (int)$assigned_table ?></div>
+        </div>
+        <?php endif; ?>
 
         <?php else: ?>
         <div class="walkin-event-box">

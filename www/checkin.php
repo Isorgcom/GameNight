@@ -131,6 +131,22 @@ $session = $sessStmt->fetch();
     .pk-settings-save{margin-top:.75rem;padding:.5rem 1.5rem;background:var(--accent,#2563eb);color:#fff;border:none;border-radius:6px;font-weight:600;font-size:.85rem;cursor:pointer}
     .pk-settings-save:hover{opacity:.9}
 
+    .pk-btn-view-toggle{background:transparent;color:var(--accent,#2563eb);border:1.5px solid var(--border,#e2e8f0);padding:.4rem .8rem;border-radius:6px;font-size:.8rem;font-weight:600;cursor:pointer}
+    .pk-btn-view-toggle:hover{background:#f1f5f9}
+    .pk-table-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem}
+    .pk-table-card{background:var(--surface,#fff);border:1.5px solid var(--border,#e2e8f0);border-radius:8px;overflow:hidden}
+    .pk-table-card-unassigned{border-color:#fbbf24}
+    .pk-table-card-header{background:#f8fafc;padding:.6rem 1rem;border-bottom:1.5px solid var(--border,#e2e8f0);display:flex;justify-content:space-between;align-items:center}
+    .pk-table-card-header h3{margin:0;font-size:.95rem;font-weight:700}
+    .pk-table-card-header h3 span{font-weight:400;color:#64748b;font-size:.8rem}
+    .pk-table-card-body{padding:.5rem}
+    .pk-tv-player{display:flex;justify-content:space-between;align-items:center;padding:.4rem .5rem;border-radius:4px}
+    .pk-tv-player:hover{background:#f1f5f9}
+    .pk-tv-player.elim{opacity:.4;text-decoration:line-through}
+    .pk-tv-name{font-weight:600;font-size:.85rem}
+    .pk-tv-actions{display:flex;align-items:center;gap:.3rem}
+    .pk-tv-move{font-size:.75rem;padding:.2rem .4rem;border:1px solid #e2e8f0;border-radius:4px;background:#fff;cursor:pointer}
+
     /* Setup screen */
     .pk-setup{max-width:500px;margin:3rem auto;background:var(--surface,#fff);border:1.5px solid var(--border,#e2e8f0);border-radius:12px;padding:2rem}
     .pk-setup h2{margin:0 0 .3rem;font-size:1.3rem}
@@ -229,6 +245,7 @@ var PLAYERS = [];
 var PAYOUTS = [];
 var POOL = {};
 var FILTER = 'all';
+var VIEW_MODE = 'list';
 var notesPlayerId = null;
 var cashoutPlayerId = null;
 
@@ -391,25 +408,32 @@ function renderDashboard() {
     // Left: player table
     h += '<div>';
     h += '<div class="pk-toolbar">';
-    h += '<input type="text" id="walkinName" placeholder="Walk-in name...">';
+    h += '<input type="text" id="walkinName" placeholder="Walk-in name..." onkeydown="if(event.key===\'Enter\'){event.preventDefault();addWalkin();}">';
     h += '<button class="pk-btn-add" onclick="addWalkin()">+ Add Walk-in</button>';
     h += '<div class="pk-filter">';
-    h += '<button class="' + (FILTER==='all'?'active':'') + '" onclick="setFilter(\'all\')">All</button>';
-    h += '<button class="' + (FILTER==='rsvp_yes'?'active':'') + '" onclick="setFilter(\'rsvp_yes\')">RSVP Yes</button>';
+    h += '<button data-filter="all" class="' + (FILTER==='all'?'active':'') + '" onclick="setFilter(\'all\')">All</button>';
+    h += '<button data-filter="rsvp_yes" class="' + (FILTER==='rsvp_yes'?'active':'') + '" onclick="setFilter(\'rsvp_yes\')">RSVP Yes</button>';
     if (isTourney()) {
-        h += '<button class="' + (FILTER==='playing'?'active':'') + '" onclick="setFilter(\'playing\')">Playing</button>';
-        h += '<button class="' + (FILTER==='eliminated'?'active':'') + '" onclick="setFilter(\'eliminated\')">Out</button>';
+        h += '<button data-filter="playing" class="' + (FILTER==='playing'?'active':'') + '" onclick="setFilter(\'playing\')">Playing</button>';
+        h += '<button data-filter="eliminated" class="' + (FILTER==='eliminated'?'active':'') + '" onclick="setFilter(\'eliminated\')">Out</button>';
     } else {
-        h += '<button class="' + (FILTER==='playing'?'active':'') + '" onclick="setFilter(\'playing\')">Active</button>';
-        h += '<button class="' + (FILTER==='eliminated'?'active':'') + '" onclick="setFilter(\'eliminated\')">Cashed Out</button>';
+        h += '<button data-filter="playing" class="' + (FILTER==='playing'?'active':'') + '" onclick="setFilter(\'playing\')">Active</button>';
+        h += '<button data-filter="eliminated" class="' + (FILTER==='eliminated'?'active':'') + '" onclick="setFilter(\'eliminated\')">Cashed Out</button>';
     }
     h += '</div>';
+    h += '<button class="pk-btn-view-toggle" onclick="toggleViewMode()">' + (VIEW_MODE === 'list' ? '&#9638; Table View' : '&#9776; List View') + '</button>';
+    h += '<button class="pk-btn-view-toggle" onclick="balanceTables()">&#9878; Balance</button>';
+    h += '<button class="pk-btn-view-toggle" onclick="addTable()">+ Table</button>';
     h += '</div>';
-    h += '<div class="pk-table-wrap"><table class="pk-table">';
-    h += '<thead><tr>' + renderTableHeader() + '</tr></thead>';
-    h += '<tbody id="playerBody">';
-    h += renderPlayerRows();
-    h += '</tbody></table></div>';
+    if (VIEW_MODE === 'table') {
+        h += renderTableView();
+    } else {
+        h += '<div class="pk-table-wrap"><table class="pk-table">';
+        h += '<thead><tr>' + renderTableHeader() + '</tr></thead>';
+        h += '<tbody id="playerBody">';
+        h += renderPlayerRows();
+        h += '</tbody></table></div>';
+    }
     h += '</div>';
 
     // Right: sidebar
@@ -581,10 +605,16 @@ function renderPlayerRows() {
                 if (hasCashedOut) {
                     h += '<button class="pk-act-btn" onclick="undoCashout(' + p.id + ')">Undo Cash Out</button>';
                 }
+                if (!isElim && parseInt(p.bought_in)) {
+                    h += '<button class="pk-act-btn" onclick="eliminatePlayer(' + p.id + ')">Eliminate</button>';
+                }
+                if (isElim) {
+                    h += '<button class="pk-act-btn" onclick="uneliminate(' + p.id + ')">Undo Elim</button>';
+                }
             }
         }
         h += '<button class="pk-act-btn" onclick="openNotes(' + p.id + ')">Notes</button>';
-        h += '<button class="pk-act-btn danger" onclick="if(confirm(\'Remove ' + escHtml(p.display_name) + '?\'))removePlayer(' + p.id + ')">Remove</button>';
+        h += '<button class="pk-act-btn danger" onclick="if(confirm(\'Remove ' + escHtml(p.display_name) + ' from the event?\'))removePlayer(' + p.id + ')">Remove</button>';
         h += '</td>';
         h += '</tr>';
     }
@@ -647,6 +677,8 @@ function renderSettingsPanel() {
     h += '</div>';
     h += '<div class="pk-settings-grid" style="margin-top:.75rem">';
     h += '<div><label>Number of Tables</label><input type="number" id="cfg_tables" value="' + SESSION.num_tables + '" min="1"></div>';
+    h += '<div><label>Seats per Table</label><input type="number" id="cfg_seats_per_table" value="' + (SESSION.seats_per_table || 9) + '" min="2" max="20"></div>';
+    h += '<div><label>Auto-Assign Tables</label><select id="cfg_auto_assign"><option value="1"' + (parseInt(SESSION.auto_assign_tables) ? ' selected' : '') + '>Yes</option><option value="0"' + (!parseInt(SESSION.auto_assign_tables) ? ' selected' : '') + '>No</option></select></div>';
     h += '</div>';
 
     // Payout editor (tournament only)
@@ -792,6 +824,217 @@ function setTable(pid, val) {
     });
 }
 
+function toggleViewMode() {
+    VIEW_MODE = VIEW_MODE === 'list' ? 'table' : 'list';
+    renderDashboard();
+}
+
+function movePlayer(pid, newTable) {
+    if (!newTable) return;
+    postAction('move_player_table', { player_id: pid, new_table: newTable }, function(j) {
+        PLAYERS = j.players;
+        renderDashboard();
+    });
+}
+
+function balanceTables() {
+    var numTables = parseInt(SESSION.num_tables);
+    // Group active players by table
+    var byTable = {};
+    for (var t = 1; t <= numTables; t++) byTable[t] = [];
+    PLAYERS.forEach(function(p) {
+        if (parseInt(p.removed) || parseInt(p.eliminated) || !parseInt(p.checked_in)) return;
+        var tn = parseInt(p.table_number);
+        if (tn >= 1 && tn <= numTables) byTable[tn].push(p);
+    });
+
+    // Build modal to select button player per table
+    var html = '<div style="text-align:left;max-height:70vh;overflow-y:auto">';
+    html += '<p style="margin:0 0 .75rem;color:#64748b;font-size:.85rem">Select the <strong>Button</strong> player at each table. The Button, Small Blind, and Big Blind will not be moved.</p>';
+    for (var t = 1; t <= numTables; t++) {
+        var players = byTable[t];
+        if (players.length === 0) continue;
+        html += '<div style="margin-bottom:.75rem">';
+        html += '<label style="font-weight:700;font-size:.85rem;display:block;margin-bottom:.25rem">Table ' + t + ' — Button:</label>';
+        html += '<select id="balance_btn_t' + t + '" style="width:100%;padding:.4rem .6rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.85rem">';
+        html += '<option value="">None (no protection)</option>';
+        players.sort(function(a, b) { return (parseInt(a.seat_number) || 0) - (parseInt(b.seat_number) || 0); });
+        for (var j = 0; j < players.length; j++) {
+            var p = players[j];
+            var seatLabel = p.seat_number ? ' (Seat ' + p.seat_number + ')' : '';
+            html += '<option value="' + p.id + '">' + escHtml(p.display_name) + seatLabel + '</option>';
+        }
+        html += '</select></div>';
+    }
+    html += '</div>';
+
+    // Show in a modal overlay
+    var overlay = document.createElement('div');
+    overlay.id = 'balanceModal';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;display:flex;align-items:center;justify-content:center';
+    overlay.innerHTML = '<div style="background:#fff;border-radius:10px;padding:1.5rem;max-width:400px;width:90%;box-shadow:0 8px 30px rgba(0,0,0,.2)">'
+        + '<h3 style="margin:0 0 .75rem;font-size:1rem">Balance Tables</h3>'
+        + html
+        + '<div style="display:flex;gap:.5rem;margin-top:1rem;justify-content:flex-end">'
+        + '<button onclick="document.getElementById(\'balanceModal\').remove()" style="padding:.4rem 1rem;border:1.5px solid #e2e8f0;border-radius:6px;background:#fff;cursor:pointer;font-size:.85rem">Cancel</button>'
+        + '<button onclick="executeBalance()" style="padding:.4rem 1rem;border:none;border-radius:6px;background:#2563eb;color:#fff;cursor:pointer;font-weight:600;font-size:.85rem">Balance</button>'
+        + '</div></div>';
+    document.body.appendChild(overlay);
+}
+
+function executeBalance() {
+    var numTables = parseInt(SESSION.num_tables);
+    var buttonPlayers = {};
+    for (var t = 1; t <= numTables; t++) {
+        var sel = document.getElementById('balance_btn_t' + t);
+        if (sel && sel.value) buttonPlayers[t] = parseInt(sel.value);
+    }
+    var modal = document.getElementById('balanceModal');
+    if (modal) modal.remove();
+
+    // Collect all protected player IDs (button + SB + BB per table)
+    var protectedIds = [];
+    for (var t in buttonPlayers) {
+        var btnId = buttonPlayers[t];
+        // Find button player's seat, then protect seat+1 (SB) and seat+2 (BB)
+        var tablePlayers = PLAYERS.filter(function(p) {
+            return parseInt(p.table_number) === parseInt(t) && !parseInt(p.removed) && !parseInt(p.eliminated) && parseInt(p.checked_in);
+        }).sort(function(a, b) { return (parseInt(a.seat_number) || 0) - (parseInt(b.seat_number) || 0); });
+
+        var btnIdx = -1;
+        for (var i = 0; i < tablePlayers.length; i++) {
+            if (parseInt(tablePlayers[i].id) === btnId) { btnIdx = i; break; }
+        }
+        if (btnIdx >= 0 && tablePlayers.length > 0) {
+            var len = tablePlayers.length;
+            protectedIds.push(parseInt(tablePlayers[btnIdx].id));
+            if (len > 1) protectedIds.push(parseInt(tablePlayers[(btnIdx + 1) % len].id)); // SB
+            if (len > 2) protectedIds.push(parseInt(tablePlayers[(btnIdx + 2) % len].id)); // BB
+        }
+    }
+
+    postAction('rebalance_tables', { session_id: SESSION.id, protected_ids: JSON.stringify(protectedIds) }, function(j) {
+        PLAYERS = j.players;
+        if (j.moves && j.moves.length > 0) {
+            var msg = j.moves.length + ' player(s) moved:\n';
+            for (var i = 0; i < j.moves.length; i++) {
+                var m = j.moves[i];
+                msg += m.display_name + ': Table ' + (m.old_table || '?') + ' \u2192 ' + m.new_table + '\n';
+            }
+            alert(msg);
+        } else {
+            alert('Tables are already balanced.');
+        }
+        renderDashboard();
+    });
+}
+
+function addTable() {
+    var newCount = parseInt(SESSION.num_tables) + 1;
+    postAction('update_config', { session_id: SESSION.id, num_tables: newCount }, function(j) {
+        SESSION = j.session;
+        POOL = j.pool;
+        if (j.players) PLAYERS = j.players;
+        renderDashboard();
+    });
+}
+
+function breakUpTable(tableNum) {
+    if (!confirm('Break up Table ' + tableNum + '? All players will be distributed to the other tables.')) return;
+    postAction('break_up_table', { session_id: SESSION.id, table_number: tableNum }, function(j) {
+        PLAYERS = j.players;
+        SESSION = j.session;
+        if (j.moves && j.moves.length > 0) {
+            var msg = j.moves.length + ' player(s) moved:\n';
+            for (var i = 0; i < j.moves.length; i++) {
+                var m = j.moves[i];
+                msg += m.display_name + ': Table ' + (m.old_table || '?') + ' \u2192 ' + m.new_table + '\n';
+            }
+            alert(msg);
+        }
+        renderDashboard();
+    });
+}
+
+function renderTableView() {
+    var numTables = parseInt(SESSION.num_tables);
+    var tables = {};
+    for (var t = 1; t <= numTables; t++) tables[t] = [];
+    var unassigned = [];
+
+    var activePlayers = PLAYERS.filter(function(p) { return !parseInt(p.removed); });
+    // Apply current filter
+    activePlayers = activePlayers.filter(function(p) {
+        if (FILTER === 'rsvp_yes') return p.rsvp === 'yes';
+        if (FILTER === 'playing') return parseInt(p.bought_in) && !parseInt(p.eliminated);
+        if (FILTER === 'eliminated') return parseInt(p.eliminated);
+        return true;
+    });
+
+    for (var i = 0; i < activePlayers.length; i++) {
+        var p = activePlayers[i];
+        var tn = parseInt(p.table_number);
+        if (tn >= 1 && tn <= numTables) {
+            tables[tn].push(p);
+        } else {
+            unassigned.push(p);
+        }
+    }
+
+    var h = '<div class="pk-table-grid">';
+    for (var t = 1; t <= numTables; t++) {
+        var players = tables[t];
+        var maxSeats = parseInt(SESSION.seats_per_table) || 9;
+        h += '<div class="pk-table-card">';
+        h += '<div class="pk-table-card-header"><h3>Table ' + t + ' <span>(' + players.length + '/' + maxSeats + ')</span></h3>'
+           + (numTables > 1 ? '<button class="pk-act-btn" onclick="breakUpTable(' + t + ')" style="font-size:.7rem;color:#ef4444;flex-shrink:0" title="Break up this table and distribute players to other tables">Break Up</button>' : '')
+           + '</div>';
+        h += '<div class="pk-table-card-body">';
+        for (var j = 0; j < players.length; j++) {
+            var p = players[j];
+            var isElim = parseInt(p.eliminated);
+            h += '<div class="pk-tv-player' + (isElim ? ' elim' : '') + '">';
+            h += '<span class="pk-tv-name">' + escHtml(p.display_name) + '</span>';
+            h += '<span class="pk-tv-actions">';
+            if (!isElim) {
+                h += '<button class="pk-act-btn" onclick="eliminatePlayer(' + p.id + ')" title="Eliminate" style="color:#ef4444;font-weight:700">&#10005;</button>';
+                h += '<select class="pk-tv-move" onchange="movePlayer(' + p.id + ', this.value)">';
+                h += '<option value="">Move\u2026</option>';
+                for (var mt = 1; mt <= numTables; mt++) {
+                    if (mt !== t) h += '<option value="' + mt + '">Table ' + mt + ' (' + tables[mt].length + ')</option>';
+                }
+                h += '</select>';
+            } else {
+                h += '<button class="pk-act-btn" onclick="uneliminate(' + p.id + ')" title="Undo eliminate">Undo</button>';
+            }
+            h += '</span>';
+            h += '</div>';
+        }
+        if (players.length === 0) h += '<div style="color:#94a3b8;text-align:center;padding:1rem">No players</div>';
+        h += '</div></div>';
+    }
+
+    if (unassigned.length > 0) {
+        h += '<div class="pk-table-card pk-table-card-unassigned">';
+        h += '<div class="pk-table-card-header" style="background:#fef9c3"><h3>Unassigned <span>(' + unassigned.length + ')</span></h3></div>';
+        h += '<div class="pk-table-card-body">';
+        for (var j = 0; j < unassigned.length; j++) {
+            var p = unassigned[j];
+            h += '<div class="pk-tv-player">';
+            h += '<span class="pk-tv-name">' + escHtml(p.display_name) + '</span>';
+            h += '<select class="pk-tv-move" onchange="movePlayer(' + p.id + ', this.value)">';
+            h += '<option value="">Assign\u2026</option>';
+            for (var mt = 1; mt <= numTables; mt++) h += '<option value="' + mt + '">Table ' + mt + ' (' + tables[mt].length + ')</option>';
+            h += '</select>';
+            h += '</div>';
+        }
+        h += '</div></div>';
+    }
+
+    h += '</div>';
+    return h;
+}
+
 function eliminatePlayer(pid) {
     var playing = PLAYERS.filter(function(p) { return !parseInt(p.eliminated) && parseInt(p.bought_in); }).length;
     var pos = prompt('Finish position? (suggested: ' + playing + ')', playing);
@@ -934,6 +1177,8 @@ function saveSettings() {
         buyin_amount: Math.round(parseFloat(document.getElementById('cfg_buyin').value || 0) * 100),
         game_type: document.getElementById('cfg_game_type').value,
         num_tables: parseInt(document.getElementById('cfg_tables').value || 1),
+        seats_per_table: parseInt(document.getElementById('cfg_seats_per_table').value || 9),
+        auto_assign_tables: parseInt((document.getElementById('cfg_auto_assign') || {}).value || 1),
     };
     if (document.getElementById('cfg_game_type').value === 'tournament') {
         data.rebuy_amount = Math.round(parseFloat((document.getElementById('cfg_rebuy') || {}).value || 0) * 100);
@@ -953,6 +1198,7 @@ function saveSettings() {
     postAction('update_config', data, function(j) {
         SESSION = j.session;
         POOL = j.pool;
+        if (j.players) PLAYERS = j.players;
         // Save payouts too (tournament only)
         var inputs = document.querySelectorAll('.payout-pct');
         if (inputs.length > 0 && SESSION.game_type === 'tournament') {
@@ -1012,6 +1258,9 @@ function saveNotes() {
 
 function setFilter(f) {
     FILTER = f;
+    document.querySelectorAll('.pk-filter button').forEach(function(btn) {
+        btn.classList.toggle('active', btn.getAttribute('data-filter') === f);
+    });
     refreshUI();
 }
 
@@ -1026,8 +1275,16 @@ function updatePlayer(updated) {
 }
 
 function refreshUI() {
-    var body = document.getElementById('playerBody');
-    if (body) body.innerHTML = renderPlayerRows();
+    if (VIEW_MODE === 'table') {
+        // Table view: re-render the table grid in place
+        var grid = document.querySelector('.pk-table-grid');
+        if (grid) {
+            grid.outerHTML = renderTableView();
+        }
+    } else {
+        var body = document.getElementById('playerBody');
+        if (body) body.innerHTML = renderPlayerRows();
+    }
     var stats = document.getElementById('statsRow');
     if (stats) stats.innerHTML = renderStats();
     var poolEl = document.getElementById('poolTotal');

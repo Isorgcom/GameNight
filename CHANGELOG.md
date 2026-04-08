@@ -4,6 +4,33 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.04000] — 2026-04-07
+
+### Added
+- **Table management system.** Full table management for poker tournaments and cash games with auto-assignment, table view, and rebalancing.
+- **Auto-assign tables.** Players are automatically assigned to the table with fewest players when checked in, bought in, or added as walk-in. Respects seats-per-table limit. Configurable on/off in game settings.
+- **Seats per table setting.** Configurable max seats per table (default 9). Used by auto-assign and balance logic to cap table sizes.
+- **Table View mode.** Toggle between list view and table view in check-in dashboard. Table view shows players grouped in cards per table with player counts and seat capacity (e.g., 7/9).
+- **Move players between tables.** "Move to..." dropdown per player in table view to move individual players to another table.
+- **Balance Tables with button protection.** Modal to select the Button player at each table before balancing. Button, Small Blind, and Big Blind are protected and never moved. Only rebalances when table sizes differ by more than 1.
+- **Break Up Table.** Button on each table card to eliminate a table — distributes its players to remaining tables, reduces table count, and renumbers remaining tables.
+- **Add Table.** "+ Table" button to add a new empty table on the fly.
+- **Walk-up table assignment.** QR walk-up registration now shows "Your Table: Table X" on the success screen when a poker session exists and auto-assign is enabled.
+- **Eliminate in cash games.** Cash game players can now be eliminated (marked out) without being removed from the event, useful for table balancing.
+- **Eliminate in table view.** Red ✕ button per player in table view to eliminate, with Undo option for eliminated players.
+
+### Fixed
+- **Walk-in Enter key.** Walk-in name field now submits on Enter key press.
+- **Filter buttons not highlighting.** All/RSVP Yes/Playing/Out filter buttons now visually update immediately when clicked without requiring a page refresh.
+- **Filter works in table view.** Filters now apply in table view mode, not just list view.
+- **Table view auto-refresh.** Table view now updates in real time via polling, same as list view.
+- **Table count display.** Fixed fencepost error in table view player count.
+- **Table rebalance after reducing tables.** When num_tables is decreased in settings, displaced players are automatically rebalanced across remaining tables.
+- **Break up to 1 table.** Breaking up a table when only 2 exist now correctly assigns all players to the remaining table.
+- **Eliminated players excluded from rebalance.** Eliminated players are no longer picked up during table break-up or rebalancing.
+
+---
+
 ## [v0.03500] — 2026-04-07
 
 ### Added

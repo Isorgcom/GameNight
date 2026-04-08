@@ -126,6 +126,142 @@ function get_players($db, $session_id) {
     return $stmt->fetchAll();
 }
 
+// Auto-assign a player to the table with fewest active players
+function auto_assign_table($db, $session_id, $player_id): ?int {
+    $sess = $db->prepare('SELECT num_tables, auto_assign_tables, seats_per_table FROM poker_sessions WHERE id = ?');
+    $sess->execute([$session_id]);
+    $s = $sess->fetch();
+    if (!$s || (int)$s['num_tables'] <= 1 || !(int)$s['auto_assign_tables']) return null;
+
+    // Check if player already has a table
+    $cur = $db->prepare('SELECT table_number FROM poker_players WHERE id = ?');
+    $cur->execute([$player_id]);
+    $row = $cur->fetch();
+    if ($row && $row['table_number'] !== null) return (int)$row['table_number'];
+
+    $num = (int)$s['num_tables'];
+    $maxSeats = (int)($s['seats_per_table'] ?: 9);
+
+    // Count active players per table
+    $counts = $db->prepare('SELECT table_number, COUNT(*) as cnt FROM poker_players WHERE session_id = ? AND removed = 0 AND eliminated = 0 AND table_number IS NOT NULL GROUP BY table_number');
+    $counts->execute([$session_id]);
+    $map = [];
+    for ($t = 1; $t <= $num; $t++) $map[$t] = 0;
+    foreach ($counts->fetchAll() as $r) {
+        $tn = (int)$r['table_number'];
+        if ($tn >= 1 && $tn <= $num) $map[$tn] = (int)$r['cnt'];
+    }
+
+    // Find table with fewest players that isn't full
+    $minTable = null;
+    $minCount = PHP_INT_MAX;
+    for ($t = 1; $t <= $num; $t++) {
+        if ($map[$t] < $maxSeats && $map[$t] < $minCount) {
+            $minCount = $map[$t];
+            $minTable = $t;
+        }
+    }
+
+    // All tables full — no assignment
+    if ($minTable === null) return null;
+
+    // Next seat number at that table
+    $seatStmt = $db->prepare('SELECT COALESCE(MAX(seat_number), 0) + 1 FROM poker_players WHERE session_id = ? AND table_number = ?');
+    $seatStmt->execute([$session_id, $minTable]);
+    $seat = (int)$seatStmt->fetchColumn();
+
+    $db->prepare('UPDATE poker_players SET table_number = ?, seat_number = ? WHERE id = ?')->execute([$minTable, $seat, $player_id]);
+    return $minTable;
+}
+
+// Rebalance active players across tables — only move when difference > 1
+// Protected players (Button, SB, BB) are never moved from their table
+function rebalance_tables($db, $session_id, array $protected_ids = []): array {
+    $sess = $db->prepare('SELECT num_tables, seats_per_table FROM poker_sessions WHERE id = ?');
+    $sess->execute([$session_id]);
+    $s = $sess->fetch();
+    if (!$s || (int)$s['num_tables'] <= 1) return [];
+
+    $num = (int)$s['num_tables'];
+
+    $players = $db->prepare('SELECT id, display_name, table_number, seat_number FROM poker_players WHERE session_id = ? AND removed = 0 AND eliminated = 0 AND checked_in = 1 ORDER BY table_number, seat_number, id');
+    $players->execute([$session_id]);
+    $all = $players->fetchAll();
+
+    $totalPlayers = count($all);
+    if ($totalPlayers === 0) return [];
+
+    // Group players by table, separating protected and movable
+    $byTable = [];
+    $unassigned = [];
+    for ($t = 1; $t <= $num; $t++) $byTable[$t] = [];
+    foreach ($all as $p) {
+        $tn = ($p['table_number'] !== null && $p['table_number'] !== '') ? (int)$p['table_number'] : null;
+        if ($tn !== null && $tn >= 1 && $tn <= $num) {
+            $byTable[$tn][] = $p;
+        } else {
+            $unassigned[] = $p;
+        }
+    }
+
+    // Assign unassigned players to the smallest table
+    foreach ($unassigned as $p) {
+        $minT = 1; $minC = count($byTable[1]);
+        for ($t = 2; $t <= $num; $t++) {
+            if (count($byTable[$t]) < $minC) { $minC = count($byTable[$t]); $minT = $t; }
+        }
+        $byTable[$minT][] = $p;
+    }
+
+    // Balance: move from biggest to smallest while difference > 1
+    // Only move non-protected players, starting from behind the button (end of array)
+    $maxIter = $totalPlayers * 2; // safety limit
+    $iter = 0;
+    $changed = true;
+    while ($changed && $iter < $maxIter) {
+        $changed = false;
+        $iter++;
+        // Find biggest and smallest tables
+        $maxT = 1; $minT = 1;
+        for ($t = 1; $t <= $num; $t++) {
+            if (count($byTable[$t]) > count($byTable[$maxT])) $maxT = $t;
+            if (count($byTable[$t]) < count($byTable[$minT])) $minT = $t;
+        }
+        if (count($byTable[$maxT]) - count($byTable[$minT]) <= 1) break;
+
+        // Find a movable (non-protected) player from the biggest table
+        // Search from end of array (behind the button)
+        $movedOne = false;
+        for ($i = count($byTable[$maxT]) - 1; $i >= 0; $i--) {
+            if (!in_array((int)$byTable[$maxT][$i]['id'], $protected_ids, true)) {
+                $p = $byTable[$maxT][$i];
+                array_splice($byTable[$maxT], $i, 1);
+                $byTable[$minT][] = $p;
+                $movedOne = true;
+                $changed = true;
+                break;
+            }
+        }
+        // If all players at this table are protected, stop
+        if (!$movedOne) break;
+    }
+
+    // Write back and track moves
+    $moves = [];
+    $update = $db->prepare('UPDATE poker_players SET table_number = ?, seat_number = ? WHERE id = ?');
+    foreach ($byTable as $t => $tPlayers) {
+        foreach ($tPlayers as $seat => $p) {
+            $oldTable = ($p['table_number'] !== null && $p['table_number'] !== '') ? (int)$p['table_number'] : null;
+            $update->execute([$t, $seat + 1, $p['id']]);
+            if ($oldTable === null || $oldTable !== $t) {
+                $moves[] = ['player_id' => (int)$p['id'], 'display_name' => $p['display_name'], 'old_table' => $oldTable, 'new_table' => $t];
+            }
+        }
+    }
+
+    return $moves;
+}
+
 // Get payouts for a session
 function get_payouts($db, $session_id) {
     $stmt = $db->prepare('SELECT * FROM poker_payouts WHERE session_id = ? ORDER BY place ASC');

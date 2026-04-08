@@ -121,7 +121,8 @@ if ($action === 'update_config') {
     }
 
     $game_type = in_array($_POST['game_type'] ?? '', ['tournament', 'cash']) ? $_POST['game_type'] : $s['game_type'];
-    $db->prepare('UPDATE poker_sessions SET buyin_amount=?, rebuy_amount=?, addon_amount=?, rebuy_allowed=?, addon_allowed=?, max_rebuys=?, starting_chips=?, num_tables=?, game_type=? WHERE id=?')->execute([
+    $new_num_tables = (int)($_POST['num_tables'] ?? $s['num_tables']);
+    $db->prepare('UPDATE poker_sessions SET buyin_amount=?, rebuy_amount=?, addon_amount=?, rebuy_allowed=?, addon_allowed=?, max_rebuys=?, starting_chips=?, num_tables=?, game_type=?, auto_assign_tables=?, seats_per_table=? WHERE id=?')->execute([
         (int)($_POST['buyin_amount'] ?? $s['buyin_amount']),
         (int)($_POST['rebuy_amount'] ?? $s['rebuy_amount']),
         (int)($_POST['addon_amount'] ?? $s['addon_amount']),
@@ -129,10 +130,25 @@ if ($action === 'update_config') {
         (int)($_POST['addon_allowed'] ?? $s['addon_allowed']),
         (int)($_POST['max_rebuys'] ?? $s['max_rebuys']),
         (int)($_POST['starting_chips'] ?? $s['starting_chips']),
-        (int)($_POST['num_tables'] ?? $s['num_tables']),
+        $new_num_tables,
         $game_type,
+        (int)($_POST['auto_assign_tables'] ?? $s['auto_assign_tables'] ?? 1),
+        (int)($_POST['seats_per_table'] ?? $s['seats_per_table'] ?? 9),
         $session_id,
     ]);
+
+    // When tables are reduced, rebalance displaced players across remaining tables
+    if ($new_num_tables < (int)$s['num_tables']) {
+        $db->prepare('UPDATE poker_players SET table_number = NULL, seat_number = NULL WHERE session_id = ? AND table_number > ?')
+           ->execute([$session_id, $new_num_tables]);
+        if ($new_num_tables > 1) {
+            rebalance_tables($db, $session_id);
+        } else {
+            // Single table: clear all table assignments
+            $db->prepare('UPDATE poker_players SET table_number = NULL, seat_number = NULL WHERE session_id = ?')
+               ->execute([$session_id]);
+        }
+    }
 
     $sess2 = $db->prepare('SELECT * FROM poker_sessions WHERE id = ?');
     $sess2->execute([$session_id]);
@@ -140,6 +156,7 @@ if ($action === 'update_config') {
     echo json_encode([
         'ok'      => true,
         'session' => $sess2->fetch(),
+        'players' => get_players($db, $session_id),
         'pool'    => calc_pool($db, $session_id),
     ]);
     exit;
@@ -173,7 +190,18 @@ if ($action === 'toggle_checkin') {
     if (!$session) { echo json_encode(['ok' => false, 'error' => 'Player not found']); exit; }
     verify_event_access($db, $session['event_id'], $current, $isAdmin);
 
+    $oldP = $db->prepare('SELECT checked_in FROM poker_players WHERE id = ?');
+    $oldP->execute([$player_id]);
+    $wasCheckedIn = (int)$oldP->fetch()['checked_in'];
+
     $db->prepare('UPDATE poker_players SET checked_in = CASE WHEN checked_in = 0 THEN 1 ELSE 0 END WHERE id = ?')->execute([$player_id]);
+
+    // Auto-assign table when checking in; clear when unchecking
+    if ($wasCheckedIn === 0) {
+        auto_assign_table($db, $session['id'], $player_id);
+    } else {
+        $db->prepare('UPDATE poker_players SET table_number = NULL, seat_number = NULL WHERE id = ?')->execute([$player_id]);
+    }
 
     $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
     $p->execute([$player_id]);
@@ -198,6 +226,7 @@ if ($action === 'toggle_buyin') {
     $cur = $pl->fetch();
     if ((int)$cur['bought_in'] === 0) {
         $db->prepare('UPDATE poker_players SET bought_in = 1, checked_in = 1 WHERE id = ?')->execute([$player_id]);
+        auto_assign_table($db, $session['id'], $player_id);
     } else {
         $db->prepare('UPDATE poker_players SET bought_in = 0 WHERE id = ?')->execute([$player_id]);
     }
@@ -299,7 +328,7 @@ if ($action === 'eliminate_player') {
     if (!$session) { echo json_encode(['ok' => false, 'error' => 'Player not found']); exit; }
     verify_event_access($db, $session['event_id'], $current, $isAdmin);
 
-    $db->prepare('UPDATE poker_players SET eliminated = 1, finish_position = ? WHERE id = ?')->execute([$finish_position, $player_id]);
+    $db->prepare('UPDATE poker_players SET eliminated = 1, finish_position = ?, table_number = NULL, seat_number = NULL WHERE id = ?')->execute([$finish_position, $player_id]);
 
     $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
     $p->execute([$player_id]);
@@ -352,6 +381,7 @@ if ($action === 'add_walkin') {
 
     $db->prepare('INSERT INTO poker_players (session_id, user_id, display_name, checked_in) VALUES (?, ?, ?, 1)')->execute([$session_id, $user_id, $name]);
     $newId = (int)$db->lastInsertId();
+    auto_assign_table($db, $session_id, $newId);
 
     $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
     $p->execute([$newId]);
@@ -504,6 +534,7 @@ if ($action === 'add_cashin') {
 
     // Add to existing cash_in, also mark as bought_in and checked_in
     $db->prepare('UPDATE poker_players SET cash_in = COALESCE(cash_in, 0) + ?, bought_in = 1, checked_in = 1 WHERE id = ?')->execute([$amount, $player_id]);
+    auto_assign_table($db, $session['id'], $player_id);
 
     $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
     $p->execute([$player_id]);
@@ -564,6 +595,124 @@ if ($action === 'set_cashout') {
         'ok'     => true,
         'player' => $p->fetch(),
         'pool'   => calc_pool($db, $session['id']),
+    ]);
+    exit;
+}
+
+// ─── move_player_table ─────────────────────────────────────
+if ($action === 'move_player_table') {
+    $player_id = (int)($_POST['player_id'] ?? 0);
+    $new_table = (int)($_POST['new_table'] ?? 0);
+    $session = get_session_from_player($db, $player_id);
+    if (!$session) { echo json_encode(['ok' => false, 'error' => 'Player not found']); exit; }
+    verify_event_access($db, $session['event_id'], $current, $isAdmin);
+
+    if ($new_table < 1 || $new_table > (int)$session['num_tables']) {
+        echo json_encode(['ok' => false, 'error' => 'Invalid table number']); exit;
+    }
+
+    // Next seat at target table
+    $seatStmt = $db->prepare('SELECT COALESCE(MAX(seat_number), 0) + 1 FROM poker_players WHERE session_id = ? AND table_number = ?');
+    $seatStmt->execute([$session['id'], $new_table]);
+    $seat = (int)$seatStmt->fetchColumn();
+
+    $db->prepare('UPDATE poker_players SET table_number = ?, seat_number = ? WHERE id = ?')->execute([$new_table, $seat, $player_id]);
+
+    $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
+    $p->execute([$player_id]);
+    echo json_encode([
+        'ok'      => true,
+        'player'  => $p->fetch(),
+        'players' => get_players($db, $session['id']),
+    ]);
+    exit;
+}
+
+// ─── break_up_table ────────────────────────────────────────
+if ($action === 'break_up_table') {
+    $session_id = (int)($_POST['session_id'] ?? 0);
+    $table_number = (int)($_POST['table_number'] ?? 0);
+    $sess = $db->prepare('SELECT ps.*, e.created_by FROM poker_sessions ps JOIN events e ON ps.event_id = e.id WHERE ps.id = ?');
+    $sess->execute([$session_id]);
+    $s = $sess->fetch();
+    if (!$s) { echo json_encode(['ok' => false, 'error' => 'Session not found']); exit; }
+    if (!$isAdmin && (int)$s['created_by'] !== (int)$current['id']) {
+        http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Access denied']); exit;
+    }
+
+    $num_tables = (int)$s['num_tables'];
+    if ($table_number < 1 || $table_number > $num_tables || $num_tables <= 1) {
+        echo json_encode(['ok' => false, 'error' => 'Invalid table']); exit;
+    }
+
+    // Unassign all players from the broken-up table
+    $db->prepare('UPDATE poker_players SET table_number = NULL, seat_number = NULL WHERE session_id = ? AND table_number = ?')
+       ->execute([$session_id, $table_number]);
+
+    // Reduce table count by 1
+    $new_num = $num_tables - 1;
+    $db->prepare('UPDATE poker_sessions SET num_tables = ? WHERE id = ?')->execute([$new_num, $session_id]);
+
+    // Renumber tables above the removed one down by 1
+    if ($table_number < $num_tables) {
+        for ($t = $table_number + 1; $t <= $num_tables; $t++) {
+            $db->prepare('UPDATE poker_players SET table_number = ? WHERE session_id = ? AND table_number = ?')
+               ->execute([$t - 1, $session_id, $t]);
+        }
+    }
+
+    // Distribute displaced players into the remaining tables
+    $moves = [];
+    if ($new_num === 1) {
+        // Only 1 table left — assign all unassigned players to table 1
+        $unassigned = $db->prepare('SELECT id, display_name FROM poker_players WHERE session_id = ? AND removed = 0 AND eliminated = 0 AND table_number IS NULL');
+        $unassigned->execute([$session_id]);
+        $seat = 0;
+        // Get current max seat at table 1
+        $maxSeat = $db->prepare('SELECT COALESCE(MAX(seat_number), 0) FROM poker_players WHERE session_id = ? AND table_number = 1');
+        $maxSeat->execute([$session_id]);
+        $seat = (int)$maxSeat->fetchColumn();
+        foreach ($unassigned->fetchAll() as $p) {
+            $seat++;
+            $db->prepare('UPDATE poker_players SET table_number = 1, seat_number = ? WHERE id = ?')->execute([$seat, $p['id']]);
+            $moves[] = ['player_id' => (int)$p['id'], 'display_name' => $p['display_name'], 'old_table' => $table_number, 'new_table' => 1];
+        }
+    } else {
+        $moves = rebalance_tables($db, $session_id);
+    }
+
+    $sess2 = $db->prepare('SELECT * FROM poker_sessions WHERE id = ?');
+    $sess2->execute([$session_id]);
+
+    echo json_encode([
+        'ok'      => true,
+        'session' => $sess2->fetch(),
+        'players' => get_players($db, $session_id),
+        'moves'   => $moves,
+    ]);
+    exit;
+}
+
+// ─── rebalance_tables ──────────────────────────────────────
+if ($action === 'rebalance_tables') {
+    $session_id = (int)($_POST['session_id'] ?? 0);
+    $sess = $db->prepare('SELECT ps.*, e.created_by FROM poker_sessions ps JOIN events e ON ps.event_id = e.id WHERE ps.id = ?');
+    $sess->execute([$session_id]);
+    $s = $sess->fetch();
+    if (!$s) { echo json_encode(['ok' => false, 'error' => 'Session not found']); exit; }
+    if (!$isAdmin && (int)$s['created_by'] !== (int)$current['id']) {
+        http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Access denied']); exit;
+    }
+
+    $protected = json_decode($_POST['protected_ids'] ?? '[]', true);
+    if (!is_array($protected)) $protected = [];
+    $protected = array_map('intval', $protected);
+
+    $moves = rebalance_tables($db, $session_id, $protected);
+    echo json_encode([
+        'ok'      => true,
+        'players' => get_players($db, $session_id),
+        'moves'   => $moves,
     ]);
     exit;
 }
