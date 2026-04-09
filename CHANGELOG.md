@@ -4,6 +4,14 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.05301] — 2026-04-09
+
+### Fixed
+- **"Remember me" actually works now.** Previously the checkbox only extended the session cookie, but PHP's server-side session would still get garbage-collected after ~24 min of idle, and browser restarts logged users out regardless. Now issues a proper 30-day persistent auth token (hashed in DB, rotated on every use for theft detection) that silently re-establishes the session across idle periods and browser restarts. Cleared on sign-out.
+- **Idle session timeout.** Raised server-side session lifetime to 8 hours so logged-in users sitting idle on a page no longer get kicked out when they return.
+
+---
+
 ## [v0.05300] — 2026-04-08
 
 ### Added

@@ -24,6 +24,9 @@ function _is_https(): bool {
 
 function session_start_safe(): void {
     if (session_status() === PHP_SESSION_NONE) {
+        // 8-hour server-side session lifetime so idle users within a browser
+        // session don't get kicked out by PHP's default 24-minute GC.
+        ini_set('session.gc_maxlifetime', '28800');
         session_set_cookie_params([
             'lifetime' => 0,
             'path'     => '/',
@@ -35,9 +38,108 @@ function session_start_safe(): void {
     }
 }
 
+// ── Persistent "Remember me" auth tokens ─────────────────────────────────────
+// Two-layer auth: short PHP session for the active browser, plus an optional
+// 30-day signed cookie that silently re-establishes the session after idle
+// periods or browser restarts. Rotated on every use for theft detection.
+
+const REMEMBER_COOKIE   = 'gn_remember';
+const REMEMBER_LIFETIME = 2592000; // 30 days in seconds
+
+function issue_remember_token(int $user_id): void {
+    $raw     = bin2hex(random_bytes(32));
+    $hash    = hash('sha256', $raw);
+    $expires = date('Y-m-d H:i:s', time() + REMEMBER_LIFETIME);
+    $ua      = substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 255);
+    $ip      = $_SERVER['REMOTE_ADDR'] ?? '';
+
+    $db = get_db();
+    $db->prepare('INSERT INTO remember_tokens (user_id, token_hash, expires_at, user_agent, ip) VALUES (?, ?, ?, ?, ?)')
+       ->execute([$user_id, $hash, $expires, $ua, $ip]);
+    $row_id = (int)$db->lastInsertId();
+
+    setcookie(REMEMBER_COOKIE, $row_id . ':' . $raw, [
+        'expires'  => time() + REMEMBER_LIFETIME,
+        'path'     => '/',
+        'secure'   => _is_https(),
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+    $_COOKIE[REMEMBER_COOKIE] = $row_id . ':' . $raw;
+}
+
+function consume_remember_cookie(): ?int {
+    $cookie = $_COOKIE[REMEMBER_COOKIE] ?? '';
+    if ($cookie === '' || !str_contains($cookie, ':')) return null;
+
+    [$id_part, $raw] = explode(':', $cookie, 2);
+    $id = (int)$id_part;
+    if ($id <= 0 || $raw === '') { clear_remember_cookie(); return null; }
+
+    $db = get_db();
+    $stmt = $db->prepare('SELECT id, user_id, token_hash, expires_at FROM remember_tokens WHERE id = ?');
+    $stmt->execute([$id]);
+    $row = $stmt->fetch();
+    if (!$row) { clear_remember_cookie(); return null; }
+
+    // Expiry check
+    if (strtotime($row['expires_at']) < time()) {
+        $db->prepare('DELETE FROM remember_tokens WHERE id = ?')->execute([$id]);
+        clear_remember_cookie();
+        return null;
+    }
+
+    // Constant-time hash compare
+    if (!hash_equals($row['token_hash'], hash('sha256', $raw))) {
+        // Possible theft — burn this row defensively.
+        $db->prepare('DELETE FROM remember_tokens WHERE id = ?')->execute([$id]);
+        clear_remember_cookie();
+        return null;
+    }
+
+    $user_id = (int)$row['user_id'];
+
+    // Rotate: delete the used token and mint a fresh one in its place.
+    $db->prepare('DELETE FROM remember_tokens WHERE id = ?')->execute([$id]);
+    issue_remember_token($user_id);
+
+    return $user_id;
+}
+
+function clear_remember_cookie(): void {
+    $cookie = $_COOKIE[REMEMBER_COOKIE] ?? '';
+    if ($cookie !== '' && str_contains($cookie, ':')) {
+        [$id_part, ] = explode(':', $cookie, 2);
+        $id = (int)$id_part;
+        if ($id > 0) {
+            try {
+                get_db()->prepare('DELETE FROM remember_tokens WHERE id = ?')->execute([$id]);
+            } catch (Exception $e) {}
+        }
+    }
+    setcookie(REMEMBER_COOKIE, '', [
+        'expires'  => time() - 3600,
+        'path'     => '/',
+        'secure'   => _is_https(),
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+    unset($_COOKIE[REMEMBER_COOKIE]);
+}
+
 function current_user(): ?array {
     session_start_safe();
     $id = $_SESSION['user_id'] ?? null;
+
+    // No active session — try to restore via "Remember me" cookie.
+    if ($id === null) {
+        $remembered = consume_remember_cookie();
+        if ($remembered !== null) {
+            session_regenerate_id(true);
+            $_SESSION['user_id'] = $remembered;
+            $id = $remembered;
+        }
+    }
     if ($id === null) return null;
 
     $stmt = get_db()->prepare('SELECT id, username, email, role, last_login, must_change_password, my_events_past_days, my_events_future_days FROM users WHERE id = ?');
@@ -104,6 +206,7 @@ function logout(): void {
     session_start_safe();
     $id = $_SESSION['user_id'] ?? null;
     if ($id) db_log_activity($id, 'logout');
+    clear_remember_cookie();
     $_SESSION = [];
     session_destroy();
 }

@@ -189,6 +189,19 @@ function db_init(PDO $pdo): void {
         FOREIGN KEY (user_id) REFERENCES users(id)
     )"); } catch (Exception $e) {}
 
+    // Persistent "Remember me" auth tokens (30-day auto-login)
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS remember_tokens (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id      INTEGER NOT NULL,
+        token_hash   TEXT    NOT NULL UNIQUE,
+        expires_at   DATETIME NOT NULL,
+        created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_used_at DATETIME,
+        user_agent   TEXT,
+        ip           TEXT,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    )"); } catch (Exception $e) {}
+
     // SMS log table
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS sms_log (
         id         INTEGER PRIMARY KEY AUTOINCREMENT,
