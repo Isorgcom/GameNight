@@ -447,23 +447,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 // On approval: sync to poker roster + notify the user.
                 if ($newStatus === 'approved') {
-                    // If this is a poker event with an active session, sync newly-approved player into roster.
+                    // If this is a poker event with an active session, sync newly-approved player into roster + assign table/seat.
+                    $seatInfo = '';
                     $psess = $db->prepare('SELECT id FROM poker_sessions WHERE event_id = ?');
                     $psess->execute([$eid]);
                     $psRow = $psess->fetch();
                     if ($psRow) {
                         require_once __DIR__ . '/_poker_helpers.php';
                         sync_invitees($db, $psRow['id'], $eid);
+                        // Find the player row and auto-assign table/seat
+                        $ppStmt = $db->prepare('SELECT id, table_number, seat_number FROM poker_players WHERE session_id = ? AND LOWER(display_name) = LOWER(?) AND removed = 0');
+                        $ppStmt->execute([$psRow['id'], $target]);
+                        $ppRow = $ppStmt->fetch();
+                        if ($ppRow) {
+                            auto_assign_table($db, $psRow['id'], $ppRow['id']);
+                            // Re-fetch for the updated values
+                            $ppStmt->execute([$psRow['id'], $target]);
+                            $ppRow = $ppStmt->fetch();
+                            if ($ppRow && $ppRow['table_number'] && $ppRow['seat_number']) {
+                                $seatInfo = " Table {$ppRow['table_number']}, Seat {$ppRow['seat_number']}.";
+                            }
+                        }
                     }
 
-                    // Notify the approved user via their preferred contact.
+                    // Notify the approved user via their preferred contact (with table/seat if poker).
                     // send_notification() is already loaded via auth.php (included at top of file).
                     $uStmt = $db->prepare('SELECT id, username, email, phone, preferred_contact FROM users WHERE LOWER(username)=LOWER(?)');
                     $uStmt->execute([$target]);
                     $uRow = $uStmt->fetch();
                     if ($uRow && get_setting('notifications_enabled', '0') === '1' && $evRow && function_exists('send_notification')) {
-                        $smsBody  = "You've been approved for \"{$evRow['title']}\" on {$evRow['start_date']}.";
-                        $htmlBody = '<p>You have been approved for <strong>' . htmlspecialchars($evRow['title']) . '</strong> on ' . htmlspecialchars($evRow['start_date']) . '.</p>';
+                        $smsBody  = "You've been approved for \"{$evRow['title']}\" on {$evRow['start_date']}.{$seatInfo}";
+                        $htmlBody = '<p>You have been approved for <strong>' . htmlspecialchars($evRow['title']) . '</strong> on ' . htmlspecialchars($evRow['start_date']) . '.</p>'
+                                  . ($seatInfo ? '<p style="font-weight:600;color:#2563eb">' . htmlspecialchars(trim($seatInfo)) . '</p>' : '');
                         send_notification($uRow['username'], $uRow['email'] ?? '', $uRow['phone'] ?? '',
                             $uRow['preferred_contact'] ?? 'email',
                             "Approved: " . $evRow['title'],

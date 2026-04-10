@@ -104,8 +104,9 @@ function sync_invitees($db, $session_id, $event_id) {
     $existing->execute([$session_id]);
     $existingNames = array_column($existing->fetchAll(), 'dn');
 
-    // Only approved invitees become poker players. Pending/denied rows are excluded.
-    $invites = $db->prepare("SELECT ei.username, ei.rsvp, u.id as user_id FROM event_invites ei LEFT JOIN users u ON LOWER(ei.username) = LOWER(u.username) WHERE ei.event_id = ? AND ei.approval_status = 'approved' GROUP BY LOWER(ei.username)");
+    // Sync approved AND pending invitees into poker_players so the host can see
+    // pending players in checkin.php and approve/deny them. Denied rows stay hidden.
+    $invites = $db->prepare("SELECT ei.username, ei.rsvp, u.id as user_id FROM event_invites ei LEFT JOIN users u ON LOWER(ei.username) = LOWER(u.username) WHERE ei.event_id = ? AND ei.approval_status IN ('approved', 'pending') GROUP BY LOWER(ei.username)");
     $invites->execute([$event_id]);
 
     $pIns = $db->prepare('INSERT INTO poker_players (session_id, user_id, display_name, rsvp) VALUES (?, ?, ?, ?)');
@@ -114,7 +115,9 @@ function sync_invitees($db, $session_id, $event_id) {
     // Also prepare a statement to un-remove players who re-RSVP (e.g., were removed then RSVPed again)
     $pUnremove = $db->prepare('UPDATE poker_players SET removed = 0, rsvp = ? WHERE session_id = ? AND LOWER(display_name) = LOWER(?) AND removed = 1');
 
+    $invitedNames = [];
     foreach ($invites->fetchAll() as $inv) {
+        $invitedNames[] = strtolower($inv['username']);
         if (!in_array(strtolower($inv['username']), $existingNames)) {
             $pIns->execute([$session_id, $inv['user_id'], $inv['username'], $inv['rsvp']]);
         } else {
@@ -125,11 +128,27 @@ function sync_invitees($db, $session_id, $event_id) {
             }
         }
     }
+
+    // Soft-remove poker_players whose invite was deleted or denied (no longer in event_invites).
+    // Only affects non-removed players to avoid flipping already-removed rows.
+    $activePs = $db->prepare('SELECT id, LOWER(display_name) as dn FROM poker_players WHERE session_id = ? AND removed = 0');
+    $activePs->execute([$session_id]);
+    $pRemove = $db->prepare('UPDATE poker_players SET removed = 1 WHERE id = ?');
+    foreach ($activePs->fetchAll() as $ap) {
+        if (!in_array($ap['dn'], $invitedNames)) {
+            $pRemove->execute([$ap['id']]);
+        }
+    }
 }
 
-// Get all players for a session (excludes removed players)
+// Get all players for a session (excludes removed players), with approval_status from event_invites
 function get_players($db, $session_id) {
-    $stmt = $db->prepare("SELECT * FROM poker_players WHERE session_id = ? AND removed = 0 ORDER BY CASE WHEN rsvp='no' THEN 2 WHEN rsvp IS NULL THEN 1 ELSE 0 END, eliminated ASC, display_name ASC");
+    $stmt = $db->prepare("SELECT pp.*, COALESCE(ei.approval_status, 'approved') as approval_status
+        FROM poker_players pp
+        LEFT JOIN poker_sessions ps ON ps.id = pp.session_id
+        LEFT JOIN event_invites ei ON ei.event_id = ps.event_id AND LOWER(ei.username) = LOWER(pp.display_name) AND ei.occurrence_date IS NULL
+        WHERE pp.session_id = ? AND pp.removed = 0
+        ORDER BY CASE WHEN pp.rsvp='no' THEN 2 WHEN pp.rsvp IS NULL THEN 1 ELSE 0 END, pp.eliminated ASC, pp.display_name ASC");
     $stmt->execute([$session_id]);
     return $stmt->fetchAll();
 }

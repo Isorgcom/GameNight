@@ -585,8 +585,9 @@ function renderPlayerRows() {
         var isWalkin = !p.user_id;
         var rsvp = p.rsvp || '';
         var isNo = rsvp === 'no';
-        var dis = isNo ? ' disabled' : '';
-        var rowClass = isElim ? 'elim' : (hasCashedOut ? 'cashed-out' : (isNo ? 'rsvp-no' : ''));
+        var isPending = (p.approval_status === 'pending');
+        var dis = (isNo || isPending) ? ' disabled' : '';
+        var rowClass = isPending ? 'pending-row' : (isElim ? 'elim' : (hasCashedOut ? 'cashed-out' : (isNo ? 'rsvp-no' : '')));
         h += '<tr class="' + rowClass + '" data-pid="' + p.id + '">';
         h += '<td>' + num + '</td>';
         h += '<td class="name-cell">' + escHtml(p.display_name);
@@ -602,6 +603,9 @@ function renderPlayerRows() {
         h += '<option value="maybe"' + (rsvp==='maybe'?' selected':'') + '>Maybe</option>';
         h += '</select></td>';
 
+        if (isPending) {
+            h += '<td colspan="' + (isTourney() ? (1 + 1 + (parseInt(SESSION.rebuy_allowed)?1:0) + (parseInt(SESSION.addon_allowed)?1:0)) : 4) + '" style="text-align:center;color:#d97706;font-size:.8rem;font-style:italic">Awaiting approval</td>';
+        } else {
         h += '<td><input type="checkbox" class="pk-check" ' + (parseInt(p.checked_in) ? 'checked' : '') + dis + ' onchange="toggleCheckin(' + p.id + ')"></td>';
 
         if (isTourney()) {
@@ -632,12 +636,15 @@ function renderPlayerRows() {
                 }
             }
         }
+        } // close isPending else
 
         h += '<td><input type="number" class="pk-tbl-input" value="' + (p.table_number || '') + '" min="1" max="' + SESSION.num_tables + '" onchange="setTable(' + p.id + ',this.value)" style="width:3rem"></td>';
         h += '<td style="text-align:center;color:#64748b;font-size:.8rem;font-weight:600">' + (p.seat_number || '—') + '</td>';
 
         // Status
-        if (isTourney()) {
+        if (isPending) {
+            h += '<td><span style="color:#d97706;font-weight:600;background:#fefce8;padding:.1rem .4rem;border-radius:4px;font-size:.75rem;border:1px solid #fde68a">Pending</span></td>';
+        } else if (isTourney()) {
             if (isElim) {
                 h += '<td><span style="color:#ef4444;font-weight:600">#' + (p.finish_position || '?') + '</span></td>';
             } else if (parseInt(p.bought_in)) {
@@ -657,31 +664,36 @@ function renderPlayerRows() {
 
         // Actions
         h += '<td style="white-space:nowrap">';
-        if (!isNo) {
-            if (isTourney()) {
-                if (!isElim && parseInt(p.bought_in)) {
-                    h += '<button class="pk-act-btn" onclick="eliminatePlayer(' + p.id + ')">Eliminate</button>';
-                }
-                if (isElim) {
-                    h += '<button class="pk-act-btn" onclick="uneliminate(' + p.id + ')">Undo</button>';
-                }
-            } else {
-                if (parseInt(p.bought_in) && !hasCashedOut) {
-                    h += '<button class="pk-act-btn" onclick="openCashout(' + p.id + ')">Cash Out</button>';
-                }
-                if (hasCashedOut) {
-                    h += '<button class="pk-act-btn" onclick="undoCashout(' + p.id + ')">Undo Cash Out</button>';
-                }
-                if (!isElim && parseInt(p.bought_in)) {
-                    h += '<button class="pk-act-btn" onclick="eliminatePlayer(' + p.id + ')">Eliminate</button>';
-                }
-                if (isElim) {
-                    h += '<button class="pk-act-btn" onclick="uneliminate(' + p.id + ')">Undo Elim</button>';
+        if (isPending) {
+            h += '<button class="pk-act-btn" style="background:#16a34a;color:#fff;font-weight:600" onclick="approvePlayer(' + p.id + ')">Approve</button>';
+            h += '<button class="pk-act-btn danger" onclick="denyPlayer(' + p.id + ')">Deny</button>';
+        } else {
+            if (!isNo) {
+                if (isTourney()) {
+                    if (!isElim && parseInt(p.bought_in)) {
+                        h += '<button class="pk-act-btn" onclick="eliminatePlayer(' + p.id + ')">Eliminate</button>';
+                    }
+                    if (isElim) {
+                        h += '<button class="pk-act-btn" onclick="uneliminate(' + p.id + ')">Undo</button>';
+                    }
+                } else {
+                    if (parseInt(p.bought_in) && !hasCashedOut) {
+                        h += '<button class="pk-act-btn" onclick="openCashout(' + p.id + ')">Cash Out</button>';
+                    }
+                    if (hasCashedOut) {
+                        h += '<button class="pk-act-btn" onclick="undoCashout(' + p.id + ')">Undo Cash Out</button>';
+                    }
+                    if (!isElim && parseInt(p.bought_in)) {
+                        h += '<button class="pk-act-btn" onclick="eliminatePlayer(' + p.id + ')">Eliminate</button>';
+                    }
+                    if (isElim) {
+                        h += '<button class="pk-act-btn" onclick="uneliminate(' + p.id + ')">Undo Elim</button>';
+                    }
                 }
             }
+            h += '<button class="pk-act-btn" onclick="openNotes(' + p.id + ')">Notes</button>';
+            h += '<button class="pk-act-btn danger" onclick="if(confirm(\'Remove ' + escHtml(p.display_name) + ' from the event?\'))removePlayer(' + p.id + ')">Remove</button>';
         }
-        h += '<button class="pk-act-btn" onclick="openNotes(' + p.id + ')">Notes</button>';
-        h += '<button class="pk-act-btn danger" onclick="if(confirm(\'Remove ' + escHtml(p.display_name) + ' from the event?\'))removePlayer(' + p.id + ')">Remove</button>';
         h += '</td>';
         h += '</tr>';
     }
@@ -715,8 +727,11 @@ function renderMobileCards() {
         var cardClass = isElim ? 'elim' : (hasCashedOut ? 'cashed-out' : (isNo ? 'rsvp-no' : ''));
 
         // Status text and color
+        var isPending = (p.approval_status === 'pending');
         var statusText = '\u2014', statusColor = '#94a3b8', statusBg = '#f1f5f9';
-        if (isTourney()) {
+        if (isPending) {
+            statusText = 'Pending'; statusColor = '#d97706'; statusBg = '#fefce8';
+        } else if (isTourney()) {
             if (isElim) { statusText = '#' + (p.finish_position || '?'); statusColor = '#ef4444'; statusBg = '#fef2f2'; }
             else if (parseInt(p.bought_in)) { statusText = 'Playing'; statusColor = '#16a34a'; statusBg = '#f0fdf4'; }
             else if (parseInt(p.checked_in)) { statusText = 'Checked In'; statusColor = '#2563eb'; statusBg = '#eff6ff'; }
@@ -735,7 +750,12 @@ function renderMobileCards() {
 
         // Expandable panel
         h += '<div class="pk-mobile-expand" id="mexp_' + p.id + '">';
-        if (!isNo) {
+        if (isPending) {
+            h += '<div class="pk-mobile-row" style="justify-content:center;gap:.5rem;padding:.5rem 0">';
+            h += '<button class="pk-act-btn" style="background:#16a34a;color:#fff;font-weight:600;padding:.4rem 1rem" onclick="approvePlayer(' + p.id + ')">Approve</button>';
+            h += '<button class="pk-act-btn danger" style="padding:.4rem 1rem" onclick="denyPlayer(' + p.id + ')">Deny</button>';
+            h += '</div>';
+        } else if (!isNo) {
             // Check-in + Buy-in row
             h += '<div class="pk-mobile-row">';
             h += '<label>Check In</label><input type="checkbox" class="pk-check" ' + (parseInt(p.checked_in)?'checked':'') + ' onchange="toggleCheckin(' + p.id + ')">';
@@ -1353,6 +1373,23 @@ function addWalkin() {
 function removePlayer(pid) {
     postAction('remove_player', { player_id: pid }, function(j) {
         PLAYERS = PLAYERS.filter(function(p) { return parseInt(p.id) !== pid; });
+        POOL = j.pool;
+        refreshUI();
+    });
+}
+
+function approvePlayer(pid) {
+    postAction('approve_player', { player_id: pid }, function(j) {
+        PLAYERS = j.players;
+        POOL = j.pool;
+        refreshUI();
+    });
+}
+
+function denyPlayer(pid) {
+    if (!confirm('Deny this player?')) return;
+    postAction('deny_player', { player_id: pid }, function(j) {
+        PLAYERS = j.players;
         POOL = j.pool;
         refreshUI();
     });

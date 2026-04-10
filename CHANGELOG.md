@@ -4,6 +4,20 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.05504] — 2026-04-10
+
+### Added
+- **Approve/deny in check-in page.** Pending players now show a yellow "Pending" badge and Approve/Deny buttons in checkin.php (list view, table view, and mobile cards). Check-in and buy-in controls are disabled until the player is approved.
+- **Table and seat info in approval notifications.** SMS and email approval notifications now include the player's assigned table and seat number for poker events.
+
+### Fixed
+- **QR walk-ins not appearing in check-in.** Pending invitees are now synced into the poker roster so the host can see and approve them from checkin.php.
+- **Removed invitees staying in check-in.** Players removed from the calendar event are now soft-removed from the poker roster on the next sync.
+- **Check-in/buy-in bypassing approval gate.** Backend now rejects check-in and buy-in actions for pending players.
+- **Manual +Add Walk-in now creates event_invites row.** Host-added walk-ins are auto-approved and properly tracked in event_invites.
+
+---
+
 ## [v0.05503] — 2026-04-10
 
 ### Added

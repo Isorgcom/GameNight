@@ -203,6 +203,20 @@ if ($action === 'toggle_checkin') {
     if (!$session) { echo json_encode(['ok' => false, 'error' => 'Player not found']); exit; }
     verify_event_access($db, $session['event_id'], $current, $isAdmin);
 
+    // If the player's invite is pending, block check-in — they must be approved first.
+    $pl = $db->prepare('SELECT display_name FROM poker_players WHERE id = ?');
+    $pl->execute([$player_id]);
+    $pRow = $pl->fetch();
+    if ($pRow) {
+        $apSt = $db->prepare("SELECT approval_status FROM event_invites WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL");
+        $apSt->execute([$session['event_id'], $pRow['display_name']]);
+        $apStatus = $apSt->fetchColumn() ?: 'approved';
+        if ($apStatus === 'pending') {
+            echo json_encode(['ok' => false, 'error' => 'Player must be approved before checking in.']);
+            exit;
+        }
+    }
+
     $db->beginTransaction();
     $oldP = $db->prepare('SELECT checked_in FROM poker_players WHERE id = ?');
     $oldP->execute([$player_id]);
@@ -235,6 +249,19 @@ if ($action === 'toggle_buyin') {
     $session = get_session_from_player($db, $player_id);
     if (!$session) { echo json_encode(['ok' => false, 'error' => 'Player not found']); exit; }
     verify_event_access($db, $session['event_id'], $current, $isAdmin);
+
+    // Block buy-in for pending players
+    $plName = $db->prepare('SELECT display_name FROM poker_players WHERE id = ?');
+    $plName->execute([$player_id]);
+    $plRow = $plName->fetch();
+    if ($plRow) {
+        $apSt = $db->prepare("SELECT approval_status FROM event_invites WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL");
+        $apSt->execute([$session['event_id'], $plRow['display_name']]);
+        if (($apSt->fetchColumn() ?: 'approved') === 'pending') {
+            echo json_encode(['ok' => false, 'error' => 'Player must be approved before buying in.']);
+            exit;
+        }
+    }
 
     // Atomic toggle — if buying in, also check them in
     $db->beginTransaction();
@@ -395,10 +422,22 @@ if ($action === 'add_walkin') {
     }
 
     // Check if a user with this username exists
-    $userChk = $db->prepare('SELECT id FROM users WHERE LOWER(username) = LOWER(?)');
+    $userChk = $db->prepare('SELECT id, email FROM users WHERE LOWER(username) = LOWER(?)');
     $userChk->execute([$name]);
     $existingUser = $userChk->fetch();
     $user_id = $existingUser ? (int)$existingUser['id'] : null;
+
+    // Ensure an event_invites row exists (host-added = auto-approved)
+    $eiChk = $db->prepare('SELECT id FROM event_invites WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL');
+    $eiChk->execute([$s['event_id'], $name]);
+    if (!$eiChk->fetch()) {
+        $db->prepare("INSERT INTO event_invites (event_id, username, email, rsvp, approval_status) VALUES (?, ?, ?, 'yes', 'approved')")
+           ->execute([$s['event_id'], strtolower($name), $existingUser['email'] ?? null]);
+    } else {
+        // If they were pending/denied, approve them since the host is adding them manually.
+        $db->prepare("UPDATE event_invites SET rsvp = 'yes', approval_status = 'approved' WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL")
+           ->execute([$s['event_id'], $name]);
+    }
 
     $db->prepare('INSERT INTO poker_players (session_id, user_id, display_name, checked_in) VALUES (?, ?, ?, 1)')->execute([$session_id, $user_id, $name]);
     $newId = (int)$db->lastInsertId();
@@ -410,6 +449,63 @@ if ($action === 'add_walkin') {
         'ok'     => true,
         'player' => $p->fetch(),
         'pool'   => calc_pool($db, $session_id),
+    ]);
+    exit;
+}
+
+// ─── approve_player / deny_player ──────────────────────────
+if (in_array($action, ['approve_player', 'deny_player'], true)) {
+    $player_id = (int)($_POST['player_id'] ?? 0);
+    $session = get_session_from_player($db, $player_id);
+    if (!$session) { echo json_encode(['ok' => false, 'error' => 'Player not found']); exit; }
+    verify_event_access($db, $session['event_id'], $current, $isAdmin);
+
+    $pl = $db->prepare('SELECT display_name FROM poker_players WHERE id = ?');
+    $pl->execute([$player_id]);
+    $pRow = $pl->fetch();
+    if (!$pRow) { echo json_encode(['ok' => false, 'error' => 'Player not found']); exit; }
+
+    $newStatus = ($action === 'approve_player') ? 'approved' : 'denied';
+    $db->prepare("UPDATE event_invites SET approval_status = ? WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL")
+       ->execute([$newStatus, $session['event_id'], $pRow['display_name']]);
+
+    if ($newStatus === 'approved') {
+        // Assign table/seat if not already assigned
+        $assigned_table = auto_assign_table($db, $session['id'], $player_id);
+
+        // Re-fetch player to get table/seat for the notification
+        $updated = $db->prepare('SELECT table_number, seat_number FROM poker_players WHERE id = ?');
+        $updated->execute([$player_id]);
+        $updatedRow = $updated->fetch();
+        $tableNum = $updatedRow ? $updatedRow['table_number'] : null;
+        $seatNum  = $updatedRow ? $updatedRow['seat_number'] : null;
+
+        // Notify the approved user with table/seat info
+        $uStmt = $db->prepare('SELECT id, username, email, phone, preferred_contact FROM users WHERE LOWER(username) = LOWER(?)');
+        $uStmt->execute([$pRow['display_name']]);
+        $uRow = $uStmt->fetch();
+        $evStmt = $db->prepare('SELECT title, start_date FROM events WHERE id = ?');
+        $evStmt->execute([$session['event_id']]);
+        $evRow = $evStmt->fetch();
+        if ($uRow && $evRow && get_setting('notifications_enabled', '0') === '1' && function_exists('send_notification')) {
+            $seatInfo = ($tableNum && $seatNum) ? " Table $tableNum, Seat $seatNum." : '';
+            $smsBody  = "You've been approved for \"{$evRow['title']}\" on {$evRow['start_date']}.{$seatInfo}";
+            $htmlBody = '<p>You have been approved for <strong>' . htmlspecialchars($evRow['title']) . '</strong> on ' . htmlspecialchars($evRow['start_date']) . '.</p>'
+                      . ($seatInfo ? '<p style="font-weight:600;color:#2563eb">Table ' . (int)$tableNum . ', Seat ' . (int)$seatNum . '</p>' : '');
+            send_notification($uRow['username'], $uRow['email'] ?? '', $uRow['phone'] ?? '',
+                $uRow['preferred_contact'] ?? 'email',
+                "Approved: " . $evRow['title'], $smsBody, $htmlBody);
+        }
+    } else {
+        // Deny: soft-remove from poker roster
+        $db->prepare('UPDATE poker_players SET removed = 1 WHERE id = ?')->execute([$player_id]);
+    }
+
+    echo json_encode([
+        'ok'      => true,
+        'status'  => $newStatus,
+        'players' => get_players($db, $session['id']),
+        'pool'    => calc_pool($db, $session['id']),
     ]);
     exit;
 }
