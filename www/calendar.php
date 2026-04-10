@@ -83,7 +83,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db->prepare('DELETE FROM event_invites WHERE event_id=? AND occurrence_date IS NULL')->execute([$eid]);
         }
 
-        $ins = $db->prepare('INSERT INTO event_invites (event_id, username, phone, email, rsvp, rsvp_token, occurrence_date, event_role) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+        // Creator/manager-added invites auto-approve regardless of the event's requires_approval flag.
+        $ins = $db->prepare("INSERT INTO event_invites (event_id, username, phone, email, rsvp, rsvp_token, occurrence_date, event_role, approval_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'approved')");
         // Build a lookup of user contact info for auto-filling
         $userLookup = [];
         $uAll = $db->query('SELECT username, email, phone FROM users ORDER BY username')->fetchAll();
@@ -305,12 +306,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($existing) {
                     $db->prepare('UPDATE event_invites SET rsvp=? WHERE id=?')->execute([$rsvp, $existing['id']]);
                 } else {
-                    // Copy contact info from base invite row
-                    $baseStmt = $db->prepare('SELECT phone, email FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL');
+                    // Copy contact info and approval_status from base invite row so per-occurrence rows inherit gating.
+                    $baseStmt = $db->prepare('SELECT phone, email, approval_status FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL');
                     $baseStmt->execute([$eid, $target_username]);
                     $baseRow = $baseStmt->fetch();
-                    $db->prepare('INSERT INTO event_invites (event_id, username, phone, email, rsvp, rsvp_token, occurrence_date) VALUES (?, ?, ?, ?, ?, ?, ?)')
-                       ->execute([$eid, strtolower($target_username), $baseRow['phone'] ?? null, $baseRow['email'] ?? null, $rsvp, bin2hex(random_bytes(16)), $occDate]);
+                    $baseApproval = $baseRow['approval_status'] ?? 'approved';
+                    $db->prepare('INSERT INTO event_invites (event_id, username, phone, email, rsvp, rsvp_token, occurrence_date, approval_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+                       ->execute([$eid, strtolower($target_username), $baseRow['phone'] ?? null, $baseRow['email'] ?? null, $rsvp, bin2hex(random_bytes(16)), $occDate, $baseApproval]);
                 }
             } else {
                 // Base RSVP (non-recurring or updating all-occurrence default)
@@ -357,9 +359,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $chk = $db->prepare('SELECT id FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?)');
             $chk->execute([$eid, $current['username']]);
             if (!$chk->fetch()) {
-                $db->prepare('INSERT INTO event_invites (event_id, username, phone, email, rsvp, rsvp_token) VALUES (?, ?, ?, ?, NULL, ?)')
-                   ->execute([$eid, strtolower($current['username']), $udata['phone'] ?? null, $udata['email'] ?? null, bin2hex(random_bytes(16))]);
-                db_log_activity($current['id'], "signed up for event id: $eid");
+                // Self-signup: approval gate fires if the event has requires_approval=1.
+                $approval = invite_approval_status($eid, 'self');
+                $db->prepare('INSERT INTO event_invites (event_id, username, phone, email, rsvp, rsvp_token, approval_status) VALUES (?, ?, ?, ?, NULL, ?, ?)')
+                   ->execute([$eid, strtolower($current['username']), $udata['phone'] ?? null, $udata['email'] ?? null, bin2hex(random_bytes(16)), $approval]);
+                db_log_activity($current['id'], "signed up for event id: $eid" . ($approval === 'pending' ? ' (pending approval)' : ''));
             }
         }
         if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {

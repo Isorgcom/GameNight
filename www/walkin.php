@@ -107,9 +107,10 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     $db->prepare("UPDATE event_invites SET rsvp = 'yes' WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL")
                        ->execute([$event_id, $username]);
                 } else {
-                    // Insert new invite row
-                    $db->prepare('INSERT INTO event_invites (event_id, username, email, rsvp) VALUES (?, ?, ?, ?)')
-                       ->execute([$event_id, $username, $email, 'yes']);
+                    // Insert new invite row. Walk-in is a 'self' signup — approval gate fires if requires_approval=1.
+                    $walkin_approval = invite_approval_status($event_id, 'self');
+                    $db->prepare('INSERT INTO event_invites (event_id, username, email, rsvp, approval_status) VALUES (?, ?, ?, ?, ?)')
+                       ->execute([$event_id, $username, $email, 'yes', $walkin_approval]);
                 }
                 db_log_anon_activity("walkin_rsvp: existing user $username for event $event_id");
                 // Remember for next walk-up (30 days)
@@ -151,9 +152,10 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
                        ->execute([$final_username, '', $email, $phone_normalized !== '' ? $phone_normalized : null, 'user']);
                     $new_id = (int)$db->lastInsertId();
 
-                    // Invite to event
-                    $db->prepare('INSERT INTO event_invites (event_id, username, email, rsvp) VALUES (?, ?, ?, ?)')
-                       ->execute([$event_id, $final_username, $email, 'yes']);
+                    // Invite to event. Walk-in is a 'self' signup — approval gate fires if requires_approval=1.
+                    $new_walkin_approval = invite_approval_status($event_id, 'self');
+                    $db->prepare('INSERT INTO event_invites (event_id, username, email, rsvp, approval_status) VALUES (?, ?, ?, ?, ?)')
+                       ->execute([$event_id, $final_username, $email, 'yes', $new_walkin_approval]);
 
                     db_log_anon_activity("walkin_new_user: $final_username for event $event_id");
 

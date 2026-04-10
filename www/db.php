@@ -161,6 +161,10 @@ function db_init(PDO $pdo): void {
     // Add occurrence_date to event_invites for per-occurrence invite tracking
     try { $pdo->exec("ALTER TABLE event_invites ADD COLUMN occurrence_date TEXT"); } catch (Exception $e) {}
 
+    // Per-event host approval gate for self-signups and walk-ins
+    try { $pdo->exec("ALTER TABLE events ADD COLUMN requires_approval INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE event_invites ADD COLUMN approval_status TEXT NOT NULL DEFAULT 'approved'"); } catch (Exception $e) {}
+
     // Unique index on lowercase email (login identifier) — safe on existing DBs
     try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(LOWER(email)) WHERE email IS NOT NULL"); } catch (Exception $e) {}
 
@@ -491,6 +495,22 @@ function set_setting(string $key, string $value): void {
         ON CONFLICT(key) DO UPDATE SET value = excluded.value')
         ->execute([$key, $store]);
     $_settings_cache[$key] = $value; // cache the decrypted value
+}
+
+/**
+ * Returns the approval_status a new event_invites row should be created with,
+ * given the source of the signup:
+ *   - 'creator' — added by the creator/manager via the editor (always 'approved')
+ *   - 'self'    — user self-signed-up via the sign-up button or walk-in QR
+ *
+ * Self-signups are 'pending' only if the event has requires_approval=1, otherwise
+ * 'approved' (preserving current behavior for events without the gate enabled).
+ */
+function invite_approval_status(int $event_id, string $source): string {
+    if ($source === 'creator') return 'approved';
+    $stmt = get_db()->prepare('SELECT requires_approval FROM events WHERE id = ?');
+    $stmt->execute([$event_id]);
+    return ((int)$stmt->fetchColumn() === 1) ? 'pending' : 'approved';
 }
 
 function get_site_url(): string {
