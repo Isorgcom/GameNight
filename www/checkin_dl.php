@@ -331,7 +331,9 @@ if ($action === 'set_table') {
     if (!$session) { echo json_encode(['ok' => false, 'error' => 'Player not found']); exit; }
     verify_event_access($db, $session['event_id'], $current, $isAdmin);
 
-    $db->prepare('UPDATE poker_players SET table_number = ? WHERE id = ?')->execute([$table_number, $player_id]);
+    // Assign a random open seat at the target table (or clear seat if unassigning)
+    $seat = ($table_number !== null) ? pick_random_seat($db, $session['id'], $table_number) : null;
+    $db->prepare('UPDATE poker_players SET table_number = ?, seat_number = ? WHERE id = ?')->execute([$table_number, $seat, $player_id]);
 
     $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
     $p->execute([$player_id]);
@@ -636,11 +638,8 @@ if ($action === 'move_player_table') {
         echo json_encode(['ok' => false, 'error' => 'Invalid table number']); exit;
     }
 
-    // Next seat at target table
-    $seatStmt = $db->prepare('SELECT COALESCE(MAX(seat_number), 0) + 1 FROM poker_players WHERE session_id = ? AND table_number = ?');
-    $seatStmt->execute([$session['id'], $new_table]);
-    $seat = (int)$seatStmt->fetchColumn();
-
+    // Random open seat at target table
+    $seat = pick_random_seat($db, $session['id'], $new_table);
     $db->prepare('UPDATE poker_players SET table_number = ?, seat_number = ? WHERE id = ?')->execute([$new_table, $seat, $player_id]);
 
     $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
@@ -689,16 +688,11 @@ if ($action === 'break_up_table') {
     // Distribute displaced players into the remaining tables
     $moves = [];
     if ($new_num === 1) {
-        // Only 1 table left — assign all unassigned players to table 1
+        // Only 1 table left — assign all unassigned players to random seats at table 1
         $unassigned = $db->prepare('SELECT id, display_name FROM poker_players WHERE session_id = ? AND removed = 0 AND eliminated = 0 AND table_number IS NULL');
         $unassigned->execute([$session_id]);
-        $seat = 0;
-        // Get current max seat at table 1
-        $maxSeat = $db->prepare('SELECT COALESCE(MAX(seat_number), 0) FROM poker_players WHERE session_id = ? AND table_number = 1');
-        $maxSeat->execute([$session_id]);
-        $seat = (int)$maxSeat->fetchColumn();
         foreach ($unassigned->fetchAll() as $p) {
-            $seat++;
+            $seat = pick_random_seat($db, $session_id, 1);
             $db->prepare('UPDATE poker_players SET table_number = 1, seat_number = ? WHERE id = ?')->execute([$seat, $p['id']]);
             $moves[] = ['player_id' => (int)$p['id'], 'display_name' => $p['display_name'], 'old_table' => $table_number, 'new_table' => 1];
         }

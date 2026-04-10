@@ -4,6 +4,20 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.05503] — 2026-04-10
+
+### Added
+- **Random seat assignment.** Players get a random open seat (1 through seats_per_table) when checking in, buying in, walking in, or being moved to a table. Over-capacity tables auto-expand with an extra seat. New `pick_random_seat()` helper replaces all sequential assignment.
+- **Seat and table columns in check-in list view.** Table (editable) and Seat columns now always visible. Table view shows seat number before player name, sorted by seat. Mobile cards show table and seat info.
+
+### Fixed
+- **Removed players reappearing on re-RSVP.** Players who were removed from a poker session and later RSVP yes again now correctly reappear in the check-in roster.
+
+### Changed
+- **Default seats per table changed from 9 to 8.** New sessions default to 8 seats. Existing sessions unchanged.
+
+---
+
 ## [v0.05502] — 2026-04-10
 
 ### Changed

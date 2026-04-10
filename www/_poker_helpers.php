@@ -111,11 +111,18 @@ function sync_invitees($db, $session_id, $event_id) {
     $pIns = $db->prepare('INSERT INTO poker_players (session_id, user_id, display_name, rsvp) VALUES (?, ?, ?, ?)');
     $pUpd = $db->prepare('UPDATE poker_players SET rsvp = ? WHERE session_id = ? AND LOWER(display_name) = LOWER(?)');
 
+    // Also prepare a statement to un-remove players who re-RSVP (e.g., were removed then RSVPed again)
+    $pUnremove = $db->prepare('UPDATE poker_players SET removed = 0, rsvp = ? WHERE session_id = ? AND LOWER(display_name) = LOWER(?) AND removed = 1');
+
     foreach ($invites->fetchAll() as $inv) {
         if (!in_array(strtolower($inv['username']), $existingNames)) {
             $pIns->execute([$session_id, $inv['user_id'], $inv['username'], $inv['rsvp']]);
         } else {
             $pUpd->execute([$inv['rsvp'], $session_id, $inv['username']]);
+            // If a removed player RSVPs again, bring them back
+            if ($inv['rsvp'] === 'yes') {
+                $pUnremove->execute([$inv['rsvp'], $session_id, $inv['username']]);
+            }
         }
     }
 }
@@ -125,6 +132,26 @@ function get_players($db, $session_id) {
     $stmt = $db->prepare("SELECT * FROM poker_players WHERE session_id = ? AND removed = 0 ORDER BY CASE WHEN rsvp='no' THEN 2 WHEN rsvp IS NULL THEN 1 ELSE 0 END, eliminated ASC, display_name ASC");
     $stmt->execute([$session_id]);
     return $stmt->fetchAll();
+}
+
+// Pick a random open seat at a table. If the table is over-capacity, add one more seat.
+function pick_random_seat(PDO $db, int $session_id, int $table_number): int {
+    $sess = $db->prepare('SELECT seats_per_table FROM poker_sessions WHERE id = ?');
+    $sess->execute([$session_id]);
+    $seats_per_table = (int)($sess->fetchColumn() ?: 8);
+
+    $occupied = $db->prepare('SELECT seat_number FROM poker_players WHERE session_id = ? AND table_number = ? AND removed = 0 AND seat_number IS NOT NULL');
+    $occupied->execute([$session_id, $table_number]);
+    $taken = array_map('intval', $occupied->fetchAll(PDO::FETCH_COLUMN));
+
+    $all_seats = range(1, $seats_per_table);
+    $open = array_values(array_diff($all_seats, $taken));
+
+    if (empty($open)) {
+        // Over-sitting: add one more seat beyond current max
+        return max($seats_per_table, empty($taken) ? 0 : max($taken)) + 1;
+    }
+    return $open[array_rand($open)];
 }
 
 // Auto-assign a player to the table with fewest active players
@@ -140,9 +167,7 @@ function auto_assign_table($db, $session_id, $player_id): ?int {
         $cur->execute([$player_id]);
         $row = $cur->fetch();
         if ($row && $row['table_number'] !== null) return (int)$row['table_number'];
-        $seatStmt = $db->prepare('SELECT COALESCE(MAX(seat_number), 0) + 1 FROM poker_players WHERE session_id = ? AND table_number = 1');
-        $seatStmt->execute([$session_id]);
-        $seat = (int)$seatStmt->fetchColumn();
+        $seat = pick_random_seat($db, $session_id, 1);
         $db->prepare('UPDATE poker_players SET table_number = 1, seat_number = ? WHERE id = ?')->execute([$seat, $player_id]);
         return 1;
     }
@@ -154,7 +179,7 @@ function auto_assign_table($db, $session_id, $player_id): ?int {
     if ($row && $row['table_number'] !== null) return (int)$row['table_number'];
 
     $num = (int)$s['num_tables'];
-    $maxSeats = (int)($s['seats_per_table'] ?: 9);
+    $maxSeats = (int)($s['seats_per_table'] ?: 8);
 
     // Count active players per table
     $counts = $db->prepare('SELECT table_number, COUNT(*) as cnt FROM poker_players WHERE session_id = ? AND removed = 0 AND eliminated = 0 AND table_number IS NOT NULL GROUP BY table_number');
@@ -179,11 +204,8 @@ function auto_assign_table($db, $session_id, $player_id): ?int {
     // All tables full — no assignment
     if ($minTable === null) return null;
 
-    // Next seat number at that table
-    $seatStmt = $db->prepare('SELECT COALESCE(MAX(seat_number), 0) + 1 FROM poker_players WHERE session_id = ? AND table_number = ?');
-    $seatStmt->execute([$session_id, $minTable]);
-    $seat = (int)$seatStmt->fetchColumn();
-
+    // Random open seat at that table
+    $seat = pick_random_seat($db, $session_id, $minTable);
     $db->prepare('UPDATE poker_players SET table_number = ?, seat_number = ? WHERE id = ?')->execute([$minTable, $seat, $player_id]);
     return $minTable;
 }
@@ -196,16 +218,13 @@ function rebalance_tables($db, $session_id, array $protected_ids = []): array {
     $s = $sess->fetch();
     if (!$s) return [];
 
-    // Single table: assign all unassigned players to table 1
+    // Single table: assign all unassigned players to table 1 with random seats
     if ((int)$s['num_tables'] <= 1) {
         $moves = [];
         $unassigned = $db->prepare('SELECT id, display_name FROM poker_players WHERE session_id = ? AND removed = 0 AND eliminated = 0 AND checked_in = 1 AND table_number IS NULL');
         $unassigned->execute([$session_id]);
-        $maxSeat = $db->prepare('SELECT COALESCE(MAX(seat_number), 0) FROM poker_players WHERE session_id = ? AND table_number = 1');
-        $maxSeat->execute([$session_id]);
-        $seat = (int)$maxSeat->fetchColumn();
         foreach ($unassigned->fetchAll() as $p) {
-            $seat++;
+            $seat = pick_random_seat($db, $session_id, 1);
             $db->prepare('UPDATE poker_players SET table_number = 1, seat_number = ? WHERE id = ?')->execute([$seat, $p['id']]);
             $moves[] = ['player_id' => (int)$p['id'], 'display_name' => $p['display_name'], 'old_table' => null, 'new_table' => 1];
         }
@@ -276,13 +295,14 @@ function rebalance_tables($db, $session_id, array $protected_ids = []): array {
         if (!$movedOne) break;
     }
 
-    // Write back and track moves
+    // Write back with random seat assignment and track moves
     $moves = [];
     $update = $db->prepare('UPDATE poker_players SET table_number = ?, seat_number = ? WHERE id = ?');
     foreach ($byTable as $t => $tPlayers) {
-        foreach ($tPlayers as $seat => $p) {
+        foreach ($tPlayers as $p) {
             $oldTable = ($p['table_number'] !== null && $p['table_number'] !== '') ? (int)$p['table_number'] : null;
-            $update->execute([$t, $seat + 1, $p['id']]);
+            $seat = pick_random_seat($db, $session_id, $t);
+            $update->execute([$t, $seat, $p['id']]);
             if ($oldTable === null || $oldTable !== $t) {
                 $moves[] = ['player_id' => (int)$p['id'], 'display_name' => $p['display_name'], 'old_table' => $oldTable, 'new_table' => $t];
             }

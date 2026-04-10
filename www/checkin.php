@@ -510,8 +510,7 @@ function renderTableHeader() {
     } else {
         h += '<th>Total In</th><th>Cash Out</th><th>Profit</th>';
     }
-    if (parseInt(SESSION.num_tables) > 1) h += '<th>Table</th>';
-    h += '<th>Status</th><th>Actions</th>';
+    h += '<th>Table</th><th>Seat</th><th>Status</th><th>Actions</th>';
     return h;
 }
 
@@ -634,9 +633,8 @@ function renderPlayerRows() {
             }
         }
 
-        if (parseInt(SESSION.num_tables) > 1) {
-            h += '<td><input type="number" class="pk-tbl-input" value="' + (p.table_number || '') + '" min="1" max="' + SESSION.num_tables + '" onchange="setTable(' + p.id + ',this.value)"></td>';
-        }
+        h += '<td><input type="number" class="pk-tbl-input" value="' + (p.table_number || '') + '" min="1" max="' + SESSION.num_tables + '" onchange="setTable(' + p.id + ',this.value)" style="width:3rem"></td>';
+        h += '<td style="text-align:center;color:#64748b;font-size:.8rem;font-weight:600">' + (p.seat_number || '—') + '</td>';
 
         // Status
         if (isTourney()) {
@@ -730,7 +728,8 @@ function renderMobileCards() {
 
         h += '<div class="pk-mobile-card ' + cardClass + '" data-pid="' + p.id + '">';
         h += '<div class="pk-mobile-summary" onclick="toggleMobileExpand(' + p.id + ')">';
-        h += '<span class="pk-mobile-name">' + escHtml(p.display_name) + '</span>';
+        var seatInfo = p.seat_number ? 'T' + (p.table_number || '?') + ' #' + p.seat_number : '';
+        h += '<span class="pk-mobile-name">' + escHtml(p.display_name) + (seatInfo ? ' <span style="color:#94a3b8;font-size:.72rem;font-weight:600">' + seatInfo + '</span>' : '') + '</span>';
         h += '<span class="pk-mobile-status" style="color:' + statusColor + ';background:' + statusBg + '">' + statusText + '</span>';
         h += '</div>';
 
@@ -866,7 +865,7 @@ function renderSettingsPanel() {
     h += '</div>';
     h += '<div class="pk-settings-grid" style="margin-top:.75rem">';
     h += '<div><label>Number of Tables</label><input type="number" id="cfg_tables" value="' + SESSION.num_tables + '" min="1"></div>';
-    h += '<div><label>Seats per Table</label><input type="number" id="cfg_seats_per_table" value="' + (SESSION.seats_per_table || 9) + '" min="2" max="20"></div>';
+    h += '<div><label>Seats per Table</label><input type="number" id="cfg_seats_per_table" value="' + (SESSION.seats_per_table || 8) + '" min="2" max="20"></div>';
     h += '<div><label>Auto-Assign Tables</label><select id="cfg_auto_assign"><option value="1"' + (parseInt(SESSION.auto_assign_tables) ? ' selected' : '') + '>Yes</option><option value="0"' + (!parseInt(SESSION.auto_assign_tables) ? ' selected' : '') + '>No</option></select></div>';
     h += '</div>';
 
@@ -1179,11 +1178,13 @@ function renderTableView() {
            + (numTables > 1 ? '<button class="pk-act-btn" onclick="breakUpTable(' + t + ')" style="font-size:.7rem;color:#ef4444;flex-shrink:0" title="Break up this table and distribute players to other tables">Break Up</button>' : '')
            + '</div>';
         h += '<div class="pk-table-card-body">';
+        players.sort(function(a, b) { return (parseInt(a.seat_number) || 99) - (parseInt(b.seat_number) || 99); });
         for (var j = 0; j < players.length; j++) {
             var p = players[j];
             var isElim = parseInt(p.eliminated);
+            var seatTag = p.seat_number ? '<span style="color:#94a3b8;font-size:.72rem;font-weight:700;min-width:1.4rem;display:inline-block">' + p.seat_number + '</span> ' : '';
             h += '<div class="pk-tv-player' + (isElim ? ' elim' : '') + '">';
-            h += '<span class="pk-tv-name">' + escHtml(p.display_name) + '</span>';
+            h += '<span class="pk-tv-name">' + seatTag + escHtml(p.display_name) + '</span>';
             h += '<span class="pk-tv-actions">';
             if (!isElim) {
                 h += '<button class="pk-act-btn" onclick="eliminatePlayer(' + p.id + ')" title="Eliminate" style="color:#ef4444;font-weight:700">&#10005;</button>';
