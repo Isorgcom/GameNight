@@ -327,6 +327,9 @@ function db_init(PDO $pdo): void {
         created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
     )"); } catch (Exception $e) {}
 
+    // Personal vs global preset visibility (admin can create global presets visible to all users)
+    try { $pdo->exec("ALTER TABLE blind_presets ADD COLUMN is_global INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS blind_preset_levels (
         id               INTEGER PRIMARY KEY AUTOINCREMENT,
         preset_id        INTEGER NOT NULL,

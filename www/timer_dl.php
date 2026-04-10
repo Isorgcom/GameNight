@@ -311,7 +311,7 @@ if ($action === 'init_timer') {
 
 // ─── GET: get_presets ─────────────────────────────────────
 if ($action === 'get_presets') {
-    $stmt = $db->prepare('SELECT id, name, is_default, created_by FROM blind_presets WHERE is_default = 1 OR created_by = ? ORDER BY is_default DESC, name ASC');
+    $stmt = $db->prepare('SELECT id, name, is_default, is_global, created_by FROM blind_presets WHERE is_default = 1 OR is_global = 1 OR created_by = ? ORDER BY is_default DESC, is_global DESC, name ASC');
     $stmt->execute([$current['id']]);
     echo json_encode(['ok' => true, 'presets' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
     exit;
@@ -346,13 +346,19 @@ if ($action === 'load_preset') {
 if ($action === 'save_preset') {
     $name = trim($_POST['name'] ?? '');
     $levels = json_decode($_POST['levels'] ?? '[]', true);
+    $is_global = !empty($_POST['is_global']) ? 1 : 0;
 
     if (!$name || empty($levels)) {
         echo json_encode(['ok' => false, 'error' => 'Name and levels required']);
         exit;
     }
+    // Only admins can save global presets.
+    if ($is_global && !$isAdmin) {
+        echo json_encode(['ok' => false, 'error' => 'Only admins can save global presets']);
+        exit;
+    }
 
-    $db->prepare('INSERT INTO blind_presets (name, created_by) VALUES (?, ?)')->execute([$name, $current['id']]);
+    $db->prepare('INSERT INTO blind_presets (name, created_by, is_global) VALUES (?, ?, ?)')->execute([$name, $current['id'], $is_global]);
     $pid = (int)$db->lastInsertId();
 
     $ins = $db->prepare('INSERT INTO blind_preset_levels (preset_id, level_number, small_blind, big_blind, ante, duration_minutes, is_break) VALUES (?, ?, ?, ?, ?, ?, ?)');
@@ -372,8 +378,24 @@ if ($action === 'delete_preset') {
     $preset = $p->fetch();
     if (!$preset) { echo json_encode(['ok' => false, 'error' => 'Not found']); exit; }
     if ((int)$preset['is_default']) { echo json_encode(['ok' => false, 'error' => 'Cannot delete default']); exit; }
+    // Global presets can only be deleted by admins.
+    if ((int)($preset['is_global'] ?? 0) && !$isAdmin) { echo json_encode(['ok' => false, 'error' => 'Only admins can delete global presets']); exit; }
     if ((int)$preset['created_by'] !== (int)$current['id'] && !$isAdmin) { echo json_encode(['ok' => false, 'error' => 'Access denied']); exit; }
     $db->prepare('DELETE FROM blind_presets WHERE id = ?')->execute([$preset_id]);
+    echo json_encode(['ok' => true]);
+    exit;
+}
+
+// ─── POST: set_default_preset (admin only) ────────────────
+if ($action === 'set_default_preset') {
+    if (!$isAdmin) { echo json_encode(['ok' => false, 'error' => 'Admin only']); exit; }
+    $preset_id = (int)($_POST['preset_id'] ?? 0);
+    $p = $db->prepare('SELECT id FROM blind_presets WHERE id = ?');
+    $p->execute([$preset_id]);
+    if (!$p->fetch()) { echo json_encode(['ok' => false, 'error' => 'Preset not found']); exit; }
+    // Swap default: clear old, set new (also mark new as global so it stays visible if default moves again).
+    $db->prepare('UPDATE blind_presets SET is_default = 0 WHERE is_default = 1')->execute();
+    $db->prepare('UPDATE blind_presets SET is_default = 1, is_global = 1 WHERE id = ?')->execute([$preset_id]);
     echo json_encode(['ok' => true]);
     exit;
 }
@@ -390,14 +412,23 @@ if ($action === 'update_levels') {
     }
 
     $preset_id = (int)$timer['preset_id'];
+    $created_copy = false;
 
-    $pc = $db->prepare('SELECT is_default FROM blind_presets WHERE id = ?');
+    $pc = $db->prepare('SELECT is_default, is_global, created_by FROM blind_presets WHERE id = ?');
     $pc->execute([$preset_id]);
     $presetRow = $pc->fetch();
-    if ($presetRow && (int)$presetRow['is_default']) {
-        $db->prepare('INSERT INTO blind_presets (name, created_by) VALUES (?, ?)')->execute(['Custom', $current['id']]);
-        $preset_id = (int)$db->lastInsertId();
-        $db->prepare("UPDATE timer_state SET preset_id = ?, updated_at = datetime('now') WHERE id = ?")->execute([$preset_id, $timer['id']]);
+
+    if ($presetRow) {
+        $is_protected = (int)($presetRow['is_default'] ?? 0) || (int)($presetRow['is_global'] ?? 0);
+        $is_own       = (int)($presetRow['created_by'] ?? 0) === (int)$current['id'];
+
+        // Admin can edit default/global presets in place. Non-admins get a personal copy.
+        if ($is_protected && !$isAdmin) {
+            $db->prepare('INSERT INTO blind_presets (name, created_by) VALUES (?, ?)')->execute(['Custom', $current['id']]);
+            $preset_id = (int)$db->lastInsertId();
+            $db->prepare("UPDATE timer_state SET preset_id = ?, updated_at = datetime('now') WHERE id = ?")->execute([$preset_id, $timer['id']]);
+            $created_copy = true;
+        }
     }
 
     $db->prepare('DELETE FROM blind_preset_levels WHERE preset_id = ?')->execute([$preset_id]);
@@ -406,7 +437,7 @@ if ($action === 'update_levels') {
         $ins->execute([$preset_id, (int)$lv['level_number'], (int)($lv['small_blind'] ?? 0), (int)($lv['big_blind'] ?? 0), (int)($lv['ante'] ?? 0), (int)($lv['duration_minutes'] ?? 15), (int)($lv['is_break'] ?? 0)]);
     }
 
-    echo json_encode(['ok' => true, 'preset_id' => $preset_id]);
+    echo json_encode(['ok' => true, 'preset_id' => $preset_id, 'created_copy' => $created_copy]);
     exit;
 }
 

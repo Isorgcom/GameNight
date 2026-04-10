@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.05500] — 2026-04-10
+
+### Added
+- **Personal vs global blind presets.** Admins can save blind presets as "Global" (visible to all users) or "Personal" (private). Regular users always save personal presets. The preset dropdown is now organized into three `<optgroup>` sections: Default, Global Presets, and My Presets. Admins can edit the default preset in place (non-admins get a personal copy), create new global presets, and promote any preset to be the new default via a "Set Default" button. Delete is blocked on the default preset, and restricted to admins for global presets.
+
+---
+
 ## [v0.05400] — 2026-04-09
 
 ### Added

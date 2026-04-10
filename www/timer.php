@@ -738,10 +738,11 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
         <h3>Blind Structure</h3>
         <?php if (!$is_guest): ?>
         <div class="timer-preset-bar">
-            <select id="presetSelect"><option value="">Loading...</option></select>
+            <select id="presetSelect" onchange="updatePresetButtons()"><option value="">Loading...</option></select>
             <button onclick="loadPreset()">Load</button>
             <button onclick="savePresetAs()">Save As...</button>
-            <button onclick="deletePreset()">Delete</button>
+            <button id="btnDeletePreset" onclick="deletePreset()">Delete</button>
+            <button id="btnSetDefault" onclick="setAsDefault()" style="display:none">Set Default</button>
             <button onclick="exportLevels()">Export</button>
             <button onclick="document.getElementById('importFile').click()">Import</button>
             <input type="file" id="importFile" accept=".json" style="display:none" onchange="importLevels(this)">
@@ -831,6 +832,7 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
 // ─── Config from PHP ──────────────────────────────────────
 var IS_REMOTE = <?= json_encode($is_remote) ?>;
 var IS_GUEST = <?= json_encode($is_guest) ?>;
+var IS_ADMIN = <?= json_encode($isAdmin) ?>;
 var CAN_CONTROL = <?= json_encode($can_control) ?>;
 var SESSION_ID = <?= json_encode($session ? (int)$session['id'] : null) ?>;
 var REMOTE_KEY = <?= json_encode($remote_key) ?>;
@@ -1464,12 +1466,33 @@ function saveLevels() {
                 renderAll();
                 var btn = document.querySelector('.timer-level-btns .btn-save');
                 if (btn) {
-                    btn.textContent = 'Saved!';
+                    var label = j.created_copy ? 'Saved as personal copy!' : 'Saved!';
+                    btn.textContent = label;
                     btn.style.background = '#16a34a';
-                    setTimeout(function() { btn.textContent = 'Save Changes'; btn.style.background = ''; }, 2000);
+                    setTimeout(function() { btn.textContent = 'Save Changes'; btn.style.background = ''; }, 2500);
                 }
             } else {
                 alert(j.error || 'Error saving levels');
+            }
+        });
+}
+
+function setAsDefault() {
+    var pid = document.getElementById('presetSelect').value;
+    if (!pid) return;
+    if (!confirm('Set this preset as the default for all users?')) return;
+    var fd = new FormData();
+    fd.append('csrf_token', CSRF);
+    fd.append('action', 'set_default_preset');
+    fd.append('preset_id', pid);
+    fetch('/timer_dl.php', { method: 'POST', body: fd })
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+            if (j.ok) {
+                alert('Default preset updated!');
+                loadPresetList();
+            } else {
+                alert(j.error || 'Error setting default');
             }
         });
 }
@@ -1481,15 +1504,54 @@ function loadPresetList() {
             if (!j.ok) return;
             var sel = document.getElementById('presetSelect');
             sel.innerHTML = '';
+            // Split presets into groups: default, global, personal
+            var defaults = [], globals = [], personal = [];
             j.presets.forEach(function(p) {
-                var opt = document.createElement('option');
-                opt.value = p.id;
-                opt.textContent = p.name + (parseInt(p.is_default) ? ' (Default)' : '');
-                sel.appendChild(opt);
+                p._isDefault = parseInt(p.is_default);
+                p._isGlobal  = parseInt(p.is_global);
+                if (p._isDefault) defaults.push(p);
+                else if (p._isGlobal) globals.push(p);
+                else personal.push(p);
             });
+            function addGroup(label, items) {
+                if (!items.length) return;
+                var grp = document.createElement('optgroup');
+                grp.label = label;
+                items.forEach(function(p) {
+                    var opt = document.createElement('option');
+                    opt.value = p.id;
+                    opt.textContent = p.name;
+                    opt.dataset.isDefault = p._isDefault;
+                    opt.dataset.isGlobal  = p._isGlobal;
+                    opt.dataset.createdBy = p.created_by;
+                    grp.appendChild(opt);
+                });
+                sel.appendChild(grp);
+            }
+            addGroup('Default', defaults);
+            addGroup('Global Presets', globals);
+            addGroup('My Presets', personal);
             // Select the currently active preset
             if (CURRENT_PRESET_ID) sel.value = String(CURRENT_PRESET_ID);
+            updatePresetButtons();
         });
+}
+
+// Show/hide Set-as-Default and Delete buttons based on the selected preset
+function updatePresetButtons() {
+    var sel = document.getElementById('presetSelect');
+    var opt = sel.options[sel.selectedIndex];
+    var setDefaultBtn = document.getElementById('btnSetDefault');
+    var deleteBtn     = document.getElementById('btnDeletePreset');
+    if (!opt || !setDefaultBtn || !deleteBtn) return;
+    var isDef  = opt.dataset.isDefault === '1';
+    var isGlob = opt.dataset.isGlobal  === '1';
+    // Set as Default: admin only, not on the already-default preset
+    setDefaultBtn.style.display = (IS_ADMIN && !isDef) ? '' : 'none';
+    // Delete: never on default; global only for admin; personal always visible
+    if (isDef) { deleteBtn.style.display = 'none'; }
+    else if (isGlob) { deleteBtn.style.display = IS_ADMIN ? '' : 'none'; }
+    else { deleteBtn.style.display = ''; }
 }
 
 function loadPreset() {
@@ -1526,18 +1588,23 @@ function loadPreset() {
 function savePresetAs() {
     var name = prompt('Preset name:');
     if (!name) return;
+    var is_global = 0;
+    if (IS_ADMIN) {
+        is_global = confirm('Save as a Global preset (visible to all users)?\n\nOK = Global\nCancel = Personal (only you)') ? 1 : 0;
+    }
     collectLevelsFromTable();
     for (var i = 0; i < LEVELS.length; i++) LEVELS[i].level_number = i + 1;
     var fd = new FormData();
     fd.append('csrf_token', CSRF);
     fd.append('action', 'save_preset');
     fd.append('name', name);
+    fd.append('is_global', is_global);
     fd.append('levels', JSON.stringify(LEVELS));
     fetch('/timer_dl.php', { method: 'POST', body: fd })
         .then(function(r) { return r.json(); })
         .then(function(j) {
             if (j.ok) {
-                alert('Preset saved!');
+                alert('Preset saved' + (is_global ? ' (global)!' : '!'));
                 loadPresetList();
             } else {
                 alert(j.error || 'Error saving preset');
