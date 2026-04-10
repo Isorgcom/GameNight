@@ -156,9 +156,23 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     $success = "You're on the waiting list for <strong>" . htmlspecialchars($event['title']) . "</strong>. The host will approve your registration shortly.";
                 }
 
-                // Notify the event creator about a brand-new pending signup.
+                // Notify the event creator about a brand-new pending signup,
+                // and send the walk-in user a confirmation that they're on the waiting list.
                 if ($is_new_pending) {
                     notify_creator_of_pending($event_id, $username);
+                    // Notify the walk-in user they're on the waiting list
+                    $uNotify = $db->prepare('SELECT username, email, phone, preferred_contact FROM users WHERE id = ?');
+                    $uNotify->execute([$uid]);
+                    $uRow = $uNotify->fetch();
+                    if ($uRow && function_exists('send_notification')) {
+                        $smsBody  = "You're on the waiting list for \"{$event['title']}\" on {$event['start_date']}. The host will approve your registration shortly.";
+                        $htmlBody = '<p>You are on the waiting list for <strong>' . htmlspecialchars($event['title']) . '</strong> on ' . htmlspecialchars($event['start_date']) . '.</p>'
+                                  . '<p style="color:#64748b">The host will approve your registration shortly. You will receive another notification when approved.</p>';
+                        send_notification($uRow['username'], $uRow['email'] ?? '', $uRow['phone'] ?? '',
+                            $uRow['preferred_contact'] ?? 'email',
+                            "Waiting list: " . $event['title'],
+                            $smsBody, $htmlBody);
+                    }
                 }
 
             } else {
@@ -215,6 +229,16 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         $success = "You're on the waiting list for <strong>" . htmlspecialchars($event['title']) . "</strong>. The host will approve your registration shortly. Check your email to verify your account so you don't miss the approval notification.";
                         // Notify the host about the pending signup.
                         notify_creator_of_pending($event_id, $final_username);
+                        // Notify the new user they're on the waiting list (email only — they just registered).
+                        if (function_exists('send_notification')) {
+                            $smsBody  = "You're on the waiting list for \"{$event['title']}\" on {$event['start_date']}. The host will approve your registration shortly.";
+                            $htmlBody = '<p>You are on the waiting list for <strong>' . htmlspecialchars($event['title']) . '</strong> on ' . htmlspecialchars($event['start_date']) . '.</p>'
+                                      . '<p style="color:#64748b">The host will approve your registration shortly. You will receive another notification when approved.</p>';
+                            send_notification($final_username, $email, $phone_normalized,
+                                'email', // new user — default to email since they just gave us their email
+                                "Waiting list: " . $event['title'],
+                                $smsBody, $htmlBody);
+                        }
                     }
                 }
             }

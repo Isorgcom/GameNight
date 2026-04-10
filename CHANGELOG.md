@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.05505] — 2026-04-10
+
+### Added
+- **Waiting list notification to walk-in user.** When a QR walk-in is put on the waiting list (approval required), the walk-in user now receives an SMS/email confirmation: "You're on the waiting list for Event. The host will approve your registration shortly." Existing users get notified via their preferred contact; new users get an email.
+
+---
+
 ## [v0.05504] — 2026-04-10
 
 ### Added
