@@ -21,7 +21,7 @@ if ($token === '' || !in_array($rsvp, $valid, true)) {
 }
 
 $db   = get_db();
-$stmt = $db->prepare('SELECT ei.id, ei.event_id, ei.username, ei.rsvp, e.title, e.start_date, e.start_time
+$stmt = $db->prepare('SELECT ei.id, ei.event_id, ei.username, ei.rsvp, ei.approval_status, e.title, e.start_date, e.start_time
                        FROM event_invites ei
                        JOIN events e ON e.id = ei.event_id
                        WHERE ei.rsvp_token = ?');
@@ -30,6 +30,14 @@ $invite = $stmt->fetch();
 
 if (!$invite) {
     show_page('Link Expired', 'This RSVP link is no longer valid. The event may have been updated.', 'error');
+    exit;
+}
+
+// Reject RSVPs for invites that haven't been approved yet (or were denied).
+if (($invite['approval_status'] ?? 'approved') !== 'approved') {
+    show_page('Awaiting Approval',
+        'Your spot for <strong>' . htmlspecialchars($invite['title']) . '</strong> is waiting for the host to approve. You will receive another notification when you have been approved.',
+        'error');
     exit;
 }
 

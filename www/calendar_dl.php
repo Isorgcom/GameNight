@@ -112,6 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $recurrence = in_array($_POST['recurrence'] ?? '', ['none','daily','weekly','monthly','yearly'])
                       ? $_POST['recurrence'] : 'none';
         $recEnd = trim($_POST['recurrence_end'] ?? '') ?: null;
+        $requires_approval = !empty($_POST['requires_approval']) ? 1 : 0;
 
         if ($title === '' || $sd === '') {
             $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Title and start date are required.'];
@@ -119,9 +120,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid date format.'];
         } else {
             if ($action === 'add') {
-                $db->prepare('INSERT INTO events (title, description, start_date, end_date, start_time, end_time, color, recurrence, recurrence_end, created_by)
-                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $recurrence, $recEnd, $current['id']]);
+                $db->prepare('INSERT INTO events (title, description, start_date, end_date, start_time, end_time, color, recurrence, recurrence_end, created_by, requires_approval)
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $recurrence, $recEnd, $current['id'], $requires_approval]);
                 $new_eid = (int)$db->lastInsertId();
                 $save_invites($new_eid);
                 // For a new event all invitees are "new"; notify with the series start date
@@ -135,8 +136,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt_old->execute([$id]);
                 $old_inv = array_column($stmt_old->fetchAll(), 'u');
 
-                $db->prepare('UPDATE events SET title=?, description=?, start_date=?, end_date=?, start_time=?, end_time=?, color=?, recurrence=?, recurrence_end=? WHERE id=?')
-                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $recurrence, $recEnd, $id]);
+                // If the toggle is being flipped OFF, auto-approve any pending rows so they don't get orphaned.
+                if (!$requires_approval) {
+                    $prev = $db->prepare('SELECT requires_approval FROM events WHERE id=?');
+                    $prev->execute([$id]);
+                    if ((int)$prev->fetchColumn() === 1) {
+                        $db->prepare("UPDATE event_invites SET approval_status='approved' WHERE event_id=? AND approval_status='pending'")
+                           ->execute([$id]);
+                    }
+                }
+
+                $db->prepare('UPDATE events SET title=?, description=?, start_date=?, end_date=?, start_time=?, end_time=?, color=?, recurrence=?, recurrence_end=?, requires_approval=? WHERE id=?')
+                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $recurrence, $recEnd, $requires_approval, $id]);
 
                 // ── Feature 1: Only delete/replace BASE rows; leave per-occurrence overrides intact ──
                 $db->prepare('DELETE FROM event_invites WHERE event_id=? AND occurrence_date IS NULL')->execute([$id]);
@@ -371,6 +382,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $_SESSION['flash'] = ['type' => 'error', 'msg' => 'RSVP is locked — this event starts in less than an hour.'];
         } elseif ($eid > 0) {
+            // Approval gate: a user can't RSVP for themselves while their invite is pending or denied.
+            $statusStmt = $db->prepare('SELECT approval_status FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL');
+            $statusStmt->execute([$eid, $current['username']]);
+            $currentApproval = $statusStmt->fetchColumn() ?: 'approved';
+            if ($currentApproval !== 'approved') {
+                if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
+                    header('Content-Type: application/json');
+                    echo json_encode(['ok' => false, 'msg' => 'Your spot for this event is waiting for the host to approve.']);
+                    exit;
+                }
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Your spot for this event is waiting for the host to approve.'];
+                header('Location: /calendar.php');
+                exit;
+            }
             if ($occ_date) {
                 // Per-occurrence RSVP: update or insert occurrence-specific row
                 $chk = $db->prepare('SELECT id FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date=?');
@@ -407,25 +432,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $urow = $db->prepare('SELECT phone, email FROM users WHERE id=?');
         $urow->execute([$current['id']]);
         $udata = $urow->fetch();
+        $signup_pending = false;
         if ($eid > 0) {
-            $chk = $db->prepare('SELECT id FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?)');
+            $chk = $db->prepare('SELECT id, approval_status FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?)');
             $chk->execute([$eid, $current['username']]);
-            if (!$chk->fetch()) {
+            $existing_signup = $chk->fetch();
+            if (!$existing_signup) {
                 // Self-signup: approval gate fires if the event has requires_approval=1.
                 $approval = invite_approval_status($eid, 'self');
                 $db->prepare('INSERT INTO event_invites (event_id, username, phone, email, rsvp, approval_status) VALUES (?, ?, ?, ?, NULL, ?)')
                    ->execute([$eid, strtolower($current['username']), $udata['phone'] ?? null, $udata['email'] ?? null, $approval]);
                 db_log_activity($current['id'], "signed up for event id: $eid" . ($approval === 'pending' ? ' (pending approval)' : ''));
+                if ($approval === 'pending') {
+                    $signup_pending = true;
+                    notify_creator_of_pending($eid, $current['username']);
+                }
+            } elseif (($existing_signup['approval_status'] ?? 'approved') === 'pending') {
+                $signup_pending = true;
             }
         }
         if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
-            $inv = ['username' => strtolower($current['username']), 'rsvp' => null];
+            $inv = ['username' => strtolower($current['username']), 'rsvp' => null, 'approval_status' => $signup_pending ? 'pending' : 'approved'];
             if ($isAdmin) { $inv['phone'] = $udata['phone'] ?? null; $inv['email'] = $udata['email'] ?? null; }
             header('Content-Type: application/json');
-            echo json_encode(['ok' => true, 'invite' => $inv]);
+            echo json_encode(['ok' => true, 'invite' => $inv, 'pending' => $signup_pending]);
             exit;
         }
-        $_SESSION['flash'] = ['type' => 'success', 'msg' => 'You have been added to the event.'];
+        $_SESSION['flash'] = ['type' => 'success', 'msg' => $signup_pending
+            ? 'Request sent — waiting for host approval.'
+            : 'You have been added to the event.'];
     }
 
     if ($action === 'remove_self' && $current) {

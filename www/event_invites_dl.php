@@ -36,7 +36,7 @@ if (!$isAdmin && (int)$ev['created_by'] !== (int)$current['id']) {
 }
 
 $stmt = $db->prepare(
-    'SELECT username, phone, email, rsvp, occurrence_date
+    'SELECT username, phone, email, rsvp, occurrence_date, approval_status
      FROM event_invites
      WHERE event_id = ?
      ORDER BY username'
@@ -47,11 +47,11 @@ $base = [];
 $occ  = [];
 foreach ($stmt->fetchAll() as $inv) {
     if ($inv['occurrence_date'] === null) {
-        $row = ['username' => $inv['username'], 'rsvp' => $inv['rsvp']];
+        $row = ['username' => $inv['username'], 'rsvp' => $inv['rsvp'], 'approval_status' => $inv['approval_status']];
         if ($isAdmin) { $row['phone'] = $inv['phone']; $row['email'] = $inv['email']; }
         $base[] = $row;
     } else {
-        $occ[$inv['occurrence_date']][] = ['username' => $inv['username'], 'rsvp' => $inv['rsvp']];
+        $occ[$inv['occurrence_date']][] = ['username' => $inv['username'], 'rsvp' => $inv['rsvp'], 'approval_status' => $inv['approval_status']];
     }
 }
 

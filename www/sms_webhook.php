@@ -227,23 +227,39 @@ if (!$rsvp && !$isNumber && !$isAll) {
 }
 
 // ── Fetch all upcoming invites for this user ────────────────────────────────
+// Pending/denied invites are excluded so SMS RSVP replies can't bypass the host approval gate.
 $invStmt = $db->prepare("
     SELECT ei.event_id, ei.id as invite_id, ei.rsvp as old_rsvp, e.title, e.start_date
     FROM event_invites ei
     JOIN events e ON e.id = ei.event_id
     WHERE LOWER(ei.username) = LOWER(?)
       AND e.start_date >= date('now')
+      AND ei.approval_status = 'approved'
     ORDER BY e.start_date ASC
     LIMIT 10
 ");
 $invStmt->execute([$user['username']]);
 $invites = $invStmt->fetchAll();
 
+// Check whether the user has any pending invites so we can give a helpful reply if they have nothing approved.
+$pendStmt = $db->prepare("
+    SELECT COUNT(*) FROM event_invites ei
+    JOIN events e ON e.id = ei.event_id
+    WHERE LOWER(ei.username) = LOWER(?)
+      AND e.start_date >= date('now')
+      AND ei.approval_status = 'pending'
+");
+$pendStmt->execute([$user['username']]);
+$has_pending_invites = (int)$pendStmt->fetchColumn() > 0;
+
 // ── Handle direct "N RSVP" format (e.g. "1 yes", "all no") ─────────────────
 if ($directNumber !== null || $directAll) {
     if (empty($invites)) {
         http_response_code(200);
-        respond_to_provider($provider, 'You don\'t have any upcoming event invites to RSVP for.');
+        $msg = $has_pending_invites
+            ? 'Your invite is waiting for the host to approve. You will be notified when you have been approved.'
+            : 'You don\'t have any upcoming event invites to RSVP for.';
+        respond_to_provider($provider, $msg);
         exit;
     }
     if ($directAll) {
@@ -333,7 +349,10 @@ if (!$rsvp) {
 // ── No upcoming invites ─────────────────────────────────────────────────────
 if (empty($invites)) {
     http_response_code(200);
-    respond_to_provider($provider, 'You don\'t have any upcoming event invites to RSVP for.');
+    $msg = $has_pending_invites
+        ? 'Your invite is waiting for the host to approve. You will be notified when you have been approved.'
+        : 'You don\'t have any upcoming event invites to RSVP for.';
+    respond_to_provider($provider, $msg);
     exit;
 }
 

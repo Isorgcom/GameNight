@@ -25,7 +25,7 @@ $cutoff_past = (clone $now)->modify("-{$past_days} days")->format('Y-m-d');
 $stmt = $db->prepare("
     SELECT e.id, e.title, e.description, e.start_date, e.end_date,
            e.start_time, e.end_time, e.color, e.created_by, e.is_poker,
-           ei.rsvp,
+           ei.rsvp, ei.approval_status,
            CASE WHEN e.created_by = :uid THEN 1 ELSE 0 END AS is_creator
     FROM events e
     LEFT JOIN event_invites ei ON ei.event_id = e.id AND LOWER(ei.username) = LOWER(:uname)
@@ -65,7 +65,11 @@ function fmt_date(string $date, ?string $time, DateTimeZone $tz): string {
     return $dt->format('D, M j, Y') . ($time ? ' &middot; ' . $dt->format('g:i A') : '');
 }
 
-function rsvp_badge(?string $rsvp): string {
+function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): string {
+    // Pending self-signups display a "waiting for approval" badge instead of an RSVP state.
+    if ($approval_status === 'pending') {
+        return '<span class="me-badge" style="background:#fefce8;color:#854d0e;border:1px solid #fde68a;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">⏳ Awaiting approval</span>';
+    }
     if ($rsvp === 'yes')   return '<span class="me-badge" style="background:#dcfce7;color:#166534;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">Yes</span>';
     if ($rsvp === 'no')    return '<span class="me-badge" style="background:#fee2e2;color:#991b1b;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">No</span>';
     if ($rsvp === 'maybe') return '<span class="me-badge" style="background:#fef9c3;color:#854d0e;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">Maybe</span>';
@@ -128,7 +132,7 @@ function rsvp_badge(?string $rsvp): string {
                        style="font-weight:600;color:#1e293b;text-decoration:none;font-size:1rem;line-height:1.3">
                         <?= htmlspecialchars($ev['title']) ?>
                     </a>
-                    <?= rsvp_badge($ev['rsvp']) ?>
+                    <?= rsvp_badge($ev['rsvp'], $ev['approval_status'] ?? 'approved') ?>
                     <?php if ($ev['is_creator']): ?>
                     <span class="me-badge" style="background:#ede9fe;color:#5b21b6;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">Organizer</span>
                     <?php if (!empty($ev['is_poker'])): ?>
@@ -182,7 +186,7 @@ function rsvp_badge(?string $rsvp): string {
                        style="font-weight:600;color:#475569;text-decoration:none;font-size:1rem;line-height:1.3">
                         <?= htmlspecialchars($ev['title']) ?>
                     </a>
-                    <?= rsvp_badge($ev['rsvp']) ?>
+                    <?= rsvp_badge($ev['rsvp'], $ev['approval_status'] ?? 'approved') ?>
                     <?php if ($ev['is_creator']): ?>
                     <span style="background:#f3f4f6;color:#6b7280;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">Organizer</span>
                     <?php if (!empty($ev['is_poker'])): ?>

@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.05400] — 2026-04-09
+
+### Added
+- **Per-event "Require host approval" toggle.** New event editor switch that gates self-initiated signups (walk-in QR registrations and the public Sign Up button) into a pending queue the host can approve or deny. Creator/manager invites continue to auto-approve. Pending signups don't get reminders, don't appear in the poker player roster, can't RSVP via email/SMS/WhatsApp, and don't get assigned a poker table until approved. Hosts get notified via their preferred contact when a new request arrives, and a Pending Approval section appears in the event view with Approve/Deny buttons. Denied users get a soft-deny (silent waiting-list response on retry, no rejection notice). Toggling approval off auto-approves any remaining pending rows.
+
+---
+
 ## [v0.05301] — 2026-04-09
 
 ### Fixed

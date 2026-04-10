@@ -523,12 +523,12 @@ if ($action === 'update_rsvp') {
     // Update poker_players rsvp
     $db->prepare('UPDATE poker_players SET rsvp = ? WHERE id = ?')->execute([$rsvp, $player_id]);
 
-    // Also update event_invites to keep in sync
+    // Also update event_invites to keep in sync. Host action implicitly approves any pending row.
     $pl = $db->prepare('SELECT display_name FROM poker_players WHERE id = ?');
     $pl->execute([$player_id]);
     $pRow = $pl->fetch();
     if ($pRow) {
-        $db->prepare("UPDATE event_invites SET rsvp = ? WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL")
+        $db->prepare("UPDATE event_invites SET rsvp = ?, approval_status = 'approved' WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL")
            ->execute([$rsvp, $session['event_id'], $pRow['display_name']]);
     }
 

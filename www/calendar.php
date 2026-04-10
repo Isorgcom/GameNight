@@ -139,18 +139,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $suppress_notify = !empty($_POST['suppress_notify']);
             $is_poker = !empty($_POST['is_poker']) ? 1 : 0;
+            $requires_approval = !empty($_POST['requires_approval']) ? 1 : 0;
             $new_invitee_usernames = [];
             if ($action === 'add') {
-                $db->prepare('INSERT INTO events (title, description, start_date, end_date, start_time, end_time, color, created_by, is_poker)
-                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $current['id'], $is_poker]);
+                $db->prepare('INSERT INTO events (title, description, start_date, end_date, start_time, end_time, color, created_by, is_poker, requires_approval)
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $current['id'], $is_poker, $requires_approval]);
                 $notify_eid = (int)$db->lastInsertId();
                 $save_invites($notify_eid, $new_invitee_usernames);
                 db_log_activity($current['id'], "created event: $title");
                 $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event added.'];
             } else {
-                $db->prepare('UPDATE events SET title=?, description=?, start_date=?, end_date=?, start_time=?, end_time=?, color=?, is_poker=? WHERE id=?')
-                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $is_poker, $id]);
+                // If the toggle is being flipped OFF, auto-approve any pending rows so they don't get orphaned.
+                if (!$requires_approval) {
+                    $prev = $db->prepare('SELECT requires_approval FROM events WHERE id=?');
+                    $prev->execute([$id]);
+                    if ((int)$prev->fetchColumn() === 1) {
+                        $db->prepare("UPDATE event_invites SET approval_status='approved' WHERE event_id=? AND approval_status='pending'")
+                           ->execute([$id]);
+                    }
+                }
+                $db->prepare('UPDATE events SET title=?, description=?, start_date=?, end_date=?, start_time=?, end_time=?, color=?, is_poker=?, requires_approval=? WHERE id=?')
+                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $is_poker, $requires_approval, $id]);
                 $notify_eid = $id;
                 $save_invites($id, $new_invitee_usernames);
                 db_log_activity($current['id'], "edited event id: $id");
@@ -297,6 +307,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($eid > 0) {
+            // Approval gate: a non-host user cannot RSVP for themselves while their invite is pending or denied.
+            // A host (creator/manager/admin) acting on_behalf implicitly approves the row by setting an RSVP.
+            $statusStmt = $db->prepare('SELECT approval_status FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL');
+            $statusStmt->execute([$eid, $target_username]);
+            $currentApproval = $statusStmt->fetchColumn() ?: 'approved';
+            if (!$on_behalf && $currentApproval !== 'approved') {
+                if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
+                    header('Content-Type: application/json');
+                    echo json_encode(['ok' => false, 'error' => 'Awaiting host approval.']);
+                    exit;
+                }
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Your spot for this event is waiting for the host to approve.'];
+                header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '/calendar.php'));
+                exit;
+            }
+            // Host action implicitly approves the row.
+            $approval_clause = $on_behalf ? ", approval_status='approved'" : "";
+
             if ($occDate) {
                 // Per-occurrence RSVP: upsert occurrence-specific row
                 $chk = $db->prepare('SELECT id, rsvp FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date=?');
@@ -304,13 +332,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $existing = $chk->fetch();
                 $oldRsvp  = $existing ? ($existing['rsvp'] ?: null) : null;
                 if ($existing) {
-                    $db->prepare('UPDATE event_invites SET rsvp=? WHERE id=?')->execute([$rsvp, $existing['id']]);
+                    $db->prepare("UPDATE event_invites SET rsvp=? {$approval_clause} WHERE id=?")->execute([$rsvp, $existing['id']]);
                 } else {
                     // Copy contact info and approval_status from base invite row so per-occurrence rows inherit gating.
                     $baseStmt = $db->prepare('SELECT phone, email, approval_status FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL');
                     $baseStmt->execute([$eid, $target_username]);
                     $baseRow = $baseStmt->fetch();
-                    $baseApproval = $baseRow['approval_status'] ?? 'approved';
+                    $baseApproval = $on_behalf ? 'approved' : ($baseRow['approval_status'] ?? 'approved');
                     $db->prepare('INSERT INTO event_invites (event_id, username, phone, email, rsvp, rsvp_token, occurrence_date, approval_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
                        ->execute([$eid, strtolower($target_username), $baseRow['phone'] ?? null, $baseRow['email'] ?? null, $rsvp, bin2hex(random_bytes(16)), $occDate, $baseApproval]);
                 }
@@ -319,7 +347,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $oldRsvpStmt = $db->prepare('SELECT rsvp FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL');
                 $oldRsvpStmt->execute([$eid, $target_username]);
                 $oldRsvp = ($oldRsvpStmt->fetchColumn()) ?: null;
-                $db->prepare('UPDATE event_invites SET rsvp=? WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL')
+                $db->prepare("UPDATE event_invites SET rsvp=? {$approval_clause} WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL")
                    ->execute([$rsvp, $eid, $target_username]);
             }
             db_log_activity($current['id'], "updated RSVP for event id: $eid" . ($occDate ? " on $occDate" : '') . ($on_behalf ? " (on behalf of $target_username)" : ''));
@@ -355,25 +383,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $urow = $db->prepare('SELECT phone, email FROM users WHERE id=?');
         $urow->execute([$current['id']]);
         $udata = $urow->fetch();
+        $signup_pending = false;
         if ($eid > 0) {
-            $chk = $db->prepare('SELECT id FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?)');
+            $chk = $db->prepare('SELECT id, approval_status FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?)');
             $chk->execute([$eid, $current['username']]);
-            if (!$chk->fetch()) {
+            $existing_signup = $chk->fetch();
+            if (!$existing_signup) {
                 // Self-signup: approval gate fires if the event has requires_approval=1.
                 $approval = invite_approval_status($eid, 'self');
                 $db->prepare('INSERT INTO event_invites (event_id, username, phone, email, rsvp, rsvp_token, approval_status) VALUES (?, ?, ?, ?, NULL, ?, ?)')
                    ->execute([$eid, strtolower($current['username']), $udata['phone'] ?? null, $udata['email'] ?? null, bin2hex(random_bytes(16)), $approval]);
                 db_log_activity($current['id'], "signed up for event id: $eid" . ($approval === 'pending' ? ' (pending approval)' : ''));
+                if ($approval === 'pending') {
+                    $signup_pending = true;
+                    notify_creator_of_pending($eid, $current['username']);
+                }
+            } elseif (($existing_signup['approval_status'] ?? 'approved') === 'pending') {
+                // Already pending — show the same waiting-list message, no duplicate notification.
+                $signup_pending = true;
             }
         }
         if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
-            $inv = ['username' => strtolower($current['username']), 'rsvp' => null];
+            $inv = ['username' => strtolower($current['username']), 'rsvp' => null, 'approval_status' => $signup_pending ? 'pending' : 'approved'];
             if ($isAdmin) { $inv['phone'] = $udata['phone'] ?? null; $inv['email'] = $udata['email'] ?? null; }
             header('Content-Type: application/json');
-            echo json_encode(['ok' => true, 'invite' => $inv]);
+            echo json_encode(['ok' => true, 'invite' => $inv, 'pending' => $signup_pending]);
             exit;
         }
-        $_SESSION['flash'] = ['type' => 'success', 'msg' => 'You have been added to the event.'];
+        $_SESSION['flash'] = ['type' => 'success', 'msg' => $signup_pending
+            ? 'Request sent — waiting for host approval.'
+            : 'You have been added to the event.'];
     }
 
     if ($action === 'self_remove' && $current) {
@@ -389,6 +428,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
         $_SESSION['flash'] = ['type' => 'success', 'msg' => 'You have been removed from the event.'];
+    }
+
+    // Approve / deny a pending invite. Allowed for admin, event creator, or event manager.
+    if (in_array($action, ['approve_invite', 'deny_invite'], true) && $current) {
+        $eid    = (int)($_POST['event_id'] ?? 0);
+        $target = trim($_POST['target_username'] ?? '');
+        if ($eid > 0 && $target !== '') {
+            $owner = $db->prepare('SELECT created_by, title, start_date FROM events WHERE id=?');
+            $owner->execute([$eid]);
+            $evRow = $owner->fetch();
+            $isOwner = $evRow && (int)$evRow['created_by'] === (int)$current['id'];
+            if ($isAdmin || $isOwner || $isEventManager($eid)) {
+                $newStatus = ($action === 'approve_invite') ? 'approved' : 'denied';
+                $db->prepare("UPDATE event_invites SET approval_status=? WHERE event_id=? AND LOWER(username)=LOWER(?)")
+                   ->execute([$newStatus, $eid, $target]);
+                db_log_activity($current['id'], "{$action} for $target on event id: $eid");
+
+                // On approval: sync to poker roster + notify the user.
+                if ($newStatus === 'approved') {
+                    // If this is a poker event with an active session, sync newly-approved player into roster.
+                    $psess = $db->prepare('SELECT id FROM poker_sessions WHERE event_id = ?');
+                    $psess->execute([$eid]);
+                    $psRow = $psess->fetch();
+                    if ($psRow) {
+                        require_once __DIR__ . '/_poker_helpers.php';
+                        sync_invitees($db, $psRow['id'], $eid);
+                    }
+
+                    // Notify the approved user via their preferred contact.
+                    // send_notification() is already loaded via auth.php (included at top of file).
+                    $uStmt = $db->prepare('SELECT id, username, email, phone, preferred_contact FROM users WHERE LOWER(username)=LOWER(?)');
+                    $uStmt->execute([$target]);
+                    $uRow = $uStmt->fetch();
+                    if ($uRow && get_setting('notifications_enabled', '0') === '1' && $evRow && function_exists('send_notification')) {
+                        $smsBody  = "You've been approved for \"{$evRow['title']}\" on {$evRow['start_date']}.";
+                        $htmlBody = '<p>You have been approved for <strong>' . htmlspecialchars($evRow['title']) . '</strong> on ' . htmlspecialchars($evRow['start_date']) . '.</p>';
+                        send_notification($uRow['username'], $uRow['email'] ?? '', $uRow['phone'] ?? '',
+                            $uRow['preferred_contact'] ?? 'email',
+                            "Approved: " . $evRow['title'],
+                            $smsBody, $htmlBody);
+                    }
+                }
+
+                if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
+                    header('Content-Type: application/json');
+                    echo json_encode(['ok' => true, 'status' => $newStatus]);
+                    exit;
+                }
+                $_SESSION['flash'] = ['type' => 'success', 'msg' => $newStatus === 'approved' ? 'Invite approved.' : 'Invite denied.'];
+            } else {
+                if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
+                    http_response_code(403);
+                    header('Content-Type: application/json');
+                    echo json_encode(['ok' => false, 'error' => 'Permission denied.']);
+                    exit;
+                }
+                http_response_code(403);
+                exit('Permission denied.');
+            }
+        }
     }
 
     if ($action === 'regenerate_walkin_token' && $isAdmin) {
@@ -522,7 +621,7 @@ $ev_invites     = [];  // [eid][] — base rows (occurrence_date IS NULL)
 $ev_invites_occ = [];  // [eid][occ_date][] — per-occurrence rows
 if (!empty($allPageEids)) {
     $iph = implode(',', array_fill(0, count($allPageEids), '?'));
-    $is  = $db->prepare("SELECT event_id, username, phone, email, rsvp, occurrence_date, event_role FROM event_invites WHERE event_id IN ($iph) ORDER BY username");
+    $is  = $db->prepare("SELECT event_id, username, phone, email, rsvp, occurrence_date, event_role, approval_status FROM event_invites WHERE event_id IN ($iph) ORDER BY username");
     $is->execute($allPageEids);
     foreach ($is->fetchAll() as $inv) {
         if ($inv['occurrence_date'] === null) {
@@ -1421,6 +1520,11 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
                         <input type="checkbox" name="suppress_notify" id="eSuppressNotify" value="1" class="pk-toggle-input">
                         <span class="pk-toggle-slider"></span>
                     </label>
+                    <label class="edit-notify-row" style="display:flex;align-items:center;gap:.5rem;cursor:pointer" title="When on, walk-in QR signups and self-signups land in a pending queue you can approve or deny.">
+                        <span style="font-size:.82rem;color:#475569">Require Approval</span>
+                        <input type="checkbox" name="requires_approval" id="eRequiresApproval" value="1" class="pk-toggle-input">
+                        <span class="pk-toggle-slider"></span>
+                    </label>
                     <div style="display:flex;gap:.5rem;">
                         <button type="submit" class="btn btn-primary" id="eSubmitBtn">Add Event</button>
                         <button type="button" class="btn btn-outline" onclick="closeEdit()">Cancel</button>
@@ -1624,15 +1728,22 @@ function renderCommentsPanel(eid) {
     }).join('');
 }
 function renderInvitesPanel(eid) {
-    const invites    = getEffectiveInvites(eid, null);
+    const allInvites = getEffectiveInvites(eid, null);
     const vInvDiv    = document.getElementById('vInvites');
     const canManage  = window._calCanManage || false;
     const rsvpClass  = {yes:'rsvp-yes', no:'rsvp-no', maybe:'rsvp-maybe'};
     const rsvpText   = {yes:'Yes', no:'No', maybe:'Maybe'};
-    if (invites.length) {
-        let ih = '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin-bottom:.4rem">Invites (' + invites.length + ')</div>';
+
+    // Split by approval_status. Approved rows go in the main list; pending rows
+    // get their own section visible only to managers (creator/manager/admin).
+    const approved = allInvites.filter(inv => (inv.approval_status || 'approved') === 'approved');
+    const pending  = allInvites.filter(inv => (inv.approval_status || 'approved') === 'pending');
+
+    let ih = '';
+    if (approved.length) {
+        ih += '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin-bottom:.4rem">Invites (' + approved.length + ')</div>';
         ih += '<div style="display:flex;flex-direction:column;gap:.2rem;max-height:8.5rem;overflow-y:auto;padding-right:.25rem">';
-        invites.forEach(inv => {
+        approved.forEach(inv => {
             ih += '<div style="font-size:.875rem;color:#334155;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">';
             if (canManage) {
                 const r = inv.rsvp || '';
@@ -1654,6 +1765,25 @@ function renderInvitesPanel(eid) {
             ih += '</div>';
         });
         ih += '</div>';
+    }
+
+    // Pending approval section — only managers see it.
+    if (canManage && pending.length) {
+        ih += '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#d97706;margin-top:.7rem;margin-bottom:.4rem">⏳ Pending Approval (' + pending.length + ')</div>';
+        ih += '<div style="display:flex;flex-direction:column;gap:.3rem;max-height:8.5rem;overflow-y:auto;padding-right:.25rem">';
+        pending.forEach(inv => {
+            ih += '<div style="font-size:.875rem;color:#334155;display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;background:#fefce8;border:1px solid #fde68a;border-radius:6px;padding:.35rem .5rem">';
+            ih += '<span style="flex:1;min-width:0">' + escHtml(inv.username);
+            if (IS_ADMIN && inv.email) ih += ' <span style="color:#64748b;font-size:.78rem">&middot; ' + escHtml(inv.email) + '</span>';
+            ih += '</span>';
+            ih += '<button type="button" class="btn-approve-inv" data-eid="' + eid + '" data-username="' + escHtml(inv.username) + '" style="font-size:.75rem;padding:.2rem .55rem;border-radius:5px;border:0;background:#16a34a;color:#fff;font-weight:600;cursor:pointer">Approve</button>';
+            ih += '<button type="button" class="btn-deny-inv" data-eid="' + eid + '" data-username="' + escHtml(inv.username) + '" style="font-size:.75rem;padding:.2rem .55rem;border-radius:5px;border:0;background:#dc2626;color:#fff;font-weight:600;cursor:pointer">Deny</button>';
+            ih += '</div>';
+        });
+        ih += '</div>';
+    }
+
+    if (ih) {
         vInvDiv.innerHTML = ih;
         vInvDiv.style.display = '';
     } else {
@@ -1867,6 +1997,38 @@ if (vInvDiv) {
             })
             .catch(() => {});
     });
+
+    // Delegated listener: Approve / Deny buttons in the Pending section
+    vInvDiv.addEventListener('click', function(e) {
+        const approveBtn = e.target.closest('.btn-approve-inv');
+        const denyBtn    = e.target.closest('.btn-deny-inv');
+        const btn        = approveBtn || denyBtn;
+        if (!btn) return;
+        const eid      = parseInt(btn.dataset.eid);
+        const username = btn.dataset.username;
+        const decision = approveBtn ? 'approved' : 'denied';
+        const csrfEl   = document.getElementById('vRsvpCsrf');
+        if (!csrfEl) return;
+        btn.disabled = true;
+        const data = new FormData();
+        data.append('csrf_token',      csrfEl.value);
+        data.append('action',          decision === 'approved' ? 'approve_invite' : 'deny_invite');
+        data.append('event_id',        eid);
+        data.append('target_username', username);
+        fetch('/calendar.php', {method:'POST', body:data, headers:{'X-Requested-With':'XMLHttpRequest'}})
+            .then(r => r.json())
+            .then(res => {
+                if (!res.ok) { btn.disabled = false; return; }
+                const list = eventInvites[eid];
+                if (list) {
+                    const inv = list.find(i => i.username.toLowerCase() === username.toLowerCase());
+                    if (inv) inv.approval_status = decision;
+                }
+                renderInvitesPanel(eid);
+                showSavedBar();
+            })
+            .catch(() => { btn.disabled = false; });
+    });
 }
 
 const vSignupBtn = document.getElementById('vSignupBtn');
@@ -1888,19 +2050,26 @@ if (vSignupBtn) {
             if (!eventInvites[eid]) eventInvites[eid] = [];
             eventInvites[eid].push(res.invite);
             renderInvitesPanel(eid);
-            // Swap signup button for RSVP form
+            // Hide signup button regardless (we've made the request).
             document.getElementById('vSignupWrap').style.display = 'none';
-            const vRsvpW = document.getElementById('vRsvpWrap');
-            if (vRsvpW) {
-                document.getElementById('vRsvpEventId').value = eid;
-                document.getElementById('vRsvpSelect').value  = '';
-                updateRsvpStatusBadge('');
-                vRsvpW.style.display = '';
+            if (res.pending) {
+                // Pending: don't show the RSVP form (gated). Show leave (cancel-request) button + waiting message.
+                const vLW = document.getElementById('vLeaveWrap');
+                if (vLW) { vLW.style.display = ''; document.getElementById('vLeaveBtn').dataset.eid = eid; }
+                showSavedBar('Request sent — waiting for host approval');
+            } else {
+                // Approved (default): swap to RSVP form as before.
+                const vRsvpW = document.getElementById('vRsvpWrap');
+                if (vRsvpW) {
+                    document.getElementById('vRsvpEventId').value = eid;
+                    document.getElementById('vRsvpSelect').value  = '';
+                    updateRsvpStatusBadge('');
+                    vRsvpW.style.display = '';
+                }
+                showSavedBar('Signed up!');
+                const vLW = document.getElementById('vLeaveWrap');
+                if (vLW) { vLW.style.display = ''; document.getElementById('vLeaveBtn').dataset.eid = eid; }
             }
-            showSavedBar('Signed up!');
-            // Show leave button, hide signup
-            const vLW = document.getElementById('vLeaveWrap');
-            if (vLW) { vLW.style.display = ''; document.getElementById('vLeaveBtn').dataset.eid = eid; }
         })
         .catch(() => {});
     });
@@ -2282,6 +2451,7 @@ function openEditModal(ev) {
     document.getElementById('eDesc').value      = ev ? (ev.description || '') : '';
     document.getElementById('eSuppressNotify').checked = false;
     document.getElementById('eIsPoker').checked = ev ? !!parseInt(ev.is_poker) : true;
+    document.getElementById('eRequiresApproval').checked = ev ? !!parseInt(ev.requires_approval) : false;
     document.getElementById('eUserSearch').value = '';
     document.getElementById('eSubmitBtn').textContent = ev ? 'Save Changes' : 'Add Event';
 

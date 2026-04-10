@@ -100,36 +100,65 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $username = $existing['username'];
 
                 // Check if already invited (base row, no occurrence_date)
-                $chk = $db->prepare('SELECT id FROM event_invites WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL');
+                $chk = $db->prepare('SELECT id, approval_status FROM event_invites WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL');
                 $chk->execute([$event_id, $username]);
-                if ($chk->fetch()) {
-                    // Update RSVP to yes
-                    $db->prepare("UPDATE event_invites SET rsvp = 'yes' WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL")
-                       ->execute([$event_id, $username]);
+                $existingInvite = $chk->fetch();
+                $effective_approval = 'approved';
+                $is_new_pending = false;
+
+                if ($existingInvite) {
+                    $existing_status = $existingInvite['approval_status'] ?? 'approved';
+                    if ($existing_status === 'denied') {
+                        // Soft-deny: silently absorb. Don't flip the row, don't reveal the denial.
+                        // The walk-in success message below will say "waiting list" identical to a normal pending signup.
+                        $effective_approval = 'denied';
+                    } elseif ($existing_status === 'pending') {
+                        // Already pending — same waiting-list message, no DB change.
+                        $effective_approval = 'pending';
+                    } else {
+                        // Approved row — set RSVP to yes (current behavior).
+                        $db->prepare("UPDATE event_invites SET rsvp = 'yes' WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL")
+                           ->execute([$event_id, $username]);
+                        $effective_approval = 'approved';
+                    }
                 } else {
                     // Insert new invite row. Walk-in is a 'self' signup — approval gate fires if requires_approval=1.
                     $walkin_approval = invite_approval_status($event_id, 'self');
                     $db->prepare('INSERT INTO event_invites (event_id, username, email, rsvp, approval_status) VALUES (?, ?, ?, ?, ?)')
                        ->execute([$event_id, $username, $email, 'yes', $walkin_approval]);
+                    $effective_approval = $walkin_approval;
+                    $is_new_pending = ($walkin_approval === 'pending');
                 }
-                db_log_anon_activity("walkin_rsvp: existing user $username for event $event_id");
+                db_log_anon_activity("walkin_rsvp: existing user $username for event $event_id" . ($effective_approval !== 'approved' ? ' (waiting list)' : ''));
+
                 // Remember for next walk-up (30 days)
                 setcookie('walkin_name', $display_name, time() + 86400 * 30, '/', '', true, true);
                 setcookie('walkin_email', $email, time() + 86400 * 30, '/', '', true, true);
-                $success = "Welcome back, " . htmlspecialchars($username) . "! You're registered for <strong>" . htmlspecialchars($event['title']) . "</strong>.";
 
-                // Auto-assign table if poker session exists
-                $psess = $db->prepare('SELECT id FROM poker_sessions WHERE event_id = ?');
-                $psess->execute([$event_id]);
-                $psRow = $psess->fetch();
-                if ($psRow) {
-                    sync_invitees($db, $psRow['id'], $event_id);
-                    $pp = $db->prepare('SELECT id FROM poker_players WHERE session_id = ? AND LOWER(display_name) = LOWER(?) AND removed = 0');
-                    $pp->execute([$psRow['id'], $username]);
-                    $ppRow = $pp->fetch();
-                    if ($ppRow) {
-                        $assigned_table = auto_assign_table($db, $psRow['id'], $ppRow['id']);
+                if ($effective_approval === 'approved') {
+                    $success = "Welcome back, " . htmlspecialchars($username) . "! You're registered for <strong>" . htmlspecialchars($event['title']) . "</strong>.";
+
+                    // Auto-assign table if poker session exists
+                    $psess = $db->prepare('SELECT id FROM poker_sessions WHERE event_id = ?');
+                    $psess->execute([$event_id]);
+                    $psRow = $psess->fetch();
+                    if ($psRow) {
+                        sync_invitees($db, $psRow['id'], $event_id);
+                        $pp = $db->prepare('SELECT id FROM poker_players WHERE session_id = ? AND LOWER(display_name) = LOWER(?) AND removed = 0');
+                        $pp->execute([$psRow['id'], $username]);
+                        $ppRow = $pp->fetch();
+                        if ($ppRow) {
+                            $assigned_table = auto_assign_table($db, $psRow['id'], $ppRow['id']);
+                        }
                     }
+                } else {
+                    // Pending or denied — show waiting-list message either way (soft-deny).
+                    $success = "You're on the waiting list for <strong>" . htmlspecialchars($event['title']) . "</strong>. The host will approve your registration shortly.";
+                }
+
+                // Notify the event creator about a brand-new pending signup.
+                if ($is_new_pending) {
+                    notify_creator_of_pending($event_id, $username);
                 }
 
             } else {
@@ -157,7 +186,7 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     $db->prepare('INSERT INTO event_invites (event_id, username, email, rsvp, approval_status) VALUES (?, ?, ?, ?, ?)')
                        ->execute([$event_id, $final_username, $email, 'yes', $new_walkin_approval]);
 
-                    db_log_anon_activity("walkin_new_user: $final_username for event $event_id");
+                    db_log_anon_activity("walkin_new_user: $final_username for event $event_id" . ($new_walkin_approval === 'pending' ? ' (waiting list)' : ''));
 
                     // Send verification email so they can set a password
                     send_verification_email($new_id, $email, $final_username);
@@ -166,20 +195,26 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     setcookie('walkin_name', $display_name, time() + 86400 * 30, '/', '', true, true);
                     setcookie('walkin_email', $email, time() + 86400 * 30, '/', '', true, true);
 
-                    $success = "You're registered for <strong>" . htmlspecialchars($event['title']) . "</strong>! Check your email to verify your account and set a password.";
+                    if ($new_walkin_approval === 'approved') {
+                        $success = "You're registered for <strong>" . htmlspecialchars($event['title']) . "</strong>! Check your email to verify your account and set a password.";
 
-                    // Auto-assign table if poker session exists
-                    $psess = $db->prepare('SELECT id FROM poker_sessions WHERE event_id = ?');
-                    $psess->execute([$event_id]);
-                    $psRow = $psess->fetch();
-                    if ($psRow) {
-                        sync_invitees($db, $psRow['id'], $event_id);
-                        $pp = $db->prepare('SELECT id FROM poker_players WHERE session_id = ? AND LOWER(display_name) = LOWER(?) AND removed = 0');
-                        $pp->execute([$psRow['id'], $final_username]);
-                        $ppRow = $pp->fetch();
-                        if ($ppRow) {
-                            $assigned_table = auto_assign_table($db, $psRow['id'], $ppRow['id']);
+                        // Auto-assign table if poker session exists
+                        $psess = $db->prepare('SELECT id FROM poker_sessions WHERE event_id = ?');
+                        $psess->execute([$event_id]);
+                        $psRow = $psess->fetch();
+                        if ($psRow) {
+                            sync_invitees($db, $psRow['id'], $event_id);
+                            $pp = $db->prepare('SELECT id FROM poker_players WHERE session_id = ? AND LOWER(display_name) = LOWER(?) AND removed = 0');
+                            $pp->execute([$psRow['id'], $final_username]);
+                            $ppRow = $pp->fetch();
+                            if ($ppRow) {
+                                $assigned_table = auto_assign_table($db, $psRow['id'], $ppRow['id']);
+                            }
                         }
+                    } else {
+                        $success = "You're on the waiting list for <strong>" . htmlspecialchars($event['title']) . "</strong>. The host will approve your registration shortly. Check your email to verify your account so you don't miss the approval notification.";
+                        // Notify the host about the pending signup.
+                        notify_creator_of_pending($event_id, $final_username);
                     }
                 }
             }

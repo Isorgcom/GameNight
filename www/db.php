@@ -513,6 +513,34 @@ function invite_approval_status(int $event_id, string $source): string {
     return ((int)$stmt->fetchColumn() === 1) ? 'pending' : 'approved';
 }
 
+/**
+ * Notify the event creator that a new pending signup is waiting for approval.
+ * Used by walk-in and self-signup paths. Quietly does nothing if notifications
+ * are globally disabled. Caller must have already loaded auth.php (which defines
+ * send_notification()) — this function does not include it, because doing so
+ * would redeclare conflict with auth_dl.php in contexts like walkin.php.
+ */
+function notify_creator_of_pending(int $event_id, string $signup_username): void {
+    if (get_setting('notifications_enabled', '0') !== '1') return;
+    if (!function_exists('send_notification')) return;
+    $db = get_db();
+    $stmt = $db->prepare('SELECT e.title, e.start_date, u.username, u.email, u.phone, u.preferred_contact
+                          FROM events e JOIN users u ON u.id = e.created_by WHERE e.id = ?');
+    $stmt->execute([$event_id]);
+    $row = $stmt->fetch();
+    if (!$row) return;
+    $month  = substr($row['start_date'], 0, 7);
+    $url    = get_site_url() . '/calendar.php?m=' . urlencode($month) . '&open=' . $event_id . '&date=' . urlencode($row['start_date']);
+    $smsBody = "$signup_username is waiting for approval to join \"{$row['title']}\" on {$row['start_date']}. Review: $url";
+    $htmlBody = '<p><strong>' . htmlspecialchars($signup_username) . '</strong> is waiting for your approval to join '
+              . '<em>' . htmlspecialchars($row['title']) . '</em> on ' . htmlspecialchars($row['start_date']) . '.</p>'
+              . '<p style="margin-top:1.5rem"><a href="' . htmlspecialchars($url) . '" style="background:#2563eb;color:#fff;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600">Review Pending Signups</a></p>';
+    send_notification($row['username'], $row['email'] ?? '', $row['phone'] ?? '',
+        $row['preferred_contact'] ?? 'email',
+        'New signup waiting for approval: ' . $row['title'],
+        $smsBody, $htmlBody);
+}
+
 function get_site_url(): string {
     $url = get_setting('site_url');
     if ($url !== '') return rtrim($url, '/');

@@ -89,7 +89,7 @@ foreach ($occurrences as $occ) {
         "SELECT ei.username, u.email, u.phone, u.preferred_contact
          FROM event_invites ei
          JOIN users u ON LOWER(u.username) = LOWER(ei.username)
-         WHERE ei.event_id = ?"
+         WHERE ei.event_id = ? AND ei.approval_status = 'approved'"
     );
     $inv_stmt->execute([$ev['id']]);
     $invitees = [];

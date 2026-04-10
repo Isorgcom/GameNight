@@ -104,7 +104,8 @@ function sync_invitees($db, $session_id, $event_id) {
     $existing->execute([$session_id]);
     $existingNames = array_column($existing->fetchAll(), 'dn');
 
-    $invites = $db->prepare("SELECT ei.username, ei.rsvp, u.id as user_id FROM event_invites ei LEFT JOIN users u ON LOWER(ei.username) = LOWER(u.username) WHERE ei.event_id = ? GROUP BY LOWER(ei.username)");
+    // Only approved invitees become poker players. Pending/denied rows are excluded.
+    $invites = $db->prepare("SELECT ei.username, ei.rsvp, u.id as user_id FROM event_invites ei LEFT JOIN users u ON LOWER(ei.username) = LOWER(u.username) WHERE ei.event_id = ? AND ei.approval_status = 'approved' GROUP BY LOWER(ei.username)");
     $invites->execute([$event_id]);
 
     $pIns = $db->prepare('INSERT INTO poker_players (session_id, user_id, display_name, rsvp) VALUES (?, ?, ?, ?)');

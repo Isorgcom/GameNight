@@ -90,12 +90,14 @@ if (!$rsvp) {
 }
 
 // ── Find the user's most recent event invite ────────────────────────────────
+// Pending/denied invites are excluded so WhatsApp RSVP replies can't bypass the host approval gate.
 $invStmt = $db->prepare("
     SELECT ei.event_id, ei.id as invite_id, ei.rsvp as old_rsvp, e.title, e.start_date
     FROM event_invites ei
     JOIN events e ON e.id = ei.event_id
     WHERE LOWER(ei.username) = LOWER(?)
       AND e.start_date >= date('now')
+      AND ei.approval_status = 'approved'
     ORDER BY e.start_date ASC
     LIMIT 1
 ");
@@ -103,7 +105,19 @@ $invStmt->execute([$user['username']]);
 $invite = $invStmt->fetch();
 
 if (!$invite) {
-    send_whatsapp($from, "You don't have any upcoming event invites to RSVP for.");
+    // Check whether they have a pending invite so we can give a helpful reply.
+    $pendStmt = $db->prepare("
+        SELECT COUNT(*) FROM event_invites ei
+        JOIN events e ON e.id = ei.event_id
+        WHERE LOWER(ei.username) = LOWER(?)
+          AND e.start_date >= date('now')
+          AND ei.approval_status = 'pending'
+    ");
+    $pendStmt->execute([$user['username']]);
+    $msg = ((int)$pendStmt->fetchColumn() > 0)
+        ? 'Your invite is waiting for the host to approve. You will be notified when you have been approved.'
+        : "You don't have any upcoming event invites to RSVP for.";
+    send_whatsapp($from, $msg);
     exit;
 }
 
