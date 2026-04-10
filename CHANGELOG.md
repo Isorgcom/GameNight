@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.05501] — 2026-04-10
+
+### Fixed
+- **Blind structure export empty.** Exported JSON only contained the preset name, missing all blind levels. `collectLevelsFromTable()` updates the global `LEVELS` array in place but returns `undefined` — the export was using the return value instead of `LEVELS`.
+
+---
+
 ## [v0.05500] — 2026-04-10
 
 ### Added

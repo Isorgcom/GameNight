@@ -1813,10 +1813,10 @@ function escHtml(s) {
 
 // ─── Export/Import Blind Structures ──────────────────────────
 function exportLevels() {
-    var levels = collectLevelsFromTable();
+    collectLevelsFromTable();
     var presetName = document.getElementById('presetSelect');
     var name = presetName ? (presetName.options[presetName.selectedIndex]?.text || 'custom') : 'custom';
-    var data = { name: name, levels: levels };
+    var data = { name: name, levels: LEVELS };
     var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
