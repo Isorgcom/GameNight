@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.05502] — 2026-04-10
+
+### Changed
+- **Blind structure export/import switched to CSV.** Export now produces a `.csv` file with columns: Level, Small Blind, Big Blind, Ante, Minutes, Type. Import reads CSV (auto-skips header row). JSON format dropped.
+
+---
+
 ## [v0.05501] — 2026-04-10
 
 ### Fixed

@@ -745,7 +745,7 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
             <button id="btnSetDefault" onclick="setAsDefault()" style="display:none">Set Default</button>
             <button onclick="exportLevels()">Export</button>
             <button onclick="document.getElementById('importFile').click()">Import</button>
-            <input type="file" id="importFile" accept=".json" style="display:none" onchange="importLevels(this)">
+            <input type="file" id="importFile" accept=".csv" style="display:none" onchange="importLevels(this)">
         </div>
         <?php else: ?>
         <div class="timer-preset-bar" style="justify-content:center">
@@ -1816,11 +1816,15 @@ function exportLevels() {
     collectLevelsFromTable();
     var presetName = document.getElementById('presetSelect');
     var name = presetName ? (presetName.options[presetName.selectedIndex]?.text || 'custom') : 'custom';
-    var data = { name: name, levels: LEVELS };
-    var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    // Export as CSV: header row + one row per level
+    var csv = 'Level,Small Blind,Big Blind,Ante,Minutes,Type\n';
+    LEVELS.forEach(function(l) {
+        csv += l.level_number + ',' + l.small_blind + ',' + l.big_blind + ',' + (l.ante || 0) + ',' + l.duration_minutes + ',' + (parseInt(l.is_break) ? 'Break' : 'Play') + '\n';
+    });
+    var blob = new Blob([csv], { type: 'text/csv' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'blinds_' + name.replace(/[^a-zA-Z0-9]/g, '_') + '.json';
+    a.download = 'blinds_' + name.replace(/[^a-zA-Z0-9]/g, '_') + '.csv';
     a.click();
     URL.revokeObjectURL(a.href);
 }
@@ -1830,28 +1834,32 @@ function importLevels(input) {
     if (!file) return;
     var reader = new FileReader();
     reader.onload = function(e) {
-        try {
-            var data = JSON.parse(e.target.result);
-            if (!data.levels || !Array.isArray(data.levels) || data.levels.length === 0) {
-                alert('Invalid file: no levels found.');
-                return;
-            }
-            LEVELS = data.levels.map(function(l, i) {
-                return {
-                    level_number: i + 1,
-                    small_blind: parseInt(l.small_blind) || 0,
-                    big_blind: parseInt(l.big_blind) || 0,
-                    ante: parseInt(l.ante) || 0,
-                    duration_minutes: parseInt(l.duration_minutes) || 15,
-                    is_break: parseInt(l.is_break) || 0
-                };
+        var text = e.target.result.trim();
+        var lines = text.split('\n').filter(function(l) { return l.trim() !== ''; });
+        // Skip header row if first column starts with a letter
+        var start = 0;
+        if (lines.length > 0 && /^[A-Za-z]/.test(lines[0].trim())) start = 1;
+        var parsed = [];
+        for (var i = start; i < lines.length; i++) {
+            var cols = lines[i].split(',');
+            if (cols.length < 5) continue;
+            parsed.push({
+                level_number: i - start + 1,
+                small_blind: parseInt(cols[1]) || 0,
+                big_blind: parseInt(cols[2]) || 0,
+                ante: parseInt(cols[3]) || 0,
+                duration_minutes: parseInt(cols[4]) || 15,
+                is_break: (cols[5] || '').trim().toLowerCase() === 'break' ? 1 : 0
             });
-            levelsCollected = true;
-            renderLevelsTable();
-            alert('Imported ' + LEVELS.length + ' levels from "' + (data.name || 'file') + '". Click Save Changes to apply.');
-        } catch (ex) {
-            alert('Invalid JSON file.');
         }
+        if (parsed.length === 0) {
+            alert('Invalid CSV: no levels found.');
+            return;
+        }
+        LEVELS = parsed;
+        levelsCollected = true;
+        renderLevelsTable();
+        alert('Imported ' + LEVELS.length + ' levels. Click Save Changes to apply.');
     };
     reader.readAsText(file);
     input.value = '';
