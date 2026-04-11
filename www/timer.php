@@ -350,8 +350,52 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
             padding: 0.3rem 0 0.5rem;
         }
         @media (min-width: 769px) {
-            .timer-tray { max-height: 200px; }
             .timer-tray-handle { display: none; }
+            .timer-tray {
+                max-height: none;
+                overflow: visible;
+                position: fixed;
+                bottom: 0;
+                left: 50%;
+                transform: translateX(-50%) translateY(0);
+                width: auto;
+                max-width: none;
+                z-index: 50;
+                background: rgba(15, 23, 42, 0.85);
+                backdrop-filter: blur(12px);
+                -webkit-backdrop-filter: blur(12px);
+                border-radius: 14px 14px 0 0;
+                padding: 0.5rem 1rem;
+                border: 1px solid rgba(71, 85, 105, 0.4);
+                border-bottom: none;
+                transition: transform 0.3s ease, opacity 0.3s ease;
+            }
+            .timer-tray.tray-hidden {
+                transform: translateX(-50%) translateY(100%);
+                opacity: 0;
+                pointer-events: none;
+            }
+            .timer-tray-grid {
+                flex-wrap: nowrap;
+                gap: 0.25rem;
+                padding: 0;
+            }
+            .timer-tray-sep {
+                width: 1px;
+                height: 1.5rem;
+                background: rgba(148, 163, 184, 0.3);
+                margin: 0 0.2rem;
+                flex-shrink: 0;
+            }
+        }
+        .tray-desktop-only { display: none; }
+        @media (min-width: 769px) {
+            .tray-desktop-only { display: inline-flex !important; }
+            .timer-mobile-only { display: none !important; }
+        }
+        @media (max-width: 768px) {
+            .timer-tray-sep { display: none; }
+            .tray-desktop-only { display: none !important; }
         }
         .timer-primary-controls button,
         .timer-tray-grid button,
@@ -365,6 +409,38 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
             cursor: pointer;
             transition: background 0.15s, border-color 0.15s;
             white-space: nowrap;
+        }
+        .tray-label {
+            display: none;
+        }
+        @media (min-width: 769px) {
+            .timer-tray-grid button {
+                padding: 0.35rem 0.6rem;
+                font-size: 1rem;
+                border-radius: 10px;
+                min-width: 2.8rem;
+                text-align: center;
+                border-color: rgba(71, 85, 105, 0.5);
+                display: inline-flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 0.1rem;
+                line-height: 1;
+            }
+            .tray-label {
+                display: block;
+                font-size: 0.55rem;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+                color: #94a3b8;
+            }
+            .timer-tray-grid button:hover {
+                background: #334155;
+                border-color: #64748b;
+            }
+            .timer-tray-grid button:hover .tray-label { color: #e2e8f0; }
+            .timer-tray-grid button.btn-danger { color: #ef4444; }
         }
         .timer-controls button:hover {
             background: #334155;
@@ -399,6 +475,19 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
         .timer-min-group button:first-child { border-right: 1px solid #334155 !important; }
         .timer-min-group button:last-child { border-left: 1px solid #334155 !important; }
         .timer-reset-group button:first-child { border-right: 1px solid #334155 !important; }
+        @media (min-width: 769px) {
+            .timer-reset-group {
+                display: inline-flex;
+                border: none;
+                gap: 0.25rem;
+            }
+            .timer-reset-group button {
+                border: 1px solid rgba(71, 85, 105, 0.5) !important;
+                border-radius: 10px !important;
+                padding: 0.35rem 0.6rem !important;
+                min-width: 2.8rem;
+            }
+        }
         .timer-min-label {
             padding: 0 0.5rem;
             color: #94a3b8;
@@ -673,9 +762,10 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
     </div>
 
     <!-- Primary controls (always visible) -->
-    <div class="timer-primary-controls" id="controls" style="<?= $can_control ? '' : 'display:none' ?>">
+    <!-- Mobile-only primary controls (above tray) -->
+    <div class="timer-primary-controls timer-mobile-only" id="controls" style="<?= $can_control ? '' : 'display:none' ?>">
         <button onclick="skipLevel(-1)" title="Previous Level">&#9198; Prev</button>
-        <button class="btn-play" id="btnPlay" onclick="togglePlay()">&#9654; Start</button>
+        <button class="btn-play" id="btnPlayMobile" onclick="togglePlay()">&#9654; Start</button>
         <button onclick="skipLevel(1)" title="Next Level">Next &#9197;</button>
     </div>
 
@@ -684,28 +774,37 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
         <div class="timer-tray-grip"></div>
     </div>
 
-    <!-- Secondary controls tray -->
+    <!-- Controls tray (floating toolbar on desktop) -->
     <div class="timer-tray" id="timerTray">
         <div class="timer-tray-grid">
-            <span class="timer-min-group" style="<?= $can_control ? '' : 'display:none' ?>">
-                <button onclick="adjustTime(-60)" title="Subtract 1 minute">&#9660;</button>
+            <?php if ($can_control): ?>
+            <button onclick="skipLevel(-1)" title="Previous level" class="tray-desktop-only">&#9198;<span class="tray-label">Prev</span></button>
+            <button class="btn-play tray-desktop-only" id="btnPlay" onclick="togglePlay()">&#9654;<span class="tray-label">Start</span></button>
+            <button onclick="skipLevel(1)" title="Next level" class="tray-desktop-only">&#9197;<span class="tray-label">Next</span></button>
+            <span class="timer-tray-sep"></span>
+            <span class="timer-min-group">
+                <button onclick="adjustTime(-60)" title="Remove 1 minute">&#9660;</button>
                 <span class="timer-min-label">Min</span>
                 <button onclick="adjustTime(60)" title="Add 1 minute">&#9650;</button>
             </span>
-            <span class="timer-reset-group" style="<?= $can_control ? '' : 'display:none' ?>">
-                <button onclick="resetLevel()" title="Reset current level clock">&#8635; Level</button>
-                <button onclick="resetTimer()" title="Reset entire timer to level 1" style="color:#ef4444">&#8635; Timer</button>
+            <span class="timer-reset-group">
+                <button onclick="resetLevel()" title="Reset level">&#8635;<span class="tray-label">Level</span></button>
+                <button onclick="resetTimer()" title="Reset timer" class="btn-danger">&#10226;<span class="tray-label" style="color:#ef4444">Timer</span></button>
             </span>
-            <button id="btnSound" onclick="toggleSound()">&#128276; Sound: On</button>
-            <button id="btnFullscreen" onclick="goFullscreen()">&#9974; Fullscreen</button>
+            <span class="timer-tray-sep"></span>
+            <?php endif; ?>
+            <button id="btnSound" onclick="toggleSound()" title="Toggle sound">&#128276;<span class="tray-label">Sound</span></button>
+            <button id="btnFullscreen" onclick="goFullscreen()" title="Fullscreen">&#9974;<span class="tray-label">Full</span></button>
             <?php if (!$is_remote): ?>
-            <button onclick="openLevels()">&#128203; Levels</button>
+            <span class="timer-tray-sep"></span>
+            <button onclick="openLevels()" title="Blind structure">&#128203;<span class="tray-label">Levels</span></button>
             <?php if (!$is_guest): ?>
-            <button onclick="openSoundSettings()">&#9881; Sounds</button>
+            <button onclick="openSoundSettings()" title="Sound settings">&#9881;<span class="tray-label">Sounds</span></button>
             <?php endif; ?>
             <?php endif; ?>
             <?php if ($can_control && $event && $session): ?>
-            <button onclick="togglePlayerPanel()">&#128101; Players</button>
+            <span class="timer-tray-sep"></span>
+            <button onclick="togglePlayerPanel()" title="Players">&#128101;<span class="tray-label">Players</span></button>
             <?php endif; ?>
         </div>
     </div>
@@ -972,15 +1071,18 @@ function renderClock() {
 }
 
 function renderPlayBtn() {
-    var btn = document.getElementById('btnPlay');
-    if (!btn) return;
-    if (TIMER.is_running) {
-        btn.innerHTML = '&#9646;&#9646; Pause';
-        btn.classList.add('is-running');
-    } else {
-        btn.innerHTML = '&#9654; Start';
-        btn.classList.remove('is-running');
-    }
+    ['btnPlay', 'btnPlayMobile'].forEach(function(id) {
+        var btn = document.getElementById(id);
+        if (!btn) return;
+        var isDesktop = id === 'btnPlay';
+        if (TIMER.is_running) {
+            btn.innerHTML = isDesktop ? '&#9646;&#9646;<span class="tray-label">Pause</span>' : '&#9646;&#9646; Pause';
+            btn.classList.add('is-running');
+        } else {
+            btn.innerHTML = isDesktop ? '&#9654;<span class="tray-label">Start</span>' : '&#9654; Start';
+            btn.classList.remove('is-running');
+        }
+    });
 }
 
 // Helper: append session or key identifier to FormData
@@ -1094,7 +1196,7 @@ function resetTimer() { if (confirm('Reset entire timer to Level 1?')) sendComma
 function toggleSound() {
     soundEnabled = !soundEnabled;
     var btn = document.getElementById('btnSound');
-    if (btn) btn.innerHTML = soundEnabled ? '&#128276; Sound: On' : '&#128263; Sound: Off';
+    if (btn) { btn.innerHTML = (soundEnabled ? '&#128276;' : '&#128263;') + '<span class="tray-label">Sound</span>'; btn.title = soundEnabled ? 'Sound on' : 'Sound off'; }
 }
 
 function goFullscreen() {
@@ -1633,10 +1735,23 @@ renderAll();
 startLocalTick(); // smooth second-by-second display between polls
 setInterval(pollState, POLL_INTERVAL); // everyone polls server — server is master
 
-// Open tray by default on desktop
+// Desktop: floating toolbar with auto-hide on mouse idle
 if (window.innerWidth > 768) {
     var tray = document.getElementById('timerTray');
-    if (tray) tray.classList.add('open');
+    if (tray) {
+        tray.classList.add('open');
+        var _trayHideTimer = null;
+        function showTray() {
+            tray.classList.remove('tray-hidden');
+            clearTimeout(_trayHideTimer);
+            _trayHideTimer = setTimeout(function() { tray.classList.add('tray-hidden'); }, 3000);
+        }
+        document.addEventListener('mousemove', showTray);
+        document.addEventListener('click', showTray);
+        showTray(); // start visible, then auto-hide after 3s
+    }
+} else {
+    // Mobile: keep existing swipe-up tray behavior (no auto-hide)
 }
 
 // Hide fullscreen button on iOS (not supported)

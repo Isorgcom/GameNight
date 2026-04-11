@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.06200] — 2026-04-11
+
+### Changed
+- **Timer desktop controls: floating glass toolbar.** All controls (prev, start/pause, next, min+/-, level reset, timer reset, sound, fullscreen, levels, sounds, players) consolidated into a single-row floating toolbar pinned to the bottom center. Frosted glass effect with backdrop blur. Icon + small label per button, grouped with thin dividers. Auto-hides after 3 seconds of mouse inactivity, reappears instantly on mouse move. Mobile tray behavior unchanged.
+
+---
+
 ## [v0.06100] — 2026-04-11
 
 ### Added
