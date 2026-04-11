@@ -2496,12 +2496,6 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
         wahaCheckStatus();
     }
     </script>
-                        setTimeout(function(){ b.textContent = 'Copy'; }, 1500);
-                    }.bind(this));
-                " style="white-space:nowrap" class="btn btn-outline btn-sm">Copy</button>
-            </div>
-        </div>
-    </div>
 
 </div>
 
