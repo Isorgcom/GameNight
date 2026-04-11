@@ -24,6 +24,7 @@ if (!$isAdmin && (int)$event['created_by'] !== (int)$current['id']) {
 
 $site_name = get_setting('site_name', 'Game Night');
 $csrf = csrf_token();
+$allUsernames = array_column($db->query('SELECT username FROM users ORDER BY username')->fetchAll(), 'username');
 
 // Check if session already exists
 $sessStmt = $db->prepare('SELECT * FROM poker_sessions WHERE event_id = ?');
@@ -77,7 +78,8 @@ $session = $sessStmt->fetch();
     .pk-btn-add:hover{opacity:.9}
     .pk-btn-refresh{background:transparent;color:var(--accent,#2563eb);border-color:var(--border,#e2e8f0)}
     .pk-btn-refresh:hover{background:#f1f5f9}
-    .pk-filter{display:flex;gap:0;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;overflow:hidden;margin-left:auto}
+    .pk-toolbar-sep{width:1px;height:1.5rem;background:#e2e8f0;margin:0 .25rem}
+    .pk-filter{display:flex;gap:0;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;overflow:hidden}
     .pk-filter button{border:none;background:transparent;padding:.35rem .7rem;font-size:.75rem;font-weight:600;cursor:pointer;color:#64748b}
     .pk-filter button.active{background:var(--accent,#2563eb);color:#fff}
 
@@ -171,6 +173,25 @@ $session = $sessStmt->fetch();
     .pk-mobile-actions button{padding:.35rem .7rem;border-radius:6px;font-size:.78rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border,#e2e8f0);background:#fff}
     .pk-mobile-actions button:active{background:#e2e8f0}
     .pk-mobile-actions .danger{color:#ef4444;border-color:#fca5a5}
+    .pk-bulk-bar{display:flex;align-items:center;gap:.5rem;padding:.5rem .75rem;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:8px;margin-bottom:.5rem;flex-wrap:wrap;transition:background .15s,border-color .15s}
+    .pk-bulk-bar.active{background:#eff6ff;border-color:#bfdbfe}
+    .pk-bulk-bar:not(.active) button{opacity:.4;pointer-events:none}
+    .pk-bulk-bar .pk-bulk-count{font-size:.82rem;font-weight:700;color:#2563eb;min-width:5rem}
+    .pk-bulk-bar button{font-size:.75rem;padding:.3rem .65rem;border-radius:5px;border:1.5px solid #e2e8f0;background:#fff;font-weight:600;cursor:pointer}
+    .pk-bulk-bar button:hover{background:#f1f5f9}
+    .pk-bulk-bar .danger{color:#ef4444;border-color:#fca5a5}
+    .pk-bulk-bar .primary{color:#fff;background:#2563eb;border-color:#2563eb}
+    .pk-row-select{width:18px;height:18px;cursor:pointer;accent-color:#2563eb}
+    .pk-view-seg{display:inline-flex;border-radius:6px;overflow:hidden;border:1.5px solid #e2e8f0}
+    .pk-view-seg button{padding:.3rem .6rem;font-size:.78rem;font-weight:600;border:none;cursor:pointer;transition:background .12s,color .12s}
+    .pk-view-seg .active{background:#2563eb;color:#fff}
+    .pk-view-seg .inactive{background:#f1f5f9;color:#94a3b8}
+    .walkin-autocomplete{position:relative}
+    .walkin-dropdown{position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:100;max-height:200px;overflow-y:auto;display:none}
+    .walkin-dropdown.open{display:block}
+    .walkin-dropdown-item{padding:.5rem .75rem;cursor:pointer;font-size:.85rem;color:#334155}
+    .walkin-dropdown-item:hover,.walkin-dropdown-item.active{background:#eff6ff;color:#2563eb}
+    .walkin-dropdown-item .walkin-hint{font-size:.7rem;color:#94a3b8;margin-left:.3rem}
     @media(max-width:768px){
         .pk-table-wrap{display:none}
         .pk-mobile-list{display:block;max-height:calc(100dvh - 210px);overflow-y:auto;-webkit-overflow-scrolling:touch}
@@ -282,6 +303,7 @@ $session = $sessStmt->fetch();
 
 <script>
 var CSRF = <?= json_encode($csrf, JSON_HEX_TAG) ?>;
+var ALL_USERS = <?= json_encode($allUsernames, JSON_HEX_TAG) ?>;
 var EVENT_ID = <?= $event_id ?>;
 var SESSION = <?= $session ? json_encode($session, JSON_HEX_TAG) : 'null' ?>;
 var PLAYERS = [];
@@ -457,8 +479,12 @@ function renderDashboard() {
     // Left: player table
     h += '<div>';
     h += '<div class="pk-toolbar">';
-    h += '<input type="text" id="walkinName" placeholder="Walk-in name..." onkeydown="if(event.key===\'Enter\'){event.preventDefault();addWalkin();}">';
-    h += '<button class="pk-btn-add" onclick="addWalkin()">+ Add Walk-in</button>';
+    h += '<div class="walkin-autocomplete">';
+    h += '<input type="text" id="walkinName" placeholder="Walk-in name..." autocomplete="off" oninput="walkinSuggest(this.value)" onkeydown="walkinKeydown(event)">';
+    h += '<div class="walkin-dropdown" id="walkinDropdown"></div>';
+    h += '</div>';
+    h += '<button class="pk-btn-add" onclick="addWalkin()">+ Add</button>';
+    h += '<div class="pk-toolbar-sep"></div>';
     h += '<div class="pk-filter">';
     h += '<button data-filter="all" class="' + (FILTER==='all'?'active':'') + '" onclick="setFilter(\'all\')">All</button>';
     h += '<button data-filter="rsvp_yes" class="' + (FILTER==='rsvp_yes'?'active':'') + '" onclick="setFilter(\'rsvp_yes\')">RSVP Yes</button>';
@@ -470,13 +496,27 @@ function renderDashboard() {
         h += '<button data-filter="eliminated" class="' + (FILTER==='eliminated'?'active':'') + '" onclick="setFilter(\'eliminated\')">Cashed Out</button>';
     }
     h += '</div>';
-    h += '<button class="pk-btn-view-toggle" onclick="toggleViewMode()">' + (VIEW_MODE === 'list' ? '&#9638; Table View' : '&#9776; List View') + '</button>';
+    h += '<div class="pk-view-seg">';
+    h += '<button class="' + (VIEW_MODE === 'list' ? 'active' : 'inactive') + '" onclick="if(VIEW_MODE!==\'list\'){toggleViewMode()}">&#9776; List</button>';
+    h += '<button class="' + (VIEW_MODE === 'table' ? 'active' : 'inactive') + '" onclick="if(VIEW_MODE!==\'table\'){toggleViewMode()}">&#9638; Table</button>';
+    h += '</div>';
     h += '<button class="pk-btn-view-toggle" onclick="balanceTables()">&#9878; Balance</button>';
-    h += '<button class="pk-btn-view-toggle" onclick="addTable()">+ Table</button>';
+    h += '<button class="pk-btn-view-toggle" onclick="addTable()">Tables: ' + (parseInt(SESSION.num_tables) || 1) + ' +</button>';
     h += '</div>';
     if (VIEW_MODE === 'table') {
         h += renderTableView();
     } else {
+        h += '<div class="pk-bulk-bar" id="bulkBar">';
+        h += '<span class="pk-bulk-count" id="bulkCount">0 selected</span>';
+        h += '<button class="primary" onclick="bulkAction(\'toggle_checkin\')">Check In</button>';
+        if (isTourney()) {
+            h += '<button class="primary" onclick="bulkAction(\'toggle_buyin\')">Buy In</button>';
+            h += '<button onclick="bulkAction(\'eliminate_player\')">Eliminate</button>';
+        }
+        h += '<button onclick="bulkAction(\'approve_player\')">Approve</button>';
+        h += '<button class="danger" onclick="if(confirm(\'Remove selected players?\'))bulkAction(\'remove_player\')">Remove</button>';
+        h += '<button onclick="clearSelection()">Clear</button>';
+        h += '</div>';
         h += '<div class="pk-table-wrap"><table class="pk-table">';
         h += '<thead><tr>' + renderTableHeader() + '</tr></thead>';
         h += '<tbody id="playerBody">';
@@ -502,7 +542,8 @@ function renderDashboard() {
 }
 
 function renderTableHeader() {
-    var h = '<th>#</th><th>Name</th><th>RSVP</th><th title="Checked In">&#10003;</th>';
+    var h = '<th style="width:2rem"><input type="checkbox" id="selectAll" class="pk-row-select" onchange="toggleSelectAll(this.checked)"></th>';
+    h += '<th>#</th><th>Name</th><th>RSVP</th><th title="Checked In">&#10003;</th>';
     if (isTourney()) {
         h += '<th title="Buy-in">$</th>';
         if (parseInt(SESSION.rebuy_allowed)) h += '<th>Rebuys</th>';
@@ -589,6 +630,7 @@ function renderPlayerRows() {
         var dis = (isNo || isPending) ? ' disabled' : '';
         var rowClass = isPending ? 'pending-row' : (isElim ? 'elim' : (hasCashedOut ? 'cashed-out' : (isNo ? 'rsvp-no' : '')));
         h += '<tr class="' + rowClass + '" data-pid="' + p.id + '">';
+        h += '<td><input type="checkbox" class="pk-row-select pk-player-cb" value="' + p.id + '" onchange="updateBulkBar()"></td>';
         h += '<td>' + num + '</td>';
         h += '<td class="name-cell">' + escHtml(p.display_name);
         if (isWalkin) h += '<span class="walkin-badge">WALK-IN</span>';
@@ -1399,11 +1441,158 @@ function undoCashout(pid) {
     });
 }
 
+// ── Bulk select / actions ─────────────────────────────────
+function toggleSelectAll(checked) {
+    document.querySelectorAll('.pk-player-cb').forEach(function(cb) { cb.checked = checked; });
+    updateBulkBar();
+}
+
+function updateBulkBar() {
+    var selected = document.querySelectorAll('.pk-player-cb:checked');
+    var bar = document.getElementById('bulkBar');
+    var count = document.getElementById('bulkCount');
+    if (!bar || !count) return;
+    if (selected.length > 0) {
+        bar.classList.add('active');
+        count.textContent = selected.length + ' selected';
+    } else {
+        bar.classList.remove('active');
+        count.textContent = '0 selected';
+    }
+    // Keep select-all in sync
+    var all = document.querySelectorAll('.pk-player-cb');
+    var selAll = document.getElementById('selectAll');
+    if (selAll) selAll.checked = all.length > 0 && selected.length === all.length;
+}
+
+function clearSelection() {
+    document.querySelectorAll('.pk-player-cb').forEach(function(cb) { cb.checked = false; });
+    var selAll = document.getElementById('selectAll');
+    if (selAll) selAll.checked = false;
+    updateBulkBar();
+}
+
+function bulkAction(action) {
+    var selected = Array.from(document.querySelectorAll('.pk-player-cb:checked')).map(function(cb) { return parseInt(cb.value); });
+    if (selected.length === 0) return;
+
+    var completed = 0;
+    var total = selected.length;
+
+    function processNext() {
+        if (completed >= total) {
+            // Refresh from server after all done
+            loadSession();
+            return;
+        }
+        var pid = selected[completed];
+        var params = { player_id: pid };
+        if (action === 'add_walkin') params.session_id = SESSION.id;
+        if (action === 'eliminate_player') params.finish_position = 0;
+
+        var fd = new FormData();
+        fd.append('csrf_token', CSRF);
+        fd.append('action', action);
+        for (var k in params) fd.append(k, params[k]);
+
+        fetch('/checkin_dl.php', { method: 'POST', body: fd, credentials: 'same-origin' })
+            .then(function(r) { return r.json(); })
+            .then(function(j) {
+                completed++;
+                processNext();
+            })
+            .catch(function() {
+                completed++;
+                processNext();
+            });
+    }
+    processNext();
+}
+
+var _walkinIdx = -1;
+
+function walkinSuggest(val) {
+    var dd = document.getElementById('walkinDropdown');
+    if (!dd) return;
+    val = val.trim().toLowerCase();
+    if (val.length < 1) { dd.classList.remove('open'); dd.innerHTML = ''; _walkinIdx = -1; return; }
+
+    // Exclude users already in the session
+    var existing = PLAYERS.map(function(p) { return p.display_name.toLowerCase(); });
+    var matches = ALL_USERS.filter(function(u) {
+        return u.toLowerCase().indexOf(val) !== -1 && existing.indexOf(u.toLowerCase()) === -1;
+    }).slice(0, 6);
+
+    if (matches.length === 0) { dd.classList.remove('open'); dd.innerHTML = ''; _walkinIdx = -1; return; }
+
+    dd.innerHTML = matches.map(function(u, i) {
+        return '<div class="walkin-dropdown-item" onmousedown="walkinPick(\'' + escHtml(u) + '\')">' + escHtml(u) + '</div>';
+    }).join('');
+    dd.classList.add('open');
+    _walkinIdx = -1;
+}
+
+function walkinPick(name) {
+    var input = document.getElementById('walkinName');
+    input.value = name;
+    var dd = document.getElementById('walkinDropdown');
+    if (dd) { dd.classList.remove('open'); dd.innerHTML = ''; }
+    _walkinIdx = -1;
+    addWalkin();
+}
+
+function walkinKeydown(e) {
+    var dd = document.getElementById('walkinDropdown');
+    if (!dd || !dd.classList.contains('open')) {
+        if (e.key === 'Enter') { e.preventDefault(); addWalkin(); }
+        return;
+    }
+    var items = dd.querySelectorAll('.walkin-dropdown-item');
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        _walkinIdx = Math.min(_walkinIdx + 1, items.length - 1);
+        items.forEach(function(el, i) { el.classList.toggle('active', i === _walkinIdx); });
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        _walkinIdx = Math.max(_walkinIdx - 1, 0);
+        items.forEach(function(el, i) { el.classList.toggle('active', i === _walkinIdx); });
+    } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (_walkinIdx >= 0 && items[_walkinIdx]) {
+            walkinPick(items[_walkinIdx].textContent);
+        } else if (items.length === 1) {
+            // Auto-select the only match (handles case mismatch like "bryce" → "Bryce")
+            walkinPick(items[0].textContent);
+        } else {
+            // Check for case-insensitive exact match in the dropdown
+            var typed = document.getElementById('walkinName').value.trim().toLowerCase();
+            var exactMatch = null;
+            items.forEach(function(el) { if (el.textContent.toLowerCase() === typed) exactMatch = el.textContent; });
+            if (exactMatch) { walkinPick(exactMatch); } else { addWalkin(); }
+        }
+    } else if (e.key === 'Escape') {
+        dd.classList.remove('open');
+        _walkinIdx = -1;
+    }
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.walkin-autocomplete')) {
+        var dd = document.getElementById('walkinDropdown');
+        if (dd) { dd.classList.remove('open'); _walkinIdx = -1; }
+    }
+});
+
 function addWalkin() {
     var name = document.getElementById('walkinName').value.trim();
     if (!name) { alert('Enter a name'); return; }
+    var dd = document.getElementById('walkinDropdown');
+    if (dd) { dd.classList.remove('open'); dd.innerHTML = ''; _walkinIdx = -1; }
     postAction('add_walkin', { session_id: SESSION.id, name: name }, function(j) {
-        PLAYERS.push(j.player);
+        // Replace if already exists (re-activated), otherwise add
+        var existing = PLAYERS.findIndex(function(p) { return parseInt(p.id) === parseInt(j.player.id); });
+        if (existing >= 0) { PLAYERS[existing] = j.player; } else { PLAYERS.push(j.player); }
         POOL = j.pool;
         document.getElementById('walkinName').value = '';
         refreshUI();

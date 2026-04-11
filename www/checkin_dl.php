@@ -89,7 +89,7 @@ if ($action === 'init_session') {
     $tables    = (int)($_POST['num_tables']    ?? 1);
     $game_type = in_array($_POST['game_type'] ?? '', ['tournament', 'cash']) ? $_POST['game_type'] : 'tournament';
 
-    $ins = $db->prepare('INSERT INTO poker_sessions (event_id, buyin_amount, rebuy_amount, addon_amount, starting_chips, num_tables, game_type) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    $ins = $db->prepare('INSERT INTO poker_sessions (event_id, buyin_amount, rebuy_amount, addon_amount, starting_chips, num_tables, game_type, seats_per_table) VALUES (?, ?, ?, ?, ?, ?, ?, 8)');
     $ins->execute([$event_id, $buyin, $rebuy, $addon, $chips, $tables, $game_type]);
     $session_id = (int)$db->lastInsertId();
 
@@ -422,7 +422,7 @@ if ($action === 'add_walkin') {
     }
 
     // Check if a user with this username exists
-    $userChk = $db->prepare('SELECT id, email FROM users WHERE LOWER(username) = LOWER(?)');
+    $userChk = $db->prepare('SELECT id, username, email FROM users WHERE LOWER(username) = LOWER(?)');
     $userChk->execute([$name]);
     $existingUser = $userChk->fetch();
     $user_id = $existingUser ? (int)$existingUser['id'] : null;
@@ -439,9 +439,25 @@ if ($action === 'add_walkin') {
            ->execute([$s['event_id'], $name]);
     }
 
-    $db->prepare('INSERT INTO poker_players (session_id, user_id, display_name, checked_in) VALUES (?, ?, ?, 1)')->execute([$session_id, $user_id, $name]);
-    $newId = (int)$db->lastInsertId();
-    auto_assign_table($db, $session_id, $newId);
+    // Check if player already exists in this session (including removed)
+    $existingPlayer = $db->prepare('SELECT id, removed FROM poker_players WHERE session_id = ? AND LOWER(display_name) = LOWER(?)');
+    $existingPlayer->execute([$session_id, $name]);
+    $epRow = $existingPlayer->fetch();
+
+    if ($epRow) {
+        // Re-activate if removed, otherwise already exists
+        if ((int)$epRow['removed']) {
+            $db->prepare('UPDATE poker_players SET removed = 0, checked_in = 1 WHERE id = ?')->execute([$epRow['id']]);
+            auto_assign_table($db, $session_id, $epRow['id']);
+        }
+        $newId = (int)$epRow['id'];
+    } else {
+        // Use the correct-case username if it's an existing user account
+        $displayName = $existingUser ? $existingUser['username'] ?? $name : $name;
+        $db->prepare('INSERT INTO poker_players (session_id, user_id, display_name, checked_in) VALUES (?, ?, ?, 1)')->execute([$session_id, $user_id, $displayName]);
+        $newId = (int)$db->lastInsertId();
+        auto_assign_table($db, $session_id, $newId);
+    }
 
     $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
     $p->execute([$newId]);

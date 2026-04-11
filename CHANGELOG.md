@@ -4,6 +4,22 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.06100] — 2026-04-11
+
+### Added
+- **Walk-in autocomplete search.** The walk-in input in checkin.php now live-searches existing usernames as you type. Matches case-insensitively, excludes players already in the session, uses correct-case username from the DB. Click or Enter to select.
+- **Multi-select and bulk actions.** Desktop list view has per-row checkboxes with select-all, and a bulk action bar for: Check In, Buy In, Eliminate, Approve, Remove. Bar is always visible, dimmed when nothing selected.
+- **Table count on button.** The "+ Table" button now shows the current table count (e.g., "Tables: 2 +").
+- **Segmented view toggle.** List/Table view switcher is now a joined two-button segment control with active/inactive states.
+- **Toolbar visual separator.** Thin divider line between walk-in controls and filter/view controls.
+
+### Fixed
+- **New sessions default to 8 seats.** `init_session` now explicitly sets `seats_per_table = 8`.
+- **Walk-in duplicate players.** Re-adding a removed player re-activates them instead of creating a duplicate. Uses correct-case username from user account.
+- **Walk-in case mismatch.** Typing "bryce" now correctly selects "Bryce" when Enter is pressed.
+
+---
+
 ## [v0.06000] — 2026-04-11
 
 ### Added
