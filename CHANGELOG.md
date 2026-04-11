@@ -4,6 +4,14 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.06300] — 2026-04-11
+
+### Changed
+- **Timer mobile: unified floating toolbar.** Mobile now uses the same floating glass toolbar as desktop. All controls (prev, start/pause, next, min+/-, resets, sound, fullscreen, levels, sounds, players) in one bar. Tap timer display to show/hide. Auto-hides after 4 seconds. Removed separate Prev/Start/Next row and grip-handle tray. Play button highlighted green/red on mobile.
+- **Spacebar hotkey.** Pressing spacebar toggles play/pause on the timer (desktop).
+
+---
+
 ## [v0.06200] — 2026-04-11
 
 ### Changed

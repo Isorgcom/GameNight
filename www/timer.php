@@ -316,86 +316,55 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
             max-width: 900px;
             flex: 0 0 auto;
         }
-        .timer-tray-handle {
-            width: 100%;
-            max-width: 900px;
-            padding: 0.3rem 0;
-            cursor: pointer;
-            display: flex;
-            justify-content: center;
-            -webkit-tap-highlight-color: transparent;
-        }
-        .timer-tray-grip {
-            width: 40px;
-            height: 4px;
-            background: #475569;
-            border-radius: 2px;
-        }
+        /* ── Floating glass toolbar (all screens) ── */
         .timer-tray {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease;
-            width: 100%;
-            max-width: 900px;
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%) translateY(0);
+            width: auto;
+            max-width: 95vw;
+            z-index: 50;
+            background: rgba(15, 23, 42, 0.88);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 14px 14px 0 0;
+            padding: 0.4rem 0.75rem;
+            border: 1px solid rgba(71, 85, 105, 0.4);
+            border-bottom: none;
+            transition: transform 0.3s ease, opacity 0.3s ease;
         }
-        .timer-tray.open {
-            max-height: 200px;
+        .timer-tray.tray-hidden {
+            transform: translateX(-50%) translateY(100%);
+            opacity: 0;
+            pointer-events: none;
         }
         .timer-tray-grid {
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 0.4rem;
+            gap: 0.25rem;
             flex-wrap: wrap;
-            padding: 0.3rem 0 0.5rem;
+            padding: 0;
+        }
+        .timer-tray-sep {
+            width: 1px;
+            height: 1.5rem;
+            background: rgba(148, 163, 184, 0.3);
+            margin: 0 0.15rem;
+            flex-shrink: 0;
         }
         @media (min-width: 769px) {
-            .timer-tray-handle { display: none; }
-            .timer-tray {
-                max-height: none;
-                overflow: visible;
-                position: fixed;
-                bottom: 0;
-                left: 50%;
-                transform: translateX(-50%) translateY(0);
-                width: auto;
-                max-width: none;
-                z-index: 50;
-                background: rgba(15, 23, 42, 0.85);
-                backdrop-filter: blur(12px);
-                -webkit-backdrop-filter: blur(12px);
-                border-radius: 14px 14px 0 0;
-                padding: 0.5rem 1rem;
-                border: 1px solid rgba(71, 85, 105, 0.4);
-                border-bottom: none;
-                transition: transform 0.3s ease, opacity 0.3s ease;
-            }
-            .timer-tray.tray-hidden {
-                transform: translateX(-50%) translateY(100%);
-                opacity: 0;
-                pointer-events: none;
-            }
-            .timer-tray-grid {
-                flex-wrap: nowrap;
-                gap: 0.25rem;
-                padding: 0;
-            }
-            .timer-tray-sep {
-                width: 1px;
-                height: 1.5rem;
-                background: rgba(148, 163, 184, 0.3);
-                margin: 0 0.2rem;
-                flex-shrink: 0;
-            }
-        }
-        .tray-desktop-only { display: none; }
-        @media (min-width: 769px) {
-            .tray-desktop-only { display: inline-flex !important; }
-            .timer-mobile-only { display: none !important; }
+            .timer-tray { padding: 0.5rem 1rem; }
+            .timer-tray-grid { flex-wrap: nowrap; }
         }
         @media (max-width: 768px) {
-            .timer-tray-sep { display: none; }
-            .tray-desktop-only { display: none !important; }
+            .timer-tray { padding: 0.35rem 0.5rem; padding-bottom: max(0.35rem, env(safe-area-inset-bottom)); }
+            .timer-tray-grid { gap: 0.2rem; }
+            .timer-tray-grid button { padding: 0.3rem 0.45rem !important; font-size: 0.9rem !important; min-width: 2.2rem; }
+            .tray-label { font-size: 0.48rem !important; }
+            .timer-tray-grid .btn-play { background: #16a34a !important; border-color: #16a34a !important; color: #fff !important; padding: 0.3rem 0.7rem !important; }
+            .timer-tray-grid .btn-play.is-running { background: #dc2626 !important; border-color: #dc2626 !important; }
         }
         .timer-primary-controls button,
         .timer-tray-grid button,
@@ -762,25 +731,13 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
     </div>
 
     <!-- Primary controls (always visible) -->
-    <!-- Mobile-only primary controls (above tray) -->
-    <div class="timer-primary-controls timer-mobile-only" id="controls" style="<?= $can_control ? '' : 'display:none' ?>">
-        <button onclick="skipLevel(-1)" title="Previous Level">&#9198; Prev</button>
-        <button class="btn-play" id="btnPlayMobile" onclick="togglePlay()">&#9654; Start</button>
-        <button onclick="skipLevel(1)" title="Next Level">Next &#9197;</button>
-    </div>
-
-    <!-- Tray handle -->
-    <div class="timer-tray-handle" onclick="toggleTray()">
-        <div class="timer-tray-grip"></div>
-    </div>
-
-    <!-- Controls tray (floating toolbar on desktop) -->
+    <!-- Controls tray (floating toolbar on all screens) -->
     <div class="timer-tray" id="timerTray">
         <div class="timer-tray-grid">
             <?php if ($can_control): ?>
-            <button onclick="skipLevel(-1)" title="Previous level" class="tray-desktop-only">&#9198;<span class="tray-label">Prev</span></button>
-            <button class="btn-play tray-desktop-only" id="btnPlay" onclick="togglePlay()">&#9654;<span class="tray-label">Start</span></button>
-            <button onclick="skipLevel(1)" title="Next level" class="tray-desktop-only">&#9197;<span class="tray-label">Next</span></button>
+            <button onclick="skipLevel(-1)" title="Previous level">&#9198;<span class="tray-label">Prev</span></button>
+            <button class="btn-play" id="btnPlay" onclick="togglePlay()">&#9654;<span class="tray-label">Start</span></button>
+            <button onclick="skipLevel(1)" title="Next level">&#9197;<span class="tray-label">Next</span></button>
             <span class="timer-tray-sep"></span>
             <span class="timer-min-group">
                 <button onclick="adjustTime(-60)" title="Remove 1 minute">&#9660;</button>
@@ -1071,18 +1028,15 @@ function renderClock() {
 }
 
 function renderPlayBtn() {
-    ['btnPlay', 'btnPlayMobile'].forEach(function(id) {
-        var btn = document.getElementById(id);
-        if (!btn) return;
-        var isDesktop = id === 'btnPlay';
-        if (TIMER.is_running) {
-            btn.innerHTML = isDesktop ? '&#9646;&#9646;<span class="tray-label">Pause</span>' : '&#9646;&#9646; Pause';
-            btn.classList.add('is-running');
-        } else {
-            btn.innerHTML = isDesktop ? '&#9654;<span class="tray-label">Start</span>' : '&#9654; Start';
-            btn.classList.remove('is-running');
-        }
-    });
+    var btn = document.getElementById('btnPlay');
+    if (!btn) return;
+    if (TIMER.is_running) {
+        btn.innerHTML = '&#9646;&#9646;<span class="tray-label">Pause</span>';
+        btn.classList.add('is-running');
+    } else {
+        btn.innerHTML = '&#9654;<span class="tray-label">Start</span>';
+        btn.classList.remove('is-running');
+    }
 }
 
 // Helper: append session or key identifier to FormData
@@ -1735,24 +1689,38 @@ renderAll();
 startLocalTick(); // smooth second-by-second display between polls
 setInterval(pollState, POLL_INTERVAL); // everyone polls server — server is master
 
-// Desktop: floating toolbar with auto-hide on mouse idle
-if (window.innerWidth > 768) {
-    var tray = document.getElementById('timerTray');
-    if (tray) {
-        tray.classList.add('open');
-        var _trayHideTimer = null;
-        function showTray() {
-            tray.classList.remove('tray-hidden');
-            clearTimeout(_trayHideTimer);
-            _trayHideTimer = setTimeout(function() { tray.classList.add('tray-hidden'); }, 3000);
-        }
-        document.addEventListener('mousemove', showTray);
-        document.addEventListener('click', showTray);
-        showTray(); // start visible, then auto-hide after 3s
+// Floating toolbar: auto-hide on all screens
+var tray = document.getElementById('timerTray');
+if (tray) {
+    var _trayHideTimer = null;
+    var _trayHideDelay = window.innerWidth > 768 ? 3000 : 4000;
+    function showTray() {
+        tray.classList.remove('tray-hidden');
+        clearTimeout(_trayHideTimer);
+        _trayHideTimer = setTimeout(function() { tray.classList.add('tray-hidden'); }, _trayHideDelay);
     }
-} else {
-    // Mobile: keep existing swipe-up tray behavior (no auto-hide)
+    // Desktop: mouse move shows toolbar
+    document.addEventListener('mousemove', showTray);
+    // All: tray clicks keep it visible (don't auto-hide while interacting)
+    tray.addEventListener('click', function(e) { e.stopPropagation(); showTray(); });
+    // Mobile: tap on timer display toggles toolbar
+    var timerContainer = document.querySelector('.timer-container');
+    if (timerContainer) {
+        timerContainer.addEventListener('click', function(e) {
+            if (e.target.closest('.timer-tray, button, a, input, select')) return;
+            if (tray.classList.contains('tray-hidden')) { showTray(); } else { tray.classList.add('tray-hidden'); clearTimeout(_trayHideTimer); }
+        });
+    }
+    showTray(); // start visible, then auto-hide
 }
+
+// Spacebar hotkey for start/stop (only when not typing in an input)
+document.addEventListener('keydown', function(e) {
+    if (e.code === 'Space' && !e.target.closest('input, textarea, select, [contenteditable]')) {
+        e.preventDefault();
+        togglePlay();
+    }
+});
 
 // Hide fullscreen button on iOS (not supported)
 if (/iPhone|iPad|iPod/.test(navigator.userAgent) && !document.fullscreenEnabled && !document.webkitFullscreenEnabled) {
