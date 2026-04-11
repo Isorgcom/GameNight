@@ -1,5 +1,8 @@
 <!-- ── SaaS-style marketing landing page for visitors ── -->
 <div class="hero">
+    <?php $_lp_banner = get_setting('header_banner_path', ''); if ($_lp_banner): ?>
+    <img src="<?= htmlspecialchars($_lp_banner) ?>" alt="<?= htmlspecialchars(get_setting('site_name', 'Game Night')) ?>" style="max-width:400px;width:90%;margin-bottom:1.5rem">
+    <?php endif; ?>
     <h1>Your Game Nights,<br>Organized.</h1>
     <p>The all-in-one platform for scheduling game nights, managing RSVPs, running tournaments, and keeping your crew in the loop.</p>
     <div class="cta-group">
