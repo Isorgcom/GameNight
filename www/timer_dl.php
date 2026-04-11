@@ -168,6 +168,7 @@ if ($action === 'get_state') {
         'sounds' => [
             'warning_seconds' => (int)($timer['warning_seconds'] ?? 60),
             'alarm_sound' => $timer['alarm_sound'] ?? null,
+            'start_sound' => $timer['start_sound'] ?? null,
             'warning_sound' => $timer['warning_sound'] ?? null,
         ],
     ]);
@@ -448,10 +449,11 @@ if ($action === 'update_sounds') {
 
     $warning_seconds = isset($_POST['warning_seconds']) ? max(0, (int)$_POST['warning_seconds']) : 60;
     $alarm_sound = $_POST['alarm_sound'] ?? null;
+    $start_sound = $_POST['start_sound'] ?? null;
     $warning_sound = $_POST['warning_sound'] ?? null;
 
-    $db->prepare("UPDATE timer_state SET warning_seconds = ?, alarm_sound = ?, warning_sound = ? WHERE id = ?")
-        ->execute([$warning_seconds, $alarm_sound, $warning_sound, $timer['id']]);
+    $db->prepare("UPDATE timer_state SET warning_seconds = ?, alarm_sound = ?, start_sound = ?, warning_sound = ? WHERE id = ?")
+        ->execute([$warning_seconds, $alarm_sound, $start_sound, $warning_sound, $timer['id']]);
 
     echo json_encode(['ok' => true]);
     exit;

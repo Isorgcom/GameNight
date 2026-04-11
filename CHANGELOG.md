@@ -4,6 +4,21 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.06400] — 2026-04-11
+
+### Added
+- **Timer sound presets.** End, start, and warning sounds each have their own dropdown with built-in beep options: Buzzer, Chime, Casino Bell, Air Horn, Countdown, Double Beep, 3 Descending Beeps (end/start); Tick-Tick, Pulse, Chirp, Gentle Tone (warning). All generated via Web Audio API — no files needed.
+- **Separate end/start level sounds.** End level and start level sounds now have independent dropdowns, uploads, and preview buttons. New `start_sound` column in timer_state.
+- **WAHA NOWEB engine.** Switched from WEBJS (Chromium-based, ~150 MB) to NOWEB (WebSocket, ~80 MB) for lower resource usage.
+
+### Changed
+- **Default end level sound** is now 5 beeps over 3 seconds (880 Hz). Old default (3 descending beeps) moved to a preset option.
+- **Start level tone** frequency changed from 1000 Hz to 880 Hz to match.
+- **Ante display** more visible — amber/gold color, bold, larger font.
+- **Timer eliminate** no longer prompts for finish position — auto-assigns next available.
+
+---
+
 ## [v0.06300] — 2026-04-11
 
 ### Changed

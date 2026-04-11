@@ -273,9 +273,9 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
             font-variant-numeric: tabular-nums;
         }
         .timer-ante {
-            font-size: clamp(0.8rem, 2vw, 2rem);
-            color: #64748b;
-            font-weight: 500;
+            font-size: clamp(1rem, 2.5vw, 2.2rem);
+            color: #f59e0b;
+            font-weight: 700;
         }
         .timer-clock {
             font-size: min(25vw, 35vh);
@@ -840,13 +840,19 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
         </div>
 
         <div style="margin-bottom:1.2rem">
-            <label style="display:block;margin-bottom:0.4rem;color:#94a3b8;font-size:0.85rem">End/Start Level Sound (custom replaces both)</label>
+            <label style="display:block;margin-bottom:0.4rem;color:#94a3b8;font-size:0.85rem">End Level Sound</label>
             <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
                 <select id="alarmSoundSelect" style="background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;padding:0.4rem 0.6rem;font-size:0.9rem;flex:1">
-                    <option value="">Default (3 beeps + long tone)</option>
-                </select>
-                <button onclick="previewSound('end')" style="background:#334155;color:#e2e8f0;border:1px solid #475569;border-radius:6px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.85rem">&#9654; End</button>
-                <button onclick="previewSound('start')" style="background:#334155;color:#e2e8f0;border:1px solid #475569;border-radius:6px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.85rem">&#9654; Start</button>
+                    <option value="">Default (5 beeps, 3 sec)</option>
+                    <option value="preset:descending">3 Descending Beeps</option>
+                    <option value="preset:buzzer">Buzzer</option>
+                    <option value="preset:chime">Chime (ascending)</option>
+                    <option value="preset:casino">Casino Bell</option>
+                    <option value="preset:horn">Air Horn</option>
+                    <option value="preset:countdown">Countdown (3-2-1-GO)</option>
+                    <option value="preset:double">Double Beep</option>
+</select>
+                <button onclick="previewSound('end')" style="background:#334155;color:#e2e8f0;border:1px solid #475569;border-radius:6px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.85rem">&#9654; Test</button>
             </div>
             <div style="margin-top:0.5rem">
                 <label style="display:inline-block;background:#334155;color:#e2e8f0;border:1px solid #475569;border-radius:6px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.85rem">
@@ -858,10 +864,37 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
         </div>
 
         <div style="margin-bottom:1.2rem">
+            <label style="display:block;margin-bottom:0.4rem;color:#94a3b8;font-size:0.85rem">Start Level Sound</label>
+            <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
+                <select id="startSoundSelect" style="background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;padding:0.4rem 0.6rem;font-size:0.9rem;flex:1">
+                    <option value="">Default (1 long tone)</option>
+                    <option value="preset:buzzer">Buzzer</option>
+                    <option value="preset:chime">Chime (ascending)</option>
+                    <option value="preset:casino">Casino Bell</option>
+                    <option value="preset:horn">Air Horn</option>
+                    <option value="preset:countdown">Countdown (3-2-1-GO)</option>
+                    <option value="preset:double">Double Beep</option>
+</select>
+                <button onclick="previewSound('start')" style="background:#334155;color:#e2e8f0;border:1px solid #475569;border-radius:6px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.85rem">&#9654; Test</button>
+            </div>
+            <div style="margin-top:0.5rem">
+                <label style="display:inline-block;background:#334155;color:#e2e8f0;border:1px solid #475569;border-radius:6px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.85rem">
+                    Upload Custom...
+                    <input type="file" id="startUpload" accept="audio/*" style="display:none" onchange="uploadSound('start')">
+                </label>
+                <span id="startUploadStatus" style="color:#94a3b8;font-size:0.8rem;margin-left:0.5rem"></span>
+            </div>
+        </div>
+
+        <div style="margin-bottom:1.2rem">
             <label style="display:block;margin-bottom:0.4rem;color:#94a3b8;font-size:0.85rem">Warning Sound</label>
             <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
                 <select id="warningSoundSelect" style="background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;padding:0.4rem 0.6rem;font-size:0.9rem;flex:1">
-                    <option value="">Default Beep</option>
+                    <option value="">Default (5 quick beeps)</option>
+                    <option value="preset:tick">Tick-Tick</option>
+                    <option value="preset:pulse">Pulse (heartbeat)</option>
+                    <option value="preset:chirp">Chirp</option>
+                    <option value="preset:gentle">Gentle Tone</option>
                 </select>
                 <button onclick="previewSound('warning')" style="background:#334155;color:#e2e8f0;border:1px solid #475569;border-radius:6px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.85rem">&#9654; Test</button>
             </div>
@@ -914,6 +947,7 @@ var POKER_SESSION_ID = <?= json_encode($session ? (int)$session['id'] : null) ?>
 var SOUNDS = {
     warning_seconds: <?= (int)($timer['warning_seconds'] ?? 60) ?>,
     alarm_sound: <?= json_encode($timer['alarm_sound'] ?? null) ?>,
+    start_sound: <?= json_encode($timer['start_sound'] ?? null) ?>,
     warning_sound: <?= json_encode($timer['warning_sound'] ?? null) ?>
 };
 var warningFired = false;
@@ -1228,35 +1262,44 @@ function playCustomSound(url) {
     } catch(e) {}
 }
 
-// End Timer: 3 beeps over 3 seconds (one per second, descending pitch)
+// End Timer: default is 5 beeps over 3 seconds
 function playEndTimer() {
     if (!soundEnabled) return;
-    if (SOUNDS.alarm_sound) { playCustomSound(SOUNDS.alarm_sound); return; }
+    if (SOUNDS.alarm_sound) {
+        if (SOUNDS.alarm_sound.indexOf('preset:') === 0) { playPresetEnd(SOUNDS.alarm_sound); return; }
+        playCustomSound(SOUNDS.alarm_sound); return;
+    }
+    // Default: 5 evenly spaced beeps over 3 seconds (same as preset:five3s)
     try {
         var ctx = ensureAudioCtx();
-        [0, 1, 2].forEach(function(i) {
+        var t = ctx.currentTime;
+        for (var i = 0; i < 5; i++) {
             var osc = ctx.createOscillator();
             var gain = ctx.createGain();
             osc.type = 'sine';
-            osc.frequency.value = 880 - (i * 110); // 880, 770, 660
-            gain.gain.value = 0.35;
+            osc.frequency.value = 880;
+            gain.gain.value = 0.3;
             osc.connect(gain);
             gain.connect(ctx.destination);
-            osc.start(ctx.currentTime + i);
-            osc.stop(ctx.currentTime + i + 0.4);
-        });
+            osc.start(t + i * 0.6);
+            osc.stop(t + i * 0.6 + 0.35);
+        }
     } catch(e) {}
 }
 
 // Start Timer: 1 long beep (1 second, higher pitch)
 function playStartTimer() {
     if (!soundEnabled) return;
+    if (SOUNDS.start_sound) {
+        if (SOUNDS.start_sound.indexOf('preset:') === 0) { playPresetEnd(SOUNDS.start_sound); return; }
+        playCustomSound(SOUNDS.start_sound); return;
+    }
     try {
         var ctx = ensureAudioCtx();
         var osc = ctx.createOscillator();
         var gain = ctx.createGain();
         osc.type = 'sine';
-        osc.frequency.value = 1000;
+        osc.frequency.value = 880;
         gain.gain.value = 0.35;
         // Fade out at the end
         gain.gain.setValueAtTime(0.35, ctx.currentTime);
@@ -1271,7 +1314,10 @@ function playStartTimer() {
 // Warning: 5 quick beeps
 function playWarning() {
     if (!soundEnabled) return;
-    if (SOUNDS.warning_sound) { playCustomSound(SOUNDS.warning_sound); return; }
+    if (SOUNDS.warning_sound) {
+        if (SOUNDS.warning_sound.indexOf('preset:') === 0) { playPresetWarning(SOUNDS.warning_sound); return; }
+        playCustomSound(SOUNDS.warning_sound); return;
+    }
     try {
         var ctx = ensureAudioCtx();
         for (var i = 0; i < 5; i++) {
@@ -1288,12 +1334,153 @@ function playWarning() {
     } catch(e) {}
 }
 
+// ─── Preset sound patterns ───────────────────────────────
+function playPresetEnd(key) {
+    try {
+        var ctx = ensureAudioCtx();
+        var t = ctx.currentTime;
+        switch (key) {
+            case 'preset:buzzer':
+                // Low harsh buzz
+                var o = ctx.createOscillator(), g = ctx.createGain();
+                o.type = 'square'; o.frequency.value = 180; g.gain.value = 0.3;
+                o.connect(g); g.connect(ctx.destination);
+                g.gain.setValueAtTime(0.3, t); g.gain.linearRampToValueAtTime(0, t + 1.2);
+                o.start(t); o.stop(t + 1.2);
+                break;
+            case 'preset:chime':
+                // 3 ascending bright tones (C5 E5 G5)
+                [523, 659, 784].forEach(function(f, i) {
+                    var o = ctx.createOscillator(), g = ctx.createGain();
+                    o.type = 'sine'; o.frequency.value = f; g.gain.value = 0.3;
+                    o.connect(g); g.connect(ctx.destination);
+                    o.start(t + i * 0.35); o.stop(t + i * 0.35 + 0.3);
+                });
+                break;
+            case 'preset:casino':
+                // Quick ding-ding-ding (high bell tones)
+                [1200, 1400, 1200, 1400, 1600].forEach(function(f, i) {
+                    var o = ctx.createOscillator(), g = ctx.createGain();
+                    o.type = 'sine'; o.frequency.value = f; g.gain.value = 0.25;
+                    g.gain.setValueAtTime(0.25, t + i * 0.15);
+                    g.gain.linearRampToValueAtTime(0, t + i * 0.15 + 0.12);
+                    o.connect(g); g.connect(ctx.destination);
+                    o.start(t + i * 0.15); o.stop(t + i * 0.15 + 0.15);
+                });
+                break;
+            case 'preset:horn':
+                // Rising sawtooth blast
+                var o = ctx.createOscillator(), g = ctx.createGain();
+                o.type = 'sawtooth'; o.frequency.setValueAtTime(200, t);
+                o.frequency.linearRampToValueAtTime(600, t + 0.8);
+                g.gain.value = 0.25;
+                g.gain.setValueAtTime(0.25, t); g.gain.linearRampToValueAtTime(0, t + 1.0);
+                o.connect(g); g.connect(ctx.destination);
+                o.start(t); o.stop(t + 1.0);
+                break;
+            case 'preset:countdown':
+                // 3-2-1-GO: 3 short pips then a long tone
+                [0, 0.6, 1.2].forEach(function(delay) {
+                    var o = ctx.createOscillator(), g = ctx.createGain();
+                    o.type = 'sine'; o.frequency.value = 800; g.gain.value = 0.3;
+                    o.connect(g); g.connect(ctx.destination);
+                    o.start(t + delay); o.stop(t + delay + 0.15);
+                });
+                var oGo = ctx.createOscillator(), gGo = ctx.createGain();
+                oGo.type = 'sine'; oGo.frequency.value = 1200; gGo.gain.value = 0.35;
+                gGo.gain.setValueAtTime(0.35, t + 1.8);
+                gGo.gain.linearRampToValueAtTime(0, t + 2.6);
+                oGo.connect(gGo); gGo.connect(ctx.destination);
+                oGo.start(t + 1.8); oGo.stop(t + 2.6);
+                break;
+            case 'preset:double':
+                // Two firm beeps (tournament clock)
+                [0, 0.4].forEach(function(delay) {
+                    var o = ctx.createOscillator(), g = ctx.createGain();
+                    o.type = 'square'; o.frequency.value = 700; g.gain.value = 0.25;
+                    o.connect(g); g.connect(ctx.destination);
+                    o.start(t + delay); o.stop(t + delay + 0.2);
+                });
+                break;
+            case 'preset:descending':
+                // 3 descending beeps (old default)
+                [0, 1, 2].forEach(function(i) {
+                    var o = ctx.createOscillator(), g = ctx.createGain();
+                    o.type = 'sine'; o.frequency.value = 880 - (i * 110); g.gain.value = 0.35;
+                    o.connect(g); g.connect(ctx.destination);
+                    o.start(t + i); o.stop(t + i + 0.4);
+                });
+                break;
+            case 'preset:five3s':
+                // 5 evenly spaced beeps over 3 seconds
+                for (var i = 0; i < 5; i++) {
+                    var o = ctx.createOscillator(), g = ctx.createGain();
+                    o.type = 'sine'; o.frequency.value = 880; g.gain.value = 0.3;
+                    o.connect(g); g.connect(ctx.destination);
+                    o.start(t + i * 0.6); o.stop(t + i * 0.6 + 0.35);
+                }
+                break;
+        }
+    } catch(e) {}
+}
+
+function playPresetWarning(key) {
+    try {
+        var ctx = ensureAudioCtx();
+        var t = ctx.currentTime;
+        switch (key) {
+            case 'preset:tick':
+                // Soft rapid clicks
+                for (var i = 0; i < 8; i++) {
+                    var o = ctx.createOscillator(), g = ctx.createGain();
+                    o.type = 'sine'; o.frequency.value = 2000; g.gain.value = 0.15;
+                    o.connect(g); g.connect(ctx.destination);
+                    o.start(t + i * 0.12); o.stop(t + i * 0.12 + 0.02);
+                }
+                break;
+            case 'preset:pulse':
+                // Rhythmic low pulse (heartbeat)
+                [0, 0.15, 0.6, 0.75].forEach(function(delay) {
+                    var o = ctx.createOscillator(), g = ctx.createGain();
+                    o.type = 'sine'; o.frequency.value = 80; g.gain.value = 0.3;
+                    g.gain.setValueAtTime(0.3, t + delay);
+                    g.gain.linearRampToValueAtTime(0, t + delay + 0.12);
+                    o.connect(g); g.connect(ctx.destination);
+                    o.start(t + delay); o.stop(t + delay + 0.15);
+                });
+                break;
+            case 'preset:chirp':
+                // Quick high-pitched chirps
+                for (var i = 0; i < 4; i++) {
+                    var o = ctx.createOscillator(), g = ctx.createGain();
+                    o.type = 'sine'; o.frequency.setValueAtTime(1500, t + i * 0.25);
+                    o.frequency.linearRampToValueAtTime(2500, t + i * 0.25 + 0.08);
+                    g.gain.value = 0.2;
+                    o.connect(g); g.connect(ctx.destination);
+                    o.start(t + i * 0.25); o.stop(t + i * 0.25 + 0.1);
+                }
+                break;
+            case 'preset:gentle':
+                // Single soft sustained tone
+                var o = ctx.createOscillator(), g = ctx.createGain();
+                o.type = 'sine'; o.frequency.value = 440; g.gain.value = 0.2;
+                g.gain.setValueAtTime(0, t);
+                g.gain.linearRampToValueAtTime(0.2, t + 0.1);
+                g.gain.linearRampToValueAtTime(0, t + 1.5);
+                o.connect(g); g.connect(ctx.destination);
+                o.start(t); o.stop(t + 1.5);
+                break;
+        }
+    } catch(e) {}
+}
+
 // ─── Sound settings ──────────────────────────────────────
 function openSoundSettings() {
     var sel = document.getElementById('warningSeconds');
     if (sel) sel.value = String(SOUNDS.warning_seconds);
     // Set current selections
     setSelectValue('alarmSoundSelect', SOUNDS.alarm_sound || '');
+    setSelectValue('startSoundSelect', SOUNDS.start_sound || '');
     setSelectValue('warningSoundSelect', SOUNDS.warning_sound || '');
     document.getElementById('soundOverlay').classList.add('open');
 }
@@ -1314,8 +1501,10 @@ function setSelectValue(id, val) {
 }
 
 function uploadSound(type) {
-    var input = document.getElementById(type === 'alarm' ? 'alarmUpload' : 'warningUpload');
-    var status = document.getElementById(type === 'alarm' ? 'alarmUploadStatus' : 'warningUploadStatus');
+    var inputId = type === 'alarm' ? 'alarmUpload' : (type === 'start' ? 'startUpload' : 'warningUpload');
+    var statusId = type === 'alarm' ? 'alarmUploadStatus' : (type === 'start' ? 'startUploadStatus' : 'warningUploadStatus');
+    var input = document.getElementById(inputId);
+    var status = document.getElementById(statusId);
     if (!input.files[0]) return;
     status.textContent = 'Uploading...';
     var fd = new FormData();
@@ -1329,7 +1518,7 @@ function uploadSound(type) {
             if (j.ok) {
                 status.textContent = 'Uploaded!';
                 status.style.color = '#22c55e';
-                var selId = type === 'alarm' ? 'alarmSoundSelect' : 'warningSoundSelect';
+                var selId = type === 'alarm' ? 'alarmSoundSelect' : (type === 'start' ? 'startSoundSelect' : 'warningSoundSelect');
                 setSelectValue(selId, j.url);
                 document.getElementById(selId).value = j.url;
             } else {
@@ -1343,6 +1532,7 @@ function uploadSound(type) {
 function saveSoundSettings() {
     SOUNDS.warning_seconds = parseInt(document.getElementById('warningSeconds').value) || 0;
     SOUNDS.alarm_sound = document.getElementById('alarmSoundSelect').value || null;
+    SOUNDS.start_sound = document.getElementById('startSoundSelect').value || null;
     SOUNDS.warning_sound = document.getElementById('warningSoundSelect').value || null;
 
     var fd = new FormData();
@@ -1351,6 +1541,7 @@ function saveSoundSettings() {
     appendTimerId(fd);
     fd.append('warning_seconds', SOUNDS.warning_seconds);
     fd.append('alarm_sound', SOUNDS.alarm_sound || '');
+    fd.append('start_sound', SOUNDS.start_sound || '');
     fd.append('warning_sound', SOUNDS.warning_sound || '');
     fetch('/timer_dl.php', { method: 'POST', body: fd })
         .then(function(r) { return r.json(); })
@@ -1361,15 +1552,22 @@ function saveSoundSettings() {
 }
 
 function previewSound(type) {
+    ensureAudioCtx();
     if (type === 'end') {
-        var url = document.getElementById('alarmSoundSelect').value;
-        if (url) playCustomSound(url); else playEndTimer();
+        var val = document.getElementById('alarmSoundSelect').value;
+        if (val && val.indexOf('preset:') === 0) { playPresetEnd(val); }
+        else if (val) { playCustomSound(val); }
+        else { /* play default end */ var old = SOUNDS.alarm_sound; SOUNDS.alarm_sound = null; playEndTimer(); SOUNDS.alarm_sound = old; }
     } else if (type === 'start') {
-        var url = document.getElementById('alarmSoundSelect').value;
-        if (url) playCustomSound(url); else playStartTimer();
+        var val = document.getElementById('startSoundSelect').value;
+        if (val && val.indexOf('preset:') === 0) { playPresetEnd(val); }
+        else if (val) { playCustomSound(val); }
+        else { var old = SOUNDS.start_sound; SOUNDS.start_sound = null; playStartTimer(); SOUNDS.start_sound = old; }
     } else {
-        var url = document.getElementById('warningSoundSelect').value;
-        if (url) playCustomSound(url); else playWarning();
+        var val = document.getElementById('warningSoundSelect').value;
+        if (val && val.indexOf('preset:') === 0) { playPresetWarning(val); }
+        else if (val) { playCustomSound(val); }
+        else { var old = SOUNDS.warning_sound; SOUNDS.warning_sound = null; playWarning(); SOUNDS.warning_sound = old; }
     }
 }
 
@@ -1897,9 +2095,7 @@ function ppAddonSetAmt(pid, val) {
 }
 function ppEliminate(pid) {
     var playing = PP_PLAYERS.filter(function(p) { return !parseInt(p.eliminated) && parseInt(p.bought_in); }).length;
-    var pos = prompt('Finish position? (suggested: ' + playing + ')', playing);
-    if (pos === null) return;
-    ppPost('eliminate_player', { player_id: pid, finish_position: parseInt(pos) || playing });
+    ppPost('eliminate_player', { player_id: pid, finish_position: playing });
 }
 function ppUnelim(pid) { ppPost('uneliminate_player', { player_id: pid }); }
 function ppCashin(pid) {

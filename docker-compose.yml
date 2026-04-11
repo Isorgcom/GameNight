@@ -23,6 +23,7 @@ services:
     volumes:
       - ./waha_data:/app/.sessions
     environment:
+      - WHATSAPP_DEFAULT_ENGINE=NOWEB
       - WHATSAPP_HOOK_URL=http://gamenight/wa_webhook.php
       - WHATSAPP_HOOK_EVENTS=message
       - WAHA_PRINT_QR=false
