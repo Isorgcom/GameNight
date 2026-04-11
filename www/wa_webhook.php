@@ -2,52 +2,40 @@
 /**
  * WhatsApp inbound webhook — handles RSVP replies from users via WhatsApp.
  *
- * Configure in Meta Developer Portal:
- *   App Dashboard > WhatsApp > Configuration > Webhook URL:
- *   https://yourdomain.com/wa_webhook.php
+ * Receives messages from WAHA (self-hosted WhatsApp HTTP API).
+ * Configure WAHA env: WHATSAPP_HOOK_URL=http://gamenight/wa_webhook.php
  *
  * Supported reply keywords: YES, NO, MAYBE
  */
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/sms.php';
 
-// ── Webhook verification (GET request from Meta) ────────────────────────────
-if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    $mode      = $_GET['hub_mode'] ?? '';
-    $token     = $_GET['hub_verify_token'] ?? '';
-    $challenge = $_GET['hub_challenge'] ?? '';
-    $expected  = get_setting('wa_verify_token', '');
-
-    if ($mode === 'subscribe' && $token === $expected && $expected !== '') {
-        http_response_code(200);
-        echo $challenge;
-    } else {
-        http_response_code(403);
-        echo 'Verification failed';
-    }
+// Only accept POST
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
     exit;
 }
 
-// ── Handle inbound message (POST from Meta) ─────────────────────────────────
+// ── Handle inbound message (POST from WAHA) ─────────────────────────────────
 $raw_input = file_get_contents('php://input');
 $data      = json_decode($raw_input, true);
 
-// Always respond 200 to Meta webhooks quickly
+// Always respond 200 quickly
 http_response_code(200);
 
-// Navigate Meta's webhook structure
-$entry   = $data['entry'][0] ?? [];
-$changes = $entry['changes'][0] ?? [];
-$value   = $changes['value'] ?? [];
+// WAHA webhook format: { event: "message", payload: { from: "1234567890@c.us", body: "YES", ... } }
+$event   = $data['event'] ?? '';
+$payload = $data['payload'] ?? [];
 
-// Only process incoming messages (not status updates)
-if (($changes['field'] ?? '') !== 'messages' || empty($value['messages'])) {
+// Only process incoming messages
+if ($event !== 'message' || empty($payload)) {
     exit;
 }
 
-$message = $value['messages'][0];
-$from    = $message['from'] ?? '';       // phone in format: 1XXXXXXXXXX (no +)
-$body    = trim($message['text']['body'] ?? '');
+// Extract phone (strip @c.us) and message body
+$fromRaw = $payload['from'] ?? '';
+$from    = preg_replace('/@c\.us$/', '', $fromRaw);  // e.g. "18325551234"
+$body    = trim($payload['body'] ?? '');
 
 if ($from === '' || $body === '') exit;
 

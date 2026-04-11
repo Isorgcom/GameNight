@@ -268,9 +268,9 @@ function send_whatsapp(string $to, string $body): ?string {
     $e164 = sms_normalize_phone($to);
     if (!$e164) return 'Invalid phone number.';
 
-    $phone_id = get_setting('wa_phone_id');
-    $token    = get_setting('wa_token');
-    if (!$phone_id || !$token) return 'WhatsApp not configured.';
+    $waha_url = get_setting('waha_url', 'http://waha:3000');
+    $session  = get_setting('waha_session', 'default');
+    if (!$waha_url) return 'WhatsApp (WAHA) not configured.';
 
     // Auto-shorten URLs if enabled
     if (get_setting('url_shortener_enabled') === '1') {
@@ -281,81 +281,39 @@ function send_whatsapp(string $to, string $body): ?string {
         );
     }
 
-    $raw = '';
-    $err = _wa_send_text($phone_id, $token, $e164, $body, $raw);
-    sms_log('outbound', $e164, $body, 'whatsapp', $err === null ? 'sent' : 'failed', $err, $raw);
-    return $err;
-}
+    // WAHA expects phone@c.us format (no + prefix, digits only)
+    $chatId = ltrim($e164, '+') . '@c.us';
 
-function _wa_send_text(string $phoneId, string $token, string $to, string $body, string &$raw = ''): ?string {
-    $url = 'https://graph.facebook.com/v21.0/' . $phoneId . '/messages';
-    $payload = [
-        'messaging_product' => 'whatsapp',
-        'to'                => preg_replace('/\D/', '', $to), // strip + for WhatsApp
-        'type'              => 'text',
-        'text'              => ['body' => $body],
-    ];
-    $ch = curl_init($url);
+    $payload = json_encode([
+        'chatId'  => $chatId,
+        'text'    => $body,
+        'session' => $session,
+    ]);
+
+    $apiKey = get_setting('waha_api_key', 'gamenight-waha-internal');
+    $ch = curl_init(rtrim($waha_url, '/') . '/api/sendText');
     curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
         CURLOPT_POST           => true,
-        CURLOPT_HTTPHEADER     => [
-            'Content-Type: application/json',
-            'Authorization: Bearer ' . $token,
-        ],
-        CURLOPT_POSTFIELDS     => json_encode($payload),
+        CURLOPT_POSTFIELDS     => $payload,
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'X-Api-Key: ' . $apiKey],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 15,
     ]);
     $response = curl_exec($ch);
     $code     = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlErr  = curl_error($ch);
     curl_close($ch);
-    $raw = $response;
-    if ($code >= 200 && $code < 300) return null;
-    $json = json_decode($response, true);
-    $errMsg = $json['error']['message'] ?? null;
-    // If text fails (outside 24h window), try template
-    if ($errMsg && str_contains($errMsg, 'template')) {
-        return _wa_send_template($phoneId, $token, $to, $body, $raw);
+
+    $err = null;
+    if ($curlErr) {
+        $err = "WAHA connection error: $curlErr";
+    } elseif ($code < 200 || $code >= 300) {
+        $json = json_decode($response, true);
+        $err = $json['message'] ?? "HTTP $code";
     }
-    return $errMsg ?? "HTTP $code";
-}
 
-/**
- * Fallback: send via a pre-approved WhatsApp message template.
- * Requires a template named in wa_template setting (default: 'event_notification').
- */
-function _wa_send_template(string $phoneId, string $token, string $to, string $body, string &$raw = ''): ?string {
-    $template = get_setting('wa_template', 'hello_world');
-    $lang     = get_setting('wa_template_lang', 'en_US');
-    $url = 'https://graph.facebook.com/v21.0/' . $phoneId . '/messages';
-    $payload = [
-        'messaging_product' => 'whatsapp',
-        'to'                => preg_replace('/\D/', '', $to),
-        'type'              => 'template',
-        'template'          => [
-            'name'     => $template,
-            'language' => ['code' => $lang],
-            'components' => [
-                ['type' => 'body', 'parameters' => [['type' => 'text', 'text' => $body]]],
-            ],
-        ],
-    ];
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST           => true,
-        CURLOPT_HTTPHEADER     => [
-            'Content-Type: application/json',
-            'Authorization: Bearer ' . $token,
-        ],
-        CURLOPT_POSTFIELDS     => json_encode($payload),
-    ]);
-    $response = curl_exec($ch);
-    $code     = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    $raw = $response;
-    if ($code >= 200 && $code < 300) return null;
-    $json = json_decode($response, true);
-    return $json['error']['message'] ?? "HTTP $code (template)";
+    sms_log('outbound', $e164, $body, 'waha', $err === null ? 'sent' : 'failed', $err, $response);
+    return $err;
 }
 
 /* ── SMS Provider implementations ────────────────────────────────────────── */

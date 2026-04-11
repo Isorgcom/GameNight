@@ -14,6 +14,22 @@ services:
       - default
       - npm_default
 
+  waha:
+    image: devlikeapro/waha
+    container_name: waha
+    restart: unless-stopped
+    expose:
+      - "3000"
+    volumes:
+      - ./waha_data:/app/.sessions
+    environment:
+      - WHATSAPP_HOOK_URL=http://gamenight/wa_webhook.php
+      - WHATSAPP_HOOK_EVENTS=message
+      - WAHA_PRINT_QR=false
+      - WAHA_API_KEY=gamenight-waha-internal
+    networks:
+      - default
+
 networks:
   npm_default:
     external: true

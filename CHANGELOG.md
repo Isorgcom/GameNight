@@ -4,6 +4,19 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.06000] — 2026-04-11
+
+### Added
+- **Self-hosted WhatsApp via WAHA.** Replaced Meta WhatsApp Business API with WAHA (WhatsApp HTTP API), a self-hosted Docker container. No more Meta Business verification, API keys, templates, or monthly fees. Admin scans a QR code from the WhatsApp tab in Site Settings to link a WhatsApp account. Messages sent via REST calls to the local WAHA container.
+- **WAHA Docker service.** New `waha` service in docker-compose.yml with session persistence volume. Runs alongside the gamenight container on the internal Docker network.
+- **WhatsApp admin tab redesigned.** New connection panel with Start/Stop session, live QR code display (auto-refreshes every 15s), connection status indicator, and step-by-step scan instructions. Test send panel retained.
+- **Inbound WhatsApp RSVP via WAHA webhooks.** wa_webhook.php updated to parse WAHA's simpler webhook format. All RSVP keyword processing unchanged.
+
+### Removed
+- Meta WhatsApp Business API integration (Phone Number ID, Access Token, Verify Token, Templates, Template Language fields). Replaced entirely by WAHA.
+
+---
+
 ## [v0.05602] — 2026-04-11
 
 ### Changed

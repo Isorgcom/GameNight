@@ -552,18 +552,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($action === 'wa_credentials') {
-            $phone_id     = trim($_POST['wa_phone_id'] ?? '');
-            $token        = trim($_POST['wa_token'] ?? '');
-            $verify_token = trim($_POST['wa_verify_token'] ?? '');
-            $template     = trim($_POST['wa_template'] ?? 'hello_world');
-            $lang         = trim($_POST['wa_template_lang'] ?? 'en_US');
-            if ($phone_id) set_setting('wa_phone_id', $phone_id);
-            if ($token)    set_setting('wa_token', $token);
-            set_setting('wa_verify_token', $verify_token);
-            set_setting('wa_template', $template);
-            set_setting('wa_template_lang', $lang);
-            db_log_activity($current['id'], 'updated WhatsApp credentials');
-            $_SESSION['flash'] = ['type' => 'success', 'msg' => 'WhatsApp credentials saved.'];
+            $url     = trim($_POST['waha_url'] ?? 'http://waha:3000');
+            $session = trim($_POST['waha_session'] ?? 'default');
+            set_setting('waha_url', $url);
+            set_setting('waha_session', $session);
+            db_log_activity($current['id'], 'updated WAHA WhatsApp settings');
+            $_SESSION['flash'] = ['type' => 'success', 'msg' => 'WhatsApp settings saved.'];
             $post_tab = 'whatsapp';
         }
 
@@ -674,12 +668,9 @@ $sms_from      = get_setting('sms_from')  ?: $twilio_from;
 $sms_configured = $sms_token && $sms_from;
 $url_shortener_enabled = get_setting('url_shortener_enabled') === '1';
 
-// WhatsApp settings
-$wa_phone_id      = get_setting('wa_phone_id', '');
-$wa_token         = get_setting('wa_token', '');
-$wa_template      = get_setting('wa_template', 'hello_world');
-$wa_template_lang = get_setting('wa_template_lang', 'en_US');
-$wa_configured    = $wa_phone_id && $wa_token;
+// WhatsApp (WAHA) settings
+$waha_url        = get_setting('waha_url', 'http://waha:3000');
+$waha_session    = get_setting('waha_session', 'default');
 
 // ── Users data ───────────────────────────────────────────────────────────────
 $users = $db->query('SELECT id, username, email, phone, role, preferred_contact, notes, created_at, last_login FROM users ORDER BY id')->fetchAll();
@@ -2288,58 +2279,58 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
         </div>
 
         <div class="sms-grid">
-            <!-- WhatsApp Credentials -->
+            <!-- WAHA Connection -->
             <div class="card" style="max-width:100%">
-                <h2>WhatsApp Credentials</h2>
-                <p class="subtitle">Connect to the <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener">Meta WhatsApp Business API</a>.</p>
-                <form method="post" action="/admin_settings.php">
+                <h2>WhatsApp Connection</h2>
+                <p class="subtitle">Connect via <a href="https://github.com/devlikeapro/waha" target="_blank" rel="noopener">WAHA</a> (self-hosted WhatsApp Web API). Scan a QR code to link a WhatsApp account.</p>
+
+                <form method="post" action="/admin_settings.php" style="margin-bottom:1.25rem">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                     <input type="hidden" name="action" value="wa_credentials">
                     <input type="hidden" name="tab" value="whatsapp">
-
                     <div class="form-group">
-                        <label for="wa_phone_id">Phone Number ID</label>
-                        <input type="text" id="wa_phone_id" name="wa_phone_id"
-                               value="<?= htmlspecialchars($wa_phone_id) ?>"
-                               placeholder="123456789012345" autocomplete="off">
-                    </div>
-                    <div class="form-group">
-                        <label for="wa_token">Permanent Access Token</label>
-                        <input type="password" id="wa_token" name="wa_token"
-                               value="" placeholder="EAAxxxxxxx..."
-                               autocomplete="new-password">
-                        <p class="cred-note">Leave blank to keep current value.</p>
+                        <label for="waha_url">WAHA URL</label>
+                        <input type="text" id="waha_url" name="waha_url"
+                               value="<?= htmlspecialchars($waha_url) ?>"
+                               placeholder="http://waha:3000" autocomplete="off">
+                        <p class="cred-note">Internal Docker URL. Usually no need to change.</p>
                     </div>
                     <div class="form-group">
-                        <label for="wa_verify_token">Webhook Verify Token</label>
-                        <input type="text" id="wa_verify_token" name="wa_verify_token"
-                               value="<?= htmlspecialchars(get_setting('wa_verify_token', '')) ?>"
-                               placeholder="any-secret-string" autocomplete="off">
-                        <p class="cred-note">Set the same string in Meta's webhook configuration for verification.</p>
+                        <label for="waha_session">Session Name</label>
+                        <input type="text" id="waha_session" name="waha_session"
+                               value="<?= htmlspecialchars($waha_session) ?>"
+                               placeholder="default" autocomplete="off">
                     </div>
-                    <div class="form-group">
-                        <label for="wa_template">Message Template Name</label>
-                        <input type="text" id="wa_template" name="wa_template"
-                               value="<?= htmlspecialchars($wa_template) ?>"
-                               placeholder="hello_world" autocomplete="off">
-                        <p class="cred-note">Used for business-initiated messages outside the 24h window. Default: <code>hello_world</code></p>
-                    </div>
-                    <div class="form-group">
-                        <label for="wa_template_lang">Template Language</label>
-                        <input type="text" id="wa_template_lang" name="wa_template_lang"
-                               value="<?= htmlspecialchars($wa_template_lang) ?>"
-                               placeholder="en_US" autocomplete="off">
-                    </div>
-
-                    <div style="display:flex;align-items:center;gap:.75rem;margin-top:.25rem">
-                        <button type="submit" class="btn btn-primary">Save Credentials</button>
-                        <?php if ($wa_configured): ?>
-                            <span style="color:#16a34a;font-size:.8rem;font-weight:600">&#10003; Configured</span>
-                        <?php else: ?>
-                            <span style="color:#dc2626;font-size:.8rem;font-weight:600">&#9679; Not configured</span>
-                        <?php endif; ?>
-                    </div>
+                    <button type="submit" class="btn btn-primary">Save Settings</button>
                 </form>
+
+                <!-- Session status + QR code area -->
+                <div style="border-top:1px solid #e2e8f0;padding-top:1rem">
+                    <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem">
+                        <span style="font-weight:700;font-size:.9rem">Session Status:</span>
+                        <span id="wahaStatus" style="font-weight:600;font-size:.85rem;color:#94a3b8">Checking...</span>
+                    </div>
+                    <div id="wahaQrWrap" style="display:none;text-align:center;margin:1rem 0">
+                        <p style="font-size:.85rem;color:#64748b;margin-bottom:.75rem">Scan this QR code with your WhatsApp app:</p>
+                        <img id="wahaQrImg" src="" alt="QR Code" style="max-width:280px;border:2px solid #e2e8f0;border-radius:10px">
+                        <div style="text-align:left;max-width:320px;margin:1rem auto 0;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.75rem 1rem">
+                            <p style="font-size:.78rem;font-weight:700;color:#334155;margin-bottom:.4rem">How to scan:</p>
+                            <ol style="font-size:.75rem;color:#64748b;margin:0;padding-left:1.2rem;line-height:1.6">
+                                <li>Open <strong>WhatsApp</strong> on your phone</li>
+                                <li>Tap <strong>Settings</strong> (gear icon, bottom right on iPhone &mdash; three dots, top right on Android)</li>
+                                <li>Tap <strong>Linked Devices</strong></li>
+                                <li>Tap <strong>Link a Device</strong></li>
+                                <li>Point your phone camera at the QR code above</li>
+                            </ol>
+                            <p style="font-size:.72rem;color:#94a3b8;margin-top:.5rem;margin-bottom:0">Use a dedicated WhatsApp number for GameNight to keep your personal account separate.</p>
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+                        <button type="button" id="wahaStartBtn" class="btn btn-primary" onclick="wahaStart()" style="display:none">Start Session</button>
+                        <button type="button" id="wahaStopBtn" class="btn btn-outline" onclick="wahaStop()" style="display:none;color:#dc2626;border-color:#fca5a5">Disconnect</button>
+                        <button type="button" class="btn btn-outline" onclick="wahaCheckStatus()">Refresh Status</button>
+                    </div>
+                </div>
             </div>
 
             <!-- Send Test WhatsApp -->
@@ -2350,55 +2341,161 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                     <input type="hidden" name="action" value="wa_test">
                     <input type="hidden" name="tab" value="whatsapp">
-
                     <div class="form-group">
                         <label for="wa_to">To (phone number)</label>
-                        <input type="tel" id="wa_to" name="to"
-                               placeholder="+12015550199" required>
+                        <input type="tel" id="wa_to" name="to" placeholder="+12015550199" required>
                     </div>
                     <div class="form-group">
                         <label for="wa_body">Message</label>
-                        <textarea id="wa_body" name="body" rows="4"
-                                  style="width:100%;resize:vertical"
+                        <textarea id="wa_body" name="body" rows="4" style="width:100%;resize:vertical"
                                   placeholder="Hello from <?= htmlspecialchars($site_name) ?>!"
                                   required>Hello from <?= htmlspecialchars($site_name) ?>! This is a test message.</textarea>
                     </div>
-                    <button type="submit" class="btn btn-primary"
-                            <?= !$wa_configured ? 'disabled title="Configure credentials first"' : '' ?>>
-                        Send WhatsApp
-                    </button>
+                    <button type="submit" class="btn btn-primary">Send WhatsApp</button>
                 </form>
             </div>
         </div>
+    </div>
 
-        <!-- WhatsApp Quick Reference -->
-        <div class="table-card" style="margin-top:1.5rem;max-width:620px">
-            <h3>WhatsApp Setup Guide</h3>
-            <table>
-                <tbody>
-                    <tr><td style="color:#64748b;width:160px">Meta Developer Portal</td><td><a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener">developers.facebook.com/apps</a></td></tr>
-                    <tr><td style="color:#64748b">Phone Number ID</td><td>App Dashboard &rsaquo; WhatsApp &rsaquo; API Setup &rsaquo; Phone Number ID</td></tr>
-                    <tr><td style="color:#64748b">Access Token</td><td>Create a System User under Business Settings &rsaquo; generate a permanent token with <code>whatsapp_business_messaging</code> permission</td></tr>
-                    <tr><td style="color:#64748b">Message Templates</td><td>WhatsApp Manager &rsaquo; Message Templates &mdash; required for messages outside the 24h reply window</td></tr>
-                    <tr><td style="color:#64748b">Webhook (inbound)</td><td>App Dashboard &rsaquo; WhatsApp &rsaquo; Configuration &rsaquo; Webhook URL: <code><?= htmlspecialchars(get_site_url() . '/wa_webhook.php') ?></code></td></tr>
-                    <tr><td style="color:#64748b">Verify Token</td><td>Set in your app's webhook config &mdash; use any secret string</td></tr>
-                </tbody>
-            </table>
-        </div>
+    <script>
+    var WAHA_URL = <?= json_encode($waha_url, JSON_HEX_TAG) ?>;
+    var WAHA_SESSION = <?= json_encode($waha_session, JSON_HEX_TAG) ?>;
+    var WAHA_CSRF = <?= json_encode($token, JSON_HEX_TAG) ?>;
 
-        <!-- WhatsApp Webhook URL -->
-        <?php $wa_webhook_url = get_site_url() . '/wa_webhook.php'; ?>
-        <div class="table-card" style="margin-top:1.5rem;max-width:620px">
-            <h3>Inbound Webhook URL</h3>
-            <p style="font-size:.85rem;color:#64748b;margin:.25rem 0 .75rem">
-                Paste this URL into your Meta App's WhatsApp webhook configuration.
-            </p>
-            <div style="display:flex;gap:.5rem;align-items:center">
-                <input type="text" id="wa-webhook-url-field" readonly value="<?= htmlspecialchars($wa_webhook_url) ?>"
-                       style="flex:1;font-family:monospace;font-size:.85rem;background:#f1f5f9;border:1.5px solid #e2e8f0;border-radius:7px;padding:.5rem .75rem;color:#1e293b;cursor:text">
-                <button type="button" onclick="
-                    navigator.clipboard.writeText(document.getElementById('wa-webhook-url-field').value).then(function(){
-                        var b = this; b.textContent = 'Copied!';
+    function wahaCheckStatus() {
+        document.getElementById('wahaStatus').textContent = 'Connecting to WAHA...';
+        document.getElementById('wahaStatus').style.color = '#2563eb';
+        fetch('/admin_settings_dl.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest'},
+            body: 'csrf_token=' + encodeURIComponent(WAHA_CSRF) + '&action=waha_status'
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+            var el = document.getElementById('wahaStatus');
+            var startBtn = document.getElementById('wahaStartBtn');
+            var stopBtn  = document.getElementById('wahaStopBtn');
+            var qrWrap   = document.getElementById('wahaQrWrap');
+            if (!j.ok) {
+                el.textContent = j.error || 'Cannot reach WAHA';
+                el.style.color = '#dc2626';
+                startBtn.style.display = '';
+                stopBtn.style.display = 'none';
+                qrWrap.style.display = 'none';
+                return;
+            }
+            if (j.status === 'WORKING') {
+                el.textContent = 'Connected \u2714';
+                el.style.color = '#16a34a';
+                startBtn.style.display = 'none';
+                stopBtn.style.display = '';
+                qrWrap.style.display = 'none';
+                if (_wahaQrInterval) { clearInterval(_wahaQrInterval); _wahaQrInterval = null; }
+            } else if (j.status === 'SCAN_QR_CODE') {
+                el.textContent = 'Waiting for QR scan...';
+                el.style.color = '#d97706';
+                startBtn.style.display = 'none';
+                stopBtn.style.display = '';
+                qrWrap.style.display = '';
+                wahaLoadQr();
+            } else if (j.status === 'STOPPED' || j.status === 'FAILED') {
+                el.textContent = j.status;
+                el.style.color = '#dc2626';
+                startBtn.style.display = '';
+                stopBtn.style.display = 'none';
+                qrWrap.style.display = 'none';
+            } else {
+                el.textContent = j.status || 'Unknown';
+                el.style.color = '#94a3b8';
+                startBtn.style.display = '';
+                stopBtn.style.display = '';
+                qrWrap.style.display = 'none';
+            }
+        })
+        .catch(function() {
+            document.getElementById('wahaStatus').textContent = 'Error contacting server';
+            document.getElementById('wahaStatus').style.color = '#dc2626';
+        });
+    }
+
+    var _wahaQrInterval = null;
+
+    function wahaLoadQr() {
+        fetch('/admin_settings_dl.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest'},
+            body: 'csrf_token=' + encodeURIComponent(WAHA_CSRF) + '&action=waha_qr'
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+            if (j.ok && j.qr) {
+                document.getElementById('wahaQrImg').src = j.qr;
+                document.getElementById('wahaQrWrap').style.display = '';
+                // Auto-refresh QR every 15 seconds (QR codes expire)
+                if (!_wahaQrInterval) {
+                    _wahaQrInterval = setInterval(function() {
+                        wahaLoadQr();
+                        // Also check if session connected (stop QR refresh)
+                        wahaCheckStatus();
+                    }, 15000);
+                }
+            } else {
+                document.getElementById('wahaQrWrap').style.display = 'none';
+                if (_wahaQrInterval) { clearInterval(_wahaQrInterval); _wahaQrInterval = null; }
+            }
+        })
+        .catch(function() {
+            document.getElementById('wahaQrWrap').style.display = 'none';
+        });
+    }
+
+    function wahaStart() {
+        var btn = document.getElementById('wahaStartBtn');
+        btn.disabled = true;
+        btn.textContent = 'Starting... (this may take a minute)';
+        document.getElementById('wahaStatus').textContent = 'Starting session...';
+        document.getElementById('wahaStatus').style.color = '#d97706';
+        fetch('/admin_settings_dl.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest'},
+            body: 'csrf_token=' + encodeURIComponent(WAHA_CSRF) + '&action=waha_start'
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+            btn.disabled = false;
+            btn.textContent = 'Start Session';
+            if (j.ok) {
+                setTimeout(wahaCheckStatus, 2000);
+            } else {
+                alert(j.error || 'Failed to start session');
+                wahaCheckStatus();
+            }
+        })
+        .catch(function() {
+            btn.disabled = false;
+            btn.textContent = 'Start Session';
+            wahaCheckStatus();
+        });
+    }
+
+    function wahaStop() {
+        if (!confirm('Disconnect WhatsApp session?')) return;
+        fetch('/admin_settings_dl.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest'},
+            body: 'csrf_token=' + encodeURIComponent(WAHA_CSRF) + '&action=waha_stop'
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+            wahaCheckStatus();
+        });
+    }
+
+    // Check status on page load if we're on the WhatsApp tab
+    if (<?= json_encode($tab === 'whatsapp') ?>) {
+        wahaCheckStatus();
+    }
+    </script>
                         setTimeout(function(){ b.textContent = 'Copy'; }, 1500);
                     }.bind(this));
                 " style="white-space:nowrap" class="btn btn-outline btn-sm">Copy</button>

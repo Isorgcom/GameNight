@@ -71,13 +71,101 @@ if (!empty($_SESSION['flash'])) {
 
 $tab = in_array($_GET['tab'] ?? '', ['dashboard', 'general', 'appearance', 'logs', 'users', 'email']) ? $_GET['tab'] : 'dashboard';
 
+// ── WAHA AJAX actions (handled before main POST to guarantee JSON response) ──
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['waha_status', 'waha_start', 'waha_stop', 'waha_qr'], true)) {
+    header('Content-Type: application/json');
+    if (!csrf_verify()) { echo json_encode(['ok' => false, 'error' => 'CSRF token mismatch']); exit; }
+    $action = $_POST['action'];
+    // fall through to WAHA handler below
+}
+
 // ── POST ─────────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $post_tab = $_POST['tab'] ?? 'general';
     if (!csrf_verify()) {
-        $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid request token.'];
+        // For WAHA actions we already handled above; for others show flash
+        if (!in_array($_POST['action'] ?? '', ['waha_status', 'waha_start', 'waha_stop', 'waha_qr'], true)) {
+            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid request token.'];
+        }
     } else {
         $action = $_POST['action'] ?? '';
+
+        // ── WAHA WhatsApp session management (AJAX, returns JSON) ────────────
+        if (in_array($action, ['waha_status', 'waha_start', 'waha_stop', 'waha_qr'], true)) {
+            header('Content-Type: application/json');
+            $waha_url  = get_setting('waha_url', 'http://waha:3000');
+            $waha_sess = get_setting('waha_session', 'default');
+            $waha_key  = get_setting('waha_api_key', 'gamenight-waha-internal');
+            $waha_headers = ['Content-Type: application/json', 'X-Api-Key: ' . $waha_key];
+
+            if ($action === 'waha_status') {
+                $ch = curl_init(rtrim($waha_url, '/') . '/api/sessions/' . urlencode($waha_sess));
+                curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 30, CURLOPT_HTTPHEADER => $waha_headers]);
+                $resp = curl_exec($ch);
+                $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                $err  = curl_error($ch);
+                curl_close($ch);
+                if ($err) { echo json_encode(['ok' => false, 'error' => 'Cannot reach WAHA: ' . $err]); exit; }
+                if ($code === 404) { echo json_encode(['ok' => true, 'status' => 'STOPPED']); exit; }
+                $j = json_decode($resp, true);
+                echo json_encode(['ok' => true, 'status' => $j['status'] ?? 'UNKNOWN', 'data' => $j]);
+                exit;
+            }
+
+            if ($action === 'waha_start') {
+                $payload = json_encode(['name' => $waha_sess, 'config' => [
+                    'webhooks' => [['url' => 'http://gamenight/wa_webhook.php', 'events' => ['message']]],
+                ]]);
+                $ch = curl_init(rtrim($waha_url, '/') . '/api/sessions/start');
+                curl_setopt_array($ch, [
+                    CURLOPT_POST => true, CURLOPT_POSTFIELDS => $payload,
+                    CURLOPT_HTTPHEADER => $waha_headers,
+                    CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 60,
+                ]);
+                $resp = curl_exec($ch);
+                $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+                $j = json_decode($resp, true);
+                echo json_encode(['ok' => ($code >= 200 && $code < 300), 'status' => $j['status'] ?? null, 'error' => $j['message'] ?? null]);
+                exit;
+            }
+
+            if ($action === 'waha_stop') {
+                $payload = json_encode(['name' => $waha_sess]);
+                $ch = curl_init(rtrim($waha_url, '/') . '/api/sessions/stop');
+                curl_setopt_array($ch, [
+                    CURLOPT_POST => true, CURLOPT_POSTFIELDS => $payload,
+                    CURLOPT_HTTPHEADER => $waha_headers,
+                    CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 10,
+                ]);
+                curl_exec($ch);
+                curl_close($ch);
+                echo json_encode(['ok' => true]);
+                exit;
+            }
+
+            if ($action === 'waha_qr') {
+                $ch = curl_init(rtrim($waha_url, '/') . '/api/' . urlencode($waha_sess) . '/auth/qr');
+                curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 30, CURLOPT_HTTPHEADER => array_merge($waha_headers, ['Accept: application/json'])]);
+                $resp = curl_exec($ch);
+                $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+                if ($code >= 200 && $code < 300) {
+                    $j = json_decode($resp, true);
+                    // WAHA returns { mimetype: "image/png", data: "base64..." }
+                    $mime = $j['mimetype'] ?? 'image/png';
+                    $data = $j['data'] ?? $j['value'] ?? $j['qr'] ?? null;
+                    $qr = null;
+                    if ($data) {
+                        $qr = str_starts_with($data, 'data:') ? $data : "data:{$mime};base64,{$data}";
+                    }
+                    echo json_encode(['ok' => true, 'qr' => $qr]);
+                } else {
+                    echo json_encode(['ok' => false, 'error' => 'QR not available (session may not be in SCAN_QR state)']);
+                }
+                exit;
+            }
+        }
 
         if ($action === 'general') {
             $site_name = trim($_POST['site_name'] ?? '');
