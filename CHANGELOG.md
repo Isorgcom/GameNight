@@ -4,6 +4,18 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.05602] — 2026-04-11
+
+### Changed
+- **Add-on stores dollar amount instead of count.** Add-ons now store cents directly per player. Check-in and timer player panel show a checkbox + editable dollar field. Checking the box populates with the default add-on amount; the field is editable for custom amounts. Pool calc uses the stored amount directly.
+- **Timer player panel rebuy/add-on labels.** Rebuys show "RE" label, add-ons show "AO" label for identification on mobile.
+- **Mobile check-in cards: check-in/buy-in on summary row.** CI and BI checkboxes are now on the card header (always visible) with 22px tap targets. Expanding the card shows rebuys, add-ons, and other actions.
+- **Mobile expand stays open.** Toggling settings no longer collapses the expanded player card.
+- **Fixed-width status badges.** Status tags use consistent width to prevent layout shift.
+- **Pending players show approve/deny on card.** Mobile cards for pending players show Approve and Deny buttons directly on the summary row instead of a "Pending" badge.
+
+---
+
 ## [v0.05601] — 2026-04-10
 
 ### Fixed

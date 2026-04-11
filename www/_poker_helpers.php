@@ -74,7 +74,8 @@ function calc_pool($db, $session_id) {
     } else {
         $buyin_total  = (int)$r['total_buyins'] * (int)$s['buyin_amount'];
         $rebuy_total  = (int)$r['total_rebuys'] * (int)$s['rebuy_amount'];
-        $addon_total  = (int)$r['total_addons'] * (int)$s['addon_amount'];
+        // addons stores cents directly (per-player custom amount), not a count
+        $addon_total  = (int)$r['total_addons'];
         $pool_total   = $buyin_total + $rebuy_total + $addon_total;
     }
 

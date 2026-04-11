@@ -1746,10 +1746,18 @@ function renderPlayerPanel() {
             if (isTourney) {
                 if (parseInt(p.bought_in)) {
                     if (PP_SESSION && parseInt(PP_SESSION.rebuy_allowed)) {
-                        h += '<div class="pp-counter"><button onclick="ppRebuy(' + p.id + ',-1)">-</button><span>' + (p.rebuys||0) + '</span><button onclick="ppRebuy(' + p.id + ',1)">+</button></div>';
+                        h += '<div class="pp-counter"><span style="font-size:.55rem;color:#94a3b8;font-weight:700;letter-spacing:.03em;min-width:1.2rem">RE</span><button onclick="ppRebuy(' + p.id + ',-1)">-</button><span>' + (p.rebuys||0) + '</span><button onclick="ppRebuy(' + p.id + ',1)">+</button></div>';
                     }
                     if (PP_SESSION && parseInt(PP_SESSION.addon_allowed)) {
-                        h += '<div class="pp-counter"><button onclick="ppAddon(' + p.id + ',-1)">-</button><span>' + (p.addons||0) + '</span><button onclick="ppAddon(' + p.id + ',1)">+</button></div>';
+                        var aoCount = parseInt(p.addons || 0);
+                        var aoChecked = aoCount > 0;
+                        var aoDefault = parseInt(PP_SESSION.addon_amount || 0);
+                        var aoDisplay = aoChecked ? (aoCount / 100).toFixed(2) : '';
+                        h += '<div class="pp-counter" style="gap:.2rem;align-items:center">'
+                           + '<span style="font-size:.55rem;color:#94a3b8;font-weight:700;letter-spacing:.03em;min-width:1.2rem">AO</span>'
+                           + '<input type="checkbox" ' + (aoChecked ? 'checked' : '') + ' onchange="ppAddonToggle(' + p.id + ', this.checked, ' + aoDefault + ')" style="width:15px;height:15px;cursor:pointer;accent-color:#7c3aed">'
+                           + '<input type="text" id="aoAmt_' + p.id + '" value="' + aoDisplay + '" inputmode="decimal" placeholder="$" style="width:2.8rem;font-size:.7rem;text-align:center;border:1px solid #e2e8f0;border-radius:3px;padding:.1rem" onchange="ppAddonSetAmt(' + p.id + ', this.value)">'
+                           + '</div>';
                     }
                     h += '<button class="pp-elim" onclick="ppEliminate(' + p.id + ')">Elim</button>';
                 } else {
@@ -1785,6 +1793,25 @@ function ppPost(action, data, cb) {
 function ppBuyin(pid) { ppPost('toggle_buyin', { player_id: pid }); }
 function ppRebuy(pid, d) { ppPost('update_rebuys', { player_id: pid, delta: d }); }
 function ppAddon(pid, d) { ppPost('update_addons', { player_id: pid, delta: d }); }
+function ppAddonToggle(pid, checked, defaultAmt) {
+    // Check = set addons to the default addon_amount (cents), uncheck = set to 0
+    var p = PP_PLAYERS.find(function(pl) { return parseInt(pl.id) === pid; });
+    var current = p ? parseInt(p.addons) || 0 : 0;
+    var target = checked ? defaultAmt : 0;
+    var delta = target - current;
+    var el = document.getElementById('aoAmt_' + pid);
+    if (el) el.value = checked ? (target / 100).toFixed(2) : '';
+    if (delta !== 0) ppAddon(pid, delta);
+}
+function ppAddonSetAmt(pid, val) {
+    // Field is in dollars — convert to cents and compute delta from current
+    var cents = Math.round(parseFloat(val) * 100) || 0;
+    if (cents < 0) cents = 0;
+    var p = PP_PLAYERS.find(function(pl) { return parseInt(pl.id) === pid; });
+    var current = p ? parseInt(p.addons) || 0 : 0;
+    var delta = cents - current;
+    if (delta !== 0) ppAddon(pid, delta);
+}
 function ppEliminate(pid) {
     var playing = PP_PLAYERS.filter(function(p) { return !parseInt(p.eliminated) && parseInt(p.bought_in); }).length;
     var pos = prompt('Finish position? (suggested: ' + playing + ')', playing);

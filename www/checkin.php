@@ -162,7 +162,7 @@ $session = $sessStmt->fetch();
     .pk-mobile-summary{display:flex;justify-content:space-between;align-items:center;padding:.65rem .8rem;cursor:pointer;-webkit-tap-highlight-color:transparent}
     .pk-mobile-summary:active{background:#f1f5f9}
     .pk-mobile-name{font-weight:600;font-size:.9rem}
-    .pk-mobile-status{font-size:.75rem;font-weight:600;padding:.15rem .5rem;border-radius:4px}
+    .pk-mobile-status{font-size:.7rem;font-weight:600;padding:.15rem .4rem;border-radius:4px;min-width:4.5rem;text-align:center;flex-shrink:0}
     .pk-mobile-expand{display:none;padding:.5rem .8rem;border-top:1px solid #f1f5f9;background:#f8fafc}
     .pk-mobile-expand.open{display:block}
     .pk-mobile-row{display:flex;align-items:center;justify-content:space-between;padding:.35rem 0;gap:.5rem;flex-wrap:wrap}
@@ -614,7 +614,13 @@ function renderPlayerRows() {
                 h += '<td><div class="pk-counter"><button onclick="updateRebuys(' + p.id + ',-1)"' + dis + '>-</button><span>' + p.rebuys + '</span><button onclick="updateRebuys(' + p.id + ',1)"' + dis + '>+</button></div></td>';
             }
             if (parseInt(SESSION.addon_allowed)) {
-                h += '<td><div class="pk-counter"><button onclick="updateAddons(' + p.id + ',-1)"' + dis + '>-</button><span>' + p.addons + '</span><button onclick="updateAddons(' + p.id + ',1)"' + dis + '>+</button></div></td>';
+                var aoAmt = parseInt(SESSION.addon_amount) || 0;
+                var aoVal = parseInt(p.addons) || 0;
+                var aoOn = aoVal > 0;
+                h += '<td><div style="display:flex;align-items:center;gap:.25rem">'
+                   + '<input type="checkbox" ' + (aoOn ? 'checked' : '') + dis + ' onchange="addonToggle(' + p.id + ', this.checked, ' + aoAmt + ')" style="width:15px;height:15px;cursor:pointer;accent-color:#7c3aed">'
+                   + '<input type="text" id="aoField_' + p.id + '" value="' + (aoOn ? (aoVal/100).toFixed(2) : '') + '" inputmode="decimal" placeholder="$"' + dis + ' style="width:3.2rem;font-size:.78rem;text-align:center;border:1px solid #e2e8f0;border-radius:4px;padding:.15rem" onchange="addonSetAmt(' + p.id + ', this.value)">'
+                   + '</div></td>';
             }
         } else {
             // Cash game: total in (with add money button), cash out, profit
@@ -745,7 +751,26 @@ function renderMobileCards() {
         h += '<div class="pk-mobile-summary" onclick="toggleMobileExpand(' + p.id + ')">';
         var seatInfo = p.seat_number ? 'T' + (p.table_number || '?') + ' #' + p.seat_number : '';
         h += '<span class="pk-mobile-name">' + escHtml(p.display_name) + (seatInfo ? ' <span style="color:#94a3b8;font-size:.72rem;font-weight:600">' + seatInfo + '</span>' : '') + '</span>';
-        h += '<span class="pk-mobile-status" style="color:' + statusColor + ';background:' + statusBg + '">' + statusText + '</span>';
+        if (isPending) {
+            // Approve/deny buttons directly on the summary row instead of a status badge
+            h += '<span onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:.35rem;margin-left:auto;flex-shrink:0">';
+            h += '<button onclick="approvePlayer(' + p.id + ')" style="font-size:.72rem;padding:.25rem .6rem;border-radius:5px;border:0;background:#16a34a;color:#fff;font-weight:700;cursor:pointer">Approve</button>';
+            h += '<button onclick="denyPlayer(' + p.id + ')" style="font-size:.72rem;padding:.25rem .6rem;border-radius:5px;border:0;background:#dc2626;color:#fff;font-weight:700;cursor:pointer">Deny</button>';
+            h += '</span>';
+        } else {
+            // Check-in + buy-in checkboxes on the summary row (not inside expand)
+            if (!isNo) {
+                h += '<span onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:.6rem;margin-left:auto;margin-right:.5rem;flex-shrink:0">';
+                h += '<label style="display:flex;align-items:center;gap:.2rem;font-size:.65rem;color:#64748b;font-weight:700;cursor:pointer;padding:.25rem 0;-webkit-tap-highlight-color:transparent">'
+                   + '<input type="checkbox" class="pk-check" ' + (parseInt(p.checked_in)?'checked':'') + ' onchange="toggleCheckin(' + p.id + ')" style="width:22px;height:22px;accent-color:#2563eb"> CI</label>';
+                if (isTourney()) {
+                    h += '<label style="display:flex;align-items:center;gap:.2rem;font-size:.65rem;color:#64748b;font-weight:700;cursor:pointer;padding:.25rem 0;-webkit-tap-highlight-color:transparent">'
+                       + '<input type="checkbox" class="pk-check" ' + (parseInt(p.bought_in)?'checked':'') + ' onchange="toggleBuyin(' + p.id + ')" style="width:22px;height:22px;accent-color:#7c3aed"> BI</label>';
+                }
+                h += '</span>';
+            }
+            h += '<span class="pk-mobile-status" style="color:' + statusColor + ';background:' + statusBg + '">' + statusText + '</span>';
+        }
         h += '</div>';
 
         // Expandable panel
@@ -756,23 +781,21 @@ function renderMobileCards() {
             h += '<button class="pk-act-btn danger" style="padding:.4rem 1rem" onclick="denyPlayer(' + p.id + ')">Deny</button>';
             h += '</div>';
         } else if (!isNo) {
-            // Check-in + Buy-in row
-            h += '<div class="pk-mobile-row">';
-            h += '<label>Check In</label><input type="checkbox" class="pk-check" ' + (parseInt(p.checked_in)?'checked':'') + ' onchange="toggleCheckin(' + p.id + ')">';
-            h += '</div>';
-
             if (isTourney()) {
-                h += '<div class="pk-mobile-row">';
-                h += '<label>Buy In</label><input type="checkbox" class="pk-check" ' + (parseInt(p.bought_in)?'checked':'') + ' onchange="toggleBuyin(' + p.id + ')">';
-                h += '</div>';
                 if (parseInt(SESSION.rebuy_allowed)) {
                     h += '<div class="pk-mobile-row">';
                     h += '<label>Rebuys</label><div class="pk-counter"><button onclick="updateRebuys(' + p.id + ',-1)">-</button><span>' + p.rebuys + '</span><button onclick="updateRebuys(' + p.id + ',1)">+</button></div>';
                     h += '</div>';
                 }
                 if (parseInt(SESSION.addon_allowed)) {
+                    var mAoAmt = parseInt(SESSION.addon_amount) || 0;
+                    var mAoVal = parseInt(p.addons) || 0;
+                    var mAoOn = mAoVal > 0;
                     h += '<div class="pk-mobile-row">';
-                    h += '<label>Add-ons</label><div class="pk-counter"><button onclick="updateAddons(' + p.id + ',-1)">-</button><span>' + p.addons + '</span><button onclick="updateAddons(' + p.id + ',1)">+</button></div>';
+                    h += '<label>Add-on</label><div style="display:flex;align-items:center;gap:.3rem">'
+                       + '<input type="checkbox" ' + (mAoOn ? 'checked' : '') + ' onchange="addonToggle(' + p.id + ', this.checked, ' + mAoAmt + ')" style="width:16px;height:16px;cursor:pointer;accent-color:#7c3aed">'
+                       + '<input type="text" id="aoMField_' + p.id + '" value="' + (mAoOn ? (mAoVal/100).toFixed(2) : '') + '" inputmode="decimal" placeholder="$" style="width:3.5rem;font-size:.85rem;text-align:center;border:1px solid #e2e8f0;border-radius:4px;padding:.2rem" onchange="addonSetAmt(' + p.id + ', this.value)">'
+                       + '</div>';
                     h += '</div>';
                 }
             } else {
@@ -1018,6 +1041,23 @@ function updateRebuys(pid, delta) {
     });
 }
 
+function addonToggle(pid, checked, defaultAmt) {
+    var p = PLAYERS.find(function(pl) { return parseInt(pl.id) === pid; });
+    var current = p ? parseInt(p.addons) || 0 : 0;
+    var target = checked ? defaultAmt : 0;
+    var delta = target - current;
+    var val = checked ? (target / 100).toFixed(2) : '';
+    ['aoField_', 'aoMField_'].forEach(function(pfx) { var el = document.getElementById(pfx + pid); if (el) el.value = val; });
+    if (delta !== 0) updateAddons(pid, delta);
+}
+function addonSetAmt(pid, val) {
+    var cents = Math.round(parseFloat(val) * 100) || 0;
+    if (cents < 0) cents = 0;
+    var p = PLAYERS.find(function(pl) { return parseInt(pl.id) === pid; });
+    var current = p ? parseInt(p.addons) || 0 : 0;
+    var delta = cents - current;
+    if (delta !== 0) updateAddons(pid, delta);
+}
 function updateAddons(pid, delta) {
     postAction('update_addons', { player_id: pid, delta: delta }, function(j) {
         updatePlayer(j.player);
@@ -1516,8 +1556,19 @@ function refreshUI() {
     } else {
         var body = document.getElementById('playerBody');
         if (body) body.innerHTML = renderPlayerRows();
+        // Save which mobile cards are expanded before re-render
+        var expandedIds = [];
+        document.querySelectorAll('.pk-mobile-expand.open').forEach(function(el) {
+            var m = el.id.match(/^mexp_(\d+)$/);
+            if (m) expandedIds.push(m[1]);
+        });
         var mobileList = document.getElementById('mobileList');
         if (mobileList) mobileList.innerHTML = renderMobileCards();
+        // Restore expanded state
+        expandedIds.forEach(function(pid) {
+            var el = document.getElementById('mexp_' + pid);
+            if (el) el.classList.add('open');
+        });
     }
     var stats = document.getElementById('statsRow');
     if (stats) stats.innerHTML = renderStats();
