@@ -31,6 +31,9 @@ $_accent        = get_setting('accent_color', '');
 <?php endif; ?>
 </style>
 <?php endif; ?>
+<?php if (!$_nu && get_setting('show_landing_page', '0') === '1'): ?>
+<!-- SaaS landing mode: no nav for guests -->
+<?php return; endif; ?>
 <nav<?= $_nu ? ' class="nav-has-user"' : '' ?> id="mainNav">
     <div class="nav-top">
         <?php if (!$_banner): ?>
@@ -72,8 +75,10 @@ $_accent        = get_setting('accent_color', '');
                 <div class="nav-dropdown-wrap">
                     <button class="nav-hamburger" title="Menu" onclick="var d=this.nextElementSibling;d.style.display=d.style.display==='block'?'none':'block';">&#9776;</button>
                     <div class="nav-dropdown">
+                        <?php if (get_setting('show_landing_page', '0') !== '1'): ?>
                         <a href="/timer.php" class="nav-mobile-link">Tournament Timer</a>
                         <div class="nav-mobile-divider"></div>
+                        <?php endif; ?>
                         <?php if (get_setting('allow_registration', '1') === '1'): ?>
                         <a href="/register.php">Sign Up</a>
                         <?php endif; ?>

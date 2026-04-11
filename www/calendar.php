@@ -20,6 +20,11 @@ if (get_setting('show_calendar', '1') !== '1') {
     http_response_code(403);
     exit('Calendar is disabled.');
 }
+// In landing-page mode, guests can't browse the calendar — redirect to home.
+if (!$current && get_setting('show_landing_page', '0') === '1') {
+    header('Location: /');
+    exit;
+}
 
 $site_name = get_setting('site_name', 'Game Night');
 $local_tz  = new DateTimeZone(get_setting('timezone', 'UTC'));

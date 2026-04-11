@@ -90,6 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 set_setting('site_name', $site_name);
                 if ($timezone !== '') set_setting('timezone', $timezone);
                 set_setting('allow_registration', isset($_POST['allow_registration']) ? '1' : '0');
+                set_setting('show_landing_page', isset($_POST['show_landing_page']) ? '1' : '0');
                 set_setting('show_upcoming_events', isset($_POST['show_upcoming_events']) ? '1' : '0');
                 set_setting('show_calendar', isset($_POST['show_calendar']) ? '1' : '0');
                 db_log_activity($current['id'], 'updated site settings');

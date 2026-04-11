@@ -374,6 +374,13 @@ $tlMonths = $tlStmt->fetchAll();
 
 <?php $nav_active = 'home'; $nav_user = $user; require __DIR__ . '/_nav.php'; ?>
 
+<?php if (!$user && get_setting('show_landing_page', '0') === '1'):
+    require __DIR__ . '/_landing.php';
+    require __DIR__ . '/_footer.php';
+    echo '</body></html>';
+    exit;
+endif; ?>
+
 <div class="page-layout">
 
 <!-- ── Timeline sidebar ── -->

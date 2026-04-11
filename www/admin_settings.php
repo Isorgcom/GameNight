@@ -157,6 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($timezone !== '') set_setting('timezone', $timezone);
                 set_setting('allow_registration', isset($_POST['allow_registration']) ? '1' : '0');
                 set_setting('allow_user_events', isset($_POST['allow_user_events']) ? '1' : '0');
+                set_setting('show_landing_page', isset($_POST['show_landing_page']) ? '1' : '0');
                 set_setting('show_upcoming_events', isset($_POST['show_upcoming_events']) ? '1' : '0');
                 set_setting('show_calendar', isset($_POST['show_calendar']) ? '1' : '0');
                 set_setting('allow_maybe_rsvp', isset($_POST['allow_maybe_rsvp']) ? '1' : '0');
@@ -1045,6 +1046,15 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                         Allow users to create events
                     </label>
                     <p class="hint">When on, registered users can create events and invite others. Users can only edit/delete their own events.</p>
+                </div>
+                <div class="form-group" style="margin-top:.5rem">
+                    <label class="setting-toggle">
+                        <input type="checkbox" name="show_landing_page" value="1" class="pk-toggle-input"
+                               <?= get_setting('show_landing_page', '0') === '1' ? 'checked' : '' ?>>
+                        <span class="pk-toggle-slider"></span>
+                        Show Landing Page
+                    </label>
+                    <p class="hint">When on, visitors who are not logged in see a marketing-style landing page instead of the posts feed. Logged-in users always see the normal home page.</p>
                 </div>
                 <div class="form-group" style="margin-top:.5rem">
                     <label class="setting-toggle">

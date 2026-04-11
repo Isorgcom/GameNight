@@ -4,6 +4,14 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.05600] — 2026-04-10
+
+### Added
+- **SaaS-style marketing landing page.** New toggleable landing page for non-logged-in visitors showcasing all GameNight features: event scheduling, RSVP management, tournament tools, walk-in registration, host approval, announcements, multi-table management, and smart notifications. Controlled via Admin Settings → General → "Show Landing Page" toggle. Landing page content lives in a separate `_landing.php` partial.
+- **SaaS mode hides nav and calendar for guests.** When landing page mode is on, non-logged-in visitors see no navigation bar (just the landing page with built-in Sign In / Get Started buttons). Direct access to `/calendar.php` redirects guests to the landing page. Logged-in users are unaffected.
+
+---
+
 ## [v0.05505] — 2026-04-10
 
 ### Added
