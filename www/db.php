@@ -435,8 +435,11 @@ function db_init(PDO $pdo): void {
         )->execute(['admin', $hash, 'admin@localhost']);
     }
 
-    // Seed a welcome post if no posts exist
-    $postCount = $pdo->query('SELECT COUNT(*) FROM posts')->fetchColumn();
+    // Seed a welcome post once on first install (never re-create if user deleted it)
+    $welcomeSeeded = $pdo->query("SELECT COUNT(*) FROM site_settings WHERE key='welcome_post_seeded'")->fetchColumn();
+    if ((int)$welcomeSeeded === 0) {
+        $pdo->prepare("INSERT INTO site_settings (key, value) VALUES ('welcome_post_seeded', '1')")->execute();
+        $postCount = $pdo->query('SELECT COUNT(*) FROM posts')->fetchColumn();
     if ((int)$postCount === 0) {
         $welcomeContent = '<img src="/uploads/header_banner.png" alt="Welcome to Game Night" style="width:100%;border-radius:8px;margin-bottom:1rem">'
             . '<p style="font-size:1.1rem">Hey there, welcome to <strong>Game Night</strong>! You\'ve just set up your very own hub for organizing game nights, poker tournaments, and get-togethers with friends. This is your home base &mdash; let\'s show you around.</p>'
@@ -459,6 +462,7 @@ function db_init(PDO $pdo): void {
             . 'This post is pinned to the top so new visitors see it first. When you\'re ready to roll, just delete it or unpin it and start posting your own updates. Have fun out there!</p>';
         $pdo->prepare('INSERT INTO posts (title, content, pinned) VALUES (?, ?, 1)')
             ->execute(['Welcome to Game Night!', $welcomeContent]);
+    }
     }
 }
 

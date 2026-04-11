@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.05601] — 2026-04-10
+
+### Fixed
+- **Welcome post keeps coming back after deletion.** The seed welcome post was re-created on every page load when no posts existed. Now tracked via a `welcome_post_seeded` flag in site_settings — once seeded (or deleted), it never returns.
+
+---
+
 ## [v0.05600] — 2026-04-10
 
 ### Added
