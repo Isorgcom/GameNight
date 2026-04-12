@@ -148,6 +148,10 @@ if (in_array($keyword, ['help', 'h', '?', 'commands'], true)) {
     exit;
 }
 
+// Use configured timezone for "today" so events don't expire early in UTC
+$_sms_tz = get_setting('timezone', 'UTC');
+$_sms_today = (new DateTime('now', new DateTimeZone($_sms_tz)))->format('Y-m-d');
+
 // ── EVENTS / STATUS command ─────────────────────────────────────────────────
 if (in_array($keyword, ['events', 'list', 'e', 'status', 's'], true)) {
     $evStmt = $db->prepare("
@@ -155,11 +159,11 @@ if (in_array($keyword, ['events', 'list', 'e', 'status', 's'], true)) {
         FROM event_invites ei
         JOIN events e ON e.id = ei.event_id
         WHERE LOWER(ei.username) = LOWER(?)
-          AND e.start_date >= date('now')
+          AND e.start_date >= ?
         ORDER BY e.start_date ASC
         LIMIT 10
     ");
-    $evStmt->execute([$user['username']]);
+    $evStmt->execute([$user['username'], $_sms_today]);
     $events = $evStmt->fetchAll();
     if (empty($events)) {
         http_response_code(200);
@@ -233,12 +237,12 @@ $invStmt = $db->prepare("
     FROM event_invites ei
     JOIN events e ON e.id = ei.event_id
     WHERE LOWER(ei.username) = LOWER(?)
-      AND e.start_date >= date('now')
+      AND e.start_date >= ?
       AND ei.approval_status = 'approved'
     ORDER BY e.start_date ASC
     LIMIT 10
 ");
-$invStmt->execute([$user['username']]);
+$invStmt->execute([$user['username'], $_sms_today]);
 $invites = $invStmt->fetchAll();
 
 // Check whether the user has any pending invites so we can give a helpful reply if they have nothing approved.
@@ -246,10 +250,10 @@ $pendStmt = $db->prepare("
     SELECT COUNT(*) FROM event_invites ei
     JOIN events e ON e.id = ei.event_id
     WHERE LOWER(ei.username) = LOWER(?)
-      AND e.start_date >= date('now')
+      AND e.start_date >= ?
       AND ei.approval_status = 'pending'
 ");
-$pendStmt->execute([$user['username']]);
+$pendStmt->execute([$user['username'], $_sms_today]);
 $has_pending_invites = (int)$pendStmt->fetchColumn() > 0;
 
 // ── Handle direct "N RSVP" format (e.g. "1 yes", "all no") ─────────────────

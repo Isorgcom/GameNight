@@ -237,8 +237,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $evt = $row->fetch();
             $t = $evt['title'] ?? $id;
 
-            // Notify invitees before deleting
-            if ($evt && get_setting('notifications_enabled', '0') === '1') {
+            // Notify invitees before deleting (only for future events — no need to notify about past events)
+            if ($evt && get_setting('notifications_enabled', '0') === '1' && ($evt['start_date'] ?? '') >= date('Y-m-d')) {
                 require_once __DIR__ . '/sms.php';
                 $invStmt = $db->prepare("SELECT ei.username, u.email, u.phone, u.preferred_contact
                     FROM event_invites ei JOIN users u ON LOWER(u.username)=LOWER(ei.username)

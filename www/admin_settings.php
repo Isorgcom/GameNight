@@ -2491,9 +2491,10 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
         });
     }
 
-    // Check status on page load if we're on the WhatsApp tab
+    // Check status on page load and poll every 10 seconds if on WhatsApp tab
     if (<?= json_encode($tab === 'whatsapp') ?>) {
         wahaCheckStatus();
+        setInterval(wahaCheckStatus, 10000);
     }
     </script>
 

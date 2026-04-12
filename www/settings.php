@@ -198,37 +198,10 @@ $site_name = get_setting('site_name', 'Game Night');
                            value="<?= htmlspecialchars($me['email'] ?? '') ?>">
                 </div>
                 <div class="form-group">
-                    <label for="phone">Phone
-                        <?php if (($me['phone'] ?? '') !== ''): ?>
-                            <?php if ((int)($me['phone_verified'] ?? 0)): ?>
-                                <span style="font-size:.7rem;font-weight:600;color:#16a34a;background:#f0fdf4;border:1px solid #86efac;padding:.1rem .4rem;border-radius:4px;margin-left:.3rem">Verified</span>
-                            <?php else: ?>
-                                <span style="font-size:.7rem;font-weight:600;color:#d97706;background:#fffbeb;border:1px solid #fbbf24;padding:.1rem .4rem;border-radius:4px;margin-left:.3rem">Unverified</span>
-                            <?php endif; ?>
-                        <?php endif; ?>
-                    </label>
+                    <label for="phone">Phone</label>
                     <input type="tel" id="phone" name="phone"
                            autocomplete="tel"
                            value="<?= htmlspecialchars($me['phone'] ?? '') ?>">
-                    <?php if (($me['phone'] ?? '') !== '' && !(int)($me['phone_verified'] ?? 0) && get_setting('sms_provider') === 'surge'): ?>
-                    <div style="margin-top:.5rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap" id="verifySection">
-                        <form method="post" action="/settings.php" style="display:inline">
-                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
-                            <input type="hidden" name="action" value="send_phone_code">
-                            <button type="submit" class="btn" style="font-size:.8rem;padding:.35rem .8rem;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer">Send Verification Code</button>
-                        </form>
-                        <?php if (!empty($_SESSION['phone_verify_id'])): ?>
-                        <form method="post" action="/settings.php" style="display:inline-flex;gap:.4rem;align-items:center">
-                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
-                            <input type="hidden" name="action" value="verify_phone_code">
-                            <input type="text" name="verify_code" placeholder="6-digit code" maxlength="6" pattern="\d{6}"
-                                   inputmode="numeric" autocomplete="one-time-code"
-                                   style="width:100px;padding:.35rem .5rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.85rem;text-align:center">
-                            <button type="submit" class="btn" style="font-size:.8rem;padding:.35rem .8rem;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer">Verify</button>
-                        </form>
-                        <?php endif; ?>
-                    </div>
-                    <?php endif; ?>
                     <p style="margin-top:.4rem;font-size:.75rem;line-height:1.4;color:#64748b">By providing your phone number, you consent to receive event-related SMS messages (invites, reminders, RSVP updates). Message frequency varies. Message and data rates may apply. Reply STOP to unsubscribe, HELP for help. <a href="/privacy.php" target="_blank">Privacy Policy</a>.</p>
                 </div>
                 <div class="form-group">

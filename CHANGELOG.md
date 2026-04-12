@@ -4,6 +4,21 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.06600] — 2026-04-12
+
+### Added
+- **WhatsApp commands match SMS.** WhatsApp webhook now supports all SMS commands: EVENTS/STATUS (list upcoming events with RSVP status), START (re-enable notifications), STOP, HELP, direct format ("1 yes", "all no"), and multi-event numbered list selection.
+
+### Fixed
+- **Timezone-aware event queries in webhooks.** Both SMS and WhatsApp webhooks now use the configured timezone for "today" instead of UTC. Events dated today no longer disappear early when UTC rolls past midnight.
+- **WhatsApp NOWEB LID phone extraction.** NOWEB engine uses LID format for sender ID — webhook now extracts the real phone from `remoteJidAlt`.
+- **WhatsApp duplicate webhook dedup.** WAHA fires duplicate webhooks — now deduped via DB lock on event ID. Group messages and outbound echoes filtered out.
+- **Cancellation notifications skip past events.** Deleting past events no longer sends cancellation notifications.
+- **Phone verification UI removed.** Removed the verified/unverified badges and SMS verification flow from user settings. Phone field retained for WhatsApp/SMS routing.
+- **Preferred contact 'both' now saves correctly** in user settings.
+
+---
+
 ## [v0.06500] — 2026-04-11
 
 ### Changed
