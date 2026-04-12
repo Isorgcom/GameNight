@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $email    = strtolower(trim($_POST['email'] ?? ''));
             $phone    = trim($_POST['phone'] ?? '');
             $phone    = $phone !== '' ? normalize_phone($phone) : '';
-            $pref_contact = in_array($_POST['preferred_contact'] ?? '', ['email', 'sms', 'whatsapp', 'none'])
+            $pref_contact = in_array($_POST['preferred_contact'] ?? '', ['email', 'sms', 'whatsapp', 'both', 'none'])
                             ? $_POST['preferred_contact'] : 'email';
             $past_days = in_array((int)($_POST['my_events_past_days'] ?? 30), [7,14,30,60,90,180,365]) ? (int)$_POST['my_events_past_days'] : 30;
 
