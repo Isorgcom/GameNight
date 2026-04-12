@@ -266,7 +266,7 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
             color: #94a3b8;
         }
         .timer-blinds {
-            font-size: clamp(1.5rem, 8vw, 8rem);
+            font-size: clamp(2rem, 10vw, 10rem);
             font-weight: 800;
             color: #fff;
             line-height: 1.1;
@@ -301,8 +301,9 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
             50% { opacity: 0.5; }
         }
         .timer-next {
-            font-size: clamp(1.1rem, 2.5vw, 1.8rem);
-            color: #64748b;
+            font-size: clamp(1.3rem, 3.5vw, 2.5rem);
+            color: #94a3b8;
+            font-weight: 600;
         }
 
         /* ── Controls ── */
@@ -638,7 +639,7 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
             .timer-primary-controls button.btn-play, .timer-controls button.btn-play {
                 padding: 0.4rem 1rem;
             }
-            .timer-blinds { font-size: clamp(1.8rem, 8vw, 5rem); }
+            .timer-blinds { font-size: clamp(2rem, 9vw, 6rem); }
             .timer-clock { font-size: min(22vw, 30vh); }
             .timer-level-label { font-size: clamp(0.9rem, 2.5vw, 1.5rem); }
         }
@@ -662,7 +663,7 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
             .timer-ante { font-size: 0.85rem; }
             .timer-clock { font-size: min(20vw, 25vh); }
             .timer-paused-label { font-size: 0.9rem; min-height: 1.2em; }
-            .timer-next { font-size: 0.8rem; }
+            .timer-next { font-size: 1.1rem; }
             .timer-primary-controls, .timer-tray-grid { padding: 0.2rem 0; gap: 0.25rem; }
             .timer-primary-controls button, .timer-tray-grid button, .timer-controls button { padding: 0.3rem 0.5rem; font-size: 0.7rem; }
             .timer-primary-controls button.btn-play, .timer-controls button.btn-play { padding: 0.3rem 0.8rem; }
@@ -995,23 +996,31 @@ function renderAll() {
                 if (parseInt(LEVELS[i].level_number) === TIMER.current_level) break;
             }
             el('levelLabel').textContent = 'Level ' + playNum;
-            el('blinds').textContent = fmtChips(parseInt(lv.small_blind)) + ' / ' + fmtChips(parseInt(lv.big_blind));
-            el('ante').textContent = parseInt(lv.ante) > 0 ? 'Ante: ' + fmtChips(parseInt(lv.ante)) : '';
+            var blindsHtml = fmtChips(parseInt(lv.small_blind)) + ' / ' + fmtChips(parseInt(lv.big_blind));
+            if (parseInt(lv.ante) > 0) {
+                blindsHtml += ' / <span style="position:relative;display:inline-block">' + fmtChips(parseInt(lv.ante))
+                    + '<span style="position:absolute;left:50%;transform:translateX(-50%);bottom:-0.6em;font-size:0.25em;color:#f59e0b;font-weight:700;letter-spacing:0.05em">ANTE</span></span>';
+            }
+            el('blinds').innerHTML = blindsHtml;
+            el('ante').textContent = '';
         }
     }
 
-    // Next level preview
+    // Next level preview — same format as current blinds
     var nextLv = getLevelData(TIMER.current_level + 1);
     if (nextLv) {
         if (parseInt(nextLv.is_break)) {
-            el('nextLevel').textContent = 'Next: Break';
+            el('nextLevel').innerHTML = 'Next: Break';
         } else {
-            var txt = 'Next: ' + fmtChips(parseInt(nextLv.small_blind)) + ' / ' + fmtChips(parseInt(nextLv.big_blind));
-            if (parseInt(nextLv.ante) > 0) txt += ' (Ante ' + fmtChips(parseInt(nextLv.ante)) + ')';
-            el('nextLevel').textContent = txt;
+            var nextHtml = 'Next: ' + fmtChips(parseInt(nextLv.small_blind)) + ' / ' + fmtChips(parseInt(nextLv.big_blind));
+            if (parseInt(nextLv.ante) > 0) {
+                nextHtml += ' / <span style="position:relative;display:inline-block">' + fmtChips(parseInt(nextLv.ante))
+                    + '<span style="position:absolute;left:50%;transform:translateX(-50%);bottom:-0.7em;font-size:0.45em;color:#f59e0b;font-weight:700;letter-spacing:0.05em">ANTE</span></span>';
+            }
+            el('nextLevel').innerHTML = nextHtml;
         }
     } else {
-        el('nextLevel').textContent = 'Final Level';
+        el('nextLevel').innerHTML = 'Final Level';
     }
 
     renderClock();

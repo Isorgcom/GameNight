@@ -4,6 +4,14 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.06500] — 2026-04-11
+
+### Changed
+- **Ante displayed inline with blinds.** Timer now shows small / big / ante all on one line with a gold "ANTE" label centered under the ante value. Next level preview uses the same format.
+- **Larger blinds and next level text.** Current blinds bumped to max 10rem, next level to 2.5rem with bolder weight and brighter color.
+
+---
+
 ## [v0.06400] — 2026-04-11
 
 ### Added
