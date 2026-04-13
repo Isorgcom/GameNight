@@ -68,8 +68,9 @@ $session = $sessStmt->fetch();
     .pk-stat-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin-bottom:.15rem}
     .pk-stat-value{font-size:1.3rem;font-weight:700;color:var(--accent,#2563eb)}
 
-    .pk-grid{display:grid;grid-template-columns:1fr 300px;gap:1rem;padding:.75rem 1.5rem}
-    @media(max-width:1024px){.pk-grid{grid-template-columns:1fr}}
+    .pk-grid{display:grid;grid-template-columns:1fr 280px;gap:1rem;padding:.75rem 1.5rem;width:100%;box-sizing:border-box}
+    @media(max-width:1200px){.pk-grid{grid-template-columns:1fr 220px;gap:.75rem;padding:.75rem}}
+    @media(max-width:1024px){.pk-grid{grid-template-columns:1fr;padding:.75rem}}
 
     .pk-toolbar{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.75rem}
     .pk-toolbar input[type=text]{padding:.4rem .7rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:.85rem;width:180px}
@@ -113,12 +114,12 @@ $session = $sessStmt->fetch();
     .pk-profit-neg{color:#ef4444;font-weight:600}
     .pk-profit-zero{color:#64748b;font-weight:600}
 
-    .pk-sidebar{display:flex;flex-direction:column;gap:.75rem}
-    .pk-card{background:var(--surface,#fff);border:1.5px solid var(--border,#e2e8f0);border-radius:8px;padding:1rem}
+    .pk-sidebar{display:flex;flex-direction:column;gap:.75rem;min-width:0}
+    .pk-card{background:var(--surface,#fff);border:1.5px solid var(--border,#e2e8f0);border-radius:8px;padding:.75rem;min-width:0;box-sizing:border-box;word-break:break-word}
     .pk-card h3{margin:0 0 .6rem;font-size:.85rem;text-transform:uppercase;letter-spacing:.04em;color:#64748b}
-    .pk-pool-row{display:flex;justify-content:space-between;padding:.25rem 0;font-size:.85rem}
-    .pk-pool-row.total{font-weight:700;font-size:1.1rem;border-top:2px solid var(--border,#e2e8f0);margin-top:.3rem;padding-top:.5rem;color:#22c55e}
-    .pk-payout-row{display:flex;justify-content:space-between;padding:.2rem 0;font-size:.85rem}
+    .pk-pool-row{display:flex;justify-content:space-between;padding:.2rem 0;font-size:.8rem;gap:.25rem}
+    .pk-pool-row.total{font-weight:700;font-size:.95rem;border-top:2px solid var(--border,#e2e8f0);margin-top:.3rem;padding-top:.4rem;color:#22c55e}
+    .pk-payout-row{display:flex;justify-content:space-between;padding:.15rem 0;font-size:.8rem;gap:.25rem}
     .pk-payout-place{font-weight:600}
 
     .pk-settings-panel{display:none;background:var(--surface,#fff);border:1.5px solid var(--border,#e2e8f0);border-radius:8px;padding:1.25rem;margin:.75rem 1.5rem}
@@ -241,8 +242,12 @@ $session = $sessStmt->fetch();
     .pk-modal-actions button{padding:.4rem 1rem;border-radius:6px;font-size:.85rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border,#e2e8f0)}
     .pk-modal-actions .pk-save{background:var(--accent,#2563eb);color:#fff;border-color:transparent}
 
+    .pk-inline-summary{display:none}
+
     /* ── Mobile/tablet touch optimization ── */
     @media (max-width: 1024px) {
+        .pk-sidebar{display:none}
+        .pk-inline-summary{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;padding:.4rem .75rem;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;margin-bottom:.5rem;font-size:.8rem;color:#334155}
         .pk-stats { padding:.75rem 1rem; }
         .pk-stat { min-width:0;flex:1 1 calc(50% - .5rem); }
         .pk-grid { padding:.75rem 1rem; }
@@ -509,6 +514,23 @@ function renderDashboard() {
     h += '<button class="pk-btn-view-toggle" onclick="balanceTables()">&#9878; Balance</button>';
     h += '<button class="pk-btn-view-toggle" onclick="addTable()">Tables: ' + (parseInt(SESSION.num_tables) || 1) + ' +</button>';
     h += '</div>';
+
+    // Inline pool/payout summary for mobile/tablet (compact bar above player list)
+    h += '<div class="pk-inline-summary">';
+    if (isCash()) {
+        h += '<span>In Play: <b>' + formatMoney(POOL.total_cash_in) + '</b></span>';
+        h += '<span>On Table: <b>' + formatMoney(POOL.total_cash_in - POOL.total_cash_out) + '</b></span>';
+    } else {
+        h += '<span>Pool: <b style="color:#22c55e">' + formatMoney(POOL.pool_total) + '</b></span>';
+        for (var pi = 0; pi < PAYOUTS.length && pi < 3; pi++) {
+            var pct = parseFloat(PAYOUTS[pi].percentage);
+            var amt = Math.round(POOL.pool_total * pct / 100);
+            var pl = PAYOUTS[pi].place == 1 ? '1st' : PAYOUTS[pi].place == 2 ? '2nd' : PAYOUTS[pi].place == 3 ? '3rd' : PAYOUTS[pi].place + 'th';
+            h += '<span>' + pl + ': <b>' + formatMoney(amt) + '</b></span>';
+        }
+    }
+    h += '</div>';
+
     if (VIEW_MODE === 'table') {
         h += renderTableView();
     } else {
