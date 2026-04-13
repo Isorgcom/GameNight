@@ -374,6 +374,22 @@ function db_init(PDO $pdo): void {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )"); } catch (Exception $e) {}
 
+    // Phone/WhatsApp verification codes for registration
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS phone_verifications (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id    INTEGER NOT NULL,
+        code_hash  TEXT    NOT NULL,
+        method     TEXT    NOT NULL DEFAULT 'sms',
+        expires_at DATETIME NOT NULL,
+        used       INTEGER NOT NULL DEFAULT 0,
+        attempts   INTEGER NOT NULL DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    )"); } catch (Exception $e) {}
+
+    // Track which verification method the user chose at registration
+    try { $pdo->exec("ALTER TABLE users ADD COLUMN verification_method TEXT NOT NULL DEFAULT 'email'"); } catch (Exception $e) {}
+
     // Seed default blind structure if none exists
     $presetCount = $pdo->query('SELECT COUNT(*) FROM blind_presets WHERE is_default = 1')->fetchColumn();
     if ((int)$presetCount === 0) {

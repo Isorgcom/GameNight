@@ -35,8 +35,11 @@ if (get_setting('allow_registration', '1') !== '1') {
     exit;
 }
 
-$error            = '';
-$registered_email = '';
+$error             = '';
+$registered_email  = '';
+$registered_method = 'email';
+$registered_phone  = '';
+$registered_uid    = 0;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     session_start_safe();
@@ -53,18 +56,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             db_log_anon_activity('register_attempt');
 
-            $username  = trim($_POST['username'] ?? '');
-            $email     = trim($_POST['email'] ?? '');
-            $phone     = trim($_POST['phone'] ?? '');
-            $password  = $_POST['password'] ?? '';
-            $password2 = $_POST['password2'] ?? '';
+            $username      = trim($_POST['username'] ?? '');
+            $email         = trim($_POST['email'] ?? '');
+            $phone         = trim($_POST['phone'] ?? '');
+            $password      = $_POST['password'] ?? '';
+            $password2     = $_POST['password2'] ?? '';
+            $verify_method = in_array($_POST['verify_method'] ?? '', ['email', 'sms', 'whatsapp'], true)
+                             ? $_POST['verify_method'] : 'email';
 
             if ($password !== $password2) {
                 $error = 'Passwords do not match.';
+            } elseif (in_array($verify_method, ['sms', 'whatsapp'], true) && empty($_POST['sms_consent'])) {
+                $error = 'You must agree to receive messages via ' . ucfirst($verify_method) . ' to continue.';
             } else {
-                $result = register_user($username, $email, $password, $phone);
+                $result = register_user($username, $email, $password, $phone, $verify_method);
                 if ($result === null) {
-                    $registered_email = strtolower(trim($email));
+                    $registered_email  = strtolower(trim($email));
+                    $registered_method = $verify_method;
+                    $registered_phone  = $phone;
+                    // For SMS/WhatsApp, look up the new user ID for code entry
+                    if ($verify_method !== 'email') {
+                        $uidStmt = get_db()->prepare('SELECT id FROM users WHERE LOWER(email) = ?');
+                        $uidStmt->execute([strtolower(trim($email))]);
+                        $registered_uid = (int)$uidStmt->fetchColumn();
+                        $_SESSION['verify_user_id'] = $registered_uid;
+                        $_SESSION['verify_method']  = $verify_method;
+                    }
                 } else {
                     $error = $result;
                 }
@@ -90,7 +107,7 @@ $site_name = get_setting('site_name', 'Game Night');
 
 <div class="card-wrap">
     <div class="card">
-        <?php if ($registered_email): ?>
+        <?php if ($registered_email && $registered_method === 'email'): ?>
         <h2>Check Your Email</h2>
         <p class="subtitle">Account created!</p>
         <div class="alert alert-success">
@@ -100,7 +117,35 @@ $site_name = get_setting('site_name', 'Game Night');
         <p style="text-align:center;margin-top:1.25rem;font-size:.875rem;color:#64748b">
             Didn't get it? <a href="/resend_verification.php?email=<?= urlencode($registered_email) ?>">Resend verification email</a>
         </p>
+
+        <?php elseif ($registered_email && in_array($registered_method, ['sms', 'whatsapp'], true)): ?>
+        <h2>Enter Verification Code</h2>
+        <p class="subtitle">Account created!</p>
+        <div class="alert alert-success">
+            We sent a 6-digit code to <?php
+                $masked = $registered_phone ? preg_replace('/(\d{3})\d{4}(\d{3,4})/', '$1****$2', $registered_phone) : 'your phone';
+                echo '<strong>' . htmlspecialchars($masked) . '</strong>';
+            ?> via <strong><?= ucfirst($registered_method) ?></strong>.
+        </div>
+        <form method="post" action="/verify_phone.php" style="margin-top:1rem">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+            <div class="form-group" style="text-align:center">
+                <input type="text" name="code" placeholder="6-digit code" maxlength="6" pattern="\d{6}"
+                       inputmode="numeric" autocomplete="one-time-code" required autofocus
+                       style="width:180px;font-size:1.5rem;text-align:center;letter-spacing:.3em;padding:.6rem;border:2px solid #e2e8f0;border-radius:10px">
+            </div>
+            <button type="submit" class="btn btn-primary" style="width:100%">Verify</button>
+        </form>
+        <p style="text-align:center;margin-top:1rem;font-size:.875rem;color:#64748b">
+            Didn't get it? <a href="/resend_verification.php?email=<?= urlencode($registered_email) ?>">Resend code</a>
+        </p>
+
         <?php else: ?>
+        <?php $_reg_banner = get_setting('header_banner_path', ''); if ($_reg_banner): ?>
+        <div style="text-align:center;margin-bottom:.75rem">
+            <a href="/"><img src="<?= htmlspecialchars($_reg_banner) ?>" alt="<?= htmlspecialchars($site_name) ?>" style="max-height:60px;width:auto"></a>
+        </div>
+        <?php endif; ?>
         <h2>Create Account</h2>
         <p class="subtitle">Join <?= htmlspecialchars($site_name) ?>.</p>
 
@@ -108,7 +153,7 @@ $site_name = get_setting('site_name', 'Game Night');
             <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
         <?php endif; ?>
 
-        <form method="post" action="/register.php" novalidate>
+        <form method="post" action="/register.php" novalidate onsubmit="return validateRegister()">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
 
             <div class="form-group">
@@ -129,13 +174,29 @@ $site_name = get_setting('site_name', 'Game Night');
             </div>
 
             <div class="form-group">
-                <label for="phone">Phone <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
+                <label for="phone">Phone <span id="phoneOptional" style="color:#94a3b8;font-weight:400">(optional)</span></label>
                 <input type="tel" id="phone" name="phone"
                        value="<?= htmlspecialchars($_POST['phone'] ?? '') ?>"
                        autocomplete="tel">
-                <div style="margin-top:.5rem;padding:.75rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:.8rem;line-height:1.5;color:#475569;text-align:left;display:flex;align-items:flex-start;gap:.5rem">
+            </div>
+
+            <div class="form-group">
+                <label>Verify &amp; receive notifications via</label>
+                <div style="display:flex;gap:0;border:1.5px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-top:.25rem">
+                    <?php
+                    $vm = $_POST['verify_method'] ?? 'email';
+                    foreach (['email' => 'Email', 'sms' => 'SMS', 'whatsapp' => 'WhatsApp'] as $val => $label):
+                    ?>
+                    <label style="flex:1;text-align:center;padding:.55rem;cursor:pointer;font-size:.85rem;font-weight:600;transition:background .12s,color .12s;<?= $val !== 'email' ? 'border-left:1.5px solid #e2e8f0;' : '' ?>" id="vmlabel_<?= $val ?>">
+                        <input type="radio" name="verify_method" value="<?= $val ?>" style="display:none" onchange="updateVerifyMethod()"<?= $vm === $val ? ' checked' : '' ?>>
+                        <?= $label ?>
+                    </label>
+                    <?php endforeach; ?>
+                </div>
+                <p class="hint" id="verifyHint">We'll send a verification link to your email.</p>
+                <div id="smsConsent" style="display:none;margin-top:.5rem;padding:.75rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:.8rem;line-height:1.5;color:#475569;display:flex;align-items:flex-start;gap:.5rem">
                     <input type="checkbox" id="sms_consent" name="sms_consent" value="1" style="flex-shrink:0;width:16px;height:16px;margin-top:2px"<?= !empty($_POST['sms_consent']) ? ' checked' : '' ?>>
-                    <span>I agree to receive event-related SMS messages (e.g., invites, reminders, RSVP updates). Message frequency varies. Message and data rates may apply. Reply STOP to unsubscribe, HELP for help. <a href="/privacy.php" target="_blank">Privacy Policy</a>.</span>
+                    <span>I agree to receive event-related messages (invites, reminders, RSVP updates) via <span id="consentMethod">SMS</span>. Message frequency varies. Message and data rates may apply. Reply STOP to unsubscribe, HELP for help. <a href="/privacy.php" target="_blank">Privacy Policy</a>.</span>
                 </div>
             </div>
 
@@ -200,6 +261,56 @@ document.querySelectorAll('button[aria-label="Show password"], button[aria-label
     btn.addEventListener('click', toggle);
     btn.addEventListener('touchend', toggle);
 });
+
+function validateRegister() {
+    var method = (document.querySelector('input[name="verify_method"]:checked') || {}).value || 'email';
+    if (method !== 'email') {
+        var phone = document.getElementById('phone');
+        if (phone && phone.value.trim() === '') { alert('Phone number is required for ' + method.toUpperCase() + ' verification.'); phone.focus(); return false; }
+        var cb = document.getElementById('sms_consent');
+        if (cb && !cb.checked) { alert('You must agree to receive messages to continue.'); return false; }
+    }
+    return true;
+}
+
+// Verification method toggle
+function updateVerifyMethod() {
+    var sel = document.querySelector('input[name="verify_method"]:checked');
+    var method = sel ? sel.value : 'email';
+    var phoneInput = document.getElementById('phone');
+    var phoneOpt = document.getElementById('phoneOptional');
+    var hint = document.getElementById('verifyHint');
+    var hints = {
+        email: "We'll send a verification link to your email.",
+        sms: "We'll text a 6-digit code to your phone.",
+        whatsapp: "We'll send a 6-digit code via WhatsApp."
+    };
+    if (hint) hint.textContent = hints[method] || '';
+    // Phone required for SMS/WhatsApp
+    if (method !== 'email') {
+        if (phoneInput) phoneInput.required = true;
+        if (phoneOpt) phoneOpt.textContent = '(required)';
+    } else {
+        if (phoneInput) phoneInput.required = false;
+        if (phoneOpt) phoneOpt.textContent = '(optional)';
+    }
+    // SMS/WhatsApp consent notice + checkbox
+    var consent = document.getElementById('smsConsent');
+    var consentMethod = document.getElementById('consentMethod');
+    var consentCb = document.getElementById('sms_consent');
+    if (consent) consent.style.display = (method !== 'email') ? 'flex' : 'none';
+    if (consentMethod) consentMethod.textContent = method === 'whatsapp' ? 'WhatsApp' : 'SMS';
+    if (consentCb) consentCb.required = (method !== 'email');
+    // Visual toggle
+    ['email', 'sms', 'whatsapp'].forEach(function(v) {
+        var lbl = document.getElementById('vmlabel_' + v);
+        if (lbl) {
+            lbl.style.background = (v === method) ? '#2563eb' : '';
+            lbl.style.color = (v === method) ? '#fff' : '#334155';
+        }
+    });
+}
+updateVerifyMethod();
 </script>
 </body>
 </html>

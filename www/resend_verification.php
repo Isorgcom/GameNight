@@ -4,8 +4,9 @@ require_once __DIR__ . '/auth_dl.php';
 if (current_user()) { header('Location: /'); exit; }
 
 $site_name = get_setting('site_name', 'Game Night');
-$sent      = false;
-$error     = '';
+$sent          = false;
+$error         = '';
+$resend_method = 'email';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     session_start_safe();
@@ -21,12 +22,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $rlStmt->execute([$ip]);
         if ((int)$rlStmt->fetchColumn() < 3) {
             db_log_anon_activity('resend_verification: ' . $email);
-            $stmt = $db->prepare('SELECT id, username, email_verified FROM users WHERE LOWER(email)=?');
+            $stmt = $db->prepare('SELECT id, username, email_verified, phone, verification_method FROM users WHERE LOWER(email)=?');
             $stmt->execute([$email]);
             $user = $stmt->fetch();
 
             if ($user && !(int)$user['email_verified']) {
-                send_verification_email($user['id'], $email, $user['username']);
+                $method = $user['verification_method'] ?? 'email';
+                if (in_array($method, ['sms', 'whatsapp'], true) && ($user['phone'] ?? '') !== '') {
+                    send_verification_code($user['id'], $user['phone'], $method);
+                    // Store session vars so verify_phone.php can pick them up
+                    session_start_safe();
+                    $_SESSION['verify_user_id'] = (int)$user['id'];
+                    $_SESSION['verify_method']  = $method;
+                    $resend_method = $method;
+                } else {
+                    send_verification_email($user['id'], $email, $user['username']);
+                }
             }
         }
         $sent = true; // always show success
@@ -51,9 +62,16 @@ $prefill_email = htmlspecialchars($_GET['email'] ?? $_POST['email'] ?? '');
         <h2>Resend Verification</h2>
 
         <?php if ($sent): ?>
+            <?php if (in_array($resend_method, ['sms', 'whatsapp'], true)): ?>
+            <div class="alert alert-success">
+                A new 6-digit code has been sent via <?= ucfirst($resend_method) ?>.
+            </div>
+            <a href="/verify_phone.php" class="btn btn-primary" style="width:100%;margin-top:.75rem;display:block;text-align:center;text-decoration:none">Enter Code</a>
+            <?php else: ?>
             <div class="alert alert-success">
                 If that email has an unverified account, a new link has been sent.
             </div>
+            <?php endif; ?>
             <p style="text-align:center;margin-top:1.25rem;font-size:.875rem;color:#64748b">
                 <a href="/login.php">&larr; Back to Sign In</a>
             </p>

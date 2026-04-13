@@ -3,6 +3,21 @@ require_once __DIR__ . '/auth.php';
 
 $current = require_login();
 $db      = get_db();
+
+function _delete_user_account(PDO $db, int $user_id): void {
+    db_log_activity($user_id, 'deleted own account');
+    $un = $db->prepare('SELECT username FROM users WHERE id = ?');
+    $un->execute([$user_id]);
+    $username = $un->fetchColumn();
+    if ($username) {
+        $db->prepare('DELETE FROM event_invites WHERE LOWER(username) = LOWER(?)')->execute([$username]);
+    }
+    $db->prepare('UPDATE poker_players SET removed = 1 WHERE user_id = ?')->execute([$user_id]);
+    $db->prepare('DELETE FROM remember_tokens WHERE user_id = ?')->execute([$user_id]);
+    $db->prepare('DELETE FROM email_verifications WHERE user_id = ?')->execute([$user_id]);
+    $db->prepare('DELETE FROM phone_verifications WHERE user_id = ?')->execute([$user_id]);
+    $db->prepare('DELETE FROM users WHERE id = ?')->execute([$user_id]);
+}
 $flash   = ['type' => '', 'msg' => ''];
 
 session_start_safe();
@@ -123,6 +138,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                    ->execute([$new_hash, $current['id']]);
                 db_log_activity($current['id'], 'changed password');
                 $flash = ['type' => 'success', 'msg' => 'Password updated.'];
+            }
+        }
+
+        elseif ($action === 'delete_account') {
+            $confirm = trim($_POST['confirm_delete'] ?? '');
+            if ($confirm !== 'DELETE') {
+                $flash = ['type' => 'error', 'msg' => 'You must type DELETE to confirm account deletion.'];
+            } elseif ($current['role'] === 'admin') {
+                // Check if this is the last admin
+                $adminCount = (int)$db->query("SELECT COUNT(*) FROM users WHERE role='admin'")->fetchColumn();
+                if ($adminCount <= 1) {
+                    $flash = ['type' => 'error', 'msg' => 'Cannot delete the last admin account.'];
+                } else {
+                    _delete_user_account($db, $current['id']);
+                    logout();
+                    header('Location: /login.php');
+                    exit;
+                }
+            } else {
+                _delete_user_account($db, $current['id']);
+                logout();
+                header('Location: /login.php');
+                exit;
             }
         }
     }
@@ -266,6 +304,25 @@ $site_name = get_setting('site_name', 'Game Night');
                 <tr><td style="color:#64748b">Last login</td><td><?= htmlspecialchars($me['last_login'] ?? 'Never') ?></td></tr>
             </tbody>
         </table>
+    </div>
+
+    <!-- Delete account -->
+    <div class="card" style="max-width:540px;margin-top:1.5rem;border-color:#fca5a5">
+        <h2 style="color:#dc2626">Delete Account</h2>
+        <p class="subtitle" style="color:#64748b">Permanently delete your account and all associated data. This cannot be undone.</p>
+        <form method="post" action="/settings.php" onsubmit="return document.getElementById('confirm_delete').value === 'DELETE'">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+            <input type="hidden" name="action" value="delete_account">
+            <div class="form-group">
+                <label for="confirm_delete">Type <strong style="color:#dc2626">DELETE</strong> to confirm</label>
+                <input type="text" id="confirm_delete" name="confirm_delete" required
+                       autocomplete="off" placeholder="DELETE"
+                       style="border-color:#fca5a5;text-transform:uppercase">
+            </div>
+            <button type="submit" class="btn" style="width:100%;background:#dc2626;color:#fff;border:none;font-weight:600;padding:.6rem">
+                Permanently Delete My Account
+            </button>
+        </form>
     </div>
 
 </div>

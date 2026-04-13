@@ -222,11 +222,13 @@ function csrf_token(): string {
 /**
  * Register a new user. Returns null on success or an error string on failure.
  * New users are created with email_verified=0 and must verify before logging in.
+ * $verify_method: 'email' (default), 'sms', or 'whatsapp'
  */
-function register_user(string $username, string $email, string $password, string $phone = ''): ?string {
+function register_user(string $username, string $email, string $password, string $phone = '', string $verify_method = 'email'): ?string {
     $username = trim($username);
     $email    = strtolower(trim($email));
     $phone    = $phone !== '' ? normalize_phone(trim($phone)) : '';
+    $verify_method = in_array($verify_method, ['email', 'sms', 'whatsapp'], true) ? $verify_method : 'email';
 
     if ($username === '' || $password === '') {
         return 'Username and password are required.';
@@ -239,6 +241,9 @@ function register_user(string $username, string $email, string $password, string
     }
     if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
         return 'A valid email address is required.';
+    }
+    if (in_array($verify_method, ['sms', 'whatsapp'], true) && $phone === '') {
+        return 'Phone number is required for ' . ucfirst($verify_method) . ' verification.';
     }
 
     $db = get_db();
@@ -257,17 +262,88 @@ function register_user(string $username, string $email, string $password, string
         return 'That username is already taken.';
     }
 
+    $preferred = $verify_method === 'email' ? 'email' : $verify_method;
     $hash = password_hash($password, PASSWORD_BCRYPT);
-    $db->prepare('INSERT INTO users (username, password_hash, email, phone, role, email_verified) VALUES (?, ?, ?, ?, ?, 0)')
-       ->execute([$username, $hash, $email !== '' ? $email : null, $phone !== '' ? $phone : null, 'user']);
+    $db->prepare('INSERT INTO users (username, password_hash, email, phone, role, email_verified, preferred_contact, verification_method) VALUES (?, ?, ?, ?, ?, 0, ?, ?)')
+       ->execute([$username, $hash, $email !== '' ? $email : null, $phone !== '' ? $phone : null, 'user', $preferred, $verify_method]);
 
     $id = (int)$db->lastInsertId();
-    db_log_activity($id, 'registered');
+    db_log_activity($id, "registered (verify via $verify_method)");
 
-    // Send verification email — user cannot log in until verified
-    send_verification_email($id, $email, $username);
+    // Send verification based on chosen method
+    if ($verify_method === 'email') {
+        send_verification_email($id, $email, $username);
+    } else {
+        send_verification_code($id, $phone, $verify_method);
+    }
 
     return null;
+}
+
+/**
+ * Send a 6-digit verification code via SMS or WhatsApp.
+ */
+function send_verification_code(int $user_id, string $phone, string $method): void {
+    $db   = get_db();
+    $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+    $hash = hash('sha256', $code);
+    $exp  = date('Y-m-d H:i:s', strtotime('+10 minutes'));
+
+    // Invalidate previous unused codes
+    $db->prepare('UPDATE phone_verifications SET used=1 WHERE user_id=? AND used=0')->execute([$user_id]);
+    $db->prepare('INSERT INTO phone_verifications (user_id, code_hash, method, expires_at) VALUES (?, ?, ?, ?)')
+       ->execute([$user_id, $hash, $method, $exp]);
+
+    $site = get_setting('site_name', 'Game Night');
+    $msg  = "Your $site verification code is: $code\nThis code expires in 10 minutes.";
+
+    require_once __DIR__ . '/sms.php';
+    if ($method === 'whatsapp') {
+        send_whatsapp($phone, $msg);
+    } else {
+        send_sms($phone, $msg);
+    }
+}
+
+/**
+ * Verify a 6-digit code for a user. Returns 'ok', 'expired', 'incorrect', or 'exhausted'.
+ */
+function verify_code(int $user_id, string $code): string {
+    $db = get_db();
+
+    // Find the latest unused code for this user
+    $stmt = $db->prepare('SELECT id, code_hash, expires_at, attempts FROM phone_verifications WHERE user_id=? AND used=0 ORDER BY id DESC LIMIT 1');
+    $stmt->execute([$user_id]);
+    $row = $stmt->fetch();
+
+    if (!$row) return 'expired';
+
+    // Check expiry
+    if (strtotime($row['expires_at']) < time()) {
+        $db->prepare('UPDATE phone_verifications SET used=1 WHERE id=?')->execute([$row['id']]);
+        return 'expired';
+    }
+
+    // Check attempt limit
+    if ((int)$row['attempts'] >= 5) {
+        $db->prepare('UPDATE phone_verifications SET used=1 WHERE id=?')->execute([$row['id']]);
+        return 'exhausted';
+    }
+
+    // Increment attempts
+    $db->prepare('UPDATE phone_verifications SET attempts = attempts + 1 WHERE id=?')->execute([$row['id']]);
+
+    // Check code
+    if (!hash_equals($row['code_hash'], hash('sha256', $code))) {
+        return ((int)$row['attempts'] + 1 >= 5) ? 'exhausted' : 'incorrect';
+    }
+
+    // Success — mark code used and verify the user
+    $db->prepare('UPDATE phone_verifications SET used=1 WHERE id=?')->execute([$row['id']]);
+    $db->prepare('UPDATE users SET email_verified=1, phone_verified=1 WHERE id=?')->execute([$user_id]);
+    db_log_activity($user_id, 'phone verified');
+
+    return 'ok';
 }
 
 function send_verification_email(int $user_id, string $email, string $username): void {

@@ -66,6 +66,11 @@ $site_name = get_setting('site_name', 'Game Night');
 
 <div class="card-wrap">
     <div class="card">
+        <?php $_login_banner = get_setting('header_banner_path', ''); if ($_login_banner): ?>
+        <div style="text-align:center;margin-bottom:.75rem">
+            <a href="/"><img src="<?= htmlspecialchars($_login_banner) ?>" alt="<?= htmlspecialchars($site_name) ?>" style="max-height:60px;width:auto"></a>
+        </div>
+        <?php endif; ?>
         <h2>Sign In</h2>
         <p class="subtitle">Enter your credentials to access the dashboard.</p>
 

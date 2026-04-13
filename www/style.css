@@ -153,11 +153,10 @@ nav .brand:hover { color: #e2e8f0; text-decoration: none; }
 
 /* ── CARD (login) ── */
 .card-wrap {
-    min-height: calc(100vh - 92px);
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
-    padding: 2rem;
+    padding: 2rem 2rem 3rem;
 }
 .card {
     background: var(--surface);
@@ -330,7 +329,14 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
     .dash-wrap { padding: 0; margin: .5rem 0; }
     .hero { padding: 2.5rem 0 2rem; }
     .features { padding: 2rem 0; }
-    .card { padding: 1.5rem .5rem; }
+    .card-wrap { min-height: auto; padding: 0; margin: 0; align-items: flex-start; }
+    .card { padding: .75rem .6rem; border: none; box-shadow: none; border-radius: 0; margin: 0; }
+    .card h2 { font-size: 1.2rem; margin-bottom: .15rem; }
+    .card .subtitle { margin-bottom: .6rem; font-size: .8rem; }
+    .form-group { margin-bottom: .45rem; }
+    .form-group label { font-size: .8rem; margin-bottom: .2rem; }
+    .form-group input, .form-group select { padding: .4rem .6rem; font-size: .9rem; }
+    .hint { font-size: .7rem; margin-top: .15rem; }
     footer { padding: 1.25rem 0; margin-top: 2rem; }
 
     /* ── Modals: full-screen takeover on mobile ── */

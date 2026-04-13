@@ -68,8 +68,21 @@ function send_email(string $toAddress, string $toName, string $subject, string $
         $mail->AltBody = strip_tags($htmlBody);
 
         $mail->send();
+        _log_email($toAddress, $subject, 'sent', null);
         return null;
     } catch (MailException $e) {
+        _log_email($toAddress, $subject, 'failed', $mail->ErrorInfo);
         return $mail->ErrorInfo;
     }
+}
+
+/**
+ * Log email sends to sms_log table for unified notification history.
+ */
+function _log_email(string $to, string $subject, string $status, ?string $error): void {
+    try {
+        $db = get_db();
+        $db->prepare('INSERT INTO sms_log (direction, phone, body, provider, status, error) VALUES (?, ?, ?, ?, ?, ?)')
+           ->execute(['outbound', $to, $subject, 'email', $status, $error]);
+    } catch (Exception $e) {}
 }

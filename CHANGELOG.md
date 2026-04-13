@@ -4,6 +4,20 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.06800] — 2026-04-13
+
+### Added
+- **Multi-method registration verification.** Users choose Email, SMS, or WhatsApp at signup. SMS/WhatsApp sends a 6-digit code (10 min expiry, 5 attempt limit). Sets `preferred_contact` based on choice. New `phone_verifications` table and `verification_method` column on users.
+- **SMS/WhatsApp consent checkbox.** Required when SMS or WhatsApp verification is selected. Backend + JS enforcement.
+- **Email notification logging.** All `send_email()` calls now logged to `sms_log` table with provider='email' for unified notification history.
+- **Delete account.** Users can delete their own account from My Settings by typing DELETE. Cleans up invites, poker players, tokens. Last admin protection.
+- **Branding on login/register.** Header banner displayed at top of login and register cards, clickable to home page.
+
+### Changed
+- **Tighter mobile card layout.** Removed vertical centering, reduced all padding/margins/font sizes on mobile for login, register, and settings pages.
+
+---
+
 ## [v0.06700] — 2026-04-13
 
 ### Added
