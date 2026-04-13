@@ -7,6 +7,7 @@ $site_name = get_setting('site_name', 'Game Night');
 
 $is_remote = false;
 $is_guest = false;
+$is_display = isset($_GET['display']) && $_GET['display'] === '1';
 $can_control = false;
 $session = null;
 $event = null;
@@ -688,9 +689,25 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
         .pp-counter button{width:22px;height:22px;border:none;background:#334155;color:#f1f5f9;cursor:pointer;font-weight:700;font-size:.8rem;display:flex;align-items:center;justify-content:center}
         .pp-counter button:active{background:#475569}
         .pp-counter span{min-width:18px;text-align:center;font-weight:600;font-size:.75rem;color:#f1f5f9;padding:0 2px}
+        /* ── TV Display Mode ── */
+        body.display-mode .timer-tray,
+        body.display-mode .timer-tray-handle,
+        body.display-mode .timer-back,
+        body.display-mode .timer-qr,
+        body.display-mode .player-panel,
+        body.display-mode .player-panel-overlay { display: none !important; }
+
+        body.display-mode .timer-container { padding: 1rem 2rem; }
+        body.display-mode .timer-level-label { font-size: clamp(2rem, 4vw, 4rem); }
+        body.display-mode .timer-blinds { font-size: clamp(3rem, 12vw, 12rem); }
+        body.display-mode .timer-clock { font-size: min(30vw, 45vh); }
+        body.display-mode .timer-next { font-size: clamp(1.8rem, 4vw, 4rem); }
+        body.display-mode .timer-ante { font-size: clamp(1.5rem, 3vw, 3rem); }
+        body.display-mode .timer-paused-label { font-size: clamp(2rem, 4vw, 3.5rem); }
+        body.display-mode .timer-info-bar { font-size: clamp(1.2rem, 2.5vw, 2.2rem); padding: 0.75rem 2rem; gap: 2rem; }
     </style>
 </head>
-<body class="timer-body">
+<body class="timer-body<?= $is_display ? ' display-mode' : '' ?>">
 
 <!-- Wake lock status (auto-hides) -->
 <div id="wakeBanner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#fbbf24;text-align:center;padding:6px;font-size:0.8rem;z-index:999;border-top:1px solid #334155;transition:opacity 0.5s;pointer-events:none">
@@ -753,6 +770,9 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
             <?php endif; ?>
             <button id="btnSound" onclick="toggleSound()" title="Toggle sound">&#128276;<span class="tray-label">Sound</span></button>
             <button id="btnFullscreen" onclick="goFullscreen()" title="Fullscreen">&#9974;<span class="tray-label">Full</span></button>
+            <?php if (!$is_display): ?>
+            <button onclick="openDisplayMode()" title="Open TV display in new tab">&#128250;<span class="tray-label">TV</span></button>
+            <?php endif; ?>
             <?php if (!$is_remote): ?>
             <span class="timer-tray-sep"></span>
             <button onclick="openLevels()" title="Blind structure">&#128203;<span class="tray-label">Levels</span></button>
@@ -1928,6 +1948,12 @@ document.addEventListener('keydown', function(e) {
         togglePlay();
     }
 });
+
+// Open TV display mode in a new tab (for casting/TV browser)
+function openDisplayMode() {
+    var url = location.origin + '/timer.php?view=remote&key=' + encodeURIComponent(REMOTE_KEY) + '&display=1';
+    window.open(url, '_blank');
+}
 
 // Hide fullscreen button on iOS (not supported)
 if (/iPhone|iPad|iPod/.test(navigator.userAgent) && !document.fullscreenEnabled && !document.webkitFullscreenEnabled) {

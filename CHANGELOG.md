@@ -4,6 +4,14 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.06700] — 2026-04-13
+
+### Added
+- **TV Display Mode.** New `?display=1` parameter on the remote timer link creates a TV-optimized view: no controls, no toolbar, giant fonts (blinds up to 12rem, clock up to 45vh), pure black background. Accessible via the new 📺 TV button in the timer toolbar. Opens in a new tab — send to a TV browser, Chromecast tab cast, or AirPlay.
+- **Cast receiver page.** `cast_receiver.php` ready for future Chromecast native casting (receiver registered, sender code removed pending test device setup).
+
+---
+
 ## [v0.06600] — 2026-04-12
 
 ### Added
