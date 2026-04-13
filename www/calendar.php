@@ -663,22 +663,10 @@ if ($current && !$isAdmin) {
     }
 }
 
-// Build set of event IDs where current user is creator (for contact visibility)
-$createdEventIds = [];
-if ($current && !$isAdmin && !empty($allPageEids)) {
-    $cph = implode(',', array_fill(0, count($allPageEids), '?'));
-    $cStmt = $db->prepare("SELECT id FROM events WHERE id IN ($cph) AND created_by = ?");
-    $cStmt->execute(array_merge($allPageEids, [(int)$current['id']]));
-    $createdEventIds = array_map('intval', $cStmt->fetchAll(PDO::FETCH_COLUMN));
-}
-$canSeeContactEids = array_unique(array_merge($managedEventIds, $createdEventIds));
-
-// Non-admins only see username + rsvp (no contact details) — except managers/creators see contacts for their events
-if (!$isAdmin) {
+// Strip contact details from invite data for all users (privacy — no need to expose in the calendar view)
+{
     foreach ($ev_invites as $eid => &$_invList) {
-        if (!in_array((int)$eid, $canSeeContactEids, true)) {
-            foreach ($_invList as &$_inv) { unset($_inv['phone'], $_inv['email']); }
-        }
+        foreach ($_invList as &$_inv) { unset($_inv['phone'], $_inv['email']); }
     }
     foreach ($ev_invites_occ as &$_occMap) {
         foreach ($_occMap as &$_invList) {
@@ -1780,8 +1768,6 @@ function renderInvitesPanel(eid) {
                 ih += '<span style="min-width:52px;text-align:center">' + badge + '</span>';
             }
             ih += escHtml(inv.username);
-            if (IS_ADMIN && inv.phone) ih += ' <span style="color:#64748b">&middot; ' + escHtml(inv.phone) + '</span>';
-            if (IS_ADMIN && inv.email) ih += ' <span style="color:#64748b">&middot; ' + escHtml(inv.email) + '</span>';
             ih += '</div>';
         });
         ih += '</div>';
@@ -1794,7 +1780,6 @@ function renderInvitesPanel(eid) {
         pending.forEach(inv => {
             ih += '<div style="font-size:.875rem;color:#334155;display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;background:#fefce8;border:1px solid #fde68a;border-radius:6px;padding:.35rem .5rem">';
             ih += '<span style="flex:1;min-width:0">' + escHtml(inv.username);
-            if (IS_ADMIN && inv.email) ih += ' <span style="color:#64748b;font-size:.78rem">&middot; ' + escHtml(inv.email) + '</span>';
             ih += '</span>';
             ih += '<button type="button" class="btn-approve-inv" data-eid="' + eid + '" data-username="' + escHtml(inv.username) + '" style="font-size:.75rem;padding:.2rem .55rem;border-radius:5px;border:0;background:#16a34a;color:#fff;font-weight:600;cursor:pointer">Approve</button>';
             ih += '<button type="button" class="btn-deny-inv" data-eid="' + eid + '" data-username="' + escHtml(inv.username) + '" style="font-size:.75rem;padding:.2rem .55rem;border-radius:5px;border:0;background:#dc2626;color:#fff;font-weight:600;cursor:pointer">Deny</button>';

@@ -48,7 +48,6 @@ $occ  = [];
 foreach ($stmt->fetchAll() as $inv) {
     if ($inv['occurrence_date'] === null) {
         $row = ['username' => $inv['username'], 'rsvp' => $inv['rsvp'], 'approval_status' => $inv['approval_status']];
-        if ($isAdmin) { $row['phone'] = $inv['phone']; $row['email'] = $inv['email']; }
         $base[] = $row;
     } else {
         $occ[$inv['occurrence_date']][] = ['username' => $inv['username'], 'rsvp' => $inv['rsvp'], 'approval_status' => $inv['approval_status']];
