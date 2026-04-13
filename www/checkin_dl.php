@@ -171,6 +171,7 @@ if ($action === 'update_config') {
         'session' => $sess2->fetch(),
         'players' => get_players($db, $session_id),
         'pool'    => calc_pool($db, $session_id),
+        'payouts' => get_payouts($db, $session_id),
     ]);
     exit;
 }

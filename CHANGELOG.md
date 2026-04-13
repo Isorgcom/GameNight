@@ -4,6 +4,22 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.06900] — 2026-04-13
+
+### Added
+- **Swipe gestures for timer.** Swipe left from right edge opens player panel, swipe right closes it. Swipe up from bottom edge shows toolbar, swipe down hides it. Visual hint indicators (subtle grey pills) on touch devices. Tap-to-toggle removed for bottom toolbar.
+- **Compact mobile check-in header.** Action buttons (Settings, Timer, QR, Payout) are icon-only on mobile with tooltips. Single-row layout.
+
+### Fixed
+- **Timer timezone bug.** SQLite `datetime('now')` stores UTC but PHP parsed it in the site timezone, causing ~5 hours of phantom elapsed time. Timer would jump to 314:59 on start. Fixed by appending UTC to strtotime.
+- **Payouts not updating on buyin change.** `update_config` now returns fresh payouts in the response so the payout card reflects the new pool immediately.
+- **Timer safety clamp.** `time_remaining_seconds` capped at 86400 (24h) to prevent runaway values.
+
+### Changed
+- **Swipe hints on all touch devices.** Uses `pointer: coarse` detection instead of screen width — tablets now see swipe hints.
+
+---
+
 ## [v0.06800] — 2026-04-13
 
 ### Added

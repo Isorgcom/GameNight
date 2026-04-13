@@ -15,7 +15,8 @@ function compute_live_state($db, $timer) {
     $session_id = (int)$timer['session_id'];
 
     if ($running && $timer['updated_at']) {
-        $elapsed = time() - strtotime($timer['updated_at']);
+        // updated_at is stored as UTC via SQLite datetime('now') — force UTC parsing
+        $elapsed = time() - strtotime($timer['updated_at'] . ' UTC');
         $remaining -= $elapsed;
 
         // Auto-advance levels if time ran out
@@ -40,9 +41,9 @@ function compute_live_state($db, $timer) {
                 $remaining += (int)$allLevels[$level]['duration_minutes'] * 60;
             }
 
-            // Persist the auto-advanced state
+            // Persist the auto-advanced state (clamp to 24h max)
             $db->prepare("UPDATE timer_state SET current_level = ?, time_remaining_seconds = ?, is_running = ?, updated_at = datetime('now') WHERE id = ?")
-                ->execute([$level, max(0, $remaining), $running, (int)$timer['id']]);
+                ->execute([$level, max(0, min(86400, $remaining)), $running, (int)$timer['id']]);
         }
     }
 
@@ -263,6 +264,8 @@ if ($action === 'command') {
             exit;
     }
 
+    // Safety clamp: never store more than 24 hours
+    $remaining = max(0, min(86400, $remaining));
     $db->prepare("UPDATE timer_state SET is_running = ?, current_level = ?, time_remaining_seconds = ?, updated_at = datetime('now') WHERE id = ?")
         ->execute([$running, $level, $remaining, $timer['id']]);
 

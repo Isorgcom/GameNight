@@ -195,9 +195,15 @@ $session = $sessStmt->fetch();
     @media(max-width:768px){
         .pk-table-wrap{display:none}
         .pk-mobile-list{display:block;max-height:calc(100dvh - 210px);overflow-y:auto;-webkit-overflow-scrolling:touch}
-        .pk-header{padding:.5rem .75rem;gap:.5rem}
-        .pk-header h1{font-size:1rem}
-        .pk-pool{font-size:1.1rem}
+        .pk-header{padding:.4rem .5rem;gap:.35rem}
+        .pk-header h1{font-size:.85rem}
+        .pk-header h1 a{font-size:.7rem}
+        .pk-pool{font-size:1rem}
+        .pk-pool small{font-size:.6rem}
+        .pk-act-label{display:none}
+        .pk-actions{gap:.25rem}
+        .pk-actions button,.pk-actions a{padding:.3rem .45rem;font-size:1rem;min-width:0}
+        .pk-badge{font-size:.6rem;padding:.1rem .3rem}
         .pk-stats{display:none}
         .pk-stats-compact{display:flex}
         .pk-sidebar{display:none}
@@ -443,16 +449,16 @@ function renderDashboard() {
     // Header
     h += '<div class="pk-header">';
     h += '<a href="/calendar.php" class="pk-btn-back" title="Back to Calendar" style="text-decoration:none">&larr;</a>';
-    h += '<h1>' + escHtml(<?= json_encode($event['title'], JSON_HEX_TAG) ?>) + ' <a href="/calendar.php">Calendar</a></h1>';
+    h += '<h1>' + escHtml(<?= json_encode($event['title'], JSON_HEX_TAG) ?>) + ' <a href="/calendar.php"><span class="pk-act-label">Calendar</span></a></h1>';
     h += '<span class="pk-badge ' + typeClass + '">' + typeLabel + '</span>';
     h += '<div class="pk-actions">';
-    h += '<button class="pk-btn-settings" onclick="toggleSettings()">&#9881; Settings</button>';
+    h += '<button class="pk-btn-settings" onclick="toggleSettings()" title="Settings">&#9881;<span class="pk-act-label"> Settings</span></button>';
     if (isTourney()) {
-        h += '<a class="pk-btn-settings" href="/timer.php?event_id=' + <?= (int)$event['id'] ?> + '" style="text-decoration:none">&#9201; Timer</a>';
+        h += '<a class="pk-btn-settings" href="/timer.php?event_id=' + <?= (int)$event['id'] ?> + '" style="text-decoration:none" title="Timer">&#9201;<span class="pk-act-label"> Timer</span></a>';
     }
-    h += '<a class="pk-btn-settings" href="/walkin_display.php?event_id=' + <?= (int)$event['id'] ?> + '" target="_blank" style="text-decoration:none">&#128241; QR Registration</a>';
+    h += '<a class="pk-btn-settings" href="/walkin_display.php?event_id=' + <?= (int)$event['id'] ?> + '" target="_blank" style="text-decoration:none" title="QR Registration">&#128241;<span class="pk-act-label"> QR</span></a>';
     if (isTourney()) {
-        h += '<button class="pk-btn-settings" onclick="openDealSplit()">&#128176; Payout Calc</button>';
+        h += '<button class="pk-btn-settings" onclick="openDealSplit()" title="Payout Calculator">&#128176;<span class="pk-act-label"> Payout</span></button>';
     }
     h += '</div>';
     if (isCash()) {
@@ -1659,6 +1665,7 @@ function saveSettings() {
     postAction('update_config', data, function(j) {
         SESSION = j.session;
         POOL = j.pool;
+        PAYOUTS = j.payouts || PAYOUTS;
         if (j.players) PLAYERS = j.players;
         // Save payouts too (tournament only)
         var inputs = document.querySelectorAll('.payout-pct');

@@ -689,6 +689,38 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
         .pp-counter button{width:22px;height:22px;border:none;background:#334155;color:#f1f5f9;cursor:pointer;font-weight:700;font-size:.8rem;display:flex;align-items:center;justify-content:center}
         .pp-counter button:active{background:#475569}
         .pp-counter span{min-width:18px;text-align:center;font-weight:600;font-size:.75rem;color:#f1f5f9;padding:0 2px}
+        /* ── Swipe hint indicators ── */
+        .swipe-hint-bottom, .swipe-hint-right {
+            position: fixed;
+            z-index: 40;
+            pointer-events: none;
+            opacity: 0.4;
+            transition: opacity 0.3s;
+        }
+        .swipe-hint-bottom {
+            bottom: 4px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 36px;
+            height: 4px;
+            background: #475569;
+            border-radius: 3px;
+        }
+        .swipe-hint-right {
+            right: 3px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 4px;
+            height: 36px;
+            background: #475569;
+            border-radius: 3px;
+        }
+        @media (pointer: fine) {
+            .swipe-hint-bottom, .swipe-hint-right { display: none; }
+        }
+        body.display-mode .swipe-hint-bottom,
+        body.display-mode .swipe-hint-right { display: none; }
+
         /* ── TV Display Mode ── */
         body.display-mode .timer-tray,
         body.display-mode .timer-tray-handle,
@@ -787,6 +819,12 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
         </div>
     </div>
 </div>
+
+<!-- Swipe hint indicators (mobile only) -->
+<div class="swipe-hint-bottom"></div>
+<?php if ($can_control && $event && $session): ?>
+<div class="swipe-hint-right"></div>
+<?php endif; ?>
 
 <?php if ($can_control && $event && $session): ?>
 <!-- Player management slide-out panel -->
@@ -1930,15 +1968,37 @@ if (tray) {
     document.addEventListener('mousemove', showTray);
     // All: tray clicks keep it visible (don't auto-hide while interacting)
     tray.addEventListener('click', function(e) { e.stopPropagation(); showTray(); });
-    // Mobile: tap on timer display toggles toolbar
-    var timerContainer = document.querySelector('.timer-container');
-    if (timerContainer) {
-        timerContainer.addEventListener('click', function(e) {
-            if (e.target.closest('.timer-tray, button, a, input, select')) return;
-            if (tray.classList.contains('tray-hidden')) { showTray(); } else { tray.classList.add('tray-hidden'); clearTimeout(_trayHideTimer); }
-        });
-    }
     showTray(); // start visible, then auto-hide
+
+    // Swipe gesture: swipe up from bottom edge shows tray, swipe down hides it
+    var _traySwipeStartX = 0, _traySwipeStartY = 0, _traySwipeTracking = false;
+    var BOTTOM_EDGE = 40;
+    var TRAY_MIN_SWIPE = 40;
+
+    document.addEventListener('touchstart', function(e) {
+        var t = e.touches[0];
+        _traySwipeStartX = t.clientX;
+        _traySwipeStartY = t.clientY;
+        _traySwipeTracking = (t.clientY > window.innerHeight - BOTTOM_EDGE) || !tray.classList.contains('tray-hidden');
+    }, { passive: true });
+
+    document.addEventListener('touchend', function(e) {
+        if (!_traySwipeTracking) return;
+        _traySwipeTracking = false;
+        var t = e.changedTouches[0];
+        var dy = t.clientY - _traySwipeStartY;
+        var dx = Math.abs(t.clientX - _traySwipeStartX);
+        if (dx > Math.abs(dy)) return; // horizontal swipe, not vertical
+
+        if (tray.classList.contains('tray-hidden') && dy < -TRAY_MIN_SWIPE && _traySwipeStartY > window.innerHeight - BOTTOM_EDGE) {
+            // Swipe up from bottom edge → show
+            showTray();
+        } else if (!tray.classList.contains('tray-hidden') && dy > TRAY_MIN_SWIPE) {
+            // Swipe down → hide
+            tray.classList.add('tray-hidden');
+            clearTimeout(_trayHideTimer);
+        }
+    }, { passive: true });
 }
 
 // Spacebar hotkey for start/stop (only when not typing in an input)
@@ -2013,6 +2073,39 @@ function togglePlayerPanel() {
     if (overlay) overlay.style.display = PP_OPEN ? '' : 'none';
     if (PP_OPEN) fetchPlayers();
 }
+
+// Swipe gesture: swipe left from right edge opens player panel, swipe right closes it
+(function() {
+    var startX = 0, startY = 0, tracking = false;
+    var EDGE_ZONE = 30;   // px from right edge to start a swipe-open
+    var MIN_SWIPE = 50;   // minimum horizontal distance
+    var MAX_DRIFT = 40;   // max vertical drift
+
+    document.addEventListener('touchstart', function(e) {
+        var t = e.touches[0];
+        startX = t.clientX;
+        startY = t.clientY;
+        // Track if starting from right edge (to open) or if panel is open (to close)
+        tracking = (startX > window.innerWidth - EDGE_ZONE) || PP_OPEN;
+    }, { passive: true });
+
+    document.addEventListener('touchend', function(e) {
+        if (!tracking) return;
+        tracking = false;
+        var t = e.changedTouches[0];
+        var dx = t.clientX - startX;
+        var dy = Math.abs(t.clientY - startY);
+        if (dy > MAX_DRIFT) return; // not a horizontal swipe
+
+        if (!PP_OPEN && dx < -MIN_SWIPE && startX > window.innerWidth - EDGE_ZONE) {
+            // Swipe left from right edge → open
+            togglePlayerPanel();
+        } else if (PP_OPEN && dx > MIN_SWIPE) {
+            // Swipe right → close
+            togglePlayerPanel();
+        }
+    }, { passive: true });
+})();
 
 function fetchPlayers() {
     if (!EVENT_ID) return;
