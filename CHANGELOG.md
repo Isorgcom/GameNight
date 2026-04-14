@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.07000] — 2026-04-13
+
+### Added
+- **Winner overlay.** When only 1 player remains in a tournament, the timer auto-pauses and a full-screen overlay shows: bouncing trophy, "WINNER", player name, and 1st place payout. Dismissable with Close button. Only triggers once per session.
+
+---
+
 ## [v0.06900] — 2026-04-13
 
 ### Added
