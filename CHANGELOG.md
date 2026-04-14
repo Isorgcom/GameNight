@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.07302] — 2026-04-14
+
+### Removed
+- **Timer winner overlay.** Removed the last-player-standing winner animation and its server-side detection. The feature was unreliable in practice and is not coming back — the existing Finish Game button on the player panel is the canonical way to end a tournament.
+
+---
+
 ## [v0.07300] — 2026-04-14
 
 ### Added

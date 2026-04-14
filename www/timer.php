@@ -689,27 +689,6 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
         .pp-counter button{width:22px;height:22px;border:none;background:#334155;color:#f1f5f9;cursor:pointer;font-weight:700;font-size:.8rem;display:flex;align-items:center;justify-content:center}
         .pp-counter button:active{background:#475569}
         .pp-counter span{min-width:18px;text-align:center;font-weight:600;font-size:.75rem;color:#f1f5f9;padding:0 2px}
-        /* ── Winner overlay ── */
-        .winner-overlay {
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0, 0, 0, 0.9);
-            z-index: 300;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            animation: winnerFadeIn 0.5s ease;
-        }
-        @keyframes winnerFadeIn { from { opacity: 0; } to { opacity: 1; } }
-        .winner-trophy { font-size: clamp(4rem, 15vw, 10rem); animation: winnerBounce 1s ease infinite alternate; }
-        @keyframes winnerBounce { from { transform: scale(1); } to { transform: scale(1.1); } }
-        .winner-label { font-size: clamp(1.5rem, 4vw, 3rem); color: #f59e0b; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.5rem; }
-        .winner-name { font-size: clamp(2.5rem, 8vw, 6rem); font-weight: 800; color: #fff; text-align: center; }
-        .winner-payout { font-size: clamp(1.2rem, 3vw, 2.5rem); color: #22c55e; font-weight: 700; margin-top: 0.5rem; }
-        .winner-dismiss { margin-top: 2rem; padding: 0.6rem 2rem; border-radius: 8px; border: 2px solid #475569; background: transparent; color: #94a3b8; font-size: 1rem; cursor: pointer; }
-        .winner-dismiss:hover { background: #1e293b; color: #fff; }
-
         /* ── Swipe hint indicators ── */
         .swipe-hint-bottom, .swipe-hint-right {
             position: fixed;
@@ -1226,57 +1205,7 @@ function pollState() {
         }
         POOL = j.pool;
         renderAll();
-        checkForWinner();
     }).catch(function() {});
-}
-
-var _winnerShown = false;
-function checkForWinner() {
-    if (_winnerShown || !POOL || GAME_TYPE !== 'tournament') return;
-    if (parseInt(POOL.bought_in) < 2 || parseInt(POOL.still_playing) !== 1) return;
-
-    // Find the winner from PP_PLAYERS
-    var winner = null;
-    for (var i = 0; i < PP_PLAYERS.length; i++) {
-        var p = PP_PLAYERS[i];
-        if (parseInt(p.bought_in) && !parseInt(p.eliminated) && !parseInt(p.removed)) {
-            winner = p;
-            break;
-        }
-    }
-    if (!winner) return;
-
-    _winnerShown = true;
-
-    // Auto-pause the timer
-    if (TIMER.is_running) {
-        sendCommand('toggle_play');
-    }
-
-    // Calculate 1st place payout
-    var payoutAmt = '';
-    if (PAYOUTS && PAYOUTS.length > 0) {
-        var firstPct = parseFloat(PAYOUTS[0].percentage) || 0;
-        if (firstPct > 0) {
-            payoutAmt = formatMoney(Math.round(POOL.pool_total * firstPct / 100));
-        }
-    }
-
-    // Show overlay
-    var overlay = document.createElement('div');
-    overlay.className = 'winner-overlay';
-    overlay.id = 'winnerOverlay';
-    overlay.innerHTML = '<div class="winner-trophy">&#127942;</div>'
-        + '<div class="winner-label">Winner</div>'
-        + '<div class="winner-name">' + escHtml(winner.display_name) + '</div>'
-        + (payoutAmt ? '<div class="winner-payout">' + payoutAmt + '</div>' : '')
-        + '<button class="winner-dismiss" onclick="dismissWinner()">Close</button>';
-    document.body.appendChild(overlay);
-}
-
-function dismissWinner() {
-    var el = document.getElementById('winnerOverlay');
-    if (el) el.remove();
 }
 
 // ─── Local tick (smooth display between polls) ────────────
