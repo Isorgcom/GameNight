@@ -998,6 +998,14 @@ function renderSettingsPanel() {
     h += '</div>';
 
     h += '<button class="pk-settings-save" onclick="saveSettings()">Save Settings</button>';
+    h += '<div style="margin-top:1rem;padding-top:1rem;border-top:1.5px solid #e2e8f0;display:flex;gap:.5rem;flex-wrap:wrap">';
+    if (SESSION.status !== 'finished') {
+        h += '<button onclick="if(confirm(\'Mark this game as finished? This finalizes all stats and payouts.\'))changeStatus(\'finished\')" style="padding:.5rem 1rem;border-radius:6px;font-size:.85rem;font-weight:600;cursor:pointer;background:#16a34a;color:#fff;border:none">&#10003; Finish Game</button>';
+    } else {
+        h += '<span style="color:#16a34a;font-weight:600;font-size:.85rem">&#10003; Game Finished</span>';
+        h += '<button onclick="if(confirm(\'Reopen this game?\'))changeStatus(\'active\')" style="padding:.5rem 1rem;border-radius:6px;font-size:.85rem;font-weight:600;cursor:pointer;background:#d97706;color:#fff;border:none">Reopen</button>';
+    }
+    h += '</div>';
     h += '</div>';
     return h;
 }

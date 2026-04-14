@@ -4,6 +4,18 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.07100] — 2026-04-14
+
+### Added
+- **Player Stats page.** New `/stats.php` with personal stats card (games, wins, losses, win rate, best finish, avg finish, weighted score) and a leaderboard table ranked by avg score. Accessible via "Stats" nav link for logged-in users.
+- **Weighted scoring.** Tournament placement scored by `(field_size - finish) / field_size × 80 + 20`. Everyone who plays earns at least 20 points. Winning a bigger field scores higher than winning a small one.
+- **Finish Game button.** Check-in settings panel now has a "Finish Game" button to mark sessions complete (with Reopen option). Only finished tournaments count toward stats.
+
+### Changed
+- **Stats: tournaments only.** Cash games excluded from stats. Only registered users shown (walk-in guests excluded from leaderboard but still count toward field size for scoring).
+
+---
+
 ## [v0.07000] — 2026-04-13
 
 ### Added
