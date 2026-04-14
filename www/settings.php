@@ -4,20 +4,7 @@ require_once __DIR__ . '/auth.php';
 $current = require_login();
 $db      = get_db();
 
-function _delete_user_account(PDO $db, int $user_id): void {
-    db_log_activity($user_id, 'deleted own account');
-    $un = $db->prepare('SELECT username FROM users WHERE id = ?');
-    $un->execute([$user_id]);
-    $username = $un->fetchColumn();
-    if ($username) {
-        $db->prepare('DELETE FROM event_invites WHERE LOWER(username) = LOWER(?)')->execute([$username]);
-    }
-    $db->prepare('UPDATE poker_players SET removed = 1 WHERE user_id = ?')->execute([$user_id]);
-    $db->prepare('DELETE FROM remember_tokens WHERE user_id = ?')->execute([$user_id]);
-    $db->prepare('DELETE FROM email_verifications WHERE user_id = ?')->execute([$user_id]);
-    $db->prepare('DELETE FROM phone_verifications WHERE user_id = ?')->execute([$user_id]);
-    $db->prepare('DELETE FROM users WHERE id = ?')->execute([$user_id]);
-}
+// _delete_user_account is defined in db.php
 $flash   = ['type' => '', 'msg' => ''];
 
 session_start_safe();
@@ -151,13 +138,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($adminCount <= 1) {
                     $flash = ['type' => 'error', 'msg' => 'Cannot delete the last admin account.'];
                 } else {
-                    _delete_user_account($db, $current['id']);
+                    delete_user_account($current['id']);
                     logout();
                     header('Location: /login.php');
                     exit;
                 }
             } else {
-                _delete_user_account($db, $current['id']);
+                delete_user_account($current['id']);
                 logout();
                 header('Location: /login.php');
                 exit;

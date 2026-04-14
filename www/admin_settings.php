@@ -83,7 +83,7 @@ if (!empty($_SESSION['flash'])) {
     unset($_SESSION['flash']);
 }
 
-$tab = in_array($_GET['tab'] ?? '', ['dashboard', 'general', 'appearance', 'logs', 'users', 'events', 'email', 'sms', 'whatsapp', 'backup']) ? $_GET['tab'] : 'dashboard';
+$tab = in_array($_GET['tab'] ?? '', ['dashboard', 'general', 'appearance', 'logs', 'users', 'events', 'email', 'sms', 'whatsapp', 'cron', 'backup']) ? $_GET['tab'] : 'dashboard';
 $isCommTab = in_array($tab, ['email', 'sms', 'whatsapp']);
 
 // ── POST ─────────────────────────────────────────────────────────────────────
@@ -219,8 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($err) {
                 $_SESSION['flash'] = ['type' => 'error', 'msg' => $err];
             } else {
-                $db->prepare('DELETE FROM activity_log WHERE user_id = ?')->execute([$id]);
-                $db->prepare('DELETE FROM users WHERE id = ?')->execute([$id]);
+                delete_user_account($id);
                 db_log_activity($current['id'], 'deleted user: ' . ($urow['username'] ?? $id));
                 $_SESSION['flash'] = ['type' => 'success', 'msg' => 'User deleted.'];
             }
@@ -240,8 +239,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!$urow) continue;
                 if ($urow['role'] === 'admin' && $adminCount <= 1) { $skipped++; continue; }
                 if ($urow['role'] === 'admin') $adminCount--;
-                $db->prepare('DELETE FROM activity_log WHERE user_id = ?')->execute([$id]);
-                $db->prepare('DELETE FROM users WHERE id = ?')->execute([$id]);
+                delete_user_account($id);
                 db_log_activity($current['id'], 'deleted user: ' . $urow['username']);
                 $deleted++;
             }
@@ -548,7 +546,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($tok !== '') set_setting('cron_token', $tok);
             db_log_activity($current['id'], 'updated cron token');
             $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Cron token saved.'];
-            $post_tab = 'email';
+            $post_tab = 'cron';
         }
 
         if ($action === 'wa_credentials') {
@@ -938,6 +936,8 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
            class="tab-btn <?= $tab === 'events' ? 'active' : '' ?>">Events</a>
         <a href="/admin_settings.php?tab=email"
            class="tab-btn <?= $isCommTab ? 'active' : '' ?>">Communication</a>
+        <a href="/admin_settings.php?tab=cron"
+           class="tab-btn <?= $tab === 'cron' ? 'active' : '' ?>">Scheduled Tasks</a>
         <a href="/admin_settings.php?tab=backup"
            class="tab-btn <?= $tab === 'backup' ? 'active' : '' ?>">Backup</a>
     </div>
@@ -2041,43 +2041,6 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
 
         </div>
 
-        <!-- Reminder Cron Setup -->
-        <div class="card" style="max-width:100%;margin-top:1.5rem">
-            <h2>Reminder Notifications (Cron)</h2>
-            <p class="subtitle">Automated 2-day and 12-hour reminders for event invitees. Requires a server-side cron job.</p>
-
-            <form method="post" action="/admin_settings.php" style="margin-bottom:1.25rem">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
-                <input type="hidden" name="action" value="cron_settings">
-                <input type="hidden" name="tab" value="email">
-                <div class="form-group">
-                    <label>Cron Token <span style="color:#94a3b8;font-weight:400">(secret — used to authenticate cron.php)</span></label>
-                    <div style="display:flex;gap:.5rem">
-                        <input type="text" name="cron_token" id="cronTokenInput"
-                               value="<?= htmlspecialchars(get_setting('cron_token','')) ?>"
-                               placeholder="Leave blank to keep current"
-                               autocomplete="off" style="flex:1;font-family:monospace">
-                        <button type="button" class="btn btn-outline" style="white-space:nowrap"
-                                onclick="document.getElementById('cronTokenInput').value = Array.from(crypto.getRandomValues(new Uint8Array(20))).map(b=>b.toString(16).padStart(2,'0')).join('')">
-                            Generate
-                        </button>
-                    </div>
-                    <p class="hint">Only non-empty values are saved. Generate a new token if compromised.</p>
-                </div>
-                <button type="submit" class="btn btn-primary">Save Token</button>
-            </form>
-
-            <hr style="margin:1.25rem 0;border:none;border-top:1px solid #e2e8f0">
-            <h3 style="margin-bottom:.75rem">Cron Job Setup</h3>
-            <p style="font-size:.875rem;color:#475569;margin-bottom:.75rem">
-                Add the following line to your server's crontab (<code>crontab -e</code>) to run reminders every 30 minutes:
-            </p>
-            <pre style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:.75rem 1rem;font-size:.8rem;overflow-x:auto;margin-bottom:.75rem">*/30 * * * * curl -s "<?= htmlspecialchars(get_site_url()) ?>/cron.php?token=<?= htmlspecialchars(get_setting('cron_token','YOUR_CRON_TOKEN')) ?>" > /dev/null</pre>
-            <p style="font-size:.8rem;color:#94a3b8">
-                The cron endpoint sends 2-day and 12-hour reminders to invitees, deduplicating via the
-                <code>event_notifications_sent</code> table so each reminder fires at most once per occurrence.
-            </p>
-        </div>
     </div>
 
     <!-- ── SMS tab ── -->
@@ -2545,6 +2508,98 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
         </form>
     </div>
 </div>
+
+    <!-- ── Scheduled Tasks (Cron) tab ── -->
+    <div class="tab-panel <?= $tab === 'cron' ? 'active' : '' ?>">
+        <div class="sms-grid">
+            <!-- What is the cron job? -->
+            <div class="card" style="max-width:100%">
+                <h2>Scheduled Tasks</h2>
+                <p class="subtitle">GameNight uses a scheduled background task (cron job) that runs every 30 minutes to handle automated work.</p>
+
+                <div style="margin-bottom:1.5rem">
+                    <h3 style="font-size:.9rem;margin-bottom:.5rem">What does it do?</h3>
+                    <div style="font-size:.85rem;color:#475569;line-height:1.7">
+                        <p><strong>Event Reminders</strong> &mdash; Sends automatic reminders to invitees 2 days and 12 hours before each event. Uses each person's preferred contact method (email, SMS, or WhatsApp). Each reminder only fires once per event per person.</p>
+                        <p style="margin-top:.5rem"><strong>Database Maintenance</strong> &mdash; Cleans up stale data to keep the database lean:</p>
+                        <ul style="margin:.25rem 0 0 1.25rem;padding:0">
+                            <li>Expired verification tokens (password resets, email/phone codes) &mdash; deleted after 24 hours</li>
+                            <li>Notification dedup records &mdash; deleted after 30 days</li>
+                            <li>SMS/email/WhatsApp logs &mdash; deleted after 90 days</li>
+                            <li>Activity log entries &mdash; deleted after 90 days</li>
+                            <li>URL shortener links &mdash; deleted after 90 days</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cron Token -->
+            <div class="card" style="max-width:100%">
+                <h2>Cron Token</h2>
+                <p class="subtitle">A secret password that protects the cron endpoint from unauthorized access.</p>
+
+                <div style="margin-bottom:1rem;padding:.75rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:.82rem;color:#475569;line-height:1.6">
+                    <strong>Why is this needed?</strong> The cron job runs by visiting a URL (<code>cron.php?token=...</code>). Without a token, anyone who guessed the URL could trigger reminder emails. The token acts like a password &mdash; only requests with the correct token are processed. Everything else is ignored.
+                </div>
+
+                <form method="post" action="/admin_settings.php" style="margin-bottom:1rem">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                    <input type="hidden" name="action" value="cron_settings">
+                    <input type="hidden" name="tab" value="cron">
+                    <div class="form-group">
+                        <label>Token</label>
+                        <div style="display:flex;gap:.5rem">
+                            <input type="text" name="cron_token" id="cronTokenInput"
+                                   value="<?= htmlspecialchars(get_setting('cron_token','')) ?>"
+                                   placeholder="Click Generate to create one"
+                                   autocomplete="off" style="flex:1;font-family:monospace">
+                            <button type="button" class="btn btn-outline" style="white-space:nowrap"
+                                    onclick="document.getElementById('cronTokenInput').value = Array.from(crypto.getRandomValues(new Uint8Array(20))).map(b=>b.toString(16).padStart(2,'0')).join('')">
+                                Generate
+                            </button>
+                        </div>
+                        <p class="hint">Click Generate to create a random token. Save it, then paste it into the cron job command below.</p>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Save Token</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Setup instructions -->
+        <div class="card" style="max-width:100%;margin-top:1rem">
+            <h2>Setup Instructions</h2>
+            <p class="subtitle">How to activate scheduled tasks on your server.</p>
+
+            <div style="font-size:.85rem;color:#475569;line-height:1.7">
+                <p><strong>Docker (default):</strong> The container automatically runs scheduled tasks every 30 minutes using a built-in background process. A cron token is auto-generated on first start. No manual setup needed.</p>
+
+                <p style="margin-top:.75rem"><strong>Manual server (non-Docker):</strong> Add this line to your server's crontab (<code>crontab -e</code> via SSH):</p>
+            </div>
+
+            <pre style="background:#0f172a;color:#e2e8f0;border-radius:7px;padding:.75rem 1rem;font-size:.78rem;overflow-x:auto;margin:.75rem 0">*/30 * * * * curl -s "<?= htmlspecialchars(get_site_url()) ?>/cron.php?token=<?= htmlspecialchars(get_setting('cron_token','YOUR_TOKEN_HERE')) ?>" > /dev/null</pre>
+
+            <div style="font-size:.82rem;color:#475569;line-height:1.6;margin-top:.5rem">
+                <p><strong>How to read this:</strong></p>
+                <ul style="margin:.25rem 0 0 1.25rem;padding:0">
+                    <li><code>*/30 * * * *</code> &mdash; Run every 30 minutes</li>
+                    <li><code>curl -s "..."</code> &mdash; Quietly visit the cron URL</li>
+                    <li><code>?token=...</code> &mdash; The secret token you set above</li>
+                    <li><code>> /dev/null</code> &mdash; Discard the output (silent)</li>
+                </ul>
+            </div>
+
+            <?php $cronToken = get_setting('cron_token', ''); ?>
+            <?php if ($cronToken === ''): ?>
+            <div style="margin-top:1rem;padding:.6rem .75rem;background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;font-size:.82rem;color:#dc2626;font-weight:600">
+                &#9888; No cron token set. Generate one above, or restart the container to auto-generate one.
+            </div>
+            <?php else: ?>
+            <div style="margin-top:1rem;padding:.6rem .75rem;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;font-size:.82rem;color:#16a34a;font-weight:600">
+                &#10003; Cron token configured. Scheduled tasks are active.
+            </div>
+            <?php endif; ?>
+        </div>
+    </div>
 
     <!-- ── Backup tab ── -->
     <div class="tab-panel <?= $tab === 'backup' ? 'active' : '' ?>">

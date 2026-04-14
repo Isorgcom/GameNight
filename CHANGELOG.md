@@ -4,6 +4,20 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.07200] — 2026-04-14
+
+### Added
+- **Database maintenance cron.** Automatic pruning of stale data: expired tokens (24h), notification dedup (30d), logs + short links (90d). Runs every 30 minutes via the built-in scheduler.
+- **Built-in background scheduler.** Docker container auto-generates a cron token on first start and runs `cron.php` every 30 minutes in a background loop. Zero manual setup.
+- **Scheduled Tasks admin tab.** New tab in Site Settings with full documentation: what runs, why the token exists, Docker vs manual setup instructions.
+- **Unified `delete_user_account()`.** All 6 user-delete paths now use a single function in `db.php` that cleans up: invites, poker players, comments, tokens, resets, pending RSVPs.
+
+### Fixed
+- **Orphan comments.** Deleting a post or event now also deletes its comments.
+- **User delete gaps.** Comments, password resets, and sms_pending_rsvp are now cleaned up on user deletion.
+
+---
+
 ## [v0.07100] — 2026-04-14
 
 ### Added

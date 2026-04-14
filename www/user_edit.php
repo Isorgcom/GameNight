@@ -96,8 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($err) {
                 $flash = ['type' => 'error', 'msg' => $err];
             } else {
-                $db->prepare('DELETE FROM activity_log WHERE user_id = ?')->execute([$id]);
-                $db->prepare('DELETE FROM users WHERE id = ?')->execute([$id]);
+                delete_user_account($id);
                 db_log_activity($current['id'], "admin deleted user: {$target['username']}");
                 $_SESSION['flash'] = ['type' => 'success', 'msg' => "User \"{$target['username']}\" deleted."];
                 header('Location: /users.php');

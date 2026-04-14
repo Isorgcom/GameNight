@@ -253,6 +253,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
+            $db->prepare("DELETE FROM comments WHERE type='event' AND content_id=?")->execute([$id]);
             $db->prepare('DELETE FROM event_exceptions WHERE event_id=?')->execute([$id]);
             $db->prepare('DELETE FROM event_invites WHERE event_id=?')->execute([$id]);
             $db->prepare('DELETE FROM events WHERE id=?')->execute([$id]);

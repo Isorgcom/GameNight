@@ -150,3 +150,23 @@ foreach ($occurrences as $occ) {
 }
 
 echo "OK: $sent_count notification" . ($sent_count !== 1 ? 's' : '') . " sent.\n";
+
+// ── Database maintenance: prune stale data ──────────────────────────────────
+$pruned = 0;
+
+// Tokens: delete used or expired (>24h old)
+$pruned += $db->exec("DELETE FROM password_resets WHERE used = 1 OR expires_at < datetime('now', '-1 day')");
+$pruned += $db->exec("DELETE FROM email_verifications WHERE used = 1 OR expires_at < datetime('now', '-1 day')");
+$pruned += $db->exec("DELETE FROM phone_verifications WHERE used = 1 OR expires_at < datetime('now', '-1 day')");
+
+// Notification dedup: older than 30 days
+$pruned += $db->exec("DELETE FROM event_notifications_sent WHERE created_at < datetime('now', '-30 days')");
+
+// Logs: older than 90 days
+$pruned += $db->exec("DELETE FROM sms_log WHERE created_at < datetime('now', '-90 days')");
+$pruned += $db->exec("DELETE FROM activity_log WHERE created_at < datetime('now', '-90 days')");
+
+// Short links: older than 90 days
+$pruned += $db->exec("DELETE FROM short_links WHERE created_at < datetime('now', '-90 days')");
+
+if ($pruned > 0) echo "Pruned $pruned stale rows.\n";

@@ -235,8 +235,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($err) {
                 $_SESSION['flash'] = ['type' => 'error', 'msg' => $err];
             } else {
-                $db->prepare('DELETE FROM activity_log WHERE user_id = ?')->execute([$id]);
-                $db->prepare('DELETE FROM users WHERE id = ?')->execute([$id]);
+                delete_user_account($id);
                 db_log_activity($current['id'], 'deleted user: ' . ($urow['username'] ?? $id));
                 $_SESSION['flash'] = ['type' => 'success', 'msg' => 'User deleted.'];
             }
@@ -256,8 +255,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!$urow) continue;
                 if ($urow['role'] === 'admin' && $adminCount <= 1) { $skipped++; continue; }
                 if ($urow['role'] === 'admin') $adminCount--;
-                $db->prepare('DELETE FROM activity_log WHERE user_id = ?')->execute([$id]);
-                $db->prepare('DELETE FROM users WHERE id = ?')->execute([$id]);
+                delete_user_account($id);
                 db_log_activity($current['id'], 'deleted user: ' . $urow['username']);
                 $deleted++;
             }

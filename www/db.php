@@ -565,6 +565,28 @@ function notify_creator_of_pending(int $event_id, string $signup_username): void
         $smsBody, $htmlBody);
 }
 
+/**
+ * Fully delete a user and all associated data (invites, comments, tokens, etc.).
+ * Poker players are soft-removed (removed=1) to preserve game history.
+ */
+function delete_user_account(int $user_id): void {
+    $db = get_db();
+    $un = $db->prepare('SELECT username FROM users WHERE id = ?');
+    $un->execute([$user_id]);
+    $username = $un->fetchColumn();
+    if ($username) {
+        $db->prepare('DELETE FROM event_invites WHERE LOWER(username) = LOWER(?)')->execute([$username]);
+    }
+    $db->prepare('UPDATE poker_players SET removed = 1 WHERE user_id = ?')->execute([$user_id]);
+    $db->prepare('DELETE FROM comments WHERE user_id = ?')->execute([$user_id]);
+    $db->prepare('DELETE FROM password_resets WHERE user_id = ?')->execute([$user_id]);
+    $db->prepare('DELETE FROM remember_tokens WHERE user_id = ?')->execute([$user_id]);
+    $db->prepare('DELETE FROM email_verifications WHERE user_id = ?')->execute([$user_id]);
+    $db->prepare('DELETE FROM phone_verifications WHERE user_id = ?')->execute([$user_id]);
+    try { $db->prepare('DELETE FROM sms_pending_rsvp WHERE user_id = ?')->execute([$user_id]); } catch (Exception $e) {}
+    $db->prepare('DELETE FROM users WHERE id = ?')->execute([$user_id]);
+}
+
 function get_site_url(): string {
     $url = get_setting('site_url');
     if ($url !== '') return rtrim($url, '/');
