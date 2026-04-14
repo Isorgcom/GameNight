@@ -6,7 +6,7 @@
  * Deduplicates via event_notifications_sent table.
  *
  * Recommended cron schedule (every 30 minutes):
- *   */30 * * * * curl -s "https://yourdomain.com/cron.php?token=YOUR_CRON_TOKEN" > /dev/null
+ *   Cron line: (slash-30) (star) (star) (star) (star)  curl -s "https://yourdomain.com/cron.php?token=YOUR_CRON_TOKEN" > /dev/null
  *
  * Protected by a secret token stored in site_settings (key: cron_token).
  */

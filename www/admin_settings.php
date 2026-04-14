@@ -937,7 +937,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
         <a href="/admin_settings.php?tab=email"
            class="tab-btn <?= $isCommTab ? 'active' : '' ?>">Communication</a>
         <a href="/admin_settings.php?tab=cron"
-           class="tab-btn <?= $tab === 'cron' ? 'active' : '' ?>">Scheduled Tasks</a>
+           class="tab-btn <?= $tab === 'cron' ? 'active' : '' ?>">Cron</a>
         <a href="/admin_settings.php?tab=backup"
            class="tab-btn <?= $tab === 'backup' ? 'active' : '' ?>">Backup</a>
     </div>
