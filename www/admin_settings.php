@@ -2570,22 +2570,33 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
             <h2>Setup Instructions</h2>
             <p class="subtitle">How to activate scheduled tasks on your server.</p>
 
-            <div style="font-size:.85rem;color:#475569;line-height:1.7">
-                <p><strong>Docker (default):</strong> The container automatically runs scheduled tasks every 30 minutes using a built-in background process. A cron token is auto-generated on first start. No manual setup needed.</p>
-
-                <p style="margin-top:.75rem"><strong>Manual server (non-Docker):</strong> Add this line to your server's crontab (<code>crontab -e</code> via SSH):</p>
+            <div style="padding:.75rem;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;margin-bottom:1rem">
+                <p style="font-size:.85rem;font-weight:700;color:#1e40af;margin-bottom:.4rem">&#128051; Docker Installation</p>
+                <p style="font-size:.82rem;color:#475569;line-height:1.6;margin:0">
+                    <strong>No setup needed.</strong> The GameNight container has a built-in background scheduler that automatically runs every 30 minutes. On first start, it generates a secure cron token and saves it. The scheduler runs inside the container alongside Apache &mdash; no external cron job, no manual configuration. Just <code>docker compose up</code> and everything works.
+                </p>
+                <p style="font-size:.78rem;color:#94a3b8;margin-top:.4rem;margin-bottom:0">
+                    Technical detail: <code>docker-entrypoint.sh</code> launches a background loop that curls <code>http://localhost/cron.php?token=...</code> every 1800 seconds (30 min). The loop runs as a child process of the entrypoint and dies automatically when the container stops.
+                </p>
             </div>
 
-            <pre style="background:#0f172a;color:#e2e8f0;border-radius:7px;padding:.75rem 1rem;font-size:.78rem;overflow-x:auto;margin:.75rem 0">*/30 * * * * curl -s "<?= htmlspecialchars(get_site_url()) ?>/cron.php?token=<?= htmlspecialchars(get_setting('cron_token','YOUR_TOKEN_HERE')) ?>" > /dev/null</pre>
+            <div style="padding:.75rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
+                <p style="font-size:.85rem;font-weight:700;color:#334155;margin-bottom:.4rem">&#128421; Manual Server (non-Docker)</p>
+                <p style="font-size:.82rem;color:#475569;line-height:1.6">
+                    If you're running GameNight without Docker (e.g., on XAMPP, Laragon, or a bare Apache/PHP server), you need to set up a cron job manually. First, generate and save a token above. Then add this line to your server's crontab (<code>crontab -e</code> via SSH):
+                </p>
 
-            <div style="font-size:.82rem;color:#475569;line-height:1.6;margin-top:.5rem">
-                <p><strong>How to read this:</strong></p>
-                <ul style="margin:.25rem 0 0 1.25rem;padding:0">
-                    <li><code>*/30 * * * *</code> &mdash; Run every 30 minutes</li>
-                    <li><code>curl -s "..."</code> &mdash; Quietly visit the cron URL</li>
-                    <li><code>?token=...</code> &mdash; The secret token you set above</li>
-                    <li><code>> /dev/null</code> &mdash; Discard the output (silent)</li>
-                </ul>
+                <pre style="background:#0f172a;color:#e2e8f0;border-radius:7px;padding:.75rem 1rem;font-size:.78rem;overflow-x:auto;margin:.75rem 0">*/30 * * * * curl -s "<?= htmlspecialchars(get_site_url()) ?>/cron.php?token=<?= htmlspecialchars(get_setting('cron_token','YOUR_TOKEN_HERE')) ?>" > /dev/null</pre>
+
+                <div style="font-size:.78rem;color:#64748b;line-height:1.6">
+                    <p><strong>What each part means:</strong></p>
+                    <ul style="margin:.25rem 0 0 1.25rem;padding:0">
+                        <li><code>*/30 * * * *</code> &mdash; Run every 30 minutes, 24/7</li>
+                        <li><code>curl -s "..."</code> &mdash; Silently visit the cron URL (like opening it in a browser)</li>
+                        <li><code>?token=...</code> &mdash; The secret token that proves you're authorized to run tasks</li>
+                        <li><code>> /dev/null</code> &mdash; Don't save the output anywhere (run silently)</li>
+                    </ul>
+                </div>
             </div>
 
             <?php $cronToken = get_setting('cron_token', ''); ?>
