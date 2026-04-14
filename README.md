@@ -13,6 +13,7 @@ A self-hosted PHP web application for organizing game night events with full pok
 - **Payout calculator** — ICM (Malmuth-Harville), Standard, and Chip Chop split methods for end-of-tournament deal making
 - **Prize payout display** — live payout structure on the timer screen, updates dynamically as the pool changes
 - **Walk-up QR registration** — iPad/tablet display page with QR code for walk-up player registration, shows table assignment on success
+- **Player stats & leaderboard** — per-player lifetime stats (games, wins, win rate, best/avg finish, weighted score) and a leaderboard across all users, filterable by date range (presets or custom from/to)
 - **Admin panel** — manage users (with account settings like email verification, password reset, notification preferences), posts, events, and all site settings
 - **Email** — transactional mail via SMTP (SendGrid or any provider)
 - **SMS** — multi-provider notifications with two-way RSVP (see [SMS](#sms) below)

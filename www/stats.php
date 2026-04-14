@@ -5,6 +5,39 @@ $current   = require_login();
 $db        = get_db();
 $site_name = get_setting('site_name', 'Game Night');
 
+// ── Date range filter ───────────────────────────────────────────────────
+$allowed_ranges = ['7', '30', '90', '365', 'ytd', 'all', 'custom'];
+$range   = $_GET['range'] ?? 'all';
+$from_in = trim($_GET['from'] ?? '');
+$to_in   = trim($_GET['to']   ?? '');
+if (!in_array($range, $allowed_ranges, true)) $range = 'all';
+
+$tz    = new DateTimeZone(get_setting('timezone', 'UTC'));
+$today = new DateTime('now', $tz);
+
+$from_date = null;
+$to_date   = null;
+
+if ($range === 'custom') {
+    $from_date = DateTime::createFromFormat('Y-m-d', $from_in, $tz) ?: null;
+    $to_date   = DateTime::createFromFormat('Y-m-d', $to_in,   $tz) ?: null;
+} elseif ($range === 'ytd') {
+    $from_date = new DateTime($today->format('Y-01-01'), $tz);
+    $to_date   = $today;
+} elseif ($range !== 'all') {
+    $days = (int)$range;
+    $from_date = (clone $today)->modify("-{$days} days");
+    $to_date   = $today;
+}
+
+$from_sql = $from_date ? $from_date->format('Y-m-d') : null;
+$to_sql   = $to_date   ? $to_date->format('Y-m-d')   : null;
+
+$where_date = '';
+$params     = [];
+if ($from_sql) { $where_date .= " AND e.start_date >= ?"; $params[] = $from_sql; }
+if ($to_sql)   { $where_date .= " AND e.start_date <= ?"; $params[] = $to_sql;   }
+
 // ── Leaderboard: all players with at least 1 finished game ──────────────
 // First get per-game scores: (field_size - finish) / (field_size - 1) * 100
 // Then aggregate per user
@@ -33,6 +66,7 @@ $stmt = $db->prepare("
             END as score
         FROM poker_players pp
         JOIN poker_sessions ps ON ps.id = pp.session_id
+        JOIN events e ON e.id = ps.event_id
         LEFT JOIN users u ON u.id = pp.user_id
         JOIN (
             SELECT session_id, COUNT(*) as field_size
@@ -42,11 +76,12 @@ $stmt = $db->prepare("
         ) pc ON pc.session_id = pp.session_id
         WHERE pp.bought_in = 1 AND pp.removed = 0 AND pp.user_id IS NOT NULL
           AND ps.status = 'finished' AND ps.game_type = 'tournament'
+          $where_date
     ) g
     GROUP BY g.player_key
     ORDER BY avg_score DESC, wins DESC, games ASC
 ");
-$stmt->execute();
+$stmt->execute($params);
 $leaderboard = $stmt->fetchAll();
 
 // Find current user's stats
@@ -82,7 +117,38 @@ function fmtMoney($cents) {
         .stats-wrap { max-width: 900px; margin: 1.5rem auto; padding: 0 1rem; }
         .stats-header { margin-bottom: 1.5rem; }
         .stats-header h1 { font-size: 1.5rem; font-weight: 700; margin: 0 0 .25rem; }
-        .stats-header p { color: #64748b; font-size: .9rem; margin: 0; }
+        .stats-header p { color: #64748b; font-size: .9rem; margin: 0 0 .75rem; }
+
+        .stats-filter {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .5rem;
+            align-items: center;
+            font-size: .85rem;
+            color: #475569;
+        }
+        .stats-filter label { display: inline-flex; align-items: center; gap: .4rem; font-weight: 600; }
+        .stats-filter select,
+        .stats-filter input[type="date"] {
+            font-size: .85rem;
+            padding: .35rem .5rem;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 6px;
+            background: #fff;
+            color: #1e293b;
+        }
+        .stats-filter button {
+            font-size: .8rem;
+            font-weight: 600;
+            padding: .4rem .75rem;
+            border: none;
+            border-radius: 6px;
+            background: #2563eb;
+            color: #fff;
+            cursor: pointer;
+        }
+        .stats-filter button:hover { background: #1d4ed8; }
+        .stats-filter .custom-range { display: inline-flex; align-items: center; gap: .4rem; }
 
         .my-stats {
             display: grid;
@@ -173,13 +239,60 @@ function fmtMoney($cents) {
 <div class="stats-wrap">
     <div class="stats-header">
         <h1>Player Stats</h1>
-        <p>Lifetime poker statistics from finished games.</p>
+        <p>
+        <?php if ($range === 'all'): ?>
+            Lifetime poker statistics from finished games.
+        <?php elseif ($range === 'custom' && $from_date && $to_date): ?>
+            Stats from <?= htmlspecialchars($from_date->format('M j, Y')) ?> to <?= htmlspecialchars($to_date->format('M j, Y')) ?>.
+        <?php elseif ($range === 'ytd'): ?>
+            Stats for year to date.
+        <?php else: ?>
+            Stats for the last <?= (int)$range ?> days.
+        <?php endif; ?>
+        </p>
+        <form method="get" class="stats-filter" id="stats-filter">
+            <label>Range:
+                <select name="range" onchange="onRangeChange(this)">
+                    <option value="all"    <?= $range==='all'    ? 'selected' : '' ?>>All time</option>
+                    <option value="7"      <?= $range==='7'      ? 'selected' : '' ?>>Last 7 days</option>
+                    <option value="30"     <?= $range==='30'     ? 'selected' : '' ?>>Last 30 days</option>
+                    <option value="90"     <?= $range==='90'     ? 'selected' : '' ?>>Last 90 days</option>
+                    <option value="365"    <?= $range==='365'    ? 'selected' : '' ?>>Last year</option>
+                    <option value="ytd"    <?= $range==='ytd'    ? 'selected' : '' ?>>Year to date</option>
+                    <option value="custom" <?= $range==='custom' ? 'selected' : '' ?>>Custom&hellip;</option>
+                </select>
+            </label>
+            <span class="custom-range" id="custom-range" style="<?= $range==='custom' ? '' : 'display:none' ?>">
+                <input type="date" name="from" value="<?= htmlspecialchars($from_in) ?>">
+                <span>&rarr;</span>
+                <input type="date" name="to"   value="<?= htmlspecialchars($to_in) ?>">
+                <button type="submit">Apply</button>
+            </span>
+        </form>
+        <script>
+        function onRangeChange(sel) {
+            var cr = document.getElementById('custom-range');
+            if (sel.value === 'custom') {
+                cr.style.display = '';
+            } else {
+                // clear any stale custom dates so they don't stick in the URL
+                var form = document.getElementById('stats-filter');
+                form.querySelector('input[name="from"]').value = '';
+                form.querySelector('input[name="to"]').value = '';
+                form.submit();
+            }
+        }
+        </script>
     </div>
 
     <?php if (empty($leaderboard)): ?>
     <div class="no-stats">
         <div class="icon">&#128200;</div>
+        <?php if ($range === 'all'): ?>
         <p>No finished games yet. Stats will appear after your first completed tournament or cash game.</p>
+        <?php else: ?>
+        <p>No finished games in this date range. Try a wider range or select <strong>All time</strong>.</p>
+        <?php endif; ?>
     </div>
 
     <?php else: ?>

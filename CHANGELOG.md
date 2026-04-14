@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.07300] — 2026-04-14
+
+### Added
+- **Date range filter on Player Stats.** Preset dropdown (7d / 30d / 90d / 1yr / YTD / All time) plus a Custom option with from/to date pickers. Filters both the personal summary and the leaderboard by `events.start_date`, using the site timezone.
+
+---
+
 ## [v0.07200] — 2026-04-14
 
 ### Added
