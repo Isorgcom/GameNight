@@ -270,6 +270,26 @@ function register_user(string $username, string $email, string $password, string
     $id = (int)$db->lastInsertId();
     db_log_activity($id, "registered (verify via $verify_method)");
 
+    // Claim any pending league contact rows that match this email or phone —
+    // they become a linked member of each league immediately.
+    try {
+        if ($email !== '') {
+            $db->prepare(
+                "UPDATE league_members
+                 SET user_id = ?, contact_name = NULL, contact_email = NULL, contact_phone = NULL, invite_token = NULL
+                 WHERE user_id IS NULL AND LOWER(contact_email) = LOWER(?)"
+            )->execute([$id, $email]);
+        }
+        if ($phone !== '') {
+            $nph = normalize_phone($phone);
+            $db->prepare(
+                "UPDATE league_members
+                 SET user_id = ?, contact_name = NULL, contact_email = NULL, contact_phone = NULL, invite_token = NULL
+                 WHERE user_id IS NULL AND contact_phone = ?"
+            )->execute([$id, $nph]);
+        }
+    } catch (Exception $e) { /* non-fatal */ }
+
     // Send verification based on chosen method
     if ($verify_method === 'email') {
         send_verification_email($id, $email, $username);

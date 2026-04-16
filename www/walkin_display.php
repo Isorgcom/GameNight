@@ -27,6 +27,12 @@ if (!$event) {
     exit;
 }
 
+// Walk-up QR registration is a public-calendar feature — private events cannot use it.
+if (($event['visibility'] ?? 'public') !== 'public') {
+    http_response_code(403);
+    exit('Walk-up registration is only available for public events. Change the event visibility to Public to enable it.');
+}
+
 if (!$isAdmin && (int)$event['created_by'] !== (int)$current['id']) {
     $mgr = $db->prepare("SELECT 1 FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND event_role='manager' LIMIT 1");
     $mgr->execute([$event_id, $current['username']]);

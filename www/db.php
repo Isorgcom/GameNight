@@ -390,6 +390,113 @@ function db_init(PDO $pdo): void {
     // Track which verification method the user chose at registration
     try { $pdo->exec("ALTER TABLE users ADD COLUMN verification_method TEXT NOT NULL DEFAULT 'email'"); } catch (Exception $e) {}
 
+    // ─── Leagues ───────────────────────────────────────────────
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS leagues (
+        id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+        name               TEXT    NOT NULL,
+        description        TEXT,
+        owner_id           INTEGER NOT NULL,
+        default_visibility TEXT    NOT NULL DEFAULT 'league',
+        approval_mode      TEXT    NOT NULL DEFAULT 'manual',
+        is_hidden          INTEGER NOT NULL DEFAULT 0,
+        invite_code        TEXT    UNIQUE,
+        created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (owner_id) REFERENCES users(id)
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_leagues_owner  ON leagues(owner_id)"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_leagues_hidden ON leagues(is_hidden)"); } catch (Exception $e) {}
+
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS league_members (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        league_id  INTEGER NOT NULL,
+        user_id    INTEGER NOT NULL,
+        role       TEXT    NOT NULL DEFAULT 'member',
+        joined_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (league_id, user_id),
+        FOREIGN KEY (league_id) REFERENCES leagues(id),
+        FOREIGN KEY (user_id)   REFERENCES users(id)
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_league_members_user   ON league_members(user_id)"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_league_members_league ON league_members(league_id)"); } catch (Exception $e) {}
+
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS league_join_requests (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        league_id    INTEGER NOT NULL,
+        user_id      INTEGER NOT NULL,
+        message      TEXT,
+        status       TEXT    NOT NULL DEFAULT 'pending',
+        requested_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        decided_at   DATETIME,
+        decided_by   INTEGER,
+        UNIQUE (league_id, user_id, status),
+        FOREIGN KEY (league_id) REFERENCES leagues(id),
+        FOREIGN KEY (user_id)   REFERENCES users(id)
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_join_requests_league ON league_join_requests(league_id, status)"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_join_requests_user   ON league_join_requests(user_id, status)"); } catch (Exception $e) {}
+
+    // Event visibility + league linkage
+    try { $pdo->exec("ALTER TABLE events ADD COLUMN league_id  INTEGER"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE events ADD COLUMN visibility TEXT NOT NULL DEFAULT 'invitees_only'"); } catch (Exception $e) {}
+    // Any pre-existing events were created under the old "everything public" model — keep them public.
+    try { $pdo->exec("UPDATE events SET visibility='public' WHERE visibility IS NULL OR visibility=''"); } catch (Exception $e) {}
+    // Leagues no longer support public default_visibility — coerce any stragglers to 'league'.
+    try { $pdo->exec("UPDATE leagues SET default_visibility='league' WHERE default_visibility <> 'league'"); } catch (Exception $e) {}
+
+    // ─── League pending contacts ───────────────────────────────────────────
+    // Allow league_members rows that represent a pending contact (no user account yet).
+    try { $pdo->exec("ALTER TABLE league_members ADD COLUMN contact_name  TEXT"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE league_members ADD COLUMN contact_email TEXT"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE league_members ADD COLUMN contact_phone TEXT"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE league_members ADD COLUMN invited_by    INTEGER"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE league_members ADD COLUMN invited_at    DATETIME"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE league_members ADD COLUMN invite_token  TEXT"); } catch (Exception $e) {}
+
+    // Relax user_id NOT NULL if still present (SQLite can't drop NOT NULL directly).
+    try {
+        $info = $pdo->query("PRAGMA table_info(league_members)")->fetchAll();
+        $needs_rebuild = false;
+        foreach ($info as $col) {
+            if ($col['name'] === 'user_id' && (int)$col['notnull'] === 1) { $needs_rebuild = true; break; }
+        }
+        if ($needs_rebuild) {
+            $pdo->exec("BEGIN");
+            $pdo->exec("ALTER TABLE league_members RENAME TO league_members_old");
+            $pdo->exec("CREATE TABLE league_members (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                league_id INTEGER NOT NULL,
+                user_id INTEGER,
+                role TEXT NOT NULL DEFAULT 'member',
+                joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                contact_name  TEXT,
+                contact_email TEXT,
+                contact_phone TEXT,
+                invited_by    INTEGER,
+                invited_at    DATETIME,
+                invite_token  TEXT,
+                FOREIGN KEY (league_id) REFERENCES leagues(id),
+                FOREIGN KEY (user_id)   REFERENCES users(id)
+            )");
+            $pdo->exec("INSERT INTO league_members
+                        (id, league_id, user_id, role, joined_at, contact_name, contact_email, contact_phone, invited_by, invited_at, invite_token)
+                        SELECT id, league_id, user_id, role, joined_at, contact_name, contact_email, contact_phone, invited_by, invited_at, invite_token
+                        FROM league_members_old");
+            $pdo->exec("DROP TABLE league_members_old");
+            $pdo->exec("COMMIT");
+        }
+    } catch (Exception $e) {
+        try { $pdo->exec("ROLLBACK"); } catch (Exception $e2) {}
+    }
+
+    // (Re-)create indexes. The prior non-unique user/league indexes are fine.
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_league_members_user   ON league_members(user_id)"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_league_members_league ON league_members(league_id)"); } catch (Exception $e) {}
+    // Replace old non-conditional UNIQUE(league_id, user_id) with one that ignores NULL user_id.
+    try { $pdo->exec("DROP INDEX IF EXISTS sqlite_autoindex_league_members_1"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS uq_league_members_user ON league_members(league_id, user_id) WHERE user_id IS NOT NULL"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS uq_league_members_contact_email ON league_members(league_id, LOWER(contact_email)) WHERE user_id IS NULL AND contact_email IS NOT NULL"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_league_members_invite_token ON league_members(invite_token) WHERE invite_token IS NOT NULL"); } catch (Exception $e) {}
+
     // Seed default blind structure if none exists
     $presetCount = $pdo->query('SELECT COUNT(*) FROM blind_presets WHERE is_default = 1')->fetchColumn();
     if ((int)$presetCount === 0) {
@@ -786,4 +893,70 @@ function build_event_by_date(array $events, string $rangeStart, string $rangeEnd
  */
 function load_exceptions(PDO $db, array $events): array {
     return [];
+}
+
+/**
+ * Build a SQL fragment that restricts an events query to rows visible to the given viewer.
+ *
+ * Usage:
+ *   $vis = event_visibility_sql('e', $user['id'] ?? null);
+ *   $sql = "SELECT ... FROM events e WHERE start_date >= ? AND {$vis['sql']}";
+ *   $stmt->execute(array_merge([$start], $vis['params']));
+ *
+ * Visibility rules:
+ *  - Admins see everything.
+ *  - Guests (user_id=null) see only 'public' events.
+ *  - Logged-in users see: public + events they created + league events for leagues they're in
+ *    + events where they are an explicit invitee (matched by username).
+ */
+function event_visibility_sql(string $alias = 'e', ?int $user_id = null): array {
+    if ($user_id !== null) {
+        $stmt = get_db()->prepare('SELECT role FROM users WHERE id = ?');
+        $stmt->execute([$user_id]);
+        if (($stmt->fetchColumn() ?: '') === 'admin') {
+            return ['sql' => '1=1', 'params' => []];
+        }
+    }
+    if ($user_id === null) {
+        return ['sql' => "{$alias}.visibility = 'public'", 'params' => []];
+    }
+    $sql = "(
+        {$alias}.visibility = 'public'
+        OR {$alias}.created_by = ?
+        OR ({$alias}.visibility = 'league' AND {$alias}.league_id IN (
+               SELECT league_id FROM league_members WHERE user_id = ?
+           ))
+        OR EXISTS (
+               SELECT 1 FROM event_invites ei
+               JOIN users u ON LOWER(u.username) = LOWER(ei.username)
+               WHERE ei.event_id = {$alias}.id AND u.id = ?
+           )
+    )";
+    return ['sql' => $sql, 'params' => [$user_id, $user_id, $user_id]];
+}
+
+/**
+ * Return leagues the given user is a member of, with their role.
+ * Used by the event editor dropdown and UI checks.
+ */
+function user_leagues(int $user_id): array {
+    $stmt = get_db()->prepare(
+        'SELECT l.id, l.name, l.description, l.default_visibility, l.approval_mode, l.is_hidden, lm.role
+         FROM league_members lm
+         JOIN leagues l ON l.id = lm.league_id
+         WHERE lm.user_id = ?
+         ORDER BY LOWER(l.name)'
+    );
+    $stmt->execute([$user_id]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Check a user's role within a single league. Returns 'owner', 'manager', 'member', or null.
+ */
+function league_role(int $league_id, int $user_id): ?string {
+    $stmt = get_db()->prepare('SELECT role FROM league_members WHERE league_id = ? AND user_id = ?');
+    $stmt->execute([$league_id, $user_id]);
+    $r = $stmt->fetchColumn();
+    return $r !== false ? $r : null;
 }

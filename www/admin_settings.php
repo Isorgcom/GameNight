@@ -83,7 +83,7 @@ if (!empty($_SESSION['flash'])) {
     unset($_SESSION['flash']);
 }
 
-$tab = in_array($_GET['tab'] ?? '', ['dashboard', 'general', 'appearance', 'logs', 'users', 'events', 'email', 'sms', 'whatsapp', 'cron', 'backup']) ? $_GET['tab'] : 'dashboard';
+$tab = in_array($_GET['tab'] ?? '', ['dashboard', 'general', 'appearance', 'logs', 'users', 'events', 'leagues', 'email', 'sms', 'whatsapp', 'cron', 'backup']) ? $_GET['tab'] : 'dashboard';
 $isCommTab = in_array($tab, ['email', 'sms', 'whatsapp']);
 
 // ── POST ─────────────────────────────────────────────────────────────────────
@@ -934,6 +934,8 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
            class="tab-btn <?= $tab === 'users' ? 'active' : '' ?>">Users</a>
         <a href="/admin_settings.php?tab=events"
            class="tab-btn <?= $tab === 'events' ? 'active' : '' ?>">Events</a>
+        <a href="/admin_settings.php?tab=leagues"
+           class="tab-btn <?= $tab === 'leagues' ? 'active' : '' ?>">Leagues</a>
         <a href="/admin_settings.php?tab=email"
            class="tab-btn <?= $isCommTab ? 'active' : '' ?>">Communication</a>
         <a href="/admin_settings.php?tab=cron"
@@ -1889,6 +1891,95 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
         })();
         </script>
 
+    </div>
+
+    <!-- ── Leagues tab ── -->
+    <?php
+    $all_leagues = [];
+    if ($tab === 'leagues') {
+        $all_leagues = $db->query(
+            "SELECT l.*,
+                    u.username AS owner_username,
+                    (SELECT COUNT(*) FROM league_members WHERE league_id = l.id) AS member_count,
+                    (SELECT COUNT(*) FROM events         WHERE league_id = l.id) AS event_count,
+                    (SELECT COUNT(*) FROM league_join_requests WHERE league_id = l.id AND status = 'pending') AS pending_count
+             FROM leagues l
+             LEFT JOIN users u ON u.id = l.owner_id
+             ORDER BY LOWER(l.name)"
+        )->fetchAll();
+    }
+    ?>
+    <div class="tab-panel <?= $tab === 'leagues' ? 'active' : '' ?>">
+        <div class="card" style="max-width:100%">
+            <h2>Leagues (<?= count($all_leagues) ?>)</h2>
+            <p style="color:#64748b;font-size:.875rem;margin:0 0 1rem">All leagues, including hidden ones. As an admin, clicking a league opens its normal management page, where you have full owner-level privileges regardless of your actual role.</p>
+            <?php if (empty($all_leagues)): ?>
+                <p style="color:#94a3b8;text-align:center;padding:1.5rem 0">No leagues have been created yet.</p>
+            <?php else: ?>
+            <div style="margin-bottom:.75rem">
+                <input type="search" id="adminLgSearch" placeholder="Search by name, description, or owner&hellip;" autocomplete="off"
+                       oninput="filterAdminLeagues(this.value)"
+                       style="width:100%;padding:.5rem .75rem;border:1.5px solid #cbd5e1;border-radius:6px;font:inherit">
+            </div>
+            <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:.875rem" id="adminLeagueTbl">
+                <thead>
+                    <tr style="background:#f8fafc;border-bottom:1.5px solid #e2e8f0">
+                        <th style="text-align:left;padding:.6rem .5rem">Name</th>
+                        <th style="text-align:left;padding:.6rem .5rem">Owner</th>
+                        <th style="text-align:center;padding:.6rem .5rem">Members</th>
+                        <th style="text-align:center;padding:.6rem .5rem">Events</th>
+                        <th style="text-align:center;padding:.6rem .5rem">Pending</th>
+                        <th style="text-align:center;padding:.6rem .5rem">Join mode</th>
+                        <th style="text-align:center;padding:.6rem .5rem">Hidden</th>
+                        <th style="text-align:right;padding:.6rem .5rem">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php foreach ($all_leagues as $l): ?>
+                    <tr class="admin-lg-row" style="border-bottom:1px solid #f1f5f9"
+                        data-name="<?= htmlspecialchars(strtolower($l['name'])) ?>"
+                        data-desc="<?= htmlspecialchars(strtolower($l['description'] ?? '')) ?>"
+                        data-owner="<?= htmlspecialchars(strtolower($l['owner_username'] ?? '')) ?>">
+                        <td style="padding:.55rem .5rem">
+                            <strong><?= htmlspecialchars($l['name']) ?></strong>
+                            <?php if (!empty($l['description'])): ?>
+                                <div style="color:#64748b;font-size:.78rem;margin-top:.15rem"><?= htmlspecialchars(mb_strimwidth($l['description'], 0, 80, '…')) ?></div>
+                            <?php endif; ?>
+                        </td>
+                        <td style="padding:.55rem .5rem"><?= htmlspecialchars($l['owner_username'] ?? '—') ?></td>
+                        <td style="padding:.55rem .5rem;text-align:center"><?= (int)$l['member_count'] ?></td>
+                        <td style="padding:.55rem .5rem;text-align:center"><?= (int)$l['event_count'] ?></td>
+                        <td style="padding:.55rem .5rem;text-align:center"><?= (int)$l['pending_count'] ?></td>
+                        <td style="padding:.55rem .5rem;text-align:center"><?= htmlspecialchars($l['approval_mode']) ?></td>
+                        <td style="padding:.55rem .5rem;text-align:center"><?= (int)$l['is_hidden'] === 1 ? 'Yes' : 'No' ?></td>
+                        <td style="padding:.55rem .5rem;text-align:right;white-space:nowrap">
+                            <a class="btn btn-outline" style="font-size:.78rem;padding:.3rem .65rem" href="/league.php?id=<?= (int)$l['id'] ?>">View</a>
+                            <a class="btn btn-outline" style="font-size:.78rem;padding:.3rem .65rem" href="/league_edit.php?id=<?= (int)$l['id'] ?>">Edit</a>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+            <div id="adminLgNoResults" style="display:none;text-align:center;color:#94a3b8;padding:1rem">No leagues match your search.</div>
+            </div>
+            <?php endif; ?>
+        </div>
+
+        <script>
+        function filterAdminLeagues(q) {
+            q = (q || '').trim().toLowerCase();
+            var rows = document.querySelectorAll('.admin-lg-row');
+            var shown = 0;
+            rows.forEach(function(r) {
+                var m = q === '' || r.dataset.name.indexOf(q) !== -1 || r.dataset.desc.indexOf(q) !== -1 || r.dataset.owner.indexOf(q) !== -1;
+                r.style.display = m ? '' : 'none';
+                if (m) shown++;
+            });
+            var nr = document.getElementById('adminLgNoResults');
+            if (nr) nr.style.display = (shown === 0 && rows.length > 0) ? 'block' : 'none';
+        }
+        </script>
     </div>
 
     <!-- ── Email tab ── -->

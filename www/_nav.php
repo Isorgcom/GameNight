@@ -61,6 +61,7 @@ $_accent        = get_setting('accent_color', '');
                         <a href="/calendar.php" class="nav-mobile-link<?= $_active === 'calendar' ? ' active' : '' ?>">Calendar</a>
                         <?php endif; ?>
                         <a href="/my_events.php" class="nav-mobile-link<?= $_active === 'my-events' ? ' active' : '' ?>">My Events</a>
+                        <a href="/leagues.php" class="nav-mobile-link<?= $_active === 'leagues' ? ' active' : '' ?>">Leagues</a>
                         <a href="/stats.php" class="nav-mobile-link<?= $_active === 'stats' ? ' active' : '' ?>">Stats</a>
                         <?php if ($_nu && $_nu['role'] === 'admin'): ?>
                         <a href="/admin_posts.php" class="nav-mobile-link<?= $_active === 'posts' ? ' active' : '' ?>">Posts</a>
@@ -105,6 +106,7 @@ $_accent        = get_setting('accent_color', '');
         <?php endif; ?>
         <?php if ($_nu): ?>
         <a href="/my_events.php"<?= $_active === 'my-events' ? ' class="active"' : '' ?>>My Events</a>
+        <a href="/leagues.php"<?= $_active === 'leagues' ? ' class="active"' : '' ?>>Leagues</a>
         <a href="/stats.php"<?= $_active === 'stats' ? ' class="active"' : '' ?>>Stats</a>
         <?php endif; ?>
         <?php if ($_nu && $_nu['role'] === 'admin'): ?>

@@ -17,10 +17,11 @@ $site_name  = get_setting('site_name', 'Game Night');
 // ── Validate event + token ────────────────────────────────────────────────────
 $event = null;
 if ($event_id > 0 && $token !== '') {
-    $stmt = $db->prepare('SELECT id, title, start_date, start_time, end_time, walkin_token FROM events WHERE id = ?');
+    $stmt = $db->prepare('SELECT id, title, start_date, start_time, end_time, walkin_token, visibility FROM events WHERE id = ?');
     $stmt->execute([$event_id]);
     $row = $stmt->fetch();
-    if ($row && hash_equals((string)$row['walkin_token'], $token)) {
+    if ($row && hash_equals((string)$row['walkin_token'], $token)
+        && (($row['visibility'] ?? 'public') === 'public')) {
         $event = $row;
     }
 }

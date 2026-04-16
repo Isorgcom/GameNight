@@ -13,8 +13,15 @@ if ($current && !$isAdmin) {
     $isAnyEventManager = (bool)$mgrCheck->fetch();
 }
 $canEditEvents = $canCreateEvents || $isAnyEventManager;
-$allUsers   = $db->query('SELECT username, email, phone FROM users ORDER BY username')->fetchAll();
+// For non-admins we no longer preload every site user into the event editor —
+// the picker fetches a scoped list from /calendar_contacts_dl.php when the modal opens
+// or the league dropdown changes. Admins still get the full list so they see everyone.
+$allUsers = ($current && $current['role'] === 'admin')
+    ? $db->query('SELECT username, email, phone FROM users ORDER BY username')->fetchAll()
+    : [];
 $allowMaybe = get_setting('allow_maybe_rsvp', '1') === '1';
+// Leagues the current user can pick from when creating/editing events
+$myLeaguesForForm = $current ? user_leagues((int)$current['id']) : [];
 
 if (get_setting('show_calendar', '1') !== '1') {
     http_response_code(403);
@@ -113,15 +120,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     };
 
-    // Ownership check: non-admins can only edit/delete their own events or events they manage
+    // Ownership check: non-admins can only edit/delete their own events, events they manage,
+    // or events that belong to a league where they're an owner/manager.
     if (!$isAdmin && in_array($action, ['edit', 'delete', 'delete_occurrence'], true)) {
         $chkId = (int)($_POST['id'] ?? 0);
         if ($chkId > 0) {
-            $ownerStmt = $db->prepare('SELECT created_by FROM events WHERE id=?');
+            $ownerStmt = $db->prepare('SELECT created_by, league_id FROM events WHERE id=?');
             $ownerStmt->execute([$chkId]);
             $ownerRow = $ownerStmt->fetch();
             $isOwner = $ownerRow && (int)$ownerRow['created_by'] === (int)$current['id'];
-            if (!$isOwner && !$isEventManager($chkId)) {
+            $isLeagueMgr = false;
+            if ($ownerRow && !empty($ownerRow['league_id'])) {
+                $lr = league_role((int)$ownerRow['league_id'], (int)$current['id']);
+                $isLeagueMgr = in_array($lr, ['owner', 'manager'], true);
+            }
+            if (!$isOwner && !$isEventManager($chkId) && !$isLeagueMgr) {
                 http_response_code(403); exit('You can only modify your own events.');
             }
         }
@@ -145,13 +158,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $suppress_notify = !empty($_POST['suppress_notify']);
             $is_poker = !empty($_POST['is_poker']) ? 1 : 0;
             $requires_approval = !empty($_POST['requires_approval']) ? 1 : 0;
+
+            // League + visibility
+            $req_league_id = (int)($_POST['league_id'] ?? 0);
+            $league_id     = null;
+            if ($req_league_id > 0) {
+                $role = league_role($req_league_id, (int)$current['id']);
+                if ($role !== null || $isAdmin) $league_id = $req_league_id;
+            }
+            $visibility = in_array($_POST['visibility'] ?? '', ['public','league','invitees_only'], true)
+                          ? $_POST['visibility'] : 'invitees_only';
+            if ($visibility === 'league' && $league_id === null) $visibility = 'invitees_only';
+            // Only admins can create/keep public events.
+            if ($visibility === 'public' && !$isAdmin) $visibility = 'invitees_only';
+
             $new_invitee_usernames = [];
             if ($action === 'add') {
-                $db->prepare('INSERT INTO events (title, description, start_date, end_date, start_time, end_time, color, created_by, is_poker, requires_approval)
-                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $current['id'], $is_poker, $requires_approval]);
+                $db->prepare('INSERT INTO events (title, description, start_date, end_date, start_time, end_time, color, created_by, is_poker, requires_approval, league_id, visibility)
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $current['id'], $is_poker, $requires_approval, $league_id, $visibility]);
                 $notify_eid = (int)$db->lastInsertId();
                 $save_invites($notify_eid, $new_invitee_usernames);
+                // Auto-populate league members into event_invites
+                if ($visibility === 'league' && $league_id !== null) {
+                    $mems = $db->prepare(
+                        'SELECT u.username, u.phone, u.email FROM league_members lm JOIN users u ON u.id = lm.user_id WHERE lm.league_id = ?'
+                    );
+                    $mems->execute([$league_id]);
+                    $addInv = $db->prepare(
+                        "INSERT OR IGNORE INTO event_invites (event_id, username, phone, email, rsvp, approval_status) VALUES (?, ?, ?, ?, NULL, 'approved')"
+                    );
+                    foreach ($mems->fetchAll() as $mem) {
+                        $addInv->execute([$notify_eid, strtolower($mem['username']), $mem['phone'], $mem['email']]);
+                    }
+                }
                 db_log_activity($current['id'], "created event: $title");
                 $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event added.'];
             } else {
@@ -164,8 +204,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                            ->execute([$id]);
                     }
                 }
-                $db->prepare('UPDATE events SET title=?, description=?, start_date=?, end_date=?, start_time=?, end_time=?, color=?, is_poker=?, requires_approval=? WHERE id=?')
-                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $is_poker, $requires_approval, $id]);
+                $db->prepare('UPDATE events SET title=?, description=?, start_date=?, end_date=?, start_time=?, end_time=?, color=?, is_poker=?, requires_approval=?, league_id=?, visibility=? WHERE id=?')
+                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $is_poker, $requires_approval, $league_id, $visibility, $id]);
                 $notify_eid = $id;
                 $save_invites($id, $new_invitee_usernames);
                 db_log_activity($current['id'], "edited event id: $id");
@@ -568,12 +608,14 @@ $monthStart = $display->format('Y-m-01');
 $monthEnd   = $display->format('Y-m-') . $daysInMonth;
 
 // Fetch events that overlap the month
+$_vis = event_visibility_sql('events', (int)$current['id']);
 $evQuery = $db->prepare(
     "SELECT * FROM events WHERE
        start_date <= ? AND (end_date >= ? OR (end_date IS NULL AND start_date >= ?))
+       AND {$_vis['sql']}
      ORDER BY start_date, start_time"
 );
-$evQuery->execute([$monthEnd, $monthStart, $monthStart]);
+$evQuery->execute(array_merge([$monthEnd, $monthStart, $monthStart], $_vis['params']));
 $allEvents = $evQuery->fetchAll();
 
 
@@ -613,12 +655,14 @@ if ($viewMode === 'week') {
     $prevWk = (clone $wkStart)->modify('-7 days')->format('Y-m-d');
     $nextWk = (clone $wkStart)->modify('+7 days')->format('Y-m-d');
 
+    $_visW = event_visibility_sql('events', (int)$current['id']);
     $wkEvQ = $db->prepare(
         "SELECT * FROM events WHERE
            start_date <= ? AND (end_date >= ? OR (end_date IS NULL AND start_date >= ?))
+           AND {$_visW['sql']}
          ORDER BY start_date, start_time"
     );
-    $wkEvQ->execute([$wkEndStr, $wkStartStr, $wkStartStr]);
+    $wkEvQ->execute(array_merge([$wkEndStr, $wkStartStr, $wkStartStr], $_visW['params']));
     $wkAllEvents = $wkEvQ->fetchAll();
     $wkByDate    = build_event_by_date($wkAllEvents, $wkStartStr, $wkEndStr, $local_tz);
 }
@@ -1519,6 +1563,25 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
                 <div class="edit-bottom-actions">
                     <button type="button" class="btn btn-outline" style="font-size:.8rem;white-space:nowrap" onclick="addBlankInviteRow()">+ Custom Invitee</button>
                     <div style="flex:1"></div>
+                    <label style="display:flex;align-items:center;gap:.3rem;font-size:.78rem;color:#475569">
+                        League
+                        <select name="league_id" id="eLeagueId" style="padding:.35rem .4rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.8rem;background:#fff" onchange="onLeagueChange()">
+                            <option value="0">None</option>
+                            <?php foreach ($myLeaguesForForm as $_lg): ?>
+                                <option value="<?= (int)$_lg['id'] ?>" data-default-visibility="<?= htmlspecialchars($_lg['default_visibility']) ?>"><?= htmlspecialchars($_lg['name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+                    <label style="display:flex;align-items:center;gap:.3rem;font-size:.78rem;color:#475569">
+                        Visibility
+                        <select name="visibility" id="eVisibility" style="padding:.35rem .4rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.8rem;background:#fff">
+                            <option value="invitees_only">Invitees only</option>
+                            <option value="league" id="eVisLeagueOpt" disabled>League members only</option>
+                            <?php if ($isAdmin): ?>
+                            <option value="public">Public (site-wide)</option>
+                            <?php endif; ?>
+                        </select>
+                    </label>
                     <label class="edit-notify-row" style="display:flex;align-items:center;gap:.5rem;cursor:pointer">
                         <span style="font-size:.82rem;color:#475569">Poker Game</span>
                         <input type="checkbox" name="is_poker" id="eIsPoker" value="1" class="pk-toggle-input">
@@ -1572,9 +1635,9 @@ const ALLOW_MAYBE = <?= $allowMaybe ? 'true' : 'false' ?>;
 const MANAGED_EVENT_IDS = <?= json_encode(array_values($managedEventIds), JSON_HEX_TAG) ?>;
 <?php if ($canEditEvents): ?>
 <?php if ($isAdmin): ?>
-const ALL_USERS = <?= json_encode(array_values($allUsers), JSON_HEX_TAG) ?>;
+var ALL_USERS = <?= json_encode(array_values($allUsers), JSON_HEX_TAG) ?>;
 <?php else: ?>
-const ALL_USERS = <?= json_encode(array_values(array_map(function($u) { return ['username' => $u['username']]; }, $allUsers)), JSON_HEX_TAG) ?>;
+var ALL_USERS = [];
 <?php endif; ?>
 <?php endif; ?>
 
@@ -2281,28 +2344,54 @@ function buildAllUsersList() {
     const ul = document.getElementById('eAllUsersList');
     ul.innerHTML = '';
     ALL_USERS.forEach(u => {
+        const display = u.display_name || u.username;
         const li = document.createElement('li');
-        li.dataset.username = u.username.toLowerCase();
-        li.dataset.email    = (u.email || '').toLowerCase();
-        li.dataset.phone    = (u.phone || '').replace(/\D/g,'');
-        li.dataset.uname    = u.username;
-        li.dataset.uemail   = u.email   || '';
-        li.dataset.uphone   = u.phone   || '';
-        li.textContent = u.username;
+        li.dataset.username = (u.username || '').toLowerCase();
+        li.dataset.email    = (u.email    || '').toLowerCase();
+        li.dataset.phone    = (u.phone    || '').replace(/\D/g,'');
+        li.dataset.display  = (display    || '').toLowerCase();
+        li.dataset.uname    = u.username  || '';
+        li.dataset.uemail   = u.email     || '';
+        li.dataset.uphone   = u.phone     || '';
+        li.textContent = display;
+        if (u.is_pending) {
+            const tag = document.createElement('span');
+            tag.textContent = ' (pending)';
+            tag.style.cssText = 'color:#92400e;font-size:.75rem;margin-left:.25rem';
+            li.appendChild(tag);
+        }
         li.title = isMobileInvite ? 'Tap to invite' : 'Double-click to invite';
         li.addEventListener(isMobileInvite ? 'click' : 'dblclick', () => inviteUser(li.dataset.uname, li.dataset.uphone, li.dataset.uemail));
         ul.appendChild(li);
     });
 }
 
+// Fetch the scoped contact list for the current league selection and rebuild the pane.
+function refreshUserList() {
+    var lgSel = document.getElementById('eLeagueId');
+    var leagueId = lgSel ? (parseInt(lgSel.value, 10) || 0) : 0;
+    fetch('/calendar_contacts_dl.php?league_id=' + leagueId, { credentials: 'same-origin' })
+        .then(r => r.json())
+        .then(j => {
+            if (j && j.ok) {
+                ALL_USERS = j.users || [];
+                buildAllUsersList();
+                var searchEl = document.getElementById('eUserSearch');
+                filterAllUsers(searchEl ? searchEl.value : '');
+            }
+        })
+        .catch(() => {});
+}
+
 function filterAllUsers(q) {
-    const raw    = q.toLowerCase();
+    const raw    = (q || '').toLowerCase();
     const digits = raw.replace(/\D/g,'');
     document.querySelectorAll('#eAllUsersList li:not(.custom-row)').forEach(li => {
         const match = !raw ||
-            li.dataset.username.includes(raw) ||
-            li.dataset.email.includes(raw) ||
-            (digits && li.dataset.phone.includes(digits));
+            (li.dataset.username && li.dataset.username.includes(raw)) ||
+            (li.dataset.display  && li.dataset.display.includes(raw))  ||
+            (li.dataset.email    && li.dataset.email.includes(raw))    ||
+            (digits && li.dataset.phone && li.dataset.phone.includes(digits));
         li.style.display = match ? '' : 'none';
     });
 }
@@ -2458,6 +2547,15 @@ function openEditModal(ev) {
     document.getElementById('eSuppressNotify').checked = false;
     document.getElementById('eIsPoker').checked = ev ? !!parseInt(ev.is_poker) : true;
     document.getElementById('eRequiresApproval').checked = ev ? !!parseInt(ev.requires_approval) : false;
+    // League + visibility
+    var lgSel  = document.getElementById('eLeagueId');
+    var visSel = document.getElementById('eVisibility');
+    if (lgSel && visSel) {
+        lgSel.value  = (ev && ev.league_id)  ? String(ev.league_id)  : '0';
+        visSel.value = (ev && ev.visibility) ? ev.visibility         : 'invitees_only';
+        onLeagueChange();
+        if (ev && ev.visibility) visSel.value = ev.visibility;
+    }
     document.getElementById('eUserSearch').value = '';
     document.getElementById('eSubmitBtn').textContent = ev ? 'Save Changes' : 'Add Event';
 
@@ -2483,6 +2581,8 @@ function openEditModal(ev) {
     }
     syncInviteState();
     filterAllUsers('');
+    // Fetch the scoped contact list for the current league selection.
+    refreshUserList();
 
     document.getElementById('editModal').classList.add('open');
     document.getElementById('eTitle').focus();
@@ -2493,6 +2593,26 @@ function openEditModal(ev) {
 }
 function editFromView() { openEditModal(currentEvent); }
 function closeEdit() { document.getElementById('editModal').classList.remove('open'); }
+
+function onLeagueChange() {
+    var lgSel  = document.getElementById('eLeagueId');
+    var visSel = document.getElementById('eVisibility');
+    var lgOpt  = document.getElementById('eVisLeagueOpt');
+    if (!lgSel || !visSel || !lgOpt) return;
+    var hasLeague = lgSel.value && lgSel.value !== '0';
+    lgOpt.disabled = !hasLeague;
+    if (hasLeague) {
+        // If a league is picked, default visibility to league members only (matches the league's default)
+        var opt = lgSel.options[lgSel.selectedIndex];
+        var defVis = opt ? (opt.getAttribute('data-default-visibility') || 'league') : 'league';
+        visSel.value = defVis;
+    } else {
+        // No league selected — fall back to invitees_only if the current selection requires a league
+        if (visSel.value === 'league') visSel.value = 'invitees_only';
+    }
+    // Scope the invite picker to the newly-selected league (or personal network when 0).
+    if (typeof refreshUserList === 'function') refreshUserList();
+}
 
 buildAllUsersList();
 <?php endif; ?>

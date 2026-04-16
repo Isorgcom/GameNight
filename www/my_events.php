@@ -20,20 +20,22 @@ $now       = new DateTime('now', $local_tz);
 $past_days   = (int)($current['my_events_past_days'] ?? 30);
 $cutoff_past = (clone $now)->modify("-{$past_days} days")->format('Y-m-d');
 
-// All events the user is invited to OR created, with their RSVP status
-// UNION deduplicates: invited rows take priority (have RSVP); created-only rows get null RSVP
+// All events the user is invited to, created, or can see via league membership.
 $stmt = $db->prepare("
     SELECT e.id, e.title, e.description, e.start_date, e.end_date,
            e.start_time, e.end_time, e.color, e.created_by, e.is_poker,
+           e.league_id, e.visibility,
            ei.rsvp, ei.approval_status,
            CASE WHEN e.created_by = :uid THEN 1 ELSE 0 END AS is_creator
     FROM events e
     LEFT JOIN event_invites ei ON ei.event_id = e.id AND LOWER(ei.username) = LOWER(:uname)
-    WHERE e.created_by = :uid2 OR ei.id IS NOT NULL
+    WHERE e.created_by = :uid2
+       OR ei.id IS NOT NULL
+       OR (e.visibility = 'league' AND e.league_id IN (SELECT league_id FROM league_members WHERE user_id = :uid3))
     GROUP BY e.id
     ORDER BY e.start_date ASC, e.start_time ASC
 ");
-$stmt->execute([':uid' => $current['id'], ':uname' => $current['username'], ':uid2' => $current['id']]);
+$stmt->execute([':uid' => $current['id'], ':uname' => $current['username'], ':uid2' => $current['id'], ':uid3' => $current['id']]);
 $all_events = $stmt->fetchAll();
 
 // Split into upcoming and past using full datetime (end_time > start_time > end of day)

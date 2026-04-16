@@ -48,13 +48,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($action === 'add') {
             if (!$canCreateEvents) { http_response_code(403); exit('Access denied.'); }
         } elseif (in_array($action, $ownerActions, true)) {
-            // Allow if the user owns this event or is a manager
+            // Allow if the user owns this event, is an event manager,
+            // or is a league owner/manager of the league this event belongs to.
             $chkId    = (int)($_POST['id'] ?? 0);
-            $ownerStmt = $db->prepare('SELECT created_by FROM events WHERE id=?');
+            $ownerStmt = $db->prepare('SELECT created_by, league_id FROM events WHERE id=?');
             $ownerStmt->execute([$chkId]);
             $ownerRow = $ownerStmt->fetch();
             $isOwner = $ownerRow && (int)$ownerRow['created_by'] === (int)$current['id'];
-            if (!$isOwner && !$isEventManager($chkId)) {
+            $isLeagueMgr = false;
+            if ($ownerRow && !empty($ownerRow['league_id'])) {
+                $lr = league_role((int)$ownerRow['league_id'], (int)$current['id']);
+                $isLeagueMgr = in_array($lr, ['owner', 'manager'], true);
+            }
+            if (!$isOwner && !$isEventManager($chkId) && !$isLeagueMgr) {
                 http_response_code(403); exit('Access denied.');
             }
         } elseif (!in_array($action, ['update_rsvp', 'self_signup', 'remove_self'], true)) {
@@ -114,17 +120,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $recEnd = trim($_POST['recurrence_end'] ?? '') ?: null;
         $requires_approval = !empty($_POST['requires_approval']) ? 1 : 0;
 
+        // League + visibility — the creator can only pick leagues they belong to.
+        $req_league_id = (int)($_POST['league_id'] ?? 0);
+        $league_id     = null;
+        if ($req_league_id > 0) {
+            $role = league_role($req_league_id, (int)$current['id']);
+            if ($role !== null || $isAdmin) {
+                $league_id = $req_league_id;
+            }
+        }
+        $visibility = in_array($_POST['visibility'] ?? '', ['public','league','invitees_only'], true)
+                      ? $_POST['visibility'] : 'invitees_only';
+        if ($visibility === 'league' && $league_id === null) $visibility = 'invitees_only';
+        // Only admins can create/keep public events.
+        if ($visibility === 'public' && !$isAdmin) $visibility = 'invitees_only';
+
         if ($title === '' || $sd === '') {
             $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Title and start date are required.'];
         } elseif (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $sd) || ($ed && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $ed))) {
             $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid date format.'];
         } else {
             if ($action === 'add') {
-                $db->prepare('INSERT INTO events (title, description, start_date, end_date, start_time, end_time, color, recurrence, recurrence_end, created_by, requires_approval)
-                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $recurrence, $recEnd, $current['id'], $requires_approval]);
+                $db->prepare('INSERT INTO events (title, description, start_date, end_date, start_time, end_time, color, recurrence, recurrence_end, created_by, requires_approval, league_id, visibility)
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $recurrence, $recEnd, $current['id'], $requires_approval, $league_id, $visibility]);
                 $new_eid = (int)$db->lastInsertId();
                 $save_invites($new_eid);
+                // For league-wide events, auto-populate invites with current league members.
+                if ($visibility === 'league' && $league_id !== null) {
+                    $mems = $db->prepare(
+                        'SELECT u.username, u.phone, u.email FROM league_members lm JOIN users u ON u.id = lm.user_id WHERE lm.league_id = ?'
+                    );
+                    $mems->execute([$league_id]);
+                    $addInv = $db->prepare(
+                        "INSERT OR IGNORE INTO event_invites (event_id, username, phone, email, rsvp, approval_status) VALUES (?, ?, ?, ?, NULL, 'approved')"
+                    );
+                    foreach ($mems->fetchAll() as $mem) {
+                        $addInv->execute([$new_eid, $mem['username'], $mem['phone'], $mem['email']]);
+                    }
+                }
                 // For a new event all invitees are "new"; notify with the series start date
                 $all_new = array_map('strtolower', array_filter($inv_usernames, fn($u) => $u !== ''));
                 $notify_new_invitees($new_eid, $all_new, $title, $sd);
@@ -146,8 +180,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
 
-                $db->prepare('UPDATE events SET title=?, description=?, start_date=?, end_date=?, start_time=?, end_time=?, color=?, recurrence=?, recurrence_end=?, requires_approval=? WHERE id=?')
-                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $recurrence, $recEnd, $requires_approval, $id]);
+                $db->prepare('UPDATE events SET title=?, description=?, start_date=?, end_date=?, start_time=?, end_time=?, color=?, recurrence=?, recurrence_end=?, requires_approval=?, league_id=?, visibility=? WHERE id=?')
+                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $recurrence, $recEnd, $requires_approval, $league_id, $visibility, $id]);
 
                 // ── Feature 1: Only delete/replace BASE rows; leave per-occurrence overrides intact ──
                 $db->prepare('DELETE FROM event_invites WHERE event_id=? AND occurrence_date IS NULL')->execute([$id]);
@@ -517,14 +551,16 @@ $monthEnd   = $display->format('Y-m-') . $daysInMonth;
 
 // Fetch events: non-recurring that overlap the month, plus any recurring that
 // started before month-end and haven't expired before month-start.
+$_vis = event_visibility_sql('events', (int)$current['id']);
 $evQuery = $db->prepare(
     "SELECT * FROM events WHERE
-       (recurrence = 'none' AND start_date <= ? AND (end_date >= ? OR (end_date IS NULL AND start_date >= ?)))
-       OR
-       (recurrence != 'none' AND start_date <= ? AND (recurrence_end IS NULL OR recurrence_end >= ?))
+       ((recurrence = 'none' AND start_date <= ? AND (end_date >= ? OR (end_date IS NULL AND start_date >= ?)))
+        OR
+        (recurrence != 'none' AND start_date <= ? AND (recurrence_end IS NULL OR recurrence_end >= ?)))
+       AND {$_vis['sql']}
      ORDER BY start_date, start_time"
 );
-$evQuery->execute([$monthEnd, $monthStart, $monthStart, $monthEnd, $monthStart]);
+$evQuery->execute(array_merge([$monthEnd, $monthStart, $monthStart, $monthEnd, $monthStart], $_vis['params']));
 $allEvents = $evQuery->fetchAll();
 
 // ── Helper: expand events (including recurring) into a date-keyed array ───────
@@ -621,14 +657,16 @@ if ($viewMode === 'week') {
     $prevWk = (clone $wkStart)->modify('-7 days')->format('Y-m-d');
     $nextWk = (clone $wkStart)->modify('+7 days')->format('Y-m-d');
 
+    $_visW = event_visibility_sql('events', (int)$current['id']);
     $wkEvQ = $db->prepare(
         "SELECT * FROM events WHERE
-           (recurrence = 'none' AND start_date <= ? AND (end_date >= ? OR (end_date IS NULL AND start_date >= ?)))
-           OR
-           (recurrence != 'none' AND start_date <= ? AND (recurrence_end IS NULL OR recurrence_end >= ?))
+           ((recurrence = 'none' AND start_date <= ? AND (end_date >= ? OR (end_date IS NULL AND start_date >= ?)))
+            OR
+            (recurrence != 'none' AND start_date <= ? AND (recurrence_end IS NULL OR recurrence_end >= ?)))
+           AND {$_visW['sql']}
          ORDER BY start_date, start_time"
     );
-    $wkEvQ->execute([$wkEndStr, $wkStartStr, $wkStartStr, $wkEndStr, $wkStartStr]);
+    $wkEvQ->execute(array_merge([$wkEndStr, $wkStartStr, $wkStartStr, $wkEndStr, $wkStartStr], $_visW['params']));
     $wkAllEvents  = $wkEvQ->fetchAll();
     $wkExceptions = load_exceptions($db, $wkAllEvents);
     $wkByDate     = build_event_by_date($wkAllEvents, $wkStartStr, $wkEndStr, $local_tz, $wkExceptions);

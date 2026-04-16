@@ -4,6 +4,34 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.08100] — 2026-04-16
+
+### Added
+- **Per-league rosters.** League owners and managers can now add members directly via the Members tab — by name + email/phone. If the email matches an existing user they're added instantly; otherwise a pending contact is saved and a one-click invite link is sent. When the invitee signs up with the matching email/phone, the pending row auto-links to their new account.
+- **Resend invite.** Pending contacts show a "Resend invite" button that regenerates the token and re-sends the invite notification.
+- **Scoped event-invite picker.** The event editor's "All Users" pane is now scoped to the selected league's roster (members + pending contacts) when a league is picked. For non-league events the picker shows the creator's "network" — people in leagues they're in plus people they've previously invited — no longer the full site user list.
+
+### Changed
+- **`league_members.user_id` is now nullable** to support pending contacts. Unique constraints were reworked to allow multiple pending rows per league while still preventing duplicate linked memberships and duplicate pending emails.
+- **Pending contacts cannot hold roles.** Promote/demote actions now refuse to target rows without a linked user.
+
+---
+
+## [v0.08000] — 2026-04-16
+
+### Added
+- **Leagues.** Users can create and join named leagues, with many-to-many membership. League owners set a description, default event visibility, approval mode (manual/auto), and can hide the league from the public browse directory.
+- **Owner / Manager / Member roles.** Owner can promote members to managers (who approve membership changes) and transfer ownership. Managers can approve/deny join requests and remove members but cannot edit league settings, promote others, or delete.
+- **Request-to-join with approval flow.** Manual-approval leagues send a notification to owner + managers; requester is notified on approval/denial. Auto-approval leagues let anyone join instantly.
+- **Leagues admin UI.** New `/leagues.php` directory (My Leagues / Browse / My Requests tabs) and `/league.php?id=X` single-league view with Members, Events, Requests, and Settings tabs.
+
+### Changed
+- **Event visibility is now scoped.** Every event has one of three visibility modes: `public` (everyone can see), `league` (league members only), or `invitees_only` (only the creator and explicit invitees). Default for new events is `invitees_only`. League events can be created with `visibility='league'`, which auto-populates the invite list with current league members so existing reminder cron keeps working.
+- **Calendar, Home, and My Events** all now filter events through a central `event_visibility_sql()` helper — non-admins only see events they created, were invited to, or can see via league membership.
+- **Walk-up QR registration** is now restricted to public events only. Private and league events cannot generate a walk-in QR code.
+
+---
+
 ## [v0.07302] — 2026-04-14
 
 ### Removed

@@ -18,12 +18,14 @@ $weekEnd   = (clone $weekStart)->modify('+6 days');
 $weekStartStr = $weekStart->format('Y-m-d');
 $weekEndStr   = $weekEnd->format('Y-m-d');
 
+$_vis = event_visibility_sql('events', $user ? (int)$user['id'] : null);
 $wkStmt = $db->prepare(
     "SELECT * FROM events WHERE
        start_date <= ? AND (end_date >= ? OR (end_date IS NULL AND start_date >= ?))
+       AND {$_vis['sql']}
      ORDER BY start_date, start_time"
 );
-$wkStmt->execute([$weekEndStr, $weekStartStr, $weekStartStr]);
+$wkStmt->execute(array_merge([$weekEndStr, $weekStartStr, $weekStartStr], $_vis['params']));
 $wkEvents = $wkStmt->fetchAll();
 
 $wkByDate = build_event_by_date($wkEvents, $weekStartStr, $weekEndStr, $local_tz);

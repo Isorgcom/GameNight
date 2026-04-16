@@ -159,7 +159,7 @@ $site_name = get_setting('site_name', 'Game Night');
             <div class="form-group">
                 <label for="email">Email</label>
                 <input type="email" id="email" name="email"
-                       value="<?= htmlspecialchars($_POST['email'] ?? '') ?>"
+                       value="<?= htmlspecialchars($_POST['email'] ?? $_GET['email'] ?? '') ?>"
                        autocomplete="email" autofocus required>
                 <p class="hint">Used to sign in. Never shown publicly.</p>
             </div>
@@ -176,7 +176,7 @@ $site_name = get_setting('site_name', 'Game Night');
             <div class="form-group">
                 <label for="phone">Phone <span id="phoneOptional" style="color:#94a3b8;font-weight:400">(optional)</span></label>
                 <input type="tel" id="phone" name="phone"
-                       value="<?= htmlspecialchars($_POST['phone'] ?? '') ?>"
+                       value="<?= htmlspecialchars($_POST['phone'] ?? $_GET['phone'] ?? '') ?>"
                        autocomplete="tel">
             </div>
 
