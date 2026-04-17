@@ -187,6 +187,33 @@ $tlMonths = $tlStmt->fetchAll();
         @media (max-width: 1140px) { .timeline-sidebar { display: none; } }
         @media (max-width: 640px)  { .page-layout { padding: 0; margin-top: .5rem; } }
 
+        .donate-banner {
+            display: flex;
+            align-items: center;
+            gap: .65rem;
+            padding: .6rem 1rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            border: 1.5px solid #93c5fd;
+            border-radius: 10px;
+            font-size: .88rem;
+            color: #1e40af;
+        }
+        .donate-heart { font-size: 1.2rem; flex-shrink: 0; color: #3b82f6; }
+        .donate-msg { flex: 1; }
+        .donate-btn {
+            flex-shrink: 0;
+            padding: .35rem .9rem;
+            background: #3b82f6;
+            color: #fff;
+            font-weight: 700;
+            font-size: .82rem;
+            border-radius: 6px;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+        .donate-btn:hover { background: #2563eb; }
+
         .post-card {
             background: #fff;
             border: 1px solid #e2e8f0;
@@ -467,6 +494,18 @@ endif; ?>
         </div>
     </div>
     <?php endif; /* show_upcoming_events && !monthFilter */ ?>
+
+    <?php
+    $_don_url = get_setting('donation_url', '');
+    $_don_msg = get_setting('donation_message', '') ?: 'Enjoying Game Night? Help keep the lights on.';
+    if ($_don_url !== ''):
+    ?>
+    <div class="donate-banner">
+        <span class="donate-heart">&#10084;</span>
+        <span class="donate-msg"><?= htmlspecialchars($_don_msg) ?></span>
+        <a href="<?= htmlspecialchars($_don_url) ?>" target="_blank" rel="noopener" class="donate-btn">Donate</a>
+    </div>
+    <?php endif; ?>
 
     <?php if (empty($posts)): ?>
         <div class="no-posts">

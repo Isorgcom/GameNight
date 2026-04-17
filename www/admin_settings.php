@@ -162,6 +162,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 set_setting('show_calendar', isset($_POST['show_calendar']) ? '1' : '0');
                 set_setting('allow_maybe_rsvp', isset($_POST['allow_maybe_rsvp']) ? '1' : '0');
                 set_setting('notifications_enabled', isset($_POST['notifications_enabled']) ? '1' : '0');
+                set_setting('donation_url', trim($_POST['donation_url'] ?? ''));
+                set_setting('donation_message', trim($_POST['donation_message'] ?? ''));
                 db_log_activity($current['id'], 'updated site settings');
                 $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Settings saved.'];
             }
@@ -1085,6 +1087,25 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                     </label>
                     <p class="hint">When off, no email, SMS, or WhatsApp notifications will be sent (invites, reminders, updates). Test messages from the Email/SMS tabs still work.</p>
                 </div>
+
+                <hr style="border:none;border-top:1px solid #e2e8f0;margin:1rem 0">
+                <h3 style="font-size:.95rem;margin:0 0 .5rem">Donation Banner</h3>
+                <p class="hint" style="margin-bottom:.75rem">When a donation URL is set, a banner appears on the home page above the posts and a small link appears in the footer.</p>
+                <div class="form-group">
+                    <label for="donation_url">Donation URL</label>
+                    <input type="url" name="donation_url" id="donation_url"
+                           value="<?= htmlspecialchars(get_setting('donation_url', '')) ?>"
+                           placeholder="https://paypal.me/yourname or https://venmo.com/yourname">
+                    <p class="hint">PayPal.me, Venmo, Cash App, Buy Me a Coffee, etc. Leave blank to disable.</p>
+                </div>
+                <div class="form-group">
+                    <label for="donation_message">Donation Message</label>
+                    <input type="text" name="donation_message" id="donation_message"
+                           value="<?= htmlspecialchars(get_setting('donation_message', '')) ?>"
+                           placeholder="Enjoying Game Night? Help keep the lights on.">
+                    <p class="hint">Custom text shown on the banner. If blank, a default message is used.</p>
+                </div>
+
                 <button type="submit" class="btn btn-primary" style="width:100%;margin-top:.25rem">
                     Save
                 </button>

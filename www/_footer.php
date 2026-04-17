@@ -11,4 +11,8 @@ $_fnow = new DateTime('now', $_ftz);
     <a href="/privacy.php" style="color:inherit;opacity:.65;text-decoration:none">Privacy Policy</a>
     &nbsp;&middot;&nbsp;
     <a href="/terms.php" style="color:inherit;opacity:.65;text-decoration:none">Terms &amp; Conditions</a>
+    <?php $_fdon = get_setting('donation_url', ''); if ($_fdon !== ''): ?>
+    &nbsp;&middot;&nbsp;
+    <a href="<?= htmlspecialchars($_fdon) ?>" target="_blank" rel="noopener" style="color:inherit;opacity:.65;text-decoration:none">&#10084; Support this site</a>
+    <?php endif; ?>
 </footer>
