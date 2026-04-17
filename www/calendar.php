@@ -976,6 +976,10 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         #editModal form { display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto; }
 
         /* Header row: color dot + title + date + time + duration */
+        .edit-league-row { display:flex;gap:.75rem;padding:.65rem 1.25rem;flex-shrink:0;background:#f0f9ff;border-left:3px solid #2563eb;border-bottom:1px solid #e2e8f0;margin:0; }
+        .edit-league-label { display:flex;align-items:center;gap:.4rem;font-size:.82rem;font-weight:600;color:#1e40af; }
+        .edit-league-label select { padding:.38rem .5rem;border:1.5px solid #bfdbfe;border-radius:6px;font-size:.82rem;background:#fff;color:#1e293b; }
+        .edit-league-label select:focus { border-color:#2563eb;outline:2px solid #2563eb;outline-offset:-1px; }
         .edit-header-row { display:flex;align-items:center;gap:.6rem;padding:1rem 1.25rem .75rem;flex-wrap:wrap;flex-shrink:0; }
         .edit-header-row .form-group { margin:0; }
         #eColorDot { width:38px;height:38px;border-radius:50%;cursor:pointer;border:3px solid transparent;flex-shrink:0;transition:border-color .15s,box-shadow .15s;position:relative; }
@@ -1028,10 +1032,11 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         #eInviteData { display:none; }
 
         /* Bottom row */
-        .edit-bottom-row { display:grid;grid-template-columns:1fr auto;gap:.75rem;padding:.75rem 1.25rem 1rem;align-items:end;flex-shrink:0; }
-        .edit-bottom-row textarea { width:100%;resize:vertical;min-height:72px;padding:.5rem .7rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.875rem;box-sizing:border-box;font-family:inherit; }
-        .edit-bottom-row textarea:focus { outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
-        .edit-bottom-actions { display:flex;flex-direction:column;gap:.5rem;align-items:flex-end;justify-content:flex-end; }
+        .edit-desc-options { display:grid;grid-template-columns:1fr auto;gap:.75rem;padding:.75rem 1.25rem 1rem;align-items:stretch;flex-shrink:0; }
+        .edit-desc-col { display:flex;flex-direction:column;min-width:0; }
+        .edit-desc-col textarea { width:100%;resize:vertical;min-height:120px;padding:.5rem .7rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.875rem;box-sizing:border-box;font-family:inherit;flex:1; }
+        .edit-desc-col textarea:focus { outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
+        .edit-options-col { display:flex;flex-direction:column;gap:.5rem;align-items:stretch;justify-content:space-between;min-width:170px;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:7px;padding:.65rem .75rem; }
         .edit-notify-row { display:flex;align-items:center;gap:.4rem;font-size:.8rem;cursor:pointer;user-select:none;white-space:nowrap;color:#64748b; }
         .pk-toggle-input { display:none; }
         .pk-toggle-slider { position:relative;width:36px;height:20px;background:#cbd5e1;border-radius:99px;transition:background .2s;flex-shrink:0; }
@@ -1069,10 +1074,10 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             #eInvitedList li[data-iname]::after { content:'\00d7';float:right;color:#dc2626;font-weight:700;font-size:1.1rem; }
 
             /* Bottom actions full-width */
-            .edit-bottom-row { grid-template-columns:1fr;gap:.75rem;padding:.75rem 1rem 1rem; }
-            .edit-bottom-actions { flex-direction:column;gap:.5rem; }
-            .edit-bottom-actions button,
-            .edit-bottom-actions .btn { width:100%;min-height:44px;font-size:.95rem; }
+            .edit-desc-options { grid-template-columns:1fr;gap:.75rem;padding:.75rem 1rem 1rem; }
+            .edit-options-col { align-items:stretch; }
+            .edit-options-col button,
+            .edit-options-col .btn { width:100%;min-height:44px;font-size:.95rem; }
         }
         @keyframes rsvpSavedFade { 0%,60%{opacity:1} 100%{opacity:0} }
         .rsvp-saved-anim { animation: rsvpSavedFade 3s ease forwards; }
@@ -1494,6 +1499,29 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             <input type="hidden" name="end_time" id="eEndTime" value="">
             <input type="hidden" name="color" id="eColor" value="#2563eb">
 
+            <!-- ── Row 0: league + visibility ── -->
+            <div class="edit-league-row">
+                <label class="edit-league-label">
+                    League
+                    <select name="league_id" id="eLeagueId" onchange="onLeagueChange()">
+                        <option value="0">None</option>
+                        <?php foreach ($myLeaguesForForm as $_lg): ?>
+                            <option value="<?= (int)$_lg['id'] ?>" data-default-visibility="<?= htmlspecialchars($_lg['default_visibility']) ?>"><?= htmlspecialchars($_lg['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+                <label class="edit-league-label">
+                    Visibility
+                    <select name="visibility" id="eVisibility">
+                        <option value="invitees_only">Invitees only</option>
+                        <option value="league" id="eVisLeagueOpt" disabled>League members only</option>
+                        <?php if ($isAdmin): ?>
+                        <option value="public">Public (site-wide)</option>
+                        <?php endif; ?>
+                    </select>
+                </label>
+            </div>
+
             <!-- ── Row 1: color dot + title + date + time + duration ── -->
             <div class="edit-header-row">
                 <div id="eColorDotWrap">
@@ -1553,34 +1581,14 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             <!-- Hidden inputs synced from invite lists -->
             <div id="eInviteData"></div>
 
-            <!-- ── Row 3: description + actions ── -->
-            <div class="edit-bottom-row">
-                <div>
+            <!-- ── Description + options side-by-side ── -->
+            <div class="edit-desc-options">
+                <div class="edit-desc-col">
                     <span class="edit-hdr-label" style="margin-bottom:.3rem">Description <span style="color:#94a3b8;font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></span>
-                    <textarea name="description" id="eDesc" rows="3"></textarea>
+                    <textarea name="description" id="eDesc" rows="5" style="flex:1"></textarea>
                 </div>
-                <div class="edit-bottom-actions">
-                    <button type="button" class="btn btn-outline" style="font-size:.8rem;white-space:nowrap" onclick="addBlankInviteRow()">+ Custom Invitee</button>
-                    <div style="flex:1"></div>
-                    <label style="display:flex;align-items:center;gap:.3rem;font-size:.78rem;color:#475569">
-                        League
-                        <select name="league_id" id="eLeagueId" style="padding:.35rem .4rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.8rem;background:#fff" onchange="onLeagueChange()">
-                            <option value="0">None</option>
-                            <?php foreach ($myLeaguesForForm as $_lg): ?>
-                                <option value="<?= (int)$_lg['id'] ?>" data-default-visibility="<?= htmlspecialchars($_lg['default_visibility']) ?>"><?= htmlspecialchars($_lg['name']) ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </label>
-                    <label style="display:flex;align-items:center;gap:.3rem;font-size:.78rem;color:#475569">
-                        Visibility
-                        <select name="visibility" id="eVisibility" style="padding:.35rem .4rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.8rem;background:#fff">
-                            <option value="invitees_only">Invitees only</option>
-                            <option value="league" id="eVisLeagueOpt" disabled>League members only</option>
-                            <?php if ($isAdmin): ?>
-                            <option value="public">Public (site-wide)</option>
-                            <?php endif; ?>
-                        </select>
-                    </label>
+                <div class="edit-options-col">
+                    <button type="button" class="btn btn-outline" style="font-size:.8rem;white-space:nowrap;width:100%" onclick="addBlankInviteRow()">+ Custom Invitee</button>
                     <label class="edit-notify-row" style="display:flex;align-items:center;gap:.5rem;cursor:pointer">
                         <span style="font-size:.82rem;color:#475569">Poker Game</span>
                         <input type="checkbox" name="is_poker" id="eIsPoker" value="1" class="pk-toggle-input">
@@ -1596,8 +1604,8 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
                         <input type="checkbox" name="requires_approval" id="eRequiresApproval" value="1" class="pk-toggle-input">
                         <span class="pk-toggle-slider"></span>
                     </label>
-                    <div style="display:flex;gap:.5rem;">
-                        <button type="submit" class="btn btn-primary" id="eSubmitBtn">Add Event</button>
+                    <div style="display:flex;gap:.5rem;margin-top:auto">
+                        <button type="submit" class="btn btn-primary" style="flex:1" id="eSubmitBtn">Add Event</button>
                         <button type="button" class="btn btn-outline" onclick="closeEdit()">Cancel</button>
                     </div>
                 </div>
