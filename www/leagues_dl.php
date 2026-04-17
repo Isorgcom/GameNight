@@ -627,7 +627,10 @@ case 'regenerate_invite_code': {
     league_role_or_fail($db, $league_id, $uid, ['owner'], $isAdmin);
     $code = generate_invite_code();
     $db->prepare('UPDATE leagues SET invite_code = ? WHERE id = ?')->execute([$code, $league_id]);
-    ok(['invite_code' => $code]);
+    require_once __DIR__ . '/sms.php';
+    $full  = get_site_url() . '/join_league.php?code=' . urlencode($code);
+    $short = shorten_url($full);
+    ok(['invite_code' => $code, 'invite_url' => $short]);
 }
 
 default:

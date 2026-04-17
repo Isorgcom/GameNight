@@ -411,8 +411,8 @@ $member_count = count($members);
                 <tr>
                     <th class="mg-status-col">Status</th>
                     <th class="mg-name-col">Name</th>
-                    <th>Email</th>
-                    <th class="mg-phone-col">Phone</th>
+                    <?php if ($canManageMembers): ?><th>Email</th>
+                    <th class="mg-phone-col">Phone</th><?php endif; ?>
                     <th class="mg-role-col">Role</th>
                     <th class="mg-joined-col">Joined / Invited</th>
                     <?php if ($canManageMembers): ?><th class="mg-act-col"></th><?php endif; ?>
@@ -445,6 +445,7 @@ $member_count = count($members);
                             <div class="mg-cell-ro"><?= htmlspecialchars($dispName) ?></div>
                         <?php endif; ?>
                     </td>
+                    <?php if ($canManageMembers): ?>
                     <td>
                         <?php if ($editPending): ?>
                             <input type="email" class="mg-cell-input" data-field="contact_email" value="<?= htmlspecialchars($dispEmail) ?>" placeholder="name@example.com">
@@ -459,6 +460,7 @@ $member_count = count($members);
                             <div class="mg-cell-ro"><?= htmlspecialchars($dispPhone) ?></div>
                         <?php endif; ?>
                     </td>
+                    <?php endif; ?>
                     <td class="mg-role-col">
                         <?php if ($editRole): ?>
                             <select class="mg-cell-select" data-field="role">
@@ -488,8 +490,10 @@ $member_count = count($members);
                     <?php endif; ?>
                 </tr>
             <?php endforeach; ?>
-            <?php if (empty($members)): ?>
-                <tr><td colspan="<?= $canManageMembers ? 7 : 6 ?>" style="padding:1.5rem;text-align:center;color:#94a3b8">No members yet.</td></tr>
+            <?php if (empty($members)):
+                $colCount = 4 + ($canManageMembers ? 3 : 0); // status+name+role+date + (email+phone+actions)
+            ?>
+                <tr><td colspan="<?= $colCount ?>" style="padding:1.5rem;text-align:center;color:#94a3b8">No members yet.</td></tr>
             <?php endif; ?>
             </tbody>
         </table>
@@ -530,10 +534,27 @@ $member_count = count($members);
         <div class="lg-card" style="display:block">
             <h3 style="margin:0 0 .75rem">League settings</h3>
             <p style="font-size:.85rem;color:#64748b;margin:0 0 .75rem">Edit your league details. <a href="/league_edit.php?id=<?= $league_id ?>">Full edit form &rarr;</a></p>
+        </div>
+        <div class="lg-card" style="display:block">
+            <h3 style="margin:0 0 .5rem">Shareable invite link</h3>
+            <p style="font-size:.85rem;color:#64748b;margin:0 0 .75rem">
+                Anyone with this link can
+                <?= $league['approval_mode'] === 'auto' ? '<strong>join instantly</strong>' : '<strong>request to join</strong>' ?>.
+                Share it in a chat, group email, or printed card. Regenerating the link invalidates the old one.
+            </p>
+            <?php
+                $inviteLinkFull = get_site_url() . '/join_league.php?code=' . urlencode($league['invite_code'] ?? '');
+                require_once __DIR__ . '/sms.php';
+                $inviteLink = shorten_url($inviteLinkFull);
+            ?>
             <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
-                <code style="font-size:.85rem;background:#f1f5f9;padding:.3rem .5rem;border-radius:4px">Invite code: <?= htmlspecialchars($league['invite_code'] ?? '') ?></code>
-                <button class="lg-btn lg-btn-ghost" onclick="regen()">Regenerate</button>
+                <input type="text" id="inviteLinkField" readonly value="<?= htmlspecialchars($inviteLink) ?>"
+                       onclick="this.select()"
+                       style="flex:1;min-width:260px;padding:.5rem .6rem;border:1.5px solid #cbd5e1;border-radius:6px;font-family:ui-monospace,monospace;font-size:.82rem;background:#f8fafc;color:#334155">
+                <button class="lg-btn" type="button" onclick="copyInviteLink()">Copy</button>
+                <button class="lg-btn lg-btn-ghost" type="button" onclick="regen()">Regenerate</button>
             </div>
+            <div id="inviteLinkFlash" style="display:none;margin-top:.4rem;font-size:.78rem;color:#16a34a">&#10003; Copied to clipboard.</div>
         </div>
         <div class="lg-card" style="display:block;border-color:#fecaca">
             <h3 style="margin:0 0 .75rem;color:#dc2626">Danger zone</h3>
@@ -668,9 +689,38 @@ function leaveLeague() {
     });
 }
 function regen() {
+    if (!confirm('Regenerate the invite link? The old link will stop working immediately.')) return;
     post({ action: 'regenerate_invite_code', league_id: LEAGUE_ID }).then(function(j) {
-        if (j.ok) location.reload(); else alert(j.error || 'Failed');
+        if (j.ok) {
+            var f = document.getElementById('inviteLinkField');
+            if (f && j.invite_url) {
+                f.value = j.invite_url;
+            } else {
+                location.reload();
+            }
+        } else {
+            alert(j.error || 'Failed');
+        }
     });
+}
+function copyInviteLink() {
+    var f = document.getElementById('inviteLinkField');
+    if (!f) return;
+    f.select();
+    var ok = false;
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(f.value);
+            ok = true;
+        } else {
+            ok = document.execCommand('copy');
+        }
+    } catch (e) {}
+    if (ok) {
+        var flash = document.getElementById('inviteLinkFlash');
+        flash.style.display = 'block';
+        setTimeout(function() { flash.style.display = 'none'; }, 1800);
+    }
 }
 var LEAGUE_NAME = <?= json_encode($league['name']) ?>;
 
