@@ -954,6 +954,18 @@ function user_leagues(int $user_id): array {
 /**
  * Check a user's role within a single league. Returns 'owner', 'manager', 'member', or null.
  */
+function auto_add_to_league(PDO $db, int $event_id, int $user_id): void {
+    if ($user_id <= 0) return;
+    $ev = $db->prepare('SELECT league_id FROM events WHERE id = ?');
+    $ev->execute([$event_id]);
+    $lid = $ev->fetchColumn();
+    if (!$lid) return;
+    $db->prepare(
+        "INSERT OR IGNORE INTO league_members (league_id, user_id, role, joined_at)
+         VALUES (?, ?, 'member', CURRENT_TIMESTAMP)"
+    )->execute([(int)$lid, $user_id]);
+}
+
 function league_role(int $league_id, int $user_id): ?string {
     $stmt = get_db()->prepare('SELECT role FROM league_members WHERE league_id = ? AND user_id = ?');
     $stmt->execute([$league_id, $user_id]);

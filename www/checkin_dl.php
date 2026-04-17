@@ -460,6 +460,8 @@ if ($action === 'add_walkin') {
         auto_assign_table($db, $session_id, $newId);
     }
 
+    if ($user_id) auto_add_to_league($db, (int)$s['event_id'], (int)$user_id);
+
     $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
     $p->execute([$newId]);
     echo json_encode([

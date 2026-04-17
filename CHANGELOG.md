@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.08301] — 2026-04-16
+
+### Fixed
+- **Walk-in QR registrants now auto-join the league.** When a user registers via walk-in QR for a league event, they are automatically added to that league's roster. Applies to both existing users and new signups, and also to host-added walk-ins via the check-in panel. Duplicate-safe via `INSERT OR IGNORE`.
+
+---
+
 ## [v0.08300] — 2026-04-16
 
 ### Changed

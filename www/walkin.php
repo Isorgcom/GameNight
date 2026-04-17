@@ -130,6 +130,7 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     $effective_approval = $walkin_approval;
                     $is_new_pending = ($walkin_approval === 'pending');
                 }
+                auto_add_to_league($db, $event_id, $uid);
                 db_log_anon_activity("walkin_rsvp: existing user $username for event $event_id" . ($effective_approval !== 'approved' ? ' (waiting list)' : ''));
 
                 // Remember for next walk-up (30 days)
@@ -201,6 +202,7 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     $db->prepare('INSERT INTO event_invites (event_id, username, email, rsvp, approval_status) VALUES (?, ?, ?, ?, ?)')
                        ->execute([$event_id, $final_username, $email, 'yes', $new_walkin_approval]);
 
+                    auto_add_to_league($db, $event_id, $new_id);
                     db_log_anon_activity("walkin_new_user: $final_username for event $event_id" . ($new_walkin_approval === 'pending' ? ' (waiting list)' : ''));
 
                     // Send verification email so they can set a password
