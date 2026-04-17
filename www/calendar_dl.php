@@ -132,8 +132,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $visibility = in_array($_POST['visibility'] ?? '', ['public','league','invitees_only'], true)
                       ? $_POST['visibility'] : 'invitees_only';
         if ($visibility === 'league' && $league_id === null) $visibility = 'invitees_only';
-        // Only admins can create/keep public events.
-        if ($visibility === 'public' && !$isAdmin) $visibility = 'invitees_only';
 
         if ($title === '' || $sd === '') {
             $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Title and start date are required.'];
