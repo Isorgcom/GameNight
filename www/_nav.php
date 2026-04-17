@@ -57,12 +57,11 @@ $_accent        = get_setting('accent_color', '');
                     <div class="nav-dropdown">
                         <!-- Page links shown only on mobile (nav-links row hidden) -->
                         <a href="/" class="nav-mobile-link<?= $_active === 'home' ? ' active' : '' ?>">Home</a>
+                        <a href="/leagues.php" class="nav-mobile-link<?= $_active === 'leagues' ? ' active' : '' ?>">Leagues</a>
                         <?php if (get_setting('show_calendar', '1') === '1'): ?>
                         <a href="/calendar.php" class="nav-mobile-link<?= $_active === 'calendar' ? ' active' : '' ?>">Calendar</a>
                         <?php endif; ?>
                         <a href="/my_events.php" class="nav-mobile-link<?= $_active === 'my-events' ? ' active' : '' ?>">My Events</a>
-                        <a href="/leagues.php" class="nav-mobile-link<?= $_active === 'leagues' ? ' active' : '' ?>">Leagues</a>
-                        <a href="/stats.php" class="nav-mobile-link<?= $_active === 'stats' ? ' active' : '' ?>">Stats</a>
                         <?php if ($_nu && $_nu['role'] === 'admin'): ?>
                         <a href="/admin_posts.php" class="nav-mobile-link<?= $_active === 'posts' ? ' active' : '' ?>">Posts</a>
                         <a href="/admin_settings.php" class="nav-mobile-link<?= $_active === 'site-settings' ? ' active' : '' ?>">Site Settings</a>
@@ -101,13 +100,14 @@ $_accent        = get_setting('accent_color', '');
     </div>
     <div class="nav-links nav-collapsible">
         <a href="/"<?= $_active === 'home' ? ' class="active"' : '' ?>>Home</a>
+        <?php if ($_nu): ?>
+        <a href="/leagues.php"<?= $_active === 'leagues' ? ' class="active"' : '' ?>>Leagues</a>
+        <?php endif; ?>
         <?php if (get_setting('show_calendar', '1') === '1'): ?>
         <a href="/calendar.php"<?= $_active === 'calendar' ? ' class="active"' : '' ?>>Calendar</a>
         <?php endif; ?>
         <?php if ($_nu): ?>
         <a href="/my_events.php"<?= $_active === 'my-events' ? ' class="active"' : '' ?>>My Events</a>
-        <a href="/leagues.php"<?= $_active === 'leagues' ? ' class="active"' : '' ?>>Leagues</a>
-        <a href="/stats.php"<?= $_active === 'stats' ? ' class="active"' : '' ?>>Stats</a>
         <?php endif; ?>
         <?php if ($_nu && $_nu['role'] === 'admin'): ?>
             <a href="/admin_posts.php"<?= $_active === 'posts' ? ' class="active"' : '' ?>>Posts</a>

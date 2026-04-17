@@ -179,7 +179,7 @@ if ($canManageMembers && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['actio
     exit;
 }
 
-$allowed_tabs = ['members', 'events', 'requests', 'settings'];
+$allowed_tabs = ['members', 'events', 'stats', 'requests', 'settings'];
 $tab = $_GET['tab'] ?? 'members';
 if (!in_array($tab, $allowed_tabs, true)) $tab = 'members';
 if ($tab === 'requests' && !$canManageMembers) $tab = 'members';
@@ -228,6 +228,99 @@ if ($canManageMembers) {
 
 $csrf = csrf_token();
 $member_count = count($members);
+
+// ── Stats data (only when the Stats tab is active) ────────────────────
+$leaderboard = [];
+$myStats     = null;
+$_st_range   = 'all';
+$_st_from_in = '';
+$_st_to_in   = '';
+$_st_from_date = null;
+$_st_to_date   = null;
+
+if ($tab === 'stats') {
+    $allowed_ranges = ['7', '30', '90', '365', 'ytd', 'all', 'custom'];
+    $_st_range   = $_GET['range'] ?? 'all';
+    $_st_from_in = trim($_GET['from'] ?? '');
+    $_st_to_in   = trim($_GET['to']   ?? '');
+    if (!in_array($_st_range, $allowed_ranges, true)) $_st_range = 'all';
+
+    $tz    = new DateTimeZone(get_setting('timezone', 'UTC'));
+    $today = new DateTime('now', $tz);
+
+    if ($_st_range === 'custom') {
+        $_st_from_date = DateTime::createFromFormat('Y-m-d', $_st_from_in, $tz) ?: null;
+        $_st_to_date   = DateTime::createFromFormat('Y-m-d', $_st_to_in,   $tz) ?: null;
+    } elseif ($_st_range === 'ytd') {
+        $_st_from_date = new DateTime($today->format('Y-01-01'), $tz);
+        $_st_to_date   = $today;
+    } elseif ($_st_range !== 'all') {
+        $days = (int)$_st_range;
+        $_st_from_date = (clone $today)->modify("-{$days} days");
+        $_st_to_date   = $today;
+    }
+
+    $from_sql = $_st_from_date ? $_st_from_date->format('Y-m-d') : null;
+    $to_sql   = $_st_to_date   ? $_st_to_date->format('Y-m-d')   : null;
+
+    $where_date = '';
+    $params     = [$league_id];
+    if ($from_sql) { $where_date .= " AND e.start_date >= ?"; $params[] = $from_sql; }
+    if ($to_sql)   { $where_date .= " AND e.start_date <= ?"; $params[] = $to_sql;   }
+
+    $stmt = $db->prepare("
+        SELECT
+            g.player_key, g.display_name, g.user_id,
+            COUNT(*) as games,
+            SUM(CASE WHEN g.finish_position = 1 THEN 1 ELSE 0 END) as wins,
+            MIN(g.finish_position) as best_finish,
+            ROUND(AVG(g.finish_position), 1) as avg_finish,
+            ROUND(AVG(g.score), 1) as avg_score,
+            SUM(g.score) as total_score
+        FROM (
+            SELECT
+                pp.user_id,
+                COALESCE(u.username, pp.display_name) as display_name,
+                COALESCE(CAST(pp.user_id AS TEXT), 'g_' || LOWER(pp.display_name)) as player_key,
+                COALESCE(pp.finish_position, pc.field_size) as finish_position,
+                pp.session_id, pc.field_size,
+                CASE WHEN pc.field_size > 1
+                    THEN ROUND(CAST(pc.field_size - COALESCE(pp.finish_position, pc.field_size) AS REAL) / pc.field_size * 80 + 20, 1)
+                    ELSE 100
+                END as score
+            FROM poker_players pp
+            JOIN poker_sessions ps ON ps.id = pp.session_id
+            JOIN events e ON e.id = ps.event_id
+            LEFT JOIN users u ON u.id = pp.user_id
+            JOIN (
+                SELECT session_id, COUNT(*) as field_size
+                FROM poker_players WHERE bought_in = 1 AND removed = 0
+                GROUP BY session_id
+            ) pc ON pc.session_id = pp.session_id
+            WHERE pp.bought_in = 1 AND pp.removed = 0 AND pp.user_id IS NOT NULL
+              AND ps.status = 'finished' AND ps.game_type = 'tournament'
+              AND e.league_id = ?
+              $where_date
+        ) g
+        GROUP BY g.player_key
+        ORDER BY avg_score DESC, wins DESC, games ASC
+    ");
+    $stmt->execute($params);
+    $leaderboard = $stmt->fetchAll();
+
+    $myKey = (string)$uid;
+    foreach ($leaderboard as $row) {
+        if ($row['player_key'] === $myKey) { $myStats = $row; break; }
+    }
+}
+
+function ordinal($n) {
+    $n = (int)$n;
+    if ($n <= 0) return '—';
+    $s = ['th','st','nd','rd'];
+    $v = $n % 100;
+    return $n . ($s[($v - 20) % 10] ?? $s[$v] ?? $s[0]);
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -345,6 +438,7 @@ $member_count = count($members);
     <div class="lg-tabs">
         <a class="lg-tab<?= $tab==='members'  ? ' active' : '' ?>" href="?id=<?= $league_id ?>&tab=members">Members (<?= $member_count ?>)</a>
         <a class="lg-tab<?= $tab==='events'   ? ' active' : '' ?>" href="?id=<?= $league_id ?>&tab=events">Events (<?= count($leagueEvents) ?>)</a>
+        <a class="lg-tab<?= $tab==='stats'    ? ' active' : '' ?>" href="?id=<?= $league_id ?>&tab=stats">Stats</a>
         <?php if ($canManageMembers): ?>
         <a class="lg-tab<?= $tab==='requests' ? ' active' : '' ?>" href="?id=<?= $league_id ?>&tab=requests">Requests (<?= count($requests) ?>)</a>
         <?php endif; ?>
@@ -529,6 +623,145 @@ $member_count = count($members);
                 </div>
             </div>
         <?php endforeach; endif; ?>
+
+    <?php elseif ($tab === 'stats'): ?>
+        <style>
+            .stats-filter { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; font-size:.85rem; color:#475569; margin-bottom:1rem; }
+            .stats-filter label { display:inline-flex; align-items:center; gap:.4rem; font-weight:600; }
+            .stats-filter select, .stats-filter input[type="date"] { font-size:.85rem; padding:.35rem .5rem; border:1.5px solid #e2e8f0; border-radius:6px; background:#fff; color:#1e293b; }
+            .stats-filter button { font-size:.8rem; font-weight:600; padding:.4rem .75rem; border:none; border-radius:6px; background:#2563eb; color:#fff; cursor:pointer; }
+            .stats-filter button:hover { background:#1d4ed8; }
+            .stats-filter .custom-range { display:inline-flex; align-items:center; gap:.4rem; }
+            .my-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:.5rem; margin-bottom:1.5rem; background:#fff; border:1.5px solid #e2e8f0; border-radius:10px; padding:1rem; }
+            .stat-item { text-align:center; padding:.5rem .25rem; }
+            .stat-value { font-size:1.4rem; font-weight:800; color:#1e293b; line-height:1.2; }
+            .stat-label { font-size:.7rem; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:#94a3b8; margin-top:.15rem; }
+            .stat-gold { color:#f59e0b; }
+            .stat-negative { color:#dc2626; }
+            .lb-table { width:100%; border-collapse:collapse; background:#fff; border:1.5px solid #e2e8f0; border-radius:10px; overflow:hidden; }
+            .lb-table th { background:#f8fafc; font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:#64748b; padding:.5rem .6rem; text-align:left; border-bottom:1.5px solid #e2e8f0; }
+            .lb-table td { padding:.5rem .6rem; font-size:.85rem; border-bottom:1px solid #f1f5f9; }
+            .lb-table tr:last-child td { border-bottom:none; }
+            .lb-table tr.is-me { background:#eff6ff; }
+            .lb-rank { font-weight:700; color:#94a3b8; width:2rem; text-align:center; }
+            .lb-rank-1 { color:#f59e0b; } .lb-rank-2 { color:#94a3b8; } .lb-rank-3 { color:#b45309; }
+            .lb-name { font-weight:600; }
+            .no-stats { text-align:center; padding:2.5rem 1rem; color:#94a3b8; }
+            .no-stats .icon { font-size:3rem; margin-bottom:.75rem; }
+            @media(max-width:640px) {
+                .my-stats { grid-template-columns:repeat(3,1fr); gap:.35rem; padding:.6rem; }
+                .stat-value { font-size:1.1rem; } .stat-label { font-size:.6rem; }
+                .lb-table th,.lb-table td { padding:.35rem .4rem; font-size:.75rem; }
+                .lb-table .lb-hide-mobile { display:none; }
+            }
+        </style>
+
+        <p style="color:#64748b;font-size:.9rem;margin:0 0 .75rem">
+        <?php if ($_st_range === 'all'): ?>
+            Lifetime poker statistics from finished league games.
+        <?php elseif ($_st_range === 'custom' && $_st_from_date && $_st_to_date): ?>
+            Stats from <?= htmlspecialchars($_st_from_date->format('M j, Y')) ?> to <?= htmlspecialchars($_st_to_date->format('M j, Y')) ?>.
+        <?php elseif ($_st_range === 'ytd'): ?>
+            Stats for year to date.
+        <?php else: ?>
+            Stats for the last <?= (int)$_st_range ?> days.
+        <?php endif; ?>
+        </p>
+
+        <form method="get" class="stats-filter" id="stats-filter">
+            <input type="hidden" name="id" value="<?= $league_id ?>">
+            <input type="hidden" name="tab" value="stats">
+            <label>Range:
+                <select name="range" onchange="onRangeChange(this)">
+                    <option value="all"    <?= $_st_range==='all'    ? 'selected' : '' ?>>All time</option>
+                    <option value="7"      <?= $_st_range==='7'      ? 'selected' : '' ?>>Last 7 days</option>
+                    <option value="30"     <?= $_st_range==='30'     ? 'selected' : '' ?>>Last 30 days</option>
+                    <option value="90"     <?= $_st_range==='90'     ? 'selected' : '' ?>>Last 90 days</option>
+                    <option value="365"    <?= $_st_range==='365'    ? 'selected' : '' ?>>Last year</option>
+                    <option value="ytd"    <?= $_st_range==='ytd'    ? 'selected' : '' ?>>Year to date</option>
+                    <option value="custom" <?= $_st_range==='custom' ? 'selected' : '' ?>>Custom&hellip;</option>
+                </select>
+            </label>
+            <span class="custom-range" id="custom-range" style="<?= $_st_range==='custom' ? '' : 'display:none' ?>">
+                <input type="date" name="from" value="<?= htmlspecialchars($_st_from_in) ?>">
+                <span>&rarr;</span>
+                <input type="date" name="to"   value="<?= htmlspecialchars($_st_to_in) ?>">
+                <button type="submit">Apply</button>
+            </span>
+        </form>
+        <script>
+        function onRangeChange(sel) {
+            var cr = document.getElementById('custom-range');
+            if (sel.value === 'custom') { cr.style.display = ''; }
+            else {
+                var form = document.getElementById('stats-filter');
+                form.querySelector('input[name="from"]').value = '';
+                form.querySelector('input[name="to"]').value = '';
+                form.submit();
+            }
+        }
+        </script>
+
+        <?php if (empty($leaderboard)): ?>
+        <div class="no-stats">
+            <div class="icon">&#128200;</div>
+            <?php if ($_st_range === 'all'): ?>
+            <p>No finished tournament games yet. Stats will appear after your first completed tournament.</p>
+            <?php else: ?>
+            <p>No finished games in this date range. Try a wider range or select <strong>All time</strong>.</p>
+            <?php endif; ?>
+        </div>
+        <?php else: ?>
+
+        <?php if ($myStats): ?>
+        <div class="my-stats">
+            <?php
+            $games  = (int)$myStats['games'];
+            $wins   = (int)$myStats['wins'];
+            $losses = $games - $wins;
+            $winPct = $games > 0 ? round($wins / $games * 100) : 0;
+            ?>
+            <div class="stat-item"><div class="stat-value"><?= $games ?></div><div class="stat-label">Games</div></div>
+            <div class="stat-item"><div class="stat-value stat-gold"><?= $wins ?></div><div class="stat-label">Wins</div></div>
+            <div class="stat-item"><div class="stat-value stat-negative"><?= $losses ?></div><div class="stat-label">Losses</div></div>
+            <div class="stat-item"><div class="stat-value"><?= $winPct ?>%</div><div class="stat-label">Win Rate</div></div>
+            <div class="stat-item"><div class="stat-value"><?= ordinal($myStats['best_finish']) ?></div><div class="stat-label">Best Finish</div></div>
+            <div class="stat-item"><div class="stat-value"><?= $myStats['avg_finish'] ?></div><div class="stat-label">Avg Finish</div></div>
+            <div class="stat-item"><div class="stat-value stat-gold"><?= $myStats['avg_score'] ?></div><div class="stat-label">Avg Score</div></div>
+        </div>
+        <?php endif; ?>
+
+        <h2 style="font-size:1.1rem;font-weight:700;margin-bottom:.75rem">Leaderboard</h2>
+        <table class="lb-table">
+            <thead><tr>
+                <th>#</th><th>Player</th><th>Games</th><th>Wins</th><th>Losses</th><th>Win%</th><th>Score</th>
+                <th class="lb-hide-mobile">Best</th><th class="lb-hide-mobile">Avg</th>
+            </tr></thead>
+            <tbody>
+            <?php foreach ($leaderboard as $i => $row):
+                $rank   = $i + 1;
+                $games  = (int)$row['games'];
+                $wins   = (int)$row['wins'];
+                $losses = $games - $wins;
+                $winPct = $games > 0 ? round($wins / $games * 100) : 0;
+                $isMe   = $row['player_key'] === (string)$uid;
+                $rankCls= $rank <= 3 ? ' lb-rank-' . $rank : '';
+            ?>
+                <tr class="<?= $isMe ? 'is-me' : '' ?>">
+                    <td class="lb-rank<?= $rankCls ?>"><?= $rank ?></td>
+                    <td class="lb-name"><?= htmlspecialchars($row['display_name']) ?></td>
+                    <td><?= $games ?></td>
+                    <td class="stat-gold"><?= $wins ?></td>
+                    <td class="stat-negative"><?= $losses ?></td>
+                    <td><?= $winPct ?>%</td>
+                    <td class="stat-gold" style="font-weight:700"><?= $row['avg_score'] ?></td>
+                    <td class="lb-hide-mobile"><?= ordinal($row['best_finish']) ?></td>
+                    <td class="lb-hide-mobile"><?= $row['avg_finish'] ?></td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+        <?php endif; ?>
 
     <?php elseif ($tab === 'settings' && $isOwner): ?>
         <div class="lg-card" style="display:block">

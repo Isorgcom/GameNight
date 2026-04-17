@@ -4,6 +4,14 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.08300] — 2026-04-16
+
+### Changed
+- **Stats are now league-scoped.** The standalone `/stats.php` page is gone. Stats (leaderboard, My Stats panel, date-range picker) are now a **Stats tab** inside each league page. Only finished tournament games within that league are counted — no cross-league stat contamination.
+- **Nav bar** no longer shows a global "Stats" link. Bookmarks to `/stats.php` redirect to the user's first league stats tab.
+
+---
+
 ## [v0.08100] — 2026-04-16
 
 ### Added
