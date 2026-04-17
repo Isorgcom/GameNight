@@ -22,6 +22,11 @@ $allUsers = ($current && $current['role'] === 'admin')
 $allowMaybe = get_setting('allow_maybe_rsvp', '1') === '1';
 // Leagues the current user can pick from when creating/editing events
 $myLeaguesForForm = $current ? user_leagues((int)$current['id']) : [];
+// All league names for badge display in event view (lightweight — id+name only)
+$_leagueNames = [];
+foreach ($db->query('SELECT id, name FROM leagues')->fetchAll() as $_ln) {
+    $_leagueNames[(int)$_ln['id']] = $_ln['name'];
+}
 
 if (get_setting('show_calendar', '1') !== '1') {
     http_response_code(403);
@@ -976,6 +981,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         #editModal form { display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto; }
 
         /* Header row: color dot + title + date + time + duration */
+        .ev-league-badge { display:inline-block;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:.2rem .6rem;border-radius:999px;background:#dbeafe;color:#1e40af;white-space:nowrap;vertical-align:middle; }
         .edit-league-row { display:flex;gap:.75rem;padding:.65rem 1.25rem;flex-shrink:0;background:#f0f9ff;border-left:3px solid #2563eb;border-bottom:1px solid #e2e8f0;margin:0; }
         .edit-league-label { display:flex;align-items:center;gap:.4rem;font-size:.82rem;font-weight:600;color:#1e40af; }
         .edit-league-label select { padding:.38rem .5rem;border:1.5px solid #bfdbfe;border-radius:6px;font-size:.82rem;background:#fff;color:#1e293b; }
@@ -1343,7 +1349,10 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
     <div class="modal" style="max-height:88vh;overflow:hidden;max-width:520px;display:flex;flex-direction:column">
         <div style="flex-shrink:0">
         <div class="modal-header">
-            <h2 id="vTitle" class="ev-view-title"></h2>
+            <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;flex:1;min-width:0">
+                <span id="vLeagueBadge" class="ev-league-badge" style="display:none"></span>
+                <h2 id="vTitle" class="ev-view-title" style="margin:0"></h2>
+            </div>
             <div style="display:flex;gap:.3rem;align-items:center">
                 <button class="modal-close" id="vCopyLinkBtn" title="Copy link to this event"
                         onclick="copyEventLink()" style="font-size:.95rem">&#128279;</button>
@@ -1639,6 +1648,7 @@ const CAL_CURRENT_ID    = <?= (int)($current['id'] ?? 0) ?>;
 const IS_ADMIN = <?= $isAdmin ? 'true' : 'false' ?>;
 const CAN_CREATE_EVENTS = <?= $canCreateEvents ? 'true' : 'false' ?>;
 const ALLOW_MAYBE = <?= $allowMaybe ? 'true' : 'false' ?>;
+const LEAGUE_NAMES = <?= json_encode((object)$_leagueNames, JSON_HEX_TAG | JSON_FORCE_OBJECT) ?>;
 const MANAGED_EVENT_IDS = <?= json_encode(array_values($managedEventIds), JSON_HEX_TAG) ?>;
 <?php if ($canEditEvents): ?>
 <?php if ($isAdmin): ?>
@@ -1652,6 +1662,13 @@ var ALL_USERS = [];
 function viewEvent(ev) {
     currentEvent = ev;
     document.getElementById('vTitle').textContent = ev.title;
+    var lbadge = document.getElementById('vLeagueBadge');
+    if (ev.league_id && LEAGUE_NAMES[ev.league_id]) {
+        lbadge.textContent = LEAGUE_NAMES[ev.league_id];
+        lbadge.style.display = '';
+    } else {
+        lbadge.style.display = 'none';
+    }
 
     let meta = ev.start_date;
     if (ev.end_date && ev.end_date !== ev.start_date) meta += ' \u2013 ' + ev.end_date;
