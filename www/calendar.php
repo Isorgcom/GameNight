@@ -169,6 +169,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $visibility = in_array($_POST['visibility'] ?? '', ['public','league','invitees_only'], true)
                           ? $_POST['visibility'] : 'invitees_only';
             if ($visibility === 'league' && $league_id === null) $visibility = 'invitees_only';
+            if ($visibility === 'public' && !$isAdmin) $visibility = 'invitees_only';
 
             $new_invitee_usernames = [];
             if ($action === 'add') {
@@ -1575,7 +1576,9 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
                         <select name="visibility" id="eVisibility" style="padding:.35rem .4rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.8rem;background:#fff">
                             <option value="invitees_only">Invitees only</option>
                             <option value="league" id="eVisLeagueOpt" disabled>League members only</option>
+                            <?php if ($isAdmin): ?>
                             <option value="public">Public (site-wide)</option>
+                            <?php endif; ?>
                         </select>
                     </label>
                     <label class="edit-notify-row" style="display:flex;align-items:center;gap:.5rem;cursor:pointer">
