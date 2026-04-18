@@ -67,22 +67,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             http_response_code(403); exit('Access denied.');
         }
     }
-    $inv_usernames = array_map('trim', (array)($_POST['invite_username'] ?? []));
-    $inv_phones    = array_map('trim', (array)($_POST['invite_phone']    ?? []));
-    $inv_emails    = array_map('trim', (array)($_POST['invite_email']    ?? []));
-    $inv_rsvps     = array_map('trim', (array)($_POST['invite_rsvp']     ?? []));
-    $inv_roles     = array_map('trim', (array)($_POST['invite_role']     ?? []));
+    $inv_usernames   = array_map('trim', (array)($_POST['invite_username']   ?? []));
+    $inv_phones      = array_map('trim', (array)($_POST['invite_phone']      ?? []));
+    $inv_emails      = array_map('trim', (array)($_POST['invite_email']      ?? []));
+    $inv_rsvps       = array_map('trim', (array)($_POST['invite_rsvp']       ?? []));
+    $inv_roles       = array_map('trim', (array)($_POST['invite_role']       ?? []));
+    $inv_sort_orders = array_map('intval', (array)($_POST['invite_sort_order'] ?? []));
     $valid_rsvps   = ['', 'yes', 'no', 'maybe'];
-    $save_invites  = function(int $eid) use ($db, $inv_usernames, $inv_phones, $inv_emails, $inv_rsvps, $inv_roles, $valid_rsvps): void {
+    $save_invites  = function(int $eid) use ($db, $inv_usernames, $inv_phones, $inv_emails, $inv_rsvps, $inv_roles, $inv_sort_orders, $valid_rsvps): void {
         $db->prepare('DELETE FROM event_invites WHERE event_id=?')->execute([$eid]);
-        // Creator/manager-added invites auto-approve regardless of the event's requires_approval flag.
-        $ins = $db->prepare("INSERT INTO event_invites (event_id, username, phone, email, rsvp, event_role, approval_status) VALUES (?, ?, ?, ?, ?, ?, 'approved')");
+        $ins = $db->prepare("INSERT INTO event_invites (event_id, username, phone, email, rsvp, event_role, approval_status, sort_order) VALUES (?, ?, ?, ?, ?, ?, 'approved', ?)");
         for ($i = 0; $i < count($inv_usernames); $i++) {
             if ($inv_usernames[$i] === '') continue;
             $rsvp = in_array($inv_rsvps[$i] ?? '', $valid_rsvps, true) ? ($inv_rsvps[$i] ?: null) : null;
             $role = in_array($inv_roles[$i] ?? '', ['invitee', 'manager'], true) ? $inv_roles[$i] : 'invitee';
             $phone_norm = $inv_phones[$i] !== '' ? normalize_phone($inv_phones[$i]) : '';
-            $ins->execute([$eid, strtolower($inv_usernames[$i]), $phone_norm ?: null, $inv_emails[$i] ?: null, $rsvp, $role]);
+            $sortOrd = $inv_sort_orders[$i] ?? ($i + 1);
+            $ins->execute([$eid, strtolower($inv_usernames[$i]), $phone_norm ?: null, $inv_emails[$i] ?: null, $rsvp, $role, $sortOrd]);
         }
     };
 
@@ -134,23 +135,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($visibility === 'league' && $league_id === null) $visibility = 'invitees_only';
         if ($visibility === 'public' && !$isAdmin) $visibility = 'invitees_only';
 
+        // Poker inline fields
+        $is_poker = !empty($_POST['is_poker']) ? 1 : 0;
+        $poker_game_type   = in_array($_POST['poker_game_type'] ?? '', ['tournament', 'cash'], true) ? $_POST['poker_game_type'] : 'tournament';
+        $poker_buyin       = (int)(round(floatval($_POST['poker_buyin'] ?? 20) * 100));
+        $poker_tables      = max(1, (int)($_POST['poker_tables'] ?? 1));
+        $poker_seats       = max(2, (int)($_POST['poker_seats']  ?? 8));
+        $rsvp_deadline_hrs = (int)($_POST['rsvp_deadline_hours'] ?? 0) ?: null;
+
         if ($title === '' || $sd === '') {
             $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Title and start date are required.'];
         } elseif (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $sd) || ($ed && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $ed))) {
             $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid date format.'];
         } else {
             if ($action === 'add') {
-                $db->prepare('INSERT INTO events (title, description, start_date, end_date, start_time, end_time, color, recurrence, recurrence_end, created_by, requires_approval, league_id, visibility)
-                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $recurrence, $recEnd, $current['id'], $requires_approval, $league_id, $visibility]);
+                $db->prepare('INSERT INTO events (title, description, start_date, end_date, start_time, end_time, color, recurrence, recurrence_end, created_by, requires_approval, league_id, visibility, is_poker, rsvp_deadline_hours)
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $recurrence, $recEnd, $current['id'], $requires_approval, $league_id, $visibility, $is_poker, $rsvp_deadline_hrs]);
                 $new_eid = (int)$db->lastInsertId();
+                // Auto-create poker session if is_poker
+                if ($is_poker) {
+                    $chkPs = $db->prepare('SELECT id FROM poker_sessions WHERE event_id = ?');
+                    $chkPs->execute([$new_eid]);
+                    if (!$chkPs->fetch()) {
+                        $db->prepare('INSERT INTO poker_sessions (event_id, buyin_amount, num_tables, seats_per_table, game_type) VALUES (?, ?, ?, ?, ?)')
+                           ->execute([$new_eid, $poker_buyin, $poker_tables, $poker_seats, $poker_game_type]);
+                    }
+                }
                 $save_invites($new_eid);
                 // For league-wide events, auto-populate invites with current league members.
                 if ($visibility === 'league' && $league_id !== null) {
                     $mems = $db->prepare(
-                        'SELECT u.username, u.phone, u.email FROM league_members lm JOIN users u ON u.id = lm.user_id WHERE lm.league_id = ?'
+                        'SELECT u.username, u.phone, u.email FROM league_members lm JOIN users u ON u.id = lm.user_id WHERE lm.league_id = ? AND lm.user_id != ?'
                     );
-                    $mems->execute([$league_id]);
+                    $mems->execute([$league_id, (int)$current['id']]);
                     $addInv = $db->prepare(
                         "INSERT OR IGNORE INTO event_invites (event_id, username, phone, email, rsvp, approval_status) VALUES (?, ?, ?, ?, NULL, 'approved')"
                     );
@@ -158,8 +176,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $addInv->execute([$new_eid, $mem['username'], $mem['phone'], $mem['email']]);
                     }
                 }
-                // For a new event all invitees are "new"; notify with the series start date
-                $all_new = array_map('strtolower', array_filter($inv_usernames, fn($u) => $u !== ''));
+                // For poker events, mark invitees beyond capacity as waitlisted
+                if ($is_poker) {
+                    $cap = $poker_tables * $poker_seats;
+                    $db->prepare(
+                        "UPDATE event_invites SET approval_status = 'waitlisted'
+                         WHERE event_id = ? AND occurrence_date IS NULL AND sort_order > ?"
+                    )->execute([$new_eid, $cap]);
+                }
+                // For a new event all invitees are "new"; notify only the approved ones
+                $all_new = [];
+                $invRows = $db->prepare("SELECT LOWER(username) as u, approval_status FROM event_invites WHERE event_id = ? AND occurrence_date IS NULL");
+                $invRows->execute([$new_eid]);
+                foreach ($invRows->fetchAll() as $_ir) {
+                    if ($_ir['approval_status'] === 'approved') $all_new[] = $_ir['u'];
+                }
                 $notify_new_invitees($new_eid, $all_new, $title, $sd);
                 db_log_activity($current['id'], "created event: $title");
                 $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event added.'];
@@ -179,8 +210,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
 
-                $db->prepare('UPDATE events SET title=?, description=?, start_date=?, end_date=?, start_time=?, end_time=?, color=?, recurrence=?, recurrence_end=?, requires_approval=?, league_id=?, visibility=? WHERE id=?')
-                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $recurrence, $recEnd, $requires_approval, $league_id, $visibility, $id]);
+                $db->prepare('UPDATE events SET title=?, description=?, start_date=?, end_date=?, start_time=?, end_time=?, color=?, recurrence=?, recurrence_end=?, requires_approval=?, league_id=?, visibility=?, is_poker=?, rsvp_deadline_hours=? WHERE id=?')
+                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $recurrence, $recEnd, $requires_approval, $league_id, $visibility, $is_poker, $rsvp_deadline_hrs, $id]);
+                // Update or create poker session
+                if ($is_poker) {
+                    $chkPs = $db->prepare('SELECT id FROM poker_sessions WHERE event_id = ?');
+                    $chkPs->execute([$id]);
+                    if ($chkPs->fetch()) {
+                        $db->prepare('UPDATE poker_sessions SET buyin_amount=?, num_tables=?, seats_per_table=?, game_type=? WHERE event_id=?')
+                           ->execute([$poker_buyin, $poker_tables, $poker_seats, $poker_game_type, $id]);
+                    } else {
+                        $db->prepare('INSERT INTO poker_sessions (event_id, buyin_amount, num_tables, seats_per_table, game_type) VALUES (?, ?, ?, ?, ?)')
+                           ->execute([$id, $poker_buyin, $poker_tables, $poker_seats, $poker_game_type]);
+                    }
+                }
 
                 // ── Feature 1: Only delete/replace BASE rows; leave per-occurrence overrides intact ──
                 $db->prepare('DELETE FROM event_invites WHERE event_id=? AND occurrence_date IS NULL')->execute([$id]);
@@ -238,6 +281,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
 
+                // For poker events, mark invitees beyond capacity as waitlisted, then promote if seats opened
+                if ($is_poker) {
+                    $cap = $poker_tables * $poker_seats;
+                    $db->prepare(
+                        "UPDATE event_invites SET approval_status = 'waitlisted'
+                         WHERE event_id = ? AND occurrence_date IS NULL AND sort_order > ? AND approval_status = 'approved'"
+                    )->execute([$id, $cap]);
+                    maybe_promote_waitlisted($db, $id);
+                }
                 db_log_activity($current['id'], "edited event id: $id");
                 $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event updated.'];
             }
@@ -419,6 +471,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $statusStmt = $db->prepare('SELECT approval_status FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL');
             $statusStmt->execute([$eid, $current['username']]);
             $currentApproval = $statusStmt->fetchColumn() ?: 'approved';
+            if ($currentApproval === 'waitlisted') {
+                $wlMsg = 'You are on the waitlist for this event. You\'ll be notified if a seat opens up.';
+                if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
+                    header('Content-Type: application/json');
+                    echo json_encode(['ok' => false, 'msg' => $wlMsg]);
+                    exit;
+                }
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => $wlMsg];
+                header('Location: /calendar.php');
+                exit;
+            }
             if ($currentApproval !== 'approved') {
                 if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
                     header('Content-Type: application/json');
@@ -451,6 +514,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                    ->execute([$rsvp, $eid, $current['username']]);
             }
             db_log_activity($current['id'], "updated RSVP for event id: $eid" . ($occ_date ? " ($occ_date)" : ''));
+            // If they declined, check if a waitlisted invitee should be promoted
+            if ($rsvp === 'no') {
+                maybe_promote_waitlisted($db, $eid);
+            }
             if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
                 header('Content-Type: application/json');
                 echo json_encode(['ok' => true]);

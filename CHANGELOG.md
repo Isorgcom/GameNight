@@ -4,6 +4,21 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.08400] — 2026-04-18
+
+### Added
+- **Inline poker game settings.** When creating/editing an event, toggling "Poker Game" on expands game type, buy-in, tables, seats-per-table, and RSVP deadline fields directly in the event editor. A `poker_sessions` row is auto-created on save — no more separate setup step on the checkin page.
+- **Priority invite list with drag-and-drop.** The invited-users pane is now drag-sortable. For poker events, a red dashed capacity divider line marks the seat cutoff. Invitees above the line are priority (immediate invite); invitees below are waitlisted.
+- **Waitlist system.** New `approval_status='waitlisted'` for invitees beyond seat capacity. Waitlisted users are blocked from RSVPing and see a "Waitlisted" badge on My Events and a "You're on the waitlist (position #N)" notice in the event view.
+- **Auto-promote on decline.** When a priority invitee RSVPs "No" (via calendar, email token, or SMS/WhatsApp), the top waitlisted invitee is automatically promoted and notified ("A seat opened up").
+- **RSVP deadline processor.** Cron job processes poker events past their configurable deadline (24/48/72h before start). Non-responding priority invitees are demoted to the waitlist and notified; waitlisters auto-promote to fill the gaps.
+- **Seat count in event view.** Poker events show "X/Y seats filled" in the event view modal metadata.
+
+### Fixed
+- **Duplicate event_invites.** Added a unique index on `(event_id, username, occurrence_date)` and cleaned up existing duplicates caused by the league auto-populate path.
+
+---
+
 ## [v0.08301] — 2026-04-16
 
 ### Fixed

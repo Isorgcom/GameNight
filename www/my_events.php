@@ -68,7 +68,9 @@ function fmt_date(string $date, ?string $time, DateTimeZone $tz): string {
 }
 
 function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): string {
-    // Pending self-signups display a "waiting for approval" badge instead of an RSVP state.
+    if ($approval_status === 'waitlisted') {
+        return '<span class="me-badge" style="background:#eff6ff;color:#1e40af;border:1px solid #93c5fd;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">Waitlisted</span>';
+    }
     if ($approval_status === 'pending') {
         return '<span class="me-badge" style="background:#fefce8;color:#854d0e;border:1px solid #fde68a;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">⏳ Awaiting approval</span>';
     }

@@ -497,6 +497,20 @@ function db_init(PDO $pdo): void {
     try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS uq_league_members_contact_email ON league_members(league_id, LOWER(contact_email)) WHERE user_id IS NULL AND contact_email IS NOT NULL"); } catch (Exception $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_league_members_invite_token ON league_members(invite_token) WHERE invite_token IS NOT NULL"); } catch (Exception $e) {}
 
+    // Deduplicate event_invites (keep the row with the lowest sort_order or lowest id)
+    try {
+        $pdo->exec("DELETE FROM event_invites WHERE id NOT IN (
+            SELECT MIN(id) FROM event_invites GROUP BY event_id, LOWER(username), COALESCE(occurrence_date, '')
+        )");
+    } catch (Exception $e) {}
+    // Unique index on (event_id, username, occurrence_date) to prevent future duplicates
+    try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS uq_event_invites_user ON event_invites(event_id, LOWER(username), COALESCE(occurrence_date, ''))"); } catch (Exception $e) {}
+
+    // ─── Priority invite ordering + RSVP deadline ───────────────────────
+    try { $pdo->exec("ALTER TABLE event_invites ADD COLUMN sort_order INTEGER"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE events ADD COLUMN rsvp_deadline_hours INTEGER"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE events ADD COLUMN rsvp_deadline_processed INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+
     // Seed default blind structure if none exists
     $presetCount = $pdo->query('SELECT COUNT(*) FROM blind_presets WHERE is_default = 1')->fetchColumn();
     if ((int)$presetCount === 0) {
@@ -954,6 +968,104 @@ function user_leagues(int $user_id): array {
 /**
  * Check a user's role within a single league. Returns 'owner', 'manager', 'member', or null.
  */
+/**
+ * After a priority invitee declines, check if there's a waitlisted person to promote.
+ * Only applies to poker events with sort_order-based priority.
+ */
+function maybe_promote_waitlisted(PDO $db, int $event_id): void {
+    // Get the event + poker session to compute capacity
+    $ev = $db->prepare('SELECT e.id, ps.seats_per_table, ps.num_tables
+                        FROM events e
+                        LEFT JOIN poker_sessions ps ON ps.event_id = e.id
+                        WHERE e.id = ? AND e.is_poker = 1');
+    $ev->execute([$event_id]);
+    $row = $ev->fetch();
+    if (!$row || !$row['seats_per_table']) return;
+
+    $capacity = (int)$row['seats_per_table'] * (int)$row['num_tables'];
+    if ($capacity <= 0) return;
+
+    // Count approved invitees who haven't declined
+    $approved = $db->prepare(
+        "SELECT COUNT(*) FROM event_invites
+         WHERE event_id = ? AND occurrence_date IS NULL
+           AND approval_status = 'approved' AND (rsvp IS NULL OR rsvp != 'no')"
+    );
+    $approved->execute([$event_id]);
+    $currentFilled = (int)$approved->fetchColumn();
+
+    if ($currentFilled >= $capacity) return; // no open seats
+
+    $openSeats = $capacity - $currentFilled;
+
+    // Promote the top N waitlisted invitees
+    $waitlist = $db->prepare(
+        "SELECT id, username, email, phone FROM event_invites
+         WHERE event_id = ? AND occurrence_date IS NULL AND approval_status = 'waitlisted'
+         ORDER BY sort_order ASC
+         LIMIT ?"
+    );
+    $waitlist->execute([$event_id, $openSeats]);
+    $promoted = $waitlist->fetchAll();
+
+    if (empty($promoted)) return;
+
+    $upd = $db->prepare("UPDATE event_invites SET approval_status = 'approved' WHERE id = ?");
+    foreach ($promoted as $p) {
+        $upd->execute([(int)$p['id']]);
+        // Notify the promoted invitee
+        $uStmt = $db->prepare('SELECT u.username, u.email, u.phone, u.preferred_contact
+                               FROM users u WHERE LOWER(u.username) = LOWER(?)');
+        $uStmt->execute([$p['username']]);
+        $uRow = $uStmt->fetch();
+        if ($uRow) {
+            $evTitle = $db->prepare('SELECT title, start_date FROM events WHERE id = ?');
+            $evTitle->execute([$event_id]);
+            $evData = $evTitle->fetch();
+            $title = $evData['title'] ?? 'Event';
+            $date  = $evData['start_date'] ?? '';
+            send_notification(
+                $uRow['username'], $uRow['email'] ?? '', $uRow['phone'] ?? '',
+                $uRow['preferred_contact'] ?? 'email',
+                'A seat opened up — ' . $title,
+                'A seat opened up for "' . $title . '" on ' . $date . '. You have been moved off the waitlist!',
+                '<p>A seat opened up for <strong>' . htmlspecialchars($title) . '</strong> on ' . htmlspecialchars($date) . '.</p>'
+                . '<p>You have been <strong>moved off the waitlist</strong> and are now confirmed!</p>'
+            );
+        }
+    }
+
+    // Re-compact sort_order so the edit view stays consistent
+    recompact_sort_order($db, $event_id);
+}
+
+/**
+ * Re-number sort_order for all invites on an event so that:
+ *   1. Approved non-declined come first (by their current sort_order)
+ *   2. Waitlisted come next
+ *   3. Declined (rsvp='no') come last
+ * This keeps the edit view's divider line and declined section consistent
+ * after promotions or RSVP changes.
+ */
+function recompact_sort_order(PDO $db, int $event_id): void {
+    $rows = $db->prepare(
+        "SELECT id FROM event_invites
+         WHERE event_id = ? AND occurrence_date IS NULL
+         ORDER BY
+            CASE WHEN rsvp = 'no' THEN 2
+                 WHEN approval_status = 'waitlisted' THEN 1
+                 ELSE 0 END,
+            COALESCE(sort_order, 999999)"
+    );
+    $rows->execute([$event_id]);
+    $upd = $db->prepare('UPDATE event_invites SET sort_order = ? WHERE id = ?');
+    $i = 0;
+    foreach ($rows->fetchAll() as $r) {
+        $i++;
+        $upd->execute([$i, (int)$r['id']]);
+    }
+}
+
 function auto_add_to_league(PDO $db, int $event_id, int $user_id): void {
     if ($user_id <= 0) return;
     $ev = $db->prepare('SELECT league_id FROM events WHERE id = ?');

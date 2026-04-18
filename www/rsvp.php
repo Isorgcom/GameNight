@@ -47,6 +47,11 @@ $rsvp_changed = ($invite['rsvp'] ?? '') !== $rsvp;
 $db->prepare('UPDATE event_invites SET rsvp = ? WHERE id = ?')
    ->execute([$rsvp, $invite['id']]);
 
+// Auto-promote waitlisted invitee if someone declined
+if ($rsvp === 'no') {
+    maybe_promote_waitlisted($db, (int)$invite['event_id']);
+}
+
 $label   = ucfirst($rsvp);
 $date_str = $invite['start_date'] . ($invite['start_time'] ? ' at ' . date('g:i A', strtotime($invite['start_time'])) : '');
 

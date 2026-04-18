@@ -151,6 +151,77 @@ foreach ($occurrences as $occ) {
 
 echo "OK: $sent_count notification" . ($sent_count !== 1 ? 's' : '') . " sent.\n";
 
+// ── RSVP deadline processor: demote non-responders, promote waitlisters ─────
+$deadline_processed = 0;
+$local_tz = new DateTimeZone(get_setting('timezone', 'UTC'));
+$now_local = new DateTime('now', $local_tz);
+
+$deadlineEvents = $db->prepare(
+    "SELECT e.id, e.title, e.start_date, e.start_time, e.rsvp_deadline_hours,
+            ps.seats_per_table, ps.num_tables
+     FROM events e
+     JOIN poker_sessions ps ON ps.event_id = e.id
+     WHERE e.is_poker = 1
+       AND e.rsvp_deadline_hours IS NOT NULL
+       AND e.rsvp_deadline_hours > 0
+       AND e.rsvp_deadline_processed = 0
+       AND e.start_date >= ?"
+);
+$deadlineEvents->execute([$now_local->format('Y-m-d')]);
+
+foreach ($deadlineEvents->fetchAll() as $de) {
+    $startTime = $de['start_time'] ?: '23:59';
+    $eventStart = new DateTime($de['start_date'] . ' ' . $startTime, $local_tz);
+    $deadline = (clone $eventStart)->modify('-' . (int)$de['rsvp_deadline_hours'] . ' hours');
+
+    if ($now_local < $deadline) continue; // not past deadline yet
+
+    $capacity = (int)$de['seats_per_table'] * (int)$de['num_tables'];
+    $eid = (int)$de['id'];
+
+    // Find priority invitees who never responded
+    $noResponse = $db->prepare(
+        "SELECT id, username FROM event_invites
+         WHERE event_id = ? AND occurrence_date IS NULL
+           AND approval_status = 'approved' AND rsvp IS NULL AND sort_order IS NOT NULL
+         ORDER BY sort_order ASC"
+    );
+    $noResponse->execute([$eid]);
+    $demoted = [];
+    foreach ($noResponse->fetchAll() as $nr) {
+        // Demote: push to waitlist
+        $db->prepare("UPDATE event_invites SET approval_status = 'waitlisted', sort_order = 9999 WHERE id = ?")
+           ->execute([(int)$nr['id']]);
+        $demoted[] = $nr;
+
+        // Notify the demoted person
+        $uStmt = $db->prepare('SELECT username, email, phone, preferred_contact FROM users WHERE LOWER(username) = LOWER(?)');
+        $uStmt->execute([$nr['username']]);
+        $uRow = $uStmt->fetch();
+        if ($uRow) {
+            send_notification(
+                $uRow['username'], $uRow['email'] ?? '', $uRow['phone'] ?? '',
+                $uRow['preferred_contact'] ?? 'email',
+                'RSVP deadline passed — ' . $de['title'],
+                'The RSVP deadline for "' . $de['title'] . '" has passed without a response. Your seat has been released to the waitlist.',
+                '<p>The RSVP deadline for <strong>' . htmlspecialchars($de['title']) . '</strong> has passed.</p>'
+                . '<p>Since you didn\'t respond, your seat has been released. You\'re now on the waitlist.</p>'
+            );
+        }
+    }
+
+    // Now promote waitlisters to fill the opened seats
+    if (!empty($demoted)) {
+        maybe_promote_waitlisted($db, $eid);
+    }
+
+    // Mark as processed
+    $db->prepare('UPDATE events SET rsvp_deadline_processed = 1 WHERE id = ?')->execute([$eid]);
+    $deadline_processed++;
+}
+
+if ($deadline_processed > 0) echo "Processed $deadline_processed RSVP deadline(s).\n";
+
 // ── Database maintenance: prune stale data ──────────────────────────────────
 $pruned = 0;
 

@@ -77,15 +77,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             http_response_code(403); exit('Access denied.');
         }
     }
-    $inv_usernames = array_map('trim', (array)($_POST['invite_username'] ?? []));
-    $inv_phones    = array_map('trim', (array)($_POST['invite_phone']    ?? []));
-    $inv_emails    = array_map('trim', (array)($_POST['invite_email']    ?? []));
-    $inv_rsvps     = array_map('trim', (array)($_POST['invite_rsvp']     ?? []));
-    $inv_roles     = array_map('trim', (array)($_POST['invite_role']     ?? []));
+    $inv_usernames   = array_map('trim', (array)($_POST['invite_username']   ?? []));
+    $inv_phones      = array_map('trim', (array)($_POST['invite_phone']      ?? []));
+    $inv_emails      = array_map('trim', (array)($_POST['invite_email']      ?? []));
+    $inv_rsvps       = array_map('trim', (array)($_POST['invite_rsvp']       ?? []));
+    $inv_roles       = array_map('trim', (array)($_POST['invite_role']       ?? []));
+    $inv_sort_orders = array_map('intval', (array)($_POST['invite_sort_order'] ?? []));
     $valid_rsvps   = array_merge(['', 'yes', 'no'], $allowMaybe ? ['maybe'] : []);
     // occurrence_date: null = manage base (all occurrences), date = manage this date only
     $invite_occ_date = (preg_match('/^\d{4}-\d{2}-\d{2}$/', $_POST['occurrence_date'] ?? '')) ? $_POST['occurrence_date'] : null;
-    $save_invites  = function(int $eid, array &$new_usernames = []) use ($db, $inv_usernames, $inv_phones, $inv_emails, $inv_rsvps, $inv_roles, $valid_rsvps, $invite_occ_date): void {
+    $save_invites  = function(int $eid, array &$new_usernames = []) use ($db, $inv_usernames, $inv_phones, $inv_emails, $inv_rsvps, $inv_roles, $inv_sort_orders, $valid_rsvps, $invite_occ_date): void {
         if ($invite_occ_date) {
             // Occurrence-specific: only manage rows for this date; leave base rows untouched
             $old = $db->prepare('SELECT LOWER(username) as uname FROM event_invites WHERE event_id=? AND occurrence_date=?');
@@ -101,7 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // Creator/manager-added invites auto-approve regardless of the event's requires_approval flag.
-        $ins = $db->prepare("INSERT INTO event_invites (event_id, username, phone, email, rsvp, rsvp_token, occurrence_date, event_role, approval_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'approved')");
+        $ins = $db->prepare("INSERT INTO event_invites (event_id, username, phone, email, rsvp, rsvp_token, occurrence_date, event_role, approval_status, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'approved', ?)");
         // Build a lookup of user contact info for auto-filling
         $userLookup = [];
         $uAll = $db->query('SELECT username, email, phone FROM users ORDER BY username')->fetchAll();
@@ -117,7 +118,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $email_raw = $inv_emails[$i] !== '' ? $inv_emails[$i] : ($userLookup[$uKey]['email'] ?? '');
             $phone_norm = $phone_raw !== '' ? normalize_phone($phone_raw) : '';
             $token = bin2hex(random_bytes(16));
-            $ins->execute([$eid, strtolower($inv_usernames[$i]), $phone_norm ?: null, $email_raw ?: null, $rsvp, $token, $invite_occ_date, $role]);
+            $sortOrd = $inv_sort_orders[$i] ?? ($i + 1);
+            $ins->execute([$eid, strtolower($inv_usernames[$i]), $phone_norm ?: null, $email_raw ?: null, $rsvp, $token, $invite_occ_date, $role, $sortOrd]);
             // Only track new invitees for base (all-occurrence) saves so notifications go out
             if (!$invite_occ_date && !in_array(strtolower($inv_usernames[$i]), $old_names, true)) {
                 $new_usernames[] = strtolower($inv_usernames[$i]);
@@ -163,6 +165,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $suppress_notify = !empty($_POST['suppress_notify']);
             $is_poker = !empty($_POST['is_poker']) ? 1 : 0;
             $requires_approval = !empty($_POST['requires_approval']) ? 1 : 0;
+            $poker_game_type   = in_array($_POST['poker_game_type'] ?? '', ['tournament','cash'], true) ? $_POST['poker_game_type'] : 'tournament';
+            $poker_buyin       = (int)(round(floatval($_POST['poker_buyin'] ?? 20) * 100));
+            $poker_tables      = max(1, (int)($_POST['poker_tables'] ?? 1));
+            $poker_seats       = max(2, (int)($_POST['poker_seats']  ?? 8));
+            $rsvp_deadline_hrs = (int)($_POST['rsvp_deadline_hours'] ?? 0) ?: null;
 
             // League + visibility
             $req_league_id = (int)($_POST['league_id'] ?? 0);
@@ -178,23 +185,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $new_invitee_usernames = [];
             if ($action === 'add') {
-                $db->prepare('INSERT INTO events (title, description, start_date, end_date, start_time, end_time, color, created_by, is_poker, requires_approval, league_id, visibility)
-                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $current['id'], $is_poker, $requires_approval, $league_id, $visibility]);
+                $db->prepare('INSERT INTO events (title, description, start_date, end_date, start_time, end_time, color, created_by, is_poker, requires_approval, league_id, visibility, rsvp_deadline_hours)
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $current['id'], $is_poker, $requires_approval, $league_id, $visibility, $rsvp_deadline_hrs]);
                 $notify_eid = (int)$db->lastInsertId();
+                if ($is_poker) {
+                    $db->prepare('INSERT OR IGNORE INTO poker_sessions (event_id, buyin_amount, num_tables, seats_per_table, game_type) VALUES (?, ?, ?, ?, ?)')
+                       ->execute([$notify_eid, $poker_buyin, $poker_tables, $poker_seats, $poker_game_type]);
+                }
                 $save_invites($notify_eid, $new_invitee_usernames);
                 // Auto-populate league members into event_invites
                 if ($visibility === 'league' && $league_id !== null) {
                     $mems = $db->prepare(
-                        'SELECT u.username, u.phone, u.email FROM league_members lm JOIN users u ON u.id = lm.user_id WHERE lm.league_id = ?'
+                        'SELECT u.username, u.phone, u.email FROM league_members lm JOIN users u ON u.id = lm.user_id WHERE lm.league_id = ? AND lm.user_id != ?'
                     );
-                    $mems->execute([$league_id]);
+                    $mems->execute([$league_id, (int)$current['id']]);
                     $addInv = $db->prepare(
                         "INSERT OR IGNORE INTO event_invites (event_id, username, phone, email, rsvp, approval_status) VALUES (?, ?, ?, ?, NULL, 'approved')"
                     );
                     foreach ($mems->fetchAll() as $mem) {
                         $addInv->execute([$notify_eid, strtolower($mem['username']), $mem['phone'], $mem['email']]);
                     }
+                }
+                // For poker events, mark invitees beyond capacity as waitlisted, then promote if seats opened
+                if ($is_poker) {
+                    $cap = $poker_tables * $poker_seats;
+                    $db->prepare(
+                        "UPDATE event_invites SET approval_status = 'waitlisted'
+                         WHERE event_id = ? AND occurrence_date IS NULL AND sort_order > ?"
+                    )->execute([$notify_eid, $cap]);
+                    maybe_promote_waitlisted($db, $notify_eid);
                 }
                 db_log_activity($current['id'], "created event: $title");
                 $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event added.'];
@@ -208,10 +228,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                            ->execute([$id]);
                     }
                 }
-                $db->prepare('UPDATE events SET title=?, description=?, start_date=?, end_date=?, start_time=?, end_time=?, color=?, is_poker=?, requires_approval=?, league_id=?, visibility=? WHERE id=?')
-                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $is_poker, $requires_approval, $league_id, $visibility, $id]);
+                $db->prepare('UPDATE events SET title=?, description=?, start_date=?, end_date=?, start_time=?, end_time=?, color=?, is_poker=?, requires_approval=?, league_id=?, visibility=?, rsvp_deadline_hours=? WHERE id=?')
+                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $is_poker, $requires_approval, $league_id, $visibility, $rsvp_deadline_hrs, $id]);
+                if ($is_poker) {
+                    $chkPs = $db->prepare('SELECT id FROM poker_sessions WHERE event_id = ?');
+                    $chkPs->execute([$id]);
+                    if ($chkPs->fetch()) {
+                        $db->prepare('UPDATE poker_sessions SET buyin_amount=?, num_tables=?, seats_per_table=?, game_type=? WHERE event_id=?')
+                           ->execute([$poker_buyin, $poker_tables, $poker_seats, $poker_game_type, $id]);
+                    } else {
+                        $db->prepare('INSERT INTO poker_sessions (event_id, buyin_amount, num_tables, seats_per_table, game_type) VALUES (?, ?, ?, ?, ?)')
+                           ->execute([$id, $poker_buyin, $poker_tables, $poker_seats, $poker_game_type]);
+                    }
+                }
                 $notify_eid = $id;
                 $save_invites($id, $new_invitee_usernames);
+                // For poker events, mark invitees beyond capacity as waitlisted, then promote if seats opened
+                if ($is_poker) {
+                    $cap = $poker_tables * $poker_seats;
+                    $db->prepare(
+                        "UPDATE event_invites SET approval_status = 'waitlisted'
+                         WHERE event_id = ? AND occurrence_date IS NULL AND sort_order > ? AND approval_status = 'approved'"
+                    )->execute([$id, $cap]);
+                    maybe_promote_waitlisted($db, $id);
+                }
                 db_log_activity($current['id'], "edited event id: $id");
                 $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event updated.'];
             }
@@ -420,6 +460,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         }
+        // Auto-promote waitlisted invitee if someone declined
+        if ($rsvp === 'no' && $eid > 0) {
+            maybe_promote_waitlisted($db, $eid);
+        }
+
         if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
             header('Content-Type: application/json');
             echo json_encode(['ok' => true]);
@@ -690,7 +735,7 @@ $ev_invites     = [];  // [eid][] — base rows (occurrence_date IS NULL)
 $ev_invites_occ = [];  // [eid][occ_date][] — per-occurrence rows
 if (!empty($allPageEids)) {
     $iph = implode(',', array_fill(0, count($allPageEids), '?'));
-    $is  = $db->prepare("SELECT event_id, username, phone, email, rsvp, occurrence_date, event_role, approval_status FROM event_invites WHERE event_id IN ($iph) ORDER BY username");
+    $is  = $db->prepare("SELECT event_id, username, phone, email, rsvp, occurrence_date, event_role, approval_status, sort_order FROM event_invites WHERE event_id IN ($iph) ORDER BY COALESCE(sort_order, 999999), username");
     $is->execute($allPageEids);
     foreach ($is->fetchAll() as $inv) {
         if ($inv['occurrence_date'] === null) {
@@ -700,6 +745,15 @@ if (!empty($allPageEids)) {
         }
     }
 }
+// Batch-load poker sessions for events on this page
+$ev_poker = [];
+if (!empty($allPageEids)) {
+    $pph = implode(',', array_fill(0, count($allPageEids), '?'));
+    $ps  = $db->prepare("SELECT event_id, game_type, buyin_amount, num_tables, seats_per_table FROM poker_sessions WHERE event_id IN ($pph)");
+    $ps->execute($allPageEids);
+    foreach ($ps->fetchAll() as $pr) { $ev_poker[(int)$pr['event_id']] = $pr; }
+}
+
 // Build list of event IDs the current user manages
 $managedEventIds = [];
 if ($current && !$isAdmin) {
@@ -1013,7 +1067,26 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         .pk-toggle-sm::after { content:'';position:absolute;top:2px;left:2px;width:12px;height:12px;background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 1px 2px rgba(0,0,0,.2); }
         .pk-toggle-input:checked + .pk-toggle-sm { background:#7c3aed; }
         .pk-toggle-input:checked + .pk-toggle-sm::after { transform:translateX(12px); }
-        #eInvitedList li[data-iname] { display:flex;align-items:center;gap:.4rem; }
+        #eInvitedList li[data-iname] { display:flex;align-items:center;gap:.4rem;cursor:grab; }
+        #eInvitedList li[data-iname].inv-dragging { opacity:.4;background:#dbeafe; }
+        .inv-rsvp-badge { font-size:.6rem;font-weight:700;padding:.1rem .35rem;border-radius:3px;text-transform:uppercase;letter-spacing:.03em;flex-shrink:0; }
+        .inv-rsvp-yes { background:#dcfce7;color:#166534; }
+        .inv-rsvp-no { background:#fee2e2;color:#991b1b; }
+        .inv-rsvp-maybe { background:#fef9c3;color:#854d0e; }
+        .inv-rsvp-waitlist { background:#eff6ff;color:#1e40af;border:1px solid #93c5fd; }
+        .inv-capacity-divider {
+            padding:.3rem .5rem;text-align:center;font-size:.7rem;font-weight:700;
+            color:#dc2626;background:#fee2e2;border-top:2px dashed #fca5a5;border-bottom:2px dashed #fca5a5;
+            margin:.2rem 0;letter-spacing:.03em;cursor:default !important;user-select:none;
+        }
+        .inv-declined-divider {
+            padding:.4rem .5rem;text-align:center;font-size:.75rem;font-weight:700;
+            color:#64748b;background:#f1f5f9;border-top:1.5px solid #e2e8f0;
+            margin:.3rem 0 .1rem;cursor:pointer !important;user-select:none;
+        }
+        .inv-declined-divider:hover { background:#e2e8f0; }
+        .inv-declined-item { opacity:.5;cursor:default !important; }
+        .inv-declined-item .inv-rsvp-badge { display:inline-block !important; }
 
         /* Invite panel */
         .edit-invite-panel { display:grid;grid-template-columns:1fr 1fr;gap:.75rem;padding:0 1.25rem;flex-shrink:0; }
@@ -1363,6 +1436,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             Saved
         </div>
         <div id="vMeta"    class="ev-view-meta"></div>
+        <div id="vWaitlistNotice" style="display:none;padding:.4rem .75rem;margin:.4rem 0;font-size:.82rem;font-weight:600;color:#1e40af;background:#eff6ff;border:1px solid #93c5fd;border-radius:6px"></div>
         <div id="vRecurr" class="ev-view-meta" style="font-style:italic"></div>
         <div id="vDesc"    class="ev-view-desc"></div>
         <?php if ($current): ?>
@@ -1600,9 +1674,47 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
                     <button type="button" class="btn btn-outline" style="font-size:.8rem;white-space:nowrap;width:100%" onclick="addBlankInviteRow()">+ Custom Invitee</button>
                     <label class="edit-notify-row" style="display:flex;align-items:center;gap:.5rem;cursor:pointer">
                         <span style="font-size:.82rem;color:#475569">Poker Game</span>
-                        <input type="checkbox" name="is_poker" id="eIsPoker" value="1" class="pk-toggle-input">
+                        <input type="checkbox" name="is_poker" id="eIsPoker" value="1" class="pk-toggle-input"
+                               onchange="togglePokerFields()">
                         <span class="pk-toggle-slider"></span>
                     </label>
+                    <div id="ePokerFields" style="display:none;width:100%;border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc;padding:.5rem .6rem">
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem .6rem;font-size:.78rem;color:#475569">
+                            <label>Game type
+                                <select name="poker_game_type" id="ePokerGameType" style="width:100%;padding:.3rem;border:1px solid #cbd5e1;border-radius:4px;font-size:.78rem;background:#fff">
+                                    <option value="tournament">Tournament</option>
+                                    <option value="cash">Cash game</option>
+                                </select>
+                            </label>
+                            <label>Buy-in ($)
+                                <input type="number" name="poker_buyin" id="ePokerBuyin" min="0" step="0.01" value="20.00"
+                                       style="width:100%;padding:.3rem;border:1px solid #cbd5e1;border-radius:4px;font-size:.78rem">
+                            </label>
+                            <label>Tables
+                                <input type="number" name="poker_tables" id="ePokerTables" min="1" max="50" value="1"
+                                       style="width:100%;padding:.3rem;border:1px solid #cbd5e1;border-radius:4px;font-size:.78rem"
+                                       onchange="updateCapacityLine()" oninput="updateCapacityLine()">
+                            </label>
+                            <label>Seats/table
+                                <input type="number" name="poker_seats" id="ePokerSeats" min="2" max="12" value="8"
+                                       style="width:100%;padding:.3rem;border:1px solid #cbd5e1;border-radius:4px;font-size:.78rem"
+                                       onchange="updateCapacityLine()" oninput="updateCapacityLine()">
+                            </label>
+                        </div>
+                        <div style="margin-top:.4rem;font-size:.78rem;color:#475569">
+                            <label>RSVP deadline
+                                <select name="rsvp_deadline_hours" id="eRsvpDeadline" style="width:100%;padding:.3rem;border:1px solid #cbd5e1;border-radius:4px;font-size:.78rem;background:#fff">
+                                    <option value="">None</option>
+                                    <option value="24">24 hours before</option>
+                                    <option value="48">48 hours before</option>
+                                    <option value="72">72 hours before</option>
+                                </select>
+                            </label>
+                        </div>
+                        <div id="eCapacityHint" style="margin-top:.4rem;font-size:.72rem;font-weight:600;color:#2563eb">
+                            Capacity: 8 seats
+                        </div>
+                    </div>
                     <label class="edit-notify-row" style="display:flex;align-items:center;gap:.5rem;cursor:pointer">
                         <span style="font-size:.82rem;color:#475569">Don't Notify</span>
                         <input type="checkbox" name="suppress_notify" id="eSuppressNotify" value="1" class="pk-toggle-input">
@@ -1640,6 +1752,7 @@ let currentEvent = null;
 const eventComments      = <?= json_encode($ev_comments, JSON_HEX_TAG) ?>;
 const eventInvites       = <?= json_encode($ev_invites, JSON_HEX_TAG) ?>;
 const eventInvitesByOcc  = <?= json_encode($ev_invites_occ, JSON_HEX_TAG) ?>;
+const eventPoker         = <?= json_encode($ev_poker, JSON_HEX_TAG | JSON_FORCE_OBJECT) ?>;
 const CURRENT_USERNAME  = <?= json_encode($current['username'] ?? '', JSON_HEX_TAG) ?>;
 const CURRENT_USER_ID   = <?= json_encode($current['id'] ?? null, JSON_HEX_TAG) ?>;
 const CAL_REDIR         = '/calendar.php?m=<?= htmlspecialchars($monthParam) ?>';
@@ -1676,7 +1789,36 @@ function viewEvent(ev) {
         meta += '  \u00b7  ' + fmt12(ev.start_time);
         if (ev.end_time) meta += ' \u2013 ' + fmt12(ev.end_time);
     }
+    // Seat count for poker events
+    var ps = ev ? (eventPoker[ev.id] || null) : null;
+    if (ps) {
+        var cap = (parseInt(ps.seats_per_table,10) || 8) * (parseInt(ps.num_tables,10) || 1);
+        var invList = eventInvites[ev.id] || [];
+        var yesCount = invList.filter(function(i) { return i.rsvp === 'yes' && i.approval_status === 'approved'; }).length;
+        meta += '  \u00b7  ' + yesCount + '/' + cap + ' seats filled';
+    }
     document.getElementById('vMeta').textContent = meta;
+
+    // Waitlist notice for the current user
+    var vWaitlistEl = document.getElementById('vWaitlistNotice');
+    if (vWaitlistEl) vWaitlistEl.style.display = 'none';
+    if (ps && CURRENT_USERNAME) {
+        var allInvSorted = (eventInvites[ev.id] || []).slice().sort(function(a,b) { return (a.sort_order||999)-(b.sort_order||999); });
+        var myInv = allInvSorted.find(function(i) { return i.username.toLowerCase() === CURRENT_USERNAME.toLowerCase(); });
+        if (myInv && myInv.approval_status === 'waitlisted') {
+            var wlPos = 0;
+            allInvSorted.forEach(function(i,idx) {
+                if (i.approval_status === 'waitlisted' && i.username.toLowerCase() === CURRENT_USERNAME.toLowerCase()) {
+                    wlPos = idx + 1;
+                }
+            });
+            if (vWaitlistEl) {
+                var cap2 = (parseInt(ps.seats_per_table,10)||8) * (parseInt(ps.num_tables,10)||1);
+                vWaitlistEl.textContent = 'You are on the waitlist (position #' + (wlPos - cap2) + '). You\'ll be notified if a seat opens.';
+                vWaitlistEl.style.display = '';
+            }
+        }
+    }
 
     document.getElementById('vRecurr').textContent = '';
 
@@ -1830,10 +1972,12 @@ function renderInvitesPanel(eid) {
     const rsvpClass  = {yes:'rsvp-yes', no:'rsvp-no', maybe:'rsvp-maybe'};
     const rsvpText   = {yes:'Yes', no:'No', maybe:'Maybe'};
 
-    // Split by approval_status. Approved rows go in the main list; pending rows
+    // Split by approval_status. Approved non-declined go in the main list; pending rows
     // get their own section visible only to managers (creator/manager/admin).
-    const approved = allInvites.filter(inv => (inv.approval_status || 'approved') === 'approved');
+    // Declined (rsvp='no') are hidden from the view entirely.
+    const approved = allInvites.filter(inv => (inv.approval_status || 'approved') === 'approved' && inv.rsvp !== 'no');
     const pending  = allInvites.filter(inv => (inv.approval_status || 'approved') === 'pending');
+    const waitlisted = allInvites.filter(inv => inv.approval_status === 'waitlisted');
 
     let ih = '';
     if (approved.length) {
@@ -1872,6 +2016,16 @@ function renderInvitesPanel(eid) {
             ih += '<button type="button" class="btn-approve-inv" data-eid="' + eid + '" data-username="' + escHtml(inv.username) + '" style="font-size:.75rem;padding:.2rem .55rem;border-radius:5px;border:0;background:#16a34a;color:#fff;font-weight:600;cursor:pointer">Approve</button>';
             ih += '<button type="button" class="btn-deny-inv" data-eid="' + eid + '" data-username="' + escHtml(inv.username) + '" style="font-size:.75rem;padding:.2rem .55rem;border-radius:5px;border:0;background:#dc2626;color:#fff;font-weight:600;cursor:pointer">Deny</button>';
             ih += '</div>';
+        });
+        ih += '</div>';
+    }
+
+    // Waitlisted section
+    if (waitlisted.length) {
+        ih += '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#1e40af;margin-top:.7rem;margin-bottom:.4rem">Waitlisted (' + waitlisted.length + ')</div>';
+        ih += '<div style="display:flex;flex-direction:column;gap:.2rem;max-height:5rem;overflow-y:auto;padding-right:.25rem;opacity:.7">';
+        waitlisted.forEach(inv => {
+            ih += '<div style="font-size:.82rem;color:#475569;padding:.15rem 0">' + escHtml(inv.username) + '</div>';
         });
         ih += '</div>';
     }
@@ -2421,24 +2575,35 @@ function filterAllUsers(q) {
 }
 
 // ── Invited pane ──────────────────────────────────────────────────────────────
-function inviteUser(username, phone, email, rsvp, role) {
+function inviteUser(username, phone, email, rsvp, role, approvalStatus) {
     // Skip if already invited
     const existing = Array.from(document.querySelectorAll('#eInvitedList li[data-iname]'))
         .map(li => li.dataset.iname.toLowerCase());
     if (existing.includes(username.toLowerCase())) return;
 
     const li = document.createElement('li');
-    li.dataset.iname  = username;
-    li.dataset.iphone = phone  || '';
-    li.dataset.iemail = email  || '';
-    li.dataset.irsvp  = rsvp   || '';
-    li.dataset.irole  = role   || 'invitee';
+    li.dataset.iname    = username;
+    li.dataset.iphone   = phone  || '';
+    li.dataset.iemail   = email  || '';
+    li.dataset.irsvp    = rsvp   || '';
+    li.dataset.irole    = role   || 'invitee';
+    li.dataset.istatus  = approvalStatus || 'approved';
 
-    // Build content: name + manager toggle (only for admins/creators)
+    // Build content: name + RSVP badge + manager toggle
     const nameSpan = document.createElement('span');
     nameSpan.textContent = username;
     nameSpan.className = 'inv-name-text';
     li.appendChild(nameSpan);
+
+    // RSVP status badge
+    var badge = document.createElement('span');
+    badge.className = 'inv-rsvp-badge';
+    if (rsvp === 'yes')        { badge.textContent = 'Yes';    badge.classList.add('inv-rsvp-yes'); }
+    else if (rsvp === 'no')    { badge.textContent = 'No';     badge.classList.add('inv-rsvp-no'); }
+    else if (rsvp === 'maybe') { badge.textContent = 'Maybe';  badge.classList.add('inv-rsvp-maybe'); }
+    else if (approvalStatus === 'waitlisted') { badge.textContent = 'Waitlist'; badge.classList.add('inv-rsvp-waitlist'); }
+    else                       { badge.textContent = '';        badge.style.display = 'none'; }
+    li.appendChild(badge);
 
     // Manager toggle — only shown to admins and event creators
     const editingEvId = parseInt(document.getElementById('eId').value) || 0;
@@ -2460,12 +2625,26 @@ function inviteUser(username, phone, email, rsvp, role) {
 
     li.title = isMobileInvite ? 'Tap to remove' : 'Double-click to remove';
     const removeHandler = (e) => {
-        if (e.target.closest('.mgr-toggle')) return; // Don't remove when clicking toggle
+        if (e.target.closest('.mgr-toggle')) return;
         removeInvite(username);
     };
     li.addEventListener(isMobileInvite ? 'click' : 'dblclick', removeHandler);
+
+    // Drag-and-drop for priority ordering (poker events)
+    li.draggable = true;
+    li.addEventListener('dragstart', function(e) {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', '');
+        this.classList.add('inv-dragging');
+    });
+    li.addEventListener('dragend', function() {
+        this.classList.remove('inv-dragging');
+        updateDividerLine();
+    });
+
     document.getElementById('eInvitedList').appendChild(li);
     syncInviteState();
+    updateDividerLine();
 }
 
 function removeInvite(username) {
@@ -2473,6 +2652,7 @@ function removeInvite(username) {
         .find(l => l.dataset.iname.toLowerCase() === username.toLowerCase());
     if (li) li.remove();
     syncInviteState();
+    updateDividerLine();
 }
 
 function addBlankInviteRow() {
@@ -2496,6 +2676,98 @@ function syncInviteState() {
         li.classList.toggle('dimmed', isDimmed);
         li.title = isDimmed ? 'Already invited' : 'Double-click to invite';
     });
+}
+
+// ── Drag-and-drop reorder + capacity divider ────────────────────────────────
+(function() {
+    var ul = document.getElementById('eInvitedList');
+    if (!ul) return;
+    ul.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        var dragging = ul.querySelector('.inv-dragging');
+        if (!dragging) return;
+        var afterEl = getDragAfterElement(ul, e.clientY);
+        if (afterEl) ul.insertBefore(dragging, afterEl);
+        else ul.appendChild(dragging);
+    });
+    function getDragAfterElement(container, y) {
+        var items = Array.from(container.querySelectorAll('li[data-iname]:not(.inv-dragging)'));
+        var closest = null, closestOffset = Number.NEGATIVE_INFINITY;
+        items.forEach(function(child) {
+            var box = child.getBoundingClientRect();
+            var offset = y - box.top - box.height / 2;
+            if (offset < 0 && offset > closestOffset) { closestOffset = offset; closest = child; }
+        });
+        return closest;
+    }
+})();
+
+function updateDividerLine() {
+    var ul = document.getElementById('eInvitedList');
+    if (!ul) return;
+
+    // Remove old dividers only (not the LI items themselves)
+    ul.querySelectorAll('.inv-capacity-divider, .inv-declined-divider').forEach(function(el) { el.remove(); });
+    // Reset declined styling on all items so we can re-sort
+    ul.querySelectorAll('.inv-declined-item').forEach(function(li) {
+        li.classList.remove('inv-declined-item');
+        li.draggable = true;
+        li.style.display = '';
+    });
+
+    var cap = getPokerCapacity();
+
+    // Separate active (non-declined) from declined
+    var allItems = Array.from(ul.querySelectorAll('li[data-iname]'));
+    var active = [];
+    var declined = [];
+    allItems.forEach(function(li) {
+        if (li.dataset.irsvp === 'no') {
+            declined.push(li);
+        } else {
+            active.push(li);
+        }
+    });
+
+    // Re-append active items first (preserves their order), then declined
+    active.forEach(function(li) { ul.appendChild(li); });
+
+    // Insert capacity divider among active items
+    if (cap > 0 && active.length > cap) {
+        var divider = document.createElement('li');
+        divider.className = 'inv-capacity-divider';
+        divider.textContent = '--- Seat cutoff (' + cap + ' seats) --- waitlist below ---';
+        divider.draggable = false;
+        ul.insertBefore(divider, active[cap]);
+    }
+
+    // Add declined section at the bottom
+    if (declined.length > 0) {
+        var decDivider = document.createElement('li');
+        decDivider.className = 'inv-declined-divider';
+        decDivider.innerHTML = '&blacktriangledown; Declined (' + declined.length + ')';
+        decDivider.draggable = false;
+        decDivider.onclick = function() { toggleDeclined(); };
+        ul.appendChild(decDivider);
+
+        declined.forEach(function(li) {
+            li.classList.add('inv-declined-item');
+            li.draggable = false;
+            ul.appendChild(li);
+        });
+    }
+}
+
+function toggleDeclined() {
+    var items = document.querySelectorAll('#eInvitedList .inv-declined-item');
+    var allHidden = items.length > 0 && items[0].style.display === 'none';
+    items.forEach(function(li) { li.style.display = allHidden ? '' : 'none'; });
+    var divider = document.querySelector('.inv-declined-divider');
+    if (divider) {
+        var count = items.length;
+        divider.innerHTML = (allHidden ? '&blacktriangledown;' : '&blacktriangleright;') + ' Declined (' + count + ')';
+    }
 }
 
 // Sync hidden inputs from invited pane before submit
@@ -2536,24 +2808,29 @@ document.getElementById('editForm').addEventListener('submit', function() {
         inp.type = 'hidden'; inp.name = name; inp.value = val;
         container.appendChild(inp);
     }
-    // Regular invited users
+    // Regular invited users (order in DOM = priority order)
+    var sortIdx = 0;
     document.querySelectorAll('#eInvitedList li[data-iname]').forEach(li => {
-        addHidden('invite_username[]', li.dataset.iname);
-        addHidden('invite_phone[]',    li.dataset.iphone);
-        addHidden('invite_email[]',    li.dataset.iemail);
-        addHidden('invite_rsvp[]',     li.dataset.irsvp);
-        addHidden('invite_role[]',     li.dataset.irole || 'invitee');
+        sortIdx++;
+        addHidden('invite_username[]',   li.dataset.iname);
+        addHidden('invite_phone[]',      li.dataset.iphone);
+        addHidden('invite_email[]',      li.dataset.iemail);
+        addHidden('invite_rsvp[]',       li.dataset.irsvp);
+        addHidden('invite_role[]',       li.dataset.irole || 'invitee');
+        addHidden('invite_sort_order[]', sortIdx);
     });
     // Custom rows
     document.querySelectorAll('#eInvitedList li.custom-row').forEach(li => {
         const uname = li.querySelector('.cr-name').value.trim();
         const email = li.querySelector('.cr-email').value.trim();
         if (!uname) return;
-        addHidden('invite_username[]', uname);
-        addHidden('invite_phone[]',    '');
-        addHidden('invite_email[]',    email);
-        addHidden('invite_rsvp[]',     '');
-        addHidden('invite_role[]',     'invitee');
+        sortIdx++;
+        addHidden('invite_username[]',   uname);
+        addHidden('invite_phone[]',      '');
+        addHidden('invite_email[]',      email);
+        addHidden('invite_rsvp[]',       '');
+        addHidden('invite_role[]',       'invitee');
+        addHidden('invite_sort_order[]', sortIdx);
     });
 });
 
@@ -2571,6 +2848,14 @@ function openEditModal(ev) {
     document.getElementById('eSuppressNotify').checked = false;
     document.getElementById('eIsPoker').checked = ev ? !!parseInt(ev.is_poker) : true;
     document.getElementById('eRequiresApproval').checked = ev ? !!parseInt(ev.requires_approval) : false;
+    // Pre-fill poker session fields
+    var ps = ev ? (eventPoker[ev.id] || null) : null;
+    document.getElementById('ePokerGameType').value = ps ? ps.game_type : 'tournament';
+    document.getElementById('ePokerBuyin').value    = ps ? (parseInt(ps.buyin_amount,10)/100).toFixed(2) : '20.00';
+    document.getElementById('ePokerTables').value   = ps ? ps.num_tables : '1';
+    document.getElementById('ePokerSeats').value    = ps ? ps.seats_per_table : '8';
+    document.getElementById('eRsvpDeadline').value  = (ev && ev.rsvp_deadline_hours) ? String(ev.rsvp_deadline_hours) : '';
+    togglePokerFields();
     // League + visibility
     var lgSel  = document.getElementById('eLeagueId');
     var visSel = document.getElementById('eVisibility');
@@ -2601,10 +2886,11 @@ function openEditModal(ev) {
     document.getElementById('eInvitedList').innerHTML = '';
     if (ev) {
         (eventInvites[ev.id] || []).forEach(inv =>
-            inviteUser(inv.username, inv.phone || '', inv.email || '', inv.rsvp || '', inv.event_role || 'invitee'));
+            inviteUser(inv.username, inv.phone || '', inv.email || '', inv.rsvp || '', inv.event_role || 'invitee', inv.approval_status || 'approved'));
     }
     syncInviteState();
     filterAllUsers('');
+    updateDividerLine();
     // Fetch the scoped contact list for the current league selection.
     refreshUserList();
 
@@ -2617,6 +2903,25 @@ function openEditModal(ev) {
 }
 function editFromView() { openEditModal(currentEvent); }
 function closeEdit() { document.getElementById('editModal').classList.remove('open'); }
+
+function togglePokerFields() {
+    var show = document.getElementById('eIsPoker').checked;
+    document.getElementById('ePokerFields').style.display = show ? '' : 'none';
+    if (show) updateCapacityLine();
+}
+function updateCapacityLine() {
+    var tables = parseInt(document.getElementById('ePokerTables').value, 10) || 1;
+    var seats  = parseInt(document.getElementById('ePokerSeats').value, 10) || 8;
+    var cap    = tables * seats;
+    document.getElementById('eCapacityHint').textContent = 'Capacity: ' + cap + ' seat' + (cap !== 1 ? 's' : '');
+    if (typeof updateDividerLine === 'function') updateDividerLine();
+}
+function getPokerCapacity() {
+    if (!document.getElementById('eIsPoker').checked) return 0;
+    var tables = parseInt(document.getElementById('ePokerTables').value, 10) || 1;
+    var seats  = parseInt(document.getElementById('ePokerSeats').value, 10) || 8;
+    return tables * seats;
+}
 
 function onLeagueChange() {
     var lgSel  = document.getElementById('eLeagueId');

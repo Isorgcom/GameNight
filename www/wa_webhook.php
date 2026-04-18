@@ -211,6 +211,7 @@ if ($directNumber !== null || $directAll) {
         $count = 0;
         foreach ($invites as $inv) {
             $db->prepare('UPDATE event_invites SET rsvp = ? WHERE id = ?')->execute([$rsvp, $inv['invite_id']]);
+            if ($rsvp === 'no') maybe_promote_waitlisted($db, (int)$inv['event_id']);
             $db->prepare('INSERT INTO activity_log (user_id, action, ip) VALUES (?, ?, ?)')
                ->execute([$user['id'], "WhatsApp RSVP $rsvp for event id: " . $inv['event_id'], $from]);
             $count++;
@@ -223,6 +224,7 @@ if ($directNumber !== null || $directAll) {
     if ($idx >= 0 && $idx < count($invites)) {
         $invite = $invites[$idx];
         $db->prepare('UPDATE event_invites SET rsvp = ? WHERE id = ?')->execute([$rsvp, $invite['invite_id']]);
+        if ($rsvp === 'no') maybe_promote_waitlisted($db, (int)$invite['event_id']);
         $db->prepare('INSERT INTO activity_log (user_id, action, ip) VALUES (?, ?, ?)')
            ->execute([$user['id'], "WhatsApp RSVP $rsvp for event id: " . $invite['event_id'], $from]);
         send_whatsapp($from, "Got it! Your RSVP for \"{$invite['title']}\" on {$invite['start_date']} is now: " . ucfirst($rsvp) . ".");
@@ -248,6 +250,7 @@ if ($isNumber || $isAll) {
             $count = 0;
             foreach ($invites as $inv) {
                 $db->prepare('UPDATE event_invites SET rsvp = ? WHERE id = ?')->execute([$rsvp, $inv['invite_id']]);
+                if ($rsvp === 'no') maybe_promote_waitlisted($db, (int)$inv['event_id']);
                 $db->prepare('INSERT INTO activity_log (user_id, action, ip) VALUES (?, ?, ?)')
                    ->execute([$user['id'], "WhatsApp RSVP $rsvp for event id: " . $inv['event_id'], $from]);
                 $count++;
@@ -261,6 +264,7 @@ if ($isNumber || $isAll) {
         if ($idx >= 0 && $idx < count($invites)) {
             $invite = $invites[$idx];
             $db->prepare('UPDATE event_invites SET rsvp = ? WHERE id = ?')->execute([$rsvp, $invite['invite_id']]);
+            if ($rsvp === 'no') maybe_promote_waitlisted($db, (int)$invite['event_id']);
             $db->prepare('INSERT INTO activity_log (user_id, action, ip) VALUES (?, ?, ?)')
                ->execute([$user['id'], "WhatsApp RSVP $rsvp for event id: " . $invite['event_id'], $from]);
             send_whatsapp($from, "Got it! Your RSVP for \"{$invite['title']}\" on {$invite['start_date']} is now: " . ucfirst($rsvp) . ".");
@@ -291,6 +295,7 @@ if (empty($invites)) {
 if (count($invites) === 1) {
     $invite = $invites[0];
     $db->prepare('UPDATE event_invites SET rsvp = ? WHERE id = ?')->execute([$rsvp, $invite['invite_id']]);
+    if ($rsvp === 'no') maybe_promote_waitlisted($db, (int)$invite['event_id']);
     $db->prepare('INSERT INTO activity_log (user_id, action, ip) VALUES (?, ?, ?)')
        ->execute([$user['id'], "WhatsApp RSVP $rsvp for event id: " . $invite['event_id'], $from]);
     $label = ucfirst($rsvp);
