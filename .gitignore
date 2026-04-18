@@ -32,3 +32,7 @@ www/phpadmin/phpliteadmin.php
 
 # WAHA WhatsApp session data
 waha_data/
+
+# Local test environment data
+db-test/
+uploads-test/
