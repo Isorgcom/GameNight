@@ -142,6 +142,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $poker_tables      = max(1, (int)($_POST['poker_tables'] ?? 1));
         $poker_seats       = max(2, (int)($_POST['poker_seats']  ?? 8));
         $rsvp_deadline_hrs = (int)($_POST['rsvp_deadline_hours'] ?? 0) ?: null;
+        $waitlist_enabled  = !empty($_POST['waitlist_enabled']) ? 1 : 0;
 
         if ($title === '' || $sd === '') {
             $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Title and start date are required.'];
@@ -149,9 +150,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid date format.'];
         } else {
             if ($action === 'add') {
-                $db->prepare('INSERT INTO events (title, description, start_date, end_date, start_time, end_time, color, recurrence, recurrence_end, created_by, requires_approval, league_id, visibility, is_poker, rsvp_deadline_hours)
-                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $recurrence, $recEnd, $current['id'], $requires_approval, $league_id, $visibility, $is_poker, $rsvp_deadline_hrs]);
+                $db->prepare('INSERT INTO events (title, description, start_date, end_date, start_time, end_time, color, recurrence, recurrence_end, created_by, requires_approval, league_id, visibility, is_poker, rsvp_deadline_hours, waitlist_enabled)
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $recurrence, $recEnd, $current['id'], $requires_approval, $league_id, $visibility, $is_poker, $rsvp_deadline_hrs, $waitlist_enabled]);
                 $new_eid = (int)$db->lastInsertId();
                 // Auto-create poker session if is_poker
                 if ($is_poker) {
@@ -163,8 +164,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
                 $save_invites($new_eid);
-                // For poker events, mark invitees beyond capacity as waitlisted
-                if ($is_poker) {
+                // For poker events with waitlist enabled, mark invitees beyond capacity as waitlisted
+                if ($is_poker && $waitlist_enabled) {
                     $cap = $poker_tables * $poker_seats;
                     $db->prepare(
                         "UPDATE event_invites SET approval_status = 'waitlisted'
@@ -197,8 +198,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
 
-                $db->prepare('UPDATE events SET title=?, description=?, start_date=?, end_date=?, start_time=?, end_time=?, color=?, recurrence=?, recurrence_end=?, requires_approval=?, league_id=?, visibility=?, is_poker=?, rsvp_deadline_hours=? WHERE id=?')
-                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $recurrence, $recEnd, $requires_approval, $league_id, $visibility, $is_poker, $rsvp_deadline_hrs, $id]);
+                $db->prepare('UPDATE events SET title=?, description=?, start_date=?, end_date=?, start_time=?, end_time=?, color=?, recurrence=?, recurrence_end=?, requires_approval=?, league_id=?, visibility=?, is_poker=?, rsvp_deadline_hours=?, waitlist_enabled=? WHERE id=?')
+                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $recurrence, $recEnd, $requires_approval, $league_id, $visibility, $is_poker, $rsvp_deadline_hrs, $waitlist_enabled, $id]);
                 // Update or create poker session
                 if ($is_poker) {
                     $chkPs = $db->prepare('SELECT id FROM poker_sessions WHERE event_id = ?');
@@ -268,14 +269,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
 
-                // For poker events, mark invitees beyond capacity as waitlisted, then promote if seats opened
-                if ($is_poker) {
+                // For poker events with waitlist enabled, mark invitees beyond capacity as waitlisted
+                if ($is_poker && $waitlist_enabled) {
                     $cap = $poker_tables * $poker_seats;
                     $db->prepare(
                         "UPDATE event_invites SET approval_status = 'waitlisted'
                          WHERE event_id = ? AND occurrence_date IS NULL AND sort_order > ? AND approval_status = 'approved'"
                     )->execute([$id, $cap]);
                     maybe_promote_waitlisted($db, $id);
+                } elseif ($is_poker && !$waitlist_enabled) {
+                    $db->prepare("UPDATE event_invites SET approval_status = 'approved' WHERE event_id = ? AND occurrence_date IS NULL AND approval_status = 'waitlisted'")
+                       ->execute([$id]);
                 }
                 db_log_activity($current['id'], "edited event id: $id");
                 $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event updated.'];

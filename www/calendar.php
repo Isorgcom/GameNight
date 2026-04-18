@@ -170,6 +170,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $poker_tables      = max(1, (int)($_POST['poker_tables'] ?? 1));
             $poker_seats       = max(2, (int)($_POST['poker_seats']  ?? 8));
             $rsvp_deadline_hrs = (int)($_POST['rsvp_deadline_hours'] ?? 0) ?: null;
+            $waitlist_enabled  = !empty($_POST['waitlist_enabled']) ? 1 : 0;
 
             // League + visibility
             $req_league_id = (int)($_POST['league_id'] ?? 0);
@@ -185,17 +186,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $new_invitee_usernames = [];
             if ($action === 'add') {
-                $db->prepare('INSERT INTO events (title, description, start_date, end_date, start_time, end_time, color, created_by, is_poker, requires_approval, league_id, visibility, rsvp_deadline_hours)
-                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $current['id'], $is_poker, $requires_approval, $league_id, $visibility, $rsvp_deadline_hrs]);
+                $db->prepare('INSERT INTO events (title, description, start_date, end_date, start_time, end_time, color, created_by, is_poker, requires_approval, league_id, visibility, rsvp_deadline_hours, waitlist_enabled)
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $current['id'], $is_poker, $requires_approval, $league_id, $visibility, $rsvp_deadline_hrs, $waitlist_enabled]);
                 $notify_eid = (int)$db->lastInsertId();
                 if ($is_poker) {
                     $db->prepare('INSERT OR IGNORE INTO poker_sessions (event_id, buyin_amount, num_tables, seats_per_table, game_type) VALUES (?, ?, ?, ?, ?)')
                        ->execute([$notify_eid, $poker_buyin, $poker_tables, $poker_seats, $poker_game_type]);
                 }
                 $save_invites($notify_eid, $new_invitee_usernames);
-                // For poker events, mark invitees beyond capacity as waitlisted, then promote if seats opened
-                if ($is_poker) {
+                // For poker events with waitlist enabled, mark invitees beyond capacity as waitlisted
+                if ($is_poker && $waitlist_enabled) {
                     $cap = $poker_tables * $poker_seats;
                     $db->prepare(
                         "UPDATE event_invites SET approval_status = 'waitlisted'
@@ -215,8 +216,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                            ->execute([$id]);
                     }
                 }
-                $db->prepare('UPDATE events SET title=?, description=?, start_date=?, end_date=?, start_time=?, end_time=?, color=?, is_poker=?, requires_approval=?, league_id=?, visibility=?, rsvp_deadline_hours=? WHERE id=?')
-                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $is_poker, $requires_approval, $league_id, $visibility, $rsvp_deadline_hrs, $id]);
+                $db->prepare('UPDATE events SET title=?, description=?, start_date=?, end_date=?, start_time=?, end_time=?, color=?, is_poker=?, requires_approval=?, league_id=?, visibility=?, rsvp_deadline_hours=?, waitlist_enabled=? WHERE id=?')
+                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $is_poker, $requires_approval, $league_id, $visibility, $rsvp_deadline_hrs, $waitlist_enabled, $id]);
                 if ($is_poker) {
                     $chkPs = $db->prepare('SELECT id FROM poker_sessions WHERE event_id = ?');
                     $chkPs->execute([$id]);
@@ -230,14 +231,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $notify_eid = $id;
                 $save_invites($id, $new_invitee_usernames);
-                // For poker events, mark invitees beyond capacity as waitlisted, then promote if seats opened
-                if ($is_poker) {
+                // For poker events with waitlist enabled, mark invitees beyond capacity as waitlisted
+                if ($is_poker && $waitlist_enabled) {
                     $cap = $poker_tables * $poker_seats;
                     $db->prepare(
                         "UPDATE event_invites SET approval_status = 'waitlisted'
                          WHERE event_id = ? AND occurrence_date IS NULL AND sort_order > ? AND approval_status = 'approved'"
                     )->execute([$id, $cap]);
                     maybe_promote_waitlisted($db, $id);
+                } elseif ($is_poker && !$waitlist_enabled) {
+                    // Waitlist disabled — approve everyone
+                    $db->prepare("UPDATE event_invites SET approval_status = 'approved' WHERE event_id = ? AND occurrence_date IS NULL AND approval_status = 'waitlisted'")
+                       ->execute([$id]);
                 }
                 db_log_activity($current['id'], "edited event id: $id");
                 $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event updated.'];
@@ -1023,7 +1028,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
 
         /* Header row: color dot + title + date + time + duration */
         .ev-league-badge { display:inline-block;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:.2rem .6rem;border-radius:999px;background:#dbeafe;color:#1e40af;white-space:nowrap;vertical-align:middle; }
-        .edit-top-bar { display:flex;align-items:center;gap:.5rem;padding:.5rem 1rem;flex-wrap:wrap;flex-shrink:0;border-bottom:1px solid #e2e8f0;background:#f8fafc; }
+        .edit-top-bar { display:flex;align-items:center;gap:.75rem;padding:.6rem 1.25rem;flex-wrap:wrap;flex-shrink:0;border-bottom:1px solid #e2e8f0;background:#f8fafc; }
         .edit-top-bar select, .edit-top-bar input[type="text"], .edit-top-bar input[type="date"], .edit-top-bar input[type="time"] {
             padding:.32rem .45rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.82rem;background:#fff;color:#1e293b;
         }
@@ -1608,6 +1613,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             <div class="edit-toolbar">
                 <button type="button" class="btn btn-outline" onclick="addBlankInviteRow()">+ Custom Invitee</button>
                 <label class="edit-notify-row"><span>Poker</span><input type="checkbox" name="is_poker" id="eIsPoker" value="1" class="pk-toggle-input" onchange="togglePokerFields()"><span class="pk-toggle-slider"></span></label>
+                <label class="edit-notify-row" id="eWaitlistLabel" style="display:none"><span>Waitlist</span><input type="checkbox" name="waitlist_enabled" id="eWaitlistEnabled" value="1" class="pk-toggle-input" onchange="updateCapacityLine()"><span class="pk-toggle-slider"></span></label>
                 <label class="edit-notify-row"><span>Mute</span><input type="checkbox" name="suppress_notify" id="eSuppressNotify" value="1" class="pk-toggle-input"><span class="pk-toggle-slider"></span></label>
                 <label class="edit-notify-row" title="Walk-in QR and self-signups require approval"><span>Approval</span><input type="checkbox" name="requires_approval" id="eRequiresApproval" value="1" class="pk-toggle-input"><span class="pk-toggle-slider"></span></label>
                 <span class="edit-desc-toggle" id="eDescToggle" onclick="toggleDesc()">+ Description</span>
@@ -1619,7 +1625,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             <!-- ── Poker settings bar (inline, hidden by default) ── -->
             <div class="edit-poker-bar" id="ePokerFields" style="display:none">
                 <label>Type <select name="poker_game_type" id="ePokerGameType"><option value="tournament">Tournament</option><option value="cash">Cash</option></select></label>
-                <label>Buy-in $ <input type="number" name="poker_buyin" id="ePokerBuyin" min="0" step="0.01" value="20.00"></label>
+                <label>Buy-in $ <input type="number" name="poker_buyin" id="ePokerBuyin" min="0" step="1" value="20"></label>
                 <label>Tables <input type="number" name="poker_tables" id="ePokerTables" min="1" max="50" value="1" onchange="updateCapacityLine()" oninput="updateCapacityLine()"></label>
                 <label>Seats <input type="number" name="poker_seats" id="ePokerSeats" min="2" max="12" value="8" onchange="updateCapacityLine()" oninput="updateCapacityLine()"></label>
                 <label>Deadline <select name="rsvp_deadline_hours" id="eRsvpDeadline"><option value="">None</option><option value="24">24h</option><option value="48">48h</option><option value="72">72h</option></select></label>
@@ -2773,10 +2779,11 @@ function openEditModal(ev) {
     // Pre-fill poker session fields
     var ps = ev ? (eventPoker[ev.id] || null) : null;
     document.getElementById('ePokerGameType').value = ps ? ps.game_type : 'tournament';
-    document.getElementById('ePokerBuyin').value    = ps ? (parseInt(ps.buyin_amount,10)/100).toFixed(2) : '20.00';
+    document.getElementById('ePokerBuyin').value    = ps ? Math.round(parseInt(ps.buyin_amount,10)/100) : '20';
     document.getElementById('ePokerTables').value   = ps ? ps.num_tables : '1';
     document.getElementById('ePokerSeats').value    = ps ? ps.seats_per_table : '8';
     document.getElementById('eRsvpDeadline').value  = (ev && ev.rsvp_deadline_hours) ? String(ev.rsvp_deadline_hours) : '';
+    document.getElementById('eWaitlistEnabled').checked = ev ? !!(parseInt(ev.waitlist_enabled) || ev.waitlist_enabled === null) : true;
     togglePokerFields();
     // League + visibility
     var lgSel  = document.getElementById('eLeagueId');
@@ -2829,7 +2836,9 @@ function closeEdit() { document.getElementById('editModal').classList.remove('op
 function togglePokerFields() {
     var show = document.getElementById('eIsPoker').checked;
     document.getElementById('ePokerFields').style.display = show ? '' : 'none';
+    document.getElementById('eWaitlistLabel').style.display = show ? '' : 'none';
     if (show) updateCapacityLine();
+    else updateDividerLine(); // clear divider when poker is off
 }
 function toggleDesc() {
     var wrap = document.getElementById('eDescWrap');
@@ -2852,6 +2861,7 @@ function updateCapacityLine() {
 }
 function getPokerCapacity() {
     if (!document.getElementById('eIsPoker').checked) return 0;
+    if (!document.getElementById('eWaitlistEnabled').checked) return 0;
     var tables = parseInt(document.getElementById('ePokerTables').value, 10) || 1;
     var seats  = parseInt(document.getElementById('ePokerSeats').value, 10) || 8;
     return tables * seats;
