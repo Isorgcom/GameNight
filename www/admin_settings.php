@@ -531,8 +531,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $enabled = isset($_POST['url_shortener_enabled']) ? '1' : '0';
             set_setting('url_shortener_enabled', $enabled);
             $url_shortener_enabled = $enabled === '1';
-            db_log_activity($current['id'], 'updated URL shortener setting');
-            $_SESSION['flash'] = ['type' => 'success', 'msg' => 'URL shortener ' . ($enabled === '1' ? 'enabled.' : 'disabled.')];
+            set_setting('shortio_api_key', trim($_POST['shortio_api_key'] ?? ''));
+            set_setting('shortio_domain',  trim($_POST['shortio_domain']  ?? ''));
+            db_log_activity($current['id'], 'updated URL shortener settings');
+            $_SESSION['flash'] = ['type' => 'success', 'msg' => 'URL shortener settings saved.'];
             $post_tab = 'sms';
         }
 
@@ -2257,7 +2259,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
             <!-- URL Shortener -->
             <div class="card" style="max-width:100%">
                 <h2>URL Shortener</h2>
-                <p class="subtitle">Powered by <a href="https://is.gd" target="_blank" rel="noopener">is.gd</a> &mdash; free, no account or API key required.</p>
+                <p class="subtitle">Powered by <a href="https://short.io" target="_blank" rel="noopener">Short.io</a> &mdash; use your own custom short domain with analytics.</p>
                 <form method="post" action="/admin_settings.php">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                     <input type="hidden" name="action" value="url_shortener">
@@ -2267,11 +2269,26 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                         <input type="checkbox" name="url_shortener_enabled" value="1"
                                <?= $url_shortener_enabled ? 'checked' : '' ?>
                                style="width:1.1rem;height:1.1rem;accent-color:#2563eb">
-                        Automatically shorten URLs in outgoing SMS
+                        Automatically shorten URLs in outgoing notifications
                     </label>
                     <p style="font-size:.8rem;color:#64748b;margin:0 0 .75rem">
-                        When enabled, any <code>http://</code> or <code>https://</code> link in an outgoing SMS is replaced with a short <code>is.gd/xxxx</code> link before sending.
+                        When enabled, links in SMS messages and notification emails are shortened via Short.io. Also used for league invite links.
                     </p>
+
+                    <div class="form-group" style="margin-bottom:.75rem">
+                        <label for="shortio_api_key">Short.io API Key</label>
+                        <input type="password" name="shortio_api_key" id="shortio_api_key"
+                               value="<?= htmlspecialchars(get_setting('shortio_api_key', '')) ?>"
+                               placeholder="pk_xxxxxxxxxxxxxxxx" autocomplete="off">
+                        <p class="hint">Found at <a href="https://app.short.io/settings/integrations/api-key" target="_blank" rel="noopener">Short.io &rarr; Integrations &rarr; API Key</a>. Stored encrypted.</p>
+                    </div>
+                    <div class="form-group" style="margin-bottom:.75rem">
+                        <label for="shortio_domain">Short.io Domain</label>
+                        <input type="text" name="shortio_domain" id="shortio_domain"
+                               value="<?= htmlspecialchars(get_setting('shortio_domain', '')) ?>"
+                               placeholder="yourdomain.short.gy">
+                        <p class="hint">Your custom short domain configured in Short.io (e.g. <code>link.yourdomain.com</code> or <code>yourdomain.short.gy</code>).</p>
+                    </div>
 
                     <button type="submit" class="btn btn-primary">Save</button>
                 </form>

@@ -164,23 +164,45 @@ function surge_check_verification(string $id, string $code): string {
  * Falls back to the original URL on any failure.
  */
 function shorten_url(string $url): string {
+    $apiKey = get_setting('shortio_api_key', '');
+    $domain = get_setting('shortio_domain', '');
+    if ($apiKey === '' || $domain === '') return $url;
+
     try {
         $db = get_db();
-        // Check if this URL is already shortened
+        // Check local cache first (avoid duplicate API calls)
         $existing = $db->prepare('SELECT code FROM short_links WHERE target_url = ?');
         $existing->execute([$url]);
-        $code = $existing->fetchColumn();
-        if ($code) return get_site_url() . '/s/' . $code;
+        $cached = $existing->fetchColumn();
+        if ($cached) return $cached;
 
-        // Generate a unique 6-char code
-        $chars = 'abcdefghijkmnpqrstuvwxyz23456789'; // no l/1/o/0 to avoid confusion
-        for ($attempt = 0; $attempt < 10; $attempt++) {
-            $code = '';
-            for ($i = 0; $i < 6; $i++) $code .= $chars[random_int(0, strlen($chars) - 1)];
-            $stmt = $db->prepare('INSERT OR IGNORE INTO short_links (code, target_url) VALUES (?, ?)');
-            $stmt->execute([$code, $url]);
-            if ($stmt->rowCount() > 0) {
-                return get_site_url() . '/s/' . $code;
+        // Call Short.io API
+        $ch = curl_init('https://api.short.io/links');
+        curl_setopt_array($ch, [
+            CURLOPT_POST           => true,
+            CURLOPT_HTTPHEADER     => [
+                'Authorization: ' . $apiKey,
+                'Content-Type: application/json',
+            ],
+            CURLOPT_POSTFIELDS     => json_encode([
+                'domain'      => $domain,
+                'originalURL' => $url,
+            ]),
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 5,
+        ]);
+        $resp   = curl_exec($ch);
+        $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($status >= 200 && $status < 300) {
+            $data  = json_decode($resp, true);
+            $short = $data['shortURL'] ?? '';
+            if ($short !== '') {
+                // Cache locally so we don't call the API again for the same URL
+                $db->prepare('INSERT OR IGNORE INTO short_links (code, target_url) VALUES (?, ?)')
+                   ->execute([$short, $url]);
+                return $short;
             }
         }
     } catch (Exception $e) {}

@@ -609,6 +609,7 @@ define('ENCRYPTED_SETTINGS', [
     'smtp_pass', 'smtp_password',
     'sms_token', 'sms_webhook_secret',
     'wa_token',
+    'shortio_api_key',
 ]);
 
 $_settings_cache = [];
