@@ -163,19 +163,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
                 $save_invites($new_eid);
-                // For league-wide events, auto-populate invites with current league members.
-                if ($visibility === 'league' && $league_id !== null) {
-                    $mems = $db->prepare(
-                        'SELECT u.username, u.phone, u.email FROM league_members lm JOIN users u ON u.id = lm.user_id WHERE lm.league_id = ? AND lm.user_id != ?'
-                    );
-                    $mems->execute([$league_id, (int)$current['id']]);
-                    $addInv = $db->prepare(
-                        "INSERT OR IGNORE INTO event_invites (event_id, username, phone, email, rsvp, approval_status) VALUES (?, ?, ?, ?, NULL, 'approved')"
-                    );
-                    foreach ($mems->fetchAll() as $mem) {
-                        $addInv->execute([$new_eid, $mem['username'], $mem['phone'], $mem['email']]);
-                    }
-                }
                 // For poker events, mark invitees beyond capacity as waitlisted
                 if ($is_poker) {
                     $cap = $poker_tables * $poker_seats;
