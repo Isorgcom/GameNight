@@ -1030,17 +1030,19 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             animation: modalIn .15s ease;
         }
         /* ── Edit modal ── */
-        #editModal .modal { max-width:min(96vw,860px);display:flex;flex-direction:column;padding:0;overflow:hidden; }
+        #editModal .modal { max-width:95vw;width:95vw;max-height:95vh;height:95vh;display:flex;flex-direction:column;padding:0;overflow:hidden; }
         #editModal .modal-header { padding:.9rem 1.25rem;margin-bottom:0;border-bottom:1px solid #e2e8f0;flex-shrink:0; }
         #editModal form { display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto; }
 
         /* Header row: color dot + title + date + time + duration */
         .ev-league-badge { display:inline-block;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:.2rem .6rem;border-radius:999px;background:#dbeafe;color:#1e40af;white-space:nowrap;vertical-align:middle; }
-        .edit-league-row { display:flex;gap:.75rem;padding:.65rem 1.25rem;flex-shrink:0;background:#f0f9ff;border-left:3px solid #2563eb;border-bottom:1px solid #e2e8f0;margin:0; }
-        .edit-league-label { display:flex;align-items:center;gap:.4rem;font-size:.82rem;font-weight:600;color:#1e40af; }
-        .edit-league-label select { padding:.38rem .5rem;border:1.5px solid #bfdbfe;border-radius:6px;font-size:.82rem;background:#fff;color:#1e293b; }
-        .edit-league-label select:focus { border-color:#2563eb;outline:2px solid #2563eb;outline-offset:-1px; }
-        .edit-header-row { display:flex;align-items:center;gap:.6rem;padding:1rem 1.25rem .75rem;flex-wrap:wrap;flex-shrink:0; }
+        .edit-top-bar { display:flex;align-items:center;gap:.5rem;padding:.5rem 1rem;flex-wrap:wrap;flex-shrink:0;border-bottom:1px solid #e2e8f0;background:#f8fafc; }
+        .edit-top-bar select, .edit-top-bar input[type="text"], .edit-top-bar input[type="date"], .edit-top-bar input[type="time"] {
+            padding:.32rem .45rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.82rem;background:#fff;color:#1e293b;
+        }
+        .edit-top-bar select:focus, .edit-top-bar input:focus { border-color:#2563eb;outline:none; }
+        .edit-top-bar .edit-title-input { flex:1;min-width:140px; }
+        .edit-top-bar label { font-size:.72rem;font-weight:600;color:#64748b;display:flex;flex-direction:column;gap:.1rem; }
         .edit-header-row .form-group { margin:0; }
         #eColorDot { width:38px;height:38px;border-radius:50%;cursor:pointer;border:3px solid transparent;flex-shrink:0;transition:border-color .15s,box-shadow .15s;position:relative; }
         #eColorDot:hover { border-color:#1e293b; }
@@ -1089,8 +1091,8 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         .inv-declined-item .inv-rsvp-badge { display:inline-block !important; }
 
         /* Invite panel */
-        .edit-invite-panel { display:grid;grid-template-columns:1fr 1fr;gap:.75rem;padding:0 1.25rem;flex-shrink:0; }
-        .invite-pane { display:flex;flex-direction:column;border:1.5px solid #e2e8f0;border-radius:8px;overflow:hidden;height:220px; }
+        .edit-invite-panel { display:grid;grid-template-columns:1fr 1fr;gap:.75rem;padding:0 1.25rem;flex:1;min-height:0; }
+        .invite-pane { display:flex;flex-direction:column;border:1.5px solid #e2e8f0;border-radius:8px;overflow:hidden;min-height:200px; }
         .invite-pane-header { background:#f8fafc;padding:.35rem .65rem;font-size:.7rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;flex-shrink:0;border-bottom:1px solid #e2e8f0; }
         .invite-pane-search { width:100%;padding:.38rem .65rem;border:none;border-bottom:1.5px solid #e2e8f0;font-size:.85rem;box-sizing:border-box;flex-shrink:0; }
         .invite-pane-search:focus { outline:none;border-color:#2563eb; }
@@ -1110,12 +1112,18 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         /* hidden invite inputs container */
         #eInviteData { display:none; }
 
-        /* Bottom row */
-        .edit-desc-options { display:grid;grid-template-columns:1fr auto;gap:.75rem;padding:.75rem 1.25rem 1rem;align-items:stretch;flex-shrink:0; }
-        .edit-desc-col { display:flex;flex-direction:column;min-width:0; }
-        .edit-desc-col textarea { width:100%;resize:vertical;min-height:120px;padding:.5rem .7rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.875rem;box-sizing:border-box;font-family:inherit;flex:1; }
-        .edit-desc-col textarea:focus { outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
-        .edit-options-col { display:flex;flex-direction:column;gap:.5rem;align-items:stretch;justify-content:space-between;min-width:170px;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:7px;padding:.65rem .75rem; }
+        /* Toolbar + description */
+        .edit-toolbar { display:flex;align-items:center;gap:.6rem;padding:.4rem 1rem;flex-wrap:wrap;flex-shrink:0;border-top:1px solid #e2e8f0;background:#f8fafc; }
+        .edit-toolbar .btn { font-size:.78rem;padding:.3rem .65rem; }
+        .edit-desc-wrap { padding:0 1rem .5rem;flex-shrink:0; }
+        .edit-desc-wrap textarea { width:100%;resize:vertical;min-height:80px;max-height:150px;padding:.5rem .7rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.85rem;box-sizing:border-box;font-family:inherit; }
+        .edit-desc-wrap textarea:focus { outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
+        .edit-desc-toggle { font-size:.82rem;color:#2563eb;cursor:pointer;padding:.3rem 1rem;flex-shrink:0; }
+        .edit-desc-toggle:hover { text-decoration:underline; }
+        .edit-poker-bar { display:flex;align-items:center;gap:.5rem;padding:.3rem 1rem;flex-wrap:wrap;flex-shrink:0;background:#f0f9ff;border-top:1px solid #bfdbfe;font-size:.78rem;color:#475569; }
+        .edit-poker-bar label { display:flex;align-items:center;gap:.25rem; }
+        .edit-poker-bar select, .edit-poker-bar input { padding:.25rem .35rem;border:1px solid #cbd5e1;border-radius:4px;font-size:.78rem;background:#fff;width:auto; }
+        .edit-poker-bar input[type="number"] { width:60px; }
         .edit-notify-row { display:flex;align-items:center;gap:.4rem;font-size:.8rem;cursor:pointer;user-select:none;white-space:nowrap;color:#64748b; }
         .pk-toggle-input { display:none; }
         .pk-toggle-slider { position:relative;width:36px;height:20px;background:#cbd5e1;border-radius:99px;transition:background .2s;flex-shrink:0; }
@@ -1133,30 +1141,19 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         .color-swatch:hover { border-color: #1e293b; }
 
         @media (max-width: 1024px) {
-            /* Stack header fields vertically */
-            .edit-header-row { flex-wrap:wrap;align-items:center;gap:.75rem;padding:1rem; }
-            #eColorDotWrap { order:-1; }
-            .edit-title-input { order:-1;flex:1 1 calc(100% - 50px);height:auto; }
-            .edit-hdr-field { width:100%; }
-            .edit-hdr-label { font-size:.85rem; }
-            .edit-hdr-field select,
-            .edit-hdr-field input,
-            .edit-hdr-dur select { min-height:44px;font-size:1rem;padding:.4rem .5rem; }
-            #eColorDot { width:32px;height:32px; }
+            .edit-top-bar { gap:.5rem;padding:.5rem .75rem; }
+            .edit-top-bar .edit-title-input { flex:1 1 100%;min-width:0; }
 
-            /* Invite panes */
-            .edit-invite-panel { grid-template-columns:1fr;height:auto;padding:0 1rem; }
-            .invite-pane { height:200px; }
+            .edit-invite-panel { grid-template-columns:1fr;height:auto;padding:0 .75rem; }
+            .invite-pane { min-height:180px; }
             .invite-pane-list li { padding:.5rem .75rem;font-size:.95rem; }
             .invite-pane input[type="text"] { min-height:44px;font-size:1rem; }
             #eAllUsersList li:not(.dimmed):not(.custom-row)::after { content:'+';float:right;color:#22c55e;font-weight:700;font-size:1.1rem; }
             #eInvitedList li[data-iname]::after { content:'\00d7';float:right;color:#dc2626;font-weight:700;font-size:1.1rem; }
 
-            /* Bottom actions full-width */
-            .edit-desc-options { grid-template-columns:1fr;gap:.75rem;padding:.75rem 1rem 1rem; }
-            .edit-options-col { align-items:stretch; }
-            .edit-options-col button,
-            .edit-options-col .btn { width:100%;min-height:44px;font-size:.95rem; }
+            .edit-toolbar { gap:.4rem;padding:.4rem .75rem; }
+            .edit-toolbar .btn { width:auto;min-height:38px;font-size:.85rem; }
+            .edit-poker-bar { padding:.3rem .75rem; }
         }
         @keyframes rsvpSavedFade { 0%,60%{opacity:1} 100%{opacity:0} }
         .rsvp-saved-anim { animation: rsvpSavedFade 3s ease forwards; }
@@ -1582,10 +1579,9 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             <input type="hidden" name="end_time" id="eEndTime" value="">
             <input type="hidden" name="color" id="eColor" value="#2563eb">
 
-            <!-- ── Row 0: league + visibility ── -->
-            <div class="edit-league-row">
-                <label class="edit-league-label">
-                    League
+            <!-- ── Unified top bar: league + vis + color + title + date + time + duration ── -->
+            <div class="edit-top-bar">
+                <label>League
                     <select name="league_id" id="eLeagueId" onchange="onLeagueChange()">
                         <option value="0">None</option>
                         <?php foreach ($myLeaguesForForm as $_lg): ?>
@@ -1593,59 +1589,62 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
                         <?php endforeach; ?>
                     </select>
                 </label>
-                <label class="edit-league-label">
-                    Visibility
+                <label>Visibility
                     <select name="visibility" id="eVisibility">
                         <option value="invitees_only">Invitees only</option>
                         <option value="league" id="eVisLeagueOpt" disabled>League members only</option>
-                        <?php if ($isAdmin): ?>
-                        <option value="public">Public (site-wide)</option>
-                        <?php endif; ?>
+                        <?php if ($isAdmin): ?><option value="public">Public</option><?php endif; ?>
                     </select>
                 </label>
-            </div>
-
-            <!-- ── Row 1: color dot + title + date + time + duration ── -->
-            <div class="edit-header-row">
-                <div id="eColorDotWrap">
+                <div id="eColorDotWrap" style="align-self:center">
                     <div id="eColorDot" style="background:#2563eb" onclick="toggleColorPicker(event)" title="Pick color"></div>
                     <div id="eColorPicker">
                         <?php foreach (['#2563eb','#16a34a','#dc2626','#d97706','#7c3aed','#0891b2','#db2777'] as $c): ?>
-                            <div class="color-swatch" style="background:<?= $c ?>" data-color="<?= $c ?>"
-                                 onclick="selectColor('<?= $c ?>')"></div>
+                            <div class="color-swatch" style="background:<?= $c ?>" data-color="<?= $c ?>" onclick="selectColor('<?= $c ?>')"></div>
                         <?php endforeach; ?>
                     </div>
                 </div>
                 <input type="text" name="title" id="eTitle" class="edit-title-input" placeholder="Event title" required autocomplete="off">
-                <div class="edit-hdr-field">
-                    <span class="edit-hdr-label">Date</span>
-                    <input type="date" name="start_date" id="eStartDate" required style="padding:.42rem .5rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.875rem;">
-                </div>
-                <div class="edit-hdr-field">
-                    <span class="edit-hdr-label">Start Time</span>
-                    <input type="time" id="eTimeNative" style="padding:.42rem .5rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.875rem;">
-                    <input type="hidden" name="start_time" id="eStartTime">
-                </div>
-                <div class="edit-hdr-field">
-                    <span class="edit-hdr-label">Duration</span>
-                    <select id="eDuration" style="padding:.42rem .4rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.875rem;background:#fff;cursor:pointer;">
+                <label>Date <input type="date" name="start_date" id="eStartDate" required></label>
+                <label>Time <input type="time" id="eTimeNative"><input type="hidden" name="start_time" id="eStartTime"></label>
+                <label>Duration
+                    <select id="eDuration">
                         <option value="">—</option>
-                        <option value="0.25">15 min</option>
-                        <option value="0.5">30 min</option>
-                        <option value="0.75">45 min</option>
-                        <option value="1">1 hr</option>
-                        <option value="1.5">1.5 hrs</option>
-                        <option value="2">2 hrs</option>
-                        <option value="2.5">2.5 hrs</option>
-                        <option value="3">3 hrs</option>
-                        <option value="4">4 hrs</option>
-                        <option value="6">6 hrs</option>
-                        <option value="8">8 hrs</option>
+                        <option value="0.5">30m</option><option value="1">1h</option><option value="1.5">1.5h</option>
+                        <option value="2">2h</option><option value="3">3h</option><option value="4">4h</option>
+                        <option value="6">6h</option><option value="8">8h</option>
                     </select>
-                </div>
+                </label>
             </div>
 
-            <!-- ── Row 2: dual-pane invite panel ── -->
+            <!-- ── Toolbar: toggles + actions ── -->
+            <div class="edit-toolbar">
+                <button type="button" class="btn btn-outline" onclick="addBlankInviteRow()">+ Custom Invitee</button>
+                <label class="edit-notify-row"><span>Poker</span><input type="checkbox" name="is_poker" id="eIsPoker" value="1" class="pk-toggle-input" onchange="togglePokerFields()"><span class="pk-toggle-slider"></span></label>
+                <label class="edit-notify-row"><span>Mute</span><input type="checkbox" name="suppress_notify" id="eSuppressNotify" value="1" class="pk-toggle-input"><span class="pk-toggle-slider"></span></label>
+                <label class="edit-notify-row" title="Walk-in QR and self-signups require approval"><span>Approval</span><input type="checkbox" name="requires_approval" id="eRequiresApproval" value="1" class="pk-toggle-input"><span class="pk-toggle-slider"></span></label>
+                <span class="edit-desc-toggle" id="eDescToggle" onclick="toggleDesc()">+ Description</span>
+                <div style="flex:1"></div>
+                <button type="submit" class="btn btn-primary" id="eSubmitBtn">Add Event</button>
+                <button type="button" class="btn btn-outline" onclick="closeEdit()">Cancel</button>
+            </div>
+
+            <!-- ── Poker settings bar (inline, hidden by default) ── -->
+            <div class="edit-poker-bar" id="ePokerFields" style="display:none">
+                <label>Type <select name="poker_game_type" id="ePokerGameType"><option value="tournament">Tournament</option><option value="cash">Cash</option></select></label>
+                <label>Buy-in $ <input type="number" name="poker_buyin" id="ePokerBuyin" min="0" step="0.01" value="20.00"></label>
+                <label>Tables <input type="number" name="poker_tables" id="ePokerTables" min="1" max="50" value="1" onchange="updateCapacityLine()" oninput="updateCapacityLine()"></label>
+                <label>Seats <input type="number" name="poker_seats" id="ePokerSeats" min="2" max="12" value="8" onchange="updateCapacityLine()" oninput="updateCapacityLine()"></label>
+                <label>Deadline <select name="rsvp_deadline_hours" id="eRsvpDeadline"><option value="">None</option><option value="24">24h</option><option value="48">48h</option><option value="72">72h</option></select></label>
+                <span id="eCapacityHint" style="font-weight:700;color:#2563eb">8 seats</span>
+            </div>
+
+            <!-- ── Description (collapsed by default) ── -->
+            <div class="edit-desc-wrap" id="eDescWrap" style="display:none">
+                <textarea name="description" id="eDesc" rows="3" placeholder="Event description (optional)"></textarea>
+            </div>
+
+            <!-- ── Dual-pane invite panel ── -->
             <div class="edit-invite-panel">
                 <!-- Left: all users -->
                 <div class="invite-pane">
@@ -1663,74 +1662,6 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             </div>
             <!-- Hidden inputs synced from invite lists -->
             <div id="eInviteData"></div>
-
-            <!-- ── Description + options side-by-side ── -->
-            <div class="edit-desc-options">
-                <div class="edit-desc-col">
-                    <span class="edit-hdr-label" style="margin-bottom:.3rem">Description <span style="color:#94a3b8;font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></span>
-                    <textarea name="description" id="eDesc" rows="5" style="flex:1"></textarea>
-                </div>
-                <div class="edit-options-col">
-                    <button type="button" class="btn btn-outline" style="font-size:.8rem;white-space:nowrap;width:100%" onclick="addBlankInviteRow()">+ Custom Invitee</button>
-                    <label class="edit-notify-row" style="display:flex;align-items:center;gap:.5rem;cursor:pointer">
-                        <span style="font-size:.82rem;color:#475569">Poker Game</span>
-                        <input type="checkbox" name="is_poker" id="eIsPoker" value="1" class="pk-toggle-input"
-                               onchange="togglePokerFields()">
-                        <span class="pk-toggle-slider"></span>
-                    </label>
-                    <div id="ePokerFields" style="display:none;width:100%;border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc;padding:.5rem .6rem">
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem .6rem;font-size:.78rem;color:#475569">
-                            <label>Game type
-                                <select name="poker_game_type" id="ePokerGameType" style="width:100%;padding:.3rem;border:1px solid #cbd5e1;border-radius:4px;font-size:.78rem;background:#fff">
-                                    <option value="tournament">Tournament</option>
-                                    <option value="cash">Cash game</option>
-                                </select>
-                            </label>
-                            <label>Buy-in ($)
-                                <input type="number" name="poker_buyin" id="ePokerBuyin" min="0" step="0.01" value="20.00"
-                                       style="width:100%;padding:.3rem;border:1px solid #cbd5e1;border-radius:4px;font-size:.78rem">
-                            </label>
-                            <label>Tables
-                                <input type="number" name="poker_tables" id="ePokerTables" min="1" max="50" value="1"
-                                       style="width:100%;padding:.3rem;border:1px solid #cbd5e1;border-radius:4px;font-size:.78rem"
-                                       onchange="updateCapacityLine()" oninput="updateCapacityLine()">
-                            </label>
-                            <label>Seats/table
-                                <input type="number" name="poker_seats" id="ePokerSeats" min="2" max="12" value="8"
-                                       style="width:100%;padding:.3rem;border:1px solid #cbd5e1;border-radius:4px;font-size:.78rem"
-                                       onchange="updateCapacityLine()" oninput="updateCapacityLine()">
-                            </label>
-                        </div>
-                        <div style="margin-top:.4rem;font-size:.78rem;color:#475569">
-                            <label>RSVP deadline
-                                <select name="rsvp_deadline_hours" id="eRsvpDeadline" style="width:100%;padding:.3rem;border:1px solid #cbd5e1;border-radius:4px;font-size:.78rem;background:#fff">
-                                    <option value="">None</option>
-                                    <option value="24">24 hours before</option>
-                                    <option value="48">48 hours before</option>
-                                    <option value="72">72 hours before</option>
-                                </select>
-                            </label>
-                        </div>
-                        <div id="eCapacityHint" style="margin-top:.4rem;font-size:.72rem;font-weight:600;color:#2563eb">
-                            Capacity: 8 seats
-                        </div>
-                    </div>
-                    <label class="edit-notify-row" style="display:flex;align-items:center;gap:.5rem;cursor:pointer">
-                        <span style="font-size:.82rem;color:#475569">Don't Notify</span>
-                        <input type="checkbox" name="suppress_notify" id="eSuppressNotify" value="1" class="pk-toggle-input">
-                        <span class="pk-toggle-slider"></span>
-                    </label>
-                    <label class="edit-notify-row" style="display:flex;align-items:center;gap:.5rem;cursor:pointer" title="When on, walk-in QR signups and self-signups land in a pending queue you can approve or deny.">
-                        <span style="font-size:.82rem;color:#475569">Require Approval</span>
-                        <input type="checkbox" name="requires_approval" id="eRequiresApproval" value="1" class="pk-toggle-input">
-                        <span class="pk-toggle-slider"></span>
-                    </label>
-                    <div style="display:flex;gap:.5rem;margin-top:auto">
-                        <button type="submit" class="btn btn-primary" style="flex:1" id="eSubmitBtn">Add Event</button>
-                        <button type="button" class="btn btn-outline" onclick="closeEdit()">Cancel</button>
-                    </div>
-                </div>
-            </div>
         </form>
         <?php if ($isAdmin): ?>
         <div id="eRegenWalkinWrap" style="display:none;padding:.4rem 1rem .6rem;flex-shrink:0">
@@ -2845,6 +2776,10 @@ function openEditModal(ev) {
     document.getElementById('eStartDate').value = ev ? ev.start_date : new Date().toLocaleDateString('en-CA');
     setTimePicker(ev ? (ev.start_time || '') : '');
     document.getElementById('eDesc').value      = ev ? (ev.description || '') : '';
+    // Show description section if event has one; collapse for new events
+    var hasDesc = ev && ev.description && ev.description.trim() !== '';
+    document.getElementById('eDescWrap').style.display = hasDesc ? '' : 'none';
+    document.getElementById('eDescToggle').textContent = hasDesc ? '- Hide description' : '+ Description';
     document.getElementById('eSuppressNotify').checked = false;
     document.getElementById('eIsPoker').checked = ev ? !!parseInt(ev.is_poker) : true;
     document.getElementById('eRequiresApproval').checked = ev ? !!parseInt(ev.requires_approval) : false;
@@ -2908,6 +2843,18 @@ function togglePokerFields() {
     var show = document.getElementById('eIsPoker').checked;
     document.getElementById('ePokerFields').style.display = show ? '' : 'none';
     if (show) updateCapacityLine();
+}
+function toggleDesc() {
+    var wrap = document.getElementById('eDescWrap');
+    var tog  = document.getElementById('eDescToggle');
+    if (wrap.style.display === 'none') {
+        wrap.style.display = '';
+        tog.textContent = '- Hide description';
+        document.getElementById('eDesc').focus();
+    } else {
+        wrap.style.display = 'none';
+        tog.textContent = '+ Description';
+    }
 }
 function updateCapacityLine() {
     var tables = parseInt(document.getElementById('ePokerTables').value, 10) || 1;
