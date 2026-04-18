@@ -4,6 +4,30 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.08500] — 2026-04-18
+
+### Added
+- **Per-event waitlist toggle.** New "Waitlist" toggle in the event editor (visible when Poker is on). When disabled, all invitees are approved regardless of seat capacity — no divider, no waitlisting. Default is ON. Toggling off approves all existing waitlisted invitees.
+- **Short.io URL shortener.** Replaced the built-in `/s/<code>` shortener with Short.io API integration. Admin settings now have Short.io API Key (encrypted at rest) and Domain fields. Local cache prevents duplicate API calls.
+- **League badge in event view.** Event view modal shows the league name as a blue pill badge before the event title.
+- **Donation banner.** Admin-configurable donation banner on the home page (above posts) with a footer link. Set URL and custom message in Site Settings > General.
+
+### Changed
+- **Event editor: full-screen modal.** Expanded to 95vw x 95vh. Top bar merges league, visibility, color, title, date, time, duration. Toggles + Save/Cancel in a compact toolbar. Poker settings inline. Description collapsible. Invite panes fill all remaining vertical space.
+- **RSVP badges in invite editor.** Each invitee shows a colored badge (Yes/No/Maybe/Waitlist) when editing an event. Declined users are separated into a collapsible "Declined" section.
+- **Landing page refreshed.** 12 feature cards covering leagues, rosters, scoped events, stats, privacy, and self-hosted pitch.
+- **Nav reorder.** Leagues moved right after Home in both desktop and mobile nav.
+
+### Fixed
+- **Invite list scrambling.** The RSVP poll endpoint (`event_invites_dl.php`) was ordering by username instead of sort_order, scrambling the priority invite list every poll cycle. Now orders by sort_order and includes sort_order + event_role in the response.
+- **Sort order recompaction.** `recompact_sort_order()` runs after every promote to keep approved, waitlisted, and declined invitees in consistent order across view and edit.
+- **League auto-populate removed.** Creating a league event no longer force-adds all league members — only explicitly selected invitees are added.
+- **Creator excluded from auto-populate.** Event creators are no longer added to their own invite list.
+- **Auto-promote on all RSVP paths.** SMS and WhatsApp webhook RSVP "No" replies now trigger waitlist auto-promote (previously only calendar UI and email token did).
+- **Buy-in field.** Dropped cents — whole dollars only.
+
+---
+
 ## [v0.08400] — 2026-04-18
 
 ### Added
