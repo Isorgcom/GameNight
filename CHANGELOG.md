@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.08600] — 2026-04-18
+
+### Fixed
+- **Event save hang on large invite lists.** Invite notifications are now queued in a `pending_notifications` table and sent asynchronously by cron instead of blocking the form POST with serial SMTP/SMS/shortener API calls. Saving an event with 200 invitees now returns instantly; the queue drains at up to 100 notifications per cron run (every 30 min), with a 3-attempt retry cap.
+
+---
+
 ## [v0.08500] — 2026-04-18
 
 ### Added

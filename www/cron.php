@@ -29,6 +29,58 @@ $now      = new DateTime('now', $local_tz);
 $today    = $now->format('Y-m-d');
 $in3days  = (clone $now)->modify('+3 days')->format('Y-m-d');
 
+// ── Drain pending invite-notification queue ──────────────────────────────────
+$queue_sent = 0;
+$queue_failed = 0;
+if (get_setting('notifications_enabled', '0') === '1') {
+    $pending = $db->prepare(
+        "SELECT id, event_id, username FROM pending_notifications
+         WHERE attempted_at IS NULL AND attempts < 3
+         ORDER BY id LIMIT 100"
+    );
+    $pending->execute();
+    $pendingRows = $pending->fetchAll();
+    foreach ($pendingRows as $qrow) {
+        // Mark attempted first so a crash doesn't lead to re-sending
+        $db->prepare("UPDATE pending_notifications SET attempted_at = CURRENT_TIMESTAMP, attempts = attempts + 1 WHERE id = ?")
+           ->execute([(int)$qrow['id']]);
+        $evStmt = $db->prepare('SELECT title, start_date FROM events WHERE id = ?');
+        $evStmt->execute([(int)$qrow['event_id']]);
+        $evRow = $evStmt->fetch();
+        if (!$evRow) { $queue_failed++; continue; }
+        $uStmt = $db->prepare('SELECT username, email, phone, preferred_contact FROM users WHERE LOWER(username) = LOWER(?)');
+        $uStmt->execute([$qrow['username']]);
+        $uRow = $uStmt->fetch();
+        if (!$uRow) { $queue_failed++; continue; }
+        try {
+            send_invite_notification(
+                $uRow['username'],
+                $uRow['email'] ?? '',
+                $uRow['phone'] ?? '',
+                $uRow['preferred_contact'] ?? 'email',
+                $evRow['title'],
+                $evRow['start_date'],
+                (int)$qrow['event_id']
+            );
+            // Success: clear attempted_at so the retry counter doesn't matter (row can stay for history)
+            $db->prepare("UPDATE pending_notifications SET attempts = 0 WHERE id = ?")
+               ->execute([(int)$qrow['id']]);
+            $queue_sent++;
+        } catch (Throwable $e) {
+            // attempted_at remains set and attempts incremented — will retry on next cron run if attempts < 3
+            $db->prepare("UPDATE pending_notifications SET attempted_at = NULL WHERE id = ?")
+               ->execute([(int)$qrow['id']]);
+            $queue_failed++;
+        }
+    }
+}
+if ($queue_sent > 0 || $queue_failed > 0) {
+    echo "Queue: $queue_sent invite(s) sent, $queue_failed failed.\n";
+}
+
+// Prune old (successfully-sent) pending_notifications older than 7 days
+try { $db->exec("DELETE FROM pending_notifications WHERE attempted_at < datetime('now', '-7 days') AND attempts < 3"); } catch (Exception $e) {}
+
 // ── Load upcoming events ──────────────────────────────────────────────────────
 $stmt = $db->prepare(
     "SELECT * FROM events WHERE

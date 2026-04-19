@@ -509,6 +509,19 @@ function db_init(PDO $pdo): void {
     // Per-event waitlist toggle (default ON for backwards compat)
     try { $pdo->exec("ALTER TABLE events ADD COLUMN waitlist_enabled INTEGER NOT NULL DEFAULT 1"); } catch (Exception $e) {}
 
+    // Pending notifications queue (invite emails sent async by cron, not inline on save)
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS pending_notifications (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id     INTEGER NOT NULL,
+        username     TEXT    NOT NULL,
+        notify_type  TEXT    NOT NULL DEFAULT 'invite',
+        created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+        attempted_at DATETIME,
+        attempts     INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (event_id) REFERENCES events(id)
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_pending_notifications_unsent ON pending_notifications(attempted_at) WHERE attempted_at IS NULL"); } catch (Exception $e) {}
+
     // ─── Priority invite ordering + RSVP deadline ───────────────────────
     try { $pdo->exec("ALTER TABLE event_invites ADD COLUMN sort_order INTEGER"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE events ADD COLUMN rsvp_deadline_hours INTEGER"); } catch (Exception $e) {}

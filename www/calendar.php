@@ -285,22 +285,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 return ['email' => $row['email'], 'html' => $html];
             };
 
-            // Notify newly added invitees unless suppressed or notifications disabled globally
-            if (!$suppress_notify && get_setting('notifications_enabled', '0') === '1') {
-                if (!empty($new_invitee_usernames)) {
-                    foreach ($new_invitee_usernames as $new_user) {
-                        $urow = $db->prepare('SELECT username, email, phone, preferred_contact FROM users WHERE LOWER(username) = ?');
-                        $urow->execute([$new_user]);
-                        $udata = $urow->fetch();
-                        if (!$udata) continue;
-                        $contact = $udata['preferred_contact'] ?? 'email';
-                        send_invite_notification($udata['username'], $udata['email'] ?? '', $udata['phone'] ?? '', $contact, $title, $sd, $notify_eid);
-                    }
+            // Queue invite notifications to be sent asynchronously by cron.
+            // This avoids hanging the form save on a slow SMTP/SMS/shortener API loop for large invite lists.
+            if (!$suppress_notify && get_setting('notifications_enabled', '0') === '1' && !empty($new_invitee_usernames)) {
+                $queueStmt = $db->prepare("INSERT INTO pending_notifications (event_id, username, notify_type) VALUES (?, ?, 'invite')");
+                foreach ($new_invitee_usernames as $new_user) {
+                    $queueStmt->execute([$notify_eid, $new_user]);
                 }
-
-                // On edit, only notify existing invitees if the "notify invitees" checkbox is NOT suppressed
-                // This prevents spam when only changing permissions or invite list
-                // (calendar_dl.php uses an explicit opt-in checkbox; here we use the suppress_notify flag)
             }
         }
     }
@@ -1083,7 +1074,10 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         .inv-declined-item .inv-rsvp-badge { display:inline-block !important; }
 
         /* Invite panel */
-        .edit-invite-panel { display:grid;grid-template-columns:1fr 1fr;gap:.75rem;padding:0 1.25rem;flex:1;min-height:0; }
+        .edit-invite-panel { display:grid;grid-template-columns:1fr auto 1fr;gap:.5rem;padding:0 1.25rem;flex:1;min-height:0; }
+        .invite-arrows { display:flex;flex-direction:column;justify-content:center;gap:.4rem;padding:.25rem 0; }
+        .inv-arrow-btn { width:32px;height:32px;border:1.5px solid #cbd5e1;border-radius:6px;background:#fff;color:#475569;font-size:1.1rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1; }
+        .inv-arrow-btn:hover { background:#eff6ff;border-color:#2563eb;color:#2563eb; }
         .invite-pane { display:flex;flex-direction:column;border:1.5px solid #e2e8f0;border-radius:8px;overflow:hidden;min-height:200px; }
         .invite-pane-header { background:#f8fafc;padding:.35rem .65rem;font-size:.7rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;flex-shrink:0;border-bottom:1px solid #e2e8f0; }
         .invite-pane-search { width:100%;padding:.38rem .65rem;border:none;border-bottom:1.5px solid #e2e8f0;font-size:.85rem;box-sizing:border-box;flex-shrink:0; }
@@ -1091,6 +1085,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         .invite-pane-list { flex:1;overflow-y:auto;list-style:none;margin:0;padding:.2rem; }
         .invite-pane-list li { padding:.35rem .6rem;border-radius:5px;font-size:.875rem;cursor:pointer;user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
         .invite-pane-list li:hover { background:#f1f5f9; }
+        .invite-pane-list li.inv-selected { background:#dbeafe !important;color:#1e40af; }
         .invite-pane-list li.dimmed { color:#cbd5e1;cursor:default; }
         .invite-pane-list li.dimmed:hover { background:transparent; }
         .invite-pane-list li.custom-row { padding:.2rem .4rem;cursor:default; }
@@ -1137,6 +1132,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             .edit-top-bar .edit-title-input { flex:1 1 100%;min-width:0; }
 
             .edit-invite-panel { grid-template-columns:1fr;height:auto;padding:0 .75rem; }
+            .invite-arrows { flex-direction:row;justify-content:center;padding:.25rem 0; }
             .invite-pane { min-height:180px; }
             .invite-pane-list li { padding:.5rem .75rem;font-size:.95rem; }
             .invite-pane input[type="text"] { min-height:44px;font-size:1rem; }
@@ -1637,19 +1633,26 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
                 <textarea name="description" id="eDesc" rows="3" placeholder="Event description (optional)"></textarea>
             </div>
 
-            <!-- ── Dual-pane invite panel ── -->
+            <!-- ── Dual-pane invite panel with arrow buttons ── -->
             <div class="edit-invite-panel">
                 <!-- Left: all users -->
                 <div class="invite-pane">
-                    <div class="invite-pane-header">All Users &mdash; <span class="invite-action-hint">double-click</span> to invite</div>
+                    <div class="invite-pane-header">All Users</div>
                     <input type="text" id="eUserSearch" class="invite-pane-search"
                            placeholder="<?= $isAdmin ? 'Search name, email, phone&hellip;' : 'Search name&hellip;' ?>"
                            oninput="filterAllUsers(this.value)" autocomplete="off">
                     <ul class="invite-pane-list" id="eAllUsersList"></ul>
                 </div>
+                <!-- Center: arrow buttons -->
+                <div class="invite-arrows">
+                    <button type="button" class="inv-arrow-btn" onclick="moveRight()" title="Add selected">&rsaquo;</button>
+                    <button type="button" class="inv-arrow-btn" onclick="moveAllRight()" title="Add all visible">&raquo;</button>
+                    <button type="button" class="inv-arrow-btn" onclick="moveLeft()" title="Remove selected">&lsaquo;</button>
+                    <button type="button" class="inv-arrow-btn" onclick="moveAllLeft()" title="Remove all">&laquo;</button>
+                </div>
                 <!-- Right: invited users -->
                 <div class="invite-pane">
-                    <div class="invite-pane-header">Invited &mdash; <span class="invite-action-hint">double-click</span> to remove</div>
+                    <div class="invite-pane-header">Invited</div>
                     <ul class="invite-pane-list" id="eInvitedList"></ul>
                 </div>
             </div>
@@ -2462,8 +2465,11 @@ function buildAllUsersList() {
             tag.style.cssText = 'color:#92400e;font-size:.75rem;margin-left:.25rem';
             li.appendChild(tag);
         }
-        li.title = isMobileInvite ? 'Tap to invite' : 'Double-click to invite';
-        li.addEventListener(isMobileInvite ? 'click' : 'dblclick', () => inviteUser(li.dataset.uname, li.dataset.uphone, li.dataset.uemail));
+        li.title = 'Click to select, then use arrows to invite';
+        li.addEventListener('click', function(e) {
+            if (this.classList.contains('dimmed')) return;
+            handleListSelect(e, this, 'eAllUsersList');
+        });
         ul.appendChild(li);
     });
 }
@@ -2547,12 +2553,11 @@ function inviteUser(username, phone, email, rsvp, role, approvalStatus) {
         li.appendChild(tog);
     }
 
-    li.title = isMobileInvite ? 'Tap to remove' : 'Double-click to remove';
-    const removeHandler = (e) => {
+    li.title = 'Click to select, then use arrows to remove';
+    li.addEventListener('click', function(e) {
         if (e.target.closest('.mgr-toggle')) return;
-        removeInvite(username);
-    };
-    li.addEventListener(isMobileInvite ? 'click' : 'dblclick', removeHandler);
+        handleListSelect(e, this, 'eInvitedList');
+    });
 
     // Drag-and-drop for priority ordering (poker events)
     li.draggable = true;
@@ -2599,6 +2604,61 @@ function syncInviteState() {
         const isDimmed = invited.includes(li.dataset.username);
         li.classList.toggle('dimmed', isDimmed);
         li.title = isDimmed ? 'Already invited' : 'Double-click to invite';
+    });
+}
+
+// ── Multi-select + arrow button handlers ─────────────────────────────────────
+var _lastClickedAll = null;
+var _lastClickedInv = null;
+
+function handleListSelect(e, li, listId) {
+    var ul = document.getElementById(listId);
+    var items = Array.from(ul.querySelectorAll('li:not(.dimmed):not(.custom-row):not(.inv-capacity-divider):not(.inv-declined-divider):not(.inv-declined-item)'));
+
+    if (e.shiftKey && (listId === 'eAllUsersList' ? _lastClickedAll : _lastClickedInv)) {
+        // Range select
+        var last = listId === 'eAllUsersList' ? _lastClickedAll : _lastClickedInv;
+        var startIdx = items.indexOf(last);
+        var endIdx = items.indexOf(li);
+        if (startIdx > -1 && endIdx > -1) {
+            var lo = Math.min(startIdx, endIdx), hi = Math.max(startIdx, endIdx);
+            for (var i = lo; i <= hi; i++) items[i].classList.add('inv-selected');
+        }
+    } else if (e.ctrlKey || e.metaKey) {
+        // Toggle single
+        li.classList.toggle('inv-selected');
+    } else {
+        // Clear others, select this one
+        items.forEach(function(el) { el.classList.remove('inv-selected'); });
+        li.classList.add('inv-selected');
+    }
+    if (listId === 'eAllUsersList') _lastClickedAll = li;
+    else _lastClickedInv = li;
+}
+
+function moveRight() {
+    var selected = document.querySelectorAll('#eAllUsersList li.inv-selected:not(.dimmed)');
+    selected.forEach(function(li) {
+        inviteUser(li.dataset.uname, li.dataset.uphone, li.dataset.uemail);
+        li.classList.remove('inv-selected');
+    });
+}
+function moveAllRight() {
+    var visible = document.querySelectorAll('#eAllUsersList li:not(.dimmed):not([style*="display: none"]):not([style*="display:none"])');
+    visible.forEach(function(li) {
+        if (li.dataset.uname) inviteUser(li.dataset.uname, li.dataset.uphone, li.dataset.uemail);
+    });
+}
+function moveLeft() {
+    var selected = Array.from(document.querySelectorAll('#eInvitedList li.inv-selected[data-iname]'));
+    selected.forEach(function(li) {
+        removeInvite(li.dataset.iname);
+    });
+}
+function moveAllLeft() {
+    var all = Array.from(document.querySelectorAll('#eInvitedList li[data-iname]'));
+    all.forEach(function(li) {
+        removeInvite(li.dataset.iname);
     });
 }
 

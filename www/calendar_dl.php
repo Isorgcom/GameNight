@@ -87,22 +87,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     };
 
-    // Notify newly-added invitees via their preferred contact method.
-    // $new_usernames: list of lowercase usernames that are new (already computed).
-    // $next_occ_date: the next upcoming occurrence date to use in the notification.
+    // Queue invite notifications for async delivery by cron.
+    // Avoids hanging the form save on SMTP/SMS/shortener API calls for large invite lists.
     $notify_new_invitees = function(int $eid, array $new_usernames, string $evt_title, string $next_occ_date) use ($db): void {
+        if (empty($new_usernames)) return;
+        $queueStmt = $db->prepare("INSERT INTO pending_notifications (event_id, username, notify_type) VALUES (?, ?, 'invite')");
+        $dedupStmt = $db->prepare("INSERT OR IGNORE INTO event_notifications_sent (event_id, occurrence_date, user_identifier, notification_type, sent_at) VALUES (?, ?, ?, 'invite', ?)");
         foreach ($new_usernames as $uname) {
-            $urow = $db->prepare('SELECT username, email, phone, preferred_contact FROM users WHERE LOWER(username) = ?');
-            $urow->execute([$uname]);
-            $udata = $urow->fetch();
-            if (!$udata) continue;
-            $contact = $udata['preferred_contact'] ?? 'email';
-            send_invite_notification($udata['username'], $udata['email'] ?? '', $udata['phone'] ?? '', $contact, $evt_title, $next_occ_date, $eid);
-            // Log invite notification so cron won't double-send
-            try {
-                $db->prepare("INSERT OR IGNORE INTO event_notifications_sent (event_id, occurrence_date, user_identifier, notification_type, sent_at) VALUES (?, ?, ?, 'invite', ?)")
-                   ->execute([$eid, $next_occ_date, $uname, date('Y-m-d H:i:s')]);
-            } catch (Exception $e) {}
+            $queueStmt->execute([$eid, $uname]);
+            // Log so reminder cron won't double-send an invite before the queue drains
+            try { $dedupStmt->execute([$eid, $next_occ_date, $uname, date('Y-m-d H:i:s')]); } catch (Exception $e) {}
         }
     };
 
