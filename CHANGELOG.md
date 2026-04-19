@@ -4,6 +4,19 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.08700] — 2026-04-19
+
+### Added
+- **Fire-and-forget queue drain on save.** After an event save queues invite notifications, a background PHP process is spawned via `shell_exec(... &)` to drain the queue immediately. Small invite lists now deliver in seconds. The 5-min cron still runs as a safety net for retries and any rows the background spawn missed.
+- **New `cron_drain.php`** — token-protected, CLI- or HTTP-callable endpoint that only drains the notification queue (no reminders, no maintenance).
+
+### Changed
+- **Cron interval 30 min → 5 min.** The built-in Docker scheduler now ticks every 5 minutes instead of every 30. Cost is negligible (cheap no-op when queue is empty) and it tightens the safety-net delay.
+- **Waitlist default OFF** for new events. Hosts opt in per event. Existing events keep their stored setting.
+- **Mobile arrows.** The invite-pane arrow buttons show up/down glyphs on mobile (↓ ⇓ ↑ ⇑) instead of the desktop left/right chevrons, matching the stacked pane layout on narrow screens.
+
+---
+
 ## [v0.08600] — 2026-04-18
 
 ### Fixed
