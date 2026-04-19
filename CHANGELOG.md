@@ -4,6 +4,14 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.08701] — 2026-04-19
+
+### Fixed
+- **Ghost league memberships on user delete.** Admin-deleting a user now also removes their `league_members` rows, `league_join_requests`, and any queued `pending_notifications` targeting their username. Previously these rows were orphaned and showed up as empty slots on league rosters.
+- **League owner delete cascade.** If the deleted user owns leagues, ownership auto-transfers to the longest-tenured manager (or oldest member if no managers). If no other members exist, the league is cascade-deleted. Extracted the cascade logic into a shared `delete_league_cascade()` helper so both the owner-delete button and the user-delete path use the same code.
+
+---
+
 ## [v0.08700] — 2026-04-19
 
 ### Added

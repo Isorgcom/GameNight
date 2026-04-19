@@ -704,16 +704,92 @@ function notify_creator_of_pending(int $event_id, string $signup_username): void
 }
 
 /**
+ * Cascade-delete a league and all its dependent rows:
+ *   events -> (poker_sessions -> poker_players/payouts/timer_state), event_invites,
+ *   event_exceptions, event_notifications_sent, comments; then league_join_requests,
+ *   league_members, leagues.
+ * Used by the league-owner delete UI AND by the user-delete cleanup when a league
+ * would otherwise become orphaned.
+ */
+function delete_league_cascade(PDO $db, int $league_id): void {
+    $evIds = $db->prepare('SELECT id FROM events WHERE league_id = ?');
+    $evIds->execute([$league_id]);
+    $evIds = array_map('intval', array_column($evIds->fetchAll(), 'id'));
+
+    if (!empty($evIds)) {
+        $placeholders = implode(',', array_fill(0, count($evIds), '?'));
+
+        // Poker-session cascade
+        $sessIds = $db->prepare("SELECT id FROM poker_sessions WHERE event_id IN ($placeholders)");
+        $sessIds->execute($evIds);
+        $sessIds = array_map('intval', array_column($sessIds->fetchAll(), 'id'));
+        if (!empty($sessIds)) {
+            $sp = implode(',', array_fill(0, count($sessIds), '?'));
+            $db->prepare("DELETE FROM poker_players  WHERE session_id IN ($sp)")->execute($sessIds);
+            $db->prepare("DELETE FROM poker_payouts  WHERE session_id IN ($sp)")->execute($sessIds);
+            $db->prepare("DELETE FROM timer_state    WHERE session_id IN ($sp)")->execute($sessIds);
+            $db->prepare("DELETE FROM poker_sessions WHERE id         IN ($sp)")->execute($sessIds);
+        }
+
+        $db->prepare("DELETE FROM event_invites    WHERE event_id IN ($placeholders)")->execute($evIds);
+        $db->prepare("DELETE FROM event_exceptions WHERE event_id IN ($placeholders)")->execute($evIds);
+        try { $db->prepare("DELETE FROM event_notifications_sent WHERE event_id IN ($placeholders)")->execute($evIds); } catch (Throwable $e) {}
+        try { $db->prepare("DELETE FROM pending_notifications    WHERE event_id IN ($placeholders)")->execute($evIds); } catch (Throwable $e) {}
+        $db->prepare("DELETE FROM comments WHERE type='event' AND content_id IN ($placeholders)")->execute($evIds);
+        $db->prepare("DELETE FROM events   WHERE id IN ($placeholders)")->execute($evIds);
+    }
+
+    $db->prepare('DELETE FROM league_join_requests WHERE league_id = ?')->execute([$league_id]);
+    $db->prepare('DELETE FROM league_members       WHERE league_id = ?')->execute([$league_id]);
+    $db->prepare('DELETE FROM leagues              WHERE id = ?')        ->execute([$league_id]);
+}
+
+/**
  * Fully delete a user and all associated data (invites, comments, tokens, etc.).
  * Poker players are soft-removed (removed=1) to preserve game history.
+ *
+ * League ownership: if the user owns any leagues, ownership auto-transfers to the
+ * longest-tenured manager (or oldest member if no managers). If no one else is
+ * in the league, the league is cascade-deleted.
  */
 function delete_user_account(int $user_id): void {
     $db = get_db();
     $un = $db->prepare('SELECT username FROM users WHERE id = ?');
     $un->execute([$user_id]);
     $username = $un->fetchColumn();
+
+    // ── League ownership transfer / cascade delete for orphaned leagues ──
+    $ownedStmt = $db->prepare('SELECT id FROM leagues WHERE owner_id = ?');
+    $ownedStmt->execute([$user_id]);
+    foreach ($ownedStmt->fetchAll() as $ownedRow) {
+        $league_id = (int)$ownedRow['id'];
+        // Find a successor: prefer manager, fall back to any member, excluding the deleted user
+        $succ = $db->prepare(
+            "SELECT user_id FROM league_members
+             WHERE league_id = ? AND user_id <> ? AND user_id IS NOT NULL
+             ORDER BY CASE role WHEN 'manager' THEN 0 ELSE 1 END, joined_at ASC
+             LIMIT 1"
+        );
+        $succ->execute([$league_id, $user_id]);
+        $new_owner = $succ->fetchColumn();
+        if ($new_owner) {
+            $db->prepare('UPDATE leagues SET owner_id = ? WHERE id = ?')->execute([(int)$new_owner, $league_id]);
+            $db->prepare("UPDATE league_members SET role = 'owner' WHERE league_id = ? AND user_id = ?")
+               ->execute([$league_id, (int)$new_owner]);
+        } else {
+            // Nobody else to own it — cascade-delete the whole league
+            delete_league_cascade($db, $league_id);
+        }
+    }
+
+    // Remove remaining league memberships (for leagues where user was member/manager, not owner)
+    $db->prepare('DELETE FROM league_members WHERE user_id = ?')->execute([$user_id]);
+    $db->prepare('DELETE FROM league_join_requests WHERE user_id = ?')->execute([$user_id]);
+
     if ($username) {
         $db->prepare('DELETE FROM event_invites WHERE LOWER(username) = LOWER(?)')->execute([$username]);
+        // Pending queued invite notifications that targeted this username
+        try { $db->prepare('DELETE FROM pending_notifications WHERE LOWER(username) = LOWER(?)')->execute([$username]); } catch (Exception $e) {}
     }
     $db->prepare('UPDATE poker_players SET removed = 1 WHERE user_id = ?')->execute([$user_id]);
     $db->prepare('DELETE FROM comments WHERE user_id = ?')->execute([$user_id]);

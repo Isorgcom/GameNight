@@ -161,53 +161,20 @@ case 'delete_league': {
     if ($actualName === '')                                     fail('League not found', 404);
     if (strcasecmp($confirmName, $actualName) !== 0)            fail('Confirmation name did not match.');
 
-    // Gather event IDs we'll destroy, so we can cascade-delete their children explicitly
-    // (SQLite foreign-key ON DELETE CASCADE requires PRAGMA foreign_keys=ON, which we don't set).
-    $evIds = $db->prepare('SELECT id FROM events WHERE league_id = ?');
-    $evIds->execute([$league_id]);
-    $evIds = array_map('intval', array_column($evIds->fetchAll(), 'id'));
+    // Count events before delete so we can log it
+    $evCount = (int)$db->query('SELECT COUNT(*) FROM events WHERE league_id = ' . $league_id)->fetchColumn();
 
     $db->beginTransaction();
     try {
-        if (!empty($evIds)) {
-            $placeholders = implode(',', array_fill(0, count($evIds), '?'));
-
-            // Poker-session cascade (timer_state / poker_players / poker_payouts)
-            $sessIds = $db->prepare("SELECT id FROM poker_sessions WHERE event_id IN ($placeholders)");
-            $sessIds->execute($evIds);
-            $sessIds = array_map('intval', array_column($sessIds->fetchAll(), 'id'));
-            if (!empty($sessIds)) {
-                $sp = implode(',', array_fill(0, count($sessIds), '?'));
-                $db->prepare("DELETE FROM poker_players  WHERE session_id IN ($sp)")->execute($sessIds);
-                $db->prepare("DELETE FROM poker_payouts  WHERE session_id IN ($sp)")->execute($sessIds);
-                $db->prepare("DELETE FROM timer_state    WHERE session_id IN ($sp)")->execute($sessIds);
-                $db->prepare("DELETE FROM poker_sessions WHERE id         IN ($sp)")->execute($sessIds);
-            }
-
-            // Event children
-            $db->prepare("DELETE FROM event_invites      WHERE event_id IN ($placeholders)")->execute($evIds);
-            $db->prepare("DELETE FROM event_exceptions   WHERE event_id IN ($placeholders)")->execute($evIds);
-            try { $db->prepare("DELETE FROM event_notifications_sent WHERE event_id IN ($placeholders)")->execute($evIds); } catch (Throwable $e) {}
-            // Comments use polymorphic (type, content_id) — scope to 'event' type.
-            $delComments = $db->prepare("DELETE FROM comments WHERE type='event' AND content_id IN ($placeholders)");
-            $delComments->execute($evIds);
-
-            // The events themselves
-            $db->prepare("DELETE FROM events WHERE id IN ($placeholders)")->execute($evIds);
-        }
-
-        // League rows
-        $db->prepare('DELETE FROM league_join_requests WHERE league_id = ?')->execute([$league_id]);
-        $db->prepare('DELETE FROM league_members       WHERE league_id = ?')->execute([$league_id]);
-        $db->prepare('DELETE FROM leagues              WHERE id = ?')        ->execute([$league_id]);
+        delete_league_cascade($db, $league_id);
         $db->commit();
     } catch (Throwable $e) {
         $db->rollBack();
         fail('Delete failed: ' . $e->getMessage(), 500);
     }
 
-    db_log_activity($uid, 'deleted league "' . $actualName . '" (' . count($evIds) . ' event(s))');
-    ok(['deleted_events' => count($evIds)]);
+    db_log_activity($uid, 'deleted league "' . $actualName . '" (' . $evCount . ' event(s))');
+    ok(['deleted_events' => $evCount]);
 }
 
 case 'request_join': {
