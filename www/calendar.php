@@ -1078,6 +1078,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         .invite-arrows { display:flex;flex-direction:column;justify-content:center;gap:.4rem;padding:.25rem 0; }
         .inv-arrow-btn { width:32px;height:32px;border:1.5px solid #cbd5e1;border-radius:6px;background:#fff;color:#475569;font-size:1.1rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1; }
         .inv-arrow-btn:hover { background:#eff6ff;border-color:#2563eb;color:#2563eb; }
+        .arrow-mobile { display:none; }
         .invite-pane { display:flex;flex-direction:column;border:1.5px solid #e2e8f0;border-radius:8px;overflow:hidden;min-height:200px; }
         .invite-pane-header { background:#f8fafc;padding:.35rem .65rem;font-size:.7rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;flex-shrink:0;border-bottom:1px solid #e2e8f0; }
         .invite-pane-search { width:100%;padding:.38rem .65rem;border:none;border-bottom:1.5px solid #e2e8f0;font-size:.85rem;box-sizing:border-box;flex-shrink:0; }
@@ -1133,6 +1134,8 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
 
             .edit-invite-panel { grid-template-columns:1fr;height:auto;padding:0 .75rem; }
             .invite-arrows { flex-direction:row;justify-content:center;padding:.25rem 0; }
+            .arrow-desktop { display:none; }
+            .arrow-mobile { display:inline; }
             .invite-pane { min-height:180px; }
             .invite-pane-list li { padding:.5rem .75rem;font-size:.95rem; }
             .invite-pane input[type="text"] { min-height:44px;font-size:1rem; }
@@ -1643,12 +1646,12 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
                            oninput="filterAllUsers(this.value)" autocomplete="off">
                     <ul class="invite-pane-list" id="eAllUsersList"></ul>
                 </div>
-                <!-- Center: arrow buttons -->
+                <!-- Center: arrow buttons (desktop: left/right, mobile: up/down) -->
                 <div class="invite-arrows">
-                    <button type="button" class="inv-arrow-btn" onclick="moveRight()" title="Add selected">&rsaquo;</button>
-                    <button type="button" class="inv-arrow-btn" onclick="moveAllRight()" title="Add all visible">&raquo;</button>
-                    <button type="button" class="inv-arrow-btn" onclick="moveLeft()" title="Remove selected">&lsaquo;</button>
-                    <button type="button" class="inv-arrow-btn" onclick="moveAllLeft()" title="Remove all">&laquo;</button>
+                    <button type="button" class="inv-arrow-btn" onclick="moveRight()" title="Add selected"><span class="arrow-desktop">&rsaquo;</span><span class="arrow-mobile">&darr;</span></button>
+                    <button type="button" class="inv-arrow-btn" onclick="moveAllRight()" title="Add all visible"><span class="arrow-desktop">&raquo;</span><span class="arrow-mobile">&dArr;</span></button>
+                    <button type="button" class="inv-arrow-btn" onclick="moveLeft()" title="Remove selected"><span class="arrow-desktop">&lsaquo;</span><span class="arrow-mobile">&uarr;</span></button>
+                    <button type="button" class="inv-arrow-btn" onclick="moveAllLeft()" title="Remove all"><span class="arrow-desktop">&laquo;</span><span class="arrow-mobile">&uArr;</span></button>
                 </div>
                 <!-- Right: invited users -->
                 <div class="invite-pane">
@@ -2843,7 +2846,7 @@ function openEditModal(ev) {
     document.getElementById('ePokerTables').value   = ps ? ps.num_tables : '1';
     document.getElementById('ePokerSeats').value    = ps ? ps.seats_per_table : '8';
     document.getElementById('eRsvpDeadline').value  = (ev && ev.rsvp_deadline_hours) ? String(ev.rsvp_deadline_hours) : '';
-    document.getElementById('eWaitlistEnabled').checked = ev ? !!(parseInt(ev.waitlist_enabled) || ev.waitlist_enabled === null) : true;
+    document.getElementById('eWaitlistEnabled').checked = ev ? !!(parseInt(ev.waitlist_enabled) || ev.waitlist_enabled === null) : false;
     togglePokerFields();
     // League + visibility
     var lgSel  = document.getElementById('eLeagueId');
