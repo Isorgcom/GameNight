@@ -1084,6 +1084,25 @@ function recompact_sort_order(PDO $db, int $event_id): void {
     }
 }
 
+/**
+ * Fire-and-forget: kick off the notification-queue drain in a background process.
+ * Returns immediately — the PHP web response isn't blocked by SMTP/SMS API calls.
+ * Safe to call even if shell_exec is disabled (silent no-op); the 5-min cron is the safety net.
+ */
+function drain_queue_async(): void {
+    if (!function_exists('shell_exec')) return;
+    $token = get_setting('cron_token', '');
+    if ($token === '') return;
+    $php    = PHP_BINARY ?: '/usr/local/bin/php';
+    $script = __DIR__ . '/cron_drain.php';
+    // The trailing '&' backgrounds the process; redirect stdout/stderr so PHP doesn't wait
+    @shell_exec(sprintf('%s %s %s > /dev/null 2>&1 &',
+        escapeshellarg($php),
+        escapeshellarg($script),
+        escapeshellarg($token)
+    ));
+}
+
 function auto_add_to_league(PDO $db, int $event_id, int $user_id): void {
     if ($user_id <= 0) return;
     $ev = $db->prepare('SELECT league_id FROM events WHERE id = ?');

@@ -292,6 +292,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 foreach ($new_invitee_usernames as $new_user) {
                     $queueStmt->execute([$notify_eid, $new_user]);
                 }
+                // Fire-and-forget: kick off the drain in the background so notifications go out in seconds
+                drain_queue_async();
             }
         }
     }

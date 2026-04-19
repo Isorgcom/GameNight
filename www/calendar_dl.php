@@ -87,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     };
 
-    // Queue invite notifications for async delivery by cron.
+    // Queue invite notifications for async delivery by cron + fire-and-forget background drain.
     // Avoids hanging the form save on SMTP/SMS/shortener API calls for large invite lists.
     $notify_new_invitees = function(int $eid, array $new_usernames, string $evt_title, string $next_occ_date) use ($db): void {
         if (empty($new_usernames)) return;
@@ -98,6 +98,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Log so reminder cron won't double-send an invite before the queue drains
             try { $dedupStmt->execute([$eid, $next_occ_date, $uname, date('Y-m-d H:i:s')]); } catch (Exception $e) {}
         }
+        // Fire-and-forget: kick off the drain in the background so notifications go out in seconds
+        drain_queue_async();
     };
 
     if ($action === 'add' || $action === 'edit') {
