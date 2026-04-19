@@ -5,8 +5,8 @@
  * Sends 2-day and 12-hour reminders to invitees of upcoming events.
  * Deduplicates via event_notifications_sent table.
  *
- * Recommended cron schedule (every 30 minutes):
- *   Cron line: (slash-30) (star) (star) (star) (star)  curl -s "https://yourdomain.com/cron.php?token=YOUR_CRON_TOKEN" > /dev/null
+ * Recommended cron schedule (every 5 minutes):
+ *   Cron line: (slash-5) (star) (star) (star) (star)  curl -s "https://yourdomain.com/cron.php?token=YOUR_CRON_TOKEN" > /dev/null
  *
  * Protected by a secret token stored in site_settings (key: cron_token).
  */

@@ -39,13 +39,13 @@ if [ ! -f "$VENDOR/nosleep.min.js" ]; then
     curl -fsSL https://cdn.jsdelivr.net/npm/nosleep.js@0.12.0/dist/NoSleep.min.js -o "$VENDOR/nosleep.min.js"
 fi
 
-# ── Scheduled tasks: run cron.php every 30 minutes in the background ──
+# ── Scheduled tasks: run cron.php every 5 minutes in the background ──
 # Auto-generate a cron token if one doesn't exist yet
 CRON_TOKEN=$(php -r "require '/var/www/html/db.php'; \$t = get_setting('cron_token',''); if (\$t==='') { \$t = bin2hex(random_bytes(20)); set_setting('cron_token', \$t); } echo \$t;" 2>/dev/null || echo "")
 if [ -n "$CRON_TOKEN" ]; then
-    echo "[entrypoint] Starting background scheduler (every 30 min)..."
+    echo "[entrypoint] Starting background scheduler (every 5 min)..."
     (while true; do
-        sleep 1800
+        sleep 300
         curl -s "http://localhost/cron.php?token=${CRON_TOKEN}" > /dev/null 2>&1 || true
     done) &
 else
