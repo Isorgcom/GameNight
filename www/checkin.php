@@ -571,7 +571,7 @@ function renderDashboard() {
 
 function renderTableHeader() {
     var h = '<th style="width:2rem"><input type="checkbox" id="selectAll" class="pk-row-select" onchange="toggleSelectAll(this.checked)"></th>';
-    h += '<th>#</th><th>Name</th><th>RSVP</th><th title="Checked In">&#10003;</th>';
+    h += '<th>#</th><th>Name</th><th>RSVP</th>';
     if (isTourney()) {
         h += '<th title="Buy-in">$</th>';
         if (parseInt(SESSION.rebuy_allowed)) h += '<th>Rebuys</th>';
@@ -587,7 +587,6 @@ function renderStatsCompact() {
     var h = '';
     var s = '<span class="sep">|</span>';
     h += '<span>Players: <b>' + POOL.total_players + '</b></span>' + s;
-    h += '<span>In: <b>' + POOL.checked_in + '</b></span>' + s;
     if (isTourney()) {
         h += '<span>Playing: <b>' + POOL.still_playing + '</b></span>' + s;
         h += '<span>Out: <b>' + POOL.eliminated + '</b></span>' + s;
@@ -603,7 +602,6 @@ function renderStatsCompact() {
 function renderStats() {
     var h = '';
     h += '<div class="pk-stat"><div class="pk-stat-label">Players</div><div class="pk-stat-value">' + POOL.total_players + '</div></div>';
-    h += '<div class="pk-stat"><div class="pk-stat-label">Checked In</div><div class="pk-stat-value">' + POOL.checked_in + '</div></div>';
     h += '<div class="pk-stat"><div class="pk-stat-label">Bought In</div><div class="pk-stat-value">' + POOL.bought_in + '</div></div>';
     if (isTourney()) {
         h += '<div class="pk-stat"><div class="pk-stat-label">Playing</div><div class="pk-stat-value">' + POOL.still_playing + '</div></div>';
@@ -674,10 +672,8 @@ function renderPlayerRows() {
         h += '</select></td>';
 
         if (isPending) {
-            h += '<td colspan="' + (isTourney() ? (1 + 1 + (parseInt(SESSION.rebuy_allowed)?1:0) + (parseInt(SESSION.addon_allowed)?1:0)) : 4) + '" style="text-align:center;color:#d97706;font-size:.8rem;font-style:italic">Awaiting approval</td>';
+            h += '<td colspan="' + (isTourney() ? (1 + (parseInt(SESSION.rebuy_allowed)?1:0) + (parseInt(SESSION.addon_allowed)?1:0)) : 3) + '" style="text-align:center;color:#d97706;font-size:.8rem;font-style:italic">Awaiting approval</td>';
         } else {
-        h += '<td><input type="checkbox" class="pk-check" ' + (parseInt(p.checked_in) ? 'checked' : '') + dis + ' onchange="toggleCheckin(' + p.id + ')"></td>';
-
         if (isTourney()) {
             h += '<td><input type="checkbox" class="pk-check" ' + (parseInt(p.bought_in) ? 'checked' : '') + dis + ' onchange="toggleBuyin(' + p.id + ')"></td>';
             if (parseInt(SESSION.rebuy_allowed)) {
@@ -810,11 +806,9 @@ function renderMobileCards() {
         } else if (isTourney()) {
             if (isElim) { statusText = '#' + (p.finish_position || '?'); statusColor = '#ef4444'; statusBg = '#fef2f2'; }
             else if (parseInt(p.bought_in)) { statusText = 'Playing'; statusColor = '#16a34a'; statusBg = '#f0fdf4'; }
-            else if (parseInt(p.checked_in)) { statusText = 'Checked In'; statusColor = '#2563eb'; statusBg = '#eff6ff'; }
         } else {
             if (hasCashedOut) { statusText = 'Out'; statusColor = '#64748b'; statusBg = '#f1f5f9'; }
             else if (parseInt(p.bought_in)) { statusText = 'Playing'; statusColor = '#16a34a'; statusBg = '#f0fdf4'; }
-            else if (parseInt(p.checked_in)) { statusText = 'Checked In'; statusColor = '#2563eb'; statusBg = '#eff6ff'; }
         }
 
         h += '<div class="pk-mobile-card ' + cardClass + '" data-pid="' + p.id + '">';
@@ -828,15 +822,11 @@ function renderMobileCards() {
             h += '<button onclick="denyPlayer(' + p.id + ')" style="font-size:.72rem;padding:.25rem .6rem;border-radius:5px;border:0;background:#dc2626;color:#fff;font-weight:700;cursor:pointer">Deny</button>';
             h += '</span>';
         } else {
-            // Check-in + buy-in checkboxes on the summary row (not inside expand)
-            if (!isNo) {
+            // Buy-in checkbox on the summary row (not inside expand)
+            if (!isNo && isTourney()) {
                 h += '<span onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:.6rem;margin-left:auto;margin-right:.5rem;flex-shrink:0">';
                 h += '<label style="display:flex;align-items:center;gap:.2rem;font-size:.65rem;color:#64748b;font-weight:700;cursor:pointer;padding:.25rem 0;-webkit-tap-highlight-color:transparent">'
-                   + '<input type="checkbox" class="pk-check" ' + (parseInt(p.checked_in)?'checked':'') + ' onchange="toggleCheckin(' + p.id + ')" style="width:22px;height:22px;accent-color:#2563eb"> CI</label>';
-                if (isTourney()) {
-                    h += '<label style="display:flex;align-items:center;gap:.2rem;font-size:.65rem;color:#64748b;font-weight:700;cursor:pointer;padding:.25rem 0;-webkit-tap-highlight-color:transparent">'
-                       + '<input type="checkbox" class="pk-check" ' + (parseInt(p.bought_in)?'checked':'') + ' onchange="toggleBuyin(' + p.id + ')" style="width:22px;height:22px;accent-color:#7c3aed"> BI</label>';
-                }
+                   + '<input type="checkbox" class="pk-check" ' + (parseInt(p.bought_in)?'checked':'') + ' onchange="toggleBuyin(' + p.id + ')" style="width:22px;height:22px;accent-color:#7c3aed"> Buy In</label>';
                 h += '</span>';
             }
             h += '<span class="pk-mobile-status" style="color:' + statusColor + ';background:' + statusBg + '">' + statusText + '</span>';
@@ -1095,14 +1085,6 @@ function changeStatus(status) {
     });
 }
 
-function toggleCheckin(pid) {
-    postAction('toggle_checkin', { player_id: pid }, function(j) {
-        updatePlayer(j.player);
-        POOL = j.pool;
-        refreshUI();
-    });
-}
-
 function toggleBuyin(pid) {
     postAction('toggle_buyin', { player_id: pid }, function(j) {
         updatePlayer(j.player);
@@ -1169,7 +1151,7 @@ function balanceTables() {
     var byTable = {};
     for (var t = 1; t <= numTables; t++) byTable[t] = [];
     PLAYERS.forEach(function(p) {
-        if (parseInt(p.removed) || parseInt(p.eliminated) || !parseInt(p.checked_in)) return;
+        if (parseInt(p.removed) || parseInt(p.eliminated) || !parseInt(p.bought_in)) return;
         var tn = parseInt(p.table_number);
         if (tn >= 1 && tn <= numTables) byTable[tn].push(p);
     });
@@ -1224,7 +1206,7 @@ function executeBalance() {
         var btnId = buttonPlayers[t];
         // Find button player's seat, then protect seat+1 (SB) and seat+2 (BB)
         var tablePlayers = PLAYERS.filter(function(p) {
-            return parseInt(p.table_number) === parseInt(t) && !parseInt(p.removed) && !parseInt(p.eliminated) && parseInt(p.checked_in);
+            return parseInt(p.table_number) === parseInt(t) && !parseInt(p.removed) && !parseInt(p.eliminated) && parseInt(p.bought_in);
         }).sort(function(a, b) { return (parseInt(a.seat_number) || 0) - (parseInt(b.seat_number) || 0); });
 
         var btnIdx = -1;

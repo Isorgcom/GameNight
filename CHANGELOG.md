@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.09000] — 2026-04-20
+
+### Removed
+- **Check-in column on Manage Game (#10).** The per-player "Checked In" checkbox column was redundant with the Buy-In column — buying a player in now implicitly admits them. Removed the checkbox column, the "Checked In" stat tile, the "In:" compact stat, the "Checked In" status badge, the mobile CI checkbox, the `toggle_checkin` backend action, and switched table-assignment filters to use `bought_in` instead. The DB column stays for backwards compatibility but is no longer surfaced or relied on.
+
+---
+
 ## [v0.08900] — 2026-04-20
 
 ### Fixed

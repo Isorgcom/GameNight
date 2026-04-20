@@ -197,53 +197,6 @@ if ($action === 'update_status') {
     exit;
 }
 
-// ─── toggle_checkin ────────────────────────────────────────
-if ($action === 'toggle_checkin') {
-    $player_id = (int)($_POST['player_id'] ?? 0);
-    $session = get_session_from_player($db, $player_id);
-    if (!$session) { echo json_encode(['ok' => false, 'error' => 'Player not found']); exit; }
-    verify_event_access($db, $session['event_id'], $current, $isAdmin);
-
-    // If the player's invite is pending, block check-in — they must be approved first.
-    $pl = $db->prepare('SELECT display_name FROM poker_players WHERE id = ?');
-    $pl->execute([$player_id]);
-    $pRow = $pl->fetch();
-    if ($pRow) {
-        $apSt = $db->prepare("SELECT approval_status FROM event_invites WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL");
-        $apSt->execute([$session['event_id'], $pRow['display_name']]);
-        $apStatus = $apSt->fetchColumn() ?: 'approved';
-        if ($apStatus === 'pending') {
-            echo json_encode(['ok' => false, 'error' => 'Player must be approved before checking in.']);
-            exit;
-        }
-    }
-
-    $db->beginTransaction();
-    $oldP = $db->prepare('SELECT checked_in FROM poker_players WHERE id = ?');
-    $oldP->execute([$player_id]);
-    $wasCheckedIn = (int)$oldP->fetch()['checked_in'];
-
-    $db->prepare('UPDATE poker_players SET checked_in = CASE WHEN checked_in = 0 THEN 1 ELSE 0 END WHERE id = ?')->execute([$player_id]);
-
-    // Auto-assign table when checking in; clear when unchecking
-    if ($wasCheckedIn === 0) {
-        $db->commit();
-        auto_assign_table($db, $session['id'], $player_id);
-    } else {
-        $db->prepare('UPDATE poker_players SET table_number = NULL, seat_number = NULL WHERE id = ?')->execute([$player_id]);
-        $db->commit();
-    }
-
-    $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
-    $p->execute([$player_id]);
-    echo json_encode([
-        'ok'     => true,
-        'player' => $p->fetch(),
-        'pool'   => calc_pool($db, $session['id']),
-    ]);
-    exit;
-}
-
 // ─── toggle_buyin ──────────────────────────────────────────
 if ($action === 'toggle_buyin') {
     $player_id = (int)($_POST['player_id'] ?? 0);
@@ -264,7 +217,7 @@ if ($action === 'toggle_buyin') {
         }
     }
 
-    // Atomic toggle — if buying in, also check them in
+    // Atomic toggle
     $db->beginTransaction();
     $pl = $db->prepare('SELECT bought_in FROM poker_players WHERE id = ?');
     $pl->execute([$player_id]);
@@ -274,7 +227,8 @@ if ($action === 'toggle_buyin') {
         $db->commit();
         auto_assign_table($db, $session['id'], $player_id);
     } else {
-        $db->prepare('UPDATE poker_players SET bought_in = 0 WHERE id = ?')->execute([$player_id]);
+        // Un-buying: clear bought_in and the table assignment
+        $db->prepare('UPDATE poker_players SET bought_in = 0, checked_in = 0, table_number = NULL, seat_number = NULL WHERE id = ?')->execute([$player_id]);
         $db->commit();
     }
 

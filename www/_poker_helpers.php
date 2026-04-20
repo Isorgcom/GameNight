@@ -52,7 +52,6 @@ function calc_pool($db, $session_id) {
 
     $stats = $db->prepare('SELECT
         COUNT(*) as total_players,
-        SUM(checked_in) as checked_in,
         SUM(bought_in) as bought_in,
         SUM(CASE WHEN eliminated = 0 AND bought_in = 1 THEN 1 ELSE 0 END) as still_playing,
         SUM(eliminated) as eliminated,
@@ -81,7 +80,6 @@ function calc_pool($db, $session_id) {
 
     return [
         'total_players'  => (int)$r['total_players'],
-        'checked_in'     => (int)$r['checked_in'],
         'bought_in'      => (int)$r['bought_in'],
         'still_playing'  => (int)$r['still_playing'],
         'eliminated'     => (int)$r['eliminated'],
@@ -241,7 +239,7 @@ function rebalance_tables($db, $session_id, array $protected_ids = []): array {
     // Single table: assign all unassigned players to table 1 with random seats
     if ((int)$s['num_tables'] <= 1) {
         $moves = [];
-        $unassigned = $db->prepare('SELECT id, display_name FROM poker_players WHERE session_id = ? AND removed = 0 AND eliminated = 0 AND checked_in = 1 AND table_number IS NULL');
+        $unassigned = $db->prepare('SELECT id, display_name FROM poker_players WHERE session_id = ? AND removed = 0 AND eliminated = 0 AND bought_in = 1 AND table_number IS NULL');
         $unassigned->execute([$session_id]);
         foreach ($unassigned->fetchAll() as $p) {
             $seat = pick_random_seat($db, $session_id, 1);
@@ -253,7 +251,7 @@ function rebalance_tables($db, $session_id, array $protected_ids = []): array {
 
     $num = (int)$s['num_tables'];
 
-    $players = $db->prepare('SELECT id, display_name, table_number, seat_number FROM poker_players WHERE session_id = ? AND removed = 0 AND eliminated = 0 AND checked_in = 1 ORDER BY table_number, seat_number, id');
+    $players = $db->prepare('SELECT id, display_name, table_number, seat_number FROM poker_players WHERE session_id = ? AND removed = 0 AND eliminated = 0 AND bought_in = 1 ORDER BY table_number, seat_number, id');
     $players->execute([$session_id]);
     $all = $players->fetchAll();
 
