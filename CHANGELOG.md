@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.08900] — 2026-04-20
+
+### Fixed
+- **Edit-to-view navigation (#16).** When editing an event opened from the view modal, closing the edit window now returns to the view modal instead of dropping back to the calendar. Opening edit directly still closes normally.
+
+---
+
 ## [v0.08800] — 2026-04-20
 
 ### Fixed
