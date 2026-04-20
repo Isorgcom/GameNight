@@ -316,7 +316,10 @@ $session = $sessStmt->fetch();
 var CSRF = <?= json_encode($csrf, JSON_HEX_TAG) ?>;
 var ALL_USERS = <?= json_encode($allUsernames, JSON_HEX_TAG) ?>;
 var EVENT_ID = <?= $event_id ?>;
+var IS_ADMIN = <?= $isAdmin ? 'true' : 'false' ?>;
 var SESSION = <?= $session ? json_encode($session, JSON_HEX_TAG) : 'null' ?>;
+var PAYOUT_STRUCTURES = [];
+var CURRENT_STRUCTURE_ID = 0;
 var PLAYERS = [];
 var PAYOUTS = [];
 var POOL = {};
@@ -975,6 +978,14 @@ function renderSettingsPanel() {
     // Payout editor (tournament only)
     h += '<div class="pk-payout-editor" id="cfgPayoutSection" style="' + (isCash()?'display:none':'') + '">';
     h += '<h3 style="margin:.75rem 0 .5rem;font-size:.9rem">Payout Structure</h3>';
+    // Saved structure picker
+    h += '<div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.5rem;flex-wrap:wrap">';
+    h += '<select id="payoutStructureSelect" onchange="onPayoutStructureChange()" style="flex:1;min-width:160px;padding:.3rem .5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:4px;font-size:.85rem"></select>';
+    h += '<button onclick="loadPayoutStructure()" title="Apply selected structure">Load</button>';
+    h += '<button onclick="savePayoutStructureAs()" title="Save current payouts as a named structure">Save As…</button>';
+    h += '<button id="btnDelPayoutStructure" onclick="deletePayoutStructure()" style="display:none;color:#ef4444" title="Delete selected structure">Delete</button>';
+    h += '<button id="btnDefPayoutStructure" onclick="setDefaultPayoutStructure()" style="display:none" title="Set as default (admin)">Set Default</button>';
+    h += '</div>';
     h += '<div id="payoutRows">';
     for (var i = 0; i < PAYOUTS.length; i++) {
         h += payoutRowHtml(PAYOUTS[i].place, PAYOUTS[i].percentage);
@@ -1076,6 +1087,215 @@ function previewGameType(val) {
 function toggleSettings() {
     var panel = document.getElementById('settingsPanel');
     if (panel) panel.classList.toggle('open');
+    // Lazy-load payout structures the first time the settings panel opens
+    if (panel && panel.classList.contains('open') && isTourney() && !PAYOUT_STRUCTURES.length) {
+        loadPayoutStructures();
+    }
+}
+
+// ─── Payout structure UI ──────────────────────────────────
+function loadPayoutStructures() {
+    fetch('/checkin_dl.php?action=list_payout_structures')
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+            if (!j.ok) return;
+            PAYOUT_STRUCTURES = j.structures || [];
+            renderPayoutStructureSelect();
+        });
+}
+
+function renderPayoutStructureSelect() {
+    var sel = document.getElementById('payoutStructureSelect');
+    if (!sel) return;
+    sel.innerHTML = '';
+    var defaults = [], globals = [], personal = [];
+    var leagueGroups = {};
+    PAYOUT_STRUCTURES.forEach(function(s) {
+        s._isDefault = parseInt(s.is_default);
+        s._isGlobal  = parseInt(s.is_global);
+        s._leagueId  = s.league_id ? parseInt(s.league_id) : 0;
+        if (s._isDefault) defaults.push(s);
+        else if (s._isGlobal) globals.push(s);
+        else if (s._leagueId) {
+            if (!leagueGroups[s._leagueId]) leagueGroups[s._leagueId] = { name: s.league_name || 'League', items: [] };
+            leagueGroups[s._leagueId].items.push(s);
+        } else personal.push(s);
+    });
+    // Leading blank so "unsaved custom" is a valid state
+    var blank = document.createElement('option');
+    blank.value = ''; blank.textContent = '— Custom (unsaved) —';
+    sel.appendChild(blank);
+    function addGroup(label, items) {
+        if (!items.length) return;
+        var grp = document.createElement('optgroup');
+        grp.label = label;
+        items.forEach(function(s) {
+            var opt = document.createElement('option');
+            opt.value = s.id;
+            opt.textContent = s.name;
+            opt.dataset.isDefault = s._isDefault;
+            opt.dataset.isGlobal  = s._isGlobal;
+            opt.dataset.leagueId  = s._leagueId || 0;
+            opt.dataset.createdBy = s.created_by;
+            grp.appendChild(opt);
+        });
+        sel.appendChild(grp);
+    }
+    addGroup('Default', defaults);
+    addGroup('Global', globals);
+    Object.keys(leagueGroups).forEach(function(lid) {
+        addGroup('League: ' + leagueGroups[lid].name, leagueGroups[lid].items);
+    });
+    addGroup('My Structures', personal);
+    if (CURRENT_STRUCTURE_ID) sel.value = String(CURRENT_STRUCTURE_ID);
+    updatePayoutStructureButtons();
+}
+
+function updatePayoutStructureButtons() {
+    var sel = document.getElementById('payoutStructureSelect');
+    var delBtn = document.getElementById('btnDelPayoutStructure');
+    var defBtn = document.getElementById('btnDefPayoutStructure');
+    if (!sel) return;
+    var opt = sel.options[sel.selectedIndex];
+    if (!opt || !opt.value) {
+        if (delBtn) delBtn.style.display = 'none';
+        if (defBtn) defBtn.style.display = 'none';
+        return;
+    }
+    var isDef  = opt.dataset.isDefault === '1';
+    var isGlob = opt.dataset.isGlobal  === '1';
+    if (defBtn) defBtn.style.display = (IS_ADMIN && !isDef) ? '' : 'none';
+    if (delBtn) {
+        if (isDef) delBtn.style.display = 'none';
+        else if (isGlob) delBtn.style.display = IS_ADMIN ? '' : 'none';
+        else delBtn.style.display = '';
+    }
+}
+
+function onPayoutStructureChange() {
+    updatePayoutStructureButtons();
+}
+
+function loadPayoutStructure() {
+    var sel = document.getElementById('payoutStructureSelect');
+    if (!sel || !sel.value) { alert('Pick a structure first.'); return; }
+    var sid = sel.value;
+    var fd = new FormData();
+    fd.append('csrf_token', CSRF);
+    fd.append('action', 'load_payout_structure');
+    fd.append('session_id', SESSION.id);
+    fd.append('structure_id', sid);
+    fetch('/checkin_dl.php', { method: 'POST', body: fd })
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+            if (!j.ok) { alert(j.error || 'Error'); return; }
+            PAYOUTS = j.payouts;
+            POOL = j.pool || POOL;
+            CURRENT_STRUCTURE_ID = parseInt(sid);
+            // Redraw the settings panel so payout rows reflect the loaded structure
+            var panel = document.getElementById('settingsPanel');
+            var wasOpen = panel && panel.classList.contains('open');
+            renderDashboard();
+            if (wasOpen) {
+                var p2 = document.getElementById('settingsPanel');
+                if (p2) p2.classList.add('open');
+                renderPayoutStructureSelect();
+            }
+        });
+}
+
+function savePayoutStructureAs() {
+    // Gather current rows
+    var inputs = document.querySelectorAll('.payout-pct');
+    if (!inputs.length) { alert('No payout rows to save.'); return; }
+    var total = 0;
+    for (var i = 0; i < inputs.length; i++) total += parseFloat(inputs[i].value || 0);
+    if (total > 100.001) { alert('Total is ' + total.toFixed(1) + '% — cannot exceed 100%.'); return; }
+
+    // Fetch leagues the user can save to
+    fetch('/checkin_dl.php?action=get_payout_user_leagues')
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+            var leagues = (j && j.ok) ? (j.leagues || []) : [];
+            _continueSavePayoutStructureAs(leagues, inputs);
+        })
+        .catch(function() { _continueSavePayoutStructureAs([], inputs); });
+}
+function _continueSavePayoutStructureAs(leagues, inputs) {
+    var name = prompt('Structure name:');
+    if (!name) return;
+    var league_id = 0;
+    var is_global = 0;
+    var scopeOptions = ['0: Personal (only you)'];
+    if (IS_ADMIN) scopeOptions.push('G: Global (all users)');
+    leagues.forEach(function(l, idx) {
+        scopeOptions.push((idx + 1) + ': League — ' + l.name);
+    });
+    if (scopeOptions.length > 1) {
+        var picked = prompt('Save as:\n\n' + scopeOptions.join('\n') + '\n\nEnter your choice (0, G, or 1-' + leagues.length + '):', '0');
+        if (picked === null) return;
+        picked = String(picked).trim().toUpperCase();
+        if (picked === 'G' && IS_ADMIN) is_global = 1;
+        else if (picked !== '0' && picked !== '') {
+            var n = parseInt(picked, 10);
+            if (n >= 1 && n <= leagues.length) league_id = parseInt(leagues[n - 1].id);
+        }
+    }
+
+    var fd = new FormData();
+    fd.append('csrf_token', CSRF);
+    fd.append('action', 'save_payout_structure');
+    fd.append('name', name);
+    if (is_global) fd.append('is_global', '1');
+    if (league_id) fd.append('league_id', league_id);
+    for (var i = 0; i < inputs.length; i++) {
+        var place = parseInt(inputs[i].dataset.place);
+        var pct = parseFloat(inputs[i].value || 0);
+        if (place > 0 && pct > 0) {
+            fd.append('places[]', place);
+            fd.append('percentages[]', pct);
+        }
+    }
+    fetch('/checkin_dl.php', { method: 'POST', body: fd })
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+            if (!j.ok) { alert(j.error || 'Error'); return; }
+            CURRENT_STRUCTURE_ID = parseInt(j.structure_id);
+            loadPayoutStructures();
+        });
+}
+
+function deletePayoutStructure() {
+    var sel = document.getElementById('payoutStructureSelect');
+    if (!sel || !sel.value) return;
+    if (!confirm('Delete this payout structure?')) return;
+    var fd = new FormData();
+    fd.append('csrf_token', CSRF);
+    fd.append('action', 'delete_payout_structure');
+    fd.append('structure_id', sel.value);
+    fetch('/checkin_dl.php', { method: 'POST', body: fd })
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+            if (!j.ok) { alert(j.error || 'Error'); return; }
+            if (parseInt(sel.value) === CURRENT_STRUCTURE_ID) CURRENT_STRUCTURE_ID = 0;
+            loadPayoutStructures();
+        });
+}
+
+function setDefaultPayoutStructure() {
+    var sel = document.getElementById('payoutStructureSelect');
+    if (!sel || !sel.value) return;
+    if (!confirm('Set this structure as the site default?')) return;
+    var fd = new FormData();
+    fd.append('csrf_token', CSRF);
+    fd.append('action', 'set_default_payout_structure');
+    fd.append('structure_id', sel.value);
+    fetch('/checkin_dl.php', { method: 'POST', body: fd })
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+            if (!j.ok) { alert(j.error || 'Error'); return; }
+            loadPayoutStructures();
+        });
 }
 
 function changeStatus(status) {

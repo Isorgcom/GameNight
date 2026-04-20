@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.12000] — 2026-04-20
+
+### Added
+- **Reusable payout structures (#9).** Tournament payouts are no longer locked to a hardcoded 50/30/20 — hosts can now save named payout structures and reuse them across sessions. Scoped like blind presets: Personal, League (visible to all league members, editable by owners/managers), and Global (admin-curated). The settings panel's Payout Structure section now includes a grouped dropdown plus Save As / Load / Delete / Set Default buttons. A default "Standard (50/30/20)" structure is seeded on first run, and new sessions apply the current default instead of the legacy hardcoded values. New tables: `payout_structures`, `payout_structure_places`.
+
+---
+
 ## [v0.11000] — 2026-04-20
 
 ### Added

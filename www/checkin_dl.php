@@ -57,6 +57,46 @@ if ($action === 'get_session') {
     exit;
 }
 
+// ─── GET: list_payout_structures ───────────────────────────
+// Returns all payout structures visible to the current user
+// (default, global, personal, and league presets for leagues the user is in).
+if ($action === 'list_payout_structures') {
+    $stmt = $db->prepare(
+        'SELECT ps.id, ps.name, ps.is_default, ps.is_global, ps.created_by, ps.league_id, l.name AS league_name
+         FROM payout_structures ps
+         LEFT JOIN leagues l ON l.id = ps.league_id
+         WHERE ps.is_default = 1
+            OR ps.is_global  = 1
+            OR ps.created_by = ?
+            OR ps.league_id IN (SELECT league_id FROM league_members WHERE user_id = ?)
+         ORDER BY ps.is_default DESC, ps.is_global DESC, LOWER(ps.name)'
+    );
+    $stmt->execute([$current['id'], $current['id']]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // Attach places for each structure so the UI can preview / auto-load
+    $placesStmt = $db->prepare('SELECT place, percentage FROM payout_structure_places WHERE structure_id = ? ORDER BY place');
+    foreach ($rows as &$r) {
+        $placesStmt->execute([(int)$r['id']]);
+        $r['places'] = $placesStmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    echo json_encode(['ok' => true, 'structures' => $rows]);
+    exit;
+}
+
+// ─── GET: get_payout_user_leagues ──────────────────────────
+// Leagues the current user can save payout structures to (owner/manager).
+if ($action === 'get_payout_user_leagues') {
+    $stmt = $db->prepare(
+        "SELECT l.id, l.name FROM league_members lm
+         JOIN leagues l ON l.id = lm.league_id
+         WHERE lm.user_id = ? AND lm.role IN ('owner', 'manager')
+         ORDER BY LOWER(l.name)"
+    );
+    $stmt->execute([$current['id']]);
+    echo json_encode(['ok' => true, 'leagues' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+    exit;
+}
+
 // All remaining actions require POST + CSRF
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -101,12 +141,21 @@ if ($action === 'init_session') {
         $pIns->execute([$session_id, $inv['user_id'], $inv['username'], $inv['rsvp']]);
     }
 
-    // Default payout structure: 50/30/20 (tournament only)
+    // Default payout structure (tournament only): use the seeded default if present, else 50/30/20.
     if ($game_type === 'tournament') {
         $payIns = $db->prepare('INSERT INTO poker_payouts (session_id, place, percentage) VALUES (?, ?, ?)');
-        $payIns->execute([$session_id, 1, 50.0]);
-        $payIns->execute([$session_id, 2, 30.0]);
-        $payIns->execute([$session_id, 3, 20.0]);
+        $defRow = $db->query('SELECT id FROM payout_structures WHERE is_default = 1 LIMIT 1')->fetch();
+        if ($defRow) {
+            $sp = $db->prepare('SELECT place, percentage FROM payout_structure_places WHERE structure_id = ? ORDER BY place');
+            $sp->execute([(int)$defRow['id']]);
+            foreach ($sp->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $payIns->execute([$session_id, (int)$r['place'], (float)$r['percentage']]);
+            }
+        } else {
+            $payIns->execute([$session_id, 1, 50.0]);
+            $payIns->execute([$session_id, 2, 30.0]);
+            $payIns->execute([$session_id, 3, 20.0]);
+        }
     }
 
     $sess = $db->prepare('SELECT * FROM poker_sessions WHERE id = ?');
@@ -802,6 +851,128 @@ if ($action === 'rebalance_tables') {
         'players' => get_players($db, $session_id),
         'moves'   => $moves,
     ]);
+    exit;
+}
+
+// ─── POST: save_payout_structure ───────────────────────────
+// Body: name, places[] (place), percentages[] (pct), optional league_id, optional is_global (admin)
+if ($action === 'save_payout_structure') {
+    $name = trim($_POST['name'] ?? '');
+    $places = $_POST['places'] ?? [];
+    $percentages = $_POST['percentages'] ?? [];
+    $is_global = !empty($_POST['is_global']) ? 1 : 0;
+    $req_league_id = (int)($_POST['league_id'] ?? 0) ?: null;
+
+    if ($name === '' || !is_array($places) || count($places) === 0) {
+        echo json_encode(['ok' => false, 'error' => 'Name and at least one place required']); exit;
+    }
+    if ($is_global && !$isAdmin) {
+        echo json_encode(['ok' => false, 'error' => 'Only admins can save global structures']); exit;
+    }
+
+    $league_id = null;
+    if ($req_league_id) {
+        $role = league_role($req_league_id, (int)$current['id']);
+        if (!$isAdmin && !in_array($role, ['owner', 'manager'], true)) {
+            echo json_encode(['ok' => false, 'error' => 'You must be an owner or manager of that league.']); exit;
+        }
+        $league_id = $req_league_id;
+        $is_global = 0; // league structures are not global
+    }
+
+    // Validate totals
+    $total = 0.0;
+    for ($i = 0; $i < count($percentages); $i++) $total += (float)$percentages[$i];
+    if ($total > 100.0 + 0.001) {
+        echo json_encode(['ok' => false, 'error' => 'Percentages total ' . number_format($total, 1) . '% — cannot exceed 100%']); exit;
+    }
+
+    $db->prepare('INSERT INTO payout_structures (name, created_by, is_global, league_id) VALUES (?, ?, ?, ?)')
+       ->execute([$name, (int)$current['id'], $is_global, $league_id]);
+    $sid = (int)$db->lastInsertId();
+
+    $ins = $db->prepare('INSERT INTO payout_structure_places (structure_id, place, percentage) VALUES (?, ?, ?)');
+    for ($i = 0; $i < count($places); $i++) {
+        $pl = (int)$places[$i];
+        $pct = (float)($percentages[$i] ?? 0);
+        if ($pl > 0 && $pct > 0) {
+            $ins->execute([$sid, $pl, $pct]);
+        }
+    }
+
+    echo json_encode(['ok' => true, 'structure_id' => $sid]);
+    exit;
+}
+
+// ─── POST: load_payout_structure ───────────────────────────
+// Applies a structure's places to the session's poker_payouts.
+if ($action === 'load_payout_structure') {
+    $session_id = (int)($_POST['session_id'] ?? 0);
+    $structure_id = (int)($_POST['structure_id'] ?? 0);
+    $sess = $db->prepare('SELECT ps.*, e.created_by FROM poker_sessions ps JOIN events e ON ps.event_id = e.id WHERE ps.id = ?');
+    $sess->execute([$session_id]);
+    $s = $sess->fetch();
+    if (!$s) { echo json_encode(['ok' => false, 'error' => 'Session not found']); exit; }
+    if (!is_owner_or_manager($db, $s['event_id'], $current, $isAdmin)) {
+        http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Access denied']); exit;
+    }
+
+    $sp = $db->prepare('SELECT place, percentage FROM payout_structure_places WHERE structure_id = ? ORDER BY place');
+    $sp->execute([$structure_id]);
+    $rows = $sp->fetchAll(PDO::FETCH_ASSOC);
+    if (!$rows) { echo json_encode(['ok' => false, 'error' => 'Structure not found or empty']); exit; }
+
+    $db->prepare('DELETE FROM poker_payouts WHERE session_id = ?')->execute([$session_id]);
+    $ins = $db->prepare('INSERT INTO poker_payouts (session_id, place, percentage) VALUES (?, ?, ?)');
+    foreach ($rows as $r) {
+        $ins->execute([$session_id, (int)$r['place'], (float)$r['percentage']]);
+    }
+
+    echo json_encode([
+        'ok'      => true,
+        'payouts' => get_payouts($db, $session_id),
+        'pool'    => calc_pool($db, $session_id),
+    ]);
+    exit;
+}
+
+// ─── POST: delete_payout_structure ─────────────────────────
+if ($action === 'delete_payout_structure') {
+    $structure_id = (int)($_POST['structure_id'] ?? 0);
+    $p = $db->prepare('SELECT * FROM payout_structures WHERE id = ?');
+    $p->execute([$structure_id]);
+    $struct = $p->fetch();
+    if (!$struct) { echo json_encode(['ok' => false, 'error' => 'Not found']); exit; }
+    if ((int)$struct['is_default']) { echo json_encode(['ok' => false, 'error' => 'Cannot delete default']); exit; }
+    if ((int)($struct['is_global'] ?? 0) && !$isAdmin) {
+        echo json_encode(['ok' => false, 'error' => 'Only admins can delete global structures']); exit;
+    }
+    $preset_league_id = (int)($struct['league_id'] ?? 0);
+    if ($preset_league_id > 0) {
+        $role = league_role($preset_league_id, (int)$current['id']);
+        if (!$isAdmin && !in_array($role, ['owner', 'manager'], true)) {
+            echo json_encode(['ok' => false, 'error' => 'Only league owners or managers can delete this structure.']); exit;
+        }
+    } elseif ((int)$struct['created_by'] !== (int)$current['id'] && !$isAdmin) {
+        echo json_encode(['ok' => false, 'error' => 'Not allowed']); exit;
+    }
+
+    $db->prepare('DELETE FROM payout_structures WHERE id = ?')->execute([$structure_id]);
+    echo json_encode(['ok' => true]);
+    exit;
+}
+
+// ─── POST: set_default_payout_structure (admin only) ───────
+if ($action === 'set_default_payout_structure') {
+    if (!$isAdmin) { http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Admin only']); exit; }
+    $structure_id = (int)($_POST['structure_id'] ?? 0);
+    $p = $db->prepare('SELECT id FROM payout_structures WHERE id = ?');
+    $p->execute([$structure_id]);
+    if (!$p->fetch()) { echo json_encode(['ok' => false, 'error' => 'Structure not found']); exit; }
+
+    $db->prepare('UPDATE payout_structures SET is_default = 0 WHERE is_default = 1')->execute();
+    $db->prepare('UPDATE payout_structures SET is_default = 1, is_global = 1 WHERE id = ?')->execute([$structure_id]);
+    echo json_encode(['ok' => true]);
     exit;
 }
 

@@ -344,6 +344,36 @@ function db_init(PDO $pdo): void {
         FOREIGN KEY (preset_id) REFERENCES blind_presets(id) ON DELETE CASCADE
     )"); } catch (Exception $e) {}
 
+    // Payout structure presets (tournament payouts) — scoped like blind_presets
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS payout_structures (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        name        TEXT NOT NULL,
+        created_by  INTEGER NOT NULL DEFAULT 0,
+        is_default  INTEGER NOT NULL DEFAULT 0,
+        is_global   INTEGER NOT NULL DEFAULT 0,
+        league_id   INTEGER,
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    )"); } catch (Exception $e) {}
+
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS payout_structure_places (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        structure_id  INTEGER NOT NULL,
+        place         INTEGER NOT NULL,
+        percentage    REAL NOT NULL,
+        UNIQUE(structure_id, place),
+        FOREIGN KEY (structure_id) REFERENCES payout_structures(id) ON DELETE CASCADE
+    )"); } catch (Exception $e) {}
+
+    // Seed a default payout structure (50/30/20) if none exists
+    try {
+        $has = (int)$pdo->query("SELECT COUNT(*) FROM payout_structures")->fetchColumn();
+        if ($has === 0) {
+            $pdo->exec("INSERT INTO payout_structures (name, created_by, is_default, is_global) VALUES ('Standard (50/30/20)', 0, 1, 1)");
+            $sid = (int)$pdo->lastInsertId();
+            $pdo->exec("INSERT INTO payout_structure_places (structure_id, place, percentage) VALUES ($sid, 1, 50.0), ($sid, 2, 30.0), ($sid, 3, 20.0)");
+        }
+    } catch (Exception $e) {}
+
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS timer_state (
         id                     INTEGER PRIMARY KEY AUTOINCREMENT,
         session_id             INTEGER NOT NULL UNIQUE,
