@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.08800] — 2026-04-20
+
+### Fixed
+- **Timer player slideout sort.** The panel was grouping players by RSVP status (yes/null/no) which created two visible alphabetical clusters. Simplified the sort to a single continuous list: non-eliminated players alphabetically, then eliminated players at the bottom.
+
+---
+
 ## [v0.08701] — 2026-04-19
 
 ### Fixed
