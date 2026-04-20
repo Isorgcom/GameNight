@@ -149,7 +149,7 @@ function get_players($db, $session_id) {
         LEFT JOIN poker_sessions ps ON ps.id = pp.session_id
         LEFT JOIN event_invites ei ON ei.event_id = ps.event_id AND LOWER(ei.username) = LOWER(pp.display_name) AND ei.occurrence_date IS NULL
         WHERE pp.session_id = ? AND pp.removed = 0
-        ORDER BY CASE WHEN pp.rsvp='no' THEN 2 WHEN pp.rsvp IS NULL THEN 1 ELSE 0 END, pp.eliminated ASC, pp.display_name ASC");
+        ORDER BY pp.eliminated ASC, LOWER(pp.display_name) ASC");
     $stmt->execute([$session_id]);
     return $stmt->fetchAll();
 }
