@@ -2895,8 +2895,20 @@ function openEditModal(ev) {
     if (regenWrap) regenWrap.style.display = ev ? '' : 'none';
     <?php endif; ?>
 }
-function editFromView() { openEditModal(currentEvent); }
-function closeEdit() { document.getElementById('editModal').classList.remove('open'); }
+var _editFromView = false;
+function editFromView() {
+    _editFromView = true;
+    openEditModal(currentEvent);
+}
+function closeEdit() {
+    document.getElementById('editModal').classList.remove('open');
+    if (_editFromView && currentEvent) {
+        _editFromView = false;
+        viewEvent(currentEvent);
+    } else {
+        _editFromView = false;
+    }
+}
 
 function togglePokerFields() {
     var show = document.getElementById('eIsPoker').checked;
