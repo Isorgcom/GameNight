@@ -509,6 +509,23 @@ function db_init(PDO $pdo): void {
     // Per-event waitlist toggle (default ON for backwards compat)
     try { $pdo->exec("ALTER TABLE events ADD COLUMN waitlist_enabled INTEGER NOT NULL DEFAULT 1"); } catch (Exception $e) {}
 
+    // ─── Per-user personal contacts (Issue #14) ────────────────────────
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS user_contacts (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        owner_user_id   INTEGER NOT NULL,
+        linked_user_id  INTEGER,
+        contact_name    TEXT    NOT NULL,
+        contact_email   TEXT,
+        contact_phone   TEXT,
+        notes           TEXT,
+        created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (owner_user_id)  REFERENCES users(id),
+        FOREIGN KEY (linked_user_id) REFERENCES users(id)
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_user_contacts_owner  ON user_contacts(owner_user_id)"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_user_contacts_linked ON user_contacts(linked_user_id) WHERE linked_user_id IS NOT NULL"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS uq_user_contacts_email ON user_contacts(owner_user_id, LOWER(contact_email)) WHERE contact_email IS NOT NULL AND contact_email <> ''"); } catch (Exception $e) {}
+
     // Pending notifications queue (invite emails sent async by cron, not inline on save)
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS pending_notifications (
         id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -785,6 +802,10 @@ function delete_user_account(int $user_id): void {
     // Remove remaining league memberships (for leagues where user was member/manager, not owner)
     $db->prepare('DELETE FROM league_members WHERE user_id = ?')->execute([$user_id]);
     $db->prepare('DELETE FROM league_join_requests WHERE user_id = ?')->execute([$user_id]);
+
+    // Personal contacts owned by this user → delete; contacts linked to this user → unlink
+    try { $db->prepare('DELETE FROM user_contacts WHERE owner_user_id = ?')->execute([$user_id]); } catch (Exception $e) {}
+    try { $db->prepare('UPDATE user_contacts SET linked_user_id = NULL WHERE linked_user_id = ?')->execute([$user_id]); } catch (Exception $e) {}
 
     if ($username) {
         $db->prepare('DELETE FROM event_invites WHERE LOWER(username) = LOWER(?)')->execute([$username]);
@@ -1177,6 +1198,46 @@ function drain_queue_async(): void {
         escapeshellarg($script),
         escapeshellarg($token)
     ));
+}
+
+/**
+ * Add a person to a user's personal contacts if not already present.
+ * Called when a user invites someone to an event — organic contact list growth.
+ */
+function auto_add_contact(PDO $db, int $owner_user_id, string $name, string $email, string $phone): void {
+    $name  = trim($name);
+    $email = strtolower(trim($email));
+    $phone = trim($phone);
+    if ($name === '') return;
+    if ($email === '' && $phone === '') return;
+    // Skip if a contact already exists by email
+    if ($email !== '') {
+        $chk = $db->prepare('SELECT 1 FROM user_contacts WHERE owner_user_id = ? AND LOWER(contact_email) = ? LIMIT 1');
+        $chk->execute([$owner_user_id, $email]);
+        if ($chk->fetchColumn()) return;
+    }
+    // Resolve linked_user_id
+    $linked = null;
+    if ($email !== '') {
+        $u = $db->prepare('SELECT id FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1');
+        $u->execute([$email]);
+        $linked = $u->fetchColumn() ?: null;
+    }
+    if (!$linked && $phone !== '') {
+        $u = $db->prepare('SELECT id FROM users WHERE phone = ? LIMIT 1');
+        $u->execute([$phone]);
+        $linked = $u->fetchColumn() ?: null;
+    }
+    if (!$linked) {
+        // Try by username (when inviting an existing user by their name)
+        $u = $db->prepare('SELECT id FROM users WHERE LOWER(username) = LOWER(?) LIMIT 1');
+        $u->execute([$name]);
+        $linked = $u->fetchColumn() ?: null;
+    }
+    try {
+        $db->prepare('INSERT INTO user_contacts (owner_user_id, linked_user_id, contact_name, contact_email, contact_phone) VALUES (?, ?, ?, ?, ?)')
+           ->execute([$owner_user_id, $linked ?: null, $name, $email ?: null, $phone ?: null]);
+    } catch (Exception $e) { /* duplicate or other constraint — fine */ }
 }
 
 function auto_add_to_league(PDO $db, int $event_id, int $user_id): void {

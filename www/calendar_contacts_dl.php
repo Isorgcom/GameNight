@@ -1,10 +1,9 @@
 <?php
 /**
- * Returns the list of "invite suggestions" for the event editor,
- * scoped by the selected league.
+ * Returns the list of "invite suggestions" for the event editor.
  *
- *   GET /calendar_contacts_dl.php?league_id=0    → personal network (no league)
- *   GET /calendar_contacts_dl.php?league_id=N    → that league's roster only (must be a member)
+ *   GET /calendar_contacts_dl.php?league_id=0    → user's personal contacts only
+ *   GET /calendar_contacts_dl.php?league_id=N    → league roster MERGED with user's personal contacts
  *
  * Admins always get the full user list regardless of league_id.
  * Response: {ok: true, users: [{username, email, phone, display_name, is_pending}]}
@@ -20,6 +19,14 @@ $isAdmin = ($current['role'] ?? '') === 'admin';
 $league_id = (int)($_GET['league_id'] ?? 0);
 
 $users = [];
+$seen  = []; // dedup by username-key
+
+function _add_seen(array &$users, array &$seen, array $row): void {
+    $key = strtolower($row['username'] ?? '');
+    if ($key === '' || isset($seen[$key])) return;
+    $seen[$key] = true;
+    $users[] = $row;
+}
 
 if ($isAdmin) {
     $rows = $db->query('SELECT username, email, phone FROM users ORDER BY LOWER(username)')->fetchAll();
@@ -36,6 +43,21 @@ if ($isAdmin) {
     exit;
 }
 
+// ── Personal contacts (always included for non-admin) ──────────────────
+$pc = $db->prepare(
+    "SELECT COALESCE(u.username, LOWER(c.contact_email)) AS username,
+            c.contact_email AS email,
+            c.contact_phone AS phone,
+            c.contact_name  AS display_name,
+            CASE WHEN c.linked_user_id IS NULL THEN 1 ELSE 0 END AS is_pending
+     FROM user_contacts c
+     LEFT JOIN users u ON u.id = c.linked_user_id
+     WHERE c.owner_user_id = ?
+     ORDER BY LOWER(c.contact_name)"
+);
+$pc->execute([$uid]);
+$personal = $pc->fetchAll();
+
 if ($league_id > 0) {
     // Must be a member of this league to see its roster.
     $role = league_role($league_id, $uid);
@@ -44,18 +66,18 @@ if ($league_id > 0) {
         exit;
     }
 
-    // Linked members
+    // Linked members of the league
     $q1 = $db->prepare(
         "SELECT u.username, u.email, u.phone, u.username AS display_name, 0 AS is_pending
          FROM league_members lm
          JOIN users u ON u.id = lm.user_id
-         WHERE lm.league_id = ?
+         WHERE lm.league_id = ? AND u.id <> ?
          ORDER BY LOWER(u.username)"
     );
-    $q1->execute([$league_id]);
-    foreach ($q1->fetchAll() as $r) { $users[] = $r; }
+    $q1->execute([$league_id, $uid]);
+    foreach ($q1->fetchAll() as $r) { _add_seen($users, $seen, $r); }
 
-    // Pending contacts (keyed by email so inviteUser() has a stable handle)
+    // Pending league contacts (not yet signed up)
     $q2 = $db->prepare(
         "SELECT LOWER(contact_email) AS username,
                 contact_email         AS email,
@@ -67,51 +89,17 @@ if ($league_id > 0) {
          ORDER BY LOWER(contact_name)"
     );
     $q2->execute([$league_id]);
-    foreach ($q2->fetchAll() as $r) { $users[] = $r; }
+    foreach ($q2->fetchAll() as $r) { _add_seen($users, $seen, $r); }
 
+    // Merge personal contacts (deduped by username-key)
+    foreach ($personal as $r) { _add_seen($users, $seen, $r); }
+
+    usort($users, function($a, $b) { return strcasecmp($a['display_name'] ?? '', $b['display_name'] ?? ''); });
     echo json_encode(['ok' => true, 'users' => $users]);
     exit;
 }
 
-// No league picked — return the user's personal "network":
-//  a) other members of leagues they're in
-//  b) people they've previously invited on their own events
-$q1 = $db->prepare(
-    "SELECT DISTINCT u.username, u.email, u.phone, u.username AS display_name, 0 AS is_pending
-     FROM users u
-     JOIN league_members lm ON lm.user_id = u.id
-     WHERE lm.league_id IN (SELECT league_id FROM league_members WHERE user_id = ?)
-       AND u.id <> ?"
-);
-$q1->execute([$uid, $uid]);
-$seen = [];
-foreach ($q1->fetchAll() as $r) {
-    $key = strtolower($r['username']);
-    if (isset($seen[$key])) continue;
-    $seen[$key] = true;
-    $users[] = $r;
-}
-
-$q2 = $db->prepare(
-    "SELECT DISTINCT LOWER(ei.username) AS username,
-                     COALESCE(NULLIF(ei.email, ''), u.email) AS email,
-                     COALESCE(NULLIF(ei.phone, ''), u.phone) AS phone,
-                     COALESCE(u.username, ei.username) AS display_name,
-                     0 AS is_pending
-     FROM event_invites ei
-     JOIN events e        ON e.id = ei.event_id
-     LEFT JOIN users u    ON LOWER(u.username) = LOWER(ei.username)
-     WHERE e.created_by = ?
-       AND ei.username <> ''"
-);
-$q2->execute([$uid]);
-foreach ($q2->fetchAll() as $r) {
-    $key = strtolower($r['username']);
-    if (isset($seen[$key])) continue;
-    $seen[$key] = true;
-    $users[] = $r;
-}
-
+// No league picked → personal contacts only.
+foreach ($personal as $r) { _add_seen($users, $seen, $r); }
 usort($users, function($a, $b) { return strcasecmp($a['display_name'] ?? '', $b['display_name'] ?? ''); });
-
 echo json_encode(['ok' => true, 'users' => $users]);

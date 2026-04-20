@@ -288,6 +288,16 @@ function register_user(string $username, string $email, string $password, string
                  WHERE user_id IS NULL AND contact_phone = ?"
             )->execute([$id, $nph]);
         }
+        // Claim any pending personal-contact rows that match this email/phone
+        if ($email !== '') {
+            $db->prepare("UPDATE user_contacts SET linked_user_id = ? WHERE linked_user_id IS NULL AND LOWER(contact_email) = LOWER(?)")
+               ->execute([$id, $email]);
+        }
+        if ($phone !== '') {
+            $nph2 = normalize_phone($phone);
+            $db->prepare("UPDATE user_contacts SET linked_user_id = ? WHERE linked_user_id IS NULL AND contact_phone = ?")
+               ->execute([$id, $nph2]);
+        }
     } catch (Exception $e) { /* non-fatal */ }
 
     // Send verification based on chosen method

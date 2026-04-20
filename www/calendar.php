@@ -195,6 +195,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                        ->execute([$notify_eid, $poker_buyin, $poker_tables, $poker_seats, $poker_game_type]);
                 }
                 $save_invites($notify_eid, $new_invitee_usernames);
+                // Auto-add invited people to the creator's personal contacts
+                for ($__i = 0; $__i < count($inv_usernames); $__i++) {
+                    if (($inv_usernames[$__i] ?? '') === '') continue;
+                    auto_add_contact($db, (int)$current['id'], (string)$inv_usernames[$__i], (string)($inv_emails[$__i] ?? ''), (string)($inv_phones[$__i] ?? ''));
+                }
                 // For poker events with waitlist enabled, mark invitees beyond capacity as waitlisted
                 if ($is_poker && $waitlist_enabled) {
                     $cap = $poker_tables * $poker_seats;
@@ -231,6 +236,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $notify_eid = $id;
                 $save_invites($id, $new_invitee_usernames);
+                // Auto-add invited people to the creator's personal contacts
+                for ($__i = 0; $__i < count($inv_usernames); $__i++) {
+                    if (($inv_usernames[$__i] ?? '') === '') continue;
+                    auto_add_contact($db, (int)$current['id'], (string)$inv_usernames[$__i], (string)($inv_emails[$__i] ?? ''), (string)($inv_phones[$__i] ?? ''));
+                }
                 // For poker events with waitlist enabled, mark invitees beyond capacity as waitlisted
                 if ($is_poker && $waitlist_enabled) {
                     $cap = $poker_tables * $poker_seats;

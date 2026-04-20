@@ -160,6 +160,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
                 $save_invites($new_eid);
+                // Auto-add invited people to the creator's personal contacts
+                for ($__i = 0; $__i < count($inv_usernames); $__i++) {
+                    if (($inv_usernames[$__i] ?? '') === '') continue;
+                    auto_add_contact($db, (int)$current['id'], (string)$inv_usernames[$__i], (string)($inv_emails[$__i] ?? ''), (string)($inv_phones[$__i] ?? ''));
+                }
                 // For poker events with waitlist enabled, mark invitees beyond capacity as waitlisted
                 if ($is_poker && $waitlist_enabled) {
                     $cap = $poker_tables * $poker_seats;
@@ -229,6 +234,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $vf = ($isRecurring && $is_new) ? $today_date : null;
                     $ins_base->execute([$id, $uname, $pnorm ?: null, $inv_emails[$i] ?: null, $rsvp, $vf]);
                     if ($is_new) $new_inv[] = $uname;
+                    // Auto-add to creator's personal contacts
+                    auto_add_contact($db, (int)$current['id'], (string)$inv_usernames[$i], (string)($inv_emails[$i] ?? ''), (string)($inv_phones[$i] ?? ''));
                 }
                 // Clean up future per-occurrence rows for REMOVED invitees
                 $removed = array_diff($old_inv, $form_inv);

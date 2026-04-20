@@ -4,6 +4,21 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.10000] — 2026-04-20
+
+### Added
+- **Personal contacts (#14).** Each user now has a private address book at `/contacts.php`. Strict isolation — users never see another user's personal contacts. New `user_contacts` table, spreadsheet-style UI with inline editing, CSV import/export, Add/Delete, and a "Pending" vs "Linked" status badge.
+- **Auto-link on signup.** When a pending contact signs up with a matching email or phone, the `linked_user_id` fills in automatically (same pattern as league pending contacts).
+- **Auto-add on invite.** Inviting someone to an event automatically saves them to the inviter's personal contacts (skipped if a matching contact already exists).
+- **Nav link.** New "Contacts" entry between My Events and admin links in both desktop and mobile nav.
+
+### Changed
+- **Non-league event invite picker** now shows personal contacts ONLY (replaces the old implicit "network" of shared-league members + past invitees).
+- **League event invite picker** now shows the league roster MERGED with the creator's personal contacts, deduped.
+- **Account delete cascade** now also removes the user's personal contacts and unlinks any contacts that pointed to that user.
+
+---
+
 ## [v0.09000] — 2026-04-20
 
 ### Removed
