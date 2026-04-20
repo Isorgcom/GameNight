@@ -3,6 +3,85 @@
  * Shared poker helper functions used by checkin_dl.php and timer_dl.php.
  */
 
+// Columns that make up a user's remembered poker session defaults.
+const USER_SESSION_DEFAULT_COLS = [
+    'game_type', 'buyin_amount', 'rebuy_amount', 'addon_amount',
+    'starting_chips', 'addon_chips', 'rebuy_allowed', 'addon_allowed',
+    'max_rebuys', 'num_tables', 'seats_per_table', 'auto_assign_tables',
+];
+
+// Hardcoded fallback for first-time users.
+function default_session_defaults(): array {
+    return [
+        'game_type'          => 'tournament',
+        'buyin_amount'       => 2000,
+        'rebuy_amount'       => 2000,
+        'addon_amount'       => 1000,
+        'starting_chips'     => 5000,
+        'addon_chips'        => 5000,
+        'rebuy_allowed'      => 1,
+        'addon_allowed'      => 1,
+        'max_rebuys'         => 0,
+        'num_tables'         => 1,
+        'seats_per_table'    => 8,
+        'auto_assign_tables' => 1,
+    ];
+}
+
+// Upsert a user's last-used session defaults. league_id null = personal scope.
+function save_user_session_defaults($db, int $user_id, ?int $league_id, array $data): void {
+    $row = [];
+    foreach (USER_SESSION_DEFAULT_COLS as $c) {
+        if (array_key_exists($c, $data)) $row[$c] = $data[$c];
+    }
+    if (!$row) return;
+
+    if ($league_id === null) {
+        $sel = $db->prepare('SELECT id FROM user_session_defaults WHERE user_id = ? AND league_id IS NULL');
+        $sel->execute([$user_id]);
+    } else {
+        $sel = $db->prepare('SELECT id FROM user_session_defaults WHERE user_id = ? AND league_id = ?');
+        $sel->execute([$user_id, $league_id]);
+    }
+    $existing = $sel->fetchColumn();
+
+    if ($existing) {
+        $cols = array_keys($row);
+        $set  = implode(',', array_map(fn($c) => "$c = ?", $cols));
+        $vals = array_values($row);
+        $vals[] = (int)$existing;
+        $db->prepare("UPDATE user_session_defaults SET $set, updated_at = CURRENT_TIMESTAMP WHERE id = ?")->execute($vals);
+    } else {
+        $cols = array_merge(['user_id', 'league_id'], array_keys($row));
+        $placeholders = implode(',', array_fill(0, count($cols), '?'));
+        $colList = implode(',', $cols);
+        $vals = array_merge([$user_id, $league_id], array_values($row));
+        $db->prepare("INSERT INTO user_session_defaults ($colList) VALUES ($placeholders)")->execute($vals);
+    }
+}
+
+// Load a user's last-used defaults. League-scoped first, then personal, then hardcoded.
+function load_user_session_defaults($db, int $user_id, ?int $league_id): array {
+    $colList = implode(',', USER_SESSION_DEFAULT_COLS);
+    if ($league_id !== null) {
+        $q = $db->prepare("SELECT $colList FROM user_session_defaults WHERE user_id = ? AND league_id = ? LIMIT 1");
+        $q->execute([$user_id, $league_id]);
+        $row = $q->fetch(PDO::FETCH_ASSOC);
+        if ($row) return array_map('intval_or_string', $row);
+    }
+    $q = $db->prepare("SELECT $colList FROM user_session_defaults WHERE user_id = ? AND league_id IS NULL LIMIT 1");
+    $q->execute([$user_id]);
+    $row = $q->fetch(PDO::FETCH_ASSOC);
+    if ($row) return array_map('intval_or_string', $row);
+    return default_session_defaults();
+}
+
+// Cast numeric strings to int, leave text (game_type) alone.
+function intval_or_string($v) {
+    if (is_numeric($v)) return (int)$v;
+    return $v;
+}
+
 // Verify event ownership (owner, manager, or admin)
 function verify_event_access($db, $event_id, $current, $isAdmin) {
     $stmt = $db->prepare('SELECT created_by FROM events WHERE id = ?');
@@ -46,7 +125,7 @@ function get_session_from_player($db, $player_id) {
 
 // Calculate pool stats for a session
 function calc_pool($db, $session_id) {
-    $sess = $db->prepare('SELECT buyin_amount, rebuy_amount, addon_amount, game_type FROM poker_sessions WHERE id = ?');
+    $sess = $db->prepare('SELECT buyin_amount, rebuy_amount, addon_amount, starting_chips, addon_chips, game_type FROM poker_sessions WHERE id = ?');
     $sess->execute([$session_id]);
     $s = $sess->fetch();
 
@@ -73,8 +152,7 @@ function calc_pool($db, $session_id) {
     } else {
         $buyin_total  = (int)$r['total_buyins'] * (int)$s['buyin_amount'];
         $rebuy_total  = (int)$r['total_rebuys'] * (int)$s['rebuy_amount'];
-        // addons stores cents directly (per-player custom amount), not a count
-        $addon_total  = (int)$r['total_addons'];
+        $addon_total  = (int)$r['total_addons'] * (int)$s['addon_amount'];
         $pool_total   = $buyin_total + $rebuy_total + $addon_total;
     }
 
@@ -93,6 +171,8 @@ function calc_pool($db, $session_id) {
         'cashed_out'     => (int)$r['cashed_out'],
         'total_cash_out' => (int)$r['total_cash_out'],
         'total_cash_in'  => (int)$r['total_cash_in'],
+        'starting_chips' => (int)($s['starting_chips'] ?? 0),
+        'addon_chips'    => (int)($s['addon_chips'] ?? 0),
     ];
 }
 

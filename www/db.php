@@ -317,6 +317,51 @@ function db_init(PDO $pdo): void {
     try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN removed INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN auto_assign_tables INTEGER NOT NULL DEFAULT 1"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN seats_per_table INTEGER NOT NULL DEFAULT 8"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN addon_chips INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    // Default addon_chips to starting_chips where still zero (first run after this migration)
+    try { $pdo->exec("UPDATE poker_sessions SET addon_chips = starting_chips WHERE addon_chips = 0"); } catch (Exception $e) {}
+
+    // One-shot: convert poker_players.addons from cents to a count.
+    // Old semantics: each non-zero row held dollars (cents) of add-on taken.
+    // New semantics: integer count of add-ons taken.
+    try {
+        if (get_setting('addons_migrated_to_count') !== '1') {
+            $pdo->exec("UPDATE poker_players
+                SET addons = CASE
+                    WHEN addons = 0 THEN 0
+                    ELSE MAX(1, addons / (SELECT CASE WHEN addon_amount > 0 THEN addon_amount ELSE 1 END FROM poker_sessions WHERE id = session_id))
+                END
+                WHERE addons > 0");
+            set_setting('addons_migrated_to_count', '1');
+        }
+    } catch (Exception $e) {}
+
+    // Per-user (optionally per-league) remembered poker session defaults.
+    // A new event created by the same user auto-pre-fills from their last save.
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS user_session_defaults (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id             INTEGER NOT NULL,
+        league_id           INTEGER,
+        game_type           TEXT    DEFAULT 'tournament',
+        buyin_amount        INTEGER DEFAULT 2000,
+        rebuy_amount        INTEGER DEFAULT 2000,
+        addon_amount        INTEGER DEFAULT 1000,
+        starting_chips      INTEGER DEFAULT 5000,
+        addon_chips         INTEGER DEFAULT 5000,
+        rebuy_allowed       INTEGER DEFAULT 1,
+        addon_allowed       INTEGER DEFAULT 1,
+        max_rebuys          INTEGER DEFAULT 0,
+        num_tables          INTEGER DEFAULT 1,
+        seats_per_table     INTEGER DEFAULT 8,
+        auto_assign_tables  INTEGER DEFAULT 1,
+        updated_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id)  REFERENCES users(id)   ON DELETE CASCADE,
+        FOREIGN KEY (league_id) REFERENCES leagues(id) ON DELETE CASCADE
+    )"); } catch (Exception $e) {}
+    // SQLite treats NULLs as distinct in UNIQUE constraints, which breaks personal-scope upserts.
+    // Two partial unique indexes handle the two cases cleanly.
+    try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_usd_user_league ON user_session_defaults(user_id, league_id) WHERE league_id IS NOT NULL"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_usd_user_personal ON user_session_defaults(user_id) WHERE league_id IS NULL"); } catch (Exception $e) {}
 
     // Blind structure presets for poker timer
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS blind_presets (

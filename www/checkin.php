@@ -316,6 +316,7 @@ $session = $sessStmt->fetch();
 var CSRF = <?= json_encode($csrf, JSON_HEX_TAG) ?>;
 var ALL_USERS = <?= json_encode($allUsernames, JSON_HEX_TAG) ?>;
 var EVENT_ID = <?= $event_id ?>;
+var EVENT_LEAGUE_ID = <?= (int)($event['league_id'] ?? 0) ?>;
 var IS_ADMIN = <?= $isAdmin ? 'true' : 'false' ?>;
 var SESSION = <?= $session ? json_encode($session, JSON_HEX_TAG) : 'null' ?>;
 var PAYOUT_STRUCTURES = [];
@@ -399,16 +400,32 @@ function renderSetup() {
     h += '<button class="t-tournament active" onclick="setSetupType(\'tournament\')">Tournament</button>';
     h += '<button class="t-cash" onclick="setSetupType(\'cash\')">Cash Game</button>';
     h += '</div>';
-    h += '<label>Buy-in Amount ($)</label><input type="number" id="s_buyin" value="20" step="0.01" min="0">';
+    h += '<label>Buy-in Amount ($)</label><input type="number" id="s_buyin" value="20" step="1" min="0">';
     h += '<div id="setupTourneyFields">';
-    h += '<label>Rebuy Amount ($)</label><input type="number" id="s_rebuy" value="20" step="0.01" min="0">';
-    h += '<label>Add-on Amount ($)</label><input type="number" id="s_addon" value="10" step="0.01" min="0">';
+    h += '<label>Rebuy Amount ($)</label><input type="number" id="s_rebuy" value="20" step="1" min="0">';
+    h += '<label>Add-on Amount ($)</label><input type="number" id="s_addon" value="10" step="1" min="0">';
     h += '<label>Starting Chips</label><input type="number" id="s_chips" value="5000" step="1" min="1">';
+    h += '<label>Add-on Chips</label><input type="number" id="s_addon_chips" value="5000" step="1" min="0">';
     h += '</div>';
     h += '<label>Number of Tables</label><input type="number" id="s_tables" value="1" step="1" min="1">';
     h += '<button type="submit" onclick="initSession()">Create Session &amp; Import Players</button>';
     h += '</div>';
     document.getElementById('app').innerHTML = h;
+    // Prefill from remembered defaults (last-used for this league, else personal, else hardcoded).
+    var qs = EVENT_LEAGUE_ID ? '?league_id=' + EVENT_LEAGUE_ID : '';
+    fetch('/checkin_dl.php?action=get_session_defaults' + qs)
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+            if (!j.ok || !j.defaults) return;
+            var d = j.defaults;
+            var by = document.getElementById('s_buyin'); if (by) by.value = Math.round((d.buyin_amount || 2000) / 100);
+            var rb = document.getElementById('s_rebuy'); if (rb) rb.value = Math.round((d.rebuy_amount || 2000) / 100);
+            var ad = document.getElementById('s_addon'); if (ad) ad.value = Math.round((d.addon_amount || 1000) / 100);
+            var ch = document.getElementById('s_chips'); if (ch) ch.value = d.starting_chips || 5000;
+            var ac = document.getElementById('s_addon_chips'); if (ac) ac.value = d.addon_chips || (d.starting_chips || 5000);
+            var tb = document.getElementById('s_tables'); if (tb) tb.value = d.num_tables || 1;
+            if (d.game_type === 'cash') setSetupType('cash');
+        });
 }
 
 function setSetupType(type) {
@@ -421,7 +438,7 @@ function setSetupType(type) {
 }
 
 function initSession() {
-    var buyin = Math.round(parseFloat(document.getElementById('s_buyin').value || 20) * 100);
+    var buyin = Math.max(0, Math.round(parseFloat(document.getElementById('s_buyin').value || 20))) * 100;
     var data = {
         event_id: EVENT_ID,
         buyin_amount: buyin,
@@ -429,13 +446,15 @@ function initSession() {
         num_tables: parseInt(document.getElementById('s_tables').value || 1)
     };
     if (setupGameType === 'tournament') {
-        data.rebuy_amount = Math.round(parseFloat(document.getElementById('s_rebuy').value || 20) * 100);
-        data.addon_amount = Math.round(parseFloat(document.getElementById('s_addon').value || 10) * 100);
+        data.rebuy_amount   = Math.max(0, Math.round(parseFloat(document.getElementById('s_rebuy').value || 20))) * 100;
+        data.addon_amount   = Math.max(0, Math.round(parseFloat(document.getElementById('s_addon').value || 10))) * 100;
         data.starting_chips = parseInt(document.getElementById('s_chips').value || 5000);
+        data.addon_chips    = parseInt((document.getElementById('s_addon_chips') || {}).value || data.starting_chips);
     } else {
-        data.rebuy_amount = buyin; // rebuys cost same as buy-in for cash
+        data.rebuy_amount = buyin;
         data.addon_amount = 0;
         data.starting_chips = 0;
+        data.addon_chips = 0;
     }
     postAction('init_session', data, function(j) {
         SESSION = j.session;
@@ -683,12 +702,10 @@ function renderPlayerRows() {
                 h += '<td><div class="pk-counter"><button onclick="updateRebuys(' + p.id + ',-1)"' + dis + '>-</button><span>' + p.rebuys + '</span><button onclick="updateRebuys(' + p.id + ',1)"' + dis + '>+</button></div></td>';
             }
             if (parseInt(SESSION.addon_allowed)) {
-                var aoAmt = parseInt(SESSION.addon_amount) || 0;
-                var aoVal = parseInt(p.addons) || 0;
-                var aoOn = aoVal > 0;
-                h += '<td><div style="display:flex;align-items:center;gap:.25rem">'
-                   + '<input type="checkbox" ' + (aoOn ? 'checked' : '') + dis + ' onchange="addonToggle(' + p.id + ', this.checked, ' + aoAmt + ')" style="width:15px;height:15px;cursor:pointer;accent-color:#7c3aed">'
-                   + '<input type="text" id="aoField_' + p.id + '" value="' + (aoOn ? (aoVal/100).toFixed(2) : '') + '" inputmode="decimal" placeholder="$"' + dis + ' style="width:3.2rem;font-size:.78rem;text-align:center;border:1px solid #e2e8f0;border-radius:4px;padding:.15rem" onchange="addonSetAmt(' + p.id + ', this.value)">'
+                var aoCount = parseInt(p.addons) || 0;
+                h += '<td style="width:6.5rem;min-width:6.5rem"><div style="display:flex;align-items:center;gap:.3rem;width:100%">'
+                   + '<button class="pk-addon-btn" onclick="addAddon(' + p.id + ')"' + dis + ' style="font-size:.75rem;padding:.2rem .5rem;border-radius:4px;border:1px solid #c4b5fd;background:#f5f3ff;color:#6d28d9;cursor:pointer;font-weight:600;flex:0 0 auto">+ Add-on</button>'
+                   + '<span onclick="' + (aoCount > 0 ? 'removeAddon(' + p.id + ')' : '') + '" title="' + (aoCount > 0 ? 'Click to remove last add-on' : '') + '" style="display:inline-flex;align-items:center;justify-content:center;min-width:1.3rem;height:1.3rem;padding:0 .35rem;border-radius:10px;font-size:.72rem;font-weight:700;flex:0 0 auto;' + (aoCount > 0 ? 'background:#7c3aed;color:#fff;cursor:pointer' : 'background:transparent;color:transparent;pointer-events:none') + '">' + (aoCount > 0 ? aoCount : '0') + '</span>'
                    + '</div></td>';
             }
         } else {
@@ -851,13 +868,11 @@ function renderMobileCards() {
                     h += '</div>';
                 }
                 if (parseInt(SESSION.addon_allowed)) {
-                    var mAoAmt = parseInt(SESSION.addon_amount) || 0;
-                    var mAoVal = parseInt(p.addons) || 0;
-                    var mAoOn = mAoVal > 0;
+                    var mAoCount = parseInt(p.addons) || 0;
                     h += '<div class="pk-mobile-row">';
-                    h += '<label>Add-on</label><div style="display:flex;align-items:center;gap:.3rem">'
-                       + '<input type="checkbox" ' + (mAoOn ? 'checked' : '') + ' onchange="addonToggle(' + p.id + ', this.checked, ' + mAoAmt + ')" style="width:16px;height:16px;cursor:pointer;accent-color:#7c3aed">'
-                       + '<input type="text" id="aoMField_' + p.id + '" value="' + (mAoOn ? (mAoVal/100).toFixed(2) : '') + '" inputmode="decimal" placeholder="$" style="width:3.5rem;font-size:.85rem;text-align:center;border:1px solid #e2e8f0;border-radius:4px;padding:.2rem" onchange="addonSetAmt(' + p.id + ', this.value)">'
+                    h += '<label>Add-ons</label><div style="display:flex;align-items:center;gap:.3rem">'
+                       + '<button onclick="addAddon(' + p.id + ')" style="font-size:.85rem;padding:.35rem .7rem;border-radius:4px;border:1px solid #c4b5fd;background:#f5f3ff;color:#6d28d9;cursor:pointer;font-weight:600">+ Add-on</button>'
+                       + (mAoCount > 0 ? '<span onclick="removeAddon(' + p.id + ')" title="Tap to remove last" style="display:inline-flex;align-items:center;justify-content:center;min-width:1.5rem;height:1.5rem;padding:0 .45rem;border-radius:12px;background:#7c3aed;color:#fff;font-size:.8rem;font-weight:700;cursor:pointer">' + mAoCount + '</span>' : '')
                        + '</div>';
                     h += '</div>';
                 }
@@ -959,12 +974,13 @@ function renderSettingsPanel() {
     h += '<h3 style="margin:0 0 .75rem;font-size:1rem">Game Settings</h3>';
     h += '<div class="pk-settings-grid">';
     h += '<div><label>Game Type</label><select id="cfg_game_type" onchange="previewGameType(this.value)"><option value="tournament"' + (isTourney()?' selected':'') + '>Tournament</option><option value="cash"' + (isCash()?' selected':'') + '>Cash Game</option></select></div>';
-    h += '<div><label>Buy-in ($)</label><input type="number" id="cfg_buyin" value="' + (parseInt(SESSION.buyin_amount)/100).toFixed(2) + '" step="0.01" min="0"></div>';
+    h += '<div><label>Buy-in ($)</label><input type="number" id="cfg_buyin" value="' + Math.round(parseInt(SESSION.buyin_amount)/100) + '" step="1" min="0"></div>';
     h += '</div>'; // close pk-settings-grid
     h += '<div class="pk-settings-grid" id="cfgTourneyFields" style="margin-top:.75rem;' + (isCash()?'display:none':'') + '">';
-    h += '<div><label>Rebuy ($)</label><input type="number" id="cfg_rebuy" value="' + (parseInt(SESSION.rebuy_amount)/100).toFixed(2) + '" step="0.01" min="0"></div>';
-    h += '<div><label>Add-on ($)</label><input type="number" id="cfg_addon" value="' + (parseInt(SESSION.addon_amount)/100).toFixed(2) + '" step="0.01" min="0"></div>';
+    h += '<div><label>Rebuy ($)</label><input type="number" id="cfg_rebuy" value="' + Math.round(parseInt(SESSION.rebuy_amount)/100) + '" step="1" min="0"></div>';
+    h += '<div><label>Add-on ($)</label><input type="number" id="cfg_addon" value="' + Math.round(parseInt(SESSION.addon_amount)/100) + '" step="1" min="0"></div>';
     h += '<div><label>Starting Chips</label><input type="number" id="cfg_chips" value="' + SESSION.starting_chips + '" min="1"></div>';
+    h += '<div><label>Add-on Chips</label><input type="number" id="cfg_addon_chips" value="' + (parseInt(SESSION.addon_chips) || parseInt(SESSION.starting_chips) || 0) + '" min="0" title="Chips granted per add-on taken"></div>';
     h += '<div><label>Rebuys Allowed</label><select id="cfg_rebuy_allowed"><option value="1"' + (parseInt(SESSION.rebuy_allowed)?' selected':'') + '>Yes</option><option value="0"' + (!parseInt(SESSION.rebuy_allowed)?' selected':'') + '>No</option></select></div>';
     h += '<div><label>Max Rebuys (0=unlimited)</label><input type="number" id="cfg_max_rebuys" value="' + SESSION.max_rebuys + '" min="0"></div>';
     h += '<div><label>Add-ons Allowed</label><select id="cfg_addon_allowed"><option value="1"' + (parseInt(SESSION.addon_allowed)?' selected':'') + '>Yes</option><option value="0"' + (!parseInt(SESSION.addon_allowed)?' selected':'') + '>No</option></select></div>';
@@ -1321,22 +1337,11 @@ function updateRebuys(pid, delta) {
     });
 }
 
-function addonToggle(pid, checked, defaultAmt) {
-    var p = PLAYERS.find(function(pl) { return parseInt(pl.id) === pid; });
-    var current = p ? parseInt(p.addons) || 0 : 0;
-    var target = checked ? defaultAmt : 0;
-    var delta = target - current;
-    var val = checked ? (target / 100).toFixed(2) : '';
-    ['aoField_', 'aoMField_'].forEach(function(pfx) { var el = document.getElementById(pfx + pid); if (el) el.value = val; });
-    if (delta !== 0) updateAddons(pid, delta);
+function addAddon(pid) {
+    updateAddons(pid, 1);
 }
-function addonSetAmt(pid, val) {
-    var cents = Math.round(parseFloat(val) * 100) || 0;
-    if (cents < 0) cents = 0;
-    var p = PLAYERS.find(function(pl) { return parseInt(pl.id) === pid; });
-    var current = p ? parseInt(p.addons) || 0 : 0;
-    var delta = cents - current;
-    if (delta !== 0) updateAddons(pid, delta);
+function removeAddon(pid) {
+    updateAddons(pid, -1);
 }
 function updateAddons(pid, delta) {
     postAction('update_addons', { player_id: pid, delta: delta }, function(j) {
@@ -1873,16 +1878,17 @@ function updateRsvp(pid, val) {
 function saveSettings() {
     var data = {
         session_id: SESSION.id,
-        buyin_amount: Math.round(parseFloat(document.getElementById('cfg_buyin').value || 0) * 100),
+        buyin_amount: Math.max(0, Math.round(parseFloat(document.getElementById('cfg_buyin').value || 0))) * 100,
         game_type: document.getElementById('cfg_game_type').value,
         num_tables: parseInt(document.getElementById('cfg_tables').value || 1),
         seats_per_table: parseInt(document.getElementById('cfg_seats_per_table').value || 9),
         auto_assign_tables: parseInt((document.getElementById('cfg_auto_assign') || {}).value || 1),
     };
     if (document.getElementById('cfg_game_type').value === 'tournament') {
-        data.rebuy_amount = Math.round(parseFloat((document.getElementById('cfg_rebuy') || {}).value || 0) * 100);
-        data.addon_amount = Math.round(parseFloat((document.getElementById('cfg_addon') || {}).value || 0) * 100);
+        data.rebuy_amount = Math.max(0, Math.round(parseFloat((document.getElementById('cfg_rebuy') || {}).value || 0))) * 100;
+        data.addon_amount = Math.max(0, Math.round(parseFloat((document.getElementById('cfg_addon') || {}).value || 0))) * 100;
         data.starting_chips = parseInt((document.getElementById('cfg_chips') || {}).value || 5000);
+        data.addon_chips = parseInt((document.getElementById('cfg_addon_chips') || {}).value || data.starting_chips);
         data.rebuy_allowed = (document.getElementById('cfg_rebuy_allowed') || {}).value || '1';
         data.max_rebuys = parseInt((document.getElementById('cfg_max_rebuys') || {}).value || 0);
         data.addon_allowed = (document.getElementById('cfg_addon_allowed') || {}).value || '1';
@@ -1890,6 +1896,7 @@ function saveSettings() {
         data.rebuy_amount = data.buyin_amount;
         data.addon_amount = 0;
         data.starting_chips = 0;
+        data.addon_chips = 0;
         data.rebuy_allowed = 1;
         data.max_rebuys = 0;
         data.addon_allowed = 0;

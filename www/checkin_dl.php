@@ -83,6 +83,17 @@ if ($action === 'list_payout_structures') {
     exit;
 }
 
+// ─── GET: get_session_defaults ─────────────────────────────
+// Returns the caller's last-used poker session config. Accepts optional league_id.
+// Lookup: (user, league_id) -> (user, NULL) -> hardcoded defaults.
+if ($action === 'get_session_defaults') {
+    $league_id = isset($_GET['league_id']) && $_GET['league_id'] !== '' ? (int)$_GET['league_id'] : null;
+    if ($league_id !== null && $league_id <= 0) $league_id = null;
+    $defaults = load_user_session_defaults($db, (int)$current['id'], $league_id);
+    echo json_encode(['ok' => true, 'defaults' => $defaults]);
+    exit;
+}
+
 // ─── GET: get_payout_user_leagues ──────────────────────────
 // Leagues the current user can save payout structures to (owner/manager).
 if ($action === 'get_payout_user_leagues') {
@@ -129,9 +140,24 @@ if ($action === 'init_session') {
     $tables    = (int)($_POST['num_tables']    ?? 1);
     $game_type = in_array($_POST['game_type'] ?? '', ['tournament', 'cash']) ? $_POST['game_type'] : 'tournament';
 
-    $ins = $db->prepare('INSERT INTO poker_sessions (event_id, buyin_amount, rebuy_amount, addon_amount, starting_chips, num_tables, game_type, seats_per_table) VALUES (?, ?, ?, ?, ?, ?, ?, 8)');
-    $ins->execute([$event_id, $buyin, $rebuy, $addon, $chips, $tables, $game_type]);
+    $addon_chips = (int)($_POST['addon_chips'] ?? $chips);
+    $ins = $db->prepare('INSERT INTO poker_sessions (event_id, buyin_amount, rebuy_amount, addon_amount, starting_chips, addon_chips, num_tables, game_type, seats_per_table) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 8)');
+    $ins->execute([$event_id, $buyin, $rebuy, $addon, $chips, $addon_chips, $tables, $game_type]);
     $session_id = (int)$db->lastInsertId();
+
+    // Remember these as the creator's last-used defaults (scoped to the event's league if any).
+    $evRow = $db->prepare('SELECT league_id FROM events WHERE id = ?');
+    $evRow->execute([$event_id]);
+    $ev_league_id = $evRow->fetchColumn();
+    save_user_session_defaults($db, (int)$current['id'], $ev_league_id ? (int)$ev_league_id : null, [
+        'game_type'       => $game_type,
+        'buyin_amount'    => $buyin,
+        'rebuy_amount'    => $rebuy,
+        'addon_amount'    => $addon,
+        'starting_chips'  => $chips,
+        'addon_chips'     => $addon_chips,
+        'num_tables'      => $tables,
+    ]);
 
     // Import all invitees with their RSVP status
     $invites = $db->prepare("SELECT ei.username, ei.rsvp, u.id as user_id FROM event_invites ei LEFT JOIN users u ON LOWER(ei.username) = LOWER(u.username) WHERE ei.event_id = ? GROUP BY LOWER(ei.username)");
@@ -184,7 +210,7 @@ if ($action === 'update_config') {
 
     $game_type = in_array($_POST['game_type'] ?? '', ['tournament', 'cash']) ? $_POST['game_type'] : $s['game_type'];
     $new_num_tables = (int)($_POST['num_tables'] ?? $s['num_tables']);
-    $db->prepare('UPDATE poker_sessions SET buyin_amount=?, rebuy_amount=?, addon_amount=?, rebuy_allowed=?, addon_allowed=?, max_rebuys=?, starting_chips=?, num_tables=?, game_type=?, auto_assign_tables=?, seats_per_table=? WHERE id=?')->execute([
+    $db->prepare('UPDATE poker_sessions SET buyin_amount=?, rebuy_amount=?, addon_amount=?, rebuy_allowed=?, addon_allowed=?, max_rebuys=?, starting_chips=?, addon_chips=?, num_tables=?, game_type=?, auto_assign_tables=?, seats_per_table=? WHERE id=?')->execute([
         (int)($_POST['buyin_amount'] ?? $s['buyin_amount']),
         (int)($_POST['rebuy_amount'] ?? $s['rebuy_amount']),
         (int)($_POST['addon_amount'] ?? $s['addon_amount']),
@@ -192,6 +218,7 @@ if ($action === 'update_config') {
         (int)($_POST['addon_allowed'] ?? $s['addon_allowed']),
         (int)($_POST['max_rebuys'] ?? $s['max_rebuys']),
         (int)($_POST['starting_chips'] ?? $s['starting_chips']),
+        (int)($_POST['addon_chips'] ?? $s['addon_chips'] ?? $s['starting_chips']),
         $new_num_tables,
         $game_type,
         (int)($_POST['auto_assign_tables'] ?? $s['auto_assign_tables'] ?? 1),
@@ -214,10 +241,30 @@ if ($action === 'update_config') {
 
     $sess2 = $db->prepare('SELECT * FROM poker_sessions WHERE id = ?');
     $sess2->execute([$session_id]);
+    $srow = $sess2->fetch();
+
+    // Remember as the current user's last-used defaults (scoped to the event's league if any).
+    $evRow = $db->prepare('SELECT league_id FROM events WHERE id = ?');
+    $evRow->execute([(int)$s['event_id']]);
+    $ev_league_id = $evRow->fetchColumn();
+    save_user_session_defaults($db, (int)$current['id'], $ev_league_id ? (int)$ev_league_id : null, [
+        'game_type'          => $srow['game_type'],
+        'buyin_amount'       => (int)$srow['buyin_amount'],
+        'rebuy_amount'       => (int)$srow['rebuy_amount'],
+        'addon_amount'       => (int)$srow['addon_amount'],
+        'starting_chips'     => (int)$srow['starting_chips'],
+        'addon_chips'        => (int)$srow['addon_chips'],
+        'rebuy_allowed'      => (int)$srow['rebuy_allowed'],
+        'addon_allowed'      => (int)$srow['addon_allowed'],
+        'max_rebuys'         => (int)$srow['max_rebuys'],
+        'num_tables'         => (int)$srow['num_tables'],
+        'seats_per_table'    => (int)$srow['seats_per_table'],
+        'auto_assign_tables' => (int)$srow['auto_assign_tables'],
+    ]);
 
     echo json_encode([
         'ok'      => true,
-        'session' => $sess2->fetch(),
+        'session' => $srow,
         'players' => get_players($db, $session_id),
         'pool'    => calc_pool($db, $session_id),
         'payouts' => get_payouts($db, $session_id),

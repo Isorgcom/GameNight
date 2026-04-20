@@ -506,6 +506,31 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
             .timer-payouts { font-size: 0.65rem; padding: 0.35rem 0.5rem; }
         }
 
+        /* Average stack display (left side, top-aligned with payouts) */
+        .timer-avgstack {
+            position: absolute;
+            top: 3rem;
+            left: 0.75rem;
+            background: rgba(30,41,59,0.85);
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 0.5rem 0.75rem;
+            font-size: clamp(0.7rem, 1.2vw, 0.9rem);
+            line-height: 1.6;
+            color: #94a3b8;
+            z-index: 10;
+        }
+        .timer-avgstack-title {
+            font-weight: 700;
+            color: #e2e8f0;
+            margin-bottom: 0.2rem;
+            font-size: clamp(0.75rem, 1.3vw, 0.95rem);
+        }
+        .timer-avgstack b { color: #e2e8f0; }
+        @media (max-width: 500px) {
+            .timer-avgstack { font-size: 0.65rem; padding: 0.35rem 0.5rem; }
+        }
+
         /* ── QR code ── */
         .timer-qr {
             position: absolute;
@@ -755,6 +780,12 @@ if ((int)($timer['is_running'] ?? 0) && !empty($timer['updated_at'])) {
 <?php endif; ?>
 
 <div class="timer-container">
+    <!-- Average stack display (tournaments only) -->
+    <div class="timer-avgstack" id="avgStackWrap" style="display:none">
+        <div class="timer-avgstack-title">Avg Stack</div>
+        <div><b id="avgStackValue">-</b></div>
+    </div>
+
     <!-- Payout display (tournaments only) -->
     <div class="timer-payouts" id="payoutsWrap" style="display:none">
         <div class="timer-payouts-title">Payouts</div>
@@ -1093,6 +1124,26 @@ function renderAll() {
         var pw = el('playerWrap'), plw = el('poolWrap');
         if (pw) pw.style.display = (POOL.bought_in > 0) ? '' : 'none';
         if (plw) plw.style.display = (POOL.bought_in > 0) ? '' : 'none';
+    }
+
+    // Average stack (tournament only)
+    var avgWrap = el('avgStackWrap');
+    var avgVal  = el('avgStackValue');
+    if (avgWrap && avgVal) {
+        var stillPlaying = POOL ? (POOL.still_playing || 0) : 0;
+        var startChips   = POOL ? (POOL.starting_chips || 0) : 0;
+        var addonChips   = POOL ? (POOL.addon_chips || 0) : 0;
+        var totalBuyins  = POOL ? (POOL.total_buyins  || 0) : 0;
+        var totalRebuys  = POOL ? (POOL.total_rebuys  || 0) : 0;
+        var totalAddons  = POOL ? (POOL.total_addons  || 0) : 0;
+        if (GAME_TYPE === 'tournament' && stillPlaying > 0 && startChips > 0) {
+            var chipsInPlay = (totalBuyins + totalRebuys) * startChips + totalAddons * addonChips;
+            var avg = Math.round(chipsInPlay / stillPlaying);
+            avgVal.textContent = avg.toLocaleString();
+            avgWrap.style.display = '';
+        } else {
+            avgWrap.style.display = 'none';
+        }
     }
 
     // Payouts (tournament only)
@@ -2204,13 +2255,10 @@ function renderPlayerPanel() {
                     }
                     if (PP_SESSION && parseInt(PP_SESSION.addon_allowed)) {
                         var aoCount = parseInt(p.addons || 0);
-                        var aoChecked = aoCount > 0;
-                        var aoDefault = parseInt(PP_SESSION.addon_amount || 0);
-                        var aoDisplay = aoChecked ? (aoCount / 100).toFixed(2) : '';
-                        h += '<div class="pp-counter" style="gap:.2rem;align-items:center">'
+                        h += '<div class="pp-counter" style="gap:.25rem;align-items:center">'
                            + '<span style="font-size:.55rem;color:#94a3b8;font-weight:700;letter-spacing:.03em;min-width:1.2rem">AO</span>'
-                           + '<input type="checkbox" ' + (aoChecked ? 'checked' : '') + ' onchange="ppAddonToggle(' + p.id + ', this.checked, ' + aoDefault + ')" style="width:15px;height:15px;cursor:pointer;accent-color:#7c3aed">'
-                           + '<input type="text" id="aoAmt_' + p.id + '" value="' + aoDisplay + '" inputmode="decimal" placeholder="$" style="width:2.8rem;font-size:.7rem;text-align:center;border:1px solid #e2e8f0;border-radius:3px;padding:.1rem" onchange="ppAddonSetAmt(' + p.id + ', this.value)">'
+                           + '<button onclick="ppAddAddon(' + p.id + ')" style="font-size:.7rem;padding:.15rem .45rem;border-radius:3px;border:1px solid #c4b5fd;background:#f5f3ff;color:#6d28d9;cursor:pointer;font-weight:600">+</button>'
+                           + (aoCount > 0 ? '<span onclick="ppRemoveAddon(' + p.id + ')" title="Tap to remove last" style="display:inline-flex;align-items:center;justify-content:center;min-width:1.1rem;height:1.1rem;padding:0 .3rem;border-radius:9px;background:#7c3aed;color:#fff;font-size:.65rem;font-weight:700;cursor:pointer">' + aoCount + '</span>' : '')
                            + '</div>';
                     }
                     h += '<button class="pp-elim" onclick="ppEliminate(' + p.id + ')">Elim</button>';
@@ -2246,25 +2294,9 @@ function ppPost(action, data, cb) {
 
 function ppBuyin(pid) { ppPost('toggle_buyin', { player_id: pid }); }
 function ppRebuy(pid, d) { ppPost('update_rebuys', { player_id: pid, delta: d }); }
-function ppAddon(pid, d) { ppPost('update_addons', { player_id: pid, delta: d }); }
-function ppAddonToggle(pid, checked, defaultAmt) {
-    // Check = set addons to the default addon_amount (cents), uncheck = set to 0
-    var p = PP_PLAYERS.find(function(pl) { return parseInt(pl.id) === pid; });
-    var current = p ? parseInt(p.addons) || 0 : 0;
-    var target = checked ? defaultAmt : 0;
-    var delta = target - current;
-    var el = document.getElementById('aoAmt_' + pid);
-    if (el) el.value = checked ? (target / 100).toFixed(2) : '';
-    if (delta !== 0) ppAddon(pid, delta);
-}
-function ppAddonSetAmt(pid, val) {
-    // Field is in dollars — convert to cents and compute delta from current
-    var cents = Math.round(parseFloat(val) * 100) || 0;
-    if (cents < 0) cents = 0;
-    var p = PP_PLAYERS.find(function(pl) { return parseInt(pl.id) === pid; });
-    var current = p ? parseInt(p.addons) || 0 : 0;
-    var delta = cents - current;
-    if (delta !== 0) ppAddon(pid, delta);
+function ppAddAddon(pid) { ppPost('update_addons', { player_id: pid, delta: 1 }); }
+function ppRemoveAddon(pid) {
+    ppPost('update_addons', { player_id: pid, delta: -1 });
 }
 function ppEliminate(pid) {
     var playing = PP_PLAYERS.filter(function(p) { return !parseInt(p.eliminated) && parseInt(p.bought_in); }).length;

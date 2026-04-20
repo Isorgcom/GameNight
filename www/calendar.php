@@ -164,6 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $suppress_notify = !empty($_POST['suppress_notify']);
             $is_poker = !empty($_POST['is_poker']) ? 1 : 0;
+            if ($is_poker) require_once __DIR__ . '/_poker_helpers.php';
             $requires_approval = !empty($_POST['requires_approval']) ? 1 : 0;
             $poker_game_type   = in_array($_POST['poker_game_type'] ?? '', ['tournament','cash'], true) ? $_POST['poker_game_type'] : 'tournament';
             $poker_buyin       = (int)(round(floatval($_POST['poker_buyin'] ?? 20) * 100));
@@ -191,8 +192,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                    ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $current['id'], $is_poker, $requires_approval, $league_id, $visibility, $rsvp_deadline_hrs, $waitlist_enabled]);
                 $notify_eid = (int)$db->lastInsertId();
                 if ($is_poker) {
-                    $db->prepare('INSERT OR IGNORE INTO poker_sessions (event_id, buyin_amount, num_tables, seats_per_table, game_type) VALUES (?, ?, ?, ?, ?)')
-                       ->execute([$notify_eid, $poker_buyin, $poker_tables, $poker_seats, $poker_game_type]);
+                    // Pull the creator's last-used session defaults (league-scoped if this event is in a league)
+                    // so rebuy / addon / chips / addon_chips / rebuy_allowed / addon_allowed / max_rebuys
+                    // track what the host used last instead of resetting to hardcoded schema defaults.
+                    $__def = function_exists('load_user_session_defaults')
+                        ? load_user_session_defaults($db, (int)$current['id'], $league_id)
+                        : ['rebuy_amount'=>2000,'addon_amount'=>1000,'starting_chips'=>5000,'addon_chips'=>5000,'rebuy_allowed'=>1,'addon_allowed'=>1,'max_rebuys'=>0,'auto_assign_tables'=>1];
+                    $db->prepare('INSERT OR IGNORE INTO poker_sessions
+                        (event_id, buyin_amount, rebuy_amount, addon_amount, starting_chips, addon_chips,
+                         rebuy_allowed, addon_allowed, max_rebuys, num_tables, seats_per_table,
+                         auto_assign_tables, game_type)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                       ->execute([
+                           $notify_eid,
+                           $poker_buyin,
+                           (int)$__def['rebuy_amount'],
+                           (int)$__def['addon_amount'],
+                           (int)$__def['starting_chips'],
+                           (int)$__def['addon_chips'],
+                           (int)$__def['rebuy_allowed'],
+                           (int)$__def['addon_allowed'],
+                           (int)$__def['max_rebuys'],
+                           $poker_tables,
+                           $poker_seats,
+                           (int)$__def['auto_assign_tables'],
+                           $poker_game_type,
+                       ]);
+                    // Also refresh the user's last-used with what they just chose.
+                    if (function_exists('save_user_session_defaults')) {
+                        save_user_session_defaults($db, (int)$current['id'], $league_id, [
+                            'game_type'       => $poker_game_type,
+                            'buyin_amount'    => $poker_buyin,
+                            'num_tables'      => $poker_tables,
+                            'seats_per_table' => $poker_seats,
+                        ]);
+                    }
                 }
                 $save_invites($notify_eid, $new_invitee_usernames);
                 // Auto-add invited people to the creator's personal contacts
@@ -230,8 +264,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $db->prepare('UPDATE poker_sessions SET buyin_amount=?, num_tables=?, seats_per_table=?, game_type=? WHERE event_id=?')
                            ->execute([$poker_buyin, $poker_tables, $poker_seats, $poker_game_type, $id]);
                     } else {
-                        $db->prepare('INSERT INTO poker_sessions (event_id, buyin_amount, num_tables, seats_per_table, game_type) VALUES (?, ?, ?, ?, ?)')
-                           ->execute([$id, $poker_buyin, $poker_tables, $poker_seats, $poker_game_type]);
+                        $__def = function_exists('load_user_session_defaults')
+                            ? load_user_session_defaults($db, (int)$current['id'], $league_id)
+                            : ['rebuy_amount'=>2000,'addon_amount'=>1000,'starting_chips'=>5000,'addon_chips'=>5000,'rebuy_allowed'=>1,'addon_allowed'=>1,'max_rebuys'=>0,'auto_assign_tables'=>1];
+                        $db->prepare('INSERT INTO poker_sessions
+                            (event_id, buyin_amount, rebuy_amount, addon_amount, starting_chips, addon_chips,
+                             rebuy_allowed, addon_allowed, max_rebuys, num_tables, seats_per_table,
+                             auto_assign_tables, game_type)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                           ->execute([
+                               $id, $poker_buyin,
+                               (int)$__def['rebuy_amount'], (int)$__def['addon_amount'],
+                               (int)$__def['starting_chips'], (int)$__def['addon_chips'],
+                               (int)$__def['rebuy_allowed'], (int)$__def['addon_allowed'], (int)$__def['max_rebuys'],
+                               $poker_tables, $poker_seats, (int)$__def['auto_assign_tables'], $poker_game_type,
+                           ]);
+                    }
+                    if (function_exists('save_user_session_defaults')) {
+                        save_user_session_defaults($db, (int)$current['id'], $league_id, [
+                            'game_type'       => $poker_game_type,
+                            'buyin_amount'    => $poker_buyin,
+                            'num_tables'      => $poker_tables,
+                            'seats_per_table' => $poker_seats,
+                        ]);
                     }
                 }
                 $notify_eid = $id;
@@ -2860,6 +2915,8 @@ function openEditModal(ev) {
     document.getElementById('eRsvpDeadline').value  = (ev && ev.rsvp_deadline_hours) ? String(ev.rsvp_deadline_hours) : '';
     document.getElementById('eWaitlistEnabled').checked = ev ? !!(parseInt(ev.waitlist_enabled) || ev.waitlist_enabled === null) : false;
     togglePokerFields();
+    // Flag for onLeagueChange so it knows this is a fresh-event open (not an existing session)
+    _isNewEventOpen = !ev;
     // League + visibility
     var lgSel  = document.getElementById('eLeagueId');
     var visSel = document.getElementById('eVisibility');
@@ -2972,6 +3029,29 @@ function onLeagueChange() {
     }
     // Scope the invite picker to the newly-selected league (or personal network when 0).
     if (typeof refreshUserList === 'function') refreshUserList();
+    // Re-fetch remembered poker defaults scoped to the new league (new events only).
+    if (_isNewEventOpen) loadPokerDefaultsIntoEditor();
+}
+
+var _isNewEventOpen = false;
+
+// Fetch the caller's last-used poker session defaults (scoped to the currently-selected league)
+// and populate the event-editor's poker fields. Only used when creating a NEW event.
+function loadPokerDefaultsIntoEditor() {
+    var lgSel = document.getElementById('eLeagueId');
+    var leagueId = (lgSel && lgSel.value && lgSel.value !== '0') ? parseInt(lgSel.value, 10) : 0;
+    var qs = leagueId ? '?league_id=' + leagueId : '';
+    fetch('/checkin_dl.php?action=get_session_defaults' + qs)
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+            if (!j.ok || !j.defaults) return;
+            var d = j.defaults;
+            var gt = document.getElementById('ePokerGameType'); if (gt) gt.value = d.game_type || 'tournament';
+            var by = document.getElementById('ePokerBuyin');    if (by) by.value = Math.round((d.buyin_amount || 2000) / 100);
+            var tb = document.getElementById('ePokerTables');   if (tb) tb.value = d.num_tables || 1;
+            var st = document.getElementById('ePokerSeats');    if (st) st.value = d.seats_per_table || 8;
+            if (typeof updateCapacityLine === 'function') updateCapacityLine();
+        });
 }
 
 buildAllUsersList();

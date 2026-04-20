@@ -4,6 +4,38 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.15000] — 2026-04-20
+
+### Changed
+- **Whole-dollar money inputs.** Dropped cents from every money input in the poker flow: event editor buy-in, initial session setup form (buy-in / rebuy / add-on), and live check-in settings panel (buy-in / rebuy / add-on). Inputs step by $1 instead of $0.01. Values still stored as cents internally; display output gains nothing extra but loses the stray `.00`s.
+
+### Added
+- **Remembered session defaults per user (and per league).** The poker config fields (game type, buy-in, rebuy, add-on, starting chips, add-on chips, rebuys allowed, max rebuys, add-ons allowed, tables, seats, auto-assign) now remember whatever the host used last. When creating a new event, the fields pre-fill from the host's last-used values. Scoping: league-scoped first (so a host can run different configs for different leagues), then personal fallback, then hardcoded defaults for first-timers. Remembered values update on every session save — both initial create and live config edits.
+- **Add-on Chips in initial setup.** The initial session setup form now also exposes the Add-on Chips field (previously only in the live settings panel).
+- New table `user_session_defaults` keyed `(user_id, league_id)` with cascade delete on both user and league deletion.
+
+---
+
+## [v0.14000] — 2026-04-20
+
+### Changed
+- **Add-ons rebuilt (tournament-only).** Add-ons now grant chips in addition to adding dollars to the pool, and the count-vs-cents confusion in `poker_players.addons` is fixed. New `addon_chips` column on `poker_sessions` (defaults to `starting_chips`) lets hosts configure exactly how many chips one add-on is worth, since real tournaments often discount add-on stacks. The Manage Game add-on column replaces the confusing checkbox-plus-dollar-field combo with a single "+ Add-on" button and a small count badge; tap the badge to remove the last add-on. Pool math now multiplies count by session `addon_amount` instead of summing cents-per-player. Avg Stack on the timer now includes add-on chips in the total chips-in-play calculation.
+
+### Removed
+- **Cash game add-on concept.** Cash-game sessions never had a coherent add-on flow (`cash_in` already tracked every dollar), so add-ons are now formally tournament-only. Cash game UI unchanged.
+
+### Migration
+- One-shot migration converts existing `poker_players.addons` values from cents to counts by dividing by the session's `addon_amount`. Guarded by `addons_migrated_to_count` setting so it only runs once. New `addon_chips` column defaults to `starting_chips` for all existing sessions.
+
+---
+
+## [v0.13000] — 2026-04-20
+
+### Added
+- **Average stack on timer.** Tournament timer now shows the current average chip stack in a glass panel on the top-left, top-aligned with the Payouts panel on the right. Value updates live as players buy in, rebuy, or get eliminated. Computed as `(total_buyins + total_rebuys) × starting_chips ÷ still_playing`. Hidden for cash games and while no one has bought in.
+
+---
+
 ## [v0.12000] — 2026-04-20
 
 ### Added
