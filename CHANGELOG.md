@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.11000] — 2026-04-20
+
+### Added
+- **League-scoped blind presets.** League owners and managers can save blind structures that automatically appear in the timer preset dropdown for every member of that league — no more bloating the global list. New `league_id` column on `blind_presets`. The timer's Save Preset flow now offers a scope picker: Personal, Global (admin), or any league the user owns/manages. Delete and edit permissions are gated on league role. The preset dropdown groups entries under their league name ("League: PCF Test League") alongside Default, Global Presets, and My Presets.
+
+---
+
 ## [v0.10000] — 2026-04-20
 
 ### Added

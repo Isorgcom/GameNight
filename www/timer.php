@@ -1825,13 +1825,19 @@ function loadPresetList() {
             if (!j.ok) return;
             var sel = document.getElementById('presetSelect');
             sel.innerHTML = '';
-            // Split presets into groups: default, global, personal
+            // Split presets into groups: default, global, league (one per league), personal
             var defaults = [], globals = [], personal = [];
+            var leagueGroups = {}; // league_id -> {name, presets[]}
             j.presets.forEach(function(p) {
                 p._isDefault = parseInt(p.is_default);
                 p._isGlobal  = parseInt(p.is_global);
+                p._leagueId  = p.league_id ? parseInt(p.league_id) : 0;
                 if (p._isDefault) defaults.push(p);
                 else if (p._isGlobal) globals.push(p);
+                else if (p._leagueId) {
+                    if (!leagueGroups[p._leagueId]) leagueGroups[p._leagueId] = { name: p.league_name || 'League', presets: [] };
+                    leagueGroups[p._leagueId].presets.push(p);
+                }
                 else personal.push(p);
             });
             function addGroup(label, items) {
@@ -1844,6 +1850,7 @@ function loadPresetList() {
                     opt.textContent = p.name;
                     opt.dataset.isDefault = p._isDefault;
                     opt.dataset.isGlobal  = p._isGlobal;
+                    opt.dataset.leagueId  = p._leagueId || 0;
                     opt.dataset.createdBy = p.created_by;
                     grp.appendChild(opt);
                 });
@@ -1851,6 +1858,9 @@ function loadPresetList() {
             }
             addGroup('Default', defaults);
             addGroup('Global Presets', globals);
+            Object.keys(leagueGroups).forEach(function(lid) {
+                addGroup('League: ' + leagueGroups[lid].name, leagueGroups[lid].presets);
+            });
             addGroup('My Presets', personal);
             // Select the currently active preset
             if (CURRENT_PRESET_ID) sel.value = String(CURRENT_PRESET_ID);
@@ -1907,12 +1917,45 @@ function loadPreset() {
 }
 
 function savePresetAs() {
+    // First, fetch the user's manageable leagues so we can offer league scope
+    var qs = new URLSearchParams();
+    qs.append('action', 'get_user_leagues');
+    if (SESSION_ID) qs.append('session_id', SESSION_ID);
+    else if (REMOTE_KEY) qs.append('key', REMOTE_KEY);
+    fetch('/timer_dl.php?' + qs.toString())
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+            var leagues = (j && j.ok) ? (j.leagues || []) : [];
+            _continueSavePresetAs(leagues);
+        })
+        .catch(function() { _continueSavePresetAs([]); });
+}
+function _continueSavePresetAs(leagues) {
     var name = prompt('Preset name:');
     if (!name) return;
     var is_global = 0;
-    if (IS_ADMIN) {
-        is_global = confirm('Save as a Global preset (visible to all users)?\n\nOK = Global\nCancel = Personal (only you)') ? 1 : 0;
+    var league_id = 0;
+
+    // Build the scope picker. Options: Personal, (Admin) Global, (Leagues they manage) League: Name
+    var scopeOptions = ['0: Personal (only you)'];
+    if (IS_ADMIN) scopeOptions.push('G: Global (all users)');
+    leagues.forEach(function(l, idx) {
+        scopeOptions.push((idx + 1) + ': League — ' + l.name);
+    });
+    if (scopeOptions.length > 1) {
+        var picked = prompt('Save as:\n\n' + scopeOptions.join('\n') + '\n\nEnter your choice (0, G, or 1-' + leagues.length + '):', '0');
+        if (picked === null) return;
+        picked = String(picked).trim().toUpperCase();
+        if (picked === 'G' && IS_ADMIN) {
+            is_global = 1;
+        } else {
+            var n = parseInt(picked, 10);
+            if (!isNaN(n) && n >= 1 && n <= leagues.length) {
+                league_id = parseInt(leagues[n - 1].id, 10);
+            }
+        }
     }
+
     collectLevelsFromTable();
     for (var i = 0; i < LEVELS.length; i++) LEVELS[i].level_number = i + 1;
     var fd = new FormData();
@@ -1920,12 +1963,14 @@ function savePresetAs() {
     fd.append('action', 'save_preset');
     fd.append('name', name);
     fd.append('is_global', is_global);
+    if (league_id) fd.append('league_id', league_id);
     fd.append('levels', JSON.stringify(LEVELS));
     fetch('/timer_dl.php', { method: 'POST', body: fd })
         .then(function(r) { return r.json(); })
         .then(function(j) {
             if (j.ok) {
-                alert('Preset saved' + (is_global ? ' (global)!' : '!'));
+                var label = is_global ? ' (global)' : (league_id ? ' (league)' : '');
+                alert('Preset saved' + label + '!');
                 loadPresetList();
             } else {
                 alert(j.error || 'Error saving preset');

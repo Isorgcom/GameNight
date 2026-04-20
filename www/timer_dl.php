@@ -315,9 +315,32 @@ if ($action === 'init_timer') {
 
 // ─── GET: get_presets ─────────────────────────────────────
 if ($action === 'get_presets') {
-    $stmt = $db->prepare('SELECT id, name, is_default, is_global, created_by FROM blind_presets WHERE is_default = 1 OR is_global = 1 OR created_by = ? ORDER BY is_default DESC, is_global DESC, name ASC');
-    $stmt->execute([$current['id']]);
+    $stmt = $db->prepare(
+        'SELECT bp.id, bp.name, bp.is_default, bp.is_global, bp.created_by, bp.league_id, l.name AS league_name
+         FROM blind_presets bp
+         LEFT JOIN leagues l ON l.id = bp.league_id
+         WHERE bp.is_default = 1
+            OR bp.is_global  = 1
+            OR bp.created_by = ?
+            OR bp.league_id IN (SELECT league_id FROM league_members WHERE user_id = ?)
+         ORDER BY bp.is_default DESC, bp.is_global DESC, LOWER(bp.name)'
+    );
+    $stmt->execute([$current['id'], $current['id']]);
     echo json_encode(['ok' => true, 'presets' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+    exit;
+}
+
+// ─── GET: get_user_leagues ────────────────────────────────
+// Returns leagues the current user can save presets to (owner or manager).
+if ($action === 'get_user_leagues') {
+    $stmt = $db->prepare(
+        "SELECT l.id, l.name FROM league_members lm
+         JOIN leagues l ON l.id = lm.league_id
+         WHERE lm.user_id = ? AND lm.role IN ('owner', 'manager')
+         ORDER BY LOWER(l.name)"
+    );
+    $stmt->execute([$current['id']]);
+    echo json_encode(['ok' => true, 'leagues' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
     exit;
 }
 
@@ -351,6 +374,7 @@ if ($action === 'save_preset') {
     $name = trim($_POST['name'] ?? '');
     $levels = json_decode($_POST['levels'] ?? '[]', true);
     $is_global = !empty($_POST['is_global']) ? 1 : 0;
+    $req_league_id = (int)($_POST['league_id'] ?? 0) ?: null;
 
     if (!$name || empty($levels)) {
         echo json_encode(['ok' => false, 'error' => 'Name and levels required']);
@@ -361,8 +385,20 @@ if ($action === 'save_preset') {
         echo json_encode(['ok' => false, 'error' => 'Only admins can save global presets']);
         exit;
     }
+    // League scoping: caller must be owner/manager of the league (or admin).
+    $league_id = null;
+    if ($req_league_id) {
+        $role = league_role($req_league_id, (int)$current['id']);
+        if (!$isAdmin && !in_array($role, ['owner', 'manager'], true)) {
+            echo json_encode(['ok' => false, 'error' => 'You must be an owner or manager of that league.']);
+            exit;
+        }
+        $league_id = $req_league_id;
+        $is_global = 0; // league presets are not global
+    }
 
-    $db->prepare('INSERT INTO blind_presets (name, created_by, is_global) VALUES (?, ?, ?)')->execute([$name, $current['id'], $is_global]);
+    $db->prepare('INSERT INTO blind_presets (name, created_by, is_global, league_id) VALUES (?, ?, ?, ?)')
+       ->execute([$name, $current['id'], $is_global, $league_id]);
     $pid = (int)$db->lastInsertId();
 
     $ins = $db->prepare('INSERT INTO blind_preset_levels (preset_id, level_number, small_blind, big_blind, ante, duration_minutes, is_break) VALUES (?, ?, ?, ?, ?, ?, ?)');
@@ -384,7 +420,18 @@ if ($action === 'delete_preset') {
     if ((int)$preset['is_default']) { echo json_encode(['ok' => false, 'error' => 'Cannot delete default']); exit; }
     // Global presets can only be deleted by admins.
     if ((int)($preset['is_global'] ?? 0) && !$isAdmin) { echo json_encode(['ok' => false, 'error' => 'Only admins can delete global presets']); exit; }
-    if ((int)$preset['created_by'] !== (int)$current['id'] && !$isAdmin) { echo json_encode(['ok' => false, 'error' => 'Access denied']); exit; }
+    // League presets: owner/manager of that league (or admin) can delete.
+    $preset_league_id = (int)($preset['league_id'] ?? 0);
+    if ($preset_league_id > 0) {
+        $role = league_role($preset_league_id, (int)$current['id']);
+        if (!$isAdmin && !in_array($role, ['owner', 'manager'], true)) {
+            echo json_encode(['ok' => false, 'error' => 'Only league owners or managers can delete this preset.']);
+            exit;
+        }
+    } elseif ((int)$preset['created_by'] !== (int)$current['id'] && !$isAdmin) {
+        echo json_encode(['ok' => false, 'error' => 'Access denied']);
+        exit;
+    }
     $db->prepare('DELETE FROM blind_presets WHERE id = ?')->execute([$preset_id]);
     echo json_encode(['ok' => true]);
     exit;
@@ -418,16 +465,27 @@ if ($action === 'update_levels') {
     $preset_id = (int)$timer['preset_id'];
     $created_copy = false;
 
-    $pc = $db->prepare('SELECT is_default, is_global, created_by FROM blind_presets WHERE id = ?');
+    $pc = $db->prepare('SELECT is_default, is_global, created_by, league_id FROM blind_presets WHERE id = ?');
     $pc->execute([$preset_id]);
     $presetRow = $pc->fetch();
 
     if ($presetRow) {
         $is_protected = (int)($presetRow['is_default'] ?? 0) || (int)($presetRow['is_global'] ?? 0);
-        $is_own       = (int)($presetRow['created_by'] ?? 0) === (int)$current['id'];
+        $preset_league_id = (int)($presetRow['league_id'] ?? 0);
+        $can_edit_league  = false;
+        if ($preset_league_id > 0) {
+            $role = league_role($preset_league_id, (int)$current['id']);
+            $can_edit_league = in_array($role, ['owner', 'manager'], true);
+        }
 
-        // Admin can edit default/global presets in place. Non-admins get a personal copy.
+        // Admin can edit anything. League owner/manager can edit their league's preset.
+        // Everyone else (including regular members of the league) gets a personal copy.
         if ($is_protected && !$isAdmin) {
+            $db->prepare('INSERT INTO blind_presets (name, created_by) VALUES (?, ?)')->execute(['Custom', $current['id']]);
+            $preset_id = (int)$db->lastInsertId();
+            $db->prepare("UPDATE timer_state SET preset_id = ?, updated_at = datetime('now') WHERE id = ?")->execute([$preset_id, $timer['id']]);
+            $created_copy = true;
+        } elseif ($preset_league_id > 0 && !$isAdmin && !$can_edit_league) {
             $db->prepare('INSERT INTO blind_presets (name, created_by) VALUES (?, ?)')->execute(['Custom', $current['id']]);
             $preset_id = (int)$db->lastInsertId();
             $db->prepare("UPDATE timer_state SET preset_id = ?, updated_at = datetime('now') WHERE id = ?")->execute([$preset_id, $timer['id']]);
