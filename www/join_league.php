@@ -10,6 +10,7 @@
  * - Invalid / hidden-without-access code → friendly error page.
  */
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/sms.php'; // for shorten_url()
 
 $db   = get_db();
 $site = get_setting('site_name', 'Game Night');
