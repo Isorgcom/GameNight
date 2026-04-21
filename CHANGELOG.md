@@ -4,6 +4,29 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.16000] — 2026-04-21
+
+### Changed
+- **Unified notification queue.** All event-related outbound notifications now flow through `pending_notifications`: reminders, cancellations, RSVP-to-creator, waitlist promotions, RSVP-deadline demotions, poker approvals, and the existing invites. Previously only invites were queued; everything else fired inline and could hang the HTTP request on slow SMTP/SMS APIs. New columns: `scheduled_for` (send time), `payload` (JSON for type-specific data), `occurrence_date` (per-occurrence recurring events).
+- **Instant drain on enqueue.** Every queue insert now spawns `cron_drain.php` in the background so notifications deliver in seconds instead of waiting up to 5 min for the next cron tick. The 5-min cron still runs as a retry safety net.
+- **Configurable reminders per event.** Event creators pick any combination of preset offsets — 1 week / 3 days / 2 days / 1 day / 12 hr / 2 hr / 30 min — or toggle reminders off entirely for a specific event. Per-event `reminders_enabled` and `reminder_offsets` columns on the events table. Site-wide default offsets set by admin (Site Settings → Notifications → Event Reminders).
+
+### Added
+- **Admin site default for reminders.** Multi-select checkboxes in Site Settings pick which offsets are pre-checked for new events. Default is 2 days + 12 hours (matches the previous hardcoded behavior).
+- **`_notifications.php`** — central `queue_event_notification`, `queue_reminders_for_event`, `clear_pending_reminders`, `dispatch_queued_notification` API. Replaces scattered inline body-building across calendar, webhook, rsvp, checkin, and db files.
+
+### Fixed
+- **Short-notice events.** A 1-hour-out event no longer queues a 2-day reminder that immediately fires on drain. Offsets whose scheduled time is already in the past are dropped at queue time.
+
+### Migration
+- New columns auto-added via `ALTER TABLE`. Existing events default to `reminders_enabled = 1` with `reminder_offsets = NULL` (use site default). First cron run after upgrade back-queues reminders for upcoming events into `pending_notifications` with future `scheduled_for` timestamps.
+
+### Out of scope (intentional)
+- League-scope notifications (join requests, role changes, member invites) still fire inline — the league feature is still settling; this will be revisited in a future pass.
+- Password reset, email/phone verification codes, admin test sends, and WhatsApp bot command replies stay inline (they're transactional, not broadcast notifications).
+
+---
+
 ## [v0.15000] — 2026-04-20
 
 ### Changed

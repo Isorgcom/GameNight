@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/_notifications.php';
 
 $db      = get_db();
 $current = current_user();
@@ -140,15 +141,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $rsvp_deadline_hrs = (int)($_POST['rsvp_deadline_hours'] ?? 0) ?: null;
         $waitlist_enabled  = !empty($_POST['waitlist_enabled']) ? 1 : 0;
 
+        // Reminder config (same semantics as calendar.php path)
+        $reminders_enabled = !empty($_POST['reminders_enabled']) ? 1 : 0;
+        $reminder_offsets_raw = $_POST['reminder_offsets'] ?? [];
+        if (!is_array($reminder_offsets_raw)) $reminder_offsets_raw = [];
+        $reminder_offsets_clean = [];
+        foreach ($reminder_offsets_raw as $m) {
+            $n = (int)$m;
+            if ($n > 0 && $n <= 40320) $reminder_offsets_clean[] = $n;
+        }
+        $reminder_offsets_clean = array_values(array_unique($reminder_offsets_clean));
+        $reminder_offsets_json = empty($reminder_offsets_clean) ? null : json_encode($reminder_offsets_clean);
+
         if ($title === '' || $sd === '') {
             $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Title and start date are required.'];
         } elseif (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $sd) || ($ed && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $ed))) {
             $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid date format.'];
         } else {
             if ($action === 'add') {
-                $db->prepare('INSERT INTO events (title, description, start_date, end_date, start_time, end_time, color, recurrence, recurrence_end, created_by, requires_approval, league_id, visibility, is_poker, rsvp_deadline_hours, waitlist_enabled)
-                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $recurrence, $recEnd, $current['id'], $requires_approval, $league_id, $visibility, $is_poker, $rsvp_deadline_hrs, $waitlist_enabled]);
+                $db->prepare('INSERT INTO events (title, description, start_date, end_date, start_time, end_time, color, recurrence, recurrence_end, created_by, requires_approval, league_id, visibility, is_poker, rsvp_deadline_hours, waitlist_enabled, reminders_enabled, reminder_offsets)
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $recurrence, $recEnd, $current['id'], $requires_approval, $league_id, $visibility, $is_poker, $rsvp_deadline_hrs, $waitlist_enabled, $reminders_enabled, $reminder_offsets_json]);
                 $new_eid = (int)$db->lastInsertId();
                 // Auto-create poker session if is_poker
                 if ($is_poker) {
@@ -181,6 +194,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($_ir['approval_status'] === 'approved') $all_new[] = $_ir['u'];
                 }
                 $notify_new_invitees($new_eid, $all_new, $title, $sd);
+                // Queue reminders right away (cron won't need to re-queue because reminders_queued=1)
+                if ($reminders_enabled) {
+                    queue_reminders_for_event($db, $new_eid);
+                    $db->prepare('UPDATE events SET reminders_queued = 1 WHERE id = ?')->execute([$new_eid]);
+                }
                 db_log_activity($current['id'], "created event: $title");
                 $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event added.'];
             } else {
@@ -199,8 +217,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
 
-                $db->prepare('UPDATE events SET title=?, description=?, start_date=?, end_date=?, start_time=?, end_time=?, color=?, recurrence=?, recurrence_end=?, requires_approval=?, league_id=?, visibility=?, is_poker=?, rsvp_deadline_hours=?, waitlist_enabled=? WHERE id=?')
-                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $recurrence, $recEnd, $requires_approval, $league_id, $visibility, $is_poker, $rsvp_deadline_hrs, $waitlist_enabled, $id]);
+                $oldRow = $db->prepare('SELECT start_date, start_time, reminder_offsets, reminders_enabled FROM events WHERE id=?');
+                $oldRow->execute([$id]);
+                $oldEv = $oldRow->fetch();
+
+                $db->prepare('UPDATE events SET title=?, description=?, start_date=?, end_date=?, start_time=?, end_time=?, color=?, recurrence=?, recurrence_end=?, requires_approval=?, league_id=?, visibility=?, is_poker=?, rsvp_deadline_hours=?, waitlist_enabled=?, reminders_enabled=?, reminder_offsets=? WHERE id=?')
+                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $recurrence, $recEnd, $requires_approval, $league_id, $visibility, $is_poker, $rsvp_deadline_hrs, $waitlist_enabled, $reminders_enabled, $reminder_offsets_json, $id]);
+
+                // Re-queue reminders if start time, toggle, or offsets changed
+                $reminder_context_changed = !$oldEv
+                    || $oldEv['start_date'] !== $sd
+                    || (($oldEv['start_time'] ?? '') !== ($st ?? ''))
+                    || (int)($oldEv['reminders_enabled'] ?? 0) !== $reminders_enabled
+                    || ($oldEv['reminder_offsets'] ?? null) !== $reminder_offsets_json;
+                if ($reminder_context_changed) {
+                    clear_pending_reminders($db, $id);
+                    $db->prepare('UPDATE events SET reminders_queued = 0 WHERE id = ?')->execute([$id]);
+                    if ($reminders_enabled) {
+                        queue_reminders_for_event($db, $id);
+                        $db->prepare('UPDATE events SET reminders_queued = 1 WHERE id = ?')->execute([$id]);
+                    }
+                }
                 // Update or create poker session
                 if ($is_poker) {
                     $chkPs = $db->prepare('SELECT id FROM poker_sessions WHERE event_id = ?');
@@ -257,18 +294,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 // Notify existing invitees about the change (if checkbox is checked)
                 if (!empty($_POST['notify_invitees']) && !empty($old_inv)) {
-                    $month = substr($sd, 0, 7);
-                    $evUrl = get_site_url() . '/calendar.php?m=' . urlencode($month) . '&open=' . $id . '&date=' . urlencode($sd);
-                    $ph = implode(',', array_fill(0, count($old_inv), '?'));
-                    $existInv = $db->prepare("SELECT ei.username, u.email, u.phone, u.preferred_contact FROM event_invites ei JOIN users u ON LOWER(u.username)=LOWER(ei.username) WHERE ei.event_id=? AND LOWER(ei.username) IN ($ph)");
-                    $existInv->execute(array_merge([$id], $old_inv));
-                    foreach ($existInv->fetchAll() as $inv) {
-                        $smsBody  = "\"$title\" has been updated. View: $evUrl";
-                        $htmlBody = '<p>The event <strong>' . htmlspecialchars($title) . '</strong> has been updated.</p>'
-                                  . '<p style="margin-top:1rem"><a href="' . htmlspecialchars($evUrl) . '" style="background:#2563eb;color:#fff;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600">View Event</a></p>';
-                        send_notification($inv['username'], $inv['email'] ?? '', $inv['phone'] ?? '',
-                            $inv['preferred_contact'] ?? 'email',
-                            "Event updated: $title", $smsBody, $htmlBody);
+                    foreach ($old_inv as $uname) {
+                        queue_event_notification($db, $id, $uname, 'event_updated');
                     }
                 }
 
@@ -298,18 +325,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $evt = $row->fetch();
             $t = $evt['title'] ?? $id;
 
-            // Notify invitees before deleting
-            if ($evt && get_setting('notifications_enabled', '0') === '1') {
-                $invStmt = $db->prepare("SELECT ei.username, u.email, u.phone, u.preferred_contact
-                    FROM event_invites ei JOIN users u ON LOWER(u.username)=LOWER(ei.username)
+            // Notify invitees before deleting — carry title/date in the payload because
+            // the event row will be gone by the time the drain picks up.
+            if ($evt) {
+                $invStmt = $db->prepare("SELECT ei.username FROM event_invites ei
                     WHERE ei.event_id=? AND ei.occurrence_date IS NULL");
                 $invStmt->execute([$id]);
                 foreach ($invStmt->fetchAll() as $inv) {
-                    $subject  = 'Cancelled: ' . $t;
-                    $smsBody  = "The event \"$t\" on {$evt['start_date']} has been cancelled.";
-                    $htmlBody = '<p>The event <strong>' . htmlspecialchars($t) . '</strong> on <strong>' . htmlspecialchars($evt['start_date']) . '</strong> has been <strong>cancelled</strong>.</p>';
-                    send_notification($inv['username'], $inv['email'] ?? '', $inv['phone'] ?? '',
-                        $inv['preferred_contact'] ?? 'email', $subject, $smsBody, $htmlBody);
+                    queue_event_notification($db, $id, $inv['username'], 'cancel_event', null, [
+                        'title' => $t,
+                        'start_date' => $evt['start_date'],
+                    ]);
                 }
             }
 
@@ -328,20 +354,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db->prepare('INSERT OR IGNORE INTO event_exceptions (event_id, date) VALUES (?, ?)')
                ->execute([$id, $date]);
 
-            // ── Feature 2: Send cancellation notifications to RSVPed invitees ──
-            $evt_r = $db->prepare('SELECT title FROM events WHERE id=?');
-            $evt_r->execute([$id]);
-            $evt_title = $evt_r->fetchColumn();
-            if ($evt_title) {
-                $occ_inv = get_occurrence_invitees($db, $id, $date, true);
-                foreach ($occ_inv as $inv) {
-                    if (!in_array($inv['rsvp'] ?? '', ['yes', 'maybe'])) continue;
-                    $subject  = 'Cancelled: ' . $evt_title . ' on ' . $date;
-                    $smsBody  = "The event \"$evt_title\" on $date has been cancelled.";
-                    $htmlBody = '<p>The occurrence of <strong>' . htmlspecialchars($evt_title) . '</strong> on <strong>' . htmlspecialchars($date) . '</strong> has been <strong>cancelled</strong>.</p>';
-                    send_notification($inv['username'], $inv['email'] ?? '', $inv['phone'] ?? '',
-                        $inv['preferred_contact'] ?? 'email', $subject, $smsBody, $htmlBody);
-                }
+            // ── Feature 2: queue cancellation notifications to RSVPed invitees ──
+            $occ_inv = get_occurrence_invitees($db, $id, $date, true);
+            foreach ($occ_inv as $inv) {
+                if (!in_array($inv['rsvp'] ?? '', ['yes', 'maybe'])) continue;
+                queue_event_notification($db, $id, $inv['username'], 'cancel_occurrence', $date);
             }
 
             db_log_activity($current['id'], "removed occurrence $date from event id: $id");
@@ -356,22 +373,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $cancel_from)) $cancel_from = date('Y-m-d');
         if ($id > 0) {
             $db->prepare('UPDATE events SET cancelled_from=? WHERE id=?')->execute([$cancel_from, $id]);
-            // Notify all invitees (base rows) of the cancellation
-            $evt_r = $db->prepare('SELECT title FROM events WHERE id=?');
-            $evt_r->execute([$id]);
-            $evt_title = $evt_r->fetchColumn();
-            if ($evt_title) {
-                $all_inv = $db->prepare("SELECT ei.username, u.email, u.phone, u.preferred_contact
-                                         FROM event_invites ei JOIN users u ON LOWER(u.username)=LOWER(ei.username)
-                                         WHERE ei.event_id=? AND ei.occurrence_date IS NULL");
-                $all_inv->execute([$id]);
-                foreach ($all_inv->fetchAll() as $inv) {
-                    $subject  = 'Cancelled: ' . $evt_title . ' (series from ' . $cancel_from . ')';
-                    $smsBody  = "All future occurrences of \"$evt_title\" from $cancel_from have been cancelled.";
-                    $htmlBody = '<p>All future occurrences of <strong>' . htmlspecialchars($evt_title) . '</strong> from <strong>' . htmlspecialchars($cancel_from) . '</strong> onwards have been <strong>cancelled</strong>.</p>';
-                    send_notification($inv['username'], $inv['email'] ?? '', $inv['phone'] ?? '',
-                        $inv['preferred_contact'] ?? 'email', $subject, $smsBody, $htmlBody);
-                }
+            // Queue cancellation notifications (queue_event_notification handles the template)
+            $all_inv = $db->prepare("SELECT ei.username FROM event_invites ei
+                                     WHERE ei.event_id=? AND ei.occurrence_date IS NULL");
+            $all_inv->execute([$id]);
+            foreach ($all_inv->fetchAll() as $inv) {
+                queue_event_notification($db, $id, $inv['username'], 'cancel_occurrence', $cancel_from);
             }
             db_log_activity($current['id'], "cancelled series from $cancel_from for event id: $id");
             if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
@@ -407,20 +414,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Delete base row and future per-occurrence rows
             $db->prepare("DELETE FROM event_invites WHERE event_id=? AND LOWER(username)=? AND (occurrence_date IS NULL OR occurrence_date >= ?)")
                ->execute([$id, $target_user, $today_date]);
-            // Send removal notification
-            $evt_r = $db->prepare('SELECT title FROM events WHERE id=?');
-            $evt_r->execute([$id]);
-            $evt_title = $evt_r->fetchColumn();
-            $urow = $db->prepare('SELECT username, email, phone, preferred_contact FROM users WHERE LOWER(username)=?');
-            $urow->execute([$target_user]);
-            $udata = $urow->fetch();
-            if ($udata && $evt_title) {
-                $subject  = 'Removed from event: ' . $evt_title;
-                $smsBody  = "You have been removed from the event series \"$evt_title\".";
-                $htmlBody = '<p>You have been removed from the event series <strong>' . htmlspecialchars($evt_title) . '</strong>.</p>';
-                send_notification($udata['username'], $udata['email'] ?? '', $udata['phone'] ?? '',
-                    $udata['preferred_contact'] ?? 'email', $subject, $smsBody, $htmlBody);
-            }
+            // Queue removal notification — use event_updated template; user is already removed
+            // from the invite list so they just need a heads-up.
+            queue_event_notification($db, $id, $target_user, 'cancel_event');
             db_log_activity($current['id'], "removed $target_user from all occurrences of event id: $id");
             if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
                 header('Content-Type: application/json');

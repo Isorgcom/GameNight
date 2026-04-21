@@ -65,18 +65,16 @@ if ($rsvp_changed && $userRow) {
 }
 
 if ($rsvp_changed) {
-    $creatorStmt = $db->prepare('SELECT u.username, u.email, u.phone, u.preferred_contact FROM events e JOIN users u ON u.id=e.created_by WHERE e.id=?');
+    $creatorStmt = $db->prepare('SELECT u.username FROM events e JOIN users u ON u.id=e.created_by WHERE e.id=?');
     $creatorStmt->execute([$invite['event_id']]);
     $creator = $creatorStmt->fetch();
     if ($creator && strtolower($creator['username']) !== strtolower($invite['username'])) {
-        require_once __DIR__ . '/auth_dl.php';
-        $smsBody  = $invite['username'] . " RSVPed $label to \"{$invite['title']}\" on {$invite['start_date']}";
-        $htmlBody = '<p><strong>' . htmlspecialchars($invite['username']) . '</strong> RSVPed <strong>' . $label . '</strong> to '
-                  . '<em>' . htmlspecialchars($invite['title']) . '</em> on ' . htmlspecialchars($invite['start_date']) . '.</p>';
-        send_notification($creator['username'], $creator['email'] ?? '', $creator['phone'] ?? '',
-            $creator['preferred_contact'] ?? 'email',
-            $invite['username'] . " RSVPed $label: " . $invite['title'],
-            $smsBody, $htmlBody);
+        require_once __DIR__ . '/_notifications.php';
+        queue_event_notification($db, (int)$invite['event_id'], $creator['username'], 'rsvp_to_creator', null, [
+            'rsvp'               => $rsvp,
+            'responder_username' => $invite['username'],
+            'responder_display'  => $invite['username'],
+        ]);
     }
 }
 

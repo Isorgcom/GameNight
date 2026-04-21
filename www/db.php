@@ -615,6 +615,27 @@ function db_init(PDO $pdo): void {
     )"); } catch (Exception $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_pending_notifications_unsent ON pending_notifications(attempted_at) WHERE attempted_at IS NULL"); } catch (Exception $e) {}
 
+    // Unified queue columns: scheduled_for (NULL = send ASAP), payload (JSON for type-specific data),
+    // occurrence_date (for per-occurrence reminders/cancellations on recurring events).
+    try { $pdo->exec("ALTER TABLE pending_notifications ADD COLUMN scheduled_for DATETIME"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE pending_notifications ADD COLUMN payload TEXT"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE pending_notifications ADD COLUMN occurrence_date TEXT"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_pending_notifications_scheduled ON pending_notifications(scheduled_for) WHERE attempted_at IS NULL"); } catch (Exception $e) {}
+
+    // Per-event reminder configuration
+    try { $pdo->exec("ALTER TABLE events ADD COLUMN reminders_enabled INTEGER NOT NULL DEFAULT 1"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE events ADD COLUMN reminder_offsets TEXT"); } catch (Exception $e) {}  // JSON array of minutes; NULL = use site default
+    try { $pdo->exec("ALTER TABLE events ADD COLUMN reminders_queued INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+
+    // Seed default reminder offsets if unset (preserve current 2-day + 12-hour behavior)
+    if (get_setting('default_reminder_offsets', '') === '') {
+        set_setting('default_reminder_offsets', '[2880,720]');
+    }
+    if (get_setting('reminder_offsets_available', '') === '') {
+        // 1w, 3d, 2d, 1d, 12h, 2h, 30min
+        set_setting('reminder_offsets_available', '[10080,4320,2880,1440,720,120,30]');
+    }
+
     // ─── Priority invite ordering + RSVP deadline ───────────────────────
     try { $pdo->exec("ALTER TABLE event_invites ADD COLUMN sort_order INTEGER"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE events ADD COLUMN rsvp_deadline_hours INTEGER"); } catch (Exception $e) {}
@@ -1202,27 +1223,15 @@ function maybe_promote_waitlisted(PDO $db, int $event_id): void {
     if (empty($promoted)) return;
 
     $upd = $db->prepare("UPDATE event_invites SET approval_status = 'approved' WHERE id = ?");
+    $has_notifications = function_exists('queue_event_notification');
+    if (!$has_notifications) {
+        @require_once __DIR__ . '/_notifications.php';
+        $has_notifications = function_exists('queue_event_notification');
+    }
     foreach ($promoted as $p) {
         $upd->execute([(int)$p['id']]);
-        // Notify the promoted invitee
-        $uStmt = $db->prepare('SELECT u.username, u.email, u.phone, u.preferred_contact
-                               FROM users u WHERE LOWER(u.username) = LOWER(?)');
-        $uStmt->execute([$p['username']]);
-        $uRow = $uStmt->fetch();
-        if ($uRow) {
-            $evTitle = $db->prepare('SELECT title, start_date FROM events WHERE id = ?');
-            $evTitle->execute([$event_id]);
-            $evData = $evTitle->fetch();
-            $title = $evData['title'] ?? 'Event';
-            $date  = $evData['start_date'] ?? '';
-            send_notification(
-                $uRow['username'], $uRow['email'] ?? '', $uRow['phone'] ?? '',
-                $uRow['preferred_contact'] ?? 'email',
-                'A seat opened up — ' . $title,
-                'A seat opened up for "' . $title . '" on ' . $date . '. You have been moved off the waitlist!',
-                '<p>A seat opened up for <strong>' . htmlspecialchars($title) . '</strong> on ' . htmlspecialchars($date) . '.</p>'
-                . '<p>You have been <strong>moved off the waitlist</strong> and are now confirmed!</p>'
-            );
+        if ($has_notifications) {
+            queue_event_notification($db, $event_id, $p['username'], 'waitlist_promoted');
         }
     }
 

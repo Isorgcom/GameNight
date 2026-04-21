@@ -162,6 +162,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 set_setting('show_calendar', isset($_POST['show_calendar']) ? '1' : '0');
                 set_setting('allow_maybe_rsvp', isset($_POST['allow_maybe_rsvp']) ? '1' : '0');
                 set_setting('notifications_enabled', isset($_POST['notifications_enabled']) ? '1' : '0');
+                // Reminder default offsets (array of minute values)
+                $__newDefs = [];
+                if (!empty($_POST['reminder_default_offsets']) && is_array($_POST['reminder_default_offsets'])) {
+                    foreach ($_POST['reminder_default_offsets'] as $m) {
+                        $n = (int)$m;
+                        if ($n > 0 && $n <= 40320) $__newDefs[] = $n;
+                    }
+                }
+                $__newDefs = array_values(array_unique($__newDefs));
+                sort($__newDefs);
+                set_setting('default_reminder_offsets', json_encode(array_reverse($__newDefs)));
                 set_setting('donation_url', trim($_POST['donation_url'] ?? ''));
                 set_setting('donation_message', trim($_POST['donation_message'] ?? ''));
                 db_log_activity($current['id'], 'updated site settings');
@@ -1088,6 +1099,31 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                         Enable Notifications
                     </label>
                     <p class="hint">When off, no email, SMS, or WhatsApp notifications will be sent (invites, reminders, updates). Test messages from the Email/SMS tabs still work.</p>
+                </div>
+
+                <hr style="border:none;border-top:1px solid #e2e8f0;margin:1rem 0">
+                <h3 style="font-size:.95rem;margin:0 0 .5rem">Event Reminders</h3>
+                <p class="hint" style="margin-bottom:.75rem">Default reminder offsets for new events. Event creators can override per event. Values are minutes before event start.</p>
+                <?php
+                $__avail = json_decode(get_setting('reminder_offsets_available', '[10080,4320,2880,1440,720,120,30]'), true) ?: [10080,4320,2880,1440,720,120,30];
+                $__defs  = json_decode(get_setting('default_reminder_offsets', '[2880,720]'), true) ?: [2880,720];
+                function __reminder_label(int $m): string {
+                    if ($m >= 10080 && $m % 10080 === 0) return ($m/10080) . ' week' . ($m/10080 > 1 ? 's' : '');
+                    if ($m >= 1440  && $m % 1440  === 0) return ($m/1440)  . ' day'  . ($m/1440 > 1 ? 's' : '');
+                    if ($m >= 60    && $m % 60    === 0) return ($m/60)    . ' hr';
+                    return $m . ' min';
+                }
+                ?>
+                <div class="form-group">
+                    <label>Site default reminders (pre-checked for new events)</label>
+                    <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-top:.3rem">
+                    <?php foreach ($__avail as $__m): $__m = (int)$__m; ?>
+                        <label style="display:inline-flex;align-items:center;gap:.25rem;font-weight:500">
+                            <input type="checkbox" name="reminder_default_offsets[]" value="<?= $__m ?>" <?= in_array($__m, $__defs, true) ? 'checked' : '' ?>>
+                            <?= htmlspecialchars(__reminder_label($__m)) ?>
+                        </label>
+                    <?php endforeach; ?>
+                    </div>
                 </div>
 
                 <hr style="border:none;border-top:1px solid #e2e8f0;margin:1rem 0">

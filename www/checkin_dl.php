@@ -549,22 +549,14 @@ if (in_array($action, ['approve_player', 'deny_player'], true)) {
         $tableNum = $updatedRow ? $updatedRow['table_number'] : null;
         $seatNum  = $updatedRow ? $updatedRow['seat_number'] : null;
 
-        // Notify the approved user with table/seat info
-        $uStmt = $db->prepare('SELECT id, username, email, phone, preferred_contact FROM users WHERE LOWER(username) = LOWER(?)');
-        $uStmt->execute([$pRow['display_name']]);
-        $uRow = $uStmt->fetch();
-        $evStmt = $db->prepare('SELECT title, start_date FROM events WHERE id = ?');
-        $evStmt->execute([$session['event_id']]);
-        $evRow = $evStmt->fetch();
-        if ($uRow && $evRow && get_setting('notifications_enabled', '0') === '1' && function_exists('send_notification')) {
-            $seatInfo = ($tableNum && $seatNum) ? " Table $tableNum, Seat $seatNum." : '';
-            $smsBody  = "You've been approved for \"{$evRow['title']}\" on {$evRow['start_date']}.{$seatInfo}";
-            $htmlBody = '<p>You have been approved for <strong>' . htmlspecialchars($evRow['title']) . '</strong> on ' . htmlspecialchars($evRow['start_date']) . '.</p>'
-                      . ($seatInfo ? '<p style="font-weight:600;color:#2563eb">Table ' . (int)$tableNum . ', Seat ' . (int)$seatNum . '</p>' : '');
-            send_notification($uRow['username'], $uRow['email'] ?? '', $uRow['phone'] ?? '',
-                $uRow['preferred_contact'] ?? 'email',
-                "Approved: " . $evRow['title'], $smsBody, $htmlBody);
+        // Queue the approval notification (table/seat in payload)
+        require_once __DIR__ . '/_notifications.php';
+        $payload = [];
+        if ($tableNum && $seatNum) {
+            $payload['table'] = (int)$tableNum;
+            $payload['seat']  = (int)$seatNum;
         }
+        queue_event_notification($db, (int)$session['event_id'], $pRow['display_name'], 'poker_approved', null, $payload ?: null);
     } else {
         // Deny: soft-remove from poker roster
         $db->prepare('UPDATE poker_players SET removed = 1 WHERE id = ?')->execute([$player_id]);

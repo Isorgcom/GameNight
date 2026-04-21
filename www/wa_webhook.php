@@ -323,19 +323,15 @@ exit;
 function _wa_notify_creator($db, $user, $invite, $rsvp, $from): void {
     $rsvp_changed = ($invite['old_rsvp'] ?? '') !== $rsvp;
     if (!$rsvp_changed) return;
-    $label = ucfirst($rsvp);
-    $creatorStmt = $db->prepare('SELECT u.username, u.email, u.phone, u.preferred_contact FROM events e JOIN users u ON u.id=e.created_by WHERE e.id=?');
+    $creatorStmt = $db->prepare('SELECT u.username FROM events e JOIN users u ON u.id=e.created_by WHERE e.id=?');
     $creatorStmt->execute([$invite['event_id']]);
     $creator = $creatorStmt->fetch();
     if ($creator && strtolower($creator['username']) !== strtolower($user['username'])) {
-        if (function_exists('send_notification')) {
-            $smsBody  = $user['username'] . " RSVPed $label to \"{$invite['title']}\" on {$invite['start_date']}";
-            $htmlBody = '<p><strong>' . htmlspecialchars($user['username']) . '</strong> RSVPed <strong>' . $label . '</strong> to '
-                      . '<em>' . htmlspecialchars($invite['title']) . '</em> on ' . htmlspecialchars($invite['start_date']) . '.</p>';
-            send_notification($creator['username'], $creator['email'] ?? '', $creator['phone'] ?? '',
-                $creator['preferred_contact'] ?? 'email',
-                $user['username'] . " RSVPed $label: " . $invite['title'],
-                $smsBody, $htmlBody);
-        }
+        require_once __DIR__ . '/_notifications.php';
+        queue_event_notification($db, (int)$invite['event_id'], $creator['username'], 'rsvp_to_creator', null, [
+            'rsvp'               => $rsvp,
+            'responder_username' => $user['username'],
+            'responder_display'  => $user['username'],
+        ]);
     }
 }

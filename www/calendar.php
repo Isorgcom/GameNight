@@ -22,6 +22,9 @@ $allUsers = ($current && $current['role'] === 'admin')
 $allowMaybe = get_setting('allow_maybe_rsvp', '1') === '1';
 // Leagues the current user can pick from when creating/editing events
 $myLeaguesForForm = $current ? user_leagues((int)$current['id']) : [];
+// Reminder preset catalog + site default (used for the event editor checkboxes)
+$reminder_presets_available = json_decode(get_setting('reminder_offsets_available', '[10080,4320,2880,1440,720,120,30]'), true) ?: [10080,4320,2880,1440,720,120,30];
+$reminder_default_offsets   = json_decode(get_setting('default_reminder_offsets',    '[2880,720]'), true) ?: [2880,720];
 // All league names for badge display in event view (lightweight — id+name only)
 $_leagueNames = [];
 foreach ($db->query('SELECT id, name FROM leagues')->fetchAll() as $_ln) {
@@ -173,6 +176,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $rsvp_deadline_hrs = (int)($_POST['rsvp_deadline_hours'] ?? 0) ?: null;
             $waitlist_enabled  = !empty($_POST['waitlist_enabled']) ? 1 : 0;
 
+            // Reminder config: per-event override (empty = use site default).
+            $reminders_enabled = !empty($_POST['reminders_enabled']) ? 1 : 0;
+            $reminder_offsets_raw = $_POST['reminder_offsets'] ?? [];
+            if (!is_array($reminder_offsets_raw)) $reminder_offsets_raw = [];
+            $reminder_offsets_clean = [];
+            foreach ($reminder_offsets_raw as $m) {
+                $n = (int)$m;
+                if ($n > 0 && $n <= 40320) $reminder_offsets_clean[] = $n; // cap at 28 days
+            }
+            $reminder_offsets_clean = array_values(array_unique($reminder_offsets_clean));
+            $reminder_offsets_json = empty($reminder_offsets_clean)
+                ? null
+                : json_encode($reminder_offsets_clean);
+
             // League + visibility
             $req_league_id = (int)($_POST['league_id'] ?? 0);
             $league_id     = null;
@@ -187,9 +204,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $new_invitee_usernames = [];
             if ($action === 'add') {
-                $db->prepare('INSERT INTO events (title, description, start_date, end_date, start_time, end_time, color, created_by, is_poker, requires_approval, league_id, visibility, rsvp_deadline_hours, waitlist_enabled)
-                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $current['id'], $is_poker, $requires_approval, $league_id, $visibility, $rsvp_deadline_hrs, $waitlist_enabled]);
+                $db->prepare('INSERT INTO events (title, description, start_date, end_date, start_time, end_time, color, created_by, is_poker, requires_approval, league_id, visibility, rsvp_deadline_hours, waitlist_enabled, reminders_enabled, reminder_offsets)
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $current['id'], $is_poker, $requires_approval, $league_id, $visibility, $rsvp_deadline_hrs, $waitlist_enabled, $reminders_enabled, $reminder_offsets_json]);
                 $notify_eid = (int)$db->lastInsertId();
                 if ($is_poker) {
                     // Pull the creator's last-used session defaults (league-scoped if this event is in a league)
@@ -243,6 +260,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     )->execute([$notify_eid, $cap]);
                     maybe_promote_waitlisted($db, $notify_eid);
                 }
+                // Queue reminders right now (marks reminders_queued=1 so cron doesn't re-queue).
+                if ($reminders_enabled) {
+                    require_once __DIR__ . '/_notifications.php';
+                    queue_reminders_for_event($db, $notify_eid);
+                    $db->prepare('UPDATE events SET reminders_queued = 1 WHERE id = ?')->execute([$notify_eid]);
+                }
                 db_log_activity($current['id'], "created event: $title");
                 $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event added.'];
             } else {
@@ -255,8 +278,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                            ->execute([$id]);
                     }
                 }
-                $db->prepare('UPDATE events SET title=?, description=?, start_date=?, end_date=?, start_time=?, end_time=?, color=?, is_poker=?, requires_approval=?, league_id=?, visibility=?, rsvp_deadline_hours=?, waitlist_enabled=? WHERE id=?')
-                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $is_poker, $requires_approval, $league_id, $visibility, $rsvp_deadline_hrs, $waitlist_enabled, $id]);
+                // Capture old start to decide if we need to re-queue reminders
+                $oldRow = $db->prepare('SELECT start_date, start_time, reminder_offsets, reminders_enabled FROM events WHERE id=?');
+                $oldRow->execute([$id]);
+                $oldEv = $oldRow->fetch();
+
+                $db->prepare('UPDATE events SET title=?, description=?, start_date=?, end_date=?, start_time=?, end_time=?, color=?, is_poker=?, requires_approval=?, league_id=?, visibility=?, rsvp_deadline_hours=?, waitlist_enabled=?, reminders_enabled=?, reminder_offsets=? WHERE id=?')
+                   ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $is_poker, $requires_approval, $league_id, $visibility, $rsvp_deadline_hrs, $waitlist_enabled, $reminders_enabled, $reminder_offsets_json, $id]);
+
+                // If start/time, reminder toggle, or offsets changed — purge old queued reminders and mark event for re-queue.
+                $reminder_context_changed = !$oldEv
+                    || $oldEv['start_date'] !== $sd
+                    || (($oldEv['start_time'] ?? '') !== ($st ?? ''))
+                    || (int)($oldEv['reminders_enabled'] ?? 0) !== $reminders_enabled
+                    || ($oldEv['reminder_offsets'] ?? null) !== $reminder_offsets_json;
+                if ($reminder_context_changed) {
+                    require_once __DIR__ . '/_notifications.php';
+                    clear_pending_reminders($db, $id);
+                    $db->prepare('UPDATE events SET reminders_queued = 0 WHERE id = ?')->execute([$id]);
+                    if ($reminders_enabled) {
+                        queue_reminders_for_event($db, $id);
+                        $db->prepare('UPDATE events SET reminders_queued = 1 WHERE id = ?')->execute([$id]);
+                    }
+                }
                 if ($is_poker) {
                     $chkPs = $db->prepare('SELECT id FROM poker_sessions WHERE event_id = ?');
                     $chkPs->execute([$id]);
@@ -371,19 +415,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $evt = $row->fetch();
             $t = $evt['title'] ?? $id;
 
-            // Notify invitees before deleting (only for future events — no need to notify about past events)
-            if ($evt && get_setting('notifications_enabled', '0') === '1' && ($evt['start_date'] ?? '') >= date('Y-m-d')) {
-                require_once __DIR__ . '/sms.php';
-                $invStmt = $db->prepare("SELECT ei.username, u.email, u.phone, u.preferred_contact
-                    FROM event_invites ei JOIN users u ON LOWER(u.username)=LOWER(ei.username)
+            // Queue cancellation notifications for future events (carry title/date in payload
+            // since the event row is about to be deleted below).
+            if ($evt && ($evt['start_date'] ?? '') >= date('Y-m-d')) {
+                require_once __DIR__ . '/_notifications.php';
+                $invStmt = $db->prepare("SELECT ei.username FROM event_invites ei
                     WHERE ei.event_id=? AND ei.occurrence_date IS NULL");
                 $invStmt->execute([$id]);
                 foreach ($invStmt->fetchAll() as $inv) {
-                    $subject  = 'Cancelled: ' . $t;
-                    $smsBody  = "The event \"$t\" on {$evt['start_date']} has been cancelled.";
-                    $htmlBody = '<p>The event <strong>' . htmlspecialchars($t) . '</strong> on <strong>' . htmlspecialchars($evt['start_date']) . '</strong> has been <strong>cancelled</strong>.</p>';
-                    send_notification($inv['username'], $inv['email'] ?? '', $inv['phone'] ?? '',
-                        $inv['preferred_contact'] ?? 'email', $subject, $smsBody, $htmlBody);
+                    queue_event_notification($db, $id, $inv['username'], 'cancel_event', null, [
+                        'title' => $t,
+                        'start_date' => $evt['start_date'],
+                    ]);
                 }
             }
 
@@ -403,23 +446,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db->prepare('INSERT OR IGNORE INTO event_exceptions (event_id, date) VALUES (?, ?)')
                ->execute([$id, $date]);
 
-            // Notify RSVPed invitees of the cancelled occurrence
-            if (get_setting('notifications_enabled', '0') === '1') {
-                $evt_r = $db->prepare('SELECT title FROM events WHERE id=?');
-                $evt_r->execute([$id]);
-                $evt_title = $evt_r->fetchColumn();
-                if ($evt_title) {
-                    require_once __DIR__ . '/sms.php';
-                    $occ_inv = get_occurrence_invitees($db, $id, $date, true);
-                    foreach ($occ_inv as $inv) {
-                        if (!in_array($inv['rsvp'] ?? '', ['yes', 'maybe'])) continue;
-                        $subject  = 'Cancelled: ' . $evt_title . ' on ' . $date;
-                        $smsBody  = "The event \"$evt_title\" on $date has been cancelled.";
-                        $htmlBody = '<p>The occurrence of <strong>' . htmlspecialchars($evt_title) . '</strong> on <strong>' . htmlspecialchars($date) . '</strong> has been <strong>cancelled</strong>.</p>';
-                        send_notification($inv['username'], $inv['email'] ?? '', $inv['phone'] ?? '',
-                            $inv['preferred_contact'] ?? 'email', $subject, $smsBody, $htmlBody);
-                    }
-                }
+            // Queue cancellation notifications for RSVPed invitees
+            require_once __DIR__ . '/_notifications.php';
+            $occ_inv = get_occurrence_invitees($db, $id, $date, true);
+            foreach ($occ_inv as $inv) {
+                if (!in_array($inv['rsvp'] ?? '', ['yes', 'maybe'])) continue;
+                queue_event_notification($db, $id, $inv['username'], 'cancel_occurrence', $date);
             }
 
             db_log_activity($current['id'], "removed occurrence $date from event id: $id");
@@ -494,19 +526,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Notify event creator only if RSVP actually changed and editor is not acting on behalf
             if (!$on_behalf && $rsvp && $rsvp !== $oldRsvp) {
-                $evRow = $db->prepare('SELECT e.title, e.start_date, u.email, u.phone, u.preferred_contact, u.username FROM events e JOIN users u ON u.id=e.created_by WHERE e.id=?');
+                $evRow = $db->prepare('SELECT e.created_by, u.username FROM events e JOIN users u ON u.id=e.created_by WHERE e.id=?');
                 $evRow->execute([$eid]);
                 $creator = $evRow->fetch();
                 if ($creator && strtolower($creator['username']) !== strtolower($current['username'])) {
-                    require_once __DIR__ . '/auth_dl.php';
-                    $rsvpLabel = ucfirst($rsvp);
-                    $smsBody = $current['username'] . " RSVPed $rsvpLabel to \"" . $creator['title'] . '" on ' . $creator['start_date'];
-                    $htmlBody = '<p><strong>' . htmlspecialchars($current['username']) . '</strong> RSVPed <strong>' . $rsvpLabel . '</strong> to '
-                              . '<em>' . htmlspecialchars($creator['title']) . '</em> on ' . htmlspecialchars($creator['start_date']) . '.</p>';
-                    send_notification($creator['username'], $creator['email'] ?? '', $creator['phone'] ?? '',
-                        $creator['preferred_contact'] ?? 'email',
-                        $current['username'] . " RSVPed $rsvpLabel: " . $creator['title'],
-                        $smsBody, $htmlBody);
+                    require_once __DIR__ . '/_notifications.php';
+                    queue_event_notification($db, $eid, $creator['username'], 'rsvp_to_creator', null, [
+                        'rsvp'               => $rsvp,
+                        'responder_username' => $current['username'],
+                        'responder_display'  => $current['username'],
+                    ]);
                 }
             }
         }
@@ -615,20 +644,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                     }
 
-                    // Notify the approved user via their preferred contact (with table/seat if poker).
-                    // send_notification() is already loaded via auth.php (included at top of file).
-                    $uStmt = $db->prepare('SELECT id, username, email, phone, preferred_contact FROM users WHERE LOWER(username)=LOWER(?)');
-                    $uStmt->execute([$target]);
-                    $uRow = $uStmt->fetch();
-                    if ($uRow && get_setting('notifications_enabled', '0') === '1' && $evRow && function_exists('send_notification')) {
-                        $smsBody  = "You've been approved for \"{$evRow['title']}\" on {$evRow['start_date']}.{$seatInfo}";
-                        $htmlBody = '<p>You have been approved for <strong>' . htmlspecialchars($evRow['title']) . '</strong> on ' . htmlspecialchars($evRow['start_date']) . '.</p>'
-                                  . ($seatInfo ? '<p style="font-weight:600;color:#2563eb">' . htmlspecialchars(trim($seatInfo)) . '</p>' : '');
-                        send_notification($uRow['username'], $uRow['email'] ?? '', $uRow['phone'] ?? '',
-                            $uRow['preferred_contact'] ?? 'email',
-                            "Approved: " . $evRow['title'],
-                            $smsBody, $htmlBody);
+                    // Queue approval notification for the approved user (with table/seat if poker).
+                    require_once __DIR__ . '/_notifications.php';
+                    $payload = [];
+                    if (!empty($ppRow) && $ppRow['table_number'] && $ppRow['seat_number']) {
+                        $payload['table'] = (int)$ppRow['table_number'];
+                        $payload['seat']  = (int)$ppRow['seat_number'];
                     }
+                    queue_event_notification($db, $eid, $target, 'poker_approved', null, $payload ?: null);
                 }
 
                 if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
@@ -1682,6 +1705,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
                 <label class="edit-notify-row" id="eWaitlistLabel" style="display:none"><span>Waitlist</span><input type="checkbox" name="waitlist_enabled" id="eWaitlistEnabled" value="1" class="pk-toggle-input" onchange="updateCapacityLine()"><span class="pk-toggle-slider"></span></label>
                 <label class="edit-notify-row"><span>Mute</span><input type="checkbox" name="suppress_notify" id="eSuppressNotify" value="1" class="pk-toggle-input"><span class="pk-toggle-slider"></span></label>
                 <label class="edit-notify-row" title="Walk-in QR and self-signups require approval"><span>Approval</span><input type="checkbox" name="requires_approval" id="eRequiresApproval" value="1" class="pk-toggle-input"><span class="pk-toggle-slider"></span></label>
+                <label class="edit-notify-row" title="Send reminders before the event"><span>Reminders</span><input type="checkbox" name="reminders_enabled" id="eRemindersEnabled" value="1" class="pk-toggle-input" onchange="toggleReminderFields()" checked><span class="pk-toggle-slider"></span></label>
                 <span class="edit-desc-toggle" id="eDescToggle" onclick="toggleDesc()">+ Description</span>
                 <div style="flex:1"></div>
                 <button type="submit" class="btn btn-primary" id="eSubmitBtn">Add Event</button>
@@ -1696,6 +1720,24 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
                 <label>Seats <input type="number" name="poker_seats" id="ePokerSeats" min="2" max="12" value="8" onchange="updateCapacityLine()" oninput="updateCapacityLine()"></label>
                 <label>Deadline <select name="rsvp_deadline_hours" id="eRsvpDeadline"><option value="">None</option><option value="24">24h</option><option value="48">48h</option><option value="72">72h</option></select></label>
                 <span id="eCapacityHint" style="font-weight:700;color:#2563eb">8 seats</span>
+            </div>
+
+            <!-- ── Reminders bar (multi-select presets; hidden when reminders off) ── -->
+            <div class="edit-poker-bar" id="eReminderFields">
+                <span style="font-weight:600;color:#475569">Send reminders:</span>
+                <?php foreach ($reminder_presets_available as $__off):
+                    $__off = (int)$__off;
+                    $__checked = in_array($__off, $reminder_default_offsets, true) ? 'checked' : '';
+                    $__label = $__off >= 10080 && $__off % 10080 === 0 ? ($__off/10080 . ' wk')
+                            : ($__off >= 1440 && $__off % 1440 === 0 ? ($__off/1440 . ' day')
+                            : ($__off >= 60   && $__off % 60   === 0 ? ($__off/60   . ' hr')
+                            : ($__off . ' min')));
+                ?>
+                <label style="display:inline-flex;align-items:center;gap:.25rem;font-weight:500;white-space:nowrap">
+                    <input type="checkbox" name="reminder_offsets[]" class="eReminderPreset" value="<?= $__off ?>" <?= $__checked ?>>
+                    <?= htmlspecialchars($__label) ?>
+                </label>
+                <?php endforeach; ?>
             </div>
 
             <!-- ── Description (collapsed by default) ── -->
@@ -2915,6 +2957,17 @@ function openEditModal(ev) {
     document.getElementById('eRsvpDeadline').value  = (ev && ev.rsvp_deadline_hours) ? String(ev.rsvp_deadline_hours) : '';
     document.getElementById('eWaitlistEnabled').checked = ev ? !!(parseInt(ev.waitlist_enabled) || ev.waitlist_enabled === null) : false;
     togglePokerFields();
+
+    // Reminder config: on for new events; for edits, respect the stored toggle.
+    var remEnabled = ev ? (parseInt(ev.reminders_enabled ?? 1) === 1) : true;
+    document.getElementById('eRemindersEnabled').checked = remEnabled;
+    if (ev && ev.reminder_offsets) {
+        try {
+            var parsed = JSON.parse(ev.reminder_offsets);
+            if (Array.isArray(parsed)) applyReminderOffsets(parsed);
+        } catch (e) { /* leave defaults */ }
+    }
+    toggleReminderFields();
     // Flag for onLeagueChange so it knows this is a fresh-event open (not an existing session)
     _isNewEventOpen = !ev;
     // League + visibility
@@ -2983,6 +3036,27 @@ function togglePokerFields() {
     document.getElementById('eWaitlistLabel').style.display = show ? '' : 'none';
     if (show) updateCapacityLine();
     else updateDividerLine(); // clear divider when poker is off
+}
+
+function toggleReminderFields() {
+    var el = document.getElementById('eRemindersEnabled');
+    var bar = document.getElementById('eReminderFields');
+    if (!el || !bar) return;
+    bar.style.display = el.checked ? '' : 'none';
+}
+
+// Apply a list of offset values (array of ints) to the reminder checkboxes.
+// Passing null resets to the site-default set (whatever was pre-checked server-side).
+function applyReminderOffsets(offsets) {
+    var boxes = document.querySelectorAll('.eReminderPreset');
+    if (offsets === null) {
+        // Reset to site default: re-read the pre-checked state baked into the DOM by PHP.
+        // We don't have the site default in JS, so just leave boxes as-is on first render.
+        return;
+    }
+    var set = {};
+    offsets.forEach(function(o) { set[parseInt(o,10)] = true; });
+    boxes.forEach(function(b) { b.checked = !!set[parseInt(b.value,10)]; });
 }
 function toggleDesc() {
     var wrap = document.getElementById('eDescWrap');

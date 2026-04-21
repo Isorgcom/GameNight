@@ -43,6 +43,15 @@ if ($isAdmin) {
     exit;
 }
 
+// The current user should always appear in their own picker so they can invite themselves.
+_add_seen($users, $seen, [
+    'username'     => $current['username'],
+    'email'        => $current['email']    ?? '',
+    'phone'        => $current['phone']    ?? '',
+    'display_name' => $current['username'] . ' (you)',
+    'is_pending'   => 0,
+]);
+
 // ── Personal contacts (always included for non-admin) ──────────────────
 $pc = $db->prepare(
     "SELECT COALESCE(u.username, LOWER(c.contact_email)) AS username,
