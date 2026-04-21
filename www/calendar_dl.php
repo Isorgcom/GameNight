@@ -153,10 +153,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $reminder_offsets_clean = array_values(array_unique($reminder_offsets_clean));
         $reminder_offsets_json = empty($reminder_offsets_clean) ? null : json_encode($reminder_offsets_clean);
 
+        $__inv_count = 0;
+        foreach ($inv_usernames as $__u) { if (trim((string)$__u) !== '') $__inv_count++; }
         if ($title === '' || $sd === '') {
             $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Title and start date are required.'];
         } elseif (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $sd) || ($ed && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $ed))) {
             $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid date format.'];
+        } elseif ($__inv_count > MAX_INVITEES_PER_EVENT) {
+            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Too many invitees ('. $__inv_count .'). Limit is ' . MAX_INVITEES_PER_EVENT . ' per event.'];
         } else {
             if ($action === 'add') {
                 $db->prepare('INSERT INTO events (title, description, start_date, end_date, start_time, end_time, color, recurrence, recurrence_end, created_by, requires_approval, league_id, visibility, is_poker, rsvp_deadline_hours, waitlist_enabled, reminders_enabled, reminder_offsets)
@@ -341,6 +345,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $db->prepare('DELETE FROM event_exceptions WHERE event_id=?')->execute([$id]);
             $db->prepare('DELETE FROM event_invites WHERE event_id=?')->execute([$id]);
+            $db->prepare('DELETE FROM pending_notifications WHERE event_id=? AND attempted_at IS NOT NULL')->execute([$id]);
+            $db->prepare('DELETE FROM event_notifications_sent WHERE event_id=?')->execute([$id]);
             $db->prepare('DELETE FROM events WHERE id=?')->execute([$id]);
             db_log_activity($current['id'], "deleted event: $t");
             $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event deleted.'];

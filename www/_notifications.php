@@ -20,6 +20,46 @@ require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/sms.php';
 
 /**
+ * Returns true if the drain is currently paused due to a provider rate-limit hit.
+ * Pause state is stored as an ISO-8601 UTC timestamp in site_settings.notification_drain_paused_until.
+ */
+function is_drain_paused(): bool {
+    $until = get_setting('notification_drain_paused_until', '');
+    if ($until === '') return false;
+    $pauseUntil = strtotime($until);
+    if ($pauseUntil === false) return false;
+    if ($pauseUntil <= time()) {
+        // Clear the stale pause so we don't keep parsing it every tick
+        set_setting('notification_drain_paused_until', '');
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Heuristic: does this exception message look like a provider rate-limit response?
+ * Covers HTTP 429, common phrasings, and the "sms_log" entries our providers produce.
+ */
+function looks_like_rate_limit(string $msg): bool {
+    $m = strtolower($msg);
+    return (strpos($m, 'http 429') !== false
+         || strpos($m, '429')        !== false
+         || strpos($m, 'rate limit') !== false
+         || strpos($m, 'too many')   !== false
+         || strpos($m, 'throttl')    !== false);
+}
+
+/**
+ * Record a rate-limit hit and pause drains for DRAIN_PAUSE_ON_429_MINUTES.
+ */
+function pause_drain_on_rate_limit(): void {
+    $mins = defined('DRAIN_PAUSE_ON_429_MINUTES') ? DRAIN_PAUSE_ON_429_MINUTES : 15;
+    $until = gmdate('Y-m-d H:i:s', time() + $mins * 60);
+    set_setting('notification_drain_paused_until', $until);
+    error_log("[GameNight] Provider rate limit detected; pausing drain until $until UTC");
+}
+
+/**
  * Queue a single event-related notification. Fires off a background drain so
  * the row typically sends within a few seconds without blocking the HTTP response.
  *
@@ -37,6 +77,25 @@ function queue_event_notification(
     ?string $scheduled_for = null
 ): void {
     if ($username === '' || $event_id <= 0) return;
+
+    // Per-recipient daily cap (circuit breaker against accidental storms).
+    // Reminders are exempt because they're pre-scheduled with their own dedup;
+    // counting them here would block legitimate reminder delivery.
+    if ($notify_type !== 'reminder') {
+        $cap = defined('MAX_NOTIFICATIONS_PER_DAY') ? MAX_NOTIFICATIONS_PER_DAY : 20;
+        $c = $db->prepare(
+            "SELECT COUNT(*) FROM pending_notifications
+             WHERE LOWER(username) = LOWER(?)
+               AND notify_type != 'reminder'
+               AND created_at >= datetime('now', '-1 day')"
+        );
+        $c->execute([$username]);
+        if ((int)$c->fetchColumn() >= $cap) {
+            error_log("[GameNight] Per-recipient daily cap reached for $username (type=$notify_type); skipping enqueue");
+            return;
+        }
+    }
+
     $db->prepare(
         "INSERT INTO pending_notifications
             (event_id, username, notify_type, occurrence_date, payload, scheduled_for)
@@ -287,6 +346,15 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
         $user['preferred_contact'] ?? 'email',
         $subject, $smsBody, $htmlBody
     );
+    // Check provider-level errors. Rate limits trigger a pause + throw so the drain
+    // releases the row for retry. Other errors throw too so attempts increment.
+    $err = get_last_notification_error();
+    if ($err !== null) {
+        if (looks_like_rate_limit($err)) {
+            pause_drain_on_rate_limit();
+        }
+        throw new RuntimeException($err);
+    }
 
     // Mark dedup rows for reminder types so repeated queuing doesn't re-send.
     if ($type === 'reminder') {

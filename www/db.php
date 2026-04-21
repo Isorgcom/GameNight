@@ -9,6 +9,11 @@ if (!defined('DB_PATH')) {
 }
 
 // ── Encryption key for sensitive settings (auto-generated if missing) ────────
+// Rate-limit constants
+if (!defined('MAX_INVITEES_PER_EVENT'))    define('MAX_INVITEES_PER_EVENT', 200);
+if (!defined('MAX_NOTIFICATIONS_PER_DAY')) define('MAX_NOTIFICATIONS_PER_DAY', 20);
+if (!defined('DRAIN_PAUSE_ON_429_MINUTES')) define('DRAIN_PAUSE_ON_429_MINUTES', 15);
+
 if (!defined('APP_SECRET')) {
     $secretFile = dirname(DB_PATH) . '/.app_secret';
     if (file_exists($secretFile)) {
@@ -621,6 +626,17 @@ function db_init(PDO $pdo): void {
     try { $pdo->exec("ALTER TABLE pending_notifications ADD COLUMN payload TEXT"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE pending_notifications ADD COLUMN occurrence_date TEXT"); } catch (Exception $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_pending_notifications_scheduled ON pending_notifications(scheduled_for) WHERE attempted_at IS NULL"); } catch (Exception $e) {}
+
+    // One-shot: clean up pending_notifications + event_notifications_sent rows that point
+    // to events already deleted. Prior versions did not cascade event deletes into these
+    // tables, so older databases accumulate orphans.
+    try {
+        if (get_setting('orphan_notifications_cleaned', '') !== '1') {
+            $pdo->exec("DELETE FROM pending_notifications    WHERE event_id NOT IN (SELECT id FROM events)");
+            $pdo->exec("DELETE FROM event_notifications_sent WHERE event_id NOT IN (SELECT id FROM events)");
+            set_setting('orphan_notifications_cleaned', '1');
+        }
+    } catch (Exception $e) {}
 
     // Per-event reminder configuration
     try { $pdo->exec("ALTER TABLE events ADD COLUMN reminders_enabled INTEGER NOT NULL DEFAULT 1"); } catch (Exception $e) {}

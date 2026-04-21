@@ -4,6 +4,21 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.17000] — 2026-04-21
+
+### Added — rate-limit protections
+- **Per-event invite cap.** Event save refuses to insert if invitees exceed `MAX_INVITEES_PER_EVENT` (200). Prevents a single event from spawning thousands of queue rows.
+- **Drain pause on provider rate-limit.** When an SMTP/SMS/WhatsApp provider returns a 429-like error during a send, the entire notification drain pauses for `DRAIN_PAUSE_ON_429_MINUTES` (15 min) via the new `notification_drain_paused_until` site setting. Both `cron.php` and `cron_drain.php` honor the pause. Protects the provider account from escalating rate-limit penalties.
+- **Per-recipient daily cap.** `queue_event_notification()` rejects inserts if the recipient has `MAX_NOTIFICATIONS_PER_DAY` (20) queued-or-sent rows in the last 24 hours (reminders exempt — they're pre-scheduled with their own dedup). Accidental storms (saving the same event 50 times, firing multiple cancellations) stop at the cap.
+
+### Changed
+- `send_notification()` now captures provider errors via `$GLOBALS['_last_notification_error']` and `get_last_notification_error()`. Inline callers are unchanged (they still ignore errors); the queue drain reads the error to detect rate-limit hits and retry rows.
+
+### Fixed
+- **Orphaned notification history.** Per-event delete paths (`calendar.php`, `calendar_dl.php`, `admin_settings.php`) now clean up already-sent `pending_notifications` rows and `event_notifications_sent` dedup rows when the event is deleted. Previously these tables accumulated orphans because SQLite FKs are not enforced and no explicit cascade was run. A one-shot migration (`orphan_notifications_cleaned` setting) purges any existing orphans on first DB init after upgrade.
+
+---
+
 ## [v0.16001] — 2026-04-21
 
 ### Fixed / hardened

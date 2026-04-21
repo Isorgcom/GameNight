@@ -32,6 +32,11 @@ if (get_setting('notifications_enabled', '0') !== '1') {
     exit("OK: notifications disabled.\n");
 }
 
+// If the drain was paused recently due to a provider rate-limit, skip this run.
+if (is_drain_paused()) {
+    exit("Paused (provider rate limit).\n");
+}
+
 $db = get_db();
 
 // Pick up unsent rows that are either unscheduled or due.
@@ -75,6 +80,11 @@ foreach ($rows as $qrow) {
         $db->prepare("UPDATE pending_notifications SET attempted_at = NULL WHERE id = ?")
            ->execute([(int)$qrow['id']]);
         $failed++;
+        // If the provider indicated rate-limit, pause the whole drain to protect the account.
+        if (looks_like_rate_limit($e->getMessage())) {
+            pause_drain_on_rate_limit();
+            break;
+        }
     }
 }
 

@@ -57,7 +57,9 @@ if ($queued_count > 0) {
 // ── 2. Drain the notification queue (safety net for retries) ─────────────────
 $queue_sent = 0;
 $queue_failed = 0;
-if ($notifications_on) {
+$drain_paused = is_drain_paused();
+if ($drain_paused) echo "Drain paused (provider rate limit).\n";
+if ($notifications_on && !$drain_paused) {
     $pending = $db->prepare(
         "SELECT id, event_id, username, notify_type, occurrence_date, payload
          FROM pending_notifications
@@ -85,6 +87,10 @@ if ($notifications_on) {
         } catch (Throwable $e) {
             $db->prepare("UPDATE pending_notifications SET attempted_at = NULL WHERE id = ?")->execute([(int)$qrow['id']]);
             $queue_failed++;
+            if (looks_like_rate_limit($e->getMessage())) {
+                pause_drain_on_rate_limit();
+                break;
+            }
         }
     }
 }

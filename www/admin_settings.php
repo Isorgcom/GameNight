@@ -374,6 +374,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $erow = $erow->fetch();
                 $db->prepare('DELETE FROM event_invites WHERE event_id = ?')->execute([$id]);
                 $db->prepare('DELETE FROM event_exceptions WHERE event_id = ?')->execute([$id]);
+                $db->prepare('DELETE FROM pending_notifications WHERE event_id = ? AND attempted_at IS NOT NULL')->execute([$id]);
+                $db->prepare('DELETE FROM event_notifications_sent WHERE event_id = ?')->execute([$id]);
                 $db->prepare('DELETE FROM events WHERE id = ?')->execute([$id]);
                 db_log_activity($current['id'], 'deleted event: ' . ($erow['title'] ?? $id));
                 $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event deleted.'];

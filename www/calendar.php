@@ -160,10 +160,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $et    = trim($_POST['end_time'] ?? '') ?: null;
         $color = in_array($_POST['color'] ?? '', ['#2563eb','#16a34a','#dc2626','#d97706','#7c3aed','#0891b2','#db2777'])
                  ? $_POST['color'] : '#2563eb';
+        // Count non-empty invitees for the per-event cap.
+        $__inv_count = 0;
+        foreach ($inv_usernames as $__u) { if (trim((string)$__u) !== '') $__inv_count++; }
         if ($title === '' || $sd === '') {
             $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Title and start date are required.'];
         } elseif (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $sd) || ($ed && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $ed))) {
             $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid date format.'];
+        } elseif ($__inv_count > MAX_INVITEES_PER_EVENT) {
+            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Too many invitees ('. $__inv_count .'). Limit is ' . MAX_INVITEES_PER_EVENT . ' per event.'];
         } else {
             $suppress_notify = !empty($_POST['suppress_notify']);
             $is_poker = !empty($_POST['is_poker']) ? 1 : 0;
@@ -433,6 +438,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db->prepare("DELETE FROM comments WHERE type='event' AND content_id=?")->execute([$id]);
             $db->prepare('DELETE FROM event_exceptions WHERE event_id=?')->execute([$id]);
             $db->prepare('DELETE FROM event_invites WHERE event_id=?')->execute([$id]);
+            // Clean up already-sent notification history for this event; leave any unsent
+            // rows (e.g., cancel_event queued seconds ago) alone so the drain can finish them.
+            $db->prepare('DELETE FROM pending_notifications WHERE event_id=? AND attempted_at IS NOT NULL')->execute([$id]);
+            $db->prepare('DELETE FROM event_notifications_sent WHERE event_id=?')->execute([$id]);
             $db->prepare('DELETE FROM events WHERE id=?')->execute([$id]);
             db_log_activity($current['id'], "deleted event: $t");
             $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event deleted.'];

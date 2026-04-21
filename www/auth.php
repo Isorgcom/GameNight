@@ -408,23 +408,40 @@ function csrf_verify(): bool {
  * Send a notification via the user's preferred contact method.
  * Routes to email, SMS, or both depending on preference.
  */
+// Module-level tracker: last-notification error. The queue drain reads this via
+// get_last_notification_error() after each send so it can detect provider rate-limit
+// responses and pause further sends. Callers that don't care (inline flows) ignore it.
+$GLOBALS['_last_notification_error'] = null;
+
+function get_last_notification_error(): ?string {
+    return $GLOBALS['_last_notification_error'] ?? null;
+}
+
 function send_notification(string $username, string $email, string $phone, string $preferred_contact, string $subject, string $smsBody, string $htmlBody): void {
+    $GLOBALS['_last_notification_error'] = null;
     if (get_setting('notifications_enabled', '0') !== '1') return;
     $doEmail    = in_array($preferred_contact, ['email', 'both'], true) && $email !== '';
     $doSms      = in_array($preferred_contact, ['sms',   'both'], true) && $phone !== '';
     $doWhatsApp = in_array($preferred_contact, ['whatsapp'], true) && $phone !== '';
 
+    $errors = [];
     if ($doEmail) {
         require_once __DIR__ . '/mail.php';
-        send_email($email, $username, $subject, $htmlBody);
+        $err = send_email($email, $username, $subject, $htmlBody);
+        if ($err !== null) $errors[] = 'email: ' . $err;
     }
     if ($doSms) {
         require_once __DIR__ . '/sms.php';
-        send_sms($phone, $smsBody);
+        $err = send_sms($phone, $smsBody);
+        if ($err !== null) $errors[] = 'sms: ' . $err;
     }
     if ($doWhatsApp) {
         require_once __DIR__ . '/sms.php';
-        send_whatsapp($phone, $smsBody);
+        $err = send_whatsapp($phone, $smsBody);
+        if ($err !== null) $errors[] = 'whatsapp: ' . $err;
+    }
+    if (!empty($errors)) {
+        $GLOBALS['_last_notification_error'] = implode('; ', $errors);
     }
 }
 
