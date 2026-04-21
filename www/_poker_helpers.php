@@ -29,12 +29,20 @@ function default_session_defaults(): array {
 }
 
 // Upsert a user's last-used session defaults. league_id null = personal scope.
+// Security: every column name interpolated into SQL is intersected with the
+// USER_SESSION_DEFAULT_COLS whitelist so unknown keys in $data can never reach SQL.
 function save_user_session_defaults($db, int $user_id, ?int $league_id, array $data): void {
     $row = [];
     foreach (USER_SESSION_DEFAULT_COLS as $c) {
         if (array_key_exists($c, $data)) $row[$c] = $data[$c];
     }
     if (!$row) return;
+
+    // Defense in depth: only allow whitelisted column names to reach the SQL string.
+    $safeCols = array_values(array_intersect(array_keys($row), USER_SESSION_DEFAULT_COLS));
+    if (!$safeCols) return;
+    $safeRow = [];
+    foreach ($safeCols as $c) { $safeRow[$c] = $row[$c]; }
 
     if ($league_id === null) {
         $sel = $db->prepare('SELECT id FROM user_session_defaults WHERE user_id = ? AND league_id IS NULL');
@@ -46,21 +54,21 @@ function save_user_session_defaults($db, int $user_id, ?int $league_id, array $d
     $existing = $sel->fetchColumn();
 
     if ($existing) {
-        $cols = array_keys($row);
-        $set  = implode(',', array_map(fn($c) => "$c = ?", $cols));
-        $vals = array_values($row);
+        $set  = implode(',', array_map(fn($c) => "$c = ?", $safeCols));
+        $vals = array_values($safeRow);
         $vals[] = (int)$existing;
         $db->prepare("UPDATE user_session_defaults SET $set, updated_at = CURRENT_TIMESTAMP WHERE id = ?")->execute($vals);
     } else {
-        $cols = array_merge(['user_id', 'league_id'], array_keys($row));
+        $cols = array_merge(['user_id', 'league_id'], $safeCols);
         $placeholders = implode(',', array_fill(0, count($cols), '?'));
         $colList = implode(',', $cols);
-        $vals = array_merge([$user_id, $league_id], array_values($row));
+        $vals = array_merge([$user_id, $league_id], array_values($safeRow));
         $db->prepare("INSERT INTO user_session_defaults ($colList) VALUES ($placeholders)")->execute($vals);
     }
 }
 
 // Load a user's last-used defaults. League-scoped first, then personal, then hardcoded.
+// $colList is built from the USER_SESSION_DEFAULT_COLS constant, never user input.
 function load_user_session_defaults($db, int $user_id, ?int $league_id): array {
     $colList = implode(',', USER_SESSION_DEFAULT_COLS);
     if ($league_id !== null) {

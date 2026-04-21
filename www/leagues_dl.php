@@ -114,8 +114,12 @@ case 'delete_league_preview': {
     $L->execute([$league_id]);
     $name = (string)$L->fetchColumn();
 
-    $members = (int)$db->query("SELECT COUNT(*) FROM league_members WHERE league_id = " . $league_id)->fetchColumn();
-    $requests = (int)$db->query("SELECT COUNT(*) FROM league_join_requests WHERE league_id = " . $league_id)->fetchColumn();
+    $mStmt = $db->prepare('SELECT COUNT(*) FROM league_members WHERE league_id = ?');
+    $mStmt->execute([$league_id]);
+    $members = (int)$mStmt->fetchColumn();
+    $rStmt = $db->prepare('SELECT COUNT(*) FROM league_join_requests WHERE league_id = ?');
+    $rStmt->execute([$league_id]);
+    $requests = (int)$rStmt->fetchColumn();
 
     $evRows = $db->prepare(
         "SELECT e.id, e.title, e.start_date, e.is_poker,
@@ -163,7 +167,9 @@ case 'delete_league': {
     if (strcasecmp($confirmName, $actualName) !== 0)            fail('Confirmation name did not match.');
 
     // Count events before delete so we can log it
-    $evCount = (int)$db->query('SELECT COUNT(*) FROM events WHERE league_id = ' . $league_id)->fetchColumn();
+    $evStmt = $db->prepare('SELECT COUNT(*) FROM events WHERE league_id = ?');
+    $evStmt->execute([$league_id]);
+    $evCount = (int)$evStmt->fetchColumn();
 
     $db->beginTransaction();
     try {

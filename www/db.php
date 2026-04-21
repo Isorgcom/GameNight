@@ -1135,6 +1135,11 @@ function load_exceptions(PDO $db, array $events): array {
  *    + events where they are an explicit invitee (matched by username).
  */
 function event_visibility_sql(string $alias = 'e', ?int $user_id = null): array {
+    // Security: $alias is interpolated into SQL. Reject anything that isn't a
+    // plain SQL identifier so a future caller can't pass user input through.
+    if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $alias)) {
+        throw new InvalidArgumentException('event_visibility_sql: invalid alias');
+    }
     if ($user_id !== null) {
         $stmt = get_db()->prepare('SELECT role FROM users WHERE id = ?');
         $stmt->execute([$user_id]);

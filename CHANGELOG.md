@@ -4,6 +4,16 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.16001] — 2026-04-21
+
+### Fixed / hardened
+- **SQL injection defense-in-depth pass.** No exploitable vulnerabilities were found; three "currently-safe-but-fragile" patterns were hardened so a future refactor can't accidentally introduce one.
+  - `leagues_dl.php`: three `->query("… WHERE league_id = " . $league_id)` calls converted to prepared statements. Previously safe because of an `(int)` cast upstream, but this was the last remaining string-concat-into-SQL pattern in the codebase.
+  - `_poker_helpers.php` `save_user_session_defaults()`: now intersects every column name against the `USER_SESSION_DEFAULT_COLS` whitelist before interpolating into the SQL string, so unknown keys in `$data` can't reach SQL even if a caller forgets to pre-filter.
+  - `db.php` `event_visibility_sql()`: validates the `$alias` argument matches `[A-Za-z_][A-Za-z0-9_]*` and throws on anything else. All current callers pass a literal, so behavior is unchanged; the guard stops a future caller from forwarding user input.
+
+---
+
 ## [v0.16000] — 2026-04-21
 
 ### Changed
