@@ -103,7 +103,8 @@ $csrf = csrf_token();
         <?php else: foreach ($myLeagues as $l): ?>
             <div class="lg-card">
                 <div style="flex:1;min-width:200px">
-                    <div class="lg-title"><?= htmlspecialchars($l['name']) ?>
+                    <div class="lg-title">
+                        <a href="/league.php?id=<?= (int)$l['id'] ?>" style="color:inherit;text-decoration:none"><?= htmlspecialchars($l['name']) ?></a>
                         <span class="lg-role lg-role-<?= htmlspecialchars($l['role']) ?>"><?= htmlspecialchars($l['role']) ?></span>
                     </div>
                     <?php if ($l['description']): ?><p class="lg-desc"><?= nl2br(htmlspecialchars($l['description'])) ?></p><?php endif; ?>
@@ -129,7 +130,7 @@ $csrf = csrf_token();
                  data-name="<?= htmlspecialchars(strtolower($l['name'])) ?>"
                  data-desc="<?= htmlspecialchars(strtolower($l['description'] ?? '')) ?>">
                 <div style="flex:1;min-width:200px">
-                    <div class="lg-title"><?= htmlspecialchars($l['name']) ?></div>
+                    <div class="lg-title"><a href="/league.php?id=<?= (int)$l['id'] ?>" style="color:inherit;text-decoration:none"><?= htmlspecialchars($l['name']) ?></a></div>
                     <?php if ($l['description']): ?><p class="lg-desc"><?= nl2br(htmlspecialchars($l['description'])) ?></p><?php endif; ?>
                     <div class="lg-meta"><?= (int)$l['member_count'] ?> member<?= $l['member_count'] == 1 ? '' : 's' ?> &middot; <?= $l['approval_mode'] === 'auto' ? 'Open join' : 'Requires approval' ?></div>
                 </div>
@@ -151,7 +152,7 @@ $csrf = csrf_token();
         <?php else: foreach ($myRequests as $r): ?>
             <div class="lg-card">
                 <div style="flex:1;min-width:200px">
-                    <div class="lg-title"><?= htmlspecialchars($r['league_name']) ?></div>
+                    <div class="lg-title"><a href="/league.php?id=<?= (int)$r['league_id'] ?>" style="color:inherit;text-decoration:none"><?= htmlspecialchars($r['league_name']) ?></a></div>
                     <?php if ($r['message']): ?><p class="lg-desc"><em>Your message:</em> <?= htmlspecialchars($r['message']) ?></p><?php endif; ?>
                     <div class="lg-meta">Requested <?= htmlspecialchars($r['requested_at']) ?></div>
                 </div>

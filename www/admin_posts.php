@@ -32,6 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $content = sanitize_html(trim($_POST['content'] ?? ''));
         $d = trim($_POST['post_date'] ?? '');
         $t = trim($_POST['post_time'] ?? '');
+        $league_id = (int)($_POST['league_id'] ?? 0) ?: null;
         if ($title === '' || $content === '') {
             $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Title and content are required.'];
         } else {
@@ -40,9 +41,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $dt = ($d !== '')
                 ? (new DateTime("$d " . ($t ?: '00:00'), $local_tz))->setTimezone($utc_tz)->format('Y-m-d H:i:s')
                 : (new DateTime('now', $utc_tz))->format('Y-m-d H:i:s');
-            $db->prepare('INSERT INTO posts (title, content, created_at) VALUES (?, ?, ?)')
-               ->execute([$title, $content, $dt]);
-            db_log_activity($current['id'], "created post: $title");
+            $db->prepare('INSERT INTO posts (title, content, created_at, league_id, author_id) VALUES (?, ?, ?, ?, ?)')
+               ->execute([$title, $content, $dt, $league_id, (int)$current['id']]);
+            db_log_activity($current['id'], "created post: $title" . ($league_id ? " (league $league_id)" : ''));
             $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Post published.'];
         }
         header('Location: /admin_posts.php');
@@ -55,6 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $content = sanitize_html(trim($_POST['content'] ?? ''));
         $d = trim($_POST['post_date'] ?? '');
         $t = trim($_POST['post_time'] ?? '');
+        $league_id = (int)($_POST['league_id'] ?? 0) ?: null;
         if ($id <= 0 || $title === '' || $content === '') {
             $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Title and content are required.'];
         } else {
@@ -64,8 +66,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ? (new DateTime("$d " . ($t ?: '00:00'), $local_tz))->setTimezone($utc_tz)->format('Y-m-d H:i:s')
                 : (new DateTime('now', $utc_tz))->format('Y-m-d H:i:s');
             $pinned = isset($_POST['pinned']) ? 1 : 0;
-            $db->prepare('UPDATE posts SET title=?, content=?, created_at=?, pinned=? WHERE id=?')
-               ->execute([$title, $content, $dt, $pinned, $id]);
+            $db->prepare('UPDATE posts SET title=?, content=?, created_at=?, pinned=?, league_id=? WHERE id=?')
+               ->execute([$title, $content, $dt, $pinned, $league_id, $id]);
             db_log_activity($current['id'], "edited post id: $id");
             $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Post updated.'];
         }
@@ -191,7 +193,8 @@ if ($edit_id > 0) {
     if (!$edit_post) $edit_id = 0;
 }
 
-$posts    = $db->query('SELECT id, title, created_at, pinned, hidden FROM posts ORDER BY pinned DESC, created_at DESC')->fetchAll();
+$posts    = $db->query('SELECT p.id, p.title, p.created_at, p.pinned, p.hidden, p.league_id, l.name AS league_name FROM posts p LEFT JOIN leagues l ON l.id = p.league_id ORDER BY p.pinned DESC, p.created_at DESC')->fetchAll();
+$allLeagues = $db->query('SELECT id, name FROM leagues ORDER BY LOWER(name)')->fetchAll();
 $token    = csrf_token();
 $local_tz = new DateTimeZone(get_setting('timezone', 'UTC'));
 $now_local = (new DateTime('now', $local_tz))->format('Y-m-d H:i:s');
@@ -363,6 +366,9 @@ $now_local = (new DateTime('now', $local_tz))->format('Y-m-d H:i:s');
                         <?php if ($p['pinned']): ?>
                             <span style="color:#f59e0b;margin-right:.35rem" title="Pinned">&#128204;</span>
                         <?php endif; ?>
+                        <?php if (!empty($p['league_name'])): ?>
+                            <span style="font-size:.7rem;color:#1e40af;background:#dbeafe;border:1px solid #93c5fd;border-radius:999px;padding:.1rem .5rem;margin-right:.35rem"><?= htmlspecialchars($p['league_name']) ?></span>
+                        <?php endif; ?>
                         <?= htmlspecialchars($p['title']) ?>
                     </td>
                     <td style="white-space:nowrap"><?= htmlspecialchars(
@@ -432,6 +438,16 @@ $now_local = (new DateTime('now', $local_tz))->format('Y-m-d H:i:s');
                     <input type="time" id="f_time" name="post_time" style="width:130px">
                 </div>
                 <p class="hint">Leave blank to use the current time. Past dates appear in their correct position in the feed. Future dates are held until that time.</p>
+            </div>
+            <div class="form-group">
+                <label for="f_league">Post scope</label>
+                <select id="f_league" name="league_id">
+                    <option value="">Global (all users)</option>
+                    <?php foreach ($allLeagues as $lg): ?>
+                        <option value="<?= (int)$lg['id'] ?>"><?= htmlspecialchars($lg['name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <p class="hint">Global posts show to everyone. League-scoped posts only show to members of that league.</p>
             </div>
             <div class="form-group" id="pinRow" style="display:none">
                 <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer;font-weight:500">
@@ -535,7 +551,7 @@ let _submitting = false;
 document.getElementById('postForm').addEventListener('submit', () => { _submitting = true; });
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
-function openModal(id, title, date, content, pinned) {
+function openModal(id, title, date, content, pinned, leagueId) {
     const editing = !!id;
     document.getElementById('modalTitle').textContent  = editing ? 'Edit Post' : 'New Post';
     document.getElementById('formAction').value        = editing ? 'edit' : 'add';
@@ -544,6 +560,8 @@ function openModal(id, title, date, content, pinned) {
     document.getElementById('submitBtn').textContent   = editing ? 'Save Changes' : 'Publish';
     document.getElementById('pinRow').style.display    = editing ? '' : 'none';
     document.getElementById('f_pinned').checked        = !!pinned;
+    var _lg = document.getElementById('f_league');
+    if (_lg) _lg.value = leagueId ? String(leagueId) : '';
 
     const serverNow = <?= json_encode($now_local) ?>;
     const ts    = date || serverNow;
@@ -640,7 +658,8 @@ openModal(
     <?= json_encode($edit_post['title']) ?>,
     <?= json_encode((new DateTime($edit_post['created_at'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone(get_setting('timezone', 'UTC')))->format('Y-m-d H:i:s')) ?>,
     <?= json_encode($edit_post['content']) ?>,
-    <?= (int)$edit_post['pinned'] ?>
+    <?= (int)$edit_post['pinned'] ?>,
+    <?= (int)($edit_post['league_id'] ?? 0) ?>
 );
 <?php endif; ?>
 </script>

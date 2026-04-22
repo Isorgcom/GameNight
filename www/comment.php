@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/_posts.php';
 
 session_start_safe();
 
@@ -25,6 +26,19 @@ if ($action === 'add') {
     $type       = in_array($_POST['type'] ?? '', ['post', 'event']) ? $_POST['type'] : null;
     $content_id = (int)($_POST['content_id'] ?? 0);
     $body       = mb_substr(strip_tags(trim($_POST['body'] ?? '')), 0, 2000);
+
+    // Visibility check: commenting on a league post requires league membership.
+    // Global admin posts (league_id IS NULL) remain open to all logged-in users.
+    if ($type === 'post' && $content_id > 0) {
+        $pStmt = $db->prepare('SELECT league_id, hidden, is_rules_post, created_at FROM posts WHERE id = ?');
+        $pStmt->execute([$content_id]);
+        $pRow = $pStmt->fetch();
+        if (!$pRow || !post_is_visible_to($db, $pRow, (int)$user['id'], $user['role'] === 'admin')) {
+            http_response_code(403);
+            header('Location: ' . $redirect);
+            exit;
+        }
+    }
 
     if ($type && $content_id > 0 && $body !== '') {
         $db->prepare('INSERT INTO comments (type, content_id, user_id, body) VALUES (?, ?, ?, ?)')

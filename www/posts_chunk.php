@@ -5,11 +5,11 @@
  * Empty response = no more posts.
  */
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/_posts.php';
 
 $user     = current_user();
 $db       = get_db();
 $local_tz = new DateTimeZone(get_setting('timezone', 'UTC'));
-$now      = (new DateTime('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s');
 $isAdmin  = $user && $user['role'] === 'admin';
 $csrf     = $user ? csrf_token() : '';
 
@@ -18,20 +18,24 @@ $offset      = max(0,         (int)($_GET['offset']    ?? 0));
 $prevMonth   = $_GET['prev_month'] ?? '';
 $monthFilter = preg_match('/^\d{4}-\d{2}$/', $_GET['month'] ?? '') ? $_GET['month'] : null;
 
+$_vp = posts_feed_sql_for_user($user ? (int)$user['id'] : null, $isAdmin);
+
 if ($monthFilter) {
     $stmt = $db->prepare(
-        "SELECT id, title, content, created_at, pinned FROM posts
-         WHERE created_at <= ? AND hidden = 0 AND strftime('%Y-%m', datetime(created_at)) = ?
-         ORDER BY pinned DESC, created_at DESC LIMIT ? OFFSET ?"
+        "SELECT p.id, p.title, p.content, p.created_at, p.pinned, p.league_id, p.author_id, l.name AS league_name
+         FROM posts p LEFT JOIN leagues l ON l.id = p.league_id
+         WHERE {$_vp['sql']} AND strftime('%Y-%m', datetime(p.created_at)) = ?
+         ORDER BY p.pinned DESC, p.created_at DESC LIMIT ? OFFSET ?"
     );
-    $stmt->execute([$now, $monthFilter, $limit, $offset]);
+    $stmt->execute(array_merge($_vp['params'], [$monthFilter, $limit, $offset]));
 } else {
     $stmt = $db->prepare(
-        'SELECT id, title, content, created_at, pinned FROM posts
-         WHERE created_at <= ? AND hidden = 0
-         ORDER BY pinned DESC, created_at DESC LIMIT ? OFFSET ?'
+        "SELECT p.id, p.title, p.content, p.created_at, p.pinned, p.league_id, p.author_id, l.name AS league_name
+         FROM posts p LEFT JOIN leagues l ON l.id = p.league_id
+         WHERE {$_vp['sql']}
+         ORDER BY p.pinned DESC, p.created_at DESC LIMIT ? OFFSET ?"
     );
-    $stmt->execute([$now, $limit, $offset]);
+    $stmt->execute(array_merge($_vp['params'], [$limit, $offset]));
 }
 $posts = $stmt->fetchAll();
 
@@ -67,20 +71,40 @@ foreach ($posts as $post):
     $comments = $post_comments[$post['id']] ?? [];
     $redir    = '/' . ($monthFilter ? '?month=' . urlencode($monthFilter) : '') . '#post-' . (int)$post['id'];
 ?>
+<?php
+    $__p_league_id = (int)($post['league_id'] ?? 0);
+    $__p_is_global = ($__p_league_id === 0);
+    $__p_can_edit  = $user && user_can_edit_post($db, $post, (int)$user['id'], $isAdmin);
+?>
 <div class="post-card<?= $post['pinned'] ? ' pinned' : '' ?>" id="post-<?= (int)$post['id'] ?>">
     <div class="post-meta">
         <?php if ($post['pinned']): ?><span class="pin-badge">&#128204; Pinned</span><?php endif; ?>
+        <?php if (!$__p_is_global && !empty($post['league_name'])): ?>
+            <a class="league-badge" href="/league.php?id=<?= $__p_league_id ?>">&#127942; <?= htmlspecialchars($post['league_name']) ?></a>
+        <?php endif; ?>
         <span>&#128197; <?= htmlspecialchars((new DateTime($post['created_at'], new DateTimeZone('UTC')))->setTimezone($local_tz)->format('F j, Y')) ?></span>
-        <?php if ($isAdmin): ?>
+        <?php if ($__p_can_edit): ?>
         <div class="post-actions">
-            <a href="/admin_posts.php?edit=<?= (int)$post['id'] ?>">Edit</a>
-            <form method="post" action="/admin_posts.php" style="margin:0"
-                  onsubmit="return confirm('Delete this post?')">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
-                <input type="hidden" name="action" value="delete">
-                <input type="hidden" name="id" value="<?= (int)$post['id'] ?>">
-                <button type="submit" class="danger">Delete</button>
-            </form>
+            <?php if ($__p_is_global): ?>
+                <a href="/admin_posts.php?edit=<?= (int)$post['id'] ?>">Edit</a>
+                <form method="post" action="/admin_posts.php" style="margin:0"
+                      onsubmit="return confirm('Delete this post?')">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                    <input type="hidden" name="action" value="delete">
+                    <input type="hidden" name="id" value="<?= (int)$post['id'] ?>">
+                    <button type="submit" class="danger">Delete</button>
+                </form>
+            <?php else: ?>
+                <a href="/league.php?id=<?= $__p_league_id ?>&tab=posts&edit=<?= (int)$post['id'] ?>">Edit</a>
+                <form method="post" action="/league_posts_dl.php" style="margin:0"
+                      onsubmit="return confirm('Delete this post?')">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                    <input type="hidden" name="action" value="delete">
+                    <input type="hidden" name="post_id" value="<?= (int)$post['id'] ?>">
+                    <input type="hidden" name="redirect" value="/<?= $monthFilter ? '?month=' . urlencode($monthFilter) : '' ?>">
+                    <button type="submit" class="danger">Delete</button>
+                </form>
+            <?php endif; ?>
         </div>
         <?php endif; ?>
     </div>

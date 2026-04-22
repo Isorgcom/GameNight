@@ -4,6 +4,42 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.18000] — 2026-04-22
+
+### Fixed
+- **Posts-tab edit buttons were hidden.** The league.php Posts-tab query omitted `p.league_id` from its SELECT, which made `user_can_edit_post()` evaluate `$post['league_id']` as 0 and always return false — hiding the Edit / Delete / Set as rules buttons for owners and managers. Added `p.league_id` to the SELECT.
+
+### Changed — GUI polish
+- **League names are links on `/leagues.php`.** On all three tabs (My Leagues, Browse, My Requests), clicking a league name now routes to `/league.php?id=…` (same as the existing "View" button). Color stays inherited so the visual layout is unchanged.
+- **Post-action buttons are visually consistent.** On both the landing-page feed and the league Posts tab, the Edit / Delete / Set as rules buttons now share the same min-width (72px), centered inline-flex alignment, and padding so the `<a>` Edit link matches the `<button>` forms instead of being noticeably smaller.
+- **Leave league button is now clearly a danger action.** Previously a tiny ghost-style button on the league header that blended in. Now a red-outlined button with a ❌ prefix, bolder font, and a hover that fills red — hard to miss but still secondary.
+
+### Added — league posts + League Rules button
+- **League-scoped posts.** Owners and managers can now write posts for their league from a new **Posts** tab on `league.php`. Content uses the same Jodit rich-text editor that admins already use for global posts (image uploads via `/upload.php` work unchanged). League posts appear on the home-page feed (`index.php`) mixed chronologically with admin global posts, each tagged with a small clickable league badge. Non-members cannot see league posts; the visibility filter lives in the new `www/_posts.php` helper (`posts_feed_sql_for_user`).
+- **League Rules button.** Any league post can be flagged as the league's rules post. A prominent 📜 **League Rules** button appears in the league header when a rules post exists; it links to a dedicated `?tab=rules` view of that post. Rules-flagged posts are excluded from the Posts feed and the home feed so the chronological stream stays clean. Enforced at exactly one rules post per league via a partial unique index on `posts(league_id, is_rules_post)`.
+- **Admin scope picker.** `admin_posts.php` now has an optional "Post scope" dropdown so admins can author on behalf of a specific league when needed. Blank = global post (default behavior preserved).
+- **Comment visibility.** `comment.php` guards league-post comment submissions with `post_is_visible_to()` so non-members can't post comments even via direct request.
+
+### Schema
+- `posts.league_id` (NULL = global admin post — preserves current behavior for all existing posts), `posts.author_id` (nullified on user delete, not cascaded), `posts.is_rules_post` (partial unique index enforces one-per-league).
+- Cascade delete: deleting a league removes its posts and their comments.
+
+### New files
+- `www/_posts.php` — feed visibility helpers and per-row edit/view permission checks.
+- `www/league_posts_dl.php` — CSRF-guarded, role-checked write endpoint for league post actions (create / update / delete / set_rules / clear_rules / toggle_pin / toggle_hide). Supports both JSON and redirect responses.
+
+---
+
+## [v0.17004] — 2026-04-22
+
+### Changed
+- **Updated the standard payout preset table.** Adjusted the 4+ place splits so adding places produces the expected flattening curve: 3 → 50/30/20, 4 → 40/25/20/15, 5 → 38/22/17/13/10, 6 → 33/22/16/12/10/7, 7 → 30/20/15/12/10/8/5, and similarly flatter curves through 10 places. "+ Add Place" and "Auto Split" both apply these presets.
+
+### Reverted
+- Reverted the v0.17003 proportional-shrink behavior of "+ Add Place"; hosts want the preset applied so the structure matches common tournament conventions.
+
+---
+
 ## [v0.17002] — 2026-04-22
 
 ### Added

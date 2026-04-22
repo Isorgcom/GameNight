@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/_posts.php';
 
 $current   = require_login();
 $db        = get_db();
@@ -23,6 +24,12 @@ if ((int)$league['is_hidden'] === 1 && !$canViewHidden) {
 
 $canManageMembers = $isAdmin || in_array($myRole, ['owner', 'manager'], true);
 $isOwner          = $isAdmin || $myRole === 'owner';
+$canPost          = user_can_author_league_post($db, $league_id, $uid, $isAdmin);
+
+// Rules post lookup: shown as a prominent button in the header when present.
+$rulesStmt = $db->prepare('SELECT id, title, content, created_at, author_id FROM posts WHERE league_id = ? AND is_rules_post = 1 AND hidden = 0 LIMIT 1');
+$rulesStmt->execute([$league_id]);
+$rulesPost = $rulesStmt->fetch() ?: null;
 
 // ── CSV Export (must happen before any output) ────────────────────────────────
 if ($canManageMembers && (($_GET['action'] ?? '') === 'export_members')) {
@@ -179,7 +186,7 @@ if ($canManageMembers && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['actio
     exit;
 }
 
-$allowed_tabs = ['members', 'events', 'stats', 'requests', 'settings'];
+$allowed_tabs = ['members', 'events', 'posts', 'stats', 'requests', 'settings', 'rules'];
 $tab = $_GET['tab'] ?? 'members';
 if (!in_array($tab, $allowed_tabs, true)) $tab = 'members';
 if ($tab === 'requests' && !$canManageMembers) $tab = 'members';
@@ -429,8 +436,13 @@ function ordinal($n) {
         <div class="lg-meta">
             <?= $member_count ?> member<?= $member_count === 1 ? '' : 's' ?>
             &middot; Join mode: <?= htmlspecialchars($league['approval_mode']) ?>
+            <?php if ($rulesPost): ?>
+                &middot; <a class="lg-btn lg-btn-rules" href="?id=<?= $league_id ?>&tab=rules" style="padding:.25rem .7rem;font-size:.75rem;background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:6px;text-decoration:none;font-weight:600">&#128220; League Rules</a>
+            <?php endif; ?>
             <?php if ($myRole !== null && $myRole !== 'owner'): ?>
-                &middot; <button class="lg-btn lg-btn-ghost" style="padding:.2rem .5rem;font-size:.7rem" onclick="leaveLeague()">Leave league</button>
+                <button class="lg-btn" style="margin-left:.6rem;padding:.3rem .8rem;font-size:.78rem;font-weight:600;background:#fff;color:#dc2626;border:1.5px solid #fca5a5;border-radius:6px;cursor:pointer" onclick="leaveLeague()"
+                        onmouseover="this.style.background='#fee2e2';this.style.borderColor='#dc2626'"
+                        onmouseout="this.style.background='#fff';this.style.borderColor='#fca5a5'">&#10060; Leave league</button>
             <?php endif; ?>
         </div>
     </div>
@@ -438,6 +450,7 @@ function ordinal($n) {
     <div class="lg-tabs">
         <a class="lg-tab<?= $tab==='members'  ? ' active' : '' ?>" href="?id=<?= $league_id ?>&tab=members">Members (<?= $member_count ?>)</a>
         <a class="lg-tab<?= $tab==='events'   ? ' active' : '' ?>" href="?id=<?= $league_id ?>&tab=events">Events (<?= count($leagueEvents) ?>)</a>
+        <a class="lg-tab<?= $tab==='posts'    ? ' active' : '' ?>" href="?id=<?= $league_id ?>&tab=posts">Posts</a>
         <a class="lg-tab<?= $tab==='stats'    ? ' active' : '' ?>" href="?id=<?= $league_id ?>&tab=stats">Stats</a>
         <?php if ($canManageMembers): ?>
         <a class="lg-tab<?= $tab==='requests' ? ' active' : '' ?>" href="?id=<?= $league_id ?>&tab=requests">Requests (<?= count($requests) ?>)</a>
@@ -762,6 +775,179 @@ function ordinal($n) {
             </tbody>
         </table>
         <?php endif; ?>
+
+    <?php elseif ($tab === 'rules'): ?>
+        <div class="lg-card" style="display:block">
+            <?php if (!$rulesPost): ?>
+                <p style="color:#64748b">No league rules have been set yet.<?php if ($canPost): ?> Create a post in the Posts tab and mark it as the league rules.<?php endif; ?></p>
+            <?php else: ?>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
+                    <h2 style="margin:0;font-size:1.3rem;color:#92400e">&#128220; <?= htmlspecialchars($rulesPost['title']) ?></h2>
+                    <?php if ($canPost): ?>
+                    <form method="post" action="/league_posts_dl.php" style="margin:0"
+                          onsubmit="return confirm('Unset this post as the league rules? It will reappear in the Posts feed.')">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                        <input type="hidden" name="action" value="clear_rules">
+                        <input type="hidden" name="post_id" value="<?= (int)$rulesPost['id'] ?>">
+                        <input type="hidden" name="redirect" value="/league.php?id=<?= $league_id ?>&tab=posts">
+                        <button type="submit" class="lg-btn lg-btn-ghost" style="font-size:.75rem">Unset rules flag</button>
+                    </form>
+                    <?php endif; ?>
+                </div>
+                <div class="post-body" style="line-height:1.75;color:#334155"><?= sanitize_html($rulesPost['content']) ?></div>
+            <?php endif; ?>
+        </div>
+
+    <?php elseif ($tab === 'posts'): ?>
+        <?php
+        // Load league posts for this tab (excluding rules-flagged, excluding hidden — admins included).
+        $lpStmt = $db->prepare("SELECT p.id, p.title, p.content, p.created_at, p.pinned, p.league_id, p.author_id, u.username AS author_name
+                                FROM posts p LEFT JOIN users u ON u.id = p.author_id
+                                WHERE p.league_id = ? AND p.is_rules_post = 0 AND p.hidden = 0
+                                ORDER BY p.pinned DESC, p.created_at DESC");
+        $lpStmt->execute([$league_id]);
+        $leaguePosts = $lpStmt->fetchAll();
+
+        $editPostId = (int)($_GET['edit'] ?? 0);
+        $editPost   = null;
+        if ($editPostId > 0) {
+            $ep = $db->prepare('SELECT * FROM posts WHERE id = ? AND league_id = ?');
+            $ep->execute([$editPostId, $league_id]);
+            $editPost = $ep->fetch() ?: null;
+            if ($editPost && !user_can_edit_post($db, $editPost, $uid, $isAdmin)) $editPost = null;
+        }
+        ?>
+
+        <?php if ($canPost): ?>
+        <div class="lg-card" style="display:block">
+            <h3 style="margin:0 0 .75rem"><?= $editPost ? 'Edit post' : 'New post' ?></h3>
+            <form method="post" action="/league_posts_dl.php" id="leaguePostForm">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                <input type="hidden" name="action" value="<?= $editPost ? 'update' : 'create' ?>">
+                <input type="hidden" name="league_id" value="<?= $league_id ?>">
+                <?php if ($editPost): ?>
+                    <input type="hidden" name="post_id" value="<?= (int)$editPost['id'] ?>">
+                <?php endif; ?>
+                <input type="hidden" name="redirect" value="/league.php?id=<?= $league_id ?>&tab=posts">
+                <label style="display:block;font-size:.8rem;font-weight:600;margin-bottom:.25rem">Title</label>
+                <input type="text" name="title" required maxlength="200" value="<?= htmlspecialchars($editPost['title'] ?? '') ?>"
+                       style="width:100%;padding:.5rem;border:1.5px solid #cbd5e1;border-radius:6px;margin-bottom:.75rem;font:inherit">
+                <label style="display:block;font-size:.8rem;font-weight:600;margin-bottom:.25rem">Content</label>
+                <textarea id="lp-editor" name="content"><?= htmlspecialchars($editPost['content'] ?? '') ?></textarea>
+                <div style="display:flex;gap:.5rem;margin-top:.75rem">
+                    <button type="submit" class="lg-btn lg-btn-primary"><?= $editPost ? 'Save changes' : 'Publish' ?></button>
+                    <?php if ($editPost): ?>
+                    <a href="?id=<?= $league_id ?>&tab=posts" class="lg-btn lg-btn-ghost">Cancel</a>
+                    <?php endif; ?>
+                </div>
+            </form>
+        </div>
+        <script src="/vendor/jodit/jodit.min.js"></script>
+        <link rel="stylesheet" href="/vendor/jodit/jodit.min.css">
+        <script>
+            (function(){
+                if (typeof Jodit === 'undefined') return;
+                Jodit.make('#lp-editor', {
+                    height: 340,
+                    toolbarAdaptive: false,
+                    buttons: ['bold','italic','underline','|','ul','ol','|','outdent','indent','|','link','image','|','hr','brush','|','undo','redo'],
+                    uploader: {
+                        url: '/upload.php',
+                        headers: {},
+                        format: 'json',
+                        prepareData: function(fd) { fd.append('csrf_token', '<?= htmlspecialchars(csrf_token()) ?>'); return fd; },
+                        isSuccess: function(r){ return r && r.ok; },
+                        process: function(r){ return { files: [r.url], baseurl: '' }; },
+                        defaultHandlerSuccess: function(data){ var img = this.j.createInside.element('img'); img.setAttribute('src', data.files[0]); this.j.s.insertImage(img); }
+                    }
+                });
+            })();
+        </script>
+        <?php endif; ?>
+
+        <?php if (empty($leaguePosts)): ?>
+            <div class="lg-card" style="display:block;text-align:center;color:#94a3b8;padding:2.5rem 1rem">
+                <div style="font-size:2rem">&#128196;</div>
+                <p style="margin-top:.5rem">No posts yet.</p>
+            </div>
+        <?php else: foreach ($leaguePosts as $lp):
+            $lp_can_edit = user_can_edit_post($db, $lp, $uid, $isAdmin);
+            $lp_comments_stmt = $db->prepare("SELECT c.*, u.username FROM comments c JOIN users u ON u.id = c.user_id WHERE c.type='post' AND c.content_id = ? ORDER BY c.created_at ASC");
+            $lp_comments_stmt->execute([$lp['id']]);
+            $lp_comments = $lp_comments_stmt->fetchAll();
+        ?>
+        <div class="lg-card" style="display:block" id="post-<?= (int)$lp['id'] ?>">
+            <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem;font-size:.78rem;color:#94a3b8">
+                <?php if ($lp['pinned']): ?><span class="pin-badge">&#128204; Pinned</span><?php endif; ?>
+                <span>&#128197; <?= htmlspecialchars((new DateTime($lp['created_at'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone(get_setting('timezone', 'UTC')))->format('F j, Y')) ?></span>
+                <?php if (!empty($lp['author_name'])): ?><span>by <?= htmlspecialchars($lp['author_name']) ?></span><?php endif; ?>
+                <?php if ($lp_can_edit): ?>
+                <?php $__pbtn = 'font-size:.72rem;padding:.25rem .7rem;min-width:72px;text-align:center;line-height:1.2;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center'; ?>
+                <div style="margin-left:auto;display:flex;gap:.4rem;align-items:center">
+                    <a href="?id=<?= $league_id ?>&tab=posts&edit=<?= (int)$lp['id'] ?>" class="lg-btn lg-btn-ghost" style="<?= $__pbtn ?>">Edit</a>
+                    <form method="post" action="/league_posts_dl.php" style="margin:0" onsubmit="return confirm('Delete this post?')">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                        <input type="hidden" name="action" value="delete">
+                        <input type="hidden" name="post_id" value="<?= (int)$lp['id'] ?>">
+                        <input type="hidden" name="redirect" value="/league.php?id=<?= $league_id ?>&tab=posts">
+                        <button type="submit" class="lg-btn lg-btn-ghost" style="<?= $__pbtn ?>;color:#ef4444">Delete</button>
+                    </form>
+                    <form method="post" action="/league_posts_dl.php" style="margin:0"
+                          onsubmit="return confirm(<?= $rulesPost ? "'This will replace the current league rules post. Continue?'" : "'Mark this post as the league rules? It will be moved out of the Posts feed and accessible via the League Rules button.'" ?>);">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                        <input type="hidden" name="action" value="set_rules">
+                        <input type="hidden" name="post_id" value="<?= (int)$lp['id'] ?>">
+                        <input type="hidden" name="redirect" value="/league.php?id=<?= $league_id ?>&tab=rules">
+                        <button type="submit" class="lg-btn lg-btn-ghost" style="<?= $__pbtn ?>;color:#92400e">Set as rules</button>
+                    </form>
+                </div>
+                <?php endif; ?>
+            </div>
+            <h3 style="margin:0 0 .5rem;font-size:1.15rem"><?= htmlspecialchars($lp['title']) ?></h3>
+            <div class="post-body" style="line-height:1.75;color:#334155"><?= sanitize_html($lp['content']) ?></div>
+
+            <div class="comments-section" id="csec-<?= (int)$lp['id'] ?>" style="margin-top:1rem;padding-top:.75rem;border-top:1px solid #e2e8f0">
+                <div class="comments-heading" onclick="toggleComments(<?= (int)$lp['id'] ?>)" style="cursor:pointer;user-select:none">
+                    <span class="cmts-toggle-label" style="display:flex;align-items:center;gap:.4rem;color:#475569;font-size:.85rem;font-weight:600">
+                        <span class="cmts-chevron" style="font-size:.65rem;color:#94a3b8">&#9658;</span>
+                        <?= count($lp_comments) ?> Comment<?= count($lp_comments) !== 1 ? 's' : '' ?>
+                    </span>
+                </div>
+                <div class="comments-body" id="cmts-body-<?= (int)$lp['id'] ?>" style="display:none;margin-top:.65rem">
+                    <?php foreach ($lp_comments as $c): ?>
+                    <div class="comment" style="display:flex;gap:.6rem;margin-bottom:.6rem">
+                        <div class="comment-avatar" style="width:30px;height:30px;border-radius:50%;background:#e2e8f0;color:#475569;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:.85rem;flex-shrink:0"><?= htmlspecialchars(mb_substr($c['username'], 0, 1)) ?></div>
+                        <div class="comment-content" style="flex:1;min-width:0">
+                            <div style="font-size:.75rem;color:#94a3b8;margin-bottom:.15rem">
+                                <strong style="color:#334155"><?= htmlspecialchars($c['username']) ?></strong>
+                                <?= htmlspecialchars((new DateTime($c['created_at'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone(get_setting('timezone', 'UTC')))->format('M j, Y g:i A')) ?>
+                            </div>
+                            <div style="font-size:.9rem;color:#334155"><?= htmlspecialchars($c['body']) ?></div>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                    <form method="post" action="/comment.php" class="comment-form" style="margin-top:.5rem">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                        <input type="hidden" name="action" value="add">
+                        <input type="hidden" name="type" value="post">
+                        <input type="hidden" name="content_id" value="<?= (int)$lp['id'] ?>">
+                        <input type="hidden" name="redirect" value="/league.php?id=<?= $league_id ?>&tab=posts#post-<?= (int)$lp['id'] ?>">
+                        <textarea name="body" placeholder="Write a comment…" required maxlength="2000"
+                                  style="width:100%;min-height:60px;padding:.4rem .6rem;border:1.5px solid #cbd5e1;border-radius:6px;font:inherit"></textarea>
+                        <button type="submit" class="lg-btn lg-btn-primary" style="margin-top:.35rem;font-size:.8rem">Post</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <?php endforeach; endif; ?>
+
+        <script>
+        function toggleComments(pid) {
+            var body = document.getElementById('cmts-body-' + pid);
+            if (!body) return;
+            body.style.display = body.style.display === 'none' ? '' : 'none';
+        }
+        </script>
 
     <?php elseif ($tab === 'settings' && $isOwner): ?>
         <div class="lg-card" style="display:block">

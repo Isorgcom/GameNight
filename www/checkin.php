@@ -1032,6 +1032,7 @@ function payoutRowHtml(place, pct) {
 }
 
 function addPayoutRow() {
+    // Append a new row then reset all rows to the standard structure for the new count.
     var rows = document.querySelectorAll('#payoutRows .row');
     var nextPlace = rows.length + 1;
     var div = document.createElement('div');
@@ -1044,24 +1045,24 @@ function autoSplitPayouts() {
     var inputs = document.querySelectorAll('.payout-pct');
     var count = inputs.length;
     if (count === 0) return;
-    // Standard weighted tournament payout structures
+    // Standard weighted tournament payout structures. Each row totals 100%.
     var structures = {
-        1: [100],
-        2: [65, 35],
-        3: [50, 30, 20],
-        4: [40, 30, 20, 10],
-        5: [35, 25, 20, 12, 8],
-        6: [30, 22, 18, 13, 10, 7],
-        7: [28, 20, 16, 13, 10, 8, 5],
-        8: [25, 18, 14, 12, 10, 9, 7, 5],
-        9: [24, 17, 13, 11, 10, 9, 7, 5, 4],
-        10: [22, 16, 12, 10, 9, 8, 7, 6, 5, 5]
+        1:  [100],
+        2:  [65, 35],
+        3:  [50, 30, 20],
+        4:  [40, 25, 20, 15],
+        5:  [38, 22, 17, 13, 10],
+        6:  [33, 22, 16, 12, 10, 7],
+        7:  [30, 20, 15, 12, 10, 8, 5],
+        8:  [28, 18, 14, 12, 10, 8, 6, 4],
+        9:  [26, 17, 13, 11, 10, 8, 6, 5, 4],
+        10: [25, 16, 12, 10, 9, 8, 7, 6, 4, 3]
     };
     var pcts = structures[count];
     if (!pcts) {
-        // For >10 places, give top 3 standard split then divide remainder
-        pcts = [30, 20, 15];
-        var remaining = 35;
+        // For >10 places, anchor top 3 at [22,14,10] (=46) and split the remaining 54 across the rest.
+        pcts = [22, 14, 10];
+        var remaining = 54;
         var extra = count - 3;
         for (var i = 0; i < extra; i++) {
             var share = Math.round((remaining / extra) * 10) / 10;

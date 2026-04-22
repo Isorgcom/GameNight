@@ -150,6 +150,13 @@ function db_init(PDO $pdo): void {
     // Add pinned column to posts if it doesn't exist yet (safe on existing DBs)
     try { $pdo->exec("ALTER TABLE posts ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE posts ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    // League-scoped posts: league_id IS NULL = global admin post (current behavior preserved).
+    try { $pdo->exec("ALTER TABLE posts ADD COLUMN league_id INTEGER"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE posts ADD COLUMN author_id INTEGER"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE posts ADD COLUMN is_rules_post INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_posts_league ON posts(league_id, created_at)"); } catch (Exception $e) {}
+    // At most one rules post per league. Partial index so global posts (league_id IS NULL) are unaffected.
+    try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_posts_one_rules_per_league ON posts(league_id, is_rules_post) WHERE is_rules_post = 1"); } catch (Exception $e) {}
 
     // Add phone to users if it doesn't exist yet
     try { $pdo->exec("ALTER TABLE users ADD COLUMN phone TEXT"); } catch (Exception $e) {}
@@ -869,6 +876,18 @@ function delete_league_cascade(PDO $db, int $league_id): void {
         $db->prepare("DELETE FROM events   WHERE id IN ($placeholders)")->execute($evIds);
     }
 
+    // League-scoped posts and their comments
+    try {
+        $postIds = $db->prepare('SELECT id FROM posts WHERE league_id = ?');
+        $postIds->execute([$league_id]);
+        $postIds = array_map('intval', array_column($postIds->fetchAll(), 'id'));
+        if (!empty($postIds)) {
+            $pp = implode(',', array_fill(0, count($postIds), '?'));
+            $db->prepare("DELETE FROM comments WHERE type='post' AND content_id IN ($pp)")->execute($postIds);
+            $db->prepare("DELETE FROM posts WHERE id IN ($pp)")->execute($postIds);
+        }
+    } catch (Throwable $e) {}
+
     $db->prepare('DELETE FROM league_join_requests WHERE league_id = ?')->execute([$league_id]);
     $db->prepare('DELETE FROM league_members       WHERE league_id = ?')->execute([$league_id]);
     $db->prepare('DELETE FROM leagues              WHERE id = ?')        ->execute([$league_id]);
@@ -926,6 +945,8 @@ function delete_user_account(int $user_id): void {
         try { $db->prepare('DELETE FROM pending_notifications WHERE LOWER(username) = LOWER(?)')->execute([$username]); } catch (Exception $e) {}
     }
     $db->prepare('UPDATE poker_players SET removed = 1 WHERE user_id = ?')->execute([$user_id]);
+    // Preserve league/global posts authored by this user; null out the author pointer instead of deleting.
+    try { $db->prepare('UPDATE posts SET author_id = NULL WHERE author_id = ?')->execute([$user_id]); } catch (Exception $e) {}
     $db->prepare('DELETE FROM comments WHERE user_id = ?')->execute([$user_id]);
     $db->prepare('DELETE FROM password_resets WHERE user_id = ?')->execute([$user_id]);
     $db->prepare('DELETE FROM remember_tokens WHERE user_id = ?')->execute([$user_id]);
