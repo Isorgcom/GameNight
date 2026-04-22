@@ -93,11 +93,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $notify_new_invitees = function(int $eid, array $new_usernames, string $evt_title, string $next_occ_date) use ($db): void {
         if (empty($new_usernames)) return;
         $queueStmt = $db->prepare("INSERT INTO pending_notifications (event_id, username, notify_type) VALUES (?, ?, 'invite')");
-        $dedupStmt = $db->prepare("INSERT OR IGNORE INTO event_notifications_sent (event_id, occurrence_date, user_identifier, notification_type, sent_at) VALUES (?, ?, ?, 'invite', ?)");
+        // Check dedup table first — if already sent, skip enqueue entirely.
+        $seenStmt  = $db->prepare("SELECT 1 FROM event_notifications_sent WHERE event_id=? AND occurrence_date=? AND user_identifier=? AND notification_type='invite'");
         foreach ($new_usernames as $uname) {
+            $seenStmt->execute([$eid, '', strtolower($uname)]);
+            if ($seenStmt->fetchColumn()) continue;
             $queueStmt->execute([$eid, $uname]);
-            // Log so reminder cron won't double-send an invite before the queue drains
-            try { $dedupStmt->execute([$eid, $next_occ_date, $uname, date('Y-m-d H:i:s')]); } catch (Exception $e) {}
         }
         // Fire-and-forget: kick off the drain in the background so notifications go out in seconds
         drain_queue_async();

@@ -219,6 +219,23 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
     $type        = (string)$row['notify_type'];
     $occ_date    = $row['occurrence_date'] ?? null;
     $payload     = !empty($row['payload']) ? (json_decode($row['payload'], true) ?: []) : [];
+    $row_id      = (int)($row['id'] ?? 0);
+
+    // Dedup across the whole queue: if this (event, occurrence, user, type+discriminator)
+    // already has a sent marker, treat as handled. Prevents double-sends when a partial
+    // provider failure (e.g. SMS fails for a 'both' user while email succeeded) causes
+    // the row to be released and retried.
+    $type_tag = $type;
+    if ($type === 'reminder') {
+        $type_tag = 'reminder_' . (int)($payload['offset_minutes'] ?? 0);
+    }
+    $occ_key = $occ_date ?: '';
+    $seenStmt = $db->prepare(
+        "SELECT 1 FROM event_notifications_sent
+         WHERE event_id=? AND occurrence_date=? AND user_identifier=? AND notification_type=?"
+    );
+    $seenStmt->execute([$event_id, $occ_key, strtolower($username), $type_tag]);
+    if ($seenStmt->fetchColumn()) return true;
 
     $evStmt = $db->prepare('SELECT id, title, description, start_date, end_date, start_time, end_time FROM events WHERE id = ?');
     $evStmt->execute([$event_id]);
@@ -262,23 +279,43 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
 
     switch ($type) {
         case 'invite':
+            // One-click RSVP via rsvp_token (no login required). Falls back to the event link
+            // if this invitee predates the token column or the row is missing.
+            $tokStmt = $db->prepare("SELECT rsvp_token FROM event_invites
+                WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL");
+            $tokStmt->execute([$event_id, $username]);
+            $rsvp_token = (string)($tokStmt->fetchColumn() ?: '');
+            $allowMaybe = get_setting('allow_maybe_rsvp', '1') === '1';
+
             $subject = "You're invited: " . $title . ' (' . $start . ')';
-            $smsBody = "You've been invited to \"$title\" on $start. Reply YES, NO, or MAYBE to RSVP. View: $url";
+            $rsvpButtons = '';
+            if ($rsvp_token !== '') {
+                $rsvp_base = $site_url . '/rsvp.php?token=' . urlencode($rsvp_token);
+                $yes_url   = $rsvp_base . '&r=yes';
+                $no_url    = $rsvp_base . '&r=no';
+                $maybe_url = $rsvp_base . '&r=maybe';
+                $smsBody = "You've been invited to \"$title\" on $start. RSVP:\nYES: $yes_url\nNO: $no_url"
+                         . ($allowMaybe ? "\nMAYBE: $maybe_url" : "");
+                $rsvpButtons = '<p style="margin-top:1.5rem">RSVP now:</p>'
+                    . '<p>'
+                    . '<a href="' . htmlspecialchars($yes_url) . '" style="display:inline-block;margin:.25rem .3rem;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;background:#16a34a;color:#fff">Yes</a>'
+                    . '<a href="' . htmlspecialchars($no_url) . '" style="display:inline-block;margin:.25rem .3rem;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;background:#dc2626;color:#fff">No</a>'
+                    . ($allowMaybe ? '<a href="' . htmlspecialchars($maybe_url) . '" style="display:inline-block;margin:.25rem .3rem;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;background:#d97706;color:#fff">Maybe</a>' : '')
+                    . '</p>';
+            } else {
+                $smsBody = "You've been invited to \"$title\" on $start. Reply YES, NO, or MAYBE to RSVP. View: $url";
+            }
+            $desc = $event['description'] ?? '';
             $htmlBody = '<p>Hi ' . htmlspecialchars($user['username']) . ',</p>'
                       . '<p>You have been invited to <strong>' . htmlspecialchars($title) . '</strong> on ' . htmlspecialchars($start) . '.</p>'
-                      . '<p style="margin-top:1.5rem"><a href="' . htmlspecialchars($url) . '" style="background:#2563eb;color:#fff;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600">View Event &amp; RSVP</a></p>';
+                      . ($desc ? '<p>' . nl2br(htmlspecialchars($desc)) . '</p>' : '')
+                      . $rsvpButtons
+                      . '<p style="margin-top:1rem"><a href="' . htmlspecialchars($url) . '" style="display:inline-block;padding:.5rem 1.5rem;border-radius:6px;text-decoration:none;font-weight:600;background:#2563eb;color:#fff">Event Details</a></p>';
             break;
 
         case 'reminder':
             $offset = (int)($payload['offset_minutes'] ?? 0);
             $label  = _format_offset_label($offset);
-            // Dedup: if already sent, skip
-            $type_tag = 'reminder_' . $offset;
-            $seen = $db->prepare("SELECT 1 FROM event_notifications_sent
-                WHERE event_id=? AND occurrence_date=? AND user_identifier=? AND notification_type=?");
-            $seen->execute([$event_id, $occ_date ?: $event['start_date'], strtolower($username), $type_tag]);
-            if ($seen->fetchColumn()) return true;
-
             $subject  = "Reminder: $title in $label";
             $smsBody  = "Reminder: \"$title\" is in $label ($start). RSVP: $url";
             $htmlBody = '<p>This is a reminder that <strong>' . htmlspecialchars($title) . '</strong>'
@@ -346,29 +383,30 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
         $user['preferred_contact'] ?? 'email',
         $subject, $smsBody, $htmlBody
     );
-    // Check provider-level errors. Rate limits trigger a pause + throw so the drain
-    // releases the row for retry. Other errors throw too so attempts increment.
+
+    // Mark as sent IMMEDIATELY after send_notification returns, regardless of per-channel
+    // errors. Rationale: if a user is on 'both' and SMS fails but email succeeded, we must
+    // NOT re-send the email on the next retry. The dedup row prevents that re-delivery.
+    $db->prepare(
+        "INSERT OR IGNORE INTO event_notifications_sent (event_id, occurrence_date, user_identifier, notification_type, sent_at)
+         VALUES (?, ?, ?, ?, ?)"
+    )->execute([
+        $event_id,
+        $occ_key,
+        strtolower($username),
+        $type_tag,
+        date('Y-m-d H:i:s'),
+    ]);
+
+    // Surface provider-level errors. Rate limits trigger a pause. Other errors are logged
+    // (not thrown) now that we've recorded the dedup marker — retrying the whole row
+    // would re-send the email that already succeeded.
     $err = get_last_notification_error();
     if ($err !== null) {
+        error_log("[GameNight] Notification partial failure for event=$event_id user=$username type=$type: $err");
         if (looks_like_rate_limit($err)) {
             pause_drain_on_rate_limit();
         }
-        throw new RuntimeException($err);
-    }
-
-    // Mark dedup rows for reminder types so repeated queuing doesn't re-send.
-    if ($type === 'reminder') {
-        $offset = (int)($payload['offset_minutes'] ?? 0);
-        $db->prepare(
-            "INSERT OR IGNORE INTO event_notifications_sent (event_id, occurrence_date, user_identifier, notification_type, sent_at)
-             VALUES (?, ?, ?, ?, ?)"
-        )->execute([
-            $event_id,
-            $occ_date ?: $event['start_date'],
-            strtolower($username),
-            'reminder_' . $offset,
-            date('Y-m-d H:i:s'),
-        ]);
     }
 
     return true;

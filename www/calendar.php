@@ -401,9 +401,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Queue invite notifications to be sent asynchronously by cron.
             // This avoids hanging the form save on a slow SMTP/SMS/shortener API loop for large invite lists.
+            // Skip anyone who already has an invite dedup marker for this event — prevents re-sends
+            // on re-edits or duplicate submits.
             if (!$suppress_notify && get_setting('notifications_enabled', '0') === '1' && !empty($new_invitee_usernames)) {
                 $queueStmt = $db->prepare("INSERT INTO pending_notifications (event_id, username, notify_type) VALUES (?, ?, 'invite')");
+                $seenStmt  = $db->prepare("SELECT 1 FROM event_notifications_sent WHERE event_id=? AND occurrence_date=? AND user_identifier=? AND notification_type='invite'");
                 foreach ($new_invitee_usernames as $new_user) {
+                    $seenStmt->execute([$notify_eid, '', strtolower($new_user)]);
+                    if ($seenStmt->fetchColumn()) continue;
                     $queueStmt->execute([$notify_eid, $new_user]);
                 }
                 // Fire-and-forget: kick off the drain in the background so notifications go out in seconds

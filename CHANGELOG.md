@@ -4,6 +4,23 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.17002] — 2026-04-22
+
+### Added
+- **Queued invite emails now include one-click RSVP buttons.** When invites moved to the notification queue in v0.16000, the email body lost the per-invitee YES / NO / MAYBE (if allowed) buttons that the inline sender had. `dispatch_queued_notification()` for `invite` rows now looks up `event_invites.rsvp_token` and renders the same YES/NO/MAYBE buttons the inline sender used, falling back to a plain event link if no token exists. SMS/WhatsApp bodies include the direct RSVP URLs too.
+
+### Fixed
+- **Enqueue-time dedup for invites.** Both invite enqueue sites (`calendar.php`, `calendar_dl.php`) now check `event_notifications_sent` before inserting into `pending_notifications` and skip anyone already sent. Previously a re-edit that deleted and re-inserted the same invitee rows could enqueue a second invite, which the drain would then deliver. Combined with the dispatch-time dedup added in v0.17001, invites are now idempotent at both enqueue and dispatch.
+
+---
+
+## [v0.17001] — 2026-04-22
+
+### Fixed
+- **Duplicate invite emails.** A single invite could be delivered up to 3 times. Root cause: `dispatch_queued_notification()` threw an exception whenever `send_notification()` surfaced any provider error (including non-fatal secondary-channel failures for users on `preferred_contact = 'both'`), which released the queue row for retry after the email had already been sent successfully. Each retry re-sent the email until `attempts` hit the 3-cap. Fix: write the `event_notifications_sent` dedup marker for every notify_type (not just reminders) immediately after `send_notification()` returns, and check it at the top of `dispatch_queued_notification()`. Partial failures are now logged rather than thrown, since the email that already went out cannot be un-sent.
+
+---
+
 ## [v0.17000] — 2026-04-21
 
 ### Added — rate-limit protections
