@@ -743,13 +743,14 @@ $daysInMonth = (int)$display->format('t');
 $monthStart = $display->format('Y-m-01');
 $monthEnd   = $display->format('Y-m-') . $daysInMonth;
 
-// Fetch events that overlap the month
+// Fetch events that overlap the month (join leagues so the calendar cells can show a league tag)
 $_vis = event_visibility_sql('events', (int)$current['id']);
 $evQuery = $db->prepare(
-    "SELECT * FROM events WHERE
-       start_date <= ? AND (end_date >= ? OR (end_date IS NULL AND start_date >= ?))
+    "SELECT events.*, leagues.name AS league_name FROM events
+     LEFT JOIN leagues ON leagues.id = events.league_id
+     WHERE events.start_date <= ? AND (events.end_date >= ? OR (events.end_date IS NULL AND events.start_date >= ?))
        AND {$_vis['sql']}
-     ORDER BY start_date, start_time"
+     ORDER BY events.start_date, events.start_time"
 );
 $evQuery->execute(array_merge([$monthEnd, $monthStart, $monthStart], $_vis['params']));
 $allEvents = $evQuery->fetchAll();
@@ -793,10 +794,11 @@ if ($viewMode === 'week') {
 
     $_visW = event_visibility_sql('events', (int)$current['id']);
     $wkEvQ = $db->prepare(
-        "SELECT * FROM events WHERE
-           start_date <= ? AND (end_date >= ? OR (end_date IS NULL AND start_date >= ?))
+        "SELECT events.*, leagues.name AS league_name FROM events
+         LEFT JOIN leagues ON leagues.id = events.league_id
+         WHERE events.start_date <= ? AND (events.end_date >= ? OR (events.end_date IS NULL AND events.start_date >= ?))
            AND {$_visW['sql']}
-         ORDER BY start_date, start_time"
+         ORDER BY events.start_date, events.start_time"
     );
     $wkEvQ->execute(array_merge([$wkEndStr, $wkStartStr, $wkStartStr], $_visW['params']));
     $wkAllEvents = $wkEvQ->fetchAll();
@@ -973,6 +975,14 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         }
         .cal-event:hover .ev-edit-btn { display: block; }
         .cal-event:hover { filter: brightness(1.1); }
+        /* Compact league identifier shown at the start of an event chip. */
+        .ev-league-tag {
+            display: inline-block; font-size: .6rem; font-weight: 700;
+            padding: 0 4px; margin-right: 3px; border-radius: 3px;
+            background: rgba(255,255,255,.28); color: #fff;
+            letter-spacing: .04em; line-height: 1.35; flex-shrink: 0;
+            vertical-align: middle;
+        }
         .cal-add-btn {
             position: absolute; top: .3rem; right: .3rem;
             width: 20px; height: 20px; border-radius: 4px;
@@ -1402,14 +1412,25 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             <div class="cal-cell<?= $isToday ? ' today' : '' ?>">
                 <div class="cal-day"><?= $d ?></div>
                 <?php foreach ($dayEvents as $ev): ?>
+                    <?php
+                        $_lgName = $ev['league_name'] ?? '';
+                        $_lgTag  = '';
+                        if ($_lgName !== '') {
+                            // Build a short tag from the league name: first 3 letters of the first 2 words, uppercase.
+                            $_lgWords = preg_split('/\s+/', trim($_lgName));
+                            $_lgTag   = mb_strtoupper(substr($_lgWords[0] ?? '', 0, 3));
+                            if (isset($_lgWords[1])) $_lgTag .= mb_strtoupper(substr($_lgWords[1], 0, 2));
+                        }
+                    ?>
                     <div class="cal-event"
                          style="background:<?= htmlspecialchars($ev['color']) ?>"
                          onclick="viewEvent(<?= htmlspecialchars(json_encode($ev)) ?>)"
-                         title="<?= htmlspecialchars($ev['title']) ?>">
+                         title="<?= htmlspecialchars($_lgName ? $_lgName . ' — ' . $ev['title'] : $ev['title']) ?>">
                         <span class="ev-label">
                             <?php if ($ev['start_time'] && $ev['start_date'] === $dateStr): ?>
                                 <?= htmlspecialchars(date('g:ia', strtotime($ev['start_time']))) ?>
                             <?php endif; ?>
+                            <?php if ($_lgTag !== ''): ?><span class="ev-league-tag" title="<?= htmlspecialchars($_lgName) ?>"><?= htmlspecialchars($_lgTag) ?></span><?php endif; ?>
                             <?= htmlspecialchars($ev['title']) ?>
                         </span>
                         <?php if ($isAdmin || ($canCreateEvents && (int)$ev['created_by'] === (int)$current['id']) || in_array((int)$ev['id'], $managedEventIds, true)): ?>
@@ -1467,11 +1488,21 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             ?>
             <div class="week-allday-col">
                 <?php foreach ($alldayEvs as $ev): ?>
+                <?php
+                    $_lgName = $ev['league_name'] ?? '';
+                    $_lgTag  = '';
+                    if ($_lgName !== '') {
+                        $_lgWords = preg_split('/\s+/', trim($_lgName));
+                        $_lgTag   = mb_strtoupper(substr($_lgWords[0] ?? '', 0, 3));
+                        if (isset($_lgWords[1])) $_lgTag .= mb_strtoupper(substr($_lgWords[1], 0, 2));
+                    }
+                ?>
                 <div class="week-allday-chip"
                      style="background:<?= htmlspecialchars($ev['color']) ?>"
-                     title="<?= htmlspecialchars($ev['title']) ?>"
+                     title="<?= htmlspecialchars($_lgName ? $_lgName . ' — ' . $ev['title'] : $ev['title']) ?>"
                      onclick="viewEvent(<?= htmlspecialchars(json_encode($ev)) ?>)">
                     <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">
+                        <?php if ($_lgTag !== ''): ?><span class="ev-league-tag" title="<?= htmlspecialchars($_lgName) ?>"><?= htmlspecialchars($_lgTag) ?></span><?php endif; ?>
                         <?= htmlspecialchars($ev['title']) ?>
                     </span>
                     <?php if ($isAdmin || ($canCreateEvents && (int)$ev['created_by'] === (int)$current['id']) || in_array((int)$ev['id'], $managedEventIds, true)): ?>
@@ -3281,11 +3312,19 @@ function renderDayCol(col, date) {
             'left:calc(' + leftPct + '% + 1px)',
             'width:calc(' + widthPct + '% - 3px)',
         ].join(';');
-        chip.title = ev.title;
+        chip.title = (ev.league_name ? ev.league_name + ' \u2014 ' : '') + ev.title;
         chip.addEventListener('click', () => viewEvent(ev));
 
         const timeStr = fmt12(ev.start_time) + (ev.end_time ? '\u2013' + fmt12(ev.end_time) : '');
-        chip.innerHTML = '<span class="week-event-title">' + escHtml(ev.title) + '</span>'
+        let _lgTag = '';
+        if (ev.league_name) {
+            const _words = String(ev.league_name).trim().split(/\s+/);
+            _lgTag = (_words[0] || '').substring(0, 3).toUpperCase();
+            if (_words[1]) _lgTag += _words[1].substring(0, 2).toUpperCase();
+        }
+        chip.innerHTML =
+            (_lgTag ? '<span class="ev-league-tag" title="' + escHtml(ev.league_name) + '">' + escHtml(_lgTag) + '</span>' : '')
+            + '<span class="week-event-title">' + escHtml(ev.title) + '</span>'
             + (heightPx >= 32 ? '<span class="week-event-time">' + escHtml(timeStr) + '</span>' : '');
 
         if (IS_ADMIN || (CAN_CREATE_EVENTS && CURRENT_USER_ID && ev.created_by == CURRENT_USER_ID) || MANAGED_EVENT_IDS.includes(ev.id)) {

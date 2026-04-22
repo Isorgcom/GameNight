@@ -13,7 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!csrf_verify()) {
         $error = 'Invalid request. Please try again.';
     } else {
-        $email = strtolower(trim($_POST['email'] ?? ''));
+        $identifier = trim($_POST['identifier'] ?? $_POST['email'] ?? $_POST['phone'] ?? '');
         $db    = get_db();
 
         // Rate limit: max 3 resend requests per IP per hour
@@ -21,22 +21,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $rlStmt = $db->prepare("SELECT COUNT(*) FROM activity_log WHERE ip = ? AND action LIKE 'resend_verification%' AND created_at > datetime('now', '-1 hour')");
         $rlStmt->execute([$ip]);
         if ((int)$rlStmt->fetchColumn() < 3) {
-            db_log_anon_activity('resend_verification: ' . $email);
-            $stmt = $db->prepare('SELECT id, username, email_verified, phone, verification_method FROM users WHERE LOWER(email)=?');
-            $stmt->execute([$email]);
-            $user = $stmt->fetch();
+            db_log_anon_activity('resend_verification: ' . $identifier);
+            $user = find_user_by_identifier($identifier);
 
-            if ($user && !(int)$user['email_verified']) {
+            if ($user) {
                 $method = $user['verification_method'] ?? 'email';
-                if (in_array($method, ['sms', 'whatsapp'], true) && ($user['phone'] ?? '') !== '') {
-                    send_verification_code($user['id'], $user['phone'], $method);
-                    // Store session vars so verify_phone.php can pick them up
-                    session_start_safe();
-                    $_SESSION['verify_user_id'] = (int)$user['id'];
-                    $_SESSION['verify_method']  = $method;
-                    $resend_method = $method;
-                } else {
-                    send_verification_email($user['id'], $email, $user['username']);
+                $emailVerified = (int)($user['email_verified'] ?? 0);
+                $phoneVerified = (int)($user['phone_verified'] ?? 0);
+                $needsVerify = ($method === 'email' && !$emailVerified)
+                            || (in_array($method, ['sms', 'whatsapp'], true) && !$phoneVerified);
+
+                if ($needsVerify) {
+                    if (in_array($method, ['sms', 'whatsapp'], true) && ($user['phone'] ?? '') !== '') {
+                        send_verification_code($user['id'], $user['phone'], $method);
+                        // Store session vars so verify_phone.php can pick them up
+                        session_start_safe();
+                        $_SESSION['verify_user_id'] = (int)$user['id'];
+                        $_SESSION['verify_method']  = $method;
+                        $resend_method = $method;
+                    } elseif (!empty($user['email'])) {
+                        send_verification_email($user['id'], $user['email'], $user['username']);
+                    }
                 }
             }
         }
@@ -45,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $token        = csrf_token();
-$prefill_email = htmlspecialchars($_GET['email'] ?? $_POST['email'] ?? '');
+$prefill = htmlspecialchars($_GET['email'] ?? $_GET['phone'] ?? $_POST['identifier'] ?? $_POST['email'] ?? '');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -76,19 +81,19 @@ $prefill_email = htmlspecialchars($_GET['email'] ?? $_POST['email'] ?? '');
                 <a href="/login.php">&larr; Back to Sign In</a>
             </p>
         <?php else: ?>
-            <p class="subtitle">Enter your email to receive a new verification link.</p>
+            <p class="subtitle">Enter your email or phone to receive a new verification.</p>
             <?php if ($error): ?>
                 <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
             <?php endif; ?>
             <form method="post" action="/resend_verification.php" novalidate>
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <div class="form-group">
-                    <label for="email">Email</label>
-                    <input type="email" id="email" name="email" autofocus required
-                           autocomplete="email" value="<?= $prefill_email ?>">
+                    <label for="identifier">Email or phone</label>
+                    <input type="text" id="identifier" name="identifier" autofocus required
+                           autocomplete="username" value="<?= $prefill ?>">
                 </div>
                 <button type="submit" class="btn btn-primary" style="width:100%;margin-top:.5rem">
-                    Send Verification Email
+                    Resend Verification
                 </button>
             </form>
             <p style="text-align:center;margin-top:1.25rem;font-size:.875rem;color:#64748b">

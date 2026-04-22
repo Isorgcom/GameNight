@@ -4,6 +4,45 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19001] — 2026-04-22
+
+### Fixed
+- **Phone registration rejected valid US numbers.** `normalize_phone()` formats a 10-digit US number as `XXX-XXX-XXXX` (with dashes), but the new phone validators introduced in v0.19000 only accepted raw digits (`^\+?\d{7,15}$`). A user typing `8326422893` saw "Invalid phone number." Replaced the strict digit-only regex with "strip non-digits, count 7–15". Same fix applied in `register_user()`, `find_user_by_identifier()`, and `walkin.php` so lookups, signups, and walk-ins all accept formatted phones.
+
+---
+
+## [v0.19000] — 2026-04-22
+
+### Added — register / login with email OR phone
+- **Register with just a phone number.** New users can sign up with either an email address OR a phone number (at least one; both still allowed). The registration form now has a single combined "Email or phone" field that auto-detects based on whether the input contains `@`. Phone-only signups get a 6-digit SMS code; email signups get the existing verification link.
+- **Login accepts email, username, or phone.** The login form's first field is now labeled "Email, username, or phone" and resolves the identifier against any of those three columns. New helper `find_user_by_identifier()` in `auth.php` centralizes the lookup (used by login, forgot-password, and resend-verification).
+- **Forgot-password works for phone-only users.** If the recovered account has `verification_method = 'sms'` / `'whatsapp'`, the reset link is sent via SMS or WhatsApp (auto-shortened by `shorten_url()` when enabled) instead of email.
+- **Walk-in registration accepts either contact.** Walk-ins can give an email OR a phone. A phone-only walk-in account gets an SMS verification code; email walk-ins keep the existing email-link flow.
+- **Verification gate is channel-aware.** The login path now checks `email_verified` for email signups and `phone_verified` for SMS/WhatsApp signups — a phone-only user no longer has to set up an email to unlock their account.
+
+### Schema
+- Added partial unique index `idx_users_phone` on `users(phone) WHERE phone IS NOT NULL` so phone-only signups reject duplicates. Wrapped in try/catch so any existing duplicate-phone rows fail quietly without blocking `db_init`.
+
+### Changed
+- Login and forgot-password inputs switched from `type="email"` → `type="text"` so browsers don't reject phone-number input. `autocomplete="username"` keeps the credential manager happy.
+- Resend-verification page accepts email OR phone and delivers via the user's registered channel.
+
+### Files touched
+- `www/auth.php` — new `find_user_by_identifier()`; `register_user()` accepts email-or-phone; `attempt_login()` uses the three-way lookup and verifies against the correct channel.
+- `www/db.php` — phone-uniqueness partial index.
+- `www/register.php`, `www/register_dl.php`, `www/login.php`, `www/forgot_password.php`, `www/resend_verification.php`, `www/walkin.php` — updated forms and backend to consume `identifier` / `contact` fields.
+
+---
+
+## [v0.18001] — 2026-04-22
+
+### Changed
+- **Minimum password length dropped from 12 → 8.** All eleven call sites (register, auth, auth_dl, admin_settings, admin_settings_dl, reset_password, settings, user_edit, register_dl, plus client-side `minlength` hints) now read from a single `MIN_PASSWORD_LENGTH` constant in `db.php`. Error messages, `minlength` attributes, and "At least N characters" hints all stay in sync with the constant.
+- **Registration rate limit raised from 5 → 20 per IP per hour** via the new `MAX_REGISTRATION_ATTEMPTS_PER_HOUR` constant. Same limit now applies to the walk-in form. Typos and retries during signup no longer hit the cap as fast. Brute-force / scraping protection is still in place — 20/hour is still far below abuse levels.
+- **Calendar view shows a league identifier** on each event chip. A compact 5-letter tag derived from the league name renders as a semi-transparent pill inside the event chip (month grid, week all-day row, and week timed chips), with the full league name on hover. Non-league events render unchanged. Accompanying SQL change: the calendar's event queries now LEFT JOIN `leagues` to pull the league name.
+
+---
+
 ## [v0.18000] — 2026-04-22
 
 ### Fixed

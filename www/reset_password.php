@@ -33,8 +33,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $new_pw  = $_POST['new_password']     ?? '';
         $conf_pw = $_POST['confirm_password'] ?? '';
 
-        if (strlen($new_pw) < 12) {
-            $flash = 'Password must be at least 12 characters.';
+        if (strlen($new_pw) < MIN_PASSWORD_LENGTH) {
+            $flash = 'Password must be at least ' . MIN_PASSWORD_LENGTH . ' characters.';
         } elseif ($new_pw !== $conf_pw) {
             $flash = 'Passwords do not match.';
         } else {
@@ -92,13 +92,13 @@ $token = csrf_token();
                 <div class="form-group">
                     <label for="new_password">New Password</label>
                     <input type="password" id="new_password" name="new_password"
-                           autocomplete="new-password" required minlength="12">
-                    <p class="hint">At least 12 characters.</p>
+                           autocomplete="new-password" required minlength="<?= MIN_PASSWORD_LENGTH ?>">
+                    <p class="hint">At least <?= MIN_PASSWORD_LENGTH ?> characters.</p>
                 </div>
                 <div class="form-group">
                     <label for="confirm_password">Confirm Password</label>
                     <input type="password" id="confirm_password" name="confirm_password"
-                           autocomplete="new-password" required minlength="12">
+                           autocomplete="new-password" required minlength="<?= MIN_PASSWORD_LENGTH ?>">
                 </div>
                 <button type="submit" class="btn btn-primary" style="width:100%;margin-top:.5rem">
                     Set New Password

@@ -108,8 +108,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $new_pw     = $_POST['new_password'] ?? '';
             $confirm_pw = $_POST['confirm_password'] ?? '';
 
-            if (strlen($new_pw) < 12) {
-                $flash = ['type' => 'error', 'msg' => 'Password must be at least 12 characters.'];
+            if (strlen($new_pw) < MIN_PASSWORD_LENGTH) {
+                $flash = ['type' => 'error', 'msg' => 'Password must be at least ' . MIN_PASSWORD_LENGTH . ' characters.'];
             } elseif ($new_pw !== $confirm_pw) {
                 $flash = ['type' => 'error', 'msg' => 'Passwords do not match.'];
             } else {

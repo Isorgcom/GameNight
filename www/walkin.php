@@ -34,7 +34,8 @@ function walkin_rate_limited(PDO $db): bool {
     $db->prepare("DELETE FROM walkin_attempts WHERE created_at < datetime('now', '-1 hour')")->execute();
     $count = $db->prepare("SELECT COUNT(*) FROM walkin_attempts WHERE ip = ? AND created_at > datetime('now', '-1 hour')");
     $count->execute([$ip]);
-    return (int)$count->fetchColumn() >= 5;
+    $cap = defined('MAX_REGISTRATION_ATTEMPTS_PER_HOUR') ? MAX_REGISTRATION_ATTEMPTS_PER_HOUR : 20;
+    return (int)$count->fetchColumn() >= $cap;
 }
 
 function walkin_record_attempt(PDO $db): void {
@@ -77,22 +78,35 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $username_raw = preg_replace('/\s+/', '_', $display_name);
         $username_raw = preg_replace('/[^a-zA-Z0-9_]/', '', $username_raw);
 
+        // Normalize phone early so we can use it for validation + lookup.
+        $phone_normalized = ($phone !== '') ? normalize_phone($phone) : '';
+        $__p_digits       = preg_replace('/\D/', '', $phone_normalized);
+        $has_email = ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL));
+        $has_phone = ($phone_normalized !== '' && strlen($__p_digits) >= 7 && strlen($__p_digits) <= 15);
+
         if ($display_name === '') {
             $error = 'Display name is required.';
         } elseif (strlen($username_raw) < 3 || strlen($username_raw) > 30) {
             $error = 'Display name must produce a username between 3 and 30 characters (letters, numbers, spaces, underscores).';
-        } elseif ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $error = 'A valid email address is required.';
+        } elseif (!$has_email && !$has_phone) {
+            $error = 'Enter an email address or phone number.';
+        } elseif ($email !== '' && !$has_email) {
+            $error = 'Invalid email address.';
+        } elseif ($phone !== '' && !$has_phone) {
+            $error = 'Invalid phone number.';
         } else {
             walkin_record_attempt($db);
 
-            // Normalize phone if provided
-            $phone_normalized = ($phone !== '') ? normalize_phone($phone) : '';
-
-            // Look up by email
-            $stmt = $db->prepare('SELECT id, username, email_verified FROM users WHERE LOWER(email) = ?');
-            $stmt->execute([$email]);
-            $existing = $stmt->fetch();
+            // Look up by email if provided, else by phone.
+            if ($has_email) {
+                $stmt = $db->prepare('SELECT id, username, email_verified FROM users WHERE LOWER(email) = ?');
+                $stmt->execute([$email]);
+                $existing = $stmt->fetch();
+            } else {
+                $stmt = $db->prepare('SELECT id, username, email_verified FROM users WHERE phone = ?');
+                $stmt->execute([$phone_normalized]);
+                $existing = $stmt->fetch();
+            }
 
             if ($existing) {
                 // Existing user — RSVP them to this event
@@ -192,20 +206,27 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 if ($error === '') {
-                    $db->prepare('INSERT INTO users (username, password_hash, email, phone, role, email_verified, must_change_password) VALUES (?, ?, ?, ?, ?, 0, 0)')
-                       ->execute([$final_username, '', $email, $phone_normalized !== '' ? $phone_normalized : null, 'user']);
+                    // Channel the user registered with: email if present, else SMS.
+                    $walkin_method    = $has_email ? 'email' : 'sms';
+                    $walkin_preferred = $walkin_method;
+                    $db->prepare('INSERT INTO users (username, password_hash, email, phone, role, email_verified, must_change_password, preferred_contact, verification_method) VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?)')
+                       ->execute([$final_username, '', $has_email ? $email : null, $has_phone ? $phone_normalized : null, 'user', $walkin_preferred, $walkin_method]);
                     $new_id = (int)$db->lastInsertId();
 
                     // Invite to event. Walk-in is a 'self' signup — approval gate fires if requires_approval=1.
                     $new_walkin_approval = invite_approval_status($event_id, 'self');
-                    $db->prepare('INSERT INTO event_invites (event_id, username, email, rsvp, approval_status) VALUES (?, ?, ?, ?, ?)')
-                       ->execute([$event_id, $final_username, $email, 'yes', $new_walkin_approval]);
+                    $db->prepare('INSERT INTO event_invites (event_id, username, email, phone, rsvp, approval_status) VALUES (?, ?, ?, ?, ?, ?)')
+                       ->execute([$event_id, $final_username, $has_email ? $email : null, $has_phone ? $phone_normalized : null, 'yes', $new_walkin_approval]);
 
                     auto_add_to_league($db, $event_id, $new_id);
                     db_log_anon_activity("walkin_new_user: $final_username for event $event_id" . ($new_walkin_approval === 'pending' ? ' (waiting list)' : ''));
 
-                    // Send verification email so they can set a password
-                    send_verification_email($new_id, $email, $final_username);
+                    // Send verification via whichever channel the user provided.
+                    if ($walkin_method === 'email') {
+                        send_verification_email($new_id, $email, $final_username);
+                    } else {
+                        send_verification_code($new_id, $phone_normalized, 'sms');
+                    }
 
                     // Remember for next walk-up (30 days)
                     setcookie('walkin_name', $display_name, time() + 86400 * 30, '/', '', true, true);
@@ -385,16 +406,18 @@ $csrf_token = csrf_token();
                        style="width:100%">
             </div>
 
+            <p style="font-size:.8rem;color:#64748b;margin:0 0 .6rem">Give us either an email or a phone number so we can confirm your registration.</p>
+
             <div class="form-group">
-                <label for="wi_email">Email address <span style="color:#ef4444">*</span></label>
-                <input type="email" id="wi_email" name="email" required
+                <label for="wi_email">Email address</label>
+                <input type="email" id="wi_email" name="email"
                        autocomplete="email" placeholder="you@example.com"
                        value="<?= htmlspecialchars($_POST['email'] ?? $remembered_email) ?>"
                        style="width:100%">
             </div>
 
             <div class="form-group">
-                <label for="wi_phone">Phone number <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
+                <label for="wi_phone">Phone number</label>
                 <input type="tel" id="wi_phone" name="phone"
                        autocomplete="tel" placeholder="+1 555 000 0000"
                        value="<?= htmlspecialchars($_POST['phone'] ?? '') ?>"

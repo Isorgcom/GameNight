@@ -172,23 +172,66 @@ function login_rate_limited(): bool {
     return (int)$stmt->fetchColumn() >= 5;
 }
 
-function attempt_login(string $email, string $password): bool|string {
+/**
+ * Look up a user by an identifier that could be an email, a username, or a phone number.
+ * Order: email (if it looks like an email) → username → phone (normalized).
+ * Returns the user row or null.
+ */
+function find_user_by_identifier(string $identifier): ?array {
+    $id = trim($identifier);
+    if ($id === '') return null;
+    $db = get_db();
+
+    // Email path (contains '@')
+    if (strpos($id, '@') !== false) {
+        $s = $db->prepare('SELECT * FROM users WHERE LOWER(email) = LOWER(?)');
+        $s->execute([$id]);
+        $row = $s->fetch();
+        if ($row) return $row;
+    }
+
+    // Username path: allowed username charset is [a-zA-Z0-9_], so if the identifier matches
+    // that shape, try it before phone to avoid normalize_phone stripping punctuation.
+    if (preg_match('/^[a-zA-Z0-9_]{3,30}$/', $id)) {
+        $s = $db->prepare('SELECT * FROM users WHERE LOWER(username) = LOWER(?)');
+        $s->execute([$id]);
+        $row = $s->fetch();
+        if ($row) return $row;
+    }
+
+    // Phone path: normalize (strips formatting) and exact-match against stored phone.
+    $normalized = normalize_phone($id);
+    $digits     = preg_replace('/\D/', '', $normalized);
+    if ($digits !== '' && strlen($digits) >= 7 && strlen($digits) <= 15) {
+        $s = $db->prepare('SELECT * FROM users WHERE phone = ?');
+        $s->execute([$normalized]);
+        $row = $s->fetch();
+        if ($row) return $row;
+    }
+
+    return null;
+}
+
+function attempt_login(string $identifier, string $password): bool|string {
     // Brute force protection: 5 failed attempts per IP per 15 minutes
     if (login_rate_limited()) {
         return 'rate_limited';
     }
 
-    $stmt = get_db()->prepare('SELECT id, password_hash, email_verified FROM users WHERE LOWER(email) = ?');
-    $stmt->execute([strtolower(trim($email))]);
-    $row = $stmt->fetch();
+    $row = find_user_by_identifier($identifier);
 
     // Constant-time: always run password_verify even if user not found
     $hash = $row ? $row['password_hash'] : '$2y$10$dummyhashtopreventtimingattacks000000000000000000000';
     if (!$row || !password_verify($password, $hash)) {
-        db_log_anon_activity('failed_login: ' . strtolower(trim($email)), 'critical');
+        db_log_anon_activity('failed_login: ' . strtolower(trim($identifier)), 'critical');
         return false;
     }
-    if (!(int)$row['email_verified']) {
+    // Verification gate keys off whichever channel this user signed up with.
+    $method = $row['verification_method'] ?? 'email';
+    if ($method === 'email' && !(int)($row['email_verified'] ?? 0)) {
+        return 'unverified';
+    }
+    if (in_array($method, ['sms', 'whatsapp'], true) && !(int)($row['phone_verified'] ?? 0)) {
         return 'unverified';
     }
     session_start_safe();
@@ -236,23 +279,51 @@ function register_user(string $username, string $email, string $password, string
     if (!preg_match('/^[a-zA-Z0-9_]{3,30}$/', $username)) {
         return 'Username must be 3-30 characters (letters, numbers, underscores).';
     }
-    if (strlen($password) < 12) {
-        return 'Password must be at least 12 characters.';
+    if (strlen($password) < MIN_PASSWORD_LENGTH) {
+        return 'Password must be at least ' . MIN_PASSWORD_LENGTH . ' characters.';
     }
-    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        return 'A valid email address is required.';
+    // At least one contact channel required.
+    if ($email === '' && $phone === '') {
+        return 'Enter an email address or phone number.';
     }
-    if (in_array($verify_method, ['sms', 'whatsapp'], true) && $phone === '') {
-        return 'Phone number is required for ' . ucfirst($verify_method) . ' verification.';
+    if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return 'Invalid email address.';
+    }
+    // Phone validation: accept any format the user typed, but after digit extraction it must be 7–15 digits.
+    // normalize_phone() formats US 10-digit numbers as "XXX-XXX-XXXX"; for international we keep the raw value.
+    if ($phone !== '') {
+        $__digits = preg_replace('/\D/', '', $phone);
+        if (strlen($__digits) < 7 || strlen($__digits) > 15) {
+            return 'Invalid phone number.';
+        }
+    }
+
+    // Derive the verify method from what they supplied, overriding the form value if needed.
+    if ($email === '' && $phone !== '') {
+        // Phone-only signup: SMS by default (WhatsApp not offered in the initial signup UI).
+        $verify_method = 'sms';
+    } elseif ($email !== '' && $phone === '') {
+        $verify_method = 'email';
     }
 
     $db = get_db();
 
-    // Check email uniqueness (case-insensitive)
-    $stmt = $db->prepare('SELECT id FROM users WHERE LOWER(email) = ?');
-    $stmt->execute([$email]);
-    if ($stmt->fetch()) {
-        return 'That email address is already registered.';
+    // Check email uniqueness (case-insensitive) only if provided.
+    if ($email !== '') {
+        $stmt = $db->prepare('SELECT id FROM users WHERE LOWER(email) = ?');
+        $stmt->execute([$email]);
+        if ($stmt->fetch()) {
+            return 'That email address is already registered.';
+        }
+    }
+
+    // Check phone uniqueness (normalized) only if provided.
+    if ($phone !== '') {
+        $stmt = $db->prepare('SELECT id FROM users WHERE phone = ?');
+        $stmt->execute([$phone]);
+        if ($stmt->fetch()) {
+            return 'That phone number is already registered.';
+        }
     }
 
     // Check username uniqueness (case-insensitive)

@@ -19,13 +19,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!csrf_verify()) {
         $error = 'Invalid request. Please try again.';
     } else {
-        $email    = trim($_POST['email'] ?? '');
-        $password = $_POST['password'] ?? '';
+        // The identifier field accepts email, username, or phone.
+        $identifier = trim($_POST['identifier'] ?? $_POST['email'] ?? '');
+        $password   = $_POST['password'] ?? '';
 
-        if ($email === '' || $password === '') {
-            $error = 'Email and password are required.';
+        if ($identifier === '' || $password === '') {
+            $error = 'Enter your email, username, or phone, plus your password.';
         } else {
-            $result = attempt_login($email, $password);
+            $result = attempt_login($identifier, $password);
             if ($result === true) {
                 $u = current_user();
                 // Issue a 30-day persistent auth token if "Remember me" checked
@@ -39,11 +40,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 header('Location: ' . $redirect);
                 exit;
             } elseif ($result === 'unverified') {
-                $error = 'Please verify your email address before signing in. <a href="/resend_verification.php?email=' . urlencode($email) . '">Resend verification email</a>';
+                $q = strpos($identifier, '@') !== false ? 'email=' . urlencode($identifier) : 'phone=' . urlencode($identifier);
+                $error = 'Please verify your account before signing in. <a href="/resend_verification.php?' . $q . '">Resend verification</a>';
             } elseif ($result === 'rate_limited') {
                 $error = 'Too many failed login attempts. Please try again in 15 minutes.';
             } else {
-                $error = 'Invalid email or password.';
+                $error = 'Invalid login.';
             }
         }
     }
@@ -83,10 +85,10 @@ $site_name = get_setting('site_name', 'Game Night');
             <input type="hidden" name="redirect" value="<?= htmlspecialchars($redirect) ?>">
 
             <div class="form-group">
-                <label for="email">Email</label>
-                <input type="email" id="email" name="email"
-                       value="<?= htmlspecialchars($_POST['email'] ?? '') ?>"
-                       autocomplete="email" autofocus required>
+                <label for="identifier">Email, username, or phone</label>
+                <input type="text" id="identifier" name="identifier"
+                       value="<?= htmlspecialchars($_POST['identifier'] ?? $_POST['email'] ?? '') ?>"
+                       autocomplete="username" autofocus required>
             </div>
 
             <div class="form-group">

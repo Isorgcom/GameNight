@@ -197,8 +197,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $notes    = trim($_POST['notes'] ?? '');
             if ($username === '' || $password === '') {
                 $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Username and password are required.'];
-            } elseif (strlen($password) < 12) {
-                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Password must be at least 12 characters.'];
+            } elseif (strlen($password) < MIN_PASSWORD_LENGTH) {
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Password must be at least ' . MIN_PASSWORD_LENGTH . ' characters.'];
             } else {
                 try {
                     $hash = password_hash($password, PASSWORD_BCRYPT);

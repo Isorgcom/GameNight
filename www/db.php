@@ -13,6 +13,11 @@ if (!defined('DB_PATH')) {
 if (!defined('MAX_INVITEES_PER_EVENT'))    define('MAX_INVITEES_PER_EVENT', 200);
 if (!defined('MAX_NOTIFICATIONS_PER_DAY')) define('MAX_NOTIFICATIONS_PER_DAY', 20);
 if (!defined('DRAIN_PAUSE_ON_429_MINUTES')) define('DRAIN_PAUSE_ON_429_MINUTES', 15);
+// Registration / walk-in attempts per IP per hour (accommodates typos during signup while
+// still blocking brute-force / scraping; bumped from 5 → 20 in 0.18001).
+if (!defined('MAX_REGISTRATION_ATTEMPTS_PER_HOUR')) define('MAX_REGISTRATION_ATTEMPTS_PER_HOUR', 20);
+// Minimum password length used by every registration / password-change / reset flow.
+if (!defined('MIN_PASSWORD_LENGTH')) define('MIN_PASSWORD_LENGTH', 8);
 
 if (!defined('APP_SECRET')) {
     $secretFile = dirname(DB_PATH) . '/.app_secret';
@@ -179,6 +184,10 @@ function db_init(PDO $pdo): void {
 
     // Unique index on lowercase email (login identifier) — safe on existing DBs
     try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(LOWER(email)) WHERE email IS NOT NULL"); } catch (Exception $e) {}
+    // Phone uniqueness (partial index so NULL phones don't collide). Added 0.19000 to support
+    // phone-only signup paths; duplicate-phone rows in existing data will cause CREATE INDEX
+    // to fail harmlessly — the try/catch keeps us moving.
+    try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone ON users(phone) WHERE phone IS NOT NULL"); } catch (Exception $e) {}
 
     // Email verification
     try { $pdo->exec("ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}

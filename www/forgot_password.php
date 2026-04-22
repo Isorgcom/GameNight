@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/mail.php';
+require_once __DIR__ . '/sms.php';
 
 if (current_user()) { header('Location: /'); exit; }
 
@@ -13,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!csrf_verify()) {
         $error = 'Invalid request. Please try again.';
     } else {
-        $email = strtolower(trim($_POST['email'] ?? ''));
+        $identifier = trim($_POST['identifier'] ?? $_POST['email'] ?? '');
         $db    = get_db();
 
         // Rate limit: max 3 password reset requests per IP per hour
@@ -23,11 +24,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ((int)$rlStmt->fetchColumn() >= 3) {
             $sent = true; // Show success to not reveal rate limiting
         } else {
-        db_log_anon_activity('password_reset_request: ' . $email);
+        db_log_anon_activity('password_reset_request: ' . $identifier);
 
-        $stmt = $db->prepare('SELECT id, username FROM users WHERE LOWER(email) = ?');
-        $stmt->execute([$email]);
-        $user = $stmt->fetch();
+        $user = find_user_by_identifier($identifier);
 
         if ($user) {
             // Invalidate any existing unused tokens for this user
@@ -43,16 +42,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                ->execute([$user['id'], $token_hash, $expires]);
 
             $reset_url = get_site_url() . '/reset_password.php?token=' . $token;
+            $method    = $user['verification_method'] ?? ($user['preferred_contact'] ?? 'email');
 
-            $html = '<p>Hi ' . htmlspecialchars($user['username']) . ',</p>'
-                  . '<p>Someone requested a password reset for your ' . htmlspecialchars($site_name) . ' account.</p>'
-                  . '<p><a href="' . $reset_url . '" style="background:#2563eb;color:#fff;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600">Reset My Password</a></p>'
-                  . '<p style="color:#64748b;font-size:.875rem">This link expires in 1 hour. If you did not request this, you can ignore this email.</p>';
-
-            send_email($email, $user['username'], 'Reset your ' . $site_name . ' password', $html);
+            if ($method === 'email' && !empty($user['email'])) {
+                $html = '<p>Hi ' . htmlspecialchars($user['username']) . ',</p>'
+                      . '<p>Someone requested a password reset for your ' . htmlspecialchars($site_name) . ' account.</p>'
+                      . '<p><a href="' . $reset_url . '" style="background:#2563eb;color:#fff;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600">Reset My Password</a></p>'
+                      . '<p style="color:#64748b;font-size:.875rem">This link expires in 1 hour. If you did not request this, you can ignore this email.</p>';
+                send_email($user['email'], $user['username'], 'Reset your ' . $site_name . ' password', $html);
+            } elseif (!empty($user['phone'])) {
+                // Phone-based reset: shorten URL and send via user's preferred channel.
+                $short = (get_setting('url_shortener_enabled') === '1') ? shorten_url($reset_url) : $reset_url;
+                $body  = $site_name . ': Reset your password (expires 1h): ' . $short;
+                if ($method === 'whatsapp') {
+                    send_whatsapp($user['phone'], $body);
+                } else {
+                    send_sms($user['phone'], $body);
+                }
+            }
         }
 
-        // Always show success — don't reveal whether email exists
+        // Always show success — don't reveal whether user exists
         $sent = true;
         } // end rate limit else
     }
@@ -76,13 +86,13 @@ $token = csrf_token();
 
         <?php if ($sent): ?>
             <div class="alert alert-success">
-                If that email is registered, a reset link has been sent. Check your inbox.
+                If that account exists, a reset link has been sent. Check your email or texts.
             </div>
             <p style="text-align:center;margin-top:1.25rem;font-size:.875rem;color:#64748b">
                 <a href="/login.php">&larr; Back to Sign In</a>
             </p>
         <?php else: ?>
-            <p class="subtitle">Enter your email and we'll send you a reset link.</p>
+            <p class="subtitle">Enter your email or phone and we'll send you a reset link.</p>
 
             <?php if ($error): ?>
                 <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
@@ -91,10 +101,10 @@ $token = csrf_token();
             <form method="post" action="/forgot_password.php" novalidate>
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <div class="form-group">
-                    <label for="email">Email</label>
-                    <input type="email" id="email" name="email" autofocus required
-                           autocomplete="email"
-                           value="<?= htmlspecialchars($_POST['email'] ?? '') ?>">
+                    <label for="identifier">Email or phone</label>
+                    <input type="text" id="identifier" name="identifier" autofocus required
+                           autocomplete="username"
+                           value="<?= htmlspecialchars($_POST['identifier'] ?? $_POST['email'] ?? '') ?>">
                 </div>
                 <button type="submit" class="btn btn-primary" style="width:100%;margin-top:.5rem">
                     Send Reset Link

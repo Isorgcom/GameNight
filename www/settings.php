@@ -115,8 +115,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (!password_verify($current_pw, $hash)) {
                 $flash = ['type' => 'error', 'msg' => 'Current password is incorrect.'];
-            } elseif (strlen($new_pw) < 12) {
-                $flash = ['type' => 'error', 'msg' => 'New password must be at least 12 characters.'];
+            } elseif (strlen($new_pw) < MIN_PASSWORD_LENGTH) {
+                $flash = ['type' => 'error', 'msg' => 'New password must be at least ' . MIN_PASSWORD_LENGTH . ' characters.'];
             } elseif ($new_pw !== $confirm_pw) {
                 $flash = ['type' => 'error', 'msg' => 'New passwords do not match.'];
             } else {
