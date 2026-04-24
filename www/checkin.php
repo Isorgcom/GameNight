@@ -470,7 +470,7 @@ function renderDashboard() {
 
     // Header
     h += '<div class="pk-header">';
-    h += '<a href="/calendar.php" class="pk-btn-back" title="Back to Calendar" style="text-decoration:none">&larr;</a>';
+    h += '<a href="/calendar.php" class="pk-btn-back" title="Back" style="text-decoration:none" onclick="if(history.length>1){history.back();return false;}">&larr;</a>';
     h += '<h1>' + escHtml(<?= json_encode($event['title'], JSON_HEX_TAG) ?>) + ' <a href="/calendar.php"><span class="pk-act-label">Calendar</span></a></h1>';
     h += '<span class="pk-badge ' + typeClass + '">' + typeLabel + '</span>';
     h += '<div class="pk-actions">';

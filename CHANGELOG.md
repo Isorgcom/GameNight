@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19019] — 2026-04-24
+
+### Changed
+- **Manage Game back arrow now goes to the previous page.** The `&larr;` arrow in the `checkin.php` header used to hardcode `/calendar.php` as the destination, which was annoying when you landed on Manage Game from My Events, a league page, or a deep-link. Now it calls `history.back()` on click, falling back to `/calendar.php` only if there's no history (e.g., the tab was opened fresh).
+
+---
+
 ## [v0.19018] — 2026-04-24
 
 ### Fixed
