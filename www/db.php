@@ -960,6 +960,8 @@ function delete_user_account(int $user_id): void {
         $db->prepare('DELETE FROM event_invites WHERE LOWER(username) = LOWER(?)')->execute([$username]);
         // Pending queued invite notifications that targeted this username
         try { $db->prepare('DELETE FROM pending_notifications WHERE LOWER(username) = LOWER(?)')->execute([$username]); } catch (Exception $e) {}
+        // Notification dedup log keyed on username — clear so re-adding the name as a custom invitee fires fresh SMS/email.
+        try { $db->prepare('DELETE FROM event_notifications_sent WHERE LOWER(user_identifier) = LOWER(?)')->execute([$username]); } catch (Exception $e) {}
     }
     $db->prepare('UPDATE poker_players SET removed = 1 WHERE user_id = ?')->execute([$user_id]);
     // Preserve league/global posts authored by this user; null out the author pointer instead of deleting.

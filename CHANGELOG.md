@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19018] — 2026-04-24
+
+### Fixed
+- **Re-adding a deleted user as a custom invitee now fires a fresh SMS/email.** `event_notifications_sent` is the dedup log that prevents re-saving an event from re-spamming invitees. Rows are keyed by `(event_id, occurrence_date, LOWER(user_identifier), notification_type)` where `user_identifier` is the username string. When a user account was deleted, `delete_user_account()` already cleared their `event_invites` and `pending_notifications` rows but left the dedup log untouched — so if the host later added the same name back as a custom invitee, the enqueue short-circuit at `calendar_dl.php:82` saw a "sent" row from before the delete and skipped the notification. `delete_user_account()` now also runs `DELETE FROM event_notifications_sent WHERE LOWER(user_identifier) = LOWER(?)`.
+
+---
+
 ## [v0.19017] — 2026-04-24
 
 ### Fixed
