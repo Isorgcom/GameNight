@@ -181,7 +181,7 @@ $site_name = get_setting('site_name', 'Game Night');
 
             <div class="form-group">
                 <label for="contact">Email or phone</label>
-                <input type="text" id="contact" name="contact"
+                <input type="text" id="contact" name="contact" data-phone-contact="1"
                        value="<?= htmlspecialchars($_POST['contact'] ?? $_GET['email'] ?? $_GET['phone'] ?? '') ?>"
                        autocomplete="email" required
                        oninput="updateContactHint()">
@@ -288,5 +288,7 @@ function updateContactHint() {
 }
 updateContactHint();
 </script>
+<script src="/_phone_input.js"></script>
+<script>initPhoneAutoFormat();</script>
 </body>
 </html>

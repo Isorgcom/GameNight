@@ -27,6 +27,23 @@ if ($action === 'add') {
     $content_id = (int)($_POST['content_id'] ?? 0);
     $body       = mb_substr(strip_tags(trim($_POST['body'] ?? '')), 0, 2000);
 
+    // Security: per-user hourly cap on comment creation. Prevents comment-spam DoS
+    // and cuts down on accidental notification storms when someone repeats submits.
+    $cCap = defined('MAX_COMMENTS_PER_HOUR') ? MAX_COMMENTS_PER_HOUR : 20;
+    $cCnt = $db->prepare("SELECT COUNT(*) FROM comments WHERE user_id = ? AND created_at > datetime('now', '-1 hour')");
+    $cCnt->execute([(int)$user['id']]);
+    if ((int)$cCnt->fetchColumn() >= $cCap) {
+        http_response_code(429);
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
+            header('Content-Type: application/json');
+            echo json_encode(['ok' => false, 'error' => 'Comment rate limit reached. Try again in an hour.']);
+            exit;
+        }
+        $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Too many comments. Try again in an hour.'];
+        header('Location: ' . $redirect);
+        exit;
+    }
+
     // Visibility check: commenting on a league post requires league membership.
     // Global admin posts (league_id IS NULL) remain open to all logged-in users.
     if ($type === 'post' && $content_id > 0) {

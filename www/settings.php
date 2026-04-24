@@ -123,6 +123,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $new_hash = password_hash($new_pw, PASSWORD_BCRYPT);
                 $db->prepare('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?')
                    ->execute([$new_hash, $current['id']]);
+                // Security: invalidate every remember-me cookie for this user so a stolen
+                // token can't keep authenticating after a password rotation.
+                try { $db->prepare('DELETE FROM remember_tokens WHERE user_id = ?')->execute([$current['id']]); } catch (Exception $e) {}
                 db_log_activity($current['id'], 'changed password');
                 $flash = ['type' => 'success', 'msg' => 'Password updated.'];
             }
@@ -315,6 +318,7 @@ $site_name = get_setting('site_name', 'Game Night');
 </div>
 
 <?php require __DIR__ . '/_footer.php'; ?>
-
+<script src="/_phone_input.js"></script>
+<script>initPhoneAutoFormat();</script>
 </body>
 </html>

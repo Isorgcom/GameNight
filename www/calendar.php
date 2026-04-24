@@ -61,13 +61,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $action        = $_POST['action'] ?? '';
 
-    // Helper: check if current user is a manager of the given event
-    $isEventManager = function(int $eid) use ($db, $current): bool {
-        if (!$current) return false;
-        $ms = $db->prepare("SELECT 1 FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND event_role='manager' LIMIT 1");
-        $ms->execute([$eid, $current['username']]);
-        return (bool)$ms->fetch();
-    };
+    // Permission checks below use can_manage_event() from db.php — single source of truth
+    // (creator, per-event manager, league owner/manager, or site admin).
 
     // Non-admins may only update their own RSVP, self-signup, or self-remove
     // When allow_user_events is on, logged-in users can also add/edit/delete their own events
@@ -75,7 +70,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $userEventActions = ['add', 'edit', 'delete', 'delete_occurrence'];
     if (!$isAdmin && !in_array($action, ['update_rsvp', 'self_signup', 'self_remove'], true)) {
         $chkIdForMgr = (int)($_POST['id'] ?? 0);
-        $isMgr = ($chkIdForMgr > 0 && in_array($action, ['edit', 'delete', 'delete_occurrence'], true)) ? $isEventManager($chkIdForMgr) : false;
+        // Allow edit/delete/delete_occurrence if the user can manage this specific event
+        // (creator, event-manager, or league owner/manager). Fine-grained ownership check
+        // happens again below per-action.
+        $isMgr = ($chkIdForMgr > 0 && in_array($action, ['edit', 'delete', 'delete_occurrence'], true))
+                 ? can_manage_event($db, $chkIdForMgr, (int)$current['id'], $isAdmin)
+                 : false;
         if (!$isMgr && (!$canCreateEvents || !in_array($action, $userEventActions, true))) {
             http_response_code(403); exit('Access denied.');
         }
@@ -130,23 +130,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     };
 
-    // Ownership check: non-admins can only edit/delete their own events, events they manage,
-    // or events that belong to a league where they're an owner/manager.
-    if (!$isAdmin && in_array($action, ['edit', 'delete', 'delete_occurrence'], true)) {
+    // Ownership check: non-admins can only edit/delete events they're permitted to manage.
+    // Routed through the single can_manage_event() helper in db.php so the same rules
+    // apply everywhere (creator, event-manager, league owner/manager, or site admin).
+    if (in_array($action, ['edit', 'delete', 'delete_occurrence'], true)) {
         $chkId = (int)($_POST['id'] ?? 0);
-        if ($chkId > 0) {
-            $ownerStmt = $db->prepare('SELECT created_by, league_id FROM events WHERE id=?');
-            $ownerStmt->execute([$chkId]);
-            $ownerRow = $ownerStmt->fetch();
-            $isOwner = $ownerRow && (int)$ownerRow['created_by'] === (int)$current['id'];
-            $isLeagueMgr = false;
-            if ($ownerRow && !empty($ownerRow['league_id'])) {
-                $lr = league_role((int)$ownerRow['league_id'], (int)$current['id']);
-                $isLeagueMgr = in_array($lr, ['owner', 'manager'], true);
-            }
-            if (!$isOwner && !$isEventManager($chkId) && !$isLeagueMgr) {
-                http_response_code(403); exit('You can only modify your own events.');
-            }
+        if ($chkId > 0 && !can_manage_event($db, $chkId, (int)$current['id'], $isAdmin)) {
+            http_response_code(403); exit('You can only modify events you manage.');
         }
     }
 
@@ -252,9 +242,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $save_invites($notify_eid, $new_invitee_usernames);
                 // Auto-add invited people to the creator's personal contacts
+                // and, for league events, surface them on the league Members tab.
                 for ($__i = 0; $__i < count($inv_usernames); $__i++) {
                     if (($inv_usernames[$__i] ?? '') === '') continue;
                     auto_add_contact($db, (int)$current['id'], (string)$inv_usernames[$__i], (string)($inv_emails[$__i] ?? ''), (string)($inv_phones[$__i] ?? ''));
+                    if (!empty($league_id)) {
+                        auto_add_pending_to_league(
+                            $db, (int)$league_id,
+                            (string)$inv_usernames[$__i],
+                            (string)($inv_emails[$__i] ?? ''),
+                            (string)($inv_phones[$__i] ?? ''),
+                            (int)$current['id']
+                        );
+                    }
                 }
                 // For poker events with waitlist enabled, mark invitees beyond capacity as waitlisted
                 if ($is_poker && $waitlist_enabled) {
@@ -341,9 +341,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $notify_eid = $id;
                 $save_invites($id, $new_invitee_usernames);
                 // Auto-add invited people to the creator's personal contacts
+                // and, for league events, surface them on the league Members tab.
                 for ($__i = 0; $__i < count($inv_usernames); $__i++) {
                     if (($inv_usernames[$__i] ?? '') === '') continue;
                     auto_add_contact($db, (int)$current['id'], (string)$inv_usernames[$__i], (string)($inv_emails[$__i] ?? ''), (string)($inv_phones[$__i] ?? ''));
+                    if (!empty($league_id)) {
+                        auto_add_pending_to_league(
+                            $db, (int)$league_id,
+                            (string)$inv_usernames[$__i],
+                            (string)($inv_emails[$__i] ?? ''),
+                            (string)($inv_phones[$__i] ?? ''),
+                            (int)$current['id']
+                        );
+                    }
                 }
                 // For poker events with waitlist enabled, mark invitees beyond capacity as waitlisted
                 if ($is_poker && $waitlist_enabled) {
@@ -626,8 +636,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $owner = $db->prepare('SELECT created_by, title, start_date FROM events WHERE id=?');
             $owner->execute([$eid]);
             $evRow = $owner->fetch();
-            $isOwner = $evRow && (int)$evRow['created_by'] === (int)$current['id'];
-            if ($isAdmin || $isOwner || $isEventManager($eid)) {
+            if (can_manage_event($db, $eid, (int)$current['id'], $isAdmin)) {
                 $newStatus = ($action === 'approve_invite') ? 'approved' : 'denied';
                 $db->prepare("UPDATE event_invites SET approval_status=? WHERE event_id=? AND LOWER(username)=LOWER(?)")
                    ->execute([$newStatus, $eid, $target]);
@@ -843,7 +852,10 @@ if (!empty($allPageEids)) {
     foreach ($ps->fetchAll() as $pr) { $ev_poker[(int)$pr['event_id']] = $pr; }
 }
 
-// Build list of event IDs the current user manages
+// Build list of event IDs the current user manages (per-event manager role
+// on event_invites, OR owner/manager of the event's league). Drives the
+// edit pencil icon on calendar chips and the "Edit" button in the event
+// detail modal. Site admins see everything regardless.
 $managedEventIds = [];
 if ($current && !$isAdmin) {
     foreach ($ev_invites as $eid => $_invList) {
@@ -853,6 +865,17 @@ if ($current && !$isAdmin) {
             }
         }
     }
+    // Add every event in a league where the current user is owner or manager.
+    $__mgrLeagueStmt = $db->prepare(
+        "SELECT e.id FROM events e
+         JOIN league_members lm ON lm.league_id = e.league_id
+         WHERE lm.user_id = ? AND lm.role IN ('owner','manager')"
+    );
+    $__mgrLeagueStmt->execute([(int)$current['id']]);
+    foreach ($__mgrLeagueStmt->fetchAll() as $__r) {
+        $managedEventIds[] = (int)$__r['id'];
+    }
+    $managedEventIds = array_values(array_unique($managedEventIds));
 }
 
 // Strip contact details from invite data for all users (privacy — no need to expose in the calendar view)
@@ -1205,11 +1228,11 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         .invite-pane-list li.dimmed:hover { background:transparent; }
         .invite-pane-list li.custom-row { padding:.2rem .4rem;cursor:default; }
         .invite-pane-list li.custom-row:hover { background:transparent; }
-        .custom-row-inner { display:flex;gap:.3rem;align-items:center; }
+        .custom-row-inner { display:flex;gap:.3rem;align-items:center;flex-wrap:wrap; }
         .custom-row-inner input { padding:.28rem .45rem;border:1.5px solid #e2e8f0;border-radius:5px;font-size:.8rem;min-width:0; }
-        .custom-row-inner .cr-name { flex:2; }
-        .custom-row-inner .cr-email { flex:2.5; }
-        .custom-row-inner .cr-remove { flex-shrink:0;padding:.2rem .4rem;border:1px solid #e2e8f0;border-radius:5px;background:#fff;cursor:pointer;color:#94a3b8;font-size:.85rem;line-height:1; }
+        .custom-row-inner .cr-name    { flex:1.5;min-width:110px; }
+        .custom-row-inner .cr-contact { flex:2.5;min-width:160px; }
+        .custom-row-inner .cr-remove  { flex-shrink:0;padding:.2rem .4rem;border:1px solid #e2e8f0;border-radius:5px;background:#fff;cursor:pointer;color:#94a3b8;font-size:.85rem;line-height:1; }
         .custom-row-inner .cr-remove:hover { background:#fee2e2;color:#dc2626;border-color:#fca5a5; }
         /* hidden invite inputs container */
         #eInviteData { display:none; }
@@ -2746,8 +2769,8 @@ function addBlankInviteRow() {
     const li = document.createElement('li');
     li.className = 'custom-row';
     li.innerHTML = '<div class="custom-row-inner">' +
-        '<input type="text"  class="cr-name"  placeholder="Username *">' +
-        '<input type="email" class="cr-email" placeholder="Email">' +
+        '<input type="text" class="cr-name"    placeholder="Name *">' +
+        '<input type="text" class="cr-contact" placeholder="Email or phone" autocomplete="off">' +
         '<button type="button" class="cr-remove" onclick="this.closest(\'li\').remove()">&times;</button>' +
         '</div>';
     ul.appendChild(li);
@@ -2960,14 +2983,21 @@ document.getElementById('editForm').addEventListener('submit', function() {
         addHidden('invite_role[]',       li.dataset.irole || 'invitee');
         addHidden('invite_sort_order[]', sortIdx);
     });
-    // Custom rows
+    // Custom rows — host-typed invitees (not registered users). Single contact field:
+    // auto-detect email (contains '@') vs phone (everything else), then route to the
+    // appropriate POST slot so the existing backend keeps working.
     document.querySelectorAll('#eInvitedList li.custom-row').forEach(li => {
-        const uname = li.querySelector('.cr-name').value.trim();
-        const email = li.querySelector('.cr-email').value.trim();
+        const uname   = li.querySelector('.cr-name').value.trim();
+        const contact = (li.querySelector('.cr-contact') || {value:''}).value.trim();
         if (!uname) return;
+        let email = '', phone = '';
+        if (contact) {
+            if (contact.indexOf('@') !== -1) email = contact;
+            else phone = contact;
+        }
         sortIdx++;
         addHidden('invite_username[]',   uname);
-        addHidden('invite_phone[]',      '');
+        addHidden('invite_phone[]',      phone);
         addHidden('invite_email[]',      email);
         addHidden('invite_rsvp[]',       '');
         addHidden('invite_role[]',       'invitee');
@@ -3189,7 +3219,12 @@ function fmt12(t) {
 
 // ── Auto-open event from landing page link ────────────────────────────────────
 <?php if ($autoOpenEvent): ?>
+<?php $__autoEdit = !empty($_GET['edit']) && in_array((int)($_GET['edit'] ?? 0), [1, (int)$autoOpenEvent['id']], true); ?>
+<?php if ($__autoEdit): ?>
+openEditModal(<?= json_encode($autoOpenEvent, JSON_HEX_TAG) ?>);
+<?php else: ?>
 viewEvent(<?= json_encode($autoOpenEvent, JSON_HEX_TAG) ?>);
+<?php endif; ?>
 <?php endif; ?>
 
 // ── Week view rendering ───────────────────────────────────────────────────────

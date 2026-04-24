@@ -248,5 +248,7 @@ function deleteContact(cid) {
 </script>
 
 <?php require __DIR__ . '/_footer.php'; ?>
+<script src="/_phone_input.js"></script>
+<script>initPhoneAutoFormat();</script>
 </body>
 </html>

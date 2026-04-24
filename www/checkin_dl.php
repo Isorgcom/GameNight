@@ -16,17 +16,11 @@ $isAdmin = $current['role'] === 'admin';
 
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
-// Helper: check if current user is owner or manager of an event
+// Helper: check if current user is owner or manager of an event.
+// Thin wrapper around can_manage_event() in db.php so this signature stays
+// compatible with the many inline callers in this file.
 function is_owner_or_manager($db, $event_id, $current, $isAdmin): bool {
-    if ($isAdmin) return true;
-    $ev = $db->prepare('SELECT created_by FROM events WHERE id = ?');
-    $ev->execute([$event_id]);
-    $row = $ev->fetch();
-    if (!$row) return false;
-    if ((int)$row['created_by'] === (int)$current['id']) return true;
-    $mgr = $db->prepare("SELECT 1 FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND event_role='manager' LIMIT 1");
-    $mgr->execute([$event_id, $current['username']]);
-    return (bool)$mgr->fetch();
+    return can_manage_event($db, (int)$event_id, (int)$current['id'], (bool)$isAdmin);
 }
 
 // ─── ACTIONS ───────────────────────────────────────────────

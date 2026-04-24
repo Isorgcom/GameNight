@@ -37,31 +37,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $canCreateEvents = $isAdmin || ($current && $allowUserEvents);
 
     // Helper: check if current user is a manager of the given event
-    $isEventManager = function(int $eid) use ($db, $current): bool {
-        if (!$current) return false;
-        $ms = $db->prepare("SELECT 1 FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND event_role='manager' LIMIT 1");
-        $ms->execute([$eid, $current['username']]);
-        return (bool)$ms->fetch();
-    };
-
     if (!$isAdmin) {
         $ownerActions = ['edit', 'delete', 'delete_occurrence', 'cancel_series', 'uncancel_series', 'remove_invitee'];
         if ($action === 'add') {
             if (!$canCreateEvents) { http_response_code(403); exit('Access denied.'); }
         } elseif (in_array($action, $ownerActions, true)) {
-            // Allow if the user owns this event, is an event manager,
-            // or is a league owner/manager of the league this event belongs to.
-            $chkId    = (int)($_POST['id'] ?? 0);
-            $ownerStmt = $db->prepare('SELECT created_by, league_id FROM events WHERE id=?');
-            $ownerStmt->execute([$chkId]);
-            $ownerRow = $ownerStmt->fetch();
-            $isOwner = $ownerRow && (int)$ownerRow['created_by'] === (int)$current['id'];
-            $isLeagueMgr = false;
-            if ($ownerRow && !empty($ownerRow['league_id'])) {
-                $lr = league_role((int)$ownerRow['league_id'], (int)$current['id']);
-                $isLeagueMgr = in_array($lr, ['owner', 'manager'], true);
-            }
-            if (!$isOwner && !$isEventManager($chkId) && !$isLeagueMgr) {
+            // Single authoritative check (creator, per-event manager, league owner/manager, or admin).
+            $chkId = (int)($_POST['id'] ?? 0);
+            if ($chkId <= 0 || !can_manage_event($db, $chkId, (int)$current['id'], $isAdmin)) {
                 http_response_code(403); exit('Access denied.');
             }
         } elseif (!in_array($action, ['update_rsvp', 'self_signup', 'remove_self'], true)) {
@@ -179,9 +162,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $save_invites($new_eid);
                 // Auto-add invited people to the creator's personal contacts
+                // and, for league events, surface them on the league Members tab.
                 for ($__i = 0; $__i < count($inv_usernames); $__i++) {
                     if (($inv_usernames[$__i] ?? '') === '') continue;
                     auto_add_contact($db, (int)$current['id'], (string)$inv_usernames[$__i], (string)($inv_emails[$__i] ?? ''), (string)($inv_phones[$__i] ?? ''));
+                    if (!empty($league_id)) {
+                        auto_add_pending_to_league(
+                            $db, (int)$league_id,
+                            (string)$inv_usernames[$__i],
+                            (string)($inv_emails[$__i] ?? ''),
+                            (string)($inv_phones[$__i] ?? ''),
+                            (int)$current['id']
+                        );
+                    }
                 }
                 // For poker events with waitlist enabled, mark invitees beyond capacity as waitlisted
                 if ($is_poker && $waitlist_enabled) {
@@ -278,6 +271,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($is_new) $new_inv[] = $uname;
                     // Auto-add to creator's personal contacts
                     auto_add_contact($db, (int)$current['id'], (string)$inv_usernames[$i], (string)($inv_emails[$i] ?? ''), (string)($inv_phones[$i] ?? ''));
+                    // For league events, also surface the invitee on the league Members tab.
+                    if (!empty($league_id)) {
+                        auto_add_pending_to_league(
+                            $db, (int)$league_id,
+                            (string)$inv_usernames[$i],
+                            (string)($inv_emails[$i] ?? ''),
+                            (string)($inv_phones[$i] ?? ''),
+                            (int)$current['id']
+                        );
+                    }
                 }
                 // Clean up future per-occurrence rows for REMOVED invitees
                 $removed = array_diff($old_inv, $form_inv);

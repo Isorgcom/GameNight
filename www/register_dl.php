@@ -126,7 +126,7 @@ $site_name = get_setting('site_name', 'Game Night');
 
             <div class="form-group">
                 <label for="contact">Email or phone</label>
-                <input type="text" id="contact" name="contact"
+                <input type="text" id="contact" name="contact" data-phone-contact="1"
                        value="<?= htmlspecialchars($_POST['contact'] ?? '') ?>"
                        autocomplete="email" required>
                 <p class="hint">We'll send a verification link by email, or a 6-digit code by text.</p>
@@ -194,5 +194,7 @@ document.querySelectorAll('button[aria-label="Show password"], button[aria-label
     btn.addEventListener('touchend', toggle);
 });
 </script>
+<script src="/_phone_input.js"></script>
+<script>initPhoneAutoFormat();</script>
 </body>
 </html>

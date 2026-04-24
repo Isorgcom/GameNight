@@ -90,38 +90,27 @@ function intval_or_string($v) {
     return $v;
 }
 
-// Verify event ownership (owner, manager, or admin)
+// Verify event ownership (owner, manager, admin, or league owner/manager).
+// Exits with 404/403 on failure. Thin wrapper around can_manage_event().
 function verify_event_access($db, $event_id, $current, $isAdmin) {
-    $stmt = $db->prepare('SELECT created_by FROM events WHERE id = ?');
+    // 404 for missing event keeps the old contract.
+    $stmt = $db->prepare('SELECT 1 FROM events WHERE id = ?');
     $stmt->execute([$event_id]);
-    $event = $stmt->fetch();
-    if (!$event) {
+    if (!$stmt->fetch()) {
         http_response_code(404);
         echo json_encode(['ok' => false, 'error' => 'Event not found']);
         exit;
     }
-    if (!$isAdmin && (int)$event['created_by'] !== (int)$current['id']) {
-        $mgrStmt = $db->prepare("SELECT 1 FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND event_role='manager' LIMIT 1");
-        $mgrStmt->execute([$event_id, $current['username']]);
-        if (!$mgrStmt->fetch()) {
-            http_response_code(403);
-            echo json_encode(['ok' => false, 'error' => 'Access denied']);
-            exit;
-        }
+    if (!can_manage_event($db, (int)$event_id, (int)$current['id'], (bool)$isAdmin)) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => 'Access denied']);
+        exit;
     }
 }
 
-// Check if user has event access without exiting (returns true/false)
+// Check if user has event access without exiting (returns true/false).
 function check_event_access($db, $event_id, $current, $isAdmin) {
-    $stmt = $db->prepare('SELECT created_by FROM events WHERE id = ?');
-    $stmt->execute([$event_id]);
-    $event = $stmt->fetch();
-    if (!$event) return false;
-    if ($isAdmin) return true;
-    if ((int)$event['created_by'] === (int)$current['id']) return true;
-    $mgrStmt = $db->prepare("SELECT 1 FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND event_role='manager' LIMIT 1");
-    $mgrStmt->execute([$event_id, $current['username']]);
-    return (bool)$mgrStmt->fetch();
+    return can_manage_event($db, (int)$event_id, (int)$current['id'], (bool)$isAdmin);
 }
 
 // Verify session access via player_id

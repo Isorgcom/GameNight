@@ -8,18 +8,13 @@ $isAdmin = $current['role'] === 'admin';
 $event_id = (int)($_GET['event_id'] ?? 0);
 if (!$event_id) { http_response_code(400); exit('Missing event_id'); }
 
-// Verify event exists and user has access
+// Verify event exists and user has access (creator, event-manager, league owner/manager, or site admin).
 $evStmt = $db->prepare('SELECT * FROM events WHERE id = ?');
 $evStmt->execute([$event_id]);
 $event = $evStmt->fetch();
 if (!$event) { http_response_code(404); exit('Event not found'); }
-if (!$isAdmin && (int)$event['created_by'] !== (int)$current['id']) {
-    // Check if user is a manager of this event
-    $mgrStmt = $db->prepare("SELECT 1 FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND event_role='manager' LIMIT 1");
-    $mgrStmt->execute([$event_id, $current['username']]);
-    if (!$mgrStmt->fetch()) {
-        http_response_code(403); exit('Access denied');
-    }
+if (!can_manage_event($db, (int)$event_id, (int)$current['id'], $isAdmin)) {
+    http_response_code(403); exit('Access denied');
 }
 
 $site_name = get_setting('site_name', 'Game Night');

@@ -59,6 +59,73 @@ $token = csrf_token();
         <div class="alert alert-success">
             Your account has been verified. You can now sign in.
         </div>
+        <?php
+        // If the user arrived here from a walk-in flow, re-surface the seat assignment
+        // that was shown on the walk-in success page (it would otherwise be lost).
+        $wi_table = null;
+        $wi_seat  = null;
+        $wi_player_id = (int)($_SESSION['walkin_player_id'] ?? 0);
+        $wi_event_id  = (int)($_SESSION['walkin_event_id'] ?? 0);
+        if ($wi_player_id > 0) {
+            // Include removed players: the walk-in row may have been soft-removed by
+            // sync_invitees() if the user's event_invite was regenerated in the interim.
+            // We still want to show the seat they were told to take.
+            $pp = get_db()->prepare('SELECT table_number, seat_number FROM poker_players WHERE id = ?');
+            $pp->execute([$wi_player_id]);
+            if ($pr = $pp->fetch()) {
+                $wi_table = $pr['table_number'] ?: null;
+                $wi_seat  = $pr['seat_number']  ?: null;
+            }
+        }
+        // Fallback: if player_id wasn't stashed but event_id was, look up by the
+        // just-verified user_id + event via poker_sessions. Handles cases where
+        // session data partially drifted between walk-in and verify.
+        if ($wi_table === null && $wi_event_id > 0 && $user_id > 0) {
+            // Try by user_id first (walk-ins that ran sync_invitees correctly).
+            $fb = get_db()->prepare(
+                'SELECT pp.table_number, pp.seat_number FROM poker_players pp
+                 JOIN poker_sessions ps ON ps.id = pp.session_id
+                 WHERE ps.event_id = ? AND pp.user_id = ?
+                 ORDER BY pp.id DESC LIMIT 1'
+            );
+            $fb->execute([$wi_event_id, $user_id]);
+            if ($fbr = $fb->fetch()) {
+                $wi_table = $fbr['table_number'] ?: null;
+                $wi_seat  = $fbr['seat_number']  ?: null;
+            }
+            // Last resort: match by username (display_name) for rows where user_id
+            // wasn't populated by sync_invitees (e.g., race between users INSERT and
+            // the invitee JOIN). Requires knowing this session's user.
+            if ($wi_table === null) {
+                $un = get_db()->prepare('SELECT username FROM users WHERE id = ?');
+                $un->execute([$user_id]);
+                $uname = $un->fetchColumn();
+                if ($uname) {
+                    $fb2 = get_db()->prepare(
+                        'SELECT pp.table_number, pp.seat_number FROM poker_players pp
+                         JOIN poker_sessions ps ON ps.id = pp.session_id
+                         WHERE ps.event_id = ? AND LOWER(pp.display_name) = LOWER(?)
+                         ORDER BY pp.id DESC LIMIT 1'
+                    );
+                    $fb2->execute([$wi_event_id, $uname]);
+                    if ($fbr2 = $fb2->fetch()) {
+                        $wi_table = $fbr2['table_number'] ?: null;
+                        $wi_seat  = $fbr2['seat_number']  ?: null;
+                    }
+                }
+            }
+        }
+        // Clear the walk-in context so a page refresh doesn't keep re-rendering stale info.
+        unset($_SESSION['walkin_event_id'], $_SESSION['walkin_player_id']);
+        ?>
+        <?php if ($wi_table !== null): ?>
+        <div style="margin-top:1rem;padding:1.2rem;background:#eff6ff;border:2px solid #3b82f6;border-radius:10px;text-align:center">
+            <div style="font-size:.85rem;color:#3b82f6;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Your Seat</div>
+            <div style="font-size:2.25rem;font-weight:800;color:#1e40af;line-height:1.2">
+                Table <?= (int)$wi_table ?><?php if ($wi_seat): ?> &middot; Seat <?= (int)$wi_seat ?><?php endif; ?>
+            </div>
+        </div>
+        <?php endif; ?>
         <a href="/login.php" class="btn btn-primary" style="width:100%;margin-top:1rem;display:block;text-align:center;text-decoration:none">Sign In</a>
 
         <?php else: ?>

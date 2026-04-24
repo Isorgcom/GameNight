@@ -61,6 +61,7 @@ function fmt_event_display(array $ev): string {
 $error   = '';
 $success = '';
 $assigned_table = null;
+$assigned_seat  = null;
 
 if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
@@ -69,6 +70,17 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (walkin_rate_limited($db)) {
         $error = 'Too many registration attempts from this device. Please try again in an hour.';
     } else {
+        // Auto-detect the combined "Email or phone" input. Contains '@' → email, otherwise phone.
+        // Left the legacy `email` / `phone` POST slots as a fallback so any old bookmark still works.
+        $contact_raw = trim($_POST['contact'] ?? '');
+        if ($contact_raw !== '' && ($_POST['email'] ?? '') === '' && ($_POST['phone'] ?? '') === '') {
+            if (strpos($contact_raw, '@') !== false) {
+                $_POST['email'] = $contact_raw;
+            } else {
+                $_POST['phone'] = $contact_raw;
+            }
+        }
+
         // Collect + sanitize inputs
         $display_name = trim($_POST['display_name'] ?? '');
         $email        = strtolower(trim($_POST['email'] ?? ''));
@@ -130,25 +142,29 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         // Already pending — same waiting-list message, no DB change.
                         $effective_approval = 'pending';
                     } else {
-                        // Approved row — set RSVP to yes (current behavior).
-                        $db->prepare("UPDATE event_invites SET rsvp = 'yes' WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL")
-                           ->execute([$event_id, $username]);
+                        // Security: an already-approved invite is NOT flipped from the walk-in form.
+                        // Anyone at the event could type the victim's email to mark them checked-in.
+                        // If they're already on the list, nothing to do — just acknowledge.
                         $effective_approval = 'approved';
                     }
                 } else {
-                    // Insert new invite row. Walk-in is a 'self' signup — approval gate fires if requires_approval=1.
-                    $walkin_approval = invite_approval_status($event_id, 'self');
-                    $db->prepare('INSERT INTO event_invites (event_id, username, email, rsvp, approval_status) VALUES (?, ?, ?, ?, ?)')
-                       ->execute([$event_id, $username, $email, 'yes', $walkin_approval]);
-                    $effective_approval = $walkin_approval;
-                    $is_new_pending = ($walkin_approval === 'pending');
+                    // Security: an existing account being "walked in" by someone holding the QR code
+                    // (not necessarily the user themselves) always requires host approval — even if
+                    // the event is otherwise open. The attacker doesn't gain a confirmed RSVP; the
+                    // host sees a pending row and can approve or deny. For brand-new walk-in users
+                    // (the main `else` block far below) we still honor the event's requires_approval
+                    // setting because those identifiers don't belong to anyone yet.
+                    $db->prepare("INSERT INTO event_invites (event_id, username, email, rsvp, approval_status) VALUES (?, ?, ?, ?, 'pending')")
+                       ->execute([$event_id, $username, $email]);
+                    $effective_approval = 'pending';
+                    $is_new_pending = true;
                 }
                 auto_add_to_league($db, $event_id, $uid);
                 db_log_anon_activity("walkin_rsvp: existing user $username for event $event_id" . ($effective_approval !== 'approved' ? ' (waiting list)' : ''));
 
                 // Remember for next walk-up (30 days)
                 setcookie('walkin_name', $display_name, time() + 86400 * 30, '/', '', true, true);
-                setcookie('walkin_email', $email, time() + 86400 * 30, '/', '', true, true);
+                setcookie('walkin_contact', ($contact_raw !== '' ? $contact_raw : ($email ?: $phone)), time() + 86400 * 30, '/', '', true, true);
 
                 if ($effective_approval === 'approved') {
                     $success = "Welcome back, " . htmlspecialchars($username) . "! You're registered for <strong>" . htmlspecialchars($event['title']) . "</strong>.";
@@ -164,6 +180,14 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         $ppRow = $pp->fetch();
                         if ($ppRow) {
                             $assigned_table = auto_assign_table($db, $psRow['id'], $ppRow['id']);
+                            if ($assigned_table !== null) {
+                                $seatStmt = $db->prepare('SELECT seat_number FROM poker_players WHERE id = ?');
+                                $seatStmt->execute([$ppRow['id']]);
+                                $assigned_seat = $seatStmt->fetchColumn() ?: null;
+                                // Stash player id so verify_phone.php can re-surface the seat tile.
+                                if (session_status() === PHP_SESSION_NONE) session_start_safe();
+                                $_SESSION['walkin_player_id'] = (int)$ppRow['id'];
+                            }
                         }
                     }
                 } else {
@@ -209,7 +233,11 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Channel the user registered with: email if present, else SMS.
                     $walkin_method    = $has_email ? 'email' : 'sms';
                     $walkin_preferred = $walkin_method;
-                    $db->prepare('INSERT INTO users (username, password_hash, email, phone, role, email_verified, must_change_password, preferred_contact, verification_method) VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?)')
+                    // Soft verification: insert the user as unverified, then fire the email link /
+                    // SMS code below. The success screen surfaces a verify control but does NOT
+                    // block the user from attending — they're already at the event. The verify
+                    // step is about unlocking future login recovery, not gating event access.
+                    $db->prepare('INSERT INTO users (username, password_hash, email, phone, role, email_verified, phone_verified, must_change_password, preferred_contact, verification_method) VALUES (?, ?, ?, ?, ?, 0, 0, 1, ?, ?)')
                        ->execute([$final_username, '', $has_email ? $email : null, $has_phone ? $phone_normalized : null, 'user', $walkin_preferred, $walkin_method]);
                     $new_id = (int)$db->lastInsertId();
 
@@ -221,19 +249,31 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     auto_add_to_league($db, $event_id, $new_id);
                     db_log_anon_activity("walkin_new_user: $final_username for event $event_id" . ($new_walkin_approval === 'pending' ? ' (waiting list)' : ''));
 
-                    // Send verification via whichever channel the user provided.
+                    // Soft verification send. Email path: link goes to reset_password.php so they
+                    // can set a real password. Phone path: 6-digit code plus session-stash so the
+                    // inline form on the success screen can POST to /verify_phone.php.
                     if ($walkin_method === 'email') {
                         send_verification_email($new_id, $email, $final_username);
                     } else {
                         send_verification_code($new_id, $phone_normalized, 'sms');
+                        if (session_status() === PHP_SESSION_NONE) session_start_safe();
+                        $_SESSION['verify_user_id'] = $new_id;
+                        $_SESSION['verify_method']  = 'sms';
+                        // Carry walk-in context so verify_phone.php can surface table/seat on success.
+                        $_SESSION['walkin_event_id'] = (int)$event_id;
                     }
+
+                    // Variables the render block uses to decide which verify UI to show.
+                    $walkin_verify_ui       = ($walkin_method === 'sms') ? 'phone_inline' : 'email_note';
+                    $walkin_verify_phone    = $has_phone ? $phone_normalized : '';
+                    $walkin_verify_email    = $has_email ? $email : '';
 
                     // Remember for next walk-up (30 days)
                     setcookie('walkin_name', $display_name, time() + 86400 * 30, '/', '', true, true);
-                    setcookie('walkin_email', $email, time() + 86400 * 30, '/', '', true, true);
+                    setcookie('walkin_contact', ($contact_raw !== '' ? $contact_raw : ($email ?: $phone)), time() + 86400 * 30, '/', '', true, true);
 
                     if ($new_walkin_approval === 'approved') {
-                        $success = "You're registered for <strong>" . htmlspecialchars($event['title']) . "</strong>! Check your email to verify your account and set a password.";
+                        $success = "You're registered for <strong>" . htmlspecialchars($event['title']) . "</strong>! Have fun.";
 
                         // Auto-assign table if poker session exists
                         $psess = $db->prepare('SELECT id FROM poker_sessions WHERE event_id = ?');
@@ -246,10 +286,15 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
                             $ppRow = $pp->fetch();
                             if ($ppRow) {
                                 $assigned_table = auto_assign_table($db, $psRow['id'], $ppRow['id']);
+                                if ($assigned_table !== null) {
+                                    $seatStmt = $db->prepare('SELECT seat_number FROM poker_players WHERE id = ?');
+                                    $seatStmt->execute([$ppRow['id']]);
+                                    $assigned_seat = $seatStmt->fetchColumn() ?: null;
+                                }
                             }
                         }
                     } else {
-                        $success = "You're on the waiting list for <strong>" . htmlspecialchars($event['title']) . "</strong>. The host will approve your registration shortly. Check your email to verify your account so you don't miss the approval notification.";
+                        $success = "You're on the waiting list for <strong>" . htmlspecialchars($event['title']) . "</strong>. The host will approve your registration shortly.";
                         // Notify the host about the pending signup.
                         notify_creator_of_pending($event_id, $final_username);
                         // Notify the new user they're on the waiting list (email only — they just registered).
@@ -271,7 +316,8 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Read remembered values from cookie
 $remembered_name  = $_COOKIE['walkin_name'] ?? '';
-$remembered_email = $_COOKIE['walkin_email'] ?? '';
+// Backwards-compat: earlier versions stored email only; fall back to it if the new cookie isn't set yet.
+$remembered_contact = $_COOKIE['walkin_contact'] ?? $_COOKIE['walkin_email'] ?? '';
 
 $csrf_token = csrf_token();
 ?>
@@ -377,10 +423,41 @@ $csrf_token = csrf_token();
             <div class="walkin-event-meta"><?= htmlspecialchars(fmt_event_display($event)) ?></div>
         </div>
         <div class="walkin-success"><?= $success ?></div>
+
+        <?php if (!empty($walkin_verify_ui) && $walkin_verify_ui === 'phone_inline'):
+            $__pm = preg_replace('/(\d{3})\D*(\d{3})\D*(\d{4})/', '($1) $2-$3', $walkin_verify_phone);
+        ?>
+        <div class="walkin-verify-phone" style="margin-top:1.25rem;padding:1rem;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px">
+            <p style="margin:0 0 .6rem;font-size:.88rem;color:#334155;line-height:1.5">
+                We texted a 6-digit code to <strong><?= htmlspecialchars($__pm ?: $walkin_verify_phone) ?></strong>.
+                Enter it so you can sign in later. <em style="color:#64748b">You can skip — you're already in the event.</em>
+            </p>
+            <form method="post" action="/verify_phone.php" style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
+                       maxlength="6" pattern="\d{6}" required placeholder="123456"
+                       style="flex:1;min-width:130px;padding:.55rem .75rem;border:1.5px solid #cbd5e1;border-radius:6px;font-size:1.1rem;letter-spacing:.3em;text-align:center">
+                <button type="submit" class="btn btn-primary" style="padding:.55rem 1.1rem">Verify</button>
+            </form>
+            <p style="margin:.65rem 0 0;font-size:.82rem">
+                <a href="/" style="color:#64748b" title="Skip for now — you're still registered for the event, but you won't be able to reset your password later">Skip for now</a>
+            </p>
+        </div>
+        <?php elseif (!empty($walkin_verify_ui) && $walkin_verify_ui === 'email_note'): ?>
+        <div class="walkin-verify-email" style="margin-top:1.25rem;padding:1rem;background:#eff6ff;border:1.5px solid #93c5fd;border-radius:10px">
+            <p style="margin:0;font-size:.88rem;color:#1e40af;line-height:1.5">
+                &#128231; Check your inbox — we emailed a verification link to <strong><?= htmlspecialchars($walkin_verify_email) ?></strong>
+                so you can set a password and sign in later. You're already in the event, so you can ignore it for now.
+            </p>
+        </div>
+        <?php endif; ?>
+
         <?php if ($assigned_table !== null): ?>
         <div style="margin-top:1rem;padding:1.2rem;background:#eff6ff;border:2px solid #3b82f6;border-radius:10px;text-align:center">
-            <div style="font-size:.85rem;color:#3b82f6;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Your Table</div>
-            <div style="font-size:2.5rem;font-weight:800;color:#1e40af;line-height:1.2">Table <?= (int)$assigned_table ?></div>
+            <div style="font-size:.85rem;color:#3b82f6;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Your Seat</div>
+            <div style="font-size:2.25rem;font-weight:800;color:#1e40af;line-height:1.2">
+                Table <?= (int)$assigned_table ?><?php if ($assigned_seat): ?> &middot; Seat <?= (int)$assigned_seat ?><?php endif; ?>
+            </div>
         </div>
         <?php endif; ?>
 
@@ -406,21 +483,13 @@ $csrf_token = csrf_token();
                        style="width:100%">
             </div>
 
-            <p style="font-size:.8rem;color:#64748b;margin:0 0 .6rem">Give us either an email or a phone number so we can confirm your registration.</p>
+            <p style="font-size:.8rem;color:#64748b;margin:0 0 .6rem">Enter an email address or a phone number so we can confirm your registration.</p>
 
             <div class="form-group">
-                <label for="wi_email">Email address</label>
-                <input type="email" id="wi_email" name="email"
-                       autocomplete="email" placeholder="you@example.com"
-                       value="<?= htmlspecialchars($_POST['email'] ?? $remembered_email) ?>"
-                       style="width:100%">
-            </div>
-
-            <div class="form-group">
-                <label for="wi_phone">Phone number</label>
-                <input type="tel" id="wi_phone" name="phone"
-                       autocomplete="tel" placeholder="+1 555 000 0000"
-                       value="<?= htmlspecialchars($_POST['phone'] ?? '') ?>"
+                <label for="wi_contact">Email or phone</label>
+                <input type="text" id="wi_contact" name="contact" data-phone-contact="1" required
+                       autocomplete="email" placeholder="you@example.com or 555-123-4567"
+                       value="<?= htmlspecialchars($_POST['contact'] ?? $_POST['email'] ?? $_POST['phone'] ?? $remembered_contact) ?>"
                        style="width:100%">
             </div>
 
@@ -431,5 +500,7 @@ $csrf_token = csrf_token();
         <?php endif; ?>
     </div>
 </div>
+<script src="/_phone_input.js"></script>
+<script>initPhoneAutoFormat();</script>
 </body>
 </html>

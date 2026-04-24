@@ -173,6 +173,23 @@ function login_rate_limited(): bool {
 }
 
 /**
+ * Per-identifier login rate limit: caps failed logins against a specific email /
+ * username / phone across ALL IPs over the last hour. Blocks distributed
+ * credential-stuffing attacks against a known user when the IP cap is bypassed
+ * by rotating source IPs. Identifier is normalized (lowercased) so case
+ * variations share the same counter.
+ */
+function login_rate_limited_for_identifier(string $identifier): bool {
+    $norm = strtolower(trim($identifier));
+    if ($norm === '') return false;
+    $cap  = defined('MAX_LOGIN_FAILURES_PER_USER_PER_HOUR') ? MAX_LOGIN_FAILURES_PER_USER_PER_HOUR : 5;
+    $db   = get_db();
+    $stmt = $db->prepare("SELECT COUNT(*) FROM activity_log WHERE action = ? AND created_at > datetime('now', '-1 hour')");
+    $stmt->execute(['failed_login: ' . $norm]);
+    return (int)$stmt->fetchColumn() >= $cap;
+}
+
+/**
  * Look up a user by an identifier that could be an email, a username, or a phone number.
  * Order: email (if it looks like an email) → username → phone (normalized).
  * Returns the user row or null.
@@ -213,8 +230,10 @@ function find_user_by_identifier(string $identifier): ?array {
 }
 
 function attempt_login(string $identifier, string $password): bool|string {
-    // Brute force protection: 5 failed attempts per IP per 15 minutes
-    if (login_rate_limited()) {
+    // Brute force protection: per-IP (15 min) AND per-identifier (1 hour).
+    // Per-IP stops one machine from cycling through passwords quickly.
+    // Per-identifier stops a botnet from attacking a single known user.
+    if (login_rate_limited() || login_rate_limited_for_identifier($identifier)) {
         return 'rate_limited';
     }
 
@@ -411,6 +430,17 @@ function send_verification_code(int $user_id, string $phone, string $method): vo
  */
 function verify_code(int $user_id, string $code): string {
     $db = get_db();
+
+    // Security: cap total attempts across all recent code rows so a user can't
+    // burn through the 6-digit space by repeatedly resending (each resend
+    // otherwise gave them a fresh 5-attempt budget). Sum attempts across the
+    // last 24 hours and reject once over MAX_VERIFY_CODE_ATTEMPTS_PER_DAY.
+    $cumCap  = defined('MAX_VERIFY_CODE_ATTEMPTS_PER_DAY') ? MAX_VERIFY_CODE_ATTEMPTS_PER_DAY : 20;
+    $cumStmt = $db->prepare("SELECT COALESCE(SUM(attempts), 0) FROM phone_verifications WHERE user_id = ? AND created_at >= datetime('now', '-1 day')");
+    $cumStmt->execute([$user_id]);
+    if ((int)$cumStmt->fetchColumn() >= $cumCap) {
+        return 'exhausted';
+    }
 
     // Find the latest unused code for this user
     $stmt = $db->prepare('SELECT id, code_hash, expires_at, attempts FROM phone_verifications WHERE user_id=? AND used=0 ORDER BY id DESC LIMIT 1');

@@ -21,7 +21,7 @@ if ($token === '' || !in_array($rsvp, $valid, true)) {
 }
 
 $db   = get_db();
-$stmt = $db->prepare('SELECT ei.id, ei.event_id, ei.username, ei.rsvp, ei.approval_status, e.title, e.start_date, e.start_time
+$stmt = $db->prepare('SELECT ei.id, ei.event_id, ei.username, ei.rsvp, ei.approval_status, ei.rsvp_token_flips, e.title, e.start_date, e.start_time
                        FROM event_invites ei
                        JOIN events e ON e.id = ei.event_id
                        WHERE ei.rsvp_token = ?');
@@ -41,11 +41,26 @@ if (($invite['approval_status'] ?? 'approved') !== 'approved') {
     exit;
 }
 
+// Security: cap how many times an rsvp_token can flip the RSVP value so a leaked
+// invite link can't be replayed indefinitely. The user can still change their RSVP
+// after this cap — they just have to sign in instead of using the one-click link.
+$flipsSoFar = (int)($invite['rsvp_token_flips'] ?? 0);
 $rsvp_changed = ($invite['rsvp'] ?? '') !== $rsvp;
+if ($rsvp_changed && $flipsSoFar >= MAX_RSVP_TOKEN_FLIPS) {
+    show_page('Link Exhausted',
+        'This RSVP link has been used too many times. Please <a href="/login.php">sign in</a> to change your RSVP for <strong>' . htmlspecialchars($invite['title']) . '</strong>.',
+        'error');
+    exit;
+}
 
-// Update the RSVP
-$db->prepare('UPDATE event_invites SET rsvp = ? WHERE id = ?')
-   ->execute([$rsvp, $invite['id']]);
+// Update the RSVP + bump the flip counter only when the value actually changed.
+if ($rsvp_changed) {
+    $db->prepare('UPDATE event_invites SET rsvp = ?, rsvp_token_flips = rsvp_token_flips + 1 WHERE id = ?')
+       ->execute([$rsvp, $invite['id']]);
+} else {
+    $db->prepare('UPDATE event_invites SET rsvp = ? WHERE id = ?')
+       ->execute([$rsvp, $invite['id']]);
+}
 
 // Auto-promote waitlisted invitee if someone declined
 if ($rsvp === 'no') {

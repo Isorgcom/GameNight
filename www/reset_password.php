@@ -38,13 +38,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($new_pw !== $conf_pw) {
             $flash = 'Passwords do not match.';
         } else {
-            $hash = password_hash($new_pw, PASSWORD_BCRYPT);
-            $db->prepare('UPDATE users SET password_hash=?, must_change_password=0 WHERE id=?')
-               ->execute([$hash, $reset['user_id']]);
-            $db->prepare('UPDATE password_resets SET used=1 WHERE id=?')
-               ->execute([$reset['id']]);
-            db_log_activity($reset['user_id'], 'reset password via email link');
-            $success = true;
+            // Atomic token consumption: if the row is already used, rowCount() is 0 and we
+            // treat as "already used" instead of silently allowing a race-condition second use.
+            $claim = $db->prepare('UPDATE password_resets SET used=1 WHERE id=? AND used=0');
+            $claim->execute([$reset['id']]);
+            if ($claim->rowCount() === 0) {
+                $flash = 'This reset link has already been used. <a href="/forgot_password.php">Request a new one</a>.';
+            } else {
+                $hash = password_hash($new_pw, PASSWORD_BCRYPT);
+                $db->prepare('UPDATE users SET password_hash=?, must_change_password=0 WHERE id=?')
+                   ->execute([$hash, $reset['user_id']]);
+                // Security: purge every remember-me cookie for this user so a stolen token
+                // can't keep authenticating after the password rotation.
+                try { $db->prepare('DELETE FROM remember_tokens WHERE user_id = ?')->execute([$reset['user_id']]); } catch (Exception $e) {}
+                // Defend against session fixation: any session ID the user had before the
+                // reset is retired. User has to sign in again with the new password.
+                session_regenerate_id(true);
+                $_SESSION = [];
+                db_log_activity($reset['user_id'], 'reset password via email link');
+                $success = true;
+            }
         }
     }
 }

@@ -25,9 +25,11 @@ $stmt = $db->prepare("
     SELECT e.id, e.title, e.description, e.start_date, e.end_date,
            e.start_time, e.end_time, e.color, e.created_by, e.is_poker,
            e.league_id, e.visibility,
+           l.name AS league_name,
            ei.rsvp, ei.approval_status,
            CASE WHEN e.created_by = :uid THEN 1 ELSE 0 END AS is_creator
     FROM events e
+    LEFT JOIN leagues l ON l.id = e.league_id
     LEFT JOIN event_invites ei ON ei.event_id = e.id AND LOWER(ei.username) = LOWER(:uname)
     WHERE e.created_by = :uid2
        OR ei.id IS NOT NULL
@@ -37,6 +39,16 @@ $stmt = $db->prepare("
 ");
 $stmt->execute([':uid' => $current['id'], ':uname' => $current['username'], ':uid2' => $current['id'], ':uid3' => $current['id']]);
 $all_events = $stmt->fetchAll();
+
+// Precompute manage rights so the Manage Game button shows for creators, admins,
+// explicit per-event managers, AND league owners/managers (not just creators).
+$isAdmin = ($current['role'] ?? '') === 'admin';
+$manageable = [];
+foreach ($all_events as $__ev) {
+    if (can_manage_event($db, (int)$__ev['id'], (int)$current['id'], $isAdmin)) {
+        $manageable[(int)$__ev['id']] = true;
+    }
+}
 
 // Split into upcoming and past using full datetime (end_time > start_time > end of day)
 $upcoming = [];
@@ -92,6 +104,19 @@ function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): strin
             .me-view-btn { min-height:44px !important;font-size:.9rem !important;padding:.5rem .85rem !important;display:inline-flex;align-items:center; }
             .me-badge { padding:.2rem .6rem !important;font-size:.8rem !important; }
         }
+        .ev-league-tag {
+            display: inline-block;
+            font-size: .7rem;
+            font-weight: 600;
+            padding: .1rem .5rem;
+            border-radius: 999px;
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #93c5fd;
+            text-decoration: none;
+            line-height: 1.3;
+        }
+        .ev-league-tag:hover { background: #bfdbfe; color: #1e3a8a; text-decoration: none; }
     </style>
 </head>
 <body>
@@ -137,11 +162,19 @@ function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): strin
                         <?= htmlspecialchars($ev['title']) ?>
                     </a>
                     <?= rsvp_badge($ev['rsvp'], $ev['approval_status'] ?? 'approved') ?>
+                    <?php if (!empty($ev['league_name'])): ?>
+                    <a class="ev-league-tag" href="/league.php?id=<?= (int)$ev['league_id'] ?>" title="<?= htmlspecialchars($ev['league_name']) ?>">
+                        <?= htmlspecialchars($ev['league_name']) ?>
+                    </a>
+                    <?php endif; ?>
                     <?php if ($ev['is_creator']): ?>
                     <span class="me-badge" style="background:#ede9fe;color:#5b21b6;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">Organizer</span>
-                    <?php if (!empty($ev['is_poker'])): ?>
+                    <?php endif; ?>
+                    <?php if (!empty($ev['is_poker']) && !empty($manageable[(int)$ev['id']])): ?>
                     <a href="/checkin.php?event_id=<?= $ev['id'] ?>" class="me-badge" style="background:#059669;color:#fff;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600;text-decoration:none">Manage Game</a>
                     <?php endif; ?>
+                    <?php if (!empty($manageable[(int)$ev['id']])): ?>
+                    <a href="<?= htmlspecialchars($cal_url) ?>&edit=1" class="me-badge" style="background:#2563eb;color:#fff;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600;text-decoration:none">Edit</a>
                     <?php endif; ?>
                 </div>
                 <div style="font-size:.85rem;color:#64748b">
@@ -191,11 +224,19 @@ function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): strin
                         <?= htmlspecialchars($ev['title']) ?>
                     </a>
                     <?= rsvp_badge($ev['rsvp'], $ev['approval_status'] ?? 'approved') ?>
+                    <?php if (!empty($ev['league_name'])): ?>
+                    <a class="ev-league-tag" href="/league.php?id=<?= (int)$ev['league_id'] ?>" title="<?= htmlspecialchars($ev['league_name']) ?>">
+                        <?= htmlspecialchars($ev['league_name']) ?>
+                    </a>
+                    <?php endif; ?>
                     <?php if ($ev['is_creator']): ?>
                     <span style="background:#f3f4f6;color:#6b7280;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">Organizer</span>
-                    <?php if (!empty($ev['is_poker'])): ?>
+                    <?php endif; ?>
+                    <?php if (!empty($ev['is_poker']) && !empty($manageable[(int)$ev['id']])): ?>
                     <a href="/checkin.php?event_id=<?= $ev['id'] ?>" style="background:#059669;color:#fff;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600;text-decoration:none">Manage Game</a>
                     <?php endif; ?>
+                    <?php if (!empty($manageable[(int)$ev['id']])): ?>
+                    <a href="<?= htmlspecialchars($cal_url) ?>&edit=1" style="background:#2563eb;color:#fff;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600;text-decoration:none">Edit</a>
                     <?php endif; ?>
                 </div>
                 <div style="font-size:.85rem;color:#94a3b8">

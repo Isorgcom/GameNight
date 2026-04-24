@@ -18,6 +18,11 @@ if (!defined('DRAIN_PAUSE_ON_429_MINUTES')) define('DRAIN_PAUSE_ON_429_MINUTES',
 if (!defined('MAX_REGISTRATION_ATTEMPTS_PER_HOUR')) define('MAX_REGISTRATION_ATTEMPTS_PER_HOUR', 20);
 // Minimum password length used by every registration / password-change / reset flow.
 if (!defined('MIN_PASSWORD_LENGTH')) define('MIN_PASSWORD_LENGTH', 8);
+// Security rate limits (v0.19015)
+if (!defined('MAX_COMMENTS_PER_HOUR'))                    define('MAX_COMMENTS_PER_HOUR', 20);
+if (!defined('MAX_VERIFY_CODE_ATTEMPTS_PER_DAY'))         define('MAX_VERIFY_CODE_ATTEMPTS_PER_DAY', 20);
+if (!defined('MAX_LOGIN_FAILURES_PER_USER_PER_HOUR'))     define('MAX_LOGIN_FAILURES_PER_USER_PER_HOUR', 5);
+if (!defined('MAX_RSVP_TOKEN_FLIPS'))                     define('MAX_RSVP_TOKEN_FLIPS', 10);
 
 if (!defined('APP_SECRET')) {
     $secretFile = dirname(DB_PATH) . '/.app_secret';
@@ -672,6 +677,9 @@ function db_init(PDO $pdo): void {
     try { $pdo->exec("ALTER TABLE event_invites ADD COLUMN sort_order INTEGER"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE events ADD COLUMN rsvp_deadline_hours INTEGER"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE events ADD COLUMN rsvp_deadline_processed INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    // Security (v0.19015): cap how many times an `rsvp_token` can flip the RSVP value so a stolen
+    // or shoulder-surfed QR/email link can't be replayed indefinitely.
+    try { $pdo->exec("ALTER TABLE event_invites ADD COLUMN rsvp_token_flips INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
 
     // Seed default blind structure if none exists
     $presetCount = $pdo->query('SELECT COUNT(*) FROM blind_presets WHERE is_default = 1')->fetchColumn();
@@ -975,7 +983,28 @@ function get_site_url(): string {
     return $scheme . '://' . $host;
 }
 
+/**
+ * Canonicalize a US phone number for storage and lookup.
+ *
+ * Accepts any format the user types:
+ *   8326422893
+ *   832-642-2893
+ *   (832) 642-2893
+ *   832.642.2893
+ *   +1 (832) 642-2893
+ *   1-832-642-2893
+ *
+ * Returns the canonical "XXX-XXX-XXXX" string used everywhere in the DB
+ * (users.phone, event_invites.phone, league_members.contact_phone,
+ * user_contacts.contact_phone). Anything that isn't a 10-digit NANP number
+ * (or 11-digit with a leading 1) is returned unchanged — international
+ * numbers are stored as typed.
+ *
+ * SMS provider calls use a separate helper, sms_normalize_phone(), which
+ * converts the stored "XXX-XXX-XXXX" back to E.164 ("+1XXXXXXXXXX").
+ */
 function normalize_phone(string $phone): string {
+    $phone  = trim($phone);
     $digits = preg_replace('/\D/', '', $phone);
     // Strip leading country code 1
     if (strlen($digits) === 11 && $digits[0] === '1') {
@@ -1388,9 +1417,120 @@ function auto_add_to_league(PDO $db, int $event_id, int $user_id): void {
     )->execute([(int)$lid, $user_id]);
 }
 
+/**
+ * Auto-add a custom invitee to a league as a pending contact (or as a real member if
+ * their email/phone already matches a registered user). Called from the event save path
+ * so inviting someone to a league event surfaces them on the league Members tab.
+ *
+ *  - No-op if league_id <= 0, name is empty, or both email and phone are empty.
+ *  - If the contact resolves to a registered user not yet in the league, insert a
+ *    regular member row (user_id set).
+ *  - Otherwise insert a pending row (user_id NULL) with an invite_token so the
+ *    existing claim logic in register_user() can link them on signup.
+ *  - Duplicates short-circuit via pre-check plus the partial UNIQUE index
+ *    (league_id, LOWER(contact_email)) WHERE user_id IS NULL.
+ */
+function auto_add_pending_to_league(PDO $db, int $league_id, string $name, string $email, string $phone, int $invited_by): void {
+    if ($league_id <= 0) return;
+    $name  = trim($name);
+    $email = strtolower(trim($email));
+    $phone = $phone !== '' ? normalize_phone(trim($phone)) : '';
+    if ($name === '') return;
+
+    // Linked-user path: email, phone, then username fallback (matches auto_add_contact).
+    $uid = 0;
+    if ($email !== '') {
+        $u = $db->prepare('SELECT id FROM users WHERE LOWER(email) = ? LIMIT 1');
+        $u->execute([$email]);
+        $uid = (int)($u->fetchColumn() ?: 0);
+    }
+    if ($uid === 0 && $phone !== '') {
+        $u = $db->prepare('SELECT id FROM users WHERE phone = ? LIMIT 1');
+        $u->execute([$phone]);
+        $uid = (int)($u->fetchColumn() ?: 0);
+    }
+    if ($uid === 0) {
+        $u = $db->prepare('SELECT id FROM users WHERE LOWER(username) = LOWER(?) LIMIT 1');
+        $u->execute([$name]);
+        $uid = (int)($u->fetchColumn() ?: 0);
+    }
+
+    // Pending-contact rows need email or phone to dedup and to claim on signup.
+    if ($uid === 0 && $email === '' && $phone === '') return;
+    if ($uid > 0) {
+        $lm = $db->prepare('SELECT 1 FROM league_members WHERE league_id = ? AND user_id = ? LIMIT 1');
+        $lm->execute([$league_id, $uid]);
+        if ($lm->fetchColumn()) return; // already a member
+        try {
+            $db->prepare("INSERT OR IGNORE INTO league_members
+                            (league_id, user_id, role, joined_at, invited_by, invited_at)
+                          VALUES (?, ?, 'member', CURRENT_TIMESTAMP, ?, CURRENT_TIMESTAMP)")
+               ->execute([$league_id, $uid, $invited_by]);
+        } catch (Exception $e) { /* dupe — fine */ }
+        return;
+    }
+
+    // Pending-contact path: dedup by email then phone.
+    if ($email !== '') {
+        $dup = $db->prepare("SELECT 1 FROM league_members
+                              WHERE league_id = ? AND user_id IS NULL AND LOWER(contact_email) = ? LIMIT 1");
+        $dup->execute([$league_id, $email]);
+        if ($dup->fetchColumn()) return;
+    }
+    if ($phone !== '') {
+        $dup = $db->prepare("SELECT 1 FROM league_members
+                              WHERE league_id = ? AND user_id IS NULL AND contact_phone = ? LIMIT 1");
+        $dup->execute([$league_id, $phone]);
+        if ($dup->fetchColumn()) return;
+    }
+
+    $token = bin2hex(random_bytes(16));
+    try {
+        $db->prepare("INSERT INTO league_members
+                        (league_id, user_id, role, contact_name, contact_email, contact_phone,
+                         invited_by, invited_at, invite_token)
+                      VALUES (?, NULL, 'member', ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)")
+           ->execute([$league_id, $name, $email ?: null, $phone ?: null, $invited_by, $token]);
+    } catch (Exception $e) { /* unique-index dupe — fine */ }
+}
+
 function league_role(int $league_id, int $user_id): ?string {
     $stmt = get_db()->prepare('SELECT role FROM league_members WHERE league_id = ? AND user_id = ?');
     $stmt->execute([$league_id, $user_id]);
     $r = $stmt->fetchColumn();
     return $r !== false ? $r : null;
+}
+
+/**
+ * Single authoritative check for "can this user manage this event?"
+ * Returns true if the user is:
+ *   - a site admin,
+ *   - the event creator (events.created_by),
+ *   - an explicit per-event manager (event_invites.event_role='manager'), or
+ *   - an owner or manager of the league that owns the event (leagues.league_id, league_members.role).
+ *
+ * Replaces the scattered copies of this logic in calendar.php, calendar_dl.php,
+ * checkin.php, checkin_dl.php::is_owner_or_manager(), and _poker_helpers.php.
+ */
+function can_manage_event(PDO $db, int $event_id, int $user_id, bool $is_admin = false): bool {
+    if ($is_admin) return true;
+    if ($user_id <= 0 || $event_id <= 0) return false;
+
+    $stmt = $db->prepare("
+        SELECT e.created_by, e.league_id,
+               (SELECT 1 FROM event_invites ei
+                 JOIN users u ON LOWER(u.username) = LOWER(ei.username)
+                 WHERE ei.event_id = e.id AND u.id = ? AND ei.event_role = 'manager' LIMIT 1) AS is_event_mgr,
+               (SELECT lm.role FROM league_members lm
+                 WHERE lm.league_id = e.league_id AND lm.user_id = ? LIMIT 1) AS league_role
+        FROM events e WHERE e.id = ?
+    ");
+    $stmt->execute([$user_id, $user_id, $event_id]);
+    $row = $stmt->fetch();
+    if (!$row) return false;
+
+    if ((int)$row['created_by'] === $user_id) return true;
+    if (!empty($row['is_event_mgr'])) return true;
+    if (in_array($row['league_role'] ?? '', ['owner', 'manager'], true)) return true;
+    return false;
 }

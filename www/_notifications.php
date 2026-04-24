@@ -261,7 +261,30 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
     $uStmt = $db->prepare('SELECT username, email, phone, preferred_contact FROM users WHERE LOWER(username) = LOWER(?)');
     $uStmt->execute([$username]);
     $user = $uStmt->fetch();
-    if (!$user) return true; // user gone; clear
+
+    // Custom invitee fallback: the queued row references a `username` that isn't a
+    // registered GameNight user. Deliver via the email / phone stored directly on the
+    // event_invites row so hosts can invite people without accounts.
+    if (!$user) {
+        $ei = $db->prepare(
+            "SELECT username, email, phone FROM event_invites
+             WHERE event_id = ? AND LOWER(username) = LOWER(?)
+             ORDER BY (occurrence_date IS NULL) DESC, id LIMIT 1"
+        );
+        $ei->execute([$event_id, $username]);
+        $row = $ei->fetch();
+        if (!$row || (empty($row['email']) && empty($row['phone']))) {
+            return true; // nothing to send to — treat as handled, don't retry
+        }
+        $user = [
+            'username'          => $row['username'],
+            'email'             => $row['email'] ?? '',
+            'phone'             => $row['phone'] ?? '',
+            // Default channel: email if we have it, otherwise SMS (matches how phone-only
+            // signup users are created in register_user()).
+            'preferred_contact' => !empty($row['email']) ? 'email' : 'sms',
+        ];
+    }
 
     $site_url = get_site_url();
     $month    = substr($occ_date ?: $event['start_date'], 0, 7);

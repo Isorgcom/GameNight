@@ -4,6 +4,166 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19017] — 2026-04-24
+
+### Fixed
+- **Custom invitees now get added to the league Members tab reliably.** When a host added a "+Custom Invitee" to a league event, the invitee was added to the host's contacts but frequently did NOT show up on the League → Members tab, even when they were an existing registered user. Two gaps in `auto_add_pending_to_league()` in `db.php`: (1) the phone value from the combined "Email or phone" field was passed through raw (unnormalized), so `WHERE phone = ?` missed any `users.phone` stored in canonical `XXX-XXX-XXXX` form whenever the host typed a different format like `(281) 215-5889` or `2812155889`; (2) there was no username fallback, so a custom invitee typed as just a username (no contact info) never resolved to the real user. Function now runs `normalize_phone()` at its own boundary and falls back to `WHERE LOWER(username) = LOWER(?)` like `auto_add_contact()` already did.
+
+---
+
+## [v0.19016] — 2026-04-23
+
+### Changed
+- **Walk-in seat assignment survives phone verification.** When a walk-in user entered their SMS code, `verify_phone.php` replaced the seat tile ("Table X · Seat Y") with a generic "Account Verified" page — users had to go hunt for where to sit. Now `walkin.php` stashes the player id in the session alongside `verify_user_id`, and `verify_phone.php` re-renders the same blue seat tile above the Sign In button on success. Session keys are cleared after render so a refresh doesn't show stale info. Tile is skipped cleanly for non-walk-in verify flows (normal registration, resend).
+
+---
+
+## [v0.19015] — 2026-04-23
+
+### Security — OWASP Top-10 audit patches
+
+**High severity**
+- **Remember-me tokens invalidated on every password change.** Previously, changing your password via settings, resetting via email/SMS link, or having an admin reset it left old `remember_tokens` rows intact, so a stolen persistent-auth cookie continued to work. Every password-change path now runs `DELETE FROM remember_tokens WHERE user_id = ?` immediately after the hash update. Covers `settings.php`, `reset_password.php`, `user_edit.php`.
+- **Session regenerated after password reset.** `reset_password.php` now calls `session_regenerate_id(true)` and clears `$_SESSION` after a successful reset, so any session ID an attacker may have had is retired. User is forced to log in fresh with the new password.
+
+**Medium severity**
+- **RSVP token flip cap.** The one-click RSVP links in invite emails could be replayed indefinitely — anyone who captured the link could flip the RSVP back and forth forever, triggering notifications. New `event_invites.rsvp_token_flips` counter, capped at `MAX_RSVP_TOKEN_FLIPS = 10`. Past the cap, the link shows "Link Exhausted — sign in to change your RSVP."
+- **24-hour cumulative verification-code cap.** `verify_code()` previously capped attempts at 5 per row, but a user could resend-and-burn another 5 indefinitely. New 24-hour cumulative cap (`MAX_VERIFY_CODE_ATTEMPTS_PER_DAY = 20`) summed across all recent codes for that user.
+- **Per-identifier login rate limit.** The existing per-IP cap (5 failed logins per IP per 15 min) doesn't stop a distributed botnet from credential-stuffing a single known user from many IPs. New `MAX_LOGIN_FAILURES_PER_USER_PER_HOUR = 5` cap, scoped to the specific email / username / phone that failed, counted across all IPs.
+- **Comment rate limit.** `comment.php` had no throttle; any logged-in user could spam thousands of comments. New `MAX_COMMENTS_PER_HOUR = 20` per user.
+- **Walk-in hijack of existing users closed.** A visitor scanning the QR code could type a victim's email/phone and silently mark them as checked-in (if they had an approved invite) or auto-RSVP them (if the event was open). Now the walk-in form never flips an already-approved invite and always creates a `pending` row for any existing-user walk-in, regardless of the event's `requires_approval` setting. Host sees the pending row and can approve if legitimate.
+
+**Low severity**
+- **Atomic reset-token consumption.** `reset_password.php` now marks the token used via `UPDATE ... WHERE id=? AND used=0` and checks `rowCount()` before proceeding, closing a tight race window where two concurrent requests could both succeed with the same token.
+
+### Schema
+- Added `event_invites.rsvp_token_flips INTEGER NOT NULL DEFAULT 0` (try/catch migration).
+- Added four new constants to `db.php`: `MAX_COMMENTS_PER_HOUR`, `MAX_VERIFY_CODE_ATTEMPTS_PER_DAY`, `MAX_LOGIN_FAILURES_PER_USER_PER_HOUR`, `MAX_RSVP_TOKEN_FLIPS`.
+
+### Not changed (false positives verified)
+- `password_verify('', '')` returns **false** in PHP 8.x — empty password against empty hash does NOT authenticate. Walk-in users with empty `password_hash` cannot log in; they must go through the forgot-password flow. No fix needed.
+- `current_user()` already handles deleted-user sessions correctly via `fetch() ?: null`. No `deleted` column needed.
+- `invite_role` POST param is safe because the whole `save_invites` handler is gated by `can_manage_event()` upstream.
+
+---
+
+## [v0.19013] — 2026-04-23
+
+### Added
+- **Edit button on My Events rows.** Any event the user can manage (creator, per-event manager, league owner/manager, or admin — via `can_manage_event()`) now has a blue "Edit" button next to the green "Manage Game" button. Clicking it deep-links to `/calendar.php?open=ID&date=…&edit=1`, which auto-opens the event editor modal instead of the view-only modal. Appears on both upcoming and past event rows. Complements the Manage Game button which stays poker-only.
+
+### Implementation
+- `www/my_events.php` — two new conditional anchor tags keyed on the existing `$manageable[...]` lookup.
+- `www/calendar.php` — when the auto-open query includes `edit=1`, call `openEditModal()` instead of `viewEvent()`. No change to the access check (`can_manage_event()` still runs on submit).
+
+---
+
+## [v0.19012] — 2026-04-23
+
+### Changed
+- **Walk-in success screen now shows the assigned seat.** `auto_assign_table()` already picks a seat and writes it to `poker_players.seat_number`, but the walk-in success tile only showed the table. The tile now reads `Table X · Seat Y` (with the label switched from "Your Table" to "Your Seat"). Falls back to `Table X` alone if seat is null, so events without seat assignment are unchanged. Both the existing-user and new-user walk-in branches read the seat back after `auto_assign_table()`.
+
+---
+
+## [v0.19011] — 2026-04-23
+
+### Changed — walk-in verification model
+- **Walk-in registration now uses soft "verify-after-the-fact."** Previously walk-ins went through two extremes: verification blocking entry (pre-v0.19009) or no verification at all (v0.19009). Neither handled the "typo your email and create a dead account" problem. Now a walk-in new-user insert creates an unverified account but immediately sends the verification email (for email signups) or SMS 6-digit code (for phone signups), and the success screen surfaces:
+  - **Phone path:** an inline 6-digit input with a Verify button plus a "Skip for now" link. Submits to `/verify_phone.php` which already reads `$_SESSION['verify_user_id']`.
+  - **Email path:** a "Check your inbox" note with the destination email. The email includes the existing reset-password link so they can set a real password.
+- Users are registered for the event regardless of whether they verify — verification is about unlocking future login recovery, not gating event access.
+- `must_change_password = 1` stays so they must set a password on first login.
+- Existing walk-in accounts created under v0.19009 are unaffected (already flagged verified).
+
+---
+
+## [v0.19010] — 2026-04-23
+
+### Added
+- **Client-side phone auto-formatter.** Typing `8326422893` in any phone field now shows `(832) 642-2893` as you type. New shared script `www/_phone_input.js` binds to every `input[type="tel"]` and to combined "Email or phone" inputs tagged with `data-phone-contact`. Included on register, walk-in, contacts, league (add member), profile settings, user edit, and admin settings pages.
+- **Server-side phone format docs.** Added a docblock to `normalize_phone()` in `db.php` documenting the canonical `XXX-XXX-XXXX` storage format and every input shape it accepts (`8326422893`, `832-642-2893`, `(832) 642-2893`, `832.642.2893`, `+1 (832) 642-2893`, `1-832-642-2893`). Defensive `trim()` added up front — callers already trim, but cheap belt-and-suspenders.
+
+### Storage note (no change)
+- All phone numbers are stored in the canonical `XXX-XXX-XXXX` form in `users.phone`, `event_invites.phone`, `league_members.contact_phone`, and `user_contacts.contact_phone`. Every `WHERE phone = ?` lookup in the codebase compares against a `normalize_phone()`-d value, so regardless of input format, a phone-based login / lookup / dedup check succeeds.
+
+---
+
+## [v0.19009] — 2026-04-23
+
+### Changed
+- **Walk-in registration no longer sends a verification code or email.** The QR code token already proves the user is physically at the event, so confirming their phone/email exists is pointless friction. New walk-in accounts are now created with `email_verified=1` and `phone_verified=1` immediately. No SMS code, no email verification link, no session-dance through `/verify_phone.php`. The success screen just says "You're registered — have fun." `must_change_password=1` remains so the user is forced to set a password via `/settings.php?must_change=1` the first time they try to sign in later; they can also reset via the normal forgot-password flow (which sends via SMS or email now that v0.19000 is in place).
+
+### Reverted
+- Reverted v0.19008's phone-verify link and session-stashing on the walk-in success page — that fix addressed the wrong layer. The real fix is to not send the code at all.
+
+---
+
+## [v0.19008] — 2026-04-23
+
+### Fixed
+- **Phone-only walk-in users had no way to enter their SMS verification code.** `walkin.php` sent a 6-digit code via `send_verification_code()` but didn't stash `$_SESSION['verify_user_id']` / `$_SESSION['verify_method']`, so `/verify_phone.php` showed "Session expired". The success message also read "Check your email" regardless of channel. Fix: session vars set immediately after `send_verification_code()`; the success screen now shows a "tap here to enter it" link to `/verify_phone.php` for the phone branch while the email branch keeps its existing "check your inbox" copy. Applies to both the approved and waiting-list success paths.
+- **Walk-in accounts could never set a password.** Previously walk-ins were created with `password_hash = ''` and `must_change_password = 0`. Email walk-ins got around this because the verification email delivered a reset-password link, but phone walk-ins had no equivalent. Flipped to `must_change_password = 1` so the existing "must change" gate in `attempt_login()` (auth.php:157) redirects users to `/settings.php?must_change=1` on first sign-in regardless of channel.
+
+---
+
+## [v0.19007] — 2026-04-23
+
+### Changed
+- **Walk-in (QR-code) form collapsed to a single "Email or phone" field**, matching the main `/register.php` pattern from v0.19000. Backend auto-detects email vs. phone based on whether the value contains `@`; all downstream validation, normalization, verification dispatch, and `auto_add_to_league()` calls are unchanged. The remember-cookie renamed `walkin_email` → `walkin_contact` with a fallback to the old cookie so returning users still get pre-fill. Fewer taps at the door when a line of guests is scanning the QR code.
+
+### Confirmed (no change needed)
+- Walk-in registration already accepted email OR phone (v0.19000). Walk-in accounts created for league events are already auto-added to the league via `auto_add_to_league()` in both the existing-user (walkin.php:146) and new-user (walkin.php:221) paths. No backend change required for the "put them into the league" ask.
+
+---
+
+## [v0.19006] — 2026-04-22
+
+### Added
+- **Custom invitees on league events auto-join the league.** When a host saves an event attached to a league and adds a custom invitee (typed name + email or phone), that person is now upserted into `league_members` on save. If their email / phone matches an existing registered user, they're added as a regular member; otherwise a pending contact row is created with an `invite_token`. The league's Members tab surfaces them immediately with the "Pending" badge, and the existing claim logic in `register_user()` links them automatically when they sign up. Dedup is handled by a pre-check plus the partial unique index on `(league_id, LOWER(contact_email)) WHERE user_id IS NULL`.
+
+### Implementation
+- `www/db.php` — new helper `auto_add_pending_to_league(PDO, league_id, name, email, phone, invited_by)` next to `auto_add_to_league()`.
+- `www/calendar.php` — event add + edit save paths call the helper after `auto_add_contact` when `$league_id` is set.
+- `www/calendar_dl.php` — same two call sites in the mobile/recurring event paths.
+
+---
+
+## [v0.19005] — 2026-04-22
+
+### Changed
+- **Custom invitee row consolidated into a single "Email or phone" field.** Matches the registration form pattern introduced in v0.19000: one input, auto-detect on `@`. The submit-time collector splits the value into `invite_email` / `invite_phone` before posting so the existing backend + v0.19004 dispatch fallback continue to work unchanged.
+
+---
+
+## [v0.19004] — 2026-04-22
+
+### Added
+- **Custom invitees now accept phone numbers on the calendar event editor.** The "+ Custom" button on `calendar.php`'s event modal adds a row with three inputs — Name, Email, Phone — so a host can invite someone by email only, phone only, or both. The mobile variant in `calendar_dl.php` already had all three inputs.
+
+### Fixed
+- **Custom invitees actually get invited now.** `dispatch_queued_notification()` used to look up every queued invite by `users.username` — and when the invitee wasn't a registered user (which is exactly the case for typed-in custom invitees), it silently returned success and the invite was dropped. Added a fallback that reads the `email` / `phone` directly from the `event_invites` row and delivers via the appropriate channel (`send_email` / `send_sms`, SMS default for phone-only). Email invitees now receive the existing YES/NO/MAYBE buttons; phone invitees get the RSVP URL. Applies to every queued event notification type, not just invites.
+
+---
+
+## [v0.19003] — 2026-04-22
+
+### Changed — My Events screen
+- **League tag on each event row.** Events belonging to a league now show a small blue pill with the league name, clickable through to the league page. Uses the same visual style as the landing-feed `.league-badge`. Non-league events render unchanged.
+- **"Manage Game" button for all authorized managers.** The green Manage Game button is no longer creator-only — it now appears for anyone `can_manage_event()` accepts (site admin, creator, per-event manager, or league owner/manager). Still poker-only per scope; non-poker events get no button.
+
+### Implementation
+- `www/my_events.php` — `LEFT JOIN leagues` added to the events query, `league_name` surfaced per row, `$manageable` lookup precomputed with `can_manage_event()` (from `db.php`) so the button condition is one array check per row.
+
+---
+
+## [v0.19002] — 2026-04-22
+
+### Changed
+- **League managers can now manage every event in their league.** Previously, league owners and managers could edit basic event fields (title, date, invitees) from the calendar but couldn't approve pending players, start the timer, adjust blinds/payouts, or run table assignment for the same event — the calendar and poker paths used different permission checks. All event-management code now routes through a single `can_manage_event()` helper in `db.php` that returns true if the user is a site admin, the event creator, an explicit per-event manager (`event_invites.event_role='manager'`), or an owner/manager of the league the event belongs to. Affects: `calendar.php`, `calendar_dl.php`, `checkin.php`, `checkin_dl.php` (`is_owner_or_manager`), and `_poker_helpers.php` (`verify_event_access` / `check_event_access`).
+- **Edit pencil icon visibility.** The calendar's edit affordance on event chips now shows up for league managers on every event in their league (the underlying POST already accepted the change; only the UI was hiding it). Implemented by extending `$managedEventIds` to include league-owned events.
+
+---
+
 ## [v0.19001] — 2026-04-22
 
 ### Fixed
