@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19021] — 2026-04-25
+
+### Changed
+- **Removed the "Self-Hosted & Yours" feature card from the public landing page.** The card pitched Docker self-hosting as a feature, which is off-message for the SaaS landing page where most visitors will be signing up for the hosted service. Self-hosting is still fully supported and documented in the README; just not surfaced as a marketing point on the homepage.
+
+---
+
 ## [v0.19020] — 2026-04-24
 
 ### Added

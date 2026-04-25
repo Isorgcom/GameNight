@@ -69,11 +69,6 @@
         <h3>Posts &amp; Comments</h3>
         <p>Share announcements, pin important updates, and let your group discuss. Rich-text editor, comment threads, and a pinned-post feed on the home page.</p>
     </div>
-    <div class="feature-card">
-        <div class="icon">&#128295;</div>
-        <h3>Self-Hosted &amp; Yours</h3>
-        <p>Run it on your own server with Docker. SQLite database, no external dependencies, full admin panel. Your data stays with you — always.</p>
-    </div>
 </div>
 
 <div style="text-align:center;padding:3rem 1.5rem 4rem">
