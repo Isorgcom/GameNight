@@ -27,7 +27,7 @@ $isOwner          = $isAdmin || $myRole === 'owner';
 $canPost          = user_can_author_league_post($db, $league_id, $uid, $isAdmin);
 
 // Rules post lookup: shown as a prominent button in the header when present.
-$rulesStmt = $db->prepare('SELECT id, title, content, created_at, author_id FROM posts WHERE league_id = ? AND is_rules_post = 1 AND hidden = 0 LIMIT 1');
+$rulesStmt = $db->prepare('SELECT id, title, content, created_at, author_id, league_id, is_rules_post FROM posts WHERE league_id = ? AND is_rules_post = 1 AND hidden = 0 LIMIT 1');
 $rulesStmt->execute([$league_id]);
 $rulesPost = $rulesStmt->fetch() ?: null;
 
@@ -781,17 +781,26 @@ function ordinal($n) {
             <?php if (!$rulesPost): ?>
                 <p style="color:#64748b">No league rules have been set yet.<?php if ($canPost): ?> Create a post in the Posts tab and mark it as the league rules.<?php endif; ?></p>
             <?php else: ?>
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
+                <?php $canEditRules = user_can_edit_post($db, $rulesPost, $uid, $isAdmin); ?>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;gap:.5rem;flex-wrap:wrap">
                     <h2 style="margin:0;font-size:1.3rem;color:#92400e">&#128220; <?= htmlspecialchars($rulesPost['title']) ?></h2>
-                    <?php if ($canPost): ?>
-                    <form method="post" action="/league_posts_dl.php" style="margin:0"
-                          onsubmit="return confirm('Unset this post as the league rules? It will reappear in the Posts feed.')">
-                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
-                        <input type="hidden" name="action" value="clear_rules">
-                        <input type="hidden" name="post_id" value="<?= (int)$rulesPost['id'] ?>">
-                        <input type="hidden" name="redirect" value="/league.php?id=<?= $league_id ?>&tab=posts">
-                        <button type="submit" class="lg-btn lg-btn-ghost" style="font-size:.75rem">Unset rules flag</button>
-                    </form>
+                    <?php if ($canEditRules || $canPost): ?>
+                    <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+                        <?php if ($canEditRules): ?>
+                        <a href="?id=<?= $league_id ?>&tab=posts&edit=<?= (int)$rulesPost['id'] ?>"
+                           class="lg-btn lg-btn-ghost" style="font-size:.75rem">Edit</a>
+                        <?php endif; ?>
+                        <?php if ($canPost): ?>
+                        <form method="post" action="/league_posts_dl.php" style="margin:0"
+                              onsubmit="return confirm('Unset this post as the league rules? It will reappear in the Posts feed.')">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                            <input type="hidden" name="action" value="clear_rules">
+                            <input type="hidden" name="post_id" value="<?= (int)$rulesPost['id'] ?>">
+                            <input type="hidden" name="redirect" value="/league.php?id=<?= $league_id ?>&tab=posts">
+                            <button type="submit" class="lg-btn lg-btn-ghost" style="font-size:.75rem">Unset rules flag</button>
+                        </form>
+                        <?php endif; ?>
+                    </div>
                     <?php endif; ?>
                 </div>
                 <div class="post-body" style="line-height:1.75;color:#334155"><?= sanitize_html($rulesPost['content']) ?></div>
@@ -818,9 +827,13 @@ function ordinal($n) {
         }
         ?>
 
-        <?php if ($canPost): ?>
+        <?php
+        // When editing the rules post, round-trip the user back to the Rules tab on save/cancel.
+        $backTab = ($editPost && !empty($editPost['is_rules_post'])) ? 'rules' : 'posts';
+        ?>
+        <?php if ($canPost || ($editPost && $backTab === 'rules')): ?>
         <div class="lg-card" style="display:block">
-            <h3 style="margin:0 0 .75rem"><?= $editPost ? 'Edit post' : 'New post' ?></h3>
+            <h3 style="margin:0 0 .75rem"><?= $editPost ? ($backTab === 'rules' ? 'Edit rules' : 'Edit post') : 'New post' ?></h3>
             <form method="post" action="/league_posts_dl.php" id="leaguePostForm">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                 <input type="hidden" name="action" value="<?= $editPost ? 'update' : 'create' ?>">
@@ -828,7 +841,7 @@ function ordinal($n) {
                 <?php if ($editPost): ?>
                     <input type="hidden" name="post_id" value="<?= (int)$editPost['id'] ?>">
                 <?php endif; ?>
-                <input type="hidden" name="redirect" value="/league.php?id=<?= $league_id ?>&tab=posts">
+                <input type="hidden" name="redirect" value="/league.php?id=<?= $league_id ?>&tab=<?= $backTab ?>">
                 <label style="display:block;font-size:.8rem;font-weight:600;margin-bottom:.25rem">Title</label>
                 <input type="text" name="title" required maxlength="200" value="<?= htmlspecialchars($editPost['title'] ?? '') ?>"
                        style="width:100%;padding:.5rem;border:1.5px solid #cbd5e1;border-radius:6px;margin-bottom:.75rem;font:inherit">
@@ -837,7 +850,7 @@ function ordinal($n) {
                 <div style="display:flex;gap:.5rem;margin-top:.75rem">
                     <button type="submit" class="lg-btn lg-btn-primary"><?= $editPost ? 'Save changes' : 'Publish' ?></button>
                     <?php if ($editPost): ?>
-                    <a href="?id=<?= $league_id ?>&tab=posts" class="lg-btn lg-btn-ghost">Cancel</a>
+                    <a href="?id=<?= $league_id ?>&tab=<?= $backTab ?>" class="lg-btn lg-btn-ghost">Cancel</a>
                     <?php endif; ?>
                 </div>
             </form>

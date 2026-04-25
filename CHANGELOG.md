@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19020] — 2026-04-24
+
+### Added
+- **Edit button on the League Rules tab.** Previously, editing a league's Rules post required unsetting the rules flag, editing the post in the Posts tab, and re-flagging it — because the Posts tab feed filters rules posts out, the rules post was otherwise unreachable. New **Edit** button sits next to "Unset rules flag," visible to anyone `user_can_edit_post()` allows (admin, original author, league owner/manager). Clicking it opens the existing Jodit editor pre-filled with the rules title and content; the form round-trips back to the Rules tab on Save or Cancel via a `$backTab` flag derived from `is_rules_post`. No new endpoint or schema change — the existing `update` action in `league_posts_dl.php` handles rules posts identically to regular posts.
+
+---
+
 ## [v0.19019] — 2026-04-24
 
 ### Changed
