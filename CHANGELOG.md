@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19022] — 2026-04-25
+
+### Fixed
+- **Walk-in autocomplete on the Manage Game screen leaked every site username to non-admins.** When a non-admin user (e.g. a league owner) opened a poker session's Manage Game page and typed in the "Add player" field, the autocomplete dropdown showed every username on the site, including users from other leagues and the site admin. The walk-in screen now applies the same scoping as the event editor's invite picker: admins still see all usernames, but non-admins only see members of the event's league plus their own personal contacts. Reported by williamwestmo, who was seeing `admin`, `brad`, and others he had no relationship to.
+
+---
+
 ## [v0.19021] — 2026-04-25
 
 ### Changed

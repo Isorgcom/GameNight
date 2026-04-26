@@ -19,7 +19,44 @@ if (!can_manage_event($db, (int)$event_id, (int)$current['id'], $isAdmin)) {
 
 $site_name = get_setting('site_name', 'Game Night');
 $csrf = csrf_token();
-$allUsernames = array_column($db->query('SELECT username FROM users ORDER BY username')->fetchAll(), 'username');
+
+// Walk-in autocomplete suggestions. Admins see every site username; non-admins see only
+// usernames they would already have access to via the event editor's invite picker:
+// the event's league roster (if any) plus their personal contacts.
+if ($isAdmin) {
+    $allUsernames = array_column(
+        $db->query('SELECT username FROM users ORDER BY username')->fetchAll(),
+        'username'
+    );
+} else {
+    $allUsernames = [];
+    $_seen = [];
+    $_uid = (int)$current['id'];
+    $_evLeague = (int)($event['league_id'] ?? 0);
+    if ($_evLeague > 0) {
+        $st = $db->prepare(
+            'SELECT u.username FROM league_members lm
+             JOIN users u ON u.id = lm.user_id
+             WHERE lm.league_id = ?'
+        );
+        $st->execute([$_evLeague]);
+        foreach ($st->fetchAll() as $r) {
+            $key = strtolower($r['username']);
+            if (!isset($_seen[$key])) { $_seen[$key] = true; $allUsernames[] = $r['username']; }
+        }
+    }
+    $st = $db->prepare(
+        'SELECT u.username FROM user_contacts c
+         JOIN users u ON u.id = c.linked_user_id
+         WHERE c.owner_user_id = ? AND c.linked_user_id IS NOT NULL'
+    );
+    $st->execute([$_uid]);
+    foreach ($st->fetchAll() as $r) {
+        $key = strtolower($r['username']);
+        if (!isset($_seen[$key])) { $_seen[$key] = true; $allUsernames[] = $r['username']; }
+    }
+    sort($allUsernames, SORT_FLAG_CASE | SORT_STRING);
+}
 
 // Check if session already exists
 $sessStmt = $db->prepare('SELECT * FROM poker_sessions WHERE event_id = ?');
