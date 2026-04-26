@@ -20,6 +20,12 @@ RUN docker-php-ext-configure pdo_sqlite --with-pdo-sqlite=/usr/local \
 RUN sed -i 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf \
     && a2enmod rewrite
 
+# Tune prefork MPM for a small-RAM host. Default MaxRequestWorkers=150 can OOM a
+# 512 MB VPS at peak load; cap at 25 to keep memory bounded. PHP can use up to
+# memory_limit (128 MB) per request, so 25 workers ~ 3 GB worst case headroom.
+RUN printf '<IfModule mpm_prefork_module>\n    StartServers            3\n    MinSpareServers         3\n    MaxSpareServers         8\n    MaxRequestWorkers       25\n    MaxConnectionsPerChild  500\n</IfModule>\n' > /etc/apache2/conf-available/mpm-tuning.conf \
+    && a2enconf mpm-tuning
+
 # Raise PHP upload limits
 RUN echo "upload_max_filesize=20M\npost_max_size=22M" > /usr/local/etc/php/conf.d/uploads.ini
 

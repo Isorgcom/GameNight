@@ -4,6 +4,14 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19023] — 2026-04-26
+
+### Performance
+- **Tuned Apache prefork MPM for the 458 MB VPS.** Default config allowed up to 150 worker processes; with PHP `memory_limit=128M`, that's a worst-case ~19 GB RAM footprint on a host with 458 MB. A traffic spike could OOM the host and kill all six containers running on it. New config caps `MaxRequestWorkers` at 25 (worst case ~3 GB, comfortably absorbed by swap if it ever lands there) and adds `MaxConnectionsPerChild=500` so workers recycle and release memory periodically. Configured in the Dockerfile via `/etc/apache2/conf-available/mpm-tuning.conf` so it survives rebuilds.
+- **Indexed `events.start_date` and `events.end_date`.** The calendar's main month/week query (`event_visibility_sql`) was full-scanning the events table on every page load. With three events that's nothing, but it would have dominated page load at any meaningful scale. Indexes added via `db_init()` so they get created automatically on next request for any existing deployment.
+
+---
+
 ## [v0.19022] — 2026-04-25
 
 ### Fixed

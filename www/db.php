@@ -608,6 +608,11 @@ function db_init(PDO $pdo): void {
     // Unique index on (event_id, username, occurrence_date) to prevent future duplicates
     try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS uq_event_invites_user ON event_invites(event_id, LOWER(username), COALESCE(occurrence_date, ''))"); } catch (Exception $e) {}
 
+    // Calendar's main month/week query filters by start_date and end_date. Without
+    // these indexes the planner full-scans events on every page load.
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_events_start_date ON events(start_date)"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_events_end_date   ON events(end_date) WHERE end_date IS NOT NULL"); } catch (Exception $e) {}
+
     // Per-event waitlist toggle (default ON for backwards compat)
     try { $pdo->exec("ALTER TABLE events ADD COLUMN waitlist_enabled INTEGER NOT NULL DEFAULT 1"); } catch (Exception $e) {}
 
