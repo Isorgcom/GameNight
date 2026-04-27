@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19101] — 2026-04-27
+
+### Fixed
+- **Hidden-league deny page now keeps the site nav and explains why.** When a non-member opened a hidden league's URL directly, the page returned a bare `Not allowed` text response with no header, footer, or back-link, which felt like a broken page. The deny path now renders a full page with the standard nav + footer and a friendly explanation: the league is set to hidden, members-only, can't be joined directly, and the user should ask an owner/manager for an invite. Two CTAs at the bottom (Browse leagues / Go home) give a clear way out. The 403 status code is preserved.
+
+---
+
 ## [v0.19100] — 2026-04-27
 
 ### Added

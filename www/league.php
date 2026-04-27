@@ -20,7 +20,10 @@ if (!$league) { http_response_code(404); echo 'League not found'; exit; }
 $myRole = league_role($league_id, $uid);
 $canViewHidden = $isAdmin || $myRole !== null;
 if ((int)$league['is_hidden'] === 1 && !$canViewHidden) {
-    http_response_code(403); echo 'Not allowed'; exit;
+    http_response_code(403);
+    $denyReason = 'hidden_non_member';
+    require __DIR__ . '/_league_denied.php';
+    exit;
 }
 
 $canManageMembers = $isAdmin || in_array($myRole, ['owner', 'manager'], true);
