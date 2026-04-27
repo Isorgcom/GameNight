@@ -167,6 +167,9 @@ function db_init(PDO $pdo): void {
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_posts_league ON posts(league_id, created_at)"); } catch (Exception $e) {}
     // At most one rules post per league. Partial index so global posts (league_id IS NULL) are unaffected.
     try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_posts_one_rules_per_league ON posts(league_id, is_rules_post) WHERE is_rules_post = 1"); } catch (Exception $e) {}
+    // Public share-link token for league posts. Token-bearer can view a single post without league membership.
+    try { $pdo->exec("ALTER TABLE posts ADD COLUMN share_token TEXT"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_posts_share_token ON posts(share_token) WHERE share_token IS NOT NULL"); } catch (Exception $e) {}
 
     // Add phone to users if it doesn't exist yet
     try { $pdo->exec("ALTER TABLE users ADD COLUMN phone TEXT"); } catch (Exception $e) {}

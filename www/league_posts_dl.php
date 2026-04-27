@@ -11,11 +11,15 @@
  *   clear_rules   — owner/manager/admin: unset the rules flag
  *   toggle_pin    — owner/manager/admin: pin/unpin a league post
  *   toggle_hide   — owner/manager/admin: hide/unhide
+ *   share_enable  — owner/manager/admin: mint share_token if absent (idempotent)
+ *   share_disable — owner/manager/admin: clear share_token (kills public link)
+ *   share_regen   — owner/manager/admin: rotate share_token (invalidates old link)
  */
 
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/_posts.php';
+require_once __DIR__ . '/sms.php'; // shorten_url()
 
 $current = require_login();
 $db      = get_db();
@@ -171,6 +175,45 @@ switch ($action) {
         $new = (int)($p['hidden'] ?? 0) === 1 ? 0 : 1;
         $db->prepare('UPDATE posts SET hidden = ? WHERE id = ?')->execute([$new, $post_id]);
         pok(['hidden' => $new]);
+    }
+
+    case 'share_enable':
+    case 'share_regen': {
+        $post_id = (int)($_POST['post_id'] ?? 0);
+        if ($post_id <= 0) pfail('post_id required');
+        $p = load_post($db, $post_id);
+        $league_id = (int)($p['league_id'] ?? 0);
+        if ($league_id === 0) pfail('Not a league post', 400);
+        if (!user_can_author_league_post($db, $league_id, $uid, $isAdmin)) pfail('Not allowed', 403);
+
+        $existing = (string)($p['share_token'] ?? '');
+        // share_enable is idempotent (keep token if present); share_regen always rotates.
+        if ($action === 'share_enable' && $existing !== '') {
+            $token = $existing;
+        } else {
+            $token = bin2hex(random_bytes(16));
+            $db->prepare('UPDATE posts SET share_token = ? WHERE id = ?')->execute([$token, $post_id]);
+            db_log_activity($uid, ($action === 'share_regen' ? 'regenerated' : 'enabled')
+                . " share link post id=$post_id league=$league_id");
+        }
+        $share_url = get_site_url() . '/post_public.php?token=' . $token;
+        if (get_setting('url_shortener_enabled') === '1') {
+            $share_url = shorten_url($share_url);
+        }
+        pok(['share_token' => $token, 'share_url' => $share_url]);
+    }
+
+    case 'share_disable': {
+        $post_id = (int)($_POST['post_id'] ?? 0);
+        if ($post_id <= 0) pfail('post_id required');
+        $p = load_post($db, $post_id);
+        $league_id = (int)($p['league_id'] ?? 0);
+        if ($league_id === 0) pfail('Not a league post', 400);
+        if (!user_can_author_league_post($db, $league_id, $uid, $isAdmin)) pfail('Not allowed', 403);
+
+        $db->prepare('UPDATE posts SET share_token = NULL WHERE id = ?')->execute([$post_id]);
+        db_log_activity($uid, "disabled share link post id=$post_id league=$league_id");
+        pok();
     }
 
     default:

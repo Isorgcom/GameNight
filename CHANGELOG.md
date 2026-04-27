@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19100] — 2026-04-27
+
+### Added
+- **Public share links for league posts.** League owners, managers, and site admins can now mark an individual league post as publicly readable via a generated link. The post stays hidden from every feed (homepage, league pages, search) for non-members, but anyone holding the URL can open `/post_public.php?token=...` and read it without logging in. Comments are visible read-only to non-members; only logged-in league members and admins see the comment form. Three new actions on `/league_posts_dl.php`: `share_enable` (mints a token, idempotent), `share_regen` (rotates the token, invalidating the previous link), and `share_disable` (clears the token, killing the link). New `posts.share_token` column with a unique partial index. The public page sets `meta robots noindex,nofollow` so search engines won't index the URL. UI lives next to the existing Pin / Hide / Set-as-rules controls on the league Posts tab — Make public, Copy URL, Regenerate, Disable. A Public-link badge appears on shared posts so members can see which posts are exposed. When the URL shortener (`url_shortener_enabled`) is on, the displayed share URL is run through the existing `shorten_url()` helper so users see a short.io link instead of the long token URL.
+
+---
+
 ## [v0.19027] — 2026-04-27
 
 ### Added

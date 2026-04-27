@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/_posts.php';
+require_once __DIR__ . '/sms.php'; // shorten_url() used in share-panel render and league invite flows
 
 $current   = require_login();
 $db        = get_db();
@@ -810,7 +811,7 @@ function ordinal($n) {
     <?php elseif ($tab === 'posts'): ?>
         <?php
         // Load league posts for this tab (excluding rules-flagged, excluding hidden — admins included).
-        $lpStmt = $db->prepare("SELECT p.id, p.title, p.content, p.created_at, p.pinned, p.league_id, p.author_id, u.username AS author_name
+        $lpStmt = $db->prepare("SELECT p.id, p.title, p.content, p.created_at, p.pinned, p.league_id, p.author_id, p.share_token, u.username AS author_name
                                 FROM posts p LEFT JOIN users u ON u.id = p.author_id
                                 WHERE p.league_id = ? AND p.is_rules_post = 0 AND p.hidden = 0
                                 ORDER BY p.pinned DESC, p.created_at DESC");
@@ -890,13 +891,16 @@ function ordinal($n) {
             $lp_comments = $lp_comments_stmt->fetchAll();
         ?>
         <div class="lg-card" style="display:block" id="post-<?= (int)$lp['id'] ?>">
-            <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem;font-size:.78rem;color:#94a3b8">
+            <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem;font-size:.78rem;color:#94a3b8;flex-wrap:wrap">
                 <?php if ($lp['pinned']): ?><span class="pin-badge">&#128204; Pinned</span><?php endif; ?>
+                <?php if (!empty($lp['share_token'])): ?>
+                    <span title="This post has a public share link" style="font-size:.7rem;font-weight:600;color:#166534;background:#dcfce7;border:1px solid #86efac;border-radius:999px;padding:.1rem .5rem">&#128279; Public link</span>
+                <?php endif; ?>
                 <span>&#128197; <?= htmlspecialchars((new DateTime($lp['created_at'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone(get_setting('timezone', 'UTC')))->format('F j, Y')) ?></span>
                 <?php if (!empty($lp['author_name'])): ?><span>by <?= htmlspecialchars($lp['author_name']) ?></span><?php endif; ?>
                 <?php if ($lp_can_edit): ?>
                 <?php $__pbtn = 'font-size:.72rem;padding:.25rem .7rem;min-width:72px;text-align:center;line-height:1.2;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center'; ?>
-                <div style="margin-left:auto;display:flex;gap:.4rem;align-items:center">
+                <div style="margin-left:auto;display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
                     <a href="?id=<?= $league_id ?>&tab=posts&edit=<?= (int)$lp['id'] ?>" class="lg-btn lg-btn-ghost" style="<?= $__pbtn ?>">Edit</a>
                     <form method="post" action="/league_posts_dl.php" style="margin:0" onsubmit="return confirm('Delete this post?')">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
@@ -905,6 +909,7 @@ function ordinal($n) {
                         <input type="hidden" name="redirect" value="/league.php?id=<?= $league_id ?>&tab=posts">
                         <button type="submit" class="lg-btn lg-btn-ghost" style="<?= $__pbtn ?>;color:#ef4444">Delete</button>
                     </form>
+                    <?php if ($canPost): ?>
                     <form method="post" action="/league_posts_dl.php" style="margin:0"
                           onsubmit="return confirm(<?= $rulesPost ? "'This will replace the current league rules post. Continue?'" : "'Mark this post as the league rules? It will be moved out of the Posts feed and accessible via the League Rules button.'" ?>);">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
@@ -913,9 +918,57 @@ function ordinal($n) {
                         <input type="hidden" name="redirect" value="/league.php?id=<?= $league_id ?>&tab=rules">
                         <button type="submit" class="lg-btn lg-btn-ghost" style="<?= $__pbtn ?>;color:#92400e">Set as rules</button>
                     </form>
+                    <?php if (empty($lp['share_token'])): ?>
+                    <form method="post" action="/league_posts_dl.php" style="margin:0"
+                          onsubmit="return confirm('Make this post readable by anyone with the link? It will not appear in any public feed.');">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                        <input type="hidden" name="action" value="share_enable">
+                        <input type="hidden" name="post_id" value="<?= (int)$lp['id'] ?>">
+                        <input type="hidden" name="redirect" value="/league.php?id=<?= $league_id ?>&tab=posts#post-<?= (int)$lp['id'] ?>">
+                        <button type="submit" class="lg-btn lg-btn-ghost" style="<?= $__pbtn ?>;color:#166534">Make public</button>
+                    </form>
+                    <?php else: ?>
+                    <button type="button" class="lg-btn lg-btn-ghost" style="<?= $__pbtn ?>;color:#166534"
+                            onclick="document.getElementById('share-panel-<?= (int)$lp['id'] ?>').style.display = (document.getElementById('share-panel-<?= (int)$lp['id'] ?>').style.display === 'none' ? '' : 'none')">
+                        Share link
+                    </button>
+                    <?php endif; ?>
+                    <?php endif; ?>
                 </div>
                 <?php endif; ?>
             </div>
+            <?php if ($canPost && !empty($lp['share_token'])):
+                $__share_url = get_site_url() . '/post_public.php?token=' . $lp['share_token'];
+                if (get_setting('url_shortener_enabled') === '1') { $__share_url = shorten_url($__share_url); }
+            ?>
+            <div id="share-panel-<?= (int)$lp['id'] ?>" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.75rem 1rem;margin-bottom:.75rem;font-size:.82rem;color:#475569">
+                <div style="margin-bottom:.5rem"><strong>Public link</strong> &mdash; anyone with this URL can read the post (it stays hidden from feeds).</div>
+                <div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
+                    <input type="text" readonly value="<?= htmlspecialchars($__share_url) ?>"
+                           id="share-url-<?= (int)$lp['id'] ?>"
+                           onclick="this.select()"
+                           style="flex:1;min-width:200px;font-family:monospace;font-size:.78rem;padding:.35rem .5rem;border:1px solid #cbd5e1;border-radius:5px;background:#fff">
+                    <button type="button" class="lg-btn lg-btn-ghost" style="font-size:.72rem;padding:.25rem .7rem"
+                            onclick="(async()=>{try{await navigator.clipboard.writeText(document.getElementById('share-url-<?= (int)$lp['id'] ?>').value);this.textContent='Copied';setTimeout(()=>this.textContent='Copy',1500);}catch(e){document.getElementById('share-url-<?= (int)$lp['id'] ?>').select();document.execCommand('copy');this.textContent='Copied';setTimeout(()=>this.textContent='Copy',1500);}})()">Copy</button>
+                    <form method="post" action="/league_posts_dl.php" style="margin:0"
+                          onsubmit="return confirm('Generate a new link? The current link will stop working.');">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                        <input type="hidden" name="action" value="share_regen">
+                        <input type="hidden" name="post_id" value="<?= (int)$lp['id'] ?>">
+                        <input type="hidden" name="redirect" value="/league.php?id=<?= $league_id ?>&tab=posts#post-<?= (int)$lp['id'] ?>">
+                        <button type="submit" class="lg-btn lg-btn-ghost" style="font-size:.72rem;padding:.25rem .7rem;color:#92400e">Regenerate</button>
+                    </form>
+                    <form method="post" action="/league_posts_dl.php" style="margin:0"
+                          onsubmit="return confirm('Disable the public link? The URL will stop working immediately.');">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                        <input type="hidden" name="action" value="share_disable">
+                        <input type="hidden" name="post_id" value="<?= (int)$lp['id'] ?>">
+                        <input type="hidden" name="redirect" value="/league.php?id=<?= $league_id ?>&tab=posts#post-<?= (int)$lp['id'] ?>">
+                        <button type="submit" class="lg-btn lg-btn-ghost" style="font-size:.72rem;padding:.25rem .7rem;color:#ef4444">Disable</button>
+                    </form>
+                </div>
+            </div>
+            <?php endif; ?>
             <h3 style="margin:0 0 .5rem;font-size:1.15rem"><?= htmlspecialchars($lp['title']) ?></h3>
             <div class="post-body" style="line-height:1.75;color:#334155"><?= sanitize_html($lp['content']) ?></div>
 
