@@ -4,6 +4,14 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19026] — 2026-04-27
+
+### Fixed
+- **Tokenized RSVP links no longer flip RSVPs on GET — confirmation required.** Investigating Paul on event 67 ("Kipling poker 17th") turned up `rsvp_token_flips=4` despite the host only seeing one or two real replies. Docker access logs showed three GETs to all three RSVP options (yes/no/maybe) within the same second, five seconds after the SMS was delivered — classic SMS provider URL safety scanner / link-preview crawler behavior. Because `rsvp.php` wrote the RSVP on GET, the crawler effectively flipped Paul's response three times before he ever opened the message; his stored `yes` was correct only by luck of the last hit being a YES tap. The fix splits `rsvp.php` into a GET branch (renders a "Confirm Your RSVP" page with a form) and a POST branch (the existing flip logic, now CSRF-protected). Existing short links and SMS templates are unchanged — they still work, they just take one extra Confirm tap. Crawlers that only fetch GETs leave invite state untouched.
+- **Activity log now records pending-invitee RSVP flips.** Previously `rsvp.php` only wrote to `activity_log` if the invitee had a registered user account, so phone-only pending invitees (the majority of league rosters) left no audit trail. New flips for non-account invitees now log with `user_id=0` and the username + invite_id encoded in the action text.
+
+---
+
 ## [v0.19025] — 2026-04-27
 
 ### Fixed

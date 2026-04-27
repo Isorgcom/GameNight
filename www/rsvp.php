@@ -1,14 +1,20 @@
 <?php
 /**
- * Tokenized RSVP endpoint — allows users to RSVP via email link without logging in.
+ * Tokenized RSVP endpoint — allows users to RSVP via email/SMS link without logging in.
  *
  * Usage: /rsvp.php?token=XXX&r=yes|no|maybe
+ *
+ * GET renders a confirmation form. POST applies the RSVP. This split exists because
+ * SMS provider URL safety scanners and link-preview crawlers hit every URL in a
+ * message body within seconds of delivery — a 1-click GET-that-writes lets those
+ * crawlers silently flip an invitee's RSVP before the human ever opens the message.
+ * Confirmation-on-POST keeps the link safe from background fetches.
  */
-require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/version.php';
 
-$token      = trim($_GET['token'] ?? '');
-$rsvp       = strtolower(trim($_GET['r'] ?? ''));
+$token      = trim($_REQUEST['token'] ?? '');
+$rsvp       = strtolower(trim($_REQUEST['r'] ?? ''));
 $allowMaybe = get_setting('allow_maybe_rsvp', '1') === '1';
 $valid       = array_merge(['yes', 'no'], $allowMaybe ? ['maybe'] : []);
 
@@ -41,11 +47,51 @@ if (($invite['approval_status'] ?? 'approved') !== 'approved') {
     exit;
 }
 
-// Security: cap how many times an rsvp_token can flip the RSVP value so a leaked
-// invite link can't be replayed indefinitely. The user can still change their RSVP
-// after this cap — they just have to sign in instead of using the one-click link.
-$flipsSoFar = (int)($invite['rsvp_token_flips'] ?? 0);
+$flipsSoFar   = (int)($invite['rsvp_token_flips'] ?? 0);
 $rsvp_changed = ($invite['rsvp'] ?? '') !== $rsvp;
+$label        = ucfirst($rsvp);
+$date_str     = $invite['start_date'] . ($invite['start_time'] ? ' at ' . date('g:i A', strtotime($invite['start_time'])) : '');
+
+// Look up whether the invitee has a registered account (used by both branches).
+$userStmt = $db->prepare('SELECT id FROM users WHERE LOWER(username) = LOWER(?)');
+$userStmt->execute([$invite['username']]);
+$userRow = $userStmt->fetch();
+
+// ── GET: render confirmation form (no state change) ──────────────────────────
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    if ($rsvp_changed && $flipsSoFar >= MAX_RSVP_TOKEN_FLIPS) {
+        show_page('Link Exhausted',
+            'This RSVP link has been used too many times. Please <a href="/login.php">sign in</a> to change your RSVP for <strong>' . htmlspecialchars($invite['title']) . '</strong>.',
+            'error');
+        exit;
+    }
+
+    $csrf      = csrf_token();
+    $alreadySet = !$rsvp_changed;
+    $heading   = $alreadySet ? 'Confirm RSVP: ' . $label : 'Confirm Your RSVP';
+    $body      = '<p>Confirm your RSVP for <strong>' . htmlspecialchars($invite['title']) . '</strong> on ' . htmlspecialchars($date_str) . ' as <strong>' . $label . '</strong>?</p>';
+    $btnColor  = $rsvp === 'yes' ? '#16a34a' : ($rsvp === 'no' ? '#dc2626' : '#d97706');
+    $body     .= '<form method="post" action="/rsvp.php" style="margin-top:1.5rem">'
+              . '<input type="hidden" name="csrf_token" value="' . htmlspecialchars($csrf) . '">'
+              . '<input type="hidden" name="token" value="' . htmlspecialchars($token) . '">'
+              . '<input type="hidden" name="r" value="' . htmlspecialchars($rsvp) . '">'
+              . '<button type="submit" style="display:inline-block;padding:.7rem 2rem;border:none;border-radius:6px;background:' . $btnColor . ';color:#fff;font-weight:600;font-size:1rem;cursor:pointer">Confirm ' . $label . '</button>'
+              . '</form>'
+              . '<p style="margin-top:1rem"><a href="/" style="color:#64748b;text-decoration:none;font-size:.875rem">Cancel</a></p>';
+    show_page($heading, $body, 'success');
+    exit;
+}
+
+// ── POST: apply the RSVP ─────────────────────────────────────────────────────
+// csrf_verify() reads $_SESSION but doesn't start the session itself, so we
+// must do it explicitly here (the GET branch starts it via csrf_token()).
+session_start_safe();
+if (!csrf_verify()) {
+    http_response_code(400);
+    show_page('Session Expired', 'Please tap the link again to confirm your RSVP.', 'error');
+    exit;
+}
+
 if ($rsvp_changed && $flipsSoFar >= MAX_RSVP_TOKEN_FLIPS) {
     show_page('Link Exhausted',
         'This RSVP link has been used too many times. Please <a href="/login.php">sign in</a> to change your RSVP for <strong>' . htmlspecialchars($invite['title']) . '</strong>.',
@@ -67,19 +113,18 @@ if ($rsvp === 'no') {
     maybe_promote_waitlisted($db, (int)$invite['event_id']);
 }
 
-$label   = ucfirst($rsvp);
-$date_str = $invite['start_date'] . ($invite['start_time'] ? ' at ' . date('g:i A', strtotime($invite['start_time'])) : '');
-
-// Log activity and notify creator only if RSVP actually changed
-$userStmt = $db->prepare('SELECT id FROM users WHERE LOWER(username) = LOWER(?)');
-$userStmt->execute([$invite['username']]);
-$userRow = $userStmt->fetch();
-if ($rsvp_changed && $userRow) {
-    $db->prepare('INSERT INTO activity_log (user_id, action, ip) VALUES (?, ?, ?)')
-       ->execute([$userRow['id'], "Email RSVP $rsvp for event id: " . $invite['event_id'], $_SERVER['REMOTE_ADDR'] ?? '']);
-}
-
+// Log every flip via tokenized link, even for pending (non-account) invitees,
+// so future audits can see who clicked what. user_id=0 is the convention used
+// elsewhere in activity_log for unattributable rows (e.g. walkin_rsvp).
 if ($rsvp_changed) {
+    if ($userRow) {
+        $db->prepare('INSERT INTO activity_log (user_id, action, ip) VALUES (?, ?, ?)')
+           ->execute([$userRow['id'], "Email RSVP $rsvp for event id: " . $invite['event_id'], $_SERVER['REMOTE_ADDR'] ?? '']);
+    } else {
+        $db->prepare('INSERT INTO activity_log (user_id, action, ip) VALUES (?, ?, ?)')
+           ->execute([0, "Email RSVP $rsvp for event id: " . $invite['event_id'] . " (pending invitee: " . $invite['username'] . ", invite_id: " . $invite['id'] . ")", $_SERVER['REMOTE_ADDR'] ?? '']);
+    }
+
     $creatorStmt = $db->prepare('SELECT u.username FROM events e JOIN users u ON u.id=e.created_by WHERE e.id=?');
     $creatorStmt->execute([$invite['event_id']]);
     $creator = $creatorStmt->fetch();
