@@ -4,6 +4,14 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19025] — 2026-04-27
+
+### Fixed
+- **Pending league members (phone-only) now appear in the event editor's invite picker.** Two related bugs: (1) the picker's pending-league SQL used `LOWER(contact_email) AS username`, which came back NULL for invitees added with phone only — the dedup helper then silently dropped them. SQL now falls back to phone, then to a synthetic `pending:NN` key. (2) Admins were never running through the pending-league branch at all; their early-return only loaded site users. Admins now also get pending league invitees when a league is selected, just like non-admins do.
+- **Pending invitees clicked from All Users now show their name on the Invited side.** Because the picker's synthetic username for phone-only pending invitees is the phone number, clicking one to invite them rendered the phone digits as the visible label. The picker now uses `display_name` as the saved invite username for pending rows, so invited entries read "Randy" instead of "8328074749" and the saved `invite_username` carries the human name.
+
+---
+
 ## [v0.19023] — 2026-04-26
 
 ### Performance

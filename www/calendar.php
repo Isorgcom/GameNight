@@ -2630,12 +2630,16 @@ function buildAllUsersList() {
     ul.innerHTML = '';
     ALL_USERS.forEach(u => {
         const display = u.display_name || u.username;
+        // For pending invitees the synthetic username is a phone number or "pending:NN".
+        // Use the human display_name as the saved invite_username so the invited row
+        // shows a real name and the saved invite carries the name (not a phone).
+        const savedName = u.is_pending ? (u.display_name || u.username || '') : (u.username || '');
         const li = document.createElement('li');
         li.dataset.username = (u.username || '').toLowerCase();
         li.dataset.email    = (u.email    || '').toLowerCase();
         li.dataset.phone    = (u.phone    || '').replace(/\D/g,'');
         li.dataset.display  = (display    || '').toLowerCase();
-        li.dataset.uname    = u.username  || '';
+        li.dataset.uname    = savedName;
         li.dataset.uemail   = u.email     || '';
         li.dataset.uphone   = u.phone     || '';
         li.textContent = display;

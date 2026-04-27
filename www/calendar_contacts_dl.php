@@ -31,13 +31,33 @@ function _add_seen(array &$users, array &$seen, array $row): void {
 if ($isAdmin) {
     $rows = $db->query('SELECT username, email, phone FROM users ORDER BY LOWER(username)')->fetchAll();
     foreach ($rows as $r) {
-        $users[] = [
+        _add_seen($users, $seen, [
             'username'     => $r['username'],
             'email'        => $r['email'] ?? '',
             'phone'        => $r['phone'] ?? '',
             'display_name' => $r['username'],
             'is_pending'   => 0,
-        ];
+        ]);
+    }
+    // Admins also need pending (not-yet-signed-up) league members in the picker
+    // when a league is selected, so they can invite the same not-yet-registered
+    // people non-admins can.
+    if ($league_id > 0) {
+        $q = $db->prepare(
+            "SELECT COALESCE(NULLIF(LOWER(contact_email), ''),
+                             NULLIF(contact_phone, ''),
+                             'pending:' || id) AS username,
+                    contact_email AS email,
+                    contact_phone AS phone,
+                    contact_name  AS display_name,
+                    1             AS is_pending
+             FROM league_members
+             WHERE league_id = ? AND user_id IS NULL
+             ORDER BY LOWER(contact_name)"
+        );
+        $q->execute([$league_id]);
+        foreach ($q->fetchAll() as $r) { _add_seen($users, $seen, $r); }
+        usort($users, function($a, $b) { return strcasecmp($a['display_name'] ?? '', $b['display_name'] ?? ''); });
     }
     echo json_encode(['ok' => true, 'users' => $users]);
     exit;
@@ -86,13 +106,17 @@ if ($league_id > 0) {
     $q1->execute([$league_id, $uid]);
     foreach ($q1->fetchAll() as $r) { _add_seen($users, $seen, $r); }
 
-    // Pending league contacts (not yet signed up)
+    // Pending league contacts (not yet signed up). Some pending invitees were added
+    // with phone only (no email), so contact_email may be NULL — fall back to phone,
+    // then to a synthetic key from the row id, so they still appear in the picker.
     $q2 = $db->prepare(
-        "SELECT LOWER(contact_email) AS username,
-                contact_email         AS email,
-                contact_phone         AS phone,
-                contact_name          AS display_name,
-                1                     AS is_pending
+        "SELECT COALESCE(NULLIF(LOWER(contact_email), ''),
+                         NULLIF(contact_phone, ''),
+                         'pending:' || id) AS username,
+                contact_email AS email,
+                contact_phone AS phone,
+                contact_name  AS display_name,
+                1             AS is_pending
          FROM league_members
          WHERE league_id = ? AND user_id IS NULL
          ORDER BY LOWER(contact_name)"
