@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19027] — 2026-04-27
+
+### Added
+- **"Resend" button next to invitees who haven't RSVPed.** Visible to event managers (admin / event creator / event manager) on the event detail view. Clicking it deletes the invitee's row in `event_notifications_sent` (the dedup table that prevents duplicate sends) and queues a fresh `pending_notifications` invite, then kicks off the queue drain so the SMS/email goes out within seconds. Useful when an invitee says they didn't get the original message — no more SSH and no more delete-and-re-add workarounds. Hidden for invitees who already responded (yes/no/maybe) and for the host themselves. New `resend_invite` action in `calendar.php`'s POST handler, gated by `can_manage_event()`. Activity log records each resend.
+
+---
+
 ## [v0.19026] — 2026-04-27
 
 ### Fixed

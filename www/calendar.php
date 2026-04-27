@@ -696,6 +696,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // Resend an invite SMS/email to a single invitee. Allowed for admin, event creator, or event manager.
+    // Clears the dedup marker so the queue drain will actually fire, then re-queues.
+    if ($action === 'resend_invite' && $current) {
+        $eid    = (int)($_POST['event_id'] ?? 0);
+        $target = trim($_POST['target_username'] ?? '');
+        $isXhr  = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest';
+        if ($eid > 0 && $target !== '' && can_manage_event($db, $eid, (int)$current['id'], $isAdmin)) {
+            // Verify the invitee actually exists on this event before doing anything.
+            $chk = $db->prepare('SELECT 1 FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL');
+            $chk->execute([$eid, $target]);
+            if (!$chk->fetchColumn()) {
+                if ($isXhr) {
+                    http_response_code(404);
+                    header('Content-Type: application/json');
+                    echo json_encode(['ok' => false, 'error' => 'Invitee not found on this event.']);
+                    exit;
+                }
+                http_response_code(404);
+                exit('Invitee not found.');
+            }
+            if (get_setting('notifications_enabled', '0') !== '1') {
+                if ($isXhr) {
+                    header('Content-Type: application/json');
+                    echo json_encode(['ok' => false, 'error' => 'Notifications are currently disabled site-wide.']);
+                    exit;
+                }
+                http_response_code(400);
+                exit('Notifications are currently disabled.');
+            }
+            // Clear the dedup marker so the queue drain will actually fire for this invitee.
+            $db->prepare("DELETE FROM event_notifications_sent WHERE event_id=? AND occurrence_date='' AND user_identifier=? AND notification_type='invite'")
+               ->execute([$eid, strtolower($target)]);
+            // Queue a fresh invite notification.
+            $db->prepare("INSERT INTO pending_notifications (event_id, username, notify_type) VALUES (?, ?, 'invite')")
+               ->execute([$eid, $target]);
+            db_log_activity((int)$current['id'], "resent invite to $target on event id: $eid");
+            drain_queue_async();
+            if ($isXhr) {
+                header('Content-Type: application/json');
+                echo json_encode(['ok' => true]);
+                exit;
+            }
+            $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Invite resent to ' . $target . '.'];
+        } else {
+            if ($isXhr) {
+                http_response_code(403);
+                header('Content-Type: application/json');
+                echo json_encode(['ok' => false, 'error' => 'Permission denied.']);
+                exit;
+            }
+            http_response_code(403);
+            exit('Permission denied.');
+        }
+    }
+
     if ($action === 'regenerate_walkin_token' && $isAdmin) {
         $eid = (int)($_POST['event_id'] ?? 0);
         if ($eid > 0) {
@@ -2106,7 +2161,12 @@ function renderInvitesPanel(eid) {
                     : '<span style="font-size:.75rem;color:#cbd5e1;font-weight:600">--</span>';
                 ih += '<span style="min-width:52px;text-align:center">' + badge + '</span>';
             }
-            ih += escHtml(inv.username);
+            ih += '<span style="flex:1;min-width:0">' + escHtml(inv.username) + '</span>';
+            // Resend button: only for managers, only when no RSVP yet, only for non-self.
+            const isSelf = CURRENT_USERNAME && inv.username.toLowerCase() === CURRENT_USERNAME.toLowerCase();
+            if (canManage && !inv.rsvp && !isSelf) {
+                ih += '<button type="button" class="btn-resend-inv" data-eid="' + eid + '" data-username="' + escHtml(inv.username) + '" title="Resend invite SMS/email" style="font-size:.7rem;padding:.15rem .5rem;border-radius:5px;border:1px solid #cbd5e1;background:#fff;color:#475569;font-weight:600;cursor:pointer">Resend</button>';
+            }
             ih += '</div>';
         });
         ih += '</div>';
@@ -2352,23 +2412,52 @@ if (vInvDiv) {
             .catch(() => {});
     });
 
-    // Delegated listener: Approve / Deny buttons in the Pending section
+    // Delegated listener: Approve / Deny / Resend buttons in the invites panel
     vInvDiv.addEventListener('click', function(e) {
         const approveBtn = e.target.closest('.btn-approve-inv');
         const denyBtn    = e.target.closest('.btn-deny-inv');
-        const btn        = approveBtn || denyBtn;
+        const resendBtn  = e.target.closest('.btn-resend-inv');
+        const btn        = approveBtn || denyBtn || resendBtn;
         if (!btn) return;
         const eid      = parseInt(btn.dataset.eid);
         const username = btn.dataset.username;
-        const decision = approveBtn ? 'approved' : 'denied';
         const csrfEl   = document.getElementById('vRsvpCsrf');
         if (!csrfEl) return;
         btn.disabled = true;
         const data = new FormData();
         data.append('csrf_token',      csrfEl.value);
-        data.append('action',          decision === 'approved' ? 'approve_invite' : 'deny_invite');
         data.append('event_id',        eid);
         data.append('target_username', username);
+
+        if (resendBtn) {
+            data.append('action', 'resend_invite');
+            const originalText = btn.textContent;
+            btn.textContent = 'Sending…';
+            fetch('/calendar.php', {method:'POST', body:data, headers:{'X-Requested-With':'XMLHttpRequest'}})
+                .then(r => r.json())
+                .then(res => {
+                    if (!res.ok) {
+                        btn.disabled = false;
+                        btn.textContent = originalText;
+                        alert(res.error || 'Could not resend invite.');
+                        return;
+                    }
+                    btn.textContent = 'Sent ✓';
+                    btn.style.background = '#dcfce7';
+                    btn.style.borderColor = '#86efac';
+                    btn.style.color = '#166534';
+                    showSavedBar();
+                })
+                .catch(() => {
+                    btn.disabled = false;
+                    btn.textContent = originalText;
+                    alert('Network error. Please try again.');
+                });
+            return;
+        }
+
+        const decision = approveBtn ? 'approved' : 'denied';
+        data.append('action', decision === 'approved' ? 'approve_invite' : 'deny_invite');
         fetch('/calendar.php', {method:'POST', body:data, headers:{'X-Requested-With':'XMLHttpRequest'}})
             .then(r => r.json())
             .then(res => {
