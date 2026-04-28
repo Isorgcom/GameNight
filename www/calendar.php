@@ -2136,8 +2136,10 @@ function renderInvitesPanel(eid) {
 
     // Split by approval_status. Approved non-declined go in the main list; pending rows
     // get their own section visible only to managers (creator/manager/admin).
-    // Declined (rsvp='no') are hidden from the view entirely.
+    // Declined (rsvp='no') get their own subsection so managers can see who said no
+    // without it crowding the main attendee count.
     const approved = allInvites.filter(inv => (inv.approval_status || 'approved') === 'approved' && inv.rsvp !== 'no');
+    const declined = allInvites.filter(inv => (inv.approval_status || 'approved') === 'approved' && inv.rsvp === 'no');
     const pending  = allInvites.filter(inv => (inv.approval_status || 'approved') === 'pending');
     const waitlisted = allInvites.filter(inv => inv.approval_status === 'waitlisted');
 
@@ -2193,6 +2195,29 @@ function renderInvitesPanel(eid) {
         ih += '<div style="display:flex;flex-direction:column;gap:.2rem;max-height:5rem;overflow-y:auto;padding-right:.25rem;opacity:.7">';
         waitlisted.forEach(inv => {
             ih += '<div style="font-size:.82rem;color:#475569;padding:.15rem 0">' + escHtml(inv.username) + '</div>';
+        });
+        ih += '</div>';
+    }
+
+    // Declined section. Managers can flip the RSVP back to yes/maybe; non-managers see a faded list.
+    if (declined.length) {
+        ih += '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#dc2626;margin-top:.7rem;margin-bottom:.4rem">Declined (' + declined.length + ')</div>';
+        ih += '<div style="display:flex;flex-direction:column;gap:.2rem;max-height:6rem;overflow-y:auto;padding-right:.25rem;opacity:.75">';
+        declined.forEach(inv => {
+            ih += '<div style="font-size:.82rem;color:#475569;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;padding:.15rem 0">';
+            if (canManage) {
+                const r = inv.rsvp || '';
+                ih += '<select class="inv-rsvp-sel" data-eid="' + eid + '" data-username="' + escHtml(inv.username) + '">'
+                    + '<option value=""'      + (r===''      ?' selected':'') + '>--</option>'
+                    + '<option value="yes"'   + (r==='yes'   ?' selected':'') + '>Yes</option>'
+                    + '<option value="no"'    + (r==='no'    ?' selected':'') + '>No</option>'
+                    + (ALLOW_MAYBE ? '<option value="maybe"' + (r==='maybe'?' selected':'') + '>Maybe</option>' : '')
+                    + '</select>';
+            } else {
+                ih += '<span class="rsvp-no" style="min-width:52px;text-align:center">No</span>';
+            }
+            ih += '<span style="flex:1;min-width:0;text-decoration:line-through;text-decoration-color:#cbd5e1">' + escHtml(inv.username) + '</span>';
+            ih += '</div>';
         });
         ih += '</div>';
     }

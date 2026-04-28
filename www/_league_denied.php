@@ -52,7 +52,7 @@ $reason = $denyReason ?? 'hidden_non_member';
             check that you're signed in with the right account.
         </p>
         <div class="deny-actions">
-            <a href="/leagues.php" class="deny-btn deny-btn-primary">Browse leagues</a>
+            <a href="/leagues.php?tab=browse" class="deny-btn deny-btn-primary">Browse leagues</a>
             <a href="/" class="deny-btn deny-btn-ghost">Go home</a>
         </div>
     </div>

@@ -10,6 +10,10 @@ services:
       - ./uploads:/var/www/html/uploads
       - ./db:/var/db
       - ./config:/var/config:ro
+    # Guard rail on a 458 MB host. Steady-state Apache+PHP is ~17 MB; this gives plenty of
+    # headroom for big requests but caps a runaway PHP loop before it can hurt the host.
+    mem_limit: 192m
+    memswap_limit: 192m
     networks:
       - default
       - npm_default
@@ -28,6 +32,19 @@ services:
       - WHATSAPP_HOOK_EVENTS=message
       - WAHA_PRINT_QR=false
       - WAHA_API_KEY=gamenight-waha-internal
+      # Pin the dashboard creds so they survive container restart (otherwise WAHA mints
+      # new credentials on every start and prints them to the log).
+      - WAHA_DASHBOARD_USERNAME=admin
+      - WAHA_DASHBOARD_PASSWORD=gamenight-waha-internal
+      - WHATSAPP_SWAGGER_USERNAME=admin
+      - WHATSAPP_SWAGGER_PASSWORD=gamenight-waha-internal
+    # Hard cap to prevent a chromium leak (e.g. accidental WEBJS engine fallback) from
+    # OOM-killing the host. NOWEB engine with a loaded session sits around 210 MB at
+    # idle; this gives breathing room for short spikes while still containing any real
+    # runaway. If WAHA hits this ceiling, kernel kills the process inside the container,
+    # not random host services.
+    mem_limit: 384m
+    memswap_limit: 384m
     networks:
       - default
 

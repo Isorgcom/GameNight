@@ -4,6 +4,20 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19103] — 2026-04-28
+
+### Fixed
+- **Per-container memory limits to stop WAHA from OOM-killing the host.** Server hung overnight after the kernel OOM-killer fired seven times in succession on chromium processes (`oom_score_adj:300`, ~80 MB anon-rss each) on a 458 MB host. Even though WAHA is configured for the NOWEB engine, the container had accumulated chromium processes over its 10-day uptime. Added `mem_limit: 384m` to the waha service (steady-state with a loaded session is ~165 MB) and `mem_limit: 192m` to gamenight (steady-state ~14 MB). When either container hits its ceiling, the kernel now kills the offending process inside the container instead of randomly across the host. Also pinned the WAHA dashboard/swagger credentials so they survive container restart instead of being regenerated on every start.
+
+---
+
+## [v0.19102] — 2026-04-27
+
+### Fixed
+- **Declined invitees now appear in their own subsection on the event panel.** Previously anyone with `rsvp='no'` was filtered out of the invite list entirely (`calendar.php` line 2140), which made it look like the user had been removed from the event. They were always still in `event_invites`, just hidden from the view. The panel now renders a separate "Declined" subsection (faded, struck-through usernames, red label) below Waitlisted. Managers can flip the RSVP back to Yes/Maybe via the same dropdown used in the main list, so it's still trivial to recover someone who hit No by mistake.
+
+---
+
 ## [v0.19101] — 2026-04-27
 
 ### Fixed
