@@ -959,6 +959,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
            class="tab-btn <?= $tab === 'cron' ? 'active' : '' ?>">Cron</a>
         <a href="/admin_settings.php?tab=backup"
            class="tab-btn <?= $tab === 'backup' ? 'active' : '' ?>">Backup</a>
+        <a href="/admin_api_keys.php" class="tab-btn">API Keys</a>
     </div>
 
     <!-- ── Dashboard tab ── -->

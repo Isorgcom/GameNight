@@ -42,6 +42,15 @@ A complete guide to setting up, configuring, and using Game Night — your self-
   - [Reminder Schedule](#reminder-schedule)
   - [SMS RSVP Replies](#sms-rsvp-replies)
 - [Cron Setup](#cron-setup)
+- [API for Sister Sites](#api-for-sister-sites)
+  - [Issuing a Key](#issuing-a-key)
+  - [Authentication](#api-authentication)
+  - [Endpoints](#api-endpoints)
+  - [Response Shape](#api-response-shape)
+  - [Errors](#api-errors)
+  - [Caching](#api-caching)
+  - [Examples](#api-examples)
+  - [Revoking a Key](#api-revoking-a-key)
 - [Security](#security)
 - [Troubleshooting](#troubleshooting)
 
@@ -429,6 +438,224 @@ Automated reminders require a cron job that calls the reminder endpoint.
 ```
 
 Or use the Docker container's built-in timer if configured in `docker-compose.yml`.
+
+---
+
+## API for Sister Sites
+
+GameNight exposes a small read-only JSON API at `/api/v1/` so a separate website (for example, a poker league's main marketing site) can pull league data without copy-pasting. Each API key is bound to **one league** at issuance and authorizes read-only access to that league's events, posts, and member roster. The key cannot be used to read other leagues, and there are no write endpoints.
+
+The API was designed for a single trusted server-to-server consumer model (one shared key in the consumer's config). It is not an OAuth provider and does not have per-end-user tokens.
+
+### Issuing a Key
+
+1. As the **owner** of a league, navigate to that league's page (`/league.php?id=N`) and click the **API** tab. Site admins can also access this tab on any league. Managers cannot issue keys — issuing a key exposes the league's data outside the platform, which is an owner-level decision.
+2. Type a label that describes who's getting the key (for example `westside-poker sister site`). Click **Mint key**.
+3. The plaintext key is displayed exactly once in a green box. Copy it now and store it in the consumer's server config. The key is hashed (SHA-256) at rest; once you leave the page you cannot recover the plaintext.
+4. The key appears in the table below the form with status, created date, and last-used date. You can revoke it at any time.
+
+Site admins can see every key across every league via **Admin Settings → API Keys**. That page is read-only and lets admins revoke any key for abuse response, but admins cannot mint keys on behalf of league owners.
+
+### API Authentication
+
+Pass the key in the `Authorization` header:
+
+```bash
+curl -H 'Authorization: Bearer YOUR_KEY' https://your-site.com/api/v1/league
+```
+
+If your client cannot set headers, you can pass the key as a `?key=` query parameter instead. This works the same way but the key may show up in server logs and referer headers, so the header approach is preferred:
+
+```bash
+curl 'https://your-site.com/api/v1/league?key=YOUR_KEY'
+```
+
+Either way, the request must be over HTTPS in production.
+
+### API Endpoints
+
+All endpoints are `GET`. The base path `/api/v1` (no trailing slash needed) returns a discovery document describing the available endpoints — useful for human exploration; no key required.
+
+#### `GET /api/v1/league`
+
+League summary.
+
+```json
+{
+  "ok": true,
+  "data": {
+    "id": 6,
+    "name": "Kipling Poker",
+    "description": "Friendly home game, every other Saturday.",
+    "member_count": 13,
+    "created_at": "2026-04-17 02:36:29"
+  }
+}
+```
+
+#### `GET /api/v1/members`
+
+Roster. Personal contact info (emails, phones) is **never** returned.
+
+```json
+{
+  "ok": true,
+  "data": [
+    { "display_name": "Bryce", "role": "owner",   "pending": false, "joined_at": "2026-04-17 02:36:29" },
+    { "display_name": "brad",  "role": "manager", "pending": false, "joined_at": "2026-04-17 13:43:25" },
+    { "display_name": "Crystal", "role": "member", "pending": true,  "joined_at": "2026-04-25 23:06:29" }
+  ]
+}
+```
+
+`pending: true` means the person was invited by email or phone but has not yet created an account. The display name is their `username` if they have an account, otherwise the contact name on the invite.
+
+#### `GET /api/v1/events?from=YYYY-MM-DD&to=YYYY-MM-DD`
+
+Events for the league within a date window. RSVP counts only include approved invites.
+
+| Query param | Default | Notes |
+|---|---|---|
+| `from` | today (in the site's timezone) | Inclusive |
+| `to` | `from + 90 days` | Inclusive; window is capped at 366 days |
+
+```json
+{
+  "ok": true,
+  "data": {
+    "from": "2026-04-28",
+    "to": "2026-07-27",
+    "count": 2,
+    "events": [
+      {
+        "id": 67,
+        "title": "Kipling poker 17th",
+        "description": "",
+        "start_date": "2026-05-17",
+        "end_date": "",
+        "start_time": "15:00",
+        "end_time": "21:00",
+        "color": "#2563eb",
+        "is_poker": true,
+        "rsvp_yes_count": 5,
+        "rsvp_no_count": 1,
+        "rsvp_maybe_count": 0,
+        "created_at": "2026-04-26 20:06:26"
+      }
+    ]
+  }
+}
+```
+
+`start_date` / `end_date` / `start_time` / `end_time` are local-day and local-time strings (the values the host typed when scheduling the event). `created_at` is UTC. `end_date` is an empty string for single-day events.
+
+#### `GET /api/v1/posts?limit=20&offset=0`
+
+League posts (announcements / news). Excludes hidden posts, drafts, future-scheduled posts, and the league's rules post. Sorted by pinned, then created_at descending.
+
+| Query param | Default | Notes |
+|---|---|---|
+| `limit` | 20 | Max 50 |
+| `offset` | 0 | For pagination |
+
+```json
+{
+  "ok": true,
+  "data": {
+    "total": 12,
+    "limit": 20,
+    "offset": 0,
+    "count": 2,
+    "posts": [
+      {
+        "id": 7,
+        "title": "90min Turbo Blinds",
+        "content_html": "<h1>8-Player 90-Minute Tournament</h1>...",
+        "author_display_name": "Bryce",
+        "created_at": "2026-04-27 20:39:53",
+        "share_url": "https://your-site.com/post_public.php?token=5de463f570b59b21da4d67c1351fb4ad"
+      }
+    ]
+  }
+}
+```
+
+`content_html` is sanitized HTML (the same pipeline used when posts render in the UI). Posts that have a public share link include `share_url`; posts without sharing enabled omit that field.
+
+### API Response Shape
+
+Every response uses the same envelope:
+
+- **Success**: `{"ok": true, "data": ...}` — HTTP 200.
+- **Error**: `{"ok": false, "error": "human-readable message"}` — HTTP 400/401/404/405.
+
+This matches the shape used by every internal `_dl.php` endpoint, so if you've integrated against any of those before, the parser is the same.
+
+### API Errors
+
+| HTTP code | Meaning |
+|---|---|
+| `400` | Bad parameter. Examples: `from` after `to`; window over 366 days; non-hex characters in the key. |
+| `401` | Missing, malformed, or revoked API key. |
+| `404` | The league bound to the key was deleted (key is dead, mint a new one for a different league). |
+| `405` | You sent something other than `GET`. Only `GET` is supported. |
+
+### API Caching
+
+Successful responses include `Cache-Control: public, max-age=60`. Consumers should cache for at least one minute. The data does not change every second; hammering the API with one request per page view is wasteful.
+
+CORS is allowed from any origin (`Access-Control-Allow-Origin: *`), so a JavaScript client running in a browser can call the API directly. Note: putting the key in browser-side JS exposes it to anyone who views your page source. Do that only if you accept the consequences of revocation when (not if) the key leaks.
+
+There is no hard rate limit yet, but every call is logged with the key id, IP, path, and status. Abusive patterns will result in the key being revoked.
+
+### API Examples
+
+**PHP (server-side, recommended):**
+
+```php
+$key = 'YOUR_64_CHAR_HEX_KEY';
+$ctx = stream_context_create([
+    'http' => [
+        'header' => "Authorization: Bearer $key\r\n",
+        'timeout' => 5,
+    ],
+]);
+$resp = file_get_contents('https://your-site.com/api/v1/events', false, $ctx);
+$data = json_decode($resp, true);
+if ($data['ok'] ?? false) {
+    foreach ($data['data']['events'] as $event) {
+        echo htmlspecialchars($event['title']) . "<br>";
+    }
+}
+```
+
+**JavaScript (browser, only if the key can be public):**
+
+```javascript
+fetch('https://your-site.com/api/v1/posts?limit=5', {
+    headers: { 'Authorization': 'Bearer YOUR_KEY' }
+})
+.then(r => r.json())
+.then(({ ok, data, error }) => {
+    if (!ok) { console.error(error); return; }
+    data.posts.forEach(p => console.log(p.title));
+});
+```
+
+**curl one-liners** (handy for testing):
+
+```bash
+curl -H 'Authorization: Bearer YOUR_KEY' https://your-site.com/api/v1/league
+curl -H 'Authorization: Bearer YOUR_KEY' https://your-site.com/api/v1/members
+curl -H 'Authorization: Bearer YOUR_KEY' 'https://your-site.com/api/v1/events?from=2026-01-01&to=2026-12-31'
+curl -H 'Authorization: Bearer YOUR_KEY' 'https://your-site.com/api/v1/posts?limit=5'
+```
+
+### API Revoking a Key
+
+If a key leaks, click **Revoke** on its row in the league's API tab. Consumers using that key start getting `401` responses immediately. The revocation is permanent (soft-delete: the row stays in the database with `revoked_at` set, so audit logs continue to make sense).
+
+To rotate a key: mint a new key with a different label, update the consumer to use the new key, then revoke the old one. Keys do not expire on their own — rotate them on whatever cadence makes sense for your operation (annual is reasonable for a low-traffic sister site).
 
 ---
 

@@ -540,6 +540,28 @@ function db_init(PDO $pdo): void {
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_join_requests_league ON league_join_requests(league_id, status)"); } catch (Exception $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_join_requests_user   ON league_join_requests(user_id, status)"); } catch (Exception $e) {}
 
+    // ─── Public read-only API keys (one key = one bound league_id) ────────────
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS api_keys (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        key_hash     TEXT    NOT NULL UNIQUE,
+        label        TEXT    NOT NULL,
+        league_id    INTEGER NOT NULL,
+        created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_used_at DATETIME,
+        revoked_at   DATETIME,
+        FOREIGN KEY (league_id) REFERENCES leagues(id)
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS api_request_log (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        key_id     INTEGER,
+        ip         TEXT,
+        method     TEXT,
+        path       TEXT,
+        status     INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_api_log_key_time ON api_request_log(key_id, created_at)"); } catch (Exception $e) {}
+
     // Event visibility + league linkage
     try { $pdo->exec("ALTER TABLE events ADD COLUMN league_id  INTEGER"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE events ADD COLUMN visibility TEXT NOT NULL DEFAULT 'invitees_only'"); } catch (Exception $e) {}

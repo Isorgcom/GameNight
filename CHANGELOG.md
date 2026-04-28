@@ -4,6 +4,20 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19201] — 2026-04-28
+
+### Added
+- **API documentation, in-app and external.** The League → API tab now shows a Quick Reference card below the keys table covering authentication, every endpoint with its query parameters, error codes, caching/CORS behavior, and what to do when a key leaks — so league owners can answer most consumer questions without leaving the page. Added a full "API for Sister Sites" section to DOCS.md with end-to-end examples in PHP, JavaScript, and curl, plus example response payloads for all four endpoints. New `GET /api/v1/` discovery endpoint (no auth required) returns a JSON document listing the available endpoints, auth instructions, response shape, and error codes — useful for human exploration and for anyone hitting the base URL trying to figure out what's there.
+
+---
+
+## [v0.19200] — 2026-04-28
+
+### Added
+- **Public read-only API at `/api/v1/` for sister sites and other trusted consumers.** Built so a separate website (e.g. a poker league's main marketing site) can pull league info, member roster, events, and posts from GameNight without copy-pasting. Each API key is bound to one league at issuance time and authorizes read-only access to that league's data; the consumer cannot read across leagues even if it tries to pass a different league_id in the request. Four endpoints: `GET /api/v1/league` (name, description, member count), `GET /api/v1/members` (display name + role + pending flag, no emails or phones by design), `GET /api/v1/events?from=&to=` (with RSVP yes/no/maybe counts; window default today→+90 days, capped at 366), `GET /api/v1/posts?limit=&offset=` (sanitized HTML body, share_url when public-link sharing is on for that post). All responses use the existing `{ok:true,data:...}` / `{ok:false,error:...}` shape. Keys are SHA-256 hashed at rest, generated as 64-char hex via `random_bytes(32)`, sent as `Authorization: Bearer <key>` (or `?key=` fallback). Every request is logged to a new `api_request_log` table for audit + future rate-limit work. Self-service: **league owners** mint and manage their own keys from a new "API" tab on the league page (`league.php?tab=api`); managers cannot mint keys because issuing one exposes the roster to an external system, which is an owner-level decision. Site admins get a cross-league audit page at `/admin_api_keys.php` to see every key across every league and revoke anything in case of abuse — but admins are not the bottleneck for issuance. New `api_keys` and `api_request_log` tables; new `league_api_keys_dl.php` POST endpoint with `create` and `revoke` actions following the existing `league_posts_dl.php` style; new `RewriteRule` in `.htaccess` so URLs are clean (`/api/v1/league` rather than `/api/v1/league.php`); deny rule blocks direct access to the `_auth.php` / `_response.php` partials.
+
+---
+
 ## [v0.19103] — 2026-04-28
 
 ### Fixed

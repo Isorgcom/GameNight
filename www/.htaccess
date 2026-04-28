@@ -5,12 +5,23 @@ Options -Indexes
 RewriteEngine On
 RewriteRule ^s/([a-zA-Z0-9]+)$ /s.php?code=$1 [L,QSA]
 RewriteRule ^favicon\.ico$ /favicon.php [L,R=302]
+# Public read-only API discovery: /api/v1 or /api/v1/ → /api/v1/index.php (no auth needed)
+# Order matters: this must come before the catch-all <endpoint> rule below.
+RewriteRule ^api/v1/?$ /api/v1/index.php [L,QSA]
+# Public read-only API: /api/v1/<endpoint> → /api/v1/<endpoint>.php
+RewriteRule ^api/v1/([a-z]+)/?$ /api/v1/$1.php [L,QSA]
 
 # Hide PHP errors from the browser
 php_flag display_errors Off
 
 # Block direct web access to internal/partial PHP files
 <FilesMatch "^(auth|db|_nav|_footer|config|mail)\.php$">
+    Require all denied
+</FilesMatch>
+
+# Block direct web access to API partials (api/_auth.php, api/_response.php).
+# Endpoints under /api/v1/ are reached only through the rewrite rule above.
+<FilesMatch "^_(auth|response)\.php$">
     Require all denied
 </FilesMatch>
 

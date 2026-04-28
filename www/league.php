@@ -190,11 +190,12 @@ if ($canManageMembers && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['actio
     exit;
 }
 
-$allowed_tabs = ['members', 'events', 'posts', 'stats', 'requests', 'settings', 'rules'];
+$allowed_tabs = ['members', 'events', 'posts', 'stats', 'requests', 'settings', 'rules', 'api'];
 $tab = $_GET['tab'] ?? 'members';
 if (!in_array($tab, $allowed_tabs, true)) $tab = 'members';
 if ($tab === 'requests' && !$canManageMembers) $tab = 'members';
 if ($tab === 'settings' && !$isOwner)          $tab = 'members';
+if ($tab === 'api'      && !$isOwner)          $tab = 'members';
 
 // Load members (includes pending contacts — rows with user_id IS NULL)
 $mStmt = $db->prepare(
@@ -424,10 +425,20 @@ function ordinal($n) {
 <div class="lg-wrap">
     <?php if (!empty($_SESSION['flash'])):
         $_flash = $_SESSION['flash']; unset($_SESSION['flash']);
-        $_fcls  = $_flash['type'] === 'success' ? 'background:#dcfce7;color:#14532d;border:1px solid #86efac'
-                 : ($_flash['type'] === 'error' ? 'background:#fee2e2;color:#7f1d1d;border:1px solid #fca5a5'
-                 : 'background:#f1f5f9;color:#334155;border:1px solid #cbd5e1'); ?>
+        if (($_flash['type'] ?? '') === 'created' && !empty($_flash['plaintext'])): ?>
+        <div style="padding:1rem 1.25rem;border-radius:10px;font-size:.9rem;margin-bottom:.75rem;background:#f0fdf4;color:#0f172a;border:1.5px solid #86efac">
+            <strong>New API key for <?= htmlspecialchars($_flash['label'] ?? '') ?></strong>
+            <p style="margin:.5rem 0 .35rem;font-size:.85rem;color:#475569">Copy this token now and store it in the consumer's config. You will not be able to see it again.</p>
+            <div id="newApiKeyBox" style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.85rem;background:#fff;border:1.5px dashed #16a34a;border-radius:6px;padding:.6rem .8rem;word-break:break-all"><?= htmlspecialchars($_flash['plaintext']) ?></div>
+            <button type="button" class="lg-btn" style="margin-top:.6rem;font-size:.78rem;padding:.35rem .8rem"
+                    onclick="(async()=>{try{await navigator.clipboard.writeText(document.getElementById('newApiKeyBox').textContent);this.textContent='Copied';setTimeout(()=>this.textContent='Copy key',1500);}catch(e){}})()">Copy key</button>
+        </div>
+        <?php else:
+            $_fcls  = $_flash['type'] === 'success' ? 'background:#dcfce7;color:#14532d;border:1px solid #86efac'
+                     : ($_flash['type'] === 'error' ? 'background:#fee2e2;color:#7f1d1d;border:1px solid #fca5a5'
+                     : 'background:#f1f5f9;color:#334155;border:1px solid #cbd5e1'); ?>
         <div style="padding:.6rem .9rem;border-radius:8px;font-size:.85rem;margin-bottom:.75rem;<?= $_fcls ?>"><?= $_flash['msg'] ?></div>
+        <?php endif; ?>
     <?php endif; ?>
     <div class="lg-head">
         <a href="/leagues.php" style="font-size:.85rem;color:#64748b;text-decoration:none">&larr; All Leagues</a>
@@ -461,6 +472,7 @@ function ordinal($n) {
         <?php endif; ?>
         <?php if ($isOwner): ?>
         <a class="lg-tab<?= $tab==='settings' ? ' active' : '' ?>" href="?id=<?= $league_id ?>&tab=settings">Settings</a>
+        <a class="lg-tab<?= $tab==='api'      ? ' active' : '' ?>" href="?id=<?= $league_id ?>&tab=api">API</a>
         <?php endif; ?>
     </div>
 
@@ -1017,6 +1029,181 @@ function ordinal($n) {
             body.style.display = body.style.display === 'none' ? '' : 'none';
         }
         </script>
+
+    <?php elseif ($tab === 'api' && $isOwner): ?>
+        <?php
+        $akStmt = $db->prepare(
+            "SELECT id, label, created_at, last_used_at, revoked_at
+               FROM api_keys
+              WHERE league_id = ?
+              ORDER BY revoked_at IS NOT NULL, created_at DESC"
+        );
+        $akStmt->execute([$league_id]);
+        $api_keys = $akStmt->fetchAll();
+        $ak_local_tz = new DateTimeZone(get_setting('timezone', 'UTC'));
+        $ak_fmt = function (?string $utc) use ($ak_local_tz): string {
+            if (!$utc) return '—';
+            try { return (new DateTime($utc, new DateTimeZone('UTC')))->setTimezone($ak_local_tz)->format('M j, Y g:i A'); }
+            catch (Exception $e) { return $utc; }
+        };
+        ?>
+        <div class="lg-card" style="display:block">
+            <h3 style="margin:0 0 .5rem">API keys</h3>
+            <p style="font-size:.85rem;color:#64748b;margin:0 0 1rem;line-height:1.55">
+                Issue read-only API keys for sister sites or other trusted consumers. Each key
+                is bound to <strong><?= htmlspecialchars($league['name']) ?></strong> and can
+                read this league's events, posts, and member roster via
+                <code style="background:#f1f5f9;padding:.1rem .35rem;border-radius:4px">/api/v1/...</code>.
+                Keys are hashed at rest; the plaintext is shown exactly once at creation.
+                Personal contact info (emails, phones) is never returned by the API.
+            </p>
+            <form method="post" action="/league_api_keys_dl.php" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:1.25rem">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                <input type="hidden" name="action" value="create">
+                <input type="hidden" name="league_id" value="<?= $league_id ?>">
+                <input type="hidden" name="redirect" value="/league.php?id=<?= $league_id ?>&tab=api">
+                <label style="display:flex;flex-direction:column;gap:.25rem;font-size:.8rem;font-weight:600;color:#475569;flex:1;min-width:240px">
+                    Label
+                    <input type="text" name="label" maxlength="80" required
+                           placeholder="e.g. westside-poker sister site"
+                           style="padding:.5rem .65rem;border:1.5px solid #cbd5e1;border-radius:6px;font:inherit">
+                </label>
+                <button type="submit" class="lg-btn">Mint key</button>
+            </form>
+
+            <?php if (empty($api_keys)): ?>
+                <p style="color:#94a3b8;font-size:.9rem;margin:0">No keys yet.</p>
+            <?php else: ?>
+            <table style="width:100%;border-collapse:collapse;font-size:.875rem">
+                <thead>
+                    <tr style="text-align:left">
+                        <th style="font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;padding:.55rem .6rem;border-bottom:1px solid #f1f5f9">Label</th>
+                        <th style="font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;padding:.55rem .6rem;border-bottom:1px solid #f1f5f9">Status</th>
+                        <th style="font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;padding:.55rem .6rem;border-bottom:1px solid #f1f5f9">Created</th>
+                        <th style="font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;padding:.55rem .6rem;border-bottom:1px solid #f1f5f9">Last used</th>
+                        <th style="border-bottom:1px solid #f1f5f9"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($api_keys as $k): $revoked = !empty($k['revoked_at']); ?>
+                    <tr style="<?= $revoked ? 'opacity:.55' : '' ?>">
+                        <td style="padding:.55rem .6rem;border-bottom:1px solid #f1f5f9"><?= htmlspecialchars($k['label']) ?></td>
+                        <td style="padding:.55rem .6rem;border-bottom:1px solid #f1f5f9">
+                            <?php if ($revoked): ?>
+                                <span style="display:inline-block;font-size:.7rem;font-weight:700;padding:.1rem .5rem;border-radius:999px;background:#fee2e2;color:#991b1b">Revoked</span>
+                            <?php else: ?>
+                                <span style="display:inline-block;font-size:.7rem;font-weight:700;padding:.1rem .5rem;border-radius:999px;background:#dcfce7;color:#166534">Active</span>
+                            <?php endif; ?>
+                        </td>
+                        <td style="padding:.55rem .6rem;border-bottom:1px solid #f1f5f9"><?= htmlspecialchars($ak_fmt($k['created_at'])) ?></td>
+                        <td style="padding:.55rem .6rem;border-bottom:1px solid #f1f5f9"><?= htmlspecialchars($ak_fmt($k['last_used_at'])) ?></td>
+                        <td style="padding:.55rem .6rem;border-bottom:1px solid #f1f5f9;text-align:right">
+                            <?php if (!$revoked): ?>
+                            <form method="post" action="/league_api_keys_dl.php" style="margin:0;display:inline" onsubmit="return confirm('Revoke this API key? Consumers using it will start getting 401 immediately.')">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                                <input type="hidden" name="action" value="revoke">
+                                <input type="hidden" name="key_id" value="<?= (int)$k['id'] ?>">
+                                <input type="hidden" name="redirect" value="/league.php?id=<?= $league_id ?>&tab=api">
+                                <button type="submit" class="lg-btn lg-btn-ghost" style="font-size:.78rem;padding:.3rem .8rem;color:#dc2626">Revoke</button>
+                            </form>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+            <?php endif; ?>
+        </div>
+
+        <?php $api_base = rtrim(get_site_url(), '/') . '/api/v1'; ?>
+        <div class="lg-card" style="display:block">
+            <h3 style="margin:0 0 .75rem">Quick reference</h3>
+            <p style="font-size:.85rem;color:#64748b;margin:0 0 1rem;line-height:1.55">
+                Use the key in an <code style="background:#f1f5f9;padding:.1rem .35rem;border-radius:4px">Authorization</code>
+                header. Every endpoint returns JSON with <code style="background:#f1f5f9;padding:.1rem .35rem;border-radius:4px">{"ok": true, "data": ...}</code>
+                on success or <code style="background:#f1f5f9;padding:.1rem .35rem;border-radius:4px">{"ok": false, "error": "..."}</code>
+                on failure. All endpoints are read-only (GET); the key cannot be used to write data.
+            </p>
+
+            <h4 style="font-size:.85rem;font-weight:700;color:#0f172a;margin:1.25rem 0 .5rem">Authentication</h4>
+            <pre style="background:#0f172a;color:#e2e8f0;border-radius:6px;padding:.75rem 1rem;font-size:.78rem;line-height:1.55;overflow-x:auto;margin:0 0 .5rem"><code>curl -H 'Authorization: Bearer YOUR_KEY' \
+     <?= htmlspecialchars($api_base) ?>/league</code></pre>
+            <p style="font-size:.78rem;color:#94a3b8;margin:0 0 1rem">
+                Header is preferred. If your client can't set headers,
+                <code style="background:#f1f5f9;padding:.1rem .35rem;border-radius:4px">?key=YOUR_KEY</code>
+                works as a fallback (still over HTTPS).
+            </p>
+
+            <h4 style="font-size:.85rem;font-weight:700;color:#0f172a;margin:1.25rem 0 .5rem">Endpoints</h4>
+            <table style="width:100%;border-collapse:collapse;font-size:.82rem">
+                <thead>
+                    <tr style="text-align:left;color:#94a3b8;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em">
+                        <th style="padding:.45rem .55rem;border-bottom:1px solid #f1f5f9;width:32%">Path</th>
+                        <th style="padding:.45rem .55rem;border-bottom:1px solid #f1f5f9">What it returns</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="padding:.5rem .55rem;border-bottom:1px solid #f1f5f9;font-family:ui-monospace,monospace;color:#0f172a">GET /api/v1/league</td>
+                        <td style="padding:.5rem .55rem;border-bottom:1px solid #f1f5f9;color:#475569">Name, description, member count, created_at.</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:.5rem .55rem;border-bottom:1px solid #f1f5f9;font-family:ui-monospace,monospace;color:#0f172a">GET /api/v1/members</td>
+                        <td style="padding:.5rem .55rem;border-bottom:1px solid #f1f5f9;color:#475569">Display name, role, joined_at, pending flag. <strong>No emails or phones</strong>.</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:.5rem .55rem;border-bottom:1px solid #f1f5f9;font-family:ui-monospace,monospace;color:#0f172a">GET /api/v1/events</td>
+                        <td style="padding:.5rem .55rem;border-bottom:1px solid #f1f5f9;color:#475569">
+                            Events with RSVP yes/no/maybe counts.<br>
+                            Optional: <code style="background:#f1f5f9;padding:.05rem .3rem;border-radius:3px;font-size:.75rem">?from=YYYY-MM-DD&amp;to=YYYY-MM-DD</code>
+                            (default: today through +90 days, capped at 366).
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:.5rem .55rem;border-bottom:1px solid #f1f5f9;font-family:ui-monospace,monospace;color:#0f172a">GET /api/v1/posts</td>
+                        <td style="padding:.5rem .55rem;border-bottom:1px solid #f1f5f9;color:#475569">
+                            League posts (excludes hidden, drafts, rules post).<br>
+                            Optional: <code style="background:#f1f5f9;padding:.05rem .3rem;border-radius:3px;font-size:.75rem">?limit=20&amp;offset=0</code> (max limit 50).
+                            Posts with public share links include <code style="background:#f1f5f9;padding:.05rem .3rem;border-radius:3px;font-size:.75rem">share_url</code>.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:.5rem .55rem;border-bottom:1px solid #f1f5f9;font-family:ui-monospace,monospace;color:#0f172a">GET /api/v1/</td>
+                        <td style="padding:.5rem .55rem;border-bottom:1px solid #f1f5f9;color:#475569">Discovery: lists endpoints + auth instructions. No key required.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h4 style="font-size:.85rem;font-weight:700;color:#0f172a;margin:1.25rem 0 .5rem">Error codes</h4>
+            <ul style="font-size:.82rem;color:#475569;margin:0 0 .5rem 1.25rem;padding:0;line-height:1.7">
+                <li><code style="background:#f1f5f9;padding:.05rem .3rem;border-radius:3px">401</code> &mdash; missing, malformed, or revoked key.</li>
+                <li><code style="background:#f1f5f9;padding:.05rem .3rem;border-radius:3px">400</code> &mdash; bad parameter (e.g. <code style="background:#f1f5f9;padding:.05rem .3rem;border-radius:3px">from</code> after <code style="background:#f1f5f9;padding:.05rem .3rem;border-radius:3px">to</code>, window over 366 days).</li>
+                <li><code style="background:#f1f5f9;padding:.05rem .3rem;border-radius:3px">404</code> &mdash; the league bound to the key was deleted.</li>
+                <li><code style="background:#f1f5f9;padding:.05rem .3rem;border-radius:3px">405</code> &mdash; non-GET method.</li>
+            </ul>
+
+            <h4 style="font-size:.85rem;font-weight:700;color:#0f172a;margin:1.25rem 0 .5rem">Caching &amp; rate limits</h4>
+            <p style="font-size:.82rem;color:#475569;margin:0;line-height:1.6">
+                Responses set <code style="background:#f1f5f9;padding:.05rem .3rem;border-radius:3px">Cache-Control: public, max-age=60</code>,
+                so consumers should cache for at least a minute. CORS is allowed from any origin
+                (<code style="background:#f1f5f9;padding:.05rem .3rem;border-radius:3px">Access-Control-Allow-Origin: *</code>).
+                There is no hard rate limit yet, but every request is logged &mdash; abuse will
+                result in the key being revoked.
+            </p>
+
+            <h4 style="font-size:.85rem;font-weight:700;color:#0f172a;margin:1.25rem 0 .5rem">If your key leaks</h4>
+            <p style="font-size:.82rem;color:#475569;margin:0;line-height:1.6">
+                Click <strong>Revoke</strong> on the row above. Consumers using that key will
+                start getting 401 responses immediately. Mint a new key (label it differently
+                so you can tell them apart in the table) and roll the consumer over to it.
+                Keys cannot be undeleted &mdash; revocation is permanent.
+            </p>
+
+            <p style="font-size:.78rem;color:#94a3b8;margin:1.25rem 0 0">
+                Full developer reference is in <a href="/DOCS.md" style="color:#2563eb">DOCS.md</a>
+                under "API for Sister Sites".
+            </p>
+        </div>
 
     <?php elseif ($tab === 'settings' && $isOwner): ?>
         <div class="lg-card" style="display:block">
