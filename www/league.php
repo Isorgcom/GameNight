@@ -191,11 +191,11 @@ if ($canManageMembers && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['actio
 }
 
 $allowed_tabs = ['members', 'events', 'posts', 'stats', 'requests', 'settings', 'rules', 'api'];
-$tab = $_GET['tab'] ?? 'members';
-if (!in_array($tab, $allowed_tabs, true)) $tab = 'members';
-if ($tab === 'requests' && !$canManageMembers) $tab = 'members';
-if ($tab === 'settings' && !$isOwner)          $tab = 'members';
-if ($tab === 'api'      && !$isOwner)          $tab = 'members';
+$tab = $_GET['tab'] ?? 'posts';
+if (!in_array($tab, $allowed_tabs, true)) $tab = 'posts';
+if ($tab === 'requests' && !$canManageMembers) $tab = 'posts';
+if ($tab === 'settings' && !$isOwner)          $tab = 'posts';
+if ($tab === 'api'      && !$isOwner)          $tab = 'posts';
 
 // Load members (includes pending contacts — rows with user_id IS NULL)
 $mStmt = $db->prepare(
@@ -463,9 +463,9 @@ function ordinal($n) {
     </div>
 
     <div class="lg-tabs">
+        <a class="lg-tab<?= $tab==='posts'    ? ' active' : '' ?>" href="?id=<?= $league_id ?>&tab=posts"><?= htmlspecialchars($league['name']) ?></a>
         <a class="lg-tab<?= $tab==='members'  ? ' active' : '' ?>" href="?id=<?= $league_id ?>&tab=members">Members (<?= $member_count ?>)</a>
         <a class="lg-tab<?= $tab==='events'   ? ' active' : '' ?>" href="?id=<?= $league_id ?>&tab=events">Events (<?= count($leagueEvents) ?>)</a>
-        <a class="lg-tab<?= $tab==='posts'    ? ' active' : '' ?>" href="?id=<?= $league_id ?>&tab=posts">Posts</a>
         <a class="lg-tab<?= $tab==='stats'    ? ' active' : '' ?>" href="?id=<?= $league_id ?>&tab=stats">Stats</a>
         <?php if ($canManageMembers): ?>
         <a class="lg-tab<?= $tab==='requests' ? ' active' : '' ?>" href="?id=<?= $league_id ?>&tab=requests">Requests (<?= count($requests) ?>)</a>
@@ -795,7 +795,7 @@ function ordinal($n) {
     <?php elseif ($tab === 'rules'): ?>
         <div class="lg-card" style="display:block">
             <?php if (!$rulesPost): ?>
-                <p style="color:#64748b">No league rules have been set yet.<?php if ($canPost): ?> Create a post in the Posts tab and mark it as the league rules.<?php endif; ?></p>
+                <p style="color:#64748b">No league rules have been set yet.<?php if ($canPost): ?> Create a post in the league's main tab and mark it as the league rules.<?php endif; ?></p>
             <?php else: ?>
                 <?php $canEditRules = user_can_edit_post($db, $rulesPost, $uid, $isAdmin); ?>
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;gap:.5rem;flex-wrap:wrap">
@@ -808,7 +808,7 @@ function ordinal($n) {
                         <?php endif; ?>
                         <?php if ($canPost): ?>
                         <form method="post" action="/league_posts_dl.php" style="margin:0"
-                              onsubmit="return confirm('Unset this post as the league rules? It will reappear in the Posts feed.')">
+                              onsubmit="return confirm('Unset this post as the league rules? It will reappear in the main feed.')">
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                             <input type="hidden" name="action" value="clear_rules">
                             <input type="hidden" name="post_id" value="<?= (int)$rulesPost['id'] ?>">
@@ -847,9 +847,32 @@ function ordinal($n) {
         // When editing the rules post, round-trip the user back to the Rules tab on save/cancel.
         $backTab = ($editPost && !empty($editPost['is_rules_post'])) ? 'rules' : 'posts';
         ?>
-        <?php if ($canPost || ($editPost && $backTab === 'rules')): ?>
-        <div class="lg-card" style="display:block">
-            <h3 style="margin:0 0 .75rem"><?= $editPost ? ($backTab === 'rules' ? 'Edit rules' : 'Edit post') : 'New post' ?></h3>
+        <?php if ($canPost || ($editPost && $backTab === 'rules')):
+            // Default the form to collapsed; expand if the user is editing an existing post
+            // (they clicked Edit, so they want it open) or if their last submit failed and
+            // bounced back with flash content (rare; assume open is safer than closing on them).
+            $__post_form_open = $editPost ? true : false;
+        ?>
+        <?php if (!$__post_form_open): ?>
+        <div class="lg-card" id="newPostToggleCard" style="display:block">
+            <button type="button" id="newPostToggle"
+                    onclick="openNewPostForm()"
+                    class="lg-btn lg-btn-primary"
+                    style="width:100%;text-align:left;display:flex;align-items:center;gap:.5rem;padding:.75rem 1rem">
+                <span style="font-size:1.1rem;line-height:1">&#43;</span>
+                <span>New post</span>
+            </button>
+        </div>
+        <?php endif; ?>
+        <div class="lg-card" id="newPostFormCard" style="display:<?= $__post_form_open ? 'block' : 'none' ?>">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
+                <h3 style="margin:0"><?= $editPost ? ($backTab === 'rules' ? 'Edit rules' : 'Edit post') : 'New post' ?></h3>
+                <?php if (!$editPost): ?>
+                <button type="button" onclick="closeNewPostForm()" class="lg-btn lg-btn-ghost"
+                        style="font-size:.78rem;padding:.3rem .7rem"
+                        title="Close without saving">&times; Close</button>
+                <?php endif; ?>
+            </div>
             <form method="post" action="/league_posts_dl.php" id="leaguePostForm">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                 <input type="hidden" name="action" value="<?= $editPost ? 'update' : 'create' ?>">
@@ -867,6 +890,8 @@ function ordinal($n) {
                     <button type="submit" class="lg-btn lg-btn-primary"><?= $editPost ? 'Save changes' : 'Publish' ?></button>
                     <?php if ($editPost): ?>
                     <a href="?id=<?= $league_id ?>&tab=<?= $backTab ?>" class="lg-btn lg-btn-ghost">Cancel</a>
+                    <?php else: ?>
+                    <button type="button" onclick="closeNewPostForm()" class="lg-btn lg-btn-ghost">Cancel</button>
                     <?php endif; ?>
                 </div>
             </form>
@@ -874,8 +899,14 @@ function ordinal($n) {
         <script src="/vendor/jodit/jodit.min.js"></script>
         <link rel="stylesheet" href="/vendor/jodit/jodit.min.css">
         <script>
-            (function(){
-                if (typeof Jodit === 'undefined') return;
+            // Jodit must be initialized only after the editor's container is visible;
+            // initializing inside a display:none parent causes height/toolbar glitches.
+            // For edit mode the form starts open, so we init immediately. For "new post"
+            // mode the form is collapsed; we init the first time the user expands it.
+            let _joditReady = false;
+            function _initLeaguePostEditor() {
+                if (_joditReady || typeof Jodit === 'undefined') return;
+                _joditReady = true;
                 Jodit.make('#lp-editor', {
                     height: 340,
                     toolbarAdaptive: false,
@@ -890,7 +921,26 @@ function ordinal($n) {
                         defaultHandlerSuccess: function(data){ var img = this.j.createInside.element('img'); img.setAttribute('src', data.files[0]); this.j.s.insertImage(img); }
                     }
                 });
-            })();
+            }
+            function openNewPostForm() {
+                const toggle = document.getElementById('newPostToggleCard');
+                const form   = document.getElementById('newPostFormCard');
+                if (toggle) toggle.style.display = 'none';
+                if (form)   form.style.display = 'block';
+                _initLeaguePostEditor();
+                const titleInput = document.querySelector('#leaguePostForm input[name="title"]');
+                if (titleInput) titleInput.focus();
+            }
+            function closeNewPostForm() {
+                const toggle = document.getElementById('newPostToggleCard');
+                const form   = document.getElementById('newPostFormCard');
+                if (form)   form.style.display = 'none';
+                if (toggle) toggle.style.display = 'block';
+            }
+            <?php if ($__post_form_open): ?>
+            // Edit mode: form is already visible, init Jodit now.
+            _initLeaguePostEditor();
+            <?php endif; ?>
         </script>
         <?php endif; ?>
 
@@ -926,7 +976,7 @@ function ordinal($n) {
                     </form>
                     <?php if ($canPost): ?>
                     <form method="post" action="/league_posts_dl.php" style="margin:0"
-                          onsubmit="return confirm(<?= $rulesPost ? "'This will replace the current league rules post. Continue?'" : "'Mark this post as the league rules? It will be moved out of the Posts feed and accessible via the League Rules button.'" ?>);">
+                          onsubmit="return confirm(<?= $rulesPost ? "'This will replace the current league rules post. Continue?'" : "'Mark this post as the league rules? It will be moved out of the main feed and accessible via the League Rules button.'" ?>);">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                         <input type="hidden" name="action" value="set_rules">
                         <input type="hidden" name="post_id" value="<?= (int)$lp['id'] ?>">

@@ -4,6 +4,20 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19204] — 2026-04-29
+
+### Changed
+- **New-post form on the league page is collapsed by default.** The form was eating a chunk of vertical space at the top of the post list every time anyone with author permission visited the page, even though most visits aren't to write anything. Replaced with a single "+ New post" button that expands the form on click; a "Close" / "Cancel" button collapses it back. Edit mode (clicking Edit on an existing post or rules post) still opens the form expanded automatically. The Jodit rich-text editor is initialized lazily the first time the form opens, which avoids the height/toolbar glitches that happen when Jodit is initialized inside a `display:none` container.
+
+---
+
+## [v0.19203] — 2026-04-29
+
+### Changed
+- **League page now lands on Posts and labels that tab with the league's name.** The Posts tab is the most-recent and most-interesting view (announcements, recaps, schedule changes), so it's now the first tab and the default landing tab when you visit `/league.php?id=N` without a `?tab=` parameter. The tab itself is labeled with the league's actual name (e.g. "Kipling Poker") so the league page reads like the league's homepage. Existing URLs that explicitly set `?tab=members` continue to work; only the visible label and default change. Two confirmation dialogs and one help string that referenced "Posts tab" / "Posts feed" were reworded to generic phrasing ("main tab" / "main feed") so they stay correct regardless of league name. The New-post form remains gated to owners, managers, and site admins via the existing `$canPost` check; plain members were already unable to author posts.
+
+---
+
 ## [v0.19202] — 2026-04-29
 
 ### Added
