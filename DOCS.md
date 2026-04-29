@@ -582,6 +582,33 @@ League posts (announcements / news). Excludes hidden posts, drafts, future-sched
 
 `content_html` is sanitized HTML (the same pipeline used when posts render in the UI). Posts that have a public share link include `share_url`; posts without sharing enabled omit that field.
 
+#### `GET /api/v1/rules`
+
+The league's rules post. The rules post is a special post (one per league at most) that lives behind a dedicated UI button in-app and is excluded from `/api/v1/posts`; this endpoint is the way to read it.
+
+```json
+{
+  "ok": true,
+  "data": {
+    "rules": {
+      "id": 42,
+      "title": "House Rules",
+      "content_html": "<h2>Buy-in</h2><p>...</p>",
+      "author_display_name": "Bryce",
+      "created_at": "2025-11-12 03:14:00"
+    }
+  }
+}
+```
+
+When the league has not configured a rules post yet, `rules` is `null`:
+
+```json
+{ "ok": true, "data": { "rules": null } }
+```
+
+`content_html` is sanitized HTML, same pipeline as `/posts`. Hidden rules posts are treated as absent.
+
 ### API Response Shape
 
 Every response uses the same envelope:
@@ -649,6 +676,7 @@ curl -H 'Authorization: Bearer YOUR_KEY' https://your-site.com/api/v1/league
 curl -H 'Authorization: Bearer YOUR_KEY' https://your-site.com/api/v1/members
 curl -H 'Authorization: Bearer YOUR_KEY' 'https://your-site.com/api/v1/events?from=2026-01-01&to=2026-12-31'
 curl -H 'Authorization: Bearer YOUR_KEY' 'https://your-site.com/api/v1/posts?limit=5'
+curl -H 'Authorization: Bearer YOUR_KEY' https://your-site.com/api/v1/rules
 ```
 
 ### API Revoking a Key

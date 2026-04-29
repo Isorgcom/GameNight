@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19205] — 2026-04-29
+
+### Added
+- **Public API: `GET /api/v1/rules` exposes the league rules post.** Sister sites can now fetch a league's rules alongside the rest of its public-facing content. The existing `/api/v1/posts` endpoint deliberately excludes the rules post (it has its own UI button and lifecycle in-app), so consumers had no way to read it. The new endpoint returns the rules post (id, title, sanitized `content_html`, author display name, created_at) bound to the API key's league, or `rules: null` when the league has not configured rules yet — consumers can render "no rules set" without branching on HTTP status. Hidden rules posts are treated as absent. Same auth, response shape, caching, CORS, and request logging as the rest of `/api/v1`. Discovery endpoint at `/api/v1` advertises the new path. No `.htaccess` change needed; the existing single-segment rewrite handles it.
+
+---
+
 ## [v0.19204] — 2026-04-29
 
 ### Changed

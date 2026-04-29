@@ -54,12 +54,17 @@ api_ok([
         [
             'method'      => 'GET',
             'path'        => $base . '/posts',
-            'description' => 'League posts (sanitized HTML body). Excludes hidden, draft, and the league rules post.',
+            'description' => 'League posts (sanitized HTML body). Excludes hidden, draft, and the league rules post. See /rules for the rules post.',
             'query'       => [
                 'limit'  => 'integer 1-50 (optional, default 20)',
                 'offset' => 'integer >= 0 (optional, default 0)',
             ],
             'notes' => 'Posts that have a public share link include a share_url field pointing to /post_public.php.',
+        ],
+        [
+            'method'      => 'GET',
+            'path'        => $base . '/rules',
+            'description' => "The league's rules post (sanitized HTML body). Returns rules: null when the league has not configured a rules post.",
         ],
     ],
     'caching'    => 'Successful responses include Cache-Control: public, max-age=60. Cache for at least one minute on the consumer side.',

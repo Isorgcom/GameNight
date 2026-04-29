@@ -1218,6 +1218,13 @@ function ordinal($n) {
                         </td>
                     </tr>
                     <tr>
+                        <td style="padding:.5rem .55rem;border-bottom:1px solid #f1f5f9;font-family:ui-monospace,monospace;color:#0f172a">GET /api/v1/rules</td>
+                        <td style="padding:.5rem .55rem;border-bottom:1px solid #f1f5f9;color:#475569">
+                            The league's rules post (sanitized HTML).
+                            Returns <code style="background:#f1f5f9;padding:.05rem .3rem;border-radius:3px;font-size:.75rem">rules: null</code> when no rules post is set.
+                        </td>
+                    </tr>
+                    <tr>
                         <td style="padding:.5rem .55rem;border-bottom:1px solid #f1f5f9;font-family:ui-monospace,monospace;color:#0f172a">GET /api/v1/</td>
                         <td style="padding:.5rem .55rem;border-bottom:1px solid #f1f5f9;color:#475569">Discovery: lists endpoints + auth instructions. No key required.</td>
                     </tr>
