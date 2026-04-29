@@ -1079,25 +1079,58 @@ function sanitize_html(string $html): string {
         'blockquote', 'pre', 'code',
         'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'caption',
         'a', 'img',
+        'iframe',
     ];
 
     // Per-tag allowed attributes (in addition to global ones)
     $tag_attrs = [
-        'a'   => ['href', 'title', 'target', 'rel'],
-        'img' => ['src', 'alt', 'width', 'height', 'title'],
-        'td'  => ['colspan', 'rowspan'],
-        'th'  => ['colspan', 'rowspan', 'scope'],
+        'a'      => ['href', 'title', 'target', 'rel'],
+        'img'    => ['src', 'alt', 'width', 'height', 'title'],
+        'td'     => ['colspan', 'rowspan'],
+        'th'     => ['colspan', 'rowspan', 'scope'],
+        'iframe' => ['src', 'width', 'height', 'title', 'allow', 'allowfullscreen', 'frameborder', 'loading', 'referrerpolicy'],
     ];
     $global_attrs = ['class', 'style', 'id'];
     $safe_schemes = ['http', 'https', 'mailto'];
+
+    // iframe sources are restricted to known-safe embed providers. Anything else
+    // gets the iframe tag itself unwrapped (text content kept, frame discarded).
+    // Hosts are matched on the URL host being equal to or a subdomain of one of these.
+    $iframe_allowed_hosts = [
+        'youtube.com', 'youtube-nocookie.com',
+        'vimeo.com', 'player.vimeo.com',
+        'open.spotify.com',
+        'twitch.tv',
+        'google.com',  // for /maps/embed; path is checked below
+    ];
 
     $doc = new DOMDocument();
     libxml_use_internal_errors(true);
     $doc->loadHTML('<html><head><meta charset="UTF-8"></head><body>' . $html . '</body></html>');
     libxml_clear_errors();
 
+    // True if $url's host is an allowed iframe provider AND, for google.com,
+    // the path is /maps/embed (so we don't allow arbitrary google subpages).
+    $iframe_src_ok = function (string $url) use ($iframe_allowed_hosts): bool {
+        $url = trim($url);
+        if ($url === '') return false;
+        $parts = parse_url($url);
+        if (!$parts || empty($parts['scheme']) || empty($parts['host'])) return false;
+        if (!in_array(strtolower($parts['scheme']), ['http', 'https'], true)) return false;
+        $host = strtolower($parts['host']);
+        $path = $parts['path'] ?? '';
+        foreach ($iframe_allowed_hosts as $allowed) {
+            if ($host === $allowed || str_ends_with($host, '.' . $allowed)) {
+                // Restrict google.com to the maps embed path; other google subpaths are not safe.
+                if ($allowed === 'google.com' && strpos($path, '/maps/embed') !== 0) return false;
+                return true;
+            }
+        }
+        return false;
+    };
+
     $walk = function (DOMNode $node) use (
-        &$walk, $allowed_tags, $tag_attrs, $global_attrs, $safe_schemes
+        &$walk, $allowed_tags, $tag_attrs, $global_attrs, $safe_schemes, $iframe_src_ok
     ): void {
         $to_remove = [];
         foreach ($node->childNodes as $child) {
@@ -1112,6 +1145,15 @@ function sanitize_html(string $html): string {
             if (!in_array($tag, $allowed_tags, true)) {
                 $to_remove[] = [$child, true]; // unwrap: keep text, drop tag
                 continue;
+            }
+
+            // Iframes: must point at a known-safe embed provider, or the whole tag is unwrapped.
+            if ($tag === 'iframe') {
+                $src = $child->getAttribute('src');
+                if (!$iframe_src_ok($src)) {
+                    $to_remove[] = [$child, true];
+                    continue;
+                }
             }
 
             // Strip disallowed attributes

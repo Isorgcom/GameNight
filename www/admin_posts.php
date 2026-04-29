@@ -500,7 +500,7 @@ const editor = Jodit.make('#jodit-editor', {
                 input.click();
             }
         }, '|',
-        'hr', 'eraser', 'copyformat', '|',
+        'hr', 'eraser', 'copyformat', '|', 'source', '|',
         'undo', 'redo', '|',
         'source'
     ],

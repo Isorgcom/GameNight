@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19202] — 2026-04-29
+
+### Added
+- **Iframe embeds in posts (YouTube, Vimeo, Spotify, Twitch, Google Maps).** `sanitize_html()` now accepts `<iframe>` tags but only when their `src` host matches a strict allowlist: `youtube.com`, `youtube-nocookie.com`, `vimeo.com`, `player.vimeo.com`, `open.spotify.com`, `twitch.tv`, plus `google.com` restricted to `/maps/embed`. Iframes from any other source get the tag unwrapped, same way other disallowed tags are handled. Allowed iframe attributes: `src, width, height, title, allow, allowfullscreen, frameborder, loading, referrerpolicy`. Both post editors (admin and league) now show a "source" toggle in the toolbar so authors can paste the embed snippet directly into the HTML view; existing CSS in `index.php` already scales iframes responsively. Pasting an iframe from any other host still has the snippet survive as plain text inside the post body.
+
+---
+
 ## [v0.19201] — 2026-04-28
 
 ### Added

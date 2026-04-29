@@ -879,7 +879,7 @@ function ordinal($n) {
                 Jodit.make('#lp-editor', {
                     height: 340,
                     toolbarAdaptive: false,
-                    buttons: ['bold','italic','underline','|','ul','ol','|','outdent','indent','|','link','image','|','hr','brush','|','undo','redo'],
+                    buttons: ['bold','italic','underline','|','ul','ol','|','outdent','indent','|','link','image','|','hr','brush','|','source','|','undo','redo'],
                     uploader: {
                         url: '/upload.php',
                         headers: {},
