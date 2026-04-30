@@ -19,7 +19,7 @@ function api_send_headers(int $cache_seconds = 60): void {
     header('Cache-Control: public, max-age=' . max(0, $cache_seconds));
     header('Access-Control-Allow-Origin: *');
     header('Access-Control-Allow-Headers: Authorization, Content-Type');
-    header('Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS');
+    header('Access-Control-Allow-Methods: GET, POST, PATCH, DELETE, OPTIONS');
 }
 
 function api_ok(array $data, int $cache_seconds = 60): void {

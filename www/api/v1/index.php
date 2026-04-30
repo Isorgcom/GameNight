@@ -44,7 +44,7 @@ api_ok([
         [
             'method'      => 'GET',
             'path'        => $base . '/members',
-            'description' => 'Roster: display_name, role, pending, joined_at. Personal contact info (emails, phones) is never returned.',
+            'description' => 'Roster: user_id, display_name, role, pending, joined_at. user_id is null for pending contacts (people invited but who haven\'t created accounts yet). Personal contact info (emails, phones) is never returned.',
         ],
         [
             'method'      => 'GET',
@@ -111,6 +111,22 @@ api_ok([
             ],
             'response'    => '{event_id, title, start_at, end_at, league_id, visibility, is_poker, walkin_url, invitees_added, created_at}',
             'rate_limit'  => '60 successful creations per hour per key (429 when exceeded)',
+        ],
+        [
+            'method'      => 'PATCH',
+            'path'        => $base . '/events/{id}',
+            'description' => "Partial update of an existing event. Only fields present in the body are touched. Same field shape and validation as POST /events, except invitees (use POST /events/{id}/invites) and league/visibility (immutable). When start_at moves and the event is in the future, queues an `event_updated` notification to all approved base invitees. Reminder queue is rebuilt automatically when timing or reminder fields change. Wrapped in a transaction.",
+            'scope'       => 'write',
+            'response'    => '{event_id, title, start_at, end_at, is_poker, fields_changed, notifications_queued}',
+            'rate_limit'  => '60 successful updates per hour per key',
+        ],
+        [
+            'method'      => 'POST',
+            'path'        => $base . '/events/{id}/invites',
+            'description' => "Add invitees to an existing event. Body: {invitees: [{user_id: int, manager?: bool}, ...]}. Each user_id must be a member of the bound league. Idempotent on duplicates (skip-if-exists; existing rows' manager flag is NOT changed). Honors the poker waitlist when capacity is exceeded. Newly-added approved invitees get an invite notification.",
+            'scope'       => 'write',
+            'response'    => '{event_id, added, skipped, waitlisted, notifications_queued}',
+            'rate_limit'  => '60 successful calls per hour per key',
         ],
         [
             'method'      => 'DELETE',

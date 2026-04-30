@@ -4,6 +4,21 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19210] — 2026-04-30
+
+### Added
+- **`PATCH /api/v1/events/{id}` lets sister sites edit an event without a delete-and-recreate.** Accepts a partial JSON body containing any subset of the POST /events fields except `invitees` (use the new sub-resource for that) and league/visibility (immutable). When `start_at` moves and the event is in the future, queues an `event_updated` notification to all approved base invitees so plans don't get silently broken. The reminder queue rebuilds automatically when timing or reminder fields change, mirroring `calendar_dl.php`'s edit behavior. Poker session settings sync the same way: toggling `is_poker=false` deletes the session and chained tables, toggling on creates a fresh row, and `poker_buyin` / `poker_tables` / `poker_seats` / `poker_game_type` updates flow through. Per-key rate limit 60/hour. Response includes `fields_changed` so callers can confirm exactly what landed.
+- **`POST /api/v1/events/{id}/invites` lets sister sites add invitees after the event is already created.** Body: `{invitees: [{user_id, manager?}, ...]}`. Each user_id must already be a member of the league (call `POST /users` first to create them). Idempotent: anyone already invited is skipped silently and reported in `skipped: [user_id...]`. New rows always land `approval_status='approved'`, matching the calendar UI's creator-added behavior. Poker events with `waitlist_enabled=true` recompute the waitlist after insert so beyond-capacity additions are correctly marked `waitlisted` (and skip the invite notification). New `.htaccess` rewrite routes `/api/v1/events/{id}/invites` to the events handler.
+- **`GET /api/v1/members` now returns `user_id` on each row.** `null` for pending contacts (invitees who haven't created accounts), an integer for registered members. Sister sites that lose track of a user_id can now recover it without a write call. Personal contact info stays hidden as before.
+
+### Changed
+- **CORS `Access-Control-Allow-Methods` widens to `GET, POST, PATCH, DELETE, OPTIONS`.** Browser callers can now use PATCH from JavaScript without a preflight failure.
+
+### Security
+- Both new write endpoints are gated by the `write` scope and league-scoped via the API key. Events outside the bound league return 404 `event_not_found` rather than 403 — same info-leak protection as DELETE /events/{id}. Existing invitees' manager flags are never modified by `POST /events/{id}/invites` even when the request explicitly says `manager: true`; promoting/demoting attendees is a separate operation that isn't yet exposed.
+
+---
+
 ## [v0.19209] — 2026-04-30
 
 ### Added

@@ -42,6 +42,7 @@ foreach ($stmt->fetchAll() as $r) {
     $name = trim((string)($r['display_name'] ?? ''));
     if ($name === '') continue; // skip orphaned rows with no usable label
     $members[] = [
+        'user_id'      => $r['user_id'] !== null ? (int)$r['user_id'] : null,
         'display_name' => $name,
         'role'         => (string)$r['role'],
         'pending'      => $r['user_id'] === null,

@@ -27,8 +27,16 @@ if ($method === 'OPTIONS') {
     exit;
 }
 
+$sub = (string)($_GET['sub'] ?? '');
+
 if ($method === 'POST') {
+    if ($sub === 'invites') { handle_events_invites_post(); exit; }
     handle_events_post();
+    exit;
+}
+
+if ($method === 'PATCH') {
+    handle_events_patch();
     exit;
 }
 
@@ -638,6 +646,484 @@ function handle_events_delete(): void {
         'event_id'             => $event_id,
         'title'                => $title,
         'deleted'              => true,
+        'notifications_queued' => $notifications_queued,
+    ], 0);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PATCH handler — partial update of an existing event
+// ─────────────────────────────────────────────────────────────────────────────
+function handle_events_patch(): void {
+    $key = api_authenticate();
+    api_require_scope($key, 'write');
+
+    $db        = get_db();
+    $key_id    = (int)$key['id'];
+    $league_id = (int)$key['league_id'];
+
+    $rl = $db->prepare(
+        "SELECT COUNT(*) FROM api_request_log
+          WHERE key_id = ?
+            AND status = 200
+            AND method = 'PATCH'
+            AND path LIKE '%/api/v1/events/%'
+            AND created_at > datetime('now','-1 hour')"
+    );
+    $rl->execute([$key_id]);
+    if ((int)$rl->fetchColumn() >= 60) {
+        api_log_request($key_id, 429);
+        api_fail('Rate limit exceeded: 60 event updates per hour per key', 429);
+    }
+
+    $event_id = (int)($_GET['id'] ?? 0);
+    if ($event_id <= 0) {
+        api_log_request($key_id, 404);
+        api_fail('event_not_found', 404);
+    }
+
+    // Pull the current row + the columns PATCH may overwrite. Existence + league
+    // scope check; same 404-on-mismatch convention as DELETE.
+    $stmt = $db->prepare(
+        'SELECT id, title, description, start_date, end_date, start_time, end_time,
+                color, requires_approval, league_id, is_poker, rsvp_deadline_hours,
+                waitlist_enabled, reminders_enabled, reminder_offsets
+           FROM events WHERE id = ?'
+    );
+    $stmt->execute([$event_id]);
+    $current = $stmt->fetch();
+    if (!$current || (int)$current['league_id'] !== $league_id) {
+        api_log_request($key_id, 404);
+        api_fail('event_not_found', 404);
+    }
+
+    $raw  = file_get_contents('php://input');
+    $body = json_decode($raw ?: '', true);
+    if (!is_array($body) || empty($body)) {
+        api_log_request($key_id, 400);
+        api_fail('Request body must be a non-empty JSON object', 400);
+    }
+
+    $site_tz = new DateTimeZone(get_setting('timezone', 'UTC'));
+    $allowed_colors = ['#2563eb','#16a34a','#dc2626','#d97706','#7c3aed','#0891b2','#db2777'];
+
+    // ── Build a map of validated, normalized field updates ───────────────────
+    // Only keys present in the body are added. Same validation as POST.
+    $updates = [];
+    $fields_changed = [];
+
+    if (array_key_exists('title', $body)) {
+        $t = trim((string)$body['title']);
+        if ($t === '') { api_log_request($key_id, 400); api_fail('title cannot be empty', 400); }
+        if (mb_strlen($t) > 200) { api_log_request($key_id, 400); api_fail('title must be 200 characters or fewer', 400); }
+        if ($t !== (string)$current['title']) { $updates['title'] = $t; $fields_changed[] = 'title'; }
+    }
+    if (array_key_exists('description', $body)) {
+        $d = trim((string)$body['description']);
+        $new = $d !== '' ? $d : null;
+        if ($new !== ($current['description'] ?? null)) { $updates['description'] = $new; $fields_changed[] = 'description'; }
+    }
+    if (array_key_exists('color', $body)) {
+        $c = (string)$body['color'];
+        if (!in_array($c, $allowed_colors, true)) {
+            api_log_request($key_id, 400);
+            api_fail('color must be one of: ' . implode(', ', $allowed_colors), 400);
+        }
+        if ($c !== (string)$current['color']) { $updates['color'] = $c; $fields_changed[] = 'color'; }
+    }
+    if (array_key_exists('start_at', $body)) {
+        $parsed = api_parse_inbound_at((string)$body['start_at'], $site_tz);
+        if ($parsed === null) {
+            api_log_request($key_id, 400);
+            api_fail('start_at must be ISO-8601 UTC (e.g. "2026-05-17T20:00:00Z") or a date "YYYY-MM-DD"', 400);
+        }
+        [$sd, $st] = $parsed;
+        if ($sd !== (string)$current['start_date']) { $updates['start_date'] = $sd; $fields_changed[] = 'start_date'; }
+        if (($st ?? '') !== (string)($current['start_time'] ?? '')) { $updates['start_time'] = $st; $fields_changed[] = 'start_time'; }
+    }
+    if (array_key_exists('end_at', $body)) {
+        $raw_end = (string)$body['end_at'];
+        if ($raw_end === '') {
+            // Explicit null/empty clears the end
+            if (($current['end_date'] ?? null) !== null) { $updates['end_date'] = null; $fields_changed[] = 'end_date'; }
+            if (($current['end_time'] ?? null) !== null) { $updates['end_time'] = null; $fields_changed[] = 'end_time'; }
+        } else {
+            $parsed = api_parse_inbound_at($raw_end, $site_tz);
+            if ($parsed === null) {
+                api_log_request($key_id, 400);
+                api_fail('end_at must be ISO-8601 UTC or a date', 400);
+            }
+            [$ed, $et] = $parsed;
+            if ($ed !== (string)($current['end_date'] ?? '')) { $updates['end_date'] = $ed; $fields_changed[] = 'end_date'; }
+            if (($et ?? '') !== (string)($current['end_time'] ?? '')) { $updates['end_time'] = $et; $fields_changed[] = 'end_time'; }
+        }
+    }
+    foreach (['requires_approval','is_poker','waitlist_enabled','reminders_enabled'] as $bf) {
+        if (array_key_exists($bf, $body)) {
+            $new = !empty($body[$bf]) ? 1 : 0;
+            if ((int)$current[$bf] !== $new) { $updates[$bf] = $new; $fields_changed[] = $bf; }
+        }
+    }
+    if (array_key_exists('rsvp_deadline_hours', $body)) {
+        $r = $body['rsvp_deadline_hours'];
+        $new = ($r === null || $r === '') ? null : (int)$r;
+        if ($new !== null && $new < 0) {
+            api_log_request($key_id, 400);
+            api_fail('rsvp_deadline_hours must be a non-negative integer', 400);
+        }
+        if ($new !== ($current['rsvp_deadline_hours'] !== null ? (int)$current['rsvp_deadline_hours'] : null)) {
+            $updates['rsvp_deadline_hours'] = $new; $fields_changed[] = 'rsvp_deadline_hours';
+        }
+    }
+    if (array_key_exists('reminder_offsets', $body)) {
+        if (!is_array($body['reminder_offsets'])) {
+            api_log_request($key_id, 400);
+            api_fail('reminder_offsets must be an array of minutes', 400);
+        }
+        $clean = [];
+        foreach ($body['reminder_offsets'] as $m) {
+            $n = (int)$m;
+            if ($n > 0 && $n <= 40320) $clean[] = $n;
+        }
+        $clean = array_values(array_unique($clean));
+        $new_json = empty($clean) ? null : json_encode($clean);
+        if ($new_json !== ($current['reminder_offsets'] ?? null)) {
+            $updates['reminder_offsets'] = $new_json; $fields_changed[] = 'reminder_offsets';
+        }
+    }
+    // Recurrence is intentionally rejected — schema doesn't carry it.
+    if ((isset($body['recurrence']) && $body['recurrence'] !== '' && $body['recurrence'] !== 'none')
+            || (isset($body['recurrence_end']) && $body['recurrence_end'] !== '')) {
+        api_log_request($key_id, 400);
+        api_fail('recurrence is not supported', 400);
+    }
+    // Visibility / league_id are immutable via the API — silently ignore.
+
+    // Poker session fields are tracked separately (they live on poker_sessions, not events).
+    $poker_changes = [];
+    foreach (['poker_buyin' => 'buyin_amount', 'poker_tables' => 'num_tables', 'poker_seats' => 'seats_per_table', 'poker_game_type' => 'game_type'] as $body_key => $col) {
+        if (!array_key_exists($body_key, $body)) continue;
+        if ($body_key === 'poker_buyin')      $poker_changes[$col] = (int)round(floatval($body[$body_key]) * 100);
+        elseif ($body_key === 'poker_tables') $poker_changes[$col] = max(1, (int)$body[$body_key]);
+        elseif ($body_key === 'poker_seats')  $poker_changes[$col] = max(2, (int)$body[$body_key]);
+        elseif ($body_key === 'poker_game_type') {
+            if (!in_array($body[$body_key], ['tournament','cash'], true)) {
+                api_log_request($key_id, 400);
+                api_fail('poker_game_type must be tournament or cash', 400);
+            }
+            $poker_changes['game_type'] = (string)$body[$body_key];
+        }
+    }
+
+    if (empty($updates) && empty($poker_changes)) {
+        api_log_request($key_id, 400);
+        api_fail('no_fields_to_update', 400);
+    }
+
+    // ── Pre-compute side-effect flags ────────────────────────────────────────
+    $timing_changed = (
+        isset($updates['start_date']) || isset($updates['start_time'])
+    );
+    $reminder_context_changed = (
+        $timing_changed
+        || array_key_exists('reminders_enabled', $updates)
+        || array_key_exists('reminder_offsets', $updates)
+    );
+    $effective_is_poker = array_key_exists('is_poker', $updates) ? (int)$updates['is_poker'] : (int)$current['is_poker'];
+    $effective_reminders_enabled = array_key_exists('reminders_enabled', $updates)
+        ? (int)$updates['reminders_enabled'] : (int)$current['reminders_enabled'];
+
+    // ── Execute ──────────────────────────────────────────────────────────────
+    $notifications_queued = 0;
+    try {
+        $db->beginTransaction();
+
+        if (!empty($updates)) {
+            $sets = [];
+            $args = [];
+            foreach ($updates as $col => $val) { $sets[] = "$col = ?"; $args[] = $val; }
+            $args[] = $event_id;
+            $db->prepare('UPDATE events SET ' . implode(', ', $sets) . ' WHERE id = ?')->execute($args);
+        }
+
+        // Poker session sync — only when the row needs to change. If is_poker just
+        // flipped on, INSERT a session row with sensible defaults plus any
+        // poker_changes the caller passed; if it flipped off, delete the session.
+        if (array_key_exists('is_poker', $updates) && (int)$updates['is_poker'] === 0) {
+            // Toggle off: drop the session and chained tables.
+            $sids = $db->prepare('SELECT id FROM poker_sessions WHERE event_id=?');
+            $sids->execute([$event_id]);
+            $session_ids = array_column($sids->fetchAll(), 'id');
+            if (!empty($session_ids)) {
+                $sph = implode(',', array_fill(0, count($session_ids), '?'));
+                $db->prepare("DELETE FROM poker_players WHERE session_id IN ($sph)")->execute($session_ids);
+                $db->prepare("DELETE FROM poker_payouts WHERE session_id IN ($sph)")->execute($session_ids);
+                $db->prepare("DELETE FROM timer_state   WHERE session_id IN ($sph)")->execute($session_ids);
+                $db->prepare('DELETE FROM poker_sessions WHERE event_id=?')->execute([$event_id]);
+            }
+        } elseif ($effective_is_poker === 1) {
+            $sess = $db->prepare('SELECT id FROM poker_sessions WHERE event_id = ?');
+            $sess->execute([$event_id]);
+            if ($sess->fetch()) {
+                if (!empty($poker_changes)) {
+                    $sets = []; $args = [];
+                    foreach ($poker_changes as $col => $val) { $sets[] = "$col = ?"; $args[] = $val; }
+                    $args[] = $event_id;
+                    $db->prepare('UPDATE poker_sessions SET ' . implode(', ', $sets) . ' WHERE event_id = ?')->execute($args);
+                }
+            } else {
+                // Toggling on for the first time on this event — fill in either the
+                // values the caller provided or the same defaults POST /events uses.
+                $defaults = ['buyin_amount' => 2000, 'num_tables' => 1, 'seats_per_table' => 8, 'game_type' => 'tournament'];
+                $merged = array_merge($defaults, $poker_changes);
+                $db->prepare('INSERT INTO poker_sessions (event_id, buyin_amount, num_tables, seats_per_table, game_type) VALUES (?, ?, ?, ?, ?)')
+                   ->execute([$event_id, $merged['buyin_amount'], $merged['num_tables'], $merged['seats_per_table'], $merged['game_type']]);
+            }
+        }
+
+        // Reminder re-queue when timing context changed (mirrors calendar_dl.php:225-238).
+        if ($reminder_context_changed) {
+            clear_pending_reminders($db, $event_id);
+            $db->prepare('UPDATE events SET reminders_queued = 0 WHERE id = ?')->execute([$event_id]);
+            if ($effective_reminders_enabled === 1) {
+                queue_reminders_for_event($db, $event_id);
+                $db->prepare('UPDATE events SET reminders_queued = 1 WHERE id = ?')->execute([$event_id]);
+            }
+        }
+
+        // Time change on a future event → notify approved invitees.
+        $effective_start_date = $updates['start_date'] ?? (string)$current['start_date'];
+        $today = (new DateTime('now', $site_tz))->format('Y-m-d');
+        if ($timing_changed && $effective_start_date >= $today) {
+            $invStmt = $db->prepare(
+                "SELECT username FROM event_invites
+                  WHERE event_id = ? AND occurrence_date IS NULL AND approval_status = 'approved'"
+            );
+            $invStmt->execute([$event_id]);
+            foreach ($invStmt->fetchAll() as $inv) {
+                queue_event_notification(
+                    $db, $event_id, (string)$inv['username'], 'event_updated', null, []
+                );
+                $notifications_queued++;
+            }
+        }
+
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        api_log_request($key_id, 500);
+        api_fail('Failed to update event', 500);
+    }
+
+    if ($notifications_queued > 0) drain_queue_async();
+
+    db_log_anon_activity("api_update_event: '" . ($updates['title'] ?? $current['title']) . "' (id=$event_id) via key=$key_id league=$league_id changed=" . implode(',', $fields_changed));
+
+    // Build the echoed response — re-fetch the row so we serialize the post-update state.
+    $finalStmt = $db->prepare('SELECT title, start_date, end_date, start_time, end_time, is_poker FROM events WHERE id = ?');
+    $finalStmt->execute([$event_id]);
+    $final = $finalStmt->fetch();
+    $utc_tz = new DateTimeZone('UTC');
+
+    api_log_request($key_id, 200);
+    api_ok([
+        'event_id'             => $event_id,
+        'title'                => (string)$final['title'],
+        'start_at'             => api_local_to_utc_iso((string)$final['start_date'], (string)($final['start_time'] ?? ''), $site_tz, $utc_tz),
+        'end_at'               => api_local_to_utc_iso((string)($final['end_date'] ?? ''), (string)($final['end_time'] ?? ''), $site_tz, $utc_tz),
+        'is_poker'             => (int)$final['is_poker'] === 1,
+        'fields_changed'       => $fields_changed,
+        'notifications_queued' => $notifications_queued,
+    ], 0);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /events/{id}/invites — add invitees to an existing event
+// ─────────────────────────────────────────────────────────────────────────────
+function handle_events_invites_post(): void {
+    $key = api_authenticate();
+    api_require_scope($key, 'write');
+
+    $db        = get_db();
+    $key_id    = (int)$key['id'];
+    $league_id = (int)$key['league_id'];
+
+    $rl = $db->prepare(
+        "SELECT COUNT(*) FROM api_request_log
+          WHERE key_id = ?
+            AND status = 200
+            AND method = 'POST'
+            AND path LIKE '%/api/v1/events/%/invites%'
+            AND created_at > datetime('now','-1 hour')"
+    );
+    $rl->execute([$key_id]);
+    if ((int)$rl->fetchColumn() >= 60) {
+        api_log_request($key_id, 429);
+        api_fail('Rate limit exceeded: 60 invite calls per hour per key', 429);
+    }
+
+    $event_id = (int)($_GET['id'] ?? 0);
+    if ($event_id <= 0) {
+        api_log_request($key_id, 404);
+        api_fail('event_not_found', 404);
+    }
+    $evtStmt = $db->prepare('SELECT id, league_id, is_poker, waitlist_enabled FROM events WHERE id = ?');
+    $evtStmt->execute([$event_id]);
+    $evt = $evtStmt->fetch();
+    if (!$evt || (int)$evt['league_id'] !== $league_id) {
+        api_log_request($key_id, 404);
+        api_fail('event_not_found', 404);
+    }
+
+    $raw  = file_get_contents('php://input');
+    $body = json_decode($raw ?: '', true);
+    if (!is_array($body) || !isset($body['invitees']) || !is_array($body['invitees'])) {
+        api_log_request($key_id, 400);
+        api_fail('Request body must be {"invitees": [...]}', 400);
+    }
+    $invitees_in = $body['invitees'];
+    if (empty($invitees_in)) {
+        api_log_request($key_id, 400);
+        api_fail('invitees array cannot be empty', 400);
+    }
+    if (count($invitees_in) > MAX_INVITEES_PER_EVENT) {
+        api_log_request($key_id, 400);
+        api_fail('Too many invitees: limit is ' . MAX_INVITEES_PER_EVENT, 400);
+    }
+
+    // Validate user_ids & resolve to usernames (must be league members).
+    $user_ids = [];
+    foreach ($invitees_in as $idx => $inv) {
+        if (!is_array($inv) || !isset($inv['user_id'])) {
+            api_log_request($key_id, 400);
+            api_fail("invitees[$idx] must be an object with a user_id", 400);
+        }
+        $uid = (int)$inv['user_id'];
+        if ($uid <= 0) {
+            api_log_request($key_id, 400);
+            api_fail("invitees[$idx].user_id must be a positive integer", 400);
+        }
+        $user_ids[] = $uid;
+    }
+    $unique_ids = array_values(array_unique($user_ids));
+    $ph = implode(',', array_fill(0, count($unique_ids), '?'));
+    $userStmt = $db->prepare(
+        "SELECT u.id, u.username, u.email, u.phone
+           FROM users u
+           JOIN league_members lm ON lm.user_id = u.id
+          WHERE lm.league_id = ?
+            AND u.id IN ($ph)"
+    );
+    $userStmt->execute(array_merge([$league_id], $unique_ids));
+    $found = [];
+    foreach ($userStmt->fetchAll() as $u) { $found[(int)$u['id']] = $u; }
+    $missing = array_values(array_filter($unique_ids, fn($id) => !isset($found[$id])));
+    if (!empty($missing)) {
+        api_log_request($key_id, 400);
+        api_fail('invitees not found in this league: ' . implode(', ', $missing), 400);
+    }
+
+    // Existing invitees for this event (base rows). Idempotent skip-if-exists.
+    $existingStmt = $db->prepare(
+        "SELECT LOWER(username) AS u FROM event_invites
+          WHERE event_id = ? AND occurrence_date IS NULL"
+    );
+    $existingStmt->execute([$event_id]);
+    $already = array_column($existingStmt->fetchAll(), 'u');
+
+    // Next sort_order — append to the end.
+    $sortStmt = $db->prepare('SELECT COALESCE(MAX(sort_order), 0) FROM event_invites WHERE event_id = ?');
+    $sortStmt->execute([$event_id]);
+    $next_sort = (int)$sortStmt->fetchColumn();
+
+    $added = []; $skipped = []; $waitlisted = [];
+    $notifications_queued = 0;
+
+    try {
+        $db->beginTransaction();
+
+        $ins = $db->prepare(
+            "INSERT INTO event_invites (event_id, username, phone, email, rsvp, event_role, approval_status, sort_order, rsvp_token)
+             VALUES (?, ?, ?, ?, NULL, ?, 'approved', ?, ?)"
+        );
+        // Walk the original input so duplicates and order are preserved.
+        $seen_in_request = [];
+        foreach ($invitees_in as $inv) {
+            $uid = (int)$inv['user_id'];
+            $u   = $found[$uid];
+            $uname_lower = strtolower((string)$u['username']);
+            if (in_array($uname_lower, $already, true) || in_array($uname_lower, $seen_in_request, true)) {
+                $skipped[] = $uid;
+                continue;
+            }
+            $role = !empty($inv['manager']) ? 'manager' : 'invitee';
+            $next_sort++;
+            $ins->execute([
+                $event_id,
+                $uname_lower,
+                $u['phone'] ?: null,
+                $u['email'] ?: null,
+                $role,
+                $next_sort,
+                bin2hex(random_bytes(16)),
+            ]);
+            $added[] = $uid;
+            $seen_in_request[] = $uname_lower;
+        }
+
+        // Recompute waitlist for poker events. Anyone past capacity becomes waitlisted.
+        if ((int)$evt['is_poker'] === 1 && (int)$evt['waitlist_enabled'] === 1 && !empty($added)) {
+            $sess = $db->prepare('SELECT num_tables, seats_per_table FROM poker_sessions WHERE event_id = ?');
+            $sess->execute([$event_id]);
+            $row = $sess->fetch();
+            if ($row) {
+                $cap = (int)$row['num_tables'] * (int)$row['seats_per_table'];
+                $db->prepare(
+                    "UPDATE event_invites SET approval_status = 'waitlisted'
+                     WHERE event_id = ? AND occurrence_date IS NULL AND sort_order > ?"
+                )->execute([$event_id, $cap]);
+            }
+        }
+
+        // Identify which of the just-added rows actually landed approved (vs waitlisted).
+        // Anyone in $added not currently approved goes into $waitlisted; only approved
+        // rows get an invite notification.
+        if (!empty($added)) {
+            $addedPh = implode(',', array_fill(0, count($added), '?'));
+            $statusStmt = $db->prepare(
+                "SELECT u.id, ei.username, ei.approval_status
+                   FROM event_invites ei
+                   JOIN users u ON LOWER(u.username) = LOWER(ei.username)
+                  WHERE ei.event_id = ? AND ei.occurrence_date IS NULL AND u.id IN ($addedPh)"
+            );
+            $statusStmt->execute(array_merge([$event_id], $added));
+            $statuses = $statusStmt->fetchAll();
+            foreach ($statuses as $s) {
+                if ($s['approval_status'] === 'waitlisted') {
+                    $waitlisted[] = (int)$s['id'];
+                } elseif ($s['approval_status'] === 'approved') {
+                    queue_event_notification($db, $event_id, (string)$s['username'], 'invite', null, []);
+                    $notifications_queued++;
+                }
+            }
+        }
+
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        api_log_request($key_id, 500);
+        api_fail('Failed to add invitees', 500);
+    }
+
+    if ($notifications_queued > 0) drain_queue_async();
+
+    db_log_anon_activity("api_invite: event=$event_id via key=$key_id league=$league_id added=" . count($added) . " skipped=" . count($skipped) . " waitlisted=" . count($waitlisted));
+
+    api_log_request($key_id, 200);
+    api_ok([
+        'event_id'             => $event_id,
+        'added'                => $added,
+        'skipped'              => $skipped,
+        'waitlisted'           => $waitlisted,
         'notifications_queued' => $notifications_queued,
     ], 0);
 }

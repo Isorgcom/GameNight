@@ -513,14 +513,14 @@ Roster. Personal contact info (emails, phones) is **never** returned.
 {
   "ok": true,
   "data": [
-    { "display_name": "Bryce", "role": "owner",   "pending": false, "joined_at": "2026-04-17 02:36:29" },
-    { "display_name": "brad",  "role": "manager", "pending": false, "joined_at": "2026-04-17 13:43:25" },
-    { "display_name": "Crystal", "role": "member", "pending": true,  "joined_at": "2026-04-25 23:06:29" }
+    { "user_id": 6,    "display_name": "Bryce",   "role": "owner",   "pending": false, "joined_at": "2026-04-17 02:36:29" },
+    { "user_id": 12,   "display_name": "brad",    "role": "manager", "pending": false, "joined_at": "2026-04-17 13:43:25" },
+    { "user_id": null, "display_name": "Crystal", "role": "member",  "pending": true,  "joined_at": "2026-04-25 23:06:29" }
   ]
 }
 ```
 
-`pending: true` means the person was invited by email or phone but has not yet created an account. The display name is their `username` if they have an account, otherwise the contact name on the invite.
+`pending: true` means the person was invited by email or phone but has not yet created an account; for those rows `user_id` is `null`. Registered members get an integer `user_id` that you can pass back to write endpoints (e.g. as an invitee on `POST /events/{id}/invites`). The display name is their `username` if they have an account, otherwise the contact name on the invite.
 
 #### `GET /api/v1/events?from=YYYY-MM-DD&to=YYYY-MM-DD`
 
@@ -790,6 +790,121 @@ curl -X POST -H 'Authorization: Bearer YOUR_WRITE_KEY' \
        ]
      }' \
      https://your-site.com/api/v1/events
+```
+
+#### `PATCH /api/v1/events/{id}`
+
+**Requires the `write` scope.** Partial update of an existing event. Only fields present in the body are touched — omit a key to leave it unchanged.
+
+Accepts the same field shape as `POST /events`, with these exceptions:
+- **`invitees` is not supported** — use `POST /api/v1/events/{id}/invites` to add invitees.
+- **`league_id` and `visibility` are immutable** — events stay in the league bound to the API key.
+- `recurrence` / `recurrence_end` rejected (same as POST).
+
+When `start_at` (date or time) changes and the event is in the future, an `event_updated` notification is queued for every approved base invitee. Other field changes are silent. The reminder queue is rebuilt automatically when timing or reminder fields change. Wrapped in a transaction; partial failures roll back cleanly.
+
+**Successful response** (HTTP 200):
+
+```json
+{
+  "ok": true,
+  "data": {
+    "event_id": 67,
+    "title": "Kipling poker 17th",
+    "start_at": "2026-05-17T20:00:00Z",
+    "end_at": "2026-05-18T02:00:00Z",
+    "is_poker": true,
+    "fields_changed": ["start_date", "start_time"],
+    "notifications_queued": 4
+  }
+}
+```
+
+`fields_changed` is the list of stored columns that actually moved. If you POST a field that already matches the stored value, it does not appear here. `notifications_queued` reports how many `event_updated` notifications were queued (0 for past events or non-timing edits).
+
+**Error responses:**
+
+| HTTP code | Meaning |
+|---|---|
+| `400` | Invalid body, unparseable `start_at`, unknown `color`, `no_fields_to_update` (every field in the body matches the stored value), etc. |
+| `401` | Missing, malformed, or revoked API key. |
+| `403` | API key lacks the `write` scope. |
+| `404` | `event_not_found` (id missing or in a different league). |
+| `429` | Rate limit exceeded — 60 updates per hour per key. |
+
+**Examples:**
+
+```bash
+# Move start time
+curl -X PATCH -H 'Authorization: Bearer YOUR_WRITE_KEY' \
+     -H 'Content-Type: application/json' \
+     -d '{"start_at":"2026-05-17T21:00:00Z"}' \
+     https://your-site.com/api/v1/events/67
+
+# Polish the description (silent — no notifications)
+curl -X PATCH -H 'Authorization: Bearer YOUR_WRITE_KEY' \
+     -H 'Content-Type: application/json' \
+     -d '{"description":"Bring snacks. Doors at 7."}' \
+     https://your-site.com/api/v1/events/67
+
+# Bump poker capacity
+curl -X PATCH -H 'Authorization: Bearer YOUR_WRITE_KEY' \
+     -H 'Content-Type: application/json' \
+     -d '{"poker_tables":2,"poker_seats":9}' \
+     https://your-site.com/api/v1/events/67
+```
+
+#### `POST /api/v1/events/{id}/invites`
+
+**Requires the `write` scope.** Add invitees to an event after creation. Idempotent — anyone already invited is silently skipped and reported in the response.
+
+**Request body** (JSON):
+
+| Field | Type | Notes |
+|---|---|---|
+| `invitees` | array, required | Each entry: `{user_id: int, manager?: bool}`. Each `user_id` must already be a member of this league (use `GET /members` to discover ids, or `POST /users` to create new members first). Capped at 200. |
+
+Newly-inserted rows always land `approval_status='approved'`, mirroring how the calendar UI treats creator-added invites. For poker events with `waitlist_enabled=true`, anyone added beyond `poker_tables * poker_seats` is automatically marked `waitlisted` after insert and skips the invite notification.
+
+> **Existing invitees keep their manager flag.** The endpoint does not promote/demote on duplicate input. If you want to change someone's role on an event, that's a separate operation that isn't yet exposed.
+
+**Successful response** (HTTP 200):
+
+```json
+{
+  "ok": true,
+  "data": {
+    "event_id": 67,
+    "added": [12, 34],
+    "skipped": [56],
+    "waitlisted": [],
+    "notifications_queued": 2
+  }
+}
+```
+
+- `added` lists user_ids that produced new invite rows.
+- `skipped` lists user_ids that were already invited.
+- `waitlisted` lists user_ids whose new invite landed `waitlisted` (poker capacity overflow).
+- `notifications_queued` is the count of invite notifications fired — equals `len(added) - len(waitlisted)`.
+
+**Error responses:**
+
+| HTTP code | Meaning |
+|---|---|
+| `400` | Empty `invitees`, malformed entries, user_ids not members of this league, or too many invitees. |
+| `401` | Missing, malformed, or revoked API key. |
+| `403` | API key lacks the `write` scope. |
+| `404` | `event_not_found` (id missing or in a different league). |
+| `429` | Rate limit exceeded — 60 calls per hour per key. |
+
+**Example:**
+
+```bash
+curl -X POST -H 'Authorization: Bearer YOUR_WRITE_KEY' \
+     -H 'Content-Type: application/json' \
+     -d '{"invitees":[{"user_id":12},{"user_id":34,"manager":true}]}' \
+     https://your-site.com/api/v1/events/67/invites
 ```
 
 #### `DELETE /api/v1/events/{id}`
