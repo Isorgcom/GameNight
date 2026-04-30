@@ -4,6 +4,16 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19207] — 2026-04-30
+
+### Added
+- **`POST /api/v1/users` accepts `preferred_contact`.** New optional body field that sets the user's ongoing notification channel — the same setting users pick on `/settings.php`. Accepts `email`, `sms`, `whatsapp`, `both`, or `none`. When omitted it falls back to `verification_method`, preserving the prior behavior. The two fields are independent now: a sister site can verify a user by SMS at signup but set their preferred ongoing channel to `email` (or `both`, or mute them entirely with `none`). The response payload gains `preferred_contact` (the resolved value) and `preferred_contact_updated` (true only when a new user was created) so callers can tell whether their requested value took effect.
+
+### Security
+- **Existing-user replays cannot change notification preferences.** When `POST /api/v1/users` matches an existing account by email or phone, the endpoint still ensures league membership but explicitly ignores any `preferred_contact` in the body. A leaked write key cannot silently mute a user, re-route their notifications to a channel they don't watch, or unsubscribe them. The response always returns `preferred_contact_updated: false` on replays so the caller can see the no-op.
+
+---
+
 ## [v0.19206] — 2026-04-30
 
 ### Added

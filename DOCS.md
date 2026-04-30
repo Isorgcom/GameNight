@@ -635,7 +635,10 @@ The endpoint is **idempotent on email/phone** — replaying the same request bod
 | `email` | string, optional | At least one of `email` or `phone` is required. |
 | `phone` | string, optional | Normalized to `XXX-XXX-XXXX` for US numbers; international numbers stored as entered. |
 | `username` | string, optional | 3–30 chars, letters/numbers/underscores. If omitted, derived from `display_name` with a numeric suffix on collision. |
-| `verification_method` | string, optional | One of `email`, `sms`, `whatsapp`, `none`. Default: `email` if email provided, else `sms`. Use `none` if your site handles onboarding itself. |
+| `verification_method` | string, optional | One of `email`, `sms`, `whatsapp`, `none`. One-shot — used only at signup. Default: `email` if email provided, else `sms`. Use `none` if your site handles onboarding itself. |
+| `preferred_contact` | string, optional | One of `email`, `sms`, `whatsapp`, `both`, `none`. Sets the user's ongoing notification channel (the same setting they'd pick on `/settings.php`). Default: matches `verification_method`. **Ignored on existing-user replays** so a leaked write key cannot mute or re-route real accounts. |
+
+`verification_method` is consulted only at signup; `preferred_contact` is what the system reads every time it sends a notification afterwards. They can differ — e.g. verify by SMS but prefer email going forward.
 
 **Successful response** (HTTP 200):
 
@@ -647,7 +650,9 @@ The endpoint is **idempotent on email/phone** — replaying the same request bod
     "username": "API_Test",
     "created": true,
     "league_member_added": true,
-    "verification_sent": true
+    "verification_sent": true,
+    "preferred_contact": "email",
+    "preferred_contact_updated": true
   }
 }
 ```
@@ -655,12 +660,14 @@ The endpoint is **idempotent on email/phone** — replaying the same request bod
 - `created` is `true` when a new user row was inserted, `false` when an existing user with that email or phone was found.
 - `league_member_added` is `true` when the user was newly added to this key's league, `false` when they were already a member.
 - `verification_sent` is `false` for existing-user replays and when `verification_method=none`.
+- `preferred_contact` echoes the resolved value (caller-supplied or default). For existing-user replays, it's the user's current stored preference.
+- `preferred_contact_updated` is `true` only when a new user was created. Always `false` on replays — preferences on existing accounts are intentionally not overwritten.
 
 **Error responses:**
 
 | HTTP code | Meaning |
 |---|---|
-| `400` | Invalid request body (missing `display_name`, no email or phone, malformed values, unknown `verification_method`). |
+| `400` | Invalid request body (missing `display_name`, no email or phone, malformed values, unknown `verification_method` or `preferred_contact`). |
 | `401` | Missing, malformed, or revoked API key. |
 | `403` | API key lacks the `write` scope. |
 | `409` | `username_taken` (when caller passed an explicit `username` that's in use) or `contact_taken` (UNIQUE constraint race on email or phone). |

@@ -65,6 +65,7 @@ $email        = strtolower(trim((string)($body['email'] ?? '')));
 $phone_in     = trim((string)($body['phone'] ?? ''));
 $username_in  = trim((string)($body['username'] ?? ''));
 $verify_in    = strtolower(trim((string)($body['verification_method'] ?? '')));
+$pref_in      = strtolower(trim((string)($body['preferred_contact'] ?? '')));
 
 if ($display_name === '') {
     api_log_request($key_id, 400);
@@ -108,6 +109,14 @@ if (($verify_in === 'sms' || $verify_in === 'whatsapp') && !$has_phone) {
     api_fail("verification_method=$verify_in requires a phone number", 400);
 }
 
+// preferred_contact governs ongoing notifications (verification_method is one-shot).
+// Same five values the in-app settings form accepts (www/settings.php:27).
+$valid_prefs = ['email', 'sms', 'whatsapp', 'both', 'none'];
+if ($pref_in !== '' && !in_array($pref_in, $valid_prefs, true)) {
+    api_log_request($key_id, 400);
+    api_fail('preferred_contact must be one of: email, sms, whatsapp, both, none', 400);
+}
+
 // ── Idempotent existing-user lookup ──────────────────────────────────────────
 // Look up by whichever contact was provided. Email wins when both are present —
 // matches walkin.php and avoids the surprise of routing to a different user
@@ -135,14 +144,22 @@ if ($existing) {
     $ins->execute([$league_id, $uid]);
     $member_added = ($ins->rowCount() > 0);
 
+    // Preferences on existing accounts are not touched. A leaked write key
+    // should never be able to silently mute or re-route a real user.
+    $prefStmt = $db->prepare('SELECT preferred_contact FROM users WHERE id = ?');
+    $prefStmt->execute([$uid]);
+    $existing_pref = (string)($prefStmt->fetchColumn() ?: 'email');
+
     db_log_anon_activity("api_create_user: existing $username (id=$uid) via key=$key_id league=$league_id" . ($member_added ? ' (added to league)' : ''));
     api_log_request($key_id, 200);
     api_ok([
-        'user_id'             => $uid,
-        'username'            => $username,
-        'created'             => false,
-        'league_member_added' => $member_added,
-        'verification_sent'   => false,
+        'user_id'                   => $uid,
+        'username'                  => $username,
+        'created'                   => false,
+        'league_member_added'       => $member_added,
+        'verification_sent'         => false,
+        'preferred_contact'         => $existing_pref,
+        'preferred_contact_updated' => false,
     ], 0);
 }
 
@@ -184,13 +201,18 @@ if ($username_in !== '') {
     }
 }
 
-// preferred_contact + verification_method follow walkin.php conventions.
-$preferred = $verify_in === 'none'
-    ? ($has_email ? 'email' : 'sms')
-    : $verify_in;
+// verification_method is the one-shot value used at signup; preferred_contact is
+// the ongoing notification preference. If the caller didn't pass preferred_contact,
+// fall back to verification_method (or walkin.php's contact-channel rule when
+// verification was suppressed). The verification_method column itself doesn't
+// store 'none' — keep walkin.php's behavior of recording the channel that was
+// available even when no send happened.
 $method    = $verify_in === 'none'
     ? ($has_email ? 'email' : 'sms')
     : $verify_in;
+$preferred = $pref_in !== ''
+    ? $pref_in
+    : $method;
 
 try {
     $db->prepare(
@@ -238,9 +260,11 @@ if ($verify_in !== 'none') {
 db_log_anon_activity("api_create_user: new $final_username (id=$new_id) via key=$key_id league=$league_id");
 api_log_request($key_id, 200);
 api_ok([
-    'user_id'             => $new_id,
-    'username'            => $final_username,
-    'created'             => true,
-    'league_member_added' => $member_added,
-    'verification_sent'   => $verification_sent,
+    'user_id'                   => $new_id,
+    'username'                  => $final_username,
+    'created'                   => true,
+    'league_member_added'       => $member_added,
+    'verification_sent'         => $verification_sent,
+    'preferred_contact'         => $preferred,
+    'preferred_contact_updated' => true,
 ], 0);
