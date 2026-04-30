@@ -20,7 +20,7 @@ api_ok([
     'name'           => 'GameNight Public API',
     'version'        => 'v1',
     'description'    => 'Single-league API: read-only access to events, posts, members, and rules; write endpoints (e.g. user creation) require a key minted with the write scope. Each API key is bound to one league.',
-    'documentation'  => rtrim(get_site_url(), '/') . '/DOCS.md',
+    'documentation'  => 'https://github.com/Isorgcom/GameNight/blob/main/DOCS.md',
     'authentication' => [
         'type'     => 'bearer',
         'header'   => 'Authorization: Bearer <key>',
