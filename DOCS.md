@@ -43,6 +43,7 @@ A complete guide to setting up, configuring, and using Game Night — your self-
   - [SMS RSVP Replies](#sms-rsvp-replies)
 - [Cron Setup](#cron-setup)
 - [API for Sister Sites](#api-for-sister-sites)
+  - [Scopes](#scopes)
   - [Issuing a Key](#issuing-a-key)
   - [Authentication](#api-authentication)
   - [Endpoints](#api-endpoints)
@@ -443,16 +444,27 @@ Or use the Docker container's built-in timer if configured in `docker-compose.ym
 
 ## API for Sister Sites
 
-GameNight exposes a small read-only JSON API at `/api/v1/` so a separate website (for example, a poker league's main marketing site) can pull league data without copy-pasting. Each API key is bound to **one league** at issuance and authorizes read-only access to that league's events, posts, and member roster. The key cannot be used to read other leagues, and there are no write endpoints.
+GameNight exposes a small JSON API at `/api/v1/` so a separate website (for example, a poker league's main marketing site) can pull league data, or push new users into a league, without copy-pasting. Each API key is bound to **one league** at issuance and is restricted to that league's data — keys cannot read or write across leagues.
 
 The API was designed for a single trusted server-to-server consumer model (one shared key in the consumer's config). It is not an OAuth provider and does not have per-end-user tokens.
+
+### Scopes
+
+Every key carries a scope:
+
+- **`read`** (default) — GET endpoints only.
+- **`read,write`** — In addition to read, allows write endpoints such as `POST /users`.
+
+Old keys minted before the scope system shipped are migrated to `read`, so they cannot exercise write endpoints until they are re-minted with write access.
 
 ### Issuing a Key
 
 1. As the **owner** of a league, navigate to that league's page (`/league.php?id=N`) and click the **API** tab. Site admins can also access this tab on any league. Managers cannot issue keys — issuing a key exposes the league's data outside the platform, which is an owner-level decision.
-2. Type a label that describes who's getting the key (for example `westside-poker sister site`). Click **Mint key**.
-3. The plaintext key is displayed exactly once in a green box. Copy it now and store it in the consumer's server config. The key is hashed (SHA-256) at rest; once you leave the page you cannot recover the plaintext.
-4. The key appears in the table below the form with status, created date, and last-used date. You can revoke it at any time.
+2. Type a label that describes who's getting the key (for example `westside-poker sister site`).
+3. Pick a scope: **Read-only** (default) or **Read + write (create users)**. Hand out the smallest scope that does the job — a read-only key that leaks cannot create accounts in your league.
+4. Click **Mint key**.
+5. The plaintext key is displayed exactly once in a green box. Copy it now and store it in the consumer's server config. The key is hashed (SHA-256) at rest; once you leave the page you cannot recover the plaintext.
+6. The key appears in the table below the form with scope, status, created date, and last-used date. You can revoke it at any time.
 
 Site admins can see every key across every league via **Admin Settings → API Keys**. That page is read-only and lets admins revoke any key for abuse response, but admins cannot mint keys on behalf of league owners.
 
@@ -474,7 +486,7 @@ Either way, the request must be over HTTPS in production.
 
 ### API Endpoints
 
-All endpoints are `GET`. The base path `/api/v1` (no trailing slash needed) returns a discovery document describing the available endpoints — useful for human exploration; no key required.
+The base path `/api/v1` (no trailing slash needed) returns a discovery document describing the available endpoints — useful for human exploration; no key required. All other endpoints require a key.
 
 #### `GET /api/v1/league`
 
@@ -609,12 +621,79 @@ When the league has not configured a rules post yet, `rules` is `null`:
 
 `content_html` is sanitized HTML, same pipeline as `/posts`. Hidden rules posts are treated as absent.
 
+#### `POST /api/v1/users`
+
+**Requires the `write` scope.** Creates a user and adds them to the key's league. Mirrors the walk-in registration flow: a soft account is created with `must_change_password=1` and `email_verified=0`, and (unless suppressed) a verification email or SMS is sent so the new user can later set a password and sign in.
+
+The endpoint is **idempotent on email/phone** — replaying the same request body returns the existing `user_id`, ensures league membership, and skips the verification send. Sister sites can retry safely without creating duplicate accounts.
+
+**Request body** (JSON):
+
+| Field | Type | Notes |
+|---|---|---|
+| `display_name` | string, required | Used to derive a username when `username` is omitted. |
+| `email` | string, optional | At least one of `email` or `phone` is required. |
+| `phone` | string, optional | Normalized to `XXX-XXX-XXXX` for US numbers; international numbers stored as entered. |
+| `username` | string, optional | 3–30 chars, letters/numbers/underscores. If omitted, derived from `display_name` with a numeric suffix on collision. |
+| `verification_method` | string, optional | One of `email`, `sms`, `whatsapp`, `none`. Default: `email` if email provided, else `sms`. Use `none` if your site handles onboarding itself. |
+
+**Successful response** (HTTP 200):
+
+```json
+{
+  "ok": true,
+  "data": {
+    "user_id": 245,
+    "username": "API_Test",
+    "created": true,
+    "league_member_added": true,
+    "verification_sent": true
+  }
+}
+```
+
+- `created` is `true` when a new user row was inserted, `false` when an existing user with that email or phone was found.
+- `league_member_added` is `true` when the user was newly added to this key's league, `false` when they were already a member.
+- `verification_sent` is `false` for existing-user replays and when `verification_method=none`.
+
+**Error responses:**
+
+| HTTP code | Meaning |
+|---|---|
+| `400` | Invalid request body (missing `display_name`, no email or phone, malformed values, unknown `verification_method`). |
+| `401` | Missing, malformed, or revoked API key. |
+| `403` | API key lacks the `write` scope. |
+| `409` | `username_taken` (when caller passed an explicit `username` that's in use) or `contact_taken` (UNIQUE constraint race on email or phone). |
+| `429` | Rate limit exceeded — 60 successful creations per hour per key. |
+
+**Examples:**
+
+```bash
+# Create with email
+curl -X POST -H 'Authorization: Bearer YOUR_WRITE_KEY' \
+     -H 'Content-Type: application/json' \
+     -d '{"display_name":"Alice","email":"alice@example.com"}' \
+     https://your-site.com/api/v1/users
+
+# Create with phone (sends SMS code)
+curl -X POST -H 'Authorization: Bearer YOUR_WRITE_KEY' \
+     -H 'Content-Type: application/json' \
+     -d '{"display_name":"Bob","phone":"281-555-1234","verification_method":"sms"}' \
+     https://your-site.com/api/v1/users
+
+# Suppress verification — your site handles onboarding
+curl -X POST -H 'Authorization: Bearer YOUR_WRITE_KEY' \
+     -H 'Content-Type: application/json' \
+     -d '{"display_name":"Carol","email":"carol@example.com","verification_method":"none"}' \
+     https://your-site.com/api/v1/users
+```
+
 ### API Response Shape
 
 Every response uses the same envelope:
 
 - **Success**: `{"ok": true, "data": ...}` — HTTP 200.
-- **Error**: `{"ok": false, "error": "human-readable message"}` — HTTP 400/401/404/405.
+- **Error**: `{"ok": false, "error": "human-readable message"}` — HTTP 400/401/403/404/405/409/429.
 
 This matches the shape used by every internal `_dl.php` endpoint, so if you've integrated against any of those before, the parser is the same.
 
@@ -622,10 +701,13 @@ This matches the shape used by every internal `_dl.php` endpoint, so if you've i
 
 | HTTP code | Meaning |
 |---|---|
-| `400` | Bad parameter. Examples: `from` after `to`; window over 366 days; non-hex characters in the key. |
+| `400` | Bad parameter or invalid request body. Examples: `from` after `to`; window over 366 days; non-hex characters in the key; missing `display_name` on `POST /users`. |
 | `401` | Missing, malformed, or revoked API key. |
+| `403` | API key lacks the scope required by the endpoint (e.g. a read-only key calling `POST /users`). |
 | `404` | The league bound to the key was deleted (key is dead, mint a new one for a different league). |
-| `405` | You sent something other than `GET`. Only `GET` is supported. |
+| `405` | Method not allowed for this endpoint. |
+| `409` | Conflict on `POST /users` — `username_taken` or `contact_taken`. |
+| `429` | Per-key write rate limit exceeded (60 successful user creations per hour). |
 
 ### API Caching
 
