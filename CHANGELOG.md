@@ -4,6 +4,16 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19206] — 2026-04-30
+
+### Added
+- **Public API: `POST /api/v1/users` lets sister sites create users in a league.** Until now `/api/v1` was read-only; sister sites that wanted to onboard a user had to send them through the QR walk-in or a manual sign-up. The new endpoint accepts a JSON body (`display_name`, `email` and/or `phone`, optional `username`, optional `verification_method` of `email` / `sms` / `whatsapp` / `none`) and creates a soft account that mirrors the walk-in flow: empty `password_hash`, `must_change_password=1`, `email_verified=0`, with a verification email or SMS sent so the user can later set a password and sign in. The new user is automatically added to the league bound to the API key. The endpoint is **idempotent on email/phone** — replaying with the same contact returns the existing `user_id`, ensures league membership, and skips the verification send, so sister sites can retry safely. Per-key rate limit of 60 successful creations per hour using the existing `api_request_log`. Audit trail flows through `db_log_anon_activity` (`api_create_user: ...`).
+
+### Security
+- **API keys now have a `scopes` column.** Every existing key is migrated to `scopes='read'` (default), so the new write endpoint cannot be exercised with an older key. League owners minting a key can choose "Read-only" (default) or "Read + write (create users)" from the API tab. The keys table on the league page now shows a Scope column with a styled badge so you can see at a glance which keys carry write access. `api_require_scope($key, 'write')` enforces the gate; missing scope returns 403. The discovery endpoint at `/api/v1` documents both scopes and the new endpoint shape.
+
+---
+
 ## [v0.19205] — 2026-04-29
 
 ### Added

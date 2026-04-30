@@ -19,13 +19,17 @@ $base = rtrim(get_site_url(), '/') . '/api/v1';
 api_ok([
     'name'           => 'GameNight Public API',
     'version'        => 'v1',
-    'description'    => 'Read-only access to a single league\'s data: events, posts, members. Each API key is bound to one league.',
+    'description'    => 'Single-league API: read-only access to events, posts, members, and rules; write endpoints (e.g. user creation) require a key minted with the write scope. Each API key is bound to one league.',
     'documentation'  => rtrim(get_site_url(), '/') . '/DOCS.md',
     'authentication' => [
         'type'     => 'bearer',
         'header'   => 'Authorization: Bearer <key>',
         'fallback' => '?key=<key> query parameter (use only when headers are not available; HTTPS required either way)',
         'how_to_get_a_key' => 'League owners can mint keys from their league\'s API tab in the GameNight UI.',
+        'scopes'   => [
+            'read'  => 'Default. GET endpoints only.',
+            'write' => 'In addition to read, allows write endpoints such as POST /users.',
+        ],
     ],
     'response_shape' => [
         'success' => '{"ok": true, "data": ...}',
@@ -66,13 +70,31 @@ api_ok([
             'path'        => $base . '/rules',
             'description' => "The league's rules post (sanitized HTML body). Returns rules: null when the league has not configured a rules post.",
         ],
+        [
+            'method'      => 'POST',
+            'path'        => $base . '/users',
+            'description' => 'Create a user and add them to the key\'s league. Idempotent on email/phone — replaying with the same contact returns the existing user_id and ensures league membership without duplicating the account or resending verification. Requires the write scope.',
+            'scope'       => 'write',
+            'body'        => [
+                'display_name'        => 'string, required',
+                'email'               => 'string, optional (one of email/phone is required)',
+                'phone'               => 'string, optional',
+                'username'            => 'string, optional (3-30 chars, letters/numbers/underscores). Auto-derived from display_name when omitted.',
+                'verification_method' => "'email' | 'sms' | 'whatsapp' | 'none' — defaults to email if email provided, else sms",
+            ],
+            'response'    => '{user_id, username, created, league_member_added, verification_sent}',
+            'rate_limit'  => '60 successful creations per hour per key (429 when exceeded)',
+        ],
     ],
     'caching'    => 'Successful responses include Cache-Control: public, max-age=60. Cache for at least one minute on the consumer side.',
     'cors'       => 'Access-Control-Allow-Origin: * — browser-side calls from any domain are allowed.',
     'errors' => [
-        '400' => 'Bad parameter (e.g. from > to, window > 366 days, malformed key format).',
+        '400' => 'Bad parameter or invalid request body.',
         '401' => 'Missing, malformed, or revoked API key.',
+        '403' => 'API key lacks the required scope for this endpoint.',
         '404' => 'The league bound to the key was deleted.',
-        '405' => 'Non-GET method.',
+        '405' => 'Method not allowed for this endpoint.',
+        '409' => 'Conflict (e.g. username_taken, contact_taken on POST /users).',
+        '429' => 'Per-key rate limit exceeded (write endpoints).',
     ],
 ]);

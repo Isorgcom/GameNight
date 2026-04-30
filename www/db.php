@@ -561,6 +561,10 @@ function db_init(PDO $pdo): void {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )"); } catch (Exception $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_api_log_key_time ON api_request_log(key_id, created_at)"); } catch (Exception $e) {}
+    // Per-key permission scopes. Comma-separated; existing keys default to 'read' so
+    // adding write endpoints (e.g. POST /api/v1/users) cannot be exercised by an old
+    // sister-site key without an explicit re-mint.
+    try { $pdo->exec("ALTER TABLE api_keys ADD COLUMN scopes TEXT NOT NULL DEFAULT 'read'"); } catch (Exception $e) {}
 
     // Event visibility + league linkage
     try { $pdo->exec("ALTER TABLE events ADD COLUMN league_id  INTEGER"); } catch (Exception $e) {}

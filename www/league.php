@@ -1083,7 +1083,7 @@ function ordinal($n) {
     <?php elseif ($tab === 'api' && $isOwner): ?>
         <?php
         $akStmt = $db->prepare(
-            "SELECT id, label, created_at, last_used_at, revoked_at
+            "SELECT id, label, created_at, last_used_at, revoked_at, scopes
                FROM api_keys
               WHERE league_id = ?
               ORDER BY revoked_at IS NOT NULL, created_at DESC"
@@ -1118,6 +1118,13 @@ function ordinal($n) {
                            placeholder="e.g. westside-poker sister site"
                            style="padding:.5rem .65rem;border:1.5px solid #cbd5e1;border-radius:6px;font:inherit">
                 </label>
+                <label style="display:flex;flex-direction:column;gap:.25rem;font-size:.8rem;font-weight:600;color:#475569;min-width:170px">
+                    Scope
+                    <select name="scopes" style="padding:.5rem .65rem;border:1.5px solid #cbd5e1;border-radius:6px;font:inherit;background:#fff">
+                        <option value="read">Read-only</option>
+                        <option value="read,write">Read + write (create users)</option>
+                    </select>
+                </label>
                 <button type="submit" class="lg-btn">Mint key</button>
             </form>
 
@@ -1128,6 +1135,7 @@ function ordinal($n) {
                 <thead>
                     <tr style="text-align:left">
                         <th style="font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;padding:.55rem .6rem;border-bottom:1px solid #f1f5f9">Label</th>
+                        <th style="font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;padding:.55rem .6rem;border-bottom:1px solid #f1f5f9">Scope</th>
                         <th style="font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;padding:.55rem .6rem;border-bottom:1px solid #f1f5f9">Status</th>
                         <th style="font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;padding:.55rem .6rem;border-bottom:1px solid #f1f5f9">Created</th>
                         <th style="font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;padding:.55rem .6rem;border-bottom:1px solid #f1f5f9">Last used</th>
@@ -1135,9 +1143,16 @@ function ordinal($n) {
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($api_keys as $k): $revoked = !empty($k['revoked_at']); ?>
+                    <?php foreach ($api_keys as $k): $revoked = !empty($k['revoked_at']); $hasWrite = strpos((string)($k['scopes'] ?? 'read'), 'write') !== false; ?>
                     <tr style="<?= $revoked ? 'opacity:.55' : '' ?>">
                         <td style="padding:.55rem .6rem;border-bottom:1px solid #f1f5f9"><?= htmlspecialchars($k['label']) ?></td>
+                        <td style="padding:.55rem .6rem;border-bottom:1px solid #f1f5f9">
+                            <?php if ($hasWrite): ?>
+                                <span title="Read + write" style="display:inline-block;font-size:.7rem;font-weight:700;padding:.1rem .5rem;border-radius:999px;background:#fef3c7;color:#92400e">read,write</span>
+                            <?php else: ?>
+                                <span title="Read-only" style="display:inline-block;font-size:.7rem;font-weight:700;padding:.1rem .5rem;border-radius:999px;background:#e0e7ff;color:#3730a3">read</span>
+                            <?php endif; ?>
+                        </td>
                         <td style="padding:.55rem .6rem;border-bottom:1px solid #f1f5f9">
                             <?php if ($revoked): ?>
                                 <span style="display:inline-block;font-size:.7rem;font-weight:700;padding:.1rem .5rem;border-radius:999px;background:#fee2e2;color:#991b1b">Revoked</span>

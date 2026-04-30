@@ -68,6 +68,9 @@ switch ($action) {
     case 'create': {
         $league_id = (int)($_POST['league_id'] ?? 0);
         $label     = trim((string)($_POST['label'] ?? ''));
+        // Whitelist the only two shapes we accept. Anything else collapses to read-only.
+        $scopes_in = (string)($_POST['scopes'] ?? 'read');
+        $scopes    = ($scopes_in === 'read,write') ? 'read,write' : 'read';
         if ($league_id <= 0) ak_fail('league_id required');
         if ($label === '')    ak_fail('Label required');
         if (!user_can_manage_league_api_keys($db, $league_id, $uid, $isAdmin)) ak_fail('Not allowed', 403);
@@ -79,10 +82,10 @@ switch ($action) {
 
         $plain = bin2hex(random_bytes(32));
         $hash  = hash('sha256', strtolower($plain));
-        $db->prepare('INSERT INTO api_keys (key_hash, label, league_id) VALUES (?, ?, ?)')
-           ->execute([$hash, $label, $league_id]);
+        $db->prepare('INSERT INTO api_keys (key_hash, label, league_id, scopes) VALUES (?, ?, ?, ?)')
+           ->execute([$hash, $label, $league_id, $scopes]);
         $kid = (int)$db->lastInsertId();
-        db_log_activity($uid, "minted API key id=$kid league=$league_id label=\"$label\"");
+        db_log_activity($uid, "minted API key id=$kid league=$league_id label=\"$label\" scopes=$scopes");
 
         // For redirect callers: stash the plaintext in flash so the league page can show
         // it once. For JSON callers: just return it in the response.

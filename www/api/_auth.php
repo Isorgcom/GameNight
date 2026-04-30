@@ -82,3 +82,17 @@ function api_authenticate(): array {
 
     return $row;
 }
+
+/**
+ * Enforce that the API key carries the named scope. Existing keys default to
+ * 'read' so write endpoints (e.g. POST /users) only work after a key is minted
+ * (or re-minted) with read,write. Always exits on failure (403 JSON).
+ */
+function api_require_scope(array $key, string $needed): void {
+    $raw = (string)($key['scopes'] ?? 'read');
+    $scopes = array_filter(array_map('trim', explode(',', $raw)), 'strlen');
+    if (!in_array($needed, $scopes, true)) {
+        api_log_request((int)$key['id'], 403);
+        api_fail('API key lacks required scope: ' . $needed, 403);
+    }
+}
