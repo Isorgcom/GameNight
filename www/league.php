@@ -1272,7 +1272,7 @@ function ordinal($n) {
             </p>
 
             <p style="font-size:.78rem;color:#94a3b8;margin:1.25rem 0 0">
-                Full developer reference is in <a href="/DOCS.md" style="color:#2563eb">DOCS.md</a>
+                Full developer reference is in <a href="https://github.com/Isorgcom/GameNight/blob/main/DOCS.md#api-for-sister-sites" target="_blank" rel="noopener" style="color:#2563eb">DOCS.md</a>
                 under "API for Sister Sites".
             </p>
         </div>
