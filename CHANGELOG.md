@@ -4,6 +4,19 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19208] — 2026-04-30
+
+### Added
+- **`POST /api/v1/events` lets sister sites create league events.** Requires the `write` scope. Body accepts `title`, `start_at`, optional `end_at`, plus pass-through fields the calendar form already supports: description, color, is_poker, requires_approval, recurrence + recurrence_end, rsvp_deadline_hours, waitlist_enabled, reminders_enabled, reminder_offsets, poker_buyin / poker_tables / poker_seats / poker_game_type, and an optional `invitees` array of `{user_id, manager?}`. Each invitee must already be a member of the league (call `POST /users` first to create them). Side effects mirror the in-app calendar form exactly: `created_by` is set to the league owner so the event has a real manager, `visibility` is forced to `'league'`, a poker_sessions row is auto-created when `is_poker=true`, beyond-capacity poker invitees are marked waitlisted, reminder notifications are queued, and a walk-in token is generated eagerly so the response can return a ready-to-use `walkin_url`. Per-key rate limit: 60 creations per hour. All audit-logged via `db_log_anon_activity`.
+
+### Changed
+- **Breaking: `GET /api/v1/events` now returns ISO-8601 UTC instants.** The previous response shape used `start_date` / `start_time` / `end_date` / `end_time` strings in the league's display timezone — sister sites had to know that timezone out-of-band to render correctly. Replaced with `start_at` and `end_at` ISO-8601 UTC strings (e.g. `"2026-05-17T20:00:00Z"`). All-day events return a date-only string (`"2026-05-17"`) in the same fields. **Migration**: any consumer reading the old fields needs to switch to `start_at` / `end_at` in this release. The new POST endpoint accepts the same `start_at` / `end_at` shape so sister sites can round-trip events without timezone math.
+
+### Security
+- Event creation is gated by the `write` scope (added in v0.19206) and is league-scoped via the API key — a key bound to one league cannot create events in another. Visibility cannot be set to `'public'` via the API; that remains an admin-only UI privilege.
+
+---
+
 ## [v0.19207] — 2026-04-30
 
 ### Added

@@ -524,11 +524,13 @@ Roster. Personal contact info (emails, phones) is **never** returned.
 
 #### `GET /api/v1/events?from=YYYY-MM-DD&to=YYYY-MM-DD`
 
+> **Breaking change in v0.19208.** This endpoint used to return `start_date` / `start_time` / `end_date` / `end_time` as local-time strings in the league's display timezone. It now returns ISO-8601 UTC instants in `start_at` / `end_at`. Sister sites no longer need to know the league's timezone to display events correctly.
+
 Events for the league within a date window. RSVP counts only include approved invites.
 
 | Query param | Default | Notes |
 |---|---|---|
-| `from` | today (in the site's timezone) | Inclusive |
+| `from` | today (in the league's timezone) | Inclusive |
 | `to` | `from + 90 days` | Inclusive; window is capped at 366 days |
 
 ```json
@@ -543,23 +545,21 @@ Events for the league within a date window. RSVP counts only include approved in
         "id": 67,
         "title": "Kipling poker 17th",
         "description": "",
-        "start_date": "2026-05-17",
-        "end_date": "",
-        "start_time": "15:00",
-        "end_time": "21:00",
+        "start_at": "2026-05-17T20:00:00Z",
+        "end_at":   "2026-05-18T02:00:00Z",
         "color": "#2563eb",
         "is_poker": true,
         "rsvp_yes_count": 5,
         "rsvp_no_count": 1,
         "rsvp_maybe_count": 0,
-        "created_at": "2026-04-26 20:06:26"
+        "created_at": "2026-04-26T20:06:26Z"
       }
     ]
   }
 }
 ```
 
-`start_date` / `end_date` / `start_time` / `end_time` are local-day and local-time strings (the values the host typed when scheduling the event). `created_at` is UTC. `end_date` is an empty string for single-day events.
+`start_at` and `end_at` are ISO-8601 UTC instants ending in `Z`. **All-day events** (events scheduled with a date but no time) return a date-only string (`"2026-05-17"`) in the same field instead of a full instant — this is how callers can tell the two apart. `end_at` is `null` for events without a configured end. `created_at` is also UTC.
 
 #### `GET /api/v1/posts?limit=20&offset=0`
 
@@ -693,6 +693,103 @@ curl -X POST -H 'Authorization: Bearer YOUR_WRITE_KEY' \
      -H 'Content-Type: application/json' \
      -d '{"display_name":"Carol","email":"carol@example.com","verification_method":"none"}' \
      https://your-site.com/api/v1/users
+```
+
+#### `POST /api/v1/events`
+
+**Requires the `write` scope.** Creates an event in the API key's league. Visibility is forced to `'league'`; `league_id` is implicit. The event's creator is set to the league owner so the event has a real manager. A walk-in token is generated immediately and returned as `walkin_url` so sister sites can show a QR right away. Side effects mirror the in-app calendar form: optional poker_sessions row, invitee inserts (always approved), beyond-capacity poker invitees marked waitlisted, reminder notifications queued.
+
+**Request body** (JSON):
+
+| Field | Type | Notes |
+|---|---|---|
+| `title` | string, required | Max 200 chars. |
+| `start_at` | string, required | ISO-8601 UTC instant (`"2026-05-17T20:00:00Z"`) **or** a date-only string (`"2026-05-17"`) for all-day events. |
+| `end_at` | string, optional | Same format as `start_at`. |
+| `description` | string, optional | Plain text. |
+| `color` | hex string, optional | One of `#2563eb`, `#16a34a`, `#dc2626`, `#d97706`, `#7c3aed`, `#0891b2`, `#db2777`. Default `#2563eb`. |
+| `is_poker` | boolean, optional | Default `false`. When `true`, a `poker_sessions` row is auto-created and the waitlist applies. |
+| `requires_approval` | boolean, optional | Default `false`. Gates self-signups via walk-in / RSVP. Does **not** affect API-supplied `invitees` (those are always approved). |
+| `rsvp_deadline_hours` | integer, optional | Hours before `start_at` when RSVPs lock. |
+| `waitlist_enabled` | boolean, optional | Default `true`. Only meaningful when `is_poker=true`. |
+| `reminders_enabled` | boolean, optional | Default `true`. |
+| `reminder_offsets` | array of integers, optional | Minutes before `start_at` for each reminder send. Defaults to the site default (typically `[2880, 720]` = 48h and 12h). |
+| `poker_buyin` | number, optional | Dollars (e.g. `20.00`). Used only when `is_poker=true`. |
+| `poker_tables` | integer, optional | Default 1. |
+| `poker_seats` | integer, optional | Default 8. Capacity = `poker_tables * poker_seats`. |
+| `poker_game_type` | string, optional | `'tournament'` or `'cash'`. Default `'tournament'`. |
+| `invitees` | array, optional | Each entry: `{user_id: int, manager?: bool}`. Each `user_id` must already be a member of this league (call `POST /users` first to create + add them). All inserted with `approval_status='approved'`. Capped at 200. |
+
+**Successful response** (HTTP 200):
+
+```json
+{
+  "ok": true,
+  "data": {
+    "event_id": 67,
+    "title": "Kipling poker 17th",
+    "start_at": "2026-05-17T20:00:00Z",
+    "end_at": "2026-05-18T02:00:00Z",
+    "league_id": 6,
+    "visibility": "league",
+    "is_poker": true,
+    "walkin_url": "https://your-site.com/walkin.php?event_id=67&token=ABCD1234...",
+    "invitees_added": 2,
+    "created_at": "2026-04-30T17:23:11Z"
+  }
+}
+```
+
+- `walkin_url` is the public registration link (the same URL the in-app QR code generates). You can show it as a QR on a check-in screen, share it in your event description, or print it.
+- `invitees_added` counts the rows actually inserted. If `is_poker=true` and `waitlist_enabled=true`, invitees beyond `poker_tables * poker_seats` are inserted with `approval_status='waitlisted'` (still counted in `invitees_added`).
+
+**Error responses:**
+
+| HTTP code | Meaning |
+|---|---|
+| `400` | Invalid request body. Examples: missing `title`, unparseable `start_at`, unknown `color` / `recurrence`, `recurrence_end` missing when recurrence is set, invitee user_id not in this league. |
+| `401` | Missing, malformed, or revoked API key. |
+| `403` | API key lacks the `write` scope. |
+| `404` | The league bound to the key was deleted. |
+| `405` | Method not allowed. |
+| `429` | Rate limit exceeded — 60 successful event creations per hour per key. |
+
+**Examples:**
+
+```bash
+# Single-evening poker night
+curl -X POST -H 'Authorization: Bearer YOUR_WRITE_KEY' \
+     -H 'Content-Type: application/json' \
+     -d '{
+       "title": "Friday $20 NLH",
+       "start_at": "2026-05-22T23:00:00Z",
+       "end_at":   "2026-05-23T03:00:00Z",
+       "is_poker": true,
+       "poker_buyin": 20,
+       "poker_tables": 2,
+       "poker_seats": 8
+     }' \
+     https://your-site.com/api/v1/events
+
+# All-day calendar marker, no poker
+curl -X POST -H 'Authorization: Bearer YOUR_WRITE_KEY' \
+     -H 'Content-Type: application/json' \
+     -d '{"title":"League holiday","start_at":"2026-12-25"}' \
+     https://your-site.com/api/v1/events
+
+# With invitees (must already be league members; POST /users first if not)
+curl -X POST -H 'Authorization: Bearer YOUR_WRITE_KEY' \
+     -H 'Content-Type: application/json' \
+     -d '{
+       "title": "Members-only tourney",
+       "start_at": "2026-06-01T00:00:00Z",
+       "is_poker": true,
+       "invitees": [
+         {"user_id": 12},
+         {"user_id": 34, "manager": true}
+       ]
+     }' \
+     https://your-site.com/api/v1/events
 ```
 
 ### API Response Shape
