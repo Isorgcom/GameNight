@@ -4,6 +4,16 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19209] — 2026-04-30
+
+### Added
+- **`DELETE /api/v1/events/{id}` lets sister sites delete events they created via the API (or any event in their league).** Mirrors the calendar UI's delete handler exactly: future events queue `cancel_event` notifications to all base invitees before the row is destroyed, past events delete silently, and the cascade clears `comments`, `event_exceptions`, `event_invites`, sent rows in `pending_notifications`, `event_notifications_sent`, and the event itself (`poker_sessions` and the chained `poker_players` / `poker_payouts` drop via existing FK cascade). Wrapped in a transaction so partial failures roll back cleanly — a small upgrade over the UI's no-transaction path. Returns `{event_id, title, deleted, notifications_queued}`. Per-key rate limit: 60 deletes per hour. New `.htaccess` rewrite rule routes `/api/v1/events/{id}` to `events.php?id={id}`; same pattern unlocks future per-resource endpoints (PATCH, etc.) without further infrastructure work.
+
+### Security
+- Event deletion is gated by the `write` scope and is league-scoped via the API key. An event in a different league returns 404 `event_not_found` rather than 403 — the API does not confirm the existence of resources outside the key's league.
+
+---
+
 ## [v0.19208] — 2026-04-30
 
 ### Added

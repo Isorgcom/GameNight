@@ -792,6 +792,60 @@ curl -X POST -H 'Authorization: Bearer YOUR_WRITE_KEY' \
      https://your-site.com/api/v1/events
 ```
 
+#### `DELETE /api/v1/events/{id}`
+
+**Requires the `write` scope.** Hard-deletes an event in the API key's league. Mirrors the calendar UI's delete handler: future events queue cancel notifications to invitees before the row is destroyed, past events delete silently. Wrapped in a transaction so partial failures roll back cleanly.
+
+The cascade clears all related rows:
+
+| Table | What gets deleted |
+|---|---|
+| `pending_notifications` | All queued notifications for this event are cleared first (so dead reminders for the now-cancelled event don't fire). Fresh `cancel_event` rows are then re-queued for invitees and sent right after the transaction commits. |
+| `comments` | All comments where `type='event'` and `content_id` matches |
+| `event_exceptions` | Any per-occurrence overrides for this event |
+| `event_invites` | All invite rows |
+| `event_notifications_sent` | The dedup audit trail |
+| `poker_sessions` (+ `poker_players`, `poker_payouts`, `timer_state`) | Explicitly deleted; SQLite is not configured to honor the schema's ON DELETE CASCADE foreign key. |
+| `events` | The event itself |
+
+Future-event detection: `start_date >= today` (in the league's display timezone). When true, every base invitee (rows with `occurrence_date IS NULL`) gets a `cancel_event` notification queued before the deletion runs. The `notifications_queued` field in the response tells you how many.
+
+**Successful response** (HTTP 200):
+
+```json
+{
+  "ok": true,
+  "data": {
+    "event_id": 67,
+    "title": "Kipling poker 17th",
+    "deleted": true,
+    "notifications_queued": 4
+  }
+}
+```
+
+**Error responses:**
+
+| HTTP code | Meaning |
+|---|---|
+| `401` | Missing, malformed, or revoked API key. |
+| `403` | API key lacks the `write` scope. |
+| `404` | `event_not_found` — the id doesn't exist OR the event belongs to a different league. The two cases return the same response on purpose (the API does not confirm existence of resources outside this key's league). |
+| `429` | Rate limit exceeded — 60 deletions per hour per key. |
+| `500` | Internal error during the cascade — the transaction was rolled back; the event was not deleted. |
+
+**Examples:**
+
+```bash
+# Cancel an upcoming event (will notify invitees)
+curl -X DELETE -H 'Authorization: Bearer YOUR_WRITE_KEY' \
+     https://your-site.com/api/v1/events/67
+
+# Clean up a past event (silent — no notifications)
+curl -X DELETE -H 'Authorization: Bearer YOUR_WRITE_KEY' \
+     https://your-site.com/api/v1/events/42
+```
+
 ### API Response Shape
 
 Every response uses the same envelope:

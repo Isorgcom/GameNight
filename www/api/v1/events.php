@@ -32,6 +32,11 @@ if ($method === 'POST') {
     exit;
 }
 
+if ($method === 'DELETE') {
+    handle_events_delete();
+    exit;
+}
+
 if ($method !== 'GET') {
     api_log_request(null, 405);
     api_fail('Method not allowed', 405);
@@ -507,5 +512,132 @@ function handle_events_post(): void {
         'walkin_url'      => $walkin_url,
         'invitees_added'  => $invitees_added,
         'created_at'      => $created_at,
+    ], 0);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DELETE handler
+// ─────────────────────────────────────────────────────────────────────────────
+function handle_events_delete(): void {
+    $key = api_authenticate();
+    api_require_scope($key, 'write');
+
+    $db        = get_db();
+    $key_id    = (int)$key['id'];
+    $league_id = (int)$key['league_id'];
+
+    // Per-key rate limit: 60 successful deletes per hour
+    $rl = $db->prepare(
+        "SELECT COUNT(*) FROM api_request_log
+          WHERE key_id = ?
+            AND status = 200
+            AND method = 'DELETE'
+            AND path LIKE '%/api/v1/events/%'
+            AND created_at > datetime('now','-1 hour')"
+    );
+    $rl->execute([$key_id]);
+    if ((int)$rl->fetchColumn() >= 60) {
+        api_log_request($key_id, 429);
+        api_fail('Rate limit exceeded: 60 event deletions per hour per key', 429);
+    }
+
+    $event_id = (int)($_GET['id'] ?? 0);
+    if ($event_id <= 0) {
+        api_log_request($key_id, 404);
+        api_fail('event_not_found', 404);
+    }
+
+    // Fetch the event. 404 if missing or in a different league. Don't distinguish
+    // the two — leaking "this id exists somewhere" would let the API confirm
+    // event existence in leagues the key has no business reading.
+    $evtStmt = $db->prepare('SELECT id, title, start_date, league_id FROM events WHERE id = ?');
+    $evtStmt->execute([$event_id]);
+    $evt = $evtStmt->fetch();
+    if (!$evt || (int)$evt['league_id'] !== $league_id) {
+        api_log_request($key_id, 404);
+        api_fail('event_not_found', 404);
+    }
+
+    $title      = (string)$evt['title'];
+    $start_date = (string)$evt['start_date'];
+
+    // Future events get cancel_event notifications; past events are deleted
+    // silently (mirrors calendar.php:432). "Today" is in the site's TZ — stored
+    // start_date is also in the site's TZ.
+    $site_tz = new DateTimeZone(get_setting('timezone', 'UTC'));
+    $today   = (new DateTime('now', $site_tz))->format('Y-m-d');
+    $notify  = ($start_date >= $today);
+
+    $notifications_queued = 0;
+
+    try {
+        $db->beginTransaction();
+
+        // Clear all queued notifications for this event FIRST. The UI handler
+        // only purges already-attempted rows, which orphans pending reminders
+        // for events that get deleted before the reminder fires. We want a
+        // clean slate, then we re-queue the cancel notifications below.
+        $db->prepare('DELETE FROM pending_notifications WHERE event_id=?')->execute([$event_id]);
+
+        if ($notify) {
+            $invStmt = $db->prepare(
+                "SELECT username FROM event_invites
+                  WHERE event_id = ? AND occurrence_date IS NULL"
+            );
+            $invStmt->execute([$event_id]);
+            foreach ($invStmt->fetchAll() as $inv) {
+                queue_event_notification(
+                    $db,
+                    $event_id,
+                    (string)$inv['username'],
+                    'cancel_event',
+                    null,
+                    ['title' => $title, 'start_date' => $start_date]
+                );
+                $notifications_queued++;
+            }
+        }
+
+        // Cascade. Order matches calendar.php:430-464 — calendar_dl.php is
+        // missing the comments cleanup, so we don't follow that one. We add
+        // an explicit poker_sessions delete (and the chained poker tables)
+        // because SQLite ignores ON DELETE CASCADE unless foreign_keys=ON,
+        // and that PRAGMA isn't set on this connection.
+        $db->prepare("DELETE FROM comments WHERE type='event' AND content_id=?")->execute([$event_id]);
+        $db->prepare('DELETE FROM event_exceptions WHERE event_id=?')->execute([$event_id]);
+        $db->prepare('DELETE FROM event_invites WHERE event_id=?')->execute([$event_id]);
+        $db->prepare('DELETE FROM event_notifications_sent WHERE event_id=?')->execute([$event_id]);
+        // Poker chain — delete leaves first, then session.
+        $sids = $db->prepare('SELECT id FROM poker_sessions WHERE event_id=?');
+        $sids->execute([$event_id]);
+        $session_ids = array_column($sids->fetchAll(), 'id');
+        if (!empty($session_ids)) {
+            $sph = implode(',', array_fill(0, count($session_ids), '?'));
+            $db->prepare("DELETE FROM poker_players WHERE session_id IN ($sph)")->execute($session_ids);
+            $db->prepare("DELETE FROM poker_payouts WHERE session_id IN ($sph)")->execute($session_ids);
+            $db->prepare("DELETE FROM timer_state   WHERE session_id IN ($sph)")->execute($session_ids);
+            $db->prepare('DELETE FROM poker_sessions WHERE event_id=?')->execute([$event_id]);
+        }
+        $db->prepare('DELETE FROM events WHERE id=?')->execute([$event_id]);
+
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        api_log_request($key_id, 500);
+        api_fail('Failed to delete event', 500);
+    }
+
+    if ($notifications_queued > 0) {
+        drain_queue_async();
+    }
+
+    db_log_anon_activity("api_delete_event: '$title' (id=$event_id) via key=$key_id league=$league_id" . ($notifications_queued > 0 ? " (notifications=$notifications_queued)" : ''));
+
+    api_log_request($key_id, 200);
+    api_ok([
+        'event_id'             => $event_id,
+        'title'                => $title,
+        'deleted'              => true,
+        'notifications_queued' => $notifications_queued,
     ], 0);
 }
