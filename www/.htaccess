@@ -15,6 +15,10 @@ RewriteRule ^api/v1/?$ /api/v1/index.php [L,QSA]
 RewriteRule ^api/v1/events/(\d+)/invites/(\d+)/?$ /api/v1/events.php?id=$1&sub=invites&invitee=$2 [L,QSA]
 RewriteRule ^api/v1/events/(\d+)/invites/?$ /api/v1/events.php?id=$1&sub=invites [L,QSA]
 RewriteRule ^api/v1/events/(\d+)/?$ /api/v1/events.php?id=$1 [L,QSA]
+# /api/v1/posts/{id}    → posts.php?id={id}
+RewriteRule ^api/v1/posts/(\d+)/?$ /api/v1/posts.php?id=$1 [L,QSA]
+# /api/v1/members/{user_id} → members.php?id={user_id}
+RewriteRule ^api/v1/members/(\d+)/?$ /api/v1/members.php?id=$1 [L,QSA]
 # Public API: /api/v1/<endpoint> → /api/v1/<endpoint>.php
 RewriteRule ^api/v1/([a-z]+)/?$ /api/v1/$1.php [L,QSA]
 

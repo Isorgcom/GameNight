@@ -4,6 +4,20 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19212] — 2026-05-01
+
+### Added
+- **`PATCH /api/v1/events/{id}/invites/{user_id}` lets sister sites change an invitee's RSVP or event role.** Body accepts `rsvp` (`'yes'`, `'no'`, `'maybe'`, or `null` to clear) and/or `event_role` (`'invitee'` or `'manager'`). At least one is required; bare `null` rsvp is meaningful (clears the response). The 1-hour-before-start cutoff that applies to non-admin RSVPs in the UI does NOT apply via the API — the key acts as the league owner, and admins bypass the cutoff in the UI too. When `rsvp` becomes `"no"` on a poker event, the waitlist is recomputed and any promotions are reported in `promoted_from_waitlist`. **No notifications fire** — matches what the UI currently does (the `rsvp_to_creator` template exists but is never queued from `calendar_dl.php`). Per-key rate limit 60/hour.
+- **`GET /api/v1/posts/{id}` fetches a single post by id.** Symmetric with `GET /events/{id}` — sister sites that have just an id (e.g. stored after embedding a post) no longer have to walk the list. Same visibility filters as `GET /posts`: hidden, future-scheduled, and the rules post all return `404 post_not_found`. Use `GET /rules` for the rules post specifically. Read scope sufficient.
+- **`GET /api/v1/members/{user_id}` returns a single league-member by user_id.** Same shape as a list-item; useful when a sister site has just an id and doesn't want to walk the roster.
+- **`PATCH /api/v1/members/{user_id}` lets sister sites promote/demote a league member's role.** Body: `{league_role: 'member' | 'manager'}`. Idempotent (no-op + `role_changed: false` when the role already matches). `'owner'` is rejected with `400 cannot_set_owner_via_api` to prevent privilege escalation, and demoting the current owner is rejected with `400 cannot_demote_owner` (use the in-app `transfer_ownership` flow instead). Pending contacts (member rows without a registered account) return `404 member_not_found` — call `POST /users` first. New `.htaccess` rewrite routes `/api/v1/members/{user_id}` to the members handler. Per-key rate limit 60/hour.
+
+### Plumbing
+- New `.htaccess` rewrites for `/api/v1/posts/{id}` and `/api/v1/members/{user_id}`.
+- `posts.php` and `members.php` become multi-method handlers, mirroring the pattern used by `events.php`.
+
+---
+
 ## [v0.19211] — 2026-05-01
 
 ### Added

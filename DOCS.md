@@ -522,6 +522,75 @@ Roster. Personal contact info (emails, phones) is **never** returned.
 
 `pending: true` means the person was invited by email or phone but has not yet created an account; for those rows `user_id` is `null`. Registered members get an integer `user_id` that you can pass back to write endpoints (e.g. as an invitee on `POST /events/{id}/invites`). The display name is their `username` if they have an account, otherwise the contact name on the invite.
 
+#### `GET /api/v1/members/{user_id}`
+
+Single league-member by `user_id`. Same shape as a list-item from `GET /members`. `pending` is always `false` because pending contacts have no `user_id` and aren't addressable through this endpoint. Returns `404 member_not_found` if the user_id isn't a member of this league.
+
+```json
+{
+  "ok": true,
+  "data": {
+    "user_id": 12,
+    "display_name": "brad",
+    "role": "manager",
+    "pending": false,
+    "joined_at": "2026-04-17 13:43:25"
+  }
+}
+```
+
+#### `PATCH /api/v1/members/{user_id}`
+
+**Requires the `write` scope.** Promote or demote a registered league member's role.
+
+**Request body** (JSON):
+
+| Field | Type | Notes |
+|---|---|---|
+| `league_role` | string, required | One of `member`, `manager`. `owner` is **not** settable via the API — privilege transfer is UI-only (use the in-app "transfer ownership" flow). |
+
+Idempotent: if the member's role already matches the requested value, the response returns `role_changed: false` and no DB write happens.
+
+**Successful response** (HTTP 200):
+
+```json
+{
+  "ok": true,
+  "data": {
+    "league_id": 6,
+    "user_id": 12,
+    "league_role": "manager",
+    "role_changed": true
+  }
+}
+```
+
+**Error responses:**
+
+| HTTP code | Meaning |
+|---|---|
+| `400` | Invalid body, unknown field, `cannot_set_owner_via_api` (you tried to promote to owner), or `cannot_demote_owner` (the target is currently owner). |
+| `401` | Missing, malformed, or revoked API key. |
+| `403` | API key lacks the `write` scope. |
+| `404` | `member_not_found` — the user_id isn't a member of this league, or the membership row is a pending contact (no registered account yet — call `POST /users` first). |
+| `429` | Rate limit exceeded — 60 updates per hour per key. |
+
+**Example:**
+
+```bash
+# Promote a member to manager
+curl -X PATCH -H 'Authorization: Bearer YOUR_WRITE_KEY' \
+     -H 'Content-Type: application/json' \
+     -d '{"league_role":"manager"}' \
+     https://your-site.com/api/v1/members/12
+
+# Demote a manager back to plain member
+curl -X PATCH -H 'Authorization: Bearer YOUR_WRITE_KEY' \
+     -H 'Content-Type: application/json' \
+     -d '{"league_role":"member"}' \
+     https://your-site.com/api/v1/members/12
+```
+
 #### `GET /api/v1/events?from=YYYY-MM-DD&to=YYYY-MM-DD`
 
 > **Breaking change in v0.19208.** This endpoint used to return `start_date` / `start_time` / `end_date` / `end_time` as local-time strings in the league's display timezone. It now returns ISO-8601 UTC instants in `start_at` / `end_at`. Sister sites no longer need to know the league's timezone to display events correctly.
@@ -646,6 +715,26 @@ League posts (announcements / news). Excludes hidden posts, drafts, future-sched
 ```
 
 `content_html` is sanitized HTML (the same pipeline used when posts render in the UI). Posts that have a public share link include `share_url`; posts without sharing enabled omit that field.
+
+#### `GET /api/v1/posts/{id}`
+
+Single post by id. Same shape as a list-item from `GET /posts`. Same visibility filters: hidden posts, future-scheduled posts, and the rules post all return `404 post_not_found` (use `GET /rules` for the rules post specifically).
+
+```json
+{
+  "ok": true,
+  "data": {
+    "id": 7,
+    "title": "90min Turbo Blinds",
+    "content_html": "<h1>8-Player 90-Minute Tournament</h1>...",
+    "author_display_name": "Bryce",
+    "created_at": "2026-04-27 20:39:53",
+    "share_url": "https://your-site.com/post_public.php?token=5de463f570b59b21da4d67c1351fb4ad"
+  }
+}
+```
+
+`share_url` is included only when the post has a public share token configured.
 
 #### `GET /api/v1/rules`
 
@@ -995,6 +1084,65 @@ The wording of the notification is "this event has been cancelled" — the same 
 
 ```bash
 curl -X DELETE -H 'Authorization: Bearer YOUR_WRITE_KEY' \
+     https://your-site.com/api/v1/events/67/invites/12
+```
+
+#### `PATCH /api/v1/events/{id}/invites/{user_id}`
+
+**Requires the `write` scope.** Update an invitee's `rsvp` or `event_role` without removing and re-adding them. At least one of the two fields must be present in the body.
+
+**Request body** (JSON):
+
+| Field | Type | Notes |
+|---|---|---|
+| `rsvp` | string or null, optional | One of `"yes"`, `"no"`, `"maybe"`, or `null` to clear. |
+| `event_role` | string, optional | `"invitee"` or `"manager"`. |
+
+The API acts as the league owner, so the 1-hour-before-start RSVP cutoff that applies to non-admin users in the UI **does not** apply here — sister sites can record same-day RSVPs without restriction.
+
+When `rsvp` becomes `"no"` on a poker event with `waitlist_enabled=true`, the waitlist is recomputed automatically. Any waitlisted invitees promoted to `approved` are reported in `promoted_from_waitlist`.
+
+> **Notifications:** None are sent. The in-app UI doesn't notify either when an RSVP is recorded — sister sites that want to ping the host or the user should do so themselves.
+
+**Successful response** (HTTP 200):
+
+```json
+{
+  "ok": true,
+  "data": {
+    "event_id": 67,
+    "user_id": 12,
+    "fields_changed": ["rsvp"],
+    "promoted_from_waitlist": 1
+  }
+}
+```
+
+`fields_changed` lists the columns that actually moved. If you POST a field whose value already matches the stored value, it does not appear here. Empty body or all-fields-unchanged returns `400 no_fields_to_update`.
+
+**Error responses:**
+
+| HTTP code | Meaning |
+|---|---|
+| `400` | Invalid body, unknown field, bad rsvp/event_role value, or `no_fields_to_update`. |
+| `401` | Missing, malformed, or revoked API key. |
+| `403` | API key lacks the `write` scope. |
+| `404` | `event_not_found` (event missing or in a different league) or `invitee_not_found` (user_id not currently invited to this event). |
+| `429` | Rate limit exceeded — 60 updates per hour per key. |
+
+**Examples:**
+
+```bash
+# Record an RSVP collected off-platform
+curl -X PATCH -H 'Authorization: Bearer YOUR_WRITE_KEY' \
+     -H 'Content-Type: application/json' \
+     -d '{"rsvp":"yes"}' \
+     https://your-site.com/api/v1/events/67/invites/12
+
+# Promote someone to per-event manager
+curl -X PATCH -H 'Authorization: Bearer YOUR_WRITE_KEY' \
+     -H 'Content-Type: application/json' \
+     -d '{"event_role":"manager"}' \
      https://your-site.com/api/v1/events/67/invites/12
 ```
 

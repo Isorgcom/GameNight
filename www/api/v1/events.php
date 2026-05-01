@@ -38,6 +38,7 @@ if ($method === 'POST') {
 }
 
 if ($method === 'PATCH') {
+    if ($sub === 'invites' && $route_invite > 0) { handle_events_invites_patch(); exit; }
     handle_events_patch();
     exit;
 }
@@ -1362,5 +1363,170 @@ function handle_events_invites_delete(): void {
         'user_id'              => $user_id,
         'removed'              => true,
         'notifications_queued' => $notifications_queued,
+    ], 0);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PATCH /events/{id}/invites/{user_id} — change one invitee's rsvp / event_role
+// ─────────────────────────────────────────────────────────────────────────────
+function handle_events_invites_patch(): void {
+    $key = api_authenticate();
+    api_require_scope($key, 'write');
+
+    $db        = get_db();
+    $key_id    = (int)$key['id'];
+    $league_id = (int)$key['league_id'];
+
+    $rl = $db->prepare(
+        "SELECT COUNT(*) FROM api_request_log
+          WHERE key_id = ?
+            AND status = 200
+            AND method = 'PATCH'
+            AND path LIKE '%/api/v1/events/%/invites/%'
+            AND created_at > datetime('now','-1 hour')"
+    );
+    $rl->execute([$key_id]);
+    if ((int)$rl->fetchColumn() >= 60) {
+        api_log_request($key_id, 429);
+        api_fail('Rate limit exceeded: 60 invitee updates per hour per key', 429);
+    }
+
+    $event_id = (int)($_GET['id'] ?? 0);
+    $user_id  = (int)($_GET['invitee'] ?? 0);
+    if ($event_id <= 0) {
+        api_log_request($key_id, 404);
+        api_fail('event_not_found', 404);
+    }
+
+    $evtStmt = $db->prepare('SELECT id, league_id FROM events WHERE id = ?');
+    $evtStmt->execute([$event_id]);
+    $evt = $evtStmt->fetch();
+    if (!$evt || (int)$evt['league_id'] !== $league_id) {
+        api_log_request($key_id, 404);
+        api_fail('event_not_found', 404);
+    }
+
+    if ($user_id <= 0) {
+        api_log_request($key_id, 404);
+        api_fail('invitee_not_found', 404);
+    }
+    $userStmt = $db->prepare('SELECT username FROM users WHERE id = ?');
+    $userStmt->execute([$user_id]);
+    $username = (string)$userStmt->fetchColumn();
+    if ($username === '') {
+        api_log_request($key_id, 404);
+        api_fail('invitee_not_found', 404);
+    }
+
+    // Fetch current base-row values to compute the diff.
+    $invStmt = $db->prepare(
+        "SELECT rsvp, event_role FROM event_invites
+          WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL"
+    );
+    $invStmt->execute([$event_id, $username]);
+    $current = $invStmt->fetch();
+    if (!$current) {
+        api_log_request($key_id, 404);
+        api_fail('invitee_not_found', 404);
+    }
+
+    $raw  = file_get_contents('php://input');
+    $body = json_decode($raw ?: '', true);
+    if (!is_array($body) || empty($body)) {
+        api_log_request($key_id, 400);
+        api_fail('Request body must be a non-empty JSON object', 400);
+    }
+    $allowed_keys = ['rsvp', 'event_role'];
+    foreach (array_keys($body) as $k) {
+        if (!in_array($k, $allowed_keys, true)) {
+            api_log_request($key_id, 400);
+            api_fail("Unknown field: $k. Allowed: " . implode(', ', $allowed_keys), 400);
+        }
+    }
+
+    $updates = [];
+    $fields_changed = [];
+
+    if (array_key_exists('rsvp', $body)) {
+        $r = $body['rsvp'];
+        if ($r !== null && !in_array($r, ['yes', 'no', 'maybe'], true)) {
+            api_log_request($key_id, 400);
+            api_fail("rsvp must be 'yes', 'no', 'maybe', or null", 400);
+        }
+        if ($r !== ($current['rsvp'] ?? null)) {
+            $updates['rsvp'] = $r;
+            $fields_changed[] = 'rsvp';
+        }
+    }
+    if (array_key_exists('event_role', $body)) {
+        $er = $body['event_role'];
+        if (!in_array($er, ['invitee', 'manager'], true)) {
+            api_log_request($key_id, 400);
+            api_fail("event_role must be 'invitee' or 'manager'", 400);
+        }
+        if ($er !== (string)$current['event_role']) {
+            $updates['event_role'] = $er;
+            $fields_changed[] = 'event_role';
+        }
+    }
+
+    if (empty($updates)) {
+        api_log_request($key_id, 400);
+        api_fail('no_fields_to_update', 400);
+    }
+
+    $promoted_from_waitlist = 0;
+    try {
+        $db->beginTransaction();
+
+        $sets = [];
+        $args = [];
+        foreach ($updates as $col => $val) { $sets[] = "$col = ?"; $args[] = $val; }
+        $args[] = $event_id;
+        $args[] = $username;
+        $db->prepare(
+            'UPDATE event_invites SET ' . implode(', ', $sets) .
+            ' WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL'
+        )->execute($args);
+
+        // RSVP=no may free a poker capacity slot. Snapshot approved-count
+        // before/after so we can report waitlist promotions.
+        if (array_key_exists('rsvp', $updates) && $updates['rsvp'] === 'no') {
+            $beforeStmt = $db->prepare(
+                "SELECT COUNT(*) FROM event_invites
+                  WHERE event_id = ? AND occurrence_date IS NULL AND approval_status = 'approved'"
+            );
+            $beforeStmt->execute([$event_id]);
+            $approved_before = (int)$beforeStmt->fetchColumn();
+
+            maybe_promote_waitlisted($db, $event_id);
+
+            $afterStmt = $db->prepare(
+                "SELECT COUNT(*) FROM event_invites
+                  WHERE event_id = ? AND occurrence_date IS NULL AND approval_status = 'approved'"
+            );
+            $afterStmt->execute([$event_id]);
+            $approved_after = (int)$afterStmt->fetchColumn();
+            // Approved goes UP by 1 for each promotion (waitlisted→approved).
+            // The "no" RSVP itself doesn't change approval_status (still approved
+            // but rsvp='no'), so the delta cleanly reflects promotions only.
+            $promoted_from_waitlist = max(0, $approved_after - $approved_before);
+        }
+
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        api_log_request($key_id, 500);
+        api_fail('Failed to update invitee', 500);
+    }
+
+    db_log_anon_activity("api_invite_patch: user=$user_id event=$event_id via key=$key_id league=$league_id changed=" . implode(',', $fields_changed));
+
+    api_log_request($key_id, 200);
+    api_ok([
+        'event_id'                => $event_id,
+        'user_id'                 => $user_id,
+        'fields_changed'          => $fields_changed,
+        'promoted_from_waitlist'  => $promoted_from_waitlist,
     ], 0);
 }

@@ -1,22 +1,37 @@
 <?php
 /**
- * GET /api/v1/posts?limit=20&offset=0
+ * /api/v1/posts
  *
- * Returns posts that belong to the league bound to the API key. Excludes
- * the league's rules post (it lives behind its own UI button) and any post
- * marked hidden, draft, or scheduled in the future. content_html is the
- * already-sanitized HTML body. share_url is included only when a post has
- * a public share token, so the sister site can deep-link to the public
- * viewer page.
+ * GET     /posts          — list posts for the bound league (paginated). Excludes
+ *                            the rules post (use /rules), hidden posts, and any
+ *                            post scheduled in the future.
+ * GET     /posts/{id}     — fetch one post by id. Same visibility filters as
+ *                            the list — anything filtered out returns 404.
+ *
+ * content_html is sanitized HTML; share_url is included only when the post has
+ * a public share token, so sister sites can deep-link to the public viewer.
  */
 
 require_once __DIR__ . '/../_auth.php';
 
-if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
+$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+if ($method === 'OPTIONS') {
+    api_send_headers(0);
+    http_response_code(204);
+    exit;
+}
+if ($method !== 'GET') {
     api_log_request(null, 405);
     api_fail('Method not allowed', 405);
 }
 
+$post_id = (int)($_GET['id'] ?? 0);
+if ($post_id > 0) {
+    handle_posts_get_one($post_id);
+    exit;
+}
+
+// ── List handler ─────────────────────────────────────────────────────────────
 $key = api_authenticate();
 $db  = get_db();
 $lid = (int)$key['league_id'];
@@ -75,3 +90,48 @@ api_ok([
     'count'  => count($posts),
     'posts'  => $posts,
 ]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /posts/{id} — single post
+// ─────────────────────────────────────────────────────────────────────────────
+function handle_posts_get_one(int $post_id): void {
+    $key = api_authenticate();
+    $db  = get_db();
+    $key_id = (int)$key['id'];
+    $lid    = (int)$key['league_id'];
+
+    $now_utc = (new DateTime('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s');
+
+    $stmt = $db->prepare(
+        "SELECT p.id, p.title, p.content, p.created_at, p.share_token,
+                COALESCE(u.username, '') AS author_display_name
+         FROM posts p
+         LEFT JOIN users u ON u.id = p.author_id
+         WHERE p.id = ?
+           AND p.league_id = ?
+           AND p.is_rules_post = 0
+           AND p.hidden = 0
+           AND p.created_at <= ?"
+    );
+    $stmt->execute([$post_id, $lid, $now_utc]);
+    $r = $stmt->fetch();
+    if (!$r) {
+        api_log_request($key_id, 404);
+        api_fail('post_not_found', 404);
+    }
+
+    $base = rtrim(get_site_url(), '/');
+    $post = [
+        'id'                  => (int)$r['id'],
+        'title'               => (string)$r['title'],
+        'content_html'        => sanitize_html((string)$r['content']),
+        'author_display_name' => (string)$r['author_display_name'],
+        'created_at'          => (string)$r['created_at'],
+    ];
+    if (!empty($r['share_token'])) {
+        $post['share_url'] = $base . '/post_public.php?token=' . $r['share_token'];
+    }
+
+    api_log_request($key_id, 200);
+    api_ok($post);
+}

@@ -48,6 +48,23 @@ api_ok([
         ],
         [
             'method'      => 'GET',
+            'path'        => $base . '/members/{user_id}',
+            'description' => 'Single league-member by user_id. Same shape as a list-item; pending: always false (pending contacts have no user_id and aren\'t addressable here). 404 member_not_found if the user_id isn\'t a member of this league.',
+            'response'    => '{user_id, display_name, role, pending, joined_at}',
+        ],
+        [
+            'method'      => 'PATCH',
+            'path'        => $base . '/members/{user_id}',
+            'description' => "Promote or demote a registered league member's role. Body: {league_role: 'member' | 'manager'}. Idempotent (no-op + role_changed:false if the role already matches). 'owner' cannot be set or demoted via the API — privilege transfer is UI-only. Pending contacts (member rows without an account) are not addressable; use POST /users to create the account first.",
+            'scope'       => 'write',
+            'body'        => [
+                'league_role' => "'member' | 'manager' (required). 'owner' is rejected.",
+            ],
+            'response'    => '{league_id, user_id, league_role, role_changed}',
+            'rate_limit'  => '60 successful updates per hour per key',
+        ],
+        [
+            'method'      => 'GET',
             'path'        => $base . '/events',
             'description' => 'Events with RSVP yes/no/maybe counts. Times are returned as ISO-8601 UTC instants (start_at, end_at). All-day events return start_at/end_at as a date-only "YYYY-MM-DD" string. Breaking change in v0.19208: replaces the old start_date/start_time/end_date/end_time fields.',
             'query'       => [
@@ -76,6 +93,18 @@ api_ok([
             'rate_limit'  => '60 successful removals per hour per key',
         ],
         [
+            'method'      => 'PATCH',
+            'path'        => $base . '/events/{id}/invites/{user_id}',
+            'description' => "Update an invitee's rsvp ('yes'|'no'|'maybe'|null) or event_role ('invitee'|'manager'). At least one of the two is required. The 1-hour-before-start cutoff that applies to non-admin RSVPs in the UI does NOT apply via the API (the key acts as the league owner). When rsvp changes to 'no', the waitlist is recomputed and any promotions are reported in promoted_from_waitlist. No notifications are sent.",
+            'scope'       => 'write',
+            'body'        => [
+                'rsvp'       => "'yes' | 'no' | 'maybe' | null (optional)",
+                'event_role' => "'invitee' | 'manager' (optional)",
+            ],
+            'response'    => '{event_id, user_id, fields_changed, promoted_from_waitlist}',
+            'rate_limit'  => '60 successful updates per hour per key',
+        ],
+        [
             'method'      => 'GET',
             'path'        => $base . '/posts',
             'description' => 'League posts (sanitized HTML body). Excludes hidden, draft, and the league rules post. See /rules for the rules post.',
@@ -84,6 +113,12 @@ api_ok([
                 'offset' => 'integer >= 0 (optional, default 0)',
             ],
             'notes' => 'Posts that have a public share link include a share_url field pointing to /post_public.php.',
+        ],
+        [
+            'method'      => 'GET',
+            'path'        => $base . '/posts/{id}',
+            'description' => "Single post by id. Same shape as a list-item. Same visibility filters as the list — hidden, future-scheduled, and the rules post all return 404 post_not_found. Use /rules for the rules post.",
+            'response'    => '{id, title, content_html, author_display_name, created_at, share_url?}',
         ],
         [
             'method'      => 'GET',
@@ -163,7 +198,7 @@ api_ok([
         '400' => 'Bad parameter or invalid request body.',
         '401' => 'Missing, malformed, or revoked API key.',
         '403' => 'API key lacks the required scope for this endpoint.',
-        '404' => 'Resource not found. event_not_found for events that don\'t exist or belong to a different league; invitee_not_found for users not currently invited to the event.',
+        '404' => 'Resource not found. event_not_found for events that don\'t exist or belong to a different league; invitee_not_found for users not currently invited; member_not_found for league_members not addressable by user_id; post_not_found for posts hidden, scheduled, or in another league.',
         '405' => 'Method not allowed for this endpoint.',
         '409' => 'Conflict (e.g. username_taken, contact_taken on POST /users).',
         '429' => 'Per-key rate limit exceeded (write endpoints).',
