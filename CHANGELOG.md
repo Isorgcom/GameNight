@@ -4,6 +4,15 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19211] — 2026-05-01
+
+### Added
+- **`GET /api/v1/events/{id}` returns a single event by id.** Same shape as a list-item from `GET /events` plus `league_id` and `visibility` for symmetry with the POST response. Sister sites that have just an event id (e.g. stored after `POST /events`) no longer have to pull a date window and filter client-side. Read scope is enough.
+- **`GET /api/v1/events/{id}/invites` returns the invitee list with RSVP state.** Each row: `{user_id, display_name, rsvp, approval_status, event_role}`. `user_id` is `null` for custom invitees added by email/phone without a registered account. Sort order matches the calendar UI (`COALESCE(sort_order, 999999), username`). Per-occurrence override rows from the legacy recurrence feature are filtered out — only base invites surface. PII (`email`, `phone`, `rsvp_token`) is never returned.
+- **`DELETE /api/v1/events/{id}/invites/{user_id}` removes a single invitee.** Symmetric counterpart to `POST /events/{id}/invites`. Mirrors the calendar UI's `remove_invitee` action: for future events, queues a `cancel_event` notification to the removed user before the row is deleted; past events delete silently. Returns 404 `invitee_not_found` if the user isn't currently invited (so retries are safe). Wrapped in a transaction. Per-key rate limit 60/hour. New `.htaccess` rewrite routes `/api/v1/events/{id}/invites/{user_id}` to the events handler.
+
+---
+
 ## [v0.19210] — 2026-04-30
 
 ### Added

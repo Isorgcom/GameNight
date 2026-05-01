@@ -27,7 +27,9 @@ if ($method === 'OPTIONS') {
     exit;
 }
 
-$sub = (string)($_GET['sub'] ?? '');
+$sub          = (string)($_GET['sub'] ?? '');
+$route_id     = (int)($_GET['id'] ?? 0);
+$route_invite = (int)($_GET['invitee'] ?? 0);
 
 if ($method === 'POST') {
     if ($sub === 'invites') { handle_events_invites_post(); exit; }
@@ -41,11 +43,16 @@ if ($method === 'PATCH') {
 }
 
 if ($method === 'DELETE') {
+    if ($sub === 'invites' && $route_invite > 0) { handle_events_invites_delete(); exit; }
     handle_events_delete();
     exit;
 }
 
-if ($method !== 'GET') {
+if ($method === 'GET') {
+    if ($route_id > 0 && $sub === 'invites') { handle_events_invites_get(); exit; }
+    if ($route_id > 0)                       { handle_events_get_one();    exit; }
+    // Otherwise fall through to the existing list handler below.
+} else {
     api_log_request(null, 405);
     api_fail('Method not allowed', 405);
 }
@@ -1124,6 +1131,236 @@ function handle_events_invites_post(): void {
         'added'                => $added,
         'skipped'              => $skipped,
         'waitlisted'           => $waitlisted,
+        'notifications_queued' => $notifications_queued,
+    ], 0);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /events/{id} — single event detail
+// ─────────────────────────────────────────────────────────────────────────────
+function handle_events_get_one(): void {
+    $key = api_authenticate();
+    $db  = get_db();
+    $key_id    = (int)$key['id'];
+    $league_id = (int)$key['league_id'];
+
+    $event_id = (int)($_GET['id'] ?? 0);
+    if ($event_id <= 0) {
+        api_log_request($key_id, 404);
+        api_fail('event_not_found', 404);
+    }
+
+    $stmt = $db->prepare(
+        'SELECT id, title, description, start_date, end_date, start_time, end_time,
+                color, is_poker, league_id, visibility, created_at
+           FROM events WHERE id = ?'
+    );
+    $stmt->execute([$event_id]);
+    $row = $stmt->fetch();
+    if (!$row || (int)$row['league_id'] !== $league_id) {
+        api_log_request($key_id, 404);
+        api_fail('event_not_found', 404);
+    }
+
+    // RSVP counts — same query shape the list handler uses, scoped to one id.
+    $cs = $db->prepare(
+        "SELECT rsvp, COUNT(*) AS n
+           FROM event_invites
+          WHERE event_id = ?
+            AND approval_status = 'approved'
+            AND rsvp IN ('yes','no','maybe')
+          GROUP BY rsvp"
+    );
+    $cs->execute([$event_id]);
+    $counts = [];
+    foreach ($cs->fetchAll() as $c) { $counts[$c['rsvp']] = (int)$c['n']; }
+
+    $site_tz = new DateTimeZone(get_setting('timezone', 'UTC'));
+    $utc_tz  = new DateTimeZone('UTC');
+
+    api_log_request($key_id, 200);
+    api_ok([
+        'id'                => (int)$row['id'],
+        'title'             => (string)$row['title'],
+        'description'       => (string)($row['description'] ?? ''),
+        'start_at'          => api_local_to_utc_iso((string)$row['start_date'], (string)($row['start_time'] ?? ''), $site_tz, $utc_tz),
+        'end_at'            => api_local_to_utc_iso((string)($row['end_date'] ?? ''), (string)($row['end_time'] ?? ''), $site_tz, $utc_tz),
+        'color'             => (string)$row['color'],
+        'is_poker'          => (int)$row['is_poker'] === 1,
+        'league_id'         => (int)$row['league_id'],
+        'visibility'        => (string)$row['visibility'],
+        'rsvp_yes_count'    => (int)($counts['yes']   ?? 0),
+        'rsvp_no_count'     => (int)($counts['no']    ?? 0),
+        'rsvp_maybe_count'  => (int)($counts['maybe'] ?? 0),
+        'created_at'        => api_db_utc_to_iso((string)$row['created_at']),
+    ]);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /events/{id}/invites — invitee list with RSVP state
+// ─────────────────────────────────────────────────────────────────────────────
+function handle_events_invites_get(): void {
+    $key = api_authenticate();
+    $db  = get_db();
+    $key_id    = (int)$key['id'];
+    $league_id = (int)$key['league_id'];
+
+    $event_id = (int)($_GET['id'] ?? 0);
+    if ($event_id <= 0) {
+        api_log_request($key_id, 404);
+        api_fail('event_not_found', 404);
+    }
+
+    // Same scope check as the other event endpoints. Don't leak existence of
+    // events outside this key's league.
+    $evtStmt = $db->prepare('SELECT id FROM events WHERE id = ? AND league_id = ?');
+    $evtStmt->execute([$event_id, $league_id]);
+    if (!$evtStmt->fetchColumn()) {
+        api_log_request($key_id, 404);
+        api_fail('event_not_found', 404);
+    }
+
+    $stmt = $db->prepare(
+        "SELECT u.id AS user_id, ei.username, ei.rsvp, ei.approval_status, ei.event_role
+           FROM event_invites ei
+           LEFT JOIN users u ON LOWER(u.username) = LOWER(ei.username)
+          WHERE ei.event_id = ? AND ei.occurrence_date IS NULL
+          ORDER BY COALESCE(ei.sort_order, 999999), ei.username"
+    );
+    $stmt->execute([$event_id]);
+
+    $invitees = [];
+    foreach ($stmt->fetchAll() as $r) {
+        $invitees[] = [
+            'user_id'         => $r['user_id'] !== null ? (int)$r['user_id'] : null,
+            'display_name'    => (string)$r['username'],
+            'rsvp'            => $r['rsvp'] !== null ? (string)$r['rsvp'] : null,
+            'approval_status' => (string)$r['approval_status'],
+            'event_role'      => (string)$r['event_role'],
+        ];
+    }
+
+    api_log_request($key_id, 200);
+    api_ok([
+        'event_id' => $event_id,
+        'count'    => count($invitees),
+        'invitees' => $invitees,
+    ]);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DELETE /events/{id}/invites/{user_id} — remove a single invitee
+// ─────────────────────────────────────────────────────────────────────────────
+function handle_events_invites_delete(): void {
+    $key = api_authenticate();
+    api_require_scope($key, 'write');
+
+    $db        = get_db();
+    $key_id    = (int)$key['id'];
+    $league_id = (int)$key['league_id'];
+
+    $rl = $db->prepare(
+        "SELECT COUNT(*) FROM api_request_log
+          WHERE key_id = ?
+            AND status = 200
+            AND method = 'DELETE'
+            AND path LIKE '%/api/v1/events/%/invites/%'
+            AND created_at > datetime('now','-1 hour')"
+    );
+    $rl->execute([$key_id]);
+    if ((int)$rl->fetchColumn() >= 60) {
+        api_log_request($key_id, 429);
+        api_fail('Rate limit exceeded: 60 invitee removals per hour per key', 429);
+    }
+
+    $event_id = (int)($_GET['id'] ?? 0);
+    $user_id  = (int)($_GET['invitee'] ?? 0);
+    if ($event_id <= 0) {
+        api_log_request($key_id, 404);
+        api_fail('event_not_found', 404);
+    }
+
+    // Verify event + scope.
+    $evtStmt = $db->prepare('SELECT id, title, start_date, league_id FROM events WHERE id = ?');
+    $evtStmt->execute([$event_id]);
+    $evt = $evtStmt->fetch();
+    if (!$evt || (int)$evt['league_id'] !== $league_id) {
+        api_log_request($key_id, 404);
+        api_fail('event_not_found', 404);
+    }
+
+    // Resolve user_id → username. Missing user_id collapses to invitee_not_found
+    // (don't distinguish "user doesn't exist" from "user not invited").
+    if ($user_id <= 0) {
+        api_log_request($key_id, 404);
+        api_fail('invitee_not_found', 404);
+    }
+    $userStmt = $db->prepare('SELECT username FROM users WHERE id = ?');
+    $userStmt->execute([$user_id]);
+    $username = (string)$userStmt->fetchColumn();
+    if ($username === '') {
+        api_log_request($key_id, 404);
+        api_fail('invitee_not_found', 404);
+    }
+
+    // Confirm the user is currently invited (base row).
+    $chk = $db->prepare(
+        "SELECT 1 FROM event_invites
+          WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL"
+    );
+    $chk->execute([$event_id, $username]);
+    if (!$chk->fetchColumn()) {
+        api_log_request($key_id, 404);
+        api_fail('invitee_not_found', 404);
+    }
+
+    $title      = (string)$evt['title'];
+    $start_date = (string)$evt['start_date'];
+    $site_tz    = new DateTimeZone(get_setting('timezone', 'UTC'));
+    $today      = (new DateTime('now', $site_tz))->format('Y-m-d');
+    $notify     = ($start_date >= $today);
+
+    $notifications_queued = 0;
+    try {
+        $db->beginTransaction();
+
+        if ($notify) {
+            // Match the UI: queue cancel_event with title/start_date in the payload
+            // so the dispatcher can render even if the event row gets edited later.
+            queue_event_notification(
+                $db, $event_id, $username, 'cancel_event', null,
+                ['title' => $title, 'start_date' => $start_date]
+            );
+            $notifications_queued = 1;
+        }
+
+        // Same WHERE clause calendar_dl.php's remove_invitee uses: drops the base
+        // row and any future per-occurrence rows (the API doesn't expose
+        // per-occurrence rows but legacy data may exist).
+        $del = $db->prepare(
+            "DELETE FROM event_invites
+              WHERE event_id = ?
+                AND LOWER(username) = LOWER(?)
+                AND (occurrence_date IS NULL OR occurrence_date >= ?)"
+        );
+        $del->execute([$event_id, $username, $today]);
+
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        api_log_request($key_id, 500);
+        api_fail('Failed to remove invitee', 500);
+    }
+
+    if ($notifications_queued > 0) drain_queue_async();
+
+    db_log_anon_activity("api_uninvite: user=$user_id from event=$event_id via key=$key_id league=$league_id" . ($notifications_queued > 0 ? ' (notified)' : ''));
+
+    api_log_request($key_id, 200);
+    api_ok([
+        'event_id'             => $event_id,
+        'user_id'              => $user_id,
+        'removed'              => true,
         'notifications_queued' => $notifications_queued,
     ], 0);
 }

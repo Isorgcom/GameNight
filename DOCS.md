@@ -561,6 +561,59 @@ Events for the league within a date window. RSVP counts only include approved in
 
 `start_at` and `end_at` are ISO-8601 UTC instants ending in `Z`. **All-day events** (events scheduled with a date but no time) return a date-only string (`"2026-05-17"`) in the same field instead of a full instant — this is how callers can tell the two apart. `end_at` is `null` for events without a configured end. `created_at` is also UTC.
 
+#### `GET /api/v1/events/{id}`
+
+Single event by id. Useful when you have just an id (e.g. stored after `POST /events`) and don't want to pull a date window and filter client-side.
+
+Same shape as a list-item from `GET /events`, plus `league_id` and `visibility` for symmetry with the `POST /events` response. Returns 404 `event_not_found` if the id doesn't exist or belongs to a different league (the API doesn't confirm existence of resources outside the bound league).
+
+```json
+{
+  "ok": true,
+  "data": {
+    "id": 67,
+    "title": "Kipling poker 17th",
+    "description": "",
+    "start_at": "2026-05-17T20:00:00Z",
+    "end_at":   "2026-05-18T02:00:00Z",
+    "color": "#2563eb",
+    "is_poker": true,
+    "league_id": 6,
+    "visibility": "league",
+    "rsvp_yes_count": 5,
+    "rsvp_no_count": 1,
+    "rsvp_maybe_count": 0,
+    "created_at": "2026-04-26T20:06:26Z"
+  }
+}
+```
+
+#### `GET /api/v1/events/{id}/invites`
+
+Invitee list with RSVP state. Sort order matches the calendar UI (`COALESCE(sort_order, 999999), username`). Personal contact info (`email`, `phone`, `rsvp_token`) is never returned.
+
+```json
+{
+  "ok": true,
+  "data": {
+    "event_id": 67,
+    "count": 3,
+    "invitees": [
+      { "user_id": 6,    "display_name": "bryce",   "rsvp": "yes",   "approval_status": "approved",   "event_role": "manager" },
+      { "user_id": 12,   "display_name": "brad",    "rsvp": null,    "approval_status": "approved",   "event_role": "invitee" },
+      { "user_id": null, "display_name": "crystal", "rsvp": "maybe", "approval_status": "waitlisted", "event_role": "invitee" }
+    ]
+  }
+}
+```
+
+- `user_id` is `null` for custom invitees that were added by email/phone without a registered account. Sister sites usually only need the rows where `user_id` is non-null (those round-trip to `GET /members`).
+- `rsvp` is `null` until the invitee responds.
+- `approval_status` is one of `approved`, `pending`, `waitlisted`, `denied`.
+- `event_role` is `invitee` or `manager`.
+
+Per-occurrence override rows from the legacy recurring-events feature are filtered out — only base invites surface.
+
 #### `GET /api/v1/posts?limit=20&offset=0`
 
 League posts (announcements / news). Excludes hidden posts, drafts, future-scheduled posts, and the league's rules post. Sorted by pinned, then created_at descending.
@@ -905,6 +958,44 @@ curl -X POST -H 'Authorization: Bearer YOUR_WRITE_KEY' \
      -H 'Content-Type: application/json' \
      -d '{"invitees":[{"user_id":12},{"user_id":34,"manager":true}]}' \
      https://your-site.com/api/v1/events/67/invites
+```
+
+#### `DELETE /api/v1/events/{id}/invites/{user_id}`
+
+**Requires the `write` scope.** Removes a single invitee from an event. Symmetric with `POST /events/{id}/invites`. Mirrors the calendar UI's `remove_invitee` action: for future events, queues a `cancel_event` notification to the removed user before the row is deleted; past events delete silently.
+
+The wording of the notification is "this event has been cancelled" — the same template the full-event delete uses. It's awkward when only one user is being uninvited, but it matches what the in-app UI does today and saves adding a separate template.
+
+**Successful response** (HTTP 200):
+
+```json
+{
+  "ok": true,
+  "data": {
+    "event_id": 67,
+    "user_id": 12,
+    "removed": true,
+    "notifications_queued": 1
+  }
+}
+```
+
+`notifications_queued` is `1` for future events, `0` for past events.
+
+**Error responses:**
+
+| HTTP code | Meaning |
+|---|---|
+| `401` | Missing, malformed, or revoked API key. |
+| `403` | API key lacks the `write` scope. |
+| `404` | `event_not_found` (event id missing or in a different league) or `invitee_not_found` (user_id isn't currently invited). The two share the response shape but differ in the `error` field. |
+| `429` | Rate limit exceeded — 60 removals per hour per key. |
+
+**Example:**
+
+```bash
+curl -X DELETE -H 'Authorization: Bearer YOUR_WRITE_KEY' \
+     https://your-site.com/api/v1/events/67/invites/12
 ```
 
 #### `DELETE /api/v1/events/{id}`

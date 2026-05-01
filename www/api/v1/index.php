@@ -57,6 +57,26 @@ api_ok([
         ],
         [
             'method'      => 'GET',
+            'path'        => $base . '/events/{id}',
+            'description' => "Single event by id. Same shape as a GET /events list-item plus league_id and visibility. 404 event_not_found if the id doesn't exist or belongs to a different league.",
+            'response'    => '{id, title, description, start_at, end_at, color, is_poker, league_id, visibility, rsvp_yes_count, rsvp_no_count, rsvp_maybe_count, created_at}',
+        ],
+        [
+            'method'      => 'GET',
+            'path'        => $base . '/events/{id}/invites',
+            'description' => 'Invitee list for an event. Returns user_id (null for custom invitees added by email/phone without an account), display_name, rsvp (yes/no/maybe/null), approval_status (approved/pending/waitlisted/denied), event_role (invitee/manager). Sort matches the calendar UI. PII (email/phone) is never returned.',
+            'response'    => '{event_id, count, invitees: [{user_id, display_name, rsvp, approval_status, event_role}, ...]}',
+        ],
+        [
+            'method'      => 'DELETE',
+            'path'        => $base . '/events/{id}/invites/{user_id}',
+            'description' => "Remove a single invitee from an event. For future events, queues a cancel_event notification to the removed user (mirrors the calendar UI's remove_invitee behavior). Past events: silent. Returns 404 invitee_not_found if the user_id isn't currently invited.",
+            'scope'       => 'write',
+            'response'    => '{event_id, user_id, removed, notifications_queued}',
+            'rate_limit'  => '60 successful removals per hour per key',
+        ],
+        [
+            'method'      => 'GET',
             'path'        => $base . '/posts',
             'description' => 'League posts (sanitized HTML body). Excludes hidden, draft, and the league rules post. See /rules for the rules post.',
             'query'       => [
@@ -143,7 +163,7 @@ api_ok([
         '400' => 'Bad parameter or invalid request body.',
         '401' => 'Missing, malformed, or revoked API key.',
         '403' => 'API key lacks the required scope for this endpoint.',
-        '404' => 'Resource not found (deleted league, or event outside this key\'s league on DELETE /events/{id}).',
+        '404' => 'Resource not found. event_not_found for events that don\'t exist or belong to a different league; invitee_not_found for users not currently invited to the event.',
         '405' => 'Method not allowed for this endpoint.',
         '409' => 'Conflict (e.g. username_taken, contact_taken on POST /users).',
         '429' => 'Per-key rate limit exceeded (write endpoints).',

@@ -10,7 +10,9 @@ RewriteRule ^favicon\.ico$ /favicon.php [L,R=302]
 RewriteRule ^api/v1/?$ /api/v1/index.php [L,QSA]
 # Per-resource API endpoints: /api/v1/events/123 → /api/v1/events.php?id=123
 # Sub-resource:               /api/v1/events/123/invites → /api/v1/events.php?id=123&sub=invites
-# Must come before the catch-all <endpoint>.php rule.
+# Per-invitee:                /api/v1/events/123/invites/45 → /api/v1/events.php?id=123&sub=invites&invitee=45
+# Must come before the catch-all <endpoint>.php rule. Order: deepest first.
+RewriteRule ^api/v1/events/(\d+)/invites/(\d+)/?$ /api/v1/events.php?id=$1&sub=invites&invitee=$2 [L,QSA]
 RewriteRule ^api/v1/events/(\d+)/invites/?$ /api/v1/events.php?id=$1&sub=invites [L,QSA]
 RewriteRule ^api/v1/events/(\d+)/?$ /api/v1/events.php?id=$1 [L,QSA]
 # Public API: /api/v1/<endpoint> → /api/v1/<endpoint>.php
