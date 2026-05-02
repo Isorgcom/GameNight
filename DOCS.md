@@ -736,6 +736,125 @@ Single post by id. Same shape as a list-item from `GET /posts`. Same visibility 
 
 `share_url` is included only when the post has a public share token configured.
 
+#### `POST /api/v1/posts`
+
+**Requires the `write` scope.** Creates a post in the API key's league. Author is set to the league owner. Content is sanitized through the same pipeline the in-app editor uses (script tags, event handlers, untrusted iframes, etc. stripped before storage).
+
+**Request body** (JSON):
+
+| Field | Type | Notes |
+|---|---|---|
+| `title` | string, required | Max 200 chars. |
+| `content` | string, required | Sanitized HTML; must be non-empty after sanitization. |
+| `pinned` | boolean, optional | Default `false`. Pinned posts sort above unpinned. |
+| `hidden` | boolean, optional | Default `false`. Hidden posts are not returned by `GET /posts` or `GET /posts/{id}`. |
+| `published_at` | string, optional | ISO-8601 UTC instant (`"2026-05-17T20:00:00Z"`). Defaults to the server's current UTC time. **Future values create a scheduled post** — the row is in the database but the existing `GET /posts` filter (`created_at <= now`) keeps it hidden until the scheduled time arrives. |
+
+> **Locked fields:** `is_rules_post`, `share_token`, and `make_public` are not settable via the API. Promoting a post to the league's rules post and minting a public share link both stay UI-only operations. Sending any of those fields returns `400`.
+
+**Successful response** (HTTP 200): same shape as `GET /posts/{id}`, plus `pinned` and `hidden`.
+
+```json
+{
+  "ok": true,
+  "data": {
+    "id": 23,
+    "title": "Saturday rotation update",
+    "content_html": "<p>We're moving start time to 7:30...</p>",
+    "author_display_name": "bryce",
+    "created_at": "2026-05-02 14:32:01",
+    "pinned": false,
+    "hidden": false
+  }
+}
+```
+
+#### `PATCH /api/v1/posts/{id}`
+
+**Requires the `write` scope.** Partial update of an existing post. Only fields present in the body are touched.
+
+**Request body** (JSON):
+
+| Field | Type | Notes |
+|---|---|---|
+| `title` | string, optional | Max 200 chars. |
+| `content` | string, optional | Sanitized on write. |
+| `pinned` | boolean, optional | |
+| `hidden` | boolean, optional | |
+
+> **Locked fields:** `is_rules_post`, `share_token`, `make_public`, and `published_at` are rejected with `400`. Retroactive publish-date edits create a confusing audit story; the others remain UI-only.
+
+Empty body or all-fields-unchanged returns `400 no_fields_to_update`.
+
+**Successful response** (HTTP 200):
+
+```json
+{
+  "ok": true,
+  "data": {
+    "id": 23,
+    "title": "Saturday rotation update",
+    "content_html": "<p>Updated body...</p>",
+    "author_display_name": "bryce",
+    "created_at": "2026-05-02 14:32:01",
+    "pinned": true,
+    "hidden": false,
+    "fields_changed": ["content", "pinned"]
+  }
+}
+```
+
+`fields_changed` lists the columns that actually moved. If you POST a field whose value already matches the stored value, it does not appear here.
+
+**Examples:**
+
+```bash
+# Pin an existing post
+curl -X PATCH -H 'Authorization: Bearer YOUR_WRITE_KEY' \
+     -H 'Content-Type: application/json' \
+     -d '{"pinned":true}' \
+     https://your-site.com/api/v1/posts/23
+
+# Hide a post (soft-removes it from feeds without deleting)
+curl -X PATCH -H 'Authorization: Bearer YOUR_WRITE_KEY' \
+     -H 'Content-Type: application/json' \
+     -d '{"hidden":true}' \
+     https://your-site.com/api/v1/posts/23
+```
+
+#### `DELETE /api/v1/posts/{id}`
+
+**Requires the `write` scope.** Hard-deletes a post in the API key's league. Cascades to comments (rows in the `comments` table where `type='post'` and `content_id` matches). Wrapped in a transaction; partial failures roll back cleanly.
+
+**Successful response** (HTTP 200):
+
+```json
+{
+  "ok": true,
+  "data": {
+    "post_id": 23,
+    "deleted": true,
+    "comments_deleted": 4
+  }
+}
+```
+
+**Error responses:**
+
+| HTTP code | Meaning |
+|---|---|
+| `401` | Missing, malformed, or revoked API key. |
+| `403` | API key lacks the `write` scope. |
+| `404` | `post_not_found` — the id doesn't exist or belongs to a different league. |
+| `429` | Rate limit exceeded — 60 deletions per hour per key. |
+
+**Example:**
+
+```bash
+curl -X DELETE -H 'Authorization: Bearer YOUR_WRITE_KEY' \
+     https://your-site.com/api/v1/posts/23
+```
+
 #### `GET /api/v1/rules`
 
 The league's rules post. The rules post is a special post (one per league at most) that lives behind a dedicated UI button in-app and is excluded from `/api/v1/posts`; this endpoint is the way to read it.

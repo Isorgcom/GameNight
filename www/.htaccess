@@ -30,9 +30,9 @@ php_flag display_errors Off
     Require all denied
 </FilesMatch>
 
-# Block direct web access to API partials (api/_auth.php, api/_response.php).
+# Block direct web access to API partials (api/_auth.php, api/_response.php, api/_time.php).
 # Endpoints under /api/v1/ are reached only through the rewrite rule above.
-<FilesMatch "^_(auth|response)\.php$">
+<FilesMatch "^_(auth|response|time)\.php$">
     Require all denied
 </FilesMatch>
 

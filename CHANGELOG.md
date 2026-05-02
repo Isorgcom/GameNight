@@ -4,6 +4,21 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19213] — 2026-05-02
+
+### Added
+- **`POST /api/v1/posts` lets sister sites publish announcements into a league.** Body accepts `title`, `content` (sanitized HTML, same pipeline as the in-app editor), optional `pinned`, `hidden`, and `published_at` (ISO-8601 UTC instant — future values produce scheduled posts that the existing `GET /posts` filter naturally hides until publish time). Author is set to the league owner so the post has a real attribution. Per-key rate limit 60/hour.
+- **`PATCH /api/v1/posts/{id}` partial-updates an existing post.** Editable fields: `title`, `content`, `pinned`, `hidden`. Empty body or all-fields-unchanged returns `400 no_fields_to_update`. Response includes `fields_changed` so callers can confirm what landed.
+- **`DELETE /api/v1/posts/{id}` hard-deletes a post.** Cascades to comments where `type='post' AND content_id=post_id`. Wrapped in a transaction; partial failures roll back. Response includes `comments_deleted`.
+
+### Security
+- All three endpoints are gated by the `write` scope and league-scoped via the API key. Posts in other leagues return `404 post_not_found` (no info leak). Locked fields rejected with explicit 400: `is_rules_post`, `share_token`, and `make_public` cannot be set via the API — promoting a post to rules and minting public share tokens stay UI-only operations. PATCH adds `published_at` to the locked list (retroactive publish-date edits create a confusing audit story).
+
+### Plumbing
+- Three time helpers (`api_parse_inbound_at`, `api_local_to_utc_iso`, `api_db_utc_to_iso`) extracted from `events.php` into a shared `www/api/_time.php`. They were always API-wide, not events-specific. `events.php` and `posts.php` both `require_once` the new file. `_time.php` is added to the .htaccess partial-blocklist so it can't be hit directly.
+
+---
+
 ## [v0.19212] — 2026-05-01
 
 ### Added
