@@ -591,6 +591,52 @@ curl -X PATCH -H 'Authorization: Bearer YOUR_WRITE_KEY' \
      https://your-site.com/api/v1/members/12
 ```
 
+#### `DELETE /api/v1/members/{user_id}`
+
+**Requires the `write` scope.** Removes a user from the bound league.
+
+The user account is **not** deleted — only their `league_members` row is dropped. Their RSVPs to existing events, their per-event manager roles (`event_invites.event_role='manager'`), authored posts, and memberships in other leagues all remain intact. The user can be re-added later via `POST /api/v1/users` with the same email/phone (idempotent) or by an admin in the league UI.
+
+The removed user is notified by their preferred channel: subject `"Removed from {league_name}"`, body `"You were removed from the league \"{league_name}\"."`. The notification is best-effort — a failed SMS or email does **not** roll back the removal. The response's `notification_sent` field reflects whether the send succeeded.
+
+**Successful response** (HTTP 200):
+
+```json
+{
+  "ok": true,
+  "data": {
+    "league_id": 9,
+    "user_id": 240,
+    "removed": true,
+    "notification_sent": true
+  }
+}
+```
+
+**Error responses:**
+
+| HTTP code | Meaning |
+|---|---|
+| `400` | `cannot_remove_owner` — the league owner cannot be removed via the API. Use the in-app **Transfer ownership** flow first; the new owner can then be removed normally. |
+| `401` | Missing, malformed, or revoked API key. |
+| `403` | API key lacks the `write` scope. |
+| `404` | `member_not_found` — the user_id isn't a member of this league (also returned for users in other leagues, to avoid confirming their existence). |
+| `429` | Rate limit exceeded — 60 removals per hour per key. |
+
+**Examples:**
+
+```bash
+# Remove a member
+curl -X DELETE -H 'Authorization: Bearer YOUR_WRITE_KEY' \
+     https://your-site.com/api/v1/members/240
+
+# Re-add them later (idempotent on email/phone)
+curl -X POST -H 'Authorization: Bearer YOUR_WRITE_KEY' \
+     -H 'Content-Type: application/json' \
+     -d '{"display_name":"Brenda","email":"brenda@example.com"}' \
+     https://your-site.com/api/v1/users
+```
+
 #### `GET /api/v1/events?from=YYYY-MM-DD&to=YYYY-MM-DD`
 
 > **Breaking change in v0.19208.** This endpoint used to return `start_date` / `start_time` / `end_date` / `end_time` as local-time strings in the league's display timezone. It now returns ISO-8601 UTC instants in `start_at` / `end_at`. Sister sites no longer need to know the league's timezone to display events correctly.

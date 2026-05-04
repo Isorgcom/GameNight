@@ -64,6 +64,14 @@ api_ok([
             'rate_limit'  => '60 successful updates per hour per key',
         ],
         [
+            'method'      => 'DELETE',
+            'path'        => $base . '/members/{user_id}',
+            'description' => "Remove a user from the bound league. The user account stays intact across the rest of the system — their RSVPs, event-manager roles, authored posts, and other-league memberships are not touched. Owner cannot be removed via the API (use the in-app transfer ownership flow first). Notifies the removed user via their preferred channel; failure to notify does not roll back the removal.",
+            'scope'       => 'write',
+            'response'    => '{league_id, user_id, removed, notification_sent}',
+            'rate_limit'  => '60 successful removals per hour per key',
+        ],
+        [
             'method'      => 'GET',
             'path'        => $base . '/events',
             'description' => 'Events with RSVP yes/no/maybe counts. Times are returned as ISO-8601 UTC instants (start_at, end_at). All-day events return start_at/end_at as a date-only "YYYY-MM-DD" string. Breaking change in v0.19208: replaces the old start_date/start_time/end_date/end_time fields.',

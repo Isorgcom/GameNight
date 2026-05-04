@@ -4,6 +4,17 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19214] — 2026-05-04
+
+### Added
+- **`DELETE /api/v1/members/{user_id}` removes a user from the bound league.** Drops the `league_members` row plus any pending `league_join_requests` for that user/league, mirroring the in-app `remove_member` action. The user account stays intact across the rest of the system — their RSVPs, event-manager roles, authored posts, and memberships in other leagues are untouched. The removed user is notified via their preferred channel ("Removed from {league_name}"); a failed notification does not roll back the removal. Wrapped in a transaction. Per-key rate limit 60/hour.
+
+### Security
+- Owner removal is rejected with `400 cannot_remove_owner`, mirroring the existing `cannot_demote_owner` guard on `PATCH /members`. The in-app `transfer_ownership` flow remains the only way to change a league owner.
+- The "managers can't remove other managers" guard from the in-app UI does **not** apply via the API — write keys are owner-equivalent (only owners can mint them), so an API-driven removal acts on the owner's behalf. Same precedent as `POST /events` setting `created_by` to the owner.
+
+---
+
 ## [v0.19213] — 2026-05-02
 
 ### Added

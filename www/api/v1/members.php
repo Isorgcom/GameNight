@@ -2,19 +2,25 @@
 /**
  * /api/v1/members
  *
- * GET   /members             — roster for the bound league. user_id is null for
- *                               pending contacts. PII (email/phone) is never
- *                               returned.
- * PATCH /members/{user_id}   — promote/demote a registered league member's
- *                               role (member ↔ manager). 'owner' is rejected
- *                               (privilege transfer is UI-only). Pending
- *                               contacts (user_id IS NULL) are not addressable.
+ * GET    /members             — roster for the bound league. user_id is null
+ *                                for pending contacts. PII (email/phone) is
+ *                                never returned.
+ * GET    /members/{user_id}   — single-member fetch by user_id.
+ * PATCH  /members/{user_id}   — promote/demote a registered league member's
+ *                                role (member ↔ manager). 'owner' is rejected
+ *                                (privilege transfer is UI-only). Pending
+ *                                contacts (user_id IS NULL) are not addressable.
+ * DELETE /members/{user_id}   — remove a user from this league. The user
+ *                                account stays intact; their RSVPs, event
+ *                                manager roles, and other-league memberships
+ *                                are not touched. Owner cannot be removed.
  *
  * Sort order matches the league page UI: owners → managers → members, accounts
  * before pending contacts, then alphabetical.
  */
 
 require_once __DIR__ . '/../_auth.php';
+require_once __DIR__ . '/../../auth.php';  // send_notification() for the removal email/SMS
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 if ($method === 'OPTIONS') {
@@ -24,6 +30,10 @@ if ($method === 'OPTIONS') {
 }
 if ($method === 'PATCH') {
     handle_members_patch();
+    exit;
+}
+if ($method === 'DELETE') {
+    handle_members_delete();
     exit;
 }
 if ($method !== 'GET') {
@@ -219,5 +229,121 @@ function handle_members_patch(): void {
         'user_id'      => $user_id,
         'league_role'  => $new_role,
         'role_changed' => true,
+    ], 0);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DELETE /members/{user_id} — remove a user from the bound league
+// ─────────────────────────────────────────────────────────────────────────────
+function handle_members_delete(): void {
+    $key = api_authenticate();
+    api_require_scope($key, 'write');
+
+    $db        = get_db();
+    $key_id    = (int)$key['id'];
+    $league_id = (int)$key['league_id'];
+
+    // Per-key rate limit, same shape as PATCH /members.
+    $rl = $db->prepare(
+        "SELECT COUNT(*) FROM api_request_log
+          WHERE key_id = ?
+            AND status = 200
+            AND method = 'DELETE'
+            AND path LIKE '%/api/v1/members/%'
+            AND created_at > datetime('now','-1 hour')"
+    );
+    $rl->execute([$key_id]);
+    if ((int)$rl->fetchColumn() >= 60) {
+        api_log_request($key_id, 429);
+        api_fail('Rate limit exceeded: 60 member removals per hour per key', 429);
+    }
+
+    $user_id = (int)($_GET['id'] ?? 0);
+    if ($user_id <= 0) {
+        api_log_request($key_id, 404);
+        api_fail('member_not_found', 404);
+    }
+
+    // Resolve the membership row. Cross-league lookups collapse to the same
+    // 404 to avoid confirming the existence of users in other leagues.
+    $memStmt = $db->prepare(
+        'SELECT id, role FROM league_members WHERE league_id = ? AND user_id = ?'
+    );
+    $memStmt->execute([$league_id, $user_id]);
+    $member = $memStmt->fetch();
+    if (!$member) {
+        api_log_request($key_id, 404);
+        api_fail('member_not_found', 404);
+    }
+
+    $old_role = (string)$member['role'];
+    if ($old_role === 'owner') {
+        // Mirrors the in-app "Cannot remove the owner — transfer ownership first"
+        // and keeps symmetry with PATCH's cannot_demote_owner.
+        api_log_request($key_id, 400);
+        api_fail('cannot_remove_owner', 400);
+    }
+
+    // Pull the user's contact info + the league name now, while we still have
+    // the row, so the post-commit notification can address them properly.
+    $userStmt = $db->prepare(
+        'SELECT username, email, phone, preferred_contact FROM users WHERE id = ?'
+    );
+    $userStmt->execute([$user_id]);
+    $user = $userStmt->fetch();
+
+    $leagueStmt = $db->prepare('SELECT name FROM leagues WHERE id = ?');
+    $leagueStmt->execute([$league_id]);
+    $league_name = (string)($leagueStmt->fetchColumn() ?: '');
+
+    // The actual removal — wrapped in a transaction so the join-request cleanup
+    // and the membership row drop succeed or fail together.
+    try {
+        $db->beginTransaction();
+        $db->prepare(
+            'DELETE FROM league_join_requests WHERE league_id = ? AND user_id = ?'
+        )->execute([$league_id, $user_id]);
+        $db->prepare(
+            'DELETE FROM league_members WHERE league_id = ? AND user_id = ?'
+        )->execute([$league_id, $user_id]);
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        api_log_request($key_id, 500);
+        api_fail('Failed to remove member', 500);
+    }
+
+    // Best-effort post-commit notification. A failed SMS or email must not
+    // roll back the removal — the row is already gone and re-deleting would
+    // 404 on retry anyway.
+    $notification_sent = false;
+    if ($user && function_exists('send_notification') && $league_name !== '') {
+        try {
+            $smsBody  = "You were removed from the league \"$league_name\".";
+            $htmlBody = '<p>You were removed from the league <strong>'
+                      . htmlspecialchars($league_name) . '</strong>.</p>';
+            send_notification(
+                (string)$user['username'],
+                (string)($user['email'] ?? ''),
+                (string)($user['phone'] ?? ''),
+                (string)($user['preferred_contact'] ?? 'email'),
+                'Removed from ' . $league_name,
+                $smsBody,
+                $htmlBody
+            );
+            $notification_sent = true;
+        } catch (Throwable $e) {
+            // swallow — see comment above
+        }
+    }
+
+    db_log_anon_activity("api_member_removed: user=$user_id league=$league_id (role=$old_role) via key=$key_id");
+
+    api_log_request($key_id, 200);
+    api_ok([
+        'league_id'         => $league_id,
+        'user_id'           => $user_id,
+        'removed'           => true,
+        'notification_sent' => $notification_sent,
     ], 0);
 }
