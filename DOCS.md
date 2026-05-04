@@ -513,14 +513,16 @@ Roster. Personal contact info (emails, phones) is **never** returned.
 {
   "ok": true,
   "data": [
-    { "user_id": 6,    "display_name": "Bryce",   "role": "owner",   "pending": false, "joined_at": "2026-04-17 02:36:29" },
-    { "user_id": 12,   "display_name": "brad",    "role": "manager", "pending": false, "joined_at": "2026-04-17 13:43:25" },
-    { "user_id": null, "display_name": "Crystal", "role": "member",  "pending": true,  "joined_at": "2026-04-25 23:06:29" }
+    { "member_id": 1,  "user_id": 6,    "display_name": "Bryce",   "role": "owner",   "pending": false, "joined_at": "2026-04-17 02:36:29", "invited_at": null,                  "invited_by_username": null },
+    { "member_id": 4,  "user_id": 12,   "display_name": "brad",    "role": "manager", "pending": false, "joined_at": "2026-04-17 13:43:25", "invited_at": null,                  "invited_by_username": null },
+    { "member_id": 17, "user_id": null, "display_name": "Crystal", "role": "member",  "pending": true,  "joined_at": "2026-04-25 23:06:29", "invited_at": "2026-04-25 23:06:29", "invited_by_username": "Bryce" }
   ]
 }
 ```
 
 `pending: true` means the person was invited by email or phone but has not yet created an account; for those rows `user_id` is `null`. Registered members get an integer `user_id` that you can pass back to write endpoints (e.g. as an invitee on `POST /events/{id}/invites`). The display name is their `username` if they have an account, otherwise the contact name on the invite.
+
+`member_id` (the league_members PK) is on every row and is the only stable identifier for pending contacts. Pass it to `PATCH /api/v1/pending-contacts/{member_id}` and `DELETE /api/v1/pending-contacts/{member_id}` to edit or remove pending rows. `invited_at` and `invited_by_username` are typically populated only on pending rows.
 
 #### `GET /api/v1/members/{user_id}`
 
@@ -530,11 +532,14 @@ Single league-member by `user_id`. Same shape as a list-item from `GET /members`
 {
   "ok": true,
   "data": {
+    "member_id": 4,
     "user_id": 12,
     "display_name": "brad",
     "role": "manager",
     "pending": false,
-    "joined_at": "2026-04-17 13:43:25"
+    "joined_at": "2026-04-17 13:43:25",
+    "invited_at": null,
+    "invited_by_username": null
   }
 }
 ```
@@ -635,6 +640,92 @@ curl -X POST -H 'Authorization: Bearer YOUR_WRITE_KEY' \
      -H 'Content-Type: application/json' \
      -d '{"display_name":"Brenda","email":"brenda@example.com"}' \
      https://your-site.com/api/v1/users
+```
+
+#### `PATCH /api/v1/pending-contacts/{member_id}`
+
+**Requires the `write` scope.** Edit a **pending contact** — a `league_members` row where `user_id IS NULL`, i.e. someone who was invited by email or phone but hasn't claimed an account yet. The display name, email, and phone for those rows live on the `league_members` table itself, so editing them is genuinely league-scoped — no cross-league effects, no rewriting a real user's login.
+
+To address pending rows, use `member_id` from `GET /api/v1/members`. Registered members (rows with a non-null `user_id`) cannot be edited here — use `PATCH /api/v1/members/{user_id}` for those.
+
+**Request body** (JSON, at least one field required):
+
+| Field | Type | Notes |
+|---|---|---|
+| `display_name` | string, optional | Trimmed; max 200 chars. Cannot be empty after trim. |
+| `email` | string, optional | Validated and lowercased before storage. Pass an empty string to clear. Must be unique among pending contacts in the league. |
+| `phone` | string, optional | Normalized to `XXX-XXX-XXXX` for US 10-digit numbers. Pass an empty string to clear. |
+
+The row must keep at least one of `email` or `phone` after the edit; clearing both returns `400 must_keep_email_or_phone`.
+
+> **Invite token regeneration:** When `email` or `phone` changes, the row's `invite_token` is automatically regenerated. The old `/league_invite.php?token=...` link dies immediately. The new token is included in the response as `invite_token` so sister sites can re-deliver the invite. Old tokens are never echoed back. No-op edits (where every field already matches the stored value) leave the token alone.
+
+**Successful response** (HTTP 200):
+
+```json
+{
+  "ok": true,
+  "data": {
+    "member_id": 17,
+    "fields_changed": ["email"],
+    "token_regenerated": true,
+    "invite_token": "7b3f9a1c4e5d6f8a2b1c0d9e8f7a6b5c"
+  }
+}
+```
+
+**Error responses:**
+
+| HTTP code | Meaning |
+|---|---|
+| `400` | Invalid body, unknown field, bad email format, `must_keep_email_or_phone`, `email_already_pending`, or `not_a_pending_contact` (the row is a registered member, not a pending contact). |
+| `401` | Missing, malformed, or revoked API key. |
+| `403` | API key lacks the `write` scope. |
+| `404` | `pending_contact_not_found` — the member_id doesn't exist or belongs to a different league. |
+| `429` | Rate limit exceeded — 60 updates per hour per key. |
+
+**Example:**
+
+```bash
+# Fix a typo in a pending contact's email — the invite link regenerates
+curl -X PATCH -H 'Authorization: Bearer YOUR_WRITE_KEY' \
+     -H 'Content-Type: application/json' \
+     -d '{"email":"crystal@example.com"}' \
+     https://your-site.com/api/v1/pending-contacts/17
+```
+
+#### `DELETE /api/v1/pending-contacts/{member_id}`
+
+**Requires the `write` scope.** Hard-delete a pending-contact row. Silent — pending contacts have no account to notify, and the contact info might be why you're deleting in the first place.
+
+Registered rows are not addressable here even if you happen to pass their `member_id`; the response is the same `404 pending_contact_not_found` so the API doesn't confirm row types.
+
+**Successful response** (HTTP 200):
+
+```json
+{
+  "ok": true,
+  "data": {
+    "member_id": 17,
+    "deleted": true
+  }
+}
+```
+
+**Error responses:**
+
+| HTTP code | Meaning |
+|---|---|
+| `401` | Missing, malformed, or revoked API key. |
+| `403` | API key lacks the `write` scope. |
+| `404` | `pending_contact_not_found` — the member_id doesn't exist, belongs to a different league, or addresses a registered member (use `DELETE /members/{user_id}` for those). |
+| `429` | Rate limit exceeded — 60 deletions per hour per key. |
+
+**Example:**
+
+```bash
+curl -X DELETE -H 'Authorization: Bearer YOUR_WRITE_KEY' \
+     https://your-site.com/api/v1/pending-contacts/17
 ```
 
 #### `GET /api/v1/events?from=YYYY-MM-DD&to=YYYY-MM-DD`

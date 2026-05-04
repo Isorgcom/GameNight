@@ -4,6 +4,23 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19215] — 2026-05-04
+
+### Added
+- **`PATCH /api/v1/pending-contacts/{member_id}` lets sister sites edit a pending-contact row.** Body accepts `display_name`, `email`, and `phone` (any subset, at least one required). Email is validated and lowercased; phone is normalized via `normalize_phone()`. Email uniqueness is checked within the league before the write to give a clean `400 email_already_pending` rather than a partial-unique-index 500. The "must keep at least one of email/phone" guard from the in-app form is enforced here too. Idempotent on no-op edits (`fields_changed: []`, no DB write, token preserved).
+- **`DELETE /api/v1/pending-contacts/{member_id}` hard-deletes a pending row.** Silent — pending contacts have no account, no preferred-contact channel, and the address might be the reason for the delete in the first place. Registered rows cannot be touched even if you pass their `member_id` (same `404 pending_contact_not_found` response, no info leak about row type).
+- **`GET /api/v1/members` enriched with `member_id`, `invited_at`, `invited_by_username`.** Pure addition — existing fields unchanged. `member_id` (the `league_members.id` PK) is the only stable identifier for pending rows (since they have `user_id: null`); both new endpoints address rows by it. `invited_at` and `invited_by_username` give the WP-admin "Edit member" UX enough context to render an attribution line.
+
+### Security
+- Both new endpoints refuse to operate on registered (`user_id IS NOT NULL`) rows. PATCH returns `400 not_a_pending_contact`; DELETE collapses to `404 pending_contact_not_found` via the WHERE clause's `user_id IS NULL` filter. Use `PATCH /members/{user_id}` and `DELETE /members/{user_id}` for registered members. This keeps the API explicit about the very different blast radius of editing a per-league label vs. editing a real account's login identifiers.
+- When `email` or `phone` changes on PATCH, the row's `invite_token` is regenerated automatically. The old invite link dies; the new token comes back in the response (`invite_token` field, included **only** when regeneration happened — old tokens are never echoed). Sister sites that want to re-deliver the invite can pull the new token from the response.
+
+### Plumbing
+- New `.htaccess` rewrite for `/api/v1/pending-contacts/{member_id}`.
+- New file `www/api/v1/pending_contacts.php` with multi-method dispatch.
+
+---
+
 ## [v0.19214] — 2026-05-04
 
 ### Added

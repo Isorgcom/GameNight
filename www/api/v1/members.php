@@ -54,12 +54,16 @@ $db  = get_db();
 $lid = (int)$key['league_id'];
 
 $stmt = $db->prepare(
-    "SELECT lm.role,
+    "SELECT lm.id AS member_id,
+            lm.role,
             lm.joined_at,
             lm.user_id,
+            lm.invited_at,
+            inv.username AS invited_by_username,
             COALESCE(u.username, lm.contact_name) AS display_name
      FROM league_members lm
-     LEFT JOIN users u ON u.id = lm.user_id
+     LEFT JOIN users u   ON u.id   = lm.user_id
+     LEFT JOIN users inv ON inv.id = lm.invited_by
      WHERE lm.league_id = ?
      ORDER BY CASE lm.role WHEN 'owner' THEN 0 WHEN 'manager' THEN 1 ELSE 2 END,
               CASE WHEN lm.user_id IS NULL THEN 1 ELSE 0 END,
@@ -72,11 +76,14 @@ foreach ($stmt->fetchAll() as $r) {
     $name = trim((string)($r['display_name'] ?? ''));
     if ($name === '') continue; // skip orphaned rows with no usable label
     $members[] = [
-        'user_id'      => $r['user_id'] !== null ? (int)$r['user_id'] : null,
-        'display_name' => $name,
-        'role'         => (string)$r['role'],
-        'pending'      => $r['user_id'] === null,
-        'joined_at'    => (string)($r['joined_at'] ?? ''),
+        'member_id'           => (int)$r['member_id'],
+        'user_id'             => $r['user_id'] !== null ? (int)$r['user_id'] : null,
+        'display_name'        => $name,
+        'role'                => (string)$r['role'],
+        'pending'             => $r['user_id'] === null,
+        'joined_at'           => (string)($r['joined_at'] ?? ''),
+        'invited_at'          => $r['invited_at'] !== null ? (string)$r['invited_at'] : null,
+        'invited_by_username' => $r['invited_by_username'] !== null ? (string)$r['invited_by_username'] : null,
     ];
 }
 
@@ -93,12 +100,16 @@ function handle_members_get_one(int $user_id): void {
     $lid    = (int)$key['league_id'];
 
     $stmt = $db->prepare(
-        "SELECT lm.role,
+        "SELECT lm.id AS member_id,
+                lm.role,
                 lm.joined_at,
                 lm.user_id,
+                lm.invited_at,
+                inv.username AS invited_by_username,
                 COALESCE(u.username, lm.contact_name) AS display_name
          FROM league_members lm
-         LEFT JOIN users u ON u.id = lm.user_id
+         LEFT JOIN users u   ON u.id   = lm.user_id
+         LEFT JOIN users inv ON inv.id = lm.invited_by
          WHERE lm.league_id = ? AND lm.user_id = ?"
     );
     $stmt->execute([$lid, $user_id]);
@@ -111,11 +122,14 @@ function handle_members_get_one(int $user_id): void {
 
     api_log_request($key_id, 200);
     api_ok([
-        'user_id'      => (int)$r['user_id'],
-        'display_name' => $name,
-        'role'         => (string)$r['role'],
-        'pending'      => false,
-        'joined_at'    => (string)($r['joined_at'] ?? ''),
+        'member_id'           => (int)$r['member_id'],
+        'user_id'             => (int)$r['user_id'],
+        'display_name'        => $name,
+        'role'                => (string)$r['role'],
+        'pending'             => false,
+        'joined_at'           => (string)($r['joined_at'] ?? ''),
+        'invited_at'          => $r['invited_at'] !== null ? (string)$r['invited_at'] : null,
+        'invited_by_username' => $r['invited_by_username'] !== null ? (string)$r['invited_by_username'] : null,
     ]);
 }
 

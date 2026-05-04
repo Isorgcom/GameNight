@@ -44,7 +44,7 @@ api_ok([
         [
             'method'      => 'GET',
             'path'        => $base . '/members',
-            'description' => 'Roster: user_id, display_name, role, pending, joined_at. user_id is null for pending contacts (people invited but who haven\'t created accounts yet). Personal contact info (emails, phones) is never returned.',
+            'description' => 'Roster: member_id, user_id, display_name, role, pending, joined_at, invited_at, invited_by_username. user_id is null for pending contacts (people invited but who haven\'t created accounts yet). member_id is the league_members PK and is the only way to address pending rows on the pending-contacts endpoints. Personal contact info (emails, phones) is never returned.',
         ],
         [
             'method'      => 'GET',
@@ -70,6 +70,27 @@ api_ok([
             'scope'       => 'write',
             'response'    => '{league_id, user_id, removed, notification_sent}',
             'rate_limit'  => '60 successful removals per hour per key',
+        ],
+        [
+            'method'      => 'PATCH',
+            'path'        => $base . '/pending-contacts/{member_id}',
+            'description' => "Edit a pending-contact row in this league (a league_members row where user_id IS NULL). Body accepts display_name, email, phone (any subset, at least one required). When email or phone changes, the invite_token is regenerated and returned in the response so the old invite link dies. Pointing this at a registered member's member_id returns 400 not_a_pending_contact — use PATCH /members/{user_id} for those.",
+            'scope'       => 'write',
+            'body'        => [
+                'display_name' => 'string, optional. Trimmed; max 200 chars.',
+                'email'        => 'string, optional. Validated and lowercased; empty string clears the email.',
+                'phone'        => 'string, optional. Normalized to XXX-XXX-XXXX for US 10-digit; empty string clears the phone.',
+            ],
+            'response'    => '{member_id, fields_changed, token_regenerated, invite_token?}',
+            'rate_limit'  => '60 successful updates per hour per key',
+        ],
+        [
+            'method'      => 'DELETE',
+            'path'        => $base . '/pending-contacts/{member_id}',
+            'description' => "Hard-delete a pending-contact row in this league. Silent (no notification — the contact has no account to notify, and the address might be the reason you're deleting). Registered rows cannot be deleted here even if you somehow pass one — same 404 pending_contact_not_found response.",
+            'scope'       => 'write',
+            'response'    => '{member_id, deleted}',
+            'rate_limit'  => '60 successful deletions per hour per key',
         ],
         [
             'method'      => 'GET',
@@ -243,7 +264,7 @@ api_ok([
         '400' => 'Bad parameter or invalid request body.',
         '401' => 'Missing, malformed, or revoked API key.',
         '403' => 'API key lacks the required scope for this endpoint.',
-        '404' => 'Resource not found. event_not_found for events that don\'t exist or belong to a different league; invitee_not_found for users not currently invited; member_not_found for league_members not addressable by user_id; post_not_found for posts hidden, scheduled, in another league, or simply missing.',
+        '404' => 'Resource not found. event_not_found for events that don\'t exist or belong to a different league; invitee_not_found for users not currently invited; member_not_found for league_members not addressable by user_id; pending_contact_not_found for missing or registered rows on the pending-contacts endpoints; post_not_found for posts hidden, scheduled, in another league, or simply missing.',
         '405' => 'Method not allowed for this endpoint.',
         '409' => 'Conflict (e.g. username_taken, contact_taken on POST /users).',
         '429' => 'Per-key rate limit exceeded (write endpoints).',

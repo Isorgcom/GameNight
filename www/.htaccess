@@ -19,6 +19,8 @@ RewriteRule ^api/v1/events/(\d+)/?$ /api/v1/events.php?id=$1 [L,QSA]
 RewriteRule ^api/v1/posts/(\d+)/?$ /api/v1/posts.php?id=$1 [L,QSA]
 # /api/v1/members/{user_id} → members.php?id={user_id}
 RewriteRule ^api/v1/members/(\d+)/?$ /api/v1/members.php?id=$1 [L,QSA]
+# /api/v1/pending-contacts/{member_id} → pending_contacts.php?id={member_id}
+RewriteRule ^api/v1/pending-contacts/(\d+)/?$ /api/v1/pending_contacts.php?id=$1 [L,QSA]
 # Public API: /api/v1/<endpoint> → /api/v1/<endpoint>.php
 RewriteRule ^api/v1/([a-z]+)/?$ /api/v1/$1.php [L,QSA]
 
