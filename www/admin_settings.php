@@ -688,7 +688,28 @@ $waha_url        = get_setting('waha_url', 'http://waha:3000');
 $waha_session    = get_setting('waha_session', 'default');
 
 // ── Users data ───────────────────────────────────────────────────────────────
-$users = $db->query('SELECT id, username, email, phone, role, preferred_contact, notes, created_at, last_login FROM users ORDER BY id')->fetchAll();
+// Sort column comes from ?us=, direction from ?ud=. Whitelist + col map keeps
+// user input out of the SQL string. Default: id ASC. id tiebreaker on every
+// other column so the sort is stable (no random row reordering between loads).
+$users_sort = in_array($_GET['us'] ?? '', ['id','username','email','phone','role','preferred_contact','last_login'], true)
+    ? $_GET['us'] : 'id';
+$users_dir  = (($_GET['ud'] ?? 'asc') === 'desc') ? 'DESC' : 'ASC';
+$users_col_map = [
+    'id'                => 'id',
+    'username'          => 'LOWER(username)',
+    'email'             => "LOWER(COALESCE(email,''))",
+    'phone'             => "COALESCE(phone,'')",
+    'role'              => 'role',
+    'preferred_contact' => 'preferred_contact',
+    'last_login'        => 'last_login',
+];
+$users_order = $users_col_map[$users_sort] . ' ' . $users_dir;
+if ($users_sort !== 'id') $users_order .= ', id ASC';
+$users = $db->query(
+    "SELECT id, username, email, phone, role, preferred_contact, notes, created_at, last_login
+       FROM users
+       ORDER BY $users_order"
+)->fetchAll();
 
 // ── Events data ──────────────────────────────────────────────────────────────
 $events_filter = trim($_GET['ef'] ?? '');
@@ -1448,18 +1469,31 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                 <button class="btn btn-sm btn-outline" onclick="ugClearSelection()">Clear</button>
             </div>
 
+            <?php
+            // Sortable header for the Users grid. Mirrors ev_sort_link() in
+            // the events tab below: clicking a column toggles direction;
+            // clicking a different column resets to ASC. The active column
+            // shows an up/down triangle.
+            function ug_sort_link(string $col, string $label, string $cur_sort, string $cur_dir): string {
+                $dir   = ($cur_sort === $col && $cur_dir === 'ASC') ? 'desc' : 'asc';
+                $arrow = $cur_sort === $col ? ($cur_dir === 'ASC' ? ' &#9650;' : ' &#9660;') : '';
+                return '<a href="/admin_settings.php?tab=users&us=' . urlencode($col)
+                     . '&ud=' . urlencode($dir) . '" style="color:inherit;text-decoration:none">'
+                     . htmlspecialchars($label) . $arrow . '</a>';
+            }
+            ?>
             <table id="usersGrid">
                 <thead>
                     <tr>
                         <th class="ug-cb-cell"><input type="checkbox" id="ugSelectAll" title="Select all"></th>
-                        <th class="ug-id-cell">#</th>
-                        <th style="min-width:130px">Username</th>
-                        <th style="min-width:180px">Email</th>
-                        <th style="min-width:120px">Phone</th>
-                        <th style="min-width:90px">Role</th>
-                        <th style="min-width:110px">Notification</th>
+                        <th class="ug-id-cell"><?= ug_sort_link('id', '#', $users_sort, $users_dir) ?></th>
+                        <th style="min-width:130px"><?= ug_sort_link('username', 'Username', $users_sort, $users_dir) ?></th>
+                        <th style="min-width:180px"><?= ug_sort_link('email', 'Email', $users_sort, $users_dir) ?></th>
+                        <th style="min-width:120px"><?= ug_sort_link('phone', 'Phone', $users_sort, $users_dir) ?></th>
+                        <th style="min-width:90px"><?= ug_sort_link('role', 'Role', $users_sort, $users_dir) ?></th>
+                        <th style="min-width:110px"><?= ug_sort_link('preferred_contact', 'Notification', $users_sort, $users_dir) ?></th>
                         <th style="min-width:200px">Notes</th>
-                        <th style="min-width:120px">Last Login</th>
+                        <th style="min-width:120px"><?= ug_sort_link('last_login', 'Last Login', $users_sort, $users_dir) ?></th>
                         <th class="ug-act-cell"></th>
                         <th class="ug-act-cell"></th>
                     </tr>

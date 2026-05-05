@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19216] — 2026-05-05
+
+### Changed
+- **Admin Site Settings → Users grid: column headers are now sortable.** Clickable headers on `#` (id), Username, Email, Phone, Role, Notification, and Last Login. Clicking a column toggles ASC/DESC; the active column shows an up/down triangle. Default sort stays id ASC, so the grid looks identical until you click something. Mirrors the existing pattern on the Events grid (`ev_sort_link`). Server-side sort via `?us=col&ud=asc|desc` query params with whitelist + column-name map (no SQL injection surface). Notes column stays non-sortable (free-text). Bulk-select selections clear on re-sort because the page reloads — desired behavior, since selecting after a re-sort would be confusing about what's actually selected. CSV export and import are unaffected.
+
+---
+
 ## [v0.19215] — 2026-05-04
 
 ### Added
