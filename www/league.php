@@ -217,13 +217,42 @@ $members = $mStmt->fetchAll();
 // Load events visible to viewer (scoped to this league)
 $vis = event_visibility_sql('e', $uid);
 $evStmt = $db->prepare(
-    "SELECT e.id, e.title, e.start_date, e.visibility
+    "SELECT e.id, e.title, e.start_date, e.end_date,
+            e.start_time, e.end_time, e.color, e.visibility
      FROM events e
      WHERE e.league_id = ? AND {$vis['sql']}
-     ORDER BY e.start_date DESC"
+     ORDER BY e.start_date ASC, e.start_time ASC"
 );
 $evStmt->execute(array_merge([$league_id], $vis['params']));
 $leagueEvents = $evStmt->fetchAll();
+
+// Split into upcoming / past using full datetime (mirrors my_events.php)
+$ev_local_tz = new DateTimeZone(get_setting('timezone', 'UTC'));
+$ev_now      = new DateTime('now', $ev_local_tz);
+
+$allowed_past_lg = [7, 14, 30, 60, 90, 180, 365];
+$lg_past_days = (int)($_GET['past_days'] ?? 30);
+if (!in_array($lg_past_days, $allowed_past_lg, true)) $lg_past_days = 30;
+$lg_cutoff_past = (clone $ev_now)->modify("-{$lg_past_days} days")->format('Y-m-d');
+
+$leagueUpcoming = [];
+$leaguePast     = [];
+foreach ($leagueEvents as $ev) {
+    $end_t  = $ev['end_time'] ?: $ev['start_time'] ?: '23:59';
+    $end_d  = $ev['end_date'] ?: $ev['start_date'];
+    $end_dt = new DateTime($end_d . ' ' . $end_t, $ev_local_tz);
+    if ($end_dt >= $ev_now) {
+        $leagueUpcoming[] = $ev;
+    } elseif ($ev['start_date'] >= $lg_cutoff_past) {
+        $leaguePast[] = $ev;
+    }
+}
+// Past section: most recent first
+usort($leaguePast, function($a, $b) use ($ev_local_tz) {
+    $da = new DateTime($a['start_date'] . ' ' . ($a['start_time'] ?? '00:00'), $ev_local_tz);
+    $dbt = new DateTime($b['start_date'] . ' ' . ($b['start_time'] ?? '00:00'), $ev_local_tz);
+    return $dbt <=> $da;
+});
 
 // Load join requests (only if manager+)
 $requests = [];
@@ -624,17 +653,59 @@ function ordinal($n) {
         <div id="mgSaved" style="display:none;margin-top:.5rem;font-size:.75rem;color:#16a34a">&#10003; Saved</div>
 
     <?php elseif ($tab === 'events'): ?>
-        <?php if (empty($leagueEvents)): ?>
+        <?php if (empty($leagueUpcoming) && empty($leaguePast)): ?>
             <div class="lg-empty">No events yet. <a href="/calendar.php?league_id=<?= $league_id ?>">Create one</a>.</div>
-        <?php else: foreach ($leagueEvents as $e): ?>
-            <div class="lg-card">
-                <div>
-                    <strong><?= htmlspecialchars($e['title']) ?></strong>
-                    <div style="font-size:.8rem;color:#64748b"><?= htmlspecialchars($e['start_date']) ?> &middot; <?= htmlspecialchars($e['visibility']) ?></div>
+        <?php else: ?>
+
+            <h3 style="font-size:.8rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.07em;margin:.25rem 0 .75rem">
+                Upcoming &mdash; <?= count($leagueUpcoming) ?>
+            </h3>
+            <?php if (empty($leagueUpcoming)): ?>
+                <div class="lg-empty" style="margin-bottom:1.25rem">No upcoming events.</div>
+            <?php else: foreach ($leagueUpcoming as $e): ?>
+                <div class="lg-card">
+                    <div>
+                        <strong><?= htmlspecialchars($e['title']) ?></strong>
+                        <div style="font-size:.8rem;color:#64748b">
+                            <?= htmlspecialchars($e['start_date']) ?>
+                            <?php if (!empty($e['start_time'])): ?> &middot; <?= htmlspecialchars(substr($e['start_time'], 0, 5)) ?><?php endif; ?>
+                            &middot; <?= htmlspecialchars($e['visibility']) ?>
+                        </div>
+                    </div>
+                    <a class="lg-btn lg-btn-ghost" href="/calendar.php?open=<?= (int)$e['id'] ?>&date=<?= urlencode($e['start_date']) ?>">Open</a>
                 </div>
-                <a class="lg-btn lg-btn-ghost" href="/calendar.php?open=<?= (int)$e['id'] ?>&date=<?= urlencode($e['start_date']) ?>">Open</a>
-            </div>
-        <?php endforeach; endif; ?>
+            <?php endforeach; endif; ?>
+
+            <details style="margin-top:1.5rem">
+                <summary style="cursor:pointer;display:flex;align-items:center;gap:.75rem;font-size:.8rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.75rem">
+                    <span>Past &mdash; <?= count($leaguePast) ?></span>
+                    <span style="margin-left:auto;font-weight:400;text-transform:none;letter-spacing:0;color:#64748b">
+                        Past:
+                        <select onchange="window.location='?id=<?= $league_id ?>&tab=events&past_days='+this.value"
+                                style="padding:.2rem .4rem;border:1px solid #e2e8f0;border-radius:5px;font-size:.8rem;background:#fff">
+                            <?php foreach ([7=>'7d',14=>'14d',30=>'30d',60=>'60d',90=>'90d',180=>'6mo',365=>'1yr'] as $v=>$l): ?>
+                                <option value="<?= $v ?>"<?= $lg_past_days === $v ? ' selected' : '' ?>><?= $l ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </span>
+                </summary>
+                <?php if (empty($leaguePast)): ?>
+                    <div class="lg-empty">No past events in this range.</div>
+                <?php else: foreach ($leaguePast as $e): ?>
+                    <div class="lg-card" style="opacity:.85">
+                        <div>
+                            <strong><?= htmlspecialchars($e['title']) ?></strong>
+                            <div style="font-size:.8rem;color:#64748b">
+                                <?= htmlspecialchars($e['start_date']) ?>
+                                <?php if (!empty($e['start_time'])): ?> &middot; <?= htmlspecialchars(substr($e['start_time'], 0, 5)) ?><?php endif; ?>
+                                &middot; <?= htmlspecialchars($e['visibility']) ?>
+                            </div>
+                        </div>
+                        <a class="lg-btn lg-btn-ghost" href="/calendar.php?open=<?= (int)$e['id'] ?>&date=<?= urlencode($e['start_date']) ?>">Open</a>
+                    </div>
+                <?php endforeach; endif; ?>
+            </details>
+        <?php endif; ?>
 
     <?php elseif ($tab === 'requests' && $canManageMembers): ?>
         <?php if (empty($requests)): ?>

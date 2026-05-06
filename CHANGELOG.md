@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19217] — 2026-05-06
+
+### Changed
+- **League page Events tab: split upcoming/past, oldest-first, range filter.** The Events tab on `/league.php?id=<N>&tab=events` no longer mixes future and past events together. Upcoming events now sort soonest-first (was newest-first) so the next event is on top. Past events live in their own collapsed section below upcoming, with a "Past:" range selector (7d / 14d / 30d / 60d / 90d / 6mo / 1yr; default 30d) so leagues with long histories don't blow up the page. Range is a URL param (`?past_days=`), not persisted per-user. The split logic mirrors `my_events.php` so both pages agree on what counts as "past" (compares end-of-event datetime in the site timezone, not just `start_date`).
+
+---
+
 ## [v0.19216] — 2026-05-05
 
 ### Changed
