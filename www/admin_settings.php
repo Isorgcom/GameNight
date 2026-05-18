@@ -188,7 +188,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($action === 'add') {
-            $username = strtolower(trim($_POST['username'] ?? ''));
+            $username = trim($_POST['username'] ?? '');
             $email    = trim($_POST['email'] ?? '');
             $role     = in_array($_POST['role'] ?? '', ['admin', 'user']) ? $_POST['role'] : 'user';
             $password = $_POST['password'] ?? '';
@@ -344,7 +344,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Support both full export format and simple username,email,phone,role,notes
                     // Detect by header: if first col is 'id' treat as full export (skip col 0)
                     $offset = (isset($header[0]) && strtolower(trim($header[0])) === 'id') ? 1 : 0;
-                    $username = strtolower(trim($row[$offset] ?? ''));
+                    $username = trim($row[$offset] ?? '');
                     $email    = strtolower(trim($row[$offset + 1] ?? ''));
                     $phone    = trim($row[$offset + 2] ?? '');
                     $role     = in_array(trim($row[$offset + 3] ?? ''), ['admin','user']) ? trim($row[$offset + 3]) : 'user';

@@ -122,7 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $phone_norm = $phone_raw !== '' ? normalize_phone($phone_raw) : '';
             $token = bin2hex(random_bytes(16));
             $sortOrd = $inv_sort_orders[$i] ?? ($i + 1);
-            $ins->execute([$eid, strtolower($inv_usernames[$i]), $phone_norm ?: null, $email_raw ?: null, $rsvp, $token, $invite_occ_date, $role, $sortOrd]);
+            $ins->execute([$eid, $inv_usernames[$i], $phone_norm ?: null, $email_raw ?: null, $rsvp, $token, $invite_occ_date, $role, $sortOrd]);
             // Only track new invitees for base (all-occurrence) saves so notifications go out
             if (!$invite_occ_date && !in_array(strtolower($inv_usernames[$i]), $old_names, true)) {
                 $new_usernames[] = strtolower($inv_usernames[$i]);
@@ -560,7 +560,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $baseRow = $baseStmt->fetch();
                     $baseApproval = $on_behalf ? 'approved' : ($baseRow['approval_status'] ?? 'approved');
                     $db->prepare('INSERT INTO event_invites (event_id, username, phone, email, rsvp, rsvp_token, occurrence_date, approval_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-                       ->execute([$eid, strtolower($target_username), $baseRow['phone'] ?? null, $baseRow['email'] ?? null, $rsvp, bin2hex(random_bytes(16)), $occDate, $baseApproval]);
+                       ->execute([$eid, $target_username, $baseRow['phone'] ?? null, $baseRow['email'] ?? null, $rsvp, bin2hex(random_bytes(16)), $occDate, $baseApproval]);
                 }
             } else {
                 // Base RSVP (non-recurring or updating all-occurrence default)
@@ -614,7 +614,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Self-signup: approval gate fires if the event has requires_approval=1.
                 $approval = invite_approval_status($eid, 'self');
                 $db->prepare('INSERT INTO event_invites (event_id, username, phone, email, rsvp, rsvp_token, approval_status) VALUES (?, ?, ?, ?, NULL, ?, ?)')
-                   ->execute([$eid, strtolower($current['username']), $udata['phone'] ?? null, $udata['email'] ?? null, bin2hex(random_bytes(16)), $approval]);
+                   ->execute([$eid, $current['username'], $udata['phone'] ?? null, $udata['email'] ?? null, bin2hex(random_bytes(16)), $approval]);
                 db_log_activity($current['id'], "signed up for event id: $eid" . ($approval === 'pending' ? ' (pending approval)' : ''));
                 if ($approval === 'pending') {
                     $signup_pending = true;
@@ -626,7 +626,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
-            $inv = ['username' => strtolower($current['username']), 'rsvp' => null, 'approval_status' => $signup_pending ? 'pending' : 'approved'];
+            $inv = ['username' => $current['username'], 'rsvp' => null, 'approval_status' => $signup_pending ? 'pending' : 'approved'];
             if ($isAdmin) { $inv['phone'] = $udata['phone'] ?? null; $inv['email'] = $udata['email'] ?? null; }
             header('Content-Type: application/json');
             echo json_encode(['ok' => true, 'invite' => $inv, 'pending' => $signup_pending]);

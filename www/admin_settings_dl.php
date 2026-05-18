@@ -144,7 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($action === 'add') {
-            $username = strtolower(trim($_POST['username'] ?? ''));
+            $username = trim($_POST['username'] ?? '');
             $email    = trim($_POST['email'] ?? '');
             $role     = in_array($_POST['role'] ?? '', ['admin', 'user']) ? $_POST['role'] : 'user';
             $password = $_POST['password'] ?? '';

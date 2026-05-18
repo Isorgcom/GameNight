@@ -394,7 +394,7 @@ function handle_events_post(): void {
         foreach ($resolved_invitees as $inv) {
             $ins->execute([
                 $new_eid,
-                strtolower($inv['username']),
+                $inv['username'],
                 $inv['phone'] ?: null,
                 $inv['email'] ?: null,
                 $inv['role'],
@@ -1000,7 +1000,7 @@ function handle_events_invites_post(): void {
             $next_sort++;
             $ins->execute([
                 $event_id,
-                $uname_lower,
+                $u['username'],
                 $u['phone'] ?: null,
                 $u['email'] ?: null,
                 $role,
