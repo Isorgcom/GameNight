@@ -914,7 +914,7 @@ if ($viewMode === 'week') {
 // In week view, derive the back-navigation month from the visible week rather than
 // the ?m= param (which is absent in week view). This ensures edit/add form redirects
 // return to the correct month instead of always defaulting to the current month.
-if ($viewMode === 'week' && $wkStart) {
+if ($viewMode === 'week' && $wkStart && $mParam === null) {
     $monthParam = $wkStart->format('Y-m');
 }
 
