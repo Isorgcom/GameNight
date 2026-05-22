@@ -791,12 +791,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    $back = $_POST['month_param'] ?? '';
-    // After add: navigate to the event's month so user can see it
+    $back_wk = $_POST['wk_param'] ?? '';
+    $back_m  = $_POST['month_param'] ?? '';
+    // After add: navigate to the event's week/month so user can see it
     if ($action === 'add' && !empty($sd)) {
-        $back = substr($sd, 0, 7);
+        if (!empty($back_wk)) {
+            // Came from week view - compute the Sunday of the event's start date
+            $evDt  = new DateTime($sd, $local_tz);
+            $evDow = (int)$evDt->format('w');
+            $back_wk = (clone $evDt)->modify("-{$evDow} days")->format('Y-m-d');
+        } else {
+            $back_m = substr($sd, 0, 7);
+        }
     }
-    header('Location: /calendar.php' . ($back ? '?m=' . urlencode($back) : ''));
+    if (!empty($back_wk)) {
+        header('Location: /calendar.php?wk=' . urlencode($back_wk));
+    } else {
+        header('Location: /calendar.php' . ($back_m ? '?m=' . urlencode($back_m) : ''));
+    }
     exit;
 }
 
@@ -898,6 +910,12 @@ if ($viewMode === 'week') {
     foreach ($wkAllEvents as &$_ev) { $_ev = event_display_times($_ev, $_site_tz, $local_tz); }
     unset($_ev);
     $wkByDate    = build_event_by_date($wkAllEvents, $wkStartStr, $wkEndStr, $local_tz);
+}
+// In week view, derive the back-navigation month from the visible week rather than
+// the ?m= param (which is absent in week view). This ensures edit/add form redirects
+// return to the correct month instead of always defaulting to the current month.
+if ($viewMode === 'week' && $wkStart) {
+    $monthParam = $wkStart->format('Y-m');
 }
 
 // Batch-load comments for all events on this page (month view, preview, and week view)
@@ -1816,6 +1834,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             <input type="hidden" name="action" id="eAction" value="add">
             <input type="hidden" name="id" id="eId" value="">
             <input type="hidden" name="month_param" value="<?= htmlspecialchars($monthParam) ?>">
+            <input type="hidden" name="wk_param" value="<?= $wkStart !== null ? htmlspecialchars($wkStartStr) : '' ?>">
             <input type="hidden" name="occurrence_date" id="eOccDate" value="">
             <input type="hidden" name="end_date" id="eEndDate" value="">
             <input type="hidden" name="end_time" id="eEndTime" value="">
