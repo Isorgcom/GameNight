@@ -823,4 +823,158 @@ if ($action === 'upload_theme_bg') {
     exit;
 }
 
+// ─── Preset themes (built-in .gnt.json files in www/timer_themes/) ──────────
+// Curated theme exports shipped on disk. Users browse them in a gallery and "load"
+// one, which materializes it as the user's own editable timer_themes row (so it
+// persists across reloads and shows on remote/embedded displays). Admins upload/delete
+// the files. Same envelope shape as the export/import flow.
+function timer_preset_dir(): string { return __DIR__ . '/timer_themes'; }
+
+// Resolve a client-supplied preset key to a safe absolute path inside timer_themes/,
+// or null if unsafe / missing. Triple guard: basename strips any path, the regex
+// restricts the charset to *.gnt.json, and the realpath prefix check defeats
+// traversal/symlink escapes.
+function timer_preset_path(string $key): ?string {
+    $base = basename($key);
+    if ($base === '' || $base[0] === '.') return null;
+    if (!preg_match('/^[A-Za-z0-9._ -]+\.gnt\.json$/', $base)) return null;
+    $dir = realpath(timer_preset_dir());
+    if ($dir === false) return null;
+    $real = realpath($dir . '/' . $base);
+    if ($real === false || !is_file($real)) return null;
+    if (strpos($real, $dir . DIRECTORY_SEPARATOR) !== 0) return null;
+    return $real;
+}
+
+// True only for genuine GameNight timer-theme exports with an elements map.
+function timer_preset_valid_envelope($data): bool {
+    return is_array($data)
+        && ($data['format'] ?? '') === 'gamenight-timer-theme'
+        && isset($data['properties']['elements'])
+        && is_array($data['properties']['elements']);
+}
+
+// ─── GET: get_preset_themes ───────────────────────────────
+if ($action === 'get_preset_themes') {
+    if (!$current) { echo json_encode(['ok' => false, 'error' => 'Login required']); exit; }
+    $dir = timer_preset_dir();
+    $files = is_dir($dir) ? glob($dir . '/*.gnt.json') : [];
+    if ($files === false) $files = [];
+    natcasesort($files);
+    $out = []; $skipped = [];
+    foreach ($files as $f) {
+        if (count($out) >= 200) break;
+        $data = json_decode((string)@file_get_contents($f), true);
+        if (!timer_preset_valid_envelope($data)) { $skipped[] = basename($f); continue; }
+        $out[] = [
+            'key'        => basename($f),
+            'name'       => (string)($data['name'] ?? basename($f, '.gnt.json')),
+            'properties' => array_replace_recursive(timer_theme_defaults(), $data['properties']),
+        ];
+    }
+    $resp = ['ok' => true, 'presets' => array_values($out)];
+    if ($isAdmin && $skipped) $resp['skipped'] = $skipped;
+    echo json_encode($resp);
+    exit;
+}
+
+// ─── POST: apply_preset_theme (load a preset, persist as the user's own theme) ──
+if ($action === 'apply_preset_theme') {
+    if (!$current) { echo json_encode(['ok' => false, 'error' => 'Login required']); exit; }
+    $timer = resolve_timer_from_post($db, $current, $isAdmin);
+    if (!$timer) { echo json_encode(['ok' => false, 'error' => 'Timer not found']); exit; }
+    $path = timer_preset_path($_POST['preset_key'] ?? '');
+    if (!$path) { echo json_encode(['ok' => false, 'error' => 'Unknown preset']); exit; }
+
+    $data = json_decode((string)@file_get_contents($path), true);
+    if (!timer_preset_valid_envelope($data)) {
+        echo json_encode(['ok' => false, 'error' => 'Preset file is invalid']); exit;
+    }
+    $name      = trim((string)($data['name'] ?? basename($path, '.gnt.json'))) ?: 'Preset';
+    $props     = $data['properties'];
+    $propsJson = json_encode($props);
+
+    // Find-or-create one personal row per (user, preset name) so repeated loads are
+    // idempotent (reset to the preset baseline) rather than piling up duplicate copies.
+    $sel = $db->prepare('SELECT id FROM timer_themes WHERE created_by = ? AND name = ? ORDER BY id LIMIT 1');
+    $sel->execute([(int)$current['id'], $name]);
+    $existingId = $sel->fetchColumn();
+    if ($existingId) {
+        $theme_id = (int)$existingId;
+        $db->prepare('UPDATE timer_themes SET properties = ? WHERE id = ?')->execute([$propsJson, $theme_id]);
+    } else {
+        $db->prepare('INSERT INTO timer_themes (name, created_by, is_global, league_id, properties) VALUES (?, ?, 0, NULL, ?)')
+           ->execute([$name, (int)$current['id'], $propsJson]);
+        $theme_id = (int)$db->lastInsertId();
+    }
+
+    $db->prepare("UPDATE timer_state SET theme_id = ?, updated_at = datetime('now') WHERE id = ?")
+       ->execute([$theme_id, $timer['id']]);
+
+    $merged = array_replace_recursive(timer_theme_defaults(), $props);
+    echo json_encode(['ok' => true, 'theme_id' => $theme_id, 'properties' => $merged]);
+    exit;
+}
+
+// ─── POST: upload_preset_theme (admin only; CSRF enforced globally above) ──
+if ($action === 'upload_preset_theme') {
+    if (!$isAdmin) { echo json_encode(['ok' => false, 'error' => 'Admin only']); exit; }
+
+    $raw = null; $origName = '';
+    if (!empty($_FILES['file']) && $_FILES['file']['error'] === UPLOAD_ERR_OK) {
+        if ($_FILES['file']['size'] > 256 * 1024) { echo json_encode(['ok' => false, 'error' => 'File too large (max 256 KB)']); exit; }
+        $raw = (string)file_get_contents($_FILES['file']['tmp_name']);
+        $origName = (string)($_FILES['file']['name'] ?? '');
+    } elseif (isset($_POST['json'])) {
+        $raw = (string)$_POST['json'];
+    }
+    if ($raw === null || $raw === '') { echo json_encode(['ok' => false, 'error' => 'No theme supplied']); exit; }
+
+    $data = json_decode($raw, true);
+    if (!timer_preset_valid_envelope($data)) {
+        echo json_encode(['ok' => false, 'error' => 'Not a valid GameNight timer-theme export']); exit;
+    }
+
+    // Derive a safe basename from the theme name (fall back to the uploaded filename).
+    $base = (string)($data['name'] ?? '');
+    if ($base === '' && $origName !== '') $base = preg_replace('/\.gnt\.json$|\.json$/i', '', $origName);
+    $slug = preg_replace('/[^A-Za-z0-9._-]+/', '_', $base);
+    $slug = trim((string)$slug, '._-');
+    if ($slug === '') $slug = 'preset';
+    $slug = substr($slug, 0, 60);
+
+    $dir = timer_preset_dir();
+    if (!is_dir($dir)) @mkdir($dir, 0755, true);
+    $fname  = $slug . '.gnt.json';
+    $target = $dir . '/' . $fname;
+    for ($i = 2; file_exists($target); $i++) { $fname = $slug . '-' . $i . '.gnt.json'; $target = $dir . '/' . $fname; }
+
+    // Re-encode the validated envelope rather than trusting raw upload bytes, so the
+    // file written into the web root is always a clean, known shape.
+    $envelope = [
+        'format'      => 'gamenight-timer-theme',
+        'version'     => 1,
+        'exported_at' => gmdate('c'),
+        'name'        => (string)($data['name'] ?? $slug),
+        'properties'  => $data['properties'],
+    ];
+    if (@file_put_contents($target, json_encode($envelope, JSON_PRETTY_PRINT)) === false) {
+        echo json_encode(['ok' => false, 'error' => 'Failed to write preset']); exit;
+    }
+    db_log_activity((int)$current['id'], 'timer preset uploaded: ' . $fname);
+    echo json_encode(['ok' => true, 'key' => $fname]);
+    exit;
+}
+
+// ─── POST: delete_preset_theme (admin only) ───────────────
+if ($action === 'delete_preset_theme') {
+    if (!$isAdmin) { echo json_encode(['ok' => false, 'error' => 'Admin only']); exit; }
+    $path = timer_preset_path($_POST['preset_key'] ?? '');
+    if (!$path) { echo json_encode(['ok' => false, 'error' => 'Unknown preset']); exit; }
+    if (!@unlink($path)) { echo json_encode(['ok' => false, 'error' => 'Delete failed']); exit; }
+    db_log_activity((int)$current['id'], 'timer preset deleted: ' . basename($path));
+    echo json_encode(['ok' => true]);
+    exit;
+}
+
 echo json_encode(['ok' => false, 'error' => 'Unknown action']);

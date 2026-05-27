@@ -4,6 +4,16 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19310] - 2026-05-27
+
+### Added
+- **Built-in preset theme library for the tournament timer.** Curated timer themes shipped as `.gnt.json` files in `www/timer_themes/` are now browsable in a visual gallery and loadable in one click, instead of every user having to download and re-import a theme file. A new **Presets…** button in the timer's Theme Library opens a card grid (`#presetOverlay` in `www/timer.php`) where each card renders a self-contained mini-preview built from the theme's own colors and background; the preview uses a dedicated `renderPresetCard()` that only writes inline styles and never touches the live `:root`/DOM the way `applyTheme()` does. Loading a preset calls the new `apply_preset_theme` action in `www/timer_dl.php`, which reads the file server-side, materializes it as the user's own editable `timer_themes` row (find-or-create keyed on user + theme name, so repeated loads reset to the preset baseline rather than piling up duplicate copies), and points `timer_state.theme_id` at it so the choice persists across reloads and reaches remote/embedded displays. Admins additionally get **Upload** and **Delete** controls in the gallery, backed by admin-only `upload_preset_theme` / `delete_preset_theme` actions; uploaded files are validated against the export envelope (`format` + `properties.elements`) and re-encoded to a clean shape before being written, and a shared `timer_preset_path()` helper guards every file access against path traversal (basename + charset allowlist + realpath-prefix check). Six built-in themes ship to start: Classic Dark, Default BLue-green, Casino Red & Gold, Emerald Felt, High Contrast, and Midnight Purple. No database migration is needed; the existing `timer_themes` table is reused.
+
+### Infrastructure
+- **Operator note for the preset library.** The deployed `www/timer_themes/` directory must be owned by `www-data` (the same requirement as `db/` and `uploads/`) for the admin Upload feature to work; otherwise an upload fails with a write-permission error. Admin-uploaded presets are written to the running instance's filesystem and are **not** version-controlled, so to ship a preset to every deploy its `.gnt.json` must be committed to the repo. The preset files are served from under the web root and are therefore publicly fetchable at `/timer_themes/<name>.gnt.json`; this is acceptable because a theme contains only colors, scales, and layout (no sensitive data).
+
+---
+
 ## [v0.19309] - 2026-05-24
 
 ### Added

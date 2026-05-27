@@ -1,0 +1,48 @@
+{
+  "format": "gamenight-timer-theme",
+  "version": 1,
+  "exported_at": "2026-05-27T00:00:00+00:00",
+  "name": "Emerald Felt",
+  "properties": {
+    "background": {
+      "type": "gradient",
+      "color": "#0b3d2e",
+      "gradient": {
+        "from": "#0b3d2e",
+        "to": "#062018",
+        "angle": 180
+      },
+      "image_url": ""
+    },
+    "elements": {
+      "event_name":    { "visible": true,  "color": "#fdf6e3", "scale": 1 },
+      "player_count":  { "visible": true,  "color": "#9cc7a8", "scale": 1 },
+      "pool_total":    { "visible": true,  "color": "#9cc7a8", "scale": 1 },
+      "level_label":   { "visible": true,  "color": "#9cc7a8", "scale": 1 },
+      "blinds":        { "visible": true,  "color": "#ffe9a8", "scale": 1 },
+      "clock": {
+        "visible": true,
+        "color_green": "#34d399",
+        "color_yellow": "#fbbf24",
+        "color_red": "#f87171",
+        "scale": 1,
+        "warning_seconds": 120,
+        "critical_seconds": 30
+      },
+      "paused_label":  { "visible": true,  "color": "#fde047", "scale": 1 },
+      "next_level":    { "visible": true,  "color": "#9cc7a8", "scale": 1 },
+      "avg_stack":     { "visible": true,  "color": "#9cc7a8", "scale": 1 },
+      "payouts":       { "visible": true,  "color": "#9cc7a8", "scale": 1 },
+      "rebuys":        { "visible": true,  "color": "#9cc7a8", "scale": 1 },
+      "chips_in_play": { "visible": true,  "color": "#9cc7a8", "scale": 1 },
+      "next_break":    { "visible": true,  "color": "#9cc7a8", "scale": 1 },
+      "qr":            { "visible": true,  "scale": 1 },
+      "image":         { "visible": false, "url": "", "scale": 1 }
+    },
+    "tray": {
+      "bg_color": "#08291f",
+      "button_color": "#e7f5ec",
+      "accent_color": "#d4af37"
+    }
+  }
+}

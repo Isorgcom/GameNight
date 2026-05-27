@@ -1,0 +1,88 @@
+{
+  "format": "gamenight-timer-theme",
+  "version": 1,
+  "exported_at": "2026-05-23T04:56:42.909Z",
+  "name": "Classic Dark",
+  "properties": {
+    "background": {
+      "type": "color",
+      "color": "#0f172a",
+      "gradient": {
+        "from": "#0f172a",
+        "to": "#1e293b",
+        "angle": 180
+      },
+      "image_url": ""
+    },
+    "elements": {
+      "event_name": {
+        "visible": true,
+        "color": "#ffffff",
+        "scale": 1
+      },
+      "player_count": {
+        "visible": true,
+        "color": "#94a3b8",
+        "scale": 1
+      },
+      "pool_total": {
+        "visible": true,
+        "color": "#94a3b8",
+        "scale": 1
+      },
+      "level_label": {
+        "visible": true,
+        "color": "#94a3b8",
+        "scale": 1
+      },
+      "blinds": {
+        "visible": true,
+        "color": "#ffffff",
+        "scale": 1
+      },
+      "clock": {
+        "visible": true,
+        "color_green": "#22c55e",
+        "color_yellow": "#fbbf24",
+        "color_red": "#ef4444",
+        "scale": 1,
+        "warning_seconds": 120,
+        "critical_seconds": 30
+      },
+      "paused_label": {
+        "visible": true,
+        "color": "#fbbf24",
+        "scale": 1
+      },
+      "next_level": {
+        "visible": true,
+        "color": "#94a3b8",
+        "scale": 1
+      },
+      "avg_stack": {
+        "visible": true,
+        "color": "#94a3b8",
+        "scale": 1
+      },
+      "payouts": {
+        "visible": true,
+        "color": "#94a3b8",
+        "scale": 1
+      },
+      "qr": {
+        "visible": true,
+        "scale": 1
+      },
+      "image": {
+        "visible": false,
+        "url": "",
+        "scale": 1
+      }
+    },
+    "tray": {
+      "bg_color": "#1e293b",
+      "button_color": "#e2e8f0",
+      "accent_color": "#2563eb"
+    }
+  }
+}

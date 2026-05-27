@@ -681,6 +681,48 @@ $themeCss   = timer_theme_css_vars($themeProps);
             cursor: pointer;
         }
         .timer-preset-bar button:hover { background: #475569; }
+        /* Preset theme gallery (built-in .gnt.json presets). */
+        .preset-gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 0.9rem;
+            margin: 0.25rem 0 1rem;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+        .preset-card {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .preset-card .preset-mock { position: relative; aspect-ratio: 16 / 9; overflow: hidden; }
+        .preset-card .preset-foot {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.4rem;
+            padding: 0.5rem 0.6rem;
+        }
+        .preset-card .preset-name {
+            font-size: 0.85rem;
+            color: #e2e8f0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .preset-card .preset-foot button {
+            background: #334155;
+            color: #e2e8f0;
+            border: 1px solid #475569;
+            border-radius: 6px;
+            padding: 0.25rem 0.6rem;
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+        .preset-card .preset-foot button:hover { background: #475569; }
         /* The only scrolling region in #levelsOverlay. Re-supplies the horizontal +
            bottom padding the panel lost when it went to padding:0. */
         .timer-levels-scroll {
@@ -1427,10 +1469,29 @@ $themeCss   = timer_theme_css_vars($themeProps);
             <button onclick="exportTheme()" title="Download selected theme as a JSON file">Export</button>
             <button onclick="document.getElementById('themeImportFile').click()" title="Load a theme JSON file from another install">Import</button>
             <input type="file" id="themeImportFile" accept=".json,application/json" style="display:none" onchange="importTheme(this)">
+            <button onclick="openPresets()" title="Browse built-in preset themes">Presets&hellip;</button>
         </div>
 
         <div class="timer-level-btns" style="margin-top:1rem">
             <button class="btn-close-panel" onclick="closeThemes()">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Preset theme gallery — built-in .gnt.json presets with live mini-previews. -->
+<div class="timer-levels-overlay" id="presetOverlay" onclick="if(event.target===this)closePresets()">
+    <div class="timer-levels-panel" style="max-width:760px;position:relative">
+        <button onclick="closePresets()" type="button"
+                style="position:absolute;top:0.75rem;right:0.75rem;background:none;border:none;color:#94a3b8;font-size:1.5rem;cursor:pointer;line-height:1;padding:0.25rem">&times;</button>
+        <h3>Preset Themes</h3>
+        <p style="font-size:.8rem;color:#94a3b8;margin:0 0 .75rem">Browse built-in presets. Loading one saves it as your own editable theme.</p>
+        <div id="presetAdminBar" style="display:none;margin-bottom:.5rem">
+            <button onclick="document.getElementById('presetUploadFile').click()" title="Upload a .gnt.json preset to the shared library">&#8593; Upload preset</button>
+            <input type="file" id="presetUploadFile" accept=".json,application/json" style="display:none" onchange="uploadPreset(this)">
+        </div>
+        <div class="preset-gallery-grid" id="presetGrid"><p style="color:#94a3b8">Loading&hellip;</p></div>
+        <div class="timer-level-btns" style="margin-top:.5rem">
+            <button class="btn-close-panel" onclick="closePresets()">Close</button>
         </div>
     </div>
 </div>
@@ -3518,6 +3579,130 @@ function loadTheme() {
     });
 }
 
+// ─── Preset theme gallery (built-in .gnt.json presets) ───────────────────────
+var PRESETS_CACHE = [];
+
+function openPresets() {
+    var bar = document.getElementById('presetAdminBar');
+    if (bar) bar.style.display = IS_ADMIN ? '' : 'none';
+    document.getElementById('presetOverlay').classList.add('open');
+    fetchPresets();
+}
+function closePresets() {
+    document.getElementById('presetOverlay').classList.remove('open');
+}
+
+function fetchPresets() {
+    var grid = document.getElementById('presetGrid');
+    fetch('/timer_dl.php?action=get_preset_themes')
+        .then(function(r){ return r.json(); })
+        .then(function(j){
+            if (!j.ok) { grid.innerHTML = '<p style="color:#ef4444">Could not load presets.</p>'; return; }
+            PRESETS_CACHE = j.presets || [];
+            renderPresetGrid();
+        })
+        .catch(function(){ grid.innerHTML = '<p style="color:#ef4444">Could not load presets.</p>'; });
+}
+
+function renderPresetGrid() {
+    var grid = document.getElementById('presetGrid');
+    if (!PRESETS_CACHE.length) { grid.innerHTML = '<p style="color:#94a3b8">No presets available yet.</p>'; return; }
+    grid.innerHTML = '';
+    PRESETS_CACHE.forEach(function(p){ grid.appendChild(renderPresetCard(p)); });
+}
+
+// Self-contained mini-mockup built from the preset's properties. Inline styles ONLY —
+// it must never touch :root or the live timer DOM (that is applyTheme's job).
+function renderPresetCard(preset) {
+    var props = preset.properties || {};
+    var bg = props.background || {}, el = props.elements || {}, tray = props.tray || {};
+    var bgVal;
+    if (bg.type === 'gradient' && bg.gradient) {
+        bgVal = 'linear-gradient(' + (bg.gradient.angle||180) + 'deg,' + (bg.gradient.from||'#0f172a') + ',' + (bg.gradient.to||'#1e293b') + ')';
+    } else if (bg.type === 'image' && bg.image_url) {
+        bgVal = "url('" + String(bg.image_url).replace(/['"\\]/g,'') + "') center/cover no-repeat";
+    } else {
+        bgVal = bg.color || '#0f172a';
+    }
+    function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+    var ev = el.event_name || {}, bl = el.blinds || {}, ck = el.clock || {};
+    var keyJson = JSON.stringify(preset.key);
+
+    var card = document.createElement('div');
+    card.className = 'preset-card';
+    card.innerHTML =
+        '<div class="preset-mock" style="background:' + esc(bgVal) + '">' +
+            '<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.15rem;font-family:' + esc(fontStackFor(ev.font||'') || 'inherit') + '">' +
+                '<div style="font-size:.55rem;color:' + esc(ev.color||'#fff') + '">Event Name</div>' +
+                '<div style="font-size:1.5rem;font-weight:700;line-height:1;color:' + esc(ck.color_green||'#22c55e') + '">20:00</div>' +
+                '<div style="font-size:.7rem;font-weight:600;color:' + esc(bl.color||'#fff') + '">100 / 200</div>' +
+            '</div>' +
+            '<div style="position:absolute;left:0;right:0;bottom:0;height:14%;background:' + esc(tray.bg_color||'#1e293b') + '"></div>' +
+        '</div>' +
+        '<div class="preset-foot">' +
+            '<span class="preset-name" title="' + esc(preset.name) + '">' + esc(preset.name) + '</span>' +
+            '<span style="display:flex;gap:.3rem;flex:0 0 auto">' +
+                '<button onclick="loadPreset(' + esc(keyJson) + ')">Load</button>' +
+                (IS_ADMIN ? '<button onclick="deletePreset(' + esc(keyJson) + ')" title="Delete preset file">&times;</button>' : '') +
+            '</span>' +
+        '</div>';
+    return card;
+}
+
+function loadPreset(key) {
+    var fd = new FormData();
+    fd.append('action','apply_preset_theme');
+    fd.append('csrf_token', CSRF);
+    appendTimerId(fd);
+    fd.append('preset_key', key);
+    fetch('/timer_dl.php',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(j){
+        if (!j.ok) { alert(j.error||'Load failed'); return; }
+        CURRENT_THEME_ID = j.theme_id;
+        window.TIMER_THEME_ID = j.theme_id;
+        window.TIMER_THEME = j.properties;
+        applyTheme(j.properties);
+        fetchThemes();
+        closePresets();
+    });
+}
+
+function deletePreset(key) {
+    if (!confirm('Delete this preset file? Users who already loaded it keep their own copy.')) return;
+    var fd = new FormData();
+    fd.append('action','delete_preset_theme');
+    fd.append('csrf_token', CSRF);
+    fd.append('preset_key', key);
+    fetch('/timer_dl.php',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(j){
+        if (!j.ok) { alert(j.error||'Delete failed'); return; }
+        fetchPresets();
+    });
+}
+
+function uploadPreset(input) {
+    if (!input.files || !input.files[0]) return;
+    var f = input.files[0];
+    var reader = new FileReader();
+    reader.onload = function(ev){
+        var data;
+        try { data = JSON.parse(ev.target.result); } catch(e){ alert('Not a valid JSON file.'); input.value=''; return; }
+        if (!data || data.format !== 'gamenight-timer-theme' || !data.properties || typeof data.properties !== 'object'
+            || !data.properties.elements || typeof data.properties.elements !== 'object') {
+            alert('Not a GameNight timer-theme export.'); input.value=''; return;
+        }
+        var fd = new FormData();
+        fd.append('action','upload_preset_theme');
+        fd.append('csrf_token', CSRF);
+        fd.append('file', f);
+        fetch('/timer_dl.php',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(j){
+            if (!j.ok) { alert(j.error||'Upload failed'); return; }
+            fetchPresets();
+        });
+        input.value = '';
+    };
+    reader.onerror = function(){ alert('Could not read file.'); input.value=''; };
+    reader.readAsText(f);
+}
+
 function saveThemeAs() {
     var leagueScopes = [];
     fetch('/timer_dl.php?action=get_user_leagues').then(function(r){return r.json();}).then(function(j){
@@ -4698,7 +4883,7 @@ function makePanelDraggable(panel, handle) {
 // Add `open` class behavior to theme overlay (mirrors levels overlay).
 (function(){
     var style = document.createElement('style');
-    style.textContent = '.timer-levels-overlay#themeOverlay.open, .timer-levels-overlay#saveThemeOverlay.open { display:flex; align-items:center; justify-content:center; }';
+    style.textContent = '.timer-levels-overlay#themeOverlay.open, .timer-levels-overlay#saveThemeOverlay.open, .timer-levels-overlay#presetOverlay.open { display:flex; align-items:center; justify-content:center; }';
     document.head.appendChild(style);
 })();
 

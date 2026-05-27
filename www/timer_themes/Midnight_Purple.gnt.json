@@ -1,0 +1,48 @@
+{
+  "format": "gamenight-timer-theme",
+  "version": 1,
+  "exported_at": "2026-05-27T00:00:00+00:00",
+  "name": "Midnight Purple",
+  "properties": {
+    "background": {
+      "type": "gradient",
+      "color": "#1e1b4b",
+      "gradient": {
+        "from": "#2e1065",
+        "to": "#0b0420",
+        "angle": 160
+      },
+      "image_url": ""
+    },
+    "elements": {
+      "event_name":    { "visible": true,  "color": "#f0abfc", "scale": 1 },
+      "player_count":  { "visible": true,  "color": "#c4b5fd", "scale": 1 },
+      "pool_total":    { "visible": true,  "color": "#c4b5fd", "scale": 1 },
+      "level_label":   { "visible": true,  "color": "#c4b5fd", "scale": 1 },
+      "blinds":        { "visible": true,  "color": "#22d3ee", "scale": 1 },
+      "clock": {
+        "visible": true,
+        "color_green": "#4ade80",
+        "color_yellow": "#facc15",
+        "color_red": "#fb7185",
+        "scale": 1,
+        "warning_seconds": 120,
+        "critical_seconds": 30
+      },
+      "paused_label":  { "visible": true,  "color": "#e879f9", "scale": 1 },
+      "next_level":    { "visible": true,  "color": "#c4b5fd", "scale": 1 },
+      "avg_stack":     { "visible": true,  "color": "#c4b5fd", "scale": 1 },
+      "payouts":       { "visible": true,  "color": "#c4b5fd", "scale": 1 },
+      "rebuys":        { "visible": true,  "color": "#c4b5fd", "scale": 1 },
+      "chips_in_play": { "visible": true,  "color": "#c4b5fd", "scale": 1 },
+      "next_break":    { "visible": true,  "color": "#c4b5fd", "scale": 1 },
+      "qr":            { "visible": true,  "scale": 1 },
+      "image":         { "visible": false, "url": "", "scale": 1 }
+    },
+    "tray": {
+      "bg_color": "#1e1b4b",
+      "button_color": "#ede9fe",
+      "accent_color": "#a855f7"
+    }
+  }
+}

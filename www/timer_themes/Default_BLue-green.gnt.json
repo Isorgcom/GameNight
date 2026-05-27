@@ -1,0 +1,177 @@
+{
+    "format": "gamenight-timer-theme",
+    "version": 1,
+    "exported_at": "2026-05-27T21:46:12+00:00",
+    "name": "Default BLue-green",
+    "properties": {
+        "background": {
+            "type": "gradient",
+            "color": "#0f172a",
+            "gradient": {
+                "from": "#0000ff",
+                "to": "#004040",
+                "angle": 360
+            },
+            "image_url": ""
+        },
+        "elements": {
+            "event_name": {
+                "visible": true,
+                "color": "#ffffff",
+                "scale": 1,
+                "pos": {
+                    "x": 50,
+                    "y": 6.4
+                }
+            },
+            "player_count": {
+                "visible": true,
+                "color": "#94a3b8",
+                "scale": 1,
+                "pos": {
+                    "x": 5.6,
+                    "y": 35.1
+                }
+            },
+            "pool_total": {
+                "visible": true,
+                "color": "#94a3b8",
+                "scale": 1,
+                "pos": {
+                    "x": 5.6,
+                    "y": 31.7
+                }
+            },
+            "level_label": {
+                "visible": true,
+                "color": "#94a3b8",
+                "scale": 1,
+                "pos": {
+                    "x": 50,
+                    "y": 23.4
+                }
+            },
+            "blinds": {
+                "visible": true,
+                "color": "#ffffff",
+                "scale": 1,
+                "pos": {
+                    "x": 50,
+                    "y": 33.9
+                }
+            },
+            "clock": {
+                "visible": true,
+                "color_green": "#22c55e",
+                "color_yellow": "#fbbf24",
+                "color_red": "#ef4444",
+                "scale": 1,
+                "warning_seconds": 120,
+                "critical_seconds": 30,
+                "pos": {
+                    "x": 50,
+                    "y": 57.9
+                }
+            },
+            "paused_label": {
+                "visible": true,
+                "color": "#ff0000",
+                "scale": 6,
+                "pos": {
+                    "x": 50,
+                    "y": 57.9
+                },
+                "letter_spacing": "wider",
+                "font": "serif",
+                "bold": true,
+                "italic": true,
+                "uppercase": false
+            },
+            "next_level": {
+                "visible": true,
+                "color": "#94a3b8",
+                "scale": 1,
+                "pos": {
+                    "x": 50,
+                    "y": 82.1
+                }
+            },
+            "avg_stack": {
+                "visible": true,
+                "color": "#94a3b8",
+                "scale": 1.1,
+                "pos": {
+                    "x": 4.5,
+                    "y": 8.3
+                }
+            },
+            "payouts": {
+                "visible": true,
+                "color": "#94a3b8",
+                "scale": 1.55,
+                "pos": {
+                    "x": 90.8,
+                    "y": 13.7
+                }
+            },
+            "qr": {
+                "visible": true,
+                "scale": 1.1,
+                "pos": {
+                    "x": 93.8,
+                    "y": 91.7
+                }
+            },
+            "image": {
+                "visible": false,
+                "url": "",
+                "scale": 1,
+                "pos": {
+                    "x": 50,
+                    "y": 50
+                }
+            },
+            "rebuys": {
+                "visible": true,
+                "color": "#94a3b8",
+                "scale": 1,
+                "pos": {
+                    "x": 4.5,
+                    "y": 28.3
+                }
+            },
+            "chips_in_play": {
+                "visible": true,
+                "color": "#94a3b8",
+                "scale": 1,
+                "pos": {
+                    "x": 5.9,
+                    "y": 24.9
+                }
+            },
+            "next_break": {
+                "visible": true,
+                "color": "#94a3b8",
+                "scale": 1,
+                "pos": {
+                    "x": 7.5,
+                    "y": 21.9
+                }
+            },
+            "streaming": {
+                "visible": false,
+                "scale": 1,
+                "url": "",
+                "pos": {
+                    "x": 15.9,
+                    "y": 88
+                }
+            }
+        },
+        "tray": {
+            "bg_color": "#1e293b",
+            "button_color": "#e2e8f0",
+            "accent_color": "#2563eb"
+        }
+    }
+}

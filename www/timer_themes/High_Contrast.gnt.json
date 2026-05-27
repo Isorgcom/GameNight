@@ -1,0 +1,48 @@
+{
+  "format": "gamenight-timer-theme",
+  "version": 1,
+  "exported_at": "2026-05-27T00:00:00+00:00",
+  "name": "High Contrast",
+  "properties": {
+    "background": {
+      "type": "color",
+      "color": "#000000",
+      "gradient": {
+        "from": "#000000",
+        "to": "#000000",
+        "angle": 180
+      },
+      "image_url": ""
+    },
+    "elements": {
+      "event_name":    { "visible": true,  "color": "#ffffff", "scale": 1.05 },
+      "player_count":  { "visible": true,  "color": "#ffffff", "scale": 1 },
+      "pool_total":    { "visible": true,  "color": "#ffffff", "scale": 1 },
+      "level_label":   { "visible": true,  "color": "#ffffff", "scale": 1 },
+      "blinds":        { "visible": true,  "color": "#ffffff", "scale": 1.1 },
+      "clock": {
+        "visible": true,
+        "color_green": "#00ff66",
+        "color_yellow": "#ffee00",
+        "color_red": "#ff2a2a",
+        "scale": 1.1,
+        "warning_seconds": 120,
+        "critical_seconds": 30
+      },
+      "paused_label":  { "visible": true,  "color": "#ffff00", "scale": 1 },
+      "next_level":    { "visible": true,  "color": "#ffffff", "scale": 1 },
+      "avg_stack":     { "visible": true,  "color": "#ffffff", "scale": 1 },
+      "payouts":       { "visible": true,  "color": "#ffffff", "scale": 1 },
+      "rebuys":        { "visible": true,  "color": "#ffffff", "scale": 1 },
+      "chips_in_play": { "visible": true,  "color": "#ffffff", "scale": 1 },
+      "next_break":    { "visible": true,  "color": "#ffffff", "scale": 1 },
+      "qr":            { "visible": true,  "scale": 1 },
+      "image":         { "visible": false, "url": "", "scale": 1 }
+    },
+    "tray": {
+      "bg_color": "#000000",
+      "button_color": "#ffffff",
+      "accent_color": "#ffffff"
+    }
+  }
+}

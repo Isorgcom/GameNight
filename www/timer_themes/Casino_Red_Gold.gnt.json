@@ -1,0 +1,48 @@
+{
+  "format": "gamenight-timer-theme",
+  "version": 1,
+  "exported_at": "2026-05-27T00:00:00+00:00",
+  "name": "Casino Red & Gold",
+  "properties": {
+    "background": {
+      "type": "gradient",
+      "color": "#1a0505",
+      "gradient": {
+        "from": "#2b0a0a",
+        "to": "#000000",
+        "angle": 180
+      },
+      "image_url": ""
+    },
+    "elements": {
+      "event_name":    { "visible": true,  "color": "#ffd54a", "scale": 1 },
+      "player_count":  { "visible": true,  "color": "#c9a24b", "scale": 1 },
+      "pool_total":    { "visible": true,  "color": "#c9a24b", "scale": 1 },
+      "level_label":   { "visible": true,  "color": "#c9a24b", "scale": 1 },
+      "blinds":        { "visible": true,  "color": "#ffe27a", "scale": 1 },
+      "clock": {
+        "visible": true,
+        "color_green": "#2ecc71",
+        "color_yellow": "#f5c542",
+        "color_red": "#e02424",
+        "scale": 1,
+        "warning_seconds": 120,
+        "critical_seconds": 30
+      },
+      "paused_label":  { "visible": true,  "color": "#ff4d4d", "scale": 1 },
+      "next_level":    { "visible": true,  "color": "#c9a24b", "scale": 1 },
+      "avg_stack":     { "visible": true,  "color": "#c9a24b", "scale": 1 },
+      "payouts":       { "visible": true,  "color": "#c9a24b", "scale": 1 },
+      "rebuys":        { "visible": true,  "color": "#c9a24b", "scale": 1 },
+      "chips_in_play": { "visible": true,  "color": "#c9a24b", "scale": 1 },
+      "next_break":    { "visible": true,  "color": "#c9a24b", "scale": 1 },
+      "qr":            { "visible": true,  "scale": 1 },
+      "image":         { "visible": false, "url": "", "scale": 1 }
+    },
+    "tray": {
+      "bg_color": "#1a0505",
+      "button_color": "#f5e6c8",
+      "accent_color": "#b8161a"
+    }
+  }
+}
