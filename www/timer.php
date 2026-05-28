@@ -206,7 +206,12 @@ $themeCss   = timer_theme_css_vars($themeProps);
     <script>window.TIMER_THEME = <?= json_encode($themeProps, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?>; window.TIMER_THEME_ID = <?= $themeId ? (int)$themeId : 'null' ?>;</script>
     <style id="themeStyle"><?= $themeCss ?></style>
     <style>
-        html { height: 100%; }
+        html {
+            height: 100%;
+            background: var(--timer-bg);   /* iPad: keeps overscroll/safe-area gutters from showing white */
+            overscroll-behavior: none;
+        }
+        body { overscroll-behavior: none; }
         :root {
             --timer-bg: #0f172a;
             --timer-event-color: #fff;
@@ -1092,6 +1097,8 @@ $themeCss   = timer_theme_css_vars($themeProps);
         }
         .layout-edit-pill button:hover { background: #334155; }
         .layout-edit-pill button.btn-done { background: #2563eb; border-color: #2563eb; color: #fff; }
+        .layout-edit-pill button#snapToggleBtn.snap-on  { background: #2563eb; border-color: #2563eb; color: #fff; }
+        .layout-edit-pill button#snapToggleBtn.snap-off { background: #1e293b; border-color: #64748b; color: #94a3b8; }
         .layout-edit-pill button.btn-danger { color: #ef4444; }
         .layout-edit-pill .pill-handle {
             cursor: grab;
@@ -1201,6 +1208,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
     <button type="button" onclick="openThemes()" title="Load / save themes">&#128218; Library</button>
     <button class="btn-done" type="button" onclick="exitLayoutEdit(true)">&#10003; Save</button>
     <button type="button" onclick="resetPositions()" title="Snap elements back to default positions">&#8635; Reset</button>
+    <button type="button" id="snapToggleBtn" onclick="toggleSnap()" title="Toggle snap (Shift = momentary off on a keyboard)">&#129522; Snap</button>
     <span class="pill-sep"></span>
     <button class="btn-danger" type="button" onclick="exitLayoutEdit(false)">&times; Cancel</button>
 </div>
@@ -3926,12 +3934,46 @@ var LAYOUT_DEFAULT_POS = {
     streaming:     { x: 75, y: 30 },
 };
 
+// ─── Snap toggle (touch-friendly alternative to holding Shift) ──────────────
+// Default ON. Persisted across edit sessions in localStorage so a user who
+// turned snap off for fine positioning doesn't have to do it again next time.
+// Shift still works as a momentary override (composed via OR with this flag).
+var SNAP_ENABLED = (function(){
+    try { var v = localStorage.getItem('timer_snap_enabled'); return v === null ? true : v === '1'; }
+    catch(e) { return true; }
+})();
+function setSnapButtonUI() {
+    var btn = document.getElementById('snapToggleBtn');
+    if (!btn) return;
+    btn.classList.toggle('snap-on',  SNAP_ENABLED);
+    btn.classList.toggle('snap-off', !SNAP_ENABLED);
+    btn.setAttribute('aria-pressed', SNAP_ENABLED ? 'true' : 'false');
+}
+function toggleSnap() {
+    SNAP_ENABLED = !SNAP_ENABLED;
+    try { localStorage.setItem('timer_snap_enabled', SNAP_ENABLED ? '1' : '0'); } catch(e) {}
+    setSnapButtonUI();
+}
+// Rewrite the .snap-hint text based on input device. Touch users can't hold
+// Shift, so we drop that mention and advertise the on-screen toggle instead.
+function updateSnapHint() {
+    var hint = document.querySelector('.snap-hint');
+    if (!hint) return;
+    if (IS_TOUCH_DEVICE) {
+        hint.innerHTML = 'Tap <b>Snap</b> to toggle snapping &nbsp;·&nbsp; long-press an element + drag a second to multi-select';
+    } else {
+        hint.innerHTML = '<b>Snap</b> button toggles snapping &nbsp;·&nbsp; hold <b>Shift</b> for momentary off &nbsp;·&nbsp; <b>Ctrl</b>/<b>Cmd</b>+click to multi-select';
+    }
+}
+
 function enterLayoutEdit() {
     if (LAYOUT_EDIT_ON) return;
     LAYOUT_EDIT_ON = true;
     LAYOUT_EDIT_SNAPSHOT = JSON.parse(JSON.stringify(window.TIMER_THEME || {}));
     closeThemes();
     document.body.classList.add('layout-edit');
+    setSnapButtonUI();
+    updateSnapHint();
 
     // Ensure on-screen content is up to date before measuring.
     renderAll();
@@ -4245,7 +4287,7 @@ function makeDragStart(node, key) {
             var cy = ((p.clientY - offY) / window.innerHeight) * 100;
 
             // Shift bypasses all snapping for fine adjustments.
-            var snapDisabled = !!ev2.shiftKey;
+            var snapDisabled = !SNAP_ENABLED || !!ev2.shiftKey;
 
             var snapX = false, snapY = false;
             var alignedX = null, alignedY = null;

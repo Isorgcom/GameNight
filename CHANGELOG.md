@@ -4,6 +4,14 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19311] - 2026-05-28
+
+### Fixed
+- **Touch-friendly snap toggle for the timer layout editor.** Dragging an element in layout-edit mode snaps to viewport center lines and to other elements' edges/centers (yellow + cyan guides), and the only way to disable snap for fine positioning was holding **Shift**, which iPad users could never do (no keyboard). The floating edit toolbar `#layoutEditPill` in `www/timer.php` now includes a 🧲 **Snap** toggle button between Reset and the separator. Tapping flips a new `SNAP_ENABLED` JS flag (default on, persisted across edit sessions in `localStorage` under `timer_snap_enabled`), and the snap-disable check at the drag handler now reads `!SNAP_ENABLED || ev2.shiftKey`, so the on-screen toggle and the Shift override compose cleanly. New helpers `toggleSnap()`, `setSnapButtonUI()`, and `updateSnapHint()` keep the button's active/muted state and the user-visible `.snap-hint` text in sync; on touch devices the hint drops the Shift mention entirely and advertises the on-screen button instead. The Shift code path itself is unchanged, so a Bluetooth keyboard paired to an iPad still works.
+- **No more white edges on iPad when displaying a PC-designed theme.** The theme background (`var(--timer-bg)`) was painted only on `.timer-body`, while the `<html>` element had `height:100%` with no background, so iOS revealed bare `<html>` (browser white) during the dynamic Safari toolbar transition, rubber-band overscroll, and at safe-area gutters. The `html` rule in `www/timer.php` now also paints `background: var(--timer-bg)`, reusing the same CSS variable already defined on `:root` so the server-rendered first paint and the JS `applyTheme()` runtime update both flow through one source of truth. `overscroll-behavior: none` is also set on `html` and `body` to suppress iOS document-level rubber-band reveal entirely; inner scrolling regions (the blind-levels editor, player panel, preset gallery) are unaffected because the property applies only per element and they each have their own scroll containers. No positioning rework: a 16:9-designed theme still scales its viewport-percentage element positions on a 4:3 iPad, but it no longer leaks white between the elements and the screen edge.
+
+---
+
 ## [v0.19310] - 2026-05-27
 
 ### Added
