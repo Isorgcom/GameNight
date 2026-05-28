@@ -1210,7 +1210,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
     <button type="button" onclick="resetPositions()" title="Snap elements back to default positions">&#8635; Reset</button>
     <button type="button" id="snapToggleBtn" onclick="toggleSnap()" title="Toggle snap (Shift = momentary off on a keyboard)">&#129522; Snap</button>
     <span class="pill-sep"></span>
-    <button class="btn-danger" type="button" onclick="exitLayoutEdit(false)">&times; Cancel</button>
+    <button type="button" onclick="exitLayoutEdit(false)">&times; Close</button>
 </div>
 
 <!-- Inspector for the selected element (draggable). -->
@@ -3583,7 +3583,12 @@ function loadTheme() {
         window.TIMER_THEME_ID = tid;
         window.TIMER_THEME = j.properties;
         applyTheme(j.properties);
-        populateThemeEditor(j.properties);
+        // If layout-edit is open, the Close-revert snapshot must track the freshly
+        // loaded theme — otherwise Close would restore the pre-load ghost for ~2 s
+        // until pollState() rebound to the server's authoritative theme.
+        if (LAYOUT_EDIT_ON) {
+            LAYOUT_EDIT_SNAPSHOT = JSON.parse(JSON.stringify(j.properties));
+        }
     });
 }
 
@@ -3669,6 +3674,11 @@ function loadPreset(key) {
         window.TIMER_THEME_ID = j.theme_id;
         window.TIMER_THEME = j.properties;
         applyTheme(j.properties);
+        // See loadTheme: keep the layout-edit revert snapshot in sync so Close
+        // doesn't briefly restore the pre-load theme.
+        if (LAYOUT_EDIT_ON) {
+            LAYOUT_EDIT_SNAPSHOT = JSON.parse(JSON.stringify(j.properties));
+        }
         fetchThemes();
         closePresets();
     });

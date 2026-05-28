@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19312] - 2026-05-28
+
+### Fixed
+- **Layout-edit pill "Cancel" renamed to "Close," and no more old-theme flash on exit.** The floating layout-edit pill's right-most button (`#layoutEditPill` in `www/timer.php`) used to read `× Cancel` with red `btn-danger` styling and, if you had loaded a different theme via the Theme Library or the v0.19310 Presets gallery while in edit mode, clicking it would flash the previous theme on screen for ~1 second before `pollState()` rebounded to the server's authoritative theme. Root cause: `enterLayoutEdit()` deep-clones `window.TIMER_THEME` into `LAYOUT_EDIT_SNAPSHOT` at edit-mode entry, but neither `loadTheme()` nor `loadPreset()` refreshed that snapshot when the user deliberately loaded a different theme mid-edit; `exitLayoutEdit(false)` then briefly restored the stale pre-load properties via `applyTheme()` until the next 2-second poll cycle re-fetched the real theme. Both loaders now refresh `LAYOUT_EDIT_SNAPSHOT` to the just-loaded properties when `LAYOUT_EDIT_ON` is true, so Close exits cleanly to whatever theme is actually loaded. The button is relabeled `× Close` with default neutral styling (the red `btn-danger` class was dropped) since after this fix it truthfully closes the edit session without destroying a loaded theme; per-element layout drags made in the current session are still reverted, matching prior behavior. The dead `populateThemeEditor(j.properties)` call at the end of `loadTheme()` (a pre-existing latent ReferenceError that broke the promise chain silently) was removed in the same edit.
+
+---
+
 ## [v0.19311] - 2026-05-28
 
 ### Fixed
