@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19313] - 2026-05-28
+
+### Changed
+- **Internal navigation aid for www/timer.php (no behavior change).** The file is ~5,300 lines and structurally healthy under the codebase's intentional monolithic convention (inline `<style>` and `<script>` per page; no `css/`/`js/` directories; no build step), but it had become slow to scroll through. A Table of Contents now sits at the top of the file inside a PHP comment block (invisible to clients) mapping every major section to a stable `§N.M` tag: `§1` PHP head, `§2` `<head>`, `§3` inline CSS, `§4` body markup, `§5.1–§5.9` modal overlays by element id, `§6` vendor scripts, `§7.1–§7.21` inline JS sections (config, formatters, render, commands, pollState, local tick, wake lock, sound, levels editor, drag/drop, draft autosave, blind generator, theme editor, layout-edit, inspector, panel drag, init, player panel, CSV export/import), and `§8` closing tags. The 31 existing `// ─── Section ───` banner comments throughout the file are now prefixed with their matching `§N.M` tag, so Ctrl+F-ing any tag from the TOC jumps straight to its section. The TOC's line numbers are explicitly marked "current as of v0.19313" because they drift after edits; the `§N.M` tags themselves stay stable.
+
+---
+
 ## [v0.19312] - 2026-05-28
 
 ### Fixed

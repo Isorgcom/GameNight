@@ -1,4 +1,59 @@
 <?php
+/* ============================================================================
+ * TABLE OF CONTENTS — www/timer.php (~5,300 lines, current as of v0.19313)
+ * ============================================================================
+ * Line numbers drift after edits; §N.M tags stay stable. Ctrl+F any §N.M tag
+ * (e.g. "§7.5") to jump straight to that section's banner.
+ *
+ *  §1    PHP head — auth, mode detect (remote/event/standalone), DB queries
+ *  §2    <head> — meta, fonts, themeStyle, window.TIMER_THEME, inline <style>
+ *  §3    Inline <style> (~986 lines)
+ *          §3.1  :root CSS variables
+ *          §3.2  .timer-body / .timer-container / .timer-display
+ *          §3.x  .timer-clock, .timer-tray, layout-edit chrome,
+ *                modal overlays, preset gallery, player panel, QR, stream,
+ *                @media responsive blocks, @keyframes
+ *  §4    Body markup
+ *          §4.2  layout-edit pill + inspector + snap guides
+ *          §4.5  main timer container (info bar, display, tray)
+ *          §4.7  player panel (gated)
+ *          §4.8  QR / image / streaming embeds
+ *  §5    Modal overlays (~9 modals)
+ *          §5.1  #levelsOverlay        blind-structure editor
+ *          §5.2  #closeConfirmOverlay  discard / keep editing dialog
+ *          §5.3  #savePresetOverlay    save blind preset as
+ *          §5.4  #genOverlay           blind-structure generator
+ *          §5.5  #themeOverlay         theme library
+ *          §5.6  #presetOverlay        theme preset gallery (v0.19310)
+ *          §5.7  #saveThemeOverlay     save theme as
+ *          §5.8  #confirmSaveOverlay   theme save confirm
+ *          §5.9  #soundOverlay         sound settings
+ *  §6    Vendor <script>s — qrcode.min.js, nosleep.min.js
+ *  §7    Inline <script> (~3,600 lines)
+ *          §7.1   Config from PHP (CSRF, TIMER, LEVELS, SOUNDS, IS_REMOTE, ...)
+ *          §7.2   Formatters (fmtTime, fmtMoney, fmtChips, fmtBreakClock, ...)
+ *          §7.3   Render (renderAll, renderClock, renderPlayBtn, appendTimerId)
+ *          §7.4   Commands (sendCommand + togglePlay/skipLevel/adjustTime/...)
+ *          §7.5   pollState (server sync, 2 s interval)
+ *          §7.6   Local tick (smooth 100 ms countdown between polls)
+ *          §7.7   Wake lock (NoSleep + Wake Lock API + banner)
+ *          §7.8   Sound alert (Web Audio, presets + custom uploads)
+ *          §7.9   Sound settings modal (upload, save, preview)
+ *          §7.10  Levels editor (open/close, render levels table)
+ *          §7.11  Drag & drop reorder (HTML5 drag + touch up/down buttons)
+ *          §7.12  Insert / add / remove / save levels
+ *          §7.13  Draft autosave (localStorage, dirty flag, restore on open)
+ *          §7.14  Blind generator + blind-preset CRUD
+ *          §7.15  Theme editor (applyTheme, library, preset gallery, save, import/export)
+ *          §7.16  Layout-edit mode (enter/exit, drag/snap, multi-select, guides)
+ *          §7.17  Inspector panel (per-element + page-level property controls)
+ *          §7.18  Panel drag helper (pill + inspector, shared makePanelDraggable)
+ *          §7.19  Init (window.load, intervals, audio unlock, QR generation)
+ *          §7.20  Player panel (toggle, fetch, render, ppXxx checkin wrappers)
+ *          §7.21  Blind structure CSV export / import
+ *  §8    Closing </script></body></html>
+ * ============================================================================
+ */
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/_poker_helpers.php';
 require_once __DIR__ . '/_timer_theme.php';
@@ -20,7 +75,7 @@ $game_type = null;
 $remote_key = '';
 $csrf = '';
 
-// ─── Remote viewer/controller mode ────────────────────────
+// ─── §1.1  Remote viewer/controller mode ────────────────────────
 if (isset($_GET['view']) && $_GET['view'] === 'remote' && !empty($_GET['key'])) {
     $is_remote = true;
     $remote_key = $_GET['key'];
@@ -63,7 +118,7 @@ if (isset($_GET['view']) && $_GET['view'] === 'remote' && !empty($_GET['key'])) 
         $csrf = csrf_token();
     }
 
-// ─── Host mode ────────────────────────────────────────────
+// ─── §1.2  Host mode ────────────────────────────────────────────
 } else {
     $current = current_user();
     $isAdmin = $current ? $current['role'] === 'admin' : false;
@@ -1652,7 +1707,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
 <script src="/vendor/qrcode.min.js"></script>
 <script src="/vendor/nosleep.min.js"></script>
 <script>
-// ─── Config from PHP ──────────────────────────────────────
+// ─── §7.1  Config from PHP ──────────────────────────────────────
 var IS_REMOTE = <?= json_encode($is_remote) ?>;
 var IS_GUEST = <?= json_encode($is_guest) ?>;
 var IS_ADMIN = <?= json_encode($isAdmin) ?>;
@@ -1695,7 +1750,7 @@ var endTimerFired = false;
 var preMuteWarningFired = false;
 var preMuteEndFired = false;
 
-// ─── Formatting helpers ───────────────────────────────────
+// ─── §7.2  Formatting helpers ───────────────────────────────────
 function fmtTime(secs) {
     secs = Math.max(0, Math.floor(secs));
     var m = String(Math.floor(secs / 60)).padStart(2, '0');
@@ -1711,7 +1766,7 @@ function fmtChips(n) {
     return String(n);
 }
 
-// ─── Get current level data ──────────────────────────────
+// ─── §7.2.1  Get current level data ──────────────────────────────
 function getLevelData(num) {
     for (var i = 0; i < LEVELS.length; i++) {
         if (parseInt(LEVELS[i].level_number) === num) return LEVELS[i];
@@ -1745,7 +1800,7 @@ function fmtBreakClock(secs) {
     return h > 0 ? (h + ':' + pad(m) + ':' + pad(s)) : (pad(m) + ':' + pad(s));
 }
 
-// ─── Render ───────────────────────────────────────────────
+// ─── §7.3  Render ───────────────────────────────────────────────
 function renderAll() {
     var lv = getLevelData(TIMER.current_level);
     var el = document.getElementById.bind(document);
@@ -1916,7 +1971,7 @@ function appendTimerId(fd) {
     else fd.append('key', REMOTE_KEY);
 }
 
-// ─── Send command to server API ───────────────────────────
+// ─── §7.4  Send command to server API ───────────────────────────
 function sendCommand(cmd) {
     var fd = new FormData();
     fd.append('csrf_token', CSRF);
@@ -1933,7 +1988,7 @@ function sendCommand(cmd) {
         .catch(function(e) { console.error('Command error:', e); });
 }
 
-// ─── Poll server (everyone does this — server is master) ──
+// ─── §7.5  Poll server (everyone does this — server is master) ──
 var prevLevel = TIMER.current_level;
 function pollState() {
     var url;
@@ -1999,7 +2054,7 @@ function pollState() {
     }).catch(function() {});
 }
 
-// ─── Local tick (smooth display between polls) ────────────
+// ─── §7.6  Local tick (smooth display between polls) ────────────
 function startLocalTick() {
     if (localInterval) return;
     localInterval = setInterval(function() {
@@ -2044,7 +2099,7 @@ function startLocalTick() {
     }, 1000);
 }
 
-// ─── Controls (all send commands to server) ───────────────
+// ─── §7.4.1  Controls (all send commands to server) ───────────────
 function togglePlay() { sendCommand('toggle_play'); }
 function toggleTray() {
     var tray = document.getElementById('timerTray');
@@ -2067,7 +2122,7 @@ function goFullscreen() {
     else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
 }
 
-// ─── Wake Lock (prevent screen sleep) ─────────────────────
+// ─── §7.7  Wake Lock (prevent screen sleep) ─────────────────────
 var wakeBanner = document.getElementById('wakeBanner');
 var wakeLock = null;
 var wakeLockAcquired = false;
@@ -2137,7 +2192,7 @@ document.addEventListener('visibilitychange', function() {
     }
 });
 
-// ─── Sound alert ──────────────────────────────────────────
+// ─── §7.8  Sound alert ──────────────────────────────────────────
 // Unlock audio on first user interaction (required by iOS/Android)
 var audioUnlocked = false;
 function unlockAudio() {
@@ -2246,7 +2301,7 @@ function playWarning() {
     } catch(e) {}
 }
 
-// ─── Preset sound patterns ───────────────────────────────
+// ─── §7.8.1  Preset sound patterns ───────────────────────────────
 function playPresetEnd(key) {
     try {
         var ctx = ensureAudioCtx();
@@ -2386,7 +2441,7 @@ function playPresetWarning(key) {
     } catch(e) {}
 }
 
-// ─── Sound settings ──────────────────────────────────────
+// ─── §7.9  Sound settings ──────────────────────────────────────
 function openSoundSettings() {
     var sel = document.getElementById('warningSeconds');
     if (sel) sel.value = String(SOUNDS.warning_seconds);
@@ -2494,7 +2549,7 @@ function previewSound(type) {
     }
 }
 
-// ─── Levels editor ────────────────────────────────────────
+// ─── §7.10  Levels editor ────────────────────────────────────────
 function openLevels() {
     loadPresetList();
     levelsCollected = true; // skip collecting from stale/empty DOM
@@ -2559,7 +2614,7 @@ function renderLevelsTable() {
     tb.innerHTML = h;
 }
 
-// ─── Drag and drop reorder ───────────────────────────────
+// ─── §7.11  Drag and drop reorder ───────────────────────────────
 function onDragStart(e) {
     var row = e.currentTarget.closest('tr');
     dragSrcIdx = parseInt(row.dataset.idx);
@@ -2601,7 +2656,7 @@ function onDrop(e) {
     dragSrcIdx = null;
 }
 
-// ─── Reorder via buttons (works on touch / iPad, unlike HTML5 drag) ───
+// ─── §7.11.1  Reorder via buttons (works on touch / iPad, unlike HTML5 drag) ───
 // Animated with a FLIP transition: measure old row positions, swap + re-render,
 // then transform each row back to where it was and let it slide into place.
 function moveLevel(idx, dir) {
@@ -2658,7 +2713,7 @@ function onDragEnd() {
     rows.forEach(function(r) { r.classList.remove('lvl-dragging'); r.style.borderTop = ''; r.style.borderBottom = ''; });
 }
 
-// ─── Insert level at position ────────────────────────────
+// ─── §7.12  Insert level at position ────────────────────────────
 function insertLevel(beforeIdx, isBreak) {
     collectLevelsFromTable(); levelsCollected = true;
     var prevLv = beforeIdx > 0 ? LEVELS[beforeIdx - 1] : null;
@@ -2743,7 +2798,7 @@ function saveLevels() {
         });
 }
 
-// ─── Unsaved-changes tracking + local draft autosave ─────────────────
+// ─── §7.13  Unsaved-changes tracking + local draft autosave ─────────────────
 // Edits live only in the in-memory LEVELS array until "Save" hits the
 // server. iPadOS aggressively discards backgrounded Safari tabs, so we mirror
 // in-progress edits to localStorage and offer to restore them on return.
@@ -2802,7 +2857,7 @@ function maybeRestoreLevelsDraft() {
     }
 }
 
-// ─── Blind-structure generator ───────────────────────────────────────
+// ─── §7.14  Blind-structure generator ───────────────────────────────────────
 // Classic chip-friendly small-blind progression (BB = 2*SB). Used as the
 // shape; we scale it to the chosen starting blind and round to nice numbers.
 var BASE_SB_PROGRESSION = [25,50,75,100,150,200,300,400,500,600,800,1000,1200,1500,2000,2500,3000,4000,5000,6000,8000,10000,12000,15000,20000,25000,30000,40000,50000,60000];
@@ -3088,7 +3143,7 @@ function deletePreset() {
         });
 }
 
-// ─── Theme editor ─────────────────────────────────────────
+// ─── §7.15  Theme editor ─────────────────────────────────────────
 var THEMES_CACHE = [];
 var CURRENT_THEME_ID = window.TIMER_THEME_ID || null;
 
@@ -3247,7 +3302,7 @@ function normalizeStreamUrl(raw) {
     return '';
 }
 
-// ─── Stream mute (postMessage to YouTube / Vimeo embeds) ──────────────
+// ─── §7.15.1  Stream mute (postMessage to YouTube / Vimeo embeds) ──────────────
 // Used by the alarm system so the streaming video doesn't drown out the alarm
 // beep. YouTube needs `enablejsapi=1` in the embed URL (added by normalizeStreamUrl).
 // Vimeo's Player.js postMessage works without any URL flag. Twitch / Kick / Prime
@@ -3592,7 +3647,7 @@ function loadTheme() {
     });
 }
 
-// ─── Preset theme gallery (built-in .gnt.json presets) ───────────────────────
+// ─── §7.15.2  Preset theme gallery (built-in .gnt.json presets) ───────────────────────
 var PRESETS_CACHE = [];
 
 function openPresets() {
@@ -3916,7 +3971,7 @@ function setAsDefaultTheme() {
     });
 }
 
-// ─── Free-form layout edit mode (drag elements on the live timer) ─────
+// ─── §7.16  Free-form layout edit mode (drag elements on the live timer) ─────
 var LAYOUT_EDIT_ON = false;
 var LAYOUT_EDIT_SNAPSHOT = null;  // theme JSON snapshot for Cancel
 var LAYOUT_DRAG_HANDLERS = [];    // [{ node, handler }] for cleanup
@@ -3944,7 +3999,7 @@ var LAYOUT_DEFAULT_POS = {
     streaming:     { x: 75, y: 30 },
 };
 
-// ─── Snap toggle (touch-friendly alternative to holding Shift) ──────────────
+// ─── §7.16.1  Snap toggle (touch-friendly alternative to holding Shift) ──────────────
 // Default ON. Persisted across edit sessions in localStorage so a user who
 // turned snap off for fine positioning doesn't have to do it again next time.
 // Shift still works as a momentary override (composed via OR with this flag).
@@ -4043,7 +4098,7 @@ function exitLayoutEdit(keep) {
     }
 }
 
-// ─── Confirm-Save dialog (overwrite vs Save As New) ───────
+// ─── §7.15.3  Confirm-Save dialog (overwrite vs Save As New) ───────
 function openConfirmSave() {
     var t = (THEMES_CACHE || []).find(function(x){ return x.id == CURRENT_THEME_ID; });
     var nameEl = document.getElementById('confirmSaveName');
@@ -4379,7 +4434,7 @@ function makeDragStart(node, key) {
     };
 }
 
-// ─── Inspector (per-element properties panel) ─────────────
+// ─── §7.17  Inspector (per-element properties panel) ─────────────
 var LAYOUT_SELECTED_KEY = null;          // primary selection — drives the inspector
 var LAYOUT_SELECTION_SET = new Set();    // all selected keys (always contains primary)
 
@@ -4866,7 +4921,7 @@ function refreshHiddenInInspector() {
     if (LAYOUT_SELECTED_KEY) renderInspector(LAYOUT_SELECTED_KEY);
 }
 
-// ─── Generic "drag-by-header" helper for the pill & inspector panel ──
+// ─── §7.18  Generic drag-by-header helper for the pill & inspector panel ──
 function makePanelDraggable(panel, handle) {
     if (!panel || !handle) return;
     function start(ev) {
@@ -4945,7 +5000,7 @@ window.addEventListener('beforeunload', function(e) {
     if (levelsDirty) { e.preventDefault(); e.returnValue = ''; }
 });
 
-// ─── Init ─────────────────────────────────────────────────
+// ─── §7.19  Init ─────────────────────────────────────────────────
 if (window.TIMER_THEME) applyTheme(window.TIMER_THEME);
 renderAll();
 startLocalTick(); // smooth second-by-second display between polls
@@ -5056,7 +5111,7 @@ if (!IS_REMOTE) {
     }
 }
 
-// ─── Player Panel ────────────────────────────────────────────
+// ─── §7.20  Player Panel ────────────────────────────────────────────
 var PP_PLAYERS = [];
 var PP_SESSION = null;
 var PP_OPEN = false;
@@ -5223,7 +5278,7 @@ function escHtml(s) {
     return d.innerHTML;
 }
 
-// ─── Export/Import Blind Structures ──────────────────────────
+// ─── §7.21  Export/Import Blind Structures ──────────────────────────
 function exportLevels() {
     collectLevelsFromTable();
     var presetName = document.getElementById('presetSelect');
