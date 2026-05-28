@@ -70,10 +70,12 @@ The `db/` directory is gitignored and won't exist after a fresh clone. Create it
 
 ```bash
 mkdir -p db uploads
-chown -R www-data:www-data db/ uploads/
+chown -R www-data:www-data db/ uploads/ www/timer_themes/
 ```
 
 > **Important:** Do this step after every fresh clone. If the `db/` directory is owned by root, Apache cannot write the SQLite database and the site will return HTTP 500.
+
+> **Note:** `www/timer_themes/` ships committed with the built-in timer theme presets, so it already exists after a clone. The `chown` above is only needed if admins will **upload** new theme presets from the browser; loading the built-in presets works read-only without it.
 
 ### 4. Build and start the container
 
@@ -167,6 +169,7 @@ The web server user (`www-data`) needs write access to:
 
 - `/var/db/` — SQLite database
 - `/var/www/html/uploads/` — user-uploaded files
+- `/var/www/html/timer_themes/` — only if admins will upload timer theme presets from the browser (the built-in presets load read-only without it)
 
 ### 4. First run
 
