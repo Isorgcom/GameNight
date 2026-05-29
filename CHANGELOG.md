@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19315] - 2026-05-29
+
+### Added
+- **Per-element layer (stacking order) control in the timer layout editor.** When you free-position elements they can overlap, but every positioned element was pinned at the same `z-index: 20` (with image and stream hardcoded to `z-index: 4`, deliberately behind the text), so which element sat on top was decided purely by DOM order with no way to change it. The v0.19314 **Objects** panel (`#layoutObjectsPanel` in `www/timer.php`) is now also the layer control: rows are sorted so the top of the list is the front of the canvas, and each row gained a **☰ grip** for drag-reorder plus **▲/▼** buttons to nudge an element forward or backward. Reordering is implemented with **Pointer Events** (`pointerdown`/`pointermove`/`pointerup` with pointer capture) rather than HTML5 drag-and-drop, so it works on iPad/touch — the same reason the v0.19306 blind-level editor uses ▲/▼ buttons — with the buttons as a reliable, always-available fallback. A new optional `z_index` field is written into `elements.<key>`; because it lives inside the element object it rides through save / load / export / import automatically with no DB migration, no `timer_dl.php` change, and no change to `_timer_theme.php` defaults. The field is **unset by default**, so `applyTheme()` writes no inline z-index and existing themes plus the shipped `.gnt.json` presets are visually unchanged until something is actually restacked. The first reorder seeds an explicit `z_index` on every element from the current visual order; assigned values are clamped to `1..16`, which stays safely below the control tray (`z25`), the floating edit pill (`z40`), and the modals (`z200+`), so "bring to front" can never cover the editor chrome. Because the inline `z_index` overrides the stylesheet, image and stream are now fully reorderable too (e.g. you can float a logo image on top of the clock) rather than being permanently pinned behind the text layer. New JS: `DEFAULT_LAYER_ORDER`, `effectiveZ()`, `objectsSortedMetas()`, `assignZFromPanelOrder()`, `moveObjectLayer()`, and the `attachObjectsDrag()` / `onGripPointer*` pointer-drag handlers; `applyTheme()` now writes each element's `z-index` inside its existing free-form-position loop.
+
+---
+
 ## [v0.19314] - 2026-05-29
 
 ### Added

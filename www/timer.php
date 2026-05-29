@@ -1328,6 +1328,24 @@ $themeCss   = timer_theme_css_vars($themeProps);
         .layout-object-row .obj-eye.is-hidden { color: #64748b; }
         .layout-object-row .obj-label { flex: 1; color: #e2e8f0; }
         .layout-object-row.is-hidden .obj-label { color: #64748b; font-style: italic; }
+        /* Layer reorder controls: grip (pointer-drag) + ▲/▼ (touch-reliable fallback). */
+        .layout-object-row .obj-grip {
+            color: #64748b; cursor: grab; user-select: none; touch-action: none;
+            font-size: 0.95rem; line-height: 1; padding: 0 0.1rem; width: 1rem; text-align: center;
+        }
+        .layout-object-row .obj-grip:active { cursor: grabbing; }
+        .layout-object-row .obj-move {
+            display: inline-flex; gap: 0.1rem;
+        }
+        .layout-object-row .obj-move button {
+            background: none; border: none; color: #94a3b8; cursor: pointer;
+            padding: 0 0.15rem; font-size: 0.8rem; line-height: 1;
+        }
+        .layout-object-row .obj-move button:hover:not(:disabled) { color: #e2e8f0; }
+        .layout-object-row .obj-move button:disabled { color: #475569; cursor: default; }
+        .layout-object-row.is-dragging {
+            background: #1e3a8a; box-shadow: 0 4px 14px rgba(0,0,0,0.5); opacity: 0.95;
+        }
         body.layout-edit .timer-positioned[data-ghost-selected="1"] { opacity: 0.45; }
     </style>
 </head>
@@ -3439,6 +3457,25 @@ var THEME_SELECTORS = {
     streaming:     '#streamingWrap',
 };
 
+// ─── Layer / stacking order ──────────────────────────────────────────────────
+// Baseline back-to-front order, mirroring the stylesheet reality (image/stream
+// at the back, clock most prominent on top). Used only to seed the Objects
+// panel's initial order and the first reorder; once a user restacks, each
+// element carries an explicit elements[key].z_index that overrides this.
+var DEFAULT_LAYER_ORDER = [
+    'streaming','image','qr','payouts','avg_stack','player_count','pool_total',
+    'rebuys','chips_in_play','next_break','event_name','level_label','blinds',
+    'next_level','paused_label','clock',
+];
+// Effective z for sorting: explicit z_index if set, else the baseline rank
+// (0 = back … 15 = front) so the panel has a stable order before any reorder.
+function effectiveZ(key) {
+    var pe = (window.TIMER_THEME && window.TIMER_THEME.elements) ? window.TIMER_THEME.elements[key] : null;
+    if (pe && typeof pe.z_index === 'number') return pe.z_index;
+    var r = DEFAULT_LAYER_ORDER.indexOf(key);
+    return r < 0 ? 0 : r;
+}
+
 // Normalize a user-pasted streaming URL into a safe embed URL.
 // Returns '' for anything we don't recognize so the iframe stays blank rather
 // than loading an arbitrary cross-origin page. Twitch needs a parent= param
@@ -3789,6 +3826,13 @@ function applyTheme(props) {
             node2.style.removeProperty('--pos-x');
             node2.style.removeProperty('--pos-y');
         }
+        // Per-element stacking. When z_index is set (after the user restacks via
+        // the Objects panel) it overrides the stylesheet default — including the
+        // hardcoded z4 on image/stream, so they become fully reorderable. Unset =
+        // fall back to the stylesheet (zero change for untouched themes).
+        var z = (pe && typeof pe.z_index === 'number') ? pe.z_index : null;
+        if (z !== null) node2.style.zIndex = String(z);
+        else            node2.style.zIndex = '';
     }
 
     // Variant / thickness changes from the inspector mutate the theme but don't change
@@ -4748,11 +4792,19 @@ function closeObjectsPanel() {
     if (p) p.classList.remove('is-open');
 }
 
+// Metas sorted front-to-back (top of the panel list = front of the canvas).
+function objectsSortedMetas() {
+    return THEME_ELEMENTS.slice().sort(function(a, b) {
+        return effectiveZ(b.key) - effectiveZ(a.key);
+    });
+}
+
 function renderObjectsPanel() {
     var body = document.getElementById('objectsBody');
     if (!body) return;
+    var metas = objectsSortedMetas();
     var html = '';
-    THEME_ELEMENTS.forEach(function(meta) {
+    metas.forEach(function(meta, i) {
         var pe = (window.TIMER_THEME && window.TIMER_THEME.elements) ? (window.TIMER_THEME.elements[meta.key] || {}) : {};
         var hidden = (pe.visible === false);
         var selected = LAYOUT_SELECTION_SET && LAYOUT_SELECTION_SET.has && LAYOUT_SELECTION_SET.has(meta.key);
@@ -4760,14 +4812,103 @@ function renderObjectsPanel() {
         var eyeCls = 'obj-eye' + (hidden ? ' is-hidden' : '');
         var eyeGlyph = hidden ? '&#128064;' : '&#128065;';  // closed / open eye
         var safeKey = meta.key.replace(/'/g, "\\'");
+        var upDis = (i === 0) ? ' disabled' : '';
+        var dnDis = (i === metas.length - 1) ? ' disabled' : '';
         html += '<div class="' + rowCls + '" data-key="' + meta.key + '" onclick="onObjectsRowClick(event,\'' + safeKey + '\')">'
+              +   '<span class="obj-grip" title="Drag to restack" onclick="event.stopPropagation()">&#9776;</span>'
               +   '<button type="button" class="' + eyeCls + '" '
               +           'onclick="event.stopPropagation();onObjectsRowEye(\'' + safeKey + '\')"'
               +           ' title="Toggle visibility">' + eyeGlyph + '</button>'
               +   '<span class="obj-label">' + meta.label + '</span>'
+              +   '<span class="obj-move">'
+              +     '<button type="button" title="Bring forward" onclick="event.stopPropagation();moveObjectLayer(\'' + safeKey + '\',-1)"' + upDis + '>&#9650;</button>'
+              +     '<button type="button" title="Send backward" onclick="event.stopPropagation();moveObjectLayer(\'' + safeKey + '\',1)"' + dnDis + '>&#9660;</button>'
+              +   '</span>'
               + '</div>';
     });
     body.innerHTML = html;
+    attachObjectsDrag();
+}
+
+// Assign explicit z_index to every element from a top→bottom (front→back) key
+// list: top row gets the highest value. Clamped into 1..N which stays well below
+// the control tray (z25) / edit pill (z40) / modals, so "bring to front" never
+// covers the editor chrome.
+function assignZFromPanelOrder(orderedKeys) {
+    if (!window.TIMER_THEME) return;
+    window.TIMER_THEME.elements = window.TIMER_THEME.elements || {};
+    var n = orderedKeys.length;
+    orderedKeys.forEach(function(key, i) {
+        var pe = window.TIMER_THEME.elements[key] = window.TIMER_THEME.elements[key] || {};
+        pe.z_index = n - i;
+    });
+}
+
+// ▲/▼ buttons: swap a row with its neighbor (dir -1 = toward front, +1 = back).
+function moveObjectLayer(key, dir) {
+    var order = objectsSortedMetas().map(function(m){ return m.key; });
+    var idx = order.indexOf(key);
+    if (idx < 0) return;
+    var swap = idx + dir;
+    if (swap < 0 || swap >= order.length) return;
+    var tmp = order[idx]; order[idx] = order[swap]; order[swap] = tmp;
+    assignZFromPanelOrder(order);
+    applyTheme(window.TIMER_THEME);
+    renderObjectsPanel();
+}
+
+// Pointer-based drag-reorder (works on mouse / touch / pen — NOT HTML5 DnD,
+// which iPad Safari never fires; same lesson as the v0.19306 blind-level rows).
+var OBJ_DRAG = null;
+function attachObjectsDrag() {
+    var body = document.getElementById('objectsBody');
+    if (!body) return;
+    var grips = body.querySelectorAll('.obj-grip');
+    for (var i = 0; i < grips.length; i++) {
+        grips[i].addEventListener('pointerdown', onGripPointerDown);
+    }
+}
+function onGripPointerDown(ev) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    var row  = ev.target.closest('.layout-object-row');
+    var body = document.getElementById('objectsBody');
+    if (!row || !body) return;
+    row.classList.add('is-dragging');
+    try { ev.target.setPointerCapture(ev.pointerId); } catch (e) {}
+    OBJ_DRAG = { row: row, body: body, grip: ev.target };
+    ev.target.addEventListener('pointermove', onGripPointerMove);
+    ev.target.addEventListener('pointerup', onGripPointerUp);
+    ev.target.addEventListener('pointercancel', onGripPointerUp);
+}
+function onGripPointerMove(ev) {
+    if (!OBJ_DRAG) return;
+    ev.preventDefault();
+    var body = OBJ_DRAG.body, row = OBJ_DRAG.row, y = ev.clientY;
+    var sibs = body.querySelectorAll('.layout-object-row:not(.is-dragging)');
+    var after = null;
+    for (var i = 0; i < sibs.length; i++) {
+        var rect = sibs[i].getBoundingClientRect();
+        if (y < rect.top + rect.height / 2) { after = sibs[i]; break; }
+    }
+    if (after) body.insertBefore(row, after);
+    else       body.appendChild(row);
+}
+function onGripPointerUp(ev) {
+    if (!OBJ_DRAG) return;
+    var grip = OBJ_DRAG.grip, row = OBJ_DRAG.row, body = OBJ_DRAG.body;
+    row.classList.remove('is-dragging');
+    grip.removeEventListener('pointermove', onGripPointerMove);
+    grip.removeEventListener('pointerup', onGripPointerUp);
+    grip.removeEventListener('pointercancel', onGripPointerUp);
+    try { grip.releasePointerCapture(ev.pointerId); } catch (e) {}
+    OBJ_DRAG = null;
+    var keys = [];
+    var rows = body.querySelectorAll('.layout-object-row');
+    for (var i = 0; i < rows.length; i++) keys.push(rows[i].getAttribute('data-key'));
+    assignZFromPanelOrder(keys);
+    applyTheme(window.TIMER_THEME);
+    renderObjectsPanel();
 }
 
 function onObjectsRowClick(ev, key) {
