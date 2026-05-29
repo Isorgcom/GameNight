@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19316] - 2026-05-29
+
+### Changed
+- **TOC entry for the Objects panel in www/timer.php (no behavior change).** Follow-up to the v0.19315 layer control and v0.19313 internal TOC. The Objects panel (added in v0.19314) had a plain banner comment with no `§N.M` tag and no Table-of-Contents line, so the TOC jumped straight from `§7.17 Inspector` to `§7.18 Panel drag` with the panel's code unlisted between them. Added a `§7.17.1 Objects panel` entry to the TOC and tagged the in-file banner accordingly, noting it now covers element visibility, selection, and the v0.19315 layer/z-index drag-reorder. Comment-only.
+
+---
+
 ## [v0.19315] - 2026-05-29
 
 ### Added

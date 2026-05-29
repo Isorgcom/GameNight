@@ -47,6 +47,8 @@
  *          §7.15  Theme editor (applyTheme, library, preset gallery, save, import/export)
  *          §7.16  Layout-edit mode (enter/exit, drag/snap, multi-select, guides)
  *          §7.17  Inspector panel (per-element + page-level property controls)
+ *          §7.17.1 Objects panel (list all elements incl. hidden; visibility
+ *                   toggle, select, and layer/z-index drag-reorder)
  *          §7.18  Panel drag helper (pill + inspector, shared makePanelDraggable)
  *          §7.19  Init (window.load, intervals, audio unlock, QR generation)
  *          §7.20  Player panel (toggle, fetch, render, ppXxx checkin wrappers)
@@ -4780,8 +4782,9 @@ function deselectElement() {
 
 function closeInspector() { deselectElement(); }
 
-// ─── Objects panel — list of all theme elements (incl. hidden), used to ───
-// select / un-hide them since hidden objects no longer ghost on canvas.
+// ─── §7.17.1  Objects panel — list of all theme elements (incl. hidden), used ───
+// to select / un-hide them since hidden objects no longer ghost on canvas, and
+// to restack them (layer / z-index) via grip-drag or ▲/▼ buttons.
 function openObjectsPanel() {
     renderObjectsPanel();
     var p = document.getElementById('layoutObjectsPanel');
