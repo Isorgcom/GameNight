@@ -4,6 +4,14 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19314] - 2026-05-29
+
+### Added
+- **Objects panel for the timer layout editor, and pluggable clock display variants.** Two related changes to the tournament timer's layout editor (`www/timer.php`, with default fields in `www/_timer_theme.php`). First, hidden display objects no longer ghost onto the canvas the moment you enter edit mode. Previously every one of the 16 themable elements (clock, blinds, payouts, QR, image, stream, etc.) was force-shown at 35% opacity in edit mode so you could find and un-hide it, which cluttered the screen with elements you had deliberately turned off. Now hidden objects stay genuinely hidden on the canvas, and a new **📋 Objects** button in the floating edit pill opens a left-side panel (`#layoutObjectsPanel`) listing all 16 elements with a visibility eye and click-to-select. Selecting a hidden element from the list ghosts it on the canvas at 45% only while it is selected (so you can drag-position it) and returns it to fully hidden when you select something else. The eye toggles in the panel, the inspector, and on-canvas all stay in sync; multi-select via Ctrl/Cmd-click still group-drags. The visibility logic in `applyTheme()` was changed from "ghost all hidden elements in edit mode" to "ghost a hidden element only while it is in the selection set."
+- **Pluggable widget-variant system, with the clock as the first user.** `renderClock()` was refactored from a hardcoded text renderer into a thin dispatcher over a new `window.TIMER_RENDERERS` registry keyed by element and variant, so future display objects can ship alternative renderers without per-object special-casing. The clock now offers three styles selectable from the inspector's new **Style** dropdown: `text` (the original MM:SS, still the default), `radial-ring` (an SVG ring that depletes as the level elapses with the time in the center), and `radial-checks` (the same ring split into N tick segments that check off one by one). Radial variants expose **Thickness**, **Direction** (clockwise / counter-clockwise), and (for checks) **Segments** controls; the SVG is built once and mutated per tick to avoid flicker, inherits the existing green/yellow/red threshold colors and pulse animation via `currentColor`, and scales with the same ±size buttons as text mode. Four optional fields were added to the clock element schema (`variant`, `radial_segments`, `radial_thickness`, `radial_direction`), all defaulted in `timer_theme_defaults()` so existing themes and the built-in `.gnt.json` presets resolve to the text clock with zero migration. Because these fields live inside `elements.clock`, they ride along in theme export/import automatically.
+
+---
+
 ## [v0.19313] - 2026-05-28
 
 ### Changed

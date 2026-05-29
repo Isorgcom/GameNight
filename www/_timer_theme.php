@@ -12,7 +12,7 @@ function timer_theme_defaults(): array {
             'pool_total'   => ['visible'=>true,'color'=>'#94a3b8','scale'=>1.0],
             'level_label'  => ['visible'=>true,'color'=>'#94a3b8','scale'=>1.0],
             'blinds'       => ['visible'=>true,'color'=>'#ffffff','scale'=>1.0],
-            'clock'        => ['visible'=>true,'color_green'=>'#22c55e','color_yellow'=>'#fbbf24','color_red'=>'#ef4444','scale'=>1.0,'warning_seconds'=>120,'critical_seconds'=>30],
+            'clock'        => ['visible'=>true,'color_green'=>'#22c55e','color_yellow'=>'#fbbf24','color_red'=>'#ef4444','scale'=>1.0,'warning_seconds'=>120,'critical_seconds'=>30,'variant'=>'text','radial_segments'=>12,'radial_thickness'=>0.12,'radial_direction'=>'ccw'],
             'paused_label' => ['visible'=>true,'color'=>'#fbbf24','scale'=>1.0],
             'next_level'   => ['visible'=>true,'color'=>'#94a3b8','scale'=>1.0],
             'avg_stack'    => ['visible'=>true,'color'=>'#94a3b8','scale'=>1.0],
@@ -101,6 +101,7 @@ function timer_theme_css_vars(array $props): string {
         '--timer-level-scale'    => (string)$slevel,
         '--timer-blinds-scale'   => (string)$sblinds,
         '--timer-clock-scale'    => (string)$sclock,
+        '--timer-clock-thickness'=> (string)($el['clock']['radial_thickness'] ?? 0.12),
         '--timer-next-scale'     => (string)$snext,
         '--timer-paused-scale'   => (string)$spaused,
     ];

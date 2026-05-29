@@ -389,6 +389,34 @@ $themeCss   = timer_theme_css_vars($themeProps);
         .timer-green { color: var(--timer-clock-green); }
         .timer-yellow { color: var(--timer-clock-yellow); }
         .timer-red { color: var(--timer-clock-red); animation: pulse 1s ease-in-out infinite; }
+        /* Radial clock variants: container becomes a square SVG host sized off the same font-size rule. */
+        .timer-clock[data-variant="radial-ring"],
+        .timer-clock[data-variant="radial-checks"] {
+            width: 1.6em;
+            height: 1.6em;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+        .timer-clock[data-variant="radial-ring"] svg,
+        .timer-clock[data-variant="radial-checks"] svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+            overflow: visible;
+        }
+        .timer-clock[data-variant="radial-ring"] .clock-num,
+        .timer-clock[data-variant="radial-checks"] .clock-num {
+            font-size: 9.5px;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            fill: currentColor;
+        }
+        .timer-clock[data-variant="radial-ring"] circle.clock-ring-fg,
+        .timer-clock[data-variant="radial-checks"] g.clock-check-fg path {
+            transition: stroke-dashoffset 0.5s linear;
+        }
         .timer-paused-label {
             font-size: calc(clamp(0.8rem, 2vw, 1.8rem) * var(--timer-paused-scale));
             color: var(--timer-paused-color);
@@ -1245,6 +1273,62 @@ $themeCss   = timer_theme_css_vars($themeProps);
         .layout-inspector-row .ins-btn:hover { background: #475569; }
         .layout-inspector-row .ins-btn.is-active { background: #2563eb; border-color: #2563eb; color: #fff; }
         .layout-inspector-row .ins-scale { min-width: 3rem; text-align: center; color: #94a3b8; font-size: 0.8rem; }
+
+        /* Objects panel — left-edge floating list of every theme element (mirror of inspector). */
+        .layout-objects-panel {
+            position: fixed;
+            top: 4.5rem;
+            left: 1rem;
+            z-index: 998;
+            width: 220px;
+            background: rgba(15, 23, 42, 0.97);
+            border: 1px solid #475569;
+            border-radius: 12px;
+            color: #e2e8f0;
+            display: none;
+            flex-direction: column;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        body.layout-edit .layout-objects-panel.is-open { display: flex; }
+        .layout-objects-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.5rem 0.75rem;
+            background: #1e293b;
+            border-bottom: 1px solid #334155;
+            border-radius: 12px 12px 0 0;
+            cursor: grab;
+            user-select: none;
+        }
+        .layout-objects-header:active { cursor: grabbing; }
+        .layout-objects-header h4 { margin: 0; font-size: 0.9rem; color: #fff; font-weight: 600; }
+        .layout-objects-body { padding: 0.4rem; max-height: 70vh; overflow-y: auto; }
+        .layout-object-row {
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+            padding: 0.3rem 0.45rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .layout-object-row:hover { background: #1e293b; }
+        .layout-object-row.is-selected { background: #1e3a8a; }
+        .layout-object-row .obj-eye {
+            background: none;
+            border: none;
+            color: #fbbf24;
+            cursor: pointer;
+            padding: 0;
+            width: 1.2rem;
+            font-size: 0.95rem;
+            line-height: 1;
+        }
+        .layout-object-row .obj-eye.is-hidden { color: #64748b; }
+        .layout-object-row .obj-label { flex: 1; color: #e2e8f0; }
+        .layout-object-row.is-hidden .obj-label { color: #64748b; font-style: italic; }
+        body.layout-edit .timer-positioned[data-ghost-selected="1"] { opacity: 0.45; }
     </style>
 </head>
 <body class="timer-body<?= $is_display ? ' display-mode' : '' ?>">
@@ -1260,6 +1344,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
 <!-- Floating control while in free-form layout edit mode (draggable). -->
 <div class="layout-edit-pill" id="layoutEditPill">
     <span class="pill-handle" id="pillHandle" title="Drag to move toolbar">&#9776;</span>
+    <button type="button" onclick="openObjectsPanel()" title="Show / hide / select objects">&#128203; Objects</button>
     <button type="button" onclick="openThemes()" title="Load / save themes">&#128218; Library</button>
     <button class="btn-done" type="button" onclick="exitLayoutEdit(true)">&#10003; Save</button>
     <button type="button" onclick="resetPositions()" title="Snap elements back to default positions">&#8635; Reset</button>
@@ -1275,6 +1360,15 @@ $themeCss   = timer_theme_css_vars($themeProps);
         <button class="layout-inspector-close" type="button" onclick="closeInspector()" title="Close">&times;</button>
     </div>
     <div class="layout-inspector-body" id="inspectorBody"></div>
+</div>
+
+<!-- Objects panel — list of every theme element, including hidden ones (only way to see + un-hide them). -->
+<div class="layout-objects-panel" id="layoutObjectsPanel">
+    <div class="layout-objects-header" id="objectsHeader">
+        <h4>Objects</h4>
+        <button class="layout-inspector-close" type="button" onclick="closeObjectsPanel()" title="Close">&times;</button>
+    </div>
+    <div class="layout-objects-body" id="objectsBody"></div>
 </div>
 <?php endif; ?>
 
@@ -1940,17 +2034,147 @@ function renderAll() {
     el('pausedLabel').textContent = (_inEdit || !TIMER.is_running) ? 'PAUSED' : '';
 }
 
+// Renderer registry — keyed by element key, then by variant name.
+// Each renderer signature: function(node, secs, opts) where opts is the element's theme bag.
+// Dispatch happens in the per-element render functions (renderClock, etc.).
+window.TIMER_RENDERERS = window.TIMER_RENDERERS || {};
+TIMER_RENDERERS.clock = {
+    'text'          : renderClockText,
+    'radial-ring'   : renderClockRadial,
+    'radial-checks' : renderClockRadial
+};
+
 function renderClock() {
     var el = document.getElementById('timerClock');
+    if (!el) return;
     var secs = Math.max(0, TIMER.time_remaining_seconds);
-    el.textContent = fmtTime(secs);
-    el.classList.remove('timer-red', 'timer-yellow', 'timer-green');
     var cTheme = (window.TIMER_THEME && window.TIMER_THEME.elements && window.TIMER_THEME.elements.clock) || {};
+    var variant = cTheme.variant || 'text';
+
+    // Threshold colour state stays in the dispatcher so every variant shares it (via currentColor).
     var critical = Math.max(1, parseInt(cTheme.critical_seconds, 10) || 30);
     var warning  = Math.max(critical + 1, parseInt(cTheme.warning_seconds, 10) || 120);
+    el.classList.remove('timer-red','timer-yellow','timer-green');
     if (secs <= critical)      el.classList.add('timer-red');
     else if (secs <= warning)  el.classList.add('timer-yellow');
     else                       el.classList.add('timer-green');
+
+    // Variant change: wipe inner DOM and the radial 'built' flag so the next renderer rebuilds cleanly.
+    if (el.dataset.variant !== variant) {
+        el.dataset.variant = variant;
+        el.innerHTML = '';
+        delete el.dataset.built;
+        delete el.dataset.builtVariant;
+        delete el.dataset.builtSegs;
+    }
+    var fn = (TIMER_RENDERERS.clock && TIMER_RENDERERS.clock[variant]) || TIMER_RENDERERS.clock.text;
+    fn(el, secs, cTheme);
+}
+
+function renderClockText(node, secs) {
+    var s = fmtTime(secs);
+    if (node.textContent !== s) node.textContent = s;
+}
+
+// SVG arc-path helper used by the radial-checks variant.
+// Returns a single arc "d" string for an arc on a circle centered (cx,cy) of radius r,
+// sweeping from startAng to endAng (degrees, 0° = top, increases clockwise).
+function describeArc(cx, cy, r, startAng, endAng) {
+    function pt(a) {
+        var rad = (a - 90) * Math.PI / 180;
+        return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+    }
+    var p0 = pt(startAng), p1 = pt(endAng);
+    var large = (endAng - startAng) <= 180 ? 0 : 1;
+    return 'M ' + p0.x.toFixed(3) + ' ' + p0.y.toFixed(3)
+         + ' A ' + r + ' ' + r + ' 0 ' + large + ' 1 ' + p1.x.toFixed(3) + ' ' + p1.y.toFixed(3);
+}
+
+// Radial clock renderer — used for both 'radial-ring' (no segments) and 'radial-checks' (N wedges).
+// Builds SVG once, mutates attributes per tick to avoid flicker.
+function renderClockRadial(node, secs, opts) {
+    var variant = opts.variant || 'radial-ring';
+    var checks  = (variant === 'radial-checks');
+    var dir     = (opts.radial_direction === 'cw') ? 'cw' : 'ccw';
+    var thick   = Math.max(0.02, Math.min(0.45, parseFloat(opts.radial_thickness) || 0.12));
+    var segs    = Math.max(2, Math.min(60, parseInt(opts.radial_segments, 10) || 12));
+
+    // Total level seconds — read from LEVELS for the active level, cache by level number.
+    var lv = (typeof getLevelData === 'function') ? getLevelData(TIMER.current_level) : null;
+    var totalSecs = lv ? (parseInt(lv.duration_minutes, 10) || 0) * 60 : 0;
+    if (totalSecs <= 0) totalSecs = Math.max(secs, 1);  // fallback so the ring isn't blank pre-load
+    var frac = (totalSecs - secs) / totalSecs;
+    if (!isFinite(frac) || frac < 0) frac = 0;
+    if (frac > 1) frac = 1;
+
+    var R = 22;                                    // viewBox is 0 0 50 50
+    var strokeW = (2 * R * thick).toFixed(2);
+    var C = 2 * Math.PI * R;
+    var built = node.dataset.built === '1';
+    var builtVariant = node.dataset.builtVariant || '';
+    var builtSegs = parseInt(node.dataset.builtSegs, 10) || 0;
+    var needRebuild = !built || builtVariant !== variant || (checks && builtSegs !== segs);
+
+    if (needRebuild) {
+        var html = '<svg viewBox="0 0 50 50" preserveAspectRatio="xMidYMid meet" aria-hidden="true">';
+        if (!checks) {
+            html += '<circle class="clock-ring-bg" cx="25" cy="25" r="' + R + '" fill="none" '
+                  + 'stroke="rgba(255,255,255,0.12)" stroke-width="' + strokeW + '"></circle>'
+                  + '<circle class="clock-ring-fg" cx="25" cy="25" r="' + R + '" fill="none" '
+                  + 'stroke="currentColor" stroke-width="' + strokeW + '" stroke-linecap="butt" '
+                  + 'stroke-dasharray="' + C.toFixed(3) + '" stroke-dashoffset="0" '
+                  + 'transform="rotate(-90 25 25)"></circle>';
+        } else {
+            var gap = Math.min(6, 360 / segs * 0.18);   // ~18% of each wedge as a gap, capped at 6°
+            var wedge = 360 / segs - gap;
+            html += '<g class="clock-check-bg">';
+            for (var i = 0; i < segs; i++) {
+                var a0 = i * (360 / segs) + gap / 2;
+                var a1 = a0 + wedge;
+                html += '<path d="' + describeArc(25, 25, R, a0, a1) + '" fill="none" '
+                      + 'stroke="rgba(255,255,255,0.12)" stroke-width="' + strokeW + '" stroke-linecap="butt"></path>';
+            }
+            html += '</g><g class="clock-check-fg">';
+            for (var j = 0; j < segs; j++) {
+                var b0 = j * (360 / segs) + gap / 2;
+                var b1 = b0 + wedge;
+                html += '<path d="' + describeArc(25, 25, R, b0, b1) + '" fill="none" '
+                      + 'stroke="currentColor" stroke-width="' + strokeW + '" stroke-linecap="butt" style="display:none"></path>';
+            }
+            html += '</g>';
+        }
+        html += '<text class="clock-num" x="25" y="25" text-anchor="middle" dominant-baseline="central">'
+              + fmtTime(secs) + '</text></svg>';
+        node.innerHTML = html;
+        node.dataset.built = '1';
+        node.dataset.builtVariant = variant;
+        node.dataset.builtSegs = String(checks ? segs : 0);
+    }
+
+    // Per-tick mutations.
+    if (!checks) {
+        var fg = node.querySelector('.clock-ring-fg');
+        if (fg) {
+            // Default (ccw): ring "drains" — visible portion shrinks as frac→1.
+            // For ccw we use negative offset; for cw we use positive offset.
+            var offset = C * frac;
+            if (dir === 'cw') offset = -offset;
+            fg.setAttribute('stroke-dashoffset', offset.toFixed(3));
+        }
+    } else {
+        var lit = Math.round(segs * frac);
+        var fgs = node.querySelectorAll('.clock-check-fg path');
+        for (var k = 0; k < fgs.length; k++) {
+            // Direction: ccw lights from the right side counterclockwise; cw fills clockwise from top.
+            var idx = (dir === 'cw') ? k : (segs - 1 - k);
+            fgs[k].style.display = (idx < lit) ? '' : 'none';
+        }
+    }
+    var num = node.querySelector('.clock-num');
+    if (num) {
+        var s = fmtTime(secs);
+        if (num.textContent !== s) num.textContent = s;
+    }
 }
 
 function renderPlayBtn() {
@@ -3511,25 +3735,31 @@ function applyTheme(props) {
     root.setProperty('--timer-tray-button-color', tray.button_color || '#e2e8f0');
     root.setProperty('--timer-accent', tray.accent_color || '#2563eb');
 
-    // Visibility — in edit mode, "hidden" elements ghost at low opacity so the user
-    // can still see them, drag them, and click the eye icon to un-hide. Outside edit
-    // mode they go full `display: none`.
+    // Visibility — hidden elements are truly hidden, even in edit mode. They only
+    // ghost on canvas while currently selected (so the user can position them). This
+    // moves the "where is my hidden element?" discovery into the Objects panel rather
+    // than ghosting every hidden object on screen.
     var inEdit = document.body.classList.contains('layout-edit');
+    var selSet = (typeof LAYOUT_SELECTION_SET !== 'undefined') ? LAYOUT_SELECTION_SET : null;
     for (var k in THEME_SELECTORS) {
         var node = document.querySelector(THEME_SELECTORS[k]);
         if (!node) continue;
         var visible = el[k] && el[k].visible !== false;
+        var isSelected = inEdit && selSet && selSet.has && selSet.has(k);
         if (!visible) {
             node.dataset._themeHidden = '1';
-            if (inEdit) {
+            if (isSelected) {
                 node.style.display = '';
-                node.style.opacity = '0.35';
+                node.style.opacity = '0.45';
+                node.dataset.ghostSelected = '1';
             } else {
                 node.style.display = 'none';
                 node.style.opacity = '';
+                delete node.dataset.ghostSelected;
             }
         } else if (node.dataset._themeHidden === '1') {
             delete node.dataset._themeHidden;
+            delete node.dataset.ghostSelected;
             node.style.display = '';
             node.style.opacity = '';
         }
@@ -3560,6 +3790,10 @@ function applyTheme(props) {
             node2.style.removeProperty('--pos-y');
         }
     }
+
+    // Variant / thickness changes from the inspector mutate the theme but don't change
+    // the next tick's text — force a clock re-render so visual feedback is instant.
+    if (typeof renderClock === 'function') renderClock();
 }
 
 // Build a deep-cloned theme payload from the current in-memory state. With the modal
@@ -4048,8 +4282,6 @@ function enterLayoutEdit() {
         var node = document.querySelector(THEME_SELECTORS[key]);
         if (!node) return;
         var pe = window.TIMER_THEME.elements[key] = window.TIMER_THEME.elements[key] || {};
-        // Even hidden elements should be positioned + outlined in edit mode so the user
-        // can find them, drag them, and click the eye icon to un-hide.
         // Validate any existing pos — drop stale/out-of-bounds values from a previous session.
         if (pe.pos && (
             typeof pe.pos.x !== 'number' || typeof pe.pos.y !== 'number' ||
@@ -4058,6 +4290,9 @@ function enterLayoutEdit() {
             delete pe.pos;
         }
         if (pe.pos) return;
+        // Hidden elements without a pos: defer seeding until the user selects them from
+        // the Objects panel. Otherwise they'd silently acquire a position they can't see.
+        if (pe.visible === false) return;
         var rect = node.getBoundingClientRect();
         if (rect.width > 1 && rect.height > 1) {
             pe.pos = {
@@ -4073,6 +4308,7 @@ function enterLayoutEdit() {
 
     applyTheme(window.TIMER_THEME);
     attachAllDragHandlers();
+    openObjectsPanel();
 }
 
 function exitLayoutEdit(keep) {
@@ -4082,6 +4318,7 @@ function exitLayoutEdit(keep) {
     detachAllDragHandlers();
     deselectElement();
     removeAllEyeIcons();
+    closeObjectsPanel();
     if (!keep && LAYOUT_EDIT_SNAPSHOT) {
         window.TIMER_THEME = LAYOUT_EDIT_SNAPSHOT;
     }
@@ -4240,6 +4477,7 @@ function toggleElementVisibility(key) {
         eye.classList.toggle('is-hidden', pe.visible === false);
     }
     refreshHiddenInInspector();
+    if (typeof renderObjectsPanel === 'function') renderObjectsPanel();
 }
 
 function makeDragStart(node, key) {
@@ -4456,6 +4694,9 @@ function selectElement(key) {
     renderInspector(key);
     var panel = document.getElementById('layoutInspector');
     if (panel) panel.classList.add('is-open');
+    // Selection change can move a hidden object into / out of the ghost state.
+    if (window.TIMER_THEME) applyTheme(window.TIMER_THEME);
+    if (typeof renderObjectsPanel === 'function') renderObjectsPanel();
 }
 
 function toggleSelectElement(key) {
@@ -4479,6 +4720,8 @@ function toggleSelectElement(key) {
         var panel = document.getElementById('layoutInspector');
         if (panel) panel.classList.add('is-open');
     }
+    if (window.TIMER_THEME) applyTheme(window.TIMER_THEME);
+    if (typeof renderObjectsPanel === 'function') renderObjectsPanel();
 }
 
 function deselectElement() {
@@ -4487,9 +4730,69 @@ function deselectElement() {
     document.querySelectorAll('.timer-positioned.is-selected').forEach(function(n){ n.classList.remove('is-selected'); });
     var panel = document.getElementById('layoutInspector');
     if (panel) panel.classList.remove('is-open');
+    if (window.TIMER_THEME) applyTheme(window.TIMER_THEME);
+    if (typeof renderObjectsPanel === 'function') renderObjectsPanel();
 }
 
 function closeInspector() { deselectElement(); }
+
+// ─── Objects panel — list of all theme elements (incl. hidden), used to ───
+// select / un-hide them since hidden objects no longer ghost on canvas.
+function openObjectsPanel() {
+    renderObjectsPanel();
+    var p = document.getElementById('layoutObjectsPanel');
+    if (p) p.classList.add('is-open');
+}
+function closeObjectsPanel() {
+    var p = document.getElementById('layoutObjectsPanel');
+    if (p) p.classList.remove('is-open');
+}
+
+function renderObjectsPanel() {
+    var body = document.getElementById('objectsBody');
+    if (!body) return;
+    var html = '';
+    THEME_ELEMENTS.forEach(function(meta) {
+        var pe = (window.TIMER_THEME && window.TIMER_THEME.elements) ? (window.TIMER_THEME.elements[meta.key] || {}) : {};
+        var hidden = (pe.visible === false);
+        var selected = LAYOUT_SELECTION_SET && LAYOUT_SELECTION_SET.has && LAYOUT_SELECTION_SET.has(meta.key);
+        var rowCls = 'layout-object-row' + (selected ? ' is-selected' : '') + (hidden ? ' is-hidden' : '');
+        var eyeCls = 'obj-eye' + (hidden ? ' is-hidden' : '');
+        var eyeGlyph = hidden ? '&#128064;' : '&#128065;';  // closed / open eye
+        var safeKey = meta.key.replace(/'/g, "\\'");
+        html += '<div class="' + rowCls + '" data-key="' + meta.key + '" onclick="onObjectsRowClick(event,\'' + safeKey + '\')">'
+              +   '<button type="button" class="' + eyeCls + '" '
+              +           'onclick="event.stopPropagation();onObjectsRowEye(\'' + safeKey + '\')"'
+              +           ' title="Toggle visibility">' + eyeGlyph + '</button>'
+              +   '<span class="obj-label">' + meta.label + '</span>'
+              + '</div>';
+    });
+    body.innerHTML = html;
+}
+
+function onObjectsRowClick(ev, key) {
+    if (!window.TIMER_THEME) return;
+    window.TIMER_THEME.elements = window.TIMER_THEME.elements || {};
+    var pe = window.TIMER_THEME.elements[key] = window.TIMER_THEME.elements[key] || {};
+    // Seed a default position for hidden + positionless objects so the ghost lands somewhere visible
+    // and the drag handler has coordinates to mutate.
+    if (pe.visible === false && !pe.pos && LAYOUT_DEFAULT_POS[key]) {
+        pe.pos = { x: LAYOUT_DEFAULT_POS[key].x, y: LAYOUT_DEFAULT_POS[key].y };
+    }
+    if (ev && (ev.ctrlKey || ev.metaKey)) toggleSelectElement(key);
+    else                                   selectElement(key);
+    // A newly-positioned hidden object needs drag handlers re-armed.
+    detachAllDragHandlers();
+    attachAllDragHandlers();
+    applyTheme(window.TIMER_THEME);
+    renderObjectsPanel();
+}
+
+function onObjectsRowEye(key) {
+    toggleElementVisibility(key);
+    applyTheme(window.TIMER_THEME);
+    renderObjectsPanel();
+}
 
 function renderInspector(key) {
     var title = document.getElementById('inspectorTitle');
@@ -4557,6 +4860,39 @@ function renderInspector(key) {
                 + '<span style="color:#94a3b8;font-size:.75rem">sec</span>'
                 + '<input type="color" value="'+(pe.color_red||'#ef4444')+'" oninput="onInspectorColor(\'clock\',\'red\',this.value)">'
                 + '</span></div>');
+
+            // Clock variant — Text / Radial ring / Radial w/ checks
+            var variant = pe.variant || 'text';
+            rows.push('<div class="layout-inspector-row"><label>Style</label>'
+                + '<select onchange="onClockVariant(this.value)" class="ins-btn" style="padding:.2rem .4rem;min-width:9rem">'
+                +   '<option value="text"'          + (variant==='text'?' selected':'')          + '>Text</option>'
+                +   '<option value="radial-ring"'   + (variant==='radial-ring'?' selected':'')   + '>Radial ring</option>'
+                +   '<option value="radial-checks"' + (variant==='radial-checks'?' selected':'') + '>Radial w/ checks</option>'
+                + '</select></div>');
+
+            if (variant === 'radial-ring' || variant === 'radial-checks') {
+                var thick = (pe.radial_thickness != null) ? parseFloat(pe.radial_thickness) : 0.12;
+                rows.push('<div class="layout-inspector-row"><label>Thickness</label>'
+                    + '<span style="display:inline-flex;align-items:center;gap:.3rem">'
+                    + '<input type="range" min="0.04" max="0.30" step="0.01" value="'+thick+'" '
+                    + 'oninput="onClockRadialOpt(\'radial_thickness\', parseFloat(this.value))" style="width:6rem">'
+                    + '<span style="color:#94a3b8;font-size:.75rem" id="ins_thick_val">'+Math.round(thick*100)+'%</span>'
+                    + '</span></div>');
+
+                var dir = (pe.radial_direction === 'cw') ? 'cw' : 'ccw';
+                rows.push('<div class="layout-inspector-row"><label>Direction</label>'
+                    + '<button type="button" class="ins-btn" onclick="onClockRadialOpt(\'radial_direction\', \''
+                    + (dir==='ccw'?'cw':'ccw') + '\');renderInspector(\'clock\')">'
+                    + (dir==='ccw' ? 'Counter-clockwise' : 'Clockwise') + '</button></div>');
+
+                if (variant === 'radial-checks') {
+                    var segs = parseInt(pe.radial_segments, 10) || 12;
+                    rows.push('<div class="layout-inspector-row"><label>Segments</label>'
+                        + '<input type="number" min="2" max="60" value="'+segs+'" '
+                        + 'style="width:4rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:4px;padding:.15rem .3rem;font-size:.8rem" '
+                        + 'oninput="onClockRadialOpt(\'radial_segments\', Math.max(2, Math.min(60, parseInt(this.value,10)||12)))"></div>');
+                }
+            }
         } else {
             var col = pe.color || '#94a3b8';
             rows.push('<div class="layout-inspector-row"><label>Color</label>'
@@ -4897,6 +5233,47 @@ function onClockThreshold(which, val) {
     // No applyTheme needed — renderClock pulls from TIMER_THEME every tick.
 }
 
+// Clock variant switcher — Text / Radial ring / Radial w/ checks.
+function onClockVariant(v) {
+    if (v !== 'text' && v !== 'radial-ring' && v !== 'radial-checks') v = 'text';
+    window.TIMER_THEME.elements = window.TIMER_THEME.elements || {};
+    var pe = window.TIMER_THEME.elements.clock = window.TIMER_THEME.elements.clock || {};
+    pe.variant = v;
+    // Force a clean rebuild — clear inner content and the radial 'built' flags.
+    var node = document.getElementById('timerClock');
+    if (node) {
+        node.innerHTML = '';
+        delete node.dataset.variant;
+        delete node.dataset.built;
+        delete node.dataset.builtVariant;
+        delete node.dataset.builtSegs;
+    }
+    if (typeof renderClock === 'function') renderClock();
+    renderInspector('clock');
+}
+
+// Radial-specific option setter (thickness, direction, segments).
+function onClockRadialOpt(field, val) {
+    window.TIMER_THEME.elements = window.TIMER_THEME.elements || {};
+    var pe = window.TIMER_THEME.elements.clock = window.TIMER_THEME.elements.clock || {};
+    pe[field] = val;
+    var node = document.getElementById('timerClock');
+    // Segment count or thickness changes require a full rebuild (not just attribute mutation).
+    if (field === 'radial_segments' || field === 'radial_thickness') {
+        if (node) {
+            node.innerHTML = '';
+            delete node.dataset.built;
+            delete node.dataset.builtVariant;
+            delete node.dataset.builtSegs;
+        }
+    }
+    if (typeof renderClock === 'function') renderClock();
+    if (field === 'radial_thickness') {
+        var lbl = document.getElementById('ins_thick_val');
+        if (lbl) lbl.textContent = Math.round(val * 100) + '%';
+    }
+}
+
 function onInspectorScale(key, delta) {
     window.TIMER_THEME.elements = window.TIMER_THEME.elements || {};
     var pe = window.TIMER_THEME.elements[key] = window.TIMER_THEME.elements[key] || {};
@@ -4965,12 +5342,15 @@ function makePanelDraggable(panel, handle) {
     var insp = document.getElementById('layoutInspector');
     var inspHeader = document.getElementById('inspectorHeader');
     makePanelDraggable(insp, inspHeader);
+    var objs = document.getElementById('layoutObjectsPanel');
+    var objsHeader = document.getElementById('objectsHeader');
+    if (objs && objsHeader) makePanelDraggable(objs, objsHeader);
 
     // Body-level click handler — selects the "page" pseudo-element when the user
     // clicks empty background space (in edit mode only). Walks composedPath instead
     // of ev.target.closest so detached targets (e.g. an inspector button whose
     // parent rebuilt mid-click) still resolve correctly against the skip list.
-    var SKIP_CLASSES = ['timer-positioned','layout-edit-pill','layout-inspector','timer-levels-overlay','layout-eye'];
+    var SKIP_CLASSES = ['timer-positioned','layout-edit-pill','layout-inspector','layout-objects-panel','timer-levels-overlay','layout-eye'];
     document.addEventListener('click', function(ev) {
         if (!LAYOUT_EDIT_ON) return;
         var path = (typeof ev.composedPath === 'function') ? ev.composedPath() : [];
@@ -4982,7 +5362,7 @@ function makePanelDraggable(panel, handle) {
             }
         }
         // Fallback for browsers without composedPath (none we target, but harmless).
-        if (ev.target && ev.target.closest && ev.target.closest('.timer-positioned, .layout-edit-pill, .layout-inspector, .timer-levels-overlay, .layout-eye')) return;
+        if (ev.target && ev.target.closest && ev.target.closest('.timer-positioned, .layout-edit-pill, .layout-inspector, .layout-objects-panel, .timer-levels-overlay, .layout-eye')) return;
         selectElement('page');
     });
 })();
