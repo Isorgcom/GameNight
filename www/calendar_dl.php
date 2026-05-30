@@ -171,6 +171,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
                    ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $recurrence, $recEnd, $current['id'], $requires_approval, $league_id, $visibility, $is_poker, $rsvp_deadline_hrs, $waitlist_enabled, $reminders_enabled, $reminder_offsets_json]);
                 $new_eid = (int)$db->lastInsertId();
+                // Sticky poker default: remember this create choice for the user's next new event.
+                $db->prepare('UPDATE users SET last_poker_default = ? WHERE id = ?')->execute([$is_poker, $current['id']]);
                 // Auto-create poker session if is_poker
                 if ($is_poker) {
                     $chkPs = $db->prepare('SELECT id FROM poker_sessions WHERE event_id = ?');

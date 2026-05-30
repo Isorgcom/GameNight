@@ -227,6 +227,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
                    ->execute([$title, $desc ?: null, $sd, $ed, $st, $et, $color, $current['id'], $is_poker, $requires_approval, $league_id, $visibility, $rsvp_deadline_hrs, $waitlist_enabled, $reminders_enabled, $reminder_offsets_json]);
                 $notify_eid = (int)$db->lastInsertId();
+                // Sticky poker default: remember this create choice for the user's next new event.
+                $db->prepare('UPDATE users SET last_poker_default = ? WHERE id = ?')->execute([$is_poker, $current['id']]);
                 if ($is_poker) {
                     // Pull the creator's last-used session defaults (league-scoped if this event is in a league)
                     // so rebuy / addon / chips / addon_chips / rebuy_allowed / addon_allowed / max_rebuys
@@ -3226,7 +3228,7 @@ function openEditModal(ev) {
     document.getElementById('eDescWrap').style.display = hasDesc ? '' : 'none';
     document.getElementById('eDescToggle').textContent = hasDesc ? '- Hide description' : '+ Description';
     document.getElementById('eSuppressNotify').checked = false;
-    document.getElementById('eIsPoker').checked = ev ? !!parseInt(ev.is_poker) : true;
+    document.getElementById('eIsPoker').checked = ev ? !!parseInt(ev.is_poker) : <?= ((int)($current['last_poker_default'] ?? 1)) ? 'true' : 'false' ?>;
     document.getElementById('eRequiresApproval').checked = ev ? !!parseInt(ev.requires_approval) : false;
     // Pre-fill poker session fields
     var ps = ev ? (eventPoker[ev.id] || null) : null;

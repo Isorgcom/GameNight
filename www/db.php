@@ -282,6 +282,7 @@ function db_init(PDO $pdo): void {
 
     // Per-user My Events time range preferences
     try { $pdo->exec("ALTER TABLE users ADD COLUMN my_events_past_days INTEGER NOT NULL DEFAULT 30"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE users ADD COLUMN last_poker_default INTEGER NOT NULL DEFAULT 1"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE users ADD COLUMN phone_verified INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE users ADD COLUMN my_events_future_days INTEGER NOT NULL DEFAULT 7"); } catch (Exception $e) {}
     // Update existing users from old default of 90 to new default of 7

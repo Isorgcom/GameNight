@@ -4,6 +4,16 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19317] - 2026-05-30
+
+### Added
+- **The Poker toggle on the event editor now remembers each host's last choice.** Hosts who mostly run plain invite-only events had to switch the **Poker** toggle off every single time, because the new-event form (`www/calendar.php`) hard-coded the `is_poker` checkbox to default **on** for everyone. The default is now sticky and per-user: whatever you picked the last time you *created* an event becomes the default for your next new event, globally across all leagues (editing an existing event does not change it). A new `users.last_poker_default` column (added via the standard `try/catch ALTER TABLE` in `db_init()`, default `1` so behavior is unchanged until your first create) stores the value; both event-create paths (`www/calendar.php` and the parallel `www/calendar_dl.php` `add` handler) write the chosen `is_poker` back to the creating user after insert, and `openEditModal()` seeds the checkbox from it for new events.
+
+### Fixed
+- **Per-user settings selected by `current_user()` now include `last_poker_default`.** `current_user()` in `www/auth.php` builds the user row from an explicit column list rather than `SELECT *`, so the new sticky-poker preference was being written to the database but never read back — the editor always fell through to its default-on fallback. Added the column to the `current_user()` SELECT so the saved preference actually takes effect on the next page load.
+
+---
+
 ## [v0.19316] - 2026-05-29
 
 ### Changed
