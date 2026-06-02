@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19320] - 2026-06-02
+
+### Added
+- **Double-click to add or remove invitees in the event editor's invite panel.** Moving people between the "all users" list and the invited list previously required selecting a name and clicking the `›` / `‹` arrow (or drag). In the Add/Edit Event screen (`www/calendar.php`), double-clicking a name in the left contact list now adds them straight to the invited list, and double-clicking a name in the invited list removes them. Both reuse the existing `inviteUser()` / `removeInvite()` paths, so dedup, the RSVP badge, the per-invitee manager toggle, and the dimming of already-invited names behave exactly as with the arrow buttons. Double-clicks on a dimmed (already-invited) contact and on the in-row manager toggle are ignored, and the stray text selection a double-click would otherwise create is cleared. The contact tooltips were updated to mention the shortcut.
+
+---
+
 ## [v0.19319] - 2026-06-02
 
 ### Fixed

@@ -2951,10 +2951,18 @@ function buildAllUsersList() {
             memTag.textContent = u.is_league_member ? 'Member' : 'Not a member';
             li.appendChild(memTag);
         }
-        li.title = 'Click to select, then use arrows to invite';
+        li.title = 'Click to select, or double-click to invite';
         li.addEventListener('click', function(e) {
             if (this.classList.contains('dimmed')) return;
             handleListSelect(e, this, 'eAllUsersList');
+        });
+        // Double-click a name to add them straight to the invited list (same as ›).
+        li.addEventListener('dblclick', function(e) {
+            if (this.classList.contains('dimmed') || !this.dataset.uname) return;
+            e.preventDefault();
+            if (window.getSelection) { try { window.getSelection().removeAllRanges(); } catch (err) {} }
+            inviteUser(this.dataset.uname, this.dataset.uphone, this.dataset.uemail);
+            this.classList.remove('inv-selected');
         });
         ul.appendChild(li);
     });
@@ -3047,10 +3055,17 @@ function inviteUser(username, phone, email, rsvp, role, approvalStatus) {
         li.appendChild(tog);
     }
 
-    li.title = 'Click to select, then use arrows to remove';
+    li.title = 'Click to select, or double-click to remove';
     li.addEventListener('click', function(e) {
         if (e.target.closest('.mgr-toggle')) return;
         handleListSelect(e, this, 'eInvitedList');
+    });
+    // Double-click a name to remove them from the invited list (same as ‹).
+    li.addEventListener('dblclick', function(e) {
+        if (e.target.closest('.mgr-toggle')) return;
+        e.preventDefault();
+        if (window.getSelection) { try { window.getSelection().removeAllRanges(); } catch (err) {} }
+        removeInvite(this.dataset.iname);
     });
 
     // Drag-and-drop for priority ordering (poker events)
