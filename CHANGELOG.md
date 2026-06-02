@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19319] - 2026-06-02
+
+### Fixed
+- **"Add Event" / "Edit" buttons stopped opening the editor after v0.19318.** Removing the Mute toggle in v0.19318 left a dangling `document.getElementById('eSuppressNotify').checked = false;` in `openEditModal()` (`www/calendar.php`). With the element gone the lookup returned `null`, so reading `.checked` threw a `TypeError` that aborted the function before the modal could open — clicking **Add Event** (and the **Edit** pencil) did nothing. Removed the orphaned line.
+
+---
+
 ## [v0.19318] - 2026-06-02
 
 ### Changed

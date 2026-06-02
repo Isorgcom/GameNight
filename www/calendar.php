@@ -3334,7 +3334,6 @@ function openEditModal(ev) {
     var hasDesc = ev && ev.description && ev.description.trim() !== '';
     document.getElementById('eDescWrap').style.display = hasDesc ? '' : 'none';
     document.getElementById('eDescToggle').textContent = hasDesc ? '- Hide description' : '+ Description';
-    document.getElementById('eSuppressNotify').checked = false;
     document.getElementById('eIsPoker').checked = ev ? !!parseInt(ev.is_poker) : <?= ((int)($current['last_poker_default'] ?? 1)) ? 'true' : 'false' ?>;
     document.getElementById('eRequiresApproval').checked = ev ? !!parseInt(ev.requires_approval) : false;
     // Pre-fill poker session fields
