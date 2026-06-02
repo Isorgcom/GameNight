@@ -435,21 +435,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 return ['email' => $row['email'], 'html' => $html];
             };
 
-            // Queue invite notifications to be sent asynchronously by cron.
-            // This avoids hanging the form save on a slow SMTP/SMS/shortener API loop for large invite lists.
-            // Skip anyone who already has an invite dedup marker for this event — prevents re-sends
-            // on re-edits or duplicate submits.
-            if (!$suppress_notify && get_setting('notifications_enabled', '0') === '1' && !empty($new_invitee_usernames)) {
-                $queueStmt = $db->prepare("INSERT INTO pending_notifications (event_id, username, notify_type) VALUES (?, ?, 'invite')");
-                $seenStmt  = $db->prepare("SELECT 1 FROM event_notifications_sent WHERE event_id=? AND occurrence_date=? AND user_identifier=? AND notification_type='invite'");
-                foreach ($new_invitee_usernames as $new_user) {
-                    $seenStmt->execute([$notify_eid, '', strtolower($new_user)]);
-                    if ($seenStmt->fetchColumn()) continue;
-                    $queueStmt->execute([$notify_eid, $new_user]);
-                }
-                // Fire-and-forget: kick off the drain in the background so notifications go out in seconds
-                drain_queue_async();
-            }
+            // Invites are NOT sent automatically on save. The host reviews the event and then
+            // dispatches them explicitly via the "Send Invitations" control in the event view
+            // (action=send_invites below), or per-invitee via "Resend". This keeps a freshly
+            // created/edited event from blasting notifications before the host is ready.
+            // $new_invitee_usernames / $suppress_notify are intentionally no longer consumed here.
         }
     }
 
@@ -777,6 +767,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // Bulk-send invites for an event to every approved base invitee who has not been sent one yet.
+    // This is the explicit "Send Invitations" action — invites no longer go out automatically on save.
+    // Unlike resend_invite, this does NOT clear existing dedup markers, so re-clicking only reaches
+    // people who still haven't been notified (newly added invitees, failed/never-sent rows).
+    if ($action === 'send_invites' && $current) {
+        $eid   = (int)($_POST['event_id'] ?? 0);
+        $isXhr = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest';
+        if ($eid > 0 && can_manage_event($db, $eid, (int)$current['id'], $isAdmin)) {
+            if (get_setting('notifications_enabled', '0') !== '1') {
+                if ($isXhr) {
+                    header('Content-Type: application/json');
+                    echo json_encode(['ok' => false, 'error' => 'Notifications are currently disabled site-wide.']);
+                    exit;
+                }
+                http_response_code(400);
+                exit('Notifications are currently disabled.');
+            }
+            // Approved base invitees with no existing 'invite' dedup marker for this event.
+            $rows = $db->prepare(
+                "SELECT ei.username FROM event_invites ei
+                 WHERE ei.event_id = ? AND ei.occurrence_date IS NULL AND ei.approval_status = 'approved'
+                   AND NOT EXISTS (
+                       SELECT 1 FROM event_notifications_sent ens
+                       WHERE ens.event_id = ei.event_id AND ens.notification_type = 'invite'
+                         AND ens.occurrence_date = '' AND ens.user_identifier = LOWER(ei.username)
+                   )"
+            );
+            $rows->execute([$eid]);
+            $targets = array_column($rows->fetchAll(), 'username');
+            $queueStmt = $db->prepare("INSERT INTO pending_notifications (event_id, username, notify_type) VALUES (?, ?, 'invite')");
+            $sent = 0;
+            foreach ($targets as $uname) { $queueStmt->execute([$eid, $uname]); $sent++; }
+            if ($sent > 0) {
+                db_log_activity((int)$current['id'], "sent invites to $sent invitee(s) on event id: $eid");
+                drain_queue_async();
+            }
+            if ($isXhr) {
+                header('Content-Type: application/json');
+                echo json_encode(['ok' => true, 'sent' => $sent]);
+                exit;
+            }
+            $_SESSION['flash'] = ['type' => 'success', 'msg' => $sent > 0 ? "Invitations sent to $sent invitee(s)." : 'Everyone has already been invited.'];
+        } else {
+            if ($isXhr) {
+                http_response_code(403);
+                header('Content-Type: application/json');
+                echo json_encode(['ok' => false, 'error' => 'Permission denied.']);
+                exit;
+            }
+            http_response_code(403);
+            exit('Permission denied.');
+        }
+    }
+
     if ($action === 'regenerate_walkin_token' && $isAdmin) {
         $eid = (int)($_POST['event_id'] ?? 0);
         if ($eid > 0) {
@@ -949,6 +993,18 @@ if (!empty($allPageEids)) {
         }
     }
 }
+// Which base invitees already have an invite notification on record. Drives the
+// "Send Invitations" banner / per-invitee Send vs Resend label in the event view.
+$ev_invite_sent = [];  // [eid][username_lower] = true
+if (!empty($allPageEids)) {
+    $snph = implode(',', array_fill(0, count($allPageEids), '?'));
+    $ss = $db->prepare("SELECT event_id, user_identifier FROM event_notifications_sent
+                        WHERE notification_type='invite' AND occurrence_date='' AND event_id IN ($snph)");
+    $ss->execute($allPageEids);
+    foreach ($ss->fetchAll() as $sr) {
+        $ev_invite_sent[(int)$sr['event_id']][strtolower($sr['user_identifier'])] = true;
+    }
+}
 // Batch-load poker sessions for events on this page
 $ev_poker = [];
 if (!empty($allPageEids)) {
@@ -987,7 +1043,10 @@ if ($current && !$isAdmin) {
 // Strip contact details from invite data for all users (privacy — no need to expose in the calendar view)
 {
     foreach ($ev_invites as $eid => &$_invList) {
-        foreach ($_invList as &$_inv) { unset($_inv['phone'], $_inv['email']); }
+        foreach ($_invList as &$_inv) {
+            unset($_inv['phone'], $_inv['email']);
+            $_inv['sent'] = !empty($ev_invite_sent[(int)$eid][strtolower($_inv['username'])]);
+        }
     }
     foreach ($ev_invites_occ as &$_occMap) {
         foreach ($_occMap as &$_invList) {
@@ -1887,7 +1946,6 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
                 <button type="button" class="btn btn-outline" onclick="addBlankInviteRow()">+ Custom Invitee</button>
                 <label class="edit-notify-row"><span>Poker</span><input type="checkbox" name="is_poker" id="eIsPoker" value="1" class="pk-toggle-input" onchange="togglePokerFields()"><span class="pk-toggle-slider"></span></label>
                 <label class="edit-notify-row" id="eWaitlistLabel" style="display:none"><span>Waitlist</span><input type="checkbox" name="waitlist_enabled" id="eWaitlistEnabled" value="1" class="pk-toggle-input" onchange="updateCapacityLine()"><span class="pk-toggle-slider"></span></label>
-                <label class="edit-notify-row"><span>Mute</span><input type="checkbox" name="suppress_notify" id="eSuppressNotify" value="1" class="pk-toggle-input"><span class="pk-toggle-slider"></span></label>
                 <label class="edit-notify-row" title="Walk-in QR and self-signups require approval"><span>Approval</span><input type="checkbox" name="requires_approval" id="eRequiresApproval" value="1" class="pk-toggle-input"><span class="pk-toggle-slider"></span></label>
                 <label class="edit-notify-row" title="Send reminders before the event"><span>Reminders</span><input type="checkbox" name="reminders_enabled" id="eRemindersEnabled" value="1" class="pk-toggle-input" onchange="toggleReminderFields()" checked><span class="pk-toggle-slider"></span></label>
                 <span class="edit-desc-toggle" id="eDescToggle" onclick="toggleDesc()">+ Description</span>
@@ -1989,6 +2047,7 @@ const CAL_CURRENT_ID    = <?= (int)($current['id'] ?? 0) ?>;
 const IS_ADMIN = <?= $isAdmin ? 'true' : 'false' ?>;
 const CAN_CREATE_EVENTS = <?= $canCreateEvents ? 'true' : 'false' ?>;
 const ALLOW_MAYBE = <?= $allowMaybe ? 'true' : 'false' ?>;
+const NOTIFS_ENABLED = <?= get_setting('notifications_enabled', '0') === '1' ? 'true' : 'false' ?>;
 const LEAGUE_NAMES = <?= json_encode((object)$_leagueNames, JSON_HEX_TAG | JSON_FORCE_OBJECT) ?>;
 const MANAGED_EVENT_IDS = <?= json_encode(array_values($managedEventIds), JSON_HEX_TAG) ?>;
 <?php if ($canEditEvents): ?>
@@ -2210,6 +2269,20 @@ function renderInvitesPanel(eid) {
     const waitlisted = allInvites.filter(inv => inv.approval_status === 'waitlisted');
 
     let ih = '';
+
+    // "Send Invitations" banner — managers only, when notifications are on and some approved
+    // invitee still has no invite on record. Invites are not auto-sent on save anymore.
+    if (canManage && NOTIFS_ENABLED) {
+        const unsent = approved.filter(inv => !inv.sent
+            && !(CURRENT_USERNAME && inv.username.toLowerCase() === CURRENT_USERNAME.toLowerCase()));
+        if (unsent.length) {
+            ih += '<div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:.55rem .7rem;margin-bottom:.7rem">'
+                + '<span style="flex:1;min-width:0;font-size:.8rem;color:#92400e;font-weight:600">&#9888; Invitations not sent to ' + unsent.length + ' ' + (unsent.length === 1 ? 'person' : 'people') + '</span>'
+                + '<button type="button" class="btn-send-invites" data-eid="' + eid + '" style="font-size:.78rem;padding:.3rem .8rem;border-radius:6px;border:0;background:#2563eb;color:#fff;font-weight:600;cursor:pointer">Send Invitations</button>'
+                + '</div>';
+        }
+    }
+
     if (approved.length) {
         ih += '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin-bottom:.4rem">Invites (' + approved.length + ')</div>';
         ih += '<div style="display:flex;flex-direction:column;gap:.2rem;max-height:8.5rem;overflow-y:auto;padding-right:.25rem">';
@@ -2232,8 +2305,9 @@ function renderInvitesPanel(eid) {
             ih += '<span style="flex:1;min-width:0">' + escHtml(inv.username) + '</span>';
             // Resend button: only for managers, only when no RSVP yet, only for non-self.
             const isSelf = CURRENT_USERNAME && inv.username.toLowerCase() === CURRENT_USERNAME.toLowerCase();
-            if (canManage && !inv.rsvp && !isSelf) {
-                ih += '<button type="button" class="btn-resend-inv" data-eid="' + eid + '" data-username="' + escHtml(inv.username) + '" title="Resend invite SMS/email" style="font-size:.7rem;padding:.15rem .5rem;border-radius:5px;border:1px solid #cbd5e1;background:#fff;color:#475569;font-weight:600;cursor:pointer">Resend</button>';
+            if (canManage && NOTIFS_ENABLED && !inv.rsvp && !isSelf) {
+                const sendLabel = inv.sent ? 'Resend' : 'Send';
+                ih += '<button type="button" class="btn-resend-inv" data-eid="' + eid + '" data-username="' + escHtml(inv.username) + '" title="' + sendLabel + ' invite SMS/email" style="font-size:.7rem;padding:.15rem .5rem;border-radius:5px;border:1px solid #cbd5e1;background:#fff;color:#475569;font-weight:600;cursor:pointer">' + sendLabel + '</button>';
             }
             ih += '</div>';
         });
@@ -2503,8 +2577,41 @@ if (vInvDiv) {
             .catch(() => {});
     });
 
-    // Delegated listener: Approve / Deny / Resend buttons in the invites panel
+    // Delegated listener: Approve / Deny / Resend / Send-all buttons in the invites panel
     vInvDiv.addEventListener('click', function(e) {
+        // Bulk "Send Invitations" — sends to every approved invitee not yet notified.
+        const sendAllBtn = e.target.closest('.btn-send-invites');
+        if (sendAllBtn) {
+            const eid    = parseInt(sendAllBtn.dataset.eid);
+            const csrfEl = document.getElementById('vRsvpCsrf');
+            if (!csrfEl) return;
+            sendAllBtn.disabled = true;
+            const origText = sendAllBtn.textContent;
+            sendAllBtn.textContent = 'Sending…';
+            const data = new FormData();
+            data.append('csrf_token', csrfEl.value);
+            data.append('action',     'send_invites');
+            data.append('event_id',   eid);
+            fetch('/calendar.php', {method:'POST', body:data, headers:{'X-Requested-With':'XMLHttpRequest'}})
+                .then(r => r.json())
+                .then(res => {
+                    if (!res.ok) {
+                        sendAllBtn.disabled = false;
+                        sendAllBtn.textContent = origText;
+                        alert(res.error || 'Could not send invitations.');
+                        return;
+                    }
+                    showSavedBar(res.sent > 0 ? ('Invitations sent to ' + res.sent) : 'Already sent');
+                    pollRsvps(eid); // refresh sent flags → banner clears, buttons flip to Resend
+                })
+                .catch(() => {
+                    sendAllBtn.disabled = false;
+                    sendAllBtn.textContent = origText;
+                    alert('Network error. Please try again.');
+                });
+            return;
+        }
+
         const approveBtn = e.target.closest('.btn-approve-inv');
         const denyBtn    = e.target.closest('.btn-deny-inv');
         const resendBtn  = e.target.closest('.btn-resend-inv');

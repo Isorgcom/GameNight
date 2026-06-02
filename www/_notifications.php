@@ -355,11 +355,14 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
                 $smsBody = "You've been invited to \"$title\" on $start. Reply YES, NO, or MAYBE to RSVP. View: $url";
             }
             $desc = $event['description'] ?? '';
+            // The token-based public page lets invitees view details + RSVP without logging in.
+            // Falls back to the login-gated calendar link for legacy invites that have no token.
+            $event_link = $rsvp_token !== '' ? ($site_url . '/event.php?token=' . urlencode($rsvp_token)) : $url;
             $htmlBody = '<p>Hi ' . htmlspecialchars($user['username']) . ',</p>'
                       . '<p>You have been invited to <strong>' . htmlspecialchars($title) . '</strong> on ' . htmlspecialchars($start) . '.</p>'
                       . ($desc ? '<p>' . nl2br(htmlspecialchars($desc)) . '</p>' : '')
                       . $rsvpButtons
-                      . '<p style="margin-top:1rem"><a href="' . htmlspecialchars($url) . '" style="display:inline-block;padding:.5rem 1.5rem;border-radius:6px;text-decoration:none;font-weight:600;background:#2563eb;color:#fff">Event Details</a></p>';
+                      . '<p style="margin-top:1rem"><a href="' . htmlspecialchars($event_link) . '" style="display:inline-block;padding:.5rem 1.5rem;border-radius:6px;text-decoration:none;font-weight:600;background:#2563eb;color:#fff">Event Details</a></p>';
             break;
 
         case 'reminder':

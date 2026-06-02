@@ -4,6 +4,16 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19318] - 2026-06-02
+
+### Changed
+- **Event invites no longer send automatically on save — the host now sends them explicitly.** Hosts reported that creating an event immediately blasted invite emails/SMS to everyone added, leaving no chance to review first. The auto-queue block in `www/calendar.php` (which fired on every `add`/`edit` unless the opt-out "Mute" toggle was set) has been removed, along with the now-redundant Mute toggle. Invites are instead dispatched by an explicit control: the event detail view shows a **⚠ Invitations not sent to N people — [ Send Invitations ]** banner (visible to event managers when site notifications are enabled), backed by a new `send_invites` POST action. That action queues an `invite` notification for every approved base invitee with no existing dedup marker in `event_notifications_sent`, then kicks `drain_queue_async()`; unlike `resend_invite` it does **not** clear existing markers, so re-clicking only reaches people who were never notified (e.g. invitees added in a later edit). The per-invitee button now reads **Send** vs **Resend** based on whether that person has been notified. To drive the UI, both the page bootstrap (`$ev_invites`) and the live poll endpoint (`www/event_invites_dl.php`) now include a per-invitee `sent` flag derived from `event_notifications_sent`.
+
+### Added
+- **Login-free public event page for email/SMS RSVP recipients (`www/event.php`).** Clicking Yes/Maybe/No in an invite already recorded the RSVP without a login, but the confirmation page then only offered Log in / Create Account links to actually see the event, and the invite email's "Event Details" button pointed at the login-gated calendar — a real roadblock for casual players. New `event.php?token=<rsvp_token>` is a public, token-based read-only event page (modeled on `walkin.php`): it shows the event title, date/time, description, the recipient's current RSVP with Yes/Maybe/No buttons, and a **who's coming** list (display names only — never emails or phone numbers). After a recipient confirms an RSVP, `www/rsvp.php` now redirects to `event.php?token=...&just=<value>` (which surfaces a "✓ Your RSVP is set to …" banner) instead of the old login prompt, and the invite "Event Details" button in `www/_notifications.php` points to the same public page. Invites created before the `rsvp_token` column existed have no token and gracefully fall back to the previous login-gated link.
+
+---
+
 ## [v0.19317] - 2026-05-30
 
 ### Added

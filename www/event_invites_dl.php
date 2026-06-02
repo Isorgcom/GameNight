@@ -41,10 +41,14 @@ if (!$isAdmin && (int)$ev['created_by'] !== (int)$current['id']) {
 }
 
 $stmt = $db->prepare(
-    'SELECT username, phone, email, rsvp, occurrence_date, approval_status, sort_order, event_role
+    "SELECT username, phone, email, rsvp, occurrence_date, approval_status, sort_order, event_role,
+            (SELECT 1 FROM event_notifications_sent ens
+             WHERE ens.event_id = event_invites.event_id AND ens.notification_type = 'invite'
+               AND ens.occurrence_date = '' AND ens.user_identifier = LOWER(event_invites.username)
+             LIMIT 1) AS invite_sent
      FROM event_invites
      WHERE event_id = ?
-     ORDER BY COALESCE(sort_order, 999999), username'
+     ORDER BY COALESCE(sort_order, 999999), username"
 );
 $stmt->execute([$eid]);
 
@@ -52,7 +56,7 @@ $base = [];
 $occ  = [];
 foreach ($stmt->fetchAll() as $inv) {
     if ($inv['occurrence_date'] === null) {
-        $row = ['username' => $inv['username'], 'rsvp' => $inv['rsvp'], 'approval_status' => $inv['approval_status'], 'sort_order' => $inv['sort_order'], 'event_role' => $inv['event_role'] ?? 'invitee'];
+        $row = ['username' => $inv['username'], 'rsvp' => $inv['rsvp'], 'approval_status' => $inv['approval_status'], 'sort_order' => $inv['sort_order'], 'event_role' => $inv['event_role'] ?? 'invitee', 'sent' => !empty($inv['invite_sent'])];
         $base[] = $row;
     } else {
         $occ[$inv['occurrence_date']][] = ['username' => $inv['username'], 'rsvp' => $inv['rsvp'], 'approval_status' => $inv['approval_status']];
