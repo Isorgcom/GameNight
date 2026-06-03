@@ -4,6 +4,14 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19323] - 2026-06-03
+
+### Fixed
+- **The "Mgr" toggle was missing when adding invitees to a brand-new event.** In `www/calendar.php`, `inviteUser()` decided whether to render the per-invitee manager toggle from `currentEvent.created_by`, which is null while a new event is still being created. A non-admin host therefore failed the `created_by == current_user` check and never saw the toggle until the event was saved and reopened (admins were unaffected because the check short-circuits on `IS_ADMIN`). `canGrantManager` now also allows it in add-mode (`!editingEvId && CAN_CREATE_EVENTS`), since on a new event the host is the creator-to-be. The chosen role already persisted via `invite_role[]` → the `add` handler's `$save_invites` INSERT.
+- **No "Send Invitations" option appeared for an event whose only invitee is the host.** `renderInvitesPanel()` excluded the current user from both the Send Invitations banner's unsent count and the per-invitee Send/Resend button, so a host who created an event and added themselves (e.g. to test delivery) saw no way to send the invite. Both self-exclusions were removed. The backend already supported this: the `send_invites` action queues all approved un-sent invitees with no self exclusion, and `dispatch_queued_notification()` delivers to the resolved user with no creator skip. The banner now counts the host's own un-sent row, so it can read "Invitations not sent to 1 person" for a self-only event, and clicking Send emails the host their own invite.
+
+---
+
 ## [v0.19322] - 2026-06-03
 
 ### Fixed

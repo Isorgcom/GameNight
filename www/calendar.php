@@ -2286,8 +2286,9 @@ function renderInvitesPanel(eid) {
     // "Send Invitations" banner — managers only, when notifications are on and some approved
     // invitee still has no invite on record. Invites are not auto-sent on save anymore.
     if (canManage && NOTIFS_ENABLED) {
-        const unsent = approved.filter(inv => !inv.sent
-            && !(CURRENT_USERNAME && inv.username.toLowerCase() === CURRENT_USERNAME.toLowerCase()));
+        // Count self too — a host who invites themselves should still be able to send
+        // (and receive) the invite email for their own event.
+        const unsent = approved.filter(inv => !inv.sent);
         if (unsent.length) {
             ih += '<div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:.55rem .7rem;margin-bottom:.7rem">'
                 + '<span style="flex:1;min-width:0;font-size:.8rem;color:#92400e;font-weight:600">&#9888; Invitations not sent to ' + unsent.length + ' ' + (unsent.length === 1 ? 'person' : 'people') + '</span>'
@@ -2317,8 +2318,7 @@ function renderInvitesPanel(eid) {
             }
             ih += '<span style="flex:1;min-width:0">' + escHtml(inv.username) + '</span>';
             // Resend button: only for managers, only when no RSVP yet, only for non-self.
-            const isSelf = CURRENT_USERNAME && inv.username.toLowerCase() === CURRENT_USERNAME.toLowerCase();
-            if (canManage && NOTIFS_ENABLED && !inv.rsvp && !isSelf) {
+            if (canManage && NOTIFS_ENABLED && !inv.rsvp) {
                 const sendLabel = inv.sent ? 'Resend' : 'Send';
                 ih += '<button type="button" class="btn-resend-inv" data-eid="' + eid + '" data-username="' + escHtml(inv.username) + '" title="' + sendLabel + ' invite SMS/email" style="font-size:.7rem;padding:.15rem .5rem;border-radius:5px;border:1px solid #cbd5e1;background:#fff;color:#475569;font-weight:600;cursor:pointer">' + sendLabel + '</button>';
             }
@@ -3050,10 +3050,13 @@ function inviteUser(username, phone, email, rsvp, role, approvalStatus) {
     else                       { badge.textContent = '';        badge.style.display = 'none'; }
     li.appendChild(badge);
 
-    // Manager toggle — only shown to admins and event creators
+    // Manager toggle — shown to admins, the event creator, and (on a brand-new event)
+    // the host creating it. editingEvId === 0 means add-mode: the current user is the
+    // creator-to-be, so they may grant manager access right away.
     const editingEvId = parseInt(document.getElementById('eId').value) || 0;
     const editingCreatedBy = currentEvent ? currentEvent.created_by : null;
-    const canGrantManager = IS_ADMIN || (CURRENT_USER_ID && editingCreatedBy == CURRENT_USER_ID);
+    const canGrantManager = IS_ADMIN || (!editingEvId && CAN_CREATE_EVENTS)
+                            || (CURRENT_USER_ID && editingCreatedBy == CURRENT_USER_ID);
     if (canGrantManager) {
         const tog = document.createElement('label');
         tog.className = 'mgr-toggle';
