@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19322] - 2026-06-03
+
+### Fixed
+- **"Send Invitations" (and Resend/Approve/Deny) failed with "Network error" for non-admin event hosts.** The calendar POST handler in `www/calendar.php` has a top-level permission gate that, for non-admins, only granted manager access to `edit`/`delete`/`delete_occurrence` (keyed on the `id` field). The per-event management actions added/used by the invite flow (`send_invites`, `resend_invite`, `approve_invite`, `deny_invite`) are keyed on `event_id` and weren't recognized, so a non-admin event creator or manager hit `exit('Access denied.')` with a plain-text 403. Because the Send Invitations button expects a JSON reply, that non-JSON 403 surfaced in the UI as "Network error. Please try again." (admins were unaffected, since the whole gate is skipped for them). The gate now also computes the manager check from `event_id` for those four actions; each handler still independently re-checks `can_manage_event()`, so this only widens access to legitimate event managers. This regressed when v0.19318 moved invite sending out of the auto-on-save path (which rode through the already-allowed `add`/`edit` actions) into the dedicated `send_invites` action.
+
+---
+
 ## [v0.19321] - 2026-06-03
 
 ### Changed

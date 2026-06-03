@@ -68,14 +68,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // When allow_user_events is on, logged-in users can also add/edit/delete their own events
     // Event managers can also edit/delete events they manage
     $userEventActions = ['add', 'edit', 'delete', 'delete_occurrence'];
+    // Per-event management actions that target an existing event via event_id (not id).
+    // Each is allowed for anyone who can manage that specific event; the handlers below
+    // re-check with can_manage_event(), so this gate just needs to let managers through.
+    $eventMgmtActions = ['send_invites', 'resend_invite', 'approve_invite', 'deny_invite'];
     if (!$isAdmin && !in_array($action, ['update_rsvp', 'self_signup', 'self_remove'], true)) {
-        $chkIdForMgr = (int)($_POST['id'] ?? 0);
-        // Allow edit/delete/delete_occurrence if the user can manage this specific event
-        // (creator, event-manager, or league owner/manager). Fine-grained ownership check
-        // happens again below per-action.
-        $isMgr = ($chkIdForMgr > 0 && in_array($action, ['edit', 'delete', 'delete_occurrence'], true))
-                 ? can_manage_event($db, $chkIdForMgr, (int)$current['id'], $isAdmin)
-                 : false;
+        $chkIdForMgr  = (int)($_POST['id'] ?? 0);
+        $chkEidForMgr = (int)($_POST['event_id'] ?? 0);
+        // Allow edit/delete/delete_occurrence (keyed on id) or the event-management actions
+        // (keyed on event_id) if the user can manage this specific event — creator,
+        // event-manager, or league owner/manager. Fine-grained checks happen again per-action.
+        $isMgr = false;
+        if ($chkIdForMgr > 0 && in_array($action, ['edit', 'delete', 'delete_occurrence'], true)) {
+            $isMgr = can_manage_event($db, $chkIdForMgr, (int)$current['id'], $isAdmin);
+        } elseif ($chkEidForMgr > 0 && in_array($action, $eventMgmtActions, true)) {
+            $isMgr = can_manage_event($db, $chkEidForMgr, (int)$current['id'], $isAdmin);
+        }
         if (!$isMgr && (!$canCreateEvents || !in_array($action, $userEventActions, true))) {
             http_response_code(403); exit('Access denied.');
         }
