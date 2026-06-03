@@ -850,10 +850,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $back_m = substr($sd, 0, 7);
         }
     }
+    // After creating a new event, auto-open its detail view so the host immediately sees the
+    // "Send Invitations" prompt — invites are no longer sent automatically on save.
+    $openSuffix = ($action === 'add' && !empty($notify_eid) && !empty($sd))
+        ? '&open=' . (int)$notify_eid . '&date=' . urlencode($sd)
+        : '';
     if (!empty($back_wk)) {
-        header('Location: /calendar.php?wk=' . urlencode($back_wk));
+        header('Location: /calendar.php?wk=' . urlencode($back_wk) . $openSuffix);
     } else {
-        header('Location: /calendar.php' . ($back_m ? '?m=' . urlencode($back_m) : ''));
+        header('Location: /calendar.php' . ($back_m ? '?m=' . urlencode($back_m) : '') . $openSuffix);
     }
     exit;
 }

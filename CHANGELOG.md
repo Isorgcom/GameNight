@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19321] - 2026-06-03
+
+### Changed
+- **Creating an event now opens it straight to the "Send Invitations" prompt.** Since v0.19318 invites no longer go out automatically on save, but the only place to dispatch them was the Send Invitations banner inside an event's detail view, which a host had to open manually. After clicking **Add Event** the modal simply closed and nothing surfaced the prompt, so it looked like invites had silently gone nowhere. The post-save redirect in `www/calendar.php` now appends `&open=<new_event_id>&date=<start_date>` for the `add` action, reusing the existing `?open=ID&date=DATE` auto-open path (the same one email/landing links use) to drop the host directly into the new event's detail view with the **⚠ Invitations not sent — [ Send Invitations ]** banner front and center. Editing an existing event is unchanged.
+
+---
+
 ## [v0.19320] - 2026-06-02
 
 ### Added
