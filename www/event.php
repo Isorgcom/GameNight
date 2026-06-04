@@ -84,12 +84,13 @@ $attStmt = $db->prepare("SELECT username, rsvp FROM event_invites
                          WHERE event_id = ? AND occurrence_date IS NULL AND approval_status = 'approved'
                          ORDER BY COALESCE(sort_order, 999999), username");
 $attStmt->execute([$eid]);
-$going = []; $maybe = []; $declined = [];
+$going = []; $maybe = []; $declined = []; $pending = [];
 foreach ($attStmt->fetchAll() as $a) {
     switch (strtolower((string)($a['rsvp'] ?? ''))) {
         case 'yes':   $going[]    = $a['username']; break;
         case 'maybe': $maybe[]    = $a['username']; break;
         case 'no':    $declined[] = $a['username']; break;
+        default:      $pending[]  = $a['username']; break; // invited, no response yet
     }
 }
 
@@ -177,6 +178,7 @@ function ev_names_block(string $label, array $names, string $color): string {
         <?php
         $whos = ev_names_block('Going', $going, '#16a34a')
               . ev_names_block('Maybe', $maybe, '#d97706')
+              . ev_names_block('Pending', $pending, '#64748b')
               . ev_names_block("Can't make it", $declined, '#94a3b8');
         if ($whos !== ''): ?>
         <div style="margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid #e2e8f0"><?= $whos ?></div>
@@ -198,6 +200,11 @@ function ev_names_block(string $label, array $names, string $color): string {
             <?php if (!$has_account && $allow_reg): ?>
             <a href="/register.php?redirect=<?= urlencode($event_redirect) ?>" style="display:inline-block;margin:.2rem .3rem;padding:.45rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;border:2px solid #2563eb;color:#2563eb;background:#fff;font-size:.88rem">Create Account</a>
             <?php endif; ?>
+        </div>
+
+        <!-- Exit / close the public event page -->
+        <div style="text-align:center;margin-top:1.5rem">
+            <a href="/" style="color:#94a3b8;text-decoration:none;font-size:.84rem">Done &middot; Go to <?= htmlspecialchars($site_name) ?></a>
         </div>
     </div>
 </div>

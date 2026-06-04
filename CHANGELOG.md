@@ -4,6 +4,21 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19324] - 2026-06-04
+
+### Fixed
+- **RSVP links broke the moment a host edited and re-saved an event.** Saving an event runs `save_invites()` in `www/calendar.php`, which deletes every `event_invites` row for the scope and re-inserts them — and each re-insert minted a brand-new `rsvp_token` via `bin2hex(random_bytes(16))`. Any RSVP or event link already emailed/texted therefore pointed at a token that no longer existed, and the recipient hit "This RSVP link is no longer valid. The event may have been updated." (the tokens have no time-based expiry, so the reported "links expire after ~5 minutes" was really "the host re-saved the event ~5 minutes after sending"). `save_invites()` now captures each existing invitee's `rsvp_token` and `rsvp_token_flips` keyed by lowercase username before the delete, and reuses them on re-insert; only genuinely new invitees get a fresh token. Applies to both the base (`occurrence_date IS NULL`) and occurrence-specific branches.
+- **The "Invitations not sent to N" banner didn't update after sending an invite individually.** In `www/calendar.php`, the per-invitee resend handler only repainted its own button to "Sent ✓" and never refreshed the panel, so the unsent count stayed stale (e.g. read "6 still needed" after several one-off sends). It now calls `pollRsvps()` on success — the same refresh the bulk "Send Invitations" path already used — so the count recomputes and the banner clears at zero.
+
+### Added
+- **"Save & Send Invites" button inside the event editor.** Previously invites could only be dispatched from the post-save banner. A green **Save & Send Invites** button in the editor toolbar (`www/calendar.php`, shown only when notifications are enabled) sets a `send_after_save` flag; after the save, the `add`/`edit` handler runs the same logic as the explicit `send_invites` action (approved base invitees with no existing `invite` marker) and dispatches in one step. The existing post-save prompt remains for later/partial sends.
+- **Progress overlay while the editor saves.** Clicking either save button now shows a centered popup with an animated completion bar ("Saving & sending invitations…" or "Saving event…") so the full-page save+reload no longer just blinks the window shut. Navigation is deliberately held ~1.3s so the bar is visible (the save itself is near-instant); `form.submit()` bypasses the handler so there's no resubmit loop.
+- **Clearer invitee picker in the editor.** Already-invited contacts in the left list now show a green ✓ with legible muted text (was a near-invisible gray), and the right "Invited" list auto-numbers `1. 2. 3.` via a CSS counter that reflows on add/remove — both in `www/calendar.php`.
+- **The tokenized RSVP confirm screen now shows event details.** `www/rsvp.php`'s GET confirmation step previously rendered just a bare Confirm button; it now displays the event title, date/time, description, and who's going/maybe above the button so invitees can see what they're responding to. The **Cancel** link returns to the event details page (`/event.php?token=…`) instead of the site root.
+- **Event details page additions.** The public token-based event page (`www/event.php`) gained a **Pending** group in the "Who's coming" list for approved invitees who haven't responded yet (alongside Going / Maybe / Can't make it), plus a **"Done · Go to <site>"** exit link at the bottom of the card.
+
+---
+
 ## [v0.19323] - 2026-06-03
 
 ### Fixed

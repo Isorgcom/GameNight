@@ -27,7 +27,7 @@ if ($token === '' || !in_array($rsvp, $valid, true)) {
 }
 
 $db   = get_db();
-$stmt = $db->prepare('SELECT ei.id, ei.event_id, ei.username, ei.rsvp, ei.approval_status, ei.rsvp_token_flips, e.title, e.start_date, e.start_time
+$stmt = $db->prepare('SELECT ei.id, ei.event_id, ei.username, ei.rsvp, ei.approval_status, ei.rsvp_token_flips, e.title, e.description, e.start_date, e.start_time, e.end_time
                        FROM event_invites ei
                        JOIN events e ON e.id = ei.event_id
                        WHERE ei.rsvp_token = ?');
@@ -69,7 +69,48 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     $csrf      = csrf_token();
     $alreadySet = !$rsvp_changed;
     $heading   = $alreadySet ? 'Confirm RSVP: ' . $label : 'Confirm Your RSVP';
-    $body      = '<p>Confirm your RSVP for <strong>' . htmlspecialchars($invite['title']) . '</strong> on ' . htmlspecialchars($date_str) . ' as <strong>' . $label . '</strong>?</p>';
+
+    // Event details so the invitee can read what they're responding to before committing.
+    $pretty_date = date('l, F j, Y', strtotime($invite['start_date']));
+    $pretty_time = '';
+    if (!empty($invite['start_time'])) {
+        $pretty_time = date('g:i A', strtotime($invite['start_time']));
+        if (!empty($invite['end_time'])) $pretty_time .= ' &ndash; ' . date('g:i A', strtotime($invite['end_time']));
+    }
+
+    // Who's coming — approved base invitees only (display names, no contact info).
+    $attStmt = $db->prepare("SELECT username, rsvp FROM event_invites
+                             WHERE event_id = ? AND occurrence_date IS NULL AND approval_status = 'approved'
+                             ORDER BY COALESCE(sort_order, 999999), username");
+    $attStmt->execute([(int)$invite['event_id']]);
+    $going = []; $maybeList = [];
+    foreach ($attStmt->fetchAll() as $a) {
+        $r = strtolower((string)($a['rsvp'] ?? ''));
+        if ($r === 'yes')   $going[]     = $a['username'];
+        if ($r === 'maybe') $maybeList[] = $a['username'];
+    }
+    $names_block = function(string $lbl, array $names, string $color): string {
+        if (empty($names)) return '';
+        $out  = '<div style="margin-top:.85rem"><div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:' . $color . ';margin-bottom:.3rem">'
+              . htmlspecialchars($lbl) . ' (' . count($names) . ')</div><div style="display:flex;flex-wrap:wrap;gap:.3rem;justify-content:center">';
+        foreach ($names as $n) {
+            $out .= '<span style="font-size:.82rem;color:#334155;background:#f1f5f9;border-radius:999px;padding:.18rem .65rem">' . htmlspecialchars($n) . '</span>';
+        }
+        return $out . '</div></div>';
+    };
+
+    $body  = '<div style="text-align:left;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:1rem 1.1rem;margin-bottom:1.25rem">';
+    $body .= '<div style="font-size:1.05rem;font-weight:800;color:#1e293b;margin-bottom:.3rem">' . htmlspecialchars($invite['title']) . '</div>';
+    $body .= '<div style="font-size:.9rem;color:#475569">' . htmlspecialchars($pretty_date) . '</div>';
+    if ($pretty_time !== '') $body .= '<div style="font-size:.9rem;color:#475569">' . $pretty_time . '</div>';
+    if (!empty($invite['description'])) {
+        $body .= '<div style="margin-top:.7rem;font-size:.9rem;color:#334155;line-height:1.5">' . nl2br(htmlspecialchars($invite['description'])) . '</div>';
+    }
+    $body .= $names_block('Going', $going, '#16a34a');
+    $body .= $names_block('Maybe', $maybeList, '#d97706');
+    $body .= '</div>';
+
+    $body     .= '<p>RSVP for this event as <strong>' . $label . '</strong>?</p>';
     $btnColor  = $rsvp === 'yes' ? '#16a34a' : ($rsvp === 'no' ? '#dc2626' : '#d97706');
     $body     .= '<form method="post" action="/rsvp.php" style="margin-top:1.5rem">'
               . '<input type="hidden" name="csrf_token" value="' . htmlspecialchars($csrf) . '">'
@@ -77,7 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
               . '<input type="hidden" name="r" value="' . htmlspecialchars($rsvp) . '">'
               . '<button type="submit" style="display:inline-block;padding:.7rem 2rem;border:none;border-radius:6px;background:' . $btnColor . ';color:#fff;font-weight:600;font-size:1rem;cursor:pointer">Confirm ' . $label . '</button>'
               . '</form>'
-              . '<p style="margin-top:1rem"><a href="/" style="color:#64748b;text-decoration:none;font-size:.875rem">Cancel</a></p>';
+              . '<p style="margin-top:1rem"><a href="/event.php?token=' . urlencode($token) . '" style="color:#64748b;text-decoration:none;font-size:.875rem">Cancel</a></p>';
     show_page($heading, $body, 'success');
     exit;
 }

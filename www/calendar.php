@@ -98,22 +98,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // occurrence_date: null = manage base (all occurrences), date = manage this date only
     $invite_occ_date = (preg_match('/^\d{4}-\d{2}-\d{2}$/', $_POST['occurrence_date'] ?? '')) ? $_POST['occurrence_date'] : null;
     $save_invites  = function(int $eid, array &$new_usernames = []) use ($db, $inv_usernames, $inv_phones, $inv_emails, $inv_rsvps, $inv_roles, $inv_sort_orders, $valid_rsvps, $invite_occ_date): void {
+        // Capture existing rows (token + flip count) keyed by lowercase username BEFORE the
+        // delete/re-insert below so we can preserve each invitee's rsvp_token. Regenerating
+        // tokens on every save silently broke every previously-emailed RSVP/event link
+        // (they pointed at a token that no longer existed → "link no longer valid").
+        $old_tokens = []; // uname => ['rsvp_token' => ..., 'rsvp_token_flips' => int]
         if ($invite_occ_date) {
             // Occurrence-specific: only manage rows for this date; leave base rows untouched
-            $old = $db->prepare('SELECT LOWER(username) as uname FROM event_invites WHERE event_id=? AND occurrence_date=?');
+            $old = $db->prepare('SELECT LOWER(username) as uname, rsvp_token, rsvp_token_flips FROM event_invites WHERE event_id=? AND occurrence_date=?');
             $old->execute([$eid, $invite_occ_date]);
-            $old_names = array_column($old->fetchAll(), 'uname');
+            foreach ($old->fetchAll() as $r) $old_tokens[$r['uname']] = $r;
+            $old_names = array_keys($old_tokens);
             $db->prepare('DELETE FROM event_invites WHERE event_id=? AND occurrence_date=?')->execute([$eid, $invite_occ_date]);
         } else {
             // Base (all occurrences): only manage rows where occurrence_date IS NULL
-            $old = $db->prepare('SELECT LOWER(username) as uname FROM event_invites WHERE event_id=? AND occurrence_date IS NULL');
+            $old = $db->prepare('SELECT LOWER(username) as uname, rsvp_token, rsvp_token_flips FROM event_invites WHERE event_id=? AND occurrence_date IS NULL');
             $old->execute([$eid]);
-            $old_names = array_column($old->fetchAll(), 'uname');
+            foreach ($old->fetchAll() as $r) $old_tokens[$r['uname']] = $r;
+            $old_names = array_keys($old_tokens);
             $db->prepare('DELETE FROM event_invites WHERE event_id=? AND occurrence_date IS NULL')->execute([$eid]);
         }
 
         // Creator/manager-added invites auto-approve regardless of the event's requires_approval flag.
-        $ins = $db->prepare("INSERT INTO event_invites (event_id, username, phone, email, rsvp, rsvp_token, occurrence_date, event_role, approval_status, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'approved', ?)");
+        $ins = $db->prepare("INSERT INTO event_invites (event_id, username, phone, email, rsvp, rsvp_token, rsvp_token_flips, occurrence_date, event_role, approval_status, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved', ?)");
         // Build a lookup of user contact info for auto-filling
         $userLookup = [];
         $uAll = $db->query('SELECT username, email, phone FROM users ORDER BY username')->fetchAll();
@@ -128,9 +135,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $phone_raw = $inv_phones[$i] !== '' ? $inv_phones[$i] : ($userLookup[$uKey]['phone'] ?? '');
             $email_raw = $inv_emails[$i] !== '' ? $inv_emails[$i] : ($userLookup[$uKey]['email'] ?? '');
             $phone_norm = $phone_raw !== '' ? normalize_phone($phone_raw) : '';
-            $token = bin2hex(random_bytes(16));
+            // Reuse this invitee's existing token + flip count when they were already on the
+            // event (keeps their emailed RSVP link alive across edits); mint a fresh token
+            // only for genuinely new invitees.
+            $prior = $old_tokens[$uKey] ?? null;
+            $token = ($prior['rsvp_token'] ?? '') !== '' ? $prior['rsvp_token'] : bin2hex(random_bytes(16));
+            $tokenFlips = (int)($prior['rsvp_token_flips'] ?? 0);
             $sortOrd = $inv_sort_orders[$i] ?? ($i + 1);
-            $ins->execute([$eid, canonical_username($inv_usernames[$i]), $phone_norm ?: null, $email_raw ?: null, $rsvp, $token, $invite_occ_date, $role, $sortOrd]);
+            $ins->execute([$eid, canonical_username($inv_usernames[$i]), $phone_norm ?: null, $email_raw ?: null, $rsvp, $token, $tokenFlips, $invite_occ_date, $role, $sortOrd]);
             // Only track new invitees for base (all-occurrence) saves so notifications go out
             if (!$invite_occ_date && !in_array(strtolower($inv_usernames[$i]), $old_names, true)) {
                 $new_usernames[] = strtolower($inv_usernames[$i]);
@@ -845,6 +857,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // "Save & Send Invites" from the editor: dispatch invites right after the save instead of
+    // making the host find the post-save "Send Invitations" prompt. Mirrors the explicit
+    // send_invites action (approved base invitees with no existing 'invite' marker), then
+    // falls through to the normal post-save redirect.
+    if (!empty($_POST['send_after_save']) && in_array($action, ['add', 'edit'], true)
+        && !empty($notify_eid) && get_setting('notifications_enabled', '0') === '1') {
+        $rows = $db->prepare(
+            "SELECT ei.username FROM event_invites ei
+             WHERE ei.event_id = ? AND ei.occurrence_date IS NULL AND ei.approval_status = 'approved'
+               AND NOT EXISTS (
+                   SELECT 1 FROM event_notifications_sent ens
+                   WHERE ens.event_id = ei.event_id AND ens.notification_type = 'invite'
+                     AND ens.occurrence_date = '' AND ens.user_identifier = LOWER(ei.username)
+               )"
+        );
+        $rows->execute([(int)$notify_eid]);
+        $targets   = array_column($rows->fetchAll(), 'username');
+        $queueStmt = $db->prepare("INSERT INTO pending_notifications (event_id, username, notify_type) VALUES (?, ?, 'invite')");
+        $sentN = 0;
+        foreach ($targets as $uname) { $queueStmt->execute([(int)$notify_eid, $uname]); $sentN++; }
+        if ($sentN > 0) {
+            db_log_activity((int)$current['id'], "sent invites to $sentN invitee(s) on event id: $notify_eid (save & send)");
+            drain_queue_async();
+            $_SESSION['flash'] = ['type' => 'success', 'msg' => "Event saved. Invitations sent to $sentN invitee(s)."];
+        }
+    }
+
     $back_wk = $_POST['wk_param'] ?? '';
     $back_m  = $_POST['month_param'] ?? '';
     // After add: navigate to the event's week/month so user can see it
@@ -1369,6 +1408,12 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         .pk-toggle-input:checked + .pk-toggle-sm::after { transform:translateX(12px); }
         #eInvitedList li[data-iname] { display:flex;align-items:center;gap:.4rem;cursor:grab; }
         #eInvitedList li[data-iname].inv-dragging { opacity:.4;background:#dbeafe; }
+        /* Auto-number the invited list (1. 2. 3. …). Scoped to real invitee rows so the
+           custom-entry row and capacity/declined dividers don't get counted, and reflows
+           automatically on add/remove with no JS. */
+        #eInvitedList { counter-reset: inv; }
+        #eInvitedList li[data-iname] { counter-increment: inv; }
+        #eInvitedList li[data-iname] .inv-name-text::before { content: counter(inv) ". "; color:#94a3b8;font-weight:600; }
         .inv-rsvp-badge { font-size:.6rem;font-weight:700;padding:.1rem .35rem;border-radius:3px;text-transform:uppercase;letter-spacing:.03em;flex-shrink:0; }
         .inv-rsvp-yes { background:#dcfce7;color:#166534; }
         .inv-rsvp-no { background:#fee2e2;color:#991b1b; }
@@ -1402,7 +1447,10 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         .invite-pane-list li { padding:.35rem .6rem;border-radius:5px;font-size:.875rem;cursor:pointer;user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
         .invite-pane-list li:hover { background:#f1f5f9; }
         .invite-pane-list li.inv-selected { background:#dbeafe !important;color:#1e40af; }
-        .invite-pane-list li.dimmed { color:#cbd5e1;cursor:default; }
+        /* Already-invited contacts: a green check + muted (but still legible) text so it's
+           obvious at a glance which of many names are already on the right. */
+        .invite-pane-list li.dimmed { color:#94a3b8;cursor:default; }
+        .invite-pane-list li.dimmed::before { content:'\2713\00a0';color:#16a34a;font-weight:700; }
         .invite-pane-list li.dimmed:hover { background:transparent; }
         .invite-pane-list li.custom-row { padding:.2rem .4rem;cursor:default; }
         .invite-pane-list li.custom-row:hover { background:transparent; }
@@ -1915,6 +1963,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             <input type="hidden" name="end_date" id="eEndDate" value="">
             <input type="hidden" name="end_time" id="eEndTime" value="">
             <input type="hidden" name="color" id="eColor" value="#2563eb">
+            <input type="hidden" name="send_after_save" id="eSendAfterSave" value="">
 
             <!-- ── Unified top bar: league + vis + color + title + date + time + duration ── -->
             <div class="edit-top-bar">
@@ -1963,7 +2012,10 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
                 <label class="edit-notify-row" title="Send reminders before the event"><span>Reminders</span><input type="checkbox" name="reminders_enabled" id="eRemindersEnabled" value="1" class="pk-toggle-input" onchange="toggleReminderFields()" checked><span class="pk-toggle-slider"></span></label>
                 <span class="edit-desc-toggle" id="eDescToggle" onclick="toggleDesc()">+ Description</span>
                 <div style="flex:1"></div>
-                <button type="submit" class="btn btn-primary" id="eSubmitBtn">Add Event</button>
+                <button type="submit" class="btn btn-primary" id="eSubmitBtn" onclick="document.getElementById('eSendAfterSave').value=''">Add Event</button>
+                <?php if (get_setting('notifications_enabled', '0') === '1'): ?>
+                <button type="submit" class="btn btn-primary" id="eSubmitSendBtn" style="background:#16a34a;border-color:#16a34a" onclick="document.getElementById('eSendAfterSave').value='1'" title="Save the event and send invitations now">Save &amp; Send Invites</button>
+                <?php endif; ?>
                 <button type="button" class="btn btn-outline" onclick="closeEdit()">Cancel</button>
             </div>
 
@@ -2040,6 +2092,17 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             </button>
         </div>
         <?php endif; ?>
+    </div>
+</div>
+
+<!-- ── Save / Send progress overlay (shown while the editor POSTs + queues invites) ── -->
+<div id="saveSendOverlay" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.55);align-items:center;justify-content:center;padding:1rem">
+    <div style="background:#fff;border-radius:14px;padding:1.75rem 2rem;max-width:360px;width:100%;text-align:center;box-shadow:0 16px 48px rgba(0,0,0,.3)">
+        <div id="saveSendTitle" style="font-size:1.05rem;font-weight:700;color:#1e293b;margin-bottom:.4rem">Saving event&hellip;</div>
+        <div id="saveSendMsg" style="font-size:.85rem;color:#64748b;margin-bottom:1.1rem">Please wait.</div>
+        <div style="height:9px;background:#e2e8f0;border-radius:99px;overflow:hidden">
+            <div id="saveSendBar" style="height:100%;width:8%;background:#16a34a;border-radius:99px;transition:width .35s ease"></div>
+        </div>
     </div>
 </div>
 <?php endif; ?>
@@ -2658,6 +2721,9 @@ if (vInvDiv) {
                     btn.style.borderColor = '#86efac';
                     btn.style.color = '#166534';
                     showSavedBar();
+                    // Refetch invite state so the "Invitations not sent to N" banner count
+                    // recomputes after this individual send (same refresh the bulk path uses).
+                    pollRsvps(eid);
                 })
                 .catch(() => {
                     btn.disabled = false;
@@ -3292,7 +3358,29 @@ function getTimePicker() {
     return document.getElementById('eTimeNative').value || '';
 }
 
-document.getElementById('editForm').addEventListener('submit', function() {
+// Progress overlay shown during the editor's full-page POST. Because the form navigates
+// (POST → redirect), the overlay stays up until the new page loads, then vanishes with it.
+// The bar eases toward ~92% to convey motion; real "100%" is the page reload itself.
+function showSaveSendOverlay(sending) {
+    const ov = document.getElementById('saveSendOverlay');
+    if (!ov) return;
+    document.getElementById('saveSendTitle').textContent = sending ? 'Saving & sending invitations…' : 'Saving event…';
+    document.getElementById('saveSendMsg').textContent   = sending ? 'Saving the event and sending invitation emails.' : 'Saving your changes.';
+    const bar = document.getElementById('saveSendBar');
+    let pct = 8; bar.style.width = pct + '%';
+    ov.style.display = 'flex';
+    const iv = setInterval(function() {
+        pct += Math.max(1, (92 - pct) * 0.12);
+        if (pct >= 92) { pct = 92; clearInterval(iv); }
+        bar.style.width = pct + '%';
+    }, 180);
+}
+
+document.getElementById('editForm').addEventListener('submit', function(e) {
+    // Show the saving/sending progress overlay (this fires only after HTML5 validation passes).
+    const _sas = document.getElementById('eSendAfterSave');
+    showSaveSendOverlay(!!(_sas && _sas.value === '1'));
+
     // Sync time picker → hidden input
     const st = getTimePicker();
     document.getElementById('eStartTime').value = st;
@@ -3348,6 +3436,13 @@ document.getElementById('editForm').addEventListener('submit', function() {
         addHidden('invite_role[]',       'invitee');
         addHidden('invite_sort_order[]', sortIdx);
     });
+
+    // Hold the actual navigation back a beat so the progress bar is visible — the save
+    // itself is near-instant and a flash of overlay reads as a glitch. form.submit()
+    // (called below) does NOT re-fire this 'submit' handler, so there's no loop.
+    e.preventDefault();
+    const _form = this;
+    setTimeout(function() { _form.submit(); }, 1300);
 });
 
 function openEditModal(ev) {
@@ -3356,6 +3451,7 @@ function openEditModal(ev) {
     document.getElementById('editModalTitle').textContent = ev ? 'Edit Event' : 'Add Event';
     document.getElementById('eAction').value    = ev ? 'edit' : 'add';
     document.getElementById('eId').value        = ev ? ev.id : '';
+    var _sas = document.getElementById('eSendAfterSave'); if (_sas) _sas.value = '';
     document.getElementById('eOccDate').value   = '';
     document.getElementById('eTitle').value     = ev ? ev.title : '';
     document.getElementById('eStartDate').value = ev ? (ev.start_date_input || ev.start_date) : new Date().toLocaleDateString('en-CA');
