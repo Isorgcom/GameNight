@@ -5607,23 +5607,15 @@ if (!IS_REMOTE) {
         qr.addData(remoteUrl);
         qr.make();
         var size = 120;
-        var modules = qr.getModuleCount();
-        var canvas = document.createElement('canvas');
-        canvas.width = size;
-        canvas.height = size;
-        var ctx = canvas.getContext('2d');
-        var cellSize = size / modules;
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, size, size);
-        ctx.fillStyle = '#000000';
-        for (var r = 0; r < modules; r++) {
-            for (var c = 0; c < modules; c++) {
-                if (qr.isDark(r, c)) {
-                    ctx.fillRect(c * cellSize, r * cellSize, cellSize + 0.5, cellSize + 0.5);
-                }
-            }
-        }
-        qrWrap.appendChild(canvas);
+        // Use the qrcode library's own image output. The previous hand-rolled canvas draw
+        // rendered as a solid black square in some browsers, so render to an <img> instead.
+        var img = document.createElement('img');
+        img.src = qr.createDataURL(8, 4);
+        img.width = size;
+        img.height = size;
+        img.style.imageRendering = 'pixelated';
+        img.alt = 'QR code';
+        qrWrap.appendChild(img);
 
         qrWrap.style.cursor = 'pointer';
         qrWrap.addEventListener('click', function() {

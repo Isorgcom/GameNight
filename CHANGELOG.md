@@ -4,6 +4,14 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19325] - 2026-06-04
+
+### Fixed
+- **QR codes rendered as a solid black square in some browsers.** Every QR code in the app (walk-up registration modal in `www/calendar.php`, the "Open on separate screen" display `www/walkin_display.php`, the duplicate copy in `www/calendar_dl.php`, and the remote-timer code in `www/timer.php`) was drawn by hand onto an HTML `<canvas>` — looping the module matrix and painting each dark cell with `fillRect`. That manual canvas path produced a fully black bitmap in some browsers while the QR data itself was valid, so scanning was impossible. All four now render via the qrcode-generator library's own `createDataURL()` into an `<img>` (with `image-rendering: pixelated` to stay crisp when scaled), which is the library's supported output path. No change to the encoded URLs or the surrounding modal/click behavior.
+- **Editing an event dropped you back on the bare calendar instead of the event.** The post-save redirect in `www/calendar.php` only appended the auto-open suffix (`&open=<id>&date=<date>`) for the `add` action, so creating an event reopened its detail view but editing one landed on the month grid with nothing open — the host lost the "Send Invitations" prompt and RSVP roster they were working from. The redirect now emits the suffix for `edit` as well, reusing the existing generic `?open=ID&date=DATE` auto-open path, and picks the edited occurrence's date when a single occurrence was managed (otherwise the event's start date), so the page lands back on the event the host just saved.
+
+---
+
 ## [v0.19324] - 2026-06-04
 
 ### Fixed

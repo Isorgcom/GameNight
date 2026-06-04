@@ -886,21 +886,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $back_wk = $_POST['wk_param'] ?? '';
     $back_m  = $_POST['month_param'] ?? '';
-    // After add: navigate to the event's week/month so user can see it
-    if ($action === 'add' && !empty($sd)) {
+    // Date the event's detail view should reopen on: the edited occurrence when a single
+    // occurrence was managed, otherwise the (possibly newly-moved) start date.
+    $open_date = !empty($invite_occ_date) ? $invite_occ_date : $sd;
+    // After add OR edit: navigate to the event's week/month so the user can see it.
+    if (in_array($action, ['add', 'edit'], true) && !empty($open_date)) {
         if (!empty($back_wk)) {
-            // Came from week view - compute the Sunday of the event's start date
-            $evDt  = new DateTime($sd, $local_tz);
+            // Came from week view - compute the Sunday of the event's date
+            $evDt  = new DateTime($open_date, $local_tz);
             $evDow = (int)$evDt->format('w');
             $back_wk = (clone $evDt)->modify("-{$evDow} days")->format('Y-m-d');
         } else {
-            $back_m = substr($sd, 0, 7);
+            $back_m = substr($open_date, 0, 7);
         }
     }
-    // After creating a new event, auto-open its detail view so the host immediately sees the
-    // "Send Invitations" prompt — invites are no longer sent automatically on save.
-    $openSuffix = ($action === 'add' && !empty($notify_eid) && !empty($sd))
-        ? '&open=' . (int)$notify_eid . '&date=' . urlencode($sd)
+    // Auto-open the event's detail view after add or edit so the host lands back on the
+    // event (where the "Send Invitations" prompt and RSVP roster live) instead of the bare
+    // month grid. Reuses the generic ?open=ID&date=DATE path handled later in this file.
+    $openSuffix = (in_array($action, ['add', 'edit'], true) && !empty($notify_eid) && !empty($open_date))
+        ? '&open=' . (int)$notify_eid . '&date=' . urlencode($open_date)
         : '';
     if (!empty($back_wk)) {
         header('Location: /calendar.php?wk=' . urlencode($back_wk) . $openSuffix);
@@ -3856,17 +3860,14 @@ function buildQRCanvas(url, size) {
     var qr = qrcode(0, 'M');
     qr.addData(url);
     qr.make();
-    var modules = qr.getModuleCount();
-    var canvas = document.createElement('canvas');
-    canvas.width = size; canvas.height = size;
-    var ctx = canvas.getContext('2d');
-    var cell = size / modules;
-    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, size, size);
-    ctx.fillStyle = '#000000';
-    for (var r = 0; r < modules; r++)
-        for (var c = 0; c < modules; c++)
-            if (qr.isDark(r, c)) ctx.fillRect(c * cell, r * cell, cell + 0.5, cell + 0.5);
-    return canvas;
+    // Use the qrcode library's own image output. The previous hand-rolled canvas draw
+    // rendered as a solid black square in some browsers, so render to an <img> instead.
+    var img = document.createElement('img');
+    img.src = qr.createDataURL(8, 4);
+    img.width = size; img.height = size;
+    img.style.imageRendering = 'pixelated';
+    img.alt = 'QR code';
+    return img;
 }
 
 function openWalkinQR() {
