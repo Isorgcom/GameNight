@@ -56,7 +56,7 @@ $base = [];
 $occ  = [];
 foreach ($stmt->fetchAll() as $inv) {
     if ($inv['occurrence_date'] === null) {
-        $row = ['username' => $inv['username'], 'rsvp' => $inv['rsvp'], 'approval_status' => $inv['approval_status'], 'sort_order' => $inv['sort_order'], 'event_role' => $inv['event_role'] ?? 'invitee', 'sent' => !empty($inv['invite_sent'])];
+        $row = ['username' => $inv['username'], 'rsvp' => $inv['rsvp'], 'approval_status' => $inv['approval_status'], 'sort_order' => $inv['sort_order'], 'event_role' => $inv['event_role'] ?? 'invitee', 'sent' => !empty($inv['invite_sent']), 'phone' => $inv['phone'] ?? '', 'email' => $inv['email'] ?? '', 'no_contact' => (trim((string)($inv['phone'] ?? '')) === '' && trim((string)($inv['email'] ?? '')) === '')];
         $base[] = $row;
     } else {
         $occ[$inv['occurrence_date']][] = ['username' => $inv['username'], 'rsvp' => $inv['rsvp'], 'approval_status' => $inv['approval_status']];

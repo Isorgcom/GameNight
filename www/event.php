@@ -178,7 +178,7 @@ function ev_names_block(string $label, array $names, string $color): string {
         <?php
         $whos = ev_names_block('Going', $going, '#16a34a')
               . ev_names_block('Maybe', $maybe, '#d97706')
-              . ev_names_block('Pending', $pending, '#64748b')
+              . ev_names_block('Invited', $pending, '#64748b')
               . ev_names_block("Can't make it", $declined, '#94a3b8');
         if ($whos !== ''): ?>
         <div style="margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid #e2e8f0"><?= $whos ?></div>

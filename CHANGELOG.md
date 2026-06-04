@@ -4,6 +4,19 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19327] - 2026-06-04
+
+### Added
+- **Per-invitee contact icons with inline editing in the event editor.** Each row in the editor's "Invited" list now shows a clickable contact indicator next to the name: an envelope (&#9993;) when an email is on file, a phone (&#9742;) when a phone is on file, both when both, or a red **NA** when neither. Clicking it opens a small popup with **Email** and **Phone** fields pre-filled from that invitee; saving writes the values back to the row and they persist on save (the form already submits `invite_email[]`/`invite_phone[]`, and `save_invites()` stores them). This gives hosts a direct way to fix invitees who can't be notified (e.g. a custom-typed guest added with no contact). Implemented in `www/calendar.php` (`inviteUser()`, `invContactCtlInner()`, `openContactEdit()`/`saveContactEdit()`, and the `#invContactModal` markup).
+- **Column header + fixed columns for the Invited list.** The editor's Invited list gained a header row labeling **Name / Contact / RSVP**, and the trailing controls (contact icon, RSVP badge, Mgr toggle) now sit in fixed-width columns so the header lines up with every row. The Mgr column has no header label since the toggle is self-labeled.
+- **"Can't be notified" warning in the event view.** `renderInvitesPanel()` in `www/calendar.php` now flags invitees with no email and no phone: they're excluded from the "Invitations not sent to N" count (they could never be reached) and called out in a separate red warning, plus a small "no contact" tag on their row. Driven by a server-computed `no_contact` boolean added to the invite data in `www/calendar.php` and `www/event_invites_dl.php`.
+
+### Changed
+- **Invitee contact details (email/phone) are no longer stripped from the calendar's invite data.** Previously phone/email were removed from the per-event invite JSON for privacy; they're now kept so the editor can show and edit each invitee's contact inline. Affects the page-load data in `www/calendar.php` and the poll endpoint `www/event_invites_dl.php`.
+- **Public event page: the no-reply group is now labeled "Invited" instead of "Pending".** In `www/event.php`, approved invitees who haven't responded yet show under an **Invited** heading (alongside Going / Maybe / Can't make it), which reads more naturally than "Pending".
+
+---
+
 ## [v0.19326] - 2026-06-04
 
 ### Fixed

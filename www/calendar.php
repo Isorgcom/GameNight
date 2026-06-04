@@ -1096,17 +1096,21 @@ if ($current && !$isAdmin) {
     $managedEventIds = array_values(array_unique($managedEventIds));
 }
 
-// Strip contact details from invite data for all users (privacy — no need to expose in the calendar view)
+// Contact details (phone/email) are kept in the invite data so the event editor can show
+// and edit each invitee's contact inline. `no_contact` flags invitees with neither, to warn
+// the host they can't be notified.
 {
     foreach ($ev_invites as $eid => &$_invList) {
         foreach ($_invList as &$_inv) {
-            unset($_inv['phone'], $_inv['email']);
+            $_inv['no_contact'] = (trim((string)($_inv['phone'] ?? '')) === '' && trim((string)($_inv['email'] ?? '')) === '');
             $_inv['sent'] = !empty($ev_invite_sent[(int)$eid][strtolower($_inv['username'])]);
         }
     }
     foreach ($ev_invites_occ as &$_occMap) {
         foreach ($_occMap as &$_invList) {
-            foreach ($_invList as &$_inv) { unset($_inv['phone'], $_inv['email']); }
+            foreach ($_invList as &$_inv) {
+                $_inv['no_contact'] = (trim((string)($_inv['phone'] ?? '')) === '' && trim((string)($_inv['email'] ?? '')) === '');
+            }
         }
     }
     unset($_invList, $_inv, $_occMap);
@@ -1423,6 +1427,12 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         .inv-rsvp-no { background:#fee2e2;color:#991b1b; }
         .inv-rsvp-maybe { background:#fef9c3;color:#854d0e; }
         .inv-rsvp-waitlist { background:#eff6ff;color:#1e40af;border:1px solid #93c5fd; }
+        .inv-nocontact-tag { display:inline-block;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:.05rem .35rem;border-radius:3px;background:#fee2e2;color:#991b1b;vertical-align:middle;flex-shrink:0; }
+        /* Per-invitee clickable contact indicator (editor invited list) */
+        .inv-contact-ctl { flex-shrink:0;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:.15rem;padding:.05rem .3rem;border-radius:4px;line-height:1; }
+        .inv-contact-ctl:hover { background:#e2e8f0; }
+        .inv-contact-ctl .inv-ci { color:#16a34a;font-size:.95rem;line-height:1; }
+        .inv-contact-ctl .inv-na { font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:#991b1b;background:#fee2e2;border-radius:3px;padding:.05rem .3rem; }
         .inv-capacity-divider {
             padding:.3rem .5rem;text-align:center;font-size:.7rem;font-weight:700;
             color:#dc2626;background:#fee2e2;border-top:2px dashed #fca5a5;border-bottom:2px dashed #fca5a5;
@@ -1445,6 +1455,15 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         .arrow-mobile { display:none; }
         .invite-pane { display:flex;flex-direction:column;border:1.5px solid #e2e8f0;border-radius:8px;overflow:hidden;min-height:200px; }
         .invite-pane-header { background:#f8fafc;padding:.35rem .65rem;font-size:.7rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;flex-shrink:0;border-bottom:1px solid #e2e8f0; }
+        .inv-col-head { display:flex;align-items:center;gap:.4rem;padding:.25rem .6rem;font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#94a3b8;border-bottom:1px solid #eef2f7;flex-shrink:0; }
+        .inv-col-head span:not(:first-child) { text-align:center; }
+        /* Fixed-width trailing columns so the Invited header lines up with each row */
+        .inv-col-contact { width:2.8rem;flex-shrink:0; }
+        .inv-col-rsvp    { width:3.4rem;flex-shrink:0; }
+        .inv-col-mgr     { width:3.4rem;flex-shrink:0; }
+        #eInvitedList li[data-iname] .inv-col-rsvp,
+        #eInvitedList li[data-iname] .inv-col-mgr { display:inline-flex;align-items:center;justify-content:center; }
+        #eInvitedList li[data-iname] .inv-col-mgr .mgr-toggle { margin-left:0; }
         .invite-pane-search { width:100%;padding:.38rem .65rem;border:none;border-bottom:1.5px solid #e2e8f0;font-size:.85rem;box-sizing:border-box;flex-shrink:0; }
         .invite-pane-search:focus { outline:none;border-color:#2563eb; }
         .invite-pane-list { flex:1;overflow-y:auto;list-style:none;margin:0;padding:.2rem; }
@@ -2081,6 +2100,12 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
                 <!-- Right: invited users -->
                 <div class="invite-pane">
                     <div class="invite-pane-header">Invited</div>
+                    <div class="inv-col-head">
+                        <span style="flex:1;min-width:0">Name</span>
+                        <span class="inv-col-contact" title="Click the icon on a row to add/edit email &amp; phone">Contact</span>
+                        <span class="inv-col-rsvp">RSVP</span>
+                        <span class="inv-col-mgr"></span>
+                    </div>
                     <ul class="invite-pane-list" id="eInvitedList"></ul>
                 </div>
             </div>
@@ -2096,6 +2121,26 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             </button>
         </div>
         <?php endif; ?>
+    </div>
+</div>
+
+<!-- ── Per-invitee contact editor (email / phone) ── -->
+<div class="modal-overlay" id="invContactModal" onclick="if(event.target===this)closeContactEdit()">
+    <div class="modal" style="max-width:340px">
+        <div class="modal-header" style="justify-content:space-between">
+            <h2 style="font-size:1rem;font-weight:700">Contact for <span id="invContactName"></span></h2>
+            <button class="modal-close" type="button" onclick="closeContactEdit()">&#x2715;</button>
+        </div>
+        <label style="display:block;font-size:.8rem;color:#475569;margin:.4rem 0 .15rem">Email</label>
+        <input type="email" id="invContactEmail" autocomplete="off" placeholder="name@example.com"
+               style="width:100%;padding:.5rem .6rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.9rem;box-sizing:border-box">
+        <label style="display:block;font-size:.8rem;color:#475569;margin:.6rem 0 .15rem">Phone</label>
+        <input type="tel" id="invContactPhone" autocomplete="off" placeholder="(555) 123-4567"
+               style="width:100%;padding:.5rem .6rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.9rem;box-sizing:border-box">
+        <div style="display:flex;gap:.5rem;margin-top:1rem">
+            <button type="button" class="btn btn-primary" style="flex:1" onclick="saveContactEdit()">Save</button>
+            <button type="button" class="btn btn-outline" style="flex:1" onclick="closeContactEdit()">Cancel</button>
+        </div>
     </div>
 </div>
 
@@ -2354,12 +2399,19 @@ function renderInvitesPanel(eid) {
     // invitee still has no invite on record. Invites are not auto-sent on save anymore.
     if (canManage && NOTIFS_ENABLED) {
         // Count self too — a host who invites themselves should still be able to send
-        // (and receive) the invite email for their own event.
-        const unsent = approved.filter(inv => !inv.sent);
+        // (and receive) the invite email for their own event. Invitees with no email/phone
+        // can never be reached, so keep them out of the "not sent" count and warn separately.
+        const unsent    = approved.filter(inv => !inv.sent && !inv.no_contact);
+        const noContact = approved.filter(inv => inv.no_contact);
         if (unsent.length) {
             ih += '<div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:.55rem .7rem;margin-bottom:.7rem">'
                 + '<span style="flex:1;min-width:0;font-size:.8rem;color:#92400e;font-weight:600">&#9888; Invitations not sent to ' + unsent.length + ' ' + (unsent.length === 1 ? 'person' : 'people') + '</span>'
                 + '<button type="button" class="btn-send-invites" data-eid="' + eid + '" style="font-size:.78rem;padding:.3rem .8rem;border-radius:6px;border:0;background:#2563eb;color:#fff;font-weight:600;cursor:pointer">Send Invitations</button>'
+                + '</div>';
+        }
+        if (noContact.length) {
+            ih += '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.5rem .7rem;margin-bottom:.7rem;font-size:.78rem;color:#991b1b;line-height:1.45">'
+                + '&#9888; ' + noContact.length + ' ' + (noContact.length === 1 ? 'invitee has' : 'invitees have') + ' no email or phone and can’t be notified. Edit the event to add a contact for them.'
                 + '</div>';
         }
     }
@@ -2383,7 +2435,9 @@ function renderInvitesPanel(eid) {
                     : '<span style="font-size:.75rem;color:#cbd5e1;font-weight:600">--</span>';
                 ih += '<span style="min-width:52px;text-align:center">' + badge + '</span>';
             }
-            ih += '<span style="flex:1;min-width:0">' + escHtml(inv.username) + '</span>';
+            ih += '<span style="flex:1;min-width:0">' + escHtml(inv.username)
+                + (inv.no_contact && canManage ? ' <span class="inv-nocontact-tag" title="No email or phone on file — this person can’t be sent an invite">no contact</span>' : '')
+                + '</span>';
             // Resend button: only for managers, only when no RSVP yet, only for non-self.
             if (canManage && NOTIFS_ENABLED && !inv.rsvp) {
                 const sendLabel = inv.sent ? 'Resend' : 'Send';
@@ -3114,19 +3168,31 @@ function inviteUser(username, phone, email, rsvp, role, approvalStatus) {
     nameSpan.className = 'inv-name-text';
     li.appendChild(nameSpan);
 
-    // RSVP status badge
+    // Clickable contact indicator: shows an email/phone glyph for whatever is on file (or
+    // "NA" when neither). Click opens a small popup to edit this invitee's email + phone.
+    const contactCtl = document.createElement('span');
+    contactCtl.className = 'inv-contact-ctl inv-col-contact';
+    contactCtl.title = 'Click to edit email / phone';
+    contactCtl.innerHTML = invContactCtlInner(li.dataset.iemail, li.dataset.iphone);
+    contactCtl.addEventListener('click', function(e) { e.stopPropagation(); openContactEdit(li); });
+    contactCtl.addEventListener('dblclick', function(e) { e.stopPropagation(); });
+    li.appendChild(contactCtl);
+
+    // RSVP status badge — in a fixed-width column so the header lines up. Empty when no reply.
+    const rsvpSlot = document.createElement('span');
+    rsvpSlot.className = 'inv-col-rsvp';
     var badge = document.createElement('span');
     badge.className = 'inv-rsvp-badge';
-    if (rsvp === 'yes')        { badge.textContent = 'Yes';    badge.classList.add('inv-rsvp-yes'); }
-    else if (rsvp === 'no')    { badge.textContent = 'No';     badge.classList.add('inv-rsvp-no'); }
-    else if (rsvp === 'maybe') { badge.textContent = 'Maybe';  badge.classList.add('inv-rsvp-maybe'); }
-    else if (approvalStatus === 'waitlisted') { badge.textContent = 'Waitlist'; badge.classList.add('inv-rsvp-waitlist'); }
-    else                       { badge.textContent = '';        badge.style.display = 'none'; }
-    li.appendChild(badge);
+    if (rsvp === 'yes')        { badge.textContent = 'Yes';    badge.classList.add('inv-rsvp-yes');    rsvpSlot.appendChild(badge); }
+    else if (rsvp === 'no')    { badge.textContent = 'No';     badge.classList.add('inv-rsvp-no');     rsvpSlot.appendChild(badge); }
+    else if (rsvp === 'maybe') { badge.textContent = 'Maybe';  badge.classList.add('inv-rsvp-maybe');  rsvpSlot.appendChild(badge); }
+    else if (approvalStatus === 'waitlisted') { badge.textContent = 'Waitlist'; badge.classList.add('inv-rsvp-waitlist'); rsvpSlot.appendChild(badge); }
+    li.appendChild(rsvpSlot);
 
-    // Manager toggle — shown to admins, the event creator, and (on a brand-new event)
-    // the host creating it. editingEvId === 0 means add-mode: the current user is the
-    // creator-to-be, so they may grant manager access right away.
+    // Manager toggle column (fixed width; toggle shown to admins, the event creator, and —
+    // on a brand-new event — the host creating it). The empty column keeps rows aligned.
+    const mgrSlot = document.createElement('span');
+    mgrSlot.className = 'inv-col-mgr';
     const editingEvId = parseInt(document.getElementById('eId').value) || 0;
     const editingCreatedBy = currentEvent ? currentEvent.created_by : null;
     const canGrantManager = IS_ADMIN || (!editingEvId && CAN_CREATE_EVENTS)
@@ -3140,10 +3206,11 @@ function inviteUser(username, phone, email, rsvp, role, approvalStatus) {
             e.stopPropagation();
             li.dataset.irole = this.checked ? 'manager' : 'invitee';
         });
-        tog.addEventListener(isMobileInvite ? 'click' : 'click', function(e) { e.stopPropagation(); });
+        tog.addEventListener('click', function(e) { e.stopPropagation(); });
         tog.addEventListener('dblclick', function(e) { e.stopPropagation(); });
-        li.appendChild(tog);
+        mgrSlot.appendChild(tog);
     }
+    li.appendChild(mgrSlot);
 
     li.title = 'Click to select, or double-click to remove';
     li.addEventListener('click', function(e) {
@@ -3173,6 +3240,39 @@ function inviteUser(username, phone, email, rsvp, role, approvalStatus) {
     document.getElementById('eInvitedList').appendChild(li);
     syncInviteState();
     updateDividerLine();
+}
+
+// ── Per-invitee contact icon + inline editor ─────────────────────────────────
+// Builds the little email/phone/NA indicator shown on each invited row.
+function invContactCtlInner(email, phone) {
+    var hasE = !!(email && String(email).trim());
+    var hasP = !!(phone && String(phone).trim());
+    if (!hasE && !hasP) return '<span class="inv-na">NA</span>';
+    var s = '';
+    if (hasE) s += '<span class="inv-ci" title="Has email">&#9993;</span>';
+    if (hasP) s += '<span class="inv-ci" title="Has phone">&#9742;</span>';
+    return s;
+}
+var _contactEditLi = null;
+function openContactEdit(li) {
+    _contactEditLi = li;
+    document.getElementById('invContactName').textContent = li.dataset.iname || 'invitee';
+    document.getElementById('invContactEmail').value = li.dataset.iemail || '';
+    document.getElementById('invContactPhone').value = li.dataset.iphone || '';
+    document.getElementById('invContactModal').classList.add('open');
+    setTimeout(function(){ document.getElementById('invContactEmail').focus(); }, 30);
+}
+function closeContactEdit() {
+    document.getElementById('invContactModal').classList.remove('open');
+    _contactEditLi = null;
+}
+function saveContactEdit() {
+    if (!_contactEditLi) { closeContactEdit(); return; }
+    _contactEditLi.dataset.iemail = document.getElementById('invContactEmail').value.trim();
+    _contactEditLi.dataset.iphone = document.getElementById('invContactPhone').value.trim();
+    var ctl = _contactEditLi.querySelector('.inv-contact-ctl');
+    if (ctl) ctl.innerHTML = invContactCtlInner(_contactEditLi.dataset.iemail, _contactEditLi.dataset.iphone);
+    closeContactEdit();
 }
 
 function removeInvite(username) {
