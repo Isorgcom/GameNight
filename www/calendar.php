@@ -3049,6 +3049,10 @@ function buildAllUsersList() {
         });
         ul.appendChild(li);
     });
+    // Re-apply the already-invited dimming/checkmarks every time the list is (re)built.
+    // This list gets rebuilt asynchronously (refreshUserList, league changes), which would
+    // otherwise wipe the state set when an event editor first opens with invitees loaded.
+    syncInviteState();
 }
 
 // Fetch the scoped contact list for the current league selection and rebuild the pane.

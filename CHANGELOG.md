@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19326] - 2026-06-04
+
+### Fixed
+- **Already-invited contacts showed no "invited" checkmark when editing an event.** In the event editor (`www/calendar.php`), opening an existing event loads its invitees and calls `syncInviteState()` to dim/checkmark the matching names in the left contact list. But the editor then kicks off `refreshUserList()`, an async fetch that rebuilds the left list via `buildAllUsersList()` when it returns — wiping the dimming and never re-applying it, so editors opened with no checkmarks until the host manually removed and re-added someone (which re-triggered the sync). Creating a new event was unaffected because its checkmarks are applied per-add, after the list already exists. `buildAllUsersList()` now calls `syncInviteState()` at the end, so the invited-state styling is re-applied on every (re)build of the contact list, including async refreshes and league-filter changes.
+
+---
+
 ## [v0.19325] - 2026-06-04
 
 ### Fixed
