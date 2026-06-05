@@ -1643,6 +1643,31 @@ function canonical_username(string $typed): string {
     return $row !== false ? $row : $typed;
 }
 
+/**
+ * Resolve an invitee's email/phone from a user's saved contacts (user_contacts).
+ *
+ * Used to back-fill invites that were saved with no contact info (e.g. a contact added
+ * to an event before its email/phone was on file). Matches the invite's username against
+ * the contact's name OR a linked registered user's username, preferring rows that
+ * actually carry an email. Returns ['email'=>'', 'phone'=>''] when nothing matches.
+ */
+function invitee_contact_from_contacts(PDO $db, int $ownerId, string $username): array {
+    $username = trim($username);
+    if ($ownerId <= 0 || $username === '') return ['email' => '', 'phone' => ''];
+    $stmt = $db->prepare(
+        "SELECT c.contact_email AS email, c.contact_phone AS phone
+         FROM user_contacts c
+         LEFT JOIN users u ON u.id = c.linked_user_id
+         WHERE c.owner_user_id = ?
+           AND (LOWER(c.contact_name) = LOWER(?) OR LOWER(u.username) = LOWER(?))
+         ORDER BY (c.contact_email IS NOT NULL AND c.contact_email <> '') DESC, c.id
+         LIMIT 1"
+    );
+    $stmt->execute([$ownerId, $username, $username]);
+    $r = $stmt->fetch();
+    return ['email' => $r['email'] ?? '', 'phone' => $r['phone'] ?? ''];
+}
+
 function get_client_ip(): string {
     // X-Real-IP is set by the nginx reverse proxy
     if (!empty($_SERVER['HTTP_X_REAL_IP'])

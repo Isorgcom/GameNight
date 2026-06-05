@@ -250,7 +250,7 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
     $seenStmt->execute([$event_id, $occ_key, strtolower($username), $type_tag]);
     if ($seenStmt->fetchColumn()) return true;
 
-    $evStmt = $db->prepare('SELECT id, title, description, start_date, end_date, start_time, end_time FROM events WHERE id = ?');
+    $evStmt = $db->prepare('SELECT id, title, description, start_date, end_date, start_time, end_time, created_by FROM events WHERE id = ?');
     $evStmt->execute([$event_id]);
     $event = $evStmt->fetch();
     // For types like cancel_event where the event may already be deleted,
@@ -286,16 +286,33 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
         );
         $ei->execute([$event_id, $username]);
         $row = $ei->fetch();
-        if (!$row || (empty($row['email']) && empty($row['phone']))) {
+        if (!$row) {
+            return true; // no invite row at all — treat as handled, don't retry
+        }
+        $inv_email = $row['email'] ?? '';
+        $inv_phone = $row['phone'] ?? '';
+        // Back-fill from the event creator's saved contacts when the invite itself has no
+        // contact info (e.g. the contact's email was added after the invite was created).
+        // Persist it so the data self-heals and the editor shows it next time.
+        if (empty($inv_email) && empty($inv_phone)) {
+            $resolved = invitee_contact_from_contacts($db, (int)($event['created_by'] ?? 0), $username);
+            if (!empty($resolved['email']) || !empty($resolved['phone'])) {
+                $inv_email = $resolved['email'];
+                $inv_phone = $resolved['phone'];
+                $db->prepare('UPDATE event_invites SET email = ?, phone = ? WHERE event_id = ? AND LOWER(username) = LOWER(?)')
+                   ->execute([$inv_email ?: null, $inv_phone ?: null, $event_id, $username]);
+            }
+        }
+        if (empty($inv_email) && empty($inv_phone)) {
             return true; // nothing to send to — treat as handled, don't retry
         }
         $user = [
             'username'          => $row['username'],
-            'email'             => $row['email'] ?? '',
-            'phone'             => $row['phone'] ?? '',
+            'email'             => $inv_email,
+            'phone'             => $inv_phone,
             // Default channel: email if we have it, otherwise SMS (matches how phone-only
             // signup users are created in register_user()).
-            'preferred_contact' => !empty($row['email']) ? 'email' : 'sms',
+            'preferred_contact' => !empty($inv_email) ? 'email' : 'sms',
         ];
     }
 

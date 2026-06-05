@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.19328] - 2026-06-05
+
+### Fixed
+- **Invites to imported contacts could be left with no email/phone, so they couldn't be sent.** An invite captures the invitee's email/phone at the moment they're added. If a contact was added to an event before its email was on file (e.g. the contact was imported name-only, then emails were added later), the `event_invites` row kept its empty contact and nothing ever reconciled it against the host's saved contacts — the editor showed "NA" and `dispatch_queued_notification()` in `www/_notifications.php` silently gave up (`return true`) because the row had no address. A new shared helper `invitee_contact_from_contacts()` in `www/db.php` resolves an invitee's email/phone from the event creator's `user_contacts` (matched by contact name or a linked user's username). It's applied in two places: (1) the send path back-fills a contactless invitee from the creator's contacts and **persists** it to `event_invites` so the data self-heals after the first send; (2) `www/calendar.php` back-fills the editor's invite data on load so the host sees the real contact (envelope/phone icon instead of NA), and re-saving keeps it. Creating a new event and adding contacts from the picker already carried emails and is unchanged.
+
+---
+
 ## [v0.19327] - 2026-06-04
 
 ### Added

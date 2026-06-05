@@ -1096,12 +1096,31 @@ if ($current && !$isAdmin) {
     $managedEventIds = array_values(array_unique($managedEventIds));
 }
 
+// Map each page event to its creator, so invites saved with no contact info can be
+// back-filled from that creator's saved contacts (e.g. a contact whose email was added
+// after the invite was created). Surfaces the email in the editor; re-saving persists it.
+$ev_created_by = [];
+if (!empty($allPageEids)) {
+    $cbph = implode(',', array_fill(0, count($allPageEids), '?'));
+    $cbs  = $db->prepare("SELECT id, created_by FROM events WHERE id IN ($cbph)");
+    $cbs->execute($allPageEids);
+    foreach ($cbs->fetchAll() as $cbr) $ev_created_by[(int)$cbr['id']] = (int)$cbr['created_by'];
+}
+
 // Contact details (phone/email) are kept in the invite data so the event editor can show
 // and edit each invitee's contact inline. `no_contact` flags invitees with neither, to warn
 // the host they can't be notified.
 {
     foreach ($ev_invites as $eid => &$_invList) {
+        $creatorId = $ev_created_by[(int)$eid] ?? 0;
         foreach ($_invList as &$_inv) {
+            if (trim((string)($_inv['phone'] ?? '')) === '' && trim((string)($_inv['email'] ?? '')) === '' && $creatorId > 0) {
+                $resolved = invitee_contact_from_contacts($db, $creatorId, (string)$_inv['username']);
+                if ($resolved['email'] !== '' || $resolved['phone'] !== '') {
+                    $_inv['email'] = $resolved['email'];
+                    $_inv['phone'] = $resolved['phone'];
+                }
+            }
             $_inv['no_contact'] = (trim((string)($_inv['phone'] ?? '')) === '' && trim((string)($_inv['email'] ?? '')) === '');
             $_inv['sent'] = !empty($ev_invite_sent[(int)$eid][strtolower($_inv['username'])]);
         }
