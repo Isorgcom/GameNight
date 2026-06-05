@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1941] - 2026-06-05
+
+### Fixed
+- **Existing users couldn't verify a phone number, which made SMS two-factor unreachable.** `www/settings.php` had the Surge-based `send_phone_code` / `verify_phone_code` POST handlers but rendered **no UI** to trigger them, so a user who added a phone to an existing (email-verified) account had no way to verify it. `phone_verified` stayed `0`, and since the SMS option in the two-factor setup is gated on a verified phone, it never appeared. Added a phone-verification block to the Profile card (it can't live inside the profile `<form>`, so it's a sibling): a **Verify phone number** button when an unverified phone is on file, a 6-digit code entry with a **Resend** link while a verification is pending, and a green "Phone number verified" indicator once done. Wired to the existing handlers (Surge `/verifications` API), so it works wherever the Surge SMS provider is configured. Save the number first if it was just changed, since the handler reads the stored phone.
+
+---
+
 ## [v0.194] - 2026-06-05
 
 ### Added

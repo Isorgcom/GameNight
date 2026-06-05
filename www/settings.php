@@ -291,6 +291,38 @@ $site_name = get_setting('site_name', 'Game Night');
                 </div>
                 <button type="submit" class="btn btn-primary" style="width:100%">Save Profile</button>
             </form>
+
+            <!-- Phone verification (separate forms — can't nest inside the profile form).
+                 Required before SMS two-factor becomes available. -->
+            <?php if (!empty($me['phone'])): ?>
+                <?php if ((int)($me['phone_verified'] ?? 0) === 1): ?>
+                <p style="margin-top:.5rem;color:#16a34a;font-weight:600;font-size:.85rem">&#10003; Phone number verified</p>
+                <?php elseif (!empty($_SESSION['phone_verify_id'])): ?>
+                <div style="margin-top:.6rem;padding:.85rem;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc">
+                    <p style="font-size:.85rem;color:#475569;margin:0 0 .5rem">Enter the 6-digit code we texted to <?= htmlspecialchars($me['phone']) ?>.</p>
+                    <form method="post" action="/settings.php" style="display:flex;gap:.5rem">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                        <input type="hidden" name="action" value="verify_phone_code">
+                        <input type="text" name="verify_code" inputmode="numeric" maxlength="6" pattern="\d{6}" required
+                               autocomplete="one-time-code" placeholder="000000"
+                               style="flex:1;padding:.45rem .6rem;border:1.5px solid #e2e8f0;border-radius:7px;letter-spacing:.2em;text-align:center">
+                        <button type="submit" class="btn btn-primary">Verify</button>
+                    </form>
+                    <form method="post" action="/settings.php" style="margin-top:.4rem">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                        <input type="hidden" name="action" value="send_phone_code">
+                        <button type="submit" style="background:none;border:none;color:#2563eb;cursor:pointer;font-size:.8rem;padding:0">Resend code</button>
+                    </form>
+                </div>
+                <?php else: ?>
+                <form method="post" action="/settings.php" style="margin-top:.5rem">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                    <input type="hidden" name="action" value="send_phone_code">
+                    <button type="submit" class="btn" style="width:100%">Verify phone number</button>
+                    <p class="hint" style="margin-top:.3rem">Verify your number to use SMS for two-factor sign-in. If you just changed it, click Save Profile first.</p>
+                </form>
+                <?php endif; ?>
+            <?php endif; ?>
         </div>
 
         <!-- Right column: Change Password with Two-Factor grouped beneath it -->
