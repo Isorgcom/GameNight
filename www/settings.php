@@ -134,6 +134,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        // ── Multi-Factor Authentication ──────────────────────────────────────
+        // Enable/enroll and recovery-code display live on the dedicated
+        // full-page flow (mfa_setup.php). Only disabling is handled here.
+        elseif ($action === 'mfa_disable') {
+            $pw  = $_POST['current_password'] ?? '';
+            $row = $db->prepare('SELECT password_hash FROM users WHERE id = ?');
+            $row->execute([$current['id']]);
+            $hash = $row->fetchColumn();
+            if (!password_verify($pw, $hash)) {
+                $flash = ['type' => 'error', 'msg' => 'Password is incorrect. Two-factor authentication was not changed.'];
+            } else {
+                $db->prepare("UPDATE users SET mfa_enabled = 0, mfa_method = NULL, mfa_totp_secret = NULL WHERE id = ?")
+                   ->execute([$current['id']]);
+                $db->prepare('DELETE FROM mfa_recovery_codes WHERE user_id = ?')->execute([$current['id']]);
+                unset($_SESSION['mfa_setup'], $_SESSION['mfa_new_codes']);
+                db_log_activity($current['id'], 'disabled MFA');
+                $flash = ['type' => 'success', 'msg' => 'Two-factor authentication is off.'];
+            }
+        }
+
         elseif ($action === 'delete_account') {
             $confirm = trim($_POST['confirm_delete'] ?? '');
             if ($confirm !== 'DELETE') {
@@ -164,9 +184,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Reload fresh user data after possible username change
-$me = $db->prepare('SELECT username, email, phone, preferred_contact, my_events_past_days, my_events_future_days, phone_verified, role, created_at, last_login, timezone FROM users WHERE id = ?');
+$me = $db->prepare('SELECT username, email, phone, preferred_contact, my_events_past_days, my_events_future_days, phone_verified, role, created_at, last_login, timezone, mfa_enabled, mfa_method FROM users WHERE id = ?');
 $me->execute([$current['id']]);
 $me = $me->fetch();
+
+// MFA status for the settings card (enrollment itself happens on mfa_setup.php).
+$mfa_on            = (int)($me['mfa_enabled'] ?? 0) === 1;
+$mfa_recovery_left = $mfa_on ? mfa_recovery_codes_remaining($current['id']) : 0;
 
 $token = csrf_token();
 $site_name = get_setting('site_name', 'Game Night');
@@ -269,6 +293,9 @@ $site_name = get_setting('site_name', 'Game Night');
             </form>
         </div>
 
+        <!-- Right column: Change Password with Two-Factor grouped beneath it -->
+        <div style="display:flex;flex-direction:column;gap:1.5rem">
+
         <!-- Change password -->
         <div class="card" style="max-width:100%">
             <h2>Change Password</h2>
@@ -294,6 +321,43 @@ $site_name = get_setting('site_name', 'Game Night');
                 <button type="submit" class="btn btn-primary" style="width:100%">Update Password</button>
             </form>
         </div>
+
+        <!-- Two-Factor Authentication -->
+        <div class="card" style="max-width:100%">
+            <h2>Two-Factor Authentication</h2>
+            <p class="subtitle">Add a second step at sign-in using an authenticator app or a texted code.</p>
+
+            <?php if ($mfa_on): ?>
+                <!-- Enabled -->
+                <p style="margin-bottom:1rem">
+                    <span class="badge badge-admin">On</span>
+                    Method: <strong><?= $me['mfa_method'] === 'sms' ? 'Text message (SMS)' : 'Authenticator app' ?></strong>
+                    &middot; <?= (int)$mfa_recovery_left ?> recovery code<?= $mfa_recovery_left === 1 ? '' : 's' ?> left
+                </p>
+                <form method="post" action="/mfa_setup.php" style="margin-bottom:.75rem">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                    <input type="hidden" name="action" value="regen">
+                    <button type="submit" class="btn" style="width:100%">Regenerate Recovery Codes</button>
+                </form>
+                <form method="post" action="/settings.php">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                    <input type="hidden" name="action" value="mfa_disable">
+                    <div class="form-group">
+                        <label for="mfa_disable_pw">Enter your password to turn off two-factor</label>
+                        <input type="password" id="mfa_disable_pw" name="current_password"
+                               autocomplete="current-password" required>
+                    </div>
+                    <button type="submit" class="btn" style="width:100%;background:#dc2626;color:#fff;border:none;font-weight:600">Disable Two-Factor</button>
+                </form>
+
+            <?php else: ?>
+                <!-- Off: enrollment happens on the dedicated setup page -->
+                <p style="color:#64748b;margin-bottom:1rem">Currently <strong>off</strong>. Protect your account with an authenticator app or texted codes.</p>
+                <a href="/mfa_setup.php" class="btn btn-primary" style="width:100%;display:block;text-align:center;text-decoration:none">Set up two-factor authentication</a>
+            <?php endif; ?>
+        </div>
+
+        </div><!-- /right column -->
 
     </div>
 

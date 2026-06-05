@@ -39,6 +39,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 header('Location: ' . $redirect);
                 exit;
+            } elseif ($result === 'mfa_required') {
+                // Password OK but a second factor is required. Carry the
+                // remember-me intent and post-login redirect across the
+                // challenge; mfa_challenge.php completes the login.
+                $_SESSION['mfa_remember'] = !empty($_POST['remember_me']);
+                $_SESSION['mfa_redirect'] = $redirect;
+                header('Location: /mfa_challenge.php');
+                exit;
             } elseif ($result === 'unverified') {
                 $q = strpos($identifier, '@') !== false ? 'email=' . urlencode($identifier) : 'phone=' . urlencode($identifier);
                 $error = 'Please verify your account before signing in. <a href="/resend_verification.php?' . $q . '">Resend verification</a>';

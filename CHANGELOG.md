@@ -4,6 +4,24 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.194] - 2026-06-05
+
+### Added
+- **Opt-in two-factor authentication (TOTP authenticator app or SMS), with recovery codes.** Each user can now turn on a second sign-in step from **Settings → Two-Factor Authentication**. Enrollment lives on a dedicated full page, `www/mfa_setup.php`: choose a method, then either scan a QR code into an authenticator app (Google Authenticator / Authy / 1Password / etc.) and confirm a code, or — when a verified phone and an SMS provider are configured — receive a texted code and confirm it. On enabling, ten single-use recovery codes are shown once. TOTP is implemented from scratch (RFC 6238) in a dependency-free `www/totp.php` (base32, HMAC-SHA1, ±1 step skew); the enrollment QR is rendered client-side with the already-bundled `qrcode-generator` library (the same `createDataURL()` → `<img>` path as the walk-in QR). The secret is stored encrypted at rest via the existing `encrypt_value()`/`decrypt_value()` helpers.
+- **MFA challenge at login.** `attempt_login()` in `www/auth.php` now returns `'mfa_required'` for MFA-enabled accounts instead of completing the session; `www/login.php` carries the remember-me intent and redirect into a new challenge screen, `www/mfa_challenge.php`, which accepts a TOTP/SMS code **or** a recovery code and finalizes the deferred login via the extracted `complete_login()` helper. A brute-force cap (8 failures / 15 min, logged as `failed_mfa`) protects the screen. Ticking **Remember me** issues the existing 30-day trusted-device token, which silently restores the session on that browser without re-prompting (the `consume_remember_cookie()` path is unchanged and correctly bypasses MFA).
+- **Admin “Reset Two-Factor” recovery.** A user who loses both their authenticator/phone and all recovery codes has no self-service way back in (by design — email is never a bypass). An admin can now clear it from `www/user_edit.php`: the Reset Password card gained a Two-Factor section (and the Account Info table a Two-Factor row) with a confirm-gated **Reset Two-Factor** button that disables MFA and deletes the user’s recovery + pending SMS-MFA rows. The override is audit-logged at `critical` severity. (One residual edge case: if the locked-out user is the only admin, recovery still needs direct DB access.)
+
+### Changed
+- **Settings page layout: Two-Factor is grouped under Change Password.** In `www/settings.php`, the Change Password and Two-Factor Authentication cards now share the right-hand column (stacked), with Profile in the left column; on mobile they stack in order. The 2FA card itself only shows status plus a link into the full-page setup flow, Regenerate Recovery Codes, and a password-gated Disable.
+
+### Database
+- **New MFA schema (auto-migrated).** `db_init()` in `www/db.php` adds `users.mfa_enabled`, `users.mfa_method`, and `users.mfa_totp_secret` (via the existing try/catch `ALTER TABLE` pattern) and creates the `mfa_recovery_codes` table (single-use, sha256-hashed). `delete_user_account()` now also clears `mfa_recovery_codes`. SMS MFA reuses the `phone_verifications` table tagged with `method='mfa'`, kept separate from signup verification and without flipping account-verification flags.
+
+### Fixed
+- **Forgot-password no longer fakes “sent” when rate-limited.** Previously, once a device hit the 3-resets-per-hour cap, `www/forgot_password.php` showed the success message while silently sending nothing, which read as a broken email pipeline. It now shows an honest "Too many password reset requests from this device. Please wait up to an hour and try again." Because the limit is keyed on IP/device (not on a specific account), this does not reveal whether any given account exists — the generic success message that protects against account enumeration is unchanged.
+
+---
+
 ## [v0.19328] - 2026-06-05
 
 ### Fixed

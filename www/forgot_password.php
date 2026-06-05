@@ -22,7 +22,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $rlStmt = $db->prepare("SELECT COUNT(*) FROM activity_log WHERE ip = ? AND action LIKE 'password_reset_request%' AND created_at > datetime('now', '-1 hour')");
         $rlStmt->execute([$ip]);
         if ((int)$rlStmt->fetchColumn() >= 3) {
-            $sent = true; // Show success to not reveal rate limiting
+            // Honest rate-limit notice. Keyed on IP/device, so it doesn't reveal
+            // whether any particular account exists — only that this device has
+            // asked too many times — which keeps the account-enumeration defense
+            // (the generic success message below) intact.
+            $error = 'Too many password reset requests from this device. Please wait up to an hour and try again.';
         } else {
         db_log_anon_activity('password_reset_request: ' . $identifier);
 

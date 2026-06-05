@@ -574,6 +574,24 @@ JSON;
     // Per-user timezone preference. NULL = follow site timezone (the default).
     try { $pdo->exec("ALTER TABLE users ADD COLUMN timezone TEXT"); } catch (Exception $e) {}
 
+    // ─── Opt-in Multi-Factor Authentication (per user) ─────────────────────────
+    // mfa_method: 'totp' (authenticator app) or 'sms'. mfa_totp_secret holds the
+    // base32 TOTP secret, stored ENCRYPTED via encrypt_value() (decrypt on read).
+    try { $pdo->exec("ALTER TABLE users ADD COLUMN mfa_enabled INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE users ADD COLUMN mfa_method TEXT"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE users ADD COLUMN mfa_totp_secret TEXT"); } catch (Exception $e) {}
+
+    // Single-use MFA recovery codes (shown once at enable time; sha256-hashed at rest).
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS mfa_recovery_codes (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id    INTEGER NOT NULL,
+        code_hash  TEXT    NOT NULL,
+        used       INTEGER NOT NULL DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_mfa_recovery_user ON mfa_recovery_codes(user_id)"); } catch (Exception $e) {}
+
     // ─── Leagues ───────────────────────────────────────────────
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS leagues (
         id                 INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1584,6 +1602,7 @@ function delete_user_account(int $user_id): void {
     $db->prepare('DELETE FROM remember_tokens WHERE user_id = ?')->execute([$user_id]);
     $db->prepare('DELETE FROM email_verifications WHERE user_id = ?')->execute([$user_id]);
     $db->prepare('DELETE FROM phone_verifications WHERE user_id = ?')->execute([$user_id]);
+    try { $db->prepare('DELETE FROM mfa_recovery_codes WHERE user_id = ?')->execute([$user_id]); } catch (Exception $e) {}
     try { $db->prepare('DELETE FROM sms_pending_rsvp WHERE user_id = ?')->execute([$user_id]); } catch (Exception $e) {}
     $db->prepare('DELETE FROM users WHERE id = ?')->execute([$user_id]);
 }

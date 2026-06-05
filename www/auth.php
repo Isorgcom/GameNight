@@ -166,7 +166,7 @@ function current_user(): ?array {
     }
     if ($id === null) return null;
 
-    $stmt = get_db()->prepare('SELECT id, username, email, role, last_login, must_change_password, my_events_past_days, my_events_future_days, timezone, last_poker_default FROM users WHERE id = ?');
+    $stmt = get_db()->prepare('SELECT id, username, email, role, last_login, must_change_password, my_events_past_days, my_events_future_days, timezone, last_poker_default, mfa_enabled, mfa_method FROM users WHERE id = ?');
     $stmt->execute([$id]);
     $row = $stmt->fetch() ?: null;
     // Personal timezone overrides the site default (which was set in get_db()).
@@ -283,15 +283,37 @@ function attempt_login(string $identifier, string $password): bool|string {
     if (in_array($method, ['sms', 'whatsapp'], true) && !(int)($row['phone_verified'] ?? 0)) {
         return 'unverified';
     }
+
+    // MFA gate: when a second factor is enabled, password success is NOT a full
+    // login. Stash the pending user + method and defer to the challenge screen
+    // (mfa_challenge.php), which finalizes via complete_login() once the code or
+    // a recovery code checks out. The "remember me" device-token path bypasses
+    // this entirely (consume_remember_cookie sets user_id directly).
+    if ((int)($row['mfa_enabled'] ?? 0) === 1) {
+        session_start_safe();
+        $_SESSION['mfa_user_id'] = (int)$row['id'];
+        $_SESSION['mfa_method']  = $row['mfa_method'] ?: 'totp';
+        return 'mfa_required';
+    }
+
+    complete_login((int)$row['id']);
+    return true;
+}
+
+/**
+ * Finalize a login once all factors have passed: regenerate the session,
+ * mark the user logged in, bump last_login, and audit-log it. Shared by the
+ * no-MFA password path (attempt_login) and the post-challenge path
+ * (mfa_challenge.php). The caller is responsible for issuing a "remember me"
+ * token if desired.
+ */
+function complete_login(int $user_id): void {
     session_start_safe();
     session_regenerate_id(true);
-    $_SESSION['user_id'] = $row['id'];
-
-    $db = get_db();
-    $db->prepare('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?')
-       ->execute([$row['id']]);
-    db_log_activity($row['id'], 'login');
-    return true;
+    $_SESSION['user_id'] = $user_id;
+    get_db()->prepare('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?')
+            ->execute([$user_id]);
+    db_log_activity($user_id, 'login');
 }
 
 function logout(): void {
@@ -505,6 +527,121 @@ function verify_code(int $user_id, string $code): string {
     db_log_activity($user_id, 'phone verified');
 
     return 'ok';
+}
+
+// ── Multi-Factor Authentication helpers ──────────────────────────────────────
+// SMS MFA reuses the phone_verifications table but tags rows with method='mfa'
+// so they never collide with signup-verification codes, and verification here
+// does NOT flip email_verified/phone_verified (those flags are already set for
+// any MFA-enabled account — this is a login challenge, not account activation).
+
+/**
+ * Send a 6-digit MFA code via SMS to an already-verified phone.
+ */
+function send_mfa_sms_code(int $user_id, string $phone): void {
+    $db   = get_db();
+    $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+    $hash = hash('sha256', $code);
+    $exp  = date('Y-m-d H:i:s', strtotime('+10 minutes'));
+
+    // Invalidate previous unused MFA codes for this user.
+    $db->prepare("UPDATE phone_verifications SET used=1 WHERE user_id=? AND method='mfa' AND used=0")->execute([$user_id]);
+    $db->prepare("INSERT INTO phone_verifications (user_id, code_hash, method, expires_at) VALUES (?, ?, 'mfa', ?)")
+       ->execute([$user_id, $hash, $exp]);
+
+    $site = get_setting('site_name', 'Game Night');
+    $msg  = "Your $site login code is: $code\nThis code expires in 10 minutes.";
+
+    require_once __DIR__ . '/sms.php';
+    send_sms($phone, $msg);
+}
+
+/**
+ * Verify a 6-digit MFA SMS code. Mirrors verify_code()'s rate-limit/expiry/
+ * attempt logic (5 per code, MAX_VERIFY_CODE_ATTEMPTS_PER_DAY cumulative) but
+ * only consults method='mfa' rows and has no account-activation side effects.
+ * Returns 'ok', 'expired', 'incorrect', or 'exhausted'.
+ */
+function verify_mfa_sms_code(int $user_id, string $code): string {
+    $db = get_db();
+
+    $cumCap  = defined('MAX_VERIFY_CODE_ATTEMPTS_PER_DAY') ? MAX_VERIFY_CODE_ATTEMPTS_PER_DAY : 20;
+    $cumStmt = $db->prepare("SELECT COALESCE(SUM(attempts), 0) FROM phone_verifications WHERE user_id = ? AND method='mfa' AND created_at >= datetime('now', '-1 day')");
+    $cumStmt->execute([$user_id]);
+    if ((int)$cumStmt->fetchColumn() >= $cumCap) {
+        return 'exhausted';
+    }
+
+    $stmt = $db->prepare("SELECT id, code_hash, expires_at, attempts FROM phone_verifications WHERE user_id=? AND method='mfa' AND used=0 ORDER BY id DESC LIMIT 1");
+    $stmt->execute([$user_id]);
+    $row = $stmt->fetch();
+    if (!$row) return 'expired';
+
+    if (strtotime($row['expires_at']) < time()) {
+        $db->prepare('UPDATE phone_verifications SET used=1 WHERE id=?')->execute([$row['id']]);
+        return 'expired';
+    }
+    if ((int)$row['attempts'] >= 5) {
+        $db->prepare('UPDATE phone_verifications SET used=1 WHERE id=?')->execute([$row['id']]);
+        return 'exhausted';
+    }
+
+    $db->prepare('UPDATE phone_verifications SET attempts = attempts + 1 WHERE id=?')->execute([$row['id']]);
+
+    if (!hash_equals($row['code_hash'], hash('sha256', $code))) {
+        return ((int)$row['attempts'] + 1 >= 5) ? 'exhausted' : 'incorrect';
+    }
+
+    $db->prepare('UPDATE phone_verifications SET used=1 WHERE id=?')->execute([$row['id']]);
+    return 'ok';
+}
+
+/**
+ * (Re)generate single-use recovery codes for a user. Deletes any existing
+ * codes, stores fresh sha256 hashes, and returns the plaintext codes for a
+ * one-time display. Format: xxxx-xxxx (10 hex chars, hyphenated).
+ */
+function mfa_generate_recovery_codes(int $user_id, int $count = 10): array {
+    $db = get_db();
+    $db->prepare('DELETE FROM mfa_recovery_codes WHERE user_id = ?')->execute([$user_id]);
+    $codes = [];
+    $ins = $db->prepare('INSERT INTO mfa_recovery_codes (user_id, code_hash) VALUES (?, ?)');
+    for ($i = 0; $i < $count; $i++) {
+        $hex  = bin2hex(random_bytes(5)); // 10 hex chars
+        $code = substr($hex, 0, 5) . '-' . substr($hex, 5, 5);
+        $codes[] = $code;
+        $ins->execute([$user_id, hash('sha256', $code)]);
+    }
+    return $codes;
+}
+
+/**
+ * Consume a recovery code: constant-time match against the user's unused codes.
+ * Marks the matched code used and returns true on success.
+ */
+function mfa_consume_recovery_code(int $user_id, string $code): bool {
+    $code = strtolower(trim($code));
+    if ($code === '') return false;
+    $target = hash('sha256', $code);
+    $db = get_db();
+    $stmt = $db->prepare('SELECT id, code_hash FROM mfa_recovery_codes WHERE user_id = ? AND used = 0');
+    $stmt->execute([$user_id]);
+    foreach ($stmt->fetchAll() as $row) {
+        if (hash_equals($row['code_hash'], $target)) {
+            $db->prepare('UPDATE mfa_recovery_codes SET used = 1 WHERE id = ?')->execute([$row['id']]);
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * How many unused recovery codes a user has left (for Settings display).
+ */
+function mfa_recovery_codes_remaining(int $user_id): int {
+    $stmt = get_db()->prepare('SELECT COUNT(*) FROM mfa_recovery_codes WHERE user_id = ? AND used = 0');
+    $stmt->execute([$user_id]);
+    return (int)$stmt->fetchColumn();
 }
 
 function send_verification_email(int $user_id, string $email, string $username): void {

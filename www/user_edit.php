@@ -12,7 +12,7 @@ $id    = (int)($_GET['id'] ?? 0);
 $flash = ['type' => '', 'msg' => ''];
 
 // Load target user
-$stmt = $db->prepare('SELECT id, username, email, phone, role, preferred_contact, notes, created_at, last_login, email_verified, must_change_password, my_events_past_days, my_events_future_days FROM users WHERE id = ?');
+$stmt = $db->prepare('SELECT id, username, email, phone, role, preferred_contact, notes, created_at, last_login, email_verified, must_change_password, my_events_past_days, my_events_future_days, mfa_enabled, mfa_method FROM users WHERE id = ?');
 $stmt->execute([$id]);
 $target = $stmt->fetch();
 
@@ -121,6 +121,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 db_log_activity($current['id'], "admin reset password for user id: $id");
                 $flash = ['type' => 'success', 'msg' => 'Password updated.'];
             }
+        }
+
+        elseif ($action === 'reset_mfa') {
+            // Recovery path for a user locked out of 2FA (lost device + all
+            // recovery codes). Admin verifies identity out-of-band, then clears
+            // it so the user can sign in with their password and re-enroll.
+            $db->prepare("UPDATE users SET mfa_enabled=0, mfa_method=NULL, mfa_totp_secret=NULL WHERE id=?")->execute([$id]);
+            $db->prepare('DELETE FROM mfa_recovery_codes WHERE user_id=?')->execute([$id]);
+            try { $db->prepare("DELETE FROM phone_verifications WHERE user_id=? AND method='mfa'")->execute([$id]); } catch (Exception $e) {}
+            db_log_activity($current['id'], "admin reset two-factor for user id: $id", 'critical');
+            $flash = ['type' => 'success', 'msg' => 'Two-factor authentication has been reset (disabled) for this user.'];
         }
     }
 
@@ -275,6 +286,23 @@ $site_name = get_setting('site_name', 'Game Night');
                 </div>
                 <button type="submit" class="btn btn-primary" style="width:100%">Update Password</button>
             </form>
+
+            <hr style="margin:1.25rem 0;border:none;border-top:1px solid #e2e8f0">
+            <h3 style="font-size:.9rem;color:#475569;margin-bottom:.5rem">Two-Factor Authentication</h3>
+            <?php if ((int)($target['mfa_enabled'] ?? 0) === 1): ?>
+            <p class="subtitle" style="margin-bottom:.75rem">
+                Enabled (<?= $target['mfa_method'] === 'sms' ? 'SMS' : 'authenticator app' ?>).
+                If this user lost their device <em>and</em> their recovery codes, reset it so they can sign in with just their password and re-enroll.
+            </p>
+            <form method="post" action="/user_edit.php?id=<?= $id ?>"
+                  onsubmit="return confirm('Reset (disable) two-factor for ' + <?= json_encode($target['username']) ?> + '? They will sign in with just their password until they set it up again.')">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                <input type="hidden" name="action" value="reset_mfa">
+                <button type="submit" class="btn" style="width:100%;background:#dc2626;color:#fff;border:none;font-weight:600">Reset Two-Factor</button>
+            </form>
+            <?php else: ?>
+            <p class="subtitle" style="margin-bottom:0">Not enabled for this user.</p>
+            <?php endif; ?>
         </div>
 
     </div>
@@ -290,6 +318,10 @@ $site_name = get_setting('site_name', 'Game Night');
                         <?= htmlspecialchars($target['role']) ?></span></td></tr>
                 <tr><td style="color:#64748b">Email Verified</td>
                     <td><?= (int)($target['email_verified'] ?? 0) ? '<span style="color:#22c55e;font-weight:600">Yes</span>' : '<span style="color:#ef4444;font-weight:600">No</span>' ?></td></tr>
+                <tr><td style="color:#64748b">Two-Factor</td>
+                    <td><?= (int)($target['mfa_enabled'] ?? 0)
+                        ? '<span style="color:#22c55e;font-weight:600">On (' . htmlspecialchars($target['mfa_method'] === 'sms' ? 'SMS' : 'app') . ')</span>'
+                        : '<span style="color:#94a3b8">Off</span>' ?></td></tr>
                 <tr><td style="color:#64748b">Member since</td><td><?= htmlspecialchars($target['created_at']) ?></td></tr>
                 <tr><td style="color:#64748b">Last login</td><td><?= htmlspecialchars($target['last_login'] ?? 'Never') ?></td></tr>
             </tbody>
