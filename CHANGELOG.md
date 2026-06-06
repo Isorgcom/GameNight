@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1943] - 2026-06-06
+
+### Added
+- **Dashboard nudge to turn on two-factor authentication.** Any logged-in user who hasn't enabled MFA now sees a dismissible banner at the top of the dashboard (`www/index.php`) inviting them to set it up, with a **Set up** link to `mfa_setup.php` and a one-time **Dismiss**. It's backed by a new `users.mfa_offer_dismissed` column (auto-migrated in `www/db.php`, default `0` so every MFA-less user is nudged once). The flag is set to `1` when the user dismisses the banner (a CSRF-protected self-POST handled at the top of `index.php`) or when they enable MFA (`www/mfa_setup.php`), so it never reappears, even if they later disable MFA. `current_user()` in `www/auth.php` now selects the flag. The banner shows only while `mfa_enabled = 0 AND mfa_offer_dismissed = 0`.
+
+---
+
 ## [v0.1942] - 2026-06-06
 
 ### Fixed

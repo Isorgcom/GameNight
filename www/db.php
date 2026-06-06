@@ -580,6 +580,9 @@ JSON;
     try { $pdo->exec("ALTER TABLE users ADD COLUMN mfa_enabled INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE users ADD COLUMN mfa_method TEXT"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE users ADD COLUMN mfa_totp_secret TEXT"); } catch (Exception $e) {}
+    // Whether the user has dismissed (or acted on) the "enable two-factor" dashboard
+    // banner. 0 = still show the nudge (any MFA-less user); set to 1 on dismiss or enable.
+    try { $pdo->exec("ALTER TABLE users ADD COLUMN mfa_offer_dismissed INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
 
     // Single-use MFA recovery codes (shown once at enable time; sha256-hashed at rest).
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS mfa_recovery_codes (

@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif (!totp_verify($setup['secret'], $code)) {
                 $error = 'That code did not match. Check your app and try again.';
             } else {
-                $db->prepare("UPDATE users SET mfa_enabled = 1, mfa_method = 'totp', mfa_totp_secret = ? WHERE id = ?")
+                $db->prepare("UPDATE users SET mfa_enabled = 1, mfa_method = 'totp', mfa_totp_secret = ?, mfa_offer_dismissed = 1 WHERE id = ?")
                    ->execute([encrypt_value($setup['secret']), $current['id']]);
                 unset($_SESSION['mfa_setup']);
                 $show_codes = mfa_generate_recovery_codes($current['id']);
@@ -74,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $res = verify_mfa_sms_code($current['id'], $code);
                 if ($res === 'ok') {
-                    $db->prepare("UPDATE users SET mfa_enabled = 1, mfa_method = 'sms', mfa_totp_secret = NULL WHERE id = ?")
+                    $db->prepare("UPDATE users SET mfa_enabled = 1, mfa_method = 'sms', mfa_totp_secret = NULL, mfa_offer_dismissed = 1 WHERE id = ?")
                        ->execute([$current['id']]);
                     unset($_SESSION['mfa_setup']);
                     $show_codes = mfa_generate_recovery_codes($current['id']);

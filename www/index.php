@@ -6,6 +6,15 @@ $user      = current_user();
 $db        = get_db();
 $site_name = get_setting('site_name', 'Game Night');
 
+// Dismiss the "enable two-factor" dashboard nudge (one-time, per user).
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'dismiss_mfa_offer') {
+    if (csrf_verify() && $user) {
+        $db->prepare('UPDATE users SET mfa_offer_dismissed = 1 WHERE id = ?')->execute([(int)$user['id']]);
+    }
+    header('Location: /');
+    exit;
+}
+
 $chunk = 5;
 $monthFilter = preg_match('/^\d{4}-\d{2}$/', $_GET['month'] ?? '') ? $_GET['month'] : null;
 
@@ -470,6 +479,20 @@ endif; ?>
 <?php endif; ?>
 
 <div class="posts-wrap">
+
+    <?php if ($user && (int)($user['mfa_enabled'] ?? 0) === 0 && (int)($user['mfa_offer_dismissed'] ?? 0) === 0): ?>
+    <div class="alert" style="display:flex;align-items:center;gap:.75rem;background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;margin-bottom:1.25rem">
+        <span style="font-size:1.3rem" aria-hidden="true">&#128274;</span>
+        <span style="flex:1">Add an extra layer of security: turn on two-factor authentication for your account.</span>
+        <a href="/mfa_setup.php" class="btn btn-primary" style="white-space:nowrap;text-decoration:none">Set up</a>
+        <form method="post" action="/" style="margin:0">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+            <input type="hidden" name="action" value="dismiss_mfa_offer">
+            <button type="submit" aria-label="Dismiss" title="Dismiss"
+                    style="background:none;border:none;color:#1e40af;cursor:pointer;font-size:1.3rem;line-height:1;padding:.1rem .3rem">&times;</button>
+        </form>
+    </div>
+    <?php endif; ?>
 
     <?php if ($monthFilter): ?>
     <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem;padding:.6rem 1rem;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;font-size:.88rem;color:#1e40af">
