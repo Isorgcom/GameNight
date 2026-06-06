@@ -62,12 +62,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($locked) {
         $error = 'Too many incorrect attempts. Please wait a few minutes and try again.';
     } else {
-        $code  = trim($_POST['code'] ?? '');
-        $clean = preg_replace('/\s/', '', $code);
-        $ok    = false;
+        // Two separate inputs: a clean numeric OTP field (so password managers /
+        // iOS / Android reliably autofill it) and an optional recovery-code field.
+        $recovery = trim($_POST['recovery_code'] ?? '');
+        $clean    = preg_replace('/\D/', '', $_POST['code'] ?? '');
+        $ok       = false;
 
-        if (preg_match('/^\d{6}$/', $clean)) {
-            // Looks like a factor code (TOTP or SMS).
+        if ($recovery !== '') {
+            $ok = mfa_consume_recovery_code($user_id, $recovery);
+            if (!$ok) $error = 'That recovery code is not valid (or was already used).';
+        } elseif (preg_match('/^\d{6}$/', $clean)) {
+            // Factor code (TOTP or SMS).
             if ($method === 'totp') {
                 $secret = decrypt_value($user['mfa_totp_secret'] ?? '');
                 $ok = $secret !== '' && totp_verify($secret, $clean);
@@ -81,9 +86,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $error = 'Too many incorrect attempts. <a href="/mfa_challenge.php">Send a new code</a>.';
                 }
             }
-        } elseif ($code !== '') {
-            // Anything else is treated as a recovery code.
-            $ok = mfa_consume_recovery_code($user_id, $code);
         }
 
         if ($ok) {
@@ -140,8 +142,11 @@ $token = csrf_token();
         <form method="post" action="/mfa_challenge.php">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
             <div class="form-group" style="text-align:center">
-                <input type="text" name="code" placeholder="000000" maxlength="20"
-                       inputmode="numeric" autocomplete="one-time-code" required autofocus
+                <!-- Dedicated 6-digit numeric field: maximizes one-time-code autofill
+                     detection by 1Password / iOS / Android (clean numeric, maxlength 6). -->
+                <input type="text" name="code" id="otp-code" placeholder="000000" maxlength="6"
+                       inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code"
+                       required autofocus aria-label="One-time code"
                        style="width:200px;font-size:1.5rem;text-align:center;letter-spacing:.25em;padding:.6rem;border:2px solid #e2e8f0;border-radius:10px">
             </div>
             <button type="submit" class="btn btn-primary" style="width:100%">Verify</button>
@@ -153,10 +158,21 @@ $token = csrf_token();
         </p>
         <?php endif; ?>
 
+        <details style="margin-top:1rem">
+            <summary style="cursor:pointer;text-align:center;font-size:.8rem;color:#94a3b8">Lost your device? Use a recovery code</summary>
+            <form method="post" action="/mfa_challenge.php" style="margin-top:.6rem">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                <div class="form-group">
+                    <input type="text" name="recovery_code" placeholder="xxxxx-xxxxx"
+                           autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+                           aria-label="Recovery code"
+                           style="width:100%;text-align:center;letter-spacing:.1em;padding:.55rem;border:1.5px solid #e2e8f0;border-radius:8px">
+                </div>
+                <button type="submit" class="btn" style="width:100%">Use recovery code</button>
+            </form>
+        </details>
+
         <p style="text-align:center;margin-top:.75rem;font-size:.8rem;color:#94a3b8">
-            Lost your device? Enter one of your recovery codes above.
-        </p>
-        <p style="text-align:center;margin-top:.25rem;font-size:.8rem;color:#94a3b8">
             <a href="/login.php">Back to sign in</a>
         </p>
     </div>

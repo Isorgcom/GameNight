@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1942] - 2026-06-06
+
+### Fixed
+- **Password managers (1Password etc.) didn't autofill the MFA code on mobile.** The two-factor challenge in `www/mfa_challenge.php` used a single `type="text"` field with `maxlength="20"` that doubled as both the 6-digit code input and the recovery-code input. Although it carried `autocomplete="one-time-code"`, the long, free-text, dual-purpose field lowered password managers' / iOS / Android confidence that it was a one-time-code field, so saved OTPs weren't offered on mobile. The primary field is now a dedicated numeric one-time-code input (`maxlength="6"`, `inputmode="numeric"`, `pattern="[0-9]*"`, `autocomplete="one-time-code"`, `aria-label="One-time code"`), and recovery codes moved to a separate `recovery_code` field behind a "Lost your device?" disclosure (with autocapitalize/autocorrect/spellcheck off). The POST handler now reads the two inputs independently. (Note: 1Password only offers a code when the saved gamenight.poker login item actually has a one-time password/TOTP stored on it.)
+
+---
+
 ## [v0.1941] - 2026-06-05
 
 ### Fixed
