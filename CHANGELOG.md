@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1954] - 2026-06-07
+
+### Changed
+- **Two-factor code field is now always visible on the login form (1Password autofill on iPad).** The inline two-step flow (v0.1952/v0.1953) only revealed the code field *after* the password was submitted, but iOS/1Password only fill fields that are actually visible at the moment autofill is triggered, so on the iPad 1Password filled username + password but left the (not-yet-rendered) code blank, forcing a manual copy-paste of the TOTP. The login form now carries the **code field from the first render**, under the password and labeled "Two-factor code (only if 2FA is on)" with `autocomplete="one-time-code"`, so a password manager can fill username + password + code in a single action. `www/login.php` verifies the code inline when it's submitted alongside the credentials (single submit), and still falls back to the prompt-then-enter two-step for users who type it manually (the password-less second submit is verified against the pending `$_SESSION['mfa_user_id']`). TOTP, SMS (with "Resend code"), and recovery codes are all handled; accounts without 2FA simply leave the field blank. The per-account brute-force cap (8 fails / 15 min) is preserved and `www/mfa_challenge.php` stays retired.
+
+---
+
 ## [v0.1953] - 2026-06-07
 
 ### Fixed
