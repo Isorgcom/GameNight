@@ -166,7 +166,7 @@ $site_name = get_setting('site_name', 'Game Night');
                 <label for="identifier">Email, username, or phone</label>
                 <input type="text" id="identifier" name="identifier"
                        value="<?= htmlspecialchars($mfaStep ? $mfaIdentifier : ($_POST['identifier'] ?? $_POST['email'] ?? '')) ?>"
-                       autocomplete="username" <?= $mfaStep ? 'readonly' : 'autofocus' ?> required>
+                       autocomplete="username"<?= $mfaStep ? '' : ' autofocus' ?> required>
             </div>
 
             <div class="form-group">
@@ -189,7 +189,7 @@ $site_name = get_setting('site_name', 'Game Night');
             <div class="form-group">
                 <label for="code"><?= $mfaMethod === 'sms' ? 'Texted code' : 'Authenticator code' ?></label>
                 <input type="text" id="code" name="code" inputmode="numeric" pattern="[0-9]*" maxlength="6"
-                       autocomplete="one-time-code" autofocus required placeholder="000000"
+                       autocomplete="one-time-code" required placeholder="000000"
                        style="width:100%;text-align:center;letter-spacing:.25em;font-size:1.2rem">
                 <?php if ($mfaMethod === 'sms'): ?>
                 <p class="hint" style="margin-top:.35rem">Didn't get it? <a href="/login.php?resend=1">Resend code</a></p>

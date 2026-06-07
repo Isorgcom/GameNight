@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1953] - 2026-06-07
+
+### Fixed
+- **Login (inline 2FA step): username was uneditable and scrolled off-screen on iPad.** On the second-factor step the username field was `readonly` (so it couldn't be tapped/typed) and the code field had `autofocus`, which on iOS pops the keyboard and scrolls the username above the top of the screen. Removed `readonly` from the username (it stays prefilled but is now interactive) and dropped `autofocus` on the code field so the form loads at the top with all fields reachable (`www/login.php`).
+
+---
+
 ## [v0.1952] - 2026-06-07
 
 ### Changed
