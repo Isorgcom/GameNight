@@ -4,7 +4,10 @@ All notable changes to GameNight are documented here.
 
 ---
 
-## [v0.1948] - 2026-06-07
+## [v0.1949] - 2026-06-07
+
+### Changed
+- **Host "Message guests" notifications now show who sent it and which event.** The SMS was previously just `"<Event>": <link>` with no sender or context. It now reads as two lines: `<Site>: new message from <Sender> about "<Event>".` then `Tap to read: <short link>` (plain ASCII to stay a single SMS segment). The sender is the message's author (`event_messages.created_by`, falling back to the site name if that account is gone). The same `From <Sender> · <Event>` attribution is prepended to the WhatsApp text and the email body for consistency. Implemented in the `event_message` case of `dispatch_queued_notification()` in `www/_notifications.php` (query now joins the author; no schema/UI changes).
 
 ### Fixed
 - **Host-message history disappeared after a reload / second send.** The event detail panel's "Messages from the host" list would show right after the first send but then vanish once the page reloaded or another message was sent. `www/calendar.php` emitted the message data with `json_encode($ev_messages, JSON_HEX_TAG | JSON_FORCE_OBJECT)`, and `JSON_FORCE_OBJECT` applies **recursively**, so each event's array of messages was serialized as an object (`{"0":…,"1":…}`) instead of an array. In `renderInvitesPanel()` that made `msgs.length` `undefined` (so the list was skipped) and the compose success handler's `eventMessages[eid].push(...)` throw (swallowed by its try/catch). Fixed by encoding as `json_encode((object)$ev_messages, JSON_HEX_TAG)` — the top level stays an object (incl. empty `{}`) while each event's message list stays a real array — plus a defensive `Array.isArray()` guard before the client-side push. (`eventComments` was already encoded correctly, which is why comments never had this issue.)
