@@ -4,7 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
-## [v0.1951] - 2026-06-07
+## [v0.1952] - 2026-06-07
+
+### Changed
+- **Two-factor code prompt moved inline onto the login page (was a standalone page).** Password managers (1Password on iPad) couldn't reliably fill the code on the separate `mfa_challenge.php` page because it wasn't recognizable as the login. Now, when an account has MFA, submitting the password re-renders the **login page** with the **code field appearing under the password** (username + password + one-time-code on one form), the layout 1Password recognizes and fills. `www/login.php` now handles both steps: credentials, then (if `attempt_login()` returns `mfa_required`) the inline code step, verifying TOTP/SMS or a recovery code and completing login with the same remember-me/redirect handling. SMS gets a "Resend code" link; a "Use a different account" link clears the pending step. `www/mfa_challenge.php` is retired (redirects to `/login.php`).
+
+### Fixed
+- (carried) Earlier 1Password recognition attempts on the standalone page (hidden then visible username field) are superseded by the inline layout above.
 
 ### Fixed
 - **Two-factor code prompt now exposes a visible account field so 1Password recognizes it (iPad).** The v0.1950 off-screen username hint wasn't enough. iOS/1Password ignore hidden/off-screen fields when deciding what a page is. Replaced it with a visible, read-only **Account** field (`autocomplete="username"`, the account email) above the code input on `www/mfa_challenge.php`, which is the reliable signal for password managers to associate the page with the saved login and offer its stored one-time code. The field is read-only and ignored on submit; the code field keeps `autocomplete="one-time-code"`.

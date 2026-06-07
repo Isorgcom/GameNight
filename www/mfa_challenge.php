@@ -13,6 +13,12 @@ require_once __DIR__ . '/totp.php';
 
 session_start_safe();
 
+// The two-factor step is now handled inline on the login page (the code field
+// appears under the password). This standalone page is retired; send any
+// pending second-factor session there so password managers can fill the code.
+header('Location: /login.php');
+exit;
+
 $site_name = get_setting('site_name', 'Game Night');
 $error     = '';
 
