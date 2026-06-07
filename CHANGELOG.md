@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1955] - 2026-06-07
+
+### Fixed
+- **Event view card: action buttons could be pushed off-screen on iPad.** Opening an event with a lot of content (long description, many invitees, RSVP block) in the `#viewModal` card on `www/calendar.php` could push the Manage Game / Edit / QR / Delete buttons below the bottom edge with nothing to scroll, because the top block was a non-shrinking flex child inside a `max-height:88vh; overflow:hidden` modal. The card now uses a **pinned header + a single scrollable body** (`#vScrollBody`): everything under the title (event info, invitees, the action buttons, and comments) scrolls together, so the buttons are always reachable; the scroll resets to the top on open and posting a comment still jumps to the newest one. Additionally, the card now takes over **full-screen on iPad in both orientations** (it already did so in portrait via the `≤1024px` breakpoint; a `pointer:coarse` + `1025–1366px` query now covers landscape, where the iPad is wider than 1024px and previously fell back to the cramped centered card). The modal sizing was moved to id-scoped CSS so the orientation overrides win on specificity.
+
+---
+
 ## [v0.1954] - 2026-06-07
 
 ### Changed

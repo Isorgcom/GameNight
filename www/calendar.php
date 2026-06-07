@@ -1514,6 +1514,18 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             width: 100%; max-width: 480px; padding: 1.75rem;
             animation: modalIn .15s ease;
         }
+        /* Event view card: roomy centered card on desktop, full-screen takeover on
+           phones AND iPads in BOTH orientations (portrait via max-width, landscape
+           via coarse-pointer query) so the action buttons are never off-screen.
+           id-scoped so the orientation overrides win on specificity. */
+        #viewModal .modal { max-width:520px; max-height:88vh; }
+        @media (max-width:1024px) {
+            #viewModal .modal { max-width:100%; width:100%; max-height:100vh; height:100%; border-radius:0; }
+        }
+        @media (pointer:coarse) and (min-width:1025px) and (max-width:1366px) {
+            #viewModal .modal { max-width:100%; width:100%; max-height:100vh; height:100%; border-radius:0; }
+            #viewModal.modal-overlay { padding:0; align-items:stretch; }
+        }
         /* ── Edit modal ── */
         #editModal .modal { max-width:95vw;width:95vw;max-height:95vh;height:95vh;display:flex;flex-direction:column;padding:0;overflow:hidden; }
         #editModal .modal-header { padding:.9rem 1.25rem;margin-bottom:0;border-bottom:1px solid #e2e8f0;flex-shrink:0; }
@@ -1962,9 +1974,8 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
 
 <!-- ── View Event Modal ── -->
 <div class="modal-overlay" id="viewModal" onclick="if(event.target===this)closeView()">
-    <div class="modal" style="max-height:88vh;overflow:hidden;max-width:520px;display:flex;flex-direction:column">
-        <div style="flex-shrink:0">
-        <div class="modal-header">
+    <div class="modal" style="overflow:hidden;display:flex;flex-direction:column">
+        <div class="modal-header" style="flex-shrink:0">
             <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;flex:1;min-width:0">
                 <span id="vLeagueBadge" class="ev-league-badge" style="display:none"></span>
                 <h2 id="vTitle" class="ev-view-title" style="margin:0"></h2>
@@ -1975,6 +1986,9 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
                 <button class="modal-close" onclick="closeView()">&#x2715;</button>
             </div>
         </div>
+        <!-- Single scroll region: header stays pinned, everything else (incl. the
+             action buttons) scrolls, so a tall event can't push the buttons off-screen. -->
+        <div id="vScrollBody" style="flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch">
         <div id="vSavedBar" style="visibility:hidden;background:#dcfce7;color:#166534;border-radius:7px;padding:.2rem .9rem;font-size:.8rem;font-weight:600;margin-bottom:.5rem;text-align:center">
             Saved
         </div>
@@ -2046,9 +2060,8 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         </div>
         <?php endif; ?>
 
-        </div><!-- /static-top -->
         <!-- Comments -->
-        <div class="comments-section" id="vCommentsSection" style="flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;margin-top:.75rem">
+        <div class="comments-section" id="vCommentsSection" style="margin-top:.75rem">
             <div class="comments-heading">
                 <span id="vCommentsHeading">0 Comments</span>
                 <?php if ($isAdmin): ?>
@@ -2072,7 +2085,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
                         class="btn btn-outline" style="font-size:.75rem;padding:.25rem .65rem">Cancel</button>
             </div>
             <?php endif; ?>
-            <div id="vCommentsScroll" style="flex:1;min-height:0;overflow-y:auto;padding-right:.25rem">
+            <div id="vCommentsScroll" style="padding-right:.25rem">
                 <div id="vCommentsList"></div>
             </div>
             <?php if ($current): ?>
@@ -2089,6 +2102,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             <p class="comment-login"><a href="/login.php">Log in</a> to leave a comment.</p>
             <?php endif; ?>
         </div>
+        </div><!-- /vScrollBody -->
     </div>
 </div>
 
@@ -2449,6 +2463,8 @@ function viewEvent(ev) {
 
     startRsvpPoll(ev.id);
 
+    const sb = document.getElementById('vScrollBody');
+    if (sb) sb.scrollTop = 0;
     document.getElementById('viewModal').classList.add('open');
 }
 function showSavedBar(msg) {
@@ -2791,7 +2807,7 @@ if (vCommentForm) {
             const cnt = eventComments[eid].length;
             document.getElementById('vCommentsHeading').textContent = cnt + (cnt === 1 ? ' Comment' : ' Comments');
             // Scroll to bottom of comment box
-            const scroll = document.getElementById('vCommentsScroll');
+            const scroll = document.getElementById('vScrollBody');
             if (scroll) scroll.scrollTop = scroll.scrollHeight;
             textarea.value = '';
             showSavedBar();
