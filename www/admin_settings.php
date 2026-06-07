@@ -2564,6 +2564,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                         <button type="button" id="wahaStartBtn" class="btn btn-primary" onclick="wahaStart()" style="display:none">Start Session</button>
                         <button type="button" id="wahaStopBtn" class="btn btn-outline" onclick="wahaStop()" style="display:none;color:#dc2626;border-color:#fca5a5">Disconnect</button>
                         <button type="button" class="btn btn-outline" onclick="wahaCheckStatus()">Refresh Status</button>
+                        <button type="button" class="btn btn-outline" onclick="wahaReset()" style="color:#dc2626;border-color:#fca5a5">Reset &amp; re-link</button>
                     </div>
                 </div>
             </div>
@@ -2651,6 +2652,28 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
             document.getElementById('wahaStatus').textContent = 'Error contacting server';
             document.getElementById('wahaStatus').style.color = '#dc2626';
         });
+    }
+
+    // Recover a dead/stuck session: log out the old WhatsApp link and drop into
+    // QR-scan state so a fresh device can be linked (what "Start" alone can't do).
+    function wahaReset() {
+        if (!confirm('Log out the current WhatsApp link and start over?\n\nYou will need to scan a new QR code (Linked Devices → Link a Device) to reconnect, and WhatsApp messages will not send until you do.')) return;
+        var el = document.getElementById('wahaStatus');
+        el.textContent = 'Resetting…'; el.style.color = '#2563eb';
+        if (_wahaQrInterval) { clearInterval(_wahaQrInterval); _wahaQrInterval = null; }
+        fetch('/admin_settings_dl.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest'},
+            body: 'csrf_token=' + encodeURIComponent(WAHA_CSRF) + '&action=waha_logout'
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+            if (!j.ok) { el.textContent = j.error || 'Reset failed'; el.style.color = '#dc2626'; return; }
+            // WAHA needs a moment to drop into SCAN_QR_CODE; then refresh (loads the QR).
+            el.textContent = 'Preparing QR code…'; el.style.color = '#d97706';
+            setTimeout(wahaCheckStatus, 3000);
+        })
+        .catch(function() { el.textContent = 'Error contacting server'; el.style.color = '#dc2626'; });
     }
 
     var _wahaQrInterval = null;

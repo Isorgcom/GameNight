@@ -22,7 +22,7 @@ if (!empty($_SESSION['flash'])) {
 $tab = in_array($_GET['tab'] ?? '', ['dashboard', 'general', 'appearance', 'logs', 'users', 'email']) ? $_GET['tab'] : 'dashboard';
 
 // ── WAHA AJAX actions (handled before main POST to guarantee JSON response) ──
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['waha_status', 'waha_start', 'waha_stop', 'waha_qr'], true)) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['waha_status', 'waha_start', 'waha_stop', 'waha_qr', 'waha_logout'], true)) {
     header('Content-Type: application/json');
     if (!csrf_verify()) { echo json_encode(['ok' => false, 'error' => 'CSRF token mismatch']); exit; }
     $action = $_POST['action'];
@@ -34,14 +34,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $post_tab = $_POST['tab'] ?? 'general';
     if (!csrf_verify()) {
         // For WAHA actions we already handled above; for others show flash
-        if (!in_array($_POST['action'] ?? '', ['waha_status', 'waha_start', 'waha_stop', 'waha_qr'], true)) {
+        if (!in_array($_POST['action'] ?? '', ['waha_status', 'waha_start', 'waha_stop', 'waha_qr', 'waha_logout'], true)) {
             $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid request token.'];
         }
     } else {
         $action = $_POST['action'] ?? '';
 
         // ── WAHA WhatsApp session management (AJAX, returns JSON) ────────────
-        if (in_array($action, ['waha_status', 'waha_start', 'waha_stop', 'waha_qr'], true)) {
+        if (in_array($action, ['waha_status', 'waha_start', 'waha_stop', 'waha_qr', 'waha_logout'], true)) {
             header('Content-Type: application/json');
             $waha_url  = get_setting('waha_url', 'http://waha:3000');
             $waha_sess = get_setting('waha_session', 'default');
@@ -90,6 +90,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
                 curl_exec($ch);
                 curl_close($ch);
+                echo json_encode(['ok' => true]);
+                exit;
+            }
+
+            if ($action === 'waha_logout') {
+                // Recover a dead/STOPPED/FAILED session: log out to clear the old
+                // WhatsApp credentials, then start so it drops into SCAN_QR_CODE for
+                // re-linking. (Plain "Start" can't recover a session whose stored
+                // credentials were revoked — it just reconnects to the dead link.)
+                $base = rtrim($waha_url, '/') . '/api/sessions/' . urlencode($waha_sess);
+                $lo = curl_init($base . '/logout');
+                curl_setopt_array($lo, [CURLOPT_POST => true, CURLOPT_HTTPHEADER => $waha_headers, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 30]);
+                curl_exec($lo);
+                $loErr  = curl_error($lo);
+                curl_close($lo);
+                if ($loErr) { echo json_encode(['ok' => false, 'error' => 'Cannot reach WAHA: ' . $loErr]); exit; }
+                // Nudge it to start (idempotent — a 422 "already started" is fine).
+                $st = curl_init($base . '/start');
+                curl_setopt_array($st, [CURLOPT_POST => true, CURLOPT_HTTPHEADER => $waha_headers, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 30]);
+                curl_exec($st);
+                curl_close($st);
+                db_log_activity((int)$current['id'], 'reset WhatsApp (WAHA) session for re-link');
                 echo json_encode(['ok' => true]);
                 exit;
             }

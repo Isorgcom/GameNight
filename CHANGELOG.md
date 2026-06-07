@@ -4,7 +4,10 @@ All notable changes to GameNight are documented here.
 
 ---
 
-## [v0.1946] - 2026-06-07
+## [v0.1947] - 2026-06-07
+
+### Added
+- **"Reset & re-link" for the WhatsApp (WAHA) session in admin settings.** The WhatsApp Connection panel (Site Settings → WhatsApp) could show status / start / stop / QR, but had no way to recover a session whose WhatsApp link was revoked (logged out): plain **Start** just reconnects to the now-dead stored credentials and lands back on `FAILED`, never reaching the QR-scan state, so re-linking previously required SSH + the WAHA API. A new **Reset & re-link** button (and a `waha_logout` AJAX action in `www/admin_settings_dl.php`) logs the session out to clear the stale credentials, restarts it so it drops into `SCAN_QR_CODE`, and the existing QR + status polling then guides re-linking from the browser. The action is admin-only and CSRF-protected, with a confirm dialog noting it unlinks the current account and that WhatsApp won't send until re-linked. Implemented in `www/admin_settings.php` (button + `wahaReset()` JS) and `www/admin_settings_dl.php` (handler using the modern `/api/sessions/{name}/logout` + `/start` endpoints).
 
 ### Changed
 - **Phone "Verify" control moved next to the phone field on Settings.** On the My Settings Profile card (`www/settings.php`), the phone-verification UI (Verify-number button, the 6-digit code entry, or the "✓ Verified" indicator) previously rendered at the bottom of the card, after Save Profile, disconnected from the phone field. It now sits **inline with the phone number**. Because the phone `<input>` lives inside the `update_profile` form and HTML forms can't nest, the verify actions are kept as hidden sibling forms (`#phSendForm` / `#phVerifyForm`) and the visible controls are associated with them via the HTML `form="…"` attribute, so they submit independently and the code input is never swept into a profile save. No server-side changes (the `send_phone_code` / `verify_phone_code` handlers are unchanged).
