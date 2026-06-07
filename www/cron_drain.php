@@ -55,14 +55,14 @@ $rows = $pending->fetchAll();
 $sent = 0;
 $failed = 0;
 foreach ($rows as $qrow) {
-    // Claim the row first — prevents concurrent drains sending twice
-    $db->prepare("UPDATE pending_notifications SET attempted_at = CURRENT_TIMESTAMP, attempts = attempts + 1 WHERE id = ? AND attempted_at IS NULL")
-       ->execute([(int)$qrow['id']]);
-
-    // Only proceed if our UPDATE actually set attempted_at (i.e., we claimed it)
-    $check = $db->prepare("SELECT attempts FROM pending_notifications WHERE id = ? AND attempted_at IS NOT NULL");
-    $check->execute([(int)$qrow['id']]);
-    if (!$check->fetchColumn()) continue;
+    // Atomically claim the row: only the drain whose UPDATE actually flips
+    // attempted_at (NULL → now) proceeds. A concurrent drain's UPDATE matches
+    // zero rows (attempted_at already set), so rowCount() is 0 and it skips —
+    // preventing the same notification from being sent twice. (A SELECT for
+    // "attempted_at IS NOT NULL" is NOT sufficient: it's true for the loser too.)
+    $claim = $db->prepare("UPDATE pending_notifications SET attempted_at = CURRENT_TIMESTAMP, attempts = attempts + 1 WHERE id = ? AND attempted_at IS NULL");
+    $claim->execute([(int)$qrow['id']]);
+    if ($claim->rowCount() < 1) continue;
 
     try {
         if (dispatch_queued_notification($db, $qrow)) {

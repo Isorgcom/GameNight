@@ -396,21 +396,12 @@ respond_to_provider($provider, $reply);
 
 exit;
 
-// ── Notify event creator of RSVP change ─────────────────────────────────────
+// ── Notify event owner + managers of an RSVP change ─────────────────────────
 function notify_creator_of_rsvp($db, $user, $invite, $rsvp, $from): void {
     $rsvp_changed = ($invite['old_rsvp'] ?? '') !== $rsvp;
     if (!$rsvp_changed) return;
-    $creatorStmt = $db->prepare('SELECT u.username FROM events e JOIN users u ON u.id=e.created_by WHERE e.id=?');
-    $creatorStmt->execute([$invite['event_id']]);
-    $creator = $creatorStmt->fetch();
-    if ($creator && strtolower($creator['username']) !== strtolower($user['username'])) {
-        require_once __DIR__ . '/_notifications.php';
-        queue_event_notification($db, (int)$invite['event_id'], $creator['username'], 'rsvp_to_creator', null, [
-            'rsvp'               => $rsvp,
-            'responder_username' => $user['username'],
-            'responder_display'  => $user['username'],
-        ]);
-    }
+    require_once __DIR__ . '/_notifications.php';
+    queue_rsvp_reply_notifications($db, (int)$invite['event_id'], null, $user['username'], $user['username'], $rsvp);
 }
 
 // ── Provider-specific response helpers ───────────────────────────────────────

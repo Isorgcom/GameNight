@@ -70,11 +70,12 @@ if ($notifications_on && !$drain_paused) {
     );
     $pending->execute();
     foreach ($pending->fetchAll() as $qrow) {
-        $db->prepare("UPDATE pending_notifications SET attempted_at = CURRENT_TIMESTAMP, attempts = attempts + 1 WHERE id = ? AND attempted_at IS NULL")
-           ->execute([(int)$qrow['id']]);
-        $check = $db->prepare("SELECT attempts FROM pending_notifications WHERE id = ? AND attempted_at IS NOT NULL");
-        $check->execute([(int)$qrow['id']]);
-        if (!$check->fetchColumn()) continue;
+        // Atomic claim: only the drain whose UPDATE flips attempted_at proceeds;
+        // a concurrent drain matches zero rows (rowCount 0) and skips. Using a
+        // SELECT for "attempted_at IS NOT NULL" would let both drains through.
+        $claim = $db->prepare("UPDATE pending_notifications SET attempted_at = CURRENT_TIMESTAMP, attempts = attempts + 1 WHERE id = ? AND attempted_at IS NULL");
+        $claim->execute([(int)$qrow['id']]);
+        if ($claim->rowCount() < 1) continue;
 
         try {
             if (dispatch_queued_notification($db, $qrow)) {

@@ -166,17 +166,9 @@ if ($rsvp_changed) {
            ->execute([0, "Email RSVP $rsvp for event id: " . $invite['event_id'] . " (pending invitee: " . $invite['username'] . ", invite_id: " . $invite['id'] . ")", $_SERVER['REMOTE_ADDR'] ?? '']);
     }
 
-    $creatorStmt = $db->prepare('SELECT u.username FROM events e JOIN users u ON u.id=e.created_by WHERE e.id=?');
-    $creatorStmt->execute([$invite['event_id']]);
-    $creator = $creatorStmt->fetch();
-    if ($creator && strtolower($creator['username']) !== strtolower($invite['username'])) {
-        require_once __DIR__ . '/_notifications.php';
-        queue_event_notification($db, (int)$invite['event_id'], $creator['username'], 'rsvp_to_creator', null, [
-            'rsvp'               => $rsvp,
-            'responder_username' => $invite['username'],
-            'responder_display'  => $invite['username'],
-        ]);
-    }
+    // Notify the event owner AND every per-event manager (not just the creator).
+    require_once __DIR__ . '/_notifications.php';
+    queue_rsvp_reply_notifications($db, (int)$invite['event_id'], null, $invite['username'], $invite['username'], $rsvp);
 }
 
 // Land the invitee on the public event page (no login required). It shows the event

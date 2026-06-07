@@ -143,6 +143,21 @@ function db_init(PDO $pdo): void {
 
         CREATE INDEX IF NOT EXISTS idx_comments_lookup ON comments(type, content_id);
 
+        CREATE TABLE IF NOT EXISTS event_messages (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_id        INTEGER NOT NULL,
+            occurrence_date TEXT,
+            token           TEXT    NOT NULL UNIQUE,
+            subject         TEXT    NOT NULL,
+            body_html       TEXT    NOT NULL,
+            audience        TEXT    NOT NULL DEFAULT 'yes',
+            created_by      INTEGER,
+            created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (event_id) REFERENCES events(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_event_messages_event ON event_messages(event_id);
+
         CREATE TABLE IF NOT EXISTS event_exceptions (
             id       INTEGER PRIMARY KEY AUTOINCREMENT,
             event_id INTEGER NOT NULL,

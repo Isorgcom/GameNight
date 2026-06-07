@@ -79,14 +79,16 @@ function queue_event_notification(
     if ($username === '' || $event_id <= 0) return;
 
     // Per-recipient daily cap (circuit breaker against accidental storms).
-    // Reminders are exempt because they're pre-scheduled with their own dedup;
-    // counting them here would block legitimate reminder delivery.
-    if ($notify_type !== 'reminder') {
+    // Reminders are exempt because they're pre-scheduled with their own dedup.
+    // rsvp_to_creator is exempt too: its volume is naturally bounded by the
+    // invitee count, and capping it would silently drop legitimate RSVP replies
+    // to an owner/manager mid-event.
+    if (!in_array($notify_type, ['reminder', 'rsvp_to_creator', 'event_message'], true)) {
         $cap = defined('MAX_NOTIFICATIONS_PER_DAY') ? MAX_NOTIFICATIONS_PER_DAY : 20;
         $c = $db->prepare(
             "SELECT COUNT(*) FROM pending_notifications
              WHERE LOWER(username) = LOWER(?)
-               AND notify_type != 'reminder'
+               AND notify_type NOT IN ('reminder', 'rsvp_to_creator', 'event_message')
                AND created_at >= datetime('now', '-1 day')"
         );
         $c->execute([$username]);
@@ -109,6 +111,48 @@ function queue_event_notification(
         $scheduled_for,
     ]);
     _schedule_drain_at_shutdown();
+}
+
+/**
+ * Queue an "<responder> replied YES/NO/MAYBE" notification to everyone who
+ * manages the event: the event owner (events.created_by) AND every per-event
+ * manager (event_invites.event_role = 'manager'). The responder is never
+ * notified about their own reply. Callers should only invoke this when the
+ * RSVP actually changed. Shared by all RSVP write paths (rsvp.php, calendar.php,
+ * sms_webhook.php, wa_webhook.php) so the recipient logic stays in one place.
+ */
+function queue_rsvp_reply_notifications(
+    PDO $db,
+    int $event_id,
+    ?string $occurrence_date,
+    string $responder_username,
+    string $responder_display,
+    string $rsvp
+): void {
+    if ($event_id <= 0 || $rsvp === '') return;
+
+    // Collect recipients, keyed by lowercase username to dedupe owner-also-manager.
+    $recips = [];
+    $c = $db->prepare('SELECT u.username FROM events e JOIN users u ON u.id = e.created_by WHERE e.id = ?');
+    $c->execute([$event_id]);
+    if ($cu = $c->fetchColumn()) $recips[strtolower((string)$cu)] = (string)$cu;
+
+    $m = $db->prepare("SELECT DISTINCT username FROM event_invites WHERE event_id = ? AND event_role = 'manager'");
+    $m->execute([$event_id]);
+    foreach ($m->fetchAll(PDO::FETCH_COLUMN) as $mu) {
+        if ($mu !== null && $mu !== '') $recips[strtolower((string)$mu)] = (string)$mu;
+    }
+
+    // Never notify the responder about their own reply.
+    unset($recips[strtolower($responder_username)]);
+
+    foreach ($recips as $u) {
+        queue_event_notification($db, $event_id, $u, 'rsvp_to_creator', $occurrence_date, [
+            'rsvp'               => $rsvp,
+            'responder_username' => $responder_username,
+            'responder_display'  => $responder_display,
+        ]);
+    }
 }
 
 /**
@@ -241,6 +285,15 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
     $type_tag = $type;
     if ($type === 'reminder') {
         $type_tag = 'reminder_' . (int)($payload['offset_minutes'] ?? 0);
+    } elseif ($type === 'rsvp_to_creator') {
+        // Each queued RSVP reply is its own message — discriminate by the queue
+        // row id so retries of THIS row still dedup, but distinct RSVPs (different
+        // responders / later changes) are never collapsed into one.
+        $type_tag = 'rsvp_to_creator_' . $row_id;
+    } elseif ($type === 'event_message') {
+        // Each host message send is distinct; discriminate per queued row so a
+        // host can send multiple notes over time without them deduping together.
+        $type_tag = 'event_message_' . $row_id;
     }
     $occ_key = $occ_date ?: '';
     $seenStmt = $db->prepare(
@@ -341,7 +394,7 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
         $start = $dt->format('Y-m-d');
     }
 
-    $subject = ''; $smsBody = ''; $htmlBody = '';
+    $subject = ''; $smsBody = ''; $htmlBody = ''; $waBody = null;
 
     switch ($type) {
         case 'invite':
@@ -421,6 +474,30 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
             $htmlBody = '<p><strong>' . htmlspecialchars($responder) . '</strong> replied <strong>' . htmlspecialchars($rsvp) . '</strong> to <strong>' . htmlspecialchars($title) . '</strong> on ' . htmlspecialchars($start) . '.</p>';
             break;
 
+        case 'event_message':
+            // Host-authored note to attendees. SMS gets a short link only; email
+            // gets the full rich body + link; WhatsApp gets full plain text + link.
+            $msgId = (int)($payload['message_id'] ?? 0);
+            $msg = null;
+            if ($msgId > 0) {
+                $ms = $db->prepare('SELECT subject, body_html, token FROM event_messages WHERE id = ?');
+                $ms->execute([$msgId]);
+                $msg = $ms->fetch();
+            }
+            if (!$msg) return true; // message deleted — treat as handled
+            $viewUrl  = $site_url . '/event_message.php?token=' . urlencode($msg['token']);
+            $shortUrl = (get_setting('url_shortener_enabled') === '1') ? shorten_url($viewUrl) : $viewUrl;
+            $subject  = $msg['subject'];
+            $htmlBody = $msg['body_html']
+                      . '<p style="margin-top:1.25rem"><a href="' . htmlspecialchars($viewUrl) . '" style="color:#2563eb">View this message in your browser</a></p>';
+            // SMS: link only — keeps long details (address, parking, etc.) out of texts.
+            $smsBody  = '"' . $title . '": ' . $shortUrl;
+            // WhatsApp: full message as plain text + link. Convert block tags to newlines first.
+            $plain    = strip_tags(str_replace(['</p>', '<br>', '<br/>', '<br />', '</div>', '</li>'], "\n", $msg['body_html']));
+            $plain    = trim(preg_replace('/\n{3,}/', "\n\n", html_entity_decode($plain, ENT_QUOTES)));
+            $waBody   = $plain . "\n\n" . $shortUrl;
+            break;
+
         case 'waitlist_promoted':
             $subject = "A seat opened up: $title";
             $smsBody = "A seat opened up for \"$title\" on $start. You're in! View: $url";
@@ -450,7 +527,7 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
     send_notification(
         $user['username'], $user['email'] ?? '', $user['phone'] ?? '',
         $user['preferred_contact'] ?? 'email',
-        $subject, $smsBody, $htmlBody
+        $subject, $smsBody, $htmlBody, $waBody
     );
 
     // Mark as sent IMMEDIATELY after send_notification returns, regardless of per-channel

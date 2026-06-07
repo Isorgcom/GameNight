@@ -685,7 +685,7 @@ function get_last_notification_error(): ?string {
     return $GLOBALS['_last_notification_error'] ?? null;
 }
 
-function send_notification(string $username, string $email, string $phone, string $preferred_contact, string $subject, string $smsBody, string $htmlBody): void {
+function send_notification(string $username, string $email, string $phone, string $preferred_contact, string $subject, string $smsBody, string $htmlBody, ?string $waBody = null): void {
     $GLOBALS['_last_notification_error'] = null;
     if (get_setting('notifications_enabled', '0') !== '1') return;
     $doEmail    = in_array($preferred_contact, ['email', 'both'], true) && $email !== '';
@@ -705,7 +705,8 @@ function send_notification(string $username, string $email, string $phone, strin
     }
     if ($doWhatsApp) {
         require_once __DIR__ . '/sms.php';
-        $err = send_whatsapp($phone, $smsBody);
+        // WhatsApp can carry a different (typically longer) body than SMS; fall back to the SMS body.
+        $err = send_whatsapp($phone, $waBody ?? $smsBody);
         if ($err !== null) $errors[] = 'whatsapp: ' . $err;
     }
     if (!empty($errors)) {

@@ -53,7 +53,16 @@ if (!empty($_SESSION['flash'])) {
 
 // ── POST ──────────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $__isXhr = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest';
     if (!csrf_verify()) {
+        // For AJAX callers, return JSON so the client can show a real message instead
+        // of silently following the redirect to HTML and failing to parse it.
+        if ($__isXhr) {
+            http_response_code(403);
+            header('Content-Type: application/json');
+            echo json_encode(['ok' => false, 'error' => 'Your session expired. Please reload the page and try again.']);
+            exit;
+        }
         $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid request token.'];
         header('Location: /calendar.php');
         exit;
@@ -71,7 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Per-event management actions that target an existing event via event_id (not id).
     // Each is allowed for anyone who can manage that specific event; the handlers below
     // re-check with can_manage_event(), so this gate just needs to let managers through.
-    $eventMgmtActions = ['send_invites', 'resend_invite', 'approve_invite', 'deny_invite'];
+    $eventMgmtActions = ['send_invites', 'resend_invite', 'approve_invite', 'deny_invite', 'send_event_message', 'delete_event_message'];
     if (!$isAdmin && !in_array($action, ['update_rsvp', 'self_signup', 'self_remove'], true)) {
         $chkIdForMgr  = (int)($_POST['id'] ?? 0);
         $chkEidForMgr = (int)($_POST['event_id'] ?? 0);
@@ -85,6 +94,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $isMgr = can_manage_event($db, $chkEidForMgr, (int)$current['id'], $isAdmin);
         }
         if (!$isMgr && (!$canCreateEvents || !in_array($action, $userEventActions, true))) {
+            if ($__isXhr) {
+                http_response_code(403); header('Content-Type: application/json');
+                echo json_encode(['ok' => false, 'error' => 'You do not have permission to manage this event.']); exit;
+            }
             http_response_code(403); exit('Access denied.');
         }
     }
@@ -487,6 +500,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $db->prepare("DELETE FROM comments WHERE type='event' AND content_id=?")->execute([$id]);
+            try { $db->prepare('DELETE FROM event_messages WHERE event_id=?')->execute([$id]); } catch (Exception $e) {}
             $db->prepare('DELETE FROM event_exceptions WHERE event_id=?')->execute([$id]);
             $db->prepare('DELETE FROM event_invites WHERE event_id=?')->execute([$id]);
             // Clean up already-sent notification history for this event; leave any unsent
@@ -584,19 +598,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             db_log_activity($current['id'], "updated RSVP for event id: $eid" . ($occDate ? " on $occDate" : '') . ($on_behalf ? " (on behalf of $target_username)" : ''));
 
-            // Notify event creator only if RSVP actually changed and editor is not acting on behalf
+            // Notify the event owner AND every per-event manager if the RSVP
+            // actually changed and the editor isn't acting on someone's behalf.
             if (!$on_behalf && $rsvp && $rsvp !== $oldRsvp) {
-                $evRow = $db->prepare('SELECT e.created_by, u.username FROM events e JOIN users u ON u.id=e.created_by WHERE e.id=?');
-                $evRow->execute([$eid]);
-                $creator = $evRow->fetch();
-                if ($creator && strtolower($creator['username']) !== strtolower($current['username'])) {
-                    require_once __DIR__ . '/_notifications.php';
-                    queue_event_notification($db, $eid, $creator['username'], 'rsvp_to_creator', null, [
-                        'rsvp'               => $rsvp,
-                        'responder_username' => $current['username'],
-                        'responder_display'  => $current['username'],
-                    ]);
-                }
+                require_once __DIR__ . '/_notifications.php';
+                queue_rsvp_reply_notifications($db, $eid, null, $current['username'], $current['username'], $rsvp);
             }
         }
         // Auto-promote waitlisted invitee if someone declined
@@ -839,6 +845,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             http_response_code(403);
             exit('Permission denied.');
         }
+    }
+
+    // Host-authored "final details" message to attendees (owner/manager only).
+    if ($action === 'send_event_message' && $current) {
+        $eid   = (int)($_POST['event_id'] ?? 0);
+        $isXhr = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest';
+        $fail = function (string $msg, int $code = 400) use ($isXhr) {
+            if ($isXhr) { http_response_code($code); header('Content-Type: application/json'); echo json_encode(['ok' => false, 'error' => $msg]); exit; }
+            http_response_code($code); exit($msg);
+        };
+        if ($eid <= 0 || !can_manage_event($db, $eid, (int)$current['id'], $isAdmin)) {
+            $fail('Permission denied.', 403);
+        }
+        if (get_setting('notifications_enabled', '0') !== '1') {
+            $fail('Notifications are currently disabled site-wide.');
+        }
+        $subject  = trim($_POST['subject'] ?? '');
+        $audience = in_array($_POST['audience'] ?? '', ['yes', 'yes_maybe', 'all'], true) ? $_POST['audience'] : 'yes';
+        $body     = sanitize_html((string)($_POST['body'] ?? ''));
+        if ($subject === '' || trim(strip_tags($body)) === '') {
+            $fail('A subject and a message are required.');
+        }
+        // Event date for display/storage on the message row.
+        $evStmt = $db->prepare('SELECT start_date FROM events WHERE id = ?');
+        $evStmt->execute([$eid]);
+        $occ = (string)($_POST['occurrence_date'] ?? '');
+        $occ = preg_match('/^\d{4}-\d{2}-\d{2}$/', $occ) ? $occ : ($evStmt->fetchColumn() ?: null);
+
+        // Recipients by audience, among approved base invitees.
+        $rsvpFilter = $audience === 'yes' ? "AND rsvp = 'yes'"
+                    : ($audience === 'yes_maybe' ? "AND rsvp IN ('yes','maybe')" : '');
+        $rows = $db->prepare(
+            "SELECT username FROM event_invites
+             WHERE event_id = ? AND occurrence_date IS NULL AND approval_status = 'approved' $rsvpFilter"
+        );
+        $rows->execute([$eid]);
+        $targets = array_column($rows->fetchAll(), 'username');
+
+        // Store the message (history + tokenized view link).
+        $token = bin2hex(random_bytes(16));
+        $db->prepare('INSERT INTO event_messages (event_id, occurrence_date, token, subject, body_html, audience, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
+           ->execute([$eid, $occ, $token, $subject, $body, $audience, (int)$current['id']]);
+        $msgId = (int)$db->lastInsertId();
+
+        require_once __DIR__ . '/_notifications.php';
+        $sent = 0;
+        foreach ($targets as $uname) {
+            // queue_event_notification() schedules a single shutdown drain itself;
+            // do NOT also call drain_queue_async() here or two drains race.
+            queue_event_notification($db, $eid, $uname, 'event_message', null, ['message_id' => $msgId]);
+            $sent++;
+        }
+        db_log_activity((int)$current['id'], "sent event message ($audience) to $sent guest(s) on event id: $eid");
+
+        if ($isXhr) { header('Content-Type: application/json'); echo json_encode(['ok' => true, 'sent' => $sent, 'msg_id' => $msgId]); exit; }
+        $_SESSION['flash'] = ['type' => 'success', 'msg' => "Message sent to $sent guest(s)."];
+        header('Location: /calendar.php'); exit;
+    }
+
+    // Delete a host message (owner/manager only). The tokenized view link then 404s,
+    // and any not-yet-sent queued copies drop on dispatch (message lookup misses).
+    if ($action === 'delete_event_message' && $current) {
+        $eid   = (int)($_POST['event_id'] ?? 0);
+        $mid   = (int)($_POST['message_id'] ?? 0);
+        $isXhr = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest';
+        if ($eid <= 0 || $mid <= 0 || !can_manage_event($db, $eid, (int)$current['id'], $isAdmin)) {
+            if ($isXhr) { http_response_code(403); header('Content-Type: application/json'); echo json_encode(['ok' => false, 'error' => 'Permission denied.']); exit; }
+            http_response_code(403); exit('Permission denied.');
+        }
+        $db->prepare('DELETE FROM event_messages WHERE id = ? AND event_id = ?')->execute([$mid, $eid]);
+        db_log_activity((int)$current['id'], "deleted event message id $mid on event id: $eid");
+        if ($isXhr) { header('Content-Type: application/json'); echo json_encode(['ok' => true]); exit; }
+        $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Message deleted.'];
+        header('Location: /calendar.php'); exit;
     }
 
     if ($action === 'regenerate_walkin_token' && $isAdmin) {
@@ -1094,6 +1174,47 @@ if ($current && !$isAdmin) {
         $managedEventIds[] = (int)$__r['id'];
     }
     $managedEventIds = array_values(array_unique($managedEventIds));
+}
+
+// Batch-load host messages ("final details") for page events, audience-gated per viewer:
+// managers see all; an invitee sees only messages whose audience includes their RSVP.
+$ev_messages = [];
+if ($current && !empty($allPageEids)) {
+    $curLc = strtolower($current['username']);
+    $mph = implode(',', array_fill(0, count($allPageEids), '?'));
+    $mq  = $db->prepare("SELECT m.id, m.event_id, m.subject, m.body_html, m.audience, m.created_at, u.username AS author, e.created_by
+                         FROM event_messages m JOIN events e ON e.id = m.event_id LEFT JOIN users u ON u.id = m.created_by
+                         WHERE m.event_id IN ($mph) ORDER BY m.created_at ASC");
+    $mq->execute($allPageEids);
+    foreach ($mq->fetchAll() as $m) {
+        $eid    = (int)$m['event_id'];
+        // Manager view = site admin, event creator, per-event manager, or league owner/manager.
+        // Mirror the client's _calCanManage (which counts the creator) so an owner sees the history.
+        $canMng = $isAdmin || (int)$m['created_by'] === (int)$current['id'] || in_array($eid, $managedEventIds, true);
+        $visible = $canMng;
+        if (!$visible) {
+            foreach (($ev_invites[$eid] ?? []) as $iv) {
+                if (strtolower($iv['username']) === $curLc && ($iv['approval_status'] ?? 'approved') === 'approved') {
+                    $r = $iv['rsvp'] ?? '';
+                    $visible = ($m['audience'] === 'all')
+                            || ($m['audience'] === 'yes' && $r === 'yes')
+                            || ($m['audience'] === 'yes_maybe' && in_array($r, ['yes', 'maybe'], true));
+                    break;
+                }
+            }
+        }
+        if ($visible) {
+            $ev_messages[$eid][] = [
+                'id'         => (int)$m['id'],
+                'subject'    => $m['subject'],
+                'body_html'  => $m['body_html'],
+                'audience'   => $m['audience'],
+                'created_at' => $m['created_at'],
+                'author'     => $m['author'],
+                'can_manage' => $canMng,
+            ];
+        }
+    }
 }
 
 // Map each page event to its creator, so invites saved with no contact info can be
@@ -1642,6 +1763,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         }
     </style>
     <?php if ($isAdmin): ?><script src="/vendor/qrcode.min.js"></script><?php endif; ?>
+    <?php if ($current): ?><link href="/vendor/jodit/jodit.min.css" rel="stylesheet"><?php endif; ?>
 </head>
 <body>
 
@@ -2180,6 +2302,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
 <script>
 let currentEvent = null;
 const eventComments      = <?= json_encode($ev_comments, JSON_HEX_TAG) ?>;
+const eventMessages      = <?= json_encode($ev_messages, JSON_HEX_TAG | JSON_FORCE_OBJECT) ?>;
 const eventInvites       = <?= json_encode($ev_invites, JSON_HEX_TAG) ?>;
 const eventInvitesByOcc  = <?= json_encode($ev_invites_occ, JSON_HEX_TAG) ?>;
 const eventPoker         = <?= json_encode($ev_poker, JSON_HEX_TAG | JSON_FORCE_OBJECT) ?>;
@@ -2515,6 +2638,39 @@ function renderInvitesPanel(eid) {
         ih += '</div>';
     }
 
+    // Host messages ("final details"): compose button for managers + read-only history.
+    const msgs = eventMessages[eid] || [];
+    if ((canManage && NOTIFS_ENABLED) || msgs.length) {
+        ih += '<div style="margin-top:.8rem;border-top:1px solid #f1f5f9;padding-top:.6rem">';
+        ih += '<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.45rem">'
+            + '<span style="flex:1;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8">Messages from the host</span>';
+        if (canManage && NOTIFS_ENABLED) {
+            ih += '<button type="button" class="btn-msg-guests" data-eid="' + eid + '" style="font-size:.75rem;padding:.25rem .7rem;border-radius:6px;border:0;background:#16a34a;color:#fff;font-weight:600;cursor:pointer">Message guests</button>';
+        }
+        ih += '</div>';
+        if (msgs.length) {
+            ih += '<div style="display:flex;flex-direction:column;gap:.45rem;max-height:15rem;overflow-y:auto;padding-right:.25rem">';
+            msgs.forEach(m => {
+                const aud = m.audience === 'all' ? 'All guests' : (m.audience === 'yes_maybe' ? 'Yes &amp; Maybe' : 'Going (Yes)');
+                const delBtn = (m.can_manage && m.id)
+                    ? '<button type="button" class="btn-del-msg" data-eid="' + eid + '" data-mid="' + m.id + '" title="Delete this message" style="background:none;border:0;color:#cbd5e1;cursor:pointer;font-size:1.15rem;line-height:1;padding:0 .15rem">&times;</button>'
+                    : '';
+                ih += '<div style="border:1px solid #e2e8f0;border-radius:8px;padding:.5rem .6rem;background:#fff">'
+                    + '<div style="display:flex;align-items:flex-start;gap:.5rem">'
+                    +   '<div style="flex:1;min-width:0;font-weight:600;font-size:.85rem;color:#1e293b">' + escHtml(m.subject) + '</div>'
+                    +   delBtn
+                    + '</div>'
+                    + '<div style="font-size:.7rem;color:#94a3b8;margin:.1rem 0 .4rem">' + escHtml(m.created_at) + (m.can_manage ? ' &middot; ' + aud : '') + '</div>'
+                    + '<div style="font-size:.85rem;color:#334155;line-height:1.5">' + m.body_html + '</div>'
+                    + '</div>';
+            });
+            ih += '</div>';
+        } else if (canManage) {
+            ih += '<div style="font-size:.78rem;color:#94a3b8">No messages sent yet. Use “Message guests” to send the address and final details.</div>';
+        }
+        ih += '</div>';
+    }
+
     if (ih) {
         vInvDiv.innerHTML = ih;
         vInvDiv.style.display = '';
@@ -2762,6 +2918,39 @@ if (vInvDiv) {
                     sendAllBtn.textContent = origText;
                     alert('Network error. Please try again.');
                 });
+            return;
+        }
+
+        // "Message guests" — open the compose popup for this event.
+        const msgBtn = e.target.closest('.btn-msg-guests');
+        if (msgBtn) {
+            openEventMsgModal(parseInt(msgBtn.dataset.eid));
+            return;
+        }
+
+        // Delete a host message (owner/manager).
+        const delMsgBtn = e.target.closest('.btn-del-msg');
+        if (delMsgBtn) {
+            if (!confirm('Delete this message? Guests will no longer be able to open its link.')) return;
+            const eid = parseInt(delMsgBtn.dataset.eid);
+            const mid = parseInt(delMsgBtn.dataset.mid);
+            const csrfEl = document.getElementById('vRsvpCsrf');
+            if (!csrfEl) return;
+            delMsgBtn.disabled = true;
+            const data = new FormData();
+            data.append('csrf_token', csrfEl.value);
+            data.append('action',     'delete_event_message');
+            data.append('event_id',   eid);
+            data.append('message_id', mid);
+            fetch('/calendar.php', {method:'POST', body:data, headers:{'X-Requested-With':'XMLHttpRequest'}})
+                .then(r => r.json())
+                .then(res => {
+                    if (!res.ok) { delMsgBtn.disabled = false; alert(res.error || 'Could not delete the message.'); return; }
+                    if (eventMessages[eid]) eventMessages[eid] = eventMessages[eid].filter(m => m.id != mid);
+                    if (typeof showSavedBar === 'function') showSavedBar('Message deleted');
+                    renderInvitesPanel(eid);
+                })
+                .catch(() => { delMsgBtn.disabled = false; alert('Network error. Please try again.'); });
             return;
         }
 
@@ -4074,6 +4263,113 @@ function regenerateWalkinToken(ev, callback) {
     } catch (e) {}
 })();
 </script>
+
+<?php if ($current): ?>
+<!-- Compose "final details" message to going guests (host/manager only) -->
+<div class="modal-overlay" id="eventMsgModal" onclick="if(event.target===this)closeEventMsgModal()">
+    <div class="modal" style="max-width:640px;display:flex;flex-direction:column;max-height:92vh">
+        <div class="modal-header" style="display:flex;align-items:center;gap:.6rem;border-bottom:1px solid #e2e8f0;padding-bottom:.6rem;margin-bottom:.75rem">
+            <h2 style="margin:0;flex:1;font-size:1.15rem">Message going guests</h2>
+            <a href="javascript:void(0)" onclick="closeEventMsgModal()" aria-label="Close" style="font-size:1.5rem;line-height:1;color:#94a3b8;text-decoration:none">&times;</a>
+        </div>
+        <p class="subtitle" style="margin-top:0">Send the address and final details to your guests. They'll get it by their preferred channel; text recipients get a link to read it.</p>
+        <input type="hidden" id="emEventId" value="">
+        <div class="form-group">
+            <label for="emSubject">Subject</label>
+            <input type="text" id="emSubject" maxlength="150" placeholder="Details for the event">
+        </div>
+        <div class="form-group">
+            <label for="emAudience">Send to</label>
+            <select id="emAudience" class="form-select" style="width:100%;padding:.5rem .75rem;border:1.5px solid #e2e8f0;border-radius:8px;background:#fff">
+                <option value="yes">Going (Yes) only</option>
+                <option value="yes_maybe">Going &amp; Maybe</option>
+                <option value="all">All invited (any response)</option>
+            </select>
+        </div>
+        <div class="form-group" style="flex:1;min-height:0">
+            <label for="emBody">Message</label>
+            <textarea id="emBody" name="body"></textarea>
+        </div>
+        <div style="display:flex;gap:.6rem;justify-content:flex-end;margin-top:.5rem">
+            <button type="button" class="btn" onclick="closeEventMsgModal()">Cancel</button>
+            <button type="button" class="btn btn-primary" id="emSendBtn" onclick="sendEventMessage()">Send message</button>
+        </div>
+    </div>
+</div>
+<script src="/vendor/jodit/jodit.min.js"></script>
+<script>
+let _emEditor = null;
+function _emEnsureEditor() {
+    if (_emEditor || typeof Jodit === 'undefined') return;
+    _emEditor = Jodit.make('#emBody', {
+        height: 280,
+        toolbarAdaptive: false,
+        buttons: ['bold','italic','underline','|','ul','ol','|','link','|','paragraph','align','|','undo','redo'],
+        uploader: { insertImageAsBase64URI: true },
+        placeholder: 'Address, parking, what to bring, etc.'
+    });
+}
+function openEventMsgModal(eid) {
+    document.getElementById('emEventId').value = eid;
+    document.getElementById('emAudience').value = 'yes';
+    let title = '';
+    try { if (typeof currentEvent !== 'undefined' && currentEvent && currentEvent.id == eid && currentEvent.title) title = currentEvent.title; } catch (e) {}
+    document.getElementById('emSubject').value = title ? ('Details for ' + title) : '';
+    _emEnsureEditor();
+    if (_emEditor) _emEditor.value = '';
+    document.getElementById('eventMsgModal').classList.add('open');
+}
+function closeEventMsgModal() {
+    document.getElementById('eventMsgModal').classList.remove('open');
+}
+function sendEventMessage() {
+    const eid     = parseInt(document.getElementById('emEventId').value);
+    const subject = document.getElementById('emSubject').value.trim();
+    const audience= document.getElementById('emAudience').value;
+    const body    = _emEditor ? _emEditor.value : document.getElementById('emBody').value;
+    const csrfEl  = document.getElementById('vRsvpCsrf');
+    if (!subject) { alert('Please enter a subject.'); return; }
+    if (!body || !body.replace(/<[^>]*>/g, '').trim()) { alert('Please write a message.'); return; }
+    if (!csrfEl) { alert('Session error, please reload.'); return; }
+    const btn = document.getElementById('emSendBtn');
+    btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Sending…';
+    const data = new FormData();
+    data.append('csrf_token', csrfEl.value);
+    data.append('action',     'send_event_message');
+    data.append('event_id',   eid);
+    data.append('subject',    subject);
+    data.append('audience',   audience);
+    data.append('body',       body);
+    fetch('/calendar.php', {method:'POST', body:data, headers:{'X-Requested-With':'XMLHttpRequest'}})
+        .then(async r => {
+            const txt = await r.text();
+            let res = null; try { res = JSON.parse(txt); } catch (e) {}
+            btn.disabled = false; btn.textContent = orig;
+            if (!res) { alert('Unexpected response (HTTP ' + r.status + '). Please reload the page and try again.'); return; }
+            if (!res.ok) { alert(res.error || 'Could not send the message.'); return; }
+            // Success — the message is already sent server-side. Everything below is
+            // best-effort UI; nothing here may surface as a failure.
+            try { closeEventMsgModal(); } catch (e) {}
+            try {
+                if (typeof showSavedBar === 'function') showSavedBar(res.sent > 0 ? ('Message sent to ' + res.sent + ' guest(s)') : 'Sent (no matching guests)');
+                else alert(res.sent > 0 ? ('Message sent to ' + res.sent + ' guest(s).') : 'Message sent.');
+            } catch (e) {}
+            try {
+                if (!eventMessages[eid]) eventMessages[eid] = [];
+                eventMessages[eid].push({
+                    id: res.msg_id || 0, subject: subject, body_html: body,
+                    audience: audience, created_at: 'Just now', author: null, can_manage: true
+                });
+                if (typeof renderInvitesPanel === 'function') renderInvitesPanel(eid);
+            } catch (e) { /* history refreshes next time the event is opened */ }
+        })
+        .catch(err => {
+            btn.disabled = false; btn.textContent = orig;
+            alert('Could not reach the server: ' + (err && err.message ? err.message : err));
+        });
+}
+</script>
+<?php endif; ?>
 
 </body>
 </html>

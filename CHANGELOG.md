@@ -4,6 +4,28 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1945] - 2026-06-07
+
+### Added
+- **Hosts can message their going guests ("final details").** A new **Message guests** action on an event (owner/manager only, in the invite panel) opens a rich-text composer (Jodit) with a **subject**, an **audience** selector (Going / Going & Maybe / All invited), and a body. The note is delivered through the existing notification queue by each guest's preferred channel, with channel-appropriate content: **email** gets the full formatted message plus a "view in browser" link, **WhatsApp** gets the full message as plain text plus the link, and **SMS** gets a short link only (so a long address isn't crammed into a text). Each send is stored in a new `event_messages` table (`www/db.php`) and is readable at a tokenized, login-free page `www/event_message.php?token=…` (the SMS/email link target). Sent notes also appear as a read-only **"Messages from the host"** history in the event panel, audience-gated so an owner/manager sees every message while a guest sees only those addressed to them. Owners/managers can **delete** a message (kills its view link; already-delivered emails/texts can't be unsent). New files: `www/event_message.php`. Touches `www/calendar.php` (compose modal + `send_event_message`/`delete_event_message` handlers + history render), `www/_notifications.php` (`event_message` dispatch case), and `www/auth.php` (`send_notification()` gained an optional separate WhatsApp body).
+
+### Fixed
+- **Duplicate notification delivery under concurrent queue drains.** The queue drain's row-claim in `www/cron.php` and `www/cron_drain.php` updated `attempted_at` and then *verified the claim with a `SELECT ... WHERE attempted_at IS NOT NULL`* — which is true for a losing concurrent drain too, so two drains could both dispatch the same row (recipient gets it twice; only one dedup marker written since the marker is recorded after sending). The claim is now truly atomic: it proceeds only when the `UPDATE ... WHERE attempted_at IS NULL` actually changed a row (`rowCount() >= 1`). This protects every notification type (invites, reminders, RSVP replies, host messages). The new `send_event_message` path also no longer spawns a redundant second drain (`queue_event_notification()` already schedules one), which is what reliably exposed the race.
+- **AJAX actions on a long-open calendar tab showed "Network error" instead of a real message.** When a page's CSRF token went stale, `www/calendar.php` answered AJAX POSTs with a 302 redirect to HTML, which the `fetch()` couldn't parse. it now returns JSON (`Your session expired. Please reload…`) for XHR, and the permission gate does likewise. The host-message composer also no longer mislabels a *successful* send as an error: the success path is acknowledged first and the in-place history refresh is best-effort.
+- **Event owners couldn't see the host-message history.** The history's visibility gate keyed off the manager list, which is built from per-event-manager invites and league roles but does **not** include the event's creator (a creator's authority comes from `events.created_by`, not a manager invite). The gate now treats the creator as a manager, matching `can_manage_event()` and the client's `_calCanManage`, so owners see their event's full message history.
+
+---
+
+## [v0.1944] - 2026-06-07
+
+### Fixed
+- **RSVP replies weren't reaching event owners or managers.** Two compounding, channel-agnostic bugs in the `rsvp_to_creator` notification path (so email, SMS, and WhatsApp were all affected):
+  1. **Owners got only the first RSVP per event.** `dispatch_queued_notification()` in `www/_notifications.php` dedups sends via `event_notifications_sent` keyed on `(event_id, occurrence, user, type_tag)`, but only `reminder` added a discriminator. `rsvp_to_creator` used the bare type string, so the first RSVP to an event wrote a marker for the creator and **every later RSVP** (any responder, any change) matched it and was silently dropped. Fixed by discriminating the tag per queued row (`rsvp_to_creator_<row_id>`): retries of the same row still dedup, but distinct RSVPs are never collapsed.
+  2. **Managers were never notified.** All four RSVP write paths queued only to `events.created_by`. A new shared helper `queue_rsvp_reply_notifications()` in `www/_notifications.php` now fans out to the event owner **and** every per-event manager (`event_invites.event_role = 'manager'`), excluding the responder. It replaces the creator-only logic in `www/rsvp.php` (token RSVP), `www/calendar.php` (logged-in RSVP), `www/sms_webhook.php` (`notify_creator_of_rsvp()`), and `www/wa_webhook.php` (`_wa_notify_creator()`), each still gated on an actual RSVP change.
+- **RSVP replies exempted from the 20/day per-recipient cap.** `queue_event_notification()` now treats `rsvp_to_creator` like `reminder` (uncapped and uncounted), so an active event's replies are no longer silently throttled for a busy owner/manager once delivery works.
+
+---
+
 ## [v0.1943] - 2026-06-06
 
 ### Added
