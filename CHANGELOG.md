@@ -4,7 +4,10 @@ All notable changes to GameNight are documented here.
 
 ---
 
-## [v0.1949] - 2026-06-07
+## [v0.1950] - 2026-06-07
+
+### Fixed
+- **Password managers (1Password) can now recognize the two-factor code prompt for autofill.** The MFA challenge page (`www/mfa_challenge.php`) had only the code input and no account field, so 1Password (notably on iPad/iOS) couldn't associate the page with the saved gamenight.poker login and wouldn't offer its stored one-time code. Added an off-screen, read-only `username` field (`autocomplete="username"`, valued with the account's email) as the first field in the challenge form so managers link the page to the right login item. it's `position`-hidden (not `display:none`, which managers skip), `tabindex="-1"`/`aria-hidden`, and ignored on submit (the handler keys off the session). The code field keeps `autocomplete="one-time-code"`. (Note: 1Password still only offers a code if that login item actually has a one-time password/TOTP saved on it.)
 
 ### Changed
 - **Host "Message guests" notifications now show who sent it and which event.** The SMS was previously just `"<Event>": <link>` with no sender or context. It now reads as two lines: `<Site>: new message from <Sender> about "<Event>".` then `Tap to read: <short link>` (plain ASCII to stay a single SMS segment). The sender is the message's author (`event_messages.created_by`, falling back to the site name if that account is gone). The same `From <Sender> · <Event>` attribution is prepended to the WhatsApp text and the email body for consistency. Implemented in the `event_message` case of `dispatch_queued_notification()` in `www/_notifications.php` (query now joins the author; no schema/UI changes).
