@@ -252,11 +252,35 @@ $site_name = get_setting('site_name', 'Game Night');
                            autocomplete="email" required
                            value="<?= htmlspecialchars($me['email'] ?? '') ?>">
                 </div>
+                <?php
+                    $_hasPhone   = !empty($me['phone']);
+                    $_phoneOk    = (int)($me['phone_verified'] ?? 0) === 1;
+                    $_phonePend  = !empty($_SESSION['phone_verify_id']);
+                ?>
                 <div class="form-group">
                     <label for="phone">Phone</label>
-                    <input type="tel" id="phone" name="phone"
-                           autocomplete="tel"
-                           value="<?= htmlspecialchars($me['phone'] ?? '') ?>">
+                    <div style="display:flex;gap:.5rem;align-items:center">
+                        <input type="tel" id="phone" name="phone" autocomplete="tel"
+                               value="<?= htmlspecialchars($me['phone'] ?? '') ?>" style="flex:1;min-width:0">
+                        <?php if ($_hasPhone && $_phoneOk): ?>
+                            <span style="white-space:nowrap;color:#16a34a;font-weight:600;font-size:.85rem">&#10003; Verified</span>
+                        <?php elseif ($_hasPhone && !$_phonePend): ?>
+                            <!-- submits the separate phSendForm via the HTML form= attribute (not the profile form) -->
+                            <button type="submit" form="phSendForm" class="btn" style="white-space:nowrap">Verify number</button>
+                        <?php endif; ?>
+                    </div>
+                    <?php if ($_hasPhone && !$_phoneOk && $_phonePend): ?>
+                    <div style="display:flex;gap:.5rem;align-items:center;margin-top:.45rem">
+                        <input type="text" name="verify_code" form="phVerifyForm" inputmode="numeric" maxlength="6" pattern="\d{6}" required
+                               autocomplete="one-time-code" placeholder="000000"
+                               style="flex:1;min-width:0;padding:.45rem .6rem;border:1.5px solid #e2e8f0;border-radius:7px;letter-spacing:.2em;text-align:center">
+                        <button type="submit" form="phVerifyForm" class="btn btn-primary" style="white-space:nowrap">Verify</button>
+                        <button type="submit" form="phSendForm" class="btn" style="white-space:nowrap">Resend</button>
+                    </div>
+                    <p class="hint" style="margin-top:.3rem">Enter the 6-digit code we texted to <?= htmlspecialchars($me['phone']) ?>.</p>
+                    <?php elseif ($_hasPhone && !$_phoneOk): ?>
+                    <p class="hint" style="margin-top:.3rem">Verify your number to use SMS for two-factor sign-in. If you just changed it, click Save Profile first.</p>
+                    <?php endif; ?>
                     <p style="margin-top:.4rem;font-size:.75rem;line-height:1.4;color:#64748b">By providing your phone number, you consent to receive event-related SMS messages (invites, reminders, RSVP updates). Message frequency varies. Message and data rates may apply. Reply STOP to unsubscribe, HELP for help. <a href="/privacy.php" target="_blank">Privacy Policy</a>.</p>
                 </div>
                 <div class="form-group">
@@ -292,37 +316,17 @@ $site_name = get_setting('site_name', 'Game Night');
                 <button type="submit" class="btn btn-primary" style="width:100%">Save Profile</button>
             </form>
 
-            <!-- Phone verification (separate forms — can't nest inside the profile form).
-                 Required before SMS two-factor becomes available. -->
-            <?php if (!empty($me['phone'])): ?>
-                <?php if ((int)($me['phone_verified'] ?? 0) === 1): ?>
-                <p style="margin-top:.5rem;color:#16a34a;font-weight:600;font-size:.85rem">&#10003; Phone number verified</p>
-                <?php elseif (!empty($_SESSION['phone_verify_id'])): ?>
-                <div style="margin-top:.6rem;padding:.85rem;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc">
-                    <p style="font-size:.85rem;color:#475569;margin:0 0 .5rem">Enter the 6-digit code we texted to <?= htmlspecialchars($me['phone']) ?>.</p>
-                    <form method="post" action="/settings.php" style="display:flex;gap:.5rem">
-                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
-                        <input type="hidden" name="action" value="verify_phone_code">
-                        <input type="text" name="verify_code" inputmode="numeric" maxlength="6" pattern="\d{6}" required
-                               autocomplete="one-time-code" placeholder="000000"
-                               style="flex:1;padding:.45rem .6rem;border:1.5px solid #e2e8f0;border-radius:7px;letter-spacing:.2em;text-align:center">
-                        <button type="submit" class="btn btn-primary">Verify</button>
-                    </form>
-                    <form method="post" action="/settings.php" style="margin-top:.4rem">
-                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
-                        <input type="hidden" name="action" value="send_phone_code">
-                        <button type="submit" style="background:none;border:none;color:#2563eb;cursor:pointer;font-size:.8rem;padding:0">Resend code</button>
-                    </form>
-                </div>
-                <?php else: ?>
-                <form method="post" action="/settings.php" style="margin-top:.5rem">
-                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
-                    <input type="hidden" name="action" value="send_phone_code">
-                    <button type="submit" class="btn" style="width:100%">Verify phone number</button>
-                    <p class="hint" style="margin-top:.3rem">Verify your number to use SMS for two-factor sign-in. If you just changed it, click Save Profile first.</p>
-                </form>
-                <?php endif; ?>
-            <?php endif; ?>
+            <!-- Phone-verification helper forms: kept OUTSIDE the profile form (forms can't
+                 nest). The visible Verify/Resend buttons + code input live next to the phone
+                 field above and target these via the HTML form="..." attribute. -->
+            <form id="phSendForm" method="post" action="/settings.php" style="display:none">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                <input type="hidden" name="action" value="send_phone_code">
+            </form>
+            <form id="phVerifyForm" method="post" action="/settings.php" style="display:none">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                <input type="hidden" name="action" value="verify_phone_code">
+            </form>
         </div>
 
         <!-- Right column: Change Password with Two-Factor grouped beneath it -->

@@ -4,7 +4,10 @@ All notable changes to GameNight are documented here.
 
 ---
 
-## [v0.1945] - 2026-06-07
+## [v0.1946] - 2026-06-07
+
+### Changed
+- **Phone "Verify" control moved next to the phone field on Settings.** On the My Settings Profile card (`www/settings.php`), the phone-verification UI (Verify-number button, the 6-digit code entry, or the "✓ Verified" indicator) previously rendered at the bottom of the card, after Save Profile, disconnected from the phone field. It now sits **inline with the phone number**. Because the phone `<input>` lives inside the `update_profile` form and HTML forms can't nest, the verify actions are kept as hidden sibling forms (`#phSendForm` / `#phVerifyForm`) and the visible controls are associated with them via the HTML `form="…"` attribute, so they submit independently and the code input is never swept into a profile save. No server-side changes (the `send_phone_code` / `verify_phone_code` handlers are unchanged).
 
 ### Added
 - **Hosts can message their going guests ("final details").** A new **Message guests** action on an event (owner/manager only, in the invite panel) opens a rich-text composer (Jodit) with a **subject**, an **audience** selector (Going / Going & Maybe / All invited), and a body. The note is delivered through the existing notification queue by each guest's preferred channel, with channel-appropriate content: **email** gets the full formatted message plus a "view in browser" link, **WhatsApp** gets the full message as plain text plus the link, and **SMS** gets a short link only (so a long address isn't crammed into a text). Each send is stored in a new `event_messages` table (`www/db.php`) and is readable at a tokenized, login-free page `www/event_message.php?token=…` (the SMS/email link target). Sent notes also appear as a read-only **"Messages from the host"** history in the event panel, audience-gated so an owner/manager sees every message while a guest sees only those addressed to them. Owners/managers can **delete** a message (kills its view link; already-delivered emails/texts can't be unsent). New files: `www/event_message.php`. Touches `www/calendar.php` (compose modal + `send_event_message`/`delete_event_message` handlers + history render), `www/_notifications.php` (`event_message` dispatch case), and `www/auth.php` (`send_notification()` gained an optional separate WhatsApp body).
