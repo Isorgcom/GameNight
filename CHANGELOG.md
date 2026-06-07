@@ -4,7 +4,10 @@ All notable changes to GameNight are documented here.
 
 ---
 
-## [v0.1947] - 2026-06-07
+## [v0.1948] - 2026-06-07
+
+### Fixed
+- **Host-message history disappeared after a reload / second send.** The event detail panel's "Messages from the host" list would show right after the first send but then vanish once the page reloaded or another message was sent. `www/calendar.php` emitted the message data with `json_encode($ev_messages, JSON_HEX_TAG | JSON_FORCE_OBJECT)`, and `JSON_FORCE_OBJECT` applies **recursively**, so each event's array of messages was serialized as an object (`{"0":…,"1":…}`) instead of an array. In `renderInvitesPanel()` that made `msgs.length` `undefined` (so the list was skipped) and the compose success handler's `eventMessages[eid].push(...)` throw (swallowed by its try/catch). Fixed by encoding as `json_encode((object)$ev_messages, JSON_HEX_TAG)` — the top level stays an object (incl. empty `{}`) while each event's message list stays a real array — plus a defensive `Array.isArray()` guard before the client-side push. (`eventComments` was already encoded correctly, which is why comments never had this issue.)
 
 ### Added
 - **"Reset & re-link" for the WhatsApp (WAHA) session in admin settings.** The WhatsApp Connection panel (Site Settings → WhatsApp) could show status / start / stop / QR, but had no way to recover a session whose WhatsApp link was revoked (logged out): plain **Start** just reconnects to the now-dead stored credentials and lands back on `FAILED`, never reaching the QR-scan state, so re-linking previously required SSH + the WAHA API. A new **Reset & re-link** button (and a `waha_logout` AJAX action in `www/admin_settings_dl.php`) logs the session out to clear the stale credentials, restarts it so it drops into `SCAN_QR_CODE`, and the existing QR + status polling then guides re-linking from the browser. The action is admin-only and CSRF-protected, with a confirm dialog noting it unlinks the current account and that WhatsApp won't send until re-linked. Implemented in `www/admin_settings.php` (button + `wahaReset()` JS) and `www/admin_settings_dl.php` (handler using the modern `/api/sessions/{name}/logout` + `/start` endpoints).

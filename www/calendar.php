@@ -2302,7 +2302,9 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
 <script>
 let currentEvent = null;
 const eventComments      = <?= json_encode($ev_comments, JSON_HEX_TAG) ?>;
-const eventMessages      = <?= json_encode($ev_messages, JSON_HEX_TAG | JSON_FORCE_OBJECT) ?>;
+/* (object) cast keeps the top level an object (incl. empty {}) WITHOUT JSON_FORCE_OBJECT,
+   which would recursively turn each event's message ARRAY into an object and break msgs.length/forEach. */
+const eventMessages      = <?= json_encode((object)$ev_messages, JSON_HEX_TAG) ?>;
 const eventInvites       = <?= json_encode($ev_invites, JSON_HEX_TAG) ?>;
 const eventInvitesByOcc  = <?= json_encode($ev_invites_occ, JSON_HEX_TAG) ?>;
 const eventPoker         = <?= json_encode($ev_poker, JSON_HEX_TAG | JSON_FORCE_OBJECT) ?>;
@@ -4355,7 +4357,7 @@ function sendEventMessage() {
                 else alert(res.sent > 0 ? ('Message sent to ' + res.sent + ' guest(s).') : 'Message sent.');
             } catch (e) {}
             try {
-                if (!eventMessages[eid]) eventMessages[eid] = [];
+                if (!Array.isArray(eventMessages[eid])) eventMessages[eid] = [];
                 eventMessages[eid].push({
                     id: res.msg_id || 0, subject: subject, body_html: body,
                     audience: audience, created_at: 'Just now', author: null, can_manage: true
