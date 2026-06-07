@@ -4,7 +4,10 @@ All notable changes to GameNight are documented here.
 
 ---
 
-## [v0.1950] - 2026-06-07
+## [v0.1951] - 2026-06-07
+
+### Fixed
+- **Two-factor code prompt now exposes a visible account field so 1Password recognizes it (iPad).** The v0.1950 off-screen username hint wasn't enough. iOS/1Password ignore hidden/off-screen fields when deciding what a page is. Replaced it with a visible, read-only **Account** field (`autocomplete="username"`, the account email) above the code input on `www/mfa_challenge.php`, which is the reliable signal for password managers to associate the page with the saved login and offer its stored one-time code. The field is read-only and ignored on submit; the code field keeps `autocomplete="one-time-code"`.
 
 ### Fixed
 - **Password managers (1Password) can now recognize the two-factor code prompt for autofill.** The MFA challenge page (`www/mfa_challenge.php`) had only the code input and no account field, so 1Password (notably on iPad/iOS) couldn't associate the page with the saved gamenight.poker login and wouldn't offer its stored one-time code. Added an off-screen, read-only `username` field (`autocomplete="username"`, valued with the account's email) as the first field in the challenge form so managers link the page to the right login item. it's `position`-hidden (not `display:none`, which managers skip), `tabindex="-1"`/`aria-hidden`, and ignored on submit (the handler keys off the session). The code field keeps `autocomplete="one-time-code"`. (Note: 1Password still only offers a code if that login item actually has a one-time password/TOTP saved on it.)

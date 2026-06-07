@@ -141,13 +141,16 @@ $token = csrf_token();
 
         <form method="post" action="/mfa_challenge.php">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
-            <!-- Off-screen account hint: lets password managers (1Password) associate this
-                 2FA page with the saved login so they offer its stored one-time code. Not
-                 display:none (managers skip those); readonly + tabindex=-1 so it's inert. The
-                 handler ignores any posted "username" (it keys off the session). -->
-            <input type="text" name="username" autocomplete="username" readonly tabindex="-1"
-                   aria-hidden="true" value="<?= htmlspecialchars(($user['email'] ?? '') !== '' ? $user['email'] : $user['username']) ?>"
-                   style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;opacity:0;border:0;padding:0">
+            <!-- Visible, real account field: lets password managers (1Password) associate this
+                 2FA page with the saved login so they offer its stored one-time code. iOS/1Password
+                 ignore off-screen hints, so this is a genuine readonly username field. The handler
+                 ignores any posted "username" (it keys off the session). -->
+            <div class="form-group">
+                <label for="mfa-acct">Account</label>
+                <input type="text" id="mfa-acct" name="username" autocomplete="username" readonly
+                       value="<?= htmlspecialchars(($user['email'] ?? '') !== '' ? $user['email'] : $user['username']) ?>"
+                       style="width:100%;text-align:center;padding:.5rem .6rem;border:1.5px solid #e2e8f0;border-radius:8px;background:#f8fafc;color:#475569">
+            </div>
             <div class="form-group" style="text-align:center">
                 <!-- Dedicated 6-digit numeric field: maximizes one-time-code autofill
                      detection by 1Password / iOS / Android (clean numeric, maxlength 6). -->
