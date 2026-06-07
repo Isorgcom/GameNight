@@ -35,3 +35,6 @@ www/phpadmin/phpliteadmin.php
 
 # WAHA WhatsApp session data
 waha_data/
+
+# Local UI redesign tracker (not shipped)
+/UI_REDESIGN.md
