@@ -4290,11 +4290,11 @@ function regenerateWalkinToken(ev, callback) {
             <h2 style="margin:0;flex:1;font-size:1.15rem">Message going guests</h2>
             <a href="javascript:void(0)" onclick="closeEventMsgModal()" aria-label="Close" style="font-size:1.5rem;line-height:1;color:#94a3b8;text-decoration:none">&times;</a>
         </div>
-        <p class="subtitle" style="margin-top:0">Send the address and final details to your guests. They'll get it by their preferred channel; text recipients get a link to read it.</p>
+        <p class="subtitle" style="margin-top:0">Send a message to your guests. They'll get it by their preferred channel; text recipients get a link to read it.</p>
         <input type="hidden" id="emEventId" value="">
         <div class="form-group">
             <label for="emSubject">Subject</label>
-            <input type="text" id="emSubject" maxlength="150" placeholder="Details for the event">
+            <input type="text" id="emSubject" maxlength="150" placeholder="Enter a subject">
         </div>
         <div class="form-group">
             <label for="emAudience">Send to</label>
@@ -4330,9 +4330,7 @@ function _emEnsureEditor() {
 function openEventMsgModal(eid) {
     document.getElementById('emEventId').value = eid;
     document.getElementById('emAudience').value = 'yes';
-    let title = '';
-    try { if (typeof currentEvent !== 'undefined' && currentEvent && currentEvent.id == eid && currentEvent.title) title = currentEvent.title; } catch (e) {}
-    document.getElementById('emSubject').value = title ? ('Details for ' + title) : '';
+    document.getElementById('emSubject').value = '';
     _emEnsureEditor();
     if (_emEditor) _emEditor.value = '';
     document.getElementById('eventMsgModal').classList.add('open');
