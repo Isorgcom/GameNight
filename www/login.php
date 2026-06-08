@@ -50,12 +50,18 @@ function _login_verify_2fa(int $uid, string $method, string $code, string $recov
 }
 
 function _login_finish(int $uid, bool $remember, string $redirect): void {
-    unset($_SESSION['mfa_user_id'], $_SESSION['mfa_method']);
+    unset($_SESSION['mfa_user_id'], $_SESSION['mfa_method'], $_SESSION['mfa_remember'], $_SESSION['mfa_redirect']);
     complete_login($uid);
     if ($remember) issue_remember_token($uid);
     $fresh = current_user();
     if (!empty($fresh['must_change_password'])) { header('Location: /settings.php?must_change=1'); exit; }
     header('Location: ' . $redirect); exit;
+}
+
+// "Back to sign in": abandon the pending 2FA step and return to the clean first screen.
+if (($_GET['reset'] ?? '') === '1') {
+    unset($_SESSION['mfa_user_id'], $_SESSION['mfa_method'], $_SESSION['mfa_remember'], $_SESSION['mfa_redirect']);
+    header('Location: /login.php'); exit;
 }
 
 // Resend an SMS code (link shown on the code prompt for SMS accounts).
@@ -78,11 +84,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pendingUid = (int)($_SESSION['mfa_user_id'] ?? 0);
 
         if ($pendingUid && ($code !== '' || $recovery !== '')) {
-            // Code submitted against an already-verified password step (manual 2nd
-            // submit, where the password field is no longer populated).
-            $method = $_SESSION['mfa_method'] ?? 'totp';
+            // Code submitted from the 2FA step (screen 2). The username/password are no
+            // longer posted, so remember-me + redirect come from the session stashed at
+            // the prompt step (falling back to anything posted this round).
+            $method   = $_SESSION['mfa_method'] ?? 'totp';
+            $remember = $remember || !empty($_SESSION['mfa_remember']);
+            $dest     = $_SESSION['mfa_redirect'] ?? $redirect;
             if (_login_verify_2fa($pendingUid, $method, $code, $recovery, $error)) {
-                _login_finish($pendingUid, $remember, $redirect);
+                _login_finish($pendingUid, $remember, $dest);
             } else { $needCode = true; }
         } elseif ($identifier === '' || $password === '') {
             $error = 'Enter your email, username, or phone, plus your password.';
@@ -104,12 +113,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         _login_finish($uid, $remember, $redirect);
                     } else { $needCode = true; }
                 } else {
+                    // Correct password, account has 2FA: advance to the code step
+                    // (screen 2). Stash remember-me + redirect so they survive the
+                    // second submit, which no longer carries the password.
+                    $_SESSION['mfa_remember'] = $remember;
+                    $_SESSION['mfa_redirect'] = $redirect;
                     if ($method === 'sms') {
                         $ph = get_db()->prepare('SELECT phone FROM users WHERE id = ?'); $ph->execute([$uid]);
                         if ($phone = $ph->fetchColumn()) send_mfa_sms_code($uid, $phone);
                         $notice = 'We texted you a code. Enter it below to finish signing in.';
                     } else {
-                        $notice = 'Your account uses two-factor authentication. Enter your code below to finish signing in.';
+                        $notice = 'Enter the code from your authenticator app to finish signing in.';
                     }
                     $needCode = true;
                 }
@@ -132,6 +146,19 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && !empty($_SESSION['mfa_user_id'])) {
 }
 
 $mfaMethod = $_SESSION['mfa_method'] ?? 'totp';
+
+// For the "Signing in as <account>" line on the code step: prefer what was just typed,
+// otherwise look it up from the pending account (e.g. after a refresh).
+$pendingDisplay = '';
+if ($needCode) {
+    $pendingDisplay = trim($_POST['identifier'] ?? $_POST['email'] ?? '');
+    if ($pendingDisplay === '' && !empty($_SESSION['mfa_user_id'])) {
+        $pd = get_db()->prepare('SELECT email, username FROM users WHERE id = ?');
+        $pd->execute([(int)$_SESSION['mfa_user_id']]);
+        if ($row = $pd->fetch()) $pendingDisplay = $row['email'] ?: $row['username'];
+    }
+}
+
 $token = csrf_token();
 $site_name = get_setting('site_name', 'Game Night');
 ?>
@@ -154,8 +181,15 @@ $site_name = get_setting('site_name', 'Game Night');
             <a href="/"><img src="<?= htmlspecialchars($_login_banner) ?>" alt="<?= htmlspecialchars($site_name) ?>" style="max-height:60px;width:auto"></a>
         </div>
         <?php endif; ?>
+        <?php if ($needCode): ?>
+        <h2>Two-factor authentication</h2>
+        <p class="subtitle">
+            <?= $mfaMethod === 'sms' ? 'Enter the code we texted you' : 'Enter the code from your authenticator app' ?><?php if ($pendingDisplay !== ''): ?> to sign in as <strong><?= htmlspecialchars($pendingDisplay) ?></strong><?php endif; ?>.
+        </p>
+        <?php else: ?>
         <h2>Sign In</h2>
         <p class="subtitle">Enter your credentials to access the dashboard.</p>
+        <?php endif; ?>
 
         <?php if ($error): ?>
             <div class="alert alert-error"><?= $error ?></div>
@@ -167,6 +201,33 @@ $site_name = get_setting('site_name', 'Game Night');
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
             <input type="hidden" name="redirect" value="<?= htmlspecialchars($redirect) ?>">
 
+        <?php if ($needCode): ?>
+            <!-- Step 2: two-factor code. Reached only after a correct password on a 2FA
+                 account; the verify path keys off the pending session, so there are no
+                 username/password fields here. -->
+            <div class="form-group">
+                <label for="code">Two-factor code</label>
+                <input type="text" id="code" name="code" inputmode="numeric" pattern="[0-9]*" maxlength="6"
+                       autocomplete="one-time-code" placeholder="000000" autofocus
+                       style="text-align:center;letter-spacing:.25em;font-size:1.25rem">
+                <?php if ($mfaMethod === 'sms'): ?>
+                <p class="hint" style="margin-top:.35rem">Didn't get it? <a href="/login.php?resend=1">Resend code</a></p>
+                <?php endif; ?>
+            </div>
+            <details style="margin-bottom:.5rem">
+                <summary style="cursor:pointer;font-size:.8rem;color:#94a3b8">Lost your authenticator? Use a recovery code</summary>
+                <div class="form-group" style="margin-top:.5rem">
+                    <input type="text" name="recovery_code" placeholder="xxxxx-xxxxx"
+                           autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+                           style="text-align:center;letter-spacing:.1em">
+                </div>
+            </details>
+
+            <button type="submit" class="btn btn-primary" style="width:100%;margin-top:.25rem">Verify &amp; sign in</button>
+            <p style="text-align:center;margin-top:.85rem;font-size:.8rem">
+                <a href="/login.php?reset=1" style="color:#64748b">Back to sign in</a>
+            </p>
+        <?php else: ?>
             <div class="form-group">
                 <label for="identifier">Email, username, or phone</label>
                 <input type="text" id="identifier" name="identifier"
@@ -188,27 +249,6 @@ $site_name = get_setting('site_name', 'Game Night');
                 </div>
             </div>
 
-            <!-- Two-factor code lives on the main login form (always present, so password
-                 managers can fill username + password + code in one action). Optional for
-                 accounts without 2FA. -->
-            <div class="form-group">
-                <label for="code">Two-factor code <span style="color:#94a3b8;font-size:.8rem;font-weight:400">(only if 2FA is on)</span></label>
-                <input type="text" id="code" name="code" inputmode="numeric" pattern="[0-9]*" maxlength="6"
-                       autocomplete="one-time-code" placeholder="000000"
-                       style="text-align:center;letter-spacing:.25em<?= $needCode ? ';border-color:#16a34a' : '' ?>">
-                <?php if ($needCode && $mfaMethod === 'sms'): ?>
-                <p class="hint" style="margin-top:.35rem">Didn't get it? <a href="/login.php?resend=1">Resend code</a></p>
-                <?php endif; ?>
-            </div>
-            <details style="margin-bottom:.5rem">
-                <summary style="cursor:pointer;font-size:.8rem;color:#94a3b8">Lost your authenticator? Use a recovery code</summary>
-                <div class="form-group" style="margin-top:.5rem">
-                    <input type="text" name="recovery_code" placeholder="xxxxx-xxxxx"
-                           autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
-                           style="text-align:center;letter-spacing:.1em">
-                </div>
-            </details>
-
             <div style="display:flex;align-items:center;justify-content:space-between;margin-top:.75rem">
                 <label style="display:flex;align-items:center;gap:.4rem;font-size:.85rem;color:#64748b;cursor:pointer">
                     <input type="checkbox" name="remember_me" value="1"<?= !empty($_POST['remember_me']) ? ' checked' : '' ?>> Remember me
@@ -219,6 +259,7 @@ $site_name = get_setting('site_name', 'Game Night');
             <button type="submit" class="btn btn-primary" style="width:100%;margin-top:.75rem">
                 Sign In
             </button>
+        <?php endif; ?>
         </form>
 
         <?php if (get_setting('allow_registration', '1') === '1'): ?>

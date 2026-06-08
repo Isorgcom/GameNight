@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1956] - 2026-06-08
+
+### Changed
+- **Login is two-step again: the two-factor code field no longer shows for accounts without 2FA.** v0.1954 put the code field permanently on the login form (so 1Password could fill username + password + code in one shot on iPad), but that meant every visitor saw a "Two-factor code" field even though most accounts have no 2FA. `www/login.php` now renders two states: a clean first screen (email/username/phone + password + remember-me) and, only after a correct password on a 2FA account, a dedicated "Two-factor authentication" screen with the code field, a "Signing in as <account>" line, the recovery-code option, an SMS "Resend code" link, and a "Back to sign in" link. The second factor is therefore shown only to 2FA accounts and only after the right password (`attempt_login()` still returns `mfa_required` only post-password, so no account enumeration). Remember-me and the redirect target are stashed in the session at the prompt step so they survive the password-less code submit; a new `?reset=1` handler clears the pending step. Trade-off: the code is no longer auto-filled on iPad for 2FA accounts (the field doesn't exist on screen 1), so those users type or paste it on screen 2 — an accepted exchange for a clean form for the majority.
+
+---
+
 ## [v0.1955] - 2026-06-07
 
 ### Fixed
