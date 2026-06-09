@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1961] - 2026-06-09
+
+### Fixed
+- **Event editor: the "already invited" marker now appears for pending phone-only/email-only contacts.** When moving a person from the left "all users" pane into the invited pane, their left-pane row is supposed to grey out with a green checkmark (the `.dimmed` state) so you can see they are already invited. This worked for registered users but not for pending (non-registered) contacts invited by phone or email. `syncInviteState()` in `www/calendar.php` matched each invited row's name (`data-iname`) against the left row's `data-username`, which for a pending contact is its lookup key (the phone or email, e.g. `646-457-8862`) rather than its display name — so the comparison never matched and the row was never dimmed. It now matches against the left row's `data-uname` (the display name, the same value used as the invited row's name), lowercased to match. Registered users are unaffected (their `uname` and `username` are identical); pending contacts now get the marker too. Purely visual — invites and duplicate-prevention were already working.
+
+---
+
 ## [v0.1960] - 2026-06-09
 
 ### Fixed

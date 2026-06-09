@@ -3535,7 +3535,7 @@ function syncInviteState() {
     const invited = Array.from(document.querySelectorAll('#eInvitedList li[data-iname]'))
         .map(li => li.dataset.iname.toLowerCase());
     document.querySelectorAll('#eAllUsersList li').forEach(li => {
-        const isDimmed = invited.includes(li.dataset.username);
+        const isDimmed = invited.includes((li.dataset.uname || '').toLowerCase());
         li.classList.toggle('dimmed', isDimmed);
         li.title = isDimmed ? 'Already invited' : 'Double-click to invite';
     });
