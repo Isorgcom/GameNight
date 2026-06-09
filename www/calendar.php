@@ -118,14 +118,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $old_tokens = []; // uname => ['rsvp_token' => ..., 'rsvp_token_flips' => int]
         if ($invite_occ_date) {
             // Occurrence-specific: only manage rows for this date; leave base rows untouched
-            $old = $db->prepare('SELECT LOWER(username) as uname, rsvp_token, rsvp_token_flips FROM event_invites WHERE event_id=? AND occurrence_date=?');
+            $old = $db->prepare('SELECT LOWER(username) as uname, rsvp, rsvp_token, rsvp_token_flips FROM event_invites WHERE event_id=? AND occurrence_date=?');
             $old->execute([$eid, $invite_occ_date]);
             foreach ($old->fetchAll() as $r) $old_tokens[$r['uname']] = $r;
             $old_names = array_keys($old_tokens);
             $db->prepare('DELETE FROM event_invites WHERE event_id=? AND occurrence_date=?')->execute([$eid, $invite_occ_date]);
         } else {
             // Base (all occurrences): only manage rows where occurrence_date IS NULL
-            $old = $db->prepare('SELECT LOWER(username) as uname, rsvp_token, rsvp_token_flips FROM event_invites WHERE event_id=? AND occurrence_date IS NULL');
+            $old = $db->prepare('SELECT LOWER(username) as uname, rsvp, rsvp_token, rsvp_token_flips FROM event_invites WHERE event_id=? AND occurrence_date IS NULL');
             $old->execute([$eid]);
             foreach ($old->fetchAll() as $r) $old_tokens[$r['uname']] = $r;
             $old_names = array_keys($old_tokens);
@@ -141,7 +141,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         for ($i = 0; $i < count($inv_usernames); $i++) {
             if ($inv_usernames[$i] === '') continue;
-            $rsvp = in_array($inv_rsvps[$i] ?? '', $valid_rsvps, true) ? ($inv_rsvps[$i] ?: null) : null;
             $role = in_array($inv_roles[$i] ?? '', ['invitee', 'manager'], true) ? $inv_roles[$i] : 'invitee';
             // Auto-fill phone/email from user record if not provided
             $uKey = strtolower($inv_usernames[$i]);
@@ -152,6 +151,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // event (keeps their emailed RSVP link alive across edits); mint a fresh token
             // only for genuinely new invitees.
             $prior = $old_tokens[$uKey] ?? null;
+            // Preserve the invitee's existing RSVP. The editor's invite_rsvp[] is only a
+            // hidden snapshot loaded when the editor opened, with no RSVP control, so it is
+            // never authoritative — trusting it would silently clobber an RSVP the invitee
+            // submitted (link/SMS) after the editor was opened. Existing invitees keep their
+            // stored RSVP; only genuinely new invitees take the (normally blank) form value.
+            if ($prior !== null) {
+                $rsvp = ($prior['rsvp'] ?? '') !== '' ? $prior['rsvp'] : null;
+            } else {
+                $rsvp = in_array($inv_rsvps[$i] ?? '', $valid_rsvps, true) ? ($inv_rsvps[$i] ?: null) : null;
+            }
             $token = ($prior['rsvp_token'] ?? '') !== '' ? $prior['rsvp_token'] : bin2hex(random_bytes(16));
             $tokenFlips = (int)($prior['rsvp_token_flips'] ?? 0);
             $sortOrd = $inv_sort_orders[$i] ?? ($i + 1);

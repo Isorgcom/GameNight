@@ -59,15 +59,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $inv_sort_orders = array_map('intval', (array)($_POST['invite_sort_order'] ?? []));
     $valid_rsvps   = ['', 'yes', 'no', 'maybe'];
     $save_invites  = function(int $eid) use ($db, $inv_usernames, $inv_phones, $inv_emails, $inv_rsvps, $inv_roles, $inv_sort_orders, $valid_rsvps): void {
+        // Snapshot each existing invitee's RSVP + token before the delete/re-insert so an
+        // event save never clobbers an RSVP submitted (link/SMS) after the editor opened,
+        // and keeps their emailed RSVP link alive. Mirrors the calendar.php save path.
+        $old_rows = [];
+        $oq = $db->prepare('SELECT LOWER(username) as uname, rsvp, rsvp_token, rsvp_token_flips FROM event_invites WHERE event_id=?');
+        $oq->execute([$eid]);
+        foreach ($oq->fetchAll() as $r) $old_rows[$r['uname']] = $r;
         $db->prepare('DELETE FROM event_invites WHERE event_id=?')->execute([$eid]);
-        $ins = $db->prepare("INSERT INTO event_invites (event_id, username, phone, email, rsvp, event_role, approval_status, sort_order) VALUES (?, ?, ?, ?, ?, ?, 'approved', ?)");
+        $ins = $db->prepare("INSERT INTO event_invites (event_id, username, phone, email, rsvp, rsvp_token, rsvp_token_flips, event_role, approval_status, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'approved', ?)");
         for ($i = 0; $i < count($inv_usernames); $i++) {
             if ($inv_usernames[$i] === '') continue;
-            $rsvp = in_array($inv_rsvps[$i] ?? '', $valid_rsvps, true) ? ($inv_rsvps[$i] ?: null) : null;
+            $uKey  = strtolower($inv_usernames[$i]);
+            $prior = $old_rows[$uKey] ?? null;
+            // Existing invitee: preserve their stored RSVP (form value is only a stale
+            // hidden snapshot). New invitee: take the validated submitted value.
+            if ($prior !== null) {
+                $rsvp = ($prior['rsvp'] ?? '') !== '' ? $prior['rsvp'] : null;
+            } else {
+                $rsvp = in_array($inv_rsvps[$i] ?? '', $valid_rsvps, true) ? ($inv_rsvps[$i] ?: null) : null;
+            }
             $role = in_array($inv_roles[$i] ?? '', ['invitee', 'manager'], true) ? $inv_roles[$i] : 'invitee';
             $phone_norm = $inv_phones[$i] !== '' ? normalize_phone($inv_phones[$i]) : '';
             $sortOrd = $inv_sort_orders[$i] ?? ($i + 1);
-            $ins->execute([$eid, canonical_username($inv_usernames[$i]), $phone_norm ?: null, $inv_emails[$i] ?: null, $rsvp, $role, $sortOrd]);
+            $token = ($prior['rsvp_token'] ?? '') !== '' ? $prior['rsvp_token'] : bin2hex(random_bytes(16));
+            $tokenFlips = (int)($prior['rsvp_token_flips'] ?? 0);
+            $ins->execute([$eid, canonical_username($inv_usernames[$i]), $phone_norm ?: null, $inv_emails[$i] ?: null, $rsvp, $token, $tokenFlips, $role, $sortOrd]);
         }
     };
 

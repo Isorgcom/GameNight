@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1960] - 2026-06-09
+
+### Fixed
+- **Editing an event no longer wipes invitees' RSVPs.** An invitee who RSVP'd (via their one-click link or SMS) after a host opened the event editor would have their answer silently cleared the next time the host saved the event. Root cause: the invite-save in `www/calendar.php` rebuilds the invite rows and took each `rsvp` value from the editor's `invite_rsvp[]` field, which is only a hidden snapshot loaded when the editor opened (there is no RSVP control in the editor), so it overwrote any RSVP that arrived in the meantime. It already preserved each invitee's `rsvp_token`/`rsvp_token_flips` across the save (to keep emailed links alive) but not the RSVP itself. The save now preserves the stored `rsvp` for invitees who were already on the event the same way the token is preserved; only genuinely new invitees take the (normally blank) submitted value. The parallel AJAX save handler `www/calendar_dl.php` had the same class of bug and additionally regenerated tokens on every save (breaking already-sent one-click links); it was hardened to snapshot and preserve `rsvp`, `rsvp_token`, and `rsvp_token_flips` as well. Verified on the dev instance by reproducing the exact race (record a YES, then re-save the editor with a stale blank form plus a new invitee) and confirming the YES and token survive. A one-time reconcile restored RSVPs that had already been wiped, sourced from the `activity_log` audit trail (which was never affected).
+
+---
+
 ## [v0.1959] - 2026-06-09
 
 ### Fixed
