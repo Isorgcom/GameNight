@@ -83,7 +83,7 @@ if (!empty($_SESSION['flash'])) {
     unset($_SESSION['flash']);
 }
 
-$tab = in_array($_GET['tab'] ?? '', ['dashboard', 'general', 'appearance', 'logs', 'users', 'events', 'leagues', 'email', 'sms', 'whatsapp', 'cron', 'backup']) ? $_GET['tab'] : 'dashboard';
+$tab = in_array($_GET['tab'] ?? '', ['dashboard', 'reports', 'general', 'appearance', 'logs', 'users', 'events', 'leagues', 'email', 'sms', 'whatsapp', 'cron', 'backup']) ? $_GET['tab'] : 'dashboard';
 $isCommTab = in_array($tab, ['email', 'sms', 'whatsapp']);
 
 // ── POST ─────────────────────────────────────────────────────────────────────
@@ -775,6 +775,37 @@ $dash_users  = (int)$db->query('SELECT COUNT(*) FROM users')->fetchColumn();
 $dash_logins = (int)$db->query("SELECT COUNT(*) FROM activity_log WHERE action = 'login'")->fetchColumn();
 $dash_events = (int)$db->query('SELECT COUNT(*) FROM activity_log')->fetchColumn();
 $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
+
+// ── Reports tab metrics (computed only when the tab is active) ─────────────────
+if ($tab === 'reports') {
+    $rep = [
+        'total'         => (int)$db->query('SELECT COUNT(*) FROM users')->fetchColumn(),
+        'email_ver'     => (int)$db->query('SELECT COUNT(*) FROM users WHERE email_verified = 1')->fetchColumn(),
+        'phone_ver'     => (int)$db->query('SELECT COUNT(*) FROM users WHERE phone_verified = 1')->fetchColumn(),
+        'mfa'           => (int)$db->query('SELECT COUNT(*) FROM users WHERE mfa_enabled = 1')->fetchColumn(),
+        'paid'          => (int)$db->query("SELECT COUNT(*) FROM users WHERE tier <> 'Free'")->fetchColumn(),
+        'active_24h'    => (int)$db->query("SELECT COUNT(*) FROM users WHERE last_login >= datetime('now','-1 day')")->fetchColumn(),
+        'active_7d'     => (int)$db->query("SELECT COUNT(*) FROM users WHERE last_login >= datetime('now','-7 days')")->fetchColumn(),
+        'new_7d'        => (int)$db->query("SELECT COUNT(*) FROM users WHERE created_at >= datetime('now','-7 days')")->fetchColumn(),
+        'new_30d'       => (int)$db->query("SELECT COUNT(*) FROM users WHERE created_at >= datetime('now','-30 days')")->fetchColumn(),
+        'ev_total'      => (int)$db->query('SELECT COUNT(*) FROM events')->fetchColumn(),
+        'ev_7d'         => (int)$db->query("SELECT COUNT(*) FROM events WHERE created_at >= datetime('now','-7 days')")->fetchColumn(),
+        'ev_upcoming'   => (int)$db->query("SELECT COUNT(*) FROM events WHERE start_date >= date('now')")->fetchColumn(),
+        'inv_total'     => (int)$db->query('SELECT COUNT(*) FROM event_invites')->fetchColumn(),
+        'rsvp_yes'      => (int)$db->query("SELECT COUNT(*) FROM event_invites WHERE rsvp = 'yes'")->fetchColumn(),
+    ];
+
+    // Signups-per-day for the last 21 days, zero-filled so empty days render as blank bars.
+    $signup_rows = $db->query("SELECT date(created_at) d, COUNT(*) n FROM users WHERE created_at >= date('now','-20 days') GROUP BY d")->fetchAll(PDO::FETCH_KEY_PAIR);
+    $signups_by_day = [];
+    for ($i = 20; $i >= 0; $i--) {
+        $d = gmdate('Y-m-d', strtotime("-$i days")); // UTC to match SQLite date(created_at)
+        $signups_by_day[$d] = (int)($signup_rows[$d] ?? 0);
+    }
+    $signups_max = max(1, max($signups_by_day));
+
+    $rep_newest = $db->query('SELECT id, username, email, role, tier, email_verified, phone_verified, created_at, last_login FROM users ORDER BY id DESC LIMIT 15')->fetchAll();
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -818,6 +849,12 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
 
         .tab-panel { display: none; }
         .tab-panel.active { display: block; }
+
+        .bar-row { display:flex; align-items:center; gap:.6rem; margin:.2rem 0; font-size:.8rem; }
+        .bar-row .bar-label { width:3.5rem; color:#64748b; flex:none; }
+        .bar-row .bar-track { flex:1; background:#f1f5f9; border-radius:4px; height:1rem; overflow:hidden; }
+        .bar-row .bar-fill  { display:block; background:#2563eb; height:100%; border-radius:4px; }
+        .bar-row .bar-n     { width:2rem; text-align:right; color:#1e293b; flex:none; }
 
         .subtabs { display:flex; gap:0; margin-bottom:1.5rem; }
         .subtab-btn {
@@ -999,6 +1036,8 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
     <div class="tabs">
         <a href="/admin_settings.php?tab=dashboard"
            class="tab-btn <?= $tab === 'dashboard' ? 'active' : '' ?>">Dashboard</a>
+        <a href="/admin_settings.php?tab=reports"
+           class="tab-btn <?= $tab === 'reports' ? 'active' : '' ?>">Reports</a>
         <a href="/admin_settings.php?tab=general"
            class="tab-btn <?= $tab === 'general' ? 'active' : '' ?>">General</a>
         <a href="/admin_settings.php?tab=appearance"
@@ -1069,9 +1108,125 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
             <a href="/admin_settings.php?tab=users" class="btn btn-primary">Manage Users</a>
             <a href="/admin_settings.php?tab=events" class="btn btn-outline">Manage Events</a>
             <a href="/admin_settings.php?tab=logs" class="btn btn-outline">View Logs</a>
+            <a href="/admin_settings.php?tab=reports" class="btn btn-outline">Reports</a>
             <a href="/phpadmin/" class="btn btn-outline" target="_blank">Database Admin</a>
         </div>
 
+    </div>
+
+    <!-- ── Reports tab ── -->
+    <div class="tab-panel <?= $tab === 'reports' ? 'active' : '' ?>">
+        <?php if ($tab === 'reports'): ?>
+
+        <p style="color:#64748b;font-size:.875rem;margin-bottom:1.5rem">
+            User growth, verification, and event engagement at a glance.
+        </p>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="label">Total Users</div>
+                <div class="value"><?= $rep['total'] ?></div>
+            </div>
+            <div class="stat-card">
+                <div class="label">New (7 days)</div>
+                <div class="value"><?= $rep['new_7d'] ?></div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Active (7 days)</div>
+                <div class="value"><?= $rep['active_7d'] ?></div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Active (24 hours)</div>
+                <div class="value"><?= $rep['active_24h'] ?></div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Email Verified</div>
+                <div class="value"><?= $rep['email_ver'] ?></div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Phone Verified</div>
+                <div class="value"><?= $rep['phone_ver'] ?></div>
+            </div>
+            <div class="stat-card">
+                <div class="label">MFA Enabled</div>
+                <div class="value"><?= $rep['mfa'] ?></div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Paid Tier</div>
+                <div class="value"><?= $rep['paid'] ?></div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top:1.5rem">
+            <h2>Signups per day</h2>
+            <div class="subtitle">Last 21 days (UTC)</div>
+            <?php foreach ($signups_by_day as $day => $count): ?>
+            <div class="bar-row">
+                <span class="bar-label"><?= htmlspecialchars(date('M j', strtotime($day))) ?></span>
+                <span class="bar-track"><span class="bar-fill" style="width:<?= $count > 0 ? round($count / $signups_max * 100) : 0 ?>%"></span></span>
+                <span class="bar-n"><?= $count ?></span>
+            </div>
+            <?php endforeach; ?>
+        </div>
+
+        <div class="card" style="margin-top:1.5rem">
+            <h2>Newest users</h2>
+            <div class="subtitle">15 most recent signups</div>
+            <div class="table-card">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th><th>Username</th><th>Email</th><th>Role</th><th>Tier</th>
+                            <th>Email&nbsp;✓</th><th>Phone&nbsp;✓</th><th>Joined</th><th>Last login</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($rep_newest as $u): ?>
+                        <tr>
+                            <td><?= (int)$u['id'] ?></td>
+                            <td><?= htmlspecialchars($u['username']) ?></td>
+                            <td><?= htmlspecialchars($u['email'] ?? '') ?></td>
+                            <td><?= htmlspecialchars($u['role']) ?></td>
+                            <td><?= htmlspecialchars($u['tier'] ?? 'Free') ?></td>
+                            <td style="text-align:center"><?= $u['email_verified'] ? '<span style="color:#16a34a">✓</span>' : '<span style="color:#cbd5e1">—</span>' ?></td>
+                            <td style="text-align:center"><?= $u['phone_verified'] ? '<span style="color:#16a34a">✓</span>' : '<span style="color:#cbd5e1">—</span>' ?></td>
+                            <td><?= htmlspecialchars($u['created_at'] ? date('M j, Y', strtotime($u['created_at'])) : '') ?></td>
+                            <td><?= htmlspecialchars($u['last_login'] ? date('M j, Y', strtotime($u['last_login'])) : '—') ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top:1.5rem">
+            <h2>Event engagement</h2>
+            <div class="subtitle">Events and RSVPs across the site</div>
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="label">Events Total</div>
+                    <div class="value"><?= $rep['ev_total'] ?></div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Events (7 days)</div>
+                    <div class="value"><?= $rep['ev_7d'] ?></div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Upcoming Events</div>
+                    <div class="value"><?= $rep['ev_upcoming'] ?></div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Invites Total</div>
+                    <div class="value"><?= $rep['inv_total'] ?></div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Yes RSVPs</div>
+                    <div class="value"><?= $rep['rsvp_yes'] ?></div>
+                </div>
+            </div>
+        </div>
+
+        <?php endif; ?>
     </div>
 
     <!-- ── General tab ── -->

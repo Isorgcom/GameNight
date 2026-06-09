@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1958] - 2026-06-09
+
+### Added
+- **Admin "Reports" tab: user growth, verification, and event engagement at a glance.** Previously the only way to see signup trends or verification/tier breakdowns was to SSH into production and run ad-hoc SQLite queries; the admin Dashboard showed just four raw counters. A new **Reports** tab in `www/admin_settings.php` (registered in the `$tab` whitelist, with a tab button next to Dashboard and a shortcut button in the Dashboard quick-links row) surfaces these metrics in the browser. It renders: a stat-card grid (total users, new in 7 days, active in 7 days / 24 hours via `users.last_login`, email-verified, phone-verified, MFA-enabled, paid-tier counts); a **signups-per-day** trend for the last 21 days drawn as lightweight inline CSS bars (zero-filled in PHP so empty days show as blank bars, UTC-aligned to match how SQLite groups `created_at`, no JS charting library added); a **newest-users** table (15 most recent with email/phone verified badges, role, tier, joined and last-login dates); and an **event-engagement** card (events total, events in 7 days, upcoming, invites total, yes-RSVPs). All report queries are gated behind `if ($tab === 'reports')` so they add no cost to other tab loads, reuse the page's existing admin-only guard and the shared `.stats` / `.stat-card` / `.card` / `.table-card` styles, cast counts with `(int)`, and escape dynamic output with `htmlspecialchars()`. Verified end-to-end on the dev instance (authenticated render, no PHP warnings, counts matched direct SQLite).
+
+---
+
 ## [v0.1957] - 2026-06-09
 
 ### Added
