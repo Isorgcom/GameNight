@@ -181,6 +181,8 @@ if ($action === 'init_session') {
     $sess = $db->prepare('SELECT * FROM poker_sessions WHERE id = ?');
     $sess->execute([$session_id]);
 
+    db_log_activity((int)$current['id'], "created poker session id=$session_id for event id=$event_id ($game_type)");
+
     echo json_encode([
         'ok'      => true,
         'session' => $sess->fetch(),
@@ -283,6 +285,7 @@ if ($action === 'update_status') {
     }
 
     $db->prepare('UPDATE poker_sessions SET status = ? WHERE id = ?')->execute([$status, $session_id]);
+    db_log_activity((int)$current['id'], "set poker session id=$session_id status=$status");
     echo json_encode(['ok' => true, 'status' => $status]);
     exit;
 }
@@ -506,6 +509,8 @@ if ($action === 'add_walkin') {
 
     if ($user_id) auto_add_to_league($db, (int)$s['event_id'], (int)$user_id);
 
+    db_log_activity((int)$current['id'], "added walk-in '$name' (player id=$newId) to poker session id=$session_id");
+
     $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
     $p->execute([$newId]);
     echo json_encode([
@@ -586,6 +591,8 @@ if ($action === 'remove_player') {
            ->execute([$session['event_id'], $player['display_name']]);
     }
 
+    db_log_activity((int)$current['id'], "removed player '" . ($player['display_name'] ?? '') . "' (player id=$player_id) from poker session id=" . (int)$session['id']);
+
     echo json_encode([
         'ok'   => true,
         'pool' => calc_pool($db, $session['id']),
@@ -623,6 +630,8 @@ if ($action === 'update_payouts') {
             $ins->execute([$session_id, $place, $pct]);
         }
     }
+
+    db_log_activity((int)$current['id'], "updated payout structure for poker session id=$session_id");
 
     echo json_encode([
         'ok'      => true,
@@ -933,6 +942,8 @@ if ($action === 'save_payout_structure') {
         }
     }
 
+    db_log_activity((int)$current['id'], "saved payout structure: $name (id=$sid" . ($league_id ? ", league id=$league_id" : ($is_global ? ", global" : "")) . ")");
+
     echo json_encode(['ok' => true, 'structure_id' => $sid]);
     exit;
 }
@@ -960,6 +971,8 @@ if ($action === 'load_payout_structure') {
     foreach ($rows as $r) {
         $ins->execute([$session_id, (int)$r['place'], (float)$r['percentage']]);
     }
+
+    db_log_activity((int)$current['id'], "loaded payout structure id=$structure_id into poker session id=$session_id");
 
     echo json_encode([
         'ok'      => true,
@@ -991,6 +1004,7 @@ if ($action === 'delete_payout_structure') {
     }
 
     $db->prepare('DELETE FROM payout_structures WHERE id = ?')->execute([$structure_id]);
+    db_log_activity((int)$current['id'], "deleted payout structure: " . ($struct['name'] ?? '') . " (id=$structure_id)");
     echo json_encode(['ok' => true]);
     exit;
 }
@@ -1005,6 +1019,7 @@ if ($action === 'set_default_payout_structure') {
 
     $db->prepare('UPDATE payout_structures SET is_default = 0 WHERE is_default = 1')->execute();
     $db->prepare('UPDATE payout_structures SET is_default = 1, is_global = 1 WHERE id = ?')->execute([$structure_id]);
+    db_log_activity((int)$current['id'], "set default payout structure id=$structure_id");
     echo json_encode(['ok' => true]);
     exit;
 }

@@ -4,6 +4,16 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1957] - 2026-06-09
+
+### Added
+- **Audit-log coverage for contacts, league membership/roles, and poker session lifecycle — previously-blind feature areas now leave a trail.** An audit found that whole feature areas wrote to the database with no `activity_log` entry, so admin "Logs" showed nothing for them. This release adds 31 logging points through the existing `db_log_activity()` / `db_log_anon_activity()` helpers (info severity, IP auto-captured): **`www/contacts_dl.php`** logs add/update/delete/CSV-import of a user's contacts (the `update` row records the field name and contact id only, never the value, since contact email/phone are PII); **`www/leagues_dl.php`** logs create, update, join (auto + request), cancel, approve/deny request, remove member, invite (linked + pending), role change, resend invite, leave, promote/demote, **transfer ownership**, and regenerate invite code; **`www/join_league.php`** logs auto-join and join-request via invite link (with a "via invite link" suffix to distinguish the entry point, and a guard so re-visiting the link does not duplicate the row); and **`www/checkin_dl.php`** logs the poker **session lifecycle** — init, status change, walk-in add, player remove, payout edits, and payout-structure save/load/delete/set-default. High-volume poker micro-actions (buy-in toggles, rebuys, add-ons, eliminations, cash-ins, table moves) are deliberately left unlogged so they do not bury meaningful events in the 50-row-per-page log. All paths were verified end-to-end on the dev instance.
+
+### Changed
+- **RSVP-via-link logging now routes through the shared helper instead of a raw INSERT.** `www/rsvp.php` previously wrote its "Email RSVP" audit rows with a direct `INSERT INTO activity_log` using `$_SERVER['REMOTE_ADDR']`. It now calls `db_log_activity()` (matching invitee) / `db_log_anon_activity()` (pending, account-less invitee, `user_id=0`), preserving the exact action text. Side benefit: the IP is now recorded via `get_client_ip()` — the same proxy-aware (`X-Real-IP` / `X-Forwarded-For`) source every other audit row uses, instead of the raw remote address — and the action text gets control-character stripping.
+
+---
+
 ## [v0.1956] - 2026-06-08
 
 ### Changed

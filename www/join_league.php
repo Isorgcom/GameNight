@@ -54,6 +54,7 @@ if (league_role($league_id, $uid) !== null) {
 if ($league['approval_mode'] === 'auto') {
     $db->prepare('INSERT INTO league_members (league_id, user_id, role, invited_by, invited_at) VALUES (?, ?, ?, NULL, CURRENT_TIMESTAMP)')
         ->execute([$league_id, $uid, 'member']);
+    db_log_activity($uid, "joined league id=$league_id via invite link (auto-approve)");
 
     // FYI to owner
     $stmt = $db->prepare('SELECT username, email, phone, preferred_contact FROM users WHERE id = ?');
@@ -83,6 +84,7 @@ if (!$chk->fetchColumn()) {
             "INSERT INTO league_join_requests (league_id, user_id, message, status) VALUES (?, ?, ?, 'pending')"
         )->execute([$league_id, $uid, 'Requested via invite link.']);
     } catch (Throwable $e) { /* duplicate → fine */ }
+    db_log_activity($uid, "requested to join league id=$league_id via invite link");
 
     // Notify owner + managers
     $reviewUrl = get_site_url() . '/league.php?id=' . $league_id . '&tab=requests';

@@ -159,11 +159,9 @@ if ($rsvp === 'no') {
 // elsewhere in activity_log for unattributable rows (e.g. walkin_rsvp).
 if ($rsvp_changed) {
     if ($userRow) {
-        $db->prepare('INSERT INTO activity_log (user_id, action, ip) VALUES (?, ?, ?)')
-           ->execute([$userRow['id'], "Email RSVP $rsvp for event id: " . $invite['event_id'], $_SERVER['REMOTE_ADDR'] ?? '']);
+        db_log_activity((int)$userRow['id'], "Email RSVP $rsvp for event id: " . $invite['event_id']);
     } else {
-        $db->prepare('INSERT INTO activity_log (user_id, action, ip) VALUES (?, ?, ?)')
-           ->execute([0, "Email RSVP $rsvp for event id: " . $invite['event_id'] . " (pending invitee: " . $invite['username'] . ", invite_id: " . $invite['id'] . ")", $_SERVER['REMOTE_ADDR'] ?? '']);
+        db_log_anon_activity("Email RSVP $rsvp for event id: " . $invite['event_id'] . " (pending invitee: " . $invite['username'] . ", invite_id: " . $invite['id'] . ")");
     }
 
     // Notify the event owner AND every per-event manager (not just the creator).

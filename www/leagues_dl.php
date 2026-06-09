@@ -86,6 +86,7 @@ case 'create_league': {
         $db->rollBack();
         fail('Failed to create league', 500);
     }
+    db_log_activity($uid, "created league: $name (id=$league_id)");
     ok(['league_id' => $league_id]);
 }
 
@@ -102,6 +103,7 @@ case 'update_league': {
     $db->prepare(
         'UPDATE leagues SET name = ?, description = ?, default_visibility = ?, approval_mode = ?, is_hidden = ? WHERE id = ?'
     )->execute([$name, $desc, $dv, $mode, $hidden, $league_id]);
+    db_log_activity($uid, "updated league id=$league_id");
     ok();
 }
 
@@ -205,6 +207,7 @@ case 'request_join': {
             $current['username'] . ' joined your league "' . $league['name'] . '".',
             '<p><strong>' . htmlspecialchars($current['username']) . '</strong> joined your league <strong>' . htmlspecialchars($league['name']) . '</strong>.</p>'
         );
+        db_log_activity($uid, "joined league id=$league_id (auto-approve)");
         ok(['joined' => true]);
     }
 
@@ -233,6 +236,7 @@ case 'request_join': {
             . '<p><a href="' . htmlspecialchars($reviewUrl) . '">Review request</a></p>'
         );
     }
+    db_log_activity($uid, "requested to join league id=$league_id");
     ok(['requested' => true]);
 }
 
@@ -240,6 +244,7 @@ case 'cancel_request': {
     $league_id = (int)($_POST['league_id'] ?? 0);
     $db->prepare("DELETE FROM league_join_requests WHERE league_id = ? AND user_id = ? AND status = 'pending'")
         ->execute([$league_id, $uid]);
+    db_log_activity($uid, "cancelled join request for league id=$league_id");
     ok();
 }
 
@@ -297,6 +302,7 @@ case 'deny_request': {
             '<p>Your request to join <strong>' . htmlspecialchars($lname) . '</strong> was declined.</p>'
         );
     }
+    db_log_activity($uid, "$newStatus join request id=$req_id (league id=" . (int)$req['league_id'] . ", user #" . (int)$req['user_id'] . ")");
     ok();
 }
 
@@ -337,6 +343,7 @@ case 'remove_member': {
         );
     }
     // Pending contacts: no notification (their invite is being rescinded silently).
+    db_log_activity($uid, "removed member from league id=$league_id (member id=" . (int)$row['id'] . (!empty($row['user_id']) ? ", user #" . (int)$row['user_id'] : ", pending contact") . ")");
     ok();
 }
 
@@ -391,6 +398,7 @@ case 'add_contact': {
             'You were added to the league "' . $lname . '". View: ' . $url,
             '<p>You were added to the league <strong>' . htmlspecialchars($lname) . '</strong>. <a href="' . htmlspecialchars($url) . '">View league</a></p>'
         );
+        db_log_activity($uid, "added member to league id=$league_id (user #" . (int)$existing['id'] . ")");
         ok(['linked' => true]);
     }
 
@@ -420,6 +428,7 @@ case 'add_contact': {
         . '<p><a href="' . htmlspecialchars($inviteUrl) . '" style="background:#2563eb;color:#fff;padding:.5rem 1rem;border-radius:6px;text-decoration:none;font-weight:600">Accept invite &amp; sign up</a></p>'
     );
 
+    db_log_activity($uid, "invited contact to league id=$league_id (" . ($email !== '' ? $email : $name) . ")");
     ok(['pending' => true]);
 }
 
@@ -456,6 +465,7 @@ case 'update_member': {
             'You are now a ' . $value . ' in "' . $lname . '".',
             '<p>Your role in <strong>' . htmlspecialchars($lname) . '</strong> is now <strong>' . htmlspecialchars($value) . '</strong>.</p>'
         );
+        db_log_activity($uid, "changed member role to $value in league id=$league_id (user #" . (int)$row['user_id'] . ")");
         ok();
     }
 
@@ -487,6 +497,7 @@ case 'update_member': {
 
     $db->prepare("UPDATE league_members SET $field = ? WHERE id = ?")
         ->execute([$value !== '' ? $value : null, $member_id]);
+    db_log_activity($uid, "updated pending contact id=$member_id field=$field in league id=$league_id");
     ok();
 }
 
@@ -521,6 +532,7 @@ case 'resend_contact_invite': {
         . '<p><a href="' . htmlspecialchars($inviteUrl) . '">Accept invite &amp; sign up</a></p>'
     );
 
+    db_log_activity($uid, "resent league invite (member id=$member_id, league id=$league_id)");
     ok();
 }
 
@@ -531,6 +543,7 @@ case 'leave_league': {
     if ($myRole === 'owner') fail('Transfer ownership before leaving');
     $db->prepare('DELETE FROM league_members WHERE league_id = ? AND user_id = ?')->execute([$league_id, $uid]);
     $db->prepare("DELETE FROM league_join_requests WHERE league_id = ? AND user_id = ?")->execute([$league_id, $uid]);
+    db_log_activity($uid, "left league id=$league_id");
     ok();
 }
 
@@ -555,6 +568,7 @@ case 'demote_manager': {
         'You are now a ' . $newRole . ' in "' . $lname . '".',
         '<p>Your role in <strong>' . htmlspecialchars($lname) . '</strong> is now <strong>' . htmlspecialchars($newRole) . '</strong>.</p>'
     );
+    db_log_activity($uid, "$action in league id=$league_id (user #$target -> $newRole)");
     ok();
 }
 
@@ -593,6 +607,7 @@ case 'transfer_ownership': {
         'You transferred ownership of "' . $lname . '".',
         '<p>You transferred ownership of <strong>' . htmlspecialchars($lname) . '</strong>.</p>'
     );
+    db_log_activity($uid, "transfer_ownership of league id=$league_id (to user #$target)");
     ok();
 }
 
@@ -603,6 +618,7 @@ case 'regenerate_invite_code': {
     $db->prepare('UPDATE leagues SET invite_code = ? WHERE id = ?')->execute([$code, $league_id]);
     $full  = get_site_url() . '/join_league.php?code=' . urlencode($code);
     $short = shorten_url($full);
+    db_log_activity($uid, "regenerated invite code for league id=$league_id");
     ok(['invite_code' => $code, 'invite_url' => $short]);
 }
 

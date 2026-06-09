@@ -84,7 +84,9 @@ case 'add_contact': {
     $linked = resolve_user_id($db, $email, $phone);
     $db->prepare('INSERT INTO user_contacts (owner_user_id, linked_user_id, contact_name, contact_email, contact_phone, notes) VALUES (?, ?, ?, ?, ?, ?)')
        ->execute([$uid, $linked, $name, $email ?: null, $phone ?: null, $notes ?: null]);
-    ok(['id' => (int)$db->lastInsertId(), 'linked' => (bool)$linked]);
+    $cid = (int)$db->lastInsertId();
+    db_log_activity($uid, "added contact: $name (contact id: $cid)");
+    ok(['id' => $cid, 'linked' => (bool)$linked]);
 }
 
 case 'update_contact': {
@@ -130,12 +132,14 @@ case 'update_contact': {
         $linked = resolve_user_id($db, (string)($r2['contact_email'] ?? ''), (string)($r2['contact_phone'] ?? ''));
         $db->prepare('UPDATE user_contacts SET linked_user_id = ? WHERE id = ?')->execute([$linked, $cid]);
     }
+    db_log_activity($uid, "updated contact id=$cid field=$field");
     ok();
 }
 
 case 'delete_contact': {
     $cid = (int)($_POST['contact_id'] ?? 0);
     $db->prepare('DELETE FROM user_contacts WHERE id = ? AND owner_user_id = ?')->execute([$cid, $uid]);
+    db_log_activity($uid, "deleted contact id=$cid");
     ok();
 }
 
@@ -190,6 +194,7 @@ case 'import_csv': {
     if ($skipped) $msg .= " Skipped $skipped (duplicate email).";
     if ($errors)  $msg .= " $errors row(s) had errors.";
     $_SESSION['flash'] = ['type' => $imported > 0 ? 'success' : 'error', 'msg' => $msg];
+    db_log_activity($uid, "imported contacts: $imported added, $skipped skipped, $errors error(s)");
     header('Location: /contacts.php');
     exit;
 }
