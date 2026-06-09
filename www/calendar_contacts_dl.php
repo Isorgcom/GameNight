@@ -88,7 +88,10 @@ _add_seen($users, $seen, [
 
 // ── Personal contacts (always included for non-admin) ──────────────────
 $pc = $db->prepare(
-    "SELECT COALESCE(u.username, LOWER(c.contact_email)) AS username,
+    "SELECT COALESCE(u.username,
+                     NULLIF(LOWER(c.contact_email), ''),
+                     NULLIF(c.contact_phone, ''),
+                     'contact:' || c.id) AS username,
             c.contact_email AS email,
             c.contact_phone AS phone,
             c.contact_name  AS display_name,

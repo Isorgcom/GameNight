@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1959] - 2026-06-09
+
+### Fixed
+- **Phone-only contacts were silently missing from the event invite picker.** A user could not invite a personal contact (e.g. "Shannon") to an event when that contact had been saved with a phone number but no email and was not yet a registered user. In `www/calendar_contacts_dl.php` the personal-contacts query derived each candidate's dedup key as `COALESCE(u.username, LOWER(c.contact_email))`; for an unlinked, email-less contact both terms are NULL, so the key was empty and the shared `_add_seen()` helper (which drops rows with an empty key) silently removed the contact from the list. Because the personal-contacts set is built once and reused, this affected **both** the no-league picker and the league-event picker, not just league events. The query now uses the same fallback chain already used for pending league contacts: `COALESCE(u.username, NULLIF(LOWER(c.contact_email), ''), NULLIF(c.contact_phone, ''), 'contact:' || c.id)`, so a contact always gets a non-empty key (email, else phone, else a synthetic per-row id). Linked and email contacts are unaffected, and a contact who is also a pending league member still dedupes correctly because both sources now emit the same phone-based key. Verified end-to-end on the dev instance with a reproduced phone-only contact appearing in both picker paths, tagged "Not a member" and invitable.
+
+---
+
 ## [v0.1958] - 2026-06-09
 
 ### Added
