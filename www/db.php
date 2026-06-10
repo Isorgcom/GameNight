@@ -967,6 +967,31 @@ JSON;
     try { $pdo->exec("ALTER TABLE pending_notifications ADD COLUMN occurrence_date TEXT"); } catch (Exception $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_pending_notifications_scheduled ON pending_notifications(scheduled_for) WHERE attempted_at IS NULL"); } catch (Exception $e) {}
 
+    // ─── In-app help bubbles ("ghost bubble" hints) ─────────────────────
+    // Admin-authored tips shown as a small floating/anchored chat bubble on
+    // selected screens. One row per tip; screen_key is the page basename.
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS help_bubbles (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        screen_key      TEXT    NOT NULL,
+        title           TEXT,
+        body            TEXT    NOT NULL,
+        anchor_selector TEXT,
+        sort_order      INTEGER NOT NULL DEFAULT 0,
+        enabled         INTEGER NOT NULL DEFAULT 1,
+        created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_help_bubbles_screen ON help_bubbles(screen_key, sort_order, id)"); } catch (Exception $e) {}
+
+    // One row = "this user has dismissed help for this screen" (hidden until reset).
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS user_help_dismissed (
+        user_id      INTEGER NOT NULL,
+        screen_key   TEXT    NOT NULL,
+        dismissed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, screen_key),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )"); } catch (Exception $e) {}
+
     // One-shot: clean up pending_notifications + event_notifications_sent rows that point
     // to events already deleted. Prior versions did not cascade event deletes into these
     // tables, so older databases accumulate orphans.
@@ -1130,6 +1155,55 @@ function set_setting(string $key, string $value): void {
         ON CONFLICT(key) DO UPDATE SET value = excluded.value')
         ->execute([$key, $store]);
     $_settings_cache[$key] = $value; // cache the decrypted value
+}
+
+// ─── In-app help bubbles ────────────────────────────────────────────────
+// Curated whitelist of screens the admin can attach help tips to. Keys are the
+// page basename (basename($_SERVER['SCRIPT_NAME'], '.php')); values are labels
+// for the admin dropdown. Both admin_help.php and _footer.php read this.
+define('HELP_SCREENS', [
+    'index'      => 'Home / Dashboard',
+    'calendar'   => 'Calendar',
+    'my_events'  => 'My Events',
+    'event'      => 'Event page',
+    'leagues'    => 'Leagues list',
+    'league'     => 'League page',
+    'contacts'   => 'Contacts',
+    'checkin'    => 'Check-in',
+    'walkin'     => 'Walk-in registration',
+    'stats'      => 'Stats',
+    'timer'      => 'Tournament Timer',
+    'settings'   => 'My Settings',
+]);
+
+/** Enabled help tips for a screen, in display order. */
+function help_bubbles_for_screen(string $screen): array {
+    if ($screen === '' || !array_key_exists($screen, HELP_SCREENS)) return [];
+    $stmt = get_db()->prepare(
+        'SELECT id, screen_key, title, body, anchor_selector, sort_order, enabled
+         FROM help_bubbles WHERE screen_key = ? AND enabled = 1
+         ORDER BY sort_order, id'
+    );
+    $stmt->execute([$screen]);
+    return $stmt->fetchAll();
+}
+
+/** Has this user dismissed the help bubble for this screen? */
+function help_screen_dismissed(int $userId, string $screen): bool {
+    $stmt = get_db()->prepare('SELECT 1 FROM user_help_dismissed WHERE user_id = ? AND screen_key = ?');
+    $stmt->execute([$userId, $screen]);
+    return (bool)$stmt->fetchColumn();
+}
+
+/** Mark a screen's help as dismissed for a user (idempotent). */
+function help_dismiss_screen(int $userId, string $screen): void {
+    get_db()->prepare('INSERT OR IGNORE INTO user_help_dismissed (user_id, screen_key) VALUES (?, ?)')
+        ->execute([$userId, $screen]);
+}
+
+/** Clear all of a user's dismissals so every screen's help shows again. */
+function help_reset_user(int $userId): void {
+    get_db()->prepare('DELETE FROM user_help_dismissed WHERE user_id = ?')->execute([$userId]);
 }
 
 /**

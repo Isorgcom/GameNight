@@ -826,27 +826,7 @@ if ($tab === 'reports') {
         @media (max-width:640px) { .sms-grid { grid-template-columns:1fr; } }
         .cred-note { font-size:.78rem; color:#94a3b8; margin-top:.25rem; }
 
-        .tabs {
-            display: flex;
-            gap: 0;
-            border-bottom: 2px solid #e2e8f0;
-            margin-bottom: 1.75rem;
-        }
-        .tab-btn {
-            padding: .6rem 1.25rem;
-            font-size: .9rem;
-            font-weight: 500;
-            color: #64748b;
-            background: none;
-            border: none;
-            border-bottom: 2px solid transparent;
-            margin-bottom: -2px;
-            cursor: pointer;
-            text-decoration: none;
-        }
-        .tab-btn:hover { color: #1e293b; }
-        .tab-btn.active { color: #2563eb; border-bottom-color: #2563eb; font-weight: 600; }
-
+        /* .tabs / .tab-btn styles live in style.css (shared with API Keys + Help Tips pages) */
         .tab-panel { display: none; }
         .tab-panel.active { display: block; }
 
@@ -998,8 +978,6 @@ if ($tab === 'reports') {
 
         /* ── Mobile/tablet touch optimization ── */
         @media (max-width: 1024px) {
-            .tabs { overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap; }
-            .tab-btn { white-space:nowrap;padding:.55rem .85rem;font-size:.85rem; }
             #usersGrid { font-size:.9rem; }
             .ug-cell-input { font-size:1rem;padding:.5rem .6rem;min-height:44px; }
             .ug-cell-select { font-size:1rem;padding:.5rem .4rem;min-height:44px; }
@@ -1022,10 +1000,6 @@ if ($tab === 'reports') {
 
 <div class="dash-wrap">
 
-    <div class="dash-header">
-        <h1>Site Settings</h1>
-    </div>
-
     <?php if ($flash['msg']): ?>
         <div class="alert alert-<?= $flash['type'] === 'error' ? 'error' : 'success' ?>"
              style="margin-bottom:1.5rem">
@@ -1033,31 +1007,7 @@ if ($tab === 'reports') {
         </div>
     <?php endif; ?>
 
-    <div class="tabs">
-        <a href="/admin_settings.php?tab=dashboard"
-           class="tab-btn <?= $tab === 'dashboard' ? 'active' : '' ?>">Dashboard</a>
-        <a href="/admin_settings.php?tab=reports"
-           class="tab-btn <?= $tab === 'reports' ? 'active' : '' ?>">Reports</a>
-        <a href="/admin_settings.php?tab=general"
-           class="tab-btn <?= $tab === 'general' ? 'active' : '' ?>">General</a>
-        <a href="/admin_settings.php?tab=appearance"
-           class="tab-btn <?= $tab === 'appearance' ? 'active' : '' ?>">Appearance</a>
-        <a href="/admin_settings.php?tab=logs"
-           class="tab-btn <?= $tab === 'logs' ? 'active' : '' ?>">Logs</a>
-        <a href="/admin_settings.php?tab=users"
-           class="tab-btn <?= $tab === 'users' ? 'active' : '' ?>">Users</a>
-        <a href="/admin_settings.php?tab=events"
-           class="tab-btn <?= $tab === 'events' ? 'active' : '' ?>">Events</a>
-        <a href="/admin_settings.php?tab=leagues"
-           class="tab-btn <?= $tab === 'leagues' ? 'active' : '' ?>">Leagues</a>
-        <a href="/admin_settings.php?tab=email"
-           class="tab-btn <?= $isCommTab ? 'active' : '' ?>">Communication</a>
-        <a href="/admin_settings.php?tab=cron"
-           class="tab-btn <?= $tab === 'cron' ? 'active' : '' ?>">Cron</a>
-        <a href="/admin_settings.php?tab=backup"
-           class="tab-btn <?= $tab === 'backup' ? 'active' : '' ?>">Backup</a>
-        <a href="/admin_api_keys.php" class="tab-btn">API Keys</a>
-    </div>
+    <?php $admin_tab = $isCommTab ? 'communication' : $tab; require __DIR__ . '/_admin_tabs.php'; ?>
 
     <!-- ── Dashboard tab ── -->
     <div class="tab-panel <?= $tab === 'dashboard' ? 'active' : '' ?>">

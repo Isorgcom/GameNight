@@ -16,3 +16,33 @@ $_fnow = new DateTime('now', $_ftz);
     <a href="<?= htmlspecialchars($_fdon) ?>" target="_blank" rel="noopener" style="color:inherit;opacity:.65;text-decoration:none">&#10084; Support this site</a>
     <?php endif; ?>
 </footer>
+<?php
+/* In-app help bubbles: only for logged-in users, only on screens that have
+   enabled tips. Tips are inlined as JSON so there's no extra round-trip. */
+$_hb_user = function_exists('current_user') ? current_user() : null;
+if ($_hb_user) {
+    $_hb_screen  = basename($_SERVER['SCRIPT_NAME'] ?? '', '.php');
+    $_hb_bubbles = help_bubbles_for_screen($_hb_screen);
+    if ($_hb_bubbles) {
+        $_hb_tips = array_map(function ($b) {
+            return [
+                'id'              => (int)$b['id'],
+                'title'           => $b['title'] ?? '',
+                'body'            => $b['body'] ?? '',
+                'anchor_selector' => $b['anchor_selector'] ?? '',
+            ];
+        }, $_hb_bubbles);
+        $_hb_payload = [
+            'screen'    => $_hb_screen,
+            'tips'      => $_hb_tips,
+            'dismissed' => help_screen_dismissed((int)$_hb_user['id'], $_hb_screen),
+            'csrf'      => csrf_token(),
+            'preview'   => false,
+        ];
+        ?>
+        <script>window.__help = <?= json_encode($_hb_payload, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;</script>
+        <script src="/help-bubble.js?v=<?= htmlspecialchars(APP_VERSION) ?>" defer></script>
+        <?php
+    }
+}
+?>

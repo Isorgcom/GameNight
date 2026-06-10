@@ -66,7 +66,6 @@ function api_keys_admin_fmt(?string $utc_dt, DateTimeZone $local_tz): string {
     <title>API Keys — <?= htmlspecialchars($site_name) ?></title>
     <link rel="stylesheet" href="/style.css">
     <style>
-        .ak-wrap { max-width: 960px; margin: 1.5rem auto; padding: 0 1rem; }
         .ak-card { background:#fff; border:1.5px solid #e2e8f0; border-radius:10px; padding:1.25rem; margin-bottom:1rem; }
         .ak-table { width:100%; border-collapse:collapse; font-size:.875rem; }
         .ak-table th, .ak-table td { padding:.55rem .6rem; border-bottom:1px solid #f1f5f9; text-align:left; }
@@ -81,7 +80,8 @@ function api_keys_admin_fmt(?string $utc_dt, DateTimeZone $local_tz): string {
 
 <?php $nav_active = 'site-settings'; $nav_user = $current; require __DIR__ . '/_nav.php'; ?>
 
-<div class="ak-wrap">
+<div class="dash-wrap">
+    <?php $admin_tab = 'apikeys'; require __DIR__ . '/_admin_tabs.php'; ?>
     <h1 style="font-size:1.5rem;font-weight:700;margin:0 0 1rem">API Keys (audit view)</h1>
     <p style="color:#64748b;margin:0 0 1.25rem;font-size:.9rem;line-height:1.55">
         League owners mint and manage their own keys from the API tab on each league page.

@@ -154,6 +154,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        elseif ($action === 'reset_help') {
+            help_reset_user($current['id']);
+            db_log_activity($current['id'], 'reset help tips');
+            $flash = ['type' => 'success', 'msg' => 'Help tips will show again on every screen.'];
+        }
+
         elseif ($action === 'delete_account') {
             $confirm = trim($_POST['confirm_delete'] ?? '');
             if ($confirm !== 'DELETE') {
@@ -407,6 +413,17 @@ $site_name = get_setting('site_name', 'Game Night');
                 <tr><td style="color:#64748b">Last login</td><td><?= htmlspecialchars($me['last_login'] ?? 'Never') ?></td></tr>
             </tbody>
         </table>
+    </div>
+
+    <!-- Help tips -->
+    <div class="card" style="max-width:540px;margin-top:1.5rem">
+        <h2>Help Tips</h2>
+        <p class="subtitle" style="color:#64748b">Bring back the in-app help bubbles you've dismissed. They'll show again on every screen that has tips.</p>
+        <form method="post" action="/settings.php">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+            <input type="hidden" name="action" value="reset_help">
+            <button type="submit" class="btn" style="width:100%">Show all help tips again</button>
+        </form>
     </div>
 
     <!-- Delete account -->

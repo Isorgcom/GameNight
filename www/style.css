@@ -571,3 +571,131 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
     color: #94a3b8;
     margin-top: .75rem;
 }
+
+/* ─── Site Settings tab bar (shared by admin_settings / api_keys / help) ─── */
+.tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    border-bottom: 2px solid #e2e8f0;
+    margin-bottom: 1.75rem;
+}
+.tab-btn {
+    padding: .6rem .9rem;
+    font-size: .875rem;
+    font-weight: 500;
+    color: #64748b;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    cursor: pointer;
+    text-decoration: none;
+}
+.tab-btn:hover { color: #1e293b; }
+.tab-btn.active { color: #2563eb; border-bottom-color: #2563eb; font-weight: 600; }
+@media (max-width: 1024px) {
+    .tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; }
+    .tab-btn { white-space: nowrap; padding: .55rem .85rem; font-size: .85rem; }
+}
+
+/* ─── In-app help bubbles ("ghost bubble" hints) ─────────────────────── */
+.help-bubble {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 9000;
+    width: 280px;
+    max-width: calc(100vw - 32px);
+    box-sizing: border-box;
+    background: #fff;
+    border: 1.5px solid #e2e8f0;
+    border-left: 4px solid var(--accent, #2563eb);
+    border-radius: 14px;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, .18);
+    padding: .85rem 1rem .7rem;
+    font-size: .875rem;
+    line-height: 1.5;
+    color: #1e293b;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity .18s ease, transform .18s ease;
+}
+.help-bubble.help-bubble--in { opacity: 1; transform: translateY(0); }
+.help-bubble--anchored { right: auto; bottom: auto; }
+.help-bubble__close {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    background: none;
+    border: none;
+    color: #94a3b8;
+    font-size: 1.15rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 6px;
+}
+.help-bubble__close:hover { color: #475569; background: #f1f5f9; }
+.help-bubble__title {
+    font-weight: 700;
+    font-size: .9rem;
+    margin: 0 1.2rem .25rem 0;
+    color: #0f172a;
+}
+.help-bubble__body { margin: 0 0 .15rem; }
+.help-bubble__nav {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: .5rem;
+    margin-top: .5rem;
+}
+.help-bubble__counter { font-size: .72rem; color: #94a3b8; }
+.help-bubble__arrow {
+    background: #f1f5f9;
+    border: none;
+    color: #475569;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+}
+.help-bubble__arrow:hover { background: var(--accent, #2563eb); color: #fff; }
+/* Tail pointer for anchored bubbles */
+.help-bubble__tail {
+    position: absolute;
+    width: 0;
+    height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+}
+.help-bubble__tail--up {   /* bubble is below anchor: tail points up */
+    top: -8px;
+    border-bottom: 8px solid #fff;
+    filter: drop-shadow(0 -1px 0 #e2e8f0);
+}
+.help-bubble__tail--down { /* bubble is above anchor: tail points down */
+    bottom: -8px;
+    border-top: 8px solid #fff;
+    filter: drop-shadow(0 1px 0 #e2e8f0);
+}
+.help-pill {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 9000;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: none;
+    background: var(--accent, #2563eb);
+    color: #fff;
+    font-size: 1.15rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(37, 99, 235, .35);
+}
+.help-pill:hover { filter: brightness(1.05); }

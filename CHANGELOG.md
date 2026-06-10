@@ -4,6 +4,16 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1963] - 2026-06-10
+
+### Added
+- **In-app help bubbles ("ghost bubble" hints).** Signed-in users now see small, non-focus-stealing rounded chat bubbles with contextual tips on selected screens, authored entirely from an admin portal. A new **Help Tips** tab on Site Settings (`www/admin_help.php`, backed by the `www/admin_help_dl.php` JSON CRUD endpoint) lets an admin pick a screen and write any number of tips for it, reorder/hide/delete them, and use a live "Show example" preview that renders the real bubble component in-page. Screens are a curated whitelist (`HELP_SCREENS` in `www/db.php`, keyed by page basename) and the portal shows the URL each screen maps to. Tips are stored in a new `help_bubbles` table (title, body, optional anchor selector, sort order, enabled); each tip can either float in the bottom-right corner or **anchor** to a page element by CSS selector, with a pointer tail and automatic, safe fallback to the corner when the selector matches nothing. On every page the shared footer (`www/_footer.php`) inlines that screen's enabled tips as JSON (no extra round-trip) and loads `www/help-bubble.js`, which renders a single carousel bubble ("N of M" with Prev/Next), a close button, and a "?" re-open pill. Bubbles auto-show on each visit until the user dismisses that screen; dismissal is recorded per user in a new `user_help_dismissed` table via `www/help_dl.php`, and users can bring every dismissed bubble back from a new "Help Tips" card on their own Settings page (`www/settings.php`, `reset_help` action). New helpers in `www/db.php`: `help_bubbles_for_screen()`, `help_screen_dismissed()`, `help_dismiss_screen()`, `help_reset_user()`. Styling lives in `www/style.css`.
+
+### Changed
+- **Site Settings tab bar extracted into a shared partial and shown across all admin sub-pages.** The tab strip that previously lived inline in `www/admin_settings.php` is now `www/_admin_tabs.php`, included by the settings page, the API Keys audit page (`www/admin_api_keys.php`), and the new Help Tips page so the tabs stay visible and the active tab is highlighted no matter which page you're on. The `.tabs`/`.tab-btn` styles moved into `www/style.css` (single source of truth) and now wrap to a second row on narrow desktops instead of overflowing the page; all three pages share the same `.dash-wrap` container so the bar lines up at identical width and padding. The former "Dashboard" tab is relabeled **Site Settings** (same destination) and the redundant "Site Settings" page heading was removed, since the tab now names the section.
+
+---
+
 ## [v0.1962] - 2026-06-09
 
 ### Added
