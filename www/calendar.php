@@ -689,43 +689,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $evRow = $owner->fetch();
             if (can_manage_event($db, $eid, (int)$current['id'], $isAdmin)) {
                 $newStatus = ($action === 'approve_invite') ? 'approved' : 'denied';
-                $db->prepare("UPDATE event_invites SET approval_status=? WHERE event_id=? AND LOWER(username)=LOWER(?)")
-                   ->execute([$newStatus, $eid, $target]);
-                db_log_activity($current['id'], "{$action} for $target on event id: $eid");
-
-                // On approval: sync to poker roster + notify the user.
                 if ($newStatus === 'approved') {
-                    // If this is a poker event with an active session, sync newly-approved player into roster + assign table/seat.
-                    $seatInfo = '';
-                    $psess = $db->prepare('SELECT id FROM poker_sessions WHERE event_id = ?');
-                    $psess->execute([$eid]);
-                    $psRow = $psess->fetch();
-                    if ($psRow) {
-                        require_once __DIR__ . '/_poker_helpers.php';
-                        sync_invitees($db, $psRow['id'], $eid);
-                        // Find the player row and auto-assign table/seat
-                        $ppStmt = $db->prepare('SELECT id, table_number, seat_number FROM poker_players WHERE session_id = ? AND LOWER(display_name) = LOWER(?) AND removed = 0');
-                        $ppStmt->execute([$psRow['id'], $target]);
-                        $ppRow = $ppStmt->fetch();
-                        if ($ppRow) {
-                            auto_assign_table($db, $psRow['id'], $ppRow['id']);
-                            // Re-fetch for the updated values
-                            $ppStmt->execute([$psRow['id'], $target]);
-                            $ppRow = $ppStmt->fetch();
-                            if ($ppRow && $ppRow['table_number'] && $ppRow['seat_number']) {
-                                $seatInfo = " Table {$ppRow['table_number']}, Seat {$ppRow['seat_number']}.";
-                            }
-                        }
-                    }
-
-                    // Queue approval notification for the approved user (with table/seat if poker).
+                    // Shared approve sequence: status flip + poker sync + notification.
                     require_once __DIR__ . '/_notifications.php';
-                    $payload = [];
-                    if (!empty($ppRow) && $ppRow['table_number'] && $ppRow['seat_number']) {
-                        $payload['table'] = (int)$ppRow['table_number'];
-                        $payload['seat']  = (int)$ppRow['seat_number'];
-                    }
-                    queue_event_notification($db, $eid, $target, 'poker_approved', null, $payload ?: null);
+                    approve_event_invitee($db, $eid, $target, (int)$current['id']);
+                } else {
+                    $db->prepare("UPDATE event_invites SET approval_status='denied' WHERE event_id=? AND LOWER(username)=LOWER(?)")
+                       ->execute([$eid, $target]);
+                    db_log_activity($current['id'], "{$action} for $target on event id: $eid");
                 }
 
                 if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {

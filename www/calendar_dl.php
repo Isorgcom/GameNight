@@ -369,32 +369,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'delete') {
         $id = (int)($_POST['id'] ?? 0);
         if ($id > 0) {
-            $row = $db->prepare('SELECT title, start_date FROM events WHERE id=?');
-            $row->execute([$id]);
-            $evt = $row->fetch();
-            $t = $evt['title'] ?? $id;
-
-            // Notify invitees before deleting — carry title/date in the payload because
-            // the event row will be gone by the time the drain picks up.
-            if ($evt) {
-                $invStmt = $db->prepare("SELECT ei.username FROM event_invites ei
-                    WHERE ei.event_id=? AND ei.occurrence_date IS NULL");
-                $invStmt->execute([$id]);
-                foreach ($invStmt->fetchAll() as $inv) {
-                    queue_event_notification($db, $id, $inv['username'], 'cancel_event', null, [
-                        'title' => $t,
-                        'start_date' => $evt['start_date'],
-                    ]);
-                }
+            // Shared notify-then-delete sequence (see _notifications.php).
+            if (cancel_event_with_notifications($db, $id, (int)$current['id']) !== null) {
+                $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event deleted.'];
             }
-
-            $db->prepare('DELETE FROM event_exceptions WHERE event_id=?')->execute([$id]);
-            $db->prepare('DELETE FROM event_invites WHERE event_id=?')->execute([$id]);
-            $db->prepare('DELETE FROM pending_notifications WHERE event_id=? AND attempted_at IS NOT NULL')->execute([$id]);
-            $db->prepare('DELETE FROM event_notifications_sent WHERE event_id=?')->execute([$id]);
-            $db->prepare('DELETE FROM events WHERE id=?')->execute([$id]);
-            db_log_activity($current['id'], "deleted event: $t");
-            $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event deleted.'];
         }
     }
 

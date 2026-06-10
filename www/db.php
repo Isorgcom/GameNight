@@ -286,6 +286,16 @@ function db_init(PDO $pdo): void {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )"); } catch (Exception $e) {}
 
+    // Pending admin/host SMS command awaiting a CONFIRM reply (cancel/msg/remind).
+    // One in-flight command per user; INSERT OR REPLACE overwrites any prior pending one.
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS sms_pending_admin (
+        user_id    INTEGER PRIMARY KEY,
+        command    TEXT NOT NULL,
+        event_id   INTEGER NOT NULL,
+        payload    TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )"); } catch (Exception $e) {}
+
     // Add preferred_contact column if it doesn't exist yet
     try { $pdo->exec("ALTER TABLE users ADD COLUMN preferred_contact TEXT NOT NULL DEFAULT 'email'"); } catch (Exception $e) {}
 

@@ -125,7 +125,7 @@ $normalized = substr($digits, 0, 3) . '-' . substr($digits, 3, 3) . '-' . substr
 
 // ── Look up user by phone ────────────────────────────────────────────────────
 $db   = get_db();
-$stmt = $db->prepare('SELECT id, username FROM users WHERE phone = ? OR phone = ?');
+$stmt = $db->prepare('SELECT id, username, role FROM users WHERE phone = ? OR phone = ?');
 $stmt->execute([$normalized, $digits]);
 $user = $stmt->fetch();
 
@@ -133,6 +133,14 @@ if (!$user) {
     http_response_code(200);
     // Generic response — don't reveal whether phone is registered
     respond_to_provider($provider, 'Thanks for your message.');
+    exit;
+}
+
+// ── Admin/host commands (WHO, MSG, REMIND, CANCEL, APPROVE, ...) ─────────────
+// Handled only for site admins and event owners/managers; everyone else (and
+// any non-admin verb) falls through to the normal RSVP/HELP handling below.
+require_once __DIR__ . '/sms_admin.php';
+if (sms_handle_admin_command($db, $user, $body, $provider, $from)) {
     exit;
 }
 
@@ -405,10 +413,10 @@ function notify_creator_of_rsvp($db, $user, $invite, $rsvp, $from): void {
 }
 
 // ── Provider-specific response helpers ───────────────────────────────────────
-function respond_to_provider(string $provider, string $message): void {
+function respond_to_provider(string $provider, string $message, bool $append_optout = true): void {
     switch ($provider) {
         case 'twilio':
-            // TwiML response
+            // TwiML response (no opt-out footer is ever appended on this path)
             header('Content-Type: text/xml');
             echo '<?xml version="1.0" encoding="UTF-8"?>';
             echo '<Response><Message>' . htmlspecialchars($message) . '</Message></Response>';
@@ -423,9 +431,10 @@ function respond_to_provider(string $provider, string $message): void {
         case 'vonage':
         case 'surge':
             // These providers use API calls for replies, not webhook responses.
-            // Send an outbound SMS instead.
+            // Send an outbound SMS instead. Admin command replies pass
+            // $append_optout=false so they don't carry the "Reply STOP" footer.
             global $from;
-            send_sms($from, $message);
+            send_sms($from, $message, $append_optout);
             break;
     }
 }

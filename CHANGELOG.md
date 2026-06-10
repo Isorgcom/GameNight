@@ -4,6 +4,19 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1962] - 2026-06-09
+
+### Added
+- **Admin & host event management over SMS.** Site admins and event owners/managers can now run their events by text, not just RSVP to them. A new command layer (`www/sms_admin.php`, invoked from `www/sms_webhook.php` right after the inbound phone-to-user lookup) recognizes elevated commands and gates them behind `can_manage_event()` per event, so a host only ever acts on events they actually manage while a site admin sees them all. Commands: `ADMIN`/`HELP` lists your manageable upcoming events (numbered) plus the command syntax; `WHO #` shows the roster split by RSVP, `COUNT #` the headcount only (both include pending/waitlist tallies); `PENDING` lists outstanding approval/waitlist requests by event with names; `APPROVE # name` approves a pending or waitlisted guest immediately; `MSG # text` broadcasts a free-text message to an event's guests; `REMIND #` sends an on-demand reminder to all approved guests; and `CANCEL #` cancels the event and notifies everyone. The three fan-out/destructive commands (`MSG`, `REMIND`, `CANCEL`) are two-step: they reply with a plain-language summary ("Cancel \"Poker Night\" (Jun 12)? 9 will be notified. Reply CONFIRM.") and only execute when the sender texts `CONFIRM` within 10 minutes, tracked in a new `sms_pending_admin` table (one in-flight action per user, auto-expired) and re-checked for permission at execution time. Event numbers come from a deterministically ordered "manageable events" list so a number stays stable between texts, the same numbered-selection pattern the existing RSVP flow uses. Non-elevated texters who send an admin verb fall through to the normal RSVP/HELP handling with no behavior change and no information leak. Per request, these admin command replies deliberately omit the carrier "Reply STOP to unsubscribe" footer that user-facing messages carry. `MSG`/`REMIND` reuse the existing in-app broadcast path (an `event_messages` row plus queued `event_message` notifications, which deliver via each recipient's preferred channel), and every state change is written to the audit log with a "via SMS" suffix.
+
+### Changed
+- **Event cancel and invite-approval logic centralized into shared helpers.** The notify-then-delete sequence behind deleting an event and the status-flip-plus-poker-sync-plus-notify sequence behind approving a pending invitee were previously inline in `www/calendar_dl.php` (delete) and `www/calendar.php` (approve). They are now `cancel_event_with_notifications()` and `approve_event_invitee()` in `www/_notifications.php`, called by both the in-app handlers and the new SMS commands so the behavior stays identical across entry points. `send_sms()` in `www/sms.php` gained an optional `$append_optout` parameter (default true, so every existing caller is unchanged); `respond_to_provider()` in the webhook threads it through so only admin command replies suppress the footer.
+
+### Fixed
+- **Deleting an event that had ever sent a broadcast message failed with a foreign-key error.** `event_messages` carries a `FOREIGN KEY (event_id) REFERENCES events(id)` without `ON DELETE CASCADE`, and the event-delete sequence cleared `event_invites`, `event_exceptions`, and notification rows but never `event_messages` — so with foreign-key enforcement on, the final `DELETE FROM events` raised "FOREIGN KEY constraint failed" (an HTTP 500 with the invites already gone but the event left behind). The shared `cancel_event_with_notifications()` now deletes the event's `event_messages` rows before the event itself, fixing both the in-app delete and the new SMS `CANCEL`. Surfaced while testing SMS cancel on the dev instance against an event that had been messaged.
+
+---
+
 ## [v0.1961] - 2026-06-09
 
 ### Fixed

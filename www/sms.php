@@ -210,12 +210,15 @@ function shorten_url(string $url): string {
  * Send an SMS via the configured provider.
  * Returns null on success, error string on failure.
  */
-function send_sms(string $to, string $body): ?string {
+function send_sms(string $to, string $body, bool $append_optout = true): ?string {
     $e164 = sms_normalize_phone($to);
     if (!$e164) return 'Invalid phone number.';
 
-    // Append opt-out instruction for carrier compliance
-    $body .= "\nReply STOP to unsubscribe, HELP for commands.";
+    // Append opt-out instruction for carrier compliance. Admin/host command
+    // replies pass $append_optout=false so their conversational responses stay clean.
+    if ($append_optout) {
+        $body .= "\nReply STOP to unsubscribe, HELP for commands.";
+    }
 
     // Auto-shorten any URLs in the body if URL shortener is enabled
     if (get_setting('url_shortener_enabled') === '1') {

@@ -266,6 +266,87 @@ function clear_pending_reminders(PDO $db, int $event_id, ?string $occurrence_dat
 }
 
 /**
+ * Cancel an entire event: queue cancellation notices to all base invitees, then
+ * delete the event and its dependent rows. Shared by the in-app delete action
+ * (calendar_dl.php) and the SMS CANCEL command (sms_admin.php) so the
+ * notify-then-delete sequence lives in one place. The title/date are carried in
+ * each notification payload because the event row is gone before the drain runs.
+ * Returns ['title' => ..., 'notified' => N], or null if the event doesn't exist.
+ */
+function cancel_event_with_notifications(PDO $db, int $event_id, int $actor_id): ?array {
+    $row = $db->prepare('SELECT title, start_date FROM events WHERE id=?');
+    $row->execute([$event_id]);
+    $evt = $row->fetch();
+    if (!$evt) return null;
+    $t = $evt['title'] ?? (string)$event_id;
+
+    $notified = 0;
+    $invStmt = $db->prepare("SELECT username FROM event_invites WHERE event_id=? AND occurrence_date IS NULL");
+    $invStmt->execute([$event_id]);
+    foreach ($invStmt->fetchAll() as $inv) {
+        queue_event_notification($db, $event_id, $inv['username'], 'cancel_event', null, [
+            'title'      => $t,
+            'start_date' => $evt['start_date'],
+        ]);
+        $notified++;
+    }
+
+    $db->prepare('DELETE FROM event_exceptions WHERE event_id=?')->execute([$event_id]);
+    $db->prepare('DELETE FROM event_invites WHERE event_id=?')->execute([$event_id]);
+    // event_messages has a FOREIGN KEY to events(id) without ON DELETE CASCADE,
+    // so it must be cleared before the event row or the DELETE fails.
+    $db->prepare('DELETE FROM event_messages WHERE event_id=?')->execute([$event_id]);
+    $db->prepare('DELETE FROM pending_notifications WHERE event_id=? AND attempted_at IS NOT NULL')->execute([$event_id]);
+    $db->prepare('DELETE FROM event_notifications_sent WHERE event_id=?')->execute([$event_id]);
+    $db->prepare('DELETE FROM events WHERE id=?')->execute([$event_id]);
+    db_log_activity($actor_id, "deleted event: $t");
+    return ['title' => $t, 'notified' => $notified];
+}
+
+/**
+ * Approve a single pending/waitlisted invitee on an event: flip approval_status,
+ * sync into the poker roster + auto-assign a seat if the event has a poker
+ * session, and queue the 'poker_approved' ("you're approved") notification.
+ * Shared by the in-app approve_invite action (calendar.php) and the SMS APPROVE
+ * command. Caller is responsible for the permission check. Returns
+ * ['seat_info' => ' Table X, Seat Y.'] (empty string when not a poker event).
+ */
+function approve_event_invitee(PDO $db, int $event_id, string $target, int $actor_id): array {
+    $db->prepare("UPDATE event_invites SET approval_status='approved' WHERE event_id=? AND LOWER(username)=LOWER(?)")
+       ->execute([$event_id, $target]);
+    db_log_activity($actor_id, "approve_invite for $target on event id: $event_id");
+
+    $seatInfo = '';
+    $ppRow = null;
+    $psess = $db->prepare('SELECT id FROM poker_sessions WHERE event_id = ?');
+    $psess->execute([$event_id]);
+    $psRow = $psess->fetch();
+    if ($psRow) {
+        require_once __DIR__ . '/_poker_helpers.php';
+        sync_invitees($db, $psRow['id'], $event_id);
+        $ppStmt = $db->prepare('SELECT id, table_number, seat_number FROM poker_players WHERE session_id = ? AND LOWER(display_name) = LOWER(?) AND removed = 0');
+        $ppStmt->execute([$psRow['id'], $target]);
+        $ppRow = $ppStmt->fetch();
+        if ($ppRow) {
+            auto_assign_table($db, $psRow['id'], $ppRow['id']);
+            $ppStmt->execute([$psRow['id'], $target]);
+            $ppRow = $ppStmt->fetch();
+            if ($ppRow && $ppRow['table_number'] && $ppRow['seat_number']) {
+                $seatInfo = " Table {$ppRow['table_number']}, Seat {$ppRow['seat_number']}.";
+            }
+        }
+    }
+
+    $payload = [];
+    if (!empty($ppRow) && $ppRow['table_number'] && $ppRow['seat_number']) {
+        $payload['table'] = (int)$ppRow['table_number'];
+        $payload['seat']  = (int)$ppRow['seat_number'];
+    }
+    queue_event_notification($db, $event_id, $target, 'poker_approved', null, $payload ?: null);
+    return ['seat_info' => $seatInfo];
+}
+
+/**
  * Dispatch one queued row. Looks up the event + recipient, builds the right
  * subject/sms/html for the notify_type, calls send_notification.
  * Returns true on success, false if the row should be retried.
