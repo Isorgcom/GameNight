@@ -35,7 +35,7 @@ foreach ($db->query("SELECT screen_key, COUNT(*) c FROM help_bubbles GROUP BY sc
 
 // Tips for the active screen (inlined so the list + preview render without a fetch).
 $tipsStmt = $db->prepare(
-    'SELECT id, screen_key, title, body, anchor_selector, sort_order, enabled
+    'SELECT id, screen_key, title, body, anchor_selector, bubble_index, sort_order, enabled
      FROM help_bubbles WHERE screen_key = ? ORDER BY sort_order, id'
 );
 $tipsStmt->execute([$screen]);
@@ -151,6 +151,11 @@ $tips = $tipsStmt->fetchAll();
                         </div>
                     </details>
                 </div>
+                <div class="hlp-field">
+                    <label for="tipIndex">Step index <span style="font-weight:400;color:#94a3b8">(optional)</span></label>
+                    <input type="number" id="tipIndex" min="1" step="1" placeholder="e.g. 1" style="max-width:140px">
+                    <p class="hint">Tips that share the same index number appear together as one step (Back/Next moves between steps). Leave blank and the tip is its own step.</p>
+                </div>
                 <div style="display:flex;gap:.5rem">
                     <button type="button" class="hlp-btn primary" onclick="saveTip()">Save tip</button>
                     <button type="button" class="hlp-btn" onclick="resetForm()">Clear</button>
@@ -194,6 +199,7 @@ function renderList() {
             </div>
             <div class="hlp-tip-body">${esc(t.body)}</div>
             ${t.anchor_selector ? `<div class="hlp-tip-anchor">&#128279; ${esc(t.anchor_selector)}</div>` : ''}
+            ${(t.bubble_index !== null && t.bubble_index !== undefined && t.bubble_index !== '') ? `<div class="hlp-tip-anchor" style="color:#2563eb">&#9635; Step index ${esc(t.bubble_index)}</div>` : ''}
             <div class="hlp-tip-actions">
                 <button class="hlp-btn" onclick="moveTip(${i},-1)" ${i === 0 ? 'disabled' : ''}>&#9650;</button>
                 <button class="hlp-btn" onclick="moveTip(${i},1)" ${i === TIPS.length - 1 ? 'disabled' : ''}>&#9660;</button>
@@ -233,7 +239,8 @@ async function saveTip() {
         action: id ? 'update' : 'create',
         title:  document.getElementById('tipTitle').value,
         body:   body,
-        anchor_selector: document.getElementById('tipAnchor').value
+        anchor_selector: document.getElementById('tipAnchor').value,
+        bubble_index: document.getElementById('tipIndex').value
     };
     if (id) fields.id = id;
     const r = await post(fields);
@@ -251,6 +258,7 @@ function editTip(id) {
     document.getElementById('tipTitle').value = t.title || '';
     document.getElementById('tipBody').value = t.body || '';
     document.getElementById('tipAnchor').value = t.anchor_selector || '';
+    document.getElementById('tipIndex').value = (t.bubble_index !== null && t.bubble_index !== undefined) ? t.bubble_index : '';
     document.getElementById('formHeading').textContent = 'Edit tip';
     msg('');
     document.getElementById('tipTitle').focus();
@@ -261,6 +269,7 @@ function resetForm() {
     document.getElementById('tipTitle').value = '';
     document.getElementById('tipBody').value = '';
     document.getElementById('tipAnchor').value = '';
+    document.getElementById('tipIndex').value = '';
     document.getElementById('formHeading').textContent = 'Add a tip';
 }
 
@@ -286,9 +295,10 @@ async function moveTip(i, dir) {
 }
 
 function showPreview() {
-    document.querySelectorAll('.help-bubble,.help-pill').forEach(e => e.remove());
+    document.querySelectorAll('.help-bubble,.help-pill,.help-stack').forEach(e => e.remove());
     const tips = TIPS.filter(t => Number(t.enabled) === 1).map(t => ({
-        id: t.id, title: t.title || '', body: t.body || '', anchor_selector: t.anchor_selector || ''
+        id: t.id, title: t.title || '', body: t.body || '', anchor_selector: t.anchor_selector || '',
+        idx: (t.bubble_index !== null && t.bubble_index !== undefined && t.bubble_index !== '') ? Number(t.bubble_index) : null
     }));
     if (!tips.length) { msg('No shown tips to preview. Add one (or unhide) first.', true); return; }
     window.__help = { screen: SCREEN, tips, dismissed: false, csrf: '', preview: true };

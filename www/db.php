@@ -991,6 +991,9 @@ JSON;
         PRIMARY KEY (user_id, screen_key),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )"); } catch (Exception $e) {}
+    // Optional step/group index: tips sharing the same bubble_index appear together
+    // as one step. NULL = the tip is its own step (default, backward-compatible).
+    try { $pdo->exec("ALTER TABLE help_bubbles ADD COLUMN bubble_index INTEGER"); } catch (Exception $e) {}
 
     // One-shot: clean up pending_notifications + event_notifications_sent rows that point
     // to events already deleted. Prior versions did not cascade event deletes into these
@@ -1180,7 +1183,7 @@ define('HELP_SCREENS', [
 function help_bubbles_for_screen(string $screen): array {
     if ($screen === '' || !array_key_exists($screen, HELP_SCREENS)) return [];
     $stmt = get_db()->prepare(
-        'SELECT id, screen_key, title, body, anchor_selector, sort_order, enabled
+        'SELECT id, screen_key, title, body, anchor_selector, bubble_index, sort_order, enabled
          FROM help_bubbles WHERE screen_key = ? AND enabled = 1
          ORDER BY sort_order, id'
     );

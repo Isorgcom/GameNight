@@ -4,6 +4,16 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1964] - 2026-06-11
+
+### Added
+- **Help bubbles can group into multi-bubble steps via a step index.** Each help tip gained an optional **step index** (new nullable `bubble_index` column on `help_bubbles`, migrated with the standard `try/catch ALTER TABLE`). Tips that share the same index number now appear on screen **at the same time** as one step, and Back/Next move between index groups with the counter reading "Step X of N" — so a single step can highlight several places at once (e.g. a corner intro bubble plus an anchored bubble pointing at a button). A tip with no index stays its own step, so every existing tip behaves exactly as before. Non-anchored ("corner") bubbles in the same step stack in a new bottom-right `.help-stack` container instead of overlapping; anchored bubbles sit at their elements. The admin Help Tips portal (`www/admin_help.php`) gained a "Step index" field, shows the index in the tip list, and feeds it through the live preview; `www/admin_help_dl.php` stores it on create/update; `www/_footer.php` emits it as `idx` in the inlined tips JSON; and `www/help-bubble.js` was reworked to group tips into steps and render all bubbles of the current step together. Every bubble in a multi-step tour carries its own Back/Next controls.
+
+### Changed
+- **Help bubble carousel uses "Back"/"Next" text buttons pinned to the edges.** The previous circular `‹` / `›` arrow glyphs were replaced with labelled **Back** (far left) and **Next** (far right) pill buttons, with the step counter centered between them (`www/help-bubble.js`, `www/style.css`). Clearer affordance, same navigation behavior.
+
+---
+
 ## [v0.1963] - 2026-06-10
 
 ### Added

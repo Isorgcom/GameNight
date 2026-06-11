@@ -30,6 +30,7 @@ if ($_hb_user) {
                 'title'           => $b['title'] ?? '',
                 'body'            => $b['body'] ?? '',
                 'anchor_selector' => $b['anchor_selector'] ?? '',
+                'idx'             => isset($b['bubble_index']) && $b['bubble_index'] !== null ? (int)$b['bubble_index'] : null,
             ];
         }, $_hb_bubbles);
         $_hb_payload = [

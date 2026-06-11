@@ -600,6 +600,27 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
 }
 
 /* ─── In-app help bubbles ("ghost bubble" hints) ─────────────────────── */
+/* Bottom-right stack: holds the non-anchored (corner) bubbles of the current
+   step so several can show at once without overlapping. column-reverse keeps the
+   primary (first) bubble at the bottom, where a single bubble normally sits. */
+.help-stack {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 9000;
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: flex-end;
+    gap: .6rem;
+    max-width: calc(100vw - 32px);
+    pointer-events: none;       /* gaps don't block the page */
+}
+.help-stack .help-bubble {
+    position: static;           /* flow inside the stack instead of fixed corner */
+    right: auto;
+    bottom: auto;
+    pointer-events: auto;
+}
 .help-bubble {
     position: fixed;
     right: 20px;
@@ -647,7 +668,7 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
 .help-bubble__nav {
     display: flex;
     align-items: center;
-    justify-content: flex-end;
+    justify-content: space-between;
     gap: .5rem;
     margin-top: .5rem;
 }
@@ -656,10 +677,10 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
     background: #f1f5f9;
     border: none;
     color: #475569;
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    font-size: 1rem;
+    padding: .3rem .6rem;
+    border-radius: 7px;
+    font-size: .78rem;
+    font-weight: 600;
     line-height: 1;
     cursor: pointer;
 }
