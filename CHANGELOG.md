@@ -4,6 +4,14 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1966] - 2026-06-11
+
+### Changed
+- **Help-bubble tour: Next on the last step now ends the tour instead of wrapping to step 1.** The step navigation in `www/help-bubble.js` previously cycled modulo, so clicking Next past the final step rolled back to the first. It now performs a soft close: the bubbles hide and the "?" pill appears, but **no dismissal is recorded**, so the tour auto-plays again from step 1 on the next page load (and the pill restarts it at step 1). Only the X performs the permanent, server-persisted dismissal (`help_dl.php`), exactly as before. Back is now disabled (greyed) on the first step rather than wrapping backward. Single-tip screens are unaffected.
+- **Help bubbles restyled dark to stop disappearing into white pages.** The bubble was white-on-white against most screens. It now uses the app's dark-slate palette (`#1e293b` surface, `#334155` border, light text, white title, stronger shadow) matching the nav bar, with translucent Back/Next pills and a matching anchored-pointer tail (`www/style.css`). The accent left edge and accent-blue "?" pill are unchanged.
+
+---
+
 ## [v0.1965] - 2026-06-11
 
 ### Fixed

@@ -80,6 +80,8 @@
       prev.type = 'button';
       prev.textContent = 'Back';
       prev.setAttribute('aria-label', 'Previous step');
+      prev.disabled = stepIdx === 0;
+      if (prev.disabled) { prev.style.opacity = '.45'; prev.style.cursor = 'default'; }
       prev.addEventListener('click', function () { go(stepIdx - 1); });
       var counter = el('span', 'help-bubble__counter');
       counter.textContent = 'Step ' + (stepIdx + 1) + ' of ' + steps.length;
@@ -177,9 +179,18 @@
   }
 
   function go(n) {
-    var len = steps.length;
-    stepIdx = (n % len + len) % len;
+    if (n < 0) return;                                // no stepping back past the first step
+    if (n >= steps.length) { softClose(); return; }   // Next on the last step ends the tour
+    stepIdx = n;
     render();
+  }
+
+  // End the tour for this page view only: no dismiss POST, so the tour
+  // auto-shows again on the next load. Reopening starts back at step 1.
+  // Only the X (dismiss) hides the tour permanently.
+  function softClose() {
+    stepIdx = 0;
+    hide();
   }
 
   function show() {

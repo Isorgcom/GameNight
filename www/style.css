@@ -629,15 +629,15 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
     width: 280px;
     max-width: calc(100vw - 32px);
     box-sizing: border-box;
-    background: #fff;
-    border: 1.5px solid #e2e8f0;
+    background: #1e293b;
+    border: 1.5px solid #334155;
     border-left: 4px solid var(--accent, #2563eb);
     border-radius: 14px;
-    box-shadow: 0 10px 30px rgba(15, 23, 42, .18);
+    box-shadow: 0 10px 30px rgba(15, 23, 42, .35);
     padding: .85rem 1rem .7rem;
     font-size: .875rem;
     line-height: 1.5;
-    color: #1e293b;
+    color: #e2e8f0;
     opacity: 0;
     transform: translateY(8px);
     transition: opacity .18s ease, transform .18s ease;
@@ -657,12 +657,12 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
     padding: 2px 4px;
     border-radius: 6px;
 }
-.help-bubble__close:hover { color: #475569; background: #f1f5f9; }
+.help-bubble__close:hover { color: #fff; background: rgba(255, 255, 255, .12); }
 .help-bubble__title {
     font-weight: 700;
     font-size: .9rem;
     margin: 0 1.2rem .25rem 0;
-    color: #0f172a;
+    color: #fff;
 }
 .help-bubble__body { margin: 0 0 .15rem; }
 .help-bubble__nav {
@@ -674,9 +674,9 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
 }
 .help-bubble__counter { font-size: .72rem; color: #94a3b8; }
 .help-bubble__arrow {
-    background: #f1f5f9;
+    background: rgba(255, 255, 255, .12);
     border: none;
-    color: #475569;
+    color: #e2e8f0;
     padding: .3rem .6rem;
     border-radius: 7px;
     font-size: .78rem;
@@ -695,13 +695,13 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
 }
 .help-bubble__tail--up {   /* bubble is below anchor: tail points up */
     top: -8px;
-    border-bottom: 8px solid #fff;
-    filter: drop-shadow(0 -1px 0 #e2e8f0);
+    border-bottom: 8px solid #1e293b;
+    filter: drop-shadow(0 -1px 0 #334155);
 }
 .help-bubble__tail--down { /* bubble is above anchor: tail points down */
     bottom: -8px;
-    border-top: 8px solid #fff;
-    filter: drop-shadow(0 1px 0 #e2e8f0);
+    border-top: 8px solid #1e293b;
+    filter: drop-shadow(0 1px 0 #334155);
 }
 .help-pill {
     position: fixed;
