@@ -4,6 +4,16 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1969] - 2026-06-11
+
+### Added
+- **Standalone event editor page (Phase 1 of retiring the calendar's edit modal).** New `www/event_edit.php` provides the full add/edit event editor as a dedicated page: `?date=YYYY-MM-DD` prefills a new event, `?id=N` edits an existing one (gated by `can_manage_event()`), `?occ=YYYY-MM-DD` manages a single occurrence's invites, and `m=`/`wk=` carry the calendar view to return to. It uses the same field names/IDs and the complete invite picker (dual panes with search, league scoping via `calendar_contacts_dl.php`, drag-reorder with poker capacity divider, custom invitees, per-invitee contact popup, manager toggles), and lands back on the calendar with the event auto-opened after save. In this phase the page is reachable by direct URL only; the calendar's modal remains the default editor until Phase 2 flips the entry points and deletes the modal.
+
+### Changed
+- **Event save logic extracted into a single shared implementation.** The add/edit handler that previously lived inline in `www/calendar.php` (validation, viewer-tz to site-tz conversion, event insert/update, poker session upsert, the RSVP/token-preserving invite replacement from v0.1960, contact/league auto-add, waitlist marking, reminder queueing, and Save & Send queueing) is now `event_save_from_post()` in the new `www/_event_save.php`, called by both the calendar modal's POST path and the new editor page — so the subtle invite-preservation rules exist exactly once. calendar.php shrank by ~380 lines with no behavior change; verified on dev by re-running the v0.1960 race (RSVP arriving mid-edit survives a stale-snapshot save, tokens preserved, new invitees get fresh tokens) through **both** save paths. Discovery recorded for Phase 2: `calendar_dl.php` contains a second, divergent add/edit save path that nothing in the app posts to (dead code — its edit branch still carries the pre-v0.1960 RSVP-clobber pattern); it will be deleted, not consolidated.
+
+---
+
 ## [v0.1968] - 2026-06-11
 
 ### Added
