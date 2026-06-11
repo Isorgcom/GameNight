@@ -995,6 +995,34 @@ JSON;
     // as one step. NULL = the tip is its own step (default, backward-compatible).
     try { $pdo->exec("ALTER TABLE help_bubbles ADD COLUMN bubble_index INTEGER"); } catch (Exception $e) {}
 
+    // "Always show" pin: a pinned bubble reappears every visit even after the
+    // user dismisses the screen's help with the X (X only closes it for that
+    // page view). Pinned bubbles are never written to the dismissal table.
+    try { $pdo->exec("ALTER TABLE help_bubbles ADD COLUMN always_show INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+
+    // Per-BUBBLE dismissal (replaces the per-screen user_help_dismissed table,
+    // which is kept but no longer read). Tracking by bubble id means tips added
+    // after a user dismissed a screen still auto-show for them.
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS user_help_bubble_dismissed (
+        user_id      INTEGER NOT NULL,
+        bubble_id    INTEGER NOT NULL,
+        dismissed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, bubble_id),
+        FOREIGN KEY (user_id)   REFERENCES users(id)        ON DELETE CASCADE,
+        FOREIGN KEY (bubble_id) REFERENCES help_bubbles(id) ON DELETE CASCADE
+    )"); } catch (Exception $e) {}
+
+    // One-shot: convert old screen-level dismissals to per-bubble rows so prior
+    // dismissals keep meaning "dismissed what existed at the time".
+    try {
+        if (get_setting('help_dismissals_migrated', '') !== '1') {
+            $pdo->exec("INSERT OR IGNORE INTO user_help_bubble_dismissed (user_id, bubble_id)
+                        SELECT d.user_id, b.id FROM user_help_dismissed d
+                        JOIN help_bubbles b ON b.screen_key = d.screen_key");
+            set_setting('help_dismissals_migrated', '1');
+        }
+    } catch (Exception $e) {}
+
     // One-shot: clean up pending_notifications + event_notifications_sent rows that point
     // to events already deleted. Prior versions did not cascade event deletes into these
     // tables, so older databases accumulate orphans.
@@ -1183,7 +1211,7 @@ define('HELP_SCREENS', [
 function help_bubbles_for_screen(string $screen): array {
     if ($screen === '' || !array_key_exists($screen, HELP_SCREENS)) return [];
     $stmt = get_db()->prepare(
-        'SELECT id, screen_key, title, body, anchor_selector, bubble_index, sort_order, enabled
+        'SELECT id, screen_key, title, body, anchor_selector, bubble_index, always_show, sort_order, enabled
          FROM help_bubbles WHERE screen_key = ? AND enabled = 1
          ORDER BY sort_order, id'
     );
@@ -1191,21 +1219,40 @@ function help_bubbles_for_screen(string $screen): array {
     return $stmt->fetchAll();
 }
 
-/** Has this user dismissed the help bubble for this screen? */
-function help_screen_dismissed(int $userId, string $screen): bool {
-    $stmt = get_db()->prepare('SELECT 1 FROM user_help_dismissed WHERE user_id = ? AND screen_key = ?');
+/**
+ * Enabled tips this user should still be shown on a screen: pinned ones
+ * (always_show) plus any the user hasn't individually dismissed. Empty array
+ * means "everything dismissed" — the footer then offers only the "?" pill.
+ */
+function help_fresh_bubbles_for_screen(int $userId, string $screen): array {
+    if ($screen === '' || !array_key_exists($screen, HELP_SCREENS)) return [];
+    $stmt = get_db()->prepare(
+        'SELECT b.id, b.screen_key, b.title, b.body, b.anchor_selector, b.bubble_index, b.always_show, b.sort_order, b.enabled
+         FROM help_bubbles b
+         LEFT JOIN user_help_bubble_dismissed d ON d.bubble_id = b.id AND d.user_id = ?
+         WHERE b.screen_key = ? AND b.enabled = 1 AND (b.always_show = 1 OR d.bubble_id IS NULL)
+         ORDER BY b.sort_order, b.id'
+    );
     $stmt->execute([$userId, $screen]);
-    return (bool)$stmt->fetchColumn();
+    return $stmt->fetchAll();
 }
 
-/** Mark a screen's help as dismissed for a user (idempotent). */
+/**
+ * Record the user's X on a screen's help: dismisses each non-pinned enabled
+ * bubble individually (idempotent). Pinned (always_show) bubbles are never
+ * recorded so they reappear next visit; bubbles added later have no row and
+ * therefore auto-show too.
+ */
 function help_dismiss_screen(int $userId, string $screen): void {
-    get_db()->prepare('INSERT OR IGNORE INTO user_help_dismissed (user_id, screen_key) VALUES (?, ?)')
-        ->execute([$userId, $screen]);
+    get_db()->prepare(
+        'INSERT OR IGNORE INTO user_help_bubble_dismissed (user_id, bubble_id)
+         SELECT ?, id FROM help_bubbles WHERE screen_key = ? AND enabled = 1 AND always_show = 0'
+    )->execute([$userId, $screen]);
 }
 
 /** Clear all of a user's dismissals so every screen's help shows again. */
 function help_reset_user(int $userId): void {
+    get_db()->prepare('DELETE FROM user_help_bubble_dismissed WHERE user_id = ?')->execute([$userId]);
     get_db()->prepare('DELETE FROM user_help_dismissed WHERE user_id = ?')->execute([$userId]);
 }
 

@@ -21,8 +21,11 @@ $_fnow = new DateTime('now', $_ftz);
    enabled tips. Tips are inlined as JSON so there's no extra round-trip. */
 $_hb_user = function_exists('current_user') ? current_user() : null;
 if ($_hb_user) {
-    $_hb_screen  = basename($_SERVER['SCRIPT_NAME'] ?? '', '.php');
-    $_hb_bubbles = help_bubbles_for_screen($_hb_screen);
+    $_hb_screen = basename($_SERVER['SCRIPT_NAME'] ?? '', '.php');
+    // Fresh = pinned tips + tips this user hasn't individually dismissed.
+    // Any fresh tips auto-show; otherwise ship the full set behind the "?" pill.
+    $_hb_fresh   = help_fresh_bubbles_for_screen((int)$_hb_user['id'], $_hb_screen);
+    $_hb_bubbles = $_hb_fresh ?: help_bubbles_for_screen($_hb_screen);
     if ($_hb_bubbles) {
         $_hb_tips = array_map(function ($b) {
             return [
@@ -36,7 +39,7 @@ if ($_hb_user) {
         $_hb_payload = [
             'screen'    => $_hb_screen,
             'tips'      => $_hb_tips,
-            'dismissed' => help_screen_dismissed((int)$_hb_user['id'], $_hb_screen),
+            'dismissed' => !$_hb_fresh,
             'csrf'      => csrf_token(),
             'preview'   => false,
         ];

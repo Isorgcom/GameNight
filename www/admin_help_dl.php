@@ -29,7 +29,7 @@ $screen = trim($_POST['screen'] ?? '');
 
 function help_tips_json(PDO $db, string $screen): array {
     $stmt = $db->prepare(
-        'SELECT id, screen_key, title, body, anchor_selector, bubble_index, sort_order, enabled
+        'SELECT id, screen_key, title, body, anchor_selector, bubble_index, always_show, sort_order, enabled
          FROM help_bubbles WHERE screen_key = ? ORDER BY sort_order, id'
     );
     $stmt->execute([$screen]);
@@ -54,6 +54,7 @@ if ($action === 'create') {
     $anchor = trim($_POST['anchor_selector'] ?? '');
     $order  = (int)($_POST['sort_order'] ?? 0);
     $bidx   = (isset($_POST['bubble_index']) && $_POST['bubble_index'] !== '') ? (int)$_POST['bubble_index'] : null;
+    $pinned = !empty($_POST['always_show']) ? 1 : 0;
     if ($body === '') {
         echo json_encode(['ok' => false, 'error' => 'Tip text is required.']);
         exit;
@@ -64,8 +65,8 @@ if ($action === 'create') {
         $maxStmt->execute([$screen]);
         $order = (int)$maxStmt->fetchColumn();
     }
-    $db->prepare('INSERT INTO help_bubbles (screen_key, title, body, anchor_selector, bubble_index, sort_order, enabled) VALUES (?, ?, ?, ?, ?, ?, 1)')
-        ->execute([$screen, $title !== '' ? $title : null, $body, $anchor !== '' ? $anchor : null, $bidx, $order]);
+    $db->prepare('INSERT INTO help_bubbles (screen_key, title, body, anchor_selector, bubble_index, always_show, sort_order, enabled) VALUES (?, ?, ?, ?, ?, ?, ?, 1)')
+        ->execute([$screen, $title !== '' ? $title : null, $body, $anchor !== '' ? $anchor : null, $bidx, $pinned, $order]);
     db_log_activity((int)$current['id'], "added help tip for screen=$screen");
     echo json_encode(['ok' => true, 'tips' => help_tips_json($db, $screen)]);
     exit;
@@ -78,12 +79,13 @@ if ($action === 'update') {
     $anchor = trim($_POST['anchor_selector'] ?? '');
     $order  = (int)($_POST['sort_order'] ?? 0);
     $bidx   = (isset($_POST['bubble_index']) && $_POST['bubble_index'] !== '') ? (int)$_POST['bubble_index'] : null;
+    $pinned = !empty($_POST['always_show']) ? 1 : 0;
     if ($id <= 0 || $body === '') {
         echo json_encode(['ok' => false, 'error' => 'Tip text is required.']);
         exit;
     }
-    $db->prepare('UPDATE help_bubbles SET title = ?, body = ?, anchor_selector = ?, bubble_index = ?, sort_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND screen_key = ?')
-        ->execute([$title !== '' ? $title : null, $body, $anchor !== '' ? $anchor : null, $bidx, $order, $id, $screen]);
+    $db->prepare('UPDATE help_bubbles SET title = ?, body = ?, anchor_selector = ?, bubble_index = ?, always_show = ?, sort_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND screen_key = ?')
+        ->execute([$title !== '' ? $title : null, $body, $anchor !== '' ? $anchor : null, $bidx, $pinned, $order, $id, $screen]);
     db_log_activity((int)$current['id'], "edited help tip id=$id");
     echo json_encode(['ok' => true, 'tips' => help_tips_json($db, $screen)]);
     exit;

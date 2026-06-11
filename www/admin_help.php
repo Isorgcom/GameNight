@@ -35,7 +35,7 @@ foreach ($db->query("SELECT screen_key, COUNT(*) c FROM help_bubbles GROUP BY sc
 
 // Tips for the active screen (inlined so the list + preview render without a fetch).
 $tipsStmt = $db->prepare(
-    'SELECT id, screen_key, title, body, anchor_selector, bubble_index, sort_order, enabled
+    'SELECT id, screen_key, title, body, anchor_selector, bubble_index, always_show, sort_order, enabled
      FROM help_bubbles WHERE screen_key = ? ORDER BY sort_order, id'
 );
 $tipsStmt->execute([$screen]);
@@ -157,6 +157,13 @@ $tips = $tipsStmt->fetchAll();
                     <input type="number" id="tipIndex" min="1" step="1" placeholder="e.g. 1" style="max-width:140px">
                     <p class="hint">Tips that share the same index number appear together as one step (Back/Next moves between steps). Leave blank and the tip is its own step.</p>
                 </div>
+                <div class="hlp-field">
+                    <label style="display:flex;align-items:center;gap:.45rem;cursor:pointer">
+                        <input type="checkbox" id="tipPinned" style="width:16px;height:16px">
+                        Always show
+                    </label>
+                    <p class="hint">Reappears every visit, even after the user dismisses help with the X (the X only closes it for that page view). Use sparingly. Normal tips stay hidden once dismissed, but any tip you add later still pops up automatically for everyone.</p>
+                </div>
                 <div style="display:flex;gap:.5rem">
                     <button type="button" class="hlp-btn primary" onclick="saveTip()">Save tip</button>
                     <button type="button" class="hlp-btn" onclick="resetForm()">Clear</button>
@@ -196,6 +203,7 @@ function renderList() {
         return `<div class="hlp-tip ${on ? '' : 'off'}">
             <div class="hlp-tip-head">
                 <span class="hlp-tip-title">${t.title ? esc(t.title) : '<span style="color:#94a3b8;font-weight:400">(no title)</span>'}</span>
+                ${Number(t.always_show) === 1 ? '<span class="hlp-badge" style="background:#fef3c7;color:#92400e">&#128204; Pinned</span>' : ''}
                 <span class="hlp-badge ${on ? 'on' : 'off'}">${on ? 'Shown' : 'Hidden'}</span>
             </div>
             <div class="hlp-tip-body">${esc(t.body)}</div>
@@ -241,7 +249,8 @@ async function saveTip() {
         title:  document.getElementById('tipTitle').value,
         body:   body,
         anchor_selector: document.getElementById('tipAnchor').value,
-        bubble_index: document.getElementById('tipIndex').value
+        bubble_index: document.getElementById('tipIndex').value,
+        always_show: document.getElementById('tipPinned').checked ? 1 : ''
     };
     if (id) fields.id = id;
     const r = await post(fields);
@@ -260,6 +269,7 @@ function editTip(id) {
     document.getElementById('tipBody').value = t.body || '';
     document.getElementById('tipAnchor').value = t.anchor_selector || '';
     document.getElementById('tipIndex').value = (t.bubble_index !== null && t.bubble_index !== undefined) ? t.bubble_index : '';
+    document.getElementById('tipPinned').checked = Number(t.always_show) === 1;
     document.getElementById('formHeading').textContent = 'Edit tip';
     msg('');
     document.getElementById('tipTitle').focus();
@@ -271,6 +281,7 @@ function resetForm() {
     document.getElementById('tipBody').value = '';
     document.getElementById('tipAnchor').value = '';
     document.getElementById('tipIndex').value = '';
+    document.getElementById('tipPinned').checked = false;
     document.getElementById('formHeading').textContent = 'Add a tip';
 }
 

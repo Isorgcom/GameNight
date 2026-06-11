@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1968] - 2026-06-11
+
+### Added
+- **Help-bubble dismissals are now tracked per bubble, so newly added tips reach everyone; plus an "Always show" pin.** Previously the X recorded a whole-screen dismissal (`user_help_dismissed`: user + screen), which meant a user who had dismissed a screen's help would never see any tip added to that screen afterwards. Dismissal now records the individual bubbles that existed at the time in a new `user_help_bubble_dismissed` table (user_id + bubble_id, cascading on user/bubble deletion); a tip added later has no row, so it auto-shows on the user's next visit, presenting only the new tip(s). A one-shot migration converts existing screen-level rows to per-bubble rows (guarded by the `help_dismissals_migrated` setting), so prior dismissals keep meaning "dismissed what existed then"; the old table remains but is no longer read. The Help Tips editor (`www/admin_help.php`/`admin_help_dl.php`) gained an **Always show** checkbox (new `always_show` column): a pinned bubble is never recorded as dismissed, so it reappears every visit and the X only closes it for that page view; the tip list shows a "Pinned" badge. The footer (`www/_footer.php`) now ships the user's *fresh* tips (pinned + undismissed via `help_fresh_bubbles_for_screen()` in `www/db.php`) when any exist, otherwise the full set behind the "?" pill, which replays the complete tour; `help_dismiss_screen()` writes per-bubble rows excluding pinned tips, and the Settings reset clears both tables. `help-bubble.js` is unchanged; the server decides what is fresh. Side effect worth knowing: re-enabling a hidden tip re-surfaces it only for users who never dismissed it.
+
+---
+
 ## [v0.1967] - 2026-06-11
 
 ### Added
