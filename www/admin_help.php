@@ -147,7 +147,8 @@ $tips = $tipsStmt->fetchAll();
                                 <li><code>a[href="/contacts.php"]</code> &mdash; points at a link by its address.</li>
                             </ul>
                             <p><strong>To find one:</strong> open the screen in your browser, right-click the button or area you want to point at, choose <em>Inspect</em>, and read the highlighted tag. Use its <code>id="..."</code> as <code>#that-id</code>, or one of its <code>class="..."</code> names as <code>.that-class</code> (pick a distinctive one).</p>
-                            <p><strong>Behaviour:</strong> the bubble sits just below the element (or above it if there's no room) with a little pointer. If the selector matches nothing on that page, the bubble safely falls back to the corner &mdash; it never breaks the page. The live preview here always shows the corner position because the target page's elements aren't present on this admin screen.</p>
+                            <p><strong>Behaviour:</strong> the bubble sits just below the element (or above it if there's no room) with a little pointer. If the selector matches nothing on that page, the bubble safely falls back to the corner &mdash; it never breaks the page.</p>
+                            <p><strong>Popups &amp; modals:</strong> you can anchor a tip to an element inside a popup (e.g. the calendar's Add Event editor). The bubble waits until the popup opens, then appears pointing at the element, and hides again when the popup closes. If the waiting tip is the only one in its step, it shows in the corner until the popup opens. The live preview here always shows the corner position because the target page's elements aren't present on this admin screen.</p>
                         </div>
                     </details>
                 </div>

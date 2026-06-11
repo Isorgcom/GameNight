@@ -9,10 +9,18 @@
  * }
  *
  * Tips are grouped into STEPS by `idx`: tips that share the same idx number show
- * together at the same time (anchored ones at their elements, corner ones stacked
- * bottom-right). A tip with no idx is its own step. Back/Next move between steps;
- * the counter reads "Step X of N". Bubbles never grab focus. Closing dismisses the
- * screen (server-side, unless preview) and leaves a small "?" pill to reopen.
+ * together at the same time. A tip with no idx is its own step. Back/Next move
+ * between steps ("Step X of N"); Next on the last step soft-closes the tour
+ * (reappears next page load). Only the X records a server-side dismissal.
+ *
+ * Anchoring is visibility-aware:
+ *   - selector matches a visible element  -> bubble points at it
+ *   - selector matches nothing            -> bubble floats in the corner stack
+ *   - selector matches a HIDDEN element   -> bubble waits, then appears anchored
+ *     when the element becomes visible (e.g. its modal opens) and hides again
+ *     when it disappears. If waiting would leave the current step with no
+ *     bubbles at all, the waiting tips show in the corner meanwhile so the
+ *     tour never presents an empty step.
  */
 (function () {
   var cfg = window.__help;
@@ -41,7 +49,13 @@
   var stepIdx = 0;
   var stack = null;          // fixed bottom-right container for corner bubbles
   var pill = null;
-  var live = [];             // currently-shown anchored bubbles: {bubble, anchor}
+  var shown = false;         // is the tour currently displayed (vs pill mode)
+  var live = [];             // anchored bubbles on screen: {bubble, anchor, tip}
+  var corner = [];           // corner bubbles on screen: {bubble, tip, demoted}
+  var waiting = [];          // current-step tips whose anchor exists but is hidden
+  var watchTimer = null;
+
+  var hasAnchoredTips = cfg.tips.some(function (t) { return !!t.anchor_selector; });
 
   function el(tag, cls) {
     var n = document.createElement(tag);
@@ -49,7 +63,19 @@
     return n;
   }
 
-  function buildBubble(tip, primary) {
+  function findAnchor(tip) {
+    if (!tip.anchor_selector) return null;
+    try { return document.querySelector(tip.anchor_selector); } catch (e) { return null; }
+  }
+
+  function isVisible(node) {
+    if (!node || !node.isConnected) return false;
+    var r = node.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) return false;
+    return window.getComputedStyle(node).visibility !== 'hidden';
+  }
+
+  function buildBubble(tip) {
     var b = el('div', 'help-bubble');
     b.setAttribute('role', 'note');
 
@@ -119,33 +145,44 @@
 
   function clearBubbles() {
     live = [];
+    corner = [];
+    waiting = [];
     var all = document.querySelectorAll('.help-bubble');
     Array.prototype.slice.call(all).forEach(function (n) {
       if (n.parentNode) n.parentNode.removeChild(n);
     });
   }
 
+  function addBubble(tip, anchor, demoted) {
+    var b = buildBubble(tip);
+    if (anchor) {
+      b.classList.add('help-bubble--anchored');
+      b._tail.style.display = '';
+      document.body.appendChild(b);
+      placeByAnchor(b, anchor);
+      live.push({ bubble: b, anchor: anchor, tip: tip });
+    } else {
+      stack.appendChild(b);
+      corner.push({ bubble: b, tip: tip, demoted: !!demoted });
+    }
+    requestAnimationFrame(function () { b.classList.add('help-bubble--in'); });
+  }
+
   function render() {
     ensureStack();
     clearBubbles();
     var step = steps[stepIdx] || [];
-    step.forEach(function (tip, i) {
-      var b = buildBubble(tip, i === 0);
-      var anchor = null;
-      if (tip.anchor_selector) {
-        try { anchor = document.querySelector(tip.anchor_selector); } catch (e) { anchor = null; }
-      }
-      if (anchor) {
-        b.classList.add('help-bubble--anchored');
-        b._tail.style.display = '';
-        document.body.appendChild(b);
-        placeByAnchor(b, anchor);
-        live.push({ bubble: b, anchor: anchor });
-      } else {
-        stack.appendChild(b);   // corner bubble: flows in the bottom-right stack
-      }
-      requestAnimationFrame(function () { b.classList.add('help-bubble--in'); });
+    step.forEach(function (tip) {
+      var anchor = findAnchor(tip);
+      if (anchor && !isVisible(anchor)) { waiting.push(tip); return; } // wait for it
+      addBubble(tip, anchor);
     });
+    // Never present an empty step: surface waiting tips in the corner meanwhile.
+    // They stay in `waiting` so the watcher upgrades them once the anchor shows.
+    if (!live.length && !corner.length && waiting.length) {
+      waiting.forEach(function (tip) { addBubble(tip, null, true); });
+    }
+    startWatch();
   }
 
   function placeByAnchor(b, anchor) {
@@ -178,6 +215,47 @@
     b._tail.classList.toggle('help-bubble__tail--down', !below);
   }
 
+  // ─── Visibility watcher ─────────────────────────────────────────────
+  // While the tour is shown and the screen has anchored tips, poll for state
+  // changes: a waiting/demoted tip whose anchor became visible, or a live
+  // anchored bubble whose anchor vanished. Any change re-renders the step.
+  // Also keeps anchored bubbles pinned through layout shifts/animations.
+  function checkAnchors() {
+    if (!shown) return;
+    var changed = false;
+    waiting.forEach(function (tip) {
+      var a = findAnchor(tip);
+      if (!a || isVisible(a)) changed = true;       // appeared, or removed from DOM
+    });
+    corner.forEach(function (o) {
+      if (!o.demoted) return;
+      var a = findAnchor(o.tip);
+      if (a && isVisible(a)) changed = true;        // can upgrade to anchored now
+    });
+    live.forEach(function (o) {
+      if (!isVisible(o.anchor)) changed = true;     // anchor hid (e.g. modal closed)
+    });
+    if (changed) { render(); return; }
+    live.forEach(function (o) { placeByAnchor(o.bubble, o.anchor); });
+  }
+
+  function startWatch() {
+    if (watchTimer || !hasAnchoredTips) return;
+    watchTimer = setInterval(checkAnchors, 350);
+  }
+
+  function stopWatch() {
+    if (watchTimer) { clearInterval(watchTimer); watchTimer = null; }
+  }
+
+  // Modals open from clicks; re-check shortly after any click for a snappy
+  // response instead of waiting for the next interval tick.
+  document.addEventListener('click', function (e) {
+    if (!shown || !hasAnchoredTips) return;
+    if (e.target.closest && e.target.closest('.help-bubble, .help-pill')) return;
+    setTimeout(checkAnchors, 60);
+  }, true);
+
   function go(n) {
     if (n < 0) return;                                // no stepping back past the first step
     if (n >= steps.length) { softClose(); return; }   // Next on the last step ends the tour
@@ -194,11 +272,14 @@
   }
 
   function show() {
+    shown = true;
     if (pill) pill.style.display = 'none';
     render();
   }
 
   function hide() {
+    shown = false;
+    stopWatch();
     clearBubbles();
     if (!pill) buildPill();
     pill.style.display = '';

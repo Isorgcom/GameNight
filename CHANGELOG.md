@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1967] - 2026-06-11
+
+### Added
+- **Help bubbles can now anchor to elements inside popups and modals (visibility-aware anchoring).** Previously a tip anchored to an element inside a closed modal (e.g. the calendar's Add Event editor, `#editModal`) mis-positioned at the top-left on page load, because bubbles rendered once at load while the target was hidden with a zero-size rect. `www/help-bubble.js` now resolves anchors by visibility: a selector matching a visible element anchors immediately; a selector matching nothing falls back to the corner as before; and a selector matching a **hidden** element makes the tip wait, appearing anchored the moment the element becomes visible (its modal opens) and hiding again when it disappears. If waiting would leave the current tour step with no bubbles at all, the waiting tips show in the corner meanwhile and upgrade to anchored when the popup opens, so a step is never blank and the Back/Next controls never vanish. Implementation: a lightweight 350ms visibility watcher runs only while the tour is on screen and the page has anchored tips (stopped on close/dismiss), with a capture-phase click listener for a fast re-check since modals open from clicks; the watcher also re-pins anchored bubbles through layout shifts. Help bubbles (z-index 9000) render above the site's modal overlays (z-index 200). The admin Help Tips explainer (`www/admin_help.php`) documents the new popup behavior. This also fixes hidden-nav anchors (e.g. desktop-only nav links on mobile) which previously mis-anchored instead of waiting.
+
+---
+
 ## [v0.1966] - 2026-06-11
 
 ### Changed
