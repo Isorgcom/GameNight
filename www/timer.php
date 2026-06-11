@@ -3990,14 +3990,17 @@ function renderPresetCard(preset) {
         '<div class="preset-foot">' +
             '<span class="preset-name" title="' + esc(preset.name) + '">' + esc(preset.name) + '</span>' +
             '<span style="display:flex;gap:.3rem;flex:0 0 auto">' +
-                '<button onclick="loadPreset(' + esc(keyJson) + ')">Load</button>' +
-                (IS_ADMIN ? '<button onclick="deletePreset(' + esc(keyJson) + ')" title="Delete preset file">&times;</button>' : '') +
+                '<button onclick="loadPresetTheme(' + esc(keyJson) + ')">Load</button>' +
+                (IS_ADMIN ? '<button onclick="deletePresetTheme(' + esc(keyJson) + ')" title="Delete preset file">&times;</button>' : '') +
             '</span>' +
         '</div>';
     return card;
 }
 
-function loadPreset(key) {
+// NOTE: named loadPresetTheme/deletePresetTheme (not loadPreset/deletePreset) —
+// those names belong to the blind-structure preset panel above; a duplicate
+// declaration here would shadow them and break the levels Load/Delete buttons.
+function loadPresetTheme(key) {
     var fd = new FormData();
     fd.append('action','apply_preset_theme');
     fd.append('csrf_token', CSRF);
@@ -4019,7 +4022,7 @@ function loadPreset(key) {
     });
 }
 
-function deletePreset(key) {
+function deletePresetTheme(key) {
     if (!confirm('Delete this preset file? Users who already loaded it keep their own copy.')) return;
     var fd = new FormData();
     fd.append('action','delete_preset_theme');

@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1965] - 2026-06-11
+
+### Fixed
+- **Timer: loading (or deleting) a blind-level preset failed with "Unknown preset".** When the built-in theme preset library shipped (v0.19310), its gallery script in `www/timer.php` declared `loadPreset(key)` and `deletePreset(key)` — the same names as the long-standing blind-structure preset functions earlier in the same inline script. A later JavaScript function declaration silently replaces an earlier one, so the levels panel's Load/Delete buttons were actually invoking the theme-gallery handlers with an undefined key; the server then posted `preset_key=undefined` to `apply_preset_theme`/`delete_preset_theme`, which correctly rejected it with "Unknown preset". The gallery functions are now `loadPresetTheme()`/`deletePresetTheme()` (callers in `renderPresetCard()` updated, with a comment warning about the name collision), restoring the shadowed blind-preset functions unchanged. Server-side code was never at fault, and the standalone tournament-timer fork is unaffected (it predates the theme gallery).
+
+---
+
 ## [v0.1964] - 2026-06-11
 
 ### Added
