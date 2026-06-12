@@ -57,11 +57,15 @@ function timer_theme_background_css(array $props): string {
         $from = $bg['gradient']['from'] ?? '#0f172a';
         $to   = $bg['gradient']['to']   ?? '#1e293b';
         $ang  = (int)($bg['gradient']['angle'] ?? 180);
-        return "linear-gradient({$ang}deg, {$from}, {$to})";
+        // Trailing solid color matters: a gradient is a background-IMAGE, and the
+        // canvas beyond the root box (iPad overscroll / safe-area gutters) is filled
+        // with the background-COLOR — without one those bars render white.
+        return "linear-gradient({$ang}deg, {$from}, {$to}) {$to}";
     }
     if ($type === 'image' && !empty($bg['image_url'])) {
         $url = $bg['image_url'];
-        return "url('" . str_replace(["'", "\n", "\r"], '', $url) . "') center/cover no-repeat";
+        $base = $bg['color'] ?? '#0f172a'; // same white-bars rationale as the gradient case
+        return "url('" . str_replace(["'", "\n", "\r"], '', $url) . "') center/cover no-repeat {$base}";
     }
     return $bg['color'] ?? '#0f172a';
 }

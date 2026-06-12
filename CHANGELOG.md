@@ -4,6 +4,17 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1971] - 2026-06-12
+
+### Added
+- **Timer: attention bounce for the player-management slide-out.** Hosts often didn't discover the player panel that slides in from the right edge. About 2.5 seconds after the timer loads (only when the panel exists — host controlling an event-linked timer with a poker session, the same `$can_control && $event && $session` gate as the panel markup), the panel edge now bounces out three times with decaying amplitude while the Players tray button wiggles in sync (`pp-peek` / `pp-nudge` keyframes in `www/timer.php`). Fires once per page load, skips if the panel is already open, is suppressed in display mode and under `prefers-reduced-motion`, and opening the panel mid-peek cancels the animation cleanly.
+- **Timer: auto-fullscreen on first interaction.** Browsers only honor `requestFullscreen()` inside a user gesture, so a true on-load fullscreen is impossible; instead the timer now promotes itself to fullscreen on the first tap, click, or keypress anywhere on the page (once per load, via the existing `goFullscreen()`). Pressing Esc afterwards is respected — it never re-forces. Skipped where the Fullscreen API is unavailable (iPhone Safari, which already hides the Full button) and failures in embedded contexts are swallowed.
+
+### Fixed
+- **Timer: white bars at the top and bottom on iPad.** Gradient and image theme backgrounds are background-IMAGEs; CSS fills the canvas beyond the root element's box (iPad overscroll and safe-area gutters) with the background-COLOR only, which the themes never set — so those slivers rendered white. The earlier v0.19311 fix painted `html` with the theme background but inherited the same gap. Both render paths now append a solid base color to the background shorthand (gradients use their own "to" color so letterboxed areas blend with the gradient's edge; images use the theme's base color): `timer_theme_background_css()` in `www/_timer_theme.php` for the server-side first paint and `applyTheme()` in `www/timer.php` for live theme switches. Also added `viewport-fit=cover` to the timer's viewport meta so iPad/iPhone safe areas are part of the painted page, pairing with the tray's existing `safe-area-inset-bottom` padding.
+
+---
+
 ## [v0.1970] - 2026-06-12
 
 ### Changed

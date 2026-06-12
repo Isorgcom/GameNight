@@ -255,7 +255,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Poker Timer &mdash; <?= htmlspecialchars($site_name) ?></title>
     <link rel="icon" href="/favicon.php">
     <link rel="stylesheet" href="/style.css">
@@ -949,6 +949,16 @@ $themeCss   = timer_theme_css_vars($themeProps);
         .player-panel-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:200}
         .player-panel{position:fixed;top:0;right:-320px;width:300px;max-width:85vw;height:100%;background:#1e293b;z-index:201;transition:right .25s ease;display:flex;flex-direction:column}
         .player-panel.open{right:0}
+        /* Attention "peek": shortly after load the panel edge bounces out twice so
+           hosts discover the slide-out. Class is added once by JS and removed on
+           animationend; suppressed for reduced-motion users. */
+        @keyframes pp-peek{0%{right:-320px}14%{right:-244px}28%{right:-320px}42%{right:-252px}56%{right:-320px}70%{right:-264px}84%{right:-320px}100%{right:-320px}}
+        .player-panel.pp-peek{animation:pp-peek 2.2s cubic-bezier(.36,.07,.19,.97)}
+        @keyframes pp-nudge{0%,100%{transform:translateX(0)}15%,45%,75%{transform:translateX(-5px)}30%,60%,90%{transform:translateX(5px)}}
+        .pp-nudge{animation:pp-nudge 2.2s ease-in-out}
+        @media (prefers-reduced-motion: reduce){
+            .player-panel.pp-peek,.pp-nudge{animation:none}
+        }
         .player-panel-header{display:flex;justify-content:space-between;align-items:center;padding:.75rem 1rem;border-bottom:1px solid #334155;color:#f1f5f9;font-weight:700;font-size:.95rem;flex-shrink:0}
         .player-panel-body{flex:1;overflow-y:auto;padding:.5rem}
         .pp-card{background:#0f172a;border:1px solid #334155;border-radius:6px;padding:.5rem .65rem;margin-bottom:.4rem}
@@ -1473,7 +1483,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
             <?php endif; ?>
             <?php if ($can_control && $event && $session): ?>
             <span class="timer-tray-sep"></span>
-            <button onclick="togglePlayerPanel()" title="Players">&#128101;<span class="tray-label">Players</span></button>
+            <button id="ppTrayBtn" onclick="togglePlayerPanel()" title="Players">&#128101;<span class="tray-label">Players</span></button>
             <?php endif; ?>
         </div>
     </div>
@@ -2365,6 +2375,28 @@ function goFullscreen() {
     if (el.requestFullscreen) el.requestFullscreen();
     else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
 }
+
+// Auto-fullscreen: browsers only allow requestFullscreen from a user gesture,
+// so a true on-load fullscreen is impossible. Instead, the FIRST interaction
+// with the page (tap/click/keypress) promotes it to fullscreen — effectively
+// automatic for a screen the host is about to touch anyway. Once per load;
+// pressing Esc afterwards is respected (we never re-force). Skipped where the
+// Fullscreen API is unavailable (e.g. iPhone Safari, which also hides the
+// Full button below).
+(function() {
+    if (!document.documentElement.requestFullscreen && !document.documentElement.webkitRequestFullscreen) return;
+    var fired = false;
+    function autoFs() {
+        if (fired) return;
+        fired = true;
+        document.removeEventListener('pointerdown', autoFs, true);
+        document.removeEventListener('keydown', autoFs, true);
+        if (document.fullscreenElement || document.webkitFullscreenElement) return;
+        try { goFullscreen(); } catch (e) { /* embedded/denied: stay windowed */ }
+    }
+    document.addEventListener('pointerdown', autoFs, true);
+    document.addEventListener('keydown', autoFs, true);
+})();
 
 // ─── §7.7  Wake Lock (prevent screen sleep) ─────────────────────
 var wakeBanner = document.getElementById('wakeBanner');
@@ -3633,9 +3665,12 @@ function applyTheme(props) {
     // Background
     var bgVal = '#0f172a';
     if (bg.type === 'gradient' && bg.gradient) {
-        bgVal = 'linear-gradient(' + (bg.gradient.angle||180) + 'deg, ' + (bg.gradient.from||'#0f172a') + ', ' + (bg.gradient.to||'#1e293b') + ')';
+        // Trailing solid color: gradients/images are background-IMAGEs, and the canvas
+        // beyond the root box (iPad overscroll / safe-area gutters) fills with the
+        // background-COLOR — without one those bars render white.
+        bgVal = 'linear-gradient(' + (bg.gradient.angle||180) + 'deg, ' + (bg.gradient.from||'#0f172a') + ', ' + (bg.gradient.to||'#1e293b') + ') ' + (bg.gradient.to||'#1e293b');
     } else if (bg.type === 'image' && bg.image_url) {
-        bgVal = "url('" + bg.image_url.replace(/'/g, '') + "') center/cover no-repeat";
+        bgVal = "url('" + bg.image_url.replace(/'/g, '') + "') center/cover no-repeat " + (bg.color || '#0f172a');
     } else {
         bgVal = bg.color || '#0f172a';
     }
@@ -5639,11 +5674,28 @@ function togglePlayerPanel() {
     var panel = document.getElementById('playerPanel');
     var overlay = document.getElementById('playerPanelOverlay');
     if (!panel) return;
+    panel.classList.remove('pp-peek'); // opening mid-peek: let .open's right:0 win
     PP_OPEN = !PP_OPEN;
     panel.classList.toggle('open', PP_OPEN);
     if (overlay) overlay.style.display = PP_OPEN ? '' : 'none';
     if (PP_OPEN) fetchPlayers();
 }
+
+// Attention peek: ~2.5s after load, bounce the panel edge out twice (and wiggle
+// the Players tray button) so hosts notice the slide-out exists. Fires once per
+// page load; skipped if the panel is already open or in display mode. The panel
+// markup only renders for hosts with a session, so this no-ops everywhere else.
+setTimeout(function() {
+    var panel = document.getElementById('playerPanel');
+    if (!panel || PP_OPEN || document.body.classList.contains('display-mode')) return;
+    var btn = document.getElementById('ppTrayBtn');
+    panel.classList.add('pp-peek');
+    if (btn) btn.classList.add('pp-nudge');
+    panel.addEventListener('animationend', function() {
+        panel.classList.remove('pp-peek');
+        if (btn) btn.classList.remove('pp-nudge');
+    }, { once: true });
+}, 2500);
 
 // Swipe gesture: swipe left from right edge opens player panel, swipe right closes it
 (function() {
