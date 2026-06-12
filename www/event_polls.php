@@ -96,6 +96,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    if ($action === 'delete') {
+        $pid = (int)($_POST['poll_id'] ?? 0);
+        $chk = $db->prepare('SELECT id FROM event_polls WHERE id = ? AND event_id = ?');
+        $chk->execute([$pid, $eventId]);
+        if ($chk->fetchColumn()) {
+            // FK cascades remove questions/options/recipients/answers and any
+            // sms_pending_poll conversations; unsent queue rows self-clean on
+            // dispatch (missing poll => handled).
+            $db->prepare('DELETE FROM event_polls WHERE id = ?')->execute([$pid]);
+            db_log_activity((int)$current['id'], "deleted poll id=$pid from event id=$eventId");
+            $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Poll deleted.'];
+        }
+        header('Location: /event_polls.php?event_id=' . $eventId);
+        exit;
+    }
+
     if ($action === 'resend') {
         $pid = (int)($_POST['poll_id'] ?? 0);
         $poll = poll_load($db, $pid);
@@ -266,6 +282,14 @@ $backUrl   = '/calendar.php?m=' . urlencode(substr($event['start_date'], 0, 7)) 
                 <button type="submit" class="pl-btn">Reopen</button>
             </form>
             <?php endif; ?>
+            <form method="post" action="/event_polls.php" style="margin:0;margin-left:auto"
+                  onsubmit="return confirm('Permanently delete this poll and all its votes? Recipients\' links will stop working. This cannot be undone.')">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="event_id" value="<?= $eventId ?>">
+                <input type="hidden" name="poll_id" value="<?= (int)$p['id'] ?>">
+                <button type="submit" class="pl-btn danger">Delete poll</button>
+            </form>
         </div>
     </div>
     <?php endforeach; ?>
