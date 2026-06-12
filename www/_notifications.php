@@ -83,12 +83,12 @@ function queue_event_notification(
     // rsvp_to_creator is exempt too: its volume is naturally bounded by the
     // invitee count, and capping it would silently drop legitimate RSVP replies
     // to an owner/manager mid-event.
-    if (!in_array($notify_type, ['reminder', 'rsvp_to_creator', 'event_message'], true)) {
+    if (!in_array($notify_type, ['reminder', 'rsvp_to_creator', 'event_message', 'event_poll'], true)) {
         $cap = defined('MAX_NOTIFICATIONS_PER_DAY') ? MAX_NOTIFICATIONS_PER_DAY : 20;
         $c = $db->prepare(
             "SELECT COUNT(*) FROM pending_notifications
              WHERE LOWER(username) = LOWER(?)
-               AND notify_type NOT IN ('reminder', 'rsvp_to_creator', 'event_message')
+               AND notify_type NOT IN ('reminder', 'rsvp_to_creator', 'event_message', 'event_poll')
                AND created_at >= datetime('now', '-1 day')"
         );
         $c->execute([$username]);
@@ -375,6 +375,9 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
         // Each host message send is distinct; discriminate per queued row so a
         // host can send multiple notes over time without them deduping together.
         $type_tag = 'event_message_' . $row_id;
+    } elseif ($type === 'event_poll') {
+        // Same rationale as event_message: each queued poll row is its own send.
+        $type_tag = 'event_poll_' . $row_id;
     }
     $occ_key = $occ_date ?: '';
     $seenStmt = $db->prepare(
@@ -585,6 +588,54 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
             $plain    = strip_tags(str_replace(['</p>', '<br>', '<br/>', '<br />', '</div>', '</li>'], "\n", $msg['body_html']));
             $plain    = trim(preg_replace('/\n{3,}/', "\n\n", html_entity_decode($plain, ENT_QUOTES)));
             $waBody   = 'From ' . $sender . ' ' . "\xC2\xB7" . ' ' . $title . "\n\n" . $plain . "\n\n" . $shortUrl;
+            break;
+
+        case 'event_poll':
+            // Host poll for Yes/Maybe invitees. Email links to the tokenized
+            // answer page; SMS/WhatsApp present Q1 for reply-by-number (state
+            // seeded below) with the link as fallback.
+            require_once __DIR__ . '/_polls.php';
+            $pollId = (int)($payload['poll_id'] ?? 0);
+            $recId  = (int)($payload['recipient_id'] ?? 0);
+            $poll = $pollId > 0 ? poll_load($db, $pollId) : null;
+            $recRow = null;
+            if ($recId > 0) {
+                $rq = $db->prepare('SELECT * FROM poll_recipients WHERE id = ? AND poll_id = ?');
+                $rq->execute([$recId, $pollId]);
+                $recRow = $rq->fetch();
+            }
+            if (!$poll || !$recRow || $poll['status'] !== 'open' || empty($poll['questions'])) {
+                return true; // poll deleted/closed before delivery — treat as handled
+            }
+            $site    = get_setting('site_name', 'Game Night');
+            $pollUrl = poll_link_for_recipient($recRow);
+            $qCount  = count($poll['questions']);
+            $subject = 'Poll: ' . $poll['title'] . ' — ' . $title;
+
+            // Email: intro + question list + button to the answer page.
+            $qList = '';
+            foreach ($poll['questions'] as $q) {
+                $qList .= '<li>' . htmlspecialchars($q['question']) . '</li>';
+            }
+            $htmlBody = '<p>You\'re invited to answer a quick poll for <strong>' . htmlspecialchars($title) . '</strong> on ' . htmlspecialchars($start) . ':</p>'
+                      . '<p style="font-weight:700;margin:.75rem 0 .25rem">' . htmlspecialchars($poll['title']) . '</p>'
+                      . '<ul style="color:#475569">' . $qList . '</ul>'
+                      . '<p style="margin-top:1.25rem"><a href="' . htmlspecialchars($pollUrl) . '" style="display:inline-block;padding:.55rem 1.4rem;border-radius:7px;text-decoration:none;font-weight:600;background:#2563eb;color:#fff">Answer the poll</a></p>'
+                      . '<p style="color:#94a3b8;font-size:.8rem">Answers show as counts only — nobody sees who picked what.</p>';
+
+            // SMS/WhatsApp: poll header + Q1 with numbered options + link fallback.
+            $smsBody = $site . ': Poll for "' . $title . '" - ' . $poll['title']
+                     . ($qCount > 1 ? " ($qCount questions)" : '') . "\n"
+                     . poll_question_text($poll, 0) . "\n"
+                     . 'Or vote online: ' . $pollUrl;
+            $waBody  = $smsBody;
+
+            // Seed the reply-by-number conversation when this recipient can
+            // actually text back (has a phone and an SMS/WhatsApp channel).
+            $pc = $user['preferred_contact'] ?? 'email';
+            if (!empty($user['phone']) && in_array($pc, ['sms', 'whatsapp', 'both'], true)) {
+                poll_start_conversation($db, (string)$user['phone'], (int)$recRow['id']);
+            }
             break;
 
         case 'waitlist_promoted':

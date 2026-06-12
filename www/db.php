@@ -1023,6 +1023,66 @@ JSON;
         }
     } catch (Exception $e) {}
 
+    // ─── Event polls (host → Yes/Maybe invitees; counts shown, voters never) ──
+    // Votes are stored linked to a recipient (enables change-vote, double-vote
+    // prevention, and turnout display) but the UI only ever shows counts.
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS event_polls (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id   INTEGER NOT NULL,
+        title      TEXT    NOT NULL,
+        status     TEXT    NOT NULL DEFAULT 'open',
+        created_by INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        closed_at  DATETIME,
+        FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS poll_questions (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        poll_id    INTEGER NOT NULL,
+        question   TEXT    NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (poll_id) REFERENCES event_polls(id) ON DELETE CASCADE
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS poll_options (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        question_id INTEGER NOT NULL,
+        label       TEXT    NOT NULL,
+        sort_order  INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (question_id) REFERENCES poll_questions(id) ON DELETE CASCADE
+    )"); } catch (Exception $e) {}
+    // One row per invited respondent; `token` powers the no-login answer page.
+    // username matches event_invites.username (covers pending contacts too).
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS poll_recipients (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        poll_id      INTEGER NOT NULL,
+        username     TEXT    NOT NULL,
+        token        TEXT    NOT NULL UNIQUE,
+        notified_at  DATETIME,
+        submit_count INTEGER NOT NULL DEFAULT 0,
+        UNIQUE (poll_id, username),
+        FOREIGN KEY (poll_id) REFERENCES event_polls(id) ON DELETE CASCADE
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS poll_answers (
+        question_id  INTEGER NOT NULL,
+        recipient_id INTEGER NOT NULL,
+        option_id    INTEGER NOT NULL,
+        answered_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (question_id, recipient_id),
+        FOREIGN KEY (question_id)  REFERENCES poll_questions(id)  ON DELETE CASCADE,
+        FOREIGN KEY (recipient_id) REFERENCES poll_recipients(id) ON DELETE CASCADE,
+        FOREIGN KEY (option_id)    REFERENCES poll_options(id)    ON DELETE CASCADE
+    )"); } catch (Exception $e) {}
+    // Stateful reply-by-text poll conversation, keyed by phone (10 digits) so it
+    // also works for pending contacts with no users row. question_idx = the
+    // question the next numeric reply answers. Expires after 48h.
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS sms_pending_poll (
+        phone        TEXT PRIMARY KEY,
+        recipient_id INTEGER NOT NULL,
+        question_idx INTEGER NOT NULL DEFAULT 0,
+        created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (recipient_id) REFERENCES poll_recipients(id) ON DELETE CASCADE
+    )"); } catch (Exception $e) {}
+
     // One-shot: clean up pending_notifications + event_notifications_sent rows that point
     // to events already deleted. Prior versions did not cascade event deletes into these
     // tables, so older databases accumulate orphans.

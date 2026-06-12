@@ -1633,6 +1633,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
         <?php if ($canEditEvents): ?>
         <div class="ev-view-actions" id="vEventActions" style="display:none">
             <a id="vManageGameBtn" href="#" class="btn" style="background:#059669;color:#fff;text-decoration:none">Manage Game</a>
+            <button type="button" class="btn btn-outline" title="Poll your Yes/Maybe guests" onclick="if(currentEvent)location.href='/event_polls.php?event_id='+currentEvent.id">Polls</button>
             <button type="button" class="btn btn-primary" onclick="if(currentEvent)location.href='/event_edit.php?id='+currentEvent.id+'&'+EDITOR_CTX">Edit</button>
             <?php if ($isAdmin): ?><button type="button" class="btn btn-outline" title="Walk-up QR code" onclick="openWalkinQR()" style="font-size:1rem;padding:.38rem .65rem">&#x1F4F1; QR</button><?php endif; ?>
             <form method="post" action="/calendar.php" style="margin:0" id="vDeleteOccForm" style="display:none">

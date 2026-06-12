@@ -104,6 +104,14 @@ $stmt->execute([$normalized, $digits]);
 $user = $stmt->fetch();
 
 if (!$user) {
+    // Poll answers work even without an account: phone-only invitees get polls
+    // too, and their conversation state is keyed by phone, not user id.
+    require_once __DIR__ . '/_polls.php';
+    $pollReply = poll_handle_inbound($db, $from, $body);
+    if ($pollReply !== null) {
+        send_whatsapp($from, $pollReply);
+        exit;
+    }
     // Generic response — don't reveal whether phone is registered
     send_whatsapp($from, "Thanks for your message.");
     exit;
@@ -290,6 +298,15 @@ if ($isNumber || $isAll) {
         send_whatsapp($from, "Invalid selection. Reply with a number 1-" . count($invites) . " or ALL.");
         exit;
     }
+}
+
+// ── Pending poll answer (bare number, active poll conversation) ─────────────
+// Checked AFTER all RSVP flows so existing behavior is untouched.
+require_once __DIR__ . '/_polls.php';
+$pollReply = poll_handle_inbound($db, $from, $body);
+if ($pollReply !== null) {
+    send_whatsapp($from, $pollReply);
+    exit;
 }
 
 // ── Not a valid keyword ─────────────────────────────────────────────────────

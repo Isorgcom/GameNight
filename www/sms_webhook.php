@@ -130,6 +130,15 @@ $stmt->execute([$normalized, $digits]);
 $user = $stmt->fetch();
 
 if (!$user) {
+    // Poll answers work even without an account: phone-only invitees get polls
+    // too, and their conversation state is keyed by phone, not user id.
+    require_once __DIR__ . '/_polls.php';
+    $pollReply = poll_handle_inbound($db, $from, $body);
+    if ($pollReply !== null) {
+        http_response_code(200);
+        respond_to_provider($provider, $pollReply);
+        exit;
+    }
     http_response_code(200);
     // Generic response — don't reveal whether phone is registered
     respond_to_provider($provider, 'Thanks for your message.');
@@ -353,6 +362,17 @@ if ($isNumber || $isAll) {
         respond_to_provider($provider, "Invalid selection. Reply with a number 1-" . count($invites) . " or ALL.");
         exit;
     }
+}
+
+// ── Pending poll answer (bare number, active poll conversation) ─────────────
+// Checked AFTER all RSVP flows so existing behavior is untouched: a bare number
+// only reaches here when there was no pending RSVP menu to consume it.
+require_once __DIR__ . '/_polls.php';
+$pollReply = poll_handle_inbound($db, $from, $body);
+if ($pollReply !== null) {
+    http_response_code(200);
+    respond_to_provider($provider, $pollReply);
+    exit;
 }
 
 // ── Not a valid RSVP keyword, number, or ALL ────────────────────────────────
