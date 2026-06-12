@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1973] - 2026-06-12
+
+### Fixed
+- **Event popup: the Delete button no longer sizes differently from its neighbors.** The action row (`.ev-view-actions` in `www/calendar.php`) is a flex container where Manage Game/Polls/Edit are direct children but Delete sits inside a `<form>`, so when the new Polls button tightened the row, the form-wrapped Delete shrank on a different schedule than its siblings. The forms are now `display: contents` (transparent to flex layout), every button flexes equally with centered labels, and the row wraps instead of squeezing when space runs out (e.g. the admin view's fifth QR button). Also fixed in passing: the hidden delete-occurrence form carried two `style` attributes, so its `display:none` was parser-ignored — harmless only because the form has no visible content; it's now a single attribute.
+
+---
+
 ## [v0.1972] - 2026-06-12
 
 ### Added

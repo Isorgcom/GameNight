@@ -1312,7 +1312,12 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
             max-height: 30vh; overflow-y: auto;
             overscroll-behavior: contain; padding-right: .25rem;
         }
-        .ev-view-actions { display: flex; gap: .5rem; margin-top: 1.25rem; }
+        .ev-view-actions { display: flex; gap: .5rem; margin-top: 1.25rem; flex-wrap: wrap; }
+        /* The Delete button lives inside a <form>; display:contents makes the form
+           transparent to flex layout so its button is sized exactly like its
+           sibling buttons instead of shrinking on its own schedule. */
+        .ev-view-actions form { display: contents; }
+        .ev-view-actions .btn { flex: 1 1 auto; text-align: center; white-space: nowrap; box-sizing: border-box; }
 
         /* Color swatches */
         .color-swatches { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .25rem; }
@@ -1636,7 +1641,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
             <button type="button" class="btn btn-outline" title="Poll your Yes/Maybe guests" onclick="if(currentEvent)location.href='/event_polls.php?event_id='+currentEvent.id">Polls</button>
             <button type="button" class="btn btn-primary" onclick="if(currentEvent)location.href='/event_edit.php?id='+currentEvent.id+'&'+EDITOR_CTX">Edit</button>
             <?php if ($isAdmin): ?><button type="button" class="btn btn-outline" title="Walk-up QR code" onclick="openWalkinQR()" style="font-size:1rem;padding:.38rem .65rem">&#x1F4F1; QR</button><?php endif; ?>
-            <form method="post" action="/calendar.php" style="margin:0" id="vDeleteOccForm" style="display:none">
+            <form method="post" action="/calendar.php" id="vDeleteOccForm" style="display:none">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <input type="hidden" name="action" value="delete_occurrence">
                 <input type="hidden" name="id" id="vDeleteOccId" value="">
