@@ -610,7 +610,7 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
             $site    = get_setting('site_name', 'Game Night');
             $pollUrl = poll_link_for_recipient($recRow);
             $qCount  = count($poll['questions']);
-            $subject = 'Poll: ' . $poll['title'] . ' — ' . $title;
+            $subject = 'Poll: ' . $poll['title'] . ' - ' . $title;
 
             // Email: intro + question list + button to the answer page.
             $qList = '';

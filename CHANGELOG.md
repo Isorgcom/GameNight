@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1974] - 2026-06-12
+
+### Fixed
+- **Email subjects/bodies with non-ASCII characters rendered as mojibake (e.g. "â€”").** Reported via a poll email whose subject contained an em dash. Root cause: `send_email()` in `www/mail.php` never set PHPMailer's charset, so it defaulted to ISO-8859-1 while the app feeds it UTF-8 strings; ANY accented name, smart quote, or emoji in an event title would garble the same way in every notification email, not just polls. PHPMailer is now configured with `CharSet = 'UTF-8'`. The poll email subject separator was also changed from an em dash to a plain ASCII hyphen ("Poll: {title} - {event}") in `www/_notifications.php`, keeping generated strings charset-proof in even legacy mail clients.
+
+---
+
 ## [v0.1973] - 2026-06-12
 
 ### Fixed

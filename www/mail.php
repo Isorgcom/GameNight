@@ -43,6 +43,10 @@ function send_email(string $toAddress, string $toName, string $subject, string $
 
     $mail = new PHPMailer(true);
     try {
+        // PHPMailer defaults to ISO-8859-1; without this, any UTF-8 character in a
+        // subject or body (accents, dashes, emoji in event titles) renders as
+        // mojibake like "â€”" in most clients.
+        $mail->CharSet = 'UTF-8';
         $mail->isSMTP();
         $mail->Host     = $host;
         $mail->Port     = $port;
