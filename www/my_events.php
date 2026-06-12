@@ -132,7 +132,7 @@ function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): strin
 
     <div style="display:flex;align-items:center;flex-wrap:wrap;gap:.75rem;margin-bottom:1.75rem">
         <h2 style="font-size:1.4rem;font-weight:700;color:#1e293b;margin:0">My Events</h2>
-        <a href="/calendar.php?new=1" style="margin-left:auto;display:inline-flex;align-items:center;gap:.3rem;padding:.4rem .75rem;background:#2563eb;color:#fff;border-radius:6px;text-decoration:none;font-size:.85rem;font-weight:600">
+        <a href="/event_edit.php" style="margin-left:auto;display:inline-flex;align-items:center;gap:.3rem;padding:.4rem .75rem;background:#2563eb;color:#fff;border-radius:6px;text-decoration:none;font-size:.85rem;font-weight:600">
             <span style="font-size:1.1rem;line-height:1">&#43;</span> New Event
         </a>
         <div style="display:flex;align-items:center;gap:.5rem;font-size:.8rem;color:#64748b">
@@ -182,7 +182,7 @@ function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): strin
                     <a href="/checkin.php?event_id=<?= $ev['id'] ?>" class="me-badge" style="background:#059669;color:#fff;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600;text-decoration:none">Manage Game</a>
                     <?php endif; ?>
                     <?php if (!empty($manageable[(int)$ev['id']])): ?>
-                    <a href="<?= htmlspecialchars($cal_url) ?>&edit=1" class="me-badge" style="background:#2563eb;color:#fff;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600;text-decoration:none">Edit</a>
+                    <a href="/event_edit.php?id=<?= (int)$ev['id'] ?>&m=<?= urlencode($month_str) ?>" class="me-badge" style="background:#2563eb;color:#fff;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600;text-decoration:none">Edit</a>
                     <?php endif; ?>
                 </div>
                 <div style="font-size:.85rem;color:#64748b">
@@ -246,7 +246,7 @@ function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): strin
                     <a href="/checkin.php?event_id=<?= $ev['id'] ?>" style="background:#059669;color:#fff;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600;text-decoration:none">Manage Game</a>
                     <?php endif; ?>
                     <?php if (!empty($manageable[(int)$ev['id']])): ?>
-                    <a href="<?= htmlspecialchars($cal_url) ?>&edit=1" style="background:#2563eb;color:#fff;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600;text-decoration:none">Edit</a>
+                    <a href="/event_edit.php?id=<?= (int)$ev['id'] ?>&m=<?= urlencode($month_str) ?>" style="background:#2563eb;color:#fff;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600;text-decoration:none">Edit</a>
                     <?php endif; ?>
                 </div>
                 <div style="font-size:.85rem;color:#94a3b8">

@@ -4,6 +4,17 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1970] - 2026-06-12
+
+### Changed
+- **The standalone editor page is now the calendar's event editor (Phase 2); the edit modal is retired.** Every entry point navigates to `/event_edit.php` with the correct return context: the "+ Add Event" button, the per-day "+" buttons, the edit pencils on month and week chips (including the JS-rendered week view), the event view's Edit button, My Events' "New Event"/"Edit" links (now direct instead of bouncing through the calendar), and the `?new=1` / `?event=N&edit=1` deep links. A new `EDITOR_CTX` (`m=YYYY-MM` or `wk=YYYY-MM-DD`, matching the active view) rides on those links so saves and cancels land back on the month or week you came from. The modal's HTML and ~750 lines of editor JS were deleted from `www/calendar.php` (now ~970 lines lighter); `regenerateWalkinToken()` was kept since the walk-up QR popup uses it independently. The editor's now-orphaned CSS rules remain temporarily (several classes are shared with the live event-view modal) and will be tidied separately. The `event_edit` screen was added to `HELP_SCREENS` so help bubbles can be authored for the editor page.
+- **Removed the dead add/edit save path from `www/calendar_dl.php` (~310 lines).** Nothing in the app posted `action=add/edit` to that endpoint (the modal always posted to calendar.php), and the path had drifted dangerously: its edit branch re-inserted invites without preserving `rsvp_token` (the exact class of bug v0.1960 fixed in the live path) and referenced `valid_from` and `recurrence` columns that do not exist in the schema, so it would have fataled if anything had ever reached it.
+
+### Fixed
+- **"Remove this occurrence" was fatally broken in two stacked ways; occurrence-cancellation notifications had never been sent.** First, `www/calendar.php`'s `delete_occurrence` handler called `get_occurrence_invitees()`, which was defined only in `calendar_dl.php` — a file nothing includes — so the request 500'd after writing the exception row (the occurrence vanished but the host saw an error and nobody was notified). Second, the function itself filtered base invites on a `valid_from` column that has never existed in `event_invites`, so even `calendar_dl.php`'s own copy threw "no such column" on every call. Both `get_occurrence_invitees()` and `get_next_occurrence()` now live in `www/db.php` (available everywhere), with the phantom-column filter removed. Verified end-to-end on dev: removing an occurrence now completes cleanly, writes the `event_exceptions` row, and queues `cancel_occurrence` notifications for yes/maybe invitees for the first time.
+
+---
+
 ## [v0.1969] - 2026-06-11
 
 ### Added
