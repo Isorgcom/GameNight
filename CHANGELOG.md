@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1977] - 2026-06-14
+
+### Fixed
+- **Email verification links appeared "expired" the moment a user clicked them.** `verify_email.php` consumed the one-time token on a plain GET (marking it used and flipping `email_verified` immediately on fetch). Email security scanners and link-preview bots (Outlook SafeLinks, Gmail, antivirus) request every link in a message within seconds of delivery, so the bot burned the token before the recipient clicked, and the human's click then hit an already-used token and showed "invalid or has expired" (the account was, confusingly, already verified by the bot's fetch). The page now uses the same confirm-on-POST hardening as `rsvp.php`: a GET renders a "Verify Email Address" button and touches nothing; only the button's POST consumes the token. Also fixed a related timezone bug in `send_verification_email()` (`www/auth.php`): the 24-hour expiry was written with `date()` in the site's local timezone but compared against SQLite's UTC `datetime('now')`, silently shortening the window by the tz offset; it now uses `gmdate()` so both sides are UTC.
+
+---
+
 ## [v0.1976] - 2026-06-14
 
 ### Fixed

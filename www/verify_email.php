@@ -5,12 +5,21 @@ if (current_user()) { header('Location: /'); exit; }
 
 $site_name  = get_setting('site_name', 'Game Night');
 $db         = get_db();
-$token_raw  = trim($_GET['token'] ?? '');
+// Token may arrive on GET (link click) or POST (the confirm button below).
+$token_raw  = trim($_REQUEST['token'] ?? '');
 $token_hash = $token_raw !== '' ? hash('sha256', $token_raw) : '';
 $success    = false;
 $error      = '';
+$confirm    = false;   // GET with a token: show a button, do NOT consume the token
 
-if ($token_hash) {
+if ($token_hash === '') {
+    $error = 'No verification token provided.';
+} elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Only an actual button press (POST) consumes the token. Email security
+    // scanners / link-preview bots issue GET requests and would otherwise burn
+    // the one-time token (and silently flip email_verified) before the human
+    // ever clicked — making the real click look "expired". Same confirm-on-POST
+    // hardening rsvp.php uses against link crawlers.
     $stmt = $db->prepare("
         SELECT v.*, u.email FROM email_verifications v
         JOIN users u ON u.id = v.user_id
@@ -28,7 +37,8 @@ if ($token_hash) {
         $error = 'This verification link is invalid or has expired.';
     }
 } else {
-    $error = 'No verification token provided.';
+    // GET with a token: render the confirm button without touching the DB.
+    $confirm = true;
 }
 ?>
 <!DOCTYPE html>
@@ -47,6 +57,13 @@ if ($token_hash) {
             <h2>Email Verified!</h2>
             <p class="subtitle">Your account is now active.</p>
             <a href="/login.php" class="btn btn-primary" style="display:inline-block;margin-top:1rem">Sign In</a>
+        <?php elseif ($confirm): ?>
+            <h2>Verify your email</h2>
+            <p class="subtitle">Click below to confirm your email address and activate your account.</p>
+            <form method="post" action="/verify_email.php" style="margin-top:1rem">
+                <input type="hidden" name="token" value="<?= htmlspecialchars($token_raw) ?>">
+                <button type="submit" class="btn btn-primary" style="display:inline-block">Verify Email Address</button>
+            </form>
         <?php else: ?>
             <h2>Verification Failed</h2>
             <div class="alert alert-error" style="text-align:left"><?= htmlspecialchars($error) ?></div>

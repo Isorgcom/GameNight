@@ -648,7 +648,11 @@ function send_verification_email(int $user_id, string $email, string $username):
     $db    = get_db();
     $token = bin2hex(random_bytes(32));
     $hash  = hash('sha256', $token);
-    $exp   = date('Y-m-d H:i:s', strtotime('+24 hours'));
+    // Store expiry in UTC: verify_email.php compares against SQLite datetime('now')
+    // which is UTC, but the app's PHP default tz is the site tz (e.g. America/Chicago).
+    // date() here would write a local wall-clock string, silently shrinking the
+    // 24h window by the tz offset. gmdate() keeps both sides in UTC.
+    $exp   = gmdate('Y-m-d H:i:s', strtotime('+24 hours'));
 
     // Invalidate any previous unused tokens
     $db->prepare('UPDATE email_verifications SET used=1 WHERE user_id=? AND used=0')
