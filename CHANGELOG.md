@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1976] - 2026-06-14
+
+### Fixed
+- **Duplicate contacts piled up for phone-only people.** `auto_add_contact()` (which silently saves invitees to your Contacts when you invite them to an event, import a league, etc.) only checked for an existing duplicate when the contact had an email. Phone-only contacts had no dedup check at all, so inviting the same phone-only person to multiple events created a brand-new contact row every time (one user had 8 copies of several people; 101 rows collapsed to ~48 real contacts). The partial unique index on `user_contacts` also only covers rows that have an email, so it never caught these. `auto_add_contact()` in `www/db.php` now also dedups by phone, and normalizes the phone to E.164 before both the duplicate check and the insert so format differences ("555-1234" vs "(555) 1234") no longer slip through. A one-time cleanup was run against the live and dev databases to collapse each existing duplicate group to a single row (keeping the copy with a linked account/email, else the oldest); contacts that share the same linked account were also merged. No schema change.
+
+---
+
 ## [v0.1975] - 2026-06-14
 
 ### Added

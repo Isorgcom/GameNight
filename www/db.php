@@ -2356,13 +2356,22 @@ function drain_queue_async(): void {
 function auto_add_contact(PDO $db, int $owner_user_id, string $name, string $email, string $phone): void {
     $name  = trim($name);
     $email = strtolower(trim($email));
-    $phone = trim($phone);
+    // Normalize the phone to E.164 so dedup and storage use one canonical form;
+    // without this, "555-1234" and "(555) 1234" were treated as different people.
+    $phone = trim($phone) !== '' ? normalize_phone(trim($phone)) : '';
     if ($name === '') return;
     if ($email === '' && $phone === '') return;
-    // Skip if a contact already exists by email
+    // Skip if a contact already exists by email...
     if ($email !== '') {
         $chk = $db->prepare('SELECT 1 FROM user_contacts WHERE owner_user_id = ? AND LOWER(contact_email) = ? LIMIT 1');
         $chk->execute([$owner_user_id, $email]);
+        if ($chk->fetchColumn()) return;
+    }
+    // ...or by phone. Phone-only contacts had NO dedup check before, so inviting
+    // the same phone-only person to multiple events created a new row every time.
+    if ($phone !== '') {
+        $chk = $db->prepare('SELECT 1 FROM user_contacts WHERE owner_user_id = ? AND contact_phone = ? LIMIT 1');
+        $chk->execute([$owner_user_id, $phone]);
         if ($chk->fetchColumn()) return;
     }
     // Resolve linked_user_id
