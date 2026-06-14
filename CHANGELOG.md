@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1978] - 2026-06-14
+
+### Fixed
+- **"Delete my account" silently did nothing if you typed the confirmation in lowercase.** The confirm field on `www/settings.php` is styled `text-transform:uppercase`, which only changes the *display* — the value submitted stayed whatever case the user typed. So typing "delete" showed "DELETE" in the box but the form's own `onsubmit` guard (`value === 'DELETE'`) returned false and quietly blocked submission, so nothing happened. The field now auto-uppercases its value as you type (`oninput`), and both the JS guard and the server-side check (`delete_account` action) compare case-insensitively, so "delete", "Delete", or "DELETE" all work. The account-deletion logic itself was fine (verified against a real account in a rolled-back transaction).
+
+---
+
 ## [v0.1977] - 2026-06-14
 
 ### Fixed

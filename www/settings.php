@@ -161,7 +161,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         elseif ($action === 'delete_account') {
-            $confirm = trim($_POST['confirm_delete'] ?? '');
+            $confirm = strtoupper(trim($_POST['confirm_delete'] ?? ''));
             if ($confirm !== 'DELETE') {
                 $flash = ['type' => 'error', 'msg' => 'You must type DELETE to confirm account deletion.'];
             } elseif ($current['role'] === 'admin') {
@@ -430,13 +430,16 @@ $site_name = get_setting('site_name', 'Game Night');
     <div class="card" style="max-width:540px;margin-top:1.5rem;border-color:#fca5a5">
         <h2 style="color:#dc2626">Delete Account</h2>
         <p class="subtitle" style="color:#64748b">Permanently delete your account and all associated data. This cannot be undone.</p>
-        <form method="post" action="/settings.php" onsubmit="return document.getElementById('confirm_delete').value === 'DELETE'">
+        <form method="post" action="/settings.php" onsubmit="return document.getElementById('confirm_delete').value.trim().toUpperCase() === 'DELETE'">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
             <input type="hidden" name="action" value="delete_account">
             <div class="form-group">
                 <label for="confirm_delete">Type <strong style="color:#dc2626">DELETE</strong> to confirm</label>
+                <!-- text-transform only UPPERCASES the display; keep the submitted value in sync
+                     (oninput) so typing "delete" doesn't silently submit lowercase and fail. -->
                 <input type="text" id="confirm_delete" name="confirm_delete" required
                        autocomplete="off" placeholder="DELETE"
+                       oninput="this.value=this.value.toUpperCase()"
                        style="border-color:#fca5a5;text-transform:uppercase">
             </div>
             <button type="submit" class="btn" style="width:100%;background:#dc2626;color:#fff;border:none;font-weight:600;padding:.6rem">
