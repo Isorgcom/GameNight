@@ -2667,6 +2667,9 @@ const WK_BY_DATE  = <?= json_encode($wkByDate) ?>;
 const WK_TODAY    = '<?= $today->format('Y-m-d') ?>';
 const WK_START    = '<?= $wkStartStr ?>';
 const WK_END      = '<?= $wkEndStr ?>';
+// Current time in the VIEWER's timezone (minutes since midnight), so the "now"
+// line and auto-scroll match the viewer-tz grid instead of the browser clock.
+const WK_NOW_MIN  = <?= ((int)$today->format('G')) * 60 + (int)$today->format('i') ?>;
 const GRID_START  = 6;   // 6 AM
 const GRID_END    = 23;  // 11 PM (exclusive — last label shown is 10 PM)
 const HOUR_PX     = 60;
@@ -2690,10 +2693,13 @@ function minToY(min) {
 function layoutTimedEvents(events) {
     if (!events.length) return [];
 
-    // Augment with start/end minutes
+    // Augment with start/end minutes. Position by the VIEWER-tz time (_input fields)
+    // so the block lines up with its printed label (start_time_display, also viewer tz)
+    // and the hour gutter. Falls back to the raw site-tz time if _input is absent.
     const augmented = events.map(ev => {
-        const startMin = timeToMin(ev.start_time);
-        let endMin = ev.end_time ? timeToMin(ev.end_time) : startMin + 60;
+        const startMin = timeToMin(ev.start_time_input || ev.start_time);
+        const etRaw = ev.end_time_input || ev.end_time;
+        let endMin = etRaw ? timeToMin(etRaw) : startMin + 60;
         if (endMin <= startMin) endMin = startMin + 30;
         return { ...ev, _startMin: startMin, _endMin: endMin };
     });
@@ -2752,10 +2758,9 @@ function renderDayCol(col, date) {
         col.appendChild(half);
     }
 
-    // Current-time indicator (today only)
+    // Current-time indicator (today only), positioned in the viewer's timezone.
     if (date === WK_TODAY) {
-        const now  = new Date();
-        const curY = minToY(now.getHours() * 60 + now.getMinutes());
+        const curY = minToY(WK_NOW_MIN);
         if (curY >= 0 && curY <= totalPx) {
             const nowLine = document.createElement('div');
             nowLine.className = 'week-now-line';
@@ -2826,15 +2831,23 @@ function initWeekView() {
         renderDayCol(col, col.dataset.date);
     });
 
-    // Auto-scroll: if today is in the displayed week, scroll near current time;
-    // otherwise scroll to 8 AM.
+    // Auto-scroll to where the action is: the earliest timed event of the visible
+    // week sits near the top. Poker is an evening pastime, so when a week has no
+    // timed events we land on ~5 PM instead of the morning. Same rule every week.
     const scroll = document.getElementById('weekScroll');
-    let scrollH = GRID_START + 2; // default: 8 AM
-    if (WK_START <= WK_TODAY && WK_TODAY <= WK_END) {
-        const now = new Date();
-        scrollH = Math.max(GRID_START, now.getHours() - 1);
-    }
-    scroll.scrollTop = (scrollH - GRID_START) * HOUR_PX;
+    const EVENING_MIN = 17 * 60; // 5 PM fallback
+    let earliestMin = null;
+    Object.keys(WK_BY_DATE).forEach(d => {
+        (WK_BY_DATE[d] || []).forEach(e => {
+            const t = e.start_time_input || e.start_time;
+            if (!t) return; // skip all-day events
+            const m = timeToMin(t);
+            if (earliestMin === null || m < earliestMin) earliestMin = m;
+        });
+    });
+    let targetMin = (earliestMin !== null ? earliestMin : EVENING_MIN) - 30; // small lead above
+    targetMin = Math.max(GRID_START * 60, Math.min(targetMin, GRID_END * 60));
+    scroll.scrollTop = minToY(targetMin);
 }
 
 document.addEventListener('DOMContentLoaded', initWeekView);

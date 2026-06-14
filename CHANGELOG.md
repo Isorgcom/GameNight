@@ -4,6 +4,16 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1979] - 2026-06-14
+
+### Changed
+- **Week view opens to the evening instead of the morning.** The weekly calendar used to auto-scroll to 8 AM (or the current hour for this week), so evening events sat below the fold and users had to scroll down every visit. It now scrolls so the earliest timed event of the visible week sits near the top, and on weeks with no timed events it lands on ~5 PM, so the evening is always front and center (poker is an evening pastime). Same rule applies to every week including the current one. In `www/calendar.php` `initWeekView()`.
+
+### Fixed
+- **Week grid placed events at the wrong hour for users with a non-default timezone.** Event blocks in the week view were positioned by the raw `start_time` (the site timezone) while their printed time labels used the viewer's timezone, so anyone whose personal timezone differed from the site's saw a block sit at a different hour than its label said (and the red "now" line used the browser clock, a third reference). The grid now positions events by the viewer-timezone time (`start_time_input`) so the block, its label, and the hour gutter all agree, and the "now" line is computed from a viewer-timezone `WK_NOW_MIN` value. Site-timezone users are unaffected (`www/calendar.php`).
+
+---
+
 ## [v0.1978] - 2026-06-14
 
 ### Fixed
