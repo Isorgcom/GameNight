@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1975] - 2026-06-14
+
+### Added
+- **League: import people straight from your Contacts.** The Members tab (owner/manager/admin) gains an "Import from Contacts" button beside the CSV import that opens an in-page panel: a searchable, multi-select checkbox list of your saved contacts. Contacts already in the league are greyed out and disabled (matched by linked account, email, or phone), as are contacts with no email/phone. Selecting people and hitting "Import selected" adds each one with the exact same behavior as the single Add button: contacts that match an existing account join as members (with an "Added to {league}" notice), the rest become pending members and receive a league invite, all gated by the site/per-user notification settings. A status line reports how many were added, invited, and skipped. The single-add and bulk-import paths now share one implementation (`league_add_one_contact()` in `www/leagues_dl.php`, called by the existing `add_contact` action and the new `import_contacts` action); UI in `www/league.php`. Only the caller's own contacts are importable, and re-importing dedups with no duplicate rows. No schema changes.
+
+---
+
 ## [v0.1974] - 2026-06-12
 
 ### Fixed

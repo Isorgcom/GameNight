@@ -541,6 +541,10 @@ function ordinal($n) {
                     onclick="var w=document.getElementById('lgImportWrap'); w.style.display = w.style.display==='none' ? 'flex' : 'none'">
                 &#8679; Import CSV
             </button>
+            <button class="lg-btn lg-btn-ghost" type="button"
+                    onclick="var w=document.getElementById('lgContactsWrap'); w.style.display = w.style.display==='none' ? 'block' : 'none'">
+                &#128101; Import from Contacts
+            </button>
             <span style="color:#94a3b8;font-size:.78rem;margin-left:auto">CSV columns: <code>name, email, phone</code></span>
         </div>
         <div id="lgImportWrap" class="lg-card" style="display:none;gap:.75rem;flex-wrap:wrap;align-items:center;background:#fffbeb;border-color:#fde68a">
@@ -558,6 +562,69 @@ function ordinal($n) {
             <div style="font-size:.78rem;color:#92400e;flex-basis:100%">
                 Existing members are skipped. Rows with a matching email/phone that already have a user account become full members; everyone else becomes a pending contact and receives an invite link.
             </div>
+        </div>
+        <?php
+        // ── Import from Contacts panel ────────────────────────────────────
+        // Load the host's personal contacts and flag which are already in this
+        // league (matched against the already-loaded $members by linked user id,
+        // email, or phone) so they can be greyed out.
+        $myContacts = $db->prepare('SELECT id, contact_name, contact_email, contact_phone, linked_user_id FROM user_contacts WHERE owner_user_id = ? ORDER BY LOWER(contact_name)');
+        $myContacts->execute([$uid]);
+        $myContacts = $myContacts->fetchAll();
+        $memUserIds = []; $memEmails = []; $memPhones = [];
+        foreach ($members as $_mm) {
+            if (!empty($_mm['user_id'])) $memUserIds[(int)$_mm['user_id']] = true;
+            $_e = strtolower(trim((string)($_mm['user_email'] ?? $_mm['contact_email'] ?? '')));
+            if ($_e !== '') $memEmails[$_e] = true;
+            $_p = trim((string)($_mm['phone'] ?? $_mm['contact_phone'] ?? ''));
+            if ($_p !== '') $memPhones[normalize_phone($_p)] = true;
+        }
+        ?>
+        <div id="lgContactsWrap" class="lg-card" style="display:none;background:#eff6ff;border-color:#bfdbfe">
+            <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem">
+                <strong style="font-size:.9rem">Import from your Contacts</strong>
+                <span style="color:#64748b;font-size:.78rem">Add people saved in your Contacts to this league. Already-member contacts are greyed out. Imported people are notified just like the Add button.</span>
+            </div>
+            <?php if (empty($myContacts)): ?>
+                <p style="color:#64748b;font-size:.85rem;margin:0">You don't have any saved contacts yet. Add some on the <a href="/contacts.php">Contacts</a> page.</p>
+            <?php else: ?>
+                <div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.5rem;flex-wrap:wrap">
+                    <input type="text" id="lgcSearch" placeholder="Search contacts&hellip;" oninput="lgcFilter(this.value)"
+                           style="flex:1;min-width:160px;padding:.4rem;border:1.5px solid #cbd5e1;border-radius:6px;font:inherit">
+                    <button type="button" class="lg-btn lg-btn-ghost" onclick="lgcSelectAll()">Select all shown</button>
+                </div>
+                <div id="lgcList" style="max-height:280px;overflow-y:auto;border:1.5px solid #dbeafe;border-radius:8px;background:#fff">
+                    <?php foreach ($myContacts as $c):
+                        $ce  = strtolower(trim((string)($c['contact_email'] ?? '')));
+                        $cp  = trim((string)($c['contact_phone'] ?? ''));
+                        $cpn = $cp !== '' ? normalize_phone($cp) : '';
+                        $already = (!empty($c['linked_user_id']) && isset($memUserIds[(int)$c['linked_user_id']]))
+                                || ($ce !== '' && isset($memEmails[$ce]))
+                                || ($cpn !== '' && isset($memPhones[$cpn]));
+                        $hasContact = ($ce !== '' || $cpn !== '');
+                        $disabled = $already || !$hasContact;
+                        $sub = trim((string)($c['contact_email'] ?? '')
+                             . ((!empty($c['contact_email']) && !empty($c['contact_phone'])) ? '  ·  ' : '')
+                             . (string)($c['contact_phone'] ?? ''));
+                        $searchKey = strtolower(($c['contact_name'] ?? '') . ' ' . ($c['contact_email'] ?? '') . ' ' . ($c['contact_phone'] ?? ''));
+                    ?>
+                    <label class="lgc-row" data-search="<?= htmlspecialchars($searchKey) ?>"
+                           style="display:flex;align-items:center;gap:.6rem;padding:.4rem .6rem;border-bottom:1px solid #f1f5f9;<?= $disabled ? 'opacity:.5;' : 'cursor:pointer;' ?>">
+                        <input type="checkbox" class="lgc-cb" value="<?= (int)$c['id'] ?>" <?= $disabled ? 'disabled' : '' ?>>
+                        <span style="flex:1;min-width:0">
+                            <span style="font-size:.88rem;font-weight:600;color:#1e293b"><?= htmlspecialchars($c['contact_name'] ?: '(no name)') ?></span>
+                            <?php if ($sub !== ''): ?><span style="font-size:.76rem;color:#64748b;margin-left:.4rem"><?= htmlspecialchars($sub) ?></span><?php endif; ?>
+                        </span>
+                        <?php if ($already): ?><span style="font-size:.7rem;color:#16a34a;font-weight:700;white-space:nowrap">already a member</span>
+                        <?php elseif (!$hasContact): ?><span style="font-size:.7rem;color:#b91c1c;white-space:nowrap">no email/phone</span><?php endif; ?>
+                    </label>
+                    <?php endforeach; ?>
+                </div>
+                <div style="display:flex;align-items:center;gap:.6rem;margin-top:.6rem;flex-wrap:wrap">
+                    <button type="button" class="lg-btn" id="lgcImportBtn" onclick="importContacts()">Import selected</button>
+                    <span id="lgcStatus" style="font-size:.8rem;color:#64748b"></span>
+                </div>
+            <?php endif; ?>
         </div>
         <?php endif; ?>
 
@@ -1444,6 +1511,51 @@ function addContact() {
     }).then(function(j) {
         if (j.ok) location.reload(); else alert(j.error || 'Failed');
     });
+}
+
+// ── Import from Contacts panel ───────────────────────────────────────────
+function lgcFilter(q) {
+    q = (q || '').toLowerCase();
+    document.querySelectorAll('#lgcList .lgc-row').forEach(function(row) {
+        row.style.display = (!q || (row.dataset.search || '').indexOf(q) !== -1) ? '' : 'none';
+    });
+}
+function lgcSelectAll() {
+    // Toggle: if every visible+enabled box is already checked, clear them; else check them.
+    var boxes = Array.prototype.filter.call(
+        document.querySelectorAll('#lgcList .lgc-cb:not([disabled])'),
+        function(cb) { return cb.closest('.lgc-row').style.display !== 'none'; }
+    );
+    var allOn = boxes.length > 0 && boxes.every(function(cb) { return cb.checked; });
+    boxes.forEach(function(cb) { cb.checked = !allOn; });
+}
+function importContacts() {
+    var ids = Array.prototype.map.call(
+        document.querySelectorAll('#lgcList .lgc-cb:checked'),
+        function(cb) { return cb.value; }
+    );
+    if (!ids.length) { alert('Select at least one contact.'); return; }
+    var status = document.getElementById('lgcStatus');
+    var btn = document.getElementById('lgcImportBtn');
+    if (btn) { btn.disabled = true; }
+    if (status) { status.textContent = 'Importing ' + ids.length + '…'; }
+    var fd = new FormData();
+    fd.append('csrf_token', CSRF);
+    fd.append('action', 'import_contacts');
+    fd.append('league_id', LEAGUE_ID);
+    ids.forEach(function(id) { fd.append('contact_ids[]', id); });
+    fetch('/leagues_dl.php', { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+            if (!j.ok) { if (btn) btn.disabled = false; if (status) status.textContent = j.error || 'Failed'; return; }
+            var parts = [];
+            if (j.added)   parts.push(j.added + ' added');
+            if (j.invited) parts.push(j.invited + ' invited');
+            if (j.skipped) parts.push(j.skipped + ' skipped');
+            if (status) status.textContent = parts.length ? parts.join(', ') + '. Reloading…' : 'Done. Reloading…';
+            location.reload();
+        })
+        .catch(function() { if (btn) btn.disabled = false; if (status) status.textContent = 'Network error.'; });
 }
 
 // ── Inline cell edits on the members grid ────────────────────────────────

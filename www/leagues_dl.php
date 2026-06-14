@@ -59,6 +59,86 @@ function generate_invite_code(): string {
     return substr(bin2hex(random_bytes(6)), 0, 10);
 }
 
+/**
+ * Add ONE contact to a league using the same rules as the single "Add" action:
+ * resolve to an existing user by email/phone (linked path: add as member +
+ * "Added to {league}" notice) or create a pending invited member (pending path:
+ * + "invite to join" link). Dedups against current membership. Returns:
+ *   'linked'  — added an existing user as a member (notified)
+ *   'pending' — created a pending invite (invite sent)
+ *   'already' — already a member, or already a pending contact for that email
+ *   'invalid' — missing name, no email/phone, or a malformed email
+ * Notifications run through send_notification(), which honors the site
+ * notifications toggle and each recipient's preferred contact method.
+ * Used by both the single add_contact action and bulk import_contacts.
+ */
+function league_add_one_contact(PDO $db, int $league_id, string $lname, string $name, string $email, string $phone, int $invitedBy): string {
+    $name  = trim($name);
+    $email = strtolower(trim($email));
+    $phone = trim($phone) !== '' ? normalize_phone(trim($phone)) : '';
+    if ($name === '') return 'invalid';
+    if ($email === '' && $phone === '') return 'invalid';
+    if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) return 'invalid';
+
+    // Resolve to an existing user by email, then phone.
+    $existing = null;
+    if ($email !== '') {
+        $u = $db->prepare('SELECT id, username, email, phone, preferred_contact FROM users WHERE LOWER(email) = ? LIMIT 1');
+        $u->execute([$email]);
+        $existing = $u->fetch() ?: null;
+    }
+    if (!$existing && $phone !== '') {
+        $u = $db->prepare('SELECT id, username, email, phone, preferred_contact FROM users WHERE phone = ? LIMIT 1');
+        $u->execute([$phone]);
+        $existing = $u->fetch() ?: null;
+    }
+
+    if ($existing) {
+        // Linked path — insert the real user directly as a member.
+        if (league_role($league_id, (int)$existing['id']) !== null) return 'already';
+        $db->prepare(
+            "INSERT INTO league_members (league_id, user_id, role, invited_by, invited_at)
+             VALUES (?, ?, 'member', ?, CURRENT_TIMESTAMP)"
+        )->execute([$league_id, (int)$existing['id'], $invitedBy]);
+        $url = get_site_url() . '/league.php?id=' . $league_id;
+        if (get_setting('url_shortener_enabled') === '1') { $url = shorten_url($url); }
+        send_notification(
+            $existing['username'] ?? '', $existing['email'] ?? '', $existing['phone'] ?? '',
+            $existing['preferred_contact'] ?? 'email',
+            'Added to ' . $lname,
+            'You were added to the league "' . $lname . '". View: ' . $url,
+            '<p>You were added to the league <strong>' . htmlspecialchars($lname) . '</strong>. <a href="' . htmlspecialchars($url) . '">View league</a></p>'
+        );
+        db_log_activity($invitedBy, "added member to league id=$league_id (user #" . (int)$existing['id'] . ")");
+        return 'linked';
+    }
+
+    // Pending path — dedup against an existing pending row for this email.
+    if ($email !== '') {
+        $dup = $db->prepare('SELECT 1 FROM league_members WHERE league_id = ? AND user_id IS NULL AND LOWER(contact_email) = ? LIMIT 1');
+        $dup->execute([$league_id, $email]);
+        if ($dup->fetchColumn()) return 'already';
+    }
+    $token = bin2hex(random_bytes(16));
+    $db->prepare(
+        "INSERT INTO league_members (league_id, user_id, role, contact_name, contact_email, contact_phone, invited_by, invited_at, invite_token)
+         VALUES (?, NULL, 'member', ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)"
+    )->execute([$league_id, $name, $email ?: null, $phone ?: null, $invitedBy, $token]);
+    $inviteUrl = get_site_url() . '/league_invite.php?token=' . $token;
+    if (get_setting('url_shortener_enabled') === '1') { $inviteUrl = shorten_url($inviteUrl); }
+    send_notification(
+        $name, $email, $phone,
+        $email !== '' ? 'email' : 'sms',
+        'Invitation to join ' . $lname,
+        'You have been invited to join the league "' . $lname . '". Sign up: ' . $inviteUrl,
+        '<p>Hi ' . htmlspecialchars($name) . ',</p>'
+        . '<p>You have been invited to join the league <strong>' . htmlspecialchars($lname) . '</strong>.</p>'
+        . '<p><a href="' . htmlspecialchars($inviteUrl) . '" style="background:#2563eb;color:#fff;padding:.5rem 1rem;border-radius:6px;text-decoration:none;font-weight:600">Accept invite &amp; sign up</a></p>'
+    );
+    db_log_activity($invitedBy, "invited contact to league id=$league_id (" . ($email !== '' ? $email : $name) . ")");
+    return 'pending';
+}
+
 switch ($action) {
 
 case 'create_league': {
@@ -349,87 +429,62 @@ case 'remove_member': {
 
 case 'add_contact': {
     $league_id = (int)($_POST['league_id'] ?? 0);
-    $myRole    = league_role_or_fail($db, $league_id, $uid, ['owner', 'manager'], $isAdmin);
+    league_role_or_fail($db, $league_id, $uid, ['owner', 'manager'], $isAdmin);
 
     $name  = trim($_POST['contact_name']  ?? '');
     $email = strtolower(trim($_POST['contact_email'] ?? ''));
     $phoneRaw = trim($_POST['contact_phone'] ?? '');
-    $phone = $phoneRaw !== '' ? normalize_phone($phoneRaw) : '';
 
+    // Keep the specific single-add error messages.
     if ($name === '')                    fail('Name is required.');
-    if ($email === '' && $phone === '')  fail('Provide at least an email or a phone number.');
+    if ($email === '' && $phoneRaw === '') fail('Provide at least an email or a phone number.');
     if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) fail('Invalid email address.');
-
-    // Look up an existing user by email or phone.
-    $existing = null;
-    if ($email !== '') {
-        $u = $db->prepare('SELECT id, username, email, phone, preferred_contact FROM users WHERE LOWER(email) = ? LIMIT 1');
-        $u->execute([$email]);
-        $existing = $u->fetch() ?: null;
-    }
-    if (!$existing && $phone !== '') {
-        $u = $db->prepare('SELECT id, username, email, phone, preferred_contact FROM users WHERE phone = ? LIMIT 1');
-        $u->execute([$phone]);
-        $existing = $u->fetch() ?: null;
-    }
 
     $L = $db->prepare('SELECT name FROM leagues WHERE id = ?');
     $L->execute([$league_id]);
     $lname = (string)$L->fetchColumn();
 
-    if ($existing) {
-        // Linked path — insert the real user directly as a member.
-        $already = league_role($league_id, (int)$existing['id']);
-        if ($already !== null) fail('Already a member.');
-        $db->prepare(
-            "INSERT INTO league_members (league_id, user_id, role, invited_by, invited_at)
-             VALUES (?, ?, 'member', ?, CURRENT_TIMESTAMP)"
-        )->execute([$league_id, (int)$existing['id'], $uid]);
+    $res = league_add_one_contact($db, $league_id, $lname, $name, $email, $phoneRaw, $uid);
+    if ($res === 'already') fail('Already in this league.');
+    if ($res === 'invalid') fail('Provide a valid name and an email or phone number.');
+    ok($res === 'linked' ? ['linked' => true] : ['pending' => true]);
+}
 
-        // Notify the user
-        $url = get_site_url() . '/league.php?id=' . $league_id;
-        if (get_setting('url_shortener_enabled') === '1') { $url = shorten_url($url); }
-        send_notification(
-            $existing['username'] ?? '',
-            $existing['email']    ?? '',
-            $existing['phone']    ?? '',
-            $existing['preferred_contact'] ?? 'email',
-            'Added to ' . $lname,
-            'You were added to the league "' . $lname . '". View: ' . $url,
-            '<p>You were added to the league <strong>' . htmlspecialchars($lname) . '</strong>. <a href="' . htmlspecialchars($url) . '">View league</a></p>'
+case 'import_contacts': {
+    // Bulk-add selected personal contacts to the league. Each contact runs the
+    // exact single-add logic (linked → member + notice; pending → invite), so
+    // behavior and notifications match the Add button. Per-contact outcomes are
+    // tallied; a skip never aborts the batch.
+    $league_id = (int)($_POST['league_id'] ?? 0);
+    league_role_or_fail($db, $league_id, $uid, ['owner', 'manager'], $isAdmin);
+
+    $ids = array_values(array_unique(array_filter(array_map('intval', (array)($_POST['contact_ids'] ?? [])))));
+    if (empty($ids)) fail('No contacts selected.');
+
+    $L = $db->prepare('SELECT name FROM leagues WHERE id = ?');
+    $L->execute([$league_id]);
+    $lname = (string)$L->fetchColumn();
+
+    // Only the caller's own contacts are importable.
+    $sel = $db->prepare('SELECT contact_name, contact_email, contact_phone FROM user_contacts WHERE id = ? AND owner_user_id = ?');
+    $added = 0; $invited = 0; $skipped = 0;
+    foreach ($ids as $cid) {
+        $sel->execute([$cid, $uid]);
+        $c = $sel->fetch();
+        if (!$c) { $skipped++; continue; }
+        $res = league_add_one_contact(
+            $db, $league_id, $lname,
+            (string)$c['contact_name'],
+            (string)($c['contact_email'] ?? ''),
+            (string)($c['contact_phone'] ?? ''),
+            $uid
         );
-        db_log_activity($uid, "added member to league id=$league_id (user #" . (int)$existing['id'] . ")");
-        ok(['linked' => true]);
+        if ($res === 'linked') $added++;
+        elseif ($res === 'pending') $invited++;
+        else $skipped++;
     }
-
-    // Pending path — check we don't already have a pending row for this email.
-    if ($email !== '') {
-        $dup = $db->prepare('SELECT 1 FROM league_members WHERE league_id = ? AND user_id IS NULL AND LOWER(contact_email) = ? LIMIT 1');
-        $dup->execute([$league_id, $email]);
-        if ($dup->fetchColumn()) fail('Already a contact in this league.');
-    }
-
-    $token = bin2hex(random_bytes(16));
-    $db->prepare(
-        "INSERT INTO league_members (league_id, user_id, role, contact_name, contact_email, contact_phone, invited_by, invited_at, invite_token)
-         VALUES (?, NULL, 'member', ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)"
-    )->execute([$league_id, $name, $email ?: null, $phone ?: null, $uid, $token]);
-
-    // Send invite
-    $inviteUrl = get_site_url() . '/league_invite.php?token=' . $token;
-    if (get_setting('url_shortener_enabled') === '1') { $inviteUrl = shorten_url($inviteUrl); }
-    send_notification(
-        $name, $email, $phone,
-        $email !== '' ? 'email' : 'sms',
-        'Invitation to join ' . $lname,
-        'You have been invited to join the league "' . $lname . '". Sign up: ' . $inviteUrl,
-        '<p>Hi ' . htmlspecialchars($name) . ',</p>'
-        . '<p>You have been invited to join the league <strong>' . htmlspecialchars($lname) . '</strong>.</p>'
-        . '<p><a href="' . htmlspecialchars($inviteUrl) . '" style="background:#2563eb;color:#fff;padding:.5rem 1rem;border-radius:6px;text-decoration:none;font-weight:600">Accept invite &amp; sign up</a></p>'
-    );
-
-    db_log_activity($uid, "invited contact to league id=$league_id (" . ($email !== '' ? $email : $name) . ")");
-    ok(['pending' => true]);
+    db_log_activity($uid, "imported contacts to league id=$league_id: $added added, $invited invited, $skipped skipped");
+    ok(['added' => $added, 'invited' => $invited, 'skipped' => $skipped]);
 }
 
 case 'update_member': {
