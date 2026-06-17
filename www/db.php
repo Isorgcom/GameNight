@@ -273,6 +273,21 @@ function db_init(PDO $pdo): void {
     // Add raw API response to SMS log for debugging
     try { $pdo->exec("ALTER TABLE sms_log ADD COLUMN raw_response TEXT"); } catch (Exception $e) {}
 
+    // Persistent retry queue for emails whose inline retries were exhausted on a
+    // transient SMTP failure. Drained by cron.php (process_email_retry_queue).
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS email_retry_queue (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        to_address      TEXT    NOT NULL,
+        to_name         TEXT    NOT NULL DEFAULT '',
+        subject         TEXT    NOT NULL,
+        body            TEXT    NOT NULL,
+        attempts        INTEGER NOT NULL DEFAULT 0,
+        last_error      TEXT,
+        next_attempt_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_email_retry_due ON email_retry_queue(next_attempt_at)"); } catch (Exception $e) {}
+
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS short_links (
         id         INTEGER PRIMARY KEY AUTOINCREMENT,
         code       TEXT UNIQUE NOT NULL,

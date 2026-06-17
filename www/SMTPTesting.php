@@ -36,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_verify()) {
             $flash = ['type' => 'error', 'msg' => 'Valid recipient email required.'];
         } else {
             require_once __DIR__ . '/mail.php';
-            $err = send_email($to, $to, $subject, nl2br(htmlspecialchars($body)));
+            $err = send_email($to, $to, $subject, nl2br(htmlspecialchars($body)), false);
             if ($err === null) {
                 $result = ['ok' => true];
                 db_log_activity($current['id'], "sent test email to $to");

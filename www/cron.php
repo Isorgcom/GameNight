@@ -105,6 +105,15 @@ try { $db->exec("DELETE FROM pending_notifications WHERE attempted_at < datetime
 // can also disappear via other paths, leaving zombie reminders/cancellations queued.
 try { $db->exec("DELETE FROM pending_notifications WHERE event_id NOT IN (SELECT id FROM events)"); } catch (Exception $e) {}
 
+// ── 2b. Drain the email retry queue ──────────────────────────────────────────
+// Runs regardless of notifications_enabled: password resets, email verification,
+// and invites all go through send_email and may have been parked here. Each due
+// row is re-attempted on a backoff until it delivers or exhausts its attempts.
+$email_q = process_email_retry_queue($db);
+if ($email_q['sent'] || $email_q['failed'] || $email_q['requeued']) {
+    echo "Email retry queue: {$email_q['sent']} sent, {$email_q['requeued']} requeued, {$email_q['failed']} gave up.\n";
+}
+
 // ── 3. RSVP deadline processor: demote non-responders, promote waitlisters ─────
 $deadline_processed = 0;
 $now_local = new DateTime('now', $local_tz);

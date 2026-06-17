@@ -268,7 +268,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
                 $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid test address.'];
             } else {
-                $err = send_email($to, $to, $subject, nl2br(htmlspecialchars($body)));
+                $err = send_email($to, $to, $subject, nl2br(htmlspecialchars($body)), false);
                 $_SESSION['flash'] = $err
                     ? ['type' => 'error',   'msg' => 'Send failed: ' . $err]
                     : ['type' => 'success', 'msg' => "Test email sent to $to."];

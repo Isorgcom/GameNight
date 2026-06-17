@@ -116,6 +116,8 @@ unset($_SESSION['flash']);
                         <td>
                             <?php if ($log['status'] === 'sent' || $log['status'] === 'received'): ?>
                                 <span style="color:#16a34a;font-weight:600"><?= htmlspecialchars($log['status']) ?></span>
+                            <?php elseif ($log['status'] === 'queued'): ?>
+                                <span style="color:#d97706;font-weight:600" title="Pending retry: <?= htmlspecialchars($log['error'] ?? '') ?>"><?= htmlspecialchars($log['status']) ?></span>
                             <?php else: ?>
                                 <span style="color:#dc2626;font-weight:600" title="<?= htmlspecialchars($log['error'] ?? '') ?>"><?= htmlspecialchars($log['status']) ?></span>
                             <?php endif; ?>

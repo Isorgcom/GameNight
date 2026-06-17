@@ -4,6 +4,16 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1980] - 2026-06-17
+
+### Added
+- **Persistent retry queue for failed emails.** Investigation of the "failed SMTP" entries in the notification log showed they were not a misconfiguration: the vast majority of sends succeed, but Google's SMTP relay intermittently drops the STARTTLS handshake ("Could not connect to SMTP host ... Called QUIT without being connected"), and when a cron reminder batch happened to hit one of these blips every recipient in that run failed at once with no retry, silently never receiving the mail. `send_email()` (`www/mail.php`) now retries transient connection/handshake failures up to 3 times inline with a short backoff, and if those are exhausted while the error is still transient the message is parked in a new `email_retry_queue` table (`www/db.php`) instead of being dropped. `cron.php` drains the queue every run (section 2b, ungated by `notifications_enabled` so password-reset and verification mail are covered too), re-attempting each due row on an escalating backoff of 5m / 15m / 30m / 1h / 2h / 4h before giving up after 6 attempts. Permanent failures (authentication, rejected recipient) are never queued. Draining uses an atomic claim (bump `attempts` and push `next_attempt_at` out before sending) so overlapping cron runs cannot double-send. The two interactive "send test email" buttons (`www/SMTPTesting.php`, `www/admin_settings_dl.php`) opt out of queueing via a new `$queueOnFailure` flag, since a background retry would be misleading for an on-demand test.
+
+### Changed
+- **Notification log shows a `queued` status in amber.** When a send is parked for background retry it is logged as `queued` rather than `failed`, and `www/sms_log.php` renders that state in amber with a "Pending retry" tooltip so it no longer reads as a hard failure while delivery is still pending.
+
+---
+
 ## [v0.1979] - 2026-06-14
 
 ### Changed
