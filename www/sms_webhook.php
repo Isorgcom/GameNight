@@ -31,8 +31,12 @@ if ($raw_input !== '') {
 // ── Verify webhook signature (Surge) ─────────────────────────────────────────
 if ($provider === 'surge') {
     $secret = get_setting('sms_webhook_secret');
-    $sigHeader = $_SERVER['HTTP_SURGE_SIGNATURE'] ?? '';
-    if ($secret !== '' && $sigHeader !== '') {
+    // Fail closed: once a signing secret is configured, EVERY inbound request must
+    // carry a fresh, valid signature. Previously this whole block was also gated on
+    // the header being present, so an attacker could bypass verification simply by
+    // omitting the Surge-Signature header and forge inbound SMS / host commands.
+    if ($secret !== '') {
+        $sigHeader = $_SERVER['HTTP_SURGE_SIGNATURE'] ?? '';
         // Parse t= and v1= from header
         $parts = [];
         foreach (explode(',', $sigHeader) as $part) {
@@ -41,18 +45,15 @@ if ($provider === 'surge') {
         }
         $timestamp = $parts['t'] ?? '';
         $signature = $parts['v1'] ?? '';
-        // Reject if timestamp is older than 5 minutes
-        if ($timestamp && abs(time() - (int)$timestamp) > 300) {
+        // Require a timestamp and signature, and reject anything older than 5 minutes.
+        if ($timestamp === '' || $signature === '' || abs(time() - (int)$timestamp) > 300) {
             http_response_code(403);
             exit;
         }
-        // Verify HMAC
-        if ($timestamp && $signature) {
-            $expected = hash_hmac('sha256', $timestamp . '.' . $raw_input, $secret);
-            if (!hash_equals($expected, $signature)) {
-                http_response_code(403);
-                exit;
-            }
+        $expected = hash_hmac('sha256', $timestamp . '.' . $raw_input, $secret);
+        if (!hash_equals($expected, $signature)) {
+            http_response_code(403);
+            exit;
         }
     }
 }

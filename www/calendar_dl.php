@@ -241,7 +241,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $urow->execute([$current['id']]);
         $udata = $urow->fetch();
         $signup_pending = false;
+        // Authorization: only allow self-signup to events this user is permitted to
+        // see/join (public, a league they belong to, created by them, already invited,
+        // or admin). Without this, a user could POST any event_id and self-insert an
+        // event_invites row, which both joins and reveals private events (IDOR).
+        $signup_allowed = false;
         if ($eid > 0) {
+            $vis  = event_visibility_sql('e', (int)$current['id']);
+            $gate = $db->prepare("SELECT e.id FROM events e WHERE e.id = ? AND {$vis['sql']}");
+            $gate->execute(array_merge([$eid], $vis['params']));
+            $signup_allowed = (bool)$gate->fetch();
+        }
+        if (!$signup_allowed) {
+            if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
+                http_response_code(403);
+                header('Content-Type: application/json');
+                echo json_encode(['ok' => false, 'error' => 'You are not allowed to sign up for that event.']);
+                exit;
+            }
+            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'You are not allowed to sign up for that event.'];
+        } else {
             $chk = $db->prepare('SELECT id, approval_status FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?)');
             $chk->execute([$eid, $current['username']]);
             $existing_signup = $chk->fetch();
@@ -258,17 +277,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif (($existing_signup['approval_status'] ?? 'approved') === 'pending') {
                 $signup_pending = true;
             }
+            if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
+                $inv = ['username' => $current['username'], 'rsvp' => null, 'approval_status' => $signup_pending ? 'pending' : 'approved'];
+                if ($isAdmin) { $inv['phone'] = $udata['phone'] ?? null; $inv['email'] = $udata['email'] ?? null; }
+                header('Content-Type: application/json');
+                echo json_encode(['ok' => true, 'invite' => $inv, 'pending' => $signup_pending]);
+                exit;
+            }
+            $_SESSION['flash'] = ['type' => 'success', 'msg' => $signup_pending
+                ? 'Request sent — waiting for host approval.'
+                : 'You have been added to the event.'];
         }
-        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
-            $inv = ['username' => $current['username'], 'rsvp' => null, 'approval_status' => $signup_pending ? 'pending' : 'approved'];
-            if ($isAdmin) { $inv['phone'] = $udata['phone'] ?? null; $inv['email'] = $udata['email'] ?? null; }
-            header('Content-Type: application/json');
-            echo json_encode(['ok' => true, 'invite' => $inv, 'pending' => $signup_pending]);
-            exit;
-        }
-        $_SESSION['flash'] = ['type' => 'success', 'msg' => $signup_pending
-            ? 'Request sent — waiting for host approval.'
-            : 'You have been added to the event.'];
     }
 
     if ($action === 'remove_self' && $current) {

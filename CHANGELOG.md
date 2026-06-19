@@ -4,6 +4,17 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1981] - 2026-06-19
+
+### Security
+- **Closed an IDOR that let any logged-in user join (and thereby reveal) private events.** The `self_signup` action in `www/calendar.php` and `www/calendar_dl.php` inserted an `event_invites` row for whatever `event_id` was POSTed with no check that the event was visible to the requester. Because `event_visibility_sql()` grants visibility to anyone holding an invite row, a user could POST `action=self_signup&event_id=<any id>` to add themselves to an `invitees_only` or league event they were never invited to and unlock its details, attendee list, and comments. Both handlers now gate the signup on the existing `event_visibility_sql()` rule (public, a league the user belongs to, an event they created, one they were already invited to, or admin) and return 403 otherwise.
+- **Made the Surge inbound-SMS webhook fail closed.** `www/sms_webhook.php` only ran HMAC verification when both a secret was configured *and* a `Surge-Signature` header was present (`$secret !== '' && $sigHeader !== ''`), so an attacker could bypass verification entirely by simply omitting the header and forge inbound SMS, RSVPs, and host/admin command-layer actions (CANCEL, broadcasts, invitee approvals). Verification now triggers whenever a secret is configured, and a missing, stale (>5 min), or invalid timestamp/signature is a hard 403. Operator note: the other four providers (Twilio/Plivo/Telnyx/Vonage) still have no inbound webhook authentication and remain forgeable; add per-provider signature verification if any of them is made the live provider.
+
+### Fixed
+- **"Resend verification" returned a 500 on every submission.** `www/resend_verification.php` pulled in `auth_dl.php` — a stale April fork of `auth.php` — but the page calls `find_user_by_identifier()` and `send_verification_code()`, which are defined only in the current `auth.php`, so every POST died with an undefined-function fatal and no user could ever request a new verification link or code. The page now requires `auth.php`. This also pulls in `auth.php`'s `gmdate()`-based `send_verification_email()`, fixing the stale copy's local-time expiry timestamp that was silently shrinking the 24-hour email-verification window to ~18 hours for anyone in a timezone behind UTC.
+
+---
+
 ## [v0.1980] - 2026-06-17
 
 ### Added
