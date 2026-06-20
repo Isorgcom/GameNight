@@ -360,6 +360,19 @@ $session = $sessStmt->fetch();
     </div>
 </div>
 
+<!-- Cash-in adjust modal -->
+<div class="pk-modal-overlay" id="cashAdjustModal" onclick="if(event.target===this)closeCashAdjust()">
+    <div class="pk-modal">
+        <h3 id="cashAdjustTitle">Add Money</h3>
+        <label style="font-size:.85rem;font-weight:600;color:#475569;display:block;margin-bottom:.3rem">Amount ($)</label>
+        <input type="number" id="cashAdjustAmount" step="0.01" min="0" style="width:100%;padding:.5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:1rem;box-sizing:border-box">
+        <div class="pk-modal-actions">
+            <button onclick="closeCashAdjust()">Cancel</button>
+            <button class="pk-save" id="cashAdjustOk" onclick="applyCashAdjust()">Add</button>
+        </div>
+    </div>
+</div>
+
 <!-- Help modal -->
 <div class="pk-modal-overlay" id="helpModal" onclick="if(event.target===this)closeHelp()">
     <div class="pk-modal">
@@ -714,7 +727,7 @@ function renderTableHeader() {
         if (parseInt(SESSION.rebuy_allowed)) h += sortableTh('Rebuys', 'rebuys');
         if (parseInt(SESSION.addon_allowed)) h += sortableTh('Add-ons', 'addons');
     } else {
-        h += sortableTh('Total In', 'totalin');
+        h += sortableTh('Cash In', 'totalin');
         h += sortableTh('Cash Out', 'cashout');
         h += sortableTh('Profit', 'profit');
     }
@@ -1883,29 +1896,49 @@ function setCashIn(pid, val) {
     });
 }
 
-// Cash game: adjust money in (+ to add, - to subtract)
+// Cash game: adjust money in (+ to add, - to subtract) via an in-app dialog.
+var cashAdjustPid = null;
+var cashAdjustDir = 1;
 function adjustMoney(pid, direction) {
-    var label = direction > 0 ? 'Amount to add ($):' : 'Amount to remove ($):';
-    var amt = prompt(label, '20');
-    if (amt === null) return;
-    amt = parseFloat(amt);
-    if (isNaN(amt) || amt <= 0) { alert('Enter a positive amount'); return; }
+    cashAdjustPid = pid;
+    cashAdjustDir = direction;
+    var p = PLAYERS.find(function(p) { return parseInt(p.id) === pid; });
+    var name = p ? p.display_name : 'player';
+    document.getElementById('cashAdjustTitle').textContent = (direction < 0 ? 'Remove Money — ' : 'Add Money — ') + name;
+    var ok = document.getElementById('cashAdjustOk');
+    ok.textContent = direction < 0 ? 'Remove' : 'Add';
+    ok.style.background = direction < 0 ? '#dc2626' : '';
+    // Default an add to the configured buy-in amount when set, else $20.
+    var def = (direction > 0 && parseInt(SESSION.buyin_amount) > 0) ? (parseInt(SESSION.buyin_amount) / 100) : 20;
+    var inp = document.getElementById('cashAdjustAmount');
+    inp.value = def;
+    inp.onkeydown = function(e) { if (e.key === 'Enter') applyCashAdjust(); };
+    document.getElementById('cashAdjustModal').classList.add('open');
+    inp.focus();
+    inp.select();
+}
+
+function closeCashAdjust() {
+    document.getElementById('cashAdjustModal').classList.remove('open');
+    cashAdjustPid = null;
+}
+
+function applyCashAdjust() {
+    if (!cashAdjustPid) return;
+    var amt = parseFloat(document.getElementById('cashAdjustAmount').value || 0);
+    if (isNaN(amt) || amt <= 0) return; // leave dialog open to correct
     var cents = Math.round(amt * 100);
-    if (direction < 0) {
-        // Subtract: get current cash_in and set new total
+    var pid = cashAdjustPid, dir = cashAdjustDir;
+    closeCashAdjust();
+    if (dir < 0) {
         var p = PLAYERS.find(function(p) { return parseInt(p.id) === pid; });
-        var cur = parseInt(p.cash_in) || 0;
-        var newVal = Math.max(0, cur - cents);
+        var newVal = Math.max(0, (parseInt(p.cash_in) || 0) - cents);
         postAction('set_cashin', { player_id: pid, amount: newVal }, function(j) {
-            updatePlayer(j.player);
-            POOL = j.pool;
-            refreshUI();
+            updatePlayer(j.player); POOL = j.pool; refreshUI();
         });
     } else {
         postAction('add_cashin', { player_id: pid, amount: cents }, function(j) {
-            updatePlayer(j.player);
-            POOL = j.pool;
-            refreshUI();
+            updatePlayer(j.player); POOL = j.pool; refreshUI();
         });
     }
 }
