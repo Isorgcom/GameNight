@@ -4,7 +4,11 @@ All notable changes to GameNight are documented here.
 
 ---
 
-## [v0.1987] - 2026-06-20
+## [v0.1988] - 2026-06-20
+
+### Changed
+- **Cash Out is now an inline field on the desktop check-in table, matching Cash In, instead of a button that opens a popup.** Feedback was that popping a dialog to cash a player out felt harsh. The Cash Out column now shows a number input with a green check (✓) button alongside it (where Cash In has a +): type the amount and press Enter or click the check to record the cash-out (the check gives mouse users an obvious commit affordance). Editing re-commits, and clearing the field then committing reverts the player to still-playing (replacing the old "Undo Cash-out"). The remaining cash on the table is still visible in the stats bar. A separate input class keeps Cash In's Enter-to-next-player behaviour from jumping into the Cash Out field. Mobile cards still use the tap-to-open dialog (`www/checkin.php`).
+- **Cash In field polish.** Removed the "−" button from the Cash In counter (corrections are made by typing the exact total, and the styled +/Add Money dialog remains for adds), tagged the Cash In and Cash Out fields as numeric inputs (`type=number`, `inputmode=decimal`) so phones show a numeric keypad, and hid the desktop number-spinner arrows so the fields stay clean (`www/checkin.php`).
 
 ### Changed
 - **Renamed the cash-game "Total In" column to "Cash In" and replaced its native +/- prompts with a styled dialog.** The desktop header now reads "Cash In" (mobile already used that label). The fast inline entry is unchanged: type an amount and press Enter to set it and jump to the next player, which keeps bulk start-of-game and rebuy entry quick. The +/- buttons, which previously fired a native browser `prompt()` (the same kind of dialog the browser can suppress after repeated use), now open an in-app "Add Money" / "Remove Money" dialog prefilled with the configured buy-in amount; the add/subtract behaviour (add to total, subtract floored at $0) is unchanged (`www/checkin.php`).

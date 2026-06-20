@@ -147,7 +147,8 @@ $session = $sessStmt->fetch();
     .pk-counter button:hover{background:#e2e8f0}
     .pk-counter span{min-width:24px;text-align:center;font-weight:600;font-size:.85rem;padding:0 2px}
     .pk-tbl-input{width:42px;padding:.2rem .3rem;border:1.5px solid var(--border,#e2e8f0);border-radius:4px;text-align:center;font-size:.85rem}
-    .pk-cash-input{width:70px;padding:.2rem .3rem;border:1.5px solid var(--border,#e2e8f0);border-radius:4px;text-align:center;font-size:.85rem}
+    .pk-cash-input,.pk-co-input{width:70px;padding:.2rem .3rem;border:1.5px solid var(--border,#e2e8f0);border-radius:4px;text-align:center;font-size:.85rem;-moz-appearance:textfield;appearance:textfield}
+    .pk-cash-input::-webkit-outer-spin-button,.pk-cash-input::-webkit-inner-spin-button,.pk-co-input::-webkit-outer-spin-button,.pk-co-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 
     .pk-act-btn{background:#f1f5f9;border:1px solid #e2e8f0;cursor:pointer;font-size:.75rem;font-weight:600;padding:.25rem .55rem;margin:.1rem .15rem .1rem 0;border-radius:5px;color:#475569;white-space:nowrap}
     .pk-act-btn:hover{background:#e2e8f0;color:#0f172a}
@@ -892,15 +893,22 @@ function renderPlayerRows() {
                 h += '<td><span style="color:#94a3b8">—</span></td>';
                 h += '<td><span style="color:#94a3b8">—</span></td>';
             } else {
-                h += '<td><div class="pk-counter"><button onclick="adjustMoney(' + p.id + ',-1)">-</button><input type="text" class="pk-cash-input" data-pid="' + p.id + '" value="' + (cashIn/100) + '" onchange="setCashIn(' + p.id + ',this.value)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();setCashIn(' + p.id + ',this.value);focusNextCashInput(this);}" style="border:none;min-width:60px"><button onclick="adjustMoney(' + p.id + ',1)">+</button></div></td>';
-                if (hasCashedOut) {
-                    h += '<td><button class="pk-cashout-cell" title="Tap to edit cash-out" onclick="openCashout(' + p.id + ')">' + formatMoney(parseInt(p.cash_out)) + '</button></td>';
-                    var prof = parseInt(p.cash_out) - cashIn;
-                    var cls = prof > 0 ? 'pk-profit-pos' : (prof < 0 ? 'pk-profit-neg' : 'pk-profit-zero');
-                    h += '<td><span class="' + cls + '">' + formatProfit(prof) + '</span></td>';
-                } else if (parseInt(p.bought_in)) {
-                    h += '<td><button class="pk-act-btn primary" onclick="openCashout(' + p.id + ')">Cash Out</button></td>';
-                    h += '<td><span style="color:#94a3b8">—</span></td>';
+                h += '<td><div class="pk-counter"><input type="number" inputmode="decimal" step="0.01" min="0" class="pk-cash-input" data-pid="' + p.id + '" value="' + (cashIn/100) + '" onchange="setCashIn(' + p.id + ',this.value)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();setCashIn(' + p.id + ',this.value);focusNextCashInput(this);}" style="border:none;min-width:60px"><button onclick="adjustMoney(' + p.id + ',1)">+</button></div></td>';
+                if (parseInt(p.bought_in)) {
+                    // Inline cash-out field (mirrors Cash In). Green check commits for mouse users;
+                    // Enter also commits. Clearing the field reverts the player to still-playing.
+                    var coVal = hasCashedOut ? (parseInt(p.cash_out) / 100) : '';
+                    h += '<td><div class="pk-counter">'
+                       + '<input type="number" inputmode="decimal" step="0.01" min="0" class="pk-co-input" value="' + coVal + '" placeholder="0.00" onkeydown="if(event.key===\'Enter\'){event.preventDefault();commitCashOut(' + p.id + ',this.value);}" style="border:none;min-width:60px">'
+                       + '<button title="Record cash-out" style="color:#16a34a;font-weight:700" onclick="commitCashOut(' + p.id + ', this.previousElementSibling.value)">✓</button>'
+                       + '</div></td>';
+                    if (hasCashedOut) {
+                        var prof = parseInt(p.cash_out) - cashIn;
+                        var cls = prof > 0 ? 'pk-profit-pos' : (prof < 0 ? 'pk-profit-neg' : 'pk-profit-zero');
+                        h += '<td><span class="' + cls + '">' + formatProfit(prof) + '</span></td>';
+                    } else {
+                        h += '<td><span style="color:#94a3b8">—</span></td>';
+                    }
                 } else {
                     h += '<td><span style="color:#94a3b8">—</span></td>';
                     h += '<td><span style="color:#94a3b8">—</span></td>';
@@ -1061,7 +1069,7 @@ function renderMobileCards() {
             } else {
                 var cashIn = parseInt(p.cash_in) || 0;
                 h += '<div class="pk-mobile-row">';
-                h += '<label>Cash In</label><div class="pk-counter"><button onclick="adjustMoney(' + p.id + ',-1)">-</button><input type="text" class="pk-cash-input" value="' + (cashIn/100) + '" onchange="setCashIn(' + p.id + ',this.value)" style="border:none;min-width:50px"><button onclick="adjustMoney(' + p.id + ',1)">+</button></div>';
+                h += '<label>Cash In</label><div class="pk-counter"><input type="number" inputmode="decimal" step="0.01" min="0" class="pk-cash-input" value="' + (cashIn/100) + '" onchange="setCashIn(' + p.id + ',this.value)" style="border:none;min-width:50px"><button onclick="adjustMoney(' + p.id + ',1)">+</button></div>';
                 h += '</div>';
                 if (hasCashedOut) {
                     var prof = parseInt(p.cash_out) - cashIn;
@@ -1944,6 +1952,22 @@ function applyCashAdjust() {
 }
 
 // Cash game: cash out
+// Inline cash-out commit (desktop Cash Out column). Empty value reverts to playing.
+function commitCashOut(pid, val) {
+    var s = (val == null ? '' : String(val)).trim();
+    var p = PLAYERS.find(function(p) { return parseInt(p.id) === pid; });
+    var wasCashed = p && p.cash_out !== null && p.cash_out !== undefined;
+    if (s === '') {
+        if (wasCashed) undoCashout(pid);
+        return;
+    }
+    var amt = Math.round(parseFloat(s) * 100);
+    if (isNaN(amt) || amt < 0) return;
+    postAction('set_cashout', { player_id: pid, cash_out: amt }, function(j) {
+        updatePlayer(j.player); POOL = j.pool; refreshUI();
+    });
+}
+
 function openCashout(pid) {
     cashoutPlayerId = pid;
     var p = PLAYERS.find(function(p) { return parseInt(p.id) === pid; });
