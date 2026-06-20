@@ -99,8 +99,14 @@ if ($queue_sent > 0 || $queue_failed > 0) {
     echo "Queue: $queue_sent sent, $queue_failed failed.\n";
 }
 
-// Prune old pending_notifications older than 7 days (either sent successfully or maxed out retries)
+// Prune old pending_notifications older than 7 days (sent successfully — attempted_at
+// holds the last claim time and is not nulled on success).
 try { $db->exec("DELETE FROM pending_notifications WHERE attempted_at < datetime('now', '-7 days')"); } catch (Exception $e) {}
+// Prune dead rows that exhausted their retries. A failed drain resets attempted_at to
+// NULL, so a maxed-out row (attempts >= 3) is never re-claimed (claim needs attempts < 3)
+// AND never matched by the attempted_at prune above (NULL is never < a date) — without
+// this it would live forever. Age it out by created_at instead.
+try { $db->exec("DELETE FROM pending_notifications WHERE attempts >= 3 AND created_at < datetime('now', '-7 days')"); } catch (Exception $e) {}
 // Safety-net: rows pointing at deleted events. delete_events() cascades, but events
 // can also disappear via other paths, leaving zombie reminders/cancellations queued.
 try { $db->exec("DELETE FROM pending_notifications WHERE event_id NOT IN (SELECT id FROM events)"); } catch (Exception $e) {}

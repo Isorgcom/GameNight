@@ -11,7 +11,7 @@ $error    = '';
 $notice   = '';
 $needCode = false;   // emphasize the code field (account has 2FA, awaiting code)
 $redirect = $_POST['redirect'] ?? $_GET['redirect'] ?? '';
-if ($redirect === '' || !str_starts_with($redirect, '/') || str_starts_with($redirect, '//')) {
+if ($redirect === '' || !str_starts_with($redirect, '/') || str_starts_with($redirect, '//') || str_starts_with($redirect, '/\\')) {
     $redirect = '/';
 }
 

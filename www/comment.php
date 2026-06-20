@@ -10,9 +10,12 @@ if (!$user) {
     exit;
 }
 
-// Validate redirect — only allow relative paths
+// Validate redirect — only allow local relative paths. The leading char must be a
+// single "/" not followed by "/" or "\", so protocol-relative targets like //evil.com
+// (a redirect off-site) are rejected. The previous pattern used "*" and so matched
+// "//evil.com" by consuming zero chars after the slash.
 $redirect = $_POST['redirect'] ?? '/';
-if (!preg_match('#^/[^/\\\\]*#', $redirect)) $redirect = '/';
+if (!preg_match('#^/(?![/\\\\])#', $redirect)) $redirect = '/';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !csrf_verify()) {
     header('Location: ' . $redirect);

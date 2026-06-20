@@ -4,6 +4,16 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1982] - 2026-06-19
+
+### Security
+- **Closed open redirects in the comment and league action endpoints.** Three endpoints echoed a caller-supplied `redirect` value into `header('Location: ...)` without restricting it to a local path, so an authenticated user could be bounced off-site (e.g. to a phishing page) by a crafted form. `www/comment.php` used an unanchored pattern (`#^/[^/\\]*#`) whose trailing `*` matched protocol-relative `//evil.com` by consuming zero characters after the slash; it now requires the leading `/` to be followed by a non-`/`, non-`\` character (`#^/(?![/\\])#`). `www/league_posts_dl.php` and `www/league_api_keys_dl.php` passed the `redirect` field through verbatim; both now reject any value that isn't a local relative path (no `//` or `/\` protocol-relative forms, no absolute URLs), while preserving the empty-string case that selects JSON response mode. `www/login.php`'s post-login redirect guard was also hardened to reject the same `/\` protocol-relative form (browsers normalize `/\` to `//`). Exploitation always required a valid session and CSRF token, so impact was limited to open-redirect (header injection is blocked by PHP's newline stripping).
+
+### Fixed
+- **Stopped maxed-out notification rows from accumulating forever.** `cron.php` pruned `pending_notifications` with `WHERE attempted_at < datetime('now','-7 days')`, but a failed drain resets `attempted_at` to `NULL`. A row that exhausts its 3 retries ends with `attempts = 3` and `attempted_at = NULL`, so it was never re-claimed (the claim query requires `attempts < 3`) and never matched the prune (a `NULL` is never `<` a date) — these dead rows lived indefinitely, only ever cleared if their event was later deleted. `cron.php` now also runs `DELETE FROM pending_notifications WHERE attempts >= 3 AND created_at < datetime('now','-7 days')` to age out exhausted rows by their creation time.
+
+---
+
 ## [v0.1981] - 2026-06-19
 
 ### Security
