@@ -4,7 +4,10 @@ All notable changes to GameNight are documented here.
 
 ---
 
-## [v0.1988] - 2026-06-20
+## [v0.1989] - 2026-06-20
+
+### Changed
+- **Mobile cash-out is now an inline field too, matching desktop and Cash In.** On phone-width cards, a bought-in player's expanded view now shows a Cash Out row with a number input and a green check (✓) to record the cash-out (Enter also commits; clearing the field then committing reverts the player to still-playing). The mobile Cash Out / Undo Cash Out action buttons were removed as redundant. With no remaining caller on desktop or mobile, the cash-out popup dialog was removed entirely (its markup and the `openCashout`/`saveCashout`/`closeCashout`/`undoCashoutFromModal` handlers); cash-out now flows only through the inline `commitCashOut` path. Cash In and Cash Out are now consistent, popup-free inline fields across both layouts (`www/checkin.php`).
 
 ### Changed
 - **Cash Out is now an inline field on the desktop check-in table, matching Cash In, instead of a button that opens a popup.** Feedback was that popping a dialog to cash a player out felt harsh. The Cash Out column now shows a number input with a green check (✓) button alongside it (where Cash In has a +): type the amount and press Enter or click the check to record the cash-out (the check gives mouse users an obvious commit affordance). Editing re-commits, and clearing the field then committing reverts the player to still-playing (replacing the old "Undo Cash-out"). The remaining cash on the table is still visible in the stats bar. A separate input class keeps Cash In's Enter-to-next-player behaviour from jumping into the Cash Out field. Mobile cards still use the tap-to-open dialog (`www/checkin.php`).

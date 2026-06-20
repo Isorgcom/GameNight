@@ -346,21 +346,6 @@ $session = $sessStmt->fetch();
     </div>
 </div>
 
-<!-- Cash-out modal -->
-<div class="pk-modal-overlay" id="cashoutModal">
-    <div class="pk-modal">
-        <h3>Cash Out Player</h3>
-        <div style="font-size:.85rem;color:#475569;margin-bottom:.6rem">Cash on table: <b id="cashoutOnTable" style="color:#16a34a">$0.00</b></div>
-        <label style="font-size:.85rem;font-weight:600;color:#475569;display:block;margin-bottom:.3rem">Cash-out amount ($)</label>
-        <input type="number" id="cashoutAmount" step="0.01" min="0" style="width:100%;padding:.5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:1rem;box-sizing:border-box">
-        <div class="pk-modal-actions">
-            <button onclick="closeCashout()">Cancel</button>
-            <button id="cashoutUndoBtn" style="display:none;color:#dc2626;border-color:#fca5a5" onclick="undoCashoutFromModal()">Undo Cash-out</button>
-            <button class="pk-save" onclick="saveCashout()">Cash Out</button>
-        </div>
-    </div>
-</div>
-
 <!-- Cash-in adjust modal -->
 <div class="pk-modal-overlay" id="cashAdjustModal" onclick="if(event.target===this)closeCashAdjust()">
     <div class="pk-modal">
@@ -449,7 +434,6 @@ var VIEW_MODE = 'list';
 var SORT_KEY = '';   // '' = default (entry order); otherwise a column key
 var SORT_DIR = 1;    // 1 = ascending, -1 = descending
 var notesPlayerId = null;
-var cashoutPlayerId = null;
 
 function isCash() { return SESSION && SESSION.game_type === 'cash'; }
 function isTourney() { return !SESSION || SESSION.game_type === 'tournament'; }
@@ -1071,9 +1055,14 @@ function renderMobileCards() {
                 h += '<div class="pk-mobile-row">';
                 h += '<label>Cash In</label><div class="pk-counter"><input type="number" inputmode="decimal" step="0.01" min="0" class="pk-cash-input" value="' + (cashIn/100) + '" onchange="setCashIn(' + p.id + ',this.value)" style="border:none;min-width:50px"><button onclick="adjustMoney(' + p.id + ',1)">+</button></div>';
                 h += '</div>';
+                if (parseInt(p.bought_in)) {
+                    var coVal = hasCashedOut ? (parseInt(p.cash_out)/100) : '';
+                    h += '<div class="pk-mobile-row">';
+                    h += '<label>Cash Out</label><div class="pk-counter"><input type="number" inputmode="decimal" step="0.01" min="0" class="pk-co-input" value="' + coVal + '" placeholder="0.00" onkeydown="if(event.key===\'Enter\'){event.preventDefault();commitCashOut(' + p.id + ',this.value);}" style="border:none;min-width:50px"><button title="Record cash-out" style="color:#16a34a;font-weight:700" onclick="commitCashOut(' + p.id + ', this.previousElementSibling.value)">✓</button></div>';
+                    h += '</div>';
+                }
                 if (hasCashedOut) {
                     var prof = parseInt(p.cash_out) - cashIn;
-                    h += '<div class="pk-mobile-row"><label>Cash Out</label><span>' + formatMoney(parseInt(p.cash_out)) + '</span></div>';
                     h += '<div class="pk-mobile-row"><label>Profit</label><span class="' + (prof>0?'pk-profit-pos':prof<0?'pk-profit-neg':'pk-profit-zero') + '">' + formatProfit(prof) + '</span></div>';
                 }
             }
@@ -1102,9 +1091,8 @@ function renderMobileCards() {
                 if (!isElim && parseInt(p.bought_in) && !isWinner) h += '<button class="primary" onclick="eliminatePlayer(' + p.id + ')">Eliminate</button>';
                 if (isElim) h += '<button onclick="uneliminate(' + p.id + ')">Undo Elim</button>';
             } else {
-                if (parseInt(p.bought_in) && !hasCashedOut) h += '<button class="primary" onclick="openCashout(' + p.id + ')">Cash Out</button>';
-                if (hasCashedOut) h += '<button onclick="undoCashout(' + p.id + ')">Undo Cash Out</button>';
-                // Cash games: no elimination. Keep Undo for any pre-existing eliminated player.
+                // Cash games: cashing out is inline in the Cash Out row above.
+                // Keep Undo Elim for any player eliminated before that rule.
                 if (isElim) h += '<button onclick="uneliminate(' + p.id + ')">Undo Elim</button>';
             }
         }
@@ -1965,58 +1953,6 @@ function commitCashOut(pid, val) {
     if (isNaN(amt) || amt < 0) return;
     postAction('set_cashout', { player_id: pid, cash_out: amt }, function(j) {
         updatePlayer(j.player); POOL = j.pool; refreshUI();
-    });
-}
-
-function openCashout(pid) {
-    cashoutPlayerId = pid;
-    var p = PLAYERS.find(function(p) { return parseInt(p.id) === pid; });
-    var alreadyOut = (p && p.cash_out !== null && p.cash_out !== undefined);
-    var oldCashout = alreadyOut ? parseInt(p.cash_out) : 0;
-    var inp = document.getElementById('cashoutAmount');
-    // Pre-fill with their current cash-out when editing, else total-in as a suggestion.
-    inp.value = ((alreadyOut ? oldCashout : (p ? playerTotalIn(p) : 0)) / 100);
-    // Set max to money remaining on the table (add back this player's existing cashout if re-cashing)
-    var remaining = (POOL.pool_total - POOL.total_cash_out + oldCashout);
-    inp.max = (remaining / 100);
-    var ot = document.getElementById('cashoutOnTable');
-    if (ot) ot.textContent = formatMoney(remaining);
-    // Undo only makes sense when editing an existing cash-out.
-    var undoBtn = document.getElementById('cashoutUndoBtn');
-    if (undoBtn) undoBtn.style.display = alreadyOut ? '' : 'none';
-    document.getElementById('cashoutModal').classList.add('open');
-    inp.focus();
-    inp.select();
-    inp.onkeydown = function(e) { if (e.key === 'Enter') saveCashout(); };
-}
-
-function undoCashoutFromModal() {
-    if (!cashoutPlayerId) return;
-    var pid = cashoutPlayerId;
-    closeCashout();
-    undoCashout(pid);
-}
-
-function closeCashout() {
-    document.getElementById('cashoutModal').classList.remove('open');
-    cashoutPlayerId = null;
-}
-
-function saveCashout() {
-    if (!cashoutPlayerId) return;
-    var amt = Math.round(parseFloat(document.getElementById('cashoutAmount').value || 0) * 100);
-    var p = PLAYERS.find(function(p) { return parseInt(p.id) === cashoutPlayerId; });
-    var oldCashout = (p && p.cash_out !== null && p.cash_out !== undefined) ? parseInt(p.cash_out) : 0;
-    var remaining = POOL.pool_total - POOL.total_cash_out + oldCashout;
-    if (amt > remaining) {
-        alert('Cash-out ($' + (amt / 100) + ') exceeds money remaining on the table ($' + (remaining / 100) + ').');
-        return;
-    }
-    postAction('set_cashout', { player_id: cashoutPlayerId, cash_out: amt }, function(j) {
-        updatePlayer(j.player);
-        POOL = j.pool;
-        closeCashout();
-        refreshUI();
     });
 }
 
