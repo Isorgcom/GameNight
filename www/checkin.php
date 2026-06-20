@@ -391,18 +391,6 @@ $session = $sessStmt->fetch();
     </div>
 </div>
 
-<!-- Generic confirm modal (used by Remove, etc.) -->
-<div class="pk-modal-overlay" id="confirmModal" onclick="if(event.target===this)closeConfirm()">
-    <div class="pk-modal">
-        <h3 id="confirmTitle">Confirm</h3>
-        <p id="confirmMsg" style="font-size:.9rem;color:#475569;line-height:1.45;margin:0"></p>
-        <div class="pk-modal-actions">
-            <button onclick="closeConfirm()">Cancel</button>
-            <button class="pk-save" id="confirmOkBtn" onclick="confirmProceed()">OK</button>
-        </div>
-    </div>
-</div>
-
 <!-- Winner / game-over modal -->
 <div class="pk-modal-overlay" id="winnerModal" onclick="if(event.target===this)closeWinner()">
     <div class="pk-modal" style="text-align:center">
@@ -1798,46 +1786,20 @@ function closeElim() {
 
 // Generic in-app confirm modal (replaces native confirm()).
 // opts: { title, message (HTML), okLabel, danger, onConfirm }
-var _confirmCb = null;
-function pkConfirm(opts) {
-    opts = opts || {};
-    document.getElementById('confirmTitle').textContent = opts.title || 'Confirm';
-    document.getElementById('confirmMsg').innerHTML = opts.message || '';
-    var ok = document.getElementById('confirmOkBtn');
-    ok.textContent = opts.okLabel || 'OK';
-    ok.style.background = opts.danger ? '#dc2626' : '';
-    _confirmCb = typeof opts.onConfirm === 'function' ? opts.onConfirm : null;
-    document.getElementById('confirmModal').classList.add('open');
-}
-function closeConfirm() {
-    document.getElementById('confirmModal').classList.remove('open');
-    _confirmCb = null;
-}
-function confirmProceed() {
-    var cb = _confirmCb;
-    closeConfirm();
-    if (cb) cb();
-}
-
+// Remove confirmations use the shared pkConfirm (pk-dialogs.js).
 function removePlayerConfirm(pid) {
     var p = PLAYERS.find(function(p) { return parseInt(p.id) === pid; });
-    pkConfirm({
-        title: 'Remove Player',
-        message: 'Remove <b>' + escHtml(p ? p.display_name : 'this player') + '</b> from the event?',
-        okLabel: 'Remove', danger: true,
-        onConfirm: function() { removePlayer(pid); }
-    });
+    pkConfirm('Remove <b>' + escHtml(p ? p.display_name : 'this player') + '</b> from the event?',
+        { title: 'Remove Player', okLabel: 'Remove', danger: true })
+        .then(function(ok) { if (ok) removePlayer(pid); });
 }
 
 function bulkRemoveConfirm() {
     var n = document.querySelectorAll('.pk-player-cb:checked').length;
     if (!n) return;
-    pkConfirm({
-        title: 'Remove Players',
-        message: 'Remove ' + n + ' selected player' + (n === 1 ? '' : 's') + '?',
-        okLabel: 'Remove', danger: true,
-        onConfirm: function() { bulkAction('remove_player'); }
-    });
+    pkConfirm('Remove ' + n + ' selected player' + (n === 1 ? '' : 's') + '?',
+        { title: 'Remove Players', okLabel: 'Remove', danger: true })
+        .then(function(ok) { if (ok) bulkAction('remove_player'); });
 }
 
 function showWinner(w) {

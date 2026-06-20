@@ -720,3 +720,13 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
     box-shadow: 0 6px 18px rgba(37, 99, 235, .35);
 }
 .help-pill:hover { filter: brightness(1.05); }
+
+/* ── Shared modal / dialog (pk-dialogs.js + page modals) ── */
+.pk-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center}
+.pk-modal-overlay.open{display:flex}
+.pk-modal{background:var(--surface,#fff);border-radius:12px;padding:1.5rem;width:90%;max-width:400px;box-shadow:0 10px 40px rgba(0,0,0,.25)}
+.pk-modal h3{margin:0 0 .75rem}
+.pk-modal textarea{width:100%;height:100px;padding:.5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:.9rem;resize:vertical;box-sizing:border-box}
+.pk-modal-actions{display:flex;gap:.5rem;justify-content:flex-end;margin-top:.75rem}
+.pk-modal-actions button{padding:.4rem 1rem;border-radius:6px;font-size:.85rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border,#e2e8f0);background:#fff}
+.pk-modal-actions .pk-save{background:var(--accent,#2563eb);color:#fff;border-color:transparent}

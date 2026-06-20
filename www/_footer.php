@@ -50,3 +50,4 @@ if ($_hb_user) {
     }
 }
 ?>
+<script src="/pk-dialogs.js?v=<?= htmlspecialchars(APP_VERSION) ?>" defer></script>

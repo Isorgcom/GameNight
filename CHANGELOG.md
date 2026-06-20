@@ -4,7 +4,10 @@ All notable changes to GameNight are documented here.
 
 ---
 
-## [v0.1989] - 2026-06-20
+## [v0.1990] - 2026-06-20
+
+### Added
+- **Shared in-app dialog utility (`pk-dialogs.js`).** Groundwork for replacing the browser's native `alert()`/`confirm()`/`prompt()` app-wide (native dialogs are inconsistent and, after repeated use, the browser can suppress them and silently swallow the action). The new utility provides Promise-based `pkAlert`, `pkConfirm`, and `pkPrompt`, plus `pkConfirmForm`/`pkConfirmGo` helpers for `onsubmit`/`onclick="return confirm()"` cases. It self-injects a single reusable modal, handles Enter/Esc/click-outside/focus, and reuses the existing `.pk-modal` styling. It is loaded on every page via `_footer.php` (like `help-bubble.js`), and the base modal CSS was promoted from `checkin.php` into `style.css` so it applies site-wide. `checkin.php`'s Remove confirmations were migrated to the shared helper (removing its local duplicate). Subsequent releases will convert the remaining ~170 native dialog call sites in batches.
 
 ### Changed
 - **Mobile cash-out is now an inline field too, matching desktop and Cash In.** On phone-width cards, a bought-in player's expanded view now shows a Cash Out row with a number input and a green check (✓) to record the cash-out (Enter also commits; clearing the field then committing reverts the player to still-playing). The mobile Cash Out / Undo Cash Out action buttons were removed as redundant. With no remaining caller on desktop or mobile, the cash-out popup dialog was removed entirely (its markup and the `openCashout`/`saveCashout`/`closeCashout`/`undoCashoutFromModal` handlers); cash-out now flows only through the inline `commitCashOut` path. Cash In and Cash Out are now consistent, popup-free inline fields across both layouts (`www/checkin.php`).
