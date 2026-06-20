@@ -2566,3 +2566,27 @@ function can_manage_event(PDO $db, int $event_id, int $user_id, bool $is_admin =
     if (in_array($row['league_role'] ?? '', ['owner', 'manager'], true)) return true;
     return false;
 }
+
+// Returns the event id of the user's most recent in-progress (status='active')
+// poker game they can manage, or 0. Used to point the nav "Timer" link at the
+// live game so its prize pool / players sync, instead of an unlinked timer.
+function user_active_poker_event_id(PDO $db, int $user_id, bool $is_admin = false): int {
+    if ($user_id <= 0 && !$is_admin) return 0;
+    if ($is_admin) {
+        $stmt = $db->prepare("SELECT e.id FROM events e JOIN poker_sessions ps ON ps.event_id = e.id
+                              WHERE ps.status = 'active' ORDER BY e.start_date DESC, e.id DESC LIMIT 1");
+        $stmt->execute();
+    } else {
+        $stmt = $db->prepare("SELECT e.id FROM events e JOIN poker_sessions ps ON ps.event_id = e.id
+            WHERE ps.status = 'active' AND (
+                e.created_by = ?
+                OR EXISTS (SELECT 1 FROM event_invites ei JOIN users u ON LOWER(u.username) = LOWER(ei.username)
+                           WHERE ei.event_id = e.id AND u.id = ? AND ei.event_role = 'manager')
+                OR EXISTS (SELECT 1 FROM league_members lm
+                           WHERE lm.league_id = e.league_id AND lm.user_id = ? AND lm.role IN ('owner','manager'))
+            ) ORDER BY e.start_date DESC, e.id DESC LIMIT 1");
+        $stmt->execute([$user_id, $user_id, $user_id]);
+    }
+    $r = $stmt->fetchColumn();
+    return $r ? (int)$r : 0;
+}

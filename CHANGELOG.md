@@ -4,7 +4,10 @@ All notable changes to GameNight are documented here.
 
 ---
 
-## [v0.1983] - 2026-06-20
+## [v0.1984] - 2026-06-20
+
+### Added
+- **Tournament timer can now sync prize pool and players across devices.** The timer only shows live financials when it is opened linked to an event (`timer.php?event_id=…`); opened with no parameters it runs standalone with no session and a null pool, which is why a timer launched on a second device (e.g. an iPad) showed `$0.00` and never updated even on refresh — the poll endpoint only computes pool for a positive session id (`timer_dl.php`). Two changes close that gap. First, the nav "Tournament Timer" link now points at the user's in-progress game when one is running, via a new `user_active_poker_event_id()` helper in `www/db.php`, so opening the timer from the menu lands on the event-linked timer that syncs automatically. Second, a standalone timer opened by a host who can manage poker games now shows a "this timer isn't linked to an event" banner with a dropdown of their games (active games listed first), built on a new `user_poker_events()` helper in `www/_poker_helpers.php`; picking one reloads the timer linked to that event (`www/timer.php`). Once linked, the laptop's buy-ins, rebuys, and eliminations appear on the timer (and on players' QR screens) within the existing ~2-second poll. The banner is hidden in cast/display mode and for guests/remote viewers.
 
 ### Added
 - **Tournament finishing places and prize-owed now recorded automatically.** Eliminating a player on the check-in screen (`www/checkin.php`, `www/checkin_dl.php`) no longer prompts the host to type a finishing position. The backend `eliminate_player` action derives the place from elimination order (the number of players still in, including the one being knocked out), so busting out with nine left records 9th, the next 8th, and so on. For places that are in the money, the prize owed is shown next to the player, computed live from the current prize pool and the configured payout structure (the same formula the payout card uses), so it always stays consistent. Finishing place feeds league standings (`league.php`), so getting it right matters beyond display.

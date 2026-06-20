@@ -8,6 +8,15 @@
  */
 $_nu                   = $nav_user ?? $current ?? $user ?? null;
 $_active               = $nav_active ?? '';
+// Point the Timer link at the user's in-progress game (so its prize pool /
+// players sync live), falling back to a standalone timer when none is running.
+$_timer_href = '/timer.php';
+if ($_nu && !empty($_nu['id']) && function_exists('user_active_poker_event_id')) {
+    try {
+        $_aeid = user_active_poker_event_id(get_db(), (int)$_nu['id'], (($_nu['role'] ?? '') === 'admin'));
+        if ($_aeid) $_timer_href = '/timer.php?event_id=' . $_aeid;
+    } catch (Throwable $e) { /* fall back to standalone */ }
+}
 // Admin-only "update available" dot on the Site Settings link.
 $_show_update_dot      = ($_nu && ($_nu['role'] ?? '') === 'admin'
                           && function_exists('update_available') && update_available());
@@ -70,7 +79,7 @@ $_accent        = get_setting('accent_color', '');
                         <a href="/admin_posts.php" class="nav-mobile-link<?= $_active === 'posts' ? ' active' : '' ?>">Posts</a>
                         <a href="/admin_settings.php" class="nav-mobile-link<?= $_active === 'site-settings' ? ' active' : '' ?>">Site Settings<?php if ($_show_update_dot): ?> <span class="nav-update-dot" title="Update available: v<?= htmlspecialchars(get_setting('latest_version')) ?>"></span><?php endif; ?></a>
                         <?php endif; ?>
-                        <a href="/timer.php" class="nav-mobile-link">Tournament Timer</a>
+                        <a href="<?= htmlspecialchars($_timer_href, ENT_QUOTES) ?>" class="nav-mobile-link">Tournament Timer</a>
                         <div class="nav-mobile-divider"></div>
                         <div class="nav-help-group<?= $_active === 'help' ? ' open' : '' ?>">
                             <button type="button" class="nav-help-toggle" onclick="this.parentElement.classList.toggle('open');">Help <span class="nav-help-caret" aria-hidden="true">&#9656;</span></button>

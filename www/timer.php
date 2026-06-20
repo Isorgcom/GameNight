@@ -65,6 +65,8 @@ $site_name = get_setting('site_name', 'Game Night');
 
 $is_remote = false;
 $is_guest = false;
+$is_standalone = false;       // timer opened with no event link (no pool/players)
+$linkable_events = [];        // events the host can link this standalone timer to
 $is_display = isset($_GET['display']) && $_GET['display'] === '1';
 $can_control = false;
 $session = null;
@@ -220,6 +222,12 @@ if (isset($_GET['view']) && $_GET['view'] === 'remote' && !empty($_GET['key'])) 
         $pool = null;
         $payouts = [];
         $game_type = null;
+        $is_standalone = true;
+        // Offer to link this timer to one of the host's poker games so its
+        // prize pool / players sync (this is the "not linked" recovery path).
+        if ($current) {
+            $linkable_events = user_poker_events($db, (int)$current['id'], $isAdmin);
+        }
     }
 
     $remote_key = $timer['remote_key'];
@@ -596,6 +604,28 @@ $themeCss   = timer_theme_css_vars($themeProps);
             font-weight: 600;
             user-select: none;
         }
+
+        /* ── "Link this timer to an event" banner (standalone mode) ── */
+        .timer-link-banner {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 300;
+            display: flex; flex-wrap: wrap; gap: .5rem .75rem;
+            align-items: center; justify-content: center;
+            background: #78350f; color: #fde68a;
+            padding: .5rem .9rem; font-size: .85rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,.4);
+        }
+        .timer-link-banner .tlb-text { font-weight: 600; }
+        .timer-link-banner .tlb-controls { display: flex; gap: .4rem; align-items: center; }
+        .timer-link-banner .tlb-select {
+            padding: .3rem .5rem; border-radius: 5px; border: 1px solid #b45309;
+            background: #fffbeb; color: #0f172a; font-size: .85rem; max-width: 60vw;
+        }
+        .timer-link-banner .tlb-btn {
+            padding: .3rem .8rem; border-radius: 5px; border: none;
+            background: #f59e0b; color: #0f172a; font-weight: 700; cursor: pointer; font-size: .85rem;
+        }
+        .timer-link-banner .tlb-btn:hover { background: #fbbf24; }
+        body.display-mode .timer-link-banner { display: none; }
 
         /* ── Back link ── */
         .timer-back {
@@ -1415,6 +1445,21 @@ $themeCss   = timer_theme_css_vars($themeProps);
 <?php endif; ?>
 <?php endif; ?>
 
+<?php if ($is_standalone && !empty($linkable_events)): ?>
+<div class="timer-link-banner" id="timerLinkBanner">
+    <span class="tlb-text">&#9888; This timer isn't linked to an event, so the prize pool and players won't show.</span>
+    <span class="tlb-controls">
+        <select id="timerLinkSelect" class="tlb-select" aria-label="Link timer to event">
+            <option value="">Link to an event&hellip;</option>
+            <?php foreach ($linkable_events as $le): ?>
+            <option value="<?= (int)$le['id'] ?>"><?= htmlspecialchars($le['title']) ?><?= ($le['session_status'] ?? '') === 'active' ? ' (live)' : '' ?> &mdash; <?= htmlspecialchars($le['start_date']) ?></option>
+            <?php endforeach; ?>
+        </select>
+        <button type="button" class="tlb-btn" onclick="linkTimerToEvent()">Link</button>
+    </span>
+</div>
+<?php endif; ?>
+
 <div class="timer-container">
     <!-- Average stack display (tournaments only) -->
     <div class="timer-avgstack" id="avgStackWrap" style="display:none">
@@ -1883,6 +1928,12 @@ function fmtTime(secs) {
 }
 function fmtMoney(cents) {
     return '$' + (cents / 100).toFixed(2);
+}
+// Standalone "link this timer to an event" banner action.
+function linkTimerToEvent() {
+    var sel = document.getElementById('timerLinkSelect');
+    if (!sel || !sel.value) return;
+    window.location.href = '/timer.php?event_id=' + encodeURIComponent(sel.value);
 }
 function fmtChips(n) {
     if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';

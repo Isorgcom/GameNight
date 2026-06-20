@@ -113,6 +113,29 @@ function check_event_access($db, $event_id, $current, $isAdmin) {
     return can_manage_event($db, (int)$event_id, (int)$current['id'], (bool)$isAdmin);
 }
 
+// Poker events the user can manage (active games first, then most recent).
+// Used to let a standalone timer be linked to an event so its data syncs.
+function user_poker_events($db, $user_id, $is_admin = false) {
+    $order = "ORDER BY CASE ps.status WHEN 'active' THEN 0 WHEN 'setup' THEN 1 ELSE 2 END, e.start_date DESC, e.id DESC LIMIT 50";
+    if ($is_admin) {
+        $stmt = $db->prepare("SELECT e.id, e.title, e.start_date, ps.status AS session_status
+                              FROM events e JOIN poker_sessions ps ON ps.event_id = e.id $order");
+        $stmt->execute();
+    } else {
+        if ((int)$user_id <= 0) return [];
+        $stmt = $db->prepare("SELECT e.id, e.title, e.start_date, ps.status AS session_status
+            FROM events e JOIN poker_sessions ps ON ps.event_id = e.id
+            WHERE e.created_by = ?
+               OR EXISTS (SELECT 1 FROM event_invites ei JOIN users u ON LOWER(u.username) = LOWER(ei.username)
+                          WHERE ei.event_id = e.id AND u.id = ? AND ei.event_role = 'manager')
+               OR EXISTS (SELECT 1 FROM league_members lm
+                          WHERE lm.league_id = e.league_id AND lm.user_id = ? AND lm.role IN ('owner','manager'))
+            $order");
+        $stmt->execute([$user_id, $user_id, $user_id]);
+    }
+    return $stmt->fetchAll();
+}
+
 // Verify session access via player_id
 function get_session_from_player($db, $player_id) {
     $stmt = $db->prepare('SELECT ps.* FROM poker_players pp JOIN poker_sessions ps ON pp.session_id = ps.id WHERE pp.id = ?');
