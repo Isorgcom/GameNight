@@ -441,7 +441,7 @@ if ($action === 'eliminate_player') {
     $remain = $db->prepare('SELECT id FROM poker_players WHERE session_id = ? AND removed = 0 AND eliminated = 0 AND bought_in = 1');
     $remain->execute([$session['id']]);
     $remainIds = $remain->fetchAll(PDO::FETCH_COLUMN);
-    if (count($remainIds) === 1) {
+    if (($session['game_type'] ?? '') === 'tournament' && count($remainIds) === 1) {
         $winnerId = (int)$remainIds[0];
         $db->prepare('UPDATE poker_players SET finish_position = 1 WHERE id = ?')->execute([$winnerId]);
         $db->prepare("UPDATE poker_sessions SET status = 'finished' WHERE id = ?")->execute([$session['id']]);

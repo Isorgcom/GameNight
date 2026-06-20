@@ -149,10 +149,12 @@ $session = $sessStmt->fetch();
     .pk-tbl-input{width:42px;padding:.2rem .3rem;border:1.5px solid var(--border,#e2e8f0);border-radius:4px;text-align:center;font-size:.85rem}
     .pk-cash-input{width:70px;padding:.2rem .3rem;border:1.5px solid var(--border,#e2e8f0);border-radius:4px;text-align:center;font-size:.85rem}
 
-    .pk-act-btn{background:transparent;border:none;cursor:pointer;font-size:.75rem;padding:.2rem .4rem;border-radius:4px;color:#64748b;white-space:nowrap}
-    .pk-act-btn:hover{background:#f1f5f9;color:#0f172a}
-    .pk-act-btn.danger{color:#ef4444}
-    .pk-act-btn.danger:hover{background:#fef2f2;color:#dc2626}
+    .pk-act-btn{background:#f1f5f9;border:1px solid #e2e8f0;cursor:pointer;font-size:.75rem;font-weight:600;padding:.25rem .55rem;margin:.1rem .15rem .1rem 0;border-radius:5px;color:#475569;white-space:nowrap}
+    .pk-act-btn:hover{background:#e2e8f0;color:#0f172a}
+    .pk-act-btn.primary{background:#16a34a;border-color:#16a34a;color:#fff}
+    .pk-act-btn.primary:hover{background:#15803d;color:#fff}
+    .pk-act-btn.danger{background:#dc2626;border-color:#dc2626;color:#fff}
+    .pk-act-btn.danger:hover{background:#b91c1c;color:#fff}
     .pk-profit-pos{color:#22c55e;font-weight:600}
     .pk-profit-neg{color:#ef4444;font-weight:600}
     .pk-profit-zero{color:#64748b;font-weight:600}
@@ -216,7 +218,8 @@ $session = $sessStmt->fetch();
     .pk-mobile-actions{display:flex;gap:.4rem;flex-wrap:wrap;padding-top:.4rem;border-top:1px solid #e2e8f0;margin-top:.3rem}
     .pk-mobile-actions button{padding:.35rem .7rem;border-radius:6px;font-size:.78rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border,#e2e8f0);background:#fff}
     .pk-mobile-actions button:active{background:#e2e8f0}
-    .pk-mobile-actions .danger{color:#ef4444;border-color:#fca5a5}
+    .pk-mobile-actions .primary{background:#16a34a;border-color:#16a34a;color:#fff}
+    .pk-mobile-actions .danger{background:#dc2626;border-color:#dc2626;color:#fff}
     .pk-bulk-bar{display:flex;align-items:center;gap:.5rem;padding:.5rem .75rem;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:8px;margin-bottom:.5rem;flex-wrap:wrap;transition:background .15s,border-color .15s}
     .pk-bulk-bar.active{background:#eff6ff;border-color:#bfdbfe}
     .pk-bulk-bar:not(.active) button{opacity:.4;pointer-events:none}
@@ -344,6 +347,7 @@ $session = $sessStmt->fetch();
 <div class="pk-modal-overlay" id="cashoutModal">
     <div class="pk-modal">
         <h3>Cash Out Player</h3>
+        <div style="font-size:.85rem;color:#475569;margin-bottom:.6rem">Cash on table: <b id="cashoutOnTable" style="color:#16a34a">$0.00</b></div>
         <label style="font-size:.85rem;font-weight:600;color:#475569;display:block;margin-bottom:.3rem">Cash-out amount ($)</label>
         <input type="number" id="cashoutAmount" step="0.01" min="0" style="width:100%;padding:.5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:1rem;box-sizing:border-box">
         <div class="pk-modal-actions">
@@ -381,6 +385,18 @@ $session = $sessStmt->fetch();
         <div class="pk-modal-actions">
             <button onclick="closeElim()">Cancel</button>
             <button class="pk-save" style="background:#dc2626" onclick="confirmElim()">Eliminate</button>
+        </div>
+    </div>
+</div>
+
+<!-- Generic confirm modal (used by Remove, etc.) -->
+<div class="pk-modal-overlay" id="confirmModal" onclick="if(event.target===this)closeConfirm()">
+    <div class="pk-modal">
+        <h3 id="confirmTitle">Confirm</h3>
+        <p id="confirmMsg" style="font-size:.9rem;color:#475569;line-height:1.45;margin:0"></p>
+        <div class="pk-modal-actions">
+            <button onclick="closeConfirm()">Cancel</button>
+            <button class="pk-save" id="confirmOkBtn" onclick="confirmProceed()">OK</button>
         </div>
     </div>
 </div>
@@ -653,7 +669,7 @@ function renderDashboard() {
             h += '<button onclick="bulkAction(\'eliminate_player\')">Eliminate</button>';
         }
         h += '<button title="Approve the selected pending self-signups / walk-ins onto the roster" onclick="bulkAction(\'approve_player\')">Approve</button>';
-        h += '<button class="danger" onclick="if(confirm(\'Remove selected players?\'))bulkAction(\'remove_player\')">Remove</button>';
+        h += '<button class="danger" onclick="bulkRemoveConfirm()">Remove</button>';
         h += '<button onclick="clearSelection()">Clear</button>';
         h += '</div>';
         h += '<div class="pk-table-wrap"><table class="pk-table">';
@@ -909,34 +925,33 @@ function renderPlayerRows() {
         // Actions
         h += '<td style="white-space:nowrap">';
         if (isPending) {
-            h += '<button class="pk-act-btn" style="background:#16a34a;color:#fff;font-weight:600" title="This player joined via self-signup / walk-in QR. Approve to add them to the roster so they can buy in." onclick="approvePlayer(' + p.id + ')">Approve</button>';
+            h += '<button class="pk-act-btn primary" title="This player joined via self-signup / walk-in QR. Approve to add them to the roster so they can buy in." onclick="approvePlayer(' + p.id + ')">Approve</button>';
             h += '<button class="pk-act-btn danger" title="Reject this join request and remove them from the list." onclick="denyPlayer(' + p.id + ')">Deny</button>';
         } else {
             if (!isNo) {
                 if (isTourney()) {
                     if (!isElim && parseInt(p.bought_in) && !isWinner) {
-                        h += '<button class="pk-act-btn" onclick="eliminatePlayer(' + p.id + ')">Eliminate</button>';
+                        h += '<button class="pk-act-btn primary" onclick="eliminatePlayer(' + p.id + ')">Eliminate</button>';
                     }
                     if (isElim) {
                         h += '<button class="pk-act-btn" onclick="uneliminate(' + p.id + ')">Undo</button>';
                     }
                 } else {
                     if (parseInt(p.bought_in) && !hasCashedOut) {
-                        h += '<button class="pk-act-btn" onclick="openCashout(' + p.id + ')">Cash Out</button>';
+                        h += '<button class="pk-act-btn primary" onclick="openCashout(' + p.id + ')">Cash Out</button>';
                     }
                     if (hasCashedOut) {
                         h += '<button class="pk-act-btn" onclick="undoCashout(' + p.id + ')">Undo Cash Out</button>';
                     }
-                    if (!isElim && parseInt(p.bought_in)) {
-                        h += '<button class="pk-act-btn" onclick="eliminatePlayer(' + p.id + ')">Eliminate</button>';
-                    }
+                    // Cash games have no elimination/finishing places — players cash out.
+                    // Keep Undo for any player eliminated before this rule existed.
                     if (isElim) {
                         h += '<button class="pk-act-btn" onclick="uneliminate(' + p.id + ')">Undo Elim</button>';
                     }
                 }
             }
             h += '<button class="pk-act-btn" onclick="openNotes(' + p.id + ')">Notes</button>';
-            h += '<button class="pk-act-btn danger" onclick="if(confirm(\'Remove ' + escHtml(p.display_name) + ' from the event?\'))removePlayer(' + p.id + ')">Remove</button>';
+            h += '<button class="pk-act-btn danger" onclick="removePlayerConfirm(' + p.id + ')">Remove</button>';
         }
         h += '</td>';
         h += '</tr>';
@@ -1063,17 +1078,17 @@ function renderMobileCards() {
         h += '<div class="pk-mobile-actions">';
         if (!isNo) {
             if (isTourney()) {
-                if (!isElim && parseInt(p.bought_in) && !isWinner) h += '<button onclick="eliminatePlayer(' + p.id + ')">Eliminate</button>';
+                if (!isElim && parseInt(p.bought_in) && !isWinner) h += '<button class="primary" onclick="eliminatePlayer(' + p.id + ')">Eliminate</button>';
                 if (isElim) h += '<button onclick="uneliminate(' + p.id + ')">Undo Elim</button>';
             } else {
-                if (parseInt(p.bought_in) && !hasCashedOut) h += '<button onclick="openCashout(' + p.id + ')">Cash Out</button>';
+                if (parseInt(p.bought_in) && !hasCashedOut) h += '<button class="primary" onclick="openCashout(' + p.id + ')">Cash Out</button>';
                 if (hasCashedOut) h += '<button onclick="undoCashout(' + p.id + ')">Undo Cash Out</button>';
-                if (!isElim && parseInt(p.bought_in) && !isWinner) h += '<button onclick="eliminatePlayer(' + p.id + ')">Eliminate</button>';
+                // Cash games: no elimination. Keep Undo for any pre-existing eliminated player.
                 if (isElim) h += '<button onclick="uneliminate(' + p.id + ')">Undo Elim</button>';
             }
         }
         h += '<button onclick="openNotes(' + p.id + ')">Notes</button>';
-        h += '<button class="danger" onclick="if(confirm(\'Remove ' + escHtml(p.display_name) + '?\'))removePlayer(' + p.id + ')">Remove</button>';
+        h += '<button class="danger" onclick="removePlayerConfirm(' + p.id + ')">Remove</button>';
         h += '</div>';
 
         h += '</div>'; // pk-mobile-expand
@@ -1711,7 +1726,9 @@ function renderTableView() {
             } else if (parseInt(p.finish_position) === 1) {
                 h += '<span title="Winner" style="color:#b8860b;font-weight:700">\ud83c\udfc6</span>';
             } else {
-                h += '<button class="pk-act-btn" onclick="eliminatePlayer(' + p.id + ')" title="Eliminate" style="color:#ef4444;font-weight:700">&#10005;</button>';
+                if (!isCash()) {
+                    h += '<button class="pk-act-btn" onclick="eliminatePlayer(' + p.id + ')" title="Eliminate" style="color:#ef4444;font-weight:700">&#10005;</button>';
+                }
                 h += '<select class="pk-tv-move" onchange="movePlayer(' + p.id + ', this.value)">';
                 h += '<option value="">Move\u2026</option>';
                 for (var mt = 1; mt <= numTables; mt++) {
@@ -1768,6 +1785,50 @@ function eliminatePlayer(pid) {
 function closeElim() {
     document.getElementById('elimModal').classList.remove('open');
     elimPid = null;
+}
+
+// Generic in-app confirm modal (replaces native confirm()).
+// opts: { title, message (HTML), okLabel, danger, onConfirm }
+var _confirmCb = null;
+function pkConfirm(opts) {
+    opts = opts || {};
+    document.getElementById('confirmTitle').textContent = opts.title || 'Confirm';
+    document.getElementById('confirmMsg').innerHTML = opts.message || '';
+    var ok = document.getElementById('confirmOkBtn');
+    ok.textContent = opts.okLabel || 'OK';
+    ok.style.background = opts.danger ? '#dc2626' : '';
+    _confirmCb = typeof opts.onConfirm === 'function' ? opts.onConfirm : null;
+    document.getElementById('confirmModal').classList.add('open');
+}
+function closeConfirm() {
+    document.getElementById('confirmModal').classList.remove('open');
+    _confirmCb = null;
+}
+function confirmProceed() {
+    var cb = _confirmCb;
+    closeConfirm();
+    if (cb) cb();
+}
+
+function removePlayerConfirm(pid) {
+    var p = PLAYERS.find(function(p) { return parseInt(p.id) === pid; });
+    pkConfirm({
+        title: 'Remove Player',
+        message: 'Remove <b>' + escHtml(p ? p.display_name : 'this player') + '</b> from the event?',
+        okLabel: 'Remove', danger: true,
+        onConfirm: function() { removePlayer(pid); }
+    });
+}
+
+function bulkRemoveConfirm() {
+    var n = document.querySelectorAll('.pk-player-cb:checked').length;
+    if (!n) return;
+    pkConfirm({
+        title: 'Remove Players',
+        message: 'Remove ' + n + ' selected player' + (n === 1 ? '' : 's') + '?',
+        okLabel: 'Remove', danger: true,
+        onConfirm: function() { bulkAction('remove_player'); }
+    });
 }
 
 function showWinner(w) {
@@ -1861,6 +1922,8 @@ function openCashout(pid) {
     var oldCashout = (p && p.cash_out !== null && p.cash_out !== undefined) ? parseInt(p.cash_out) : 0;
     var remaining = (POOL.pool_total - POOL.total_cash_out + oldCashout);
     inp.max = (remaining / 100);
+    var ot = document.getElementById('cashoutOnTable');
+    if (ot) ot.textContent = formatMoney(remaining);
     document.getElementById('cashoutModal').classList.add('open');
     inp.focus();
     inp.select();

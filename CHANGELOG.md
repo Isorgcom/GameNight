@@ -4,6 +4,18 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1985] - 2026-06-20
+
+### Changed
+- **Check-in row actions are now clearly tappable, color-coded buttons.** The per-player actions used a borderless transparent style (`.pk-act-btn`) that read like plain text links, so hosts did not realize they could tap them (the cash-game "Cash Out" action was the worst offender). They are now solid buttons colored by purpose: primary actions (Cash Out, Eliminate, Approve) in green, destructive actions (Remove, Deny) in red, and neutral actions (Notes, Undo) in gray. The same color roles were applied to the mobile expand-panel buttons (`www/checkin.php`, CSS only).
+- **Cash-out dialog shows the cash remaining on the table.** The Cash Out modal now displays a "Cash on table" line (total buy-ins minus what has already been cashed out, adding back the player's own prior cash-out when re-cashing), so a host can see how much is left to distribute as they cash each player out. It reuses the value the dialog already computed to cap the entry (`www/checkin.php`).
+
+### Fixed
+- **Cash games no longer offer elimination or compute finishing places/prizes.** Cash players leave by cashing out, but the check-in screen still showed an "Eliminate" button in cash mode, which put players into a broken eliminated state and could trigger the tournament heads-up auto-win/auto-finish on a cash game. Elimination is removed from cash mode across the desktop table, mobile cards, and the seating view; an "Undo Elim" button is kept so any player eliminated under the old behavior can be restored. The heads-up auto-win in `eliminate_player` is now gated to `game_type = 'tournament'` (`www/checkin.php`, `www/checkin_dl.php`).
+- **Removing a player uses an in-app dialog instead of a native browser confirm.** The Remove action (per-player and bulk) previously used a native `confirm()`, which after repeated use lets the browser suppress further dialogs and silently swallow the action. It now uses a styled in-app confirmation modal, matching the Eliminate dialog, via a new reusable `pkConfirm()` helper (`www/checkin.php`).
+
+---
+
 ## [v0.1984] - 2026-06-20
 
 ### Added
