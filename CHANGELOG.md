@@ -4,7 +4,10 @@ All notable changes to GameNight are documented here.
 
 ---
 
-## [v0.1985] - 2026-06-20
+## [v0.1986] - 2026-06-20
+
+### Changed
+- **Cashing out a player is now done in the Cash Out column, where hosts look for it.** Feedback from a real game showed hosts did not realize that the "Cash Out" button (which lived in the Actions column) was how you cash a player out, because the "Cash Out" column itself only displayed an amount or a dash, while Total In is edited directly in its own column. The cash-out control now lives in the Cash Out column: a bought-in player who hasn't cashed out shows a green "Cash Out" button there, and once cashed out the column shows the amount with a dashed underline that can be tapped to edit it. "Undo cash-out" moved into the cash-out dialog (shown only when editing an existing cash-out), and the Actions column now shows just Notes / Remove. Desktop check-in table only; mobile cards are unchanged (`www/checkin.php`).
 
 ### Changed
 - **Check-in row actions are now clearly tappable, color-coded buttons.** The per-player actions used a borderless transparent style (`.pk-act-btn`) that read like plain text links, so hosts did not realize they could tap them (the cash-game "Cash Out" action was the worst offender). They are now solid buttons colored by purpose: primary actions (Cash Out, Eliminate, Approve) in green, destructive actions (Remove, Deny) in red, and neutral actions (Notes, Undo) in gray. The same color roles were applied to the mobile expand-panel buttons (`www/checkin.php`, CSS only).
