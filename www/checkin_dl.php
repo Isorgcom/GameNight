@@ -424,13 +424,40 @@ if ($action === 'eliminate_player') {
     if (!$session) { echo json_encode(['ok' => false, 'error' => 'Player not found']); exit; }
     verify_event_access($db, $session['event_id'], $current, $isAdmin);
 
+    // Auto-assign finishing place by elimination order when one isn't supplied:
+    // the place is the number of players still in (including the one being knocked out).
+    if ($finish_position <= 0) {
+        $cnt = $db->prepare('SELECT COUNT(*) FROM poker_players WHERE session_id = ? AND removed = 0 AND eliminated = 0 AND bought_in = 1');
+        $cnt->execute([$session['id']]);
+        $finish_position = max(1, (int)$cnt->fetchColumn());
+    }
+
     $db->prepare('UPDATE poker_players SET eliminated = 1, finish_position = ?, table_number = NULL, seat_number = NULL WHERE id = ?')->execute([$finish_position, $player_id]);
+
+    // Heads-up over: if exactly one player remains in, they win (1st place) and the
+    // game finishes automatically.
+    $winner = null;
+    $newStatus = $session['status'] ?? null;
+    $remain = $db->prepare('SELECT id FROM poker_players WHERE session_id = ? AND removed = 0 AND eliminated = 0 AND bought_in = 1');
+    $remain->execute([$session['id']]);
+    $remainIds = $remain->fetchAll(PDO::FETCH_COLUMN);
+    if (count($remainIds) === 1) {
+        $winnerId = (int)$remainIds[0];
+        $db->prepare('UPDATE poker_players SET finish_position = 1 WHERE id = ?')->execute([$winnerId]);
+        $db->prepare("UPDATE poker_sessions SET status = 'finished' WHERE id = ?")->execute([$session['id']]);
+        $newStatus = 'finished';
+        $w = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
+        $w->execute([$winnerId]);
+        $winner = $w->fetch();
+    }
 
     $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
     $p->execute([$player_id]);
     echo json_encode([
         'ok'     => true,
         'player' => $p->fetch(),
+        'winner' => $winner,
+        'status' => $newStatus,
         'pool'   => calc_pool($db, $session['id']),
     ]);
     exit;
@@ -445,12 +472,25 @@ if ($action === 'uneliminate_player') {
 
     $db->prepare('UPDATE poker_players SET eliminated = 0, finish_position = NULL WHERE id = ?')->execute([$player_id]);
 
+    // If this puts more than one player back in, undo any auto-crowned winner and
+    // reopen the game (it's no longer over).
+    $reopened = false;
+    $remain = $db->prepare('SELECT COUNT(*) FROM poker_players WHERE session_id = ? AND removed = 0 AND eliminated = 0 AND bought_in = 1');
+    $remain->execute([$session['id']]);
+    if ((int)$remain->fetchColumn() > 1) {
+        $db->prepare('UPDATE poker_players SET finish_position = NULL WHERE session_id = ? AND removed = 0 AND eliminated = 0 AND finish_position IS NOT NULL')->execute([$session['id']]);
+        $reopenStmt = $db->prepare("UPDATE poker_sessions SET status = 'active' WHERE id = ? AND status = 'finished'");
+        $reopenStmt->execute([$session['id']]);
+        $reopened = $reopenStmt->rowCount() > 0;
+    }
+
     $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
     $p->execute([$player_id]);
     echo json_encode([
-        'ok'     => true,
-        'player' => $p->fetch(),
-        'pool'   => calc_pool($db, $session['id']),
+        'ok'       => true,
+        'player'   => $p->fetch(),
+        'reopened' => $reopened,
+        'pool'     => calc_pool($db, $session['id']),
     ]);
     exit;
 }

@@ -112,6 +112,12 @@ $session = $sessStmt->fetch();
     .pk-btn-refresh{background:transparent;color:var(--accent,#2563eb);border-color:var(--border,#e2e8f0)}
     .pk-btn-refresh:hover{background:#f1f5f9}
     .pk-toolbar-sep{width:1px;height:1.5rem;background:#e2e8f0;margin:0 .25rem}
+    .pk-help-btn{margin-left:auto;flex:0 0 auto;padding:.4rem .8rem;border-radius:6px;border:1.5px solid #2563eb;background:#eff6ff;color:#1d4ed8;font-weight:700;font-size:.8rem;cursor:pointer;line-height:1;min-height:auto}
+    .pk-help-btn:hover{background:#dbeafe}
+    .pk-help-content{text-align:left;max-height:70vh;overflow-y:auto}
+    .pk-help-content h4{margin:.9rem 0 .25rem;font-size:.9rem;color:#0f172a}
+    .pk-help-content h4:first-child{margin-top:0}
+    .pk-help-content p{margin:0;font-size:.85rem;color:#475569;line-height:1.45}
     .pk-filter{display:flex;gap:0;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;overflow:hidden}
     .pk-filter button{border:none;background:transparent;padding:.35rem .7rem;font-size:.75rem;font-weight:600;cursor:pointer;color:#64748b}
     .pk-filter button.active{background:var(--accent,#2563eb);color:#fff}
@@ -123,6 +129,11 @@ $session = $sessStmt->fetch();
     .pk-table tr:hover td{background:#f8fafc}
     .pk-table tr.elim td{opacity:.5;text-decoration:line-through}
     .pk-table tr.elim td:last-child{text-decoration:none;opacity:1}
+    .pk-table tr.elim td:nth-last-child(2){text-decoration:none;opacity:1}
+    .pk-table th.pk-sortable{cursor:pointer;user-select:none;white-space:nowrap}
+    .pk-table th.pk-sortable:hover{background:rgba(0,0,0,.05)}
+    .pk-table tr.winner td{background:#fffbeb}
+    .pk-mobile-card.winner{background:#fffbeb;border-color:#fde68a}
     .pk-table tr.cashed-out td{opacity:.6}
     .pk-table tr.rsvp-no td{opacity:.45;text-decoration:line-through}
     .pk-table tr.rsvp-no td:nth-child(3){text-decoration:none;opacity:1}
@@ -342,6 +353,50 @@ $session = $sessStmt->fetch();
     </div>
 </div>
 
+<!-- Help modal -->
+<div class="pk-modal-overlay" id="helpModal" onclick="if(event.target===this)closeHelp()">
+    <div class="pk-modal">
+        <h3>How this screen works</h3>
+        <div class="pk-help-content">
+            <h4>Buy In</h4>
+            <p>Records a player's buy-in. It also checks them in and assigns them a seat automatically &mdash; there is no separate check-in step to do first.</p>
+            <h4>Approve / Deny</h4>
+            <p>These appear only for players who added themselves through the self-signup or walk-in QR code. <b>Approve</b> puts them on the roster so you can buy them in; <b>Deny</b> rejects them. If you add everyone yourself, you'll never see these buttons.</p>
+            <h4>Rebuys &amp; Add-ons</h4>
+            <p>Use the + / &minus; counters on a player's row to track each rebuy or add-on. The prize pool at the top right updates as you go.</p>
+            <h4>Eliminate</h4>
+            <p>Marks a player as knocked out. Their finishing place is filled in automatically by elimination order (9th, 8th … down to 1st), and if that place is in the money the prize owed shows next to their name. Eliminate players in the order they bust. Use <b>Undo</b> if you make a mistake.</p>
+        </div>
+        <div class="pk-modal-actions">
+            <button class="pk-save" onclick="closeHelp()">Got it</button>
+        </div>
+    </div>
+</div>
+
+<!-- Eliminate confirmation modal -->
+<div class="pk-modal-overlay" id="elimModal" onclick="if(event.target===this)closeElim()">
+    <div class="pk-modal">
+        <h3>Eliminate Player</h3>
+        <p id="elimMsg" style="font-size:.9rem;color:#475569;line-height:1.45;margin:0"></p>
+        <div class="pk-modal-actions">
+            <button onclick="closeElim()">Cancel</button>
+            <button class="pk-save" style="background:#dc2626" onclick="confirmElim()">Eliminate</button>
+        </div>
+    </div>
+</div>
+
+<!-- Winner / game-over modal -->
+<div class="pk-modal-overlay" id="winnerModal" onclick="if(event.target===this)closeWinner()">
+    <div class="pk-modal" style="text-align:center">
+        <div style="font-size:2.75rem;line-height:1">🏆</div>
+        <h3 id="winnerMsg" style="margin:.4rem 0 .25rem"></h3>
+        <p id="winnerSub" style="font-size:.9rem;color:#475569;line-height:1.45;margin:0"></p>
+        <div class="pk-modal-actions" style="justify-content:center">
+            <button class="pk-save" onclick="closeWinner()">Nice!</button>
+        </div>
+    </div>
+</div>
+
 <?php require __DIR__ . '/_footer.php'; ?>
 
 <script>
@@ -358,6 +413,8 @@ var PAYOUTS = [];
 var POOL = {};
 var FILTER = 'all';
 var VIEW_MODE = 'list';
+var SORT_KEY = '';   // '' = default (entry order); otherwise a column key
+var SORT_DIR = 1;    // 1 = ascending, -1 = descending
 var notesPlayerId = null;
 var cashoutPlayerId = null;
 
@@ -565,6 +622,7 @@ function renderDashboard() {
     h += '<button class="' + (VIEW_MODE === 'list' ? 'active' : 'inactive') + '" onclick="if(VIEW_MODE!==\'list\'){toggleViewMode()}">&#9776; List</button>';
     h += '<button class="' + (VIEW_MODE === 'table' ? 'active' : 'inactive') + '" onclick="if(VIEW_MODE!==\'table\'){toggleViewMode()}">&#9638; Table</button>';
     h += '</div>';
+    h += '<button class="pk-help-btn" title="How this screen works" aria-label="Help" onclick="openHelp()">? Help</button>';
     h += '<button class="pk-btn-view-toggle" onclick="balanceTables()">&#9878; Balance</button>';
     h += '<button class="pk-btn-view-toggle" onclick="addTable()">Tables: ' + (parseInt(SESSION.num_tables) || 1) + ' +</button>';
     h += '</div>';
@@ -590,17 +648,16 @@ function renderDashboard() {
     } else {
         h += '<div class="pk-bulk-bar" id="bulkBar">';
         h += '<span class="pk-bulk-count" id="bulkCount">0 selected</span>';
-        h += '<button class="primary" onclick="bulkAction(\'toggle_checkin\')">Check In</button>';
         if (isTourney()) {
-            h += '<button class="primary" onclick="bulkAction(\'toggle_buyin\')">Buy In</button>';
+            h += '<button class="primary" title="Record buy-in for the selected players (also checks them in and seats them)" onclick="bulkAction(\'toggle_buyin\')">Buy In</button>';
             h += '<button onclick="bulkAction(\'eliminate_player\')">Eliminate</button>';
         }
-        h += '<button onclick="bulkAction(\'approve_player\')">Approve</button>';
+        h += '<button title="Approve the selected pending self-signups / walk-ins onto the roster" onclick="bulkAction(\'approve_player\')">Approve</button>';
         h += '<button class="danger" onclick="if(confirm(\'Remove selected players?\'))bulkAction(\'remove_player\')">Remove</button>';
         h += '<button onclick="clearSelection()">Clear</button>';
         h += '</div>';
         h += '<div class="pk-table-wrap"><table class="pk-table">';
-        h += '<thead><tr>' + renderTableHeader() + '</tr></thead>';
+        h += '<thead><tr id="playerHead">' + renderTableHeader() + '</tr></thead>';
         h += '<tbody id="playerBody">';
         h += renderPlayerRows();
         h += '</tbody></table></div>';
@@ -623,18 +680,72 @@ function renderDashboard() {
     document.getElementById('app').innerHTML = h;
 }
 
+function sortableTh(label, key, extra) {
+    var arrow = (SORT_KEY === key) ? ' <span style="font-size:.7em">' + (SORT_DIR === 1 ? '▲' : '▼') + '</span>' : '';
+    return '<th class="pk-sortable" ' + (extra || '') + ' onclick="setSort(\'' + key + '\')">' + label + arrow + '</th>';
+}
+
 function renderTableHeader() {
     var h = '<th style="width:2rem"><input type="checkbox" id="selectAll" class="pk-row-select" onchange="toggleSelectAll(this.checked)"></th>';
-    h += '<th>#</th><th>Name</th><th>RSVP</th>';
+    h += '<th>#</th>';
+    h += sortableTh('Name', 'name');
+    h += sortableTh('RSVP', 'rsvp');
     if (isTourney()) {
-        h += '<th title="Buy-in">$</th>';
-        if (parseInt(SESSION.rebuy_allowed)) h += '<th>Rebuys</th>';
-        if (parseInt(SESSION.addon_allowed)) h += '<th>Add-ons</th>';
+        h += sortableTh('$', 'buyin', 'title="Buy-in"');
+        if (parseInt(SESSION.rebuy_allowed)) h += sortableTh('Rebuys', 'rebuys');
+        if (parseInt(SESSION.addon_allowed)) h += sortableTh('Add-ons', 'addons');
     } else {
-        h += '<th>Total In</th><th>Cash Out</th><th>Profit</th>';
+        h += sortableTh('Total In', 'totalin');
+        h += sortableTh('Cash Out', 'cashout');
+        h += sortableTh('Profit', 'profit');
     }
-    h += '<th>Table</th><th>Seat</th><th>Status</th><th>Actions</th>';
+    h += sortableTh('Table', 'table');
+    h += sortableTh('Seat', 'seat');
+    h += sortableTh('Status', 'status');
+    h += '<th>Actions</th>';
     return h;
+}
+
+function setSort(key) {
+    if (SORT_KEY === key) { SORT_DIR = -SORT_DIR; }
+    else { SORT_KEY = key; SORT_DIR = 1; }
+    var head = document.getElementById('playerHead');
+    if (head) head.innerHTML = renderTableHeader();
+    refreshUI();
+}
+
+function sortVal(p, key) {
+    switch (key) {
+        case 'name':    return (p.display_name || '').toLowerCase();
+        case 'rsvp':    { var rank = { yes: 0, maybe: 1, no: 2 }; return (p.rsvp in rank) ? rank[p.rsvp] : 3; }
+        case 'buyin':   return parseInt(p.bought_in) || 0;
+        case 'rebuys':  return parseInt(p.rebuys) || 0;
+        case 'addons':  return parseInt(p.addons) || 0;
+        case 'table':   return parseInt(p.table_number) || 0;
+        case 'seat':    return parseInt(p.seat_number) || 0;
+        case 'totalin': return playerTotalIn(p);
+        case 'cashout': return (p.cash_out === null || p.cash_out === undefined) ? -Infinity : parseInt(p.cash_out);
+        case 'profit':  { var pr = playerProfit(p); return (pr === null) ? -Infinity : pr; }
+        case 'status':
+            if (p.approval_status === 'pending') return 0;
+            if (isCash()) return (p.cash_out !== null && p.cash_out !== undefined) ? 3 : 1;
+            if (parseInt(p.eliminated)) return 3 + (parseInt(p.finish_position) || 999) / 1000; // out: by place (1st first)
+            if (parseInt(p.bought_in)) return 1;  // playing
+            return 2;                              // not bought in yet
+    }
+    return 0;
+}
+
+// Apply the active column sort; returns a new array (entry order when no sort set).
+function sortPlayers(arr) {
+    if (!SORT_KEY) return arr;
+    return arr.slice().sort(function(a, b) {
+        var va = sortVal(a, SORT_KEY), vb = sortVal(b, SORT_KEY);
+        if (va < vb) return -SORT_DIR;
+        if (va > vb) return SORT_DIR;
+        var na = (a.display_name || '').toLowerCase(), nb = (b.display_name || '').toLowerCase();
+        return na < nb ? -1 : (na > nb ? 1 : 0);
+    });
 }
 
 function renderStatsCompact() {
@@ -687,7 +798,7 @@ function playerProfit(p) {
 function renderPlayerRows() {
     var h = '';
     var num = 0;
-    var filtered = PLAYERS.filter(function(p) {
+    var filtered = sortPlayers(PLAYERS.filter(function(p) {
         if (FILTER === 'rsvp_yes') return p.rsvp === 'yes';
         if (isCash()) {
             if (FILTER === 'playing') return parseInt(p.bought_in) && (p.cash_out === null || p.cash_out === undefined);
@@ -697,7 +808,7 @@ function renderPlayerRows() {
             if (FILTER === 'eliminated') return parseInt(p.eliminated);
         }
         return true;
-    });
+    }));
     for (var i = 0; i < filtered.length; i++) {
         var p = filtered[i];
         num++;
@@ -708,7 +819,8 @@ function renderPlayerRows() {
         var isNo = rsvp === 'no';
         var isPending = (p.approval_status === 'pending');
         var dis = (isNo || isPending) ? ' disabled' : '';
-        var rowClass = isPending ? 'pending-row' : (isElim ? 'elim' : (hasCashedOut ? 'cashed-out' : (isNo ? 'rsvp-no' : '')));
+        var isWinner = !isElim && isTourney() && parseInt(p.finish_position) === 1;
+        var rowClass = isPending ? 'pending-row' : (isElim ? 'elim' : (isWinner ? 'winner' : (hasCashedOut ? 'cashed-out' : (isNo ? 'rsvp-no' : ''))));
         h += '<tr class="' + rowClass + '" data-pid="' + p.id + '">';
         h += '<td><input type="checkbox" class="pk-row-select pk-player-cb" value="' + p.id + '" onchange="updateBulkBar()"></td>';
         h += '<td>' + num + '</td>';
@@ -729,7 +841,7 @@ function renderPlayerRows() {
             h += '<td colspan="' + (isTourney() ? (1 + (parseInt(SESSION.rebuy_allowed)?1:0) + (parseInt(SESSION.addon_allowed)?1:0)) : 3) + '" style="text-align:center;color:#d97706;font-size:.8rem;font-style:italic">Awaiting approval</td>';
         } else {
         if (isTourney()) {
-            h += '<td><input type="checkbox" class="pk-check" ' + (parseInt(p.bought_in) ? 'checked' : '') + dis + ' onchange="toggleBuyin(' + p.id + ')"></td>';
+            h += '<td><input type="checkbox" class="pk-check" title="Record this player\'s buy-in. Checks them in and assigns a seat automatically — no separate check-in step needed." ' + (parseInt(p.bought_in) ? 'checked' : '') + dis + ' onchange="toggleBuyin(' + p.id + ')"></td>';
             if (parseInt(SESSION.rebuy_allowed)) {
                 h += '<td><div class="pk-counter"><button onclick="updateRebuys(' + p.id + ',-1)"' + dis + '>-</button><span>' + p.rebuys + '</span><button onclick="updateRebuys(' + p.id + ',1)"' + dis + '>+</button></div></td>';
             }
@@ -770,7 +882,15 @@ function renderPlayerRows() {
             h += '<td><span style="color:#d97706;font-weight:600;background:#fefce8;padding:.1rem .4rem;border-radius:4px;font-size:.75rem;border:1px solid #fde68a">Pending</span></td>';
         } else if (isTourney()) {
             if (isElim) {
-                h += '<td><span style="color:#ef4444;font-weight:600">#' + (p.finish_position || '?') + '</span></td>';
+                var elAmt = payoutForPlace(p.finish_position);
+                h += '<td><span style="color:#ef4444;font-weight:600">' + ordinalLabel(p.finish_position) + '</span>'
+                   + (elAmt > 0 ? ' <span style="color:#16a34a;font-weight:700;font-size:.78rem" title="Prize owed">' + formatMoney(elAmt) + '</span>' : '')
+                   + '</td>';
+            } else if (isWinner) {
+                var wAmt = payoutForPlace(1);
+                h += '<td><span style="color:#b8860b;font-weight:700">🏆 1st</span>'
+                   + (wAmt > 0 ? ' <span style="color:#16a34a;font-weight:700;font-size:.78rem" title="Prize">' + formatMoney(wAmt) + '</span>' : '')
+                   + '</td>';
             } else if (parseInt(p.bought_in)) {
                 h += '<td><span style="color:#22c55e;font-weight:600">Playing</span></td>';
             } else {
@@ -789,12 +909,12 @@ function renderPlayerRows() {
         // Actions
         h += '<td style="white-space:nowrap">';
         if (isPending) {
-            h += '<button class="pk-act-btn" style="background:#16a34a;color:#fff;font-weight:600" onclick="approvePlayer(' + p.id + ')">Approve</button>';
-            h += '<button class="pk-act-btn danger" onclick="denyPlayer(' + p.id + ')">Deny</button>';
+            h += '<button class="pk-act-btn" style="background:#16a34a;color:#fff;font-weight:600" title="This player joined via self-signup / walk-in QR. Approve to add them to the roster so they can buy in." onclick="approvePlayer(' + p.id + ')">Approve</button>';
+            h += '<button class="pk-act-btn danger" title="Reject this join request and remove them from the list." onclick="denyPlayer(' + p.id + ')">Deny</button>';
         } else {
             if (!isNo) {
                 if (isTourney()) {
-                    if (!isElim && parseInt(p.bought_in)) {
+                    if (!isElim && parseInt(p.bought_in) && !isWinner) {
                         h += '<button class="pk-act-btn" onclick="eliminatePlayer(' + p.id + ')">Eliminate</button>';
                     }
                     if (isElim) {
@@ -832,7 +952,7 @@ function renderPlayerRows() {
 
 function renderMobileCards() {
     var h = '';
-    var filtered = PLAYERS.filter(function(p) {
+    var filtered = sortPlayers(PLAYERS.filter(function(p) {
         if (FILTER === 'rsvp_yes') return p.rsvp === 'yes';
         if (isCash()) {
             if (FILTER === 'playing') return parseInt(p.bought_in) && (p.cash_out === null || p.cash_out === undefined);
@@ -842,13 +962,14 @@ function renderMobileCards() {
             if (FILTER === 'eliminated') return parseInt(p.eliminated);
         }
         return true;
-    });
+    }));
     for (var i = 0; i < filtered.length; i++) {
         var p = filtered[i];
         var isElim = parseInt(p.eliminated);
         var hasCashedOut = isCash() && p.cash_out !== null && p.cash_out !== undefined;
         var isNo = p.rsvp === 'no';
-        var cardClass = isElim ? 'elim' : (hasCashedOut ? 'cashed-out' : (isNo ? 'rsvp-no' : ''));
+        var isWinner = !isElim && isTourney() && parseInt(p.finish_position) === 1;
+        var cardClass = isElim ? 'elim' : (isWinner ? 'winner' : (hasCashedOut ? 'cashed-out' : (isNo ? 'rsvp-no' : '')));
 
         // Status text and color
         var isPending = (p.approval_status === 'pending');
@@ -856,7 +977,8 @@ function renderMobileCards() {
         if (isPending) {
             statusText = 'Pending'; statusColor = '#d97706'; statusBg = '#fefce8';
         } else if (isTourney()) {
-            if (isElim) { statusText = '#' + (p.finish_position || '?'); statusColor = '#ef4444'; statusBg = '#fef2f2'; }
+            if (isElim) { var moAmt = payoutForPlace(p.finish_position); statusText = ordinalLabel(p.finish_position) + (moAmt > 0 ? ' · ' + formatMoney(moAmt) : ''); statusColor = '#ef4444'; statusBg = '#fef2f2'; }
+            else if (isWinner) { var woAmt = payoutForPlace(1); statusText = '🏆 1st' + (woAmt > 0 ? ' · ' + formatMoney(woAmt) : ''); statusColor = '#b8860b'; statusBg = '#fffbeb'; }
             else if (parseInt(p.bought_in)) { statusText = 'Playing'; statusColor = '#16a34a'; statusBg = '#f0fdf4'; }
         } else {
             if (hasCashedOut) { statusText = 'Out'; statusColor = '#64748b'; statusBg = '#f1f5f9'; }
@@ -870,14 +992,14 @@ function renderMobileCards() {
         if (isPending) {
             // Approve/deny buttons directly on the summary row instead of a status badge
             h += '<span onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:.35rem;margin-left:auto;flex-shrink:0">';
-            h += '<button onclick="approvePlayer(' + p.id + ')" style="font-size:.72rem;padding:.25rem .6rem;border-radius:5px;border:0;background:#16a34a;color:#fff;font-weight:700;cursor:pointer">Approve</button>';
-            h += '<button onclick="denyPlayer(' + p.id + ')" style="font-size:.72rem;padding:.25rem .6rem;border-radius:5px;border:0;background:#dc2626;color:#fff;font-weight:700;cursor:pointer">Deny</button>';
+            h += '<button title="This player joined via self-signup / walk-in QR. Approve to add them to the roster so they can buy in." onclick="approvePlayer(' + p.id + ')" style="font-size:.72rem;padding:.25rem .6rem;border-radius:5px;border:0;background:#16a34a;color:#fff;font-weight:700;cursor:pointer">Approve</button>';
+            h += '<button title="Reject this join request and remove them from the list." onclick="denyPlayer(' + p.id + ')" style="font-size:.72rem;padding:.25rem .6rem;border-radius:5px;border:0;background:#dc2626;color:#fff;font-weight:700;cursor:pointer">Deny</button>';
             h += '</span>';
         } else {
             // Buy-in checkbox on the summary row (not inside expand)
             if (!isNo && isTourney()) {
                 h += '<span onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:.6rem;margin-left:auto;margin-right:.5rem;flex-shrink:0">';
-                h += '<label style="display:flex;align-items:center;gap:.2rem;font-size:.65rem;color:#64748b;font-weight:700;cursor:pointer;padding:.25rem 0;-webkit-tap-highlight-color:transparent">'
+                h += '<label title="Record this player\'s buy-in. Checks them in and assigns a seat automatically — no separate check-in step needed." style="display:flex;align-items:center;gap:.2rem;font-size:.65rem;color:#64748b;font-weight:700;cursor:pointer;padding:.25rem 0;-webkit-tap-highlight-color:transparent">'
                    + '<input type="checkbox" class="pk-check" ' + (parseInt(p.bought_in)?'checked':'') + ' onchange="toggleBuyin(' + p.id + ')" style="width:22px;height:22px;accent-color:#7c3aed"> Buy In</label>';
                 h += '</span>';
             }
@@ -941,12 +1063,12 @@ function renderMobileCards() {
         h += '<div class="pk-mobile-actions">';
         if (!isNo) {
             if (isTourney()) {
-                if (!isElim && parseInt(p.bought_in)) h += '<button onclick="eliminatePlayer(' + p.id + ')">Eliminate</button>';
+                if (!isElim && parseInt(p.bought_in) && !isWinner) h += '<button onclick="eliminatePlayer(' + p.id + ')">Eliminate</button>';
                 if (isElim) h += '<button onclick="uneliminate(' + p.id + ')">Undo Elim</button>';
             } else {
                 if (parseInt(p.bought_in) && !hasCashedOut) h += '<button onclick="openCashout(' + p.id + ')">Cash Out</button>';
                 if (hasCashedOut) h += '<button onclick="undoCashout(' + p.id + ')">Undo Cash Out</button>';
-                if (!isElim && parseInt(p.bought_in)) h += '<button onclick="eliminatePlayer(' + p.id + ')">Eliminate</button>';
+                if (!isElim && parseInt(p.bought_in) && !isWinner) h += '<button onclick="eliminatePlayer(' + p.id + ')">Eliminate</button>';
                 if (isElim) h += '<button onclick="uneliminate(' + p.id + ')">Undo Elim</button>';
             }
         }
@@ -1123,6 +1245,26 @@ function getOrdinal(n) {
     if (n === 2) return 'nd';
     if (n === 3) return 'rd';
     return 'th';
+}
+
+// "9th", "3rd" etc. from a possibly-string finish_position; '?' if unknown.
+function ordinalLabel(n) {
+    n = parseInt(n);
+    if (!n || n < 1) return '?';
+    return n + getOrdinal(n);
+}
+
+// Prize owed for a finishing place, computed live from the current pool + payout
+// structure (same formula the payout card uses). 0 if the place isn't in the money.
+function payoutForPlace(place) {
+    place = parseInt(place);
+    if (!place) return 0;
+    for (var i = 0; i < PAYOUTS.length; i++) {
+        if (parseInt(PAYOUTS[i].place) === place) {
+            return Math.round((POOL.pool_total || 0) * parseFloat(PAYOUTS[i].percentage) / 100);
+        }
+    }
+    return 0;
 }
 
 function previewGameType(val) {
@@ -1564,7 +1706,11 @@ function renderTableView() {
             h += '<div class="pk-tv-player' + (isElim ? ' elim' : '') + '">';
             h += '<span class="pk-tv-name">' + seatTag + escHtml(p.display_name) + '</span>';
             h += '<span class="pk-tv-actions">';
-            if (!isElim) {
+            if (isElim) {
+                h += '<button class="pk-act-btn" onclick="uneliminate(' + p.id + ')" title="Undo eliminate">Undo</button>';
+            } else if (parseInt(p.finish_position) === 1) {
+                h += '<span title="Winner" style="color:#b8860b;font-weight:700">\ud83c\udfc6</span>';
+            } else {
                 h += '<button class="pk-act-btn" onclick="eliminatePlayer(' + p.id + ')" title="Eliminate" style="color:#ef4444;font-weight:700">&#10005;</button>';
                 h += '<select class="pk-tv-move" onchange="movePlayer(' + p.id + ', this.value)">';
                 h += '<option value="">Move\u2026</option>';
@@ -1572,8 +1718,6 @@ function renderTableView() {
                     if (mt !== t) h += '<option value="' + mt + '">Table ' + mt + ' (' + tables[mt].length + ')</option>';
                 }
                 h += '</select>';
-            } else {
-                h += '<button class="pk-act-btn" onclick="uneliminate(' + p.id + ')" title="Undo eliminate">Undo</button>';
             }
             h += '</span>';
             h += '</div>';
@@ -1603,26 +1747,63 @@ function renderTableView() {
     return h;
 }
 
+var elimPid = null;
+
 function eliminatePlayer(pid) {
     var player = PLAYERS.find(function(p) { return parseInt(p.id) === pid; });
     if (player && !parseInt(player.bought_in)) {
         alert('This player has not bought in yet. Buy them in before eliminating.');
         return;
     }
-    var playing = PLAYERS.filter(function(p) { return !parseInt(p.eliminated) && parseInt(p.bought_in); }).length;
-    var pos = prompt('Finish position? (suggested: ' + playing + ')', playing);
-    if (pos === null) return;
-    pos = parseInt(pos);
-    if (!pos || pos < 1) { alert('Invalid position'); return; }
-    postAction('eliminate_player', { player_id: pid, finish_position: pos }, function(j) {
+    // Place = number still in (including this player). Backend re-derives it authoritatively.
+    var place = PLAYERS.filter(function(p) { return !parseInt(p.eliminated) && parseInt(p.bought_in); }).length;
+    var amt = payoutForPlace(place);
+    var msg = 'Eliminate <b>' + escHtml(player ? player.display_name : 'this player') + '</b> in <b>' + place + getOrdinal(place) + ' place</b>?';
+    if (amt > 0) msg += '<br><br>They finish in the money and are owed <b>' + formatMoney(amt) + '</b>.';
+    elimPid = pid;
+    document.getElementById('elimMsg').innerHTML = msg;
+    document.getElementById('elimModal').classList.add('open');
+}
+
+function closeElim() {
+    document.getElementById('elimModal').classList.remove('open');
+    elimPid = null;
+}
+
+function showWinner(w) {
+    var amt = payoutForPlace(1);
+    document.getElementById('winnerMsg').textContent = (w && w.display_name ? w.display_name : 'Winner') + ' wins!';
+    document.getElementById('winnerSub').innerHTML = '1st place' + (amt > 0 ? ' &middot; ' + formatMoney(amt) : '') + '<br>The game is now finished.';
+    document.getElementById('winnerModal').classList.add('open');
+}
+
+function closeWinner() {
+    document.getElementById('winnerModal').classList.remove('open');
+}
+
+function confirmElim() {
+    if (!elimPid) return;
+    var pid = elimPid;
+    closeElim();
+    postAction('eliminate_player', { player_id: pid, finish_position: 0 }, function(j) {
         updatePlayer(j.player);
         POOL = j.pool;
-        refreshUI();
+        if (j.winner) {
+            // Last player standing was auto-crowned and the game finished.
+            updatePlayer(j.winner);
+            if (j.status) SESSION.status = j.status;
+            renderDashboard();
+            showWinner(j.winner);
+        } else {
+            refreshUI();
+        }
     });
 }
 
 function uneliminate(pid) {
     postAction('uneliminate_player', { player_id: pid }, function(j) {
+        // If the field re-opened (winner un-crowned, game reopened) resync everything.
+        if (j.reopened) { loadSession(); return; }
         updatePlayer(j.player);
         POOL = j.pool;
         refreshUI();
@@ -1985,6 +2166,14 @@ function openNotes(pid) {
 function closeNotes() {
     document.getElementById('notesModal').classList.remove('open');
     notesPlayerId = null;
+}
+
+function openHelp() {
+    document.getElementById('helpModal').classList.add('open');
+}
+
+function closeHelp() {
+    document.getElementById('helpModal').classList.remove('open');
 }
 
 function saveNotes() {

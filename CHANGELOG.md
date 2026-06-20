@@ -4,6 +4,23 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1983] - 2026-06-20
+
+### Added
+- **Tournament finishing places and prize-owed now recorded automatically.** Eliminating a player on the check-in screen (`www/checkin.php`, `www/checkin_dl.php`) no longer prompts the host to type a finishing position. The backend `eliminate_player` action derives the place from elimination order (the number of players still in, including the one being knocked out), so busting out with nine left records 9th, the next 8th, and so on. For places that are in the money, the prize owed is shown next to the player, computed live from the current prize pool and the configured payout structure (the same formula the payout card uses), so it always stays consistent. Finishing place feeds league standings (`league.php`), so getting it right matters beyond display.
+- **Heads-up auto-win.** When an elimination leaves exactly one player in, that player is automatically crowned the winner (`finish_position = 1`) and the session is set to `finished`; a celebratory modal announces the winner and 1st-place prize. Undoing the runner-up's elimination un-crowns the winner and reopens the game. The winner is shown with a gold 1st-place badge (never struck through) and has no Eliminate button anywhere, preventing accidental knock-out of the champion.
+- **Sortable columns on the check-in table.** Click any column header (Name, RSVP, buy-in, Rebuys, Add-ons, Table, Seat, Status, and the cash-game Total In / Cash Out / Profit) to sort; click again to reverse, with a ▲/▼ arrow on the active column. Sorting applies to both the desktop table and the mobile card list and composes with the existing filters. It is a view preference and is not persisted across reloads.
+- **In-screen help.** A "? Help" button in the check-in toolbar opens a modal explaining Buy In, Approve/Deny, Rebuys & Add-ons, and Eliminate. Works on touch (iPad) where hover tooltips do not. Buy In, Approve, and Deny also gained hover tooltips on desktop.
+
+### Changed
+- **Removed the dead "Check In" button.** The bulk "Check In" control posted a `toggle_checkin` action that had no server handler, so it did nothing. Check-in already happens automatically as a side effect of recording a buy-in, so the button was removed to end the confusion.
+
+### Fixed
+- **Eliminate no longer uses a native browser dialog.** The confirmation was a native `confirm()`, which after repeated use triggers the browser's "prevent this page from creating additional dialogs" option; once suppressed, `confirm()` silently returns false and eliminations stopped registering. It is now an in-page modal, so any number of eliminations can be recorded back-to-back.
+- **Eliminated players' Status is no longer struck through.** The eliminated-row styling struck through every cell except the last; the Status column (which now carries the place and prize owed) is exempted so it stays readable.
+
+---
+
 ## [v0.1982] - 2026-06-19
 
 ### Security
