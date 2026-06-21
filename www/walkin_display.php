@@ -205,8 +205,8 @@ function copyLink() {
     });
 }
 
-function regenToken() {
-    if (!confirm('Regenerate QR code? The old link will stop working.')) return;
+async function regenToken() {
+    if (!(await pkConfirm('Regenerate QR code? The old link will stop working.'))) return;
     var fd = new FormData();
     fd.append('csrf_token', CSRF);
     fd.append('action', 'regenerate_walkin_token');
@@ -247,5 +247,6 @@ document.addEventListener('visibilitychange', function() {
 window.addEventListener('resize', renderQR);
 renderQR();
 </script>
+<script src="/pk-dialogs.js?v=<?= @filemtime(__DIR__ . '/pk-dialogs.js') ?>" defer></script>
 </body>
 </html>

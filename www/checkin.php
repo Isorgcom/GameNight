@@ -459,17 +459,17 @@ function postAction(action, data, callback) {
     fetch('/checkin_dl.php', { method: 'POST', body: fd })
         .then(function(r) { return r.json(); })
         .then(function(j) {
-            if (!j.ok) { alert(j.error || 'Error'); return; }
+            if (!j.ok) { pkAlert(j.error || 'Error'); return; }
             callback(j);
         })
-        .catch(function(e) { console.error(e); alert('Request failed'); });
+        .catch(function(e) { console.error(e); pkAlert('Request failed'); });
 }
 
 function loadSession() {
     fetch('/checkin_dl.php?action=get_session&event_id=' + EVENT_ID)
         .then(function(r) { return r.json(); })
         .then(function(j) {
-            if (!j.ok) { alert(j.error || 'Error'); return; }
+            if (!j.ok) { pkAlert(j.error || 'Error'); return; }
             if (!j.session) {
                 renderSetup();
             } else {
@@ -1183,10 +1183,10 @@ function renderSettingsPanel() {
     h += '<button class="pk-settings-save" onclick="saveSettings()">Save Settings</button>';
     h += '<div style="margin-top:1rem;padding-top:1rem;border-top:1.5px solid #e2e8f0;display:flex;gap:.5rem;flex-wrap:wrap">';
     if (SESSION.status !== 'finished') {
-        h += '<button onclick="if(confirm(\'Mark this game as finished? This finalizes all stats and payouts.\'))changeStatus(\'finished\')" style="padding:.5rem 1rem;border-radius:6px;font-size:.85rem;font-weight:600;cursor:pointer;background:#16a34a;color:#fff;border:none">&#10003; Finish Game</button>';
+        h += '<button onclick="pkConfirm(\'Mark this game as finished? This finalizes all stats and payouts.\').then(function(ok){if(ok)changeStatus(\'finished\')})" style="padding:.5rem 1rem;border-radius:6px;font-size:.85rem;font-weight:600;cursor:pointer;background:#16a34a;color:#fff;border:none">&#10003; Finish Game</button>';
     } else {
         h += '<span style="color:#16a34a;font-weight:600;font-size:.85rem">&#10003; Game Finished</span>';
-        h += '<button onclick="if(confirm(\'Reopen this game?\'))changeStatus(\'active\')" style="padding:.5rem 1rem;border-radius:6px;font-size:.85rem;font-weight:600;cursor:pointer;background:#d97706;color:#fff;border:none">Reopen</button>';
+        h += '<button onclick="pkConfirm(\'Reopen this game?\').then(function(ok){if(ok)changeStatus(\'active\')})" style="padding:.5rem 1rem;border-radius:6px;font-size:.85rem;font-weight:600;cursor:pointer;background:#d97706;color:#fff;border:none">Reopen</button>';
     }
     h += '</div>';
     h += '</div>';
@@ -1381,7 +1381,7 @@ function onPayoutStructureChange() {
 
 function loadPayoutStructure() {
     var sel = document.getElementById('payoutStructureSelect');
-    if (!sel || !sel.value) { alert('Pick a structure first.'); return; }
+    if (!sel || !sel.value) { pkAlert('Pick a structure first.'); return; }
     var sid = sel.value;
     var fd = new FormData();
     fd.append('csrf_token', CSRF);
@@ -1391,7 +1391,7 @@ function loadPayoutStructure() {
     fetch('/checkin_dl.php', { method: 'POST', body: fd })
         .then(function(r) { return r.json(); })
         .then(function(j) {
-            if (!j.ok) { alert(j.error || 'Error'); return; }
+            if (!j.ok) { pkAlert(j.error || 'Error'); return; }
             PAYOUTS = j.payouts;
             POOL = j.pool || POOL;
             CURRENT_STRUCTURE_ID = parseInt(sid);
@@ -1410,10 +1410,10 @@ function loadPayoutStructure() {
 function savePayoutStructureAs() {
     // Gather current rows
     var inputs = document.querySelectorAll('.payout-pct');
-    if (!inputs.length) { alert('No payout rows to save.'); return; }
+    if (!inputs.length) { pkAlert('No payout rows to save.'); return; }
     var total = 0;
     for (var i = 0; i < inputs.length; i++) total += parseFloat(inputs[i].value || 0);
-    if (total > 100.001) { alert('Total is ' + total.toFixed(1) + '% — cannot exceed 100%.'); return; }
+    if (total > 100.001) { pkAlert('Total is ' + total.toFixed(1) + '% — cannot exceed 100%.'); return; }
 
     // Fetch leagues the user can save to
     fetch('/checkin_dl.php?action=get_payout_user_leagues')
@@ -1424,8 +1424,8 @@ function savePayoutStructureAs() {
         })
         .catch(function() { _continueSavePayoutStructureAs([], inputs); });
 }
-function _continueSavePayoutStructureAs(leagues, inputs) {
-    var name = prompt('Structure name:');
+async function _continueSavePayoutStructureAs(leagues, inputs) {
+    var name = await pkPrompt('Structure name:');
     if (!name) return;
     var league_id = 0;
     var is_global = 0;
@@ -1435,7 +1435,7 @@ function _continueSavePayoutStructureAs(leagues, inputs) {
         scopeOptions.push((idx + 1) + ': League — ' + l.name);
     });
     if (scopeOptions.length > 1) {
-        var picked = prompt('Save as:\n\n' + scopeOptions.join('\n') + '\n\nEnter your choice (0, G, or 1-' + leagues.length + '):', '0');
+        var picked = await pkPrompt('Save as:<br><br>' + scopeOptions.join('<br>') + '<br><br>Enter your choice (0, G, or 1-' + leagues.length + '):', {default: '0'});
         if (picked === null) return;
         picked = String(picked).trim().toUpperCase();
         if (picked === 'G' && IS_ADMIN) is_global = 1;
@@ -1462,16 +1462,16 @@ function _continueSavePayoutStructureAs(leagues, inputs) {
     fetch('/checkin_dl.php', { method: 'POST', body: fd })
         .then(function(r) { return r.json(); })
         .then(function(j) {
-            if (!j.ok) { alert(j.error || 'Error'); return; }
+            if (!j.ok) { pkAlert(j.error || 'Error'); return; }
             CURRENT_STRUCTURE_ID = parseInt(j.structure_id);
             loadPayoutStructures();
         });
 }
 
-function deletePayoutStructure() {
+async function deletePayoutStructure() {
     var sel = document.getElementById('payoutStructureSelect');
     if (!sel || !sel.value) return;
-    if (!confirm('Delete this payout structure?')) return;
+    if (!(await pkConfirm('Delete this payout structure?'))) return;
     var fd = new FormData();
     fd.append('csrf_token', CSRF);
     fd.append('action', 'delete_payout_structure');
@@ -1479,16 +1479,16 @@ function deletePayoutStructure() {
     fetch('/checkin_dl.php', { method: 'POST', body: fd })
         .then(function(r) { return r.json(); })
         .then(function(j) {
-            if (!j.ok) { alert(j.error || 'Error'); return; }
+            if (!j.ok) { pkAlert(j.error || 'Error'); return; }
             if (parseInt(sel.value) === CURRENT_STRUCTURE_ID) CURRENT_STRUCTURE_ID = 0;
             loadPayoutStructures();
         });
 }
 
-function setDefaultPayoutStructure() {
+async function setDefaultPayoutStructure() {
     var sel = document.getElementById('payoutStructureSelect');
     if (!sel || !sel.value) return;
-    if (!confirm('Set this structure as the site default?')) return;
+    if (!(await pkConfirm('Set this structure as the site default?'))) return;
     var fd = new FormData();
     fd.append('csrf_token', CSRF);
     fd.append('action', 'set_default_payout_structure');
@@ -1496,7 +1496,7 @@ function setDefaultPayoutStructure() {
     fetch('/checkin_dl.php', { method: 'POST', body: fd })
         .then(function(r) { return r.json(); })
         .then(function(j) {
-            if (!j.ok) { alert(j.error || 'Error'); return; }
+            if (!j.ok) { pkAlert(j.error || 'Error'); return; }
             loadPayoutStructures();
         });
 }
@@ -1641,9 +1641,9 @@ function executeBalance() {
                 var m = j.moves[i];
                 msg += m.display_name + ': Table ' + (m.old_table || '?') + ' \u2192 ' + m.new_table + '\n';
             }
-            alert(msg);
+            pkAlert(msg);
         } else {
-            alert('Tables are already balanced.');
+            pkAlert('Tables are already balanced.');
         }
         renderDashboard();
     });
@@ -1659,8 +1659,8 @@ function addTable() {
     });
 }
 
-function breakUpTable(tableNum) {
-    if (!confirm('Break up Table ' + tableNum + '? All players will be distributed to the other tables.')) return;
+async function breakUpTable(tableNum) {
+    if (!(await pkConfirm('Break up Table ' + tableNum + '? All players will be distributed to the other tables.'))) return;
     postAction('break_up_table', { session_id: SESSION.id, table_number: tableNum }, function(j) {
         PLAYERS = j.players;
         SESSION = j.session;
@@ -1670,7 +1670,7 @@ function breakUpTable(tableNum) {
                 var m = j.moves[i];
                 msg += m.display_name + ': Table ' + (m.old_table || '?') + ' \u2192 ' + m.new_table + '\n';
             }
-            alert(msg);
+            pkAlert(msg);
         }
         renderDashboard();
     });
@@ -1766,7 +1766,7 @@ var elimPid = null;
 function eliminatePlayer(pid) {
     var player = PLAYERS.find(function(p) { return parseInt(p.id) === pid; });
     if (player && !parseInt(player.bought_in)) {
-        alert('This player has not bought in yet. Buy them in before eliminating.');
+        pkAlert('This player has not bought in yet. Buy them in before eliminating.');
         return;
     }
     // Place = number still in (including this player). Backend re-derives it authoritatively.
@@ -1784,8 +1784,6 @@ function closeElim() {
     elimPid = null;
 }
 
-// Generic in-app confirm modal (replaces native confirm()).
-// opts: { title, message (HTML), okLabel, danger, onConfirm }
 // Remove confirmations use the shared pkConfirm (pk-dialogs.js).
 function removePlayerConfirm(pid) {
     var p = PLAYERS.find(function(p) { return parseInt(p.id) === pid; });
@@ -2071,7 +2069,7 @@ document.addEventListener('click', function(e) {
 
 function addWalkin() {
     var name = document.getElementById('walkinName').value.trim();
-    if (!name) { alert('Enter a name'); return; }
+    if (!name) { pkAlert('Enter a name'); return; }
     var dd = document.getElementById('walkinDropdown');
     if (dd) { dd.classList.remove('open'); dd.innerHTML = ''; _walkinIdx = -1; }
     postAction('add_walkin', { session_id: SESSION.id, name: name }, function(j) {
@@ -2100,8 +2098,8 @@ function approvePlayer(pid) {
     });
 }
 
-function denyPlayer(pid) {
-    if (!confirm('Deny this player?')) return;
+async function denyPlayer(pid) {
+    if (!(await pkConfirm('Deny this player?'))) return;
     postAction('deny_player', { player_id: pid }, function(j) {
         PLAYERS = j.players;
         POOL = j.pool;
@@ -2158,7 +2156,7 @@ function saveSettings() {
                 pctSum += parseFloat(inputs[i].value || 0);
             }
             if (pctSum > 100) {
-                alert('Payout percentages total ' + pctSum.toFixed(1) + '% — cannot exceed 100%.');
+                pkAlert('Payout percentages total ' + pctSum.toFixed(1) + '% — cannot exceed 100%.');
                 return;
             }
             var fd = new FormData();
@@ -2323,7 +2321,7 @@ setInterval(function() {
 // ─── DEAL SPLIT MODAL ────────────────────────────────────
 function openDealSplit() {
     var remaining = PLAYERS.filter(function(p) { return !parseInt(p.eliminated) && parseInt(p.bought_in); });
-    if (remaining.length < 2) { alert('Need at least 2 active players for a deal split.'); return; }
+    if (remaining.length < 2) { pkAlert('Need at least 2 active players for a deal split.'); return; }
 
     var modal = document.getElementById('dealSplitModal');
     var body = document.getElementById('dealSplitBody');
@@ -2387,7 +2385,7 @@ function calcDeal(method) {
     var numPlayers = chips.length;
 
     if (method !== 'standard' && totalChips === 0) {
-        alert('Enter chip counts for all remaining players.');
+        pkAlert('Enter chip counts for all remaining players.');
         return;
     }
 

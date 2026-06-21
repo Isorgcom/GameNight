@@ -211,7 +211,7 @@ $backUrl   = '/calendar.php?m=' . urlencode(substr($event['start_date'], 0, 7)) 
             <div style="display:flex;gap:.5rem;margin-top:.5rem">
                 <button type="button" class="pl-btn" onclick="addQuestion()">+ Add question</button>
                 <div style="flex:1"></div>
-                <button type="submit" class="pl-btn primary" onclick="return confirm('Send this poll to <?= count($audienceNow) ?> Yes/Maybe guest(s) now?')">Create &amp; Send</button>
+                <button type="submit" class="pl-btn primary" onclick="return pkConfirmForm(this.form, 'Send this poll to <?= count($audienceNow) ?> Yes/Maybe guest(s) now?')">Create &amp; Send</button>
             </div>
             <p class="pl-meta" style="margin:.6rem 0 0">Questions can't be edited once anyone has voted &mdash; close the poll and make a new one instead.</p>
         </form>
@@ -266,7 +266,7 @@ $backUrl   = '/calendar.php?m=' . urlencode(substr($event['start_date'], 0, 7)) 
                 <input type="hidden" name="poll_id" value="<?= (int)$p['id'] ?>">
                 <button type="submit" class="pl-btn" title="Sends only to Yes/Maybe guests who haven't received this poll yet">Send to new respondents</button>
             </form>
-            <form method="post" action="/event_polls.php" style="margin:0" onsubmit="return confirm('Close this poll? Nobody will be able to vote anymore.')">
+            <form method="post" action="/event_polls.php" style="margin:0" onsubmit="return pkConfirmForm(this, 'Close this poll? Nobody will be able to vote anymore.')">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <input type="hidden" name="action" value="close">
                 <input type="hidden" name="event_id" value="<?= $eventId ?>">
@@ -283,7 +283,7 @@ $backUrl   = '/calendar.php?m=' . urlencode(substr($event['start_date'], 0, 7)) 
             </form>
             <?php endif; ?>
             <form method="post" action="/event_polls.php" style="margin:0;margin-left:auto"
-                  onsubmit="return confirm('Permanently delete this poll and all its votes? Recipients\' links will stop working. This cannot be undone.')">
+                  onsubmit="return pkConfirmForm(this, 'Permanently delete this poll and all its votes? Recipients\' links will stop working. This cannot be undone.', {okLabel:'Delete', danger:true})">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <input type="hidden" name="action" value="delete">
                 <input type="hidden" name="event_id" value="<?= $eventId ?>">

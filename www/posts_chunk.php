@@ -88,7 +88,7 @@ foreach ($posts as $post):
             <?php if ($__p_is_global): ?>
                 <a href="/admin_posts.php?edit=<?= (int)$post['id'] ?>">Edit</a>
                 <form method="post" action="/admin_posts.php" style="margin:0"
-                      onsubmit="return confirm('Delete this post?')">
+                      onsubmit="return pkConfirmForm(this, 'Delete this post?', {okLabel:'Delete', danger:true})">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                     <input type="hidden" name="action" value="delete">
                     <input type="hidden" name="id" value="<?= (int)$post['id'] ?>">
@@ -97,7 +97,7 @@ foreach ($posts as $post):
             <?php else: ?>
                 <a href="/league.php?id=<?= $__p_league_id ?>&tab=posts&edit=<?= (int)$post['id'] ?>">Edit</a>
                 <form method="post" action="/league_posts_dl.php" style="margin:0"
-                      onsubmit="return confirm('Delete this post?')">
+                      onsubmit="return pkConfirmForm(this, 'Delete this post?', {okLabel:'Delete', danger:true})">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                     <input type="hidden" name="action" value="delete">
                     <input type="hidden" name="post_id" value="<?= (int)$post['id'] ?>">
@@ -160,7 +160,7 @@ foreach ($posts as $post):
                                 onclick="editComment(<?= (int)$c['id'] ?>, this)"
                                 title="Edit">&#9998;</button>
                         <form method="post" action="/comment.php" style="margin:0;display:contents"
-                              onsubmit="return confirm('Delete this comment?')">
+                              onsubmit="return pkConfirmForm(this, 'Delete this comment?', {okLabel:'Delete', danger:true})">
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
                             <input type="hidden" name="action" value="delete">
                             <input type="hidden" name="comment_id" value="<?= (int)$c['id'] ?>">

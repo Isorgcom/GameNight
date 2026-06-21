@@ -256,13 +256,13 @@ document.querySelectorAll('button[aria-label="Show password"], button[aria-label
 function validateRegister() {
     var contact = document.getElementById('contact');
     var val = contact ? contact.value.trim() : '';
-    if (val === '') { alert('Enter an email address or phone number.'); contact && contact.focus(); return false; }
+    if (val === '') { pkAlert('Enter an email address or phone number.'); contact && contact.focus(); return false; }
     if (val.indexOf('@') !== -1) {
         // Email
-        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(val)) { alert('That does not look like a valid email address.'); contact.focus(); return false; }
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(val)) { pkAlert('That does not look like a valid email address.'); contact.focus(); return false; }
     } else {
         // Phone: require at least 7 digits after stripping non-digits
-        if ((val.replace(/\D/g, '')).length < 7) { alert('That does not look like a valid phone number.'); contact.focus(); return false; }
+        if ((val.replace(/\D/g, '')).length < 7) { pkAlert('That does not look like a valid phone number.'); contact.focus(); return false; }
     }
     return true;
 }
@@ -290,5 +290,6 @@ updateContactHint();
 </script>
 <script src="/_phone_input.js"></script>
 <script>initPhoneAutoFormat();</script>
+<script src="/pk-dialogs.js?v=<?= @filemtime(__DIR__ . '/pk-dialogs.js') ?>" defer></script>
 </body>
 </html>

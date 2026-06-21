@@ -189,7 +189,7 @@ function post(data) {
 }
 function joinLeague(id) {
     post({ action: 'request_join', league_id: id, message: '' }).then(function(j) {
-        if (j.ok) location.reload(); else alert(j.error || 'Failed');
+        if (j.ok) location.reload(); else pkAlert(j.error || 'Failed');
     });
 }
 function openRequestModal(id, name) {
@@ -206,13 +206,13 @@ function submitRequest() {
     if (!_rqLeagueId) return;
     var msg = document.getElementById('rqMsg').value;
     post({ action: 'request_join', league_id: _rqLeagueId, message: msg }).then(function(j) {
-        if (j.ok) location.reload(); else alert(j.error || 'Failed');
+        if (j.ok) location.reload(); else pkAlert(j.error || 'Failed');
     });
 }
-function cancelRequest(leagueId) {
-    if (!confirm('Cancel this request?')) return;
+async function cancelRequest(leagueId) {
+    if (!(await pkConfirm('Cancel this request?'))) return;
     post({ action: 'cancel_request', league_id: leagueId }).then(function(j) {
-        if (j.ok) location.reload(); else alert(j.error || 'Failed');
+        if (j.ok) location.reload(); else pkAlert(j.error || 'Failed');
     });
 }
 function filterBrowse(q) {

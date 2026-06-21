@@ -589,7 +589,7 @@ endif; ?>
                     <?php if ($__p_is_global): ?>
                         <a href="/admin_posts.php?edit=<?= (int)$post['id'] ?>">Edit</a>
                         <form method="post" action="/admin_posts.php" style="margin:0"
-                              onsubmit="return confirm('Delete this post?')">
+                              onsubmit="return pkConfirmForm(this, 'Delete this post?', {okLabel:'Delete', danger:true})">
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                             <input type="hidden" name="action" value="delete">
                             <input type="hidden" name="id" value="<?= (int)$post['id'] ?>">
@@ -598,7 +598,7 @@ endif; ?>
                     <?php else: ?>
                         <a href="/league.php?id=<?= $__p_league_id ?>&tab=posts&edit=<?= (int)$post['id'] ?>">Edit</a>
                         <form method="post" action="/league_posts_dl.php" style="margin:0"
-                              onsubmit="return confirm('Delete this post?')">
+                              onsubmit="return pkConfirmForm(this, 'Delete this post?', {okLabel:'Delete', danger:true})">
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                             <input type="hidden" name="action" value="delete">
                             <input type="hidden" name="post_id" value="<?= (int)$post['id'] ?>">
@@ -665,7 +665,7 @@ endif; ?>
                                     onclick="editComment(<?= (int)$c['id'] ?>, this)"
                                     title="Edit">&#9998;</button>
                             <form method="post" action="/comment.php" style="margin:0;display:contents"
-                                  onsubmit="return confirm('Delete this comment?')">
+                                  onsubmit="return pkConfirmForm(this, 'Delete this comment?', {okLabel:'Delete', danger:true})">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
                                 <input type="hidden" name="action" value="delete">
                                 <input type="hidden" name="comment_id" value="<?= (int)$c['id'] ?>">
@@ -917,9 +917,12 @@ function prepareBulkDelete(postId, form) {
         document.getElementById('csec-' + postId).querySelectorAll('.comment-sel:checked')
     ).map(c => parseInt(c.value));
     if (!ids.length) return false;
-    if (!confirm('Delete ' + ids.length + ' comment' + (ids.length !== 1 ? 's' : '') + '?')) return false;
-    form.querySelector('[name="comment_ids"]').value = JSON.stringify(ids);
-    return true;
+    pkConfirm('Delete ' + ids.length + ' comment' + (ids.length !== 1 ? 's' : '') + '?', {okLabel:'Delete', danger:true}).then(function(ok){
+        if (!ok) return;
+        form.querySelector('[name="comment_ids"]').value = JSON.stringify(ids);
+        form.submit();
+    });
+    return false;
 }
 </script>
 <?php endif; ?>

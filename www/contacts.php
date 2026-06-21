@@ -192,22 +192,22 @@ function addContact() {
     var name  = document.getElementById('acName').value.trim();
     var email = document.getElementById('acEmail').value.trim();
     var phone = document.getElementById('acPhone').value.trim();
-    if (!name)  { alert('Name is required.'); return; }
-    if (!email && !phone) { alert('Enter an email or phone.'); return; }
+    if (!name)  { pkAlert('Name is required.'); return; }
+    if (!email && !phone) { pkAlert('Enter an email or phone.'); return; }
     post({ action: 'add_contact', contact_name: name, contact_email: email, contact_phone: phone }).then(function(j) {
         if (j.ok) location.reload();
-        else alert(j.error || 'Failed');
+        else pkAlert(j.error || 'Failed');
     });
 }
 
-function deleteContact(cid) {
-    if (!confirm('Delete this contact?')) return;
+async function deleteContact(cid) {
+    if (!(await pkConfirm('Delete this contact?'))) return;
     post({ action: 'delete_contact', contact_id: cid }).then(function(j) {
         if (j.ok) {
             var row = document.querySelector('tr[data-contact-id="' + cid + '"]');
             if (row) row.remove();
         } else {
-            alert(j.error || 'Failed');
+            pkAlert(j.error || 'Failed');
         }
     });
 }
@@ -238,7 +238,7 @@ function deleteContact(cid) {
                     self.dataset.orig = self.value;
                     flashSaved();
                 } else {
-                    alert(j.error || 'Save failed');
+                    pkAlert(j.error || 'Save failed');
                     self.value = orig;
                 }
             });

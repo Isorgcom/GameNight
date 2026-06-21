@@ -4,7 +4,10 @@ All notable changes to GameNight are documented here.
 
 ---
 
-## [v0.1993] - 2026-06-21
+## [v0.1994] - 2026-06-21
+
+### Changed
+- **Most remaining user-facing pages now use in-app dialogs instead of native browser pop-ups (Batch B).** ~52 native `alert()`/`confirm()`/`prompt()` calls were converted to the shared `pk-dialogs.js` helpers across `contacts.php`, `leagues.php`, `index.php`, `event_polls.php`, `register.php`, `posts_chunk.php`, `user_edit.php`, `walkin_display.php`, and the rest of `checkin.php` (Finish/Reopen game, deny player, break table, payout-structure save/delete/default including the "Save as" scope chooser, etc.). Confirm-gated handlers were made `async`; delete/confirm forms use `pkConfirmForm`. The two standalone pages that don't include the shared footer (`register.php`, `walkin_display.php`) load `pk-dialogs.js` directly (cache-busted by mtime). Verified with headless Chromium (pk-dialogs present, all handlers intact, zero JS errors) and `node --check` on every converted file. Only admin pages remain (Batch C).
 
 ### Changed
 - **League pages now use in-app dialogs instead of native browser pop-ups.** All 25 native `alert()`/`confirm()` calls in `www/league.php` were converted to the shared `pk-dialogs.js` helpers: the seven confirm-gated forms (delete post, delete API key, set/unset rules, public-link generate/disable) via `pkConfirmForm`, and the `act` / `removeMember` / `leaveLeague` / `regen` handlers via `async` + `await pkConfirm`. Verified with headless Chromium (HTTP 200, all handlers intact, centered overlay, zero JS errors) and `node --check`. Completes Batch A of the migration (timer v0.1991, calendar v0.1992, league v0.1993).
