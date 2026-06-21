@@ -4,7 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
-## [v0.1995] - 2026-06-21
+## [v0.1996] - 2026-06-21
+
+### Fixed
+- **`calendar_dl.php` no longer 500s on a direct GET.** The file is a POST-only action endpoint (delete/cancel-series/remove-invitee/walk-in-token actions), but it still contained a legacy GET "calendar view" — a duplicate of `calendar.php` left over from before recurrence was removed — whose query referenced the long-deleted `recurrence` column and threw an uncaught `PDOException` on any GET. A direct GET now redirects to `/calendar.php` instead. POST handling is unchanged.
+
+### Removed
+- **Deleted ~1,940 lines of dead legacy calendar-render code from `calendar_dl.php`** (everything after the POST handlers / the new GET redirect). It was an unreachable, broken duplicate of `calendar.php`; the file drops from 2,271 to 334 lines. No behavior change beyond the GET fix above.
 
 ### Changed
 - **Admin pages now use in-app dialogs instead of native browser pop-ups (Batch C) — completing the app-wide migration.** The remaining ~24 native `alert()`/`confirm()`/`prompt()` calls across `admin_settings.php`, `admin_settings_dl.php`, `admin_posts.php`, `admin_help.php`, `admin_api_keys.php`, and `sms_log.php` were converted to the shared `pk-dialogs.js` helpers (clear-logs / delete-users / delete-event / restore-backup / remove-banner-icon / delete-post / delete-API-key forms via `pkConfirmForm`; the WhatsApp reset/stop, post discard/bulk-delete, and tip-delete handlers via `async` + `await pkConfirm`). Verified with headless Chromium (zero JS errors, handlers intact) and `node --check`. A repo-wide sweep confirms no native `alert`/`confirm`/`prompt` calls remain anywhere outside third-party libraries. This finishes the migration begun in v0.1990 (shared utility) across Batches A (timer/calendar/league), B (other user-facing pages), and C (admin).
