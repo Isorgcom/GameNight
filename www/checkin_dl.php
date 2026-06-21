@@ -47,7 +47,21 @@ if ($action === 'get_session') {
         'players' => get_players($db, $session['id']),
         'payouts' => get_payouts($db, $session['id']),
         'pool'    => calc_pool($db, $session['id']),
+        'log'     => get_session_log($db, (int)$session['id']),
     ]);
+    exit;
+}
+
+// ─── GET: get_log ──────────────────────────────────────────
+// Returns a session's append-only activity log, newest-first. Hosts/admins only.
+if ($action === 'get_log') {
+    $event_id = (int)($_GET['event_id'] ?? $_POST['event_id'] ?? 0);
+    verify_event_access($db, $event_id, $current, $isAdmin);
+
+    $stmt = $db->prepare('SELECT id FROM poker_sessions WHERE event_id = ?');
+    $stmt->execute([$event_id]);
+    $session_id = (int)($stmt->fetchColumn() ?: 0);
+    echo json_encode(['ok' => true, 'log' => $session_id ? get_session_log($db, $session_id) : []]);
     exit;
 }
 
@@ -315,14 +329,18 @@ if ($action === 'toggle_buyin') {
     $pl = $db->prepare('SELECT bought_in FROM poker_players WHERE id = ?');
     $pl->execute([$player_id]);
     $cur = $pl->fetch();
+    $pname = $plRow['display_name'] ?? '';
     if ((int)$cur['bought_in'] === 0) {
         $db->prepare('UPDATE poker_players SET bought_in = 1, checked_in = 1 WHERE id = ?')->execute([$player_id]);
         $db->commit();
         auto_assign_table($db, $session['id'], $player_id);
+        $amt = (int)$session['buyin_amount'];
+        pk_log($db, (int)$session['id'], (int)$current['id'], 'buyin', $player_id, $pname, $amt, 'Bought in — ' . pk_money($amt));
     } else {
         // Un-buying: clear bought_in and the table assignment
         $db->prepare('UPDATE poker_players SET bought_in = 0, checked_in = 0, table_number = NULL, seat_number = NULL WHERE id = ?')->execute([$player_id]);
         $db->commit();
+        pk_log($db, (int)$session['id'], (int)$current['id'], 'unbuyin', $player_id, $pname, null, 'Buy-in reversed');
     }
 
     $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
@@ -361,9 +379,17 @@ if ($action === 'update_rebuys') {
 
     $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
     $p->execute([$player_id]);
+    $prow = $p->fetch();
+    if ($newVal !== $cur) {
+        $amt = (int)$session['rebuy_amount'];
+        $detail = ($newVal > $cur)
+            ? 'Rebuy #' . $newVal . ' — ' . pk_money($amt)
+            : 'Rebuy removed (now ' . $newVal . ')';
+        pk_log($db, (int)$session['id'], (int)$current['id'], 'rebuy', $player_id, $prow['display_name'] ?? '', ($newVal > $cur ? $amt : -$amt), $detail);
+    }
     echo json_encode([
         'ok'     => true,
-        'player' => $p->fetch(),
+        'player' => $prow,
         'pool'   => calc_pool($db, $session['id']),
     ]);
     exit;
@@ -390,9 +416,17 @@ if ($action === 'update_addons') {
 
     $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
     $p->execute([$player_id]);
+    $prow = $p->fetch();
+    if ($newVal !== $cur) {
+        $amt = (int)$session['addon_amount'];
+        $detail = ($newVal > $cur)
+            ? 'Add-on #' . $newVal . ' — ' . pk_money($amt)
+            : 'Add-on removed (now ' . $newVal . ')';
+        pk_log($db, (int)$session['id'], (int)$current['id'], 'addon', $player_id, $prow['display_name'] ?? '', ($newVal > $cur ? $amt : -$amt), $detail);
+    }
     echo json_encode([
         'ok'     => true,
-        'player' => $p->fetch(),
+        'player' => $prow,
         'pool'   => calc_pool($db, $session['id']),
     ]);
     exit;
@@ -453,9 +487,14 @@ if ($action === 'eliminate_player') {
 
     $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
     $p->execute([$player_id]);
+    $prow = $p->fetch();
+    pk_log($db, (int)$session['id'], (int)$current['id'], 'eliminate', $player_id, $prow['display_name'] ?? '', null, 'Eliminated (' . pk_ordinal($finish_position) . ')');
+    if ($winner) {
+        pk_log($db, (int)$session['id'], (int)$current['id'], 'eliminate', (int)$winner['id'], $winner['display_name'] ?? '', null, 'Won — 1st place');
+    }
     echo json_encode([
         'ok'     => true,
-        'player' => $p->fetch(),
+        'player' => $prow,
         'winner' => $winner,
         'status' => $newStatus,
         'pool'   => calc_pool($db, $session['id']),
@@ -486,9 +525,11 @@ if ($action === 'uneliminate_player') {
 
     $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
     $p->execute([$player_id]);
+    $prow = $p->fetch();
+    pk_log($db, (int)$session['id'], (int)$current['id'], 'uneliminate', $player_id, $prow['display_name'] ?? '', null, 'Elimination undone — back in');
     echo json_encode([
         'ok'       => true,
-        'player'   => $p->fetch(),
+        'player'   => $prow,
         'reopened' => $reopened,
         'pool'     => calc_pool($db, $session['id']),
     ]);
@@ -550,6 +591,7 @@ if ($action === 'add_walkin') {
     if ($user_id) auto_add_to_league($db, (int)$s['event_id'], (int)$user_id);
 
     db_log_activity((int)$current['id'], "added walk-in '$name' (player id=$newId) to poker session id=$session_id");
+    pk_log($db, $session_id, (int)$current['id'], 'add', $newId, $name, null, 'Added to roster');
 
     $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
     $p->execute([$newId]);
@@ -596,9 +638,11 @@ if (in_array($action, ['approve_player', 'deny_player'], true)) {
             $payload['seat']  = (int)$seatNum;
         }
         queue_event_notification($db, (int)$session['event_id'], $pRow['display_name'], 'poker_approved', null, $payload ?: null);
+        pk_log($db, (int)$session['id'], (int)$current['id'], 'approve', $player_id, $pRow['display_name'], null, 'Approved onto roster');
     } else {
         // Deny: soft-remove from poker roster
         $db->prepare('UPDATE poker_players SET removed = 1 WHERE id = ?')->execute([$player_id]);
+        pk_log($db, (int)$session['id'], (int)$current['id'], 'remove', $player_id, $pRow['display_name'], null, 'Denied / removed');
     }
 
     echo json_encode([
@@ -632,6 +676,7 @@ if ($action === 'remove_player') {
     }
 
     db_log_activity((int)$current['id'], "removed player '" . ($player['display_name'] ?? '') . "' (player id=$player_id) from poker session id=" . (int)$session['id']);
+    pk_log($db, (int)$session['id'], (int)$current['id'], 'remove', $player_id, $player['display_name'] ?? '', null, 'Removed from session');
 
     echo json_encode([
         'ok'   => true,
@@ -759,9 +804,11 @@ if ($action === 'add_cashin') {
 
     $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
     $p->execute([$player_id]);
+    $prow = $p->fetch();
+    pk_log($db, (int)$session['id'], (int)$current['id'], 'cashin', $player_id, $prow['display_name'] ?? '', $amount, 'Cash in — ' . pk_money($amount));
     echo json_encode([
         'ok'     => true,
-        'player' => $p->fetch(),
+        'player' => $prow,
         'pool'   => calc_pool($db, $session['id']),
     ]);
     exit;
@@ -785,9 +832,11 @@ if ($action === 'set_cashin') {
 
     $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
     $p->execute([$player_id]);
+    $prow = $p->fetch();
+    pk_log($db, (int)$session['id'], (int)$current['id'], 'cashin', $player_id, $prow['display_name'] ?? '', $amt, 'Cash in set to ' . pk_money($amt));
     echo json_encode([
         'ok'     => true,
-        'player' => $p->fetch(),
+        'player' => $prow,
         'pool'   => calc_pool($db, $session['id']),
     ]);
     exit;
@@ -818,9 +867,15 @@ if ($action === 'set_cashout') {
 
     $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
     $p->execute([$player_id]);
+    $prow = $p->fetch();
+    if ($cash_out === null) {
+        pk_log($db, (int)$session['id'], (int)$current['id'], 'cashout', $player_id, $prow['display_name'] ?? '', null, 'Cash-out cleared');
+    } else {
+        pk_log($db, (int)$session['id'], (int)$current['id'], 'cashout', $player_id, $prow['display_name'] ?? '', $cash_out, 'Cashed out — ' . pk_money($cash_out));
+    }
     echo json_encode([
         'ok'     => true,
-        'player' => $p->fetch(),
+        'player' => $prow,
         'pool'   => calc_pool($db, $session['id']),
     ]);
     exit;

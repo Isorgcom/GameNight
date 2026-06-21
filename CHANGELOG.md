@@ -4,6 +4,14 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1998] - 2026-06-21
+
+### Added
+- **Check-in screen now has an Activity Log view.** Hosts can see exactly who entered and every dollar in or out during a live poker session, for both tournament and cash games. A new persisted, append-only `poker_session_log` table records the full timeline — players added/approved, buy-ins (and reversals), rebuys, add-ons, cash-in, cash-out, eliminations (with finishing place), the auto-crowned winner, and removals — each entry stamped with the dollar amount where relevant, the actor (the host who performed it, or `system`), and the time in the site timezone. Two helpers in `www/_poker_helpers.php` do the work: `pk_log()` writes entries (control-char-stripped like `db_log_activity`), and `get_session_log()` reads them newest-first with the actor joined from `users` and timestamps converted UTC→site-tz (mirroring `admin_activity_snapshot`). Eleven action handlers in `www/checkin_dl.php` now log their effects, a new `get_log` action returns the feed, and `get_session` carries it for the initial paint — all behind the existing host/admin `verify_event_access` gate. The log is read-only by design: corrections are made through the normal controls (e.g. decrement a rebuy), which themselves get logged, so the record never diverges from session state.
+- **List / Table / Log unified into one sliding view switcher.** The check-in toolbar's List/Table segmented control gained a third **Log** segment, with a blue indicator that slides under the active view. Switching is surgical — only the content area (`#viewContent`) re-renders while the toolbar and sidebar persist — so the log lives on the main screen rather than in a popup. The thumb is positioned in JS from the active button's geometry (`positionViewThumb()` in `www/checkin.php`), animated on click and snapped on full re-renders; the log also refreshes live on each logged action and on the 10-second session poll.
+
+---
+
 ## [v0.1997] - 2026-06-21
 
 ### Added

@@ -440,3 +440,60 @@ function get_payouts($db, $session_id) {
     $stmt->execute([$session_id]);
     return $stmt->fetchAll();
 }
+
+// ─── Per-session activity log ──────────────────────────────
+// Format cents as a short dollar string, dropping ".00" on whole amounts
+// (matches the front-end formatMoney() in checkin.php).
+function pk_money($cents): string {
+    $v = (int)$cents / 100;
+    return '$' . ($v == (int)$v ? number_format($v, 0) : number_format($v, 2));
+}
+
+// Format an integer place as an ordinal (1 -> 1st, 2 -> 2nd, 3 -> 3rd …).
+function pk_ordinal(int $n): string {
+    $abs = abs($n) % 100;
+    if ($abs >= 11 && $abs <= 13) return $n . 'th';
+    switch (abs($n) % 10) {
+        case 1: return $n . 'st';
+        case 2: return $n . 'nd';
+        case 3: return $n . 'rd';
+        default: return $n . 'th';
+    }
+}
+
+// Append one entry to a session's activity log. Append-only — never updated
+// or deleted. $amount is in cents where relevant (else null); $detail is a
+// pre-formatted human-readable sentence.
+function pk_log($db, int $session_id, ?int $user_id, string $event_type, ?int $player_id, ?string $player_name, ?int $amount, string $detail): void {
+    // Strip control chars to prevent log injection (same as db_log_activity).
+    $detail = preg_replace('/[\x00-\x1F\x7F]/', '', $detail);
+    $stmt = $db->prepare(
+        'INSERT INTO poker_session_log (session_id, user_id, event_type, player_id, player_name, amount, detail)
+         VALUES (?, ?, ?, ?, ?, ?, ?)'
+    );
+    $stmt->execute([$session_id, $user_id, $event_type, $player_id, $player_name, $amount, $detail]);
+}
+
+// Read a session's log newest-first, with created_at converted from UTC to the
+// site timezone and formatted for display (mirrors admin_activity_snapshot).
+function get_session_log($db, int $session_id, int $limit = 200): array {
+    $stmt = $db->prepare(
+        'SELECT psl.id, psl.event_type, psl.player_id, psl.player_name, psl.amount,
+                psl.detail, psl.created_at, u.username AS actor
+         FROM poker_session_log psl
+         LEFT JOIN users u ON u.id = psl.user_id AND psl.user_id > 0
+         WHERE psl.session_id = ? ORDER BY psl.id DESC LIMIT ?'
+    );
+    $stmt->execute([$session_id, $limit]);
+    $utc = new DateTimeZone('UTC');
+    try { $tz = new DateTimeZone(get_setting('timezone', 'UTC')); } catch (Throwable $e) { $tz = $utc; }
+    $out = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        try { $time = (new DateTime((string)$r['created_at'], $utc))->setTimezone($tz)->format('g:i A'); }
+        catch (Throwable $e) { $time = (string)$r['created_at']; }
+        $r['time'] = $time;
+        $r['actor'] = $r['actor'] ?: 'system';
+        $out[] = $r;
+    }
+    return $out;
+}

@@ -386,6 +386,23 @@ function db_init(PDO $pdo): void {
         FOREIGN KEY (session_id) REFERENCES poker_sessions(id) ON DELETE CASCADE
     )"); } catch (Exception $e) {}
 
+    // Per-session activity log surfaced on the check-in screen (append-only,
+    // hosts only). Tracks the full money/roster timeline: adds, buy-ins,
+    // rebuys, add-ons, cash-in/out, eliminations, removals.
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS poker_session_log (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id   INTEGER NOT NULL,
+        user_id      INTEGER,
+        event_type   TEXT    NOT NULL,
+        player_id    INTEGER,
+        player_name  TEXT,
+        amount       INTEGER,
+        detail       TEXT    NOT NULL,
+        created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (session_id) REFERENCES poker_sessions(id) ON DELETE CASCADE
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_psl_session ON poker_session_log(session_id, id)"); } catch (Exception $e) {}
+
     // Poker schema migrations
     try { $pdo->exec("ALTER TABLE events ADD COLUMN is_poker INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN game_type TEXT NOT NULL DEFAULT 'tournament'"); } catch (Exception $e) {}

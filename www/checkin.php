@@ -232,10 +232,10 @@ $session = $sessStmt->fetch();
     .pk-bulk-bar .danger{color:#ef4444;border-color:#fca5a5}
     .pk-bulk-bar .primary{color:#fff;background:#2563eb;border-color:#2563eb}
     .pk-row-select{width:18px;height:18px;cursor:pointer;accent-color:#2563eb}
-    .pk-view-seg{display:inline-flex;border-radius:6px;overflow:hidden;border:1.5px solid #e2e8f0}
-    .pk-view-seg button{padding:.3rem .6rem;font-size:.78rem;font-weight:600;border:none;cursor:pointer;transition:background .12s,color .12s}
-    .pk-view-seg .active{background:#2563eb;color:#fff}
-    .pk-view-seg .inactive{background:#f1f5f9;color:#94a3b8}
+    .pk-view-seg{position:relative;display:inline-flex;border-radius:6px;border:1.5px solid #e2e8f0;background:#f1f5f9;padding:2px}
+    .pk-seg-thumb{position:absolute;top:2px;bottom:2px;left:0;width:0;border-radius:4px;background:#2563eb;z-index:0;transition:transform .22s cubic-bezier(.4,0,.2,1),width .22s cubic-bezier(.4,0,.2,1)}
+    .pk-view-seg button{position:relative;z-index:1;padding:.3rem .7rem;font-size:.78rem;font-weight:600;border:none;background:transparent;cursor:pointer;color:#64748b;white-space:nowrap;transition:color .15s}
+    .pk-view-seg button.active{color:#fff}
     .walkin-autocomplete{position:relative}
     .walkin-dropdown{position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:100;max-height:200px;overflow-y:auto;display:none}
     .walkin-dropdown.open{display:block}
@@ -290,6 +290,25 @@ $session = $sessStmt->fetch();
     .pk-modal-actions{display:flex;gap:.5rem;justify-content:flex-end;margin-top:.75rem}
     .pk-modal-actions button{padding:.4rem 1rem;border-radius:6px;font-size:.85rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border,#e2e8f0)}
     .pk-modal-actions .pk-save{background:var(--accent,#2563eb);color:#fff;border-color:transparent}
+
+    /* ── Activity log (in-view panel) ── */
+    .pk-log-sub{font-size:.8rem;color:#64748b;margin:0 0 .6rem}
+    .pk-log-list{border:1px solid var(--border,#e2e8f0);border-radius:8px;background:var(--surface,#fff);max-height:65vh;overflow:auto}
+    .pk-log-empty{padding:1.25rem;text-align:center;color:#94a3b8;font-size:.9rem}
+    .pk-log-row{display:flex;align-items:baseline;gap:.6rem;padding:.5rem .75rem;border-bottom:1px solid #f1f5f9;font-size:.85rem}
+    .pk-log-row:last-child{border-bottom:none}
+    .pk-log-time{flex:0 0 auto;color:#94a3b8;font-size:.72rem;font-variant-numeric:tabular-nums;white-space:nowrap;min-width:62px}
+    .pk-log-tag{flex:0 0 auto;font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:.12rem .4rem;border-radius:4px;white-space:nowrap}
+    .pk-log-text{flex:1 1 auto;color:#334155;line-height:1.35}
+    .pk-log-text b{color:#0f172a}
+    .pk-log-by{color:#94a3b8;font-size:.72rem;white-space:nowrap}
+    .pk-log-tag.t-buyin,.pk-log-tag.t-cashin{background:#dcfce7;color:#166534}
+    .pk-log-tag.t-rebuy,.pk-log-tag.t-addon{background:#dbeafe;color:#1e40af}
+    .pk-log-tag.t-cashout{background:#fef9c3;color:#854d0e}
+    .pk-log-tag.t-add,.pk-log-tag.t-approve{background:#f1f5f9;color:#475569}
+    .pk-log-tag.t-eliminate{background:#fee2e2;color:#991b1b}
+    .pk-log-tag.t-uneliminate{background:#ede9fe;color:#5b21b6}
+    .pk-log-tag.t-remove,.pk-log-tag.t-unbuyin{background:#f1f5f9;color:#64748b}
 
     .pk-inline-summary{display:none}
 
@@ -422,6 +441,7 @@ var VIEW_MODE = 'list';
 var SORT_KEY = '';   // '' = default (entry order); otherwise a column key
 var SORT_DIR = 1;    // 1 = ascending, -1 = descending
 var notesPlayerId = null;
+var LOG = [];        // session activity log entries (newest-first)
 
 function isCash() { return SESSION && SESSION.game_type === 'cash'; }
 function isTourney() { return !SESSION || SESSION.game_type === 'tournament'; }
@@ -461,6 +481,7 @@ function postAction(action, data, callback) {
         .then(function(j) {
             if (!j.ok) { pkAlert(j.error || 'Error'); return; }
             callback(j);
+            refreshLogIfOpen();
         })
         .catch(function(e) { console.error(e); pkAlert('Request failed'); });
 }
@@ -477,6 +498,7 @@ function loadSession() {
                 PLAYERS = j.players;
                 PAYOUTS = j.payouts;
                 POOL = j.pool;
+                LOG = j.log || [];
                 renderDashboard();
             }
         });
@@ -623,9 +645,11 @@ function renderDashboard() {
         h += '<button data-filter="eliminated" class="' + (FILTER==='eliminated'?'active':'') + '" onclick="setFilter(\'eliminated\')">Cashed Out</button>';
     }
     h += '</div>';
-    h += '<div class="pk-view-seg">';
-    h += '<button class="' + (VIEW_MODE === 'list' ? 'active' : 'inactive') + '" onclick="if(VIEW_MODE!==\'list\'){toggleViewMode()}">&#9776; List</button>';
-    h += '<button class="' + (VIEW_MODE === 'table' ? 'active' : 'inactive') + '" onclick="if(VIEW_MODE!==\'table\'){toggleViewMode()}">&#9638; Table</button>';
+    h += '<div class="pk-view-seg" id="viewSeg">';
+    h += '<span class="pk-seg-thumb" id="viewSegThumb"></span>';
+    h += '<button data-view="list" class="' + (VIEW_MODE === 'list' ? 'active' : '') + '" onclick="setViewMode(\'list\')">&#9776; List</button>';
+    h += '<button data-view="table" class="' + (VIEW_MODE === 'table' ? 'active' : '') + '" onclick="setViewMode(\'table\')">&#9638; Table</button>';
+    h += '<button data-view="log" class="' + (VIEW_MODE === 'log' ? 'active' : '') + '" title="Activity log: buy-ins, cash-outs, adds and more" onclick="setViewMode(\'log\')">&#128203; Log</button>';
     h += '</div>';
     h += '<button class="pk-help-btn" title="How this screen works" aria-label="Help" onclick="openHelp()">? Help</button>';
     h += '<button class="pk-btn-view-toggle" onclick="balanceTables()">&#9878; Balance</button>';
@@ -648,28 +672,7 @@ function renderDashboard() {
     }
     h += '</div>';
 
-    if (VIEW_MODE === 'table') {
-        h += renderTableView();
-    } else {
-        h += '<div class="pk-bulk-bar" id="bulkBar">';
-        h += '<span class="pk-bulk-count" id="bulkCount">0 selected</span>';
-        if (isTourney()) {
-            h += '<button class="primary" title="Record buy-in for the selected players (also checks them in and seats them)" onclick="bulkAction(\'toggle_buyin\')">Buy In</button>';
-            h += '<button onclick="bulkAction(\'eliminate_player\')">Eliminate</button>';
-        }
-        h += '<button title="Approve the selected pending self-signups / walk-ins onto the roster" onclick="bulkAction(\'approve_player\')">Approve</button>';
-        h += '<button class="danger" onclick="bulkRemoveConfirm()">Remove</button>';
-        h += '<button onclick="clearSelection()">Clear</button>';
-        h += '</div>';
-        h += '<div class="pk-table-wrap"><table class="pk-table">';
-        h += '<thead><tr id="playerHead">' + renderTableHeader() + '</tr></thead>';
-        h += '<tbody id="playerBody">';
-        h += renderPlayerRows();
-        h += '</tbody></table></div>';
-        h += '<div class="pk-mobile-list" id="mobileList">';
-        h += renderMobileCards();
-        h += '</div>';
-    }
+    h += '<div id="viewContent">' + renderViewContent() + '</div>';
     h += '</div>';
 
     // Right: sidebar
@@ -683,6 +686,33 @@ function renderDashboard() {
     h += '</div>'; // pk-grid
 
     document.getElementById('app').innerHTML = h;
+    positionViewThumb(false);
+    if (VIEW_MODE === 'log') renderLog();
+}
+
+// Renders the content area for the active view (list / table / log).
+function renderViewContent() {
+    if (VIEW_MODE === 'log') {
+        return '<div class="pk-log-sub">Buy-ins, rebuys, cash-outs, adds &amp; more &mdash; newest first.</div>'
+             + '<div class="pk-log-list" id="logList"><div class="pk-log-empty">Loading&hellip;</div></div>';
+    }
+    if (VIEW_MODE === 'table') return renderTableView();
+
+    var h = '<div class="pk-bulk-bar" id="bulkBar">';
+    h += '<span class="pk-bulk-count" id="bulkCount">0 selected</span>';
+    if (isTourney()) {
+        h += '<button class="primary" title="Record buy-in for the selected players (also checks them in and seats them)" onclick="bulkAction(\'toggle_buyin\')">Buy In</button>';
+        h += '<button onclick="bulkAction(\'eliminate_player\')">Eliminate</button>';
+    }
+    h += '<button title="Approve the selected pending self-signups / walk-ins onto the roster" onclick="bulkAction(\'approve_player\')">Approve</button>';
+    h += '<button class="danger" onclick="bulkRemoveConfirm()">Remove</button>';
+    h += '<button onclick="clearSelection()">Clear</button>';
+    h += '</div>';
+    h += '<div class="pk-table-wrap"><table class="pk-table">';
+    h += '<thead><tr id="playerHead">' + renderTableHeader() + '</tr></thead>';
+    h += '<tbody id="playerBody">' + renderPlayerRows() + '</tbody></table></div>';
+    h += '<div class="pk-mobile-list" id="mobileList">' + renderMobileCards() + '</div>';
+    return h;
 }
 
 function sortableTh(label, key, extra) {
@@ -1544,9 +1574,43 @@ function setTable(pid, val) {
     });
 }
 
-function toggleViewMode() {
-    VIEW_MODE = VIEW_MODE === 'list' ? 'table' : 'list';
-    renderDashboard();
+// Switch between the list / table / log views. Swaps only the content area so
+// the toolbar persists and the segmented-control thumb can slide.
+function setViewMode(mode) {
+    if (mode === VIEW_MODE) return;
+    VIEW_MODE = mode;
+    var vc = document.getElementById('viewContent');
+    if (vc) vc.innerHTML = renderViewContent();
+    var seg = document.getElementById('viewSeg');
+    if (seg) {
+        var btns = seg.querySelectorAll('button');
+        for (var i = 0; i < btns.length; i++) {
+            btns[i].classList.toggle('active', btns[i].getAttribute('data-view') === mode);
+        }
+    }
+    positionViewThumb(true);
+    if (mode === 'log') { renderLog(); fetchLog(); }
+    else { updateBulkBar(); }
+}
+
+// Position the segmented-control thumb under the active button. Pass animate=false
+// to snap without a transition (used on full re-renders).
+function positionViewThumb(animate) {
+    var seg = document.getElementById('viewSeg');
+    var thumb = document.getElementById('viewSegThumb');
+    if (!seg || !thumb) return;
+    var active = seg.querySelector('button.active');
+    if (!active) return;
+    if (!animate) {
+        thumb.style.transition = 'none';
+        thumb.style.width = active.offsetWidth + 'px';
+        thumb.style.transform = 'translateX(' + active.offsetLeft + 'px)';
+        void thumb.offsetWidth; // force reflow so the next change can transition
+        thumb.style.transition = '';
+    } else {
+        thumb.style.width = active.offsetWidth + 'px';
+        thumb.style.transform = 'translateX(' + active.offsetLeft + 'px)';
+    }
 }
 
 function movePlayer(pid, newTable) {
@@ -2202,6 +2266,43 @@ function closeHelp() {
     document.getElementById('helpModal').classList.remove('open');
 }
 
+// ─── Activity log ──────────────────────────────────────
+function logTagLabel(t) {
+    var m = { buyin:'Buy In', unbuyin:'Un-Buy', rebuy:'Rebuy', addon:'Add-on',
+              cashin:'Cash In', cashout:'Cash Out', add:'Add', approve:'Approve',
+              eliminate:'Out', uneliminate:'Back In', remove:'Remove' };
+    return m[t] || t;
+}
+
+function renderLog() {
+    var el = document.getElementById('logList');
+    if (!el) return;
+    if (!LOG || !LOG.length) {
+        el.innerHTML = '<div class="pk-log-empty">No activity yet.</div>';
+        return;
+    }
+    var h = '';
+    for (var i = 0; i < LOG.length; i++) {
+        var e = LOG[i];
+        var by = e.actor ? '<span class="pk-log-by">by ' + escHtml(e.actor) + '</span>' : '';
+        h += '<div class="pk-log-row">'
+           + '<span class="pk-log-time">' + escHtml(e.time || '') + '</span>'
+           + '<span class="pk-log-tag t-' + escHtml(e.event_type) + '">' + escHtml(logTagLabel(e.event_type)) + '</span>'
+           + '<span class="pk-log-text"><b>' + escHtml(e.player_name || '') + '</b> ' + escHtml(e.detail || '') + ' ' + by + '</span>'
+           + '</div>';
+    }
+    el.innerHTML = h;
+}
+
+function fetchLog() {
+    fetch('/checkin_dl.php?action=get_log&event_id=' + EVENT_ID)
+        .then(function(r) { return r.json(); })
+        .then(function(j) { if (j.ok) { LOG = j.log || []; renderLog(); } })
+        .catch(function(e) { console.error(e); });
+}
+
+function refreshLogIfOpen() { if (VIEW_MODE === 'log') fetchLog(); }
+
 function saveNotes() {
     if (!notesPlayerId) return;
     postAction('update_notes', { player_id: notesPlayerId, notes: document.getElementById('notesText').value }, function(j) {
@@ -2290,6 +2391,9 @@ function escHtml(s) {
 // ─── INIT ──────────────────────────────────────────────
 loadSession();
 
+// Keep the view-toggle thumb aligned if the toolbar reflows on resize.
+window.addEventListener('resize', function() { positionViewThumb(false); });
+
 // Auto-refresh every 10 seconds
 // Uses poll=1 to skip sync_invitees (prevents re-adding removed players)
 // Pool stats update silently; player list refreshes only if count changes
@@ -2300,6 +2404,7 @@ setInterval(function() {
         .then(function(j) {
             if (!j.ok || !j.session) return;
             POOL = j.pool;
+            if (j.log) { LOG = j.log; if (VIEW_MODE === 'log') renderLog(); }
             var poolEl = document.getElementById('poolTotal');
             if (poolEl) {
                 if (SESSION.game_type === 'cash') {
