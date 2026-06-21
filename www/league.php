@@ -950,7 +950,7 @@ function ordinal($n) {
                         <?php endif; ?>
                         <?php if ($canPost): ?>
                         <form method="post" action="/league_posts_dl.php" style="margin:0"
-                              onsubmit="return confirm('Unset this post as the league rules? It will reappear in the main feed.')">
+                              onsubmit="return pkConfirmForm(this, 'Unset this post as the league rules? It will reappear in the main feed.')">
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                             <input type="hidden" name="action" value="clear_rules">
                             <input type="hidden" name="post_id" value="<?= (int)$rulesPost['id'] ?>">
@@ -1109,7 +1109,7 @@ function ordinal($n) {
                 <?php $__pbtn = 'font-size:.72rem;padding:.25rem .7rem;min-width:72px;text-align:center;line-height:1.2;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center'; ?>
                 <div style="margin-left:auto;display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
                     <a href="?id=<?= $league_id ?>&tab=posts&edit=<?= (int)$lp['id'] ?>" class="lg-btn lg-btn-ghost" style="<?= $__pbtn ?>">Edit</a>
-                    <form method="post" action="/league_posts_dl.php" style="margin:0" onsubmit="return confirm('Delete this post?')">
+                    <form method="post" action="/league_posts_dl.php" style="margin:0" onsubmit="return pkConfirmForm(this, 'Delete this post?', {okLabel:'Delete', danger:true})">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="post_id" value="<?= (int)$lp['id'] ?>">
@@ -1118,7 +1118,7 @@ function ordinal($n) {
                     </form>
                     <?php if ($canPost): ?>
                     <form method="post" action="/league_posts_dl.php" style="margin:0"
-                          onsubmit="return confirm(<?= $rulesPost ? "'This will replace the current league rules post. Continue?'" : "'Mark this post as the league rules? It will be moved out of the main feed and accessible via the League Rules button.'" ?>);">
+                          onsubmit="return pkConfirmForm(this, <?= $rulesPost ? "'This will replace the current league rules post. Continue?'" : "'Mark this post as the league rules? It will be moved out of the main feed and accessible via the League Rules button.'" ?>);">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                         <input type="hidden" name="action" value="set_rules">
                         <input type="hidden" name="post_id" value="<?= (int)$lp['id'] ?>">
@@ -1127,7 +1127,7 @@ function ordinal($n) {
                     </form>
                     <?php if (empty($lp['share_token'])): ?>
                     <form method="post" action="/league_posts_dl.php" style="margin:0"
-                          onsubmit="return confirm('Make this post readable by anyone with the link? It will not appear in any public feed.');">
+                          onsubmit="return pkConfirmForm(this, 'Make this post readable by anyone with the link? It will not appear in any public feed.');">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                         <input type="hidden" name="action" value="share_enable">
                         <input type="hidden" name="post_id" value="<?= (int)$lp['id'] ?>">
@@ -1158,7 +1158,7 @@ function ordinal($n) {
                     <button type="button" class="lg-btn lg-btn-ghost" style="font-size:.72rem;padding:.25rem .7rem"
                             onclick="(async()=>{try{await navigator.clipboard.writeText(document.getElementById('share-url-<?= (int)$lp['id'] ?>').value);this.textContent='Copied';setTimeout(()=>this.textContent='Copy',1500);}catch(e){document.getElementById('share-url-<?= (int)$lp['id'] ?>').select();document.execCommand('copy');this.textContent='Copied';setTimeout(()=>this.textContent='Copy',1500);}})()">Copy</button>
                     <form method="post" action="/league_posts_dl.php" style="margin:0"
-                          onsubmit="return confirm('Generate a new link? The current link will stop working.');">
+                          onsubmit="return pkConfirmForm(this, 'Generate a new link? The current link will stop working.');">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                         <input type="hidden" name="action" value="share_regen">
                         <input type="hidden" name="post_id" value="<?= (int)$lp['id'] ?>">
@@ -1166,7 +1166,7 @@ function ordinal($n) {
                         <button type="submit" class="lg-btn lg-btn-ghost" style="font-size:.72rem;padding:.25rem .7rem;color:#92400e">Regenerate</button>
                     </form>
                     <form method="post" action="/league_posts_dl.php" style="margin:0"
-                          onsubmit="return confirm('Disable the public link? The URL will stop working immediately.');">
+                          onsubmit="return pkConfirmForm(this, 'Disable the public link? The URL will stop working immediately.');">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                         <input type="hidden" name="action" value="share_disable">
                         <input type="hidden" name="post_id" value="<?= (int)$lp['id'] ?>">
@@ -1297,7 +1297,7 @@ function ordinal($n) {
                         <td style="padding:.55rem .6rem;border-bottom:1px solid #f1f5f9"><?= htmlspecialchars($ak_fmt($k['created_at'])) ?></td>
                         <td style="padding:.55rem .6rem;border-bottom:1px solid #f1f5f9"><?= htmlspecialchars($ak_fmt($k['last_used_at'])) ?></td>
                         <td style="padding:.55rem .6rem;border-bottom:1px solid #f1f5f9;text-align:right">
-                            <form method="post" action="/league_api_keys_dl.php" style="margin:0;display:inline" onsubmit="return confirm('Delete this API key permanently? Consumers using it will start getting 401 immediately. This cannot be undone.')">
+                            <form method="post" action="/league_api_keys_dl.php" style="margin:0;display:inline" onsubmit="return pkConfirmForm(this, 'Delete this API key permanently? Consumers using it will start getting 401 immediately. This cannot be undone.', {okLabel:'Delete', danger:true})">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                                 <input type="hidden" name="action" value="revoke">
                                 <input type="hidden" name="key_id" value="<?= (int)$k['id'] ?>">
@@ -1479,29 +1479,29 @@ function post(data) {
     return fetch('/leagues_dl.php', { method: 'POST', body: fd, credentials: 'same-origin' })
         .then(function(r) { return r.json(); });
 }
-function act(action, targetId, confirmMsg) {
-    if (confirmMsg && !confirm(confirmMsg)) return;
+async function act(action, targetId, confirmMsg) {
+    if (confirmMsg && !(await pkConfirm(confirmMsg))) return;
     post({ action: action, league_id: LEAGUE_ID, user_id: targetId }).then(function(j) {
-        if (j.ok) location.reload(); else alert(j.error || 'Failed');
+        if (j.ok) location.reload(); else pkAlert(j.error || 'Failed');
     });
 }
-function removeMember(memberId, confirmMsg) {
-    if (confirmMsg && !confirm(confirmMsg)) return;
+async function removeMember(memberId, confirmMsg) {
+    if (confirmMsg && !(await pkConfirm(confirmMsg))) return;
     post({ action: 'remove_member', league_id: LEAGUE_ID, member_id: memberId }).then(function(j) {
-        if (j.ok) location.reload(); else alert(j.error || 'Failed');
+        if (j.ok) location.reload(); else pkAlert(j.error || 'Failed');
     });
 }
 function resendInvite(memberId) {
     post({ action: 'resend_contact_invite', league_id: LEAGUE_ID, member_id: memberId }).then(function(j) {
-        if (j.ok) alert('Invite sent again.'); else alert(j.error || 'Failed');
+        if (j.ok) pkAlert('Invite sent again.'); else pkAlert(j.error || 'Failed');
     });
 }
 function addContact() {
     var name  = document.getElementById('acName').value.trim();
     var email = document.getElementById('acEmail').value.trim();
     var phone = document.getElementById('acPhone').value.trim();
-    if (!name) { alert('Please enter a name.'); return; }
-    if (!email && !phone) { alert('Please enter an email or a phone number.'); return; }
+    if (!name) { pkAlert('Please enter a name.'); return; }
+    if (!email && !phone) { pkAlert('Please enter an email or a phone number.'); return; }
     post({
         action: 'add_contact',
         league_id: LEAGUE_ID,
@@ -1509,7 +1509,7 @@ function addContact() {
         contact_email: email,
         contact_phone: phone
     }).then(function(j) {
-        if (j.ok) location.reload(); else alert(j.error || 'Failed');
+        if (j.ok) location.reload(); else pkAlert(j.error || 'Failed');
     });
 }
 
@@ -1534,7 +1534,7 @@ function importContacts() {
         document.querySelectorAll('#lgcList .lgc-cb:checked'),
         function(cb) { return cb.value; }
     );
-    if (!ids.length) { alert('Select at least one contact.'); return; }
+    if (!ids.length) { pkAlert('Select at least one contact.'); return; }
     var status = document.getElementById('lgcStatus');
     var btn = document.getElementById('lgcImportBtn');
     if (btn) { btn.disabled = true; }
@@ -1587,7 +1587,7 @@ function importContacts() {
                 el.dataset.orig = el.value;
                 flashSaved();
             } else {
-                alert(j.error || 'Save failed');
+                pkAlert(j.error || 'Save failed');
                 el.value = orig;
             }
         });
@@ -1603,17 +1603,17 @@ function importContacts() {
 })();
 function decide(reqId, action) {
     post({ action: action, request_id: reqId }).then(function(j) {
-        if (j.ok) location.reload(); else alert(j.error || 'Failed');
+        if (j.ok) location.reload(); else pkAlert(j.error || 'Failed');
     });
 }
-function leaveLeague() {
-    if (!confirm('Leave this league? You can request to rejoin later.')) return;
+async function leaveLeague() {
+    if (!(await pkConfirm('Leave this league? You can request to rejoin later.'))) return;
     post({ action: 'leave_league', league_id: LEAGUE_ID }).then(function(j) {
-        if (j.ok) location.href = '/leagues.php'; else alert(j.error || 'Failed');
+        if (j.ok) location.href = '/leagues.php'; else pkAlert(j.error || 'Failed');
     });
 }
-function regen() {
-    if (!confirm('Regenerate the invite link? The old link will stop working immediately.')) return;
+async function regen() {
+    if (!(await pkConfirm('Regenerate the invite link? The old link will stop working immediately.'))) return;
     post({ action: 'regenerate_invite_code', league_id: LEAGUE_ID }).then(function(j) {
         if (j.ok) {
             var f = document.getElementById('inviteLinkField');
@@ -1623,7 +1623,7 @@ function regen() {
                 location.reload();
             }
         } else {
-            alert(j.error || 'Failed');
+            pkAlert(j.error || 'Failed');
         }
     });
 }
@@ -1692,10 +1692,10 @@ function confirmDeleteLeague() {
     var name = document.getElementById('delConfirmName').value.trim();
     post({ action: 'delete_league', league_id: LEAGUE_ID, confirm_name: name }).then(function(j) {
         if (j.ok) {
-            alert('League deleted. ' + (j.deleted_events || 0) + ' event(s) removed.');
+            pkAlert('League deleted. ' + (j.deleted_events || 0) + ' event(s) removed.');
             location.href = '/leagues.php';
         } else {
-            alert(j.error || 'Failed');
+            pkAlert(j.error || 'Failed');
         }
     });
 }
