@@ -22,34 +22,39 @@ require_once __DIR__ . '/db.php';
  *
  * @return array{sql:string, params:array}
  */
-function posts_feed_sql_for_user(?int $user_id, bool $is_admin): array {
+function posts_feed_sql_for_user(?int $user_id, bool $is_admin, string $hidden_mode = 'exclude'): array {
     $now = (new DateTime('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s');
     $params = [$now];
 
-    // Always: not hidden, not a rules post, not future-scheduled.
+    // Always: not globally hidden, not a rules post, not future-scheduled.
     $common = "p.hidden = 0 AND p.is_rules_post = 0 AND p.created_at <= ?";
 
+    // Scope filter (global vs league membership).
     if ($is_admin) {
-        // Admins see every post that passes the common filter.
-        return ['sql' => $common, 'params' => $params];
+        $sql = $common;                       // Admins see every post that passes the common filter.
+    } elseif ($user_id === null) {
+        $sql = "$common AND p.league_id IS NULL";   // Signed-out: global posts only.
+    } else {
+        $leagues = user_leagues($user_id);
+        $ids = array_map(fn($l) => (int)$l['id'], $leagues);
+        if (empty($ids)) {
+            $sql = "$common AND p.league_id IS NULL";
+        } else {
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            $sql = "$common AND (p.league_id IS NULL OR p.league_id IN ($placeholders))";
+            $params = array_merge($params, $ids);
+        }
     }
 
-    // Global admin posts are visible to anyone (including signed-out visitors).
-    if ($user_id === null) {
-        return ['sql' => "$common AND p.league_id IS NULL", 'params' => $params];
+    // Per-user personal hide. 'exclude' (default) drops posts this user hid; 'only' keeps
+    // just those (the "Show hidden" feed). Signed-out users have nothing hidden, so skip.
+    if ($user_id !== null && $hidden_mode !== 'all') {
+        $op = ($hidden_mode === 'only') ? 'IN' : 'NOT IN';
+        $sql .= " AND p.id $op (SELECT post_id FROM user_post_hidden WHERE user_id = ?)";
+        $params[] = $user_id;
     }
 
-    // Logged-in, non-admin: global posts OR posts from leagues they belong to.
-    $leagues = user_leagues($user_id);
-    $ids = array_map(fn($l) => (int)$l['id'], $leagues);
-
-    if (empty($ids)) {
-        return ['sql' => "$common AND p.league_id IS NULL", 'params' => $params];
-    }
-
-    $placeholders = implode(',', array_fill(0, count($ids), '?'));
-    $sql = "$common AND (p.league_id IS NULL OR p.league_id IN ($placeholders))";
-    return ['sql' => $sql, 'params' => array_merge($params, $ids)];
+    return ['sql' => $sql, 'params' => $params];
 }
 
 /**

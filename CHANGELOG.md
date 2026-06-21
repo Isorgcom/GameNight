@@ -4,6 +4,16 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2000] - 2026-06-21
+
+### Added
+- **Users can personally hide a post from their home feed.** Each post card now has a kebab (⋯) menu with a **Hide** action (for any logged-in user); hiding collapses the post in place to a "Post hidden · Undo" stub and, after reload, drops it from the home feed and its timeline month counts. A **"Show hidden posts"** toggle on the feed switches to a view of just your hidden posts, each with an **Unhide** control, with **"Back to feed"** to return. The hide is strictly personal (it never affects what anyone else sees) and is distinct from the existing admin/league `posts.hidden` flag that hides a post for everyone. Hiding applies to the home feed only; a post hidden there still appears on its league's own Posts tab. New `user_post_hidden` table (per-user/per-post, modeled on `user_help_bubble_dismissed`); the single `posts_feed_sql_for_user()` helper in `www/_posts.php` gained an `exclude`/`only` hidden-mode parameter so the feed query, its count, the timeline, and the infinite-scroll chunk all stay in sync. Hide/unhide go through a new login + CSRF-guarded `www/post_hide_dl.php` (which also verifies the post is visible to the user via `post_is_visible_to()`).
+
+### Changed
+- **Extracted the post-card markup into a shared `www/_post_card.php` partial.** The card (meta, actions, and comments section) was duplicated between `www/index.php` and the infinite-scroll `www/posts_chunk.php`; both now include one partial, removing the drift risk and giving the new kebab menu a single home. The kebab also absorbs the existing Edit/Delete controls for users who already had them.
+
+---
+
 ## [v0.1999] - 2026-06-21
 
 ### Changed

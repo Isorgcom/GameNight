@@ -22,9 +22,11 @@ $monthFilter = preg_match('/^\d{4}-\d{2}$/', $_GET['month'] ?? '') ? $_GET['mont
 $local_tz = new DateTimeZone(display_timezone());
 $now      = (new DateTime('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s');
 
-// Feed visibility: global posts + posts from leagues the user belongs to; never rules or hidden.
-$isAdmin = $user && ($user['role'] ?? '') === 'admin';
-$_vp     = posts_feed_sql_for_user($user ? (int)$user['id'] : null, $isAdmin);
+// Feed visibility: global posts + posts from leagues the user belongs to; never rules or globally hidden.
+// "Show hidden" mode (logged-in only) flips the feed to show just the user's personally-hidden posts.
+$isAdmin    = $user && ($user['role'] ?? '') === 'admin';
+$showHidden = $user && ($_GET['show'] ?? '') === 'hidden';
+$_vp        = posts_feed_sql_for_user($user ? (int)$user['id'] : null, $isAdmin, $showHidden ? 'only' : 'exclude');
 
 // This week's events (today through today+6)
 $weekStart = (new DateTime('now', $local_tz))->setTime(0, 0, 0);
@@ -347,6 +349,53 @@ $tlMonths = $tlStmt->fetchAll();
         .post-actions button.danger { border-color: #fca5a5; color: #ef4444; }
         .post-actions button.danger:hover { background: #fee2e2; }
 
+        /* ── Per-post kebab menu (Hide / Edit / Delete) ── */
+        .post-menu-wrap { position: relative; margin-left: auto; }
+        .post-menu {
+            background: transparent; border: 1px solid transparent; border-radius: 5px;
+            color: #94a3b8; cursor: pointer; font-size: 1.15rem; line-height: 1;
+            padding: .05rem .45rem; font-family: inherit;
+        }
+        .post-menu:hover { background: #f1f5f9; color: #475569; }
+        .post-menu-dropdown {
+            display: none; position: absolute; right: 0; top: 100%; margin-top: .25rem;
+            background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+            box-shadow: 0 6px 18px rgba(15,23,42,.12); min-width: 132px; z-index: 30; padding: .3rem;
+        }
+        .post-menu-wrap.open .post-menu-dropdown { display: block; }
+        .post-menu-dropdown form { margin: 0; }
+        .post-menu-item {
+            display: block; width: 100%; box-sizing: border-box; text-align: left;
+            background: transparent; border: none; border-radius: 5px;
+            padding: .4rem .6rem; font-size: .8rem; font-weight: 500; color: #334155;
+            cursor: pointer; font-family: inherit; text-decoration: none; line-height: 1.3;
+        }
+        .post-menu-item:hover { background: #f1f5f9; color: #0f172a; }
+        .post-menu-item.danger { color: #dc2626; }
+        .post-menu-item.danger:hover { background: #fee2e2; }
+
+        /* ── Hidden-post stub + show-hidden chrome ── */
+        .post-hidden-stub {
+            background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 10px;
+            padding: .7rem 1.1rem; margin-bottom: 1.5rem; color: #64748b; font-size: .85rem;
+            display: flex; align-items: center; gap: .6rem;
+        }
+        .post-hidden-stub .post-unhide-inline {
+            background: transparent; border: none; color: #2563eb; cursor: pointer;
+            font-weight: 600; font-size: .85rem; font-family: inherit; padding: 0; text-decoration: underline;
+        }
+        .hidden-badge {
+            font-size: .72rem; font-weight: 600; color: #475569;
+            background: #e2e8f0; border: 1px solid #cbd5e1; border-radius: 4px; padding: .15rem .45rem;
+        }
+        .feed-toolbar { display: flex; align-items: center; gap: .75rem; margin: 0 0 1rem; }
+        .feed-toolbar-label { font-weight: 700; color: #0f172a; font-size: 1rem; }
+        .feed-toolbar-link {
+            font-size: .82rem; color: #64748b; text-decoration: none; font-weight: 600;
+            border: 1px solid #e2e8f0; border-radius: 6px; padding: .3rem .7rem; background: #f8fafc;
+        }
+        .feed-toolbar-link:hover { background: #f1f5f9; color: #1e293b; }
+
         .no-posts {
             text-align: center;
             padding: 4rem 2rem;
@@ -554,11 +603,22 @@ endif; ?>
     </div>
     <?php endif; ?>
 
+    <?php if ($user): ?>
+    <div class="feed-toolbar">
+        <?php if ($showHidden): ?>
+            <span class="feed-toolbar-label">&#128065; Hidden posts</span>
+            <a class="feed-toolbar-link" href="/<?= $monthFilter ? '?month=' . urlencode($monthFilter) : '' ?>">&larr; Back to feed</a>
+        <?php else: ?>
+            <a class="feed-toolbar-link" href="/?show=hidden">Show hidden posts</a>
+        <?php endif; ?>
+    </div>
+    <?php endif; ?>
+
     <?php if (empty($posts)): ?>
         <div class="no-posts">
             <div style="font-size:2.5rem">&#128196;</div>
-            <p>No posts yet.</p>
-            <?php if ($user && $user['role'] === 'admin'): ?>
+            <p><?= $showHidden ? 'No hidden posts.' : 'No posts yet.' ?></p>
+            <?php if (!$showHidden && $user && $user['role'] === 'admin'): ?>
                 <a href="/admin_posts.php" class="btn btn-primary" style="margin-top:1rem">Create the first post</a>
             <?php endif; ?>
         </div>
@@ -573,128 +633,9 @@ endif; ?>
             }
         ?>
         <?php
-            $__p_league_id = (int)($post['league_id'] ?? 0);
-            $__p_is_global = ($__p_league_id === 0);
-            $__p_can_edit  = $user && user_can_edit_post($db, $post, (int)$user['id'], $isAdmin);
-        ?>
-        <div class="post-card<?= $post['pinned'] ? ' pinned' : '' ?>" id="post-<?= (int)$post['id'] ?>">
-            <div class="post-meta">
-                <?php if ($post['pinned']): ?><span class="pin-badge">&#128204; Pinned</span><?php endif; ?>
-                <?php if (!$__p_is_global && !empty($post['league_name'])): ?>
-                    <a class="league-badge" href="/league.php?id=<?= $__p_league_id ?>">&#127942; <?= htmlspecialchars($post['league_name']) ?></a>
-                <?php endif; ?>
-                <span>&#128197; <?= htmlspecialchars((new DateTime($post['created_at'], new DateTimeZone('UTC')))->setTimezone($local_tz)->format('F j, Y')) ?></span>
-                <?php if ($__p_can_edit): ?>
-                <div class="post-actions">
-                    <?php if ($__p_is_global): ?>
-                        <a href="/admin_posts.php?edit=<?= (int)$post['id'] ?>">Edit</a>
-                        <form method="post" action="/admin_posts.php" style="margin:0"
-                              onsubmit="return pkConfirmForm(this, 'Delete this post?', {okLabel:'Delete', danger:true})">
-                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
-                            <input type="hidden" name="action" value="delete">
-                            <input type="hidden" name="id" value="<?= (int)$post['id'] ?>">
-                            <button type="submit" class="danger">Delete</button>
-                        </form>
-                    <?php else: ?>
-                        <a href="/league.php?id=<?= $__p_league_id ?>&tab=posts&edit=<?= (int)$post['id'] ?>">Edit</a>
-                        <form method="post" action="/league_posts_dl.php" style="margin:0"
-                              onsubmit="return pkConfirmForm(this, 'Delete this post?', {okLabel:'Delete', danger:true})">
-                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
-                            <input type="hidden" name="action" value="delete">
-                            <input type="hidden" name="post_id" value="<?= (int)$post['id'] ?>">
-                            <input type="hidden" name="redirect" value="/<?= $monthFilter ? '?month=' . urlencode($monthFilter) : '' ?>">
-                            <button type="submit" class="danger">Delete</button>
-                        </form>
-                    <?php endif; ?>
-                </div>
-                <?php endif; ?>
-            </div>
-            <div class="post-title"><?= htmlspecialchars($post['title']) ?></div>
-            <div class="post-body"><?= sanitize_html($post['content']) ?></div>
-
-            <!-- Comments -->
-            <?php
             $comments = $post_comments[$post['id']] ?? [];
-            $redir    = '/' . ($monthFilter ? '?month=' . urlencode($monthFilter) : '') . '#post-' . (int)$post['id'];
-            ?>
-            <div class="comments-section" id="csec-<?= (int)$post['id'] ?>">
-                <div class="comments-heading" onclick="toggleComments(<?= (int)$post['id'] ?>)">
-                    <span class="cmts-toggle-label">
-                        <span class="cmts-chevron">&#9658;</span>
-                        <?= count($comments) ?> Comment<?= count($comments) !== 1 ? 's' : '' ?>
-                    </span>
-                    <?php if ($isAdmin && count($comments) > 0): ?>
-                    <label class="sel-all-label" onclick="event.stopPropagation()">
-                        <input type="checkbox" class="sel-all" onchange="toggleSelAll(<?= (int)$post['id'] ?>, this)"> Select all
-                    </label>
-                    <?php endif; ?>
-                </div>
-                <div class="comments-body" id="cmts-body-<?= (int)$post['id'] ?>" style="display:none">
-                <?php if ($isAdmin && count($comments) > 0): ?>
-                <div class="bulk-bar" id="bulk-<?= (int)$post['id'] ?>" style="display:none">
-                    <span class="bulk-count" id="bulkcount-<?= (int)$post['id'] ?>">0 selected</span>
-                    <form method="post" action="/comment.php" style="margin:0;display:contents"
-                          onsubmit="return prepareBulkDelete(<?= (int)$post['id'] ?>, this)">
-                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
-                        <input type="hidden" name="action" value="bulk_delete">
-                        <input type="hidden" name="comment_ids" value="">
-                        <input type="hidden" name="redirect" value="<?= htmlspecialchars($redir) ?>">
-                        <button type="submit" class="btn btn-danger" style="font-size:.75rem;padding:.25rem .65rem">Delete selected</button>
-                    </form>
-                    <button type="button" onclick="clearSel(<?= (int)$post['id'] ?>)"
-                            class="btn btn-outline" style="font-size:.75rem;padding:.25rem .65rem">Cancel</button>
-                </div>
-                <?php endif; ?>
-
-                <?php foreach ($comments as $c): ?>
-                <div class="comment" id="cmt-<?= (int)$c['id'] ?>">
-                    <?php if ($isAdmin): ?>
-                    <input type="checkbox" class="comment-sel" value="<?= (int)$c['id'] ?>"
-                           onchange="onSelChange(<?= (int)$post['id'] ?>)">
-                    <?php endif; ?>
-                    <div class="comment-avatar"><?= htmlspecialchars(mb_substr($c['username'], 0, 1)) ?></div>
-                    <div class="comment-content">
-                        <div class="comment-meta">
-                            <strong><?= htmlspecialchars($c['username']) ?></strong>
-                            <span><?= htmlspecialchars((new DateTime($c['created_at'], new DateTimeZone('UTC')))->setTimezone($local_tz)->format('M j, Y g:i A')) ?></span>
-                        </div>
-                        <div class="comment-body" id="cbody-<?= (int)$c['id'] ?>"><?= htmlspecialchars($c['body']) ?></div>
-                        <?php if ($user && ($user['id'] == $c['user_id'] || $isAdmin)): ?>
-                        <div class="comment-actions">
-                            <button type="button" class="comment-delete"
-                                    onclick="editComment(<?= (int)$c['id'] ?>, this)"
-                                    title="Edit">&#9998;</button>
-                            <form method="post" action="/comment.php" style="margin:0;display:contents"
-                                  onsubmit="return pkConfirmForm(this, 'Delete this comment?', {okLabel:'Delete', danger:true})">
-                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
-                                <input type="hidden" name="action" value="delete">
-                                <input type="hidden" name="comment_id" value="<?= (int)$c['id'] ?>">
-                                <input type="hidden" name="redirect" value="<?= htmlspecialchars($redir) ?>">
-                                <button type="submit" class="comment-delete" title="Delete">&#x2715;</button>
-                            </form>
-                        </div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-                <?php endforeach; ?>
-
-                <?php if ($user): ?>
-                <form method="post" action="/comment.php" class="comment-form">
-                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
-                    <input type="hidden" name="action" value="add">
-                    <input type="hidden" name="type" value="post">
-                    <input type="hidden" name="content_id" value="<?= (int)$post['id'] ?>">
-                    <input type="hidden" name="redirect" value="<?= htmlspecialchars($redir) ?>">
-                    <textarea name="body" placeholder="Write a comment…" required maxlength="2000"></textarea>
-                    <button type="submit" class="btn btn-primary btn-post">Post</button>
-                </form>
-                <?php else: ?>
-                <p class="comment-login"><a href="/login.php">Log in</a> to leave a comment.</p>
-                <?php endif; ?>
-                </div><!-- /.comments-body -->
-            </div>
-
-        </div>
+            include __DIR__ . '/_post_card.php';
+        ?>
         <?php endforeach; ?>
 
         <div id="posts-sentinel" style="height:1px"></div>
@@ -775,6 +716,7 @@ endif; ?>
 
     const CHUNK      = <?= (int)$chunk ?>;
     const MONTH_PARAM = <?= json_encode($monthFilter ? '&month=' . $monthFilter : '') ?>;
+    const SHOW_PARAM  = <?= json_encode($showHidden ? '&show=hidden' : '') ?>;
     let offset      = <?= count($posts) ?>;
     let hasMore     = <?= json_encode($total > count($posts)) ?>;
     let busy        = false;
@@ -788,7 +730,7 @@ endif; ?>
         loading.style.display = '';
 
         const url = '/posts_chunk.php?offset=' + offset +
-                    '&limit=' + CHUNK + MONTH_PARAM +
+                    '&limit=' + CHUNK + MONTH_PARAM + SHOW_PARAM +
                     '&prev_month=' + encodeURIComponent(lastMonth);
         try {
             const res  = await fetch(url);
@@ -924,6 +866,89 @@ function prepareBulkDelete(postId, form) {
     });
     return false;
 }
+</script>
+<?php endif; ?>
+
+<?php if ($user): ?>
+<script>
+// Per-post kebab menu + personal hide/unhide. Delegated on document so cards
+// loaded later by infinite scroll work without re-binding.
+(function () {
+    const POST_CSRF = <?= json_encode($csrf) ?>;
+
+    function closeMenus(except) {
+        document.querySelectorAll('.post-menu-wrap.open').forEach(function (w) {
+            if (w !== except) w.classList.remove('open');
+        });
+    }
+    function postHide(action, postId) {
+        const fd = new FormData();
+        fd.append('csrf_token', POST_CSRF);
+        fd.append('action', action);
+        fd.append('post_id', postId);
+        return fetch('/post_hide_dl.php', { method: 'POST', body: fd, credentials: 'same-origin' })
+            .then(function (r) { return r.json(); });
+    }
+
+    document.addEventListener('click', function (e) {
+        const menuBtn = e.target.closest('.post-menu');
+        if (menuBtn) {
+            e.preventDefault();
+            const wrap = menuBtn.closest('.post-menu-wrap');
+            const willOpen = !wrap.classList.contains('open');
+            closeMenus(wrap);
+            wrap.classList.toggle('open', willOpen);
+            return;
+        }
+
+        const hideBtn = e.target.closest('.post-hide-btn');
+        if (hideBtn) {
+            e.preventDefault();
+            closeMenus(null);
+            const card = hideBtn.closest('.post-card');
+            const pid  = hideBtn.getAttribute('data-post-id');
+            postHide('hide', pid).then(function (j) {
+                if (!j.ok) { pkAlert(j.error || 'Could not hide post'); return; }
+                const stub = document.createElement('div');
+                stub.className = 'post-hidden-stub';
+                stub.innerHTML = '&#128065; Post hidden &middot; <button type="button" class="post-unhide-inline" data-post-id="' + pid + '">Undo</button>';
+                card.style.display = 'none';
+                card.parentNode.insertBefore(stub, card);
+            });
+            return;
+        }
+
+        const undoBtn = e.target.closest('.post-unhide-inline');
+        if (undoBtn) {
+            e.preventDefault();
+            const pid  = undoBtn.getAttribute('data-post-id');
+            const stub = undoBtn.closest('.post-hidden-stub');
+            postHide('unhide', pid).then(function (j) {
+                if (!j.ok) { pkAlert(j.error || 'Could not undo'); return; }
+                const card = document.getElementById('post-' + pid);
+                if (card) card.style.display = '';
+                if (stub) stub.remove();
+            });
+            return;
+        }
+
+        const unhideBtn = e.target.closest('.post-unhide-btn');
+        if (unhideBtn) {
+            e.preventDefault();
+            closeMenus(null);
+            const pid  = unhideBtn.getAttribute('data-post-id');
+            const card = unhideBtn.closest('.post-card');
+            postHide('unhide', pid).then(function (j) {
+                if (!j.ok) { pkAlert(j.error || 'Could not unhide'); return; }
+                if (card) card.remove();
+            });
+            return;
+        }
+
+        // A click anywhere outside an open dropdown closes the menus.
+        if (!e.target.closest('.post-menu-dropdown')) closeMenus(null);
+    });
+})();
 </script>
 <?php endif; ?>
 

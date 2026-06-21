@@ -194,6 +194,17 @@ function db_init(PDO $pdo): void {
     try { $pdo->exec("ALTER TABLE posts ADD COLUMN share_token TEXT"); } catch (Exception $e) {}
     try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_posts_share_token ON posts(share_token) WHERE share_token IS NOT NULL"); } catch (Exception $e) {}
 
+    // Per-user personal hide: "user X hid post Y from their own feed" (does not affect anyone else).
+    // Modeled on user_help_bubble_dismissed (composite PK, both FKs cascade).
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS user_post_hidden (
+        user_id    INTEGER NOT NULL,
+        post_id    INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, post_id),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
+    )"); } catch (Exception $e) {}
+
     // Add phone to users if it doesn't exist yet
     try { $pdo->exec("ALTER TABLE users ADD COLUMN phone TEXT"); } catch (Exception $e) {}
 
