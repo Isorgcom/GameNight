@@ -66,6 +66,35 @@ function _smtp_error_is_transient(?string $err): bool {
     return false;
 }
 
+/**
+ * Heuristic: is this a provider *quota / rate-limit* rejection rather than a
+ * connection blip? e.g. Gmail/Workspace "Daily SMTP relay limit exceeded",
+ * SES "Daily message quota exceeded", or generic "rate limit"/"throttled"/
+ * "try again later". These are temporary but on a much longer clock — the daily
+ * window only frees up after hours — so they are retried on a stretched backoff
+ * (see _email_queue_backoff_minutes) instead of being dropped as permanent.
+ */
+function _smtp_error_is_quota(?string $err): bool {
+    if ($err === null || $err === '') {
+        return false;
+    }
+    $needles = [
+        'limit exceeded', 'sending limit', 'rate limit', 'rate-limit',
+        'quota exceeded', 'throttl', 'too many', 'try again later',
+    ];
+    foreach ($needles as $needle) {
+        if (stripos($err, $needle) !== false) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/** A failure worth parking in the retry queue: a transient blip OR a quota/rate cap. */
+function _smtp_error_is_retryable(?string $err): bool {
+    return _smtp_error_is_transient($err) || _smtp_error_is_quota($err);
+}
+
 // Persistent retry queue. Inline retries (above) only cover sub-second blips
 // within a single request; a relay outage lasting minutes still loses the mail.
 // When inline retries are exhausted on a *transient* error, the message is
@@ -74,11 +103,16 @@ function _smtp_error_is_transient(?string $err): bool {
 const EMAIL_QUEUE_MAX_ATTEMPTS = 6;
 
 /**
- * Minutes to wait before the Nth queued retry (1-indexed). Roughly exponential
- * and capped, spreading EMAIL_QUEUE_MAX_ATTEMPTS attempts over ~6 hours.
+ * Minutes to wait before the Nth queued retry (1-indexed). Transient blips use a
+ * short, roughly exponential schedule (~6 hours total). Quota/rate-cap failures
+ * use a stretched schedule whose attempts span well past 24 hours, so retries
+ * land after the provider's rolling daily window has reset instead of burning
+ * every attempt while it is still exhausted.
  */
-function _email_queue_backoff_minutes(int $attemptNumber): int {
-    $schedule = [5, 15, 30, 60, 120, 240];
+function _email_queue_backoff_minutes(int $attemptNumber, bool $isQuota = false): int {
+    // Quota:    1h, 4h, 8h, 12h, 24h, 24h  → attempts at ~1h/5h/13h/25h/49h/73h
+    // Transient: 5m,15m,30m, 1h,  2h,  4h
+    $schedule = $isQuota ? [60, 240, 480, 720, 1440, 1440] : [5, 15, 30, 60, 120, 240];
     $i = max(0, min($attemptNumber - 1, count($schedule) - 1));
     return $schedule[$i];
 }
@@ -168,7 +202,7 @@ function send_email(string $toAddress, string $toName, string $subject, string $
         return null;
     }
 
-    if ($queueOnFailure && _smtp_error_is_transient($err) && _enqueue_email_retry($toAddress, $toName, $subject, $htmlBody, $err)) {
+    if ($queueOnFailure && _smtp_error_is_retryable($err) && _enqueue_email_retry($toAddress, $toName, $subject, $htmlBody, $err)) {
         // Parked for background retry — record as 'queued', not 'failed', so the
         // notification history reflects that delivery is still pending.
         _log_email($toAddress, $subject, 'queued', $err);
@@ -185,7 +219,7 @@ function send_email(string $toAddress, string $toName, string $subject, string $
  */
 function _enqueue_email_retry(string $toAddress, string $toName, string $subject, string $htmlBody, ?string $error): bool {
     try {
-        $delay = _email_queue_backoff_minutes(1);
+        $delay = _email_queue_backoff_minutes(1, _smtp_error_is_quota($error));
         get_db()->prepare(
             "INSERT INTO email_retry_queue (to_address, to_name, subject, body, attempts, last_error, next_attempt_at)
              VALUES (?, ?, ?, ?, 0, ?, datetime('now', ? || ' minutes'))"
@@ -236,14 +270,14 @@ function process_email_retry_queue(PDO $db, int $limit = 50): array {
             _log_email($row['to_address'], $row['subject'], 'sent', "recovered from queue (attempt $attemptNo)");
             $db->prepare('DELETE FROM email_retry_queue WHERE id = ?')->execute([$id]);
             $sent++;
-        } elseif ($attemptNo >= EMAIL_QUEUE_MAX_ATTEMPTS || !_smtp_error_is_transient($err)) {
+        } elseif ($attemptNo >= EMAIL_QUEUE_MAX_ATTEMPTS || !_smtp_error_is_retryable($err)) {
             // Out of attempts, or a now-permanent error: give up and record it.
             _log_email($row['to_address'], $row['subject'], 'failed', $err);
             $db->prepare('DELETE FROM email_retry_queue WHERE id = ?')->execute([$id]);
             $failed++;
         } else {
             // Reschedule with the proper backoff (overwriting the tentative +1h claim).
-            $delay = _email_queue_backoff_minutes($attemptNo + 1);
+            $delay = _email_queue_backoff_minutes($attemptNo + 1, _smtp_error_is_quota($err));
             $db->prepare(
                 "UPDATE email_retry_queue
                  SET last_error = ?, next_attempt_at = datetime('now', ? || ' minutes')

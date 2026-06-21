@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2002] - 2026-06-21
+
+### Fixed
+- **Email that fails on a provider daily-send/rate cap is now retried instead of silently dropped.** Outbound mail through an SMTP relay (e.g. Google Workspace's `smtp-relay.gmail.com`) can hit a "Daily SMTP relay limit exceeded" / quota / rate-limit rejection during invite bursts; these are temporary but were classified as permanent, so the verification or invitation email was lost. `www/mail.php` now recognizes quota/rate errors (`_smtp_error_is_quota()`, folded into a new `_smtp_error_is_retryable()`) and parks them in the existing `email_retry_queue` with a **stretched backoff** (`_email_queue_backoff_minutes()` gains an `isQuota` mode: retries at roughly 1h, 5h, 13h, 25h, 49h, 73h) so attempts land after the provider's rolling 24-hour window resets rather than burning every attempt while it is still exhausted. Connection-blip retries are unchanged, and genuinely permanent errors (bad recipient, auth failure) are still dropped without pointless retries. The queue is drained by the existing `cron.php` job. This does not raise any sending limit; it just stops messages from being lost when you brush one. (Operators sending high volume should still move off a Workspace relay to a transactional provider such as Brevo or Amazon SES.)
+
+---
+
 ## [v0.2001] - 2026-06-21
 
 ### Changed
