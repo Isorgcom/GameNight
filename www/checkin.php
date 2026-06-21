@@ -118,9 +118,13 @@ $session = $sessStmt->fetch();
     .pk-help-content h4{margin:.9rem 0 .25rem;font-size:.9rem;color:#0f172a}
     .pk-help-content h4:first-child{margin-top:0}
     .pk-help-content p{margin:0;font-size:.85rem;color:#475569;line-height:1.45}
-    .pk-filter{display:flex;gap:0;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;overflow:hidden}
-    .pk-filter button{border:none;background:transparent;padding:.35rem .7rem;font-size:.75rem;font-weight:600;cursor:pointer;color:#64748b}
-    .pk-filter button.active{background:var(--accent,#2563eb);color:#fff}
+    /* Shared "pill slider" segmented control — used by the player filter and the view switcher
+       so the two read as matched grouped controls. A thumb slides under the active button. */
+    .pk-seg{position:relative;display:inline-flex;border:1.5px solid #cbd5e1;border-radius:8px;background:#dde3ec;padding:3px;box-shadow:inset 0 1px 2px rgba(15,23,42,.14)}
+    .pk-seg-thumb{position:absolute;top:3px;bottom:3px;left:0;width:0;border-radius:6px;background:var(--accent,#2563eb);box-shadow:0 1px 3px rgba(37,99,235,.5);z-index:0;transition:transform .2s cubic-bezier(.4,0,.2,1),width .2s cubic-bezier(.4,0,.2,1)}
+    .pk-seg button{position:relative;z-index:1;border:none;background:transparent;cursor:pointer;padding:.34rem .75rem;font-size:.76rem;font-weight:600;color:#475569;white-space:nowrap;transition:color .15s}
+    .pk-seg button:hover:not(.active){color:#1e293b}
+    .pk-seg button.active{color:#fff}
 
     .pk-table-wrap{overflow-x:auto;border:1.5px solid var(--border,#e2e8f0);border-radius:8px;background:var(--surface,#fff)}
     .pk-table{width:100%;border-collapse:collapse;font-size:.85rem}
@@ -184,6 +188,8 @@ $session = $sessStmt->fetch();
 
     .pk-btn-view-toggle{background:transparent;color:var(--accent,#2563eb);border:1.5px solid var(--border,#e2e8f0);padding:.4rem .8rem;border-radius:6px;font-size:.8rem;font-weight:600;cursor:pointer}
     .pk-btn-view-toggle:hover{background:#f1f5f9}
+    .pk-btn-green{background:#16a34a;color:#fff;border:1.5px solid #16a34a;padding:.4rem .8rem;border-radius:6px;font-size:.8rem;font-weight:600;cursor:pointer}
+    .pk-btn-green:hover{background:#15803d}
     .pk-table-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem}
     .pk-table-card{background:var(--surface,#fff);border:1.5px solid var(--border,#e2e8f0);border-radius:8px;overflow:hidden}
     .pk-table-card-unassigned{border-color:#fbbf24}
@@ -232,10 +238,6 @@ $session = $sessStmt->fetch();
     .pk-bulk-bar .danger{color:#ef4444;border-color:#fca5a5}
     .pk-bulk-bar .primary{color:#fff;background:#2563eb;border-color:#2563eb}
     .pk-row-select{width:18px;height:18px;cursor:pointer;accent-color:#2563eb}
-    .pk-view-seg{position:relative;display:inline-flex;border-radius:6px;border:1.5px solid #e2e8f0;background:#f1f5f9;padding:2px}
-    .pk-seg-thumb{position:absolute;top:2px;bottom:2px;left:0;width:0;border-radius:4px;background:#2563eb;z-index:0;transition:transform .22s cubic-bezier(.4,0,.2,1),width .22s cubic-bezier(.4,0,.2,1)}
-    .pk-view-seg button{position:relative;z-index:1;padding:.3rem .7rem;font-size:.78rem;font-weight:600;border:none;background:transparent;cursor:pointer;color:#64748b;white-space:nowrap;transition:color .15s}
-    .pk-view-seg button.active{color:#fff}
     .walkin-autocomplete{position:relative}
     .walkin-dropdown{position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:100;max-height:200px;overflow-y:auto;display:none}
     .walkin-dropdown.open{display:block}
@@ -323,7 +325,7 @@ $session = $sessStmt->fetch();
         .pk-toolbar input[type=text] { width:100%;font-size:1rem;min-height:44px; }
         .pk-toolbar button { min-height:44px;font-size:.85rem; }
         .pk-actions button, .pk-actions a { min-height:44px;font-size:.85rem;padding:.5rem .8rem; }
-        .pk-filter button { min-height:40px;font-size:.85rem;padding:.4rem .7rem; }
+        .pk-seg button { min-height:40px;font-size:.85rem;padding:.4rem .7rem; }
         .pk-counter button { width:36px;height:36px;font-size:1rem; }
         .pk-counter span { min-width:28px;font-size:.95rem; }
         .pk-tbl-input { width:48px;padding:.4rem .3rem;font-size:1rem;min-height:36px; }
@@ -634,7 +636,8 @@ function renderDashboard() {
     h += '</div>';
     h += '<button class="pk-btn-add" onclick="addWalkin()">+ Add</button>';
     h += '<div class="pk-toolbar-sep"></div>';
-    h += '<div class="pk-filter">';
+    h += '<div class="pk-seg pk-filter" id="filterSeg">';
+    h += '<span class="pk-seg-thumb"></span>';
     h += '<button data-filter="all" class="' + (FILTER==='all'?'active':'') + '" onclick="setFilter(\'all\')">All</button>';
     h += '<button data-filter="rsvp_yes" class="' + (FILTER==='rsvp_yes'?'active':'') + '" onclick="setFilter(\'rsvp_yes\')">RSVP Yes</button>';
     if (isTourney()) {
@@ -645,15 +648,15 @@ function renderDashboard() {
         h += '<button data-filter="eliminated" class="' + (FILTER==='eliminated'?'active':'') + '" onclick="setFilter(\'eliminated\')">Cashed Out</button>';
     }
     h += '</div>';
-    h += '<div class="pk-view-seg" id="viewSeg">';
-    h += '<span class="pk-seg-thumb" id="viewSegThumb"></span>';
+    h += '<div class="pk-seg pk-view-seg" id="viewSeg">';
+    h += '<span class="pk-seg-thumb"></span>';
     h += '<button data-view="list" class="' + (VIEW_MODE === 'list' ? 'active' : '') + '" onclick="setViewMode(\'list\')">&#9776; List</button>';
     h += '<button data-view="table" class="' + (VIEW_MODE === 'table' ? 'active' : '') + '" onclick="setViewMode(\'table\')">&#9638; Table</button>';
     h += '<button data-view="log" class="' + (VIEW_MODE === 'log' ? 'active' : '') + '" title="Activity log: buy-ins, cash-outs, adds and more" onclick="setViewMode(\'log\')">&#128203; Log</button>';
     h += '</div>';
     h += '<button class="pk-help-btn" title="How this screen works" aria-label="Help" onclick="openHelp()">? Help</button>';
     h += '<button class="pk-btn-view-toggle" onclick="balanceTables()">&#9878; Balance</button>';
-    h += '<button class="pk-btn-view-toggle" onclick="addTable()">Tables: ' + (parseInt(SESSION.num_tables) || 1) + ' +</button>';
+    h += '<button id="addTableBtn" class="pk-btn-green" onclick="addTable()"' + (VIEW_MODE === 'table' ? '' : ' style="display:none"') + '>Add Table</button>';
     h += '</div>';
 
     // Inline pool/payout summary for mobile/tablet (compact bar above player list)
@@ -686,7 +689,7 @@ function renderDashboard() {
     h += '</div>'; // pk-grid
 
     document.getElementById('app').innerHTML = h;
-    positionViewThumb(false);
+    positionAllSegThumbs(false);
     if (VIEW_MODE === 'log') renderLog();
 }
 
@@ -1588,19 +1591,22 @@ function setViewMode(mode) {
             btns[i].classList.toggle('active', btns[i].getAttribute('data-view') === mode);
         }
     }
-    positionViewThumb(true);
+    positionSegThumb('viewSeg', true);
+    var addBtn = document.getElementById('addTableBtn');
+    if (addBtn) addBtn.style.display = (mode === 'table') ? '' : 'none';
     if (mode === 'log') { renderLog(); fetchLog(); }
     else { updateBulkBar(); }
 }
 
-// Position the segmented-control thumb under the active button. Pass animate=false
-// to snap without a transition (used on full re-renders).
-function positionViewThumb(animate) {
-    var seg = document.getElementById('viewSeg');
-    var thumb = document.getElementById('viewSegThumb');
-    if (!seg || !thumb) return;
+// Position a segmented control's sliding thumb under its active button. Pass
+// animate=false to snap without a transition (used on full re-renders). Shared by
+// the player filter (#filterSeg) and the view switcher (#viewSeg).
+function positionSegThumb(segId, animate) {
+    var seg = document.getElementById(segId);
+    if (!seg) return;
+    var thumb = seg.querySelector('.pk-seg-thumb');
     var active = seg.querySelector('button.active');
-    if (!active) return;
+    if (!thumb || !active) return;
     if (!animate) {
         thumb.style.transition = 'none';
         thumb.style.width = active.offsetWidth + 'px';
@@ -1611,6 +1617,12 @@ function positionViewThumb(animate) {
         thumb.style.width = active.offsetWidth + 'px';
         thumb.style.transform = 'translateX(' + active.offsetLeft + 'px)';
     }
+}
+
+// Reposition both toolbar sliders (e.g. after a full dashboard re-render or resize).
+function positionAllSegThumbs(animate) {
+    positionSegThumb('filterSeg', animate);
+    positionSegThumb('viewSeg', animate);
 }
 
 function movePlayer(pid, newTable) {
@@ -1771,7 +1783,7 @@ function renderTableView() {
         var maxSeats = parseInt(SESSION.seats_per_table) || 9;
         h += '<div class="pk-table-card">';
         h += '<div class="pk-table-card-header"><h3>Table ' + t + ' <span>(' + players.length + '/' + maxSeats + ')</span></h3>'
-           + (numTables > 1 ? '<button class="pk-act-btn" onclick="breakUpTable(' + t + ')" style="font-size:.7rem;color:#ef4444;flex-shrink:0" title="Break up this table and distribute players to other tables">Break Up</button>' : '')
+           + (numTables > 1 ? '<button class="pk-act-btn danger" onclick="breakUpTable(' + t + ')" style="font-size:.7rem;flex-shrink:0" title="Break up this table and distribute players to other tables">Break Up</button>' : '')
            + '</div>';
         h += '<div class="pk-table-card-body">';
         players.sort(function(a, b) { return (parseInt(a.seat_number) || 99) - (parseInt(b.seat_number) || 99); });
@@ -2317,6 +2329,7 @@ function setFilter(f) {
     document.querySelectorAll('.pk-filter button').forEach(function(btn) {
         btn.classList.toggle('active', btn.getAttribute('data-filter') === f);
     });
+    positionSegThumb('filterSeg', true);
     refreshUI();
 }
 
@@ -2391,8 +2404,8 @@ function escHtml(s) {
 // ─── INIT ──────────────────────────────────────────────
 loadSession();
 
-// Keep the view-toggle thumb aligned if the toolbar reflows on resize.
-window.addEventListener('resize', function() { positionViewThumb(false); });
+// Keep both toolbar sliders aligned if the toolbar reflows on resize.
+window.addEventListener('resize', function() { positionAllSegThumbs(false); });
 
 // Auto-refresh every 10 seconds
 // Uses poll=1 to skip sync_invitees (prevents re-adding removed players)

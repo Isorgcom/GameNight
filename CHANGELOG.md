@@ -4,6 +4,15 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.1999] - 2026-06-21
+
+### Changed
+- **Check-in toolbar: player filter and view switcher are now matched "pill slider" controls.** The player filter (All / RSVP Yes / Active / Cashed Out) got the same sliding-thumb treatment as the List / Table / Log switcher, and both now share one `.pk-seg` style so they read as a pair of grouped sliders. A blue thumb glides under the active button, positioned in JS from the active button's geometry (`positionSegThumb()` / `positionAllSegThumbs()` in `www/checkin.php`, generalized from the earlier view-only helper), animated on click and snapped on full re-renders and resize. `setFilter()` slides its thumb in place via the existing `refreshUI()` path, so no full re-render is needed. To stand out against the white page, the track is a recessed cool-slate well (`#dde3ec` fill, `#cbd5e1` border, inset shadow) with the thumb raised above it.
+- **"Add Table" is now a green, Table-view-only button.** The old always-visible "Tables: N +" toolbar button was renamed to a solid green **Add Table** button (new `.pk-btn-green` style) and is shown only while the Table view is active; `setViewMode()` toggles its visibility as you switch views (the toolbar persists across switches so the slider thumb can animate). The table count remains visible in the Table view itself (`www/checkin.php`).
+- **"Break Up" table button is now solid red.** In the Table view, each table card's Break Up control changed from red link-style text to a solid red button using the existing `.pk-act-btn.danger` style, matching the other destructive actions (`www/checkin.php`).
+
+---
+
 ## [v0.1998] - 2026-06-21
 
 ### Added
