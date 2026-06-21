@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2001] - 2026-06-21
+
+### Changed
+- **Rewrote the seeded "Welcome to Game Night!" first post to welcome new members rather than walk an admin through install.** The default post created on a fresh install (in `db_init()` in `www/db.php`, guarded by the `welcome_post_seeded` flag so it never re-creates) now gives a friendly tour of what a member can do, with links to the real pages: Calendar, My Events, Leagues, Stats & Leaderboard, Contacts, My Settings (notifications + two-factor), the Tournament Timer, and the Guest/Host guides. It keeps the header-banner image at the top and stays pinned. This only affects brand-new installs; existing sites keep whatever their post #1 already says.
+
+---
+
 ## [v0.2000] - 2026-06-21
 
 ### Added
