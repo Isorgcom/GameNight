@@ -2413,7 +2413,7 @@ function toggleTray() {
 function skipLevel(dir) { sendCommand(dir > 0 ? 'skip_next' : 'skip_prev'); }
 function adjustTime(delta) { sendCommand(delta > 0 ? 'add_time' : 'sub_time'); }
 function resetLevel() { sendCommand('reset_level'); }
-function resetTimer() { if (confirm('Reset entire timer to Level 1?')) sendCommand('reset_timer'); }
+function resetTimer() { pkConfirm('Reset entire timer to Level 1?').then(function(ok){ if (ok) sendCommand('reset_timer'); }); }
 
 function toggleSound() {
     soundEnabled = !soundEnabled;
@@ -2852,7 +2852,7 @@ function saveSoundSettings() {
         .then(function(r) { return r.json(); })
         .then(function(j) {
             if (j.ok) closeSoundSettings();
-            else alert(j.error || 'Error saving');
+            else pkAlert(j.error || 'Error saving');
         });
 }
 
@@ -3120,7 +3120,7 @@ function saveLevels() {
                     setTimeout(function() { btn.textContent = 'Save'; btn.style.background = ''; }, 2500);
                 }
             } else {
-                alert(j.error || 'Error saving levels');
+                pkAlert(j.error || 'Error saving levels');
             }
         });
 }
@@ -3164,7 +3164,7 @@ function updateSaveBtnState() {
         if (btn.textContent.indexOf('Saved') === -1) btn.textContent = 'Save';
     }
 }
-function maybeRestoreLevelsDraft() {
+async function maybeRestoreLevelsDraft() {
     var raw;
     try { raw = localStorage.getItem(levelsDraftKey()); } catch (e) { return; }
     if (!raw) return;
@@ -3174,7 +3174,7 @@ function maybeRestoreLevelsDraft() {
     if (JSON.stringify(d.levels) === JSON.stringify(LEVELS)) { return; } // nothing new to restore
     var when = new Date(d.ts || Date.now());
     var t = when.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    if (confirm('You have unsaved blind-structure edits from ' + t + ' that were never saved. Restore them?')) {
+    if (await pkConfirm('You have unsaved blind-structure edits from ' + t + ' that were never saved. Restore them?')) {
         LEVELS = d.levels;
         renumberLevels();
         markLevelsDirty();
@@ -3218,7 +3218,7 @@ function generateBlindProgression(startSB, count) {
 function openGenerator() { document.getElementById('genOverlay').classList.add('open'); }
 function closeGenerator() { document.getElementById('genOverlay').classList.remove('open'); }
 function gnGenVal(id, def) { var v = parseInt(document.getElementById(id).value); return isNaN(v) ? def : v; }
-function confirmGenerate() {
+async function confirmGenerate() {
     var startSB    = Math.max(1, gnGenVal('genStartSB', 25));
     var dur        = Math.max(1, gnGenVal('genDuration', 20));
     var count      = Math.max(1, Math.min(60, gnGenVal('genCount', 15)));
@@ -3226,7 +3226,7 @@ function confirmGenerate() {
     var breakLen   = Math.max(1, gnGenVal('genBreakLen', 10));
     var anteFrom   = Math.max(0, gnGenVal('genAnteFrom', 0));
 
-    if (LEVELS.length && !confirm('Replace the current ' + LEVELS.length + ' level(s) with a freshly generated structure?')) return;
+    if (LEVELS.length && !(await pkConfirm('Replace the current ' + LEVELS.length + ' level(s) with a freshly generated structure?'))) return;
 
     var blinds = generateBlindProgression(startSB, count);
     var out = [];
@@ -3245,10 +3245,10 @@ function confirmGenerate() {
     closeGenerator();
 }
 
-function setAsDefault() {
+async function setAsDefault() {
     var pid = document.getElementById('presetSelect').value;
     if (!pid) return;
-    if (!confirm('Set this preset as the default for all users?')) return;
+    if (!(await pkConfirm('Set this preset as the default for all users?'))) return;
     var fd = new FormData();
     fd.append('csrf_token', CSRF);
     fd.append('action', 'set_default_preset');
@@ -3257,10 +3257,10 @@ function setAsDefault() {
         .then(function(r) { return r.json(); })
         .then(function(j) {
             if (j.ok) {
-                alert('Default preset updated!');
+                pkAlert('Default preset updated!');
                 loadPresetList();
             } else {
-                alert(j.error || 'Error setting default');
+                pkAlert(j.error || 'Error setting default');
             }
         });
 }
@@ -3358,7 +3358,7 @@ function loadPreset() {
                     }
                 });
             } else {
-                alert(j.error || 'Error loading preset');
+                pkAlert(j.error || 'Error loading preset');
             }
         });
 }
@@ -3417,7 +3417,7 @@ function closeSavePresetModal() {
 function confirmSavePresetAs() {
     var name = (document.getElementById('savePresetName').value || '').trim();
     if (!name) {
-        alert('Please enter a preset name.');
+        pkAlert('Please enter a preset name.');
         document.getElementById('savePresetName').focus();
         return;
     }
@@ -3446,18 +3446,18 @@ function confirmSavePresetAs() {
             if (j.ok) {
                 var label = is_global ? ' (global)' : (league_id ? ' (league)' : '');
                 closeSavePresetModal();
-                alert('Preset saved' + label + '!');
+                pkAlert('Preset saved' + label + '!');
                 loadPresetList();
             } else {
-                alert(j.error || 'Error saving preset');
+                pkAlert(j.error || 'Error saving preset');
             }
         });
 }
 
-function deletePreset() {
+async function deletePreset() {
     var pid = document.getElementById('presetSelect').value;
     if (!pid) return;
-    if (!confirm('Delete this preset?')) return;
+    if (!(await pkConfirm('Delete this preset?'))) return;
     var fd = new FormData();
     fd.append('csrf_token', CSRF);
     fd.append('action', 'delete_preset');
@@ -3466,7 +3466,7 @@ function deletePreset() {
         .then(function(r) { return r.json(); })
         .then(function(j) {
             if (j.ok) loadPresetList();
-            else alert(j.error || 'Cannot delete');
+            else pkAlert(j.error || 'Cannot delete');
         });
 }
 
@@ -3999,7 +3999,7 @@ function loadTheme() {
     appendTimerId(fd);
     fd.append('theme_id', tid);
     fetch('/timer_dl.php',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(j){
-        if (!j.ok) { alert(j.error||'Load failed'); return; }
+        if (!j.ok) { pkAlert(j.error||'Load failed'); return; }
         CURRENT_THEME_ID = tid;
         window.TIMER_THEME_ID = tid;
         window.TIMER_THEME = j.properties;
@@ -4093,7 +4093,7 @@ function loadPresetTheme(key) {
     appendTimerId(fd);
     fd.append('preset_key', key);
     fetch('/timer_dl.php',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(j){
-        if (!j.ok) { alert(j.error||'Load failed'); return; }
+        if (!j.ok) { pkAlert(j.error||'Load failed'); return; }
         CURRENT_THEME_ID = j.theme_id;
         window.TIMER_THEME_ID = j.theme_id;
         window.TIMER_THEME = j.properties;
@@ -4108,14 +4108,14 @@ function loadPresetTheme(key) {
     });
 }
 
-function deletePresetTheme(key) {
-    if (!confirm('Delete this preset file? Users who already loaded it keep their own copy.')) return;
+async function deletePresetTheme(key) {
+    if (!(await pkConfirm('Delete this preset file? Users who already loaded it keep their own copy.'))) return;
     var fd = new FormData();
     fd.append('action','delete_preset_theme');
     fd.append('csrf_token', CSRF);
     fd.append('preset_key', key);
     fetch('/timer_dl.php',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(j){
-        if (!j.ok) { alert(j.error||'Delete failed'); return; }
+        if (!j.ok) { pkAlert(j.error||'Delete failed'); return; }
         fetchPresets();
     });
 }
@@ -4126,22 +4126,22 @@ function uploadPreset(input) {
     var reader = new FileReader();
     reader.onload = function(ev){
         var data;
-        try { data = JSON.parse(ev.target.result); } catch(e){ alert('Not a valid JSON file.'); input.value=''; return; }
+        try { data = JSON.parse(ev.target.result); } catch(e){ pkAlert('Not a valid JSON file.'); input.value=''; return; }
         if (!data || data.format !== 'gamenight-timer-theme' || !data.properties || typeof data.properties !== 'object'
             || !data.properties.elements || typeof data.properties.elements !== 'object') {
-            alert('Not a GameNight timer-theme export.'); input.value=''; return;
+            pkAlert('Not a GameNight timer-theme export.'); input.value=''; return;
         }
         var fd = new FormData();
         fd.append('action','upload_preset_theme');
         fd.append('csrf_token', CSRF);
         fd.append('file', f);
         fetch('/timer_dl.php',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(j){
-            if (!j.ok) { alert(j.error||'Upload failed'); return; }
+            if (!j.ok) { pkAlert(j.error||'Upload failed'); return; }
             fetchPresets();
         });
         input.value = '';
     };
-    reader.onerror = function(){ alert('Could not read file.'); input.value=''; };
+    reader.onerror = function(){ pkAlert('Could not read file.'); input.value=''; };
     reader.readAsText(f);
 }
 
@@ -4170,7 +4170,7 @@ var PENDING_IMPORTED_PROPS = null;
 
 function confirmSaveThemeAs() {
     var name = document.getElementById('saveThemeName').value.trim();
-    if (!name) { alert('Name required'); return; }
+    if (!name) { pkAlert('Name required'); return; }
     var scope = document.getElementById('saveThemeScope').value;
     var is_global = scope === 'global' ? 1 : 0;
     var league_id = scope.indexOf('league:') === 0 ? parseInt(scope.slice(7),10) : 0;
@@ -4185,7 +4185,7 @@ function confirmSaveThemeAs() {
     if (league_id) fd.append('league_id', league_id);
     fd.append('properties', JSON.stringify(props));
     fetch('/timer_dl.php',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(j){
-        if (!j.ok) { alert(j.error||'Save failed'); return; }
+        if (!j.ok) { pkAlert(j.error||'Save failed'); return; }
         // Only re-point the active session to the saved theme when it came from the
         // live editor — an import shouldn't hijack what's currently on screen.
         if (!imported) {
@@ -4212,9 +4212,9 @@ function confirmSaveThemeAs() {
 // so importTheme can sanity-check uploads.
 function exportTheme() {
     var tid = parseInt(document.getElementById('themeSelect').value || '0', 10);
-    if (!tid) { alert('Pick a theme first.'); return; }
+    if (!tid) { pkAlert('Pick a theme first.'); return; }
     var t = (THEMES_CACHE || []).find(function(x){ return x.id == tid; });
-    if (!t) { alert('Theme not found in cache — try reopening the Library.'); return; }
+    if (!t) { pkAlert('Theme not found in cache — try reopening the Library.'); return; }
     // The cached row may not include properties (depends on get_themes payload);
     // fetch the full row if missing.
     if (t.properties) {
@@ -4222,7 +4222,7 @@ function exportTheme() {
         return;
     }
     fetch('/timer_dl.php?action=get_theme&theme_id=' + tid).then(function(r){return r.json();}).then(function(j){
-        if (!j.ok || !j.theme) { alert(j.error || 'Could not load theme'); return; }
+        if (!j.ok || !j.theme) { pkAlert(j.error || 'Could not load theme'); return; }
         downloadThemeBlob(j.theme.name || t.name, j.theme.properties || {});
     });
 }
@@ -4255,15 +4255,15 @@ function importTheme(input) {
     reader.onload = function(ev) {
         var data;
         try { data = JSON.parse(ev.target.result); }
-        catch (e) { alert('Not a valid JSON file.'); input.value = ''; return; }
+        catch (e) { pkAlert('Not a valid JSON file.'); input.value = ''; return; }
         if (!data || data.format !== 'gamenight-timer-theme' || !data.properties || typeof data.properties !== 'object') {
-            alert('Not a GameNight timer-theme export.');
+            pkAlert('Not a GameNight timer-theme export.');
             input.value = '';
             return;
         }
         var props = data.properties;
         if (!props.elements || typeof props.elements !== 'object') {
-            alert('Theme file is missing the expected structure.');
+            pkAlert('Theme file is missing the expected structure.');
             input.value = '';
             return;
         }
@@ -4282,7 +4282,7 @@ function importTheme(input) {
         }, 80);
         input.value = '';  // allow re-importing the same file later
     };
-    reader.onerror = function() { alert('Could not read file.'); input.value = ''; };
+    reader.onerror = function() { pkAlert('Could not read file.'); input.value = ''; };
     reader.readAsText(f);
 }
 
@@ -4299,26 +4299,26 @@ function saveThemeChanges() {
     appendTimerId(fd);
     fd.append('properties', JSON.stringify(props));
     fetch('/timer_dl.php',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(j){
-        if (!j.ok) { alert(j.error||'Save failed'); return; }
+        if (!j.ok) { pkAlert(j.error||'Save failed'); return; }
         CURRENT_THEME_ID = j.theme_id;
         window.TIMER_THEME_ID = j.theme_id;
         if (j.created_copy) {
-            alert('That theme is protected. A personal copy was created — rename it via Save As if you like.');
+            pkAlert('That theme is protected. A personal copy was created — rename it via Save As if you like.');
         }
         fetchThemes();
     });
 }
 
-function deleteTheme() {
+async function deleteTheme() {
     var tid = parseInt(document.getElementById('themeSelect').value || '0', 10);
     if (!tid) return;
-    if (!confirm('Delete this theme?')) return;
+    if (!(await pkConfirm('Delete this theme?'))) return;
     var fd = new FormData();
     fd.append('action','delete_theme');
     fd.append('csrf_token', CSRF);
     fd.append('theme_id', tid);
     fetch('/timer_dl.php',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(j){
-        if (!j.ok) { alert(j.error||'Delete failed'); return; }
+        if (!j.ok) { pkAlert(j.error||'Delete failed'); return; }
         if (tid === CURRENT_THEME_ID) {
             CURRENT_THEME_ID = null;
             window.TIMER_THEME_ID = null;
@@ -4335,7 +4335,7 @@ function setAsDefaultTheme() {
     fd.append('csrf_token', CSRF);
     fd.append('theme_id', tid);
     fetch('/timer_dl.php',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(j){
-        if (!j.ok) { alert(j.error||'Failed'); return; }
+        if (!j.ok) { pkAlert(j.error||'Failed'); return; }
         fetchThemes();
     });
 }
@@ -5252,7 +5252,7 @@ function onImageElementUpload(input) {
     fetch('/timer_dl.php', { method:'POST', body: fd })
         .then(function(r){ return r.json(); })
         .then(function(j){
-            if (!j.ok) { alert(j.error || 'Upload failed'); return; }
+            if (!j.ok) { pkAlert(j.error || 'Upload failed'); return; }
             window.TIMER_THEME.elements = window.TIMER_THEME.elements || {};
             var pe = window.TIMER_THEME.elements.image = window.TIMER_THEME.elements.image || {};
             pe.url = j.url;
@@ -5400,7 +5400,7 @@ function onPageBgUpload(input) {
     fetch('/timer_dl.php', { method:'POST', body: fd })
         .then(function(r){ return r.json(); })
         .then(function(j){
-            if (!j.ok) { alert(j.error || 'Upload failed'); return; }
+            if (!j.ok) { pkAlert(j.error || 'Upload failed'); return; }
             window.TIMER_THEME.background = window.TIMER_THEME.background || {};
             window.TIMER_THEME.background.image_url = j.url;
             window.TIMER_THEME.background.type = 'image';
@@ -5881,13 +5881,13 @@ function ppEliminate(pid) {
     ppPost('eliminate_player', { player_id: pid, finish_position: playing });
 }
 function ppUnelim(pid) { ppPost('uneliminate_player', { player_id: pid }); }
-function ppCashin(pid) {
-    var amt = prompt('Cash in amount ($):', '20');
+async function ppCashin(pid) {
+    var amt = await pkPrompt('Cash in amount ($):', { default: '20', inputType: 'number' });
     if (amt === null) return;
     ppPost('add_cashin', { player_id: pid, amount: Math.round(parseFloat(amt) * 100) });
 }
-function ppCashout(pid) {
-    var amt = prompt('Cash out amount ($):');
+async function ppCashout(pid) {
+    var amt = await pkPrompt('Cash out amount ($):', { inputType: 'number' });
     if (amt === null) return;
     ppPost('set_cashout', { player_id: pid, cash_out: Math.round(parseFloat(amt) * 100) });
 }
@@ -5942,17 +5942,18 @@ function importLevels(input) {
             });
         }
         if (parsed.length === 0) {
-            alert('Invalid CSV: no levels found.');
+            pkAlert('Invalid CSV: no levels found.');
             return;
         }
         LEVELS = parsed;
         levelsCollected = true;
         renderLevelsTable();
-        alert('Imported ' + LEVELS.length + ' levels. Click Save to apply.');
+        pkAlert('Imported ' + LEVELS.length + ' levels. Click Save to apply.');
     };
     reader.readAsText(file);
     input.value = '';
 }
 </script>
+<script src="/pk-dialogs.js?v=<?= @filemtime(__DIR__ . '/pk-dialogs.js') ?>" defer></script>
 </body>
 </html>

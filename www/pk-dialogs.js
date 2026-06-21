@@ -17,8 +17,29 @@
     var mode = 'confirm';
     var lastFocus = null;
 
+    function injectCss() {
+        if (document.getElementById('pk-dialogs-css')) return;
+        var s = document.createElement('style');
+        s.id = 'pk-dialogs-css';
+        // Self-contained so it works on standalone pages (timer/walk-in) and is
+        // immune to a stale/missing style.css. High z-index beats page chrome.
+        s.textContent =
+            '.pk-dialog{position:fixed!important;inset:0!important;z-index:100000!important;' +
+                'display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.5)}' +
+            '.pk-dialog.open{display:flex!important}' +
+            '.pk-dialog .pk-modal{background:#fff;color:#0f172a;border-radius:12px;padding:1.5rem;' +
+                'width:90%;max-width:400px;box-shadow:0 10px 40px rgba(0,0,0,.25);max-height:85vh;overflow:auto;text-align:left}' +
+            '.pk-dialog .pk-modal h3{margin:0 0 .75rem;color:#0f172a}' +
+            '.pk-dialog .pk-modal-actions{display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem}' +
+            '.pk-dialog .pk-modal-actions button{padding:.5rem 1rem;border-radius:6px;font-size:.9rem;font-weight:600;' +
+                'cursor:pointer;border:1.5px solid #e2e8f0;background:#fff;color:#0f172a}' +
+            '.pk-dialog .pk-modal-actions .pk-save{background:#2563eb;color:#fff;border-color:transparent}';
+        document.head.appendChild(s);
+    }
+
     function build() {
         if (overlay) return;
+        injectCss();
         overlay = document.createElement('div');
         overlay.className = 'pk-modal-overlay pk-dialog';
         overlay.innerHTML =

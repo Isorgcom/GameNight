@@ -4,7 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
-## [v0.1990] - 2026-06-20
+## [v0.1991] - 2026-06-21
+
+### Changed
+- **Tournament timer now uses in-app dialogs instead of native browser pop-ups.** All ~42 native `alert()`/`confirm()`/`prompt()` calls on the timer were converted to the shared `pk-dialogs.js` helpers: reset timer, generate/replace blind structure, restore unsaved draft, set-as-default / delete preset, delete preset file, delete theme, the player-panel cash in/out prompts, and every error/status alert. The enclosing handlers were made `async` so they `await` the dialog. Verified with a headless DOM unit test of the dialog utility (19 checks) and a syntax check of the rendered timer JavaScript (zero native dialogs remain). Part of the app-wide migration that began in v0.1990.
+
+### Fixed
+- **Shared dialog utility is now self-contained and renders correctly on standalone pages.** `pk-dialogs.js` injects its own CSS (fixed full-screen overlay, centered card, high `z-index`, explicit dark text) instead of relying on `style.css`. This fixes the timer (a standalone page that doesn't include the shared footer/`style.css` cascade in the same way), where the first converted dialog appeared mis-positioned in the corner and would not dismiss if a stale `style.css` was cached. The timer's script tag is also cache-busted via file mtime.
 
 ### Added
 - **Shared in-app dialog utility (`pk-dialogs.js`).** Groundwork for replacing the browser's native `alert()`/`confirm()`/`prompt()` app-wide (native dialogs are inconsistent and, after repeated use, the browser can suppress them and silently swallow the action). The new utility provides Promise-based `pkAlert`, `pkConfirm`, and `pkPrompt`, plus `pkConfirmForm`/`pkConfirmGo` helpers for `onsubmit`/`onclick="return confirm()"` cases. It self-injects a single reusable modal, handles Enter/Esc/click-outside/focus, and reuses the existing `.pk-modal` styling. It is loaded on every page via `_footer.php` (like `help-bubble.js`), and the base modal CSS was promoted from `checkin.php` into `style.css` so it applies site-wide. `checkin.php`'s Remove confirmations were migrated to the shared helper (removing its local duplicate). Subsequent releases will convert the remaining ~170 native dialog call sites in batches.
