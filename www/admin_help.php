@@ -291,7 +291,7 @@ async function toggleTip(id) {
 }
 
 async function deleteTip(id) {
-    if (!confirm('Delete this tip?')) return;
+    if (!(await pkConfirm('Delete this tip?'))) return;
     const r = await post({ action: 'delete', id });
     if (r.ok) { TIPS = r.tips; renderList(); msg('Deleted.'); }
 }

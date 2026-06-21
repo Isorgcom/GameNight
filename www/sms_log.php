@@ -72,7 +72,7 @@ unset($_SESSION['flash']);
         <h2>Notification Log (<?= $smsLogCount ?>)</h2>
         <div class="sms-log-actions">
             <?php if ($smsLogCount > 0): ?>
-            <form method="post" style="margin:0" onsubmit="return confirm('Clear all SMS logs?')">
+            <form method="post" style="margin:0" onsubmit="return pkConfirmForm(this, 'Clear all SMS logs?', {danger:true})">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <input type="hidden" name="action" value="sms_clear_log">
                 <button type="submit" class="btn btn-outline" style="font-size:.8rem;padding:.35rem .75rem;color:#dc2626;border-color:#fca5a5">Clear Log</button>

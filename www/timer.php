@@ -1609,7 +1609,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
     </div>
 </div>
 
-<!-- Unsaved-changes confirm (closing the levels editor) -->
+<!-- Unsaved-changes confirmation (closing the levels editor) -->
 <div class="timer-levels-overlay" id="closeConfirmOverlay" onclick="if(event.target===this)closeCloseConfirm()">
     <div class="timer-levels-panel" style="max-width:420px;position:relative">
         <button onclick="closeCloseConfirm()" type="button"

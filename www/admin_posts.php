@@ -398,7 +398,7 @@ $now_local = (new DateTime('now', $local_tz))->format('Y-m-d H:i:s');
                                 </button>
                             </form>
                             <form method="post" action="/admin_posts.php" style="margin:0"
-                                  onsubmit="return confirm('Delete this post?')">
+                                  onsubmit="return pkConfirmForm(this, 'Delete this post?', {okLabel:'Delete', danger:true})">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                                 <input type="hidden" name="action" value="delete">
                                 <input type="hidden" name="id" value="<?= (int)$p['id'] ?>">
@@ -539,10 +539,10 @@ async function uploadImageToEditor(file, ed) {
             img.setAttribute('src', data.url);
             ed.s.insertNode(img);
         } else {
-            alert('Image upload failed: ' + (data.error || 'unknown error'));
+            pkAlert('Image upload failed: ' + (data.error || 'unknown error'));
         }
     } catch (err) {
-        alert('Image upload failed: ' + err.message);
+        pkAlert('Image upload failed: ' + err.message);
     }
 }
 
@@ -582,9 +582,9 @@ function isDirty() {
     return title !== '' || content !== '';
 }
 
-function closeModal(force) {
+async function closeModal(force) {
     if (!force && isDirty()) {
-        if (!confirm('You have unsaved changes. Discard them?')) return;
+        if (!(await pkConfirm('You have unsaved changes. Discard them?'))) return;
     }
     document.getElementById('postModal').classList.remove('open');
 }
@@ -644,10 +644,10 @@ function clearSel() {
     updateBulkBar();
 }
 
-function bulkDelete() {
+async function bulkDelete() {
     const ids = Array.from(document.querySelectorAll('.post-cb:checked')).map(c => parseInt(c.value));
     if (!ids.length) return;
-    if (!confirm('Delete ' + ids.length + ' post' + (ids.length !== 1 ? 's' : '') + '? This cannot be undone.')) return;
+    if (!(await pkConfirm('Delete ' + ids.length + ' post' + (ids.length !== 1 ? 's' : '') + '? This cannot be undone.'))) return;
     document.getElementById('bulk-ids').value = JSON.stringify(ids);
     document.getElementById('bulk-form').submit();
 }

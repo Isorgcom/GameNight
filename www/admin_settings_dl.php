@@ -743,7 +743,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                     <input type="hidden" name="tab" value="appearance">
                     <button type="submit" class="btn btn-outline"
                             style="color:#ef4444;border-color:#fca5a5;font-size:.82rem"
-                            onclick="return confirm('Remove the icon?')">&#x2715; Remove Icon</button>
+                            onclick="return pkConfirmForm(this.form, 'Remove the icon?', {okLabel:'Remove', danger:true})">&#x2715; Remove Icon</button>
                 </form>
                 <?php endif; ?>
                 <form method="post" action="/admin_settings.php" enctype="multipart/form-data">
@@ -777,7 +777,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                     <input type="hidden" name="tab" value="appearance">
                     <button type="submit" class="btn btn-outline"
                             style="color:#ef4444;border-color:#fca5a5;font-size:.82rem"
-                            onclick="return confirm('Remove the header banner?')">&#x2715; Remove Header Banner</button>
+                            onclick="return pkConfirmForm(this.form, 'Remove the header banner?', {okLabel:'Remove', danger:true})">&#x2715; Remove Header Banner</button>
                 </form>
                 <?php endif; ?>
                 <form method="post" action="/admin_settings.php" style="margin-bottom:1rem">
@@ -838,7 +838,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                 All user activity &mdash; <?= number_format($log_total) ?> total entries.
             </p>
             <form method="post" action="/admin_settings.php"
-                  onsubmit="return confirm('Clear all log entries? This cannot be undone.')">
+                  onsubmit="return pkConfirmForm(this, 'Clear all log entries? This cannot be undone.', {danger:true})">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <input type="hidden" name="action" value="clear_logs">
                 <input type="hidden" name="tab" value="logs">
@@ -912,7 +912,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
         <div id="bulkBar">
             <span class="bulk-label"><span id="bulkCount">0</span> selected</span>
             <form id="bulkForm" method="post" action="/admin_settings.php"
-                  onsubmit="return confirm('Delete selected users? This cannot be undone.')">
+                  onsubmit="return pkConfirmForm(this, 'Delete selected users? This cannot be undone.', {okLabel:'Delete', danger:true})">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <input type="hidden" name="action" value="bulk_delete">
                 <input type="hidden" name="tab" value="users">
@@ -955,7 +955,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                                    class="btn-icon" title="Edit">&#9881;</a>
                                 <?php if ((int)$u['id'] !== (int)$current['id']): ?>
                                 <form method="post" action="/admin_settings.php"
-                                      onsubmit="return confirm('Delete ' + <?= json_encode($u['username']) ?> + '?')">
+                                      onsubmit="return pkConfirmForm(this, 'Delete ' + <?= json_encode($u['username']) ?> + '?', {okLabel:'Delete', danger:true})">
                                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="tab" value="users">

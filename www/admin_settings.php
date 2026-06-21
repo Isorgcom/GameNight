@@ -1420,7 +1420,7 @@ if ($tab === 'reports') {
                     <input type="hidden" name="tab" value="appearance">
                     <button type="submit" class="btn btn-outline"
                             style="color:#ef4444;border-color:#fca5a5;font-size:.82rem"
-                            onclick="return confirm('Remove the banner?')">&#x2715; Remove Banner</button>
+                            onclick="return pkConfirmForm(this.form, 'Remove the banner?', {okLabel:'Remove', danger:true})">&#x2715; Remove Banner</button>
                 </form>
                 <?php endif; ?>
                 <form method="post" action="/admin_settings.php" enctype="multipart/form-data">
@@ -1457,7 +1457,7 @@ if ($tab === 'reports') {
                         <input type="hidden" name="tab" value="appearance">
                         <button type="submit" class="btn btn-outline"
                                 style="color:#ef4444;border-color:#fca5a5;font-size:.82rem"
-                                onclick="return confirm('Remove the header banner?')">&#x2715; Remove Header Banner</button>
+                                onclick="return pkConfirmForm(this.form, 'Remove the header banner?', {okLabel:'Remove', danger:true})">&#x2715; Remove Header Banner</button>
                     </form>
                     <?php endif; ?>
                     <form method="post" action="/admin_settings.php" enctype="multipart/form-data">
@@ -1522,7 +1522,7 @@ if ($tab === 'reports') {
                     View Notification Log (<?= $smsLogCount ?>)
                 </a>
                 <form method="post" action="/admin_settings.php"
-                      onsubmit="return confirm('Clear all log entries? This cannot be undone.')">
+                      onsubmit="return pkConfirmForm(this, 'Clear all log entries? This cannot be undone.', {danger:true})">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                     <input type="hidden" name="action" value="clear_logs">
                     <input type="hidden" name="tab" value="logs">
@@ -1622,7 +1622,7 @@ if ($tab === 'reports') {
             <div id="ugBulkBar">
                 <span class="bulk-label"><span id="ugBulkCount">0</span> selected</span>
                 <form id="ugBulkDeleteForm" method="post" action="/admin_settings.php"
-                      onsubmit="return confirm('Delete selected users? This cannot be undone.')">
+                      onsubmit="return pkConfirmForm(this, 'Delete selected users? This cannot be undone.', {okLabel:'Delete', danger:true})">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                     <input type="hidden" name="action" value="bulk_delete">
                     <input type="hidden" name="tab" value="users">
@@ -1734,7 +1734,7 @@ if ($tab === 'reports') {
                         <td class="ug-act-cell">
                             <?php if (!$isSelf): ?>
                             <form method="post" action="/admin_settings.php"
-                                  onsubmit="return confirm('Delete <?= addslashes(htmlspecialchars($u['username'])) ?>? This cannot be undone.')">
+                                  onsubmit="return pkConfirmForm(this, 'Delete <?= addslashes(htmlspecialchars($u['username'])) ?>? This cannot be undone.', {okLabel:'Delete', danger:true})">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                                 <input type="hidden" name="action" value="delete">
                                 <input type="hidden" name="tab" value="users">
@@ -1780,7 +1780,7 @@ if ($tab === 'reports') {
                         else if (r.status === 409 && el) {
                             // last admin — revert
                             el.value = el.dataset.orig;
-                            alert('Cannot demote the last admin.');
+                            pkAlert('Cannot demote the last admin.');
                         }
                     });
             }
@@ -2107,7 +2107,7 @@ if ($tab === 'reports') {
 
                         <td class="ev-del-cell">
                             <form method="post" action="/admin_settings.php"
-                                  onsubmit="return confirm('Delete event &quot;<?= addslashes(htmlspecialchars($ev['title'])) ?>&quot;? This cannot be undone.')">
+                                  onsubmit="return pkConfirmForm(this, 'Delete event &quot;<?= addslashes(htmlspecialchars($ev['title'])) ?>&quot;? This cannot be undone.', {okLabel:'Delete', danger:true})">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                                 <input type="hidden" name="action" value="delete_event">
                                 <input type="hidden" name="tab" value="events">
@@ -2761,8 +2761,8 @@ if ($tab === 'reports') {
 
     // Recover a dead/stuck session: log out the old WhatsApp link and drop into
     // QR-scan state so a fresh device can be linked (what "Start" alone can't do).
-    function wahaReset() {
-        if (!confirm('Log out the current WhatsApp link and start over?\n\nYou will need to scan a new QR code (Linked Devices → Link a Device) to reconnect, and WhatsApp messages will not send until you do.')) return;
+    async function wahaReset() {
+        if (!(await pkConfirm('Log out the current WhatsApp link and start over?<br><br>You will need to scan a new QR code (Linked Devices → Link a Device) to reconnect, and WhatsApp messages will not send until you do.'))) return;
         var el = document.getElementById('wahaStatus');
         el.textContent = 'Resetting…'; el.style.color = '#2563eb';
         if (_wahaQrInterval) { clearInterval(_wahaQrInterval); _wahaQrInterval = null; }
@@ -2830,7 +2830,7 @@ if ($tab === 'reports') {
             if (j.ok) {
                 setTimeout(wahaCheckStatus, 2000);
             } else {
-                alert(j.error || 'Failed to start session');
+                pkAlert(j.error || 'Failed to start session');
                 wahaCheckStatus();
             }
         })
@@ -2841,8 +2841,8 @@ if ($tab === 'reports') {
         });
     }
 
-    function wahaStop() {
-        if (!confirm('Disconnect WhatsApp session?')) return;
+    async function wahaStop() {
+        if (!(await pkConfirm('Disconnect WhatsApp session?'))) return;
         fetch('/admin_settings_dl.php', {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest'},
@@ -3042,7 +3042,7 @@ if ($tab === 'reports') {
                 <h3 style="margin-top:0;color:#dc2626">Restore from Backup</h3>
                 <p style="font-size:.85rem;color:#64748b;margin-bottom:1rem">Upload a previously downloaded <code>.db</code> backup file. This will <strong>replace all current data</strong>.</p>
                 <form method="post" action="/admin_settings.php?tab=backup" enctype="multipart/form-data"
-                      onsubmit="return confirm('This will REPLACE ALL current data with the backup. The current database will be saved as a safety copy. Continue?')">
+                      onsubmit="return pkConfirmForm(this, 'This will REPLACE ALL current data with the backup. The current database will be saved as a safety copy. Continue?', {okLabel:'Restore', danger:true})">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                     <input type="hidden" name="action" value="backup_restore">
                     <input type="hidden" name="tab" value="backup">
