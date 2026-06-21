@@ -4,7 +4,10 @@ All notable changes to GameNight are documented here.
 
 ---
 
-## [v0.1996] - 2026-06-21
+## [v0.1997] - 2026-06-21
+
+### Added
+- **Admin "Activity" tab — live site-usage snapshot.** A new tab under Site Settings answers "is the site being used right now" at a glance, auto-refreshing every 30 seconds: live tournament timers running, active poker games (and players still in), active users in the last hour, sister-site API calls in the last hour, and the notification-queue depth, plus a feed of the last 15 logged actions. It polls a new admin-gated, CSRF-checked `activity_snapshot` JSON action in `www/admin_settings_dl.php`; both the initial server-render and the poll share one helper, `admin_activity_snapshot()` in `www/db.php` (all cheap guarded COUNTs, no schema changes). Polling pauses when the tab is hidden, with a manual "Refresh now" button. Note on honesty: true per-connection counts aren't trackable with PHP file-sessions, so "active users (1h)" is an activity-based estimate (distinct `activity_log` users) and "live timers" reflects tournament clocks that polled within the last 2 minutes — both labeled as such in the UI (`www/_admin_tabs.php`, `www/admin_settings.php`).
 
 ### Fixed
 - **`calendar_dl.php` no longer 500s on a direct GET.** The file is a POST-only action endpoint (delete/cancel-series/remove-invitee/walk-in-token actions), but it still contained a legacy GET "calendar view" — a duplicate of `calendar.php` left over from before recurrence was removed — whose query referenced the long-deleted `recurrence` column and threw an uncaught `PDOException` on any GET. A direct GET now redirects to `/calendar.php` instead. POST handling is unchanged.

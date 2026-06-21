@@ -29,6 +29,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['
     // fall through to WAHA handler below
 }
 
+// ── Activity snapshot (AJAX, JSON) — polled by the admin Activity tab ──
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'activity_snapshot') {
+    header('Content-Type: application/json');
+    if (!csrf_verify()) { echo json_encode(['ok' => false, 'error' => 'CSRF token mismatch']); exit; }
+    echo json_encode(['ok' => true, 'data' => admin_activity_snapshot($db)]);
+    exit;
+}
+
 // ── POST ─────────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $post_tab = $_POST['tab'] ?? 'general';

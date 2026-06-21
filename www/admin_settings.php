@@ -83,7 +83,7 @@ if (!empty($_SESSION['flash'])) {
     unset($_SESSION['flash']);
 }
 
-$tab = in_array($_GET['tab'] ?? '', ['dashboard', 'reports', 'general', 'appearance', 'logs', 'users', 'events', 'leagues', 'email', 'sms', 'whatsapp', 'cron', 'backup']) ? $_GET['tab'] : 'dashboard';
+$tab = in_array($_GET['tab'] ?? '', ['dashboard', 'reports', 'activity', 'general', 'appearance', 'logs', 'users', 'events', 'leagues', 'email', 'sms', 'whatsapp', 'cron', 'backup']) ? $_GET['tab'] : 'dashboard';
 $isCommTab = in_array($tab, ['email', 'sms', 'whatsapp']);
 
 // ── POST ─────────────────────────────────────────────────────────────────────
@@ -806,6 +806,9 @@ if ($tab === 'reports') {
 
     $rep_newest = $db->query('SELECT id, username, email, role, tier, email_verified, phone_verified, created_at, last_login FROM users ORDER BY id DESC LIMIT 15')->fetchAll();
 }
+
+// ── Activity tab live snapshot (computed only when the tab is active) ──────────
+$act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -1176,6 +1179,90 @@ if ($tab === 'reports') {
             </div>
         </div>
 
+        <?php endif; ?>
+    </div>
+
+    <!-- ── Activity tab ── -->
+    <div class="tab-panel <?= $tab === 'activity' ? 'active' : '' ?>">
+        <?php if ($tab === 'activity'): ?>
+        <p style="color:#64748b;font-size:.875rem;margin-bottom:1rem">
+            Live snapshot of current site usage &mdash; auto-refreshes every 30s.
+            <button type="button" class="btn btn-outline" id="actRefresh" style="margin-left:.5rem;padding:.2rem .6rem;font-size:.8rem">Refresh now</button>
+            <span id="actAsOf" style="color:#94a3b8;font-size:.8rem;margin-left:.5rem">as of <?= htmlspecialchars($act['as_of']) ?></span>
+        </p>
+
+        <div class="stats">
+            <div class="stat-card"><div class="label">Live timers</div><div class="value" id="actTimers"><?= (int)$act['timers_running'] ?></div></div>
+            <div class="stat-card"><div class="label">Active games</div><div class="value" id="actGames"><?= (int)$act['active_games'] ?></div><div class="subtitle" id="actPlaying"><?= (int)$act['still_playing'] ?> playing</div></div>
+            <div class="stat-card"><div class="label">Active users &middot; 1h</div><div class="value" id="actUsers"><?= (int)$act['active_users_1h'] ?></div></div>
+            <div class="stat-card"><div class="label">API calls &middot; 1h</div><div class="value" id="actApi"><?= (int)$act['api_calls_1h'] ?></div></div>
+            <div class="stat-card"><div class="label">Notif queue</div><div class="value" id="actQueue"><?= (int)$act['notif_queue'] ?></div></div>
+        </div>
+        <p style="color:#94a3b8;font-size:.78rem;margin-top:.5rem">
+            &ldquo;Active users&rdquo; is an estimate from logged activity in the last hour (individual connections aren&rsquo;t tracked). &ldquo;Live timers&rdquo; counts tournament clocks that have polled within the last 2 minutes.
+        </p>
+
+        <div class="card" style="margin-top:1.25rem">
+            <h2>Live tournament timers</h2>
+            <div class="subtitle" id="actTimersEmpty" style="<?= $act['timers'] ? 'display:none' : '' ?>">No timers running right now.</div>
+            <ul id="actTimersList" style="list-style:none;padding:0;margin:.5rem 0 0">
+                <?php foreach ($act['timers'] as $t): ?>
+                <li style="padding:.3rem 0;border-bottom:1px solid #f1f5f9"><?= htmlspecialchars($t['title']) ?> <span style="color:#64748b">&mdash; Level <?= (int)$t['level'] ?></span></li>
+                <?php endforeach; ?>
+            </ul>
+        </div>
+
+        <div class="card" style="margin-top:1.25rem">
+            <h2>Recent activity</h2>
+            <div class="subtitle">Last 15 logged actions</div>
+            <div class="table-card">
+                <table>
+                    <thead><tr><th>Time</th><th>User</th><th>Action</th></tr></thead>
+                    <tbody id="actRecent">
+                    <?php foreach ($act['recent'] as $r): ?>
+                        <tr><td><?= htmlspecialchars($r['time']) ?></td><td><?= htmlspecialchars($r['user']) ?></td><td><?= htmlspecialchars($r['action']) ?></td></tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <script>
+        (function(){
+            var CSRF = <?= json_encode($token) ?>;
+            function esc(s){ var d=document.createElement('div'); d.textContent=(s==null?'':String(s)); return d.innerHTML; }
+            function paint(d){
+                document.getElementById('actTimers').textContent = d.timers_running;
+                document.getElementById('actGames').textContent  = d.active_games;
+                document.getElementById('actPlaying').textContent = d.still_playing + ' playing';
+                document.getElementById('actUsers').textContent  = d.active_users_1h;
+                document.getElementById('actApi').textContent    = d.api_calls_1h;
+                document.getElementById('actQueue').textContent  = d.notif_queue;
+                document.getElementById('actAsOf').textContent   = 'as of ' + d.as_of;
+                var timers = d.timers || [];
+                document.getElementById('actTimersList').innerHTML = timers.map(function(t){
+                    return '<li style="padding:.3rem 0;border-bottom:1px solid #f1f5f9">' + esc(t.title) + ' <span style="color:#64748b">&mdash; Level ' + esc(t.level) + '</span></li>';
+                }).join('');
+                document.getElementById('actTimersEmpty').style.display = timers.length ? 'none' : '';
+                var recent = d.recent || [];
+                document.getElementById('actRecent').innerHTML = recent.map(function(r){
+                    return '<tr><td>' + esc(r.time) + '</td><td>' + esc(r.user) + '</td><td>' + esc(r.action) + '</td></tr>';
+                }).join('');
+            }
+            function poll(){
+                if (document.hidden) return;
+                var fd = new FormData(); fd.append('csrf_token', CSRF); fd.append('action', 'activity_snapshot');
+                fetch('/admin_settings_dl.php', { method:'POST', body:fd, credentials:'same-origin' })
+                    .then(function(r){ return r.json(); })
+                    .then(function(j){ if (j && j.ok && j.data) paint(j.data); })
+                    .catch(function(){});
+            }
+            var btn = document.getElementById('actRefresh');
+            if (btn) btn.addEventListener('click', poll);
+            setInterval(poll, 30000);
+            poll();
+        })();
+        </script>
         <?php endif; ?>
     </div>
 

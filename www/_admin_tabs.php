@@ -14,6 +14,7 @@ $_atab = $admin_tab ?? '';
 $_atabs = [
     ['key' => 'dashboard',     'href' => '/admin_settings.php?tab=dashboard',   'label' => 'Site Settings'],
     ['key' => 'reports',       'href' => '/admin_settings.php?tab=reports',     'label' => 'Reports'],
+    ['key' => 'activity',      'href' => '/admin_settings.php?tab=activity',    'label' => 'Activity'],
     ['key' => 'general',       'href' => '/admin_settings.php?tab=general',     'label' => 'General'],
     ['key' => 'appearance',    'href' => '/admin_settings.php?tab=appearance',  'label' => 'Appearance'],
     ['key' => 'logs',          'href' => '/admin_settings.php?tab=logs',        'label' => 'Logs'],

@@ -2570,6 +2570,58 @@ function can_manage_event(PDO $db, int $event_id, int $user_id, bool $is_admin =
 // Returns the event id of the user's most recent in-progress (status='active')
 // poker game they can manage, or 0. Used to point the nav "Timer" link at the
 // live game so its prize pool / players sync, instead of an unlinked timer.
+// Live "is the site being used right now" snapshot for the admin Activity tab.
+// All cheap indexed COUNTs; each query is guarded so a missing table never 500s.
+// Shared by admin_settings.php (initial render) and admin_settings_dl.php (poll).
+function admin_activity_snapshot(PDO $db): array {
+    $out = [
+        'timers_running' => 0, 'timers' => [],
+        'active_games' => 0, 'still_playing' => 0,
+        'active_users_1h' => 0, 'api_calls_1h' => 0, 'notif_queue' => 0,
+        'events_today' => 0, 'rsvps_2h' => 0, 'sms_1h' => 0,
+        'recent' => [], 'as_of' => '',
+    ];
+    $q = function (string $sql) use ($db) {
+        try { return (int)$db->query($sql)->fetchColumn(); } catch (Throwable $e) { return 0; }
+    };
+    $out['timers_running']  = $q("SELECT COUNT(*) FROM timer_state WHERE is_running=1 AND updated_at > datetime('now','-2 minutes')");
+    $out['active_games']    = $q("SELECT COUNT(*) FROM poker_sessions WHERE status='active'");
+    $out['still_playing']   = $q("SELECT COUNT(*) FROM poker_players WHERE eliminated=0 AND bought_in=1 AND removed=0 AND session_id IN (SELECT id FROM poker_sessions WHERE status='active')");
+    $out['active_users_1h'] = $q("SELECT COUNT(DISTINCT user_id) FROM activity_log WHERE user_id>0 AND created_at > datetime('now','-1 hour')");
+    $out['api_calls_1h']    = $q("SELECT COUNT(*) FROM api_request_log WHERE created_at > datetime('now','-1 hour')");
+    $out['notif_queue']     = $q("SELECT COUNT(*) FROM pending_notifications WHERE attempted_at IS NULL");
+    $out['events_today']    = $q("SELECT COUNT(*) FROM events WHERE created_at > datetime('now','-1 day')");
+    $out['rsvps_2h']        = $q("SELECT COUNT(*) FROM event_invites WHERE created_at > datetime('now','-2 hours')");
+    $out['sms_1h']          = $q("SELECT COUNT(*) FROM sms_log WHERE created_at > datetime('now','-1 hour')");
+
+    try {
+        $st = $db->query("SELECT ts.current_level, e.title FROM timer_state ts
+                          LEFT JOIN poker_sessions ps ON ps.id = ts.session_id
+                          LEFT JOIN events e ON e.id = ps.event_id
+                          WHERE ts.is_running=1 AND ts.updated_at > datetime('now','-2 minutes')
+                          ORDER BY ts.updated_at DESC LIMIT 10");
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $out['timers'][] = ['title' => ($r['title'] ?: 'Standalone timer'), 'level' => (int)$r['current_level']];
+        }
+    } catch (Throwable $e) {}
+
+    try {
+        $tz  = new DateTimeZone(display_timezone());
+        $utc = new DateTimeZone('UTC');
+        $st = $db->query("SELECT al.created_at, al.action, u.username FROM activity_log al
+                          LEFT JOIN users u ON u.id = al.user_id AND al.user_id > 0
+                          ORDER BY al.id DESC LIMIT 15");
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            try { $t = (new DateTime((string)$r['created_at'], $utc))->setTimezone($tz)->format('g:i A'); }
+            catch (Throwable $e) { $t = (string)$r['created_at']; }
+            $out['recent'][] = ['time' => $t, 'user' => ($r['username'] ?: 'system'), 'action' => (string)$r['action']];
+        }
+    } catch (Throwable $e) {}
+
+    try { $out['as_of'] = (new DateTime('now', new DateTimeZone(display_timezone())))->format('g:i:s A'); } catch (Throwable $e) {}
+    return $out;
+}
+
 function user_active_poker_event_id(PDO $db, int $user_id, bool $is_admin = false): int {
     if ($user_id <= 0 && !$is_admin) return 0;
     if ($is_admin) {
