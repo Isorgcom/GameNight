@@ -12,17 +12,37 @@ All notable changes to GameNight are documented here.
 ### Removed
 - **Deleted ~1,940 lines of dead legacy calendar-render code from `calendar_dl.php`** (everything after the POST handlers / the new GET redirect). It was an unreachable, broken duplicate of `calendar.php`; the file drops from 2,271 to 334 lines. No behavior change beyond the GET fix above.
 
+---
+
+## [v0.1995] - 2026-06-21
+
 ### Changed
 - **Admin pages now use in-app dialogs instead of native browser pop-ups (Batch C) — completing the app-wide migration.** The remaining ~24 native `alert()`/`confirm()`/`prompt()` calls across `admin_settings.php`, `admin_settings_dl.php`, `admin_posts.php`, `admin_help.php`, `admin_api_keys.php`, and `sms_log.php` were converted to the shared `pk-dialogs.js` helpers (clear-logs / delete-users / delete-event / restore-backup / remove-banner-icon / delete-post / delete-API-key forms via `pkConfirmForm`; the WhatsApp reset/stop, post discard/bulk-delete, and tip-delete handlers via `async` + `await pkConfirm`). Verified with headless Chromium (zero JS errors, handlers intact) and `node --check`. A repo-wide sweep confirms no native `alert`/`confirm`/`prompt` calls remain anywhere outside third-party libraries. This finishes the migration begun in v0.1990 (shared utility) across Batches A (timer/calendar/league), B (other user-facing pages), and C (admin).
+
+---
+
+## [v0.1994] - 2026-06-21
 
 ### Changed
 - **Most remaining user-facing pages now use in-app dialogs instead of native browser pop-ups (Batch B).** ~52 native `alert()`/`confirm()`/`prompt()` calls were converted to the shared `pk-dialogs.js` helpers across `contacts.php`, `leagues.php`, `index.php`, `event_polls.php`, `register.php`, `posts_chunk.php`, `user_edit.php`, `walkin_display.php`, and the rest of `checkin.php` (Finish/Reopen game, deny player, break table, payout-structure save/delete/default including the "Save as" scope chooser, etc.). Confirm-gated handlers were made `async`; delete/confirm forms use `pkConfirmForm`. The two standalone pages that don't include the shared footer (`register.php`, `walkin_display.php`) load `pk-dialogs.js` directly (cache-busted by mtime). Verified with headless Chromium (pk-dialogs present, all handlers intact, zero JS errors) and `node --check` on every converted file. Only admin pages remain (Batch C).
 
+---
+
+## [v0.1993] - 2026-06-21
+
 ### Changed
 - **League pages now use in-app dialogs instead of native browser pop-ups.** All 25 native `alert()`/`confirm()` calls in `www/league.php` were converted to the shared `pk-dialogs.js` helpers: the seven confirm-gated forms (delete post, delete API key, set/unset rules, public-link generate/disable) via `pkConfirmForm`, and the `act` / `removeMember` / `leaveLeague` / `regen` handlers via `async` + `await pkConfirm`. Verified with headless Chromium (HTTP 200, all handlers intact, centered overlay, zero JS errors) and `node --check`. Completes Batch A of the migration (timer v0.1991, calendar v0.1992, league v0.1993).
 
+---
+
+## [v0.1992] - 2026-06-21
+
 ### Changed
 - **Calendar now uses in-app dialogs instead of native browser pop-ups.** All ~35 native `alert()`/`confirm()`/`prompt()` calls across `www/calendar.php` and `www/calendar_dl.php` were converted to the shared `pk-dialogs.js` helpers: delete-event and delete-occurrence forms (via `pkConfirmForm`), remove-self, delete host message, delete comment and bulk-delete comments, remove invitee, and the cancel-series flow (a date `pkPrompt` chained into a `pkConfirm`). Confirmation-gated handlers were made `async`. Verified with headless Chromium on calendar.php (centered overlay, resolves, zero JS errors) and `node --check` of the converted JavaScript. Continues the app-wide migration (v0.1990–v0.1991).
+
+---
+
+## [v0.1991] - 2026-06-21
 
 ### Changed
 - **Tournament timer now uses in-app dialogs instead of native browser pop-ups.** All ~42 native `alert()`/`confirm()`/`prompt()` calls on the timer were converted to the shared `pk-dialogs.js` helpers: reset timer, generate/replace blind structure, restore unsaved draft, set-as-default / delete preset, delete preset file, delete theme, the player-panel cash in/out prompts, and every error/status alert. The enclosing handlers were made `async` so they `await` the dialog. Verified with a headless DOM unit test of the dialog utility (19 checks) and a syntax check of the rendered timer JavaScript (zero native dialogs remain). Part of the app-wide migration that began in v0.1990.
@@ -30,21 +50,45 @@ All notable changes to GameNight are documented here.
 ### Fixed
 - **Shared dialog utility is now self-contained and renders correctly on standalone pages.** `pk-dialogs.js` injects its own CSS (fixed full-screen overlay, centered card, high `z-index`, explicit dark text) instead of relying on `style.css`. This fixes the timer (a standalone page that doesn't include the shared footer/`style.css` cascade in the same way), where the first converted dialog appeared mis-positioned in the corner and would not dismiss if a stale `style.css` was cached. The timer's script tag is also cache-busted via file mtime.
 
+---
+
+## [v0.1990] - 2026-06-20
+
 ### Added
 - **Shared in-app dialog utility (`pk-dialogs.js`).** Groundwork for replacing the browser's native `alert()`/`confirm()`/`prompt()` app-wide (native dialogs are inconsistent and, after repeated use, the browser can suppress them and silently swallow the action). The new utility provides Promise-based `pkAlert`, `pkConfirm`, and `pkPrompt`, plus `pkConfirmForm`/`pkConfirmGo` helpers for `onsubmit`/`onclick="return confirm()"` cases. It self-injects a single reusable modal, handles Enter/Esc/click-outside/focus, and reuses the existing `.pk-modal` styling. It is loaded on every page via `_footer.php` (like `help-bubble.js`), and the base modal CSS was promoted from `checkin.php` into `style.css` so it applies site-wide. `checkin.php`'s Remove confirmations were migrated to the shared helper (removing its local duplicate). Subsequent releases will convert the remaining ~170 native dialog call sites in batches.
 
+---
+
+## [v0.1989] - 2026-06-20
+
 ### Changed
 - **Mobile cash-out is now an inline field too, matching desktop and Cash In.** On phone-width cards, a bought-in player's expanded view now shows a Cash Out row with a number input and a green check (✓) to record the cash-out (Enter also commits; clearing the field then committing reverts the player to still-playing). The mobile Cash Out / Undo Cash Out action buttons were removed as redundant. With no remaining caller on desktop or mobile, the cash-out popup dialog was removed entirely (its markup and the `openCashout`/`saveCashout`/`closeCashout`/`undoCashoutFromModal` handlers); cash-out now flows only through the inline `commitCashOut` path. Cash In and Cash Out are now consistent, popup-free inline fields across both layouts (`www/checkin.php`).
+
+---
+
+## [v0.1988] - 2026-06-20
 
 ### Changed
 - **Cash Out is now an inline field on the desktop check-in table, matching Cash In, instead of a button that opens a popup.** Feedback was that popping a dialog to cash a player out felt harsh. The Cash Out column now shows a number input with a green check (✓) button alongside it (where Cash In has a +): type the amount and press Enter or click the check to record the cash-out (the check gives mouse users an obvious commit affordance). Editing re-commits, and clearing the field then committing reverts the player to still-playing (replacing the old "Undo Cash-out"). The remaining cash on the table is still visible in the stats bar. A separate input class keeps Cash In's Enter-to-next-player behaviour from jumping into the Cash Out field. Mobile cards still use the tap-to-open dialog (`www/checkin.php`).
 - **Cash In field polish.** Removed the "−" button from the Cash In counter (corrections are made by typing the exact total, and the styled +/Add Money dialog remains for adds), tagged the Cash In and Cash Out fields as numeric inputs (`type=number`, `inputmode=decimal`) so phones show a numeric keypad, and hid the desktop number-spinner arrows so the fields stay clean (`www/checkin.php`).
 
+---
+
+## [v0.1987] - 2026-06-20
+
 ### Changed
 - **Renamed the cash-game "Total In" column to "Cash In" and replaced its native +/- prompts with a styled dialog.** The desktop header now reads "Cash In" (mobile already used that label). The fast inline entry is unchanged: type an amount and press Enter to set it and jump to the next player, which keeps bulk start-of-game and rebuy entry quick. The +/- buttons, which previously fired a native browser `prompt()` (the same kind of dialog the browser can suppress after repeated use), now open an in-app "Add Money" / "Remove Money" dialog prefilled with the configured buy-in amount; the add/subtract behaviour (add to total, subtract floored at $0) is unchanged (`www/checkin.php`).
 
+---
+
+## [v0.1986] - 2026-06-20
+
 ### Changed
 - **Cashing out a player is now done in the Cash Out column, where hosts look for it.** Feedback from a real game showed hosts did not realize that the "Cash Out" button (which lived in the Actions column) was how you cash a player out, because the "Cash Out" column itself only displayed an amount or a dash, while Total In is edited directly in its own column. The cash-out control now lives in the Cash Out column: a bought-in player who hasn't cashed out shows a green "Cash Out" button there, and once cashed out the column shows the amount with a dashed underline that can be tapped to edit it. "Undo cash-out" moved into the cash-out dialog (shown only when editing an existing cash-out), and the Actions column now shows just Notes / Remove. Desktop check-in table only; mobile cards are unchanged (`www/checkin.php`).
+
+---
+
+## [v0.1985] - 2026-06-20
 
 ### Changed
 - **Check-in row actions are now clearly tappable, color-coded buttons.** The per-player actions used a borderless transparent style (`.pk-act-btn`) that read like plain text links, so hosts did not realize they could tap them (the cash-game "Cash Out" action was the worst offender). They are now solid buttons colored by purpose: primary actions (Cash Out, Eliminate, Approve) in green, destructive actions (Remove, Deny) in red, and neutral actions (Notes, Undo) in gray. The same color roles were applied to the mobile expand-panel buttons (`www/checkin.php`, CSS only).
@@ -60,6 +104,10 @@ All notable changes to GameNight are documented here.
 
 ### Added
 - **Tournament timer can now sync prize pool and players across devices.** The timer only shows live financials when it is opened linked to an event (`timer.php?event_id=…`); opened with no parameters it runs standalone with no session and a null pool, which is why a timer launched on a second device (e.g. an iPad) showed `$0.00` and never updated even on refresh — the poll endpoint only computes pool for a positive session id (`timer_dl.php`). Two changes close that gap. First, the nav "Tournament Timer" link now points at the user's in-progress game when one is running, via a new `user_active_poker_event_id()` helper in `www/db.php`, so opening the timer from the menu lands on the event-linked timer that syncs automatically. Second, a standalone timer opened by a host who can manage poker games now shows a "this timer isn't linked to an event" banner with a dropdown of their games (active games listed first), built on a new `user_poker_events()` helper in `www/_poker_helpers.php`; picking one reloads the timer linked to that event (`www/timer.php`). Once linked, the laptop's buy-ins, rebuys, and eliminations appear on the timer (and on players' QR screens) within the existing ~2-second poll. The banner is hidden in cast/display mode and for guests/remote viewers.
+
+---
+
+## [v0.1983] - 2026-06-20
 
 ### Added
 - **Tournament finishing places and prize-owed now recorded automatically.** Eliminating a player on the check-in screen (`www/checkin.php`, `www/checkin_dl.php`) no longer prompts the host to type a finishing position. The backend `eliminate_player` action derives the place from elimination order (the number of players still in, including the one being knocked out), so busting out with nine left records 9th, the next 8th, and so on. For places that are in the money, the prize owed is shown next to the player, computed live from the current prize pool and the configured payout structure (the same formula the payout card uses), so it always stays consistent. Finishing place feeds league standings (`league.php`), so getting it right matters beyond display.
