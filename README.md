@@ -1,26 +1,32 @@
 # Game Night
 
-A self-hosted PHP web application for organizing game night events with full poker tournament management. Members can register, RSVP to events on a shared calendar, read posts/announcements, and manage their profiles. Admins get a full dashboard for managing users, events, posts, and site settings.
+A self-hosted PHP web application for organizing game night events with full poker tournament and cash-game management. Members can register, RSVP to events on a shared calendar, join leagues, read posts/announcements, vote in event polls, and manage their profiles. Admins get a full dashboard for managing users, events, posts, leagues, and site settings.
 
 ## Features
 
 - **User accounts** — registration with email verification, login with remember me, forgot/reset password, brute force protection
+- **Two-factor authentication** — per-user opt-in 2FA via authenticator app (TOTP) or SMS, with one-time recovery codes
 - **Calendar** — create and RSVP to events, view upcoming events; optionally allow registered users to create and manage their own events
+- **Leagues** — persistent member communities with owner/manager/member roles, league-scoped posts and stats, member invites and join requests (with optional approval), and per-league API keys (see [Leagues](#leagues) below)
 - **Posts** — rich-text announcements with comment support
-- **Poker tournament management** — full check-in dashboard for tournaments and cash games with buy-ins, rebuys, add-ons, eliminations, and prize pool tracking
+- **Event polls** — managers create multi-question polls sent to guests who RSVP'd Yes or Maybe; guests vote via tokenized email/SMS/WhatsApp links and results stay anonymous (counts only)
+- **Poker tournament & cash game management** — full check-in dashboard for both formats: buy-ins, rebuys, add-ons, eliminations and prize-pool tracking for tournaments; cash-in/cash-out with money-in-play and on-table tracking for cash games; plus a per-session activity log recording every buy-in, cash-out, add, rebuy, and elimination with who did it and when
 - **Table management** — auto-assign players to tables, table view with move/balance controls, break up tables, seats-per-table limits, button/blind protection during rebalancing
-- **Tournament timer** — full-screen blind level timer with remote viewer (QR code), remote control for managers, customizable blind structures with presets, configurable sounds, wake lock for mobile devices
+- **Tournament timer** — full-screen blind level timer with remote viewer (QR code), remote control for managers, customizable blind structures with presets, configurable sounds, wake lock for mobile devices, and Chromecast cast-to-TV
 - **Payout calculator** — ICM (Malmuth-Harville), Standard, and Chip Chop split methods for end-of-tournament deal making
 - **Prize payout display** — live payout structure on the timer screen, updates dynamically as the pool changes
 - **Walk-up QR registration** — iPad/tablet display page with QR code for walk-up player registration, shows table assignment on success
 - **Player stats & leaderboard** — per-player lifetime stats (games, wins, win rate, best/avg finish, weighted score) and a leaderboard across all users, filterable by date range (presets or custom from/to)
-- **Admin panel** — manage users (with account settings like email verification, password reset, notification preferences), posts, events, and all site settings
+- **Contacts** — personal address book for non-registered invitees, auto-imported from event invites, with CSV import/export
+- **REST API** — league-scoped read/write JSON API (v1) authenticated with API keys, exposing league info, members, events, and posts (see [Leagues](#leagues) below)
+- **Admin panel** — manage users (with account settings like email verification, password reset, notification preferences), posts, events, leagues, and all site settings, plus a live site-activity snapshot
 - **Email** — transactional mail via SMTP (SendGrid or any provider)
 - **SMS** — multi-provider notifications with two-way RSVP (see [SMS](#sms) below)
 - **WhatsApp** — event notifications via Meta WhatsApp Cloud API with two-way RSVP
+- **Queued notifications** — event notifications dispatched via email/SMS with a fast background drain and provider rate-limit protection
 - **One-click RSVP** — invitees can RSVP directly from email links without logging in
 - **Branding** — custom banner/header images, nav colors, site name
-- **Security** — CSRF protection, rate limiting, credential encryption at rest, secure session cookies, CSP headers, HSTS
+- **Security** — CSRF protection, optional two-factor authentication, rate limiting, credential encryption at rest, secure session cookies, CSP headers, HSTS
 - **SQLite** — zero-config database, stored outside the web root
 
 ## Stack
@@ -233,6 +239,25 @@ When a user replies to an SMS notification with YES, NO, or MAYBE, the webhook:
 3. Updates the RSVP
 4. Sends a confirmation reply
 5. Notifies the event creator
+
+## Leagues
+
+Leagues are persistent member communities that sit alongside the shared calendar. Each league has **owner / manager / member** roles, its own posts and rules, and tracks tournament stats and attendance for its members.
+
+- **Joining** — browse public leagues and request to join (owners/managers can require approval), or accept an emailed/SMS invite link. Pending contacts are auto-upgraded to full members when they sign up.
+- **Members** — owners and managers manage the roster, promote managers, and export membership as CSV.
+- **Posts & rules** — league-scoped announcements with comments, plus a pinned rules post.
+
+### REST API
+
+Each league can expose a versioned, read-only-by-default JSON API (write access is opt-in per key). League owners mint API keys from the league's **API** tab; site admins can audit and revoke any key from the admin panel.
+
+- **Base path:** `/api/v1/` (the index endpoint lists available routes)
+- **Auth:** API key as a bearer token (`Authorization: Bearer <key>`) or `?key=` query parameter
+- **Scopes:** `read` or `read,write`, with per-key rate limits on mutations
+- **Exposes:** league summary, members (linked users and pending contacts), events with RSVP counts, posts, and rules
+
+This is what lets a sister site embed a league's upcoming events, roster, or posts.
 
 ## Branding
 
