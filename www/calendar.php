@@ -1669,7 +1669,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
                 <input type="hidden" name="wk_param" value="<?= $wkStart !== null ? htmlspecialchars($wkStartStr) : '' ?>">
             </form>
             <form method="post" action="/calendar.php" style="margin:0"
-                  onsubmit="return confirm('Delete this event?')">
+                  onsubmit="return pkConfirmForm(this, 'Delete this event?', {okLabel:'Delete', danger:true})">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <input type="hidden" name="action" value="delete">
                 <input type="hidden" name="id" id="vDeleteId">
@@ -2332,7 +2332,7 @@ if (vInvDiv) {
     });
 
     // Delegated listener: Approve / Deny / Resend / Send-all buttons in the invites panel
-    vInvDiv.addEventListener('click', function(e) {
+    vInvDiv.addEventListener('click', async function(e) {
         // Bulk "Send Invitations" — sends to every approved invitee not yet notified.
         const sendAllBtn = e.target.closest('.btn-send-invites');
         if (sendAllBtn) {
@@ -2352,7 +2352,7 @@ if (vInvDiv) {
                     if (!res.ok) {
                         sendAllBtn.disabled = false;
                         sendAllBtn.textContent = origText;
-                        alert(res.error || 'Could not send invitations.');
+                        pkAlert(res.error || 'Could not send invitations.');
                         return;
                     }
                     showSavedBar(res.sent > 0 ? ('Invitations sent to ' + res.sent) : 'Already sent');
@@ -2361,7 +2361,7 @@ if (vInvDiv) {
                 .catch(() => {
                     sendAllBtn.disabled = false;
                     sendAllBtn.textContent = origText;
-                    alert('Network error. Please try again.');
+                    pkAlert('Network error. Please try again.');
                 });
             return;
         }
@@ -2376,7 +2376,7 @@ if (vInvDiv) {
         // Delete a host message (owner/manager).
         const delMsgBtn = e.target.closest('.btn-del-msg');
         if (delMsgBtn) {
-            if (!confirm('Delete this message? Guests will no longer be able to open its link.')) return;
+            if (!(await pkConfirm('Delete this message? Guests will no longer be able to open its link.'))) return;
             const eid = parseInt(delMsgBtn.dataset.eid);
             const mid = parseInt(delMsgBtn.dataset.mid);
             const csrfEl = document.getElementById('vRsvpCsrf');
@@ -2390,12 +2390,12 @@ if (vInvDiv) {
             fetch('/calendar.php', {method:'POST', body:data, headers:{'X-Requested-With':'XMLHttpRequest'}})
                 .then(r => r.json())
                 .then(res => {
-                    if (!res.ok) { delMsgBtn.disabled = false; alert(res.error || 'Could not delete the message.'); return; }
+                    if (!res.ok) { delMsgBtn.disabled = false; pkAlert(res.error || 'Could not delete the message.'); return; }
                     if (eventMessages[eid]) eventMessages[eid] = eventMessages[eid].filter(m => m.id != mid);
                     if (typeof showSavedBar === 'function') showSavedBar('Message deleted');
                     renderInvitesPanel(eid);
                 })
-                .catch(() => { delMsgBtn.disabled = false; alert('Network error. Please try again.'); });
+                .catch(() => { delMsgBtn.disabled = false; pkAlert('Network error. Please try again.'); });
             return;
         }
 
@@ -2424,7 +2424,7 @@ if (vInvDiv) {
                     if (!res.ok) {
                         btn.disabled = false;
                         btn.textContent = originalText;
-                        alert(res.error || 'Could not resend invite.');
+                        pkAlert(res.error || 'Could not resend invite.');
                         return;
                     }
                     btn.textContent = 'Sent ✓';
@@ -2439,7 +2439,7 @@ if (vInvDiv) {
                 .catch(() => {
                     btn.disabled = false;
                     btn.textContent = originalText;
-                    alert('Network error. Please try again.');
+                    pkAlert('Network error. Please try again.');
                 });
             return;
         }
@@ -2508,8 +2508,8 @@ if (vSignupBtn) {
 
 const vLeaveBtn = document.getElementById('vLeaveBtn');
 if (vLeaveBtn) {
-    vLeaveBtn.addEventListener('click', function() {
-        if (!confirm('Remove yourself from this event?')) return;
+    vLeaveBtn.addEventListener('click', async function() {
+        if (!(await pkConfirm('Remove yourself from this event?'))) return;
         const eid  = parseInt(this.dataset.eid);
         const data = new FormData();
         data.append('csrf_token', CAL_CSRF);
@@ -2597,8 +2597,8 @@ function cancelCalEdit(id, cancelBtn, origBody) {
     const actions = bodyEl.closest('.comment').querySelector('.comment-actions');
     actions.querySelectorAll('button[title="Edit"]').forEach(b => b.style.display = '');
 }
-function deleteCalComment(id) {
-    if (!confirm('Delete this comment?')) return;
+async function deleteCalComment(id) {
+    if (!(await pkConfirm('Delete this comment?'))) return;
     const data = new FormData();
     data.append('csrf_token', CAL_CSRF);
     data.append('action', 'delete');
@@ -2653,9 +2653,12 @@ function clearCalSel() {
 function prepareCalBulkDelete(form) {
     const ids = Array.from(document.querySelectorAll('.cal-comment-sel:checked')).map(c => parseInt(c.value));
     if (!ids.length) return false;
-    if (!confirm('Delete ' + ids.length + ' comment' + (ids.length !== 1 ? 's' : '') + '?')) return false;
-    document.getElementById('vBulkIds').value = JSON.stringify(ids);
-    return true;
+    pkConfirm('Delete ' + ids.length + ' comment' + (ids.length !== 1 ? 's' : '') + '?', {okLabel:'Delete', danger:true}).then(function(ok){
+        if (!ok) return;
+        document.getElementById('vBulkIds').value = JSON.stringify(ids);
+        form.submit();
+    });
+    return false;
 }
 
 
@@ -3019,9 +3022,9 @@ function sendEventMessage() {
     const audience= document.getElementById('emAudience').value;
     const body    = _emEditor ? _emEditor.value : document.getElementById('emBody').value;
     const csrfEl  = document.getElementById('vRsvpCsrf');
-    if (!subject) { alert('Please enter a subject.'); return; }
-    if (!body || !body.replace(/<[^>]*>/g, '').trim()) { alert('Please write a message.'); return; }
-    if (!csrfEl) { alert('Session error, please reload.'); return; }
+    if (!subject) { pkAlert('Please enter a subject.'); return; }
+    if (!body || !body.replace(/<[^>]*>/g, '').trim()) { pkAlert('Please write a message.'); return; }
+    if (!csrfEl) { pkAlert('Session error, please reload.'); return; }
     const btn = document.getElementById('emSendBtn');
     btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Sending…';
     const data = new FormData();
@@ -3036,14 +3039,14 @@ function sendEventMessage() {
             const txt = await r.text();
             let res = null; try { res = JSON.parse(txt); } catch (e) {}
             btn.disabled = false; btn.textContent = orig;
-            if (!res) { alert('Unexpected response (HTTP ' + r.status + '). Please reload the page and try again.'); return; }
-            if (!res.ok) { alert(res.error || 'Could not send the message.'); return; }
+            if (!res) { pkAlert('Unexpected response (HTTP ' + r.status + '). Please reload the page and try again.'); return; }
+            if (!res.ok) { pkAlert(res.error || 'Could not send the message.'); return; }
             // Success — the message is already sent server-side. Everything below is
             // best-effort UI; nothing here may surface as a failure.
             try { closeEventMsgModal(); } catch (e) {}
             try {
                 if (typeof showSavedBar === 'function') showSavedBar(res.sent > 0 ? ('Message sent to ' + res.sent + ' guest(s)') : 'Sent (no matching guests)');
-                else alert(res.sent > 0 ? ('Message sent to ' + res.sent + ' guest(s).') : 'Message sent.');
+                else pkAlert(res.sent > 0 ? ('Message sent to ' + res.sent + ' guest(s).') : 'Message sent.');
             } catch (e) {}
             try {
                 if (!Array.isArray(eventMessages[eid])) eventMessages[eid] = [];
@@ -3056,7 +3059,7 @@ function sendEventMessage() {
         })
         .catch(err => {
             btn.disabled = false; btn.textContent = orig;
-            alert('Could not reach the server: ' + (err && err.message ? err.message : err));
+            pkAlert('Could not reach the server: ' + (err && err.message ? err.message : err));
         });
 }
 </script>

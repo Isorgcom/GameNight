@@ -1033,7 +1033,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
             <button class="btn btn-outline" title="Walk-up QR code" onclick="openWalkinQR()" style="font-size:1rem;padding:.38rem .65rem">&#x1F4F1; QR</button>
             <!-- Delete this occurrence only (shown for recurring events) -->
             <form method="post" action="/calendar.php" style="margin:0" id="vDeleteOccForm"
-                  onsubmit="return confirm('Remove just this occurrence?')">
+                  onsubmit="return pkConfirmForm(this, 'Remove just this occurrence?', {okLabel:'Remove', danger:true})">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <input type="hidden" name="action" value="delete_occurrence">
                 <input type="hidden" name="id" id="vDeleteOccId" value="">
@@ -1215,7 +1215,7 @@ $token = ($isAdmin || $current) ? csrf_token() : '';
         <!-- Delete entire event (edit mode only) -->
         <form method="post" action="/calendar.php" id="eDeleteForm"
               style="display:none;padding:0 1.25rem 0;flex-shrink:0"
-              onsubmit="return confirm(currentEvent && currentEvent.recurrence !== 'none' ? 'Delete the entire repeating series? This cannot be undone.' : 'Delete this event?')">
+              onsubmit="return pkConfirmForm(this, currentEvent && currentEvent.recurrence !== 'none' ? 'Delete the entire repeating series? This cannot be undone.' : 'Delete this event?', {okLabel:'Delete', danger:true})">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
             <input type="hidden" name="action" value="delete">
             <input type="hidden" name="id" id="eDeleteId">
@@ -1646,8 +1646,8 @@ if (vSignupBtn) {
 
 const vRemoveSelfBtn = document.getElementById('vRemoveSelfBtn');
 if (vRemoveSelfBtn) {
-    vRemoveSelfBtn.addEventListener('click', function() {
-        if (!confirm('Remove yourself from this event?')) return;
+    vRemoveSelfBtn.addEventListener('click', async function() {
+        if (!(await pkConfirm('Remove yourself from this event?'))) return;
         const eid = parseInt(document.getElementById('vRsvpEventId').value);
         const data = new FormData();
         data.append('csrf_token', CAL_CSRF);
@@ -1734,8 +1734,8 @@ function cancelCalEdit(id, cancelBtn, origBody) {
     const actions = bodyEl.closest('.comment').querySelector('.comment-actions');
     actions.querySelectorAll('button[title="Edit"]').forEach(b => b.style.display = '');
 }
-function deleteCalComment(id) {
-    if (!confirm('Delete this comment?')) return;
+async function deleteCalComment(id) {
+    if (!(await pkConfirm('Delete this comment?'))) return;
     const data = new FormData();
     data.append('csrf_token', CAL_CSRF);
     data.append('action', 'delete');
@@ -1790,9 +1790,12 @@ function clearCalSel() {
 function prepareCalBulkDelete(form) {
     const ids = Array.from(document.querySelectorAll('.cal-comment-sel:checked')).map(c => parseInt(c.value));
     if (!ids.length) return false;
-    if (!confirm('Delete ' + ids.length + ' comment' + (ids.length !== 1 ? 's' : '') + '?')) return false;
-    document.getElementById('vBulkIds').value = JSON.stringify(ids);
-    return true;
+    pkConfirm('Delete ' + ids.length + ' comment' + (ids.length !== 1 ? 's' : '') + '?', {okLabel:'Delete', danger:true}).then(function(ok){
+        if (!ok) return;
+        document.getElementById('vBulkIds').value = JSON.stringify(ids);
+        form.submit();
+    });
+    return false;
 }
 
 <?php if ($isAdmin): ?>
@@ -1902,8 +1905,8 @@ function addCheckedInvites() {
 }
 
 // ── Feature 5: Remove invitee from all future occurrences ──
-function removeInviteeFromAll(username, eid, rowEl) {
-    if (!confirm('Remove ' + username + ' from all future occurrences of this event?\nA notification will be sent.')) return;
+async function removeInviteeFromAll(username, eid, rowEl) {
+    if (!(await pkConfirm('Remove ' + username + ' from all future occurrences of this event?<br>A notification will be sent.'))) return;
     const data = new FormData();
     data.append('csrf_token', CAL_CSRF);
     data.append('action', 'remove_invitee');
@@ -1912,23 +1915,23 @@ function removeInviteeFromAll(username, eid, rowEl) {
     fetch('/calendar.php', { method: 'POST', body: data, headers: {'X-Requested-With': 'XMLHttpRequest'} })
     .then(r => r.json())
     .then(res => {
-        if (!res.ok) { alert('Error removing invitee.'); return; }
+        if (!res.ok) { pkAlert('Error removing invitee.'); return; }
         if (rowEl) rowEl.remove();
         // Remove from in-memory invites
         if (eventInvites[eid]) {
             eventInvites[eid] = eventInvites[eid].filter(i => i.username.toLowerCase() !== username);
         }
     })
-    .catch(() => alert('Error removing invitee.'));
+    .catch(() => pkAlert('Error removing invitee.'));
 }
 
 // ── Feature 3: Cancel / uncancel series ──
-function cancelSeriesClick() {
+async function cancelSeriesClick() {
     if (!currentEvent) return;
     const today = new Date().toISOString().slice(0, 10);
-    const d = prompt('Cancel all occurrences from date (YYYY-MM-DD):', today);
+    const d = await pkPrompt('Cancel all occurrences from date (YYYY-MM-DD):', {default: today, placeholder: 'YYYY-MM-DD'});
     if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
-    if (!confirm('This will cancel all occurrences from ' + d + ' and notify all invitees. Continue?')) return;
+    if (!(await pkConfirm('This will cancel all occurrences from ' + d + ' and notify all invitees. Continue?'))) return;
     const data = new FormData();
     data.append('csrf_token', CAL_CSRF);
     data.append('action', 'cancel_series');
@@ -1937,18 +1940,18 @@ function cancelSeriesClick() {
     fetch('/calendar.php', { method: 'POST', body: data, headers: {'X-Requested-With': 'XMLHttpRequest'} })
     .then(r => r.json())
     .then(res => {
-        if (!res.ok) { alert('Error cancelling series.'); return; }
+        if (!res.ok) { pkAlert('Error cancelling series.'); return; }
         currentEvent.cancelled_from = res.cancelled_from;
         document.getElementById('eCancelSeriesBtn').style.display = 'none';
         document.getElementById('eUncancelSeriesBtn').style.display = '';
-        alert('Series cancelled from ' + res.cancelled_from + '. Notifications sent.');
+        pkAlert('Series cancelled from ' + res.cancelled_from + '. Notifications sent.');
     })
-    .catch(() => alert('Error cancelling series.'));
+    .catch(() => pkAlert('Error cancelling series.'));
 }
 
-function uncancelSeriesClick() {
+async function uncancelSeriesClick() {
     if (!currentEvent) return;
-    if (!confirm('Resume this event series? Future occurrences will reappear on the calendar.')) return;
+    if (!(await pkConfirm('Resume this event series? Future occurrences will reappear on the calendar.'))) return;
     const data = new FormData();
     data.append('csrf_token', CAL_CSRF);
     data.append('action', 'uncancel_series');
@@ -1956,13 +1959,13 @@ function uncancelSeriesClick() {
     fetch('/calendar.php', { method: 'POST', body: data, headers: {'X-Requested-With': 'XMLHttpRequest'} })
     .then(r => r.json())
     .then(res => {
-        if (!res.ok) { alert('Error uncancelling series.'); return; }
+        if (!res.ok) { pkAlert('Error uncancelling series.'); return; }
         currentEvent.cancelled_from = null;
         document.getElementById('eCancelSeriesBtn').style.display = '';
         document.getElementById('eUncancelSeriesBtn').style.display = 'none';
-        alert('Series resumed.');
+        pkAlert('Series resumed.');
     })
-    .catch(() => alert('Error uncancelling series.'));
+    .catch(() => pkAlert('Error uncancelling series.'));
 }
 
 function toggleRecEnd(val) {

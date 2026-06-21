@@ -4,7 +4,10 @@ All notable changes to GameNight are documented here.
 
 ---
 
-## [v0.1991] - 2026-06-21
+## [v0.1992] - 2026-06-21
+
+### Changed
+- **Calendar now uses in-app dialogs instead of native browser pop-ups.** All ~35 native `alert()`/`confirm()`/`prompt()` calls across `www/calendar.php` and `www/calendar_dl.php` were converted to the shared `pk-dialogs.js` helpers: delete-event and delete-occurrence forms (via `pkConfirmForm`), remove-self, delete host message, delete comment and bulk-delete comments, remove invitee, and the cancel-series flow (a date `pkPrompt` chained into a `pkConfirm`). Confirmation-gated handlers were made `async`. Verified with headless Chromium on calendar.php (centered overlay, resolves, zero JS errors) and `node --check` of the converted JavaScript. Continues the app-wide migration (v0.1990–v0.1991).
 
 ### Changed
 - **Tournament timer now uses in-app dialogs instead of native browser pop-ups.** All ~42 native `alert()`/`confirm()`/`prompt()` calls on the timer were converted to the shared `pk-dialogs.js` helpers: reset timer, generate/replace blind structure, restore unsaved draft, set-as-default / delete preset, delete preset file, delete theme, the player-panel cash in/out prompts, and every error/status alert. The enclosing handlers were made `async` so they `await` the dialog. Verified with a headless DOM unit test of the dialog utility (19 checks) and a syntax check of the rendered timer JavaScript (zero native dialogs remain). Part of the app-wide migration that began in v0.1990.
