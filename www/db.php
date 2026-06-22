@@ -432,6 +432,11 @@ function db_init(PDO $pdo): void {
     // Default addon_chips to starting_chips where still zero (first run after this migration)
     try { $pdo->exec("UPDATE poker_sessions SET addon_chips = starting_chips WHERE addon_chips = 0"); } catch (Exception $e) {}
 
+    // Cash-game reconciliation: host tips collected (cents) and the actual cash
+    // counted in the box at wrap-up (cents, NULL until counted).
+    try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN tips INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN cash_counted INTEGER"); } catch (Exception $e) {}
+
     // One-shot: convert poker_players.addons from cents to a count.
     // Old semantics: each non-zero row held dollars (cents) of add-on taken.
     // New semantics: integer count of add-ons taken.

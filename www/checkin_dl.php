@@ -979,6 +979,27 @@ if ($action === 'set_cashout') {
     exit;
 }
 
+// ─── set_cash_reconcile ────────────────────────────────────
+// Save cash-game reconciliation: host tips and the counted cash-box total.
+if ($action === 'set_cash_reconcile') {
+    $session_id = (int)($_POST['session_id'] ?? 0);
+    $sess = $db->prepare('SELECT event_id FROM poker_sessions WHERE id = ?');
+    $sess->execute([$session_id]);
+    $s = $sess->fetch();
+    if (!$s) { echo json_encode(['ok' => false, 'error' => 'Session not found']); exit; }
+    verify_event_access($db, (int)$s['event_id'], $current, $isAdmin);
+
+    $tips    = max(0, (int)($_POST['tips'] ?? 0));
+    $counted = (isset($_POST['counted']) && $_POST['counted'] !== '') ? max(0, (int)$_POST['counted']) : null;
+    $db->prepare('UPDATE poker_sessions SET tips = ?, cash_counted = ? WHERE id = ?')
+       ->execute([$tips, $counted, $session_id]);
+
+    $out = $db->prepare('SELECT * FROM poker_sessions WHERE id = ?');
+    $out->execute([$session_id]);
+    echo json_encode(['ok' => true, 'session' => $out->fetch()]);
+    exit;
+}
+
 // ─── move_player_table ─────────────────────────────────────
 if ($action === 'move_player_table') {
     $player_id = (int)($_POST['player_id'] ?? 0);

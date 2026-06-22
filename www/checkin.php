@@ -341,6 +341,25 @@ $session = $sessStmt->fetch();
     .pk-tip::after{content:attr(data-tip);position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;font-size:.72rem;font-weight:400;line-height:1.35;letter-spacing:0;text-transform:none;white-space:normal;width:200px;max-width:46vw;padding:.5rem .65rem;border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.2);opacity:0;visibility:hidden;transition:opacity .12s;z-index:250;pointer-events:none}
     .pk-tip:hover::after,.pk-tip:focus::after{opacity:1;visibility:visible}
 
+    /* ── Cash box reconciliation ── */
+    .pk-cashbox-link{display:block;width:100%;margin-top:.7rem;background:#f8fafc;border:1px solid var(--border,#e2e8f0);border-radius:6px;padding:.45rem;font-size:.8rem;font-weight:600;color:#475569;cursor:pointer}
+    .pk-cashbox-link:hover{background:#f1f5f9;color:#1e293b}
+    .pk-cb-grid{display:flex;flex-direction:column;margin:.5rem 0}
+    .pk-cb-row{display:flex;justify-content:space-between;align-items:center;padding:.5rem .15rem;font-size:.9rem;color:#334155;border-bottom:1px solid #f1f5f9}
+    .pk-cb-row > span:last-child{font-weight:600;font-variant-numeric:tabular-nums}
+    .pk-cb-input-row label{color:#334155;font-size:.9rem}
+    .pk-cb-money{display:inline-flex;align-items:center;gap:.15rem;font-weight:600}
+    .pk-cb-money input{width:92px;padding:.3rem .45rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;text-align:right;font-size:.9rem;-moz-appearance:textfield;appearance:textfield}
+    .pk-cb-money input::-webkit-outer-spin-button,.pk-cb-money input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+    .pk-cb-sub{color:#64748b}
+    .pk-cb-total{border-top:2px solid #e2e8f0;border-bottom:none;margin-top:.15rem;padding-top:.6rem;font-size:1rem}
+    .pk-cb-os{font-weight:700}
+    .pk-cb-os.even{color:#16a34a}
+    .pk-cb-os.over{color:#b45309}
+    .pk-cb-os.short{color:#dc2626}
+    .pk-cb-tipbtn{margin-top:.6rem;width:100%;background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:6px;padding:.45rem;font-size:.82rem;font-weight:600;cursor:pointer}
+    .pk-cb-tipbtn:hover{background:#fef3c7}
+
     .pk-inline-summary{display:none}
 
     /* ── Mobile/tablet touch optimization ── */
@@ -417,6 +436,28 @@ $session = $sessStmt->fetch();
         <div class="pk-ledger-list" id="ledgerList"><div class="pk-ledger-empty">Loading&hellip;</div></div>
         <div class="pk-modal-actions">
             <button class="pk-save" onclick="closeLedger()">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Cash box reconciliation modal (cash games) -->
+<div class="pk-modal-overlay" id="cashBoxModal" onclick="if(event.target===this)closeCashBox()">
+    <div class="pk-modal">
+        <h3>&#129534; Cash Box</h3>
+        <div class="pk-log-sub">Record tips and square the cash box at the end of the game.</div>
+        <div class="pk-cb-grid">
+            <div class="pk-cb-row"><span>Total bought in</span><span id="cbCashIn">$0</span></div>
+            <div class="pk-cb-row"><span>Total cashed out</span><span id="cbCashOut">$0</span></div>
+            <div class="pk-cb-row"><span>Still on table (owed)</span><span id="cbOnTable">$0</span></div>
+            <div class="pk-cb-row pk-cb-input-row"><label for="cbTips">Tips (host)</label><span class="pk-cb-money">$<input type="number" inputmode="decimal" step="0.01" min="0" id="cbTips" oninput="cashBoxRecompute()" placeholder="0.00"></span></div>
+            <div class="pk-cb-row pk-cb-sub"><span>Expected in box</span><span id="cbExpected">$0</span></div>
+            <div class="pk-cb-row pk-cb-input-row"><label for="cbCounted">Counted in box</label><span class="pk-cb-money">$<input type="number" inputmode="decimal" step="0.01" min="0" id="cbCounted" oninput="cashBoxRecompute()" placeholder="count it"></span></div>
+            <div class="pk-cb-row pk-cb-total"><span>Over / Short</span><span id="cbOverShort" class="pk-cb-os">&mdash;</span></div>
+            <button type="button" id="cbTipSurplus" class="pk-cb-tipbtn" onclick="cashBoxTipSurplus()" style="display:none">Record the surplus as tips</button>
+        </div>
+        <div class="pk-modal-actions">
+            <button onclick="closeCashBox()">Cancel</button>
+            <button class="pk-save" onclick="saveCashBox()">Save</button>
         </div>
     </div>
 </div>
@@ -645,6 +686,8 @@ function renderDashboard() {
     h += '<a class="pk-btn-settings" href="/walkin_display.php?event_id=' + <?= (int)$event['id'] ?> + '" target="_blank" style="text-decoration:none" title="QR Registration">&#128241;<span class="pk-act-label"> QR</span></a>';
     if (isTourney()) {
         h += '<button class="pk-btn-settings" onclick="openDealSplit()" title="Payout Calculator">&#128176;<span class="pk-act-label"> Payout</span></button>';
+    } else {
+        h += '<button class="pk-btn-settings" onclick="openCashBox()" title="Cash box: record tips and square the box">&#129534;<span class="pk-act-label"> Cash Box</span></button>';
     }
     h += '</div>';
     if (isCash()) {
@@ -1190,6 +1233,9 @@ function renderPoolCard() {
         h += '<div class="pk-pool-row"><span>Total Cashed Out</span><span>' + formatMoney(POOL.total_cash_out) + '</span></div>';
         var onTable = POOL.total_cash_in - POOL.total_cash_out;
         h += '<div class="pk-pool-row total"><span>Still On Table</span><span>' + formatMoney(onTable) + '</span></div>';
+        var tips = parseInt(SESSION.tips) || 0;
+        if (tips > 0) h += '<div class="pk-pool-row"><span>Tips</span><span>' + formatMoney(tips) + '</span></div>';
+        h += '<button class="pk-cashbox-link" onclick="openCashBox()">&#129534; Reconcile cash box</button>';
     } else {
         h += '<h3>Prize Pool</h3>';
         h += '<div class="pk-pool-row"><span>Buy-ins (' + POOL.total_buyins + ' &times; ' + formatMoney(parseInt(SESSION.buyin_amount)) + ')</span><span>' + formatMoney(POOL.buyin_total) + '</span></div>';
@@ -2368,6 +2414,65 @@ function openLedger(pid) {
 function closeLedger() {
     LEDGER_PID = null;
     document.getElementById('ledgerModal').classList.remove('open');
+}
+
+// ─── Cash box reconciliation (cash games) ───
+function openCashBox() {
+    document.getElementById('cbTips').value = (parseInt(SESSION.tips) || 0) ? ((parseInt(SESSION.tips)) / 100) : '';
+    document.getElementById('cbCounted').value = (SESSION.cash_counted !== null && SESSION.cash_counted !== undefined && SESSION.cash_counted !== '') ? (parseInt(SESSION.cash_counted) / 100) : '';
+    cashBoxRecompute();
+    document.getElementById('cashBoxModal').classList.add('open');
+}
+
+function closeCashBox() {
+    document.getElementById('cashBoxModal').classList.remove('open');
+}
+
+function cashBoxOnTable() { return (parseInt(POOL.total_cash_in) || 0) - (parseInt(POOL.total_cash_out) || 0); }
+function cashBoxCents(id) { var v = document.getElementById(id).value; return v === '' ? null : Math.round((parseFloat(v) || 0) * 100); }
+
+function cashBoxRecompute() {
+    var onTable = cashBoxOnTable();
+    var tips = cashBoxCents('cbTips') || 0;
+    var expected = onTable + tips;
+    document.getElementById('cbCashIn').textContent = formatMoney(parseInt(POOL.total_cash_in) || 0);
+    document.getElementById('cbCashOut').textContent = formatMoney(parseInt(POOL.total_cash_out) || 0);
+    document.getElementById('cbOnTable').textContent = formatMoney(onTable);
+    document.getElementById('cbExpected').textContent = formatMoney(expected);
+
+    var counted = cashBoxCents('cbCounted');
+    var os = document.getElementById('cbOverShort');
+    var tipBtn = document.getElementById('cbTipSurplus');
+    if (counted === null) {
+        os.textContent = '—'; os.className = 'pk-cb-os';
+        tipBtn.style.display = 'none';
+        return;
+    }
+    var diff = counted - expected;
+    if (diff === 0) { os.textContent = 'Even ✓'; os.className = 'pk-cb-os even'; }
+    else if (diff > 0) { os.textContent = 'Over ' + formatMoney(diff); os.className = 'pk-cb-os over'; }
+    else { os.textContent = 'Short ' + formatMoney(-diff); os.className = 'pk-cb-os short'; }
+    // Offer to absorb a surplus as tips so the box squares.
+    tipBtn.style.display = diff > 0 ? '' : 'none';
+}
+
+function cashBoxTipSurplus() {
+    var counted = cashBoxCents('cbCounted');
+    if (counted === null) return;
+    var newTips = counted - cashBoxOnTable();      // tips that make expected == counted
+    if (newTips < 0) newTips = 0;
+    document.getElementById('cbTips').value = newTips / 100;
+    cashBoxRecompute();
+}
+
+function saveCashBox() {
+    var tips = cashBoxCents('cbTips') || 0;
+    var countedC = cashBoxCents('cbCounted');
+    postAction('set_cash_reconcile', { session_id: SESSION.id, tips: tips, counted: countedC === null ? '' : countedC }, function(j) {
+        if (j.session) SESSION = j.session;
+        renderDashboard();
+        closeCashBox();
+    });
 }
 
 function renderLedger(entries) {

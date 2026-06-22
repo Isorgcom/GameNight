@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2004] - 2026-06-22
+
+### Added
+- **Cash-game "Cash Box" reconciliation, with host tips.** A new 🧾 Cash Box control on the check-in screen (header button + a "Reconcile cash box" link in the Money Summary card) opens a reconciliation panel that squares the physical cash box at the end of a cash game. It shows the auto-computed totals (bought in, cashed out, still on table = cash-in − cash-out), an editable **Tips (host)** field, the resulting **Expected in box**, an editable **Counted in box**, and a color-coded **Over / Short** readout (Even ✓ / Over / Short). When the count comes up over, a one-click **"Record the surplus as tips"** button absorbs the difference so the box squares to even. Tips and the counted amount persist per session (new `tips` / `cash_counted` columns on `poker_sessions`, saved via a host-gated `set_cash_reconcile` action), and recorded tips show as a line in the Money Summary card. Built from host feedback about ending a night with more cash in the box (tips) than the app expected, with no place to record or square it (`www/db.php`, `www/checkin_dl.php`, `www/checkin.php`).
+
+---
+
 ## [v0.2003] - 2026-06-22
 
 ### Added
