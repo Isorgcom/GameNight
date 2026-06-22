@@ -139,11 +139,13 @@ $session = $sessStmt->fetch();
     .pk-table tr.winner td{background:#fffbeb}
     .pk-mobile-card.winner{background:#fffbeb;border-color:#fde68a}
     .pk-table tr.cashed-out td{opacity:.6}
+    .pk-table tr.cashed-out td:nth-child(3){opacity:1}      /* name stays readable */
+    .pk-table tr.cashed-out td:nth-child(4){opacity:1}      /* Cash In stays usable — add cash to re-enter */
     .pk-table tr.rsvp-no td{opacity:.45;text-decoration:line-through}
     .pk-table tr.rsvp-no td:nth-child(3){text-decoration:none;opacity:1}
     .pk-table tr.rsvp-no td:last-child{text-decoration:none;opacity:1}
     .pk-table .name-cell{font-weight:600;white-space:nowrap}
-    .pk-table .walkin-badge{font-size:.6rem;background:#fbbf24;color:#78350f;padding:.1rem .35rem;border-radius:4px;margin-left:.3rem;font-weight:600;vertical-align:middle}
+    .pk-table .walkin-badge{font-size:.95rem;margin-left:.3rem;vertical-align:middle;cursor:help;line-height:1}
 
     .pk-check{width:20px;height:20px;cursor:pointer;accent-color:var(--accent,#2563eb)}
     .pk-counter{display:inline-flex;align-items:center;gap:0;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;overflow:hidden}
@@ -152,6 +154,8 @@ $session = $sessStmt->fetch();
     .pk-counter span{min-width:24px;text-align:center;font-weight:600;font-size:.85rem;padding:0 2px}
     .pk-tbl-input{width:42px;padding:.2rem .3rem;border:1.5px solid var(--border,#e2e8f0);border-radius:4px;text-align:center;font-size:.85rem}
     .pk-cash-input,.pk-co-input{width:70px;padding:.2rem .3rem;border:1.5px solid var(--border,#e2e8f0);border-radius:4px;text-align:center;font-size:.85rem;-moz-appearance:textfield;appearance:textfield}
+    .pk-bust-btn{border:1px solid #fecaca;background:#fff;border-radius:4px;font-size:.9rem;line-height:1;padding:.15rem .3rem;cursor:pointer;margin-left:.2rem;flex:0 0 auto}
+    .pk-bust-btn:hover{background:#fee2e2}
     .pk-cash-input::-webkit-outer-spin-button,.pk-cash-input::-webkit-inner-spin-button,.pk-co-input::-webkit-outer-spin-button,.pk-co-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 
     .pk-act-btn{background:#f1f5f9;border:1px solid #e2e8f0;cursor:pointer;font-size:.75rem;font-weight:600;padding:.25rem .55rem;margin:.1rem .15rem .1rem 0;border-radius:5px;color:#475569;white-space:nowrap}
@@ -311,6 +315,31 @@ $session = $sessStmt->fetch();
     .pk-log-tag.t-eliminate{background:#fee2e2;color:#991b1b}
     .pk-log-tag.t-uneliminate{background:#ede9fe;color:#5b21b6}
     .pk-log-tag.t-remove,.pk-log-tag.t-unbuyin{background:#f1f5f9;color:#64748b}
+    .pk-log-tag.t-void{background:#fee2e2;color:#991b1b}
+
+    /* ── Per-player ledger ── */
+    .pk-ledger-btn{flex:0 0 auto;border:none;background:transparent;cursor:pointer;font-size:1rem;line-height:1;padding:.1rem .25rem;border-radius:4px;color:#64748b}
+    .pk-ledger-btn:hover{background:#e2e8f0;color:#334155}
+    .pk-ledger-list{max-height:60vh;overflow:auto;border:1px solid var(--border,#e2e8f0);border-radius:8px;margin-top:.25rem}
+    .pk-ledger-empty{padding:1.1rem;text-align:center;color:#94a3b8;font-size:.88rem}
+    .pk-ledger-row{display:flex;align-items:center;gap:.6rem;padding:.5rem .75rem;border-bottom:1px solid #f1f5f9;font-size:.85rem}
+    .pk-ledger-row:last-child{border-bottom:none}
+    .pk-ledger-row.voided{opacity:.6}
+    .pk-ledger-row.voided .pk-ledger-detail{text-decoration:line-through}
+    .pk-ledger-time{flex:0 0 auto;color:#94a3b8;font-size:.72rem;min-width:62px;font-variant-numeric:tabular-nums}
+    .pk-ledger-amt{flex:0 0 auto;font-weight:700;font-variant-numeric:tabular-nums}
+    .pk-ledger-amt.pos{color:#166534}.pk-ledger-amt.neg{color:#b91c1c}
+    .pk-ledger-detail{flex:1 1 auto;color:#334155}
+    .pk-ledger-detail small{color:#94a3b8;font-weight:400}
+    .pk-ledger-clear{flex:0 0 auto;border:1px solid #fca5a5;background:#fff;color:#dc2626;border-radius:5px;font-size:.72rem;font-weight:600;padding:.2rem .5rem;cursor:pointer}
+    .pk-ledger-clear:hover{background:#fee2e2}
+    .pk-ledger-void-tag{flex:0 0 auto;font-size:.66rem;font-weight:700;text-transform:uppercase;color:#991b1b;background:#fee2e2;border-radius:4px;padding:.1rem .4rem}
+
+    /* ── Tap-friendly help bubble (? marker, hover OR focus/tap) ── */
+    .pk-tip{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#cbd5e1;color:#fff;font-size:.62rem;font-weight:700;cursor:help;margin-left:.25rem;position:relative;vertical-align:middle;flex:0 0 auto}
+    .pk-tip:hover,.pk-tip:focus{background:#2563eb;outline:none}
+    .pk-tip::after{content:attr(data-tip);position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;font-size:.72rem;font-weight:400;line-height:1.35;letter-spacing:0;text-transform:none;white-space:normal;width:200px;max-width:46vw;padding:.5rem .65rem;border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.2);opacity:0;visibility:hidden;transition:opacity .12s;z-index:250;pointer-events:none}
+    .pk-tip:hover::after,.pk-tip:focus::after{opacity:1;visibility:visible}
 
     .pk-inline-summary{display:none}
 
@@ -376,6 +405,18 @@ $session = $sessStmt->fetch();
         <div class="pk-modal-actions">
             <button onclick="closeCashAdjust()">Cancel</button>
             <button class="pk-save" id="cashAdjustOk" onclick="applyCashAdjust()">Add</button>
+        </div>
+    </div>
+</div>
+
+<!-- Ledger modal: per-player money history + corrections -->
+<div class="pk-modal-overlay" id="ledgerModal" onclick="if(event.target===this)closeLedger()">
+    <div class="pk-modal pk-log-modal">
+        <h3 id="ledgerTitle">Ledger</h3>
+        <div class="pk-log-sub">Every buy-in, add-on and cash-out for this player. Clear a bad entry to reverse it.</div>
+        <div class="pk-ledger-list" id="ledgerList"><div class="pk-ledger-empty">Loading&hellip;</div></div>
+        <div class="pk-modal-actions">
+            <button class="pk-save" onclick="closeLedger()">Close</button>
         </div>
     </div>
 </div>
@@ -639,13 +680,13 @@ function renderDashboard() {
     h += '<div class="pk-seg pk-filter" id="filterSeg">';
     h += '<span class="pk-seg-thumb"></span>';
     h += '<button data-filter="all" class="' + (FILTER==='all'?'active':'') + '" onclick="setFilter(\'all\')">All</button>';
-    h += '<button data-filter="rsvp_yes" class="' + (FILTER==='rsvp_yes'?'active':'') + '" onclick="setFilter(\'rsvp_yes\')">RSVP Yes</button>';
+    if (isTourney()) h += '<button data-filter="rsvp_yes" class="' + (FILTER==='rsvp_yes'?'active':'') + '" onclick="setFilter(\'rsvp_yes\')">RSVP Yes</button>';
     if (isTourney()) {
         h += '<button data-filter="playing" class="' + (FILTER==='playing'?'active':'') + '" onclick="setFilter(\'playing\')">Playing</button>';
         h += '<button data-filter="eliminated" class="' + (FILTER==='eliminated'?'active':'') + '" onclick="setFilter(\'eliminated\')">Out</button>';
     } else {
         h += '<button data-filter="playing" class="' + (FILTER==='playing'?'active':'') + '" onclick="setFilter(\'playing\')">Active</button>';
-        h += '<button data-filter="eliminated" class="' + (FILTER==='eliminated'?'active':'') + '" onclick="setFilter(\'eliminated\')">Cashed Out</button>';
+        h += '<button data-filter="eliminated" class="' + (FILTER==='eliminated'?'active':'') + '" onclick="setFilter(\'eliminated\')">Out</button>';
     }
     h += '</div>';
     h += '<div class="pk-seg pk-view-seg" id="viewSeg">';
@@ -724,17 +765,17 @@ function sortableTh(label, key, extra) {
 }
 
 function renderTableHeader() {
-    var h = '<th style="width:2rem"><input type="checkbox" id="selectAll" class="pk-row-select" onchange="toggleSelectAll(this.checked)"></th>';
+    var h = '<th style="width:2rem"><span style="display:inline-flex;align-items:center"><input type="checkbox" id="selectAll" class="pk-row-select" onchange="toggleSelectAll(this.checked)">' + tip('Select one or more players to act on several at once (buy in, remove, etc.). You don\'t need this to enter a single player.') + '</span></th>';
     h += '<th>#</th>';
     h += sortableTh('Name', 'name');
-    h += sortableTh('RSVP', 'rsvp');
+    if (isTourney()) h += sortableTh('RSVP', 'rsvp');
     if (isTourney()) {
-        h += sortableTh('$', 'buyin', 'title="Buy-in"');
+        h += sortableTh('$ ' + tip('Tick the box to record a buy-in. It also checks the player in and seats them. The ledger icon shows their buy-in / rebuy / add-on history and lets you clear a mistake.'), 'buyin', 'title="Buy-in"');
         if (parseInt(SESSION.rebuy_allowed)) h += sortableTh('Rebuys', 'rebuys');
         if (parseInt(SESSION.addon_allowed)) h += sortableTh('Add-ons', 'addons');
     } else {
-        h += sortableTh('Cash In', 'totalin');
-        h += sortableTh('Cash Out', 'cashout');
+        h += sortableTh('Cash In ' + tip('Type the total they bought in for and press Enter. Use + to add a top-up. The ledger icon shows every entry and lets you clear a wrong one.'), 'totalin');
+        h += sortableTh('Cash Out ' + tip('Type what they leave the table with and press the green check (or Enter). Clear the field to put them back in play.'), 'cashout');
         h += sortableTh('Profit', 'profit');
     }
     h += sortableTh('Table', 'table');
@@ -863,23 +904,25 @@ function renderPlayerRows() {
         h += '<td><input type="checkbox" class="pk-row-select pk-player-cb" value="' + p.id + '" onchange="updateBulkBar()"></td>';
         h += '<td>' + num + '</td>';
         h += '<td class="name-cell">' + escHtml(p.display_name);
-        if (isWalkin) h += '<span class="walkin-badge">WALK-IN</span>';
+        if (isWalkin) h += '<span class="walkin-badge" title="Walk-in player" aria-label="Walk-in player">&#128694;</span>';
         if (p.notes) h += ' <span title="' + escHtml(p.notes) + '" style="cursor:help">&#128221;</span>';
         h += '</td>';
 
-        // RSVP dropdown
-        h += '<td><select class="pk-rsvp-select" onchange="updateRsvp(' + p.id + ',this.value)" style="font-size:.75rem;padding:.15rem .3rem;border-radius:4px;border:1px solid #e2e8f0;background:' + rsvpBg(rsvp) + ';color:' + rsvpColor(rsvp) + ';font-weight:600">';
-        h += '<option value=""' + (rsvp===''?' selected':'') + '>—</option>';
-        h += '<option value="yes"' + (rsvp==='yes'?' selected':'') + '>Yes</option>';
-        h += '<option value="no"' + (rsvp==='no'?' selected':'') + '>No</option>';
-        h += '<option value="maybe"' + (rsvp==='maybe'?' selected':'') + '>Maybe</option>';
-        h += '</select></td>';
+        // RSVP dropdown (tournaments only — not used in the cash-game flow)
+        if (isTourney()) {
+            h += '<td><select class="pk-rsvp-select" onchange="updateRsvp(' + p.id + ',this.value)" style="font-size:.75rem;padding:.15rem .3rem;border-radius:4px;border:1px solid #e2e8f0;background:' + rsvpBg(rsvp) + ';color:' + rsvpColor(rsvp) + ';font-weight:600">';
+            h += '<option value=""' + (rsvp===''?' selected':'') + '>—</option>';
+            h += '<option value="yes"' + (rsvp==='yes'?' selected':'') + '>Yes</option>';
+            h += '<option value="no"' + (rsvp==='no'?' selected':'') + '>No</option>';
+            h += '<option value="maybe"' + (rsvp==='maybe'?' selected':'') + '>Maybe</option>';
+            h += '</select></td>';
+        }
 
         if (isPending) {
             h += '<td colspan="' + (isTourney() ? (1 + (parseInt(SESSION.rebuy_allowed)?1:0) + (parseInt(SESSION.addon_allowed)?1:0)) : 3) + '" style="text-align:center;color:#d97706;font-size:.8rem;font-style:italic">Awaiting approval</td>';
         } else {
         if (isTourney()) {
-            h += '<td><input type="checkbox" class="pk-check" title="Record this player\'s buy-in. Checks them in and assigns a seat automatically — no separate check-in step needed." ' + (parseInt(p.bought_in) ? 'checked' : '') + dis + ' onchange="toggleBuyin(' + p.id + ')"></td>';
+            h += '<td><div style="display:inline-flex;align-items:center;gap:.15rem"><input type="checkbox" class="pk-check" title="Record this player\'s buy-in. Checks them in and assigns a seat automatically — no separate check-in step needed." ' + (parseInt(p.bought_in) ? 'checked' : '') + dis + ' onchange="toggleBuyin(' + p.id + ')">' + ledgerBtn(p.id) + '</div></td>';
             if (parseInt(SESSION.rebuy_allowed)) {
                 h += '<td><div class="pk-counter"><button onclick="updateRebuys(' + p.id + ',-1)"' + dis + '>-</button><span>' + p.rebuys + '</span><button onclick="updateRebuys(' + p.id + ',1)"' + dis + '>+</button></div></td>';
             }
@@ -898,7 +941,7 @@ function renderPlayerRows() {
                 h += '<td><span style="color:#94a3b8">—</span></td>';
                 h += '<td><span style="color:#94a3b8">—</span></td>';
             } else {
-                h += '<td><div class="pk-counter"><input type="number" inputmode="decimal" step="0.01" min="0" class="pk-cash-input" data-pid="' + p.id + '" value="' + (cashIn/100) + '" onchange="setCashIn(' + p.id + ',this.value)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();setCashIn(' + p.id + ',this.value);focusNextCashInput(this);}" style="border:none;min-width:60px"><button onclick="adjustMoney(' + p.id + ',1)">+</button></div></td>';
+                h += '<td><div class="pk-counter"><input type="number" inputmode="decimal" step="0.01" min="0" class="pk-cash-input" data-pid="' + p.id + '" value="' + (cashIn/100) + '" onchange="setCashIn(' + p.id + ',this.value)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();setCashIn(' + p.id + ',this.value);focusNextCashInput(this);}" style="border:none;min-width:60px"><button onclick="adjustMoney(' + p.id + ',1)">+</button>' + ledgerBtn(p.id) + '</div></td>';
                 if (parseInt(p.bought_in)) {
                     // Inline cash-out field (mirrors Cash In). Green check commits for mouse users;
                     // Enter also commits. Clearing the field reverts the player to still-playing.
@@ -906,6 +949,7 @@ function renderPlayerRows() {
                     h += '<td><div class="pk-counter">'
                        + '<input type="number" inputmode="decimal" step="0.01" min="0" class="pk-co-input" value="' + coVal + '" placeholder="0.00" onkeydown="if(event.key===\'Enter\'){event.preventDefault();commitCashOut(' + p.id + ',this.value);}" style="border:none;min-width:60px">'
                        + '<button title="Record cash-out" style="color:#16a34a;font-weight:700" onclick="commitCashOut(' + p.id + ', this.previousElementSibling.value)">✓</button>'
+                       + (hasCashedOut ? '' : '<button class="pk-bust-btn" title="Busted: out with $0. Frees their seat. Add cash to bring them back in." onclick="bustOut(' + p.id + ')">&#128165;</button>')
                        + '</div></td>';
                     if (hasCashedOut) {
                         var prof = parseInt(p.cash_out) - cashIn;
@@ -946,7 +990,8 @@ function renderPlayerRows() {
             }
         } else {
             if (hasCashedOut) {
-                h += '<td><span style="color:#64748b;font-weight:600">Cashed Out</span></td>';
+                var busted = parseInt(p.cash_out) === 0;
+                h += '<td><span style="color:' + (busted ? '#dc2626' : '#64748b') + ';font-weight:600">' + (busted ? 'Busted' : 'Cashed Out') + '</span></td>';
             } else if (parseInt(p.bought_in)) {
                 h += '<td><span style="color:#22c55e;font-weight:600">Playing</span></td>';
             } else {
@@ -1022,7 +1067,7 @@ function renderMobileCards() {
             else if (isWinner) { var woAmt = payoutForPlace(1); statusText = '🏆 1st' + (woAmt > 0 ? ' · ' + formatMoney(woAmt) : ''); statusColor = '#b8860b'; statusBg = '#fffbeb'; }
             else if (parseInt(p.bought_in)) { statusText = 'Playing'; statusColor = '#16a34a'; statusBg = '#f0fdf4'; }
         } else {
-            if (hasCashedOut) { statusText = 'Out'; statusColor = '#64748b'; statusBg = '#f1f5f9'; }
+            if (hasCashedOut) { var mBusted = parseInt(p.cash_out) === 0; statusText = mBusted ? 'Busted' : 'Cashed Out'; statusColor = mBusted ? '#dc2626' : '#64748b'; statusBg = mBusted ? '#fef2f2' : '#f1f5f9'; }
             else if (parseInt(p.bought_in)) { statusText = 'Playing'; statusColor = '#16a34a'; statusBg = '#f0fdf4'; }
         }
 
@@ -1074,12 +1119,12 @@ function renderMobileCards() {
             } else {
                 var cashIn = parseInt(p.cash_in) || 0;
                 h += '<div class="pk-mobile-row">';
-                h += '<label>Cash In</label><div class="pk-counter"><input type="number" inputmode="decimal" step="0.01" min="0" class="pk-cash-input" value="' + (cashIn/100) + '" onchange="setCashIn(' + p.id + ',this.value)" style="border:none;min-width:50px"><button onclick="adjustMoney(' + p.id + ',1)">+</button></div>';
+                h += '<label>Cash In</label><div class="pk-counter"><input type="number" inputmode="decimal" step="0.01" min="0" class="pk-cash-input" value="' + (cashIn/100) + '" onchange="setCashIn(' + p.id + ',this.value)" style="border:none;min-width:50px"><button onclick="adjustMoney(' + p.id + ',1)">+</button>' + ledgerBtn(p.id) + '</div>';
                 h += '</div>';
                 if (parseInt(p.bought_in)) {
                     var coVal = hasCashedOut ? (parseInt(p.cash_out)/100) : '';
                     h += '<div class="pk-mobile-row">';
-                    h += '<label>Cash Out</label><div class="pk-counter"><input type="number" inputmode="decimal" step="0.01" min="0" class="pk-co-input" value="' + coVal + '" placeholder="0.00" onkeydown="if(event.key===\'Enter\'){event.preventDefault();commitCashOut(' + p.id + ',this.value);}" style="border:none;min-width:50px"><button title="Record cash-out" style="color:#16a34a;font-weight:700" onclick="commitCashOut(' + p.id + ', this.previousElementSibling.value)">✓</button></div>';
+                    h += '<label>Cash Out</label><div class="pk-counter"><input type="number" inputmode="decimal" step="0.01" min="0" class="pk-co-input" value="' + coVal + '" placeholder="0.00" onkeydown="if(event.key===\'Enter\'){event.preventDefault();commitCashOut(' + p.id + ',this.value);}" style="border:none;min-width:50px"><button title="Record cash-out" style="color:#16a34a;font-weight:700" onclick="commitCashOut(' + p.id + ', this.previousElementSibling.value)">✓</button>' + (hasCashedOut ? '' : '<button class="pk-bust-btn" title="Busted: out with $0. Frees their seat. Add cash to bring them back in." onclick="bustOut(' + p.id + ')">&#128165;</button>') + '</div>';
                     h += '</div>';
                 }
                 if (hasCashedOut) {
@@ -1094,7 +1139,8 @@ function renderMobileCards() {
                 h += '</div>';
             }
 
-            // RSVP
+            // RSVP (tournaments only \u2014 not used in the cash-game flow)
+            if (isTourney()) {
             h += '<div class="pk-mobile-row">';
             h += '<label>RSVP</label><select onchange="updateRsvp(' + p.id + ',this.value)" style="font-size:.8rem;padding:.25rem .4rem;border-radius:4px;border:1px solid #e2e8f0">';
             var rsvp = p.rsvp || '';
@@ -1103,6 +1149,7 @@ function renderMobileCards() {
             h += '<option value="no"' + (rsvp==='no'?' selected':'') + '>No</option>';
             h += '<option value="maybe"' + (rsvp==='maybe'?' selected':'') + '>Maybe</option>';
             h += '</select></div>';
+            }
         }
 
         // Action buttons
@@ -1627,6 +1674,13 @@ function positionAllSegThumbs(animate) {
 
 function movePlayer(pid, newTable) {
     if (!newTable) return;
+    if (newTable === 'unassign') {
+        // Pull them off the table (frees the seat); they drop to the Unassigned group.
+        postAction('set_table', { player_id: pid, table_number: '' }, function(j) {
+            loadSession();
+        });
+        return;
+    }
     postAction('move_player_table', { player_id: pid, new_table: newTable }, function(j) {
         PLAYERS = j.players;
         renderDashboard();
@@ -1807,6 +1861,7 @@ function renderTableView() {
                 for (var mt = 1; mt <= numTables; mt++) {
                     if (mt !== t) h += '<option value="' + mt + '">Table ' + mt + ' (' + tables[mt].length + ')</option>';
                 }
+                h += '<option value="unassign">&#8212; Remove from table</option>';
                 h += '</select>';
             }
             h += '</span>';
@@ -1999,6 +2054,14 @@ function undoCashout(pid) {
         refreshUI();
     });
 }
+
+// Cash game: bust out = left the table with $0. Frees their seat; can re-enter later.
+function bustOut(pid) {
+    pkConfirm('Bust this player out? Records a $0 cash-out and frees their seat. Add cash to their Cash In later to bring them back into the game.', {okLabel:'Bust Out', danger:true}).then(function(ok){
+        if (ok) commitCashOut(pid, 0);
+    });
+}
+
 
 // ── Bulk select / actions ─────────────────────────────────
 function toggleSelectAll(checked) {
@@ -2278,11 +2341,82 @@ function closeHelp() {
     document.getElementById('helpModal').classList.remove('open');
 }
 
+// ─── Per-player ledger (money history + corrections) ───
+var LEDGER_PID = null;
+
+function ledgerBtn(pid) {
+    return '<button type="button" class="pk-ledger-btn" title="Money history &amp; corrections" onclick="openLedger(' + pid + ')">&#128210;</button>';
+}
+
+// Small tap-friendly help marker; data-tip is shown on hover or focus/tap.
+function tip(text) {
+    return '<span class="pk-tip" tabindex="0" role="note" data-tip="' + escHtml(text) + '" onclick="event.stopPropagation()">?</span>';
+}
+
+function openLedger(pid) {
+    LEDGER_PID = pid;
+    var p = PLAYERS.filter(function(x){ return x.id == pid; })[0];
+    document.getElementById('ledgerTitle').textContent = 'Ledger — ' + (p ? p.display_name : '');
+    document.getElementById('ledgerList').innerHTML = '<div class="pk-ledger-empty">Loading&hellip;</div>';
+    document.getElementById('ledgerModal').classList.add('open');
+    fetch('/checkin_dl.php?action=get_ledger&player_id=' + pid)
+        .then(function(r){ return r.json(); })
+        .then(function(j){ if (j.ok) renderLedger(j.ledger); else pkAlert(j.error || 'Could not load ledger'); })
+        .catch(function(e){ console.error(e); });
+}
+
+function closeLedger() {
+    LEDGER_PID = null;
+    document.getElementById('ledgerModal').classList.remove('open');
+}
+
+function renderLedger(entries) {
+    var el = document.getElementById('ledgerList');
+    if (!el) return;
+    if (!entries || !entries.length) {
+        el.innerHTML = '<div class="pk-ledger-empty">No money entries yet.</div>';
+        return;
+    }
+    var h = '';
+    for (var i = 0; i < entries.length; i++) {
+        var e = entries[i];
+        var voided = parseInt(e.voided) === 1;
+        var amt = (e.amount === null || e.amount === undefined) ? null : parseInt(e.amount);
+        var amtHtml = '';
+        if (amt !== null && amt !== 0) {
+            amtHtml = '<span class="pk-ledger-amt ' + (amt > 0 ? 'pos' : 'neg') + '">' + (amt > 0 ? '+' : '-') + formatMoney(Math.abs(amt)) + '</span>';
+        }
+        h += '<div class="pk-ledger-row' + (voided ? ' voided' : '') + '">';
+        h += '<span class="pk-ledger-time">' + escHtml(e.time || '') + '</span>';
+        h += amtHtml;
+        h += '<span class="pk-ledger-detail">' + escHtml(e.detail || '') + ' <small>by ' + escHtml(e.actor || '') + '</small></span>';
+        if (voided) {
+            h += '<span class="pk-ledger-void-tag">Cleared</span>';
+        } else {
+            h += '<button class="pk-ledger-clear" onclick="voidLedgerEntry(' + e.id + ')">Clear</button>';
+        }
+        h += '</div>';
+    }
+    el.innerHTML = h;
+}
+
+function voidLedgerEntry(entryId) {
+    pkConfirm('Clear this entry? Its amount will be reversed from the player\'s totals.', {okLabel:'Clear', danger:true}).then(function(ok){
+        if (!ok) return;
+        postAction('void_ledger_entry', { entry_id: entryId }, function(j){
+            if (j.player) updatePlayer(j.player);
+            if (j.pool) POOL = j.pool;
+            if (j.ledger) renderLedger(j.ledger);
+            refreshUI();
+        });
+    });
+}
+
 // ─── Activity log ──────────────────────────────────────
 function logTagLabel(t) {
     var m = { buyin:'Buy In', unbuyin:'Un-Buy', rebuy:'Rebuy', addon:'Add-on',
               cashin:'Cash In', cashout:'Cash Out', add:'Add', approve:'Approve',
-              eliminate:'Out', uneliminate:'Back In', remove:'Remove' };
+              eliminate:'Out', uneliminate:'Back In', remove:'Remove', void:'Cleared' };
     return m[t] || t;
 }
 
@@ -2297,10 +2431,11 @@ function renderLog() {
     for (var i = 0; i < LOG.length; i++) {
         var e = LOG[i];
         var by = e.actor ? '<span class="pk-log-by">by ' + escHtml(e.actor) + '</span>' : '';
+        var vd = parseInt(e.voided) === 1 ? ' style="opacity:.55;text-decoration:line-through"' : '';
         h += '<div class="pk-log-row">'
            + '<span class="pk-log-time">' + escHtml(e.time || '') + '</span>'
            + '<span class="pk-log-tag t-' + escHtml(e.event_type) + '">' + escHtml(logTagLabel(e.event_type)) + '</span>'
-           + '<span class="pk-log-text"><b>' + escHtml(e.player_name || '') + '</b> ' + escHtml(e.detail || '') + ' ' + by + '</span>'
+           + '<span class="pk-log-text"' + vd + '><b>' + escHtml(e.player_name || '') + '</b> ' + escHtml(e.detail || '') + ' ' + by + '</span>'
            + '</div>';
     }
     el.innerHTML = h;

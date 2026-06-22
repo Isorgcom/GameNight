@@ -413,6 +413,11 @@ function db_init(PDO $pdo): void {
         FOREIGN KEY (session_id) REFERENCES poker_sessions(id) ON DELETE CASCADE
     )"); } catch (Exception $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_psl_session ON poker_session_log(session_id, id)"); } catch (Exception $e) {}
+    // Per-player ledger "void": a manager can clear a bad money entry. The row is
+    // kept (struck-through, tamper-evident) and its effect reversed on the player.
+    try { $pdo->exec("ALTER TABLE poker_session_log ADD COLUMN voided INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_session_log ADD COLUMN voided_by INTEGER"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_session_log ADD COLUMN voided_at DATETIME"); } catch (Exception $e) {}
 
     // Poker schema migrations
     try { $pdo->exec("ALTER TABLE events ADD COLUMN is_poker INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}

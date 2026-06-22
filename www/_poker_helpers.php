@@ -479,16 +479,38 @@ function pk_log($db, int $session_id, ?int $user_id, string $event_type, ?int $p
 function get_session_log($db, int $session_id, int $limit = 200): array {
     $stmt = $db->prepare(
         'SELECT psl.id, psl.event_type, psl.player_id, psl.player_name, psl.amount,
-                psl.detail, psl.created_at, u.username AS actor
+                psl.detail, psl.created_at, psl.voided, u.username AS actor
          FROM poker_session_log psl
          LEFT JOIN users u ON u.id = psl.user_id AND psl.user_id > 0
          WHERE psl.session_id = ? ORDER BY psl.id DESC LIMIT ?'
     );
     $stmt->execute([$session_id, $limit]);
+    return _pk_log_decorate($stmt->fetchAll(PDO::FETCH_ASSOC));
+}
+
+// Money/buy-in entries for ONE player, for the per-player ledger modal. Newest-first,
+// includes voided rows (shown struck-through). Only the entry types a manager can clear.
+const PK_LEDGER_TYPES = ['buyin', 'cashin', 'rebuy', 'addon', 'cashout'];
+function get_player_ledger($db, int $session_id, int $player_id): array {
+    $ph = implode(',', array_fill(0, count(PK_LEDGER_TYPES), '?'));
+    $stmt = $db->prepare(
+        "SELECT psl.id, psl.event_type, psl.amount, psl.detail, psl.created_at, psl.voided,
+                u.username AS actor
+         FROM poker_session_log psl
+         LEFT JOIN users u ON u.id = psl.user_id AND psl.user_id > 0
+         WHERE psl.session_id = ? AND psl.player_id = ? AND psl.event_type IN ($ph)
+         ORDER BY psl.id DESC"
+    );
+    $stmt->execute(array_merge([$session_id, $player_id], PK_LEDGER_TYPES));
+    return _pk_log_decorate($stmt->fetchAll(PDO::FETCH_ASSOC));
+}
+
+// Shared: add a display `time` (UTC -> site tz) and a non-empty `actor` to log rows.
+function _pk_log_decorate(array $rows): array {
     $utc = new DateTimeZone('UTC');
     try { $tz = new DateTimeZone(get_setting('timezone', 'UTC')); } catch (Throwable $e) { $tz = $utc; }
     $out = [];
-    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+    foreach ($rows as $r) {
         try { $time = (new DateTime((string)$r['created_at'], $utc))->setTimezone($tz)->format('g:i A'); }
         catch (Throwable $e) { $time = (string)$r['created_at']; }
         $r['time'] = $time;

@@ -65,6 +65,86 @@ if ($action === 'get_log') {
     exit;
 }
 
+// ─── get_ledger ────────────────────────────────────────────
+// Per-player money/buy-in history for the ledger modal. Host/admin only.
+if ($action === 'get_ledger') {
+    $player_id = (int)($_GET['player_id'] ?? $_POST['player_id'] ?? 0);
+    $session = get_session_from_player($db, $player_id);
+    if (!$session) { echo json_encode(['ok' => false, 'error' => 'Player not found']); exit; }
+    verify_event_access($db, $session['event_id'], $current, $isAdmin);
+    echo json_encode(['ok' => true, 'ledger' => get_player_ledger($db, (int)$session['id'], $player_id)]);
+    exit;
+}
+
+// ─── void_ledger_entry ─────────────────────────────────────
+// Clear a bad money entry: keep the row (struck-through) and reverse its effect.
+if ($action === 'void_ledger_entry') {
+    $entry_id = (int)($_POST['entry_id'] ?? 0);
+    $erow = $db->prepare('SELECT * FROM poker_session_log WHERE id = ?');
+    $erow->execute([$entry_id]);
+    $entry = $erow->fetch();
+    if (!$entry) { echo json_encode(['ok' => false, 'error' => 'Entry not found']); exit; }
+    if ((int)$entry['voided'] === 1) { echo json_encode(['ok' => false, 'error' => 'Already cleared']); exit; }
+    if (!in_array($entry['event_type'], PK_LEDGER_TYPES, true)) {
+        echo json_encode(['ok' => false, 'error' => 'This entry cannot be cleared']); exit;
+    }
+    $player_id = (int)$entry['player_id'];
+    $session = get_session_from_player($db, $player_id);
+    if (!$session || (int)$session['id'] !== (int)$entry['session_id']) {
+        echo json_encode(['ok' => false, 'error' => 'Player not found']); exit;
+    }
+    verify_event_access($db, $session['event_id'], $current, $isAdmin);
+
+    $amt = (int)$entry['amount'];
+    switch ($entry['event_type']) {
+        case 'cashin':
+            // cash_in is a running total of signed deltas; reverse this one.
+            $db->prepare('UPDATE poker_players SET cash_in = MAX(0, COALESCE(cash_in,0) - ?) WHERE id = ?')
+               ->execute([$amt, $player_id]);
+            break;
+        case 'cashout':
+            $cur = $db->prepare('SELECT cash_out FROM poker_players WHERE id = ?');
+            $cur->execute([$player_id]);
+            $newCo = (int)($cur->fetchColumn() ?? 0) - $amt;
+            if ($newCo > 0) {
+                $db->prepare('UPDATE poker_players SET cash_out = ? WHERE id = ?')->execute([$newCo, $player_id]);
+            } else {
+                // Fully un-cashed-out: back in play, re-seat them.
+                $db->prepare('UPDATE poker_players SET cash_out = NULL WHERE id = ?')->execute([$player_id]);
+                auto_assign_table($db, (int)$session['id'], $player_id);
+            }
+            break;
+        case 'buyin':
+            // Tournament buy-in: undo it (also frees the seat).
+            $db->prepare('UPDATE poker_players SET bought_in = 0, table_number = NULL, seat_number = NULL WHERE id = ?')
+               ->execute([$player_id]);
+            break;
+        case 'rebuy':
+            $db->prepare('UPDATE poker_players SET rebuys = MAX(0, rebuys - ?) WHERE id = ?')
+               ->execute([$amt >= 0 ? 1 : -1, $player_id]);
+            break;
+        case 'addon':
+            $db->prepare('UPDATE poker_players SET addons = MAX(0, addons - ?) WHERE id = ?')
+               ->execute([$amt >= 0 ? 1 : -1, $player_id]);
+            break;
+    }
+
+    $db->prepare('UPDATE poker_session_log SET voided = 1, voided_by = ?, voided_at = CURRENT_TIMESTAMP WHERE id = ?')
+       ->execute([(int)$current['id'], $entry_id]);
+    pk_log($db, (int)$session['id'], (int)$current['id'], 'void', $player_id, $entry['player_name'] ?? '', null,
+           'Cleared: ' . (string)$entry['detail']);
+
+    $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
+    $p->execute([$player_id]);
+    echo json_encode([
+        'ok'     => true,
+        'player' => $p->fetch(),
+        'pool'   => calc_pool($db, (int)$session['id']),
+        'ledger' => get_player_ledger($db, (int)$session['id'], $player_id),
+    ]);
+    exit;
+}
+
 // ─── GET: list_payout_structures ───────────────────────────
 // Returns all payout structures visible to the current user
 // (default, global, personal, and league presets for leagues the user is in).
@@ -798,8 +878,9 @@ if ($action === 'add_cashin') {
     if (!$session) { echo json_encode(['ok' => false, 'error' => 'Player not found']); exit; }
     verify_event_access($db, $session['event_id'], $current, $isAdmin);
 
-    // Add to existing cash_in, also mark as bought_in and checked_in
-    $db->prepare('UPDATE poker_players SET cash_in = COALESCE(cash_in, 0) + ?, bought_in = 1, checked_in = 1 WHERE id = ?')->execute([$amount, $player_id]);
+    // Add to existing cash_in, mark bought_in/checked_in, and clear any cash-out:
+    // putting money back in re-activates a busted/cashed-out player (and re-seats them below).
+    $db->prepare('UPDATE poker_players SET cash_in = COALESCE(cash_in, 0) + ?, bought_in = 1, checked_in = 1, cash_out = NULL WHERE id = ?')->execute([$amount, $player_id]);
     auto_assign_table($db, $session['id'], $player_id);
 
     $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
@@ -823,6 +904,10 @@ if ($action === 'set_cashin') {
     verify_event_access($db, $session['event_id'], $current, $isAdmin);
 
     $amt = max(0, $amount);
+    // Capture old total so the ledger entry stores a signed delta (reversible on void).
+    $oldCi = $db->prepare('SELECT COALESCE(cash_in,0) FROM poker_players WHERE id = ?');
+    $oldCi->execute([$player_id]);
+    $oldCashIn = (int)$oldCi->fetchColumn();
     if ($amt > 0) {
         $db->prepare('UPDATE poker_players SET cash_in = ?, bought_in = 1, checked_in = 1 WHERE id = ?')->execute([$amt, $player_id]);
         auto_assign_table($db, $session['id'], $player_id);
@@ -833,7 +918,7 @@ if ($action === 'set_cashin') {
     $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
     $p->execute([$player_id]);
     $prow = $p->fetch();
-    pk_log($db, (int)$session['id'], (int)$current['id'], 'cashin', $player_id, $prow['display_name'] ?? '', $amt, 'Cash in set to ' . pk_money($amt));
+    pk_log($db, (int)$session['id'], (int)$current['id'], 'cashin', $player_id, $prow['display_name'] ?? '', $amt - $oldCashIn, 'Cash in set to ' . pk_money($amt));
     echo json_encode([
         'ok'     => true,
         'player' => $prow,
@@ -863,15 +948,28 @@ if ($action === 'set_cashout') {
         }
     }
 
-    $db->prepare('UPDATE poker_players SET cash_out = ? WHERE id = ?')->execute([$cash_out, $player_id]);
+    // Old cash-out (null = 0) so the ledger entry stores a signed delta (reversible on void).
+    $oldCo = $db->prepare('SELECT cash_out FROM poker_players WHERE id = ?');
+    $oldCo->execute([$player_id]);
+    $oldCashOut = (int)($oldCo->fetchColumn() ?? 0);
+
+    if ($cash_out !== null) {
+        // Cashing out means leaving the table — free their seat for the next player.
+        $db->prepare('UPDATE poker_players SET cash_out = ?, table_number = NULL, seat_number = NULL WHERE id = ?')
+           ->execute([$cash_out, $player_id]);
+    } else {
+        // Cash-out cleared: they are back in play, so give them a seat again.
+        $db->prepare('UPDATE poker_players SET cash_out = NULL WHERE id = ?')->execute([$player_id]);
+        auto_assign_table($db, $session['id'], $player_id);
+    }
 
     $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
     $p->execute([$player_id]);
     $prow = $p->fetch();
     if ($cash_out === null) {
-        pk_log($db, (int)$session['id'], (int)$current['id'], 'cashout', $player_id, $prow['display_name'] ?? '', null, 'Cash-out cleared');
+        pk_log($db, (int)$session['id'], (int)$current['id'], 'cashout', $player_id, $prow['display_name'] ?? '', (0 - $oldCashOut), 'Cash-out cleared');
     } else {
-        pk_log($db, (int)$session['id'], (int)$current['id'], 'cashout', $player_id, $prow['display_name'] ?? '', $cash_out, 'Cashed out — ' . pk_money($cash_out));
+        pk_log($db, (int)$session['id'], (int)$current['id'], 'cashout', $player_id, $prow['display_name'] ?? '', ($cash_out - $oldCashOut), 'Cashed out — ' . pk_money($cash_out));
     }
     echo json_encode([
         'ok'     => true,

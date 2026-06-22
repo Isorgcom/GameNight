@@ -4,6 +4,19 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2003] - 2026-06-22
+
+### Added
+- **Per-player ledger with one-tap corrections on the check-in screen.** Each player row now has a ledger icon (right of the Cash In **+**) that opens a per-player money history: every buy-in, add-on, rebuy, cash-in and cash-out with amount, time, and who entered it. A manager can **Clear** a bad entry, which **voids** it (kept struck-through for a tamper-evident trail) and **reverses** its amount on the player's total and the pool — so a fat-fingered "$189 instead of $180" is fixed by clearing the line instead of re-typing. New `voided/voided_by/voided_at` columns on `poker_session_log`; `set_cashin`/`set_cashout` now record a signed delta so any entry is cleanly reversible; new host-gated `get_ledger` / `void_ledger_entry` endpoints (`www/checkin_dl.php`, `www/_poker_helpers.php`). Driven by host feedback that the existing correction path was undiscoverable.
+- **Tap-friendly help bubbles** on the check-in column headers (the select checkbox, Cash In, Cash Out, tournament buy-in) — small `?` markers that show guidance on hover or tap, so the fields explain themselves on a laptop or a phone (`www/checkin.php`).
+
+### Changed
+- **Cash-game check-in is leaner and more cash-aware.** The **RSVP column and "RSVP Yes" filter are hidden in cash games** (RSVP is a pre-event signal, irrelevant to walk-up cash play), freeing room for the money columns. **Cashing a player out now frees their seat** (like elimination does in tournaments), and undoing a cash-out re-seats them. The walk-in marker changed from a yellow "WALK-IN" badge to a 🚶 icon with a tooltip.
+- **Cash-game bust / re-enter flow.** A player who busts out is recorded as a **$0 cash-out** via a 💥 button inside the Cash Out cell: they show status **"Busted"**, their row greys out, and their seat frees. There is no separate re-enter button — **adding cash with the + tool reactivates them and gives them a seat again** (the Name and Cash In columns stay full-brightness on greyed rows so the path is obvious). The cash filter's last tab is now **"Out."**
+- **Table view: "Remove from table" option.** The seated-player **Move…** dropdown gained a "Remove from table" choice that unassigns the player (frees the seat) and drops them into the Unassigned group to be re-seated later (`www/checkin.php`).
+
+---
+
 ## [v0.2002] - 2026-06-21
 
 ### Fixed
