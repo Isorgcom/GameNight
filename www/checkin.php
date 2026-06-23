@@ -331,6 +331,8 @@ $session = $sessStmt->fetch();
     .pk-ledger-amt.pos{color:#166534}.pk-ledger-amt.neg{color:#b91c1c}
     .pk-ledger-detail{flex:1 1 auto;color:#334155}
     .pk-ledger-detail small{color:#94a3b8;font-weight:400}
+    .pk-ledger-edit{flex:0 0 auto;border:1px solid #93c5fd;background:#fff;color:#2563eb;border-radius:5px;font-size:.72rem;font-weight:600;padding:.2rem .5rem;cursor:pointer}
+    .pk-ledger-edit:hover{background:#eff6ff}
     .pk-ledger-clear{flex:0 0 auto;border:1px solid #fca5a5;background:#fff;color:#dc2626;border-radius:5px;font-size:.72rem;font-weight:600;padding:.2rem .5rem;cursor:pointer}
     .pk-ledger-clear:hover{background:#fee2e2}
     .pk-ledger-void-tag{flex:0 0 auto;font-size:.66rem;font-weight:700;text-transform:uppercase;color:#991b1b;background:#fee2e2;border-radius:4px;padding:.1rem .4rem}
@@ -432,7 +434,7 @@ $session = $sessStmt->fetch();
 <div class="pk-modal-overlay" id="ledgerModal" onclick="if(event.target===this)closeLedger()">
     <div class="pk-modal pk-log-modal">
         <h3 id="ledgerTitle">Ledger</h3>
-        <div class="pk-log-sub">Every buy-in, add-on and cash-out for this player. Clear a bad entry to reverse it.</div>
+        <div class="pk-log-sub">Every buy-in, add-on and cash-out for this player. Tap <b>Edit</b> to fix a wrong amount in place, or <b>Clear</b> to reverse an entry.</div>
         <div class="pk-ledger-list" id="ledgerList"><div class="pk-ledger-empty">Loading&hellip;</div></div>
         <div class="pk-modal-actions">
             <button class="pk-save" onclick="closeLedger()">Close</button>
@@ -813,11 +815,11 @@ function renderTableHeader() {
     h += sortableTh('Name', 'name');
     if (isTourney()) h += sortableTh('RSVP', 'rsvp');
     if (isTourney()) {
-        h += sortableTh('$ ' + tip('Tick the box to record a buy-in. It also checks the player in and seats them. The ledger icon shows their buy-in / rebuy / add-on history and lets you clear a mistake.'), 'buyin', 'title="Buy-in"');
+        h += sortableTh('$ ' + tip('Tick the box to record a buy-in. It also checks the player in and seats them. The 📒 ledger icon shows their buy-in / rebuy / add-on history and lets you edit or clear a mistake.'), 'buyin', 'title="Buy-in"');
         if (parseInt(SESSION.rebuy_allowed)) h += sortableTh('Rebuys', 'rebuys');
         if (parseInt(SESSION.addon_allowed)) h += sortableTh('Add-ons', 'addons');
     } else {
-        h += sortableTh('Cash In ' + tip('Type the total they bought in for and press Enter. Use + to add a top-up. The ledger icon shows every entry and lets you clear a wrong one.'), 'totalin');
+        h += sortableTh('Cash In ' + tip('Type the total they bought in for and press Enter. Use + to add a top-up. The 📒 ledger icon shows every entry and lets you edit or clear a wrong one.'), 'totalin');
         h += sortableTh('Cash Out ' + tip('Type what they leave the table with and press the green check (or Enter). Clear the field to put them back in play.'), 'cashout');
         h += sortableTh('Profit', 'profit');
     }
@@ -2399,6 +2401,16 @@ function tip(text) {
     return '<span class="pk-tip" tabindex="0" role="note" data-tip="' + escHtml(text) + '" onclick="event.stopPropagation()">?</span>';
 }
 
+// Render a log/ledger timestamp in the VIEWER's local timezone (so a host in a
+// different timezone than the site sees their own clock). `ts` is a UTC ISO8601
+// string; falls back to the server-rendered site-tz string if absent/unparseable.
+function fmtLocalTime(ts, fallback) {
+    if (!ts) return fallback || '';
+    var d = new Date(ts);
+    if (isNaN(d.getTime())) return fallback || ts;
+    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
 function openLedger(pid) {
     LEDGER_PID = pid;
     var p = PLAYERS.filter(function(x){ return x.id == pid; })[0];
@@ -2492,12 +2504,17 @@ function renderLedger(entries) {
             amtHtml = '<span class="pk-ledger-amt ' + (amt > 0 ? 'pos' : 'neg') + '">' + (amt > 0 ? '+' : '-') + formatMoney(Math.abs(amt)) + '</span>';
         }
         h += '<div class="pk-ledger-row' + (voided ? ' voided' : '') + '">';
-        h += '<span class="pk-ledger-time">' + escHtml(e.time || '') + '</span>';
+        h += '<span class="pk-ledger-time">' + escHtml(fmtLocalTime(e.time_ts, e.time)) + '</span>';
         h += amtHtml;
         h += '<span class="pk-ledger-detail">' + escHtml(e.detail || '') + ' <small>by ' + escHtml(e.actor || '') + '</small></span>';
         if (voided) {
             h += '<span class="pk-ledger-void-tag">Cleared</span>';
         } else {
+            // Edit corrects a typo in place (e.g. 189 -> 180) without re-entry; only
+            // money totals (cash in/out) carry an editable dollar amount.
+            if ((e.event_type === 'cashin' || e.event_type === 'cashout') && amt !== null && amt > 0) {
+                h += '<button class="pk-ledger-edit" onclick="editLedgerEntry(' + e.id + ',' + amt + ')">Edit</button>';
+            }
             h += '<button class="pk-ledger-clear" onclick="voidLedgerEntry(' + e.id + ')">Clear</button>';
         }
         h += '</div>';
@@ -2517,11 +2534,31 @@ function voidLedgerEntry(entryId) {
     });
 }
 
+// Correct a wrong amount in place — keeps the entry in its original sequence
+// position instead of forcing a clear + re-entry that lands at the bottom.
+function editLedgerEntry(entryId, currentCents) {
+    pkPrompt('Correct this amount to:', {
+        'default': (currentCents / 100),
+        inputType: 'number',
+        okLabel: 'Save'
+    }).then(function(val){
+        if (val === null) return;
+        var dollars = parseFloat(val);
+        if (isNaN(dollars) || dollars <= 0) { pkAlert('Enter a dollar amount greater than zero.'); return; }
+        postAction('edit_ledger_entry', { entry_id: entryId, new_amount: dollars }, function(j){
+            if (j.player) updatePlayer(j.player);
+            if (j.pool) POOL = j.pool;
+            if (j.ledger) renderLedger(j.ledger);
+            refreshUI();
+        });
+    });
+}
+
 // ─── Activity log ──────────────────────────────────────
 function logTagLabel(t) {
     var m = { buyin:'Buy In', unbuyin:'Un-Buy', rebuy:'Rebuy', addon:'Add-on',
               cashin:'Cash In', cashout:'Cash Out', add:'Add', approve:'Approve',
-              eliminate:'Out', uneliminate:'Back In', remove:'Remove', void:'Cleared' };
+              eliminate:'Out', uneliminate:'Back In', remove:'Remove', void:'Cleared', edit:'Edited' };
     return m[t] || t;
 }
 
@@ -2538,7 +2575,7 @@ function renderLog() {
         var by = e.actor ? '<span class="pk-log-by">by ' + escHtml(e.actor) + '</span>' : '';
         var vd = parseInt(e.voided) === 1 ? ' style="opacity:.55;text-decoration:line-through"' : '';
         h += '<div class="pk-log-row">'
-           + '<span class="pk-log-time">' + escHtml(e.time || '') + '</span>'
+           + '<span class="pk-log-time">' + escHtml(fmtLocalTime(e.time_ts, e.time)) + '</span>'
            + '<span class="pk-log-tag t-' + escHtml(e.event_type) + '">' + escHtml(logTagLabel(e.event_type)) + '</span>'
            + '<span class="pk-log-text"' + vd + '><b>' + escHtml(e.player_name || '') + '</b> ' + escHtml(e.detail || '') + ' ' + by + '</span>'
            + '</div>';

@@ -145,6 +145,61 @@ if ($action === 'void_ledger_entry') {
     exit;
 }
 
+// ─── edit_ledger_entry ─────────────────────────────────────
+// Correct a wrong money amount IN PLACE (e.g. a cash-in of $189 typed as $180),
+// keeping the entry in its original sequence position. Only cash in/out entries
+// carry an editable dollar amount; the player's running total is adjusted by the
+// delta and an audit row records the before/after. Host/admin only.
+if ($action === 'edit_ledger_entry') {
+    $entry_id   = (int)($_POST['entry_id'] ?? 0);
+    $new_amount = (int)round(floatval($_POST['new_amount'] ?? 0) * 100); // dollars -> cents
+    if ($new_amount <= 0) { echo json_encode(['ok' => false, 'error' => 'Enter an amount greater than zero']); exit; }
+
+    $erow = $db->prepare('SELECT * FROM poker_session_log WHERE id = ?');
+    $erow->execute([$entry_id]);
+    $entry = $erow->fetch();
+    if (!$entry) { echo json_encode(['ok' => false, 'error' => 'Entry not found']); exit; }
+    if ((int)$entry['voided'] === 1) { echo json_encode(['ok' => false, 'error' => 'Cleared entries cannot be edited']); exit; }
+    if (!in_array($entry['event_type'], ['cashin', 'cashout'], true)) {
+        echo json_encode(['ok' => false, 'error' => 'Only cash in/out amounts can be edited']); exit;
+    }
+    $old_amount = (int)$entry['amount'];
+    if ($old_amount <= 0) { echo json_encode(['ok' => false, 'error' => 'This entry cannot be edited']); exit; }
+
+    $player_id = (int)$entry['player_id'];
+    $session = get_session_from_player($db, $player_id);
+    if (!$session || (int)$session['id'] !== (int)$entry['session_id']) {
+        echo json_encode(['ok' => false, 'error' => 'Player not found']); exit;
+    }
+    verify_event_access($db, $session['event_id'], $current, $isAdmin);
+
+    $delta = $new_amount - $old_amount; // apply the correction to the running total
+    if ($entry['event_type'] === 'cashin') {
+        $db->prepare('UPDATE poker_players SET cash_in = MAX(0, COALESCE(cash_in,0) + ?) WHERE id = ?')
+           ->execute([$delta, $player_id]);
+        $newDetail = 'Cash in — ' . pk_money($new_amount) . ' (edited)';
+    } else { // cashout
+        $db->prepare('UPDATE poker_players SET cash_out = MAX(0, COALESCE(cash_out,0) + ?) WHERE id = ?')
+           ->execute([$delta, $player_id]);
+        $newDetail = 'Cashed out — ' . pk_money($new_amount) . ' (edited)';
+    }
+    $db->prepare('UPDATE poker_session_log SET amount = ?, detail = ? WHERE id = ?')
+       ->execute([$new_amount, $newDetail, $entry_id]);
+    pk_log($db, (int)$session['id'], (int)$current['id'], 'edit', $player_id, $entry['player_name'] ?? '', null,
+           'Edited ' . ($entry['event_type'] === 'cashin' ? 'cash in' : 'cash out') .
+           ': ' . pk_money($old_amount) . ' → ' . pk_money($new_amount));
+
+    $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
+    $p->execute([$player_id]);
+    echo json_encode([
+        'ok'     => true,
+        'player' => $p->fetch(),
+        'pool'   => calc_pool($db, (int)$session['id']),
+        'ledger' => get_player_ledger($db, (int)$session['id'], $player_id),
+    ]);
+    exit;
+}
+
 // ─── GET: list_payout_structures ───────────────────────────
 // Returns all payout structures visible to the current user
 // (default, global, personal, and league presets for leagues the user is in).

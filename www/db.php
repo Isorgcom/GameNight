@@ -222,6 +222,8 @@ function db_init(PDO $pdo): void {
 
     // Per-event host approval gate for self-signups and walk-ins
     try { $pdo->exec("ALTER TABLE events ADD COLUMN requires_approval INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    // Per-event toggle: hide the "who's coming" guest list on the public RSVP/event pages
+    try { $pdo->exec("ALTER TABLE events ADD COLUMN hide_guest_list INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE event_invites ADD COLUMN approval_status TEXT NOT NULL DEFAULT 'approved'"); } catch (Exception $e) {}
 
     // Unique index on lowercase email (login identifier) — safe on existing DBs

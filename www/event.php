@@ -50,7 +50,7 @@ if ($token === '') {
 
 // ── Look up the invite + event by token ──────────────────────────────────────
 $stmt = $db->prepare('SELECT ei.id, ei.event_id, ei.username, ei.rsvp, ei.approval_status,
-                             e.title, e.description, e.start_date, e.start_time, e.end_time
+                             e.title, e.description, e.start_date, e.start_time, e.end_time, e.hide_guest_list
                       FROM event_invites ei
                       JOIN events e ON e.id = ei.event_id
                       WHERE ei.rsvp_token = ?');
@@ -176,10 +176,12 @@ function ev_names_block(string $label, array $names, string $color): string {
 
         <!-- Who's coming -->
         <?php
-        $whos = ev_names_block('Going', $going, '#16a34a')
+        $whos = empty($invite['hide_guest_list'])
+              ? ev_names_block('Going', $going, '#16a34a')
               . ev_names_block('Maybe', $maybe, '#d97706')
               . ev_names_block('Invited', $pending, '#64748b')
-              . ev_names_block("Can't make it", $declined, '#94a3b8');
+              . ev_names_block("Can't make it", $declined, '#94a3b8')
+              : '';
         if ($whos !== ''): ?>
         <div style="margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid #e2e8f0"><?= $whos ?></div>
         <?php endif; ?>

@@ -511,8 +511,14 @@ function _pk_log_decorate(array $rows): array {
     try { $tz = new DateTimeZone(get_setting('timezone', 'UTC')); } catch (Throwable $e) { $tz = $utc; }
     $out = [];
     foreach ($rows as $r) {
-        try { $time = (new DateTime((string)$r['created_at'], $utc))->setTimezone($tz)->format('g:i A'); }
-        catch (Throwable $e) { $time = (string)$r['created_at']; }
+        try {
+            $dt = new DateTime((string)$r['created_at'], $utc);
+            $time = (clone $dt)->setTimezone($tz)->format('g:i A'); // server-tz fallback
+            $r['time_ts'] = $dt->format('c');                       // UTC ISO8601 for client-local rendering
+        } catch (Throwable $e) {
+            $time = (string)$r['created_at'];
+            $r['time_ts'] = null;
+        }
         $r['time'] = $time;
         $r['actor'] = $r['actor'] ?: 'system';
         $out[] = $r;

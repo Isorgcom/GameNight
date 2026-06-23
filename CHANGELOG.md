@@ -4,6 +4,18 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2005] - 2026-06-23
+
+### Added
+- **Ledger entries can now be edited in place, not only cleared.** The per-player ledger gained an **Edit** button next to Clear on cash-in and cash-out entries. Tapping it prompts for the corrected dollar amount and fixes the entry **where it sits** — the player's running total is adjusted by the delta, and an audit row ("Edited cash in: $189 → $180") is appended to the activity log for a tamper-evident trail. This replaces the previous clear-and-re-enter workaround, which dropped the corrected amount at the bottom of the sequence and made the history hard to read. Only money entries carry an editable amount, so other rows still offer Clear only (new host-gated `edit_ledger_entry` endpoint in `www/checkin_dl.php`; `editLedgerEntry()` + Edit button in `www/checkin.php`). Driven by host feedback that fixing a fat-fingered amount should not require re-typing the whole entry.
+- **Per-event "Hide guests" toggle.** A new toggle in the event editor (next to Approval) hides the "who's coming" guest list (Going / Maybe / Invited / Can't make it) on both the public event page and the tokenized RSVP confirmation page, for hosts who want to keep the attendee list private. New `events.hide_guest_list` column (auto-migrated), saved through `_event_save.php`, surfaced in `event_edit.php`, and gated in both `event.php` and `rsvp.php`. Answers a standing host request to optionally show or hide attendees after someone opens an invite.
+
+### Fixed
+- **Activity log and ledger times now follow the viewer's own clock.** These timestamps were rendered server-side in the site-wide timezone (America/Chicago), so a host in another timezone saw times shifted by the offset — a Pacific host's 10:45 PM showed as 12:45 AM. Because the site timezone is a fixed storage anchor that must not change, the log/ledger rows now carry a UTC timestamp (`time_ts`) and are formatted in the browser's local timezone via a new `fmtLocalTime()` helper, with the server-rendered site-tz string kept as a fallback. Storage is unchanged; only the live operational log/ledger display is localized (`www/_poker_helpers.php`, `www/checkin.php`).
+- **Ledger button is more discoverable.** The 📒 ledger modal now opens with a subtitle that names both actions ("Tap **Edit** to fix a wrong amount in place, or **Clear** to reverse an entry"), and the Cash In / buy-in column help bubbles now call out the 📒 icon and mention editing as well as clearing (`www/checkin.php`).
+
+---
+
 ## [v0.2004] - 2026-06-22
 
 ### Added

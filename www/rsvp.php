@@ -27,7 +27,7 @@ if ($token === '' || !in_array($rsvp, $valid, true)) {
 }
 
 $db   = get_db();
-$stmt = $db->prepare('SELECT ei.id, ei.event_id, ei.username, ei.rsvp, ei.approval_status, ei.rsvp_token_flips, e.title, e.description, e.start_date, e.start_time, e.end_time
+$stmt = $db->prepare('SELECT ei.id, ei.event_id, ei.username, ei.rsvp, ei.approval_status, ei.rsvp_token_flips, e.title, e.description, e.start_date, e.start_time, e.end_time, e.hide_guest_list
                        FROM event_invites ei
                        JOIN events e ON e.id = ei.event_id
                        WHERE ei.rsvp_token = ?');
@@ -106,8 +106,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     if (!empty($invite['description'])) {
         $body .= '<div style="margin-top:.7rem;font-size:.9rem;color:#334155;line-height:1.5">' . nl2br(htmlspecialchars($invite['description'])) . '</div>';
     }
-    $body .= $names_block('Going', $going, '#16a34a');
-    $body .= $names_block('Maybe', $maybeList, '#d97706');
+    if (empty($invite['hide_guest_list'])) {
+        $body .= $names_block('Going', $going, '#16a34a');
+        $body .= $names_block('Maybe', $maybeList, '#d97706');
+    }
     $body .= '</div>';
 
     $body     .= '<p>RSVP for this event as <strong>' . $label . '</strong>?</p>';

@@ -382,6 +382,7 @@ $pageHeading = $event ? 'Edit Event' : 'Add Event';
                 <label class="edit-notify-row"><span>Poker</span><input type="checkbox" name="is_poker" id="eIsPoker" value="1" class="pk-toggle-input" onchange="togglePokerFields()"><span class="pk-toggle-slider"></span></label>
                 <label class="edit-notify-row" id="eWaitlistLabel" style="display:none"><span>Waitlist</span><input type="checkbox" name="waitlist_enabled" id="eWaitlistEnabled" value="1" class="pk-toggle-input" onchange="updateCapacityLine()"><span class="pk-toggle-slider"></span></label>
                 <label class="edit-notify-row" title="Walk-in QR and self-signups require approval"><span>Approval</span><input type="checkbox" name="requires_approval" id="eRequiresApproval" value="1" class="pk-toggle-input"><span class="pk-toggle-slider"></span></label>
+                <label class="edit-notify-row" title="Hide the Going/Maybe guest list on the public RSVP and event pages"><span>Hide guests</span><input type="checkbox" name="hide_guest_list" id="eHideGuestList" value="1" class="pk-toggle-input"><span class="pk-toggle-slider"></span></label>
                 <label class="edit-notify-row" title="Send reminders before the event"><span>Reminders</span><input type="checkbox" name="reminders_enabled" id="eRemindersEnabled" value="1" class="pk-toggle-input" onchange="toggleReminderFields()" checked><span class="pk-toggle-slider"></span></label>
                 <span class="edit-desc-toggle" id="eDescToggle" onclick="toggleDesc()">+ Description</span>
                 <div style="flex:1"></div>
@@ -1174,6 +1175,7 @@ function regenWalkinFromEdit() {
     document.getElementById('eDescToggle').textContent = hasDesc ? '- Hide description' : '+ Description';
     document.getElementById('eIsPoker').checked = ev ? !!parseInt(ev.is_poker) : LAST_POKER_DEFAULT;
     document.getElementById('eRequiresApproval').checked = ev ? !!parseInt(ev.requires_approval) : false;
+    document.getElementById('eHideGuestList').checked = ev ? !!parseInt(ev.hide_guest_list) : false;
     // Pre-fill poker session fields
     var ps = EVENT_POKER;
     document.getElementById('ePokerGameType').value = ps ? ps.game_type : 'tournament';
