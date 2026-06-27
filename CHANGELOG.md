@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2007] - 2026-06-27
+
+### Added
+- **Existing users' timezones are now backfilled automatically from their browser.** v0.2006 captured timezone at signup, but everyone who registered earlier still had `users.timezone` NULL and saw times in the site-default zone (America/Chicago). A small fire-and-forget script in the shared footer (`www/_footer.php`) now detects the browser zone via `Intl.DateTimeFormat().resolvedOptions().timeZone` for any logged-in user without a timezone and POSTs it to a new CSRF-protected, auth-gated endpoint (`www/set_timezone_dl.php`). The endpoint fills `users.timezone` only when it is still empty (`UPDATE ... WHERE timezone IS NULL OR timezone = ''`), so an explicit choice made in Settings is never overwritten, and it validates the zone against `DateTimeZone::listIdentifiers()`. The footer block only renders while the timezone is unset, so it self-terminates after one successful backfill and the user sees correct local times from their next page load onward (the auto-set is recorded in the activity log).
+
+---
+
 ## [v0.2006] - 2026-06-27
 
 ### Added

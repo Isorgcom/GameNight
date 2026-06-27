@@ -49,5 +49,28 @@ if ($_hb_user) {
         <?php
     }
 }
+
+/* One-time timezone backfill: for a logged-in user who never set a timezone,
+   detect the browser zone and store it. The endpoint only fills it when still
+   empty, so an explicit Settings choice is never overwritten. Self-terminating —
+   once stored, this block stops emitting on the next page load. */
+if ($_hb_user && empty($_hb_user['timezone'])) {
+    ?>
+    <script>
+    (function () {
+        try {
+            var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            if (!tz) return;
+            fetch('/set_timezone_dl.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'csrf_token=' + encodeURIComponent(<?= json_encode(csrf_token(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>) +
+                      '&timezone=' + encodeURIComponent(tz)
+            });
+        } catch (e) {}
+    })();
+    </script>
+    <?php
+}
 ?>
 <script src="/pk-dialogs.js?v=<?= htmlspecialchars(APP_VERSION) ?>" defer></script>
