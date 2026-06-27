@@ -4,6 +4,17 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2006] - 2026-06-27
+
+### Added
+- **New-account signup now captures the user's timezone automatically.** The registration form (`www/register.php`) gained a Timezone dropdown that is pre-selected from the browser's own zone via `Intl.DateTimeFormat().resolvedOptions().timeZone`, with a hidden raw-IANA field so zones outside our curated list are still stored. The chosen zone is validated (curated list, then `DateTimeZone::listIdentifiers()` fallback) and written to `users.timezone` through a new trailing `$timezone` argument on `register_user()` (`www/auth.php`). Previously `users.timezone` was left NULL until a user dug into Settings, so event times and the footer clock rendered in the site-default zone (America/Chicago) rather than theirs. Because per-user timezone is already wired to override the site default on every page (`current_user()` in `auth.php`), new users now see correct local times from their first login. Existing users are unaffected and can still set their zone in Settings.
+- **Phone signups can choose SMS or WhatsApp at registration.** A "Notify me by" choice on the signup form lets phone-based registrants pick WhatsApp instead of SMS for their verification code and event notifications; email signups stay on email. The chosen channel sets both `verification_method` and `preferred_contact`. This also fixed a pre-existing hard override in `register_user()` that forced every phone signup back to `sms` regardless of the requested method.
+
+### Fixed
+- **Mobile layout of the new "Notify me by" radio group.** The global `.form-group input { width:100% }` rule was stretching the radio buttons to full width so they overlapped their labels on phones; the radios are now constrained to their natural size.
+
+---
+
 ## [v0.2005] - 2026-06-23
 
 ### Added

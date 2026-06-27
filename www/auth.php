@@ -338,7 +338,7 @@ function csrf_token(): string {
  * New users are created with email_verified=0 and must verify before logging in.
  * $verify_method: 'email' (default), 'sms', or 'whatsapp'
  */
-function register_user(string $username, string $email, string $password, string $phone = '', string $verify_method = 'email'): ?string {
+function register_user(string $username, string $email, string $password, string $phone = '', string $verify_method = 'email', string $timezone = ''): ?string {
     $username = trim($username);
     $email    = strtolower(trim($email));
     $phone    = $phone !== '' ? normalize_phone(trim($phone)) : '';
@@ -371,8 +371,8 @@ function register_user(string $username, string $email, string $password, string
 
     // Derive the verify method from what they supplied, overriding the form value if needed.
     if ($email === '' && $phone !== '') {
-        // Phone-only signup: SMS by default (WhatsApp not offered in the initial signup UI).
-        $verify_method = 'sms';
+        // Phone-only signup: SMS unless the user explicitly chose WhatsApp at signup.
+        $verify_method = $verify_method === 'whatsapp' ? 'whatsapp' : 'sms';
     } elseif ($email !== '' && $phone === '') {
         $verify_method = 'email';
     }
@@ -406,8 +406,8 @@ function register_user(string $username, string $email, string $password, string
 
     $preferred = $verify_method === 'email' ? 'email' : $verify_method;
     $hash = password_hash($password, PASSWORD_BCRYPT);
-    $db->prepare('INSERT INTO users (username, password_hash, email, phone, role, email_verified, preferred_contact, verification_method) VALUES (?, ?, ?, ?, ?, 0, ?, ?)')
-       ->execute([$username, $hash, $email !== '' ? $email : null, $phone !== '' ? $phone : null, 'user', $preferred, $verify_method]);
+    $db->prepare('INSERT INTO users (username, password_hash, email, phone, role, email_verified, preferred_contact, verification_method, timezone) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)')
+       ->execute([$username, $hash, $email !== '' ? $email : null, $phone !== '' ? $phone : null, 'user', $preferred, $verify_method, $timezone !== '' ? $timezone : null]);
 
     $id = (int)$db->lastInsertId();
     db_log_activity($id, "registered (verify via $verify_method)");

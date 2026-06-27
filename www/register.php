@@ -72,13 +72,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
             $verify_method = $email !== '' ? 'email' : 'sms';
+            // Phone signups may opt into WhatsApp instead of SMS for the code + notifications.
+            if ($email === '' && $phone !== '') {
+                $notify = $_POST['notify_by'] ?? '';
+                if (in_array($notify, ['sms', 'whatsapp'], true)) {
+                    $verify_method = $notify;
+                }
+            }
+
+            // Resolve the new user's timezone: prefer the visible dropdown, then the
+            // JS-detected IANA zone (covers zones outside our curated list), else leave
+            // NULL so it falls back to the site default. Mirrors settings.php validation.
+            $tz_select   = trim($_POST['timezone'] ?? '');
+            $tz_detected = trim($_POST['tz_detected'] ?? '');
+            $timezone    = '';
+            if ($tz_select !== '' && in_array($tz_select, array_values(get_timezone_options()), true)) {
+                $timezone = $tz_select;
+            } elseif ($tz_detected !== '' && in_array($tz_detected, DateTimeZone::listIdentifiers(), true)) {
+                $timezone = $tz_detected;
+            }
 
             if ($password !== $password2) {
                 $error = 'Passwords do not match.';
             } elseif ($contact === '') {
                 $error = 'Enter an email address or phone number.';
             } else {
-                $result = register_user($username, $email, $password, $phone, $verify_method);
+                $result = register_user($username, $email, $password, $phone, $verify_method, $timezone);
                 if ($result === null) {
                     $registered_email  = $email;
                     $registered_method = $verify_method;
@@ -191,6 +210,34 @@ $site_name = get_setting('site_name', 'Game Night');
                 </div>
             </div>
 
+            <div class="form-group" id="notifyByGroup">
+                <label>Notify me by</label>
+                <div style="display:flex;gap:1.25rem;flex-wrap:wrap;margin-top:.35rem">
+                    <label style="display:inline-flex;align-items:center;gap:.4rem;font-weight:400;cursor:pointer;margin:0">
+                        <input type="radio" name="notify_by" value="email" id="notifyEmail" style="width:auto;flex:none;margin:0;padding:0"<?= (($_POST['notify_by'] ?? 'email') === 'email') ? ' checked' : '' ?>> Email
+                    </label>
+                    <label style="display:inline-flex;align-items:center;gap:.4rem;font-weight:400;cursor:pointer;margin:0">
+                        <input type="radio" name="notify_by" value="sms" id="notifySms" style="width:auto;flex:none;margin:0;padding:0"<?= (($_POST['notify_by'] ?? '') === 'sms') ? ' checked' : '' ?>> Text (SMS)
+                    </label>
+                    <label style="display:inline-flex;align-items:center;gap:.4rem;font-weight:400;cursor:pointer;margin:0">
+                        <input type="radio" name="notify_by" value="whatsapp" id="notifyWa" style="width:auto;flex:none;margin:0;padding:0"<?= (($_POST['notify_by'] ?? '') === 'whatsapp') ? ' checked' : '' ?>> WhatsApp
+                    </label>
+                </div>
+                <p class="hint">How we'll verify your account and send event updates.</p>
+            </div>
+
+            <div class="form-group">
+                <label for="timezone">Timezone</label>
+                <select id="timezone" name="timezone" style="width:100%;padding:.5rem .75rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.95rem;background:#fff">
+                    <option value="">Use site default (<?= htmlspecialchars(get_setting('timezone', 'UTC')) ?>)</option>
+                    <?php foreach (get_timezone_options() as $tz_label => $tz_id): ?>
+                    <option value="<?= htmlspecialchars($tz_id) ?>"<?= ($_POST['timezone'] ?? '') === $tz_id ? ' selected' : '' ?>><?= htmlspecialchars($tz_label) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <input type="hidden" name="tz_detected" id="tz_detected" value="<?= htmlspecialchars($_POST['tz_detected'] ?? '') ?>">
+                <p class="hint">Detected automatically. Change if it's wrong. Event times display in this zone.</p>
+            </div>
+
             <div class="form-group">
                 <label for="password">Password</label>
                 <div style="position:relative; display:block;">
@@ -285,7 +332,48 @@ function updateContactHint() {
         if (hint) hint.textContent = "We'll text a 6-digit code to confirm this number.";
         if (consent) consent.style.display = 'flex';
     }
+    syncNotify();
 }
+
+// Keep the "Notify me by" choice consistent with the contact type: an email
+// address can only be reached by email; a phone number by SMS or WhatsApp.
+function syncNotify() {
+    var contact = document.getElementById('contact');
+    var rEmail  = document.getElementById('notifyEmail');
+    var rSms    = document.getElementById('notifySms');
+    var rWa     = document.getElementById('notifyWa');
+    if (!rEmail || !rSms || !rWa) return;
+    var val     = contact ? contact.value.trim() : '';
+    var isEmail = val.indexOf('@') !== -1;
+    if (isEmail) {
+        rEmail.disabled = false; rSms.disabled = true; rWa.disabled = true;
+        rEmail.checked = true; rSms.checked = false; rWa.checked = false;
+    } else {
+        // Phone (or still empty): channel choice is SMS vs WhatsApp.
+        rEmail.disabled = true; rSms.disabled = false; rWa.disabled = false;
+        if (rEmail.checked || (!rSms.checked && !rWa.checked)) {
+            rEmail.checked = false; rSms.checked = true;
+        }
+    }
+}
+
+// Pre-fill timezone from the browser. The hidden field always carries the raw
+// IANA zone (server falls back to it if the dropdown was left on site default).
+(function detectTimezone() {
+    try {
+        var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        if (!tz) return;
+        var hid = document.getElementById('tz_detected');
+        if (hid && !hid.value) hid.value = tz;
+        var sel = document.getElementById('timezone');
+        if (sel && !sel.value) {
+            for (var i = 0; i < sel.options.length; i++) {
+                if (sel.options[i].value === tz) { sel.selectedIndex = i; break; }
+            }
+        }
+    } catch (e) {}
+})();
+
 updateContactHint();
 </script>
 <script src="/_phone_input.js"></script>
