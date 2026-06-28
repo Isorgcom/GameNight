@@ -27,7 +27,7 @@ if ($token === '' || !in_array($rsvp, $valid, true)) {
 }
 
 $db   = get_db();
-$stmt = $db->prepare('SELECT ei.id, ei.event_id, ei.username, ei.rsvp, ei.approval_status, ei.rsvp_token_flips, e.title, e.description, e.start_date, e.start_time, e.end_time, e.hide_guest_list
+$stmt = $db->prepare('SELECT ei.id, ei.event_id, ei.username, ei.rsvp, ei.approval_status, ei.rsvp_token_flips, e.title, e.description, e.start_date, e.start_time, e.end_time, e.hide_guest_list, e.created_by
                        FROM event_invites ei
                        JOIN events e ON e.id = ei.event_id
                        WHERE ei.rsvp_token = ?');
@@ -71,12 +71,13 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     $heading   = $alreadySet ? 'Confirm RSVP: ' . $label : 'Confirm Your RSVP';
 
     // Event details so the invitee can read what they're responding to before committing.
-    $pretty_date = date('l, F j, Y', strtotime($invite['start_date']));
-    $pretty_time = '';
-    if (!empty($invite['start_time'])) {
-        $pretty_time = date('g:i A', strtotime($invite['start_time']));
-        if (!empty($invite['end_time'])) $pretty_time .= ' &ndash; ' . date('g:i A', strtotime($invite['end_time']));
-    }
+    // Logged-in viewers see it in THEIR timezone; logged-out RSVP-link viewers (no
+    // account tz) see it in the event creator's timezone. Labeled either way.
+    $_cu         = current_user();
+    $_tz_uid     = !empty($_cu['id']) ? (int)$_cu['id'] : ((int)($invite['created_by'] ?? 0) ?: null);
+    $_evt        = event_public_time_labels($invite['start_date'], $invite['start_time'] ?? null, $invite['end_time'] ?? null, $_tz_uid);
+    $pretty_date = $_evt['date_lbl'];
+    $pretty_time = $_evt['time_lbl'];
 
     // Who's coming — approved base invitees only (display names, no contact info).
     $attStmt = $db->prepare("SELECT username, rsvp FROM event_invites

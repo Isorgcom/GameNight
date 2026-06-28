@@ -1618,6 +1618,49 @@ function form_datetime_to_site_tz(string $date, ?string $time, DateTimeZone $vie
     return ['date' => $dt->format('Y-m-d'), 'time' => $dt->format('H:i')];
 }
 
+/**
+ * Build timezone-aware display strings for an event's date/time.
+ *
+ * Event start/end times are stored as wall-clock in the SITE timezone. This
+ * renders them in the viewer's timezone (their account tz if logged in, else
+ * the site tz) with a tz abbreviation, and also returns ISO-8601 instants so
+ * the client can re-localize to the browser's own timezone. The client step
+ * matters for invite-link / RSVP viewers, who are typically logged out and so
+ * have no account timezone for the server to use.
+ *
+ * Returns: date_lbl, time_lbl (server fallback: viewer/site tz, labeled),
+ *          start_iso, end_iso (ISO-8601 with offset for the client, or null).
+ */
+function event_public_time_labels(string $date, ?string $start_time, ?string $end_time, ?int $viewer_id = null): array {
+    $site_tz = new DateTimeZone(get_setting('timezone', 'UTC'));
+    $view_tz = new DateTimeZone(display_timezone($viewer_id));
+
+    $out = ['date_lbl' => '', 'time_lbl' => '', 'start_iso' => null, 'end_iso' => null];
+
+    if ($start_time === null || $start_time === '') {
+        // All-day / date-only event: tz-agnostic, no conversion.
+        $out['date_lbl'] = date('l, F j, Y', strtotime($date));
+        return $out;
+    }
+
+    $startDt = new DateTime($date . ' ' . $start_time, $site_tz);
+    $startDt->setTimezone($view_tz);
+    $out['date_lbl']  = $startDt->format('l, F j, Y');
+    $out['time_lbl']  = $startDt->format('g:i A T');
+    $out['start_iso'] = $startDt->format('c');
+
+    if ($end_time !== null && $end_time !== '') {
+        $endDt   = new DateTime($date . ' ' . $end_time, $site_tz);
+        $startSt = new DateTime($date . ' ' . $start_time, $site_tz);
+        if ($endDt < $startSt) $endDt->modify('+1 day'); // crossed midnight
+        $endDt->setTimezone($view_tz);
+        $out['time_lbl'] .= ' &ndash; ' . $endDt->format('g:i A T');
+        $out['end_iso']   = $endDt->format('c');
+    }
+
+    return $out;
+}
+
 function display_timezone(?int $user_id = null): string {
     static $cache = [];
     $site_tz = get_setting('timezone', 'UTC');

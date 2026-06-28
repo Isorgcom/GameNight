@@ -650,7 +650,7 @@ $evQuery->execute(array_merge([$monthEnd, $monthStart, $monthStart], $_vis['para
 $allEvents = $evQuery->fetchAll();
 
 // Enrich each event with viewer-tz formatted time strings. Event start_time/end_time
-// are stored as wall-clock in site tz; viewers in different tz get their own labels.
+// are stored as wall-clock in site tz; logged-in viewers see them in their own tz.
 $_site_tz = new DateTimeZone(get_setting('timezone', 'UTC'));
 foreach ($allEvents as &$_ev) { $_ev = event_display_times($_ev, $_site_tz, $local_tz); }
 unset($_ev);

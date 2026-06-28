@@ -461,18 +461,23 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
         $url = shorten_url($url);
     }
 
-    // Render event time in the RECIPIENT's timezone. Event start_time is wall-clock in
-    // the site timezone; combine with the date there, then convert to recipient tz.
-    // Custom invitees (no users row) have no id → fall through to site tz.
-    $site_tz      = new DateTimeZone(get_setting('timezone', 'UTC'));
-    $recipient_tz = new DateTimeZone(display_timezone(!empty($user['id']) ? (int)$user['id'] : null));
+    // Render event time in the recipient's timezone when they're a registered user
+    // (each member sees their own clock, with a tz label). Custom invitees with no
+    // account have no tz of their own, so they fall back to the event CREATOR's tz.
+    // Event start_time is wall-clock in the site tz; combine there, then convert.
+    $site_tz   = new DateTimeZone(get_setting('timezone', 'UTC'));
+    $render_tz = new DateTimeZone(display_timezone(
+        !empty($user['id'])
+            ? (int)$user['id']
+            : (!empty($event['created_by']) ? (int)$event['created_by'] : null)
+    ));
 
     $title  = $event['title'];
     $start  = $occ_date ?: $event['start_date'];
     $pretty_time = '';
     if (!empty($event['start_time'])) {
         $dt = new DateTime($start . ' ' . $event['start_time'], $site_tz);
-        $dt->setTimezone($recipient_tz);
+        $dt->setTimezone($render_tz);
         $pretty_time = $dt->format('g:i A T');
         // Date may roll over a day in extreme offsets (e.g. site UTC, recipient Auckland)
         $start = $dt->format('Y-m-d');

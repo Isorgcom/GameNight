@@ -4,6 +4,14 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2008] - 2026-06-28
+
+### Fixed
+- **Event times on invite links and RSVP pages now show in a sensible, labeled timezone.** The public invite page (`event.php`) and the tokenized RSVP page (`rsvp.php`) previously rendered an event's stored time with no timezone conversion at all, so a host in one zone and an invitee in another saw the same raw number with no label, which caused real confusion (a host who set a game for 6:00 PM had invitees seeing 8:00 PM on the link). These pages now resolve the display timezone deliberately: a **logged-in** viewer sees the event in **their own** timezone, while a **logged-out** invite/RSVP-link viewer (who has no account timezone) sees it in the **event creator's** timezone. Either way the time now carries a timezone label (e.g. `6:00 PM PDT`) so it is never ambiguous. Backed by a new shared helper `event_public_time_labels()` in `www/db.php`.
+- **Invite and reminder notifications pick the right timezone per recipient.** In `www/_notifications.php`, emails/texts to a **registered** invitee render the time in **that user's** timezone (each member sees their own clock), while messages to a **custom invitee** with no account fall back to the **event creator's** timezone instead of the bare site default. Times remain stored as wall-clock in the site timezone; only the rendering changed. The in-app calendar and league pages are unchanged and continue to show each logged-in user their own timezone.
+
+---
+
 ## [v0.2007] - 2026-06-27
 
 ### Added

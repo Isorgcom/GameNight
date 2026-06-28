@@ -50,7 +50,7 @@ if ($token === '') {
 
 // ── Look up the invite + event by token ──────────────────────────────────────
 $stmt = $db->prepare('SELECT ei.id, ei.event_id, ei.username, ei.rsvp, ei.approval_status,
-                             e.title, e.description, e.start_date, e.start_time, e.end_time, e.hide_guest_list
+                             e.title, e.description, e.start_date, e.start_time, e.end_time, e.hide_guest_list, e.created_by
                       FROM event_invites ei
                       JOIN events e ON e.id = ei.event_id
                       WHERE ei.rsvp_token = ?');
@@ -72,12 +72,14 @@ if (($invite['approval_status'] ?? 'approved') !== 'approved') {
 // ── Build display values ─────────────────────────────────────────────────────
 $eid      = (int)$invite['event_id'];
 $my_rsvp  = strtolower((string)($invite['rsvp'] ?? ''));
-$date_lbl = date('l, F j, Y', strtotime($invite['start_date']));
-$time_lbl = '';
-if (!empty($invite['start_time'])) {
-    $time_lbl = date('g:i A', strtotime($invite['start_time']));
-    if (!empty($invite['end_time'])) $time_lbl .= ' &ndash; ' . date('g:i A', strtotime($invite['end_time']));
-}
+// Logged-in viewers see the event in THEIR timezone; logged-out invite-link viewers
+// (no account tz) see it in the event creator's timezone. Labeled either way so the
+// zone is unambiguous.
+$_cu      = current_user();
+$_tz_uid  = !empty($_cu['id']) ? (int)$_cu['id'] : ((int)($invite['created_by'] ?? 0) ?: null);
+$_evt     = event_public_time_labels($invite['start_date'], $invite['start_time'] ?? null, $invite['end_time'] ?? null, $_tz_uid);
+$date_lbl = $_evt['date_lbl'];
+$time_lbl = $_evt['time_lbl'];
 
 // Who's coming — approved base invitees only, display names + RSVP state (no contact info).
 $attStmt = $db->prepare("SELECT username, rsvp FROM event_invites
