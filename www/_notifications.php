@@ -408,7 +408,7 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
         }
     }
 
-    $uStmt = $db->prepare('SELECT id, username, email, phone, preferred_contact FROM users WHERE LOWER(username) = LOWER(?)');
+    $uStmt = $db->prepare('SELECT id, username, email, phone, preferred_contact, timezone FROM users WHERE LOWER(username) = LOWER(?)');
     $uStmt->execute([$username]);
     $user = $uStmt->fetch();
 
@@ -461,16 +461,18 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
         $url = shorten_url($url);
     }
 
-    // Render event time in the recipient's timezone when they're a registered user
-    // (each member sees their own clock, with a tz label). Custom invitees with no
-    // account have no tz of their own, so they fall back to the event CREATOR's tz.
+    // Render event time in the recipient's OWN timezone when they have set one
+    // (each member sees their own clock, with a tz label). Recipients with no
+    // personal tz — including custom invitees with no account — fall back to the
+    // event CREATOR's tz (then site default if the creator has none).
     // Event start_time is wall-clock in the site tz; combine there, then convert.
-    $site_tz   = new DateTimeZone(get_setting('timezone', 'UTC'));
-    $render_tz = new DateTimeZone(display_timezone(
-        !empty($user['id'])
-            ? (int)$user['id']
-            : (!empty($event['created_by']) ? (int)$event['created_by'] : null)
-    ));
+    $site_tz = new DateTimeZone(get_setting('timezone', 'UTC'));
+    $personal_tz = (!empty($user['timezone']) && in_array($user['timezone'], DateTimeZone::listIdentifiers(), true))
+        ? $user['timezone']
+        : '';
+    $render_tz = new DateTimeZone($personal_tz !== ''
+        ? $personal_tz
+        : display_timezone(!empty($event['created_by']) ? (int)$event['created_by'] : null));
 
     $title  = $event['title'];
     $start  = $occ_date ?: $event['start_date'];
@@ -482,6 +484,10 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
         // Date may roll over a day in extreme offsets (e.g. site UTC, recipient Auckland)
         $start = $dt->format('Y-m-d');
     }
+    // Compact, tz-labeled "when" string for invites: "Fri, Jun 27 at 6:00 PM PDT"
+    // (date only for all-day events, which have no start_time).
+    $datePretty = date('D, M j', strtotime($start));
+    $when = $pretty_time !== '' ? "$datePretty at $pretty_time" : $datePretty;
 
     $subject = ''; $smsBody = ''; $htmlBody = ''; $waBody = null;
 
@@ -495,14 +501,14 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
             $rsvp_token = (string)($tokStmt->fetchColumn() ?: '');
             $allowMaybe = get_setting('allow_maybe_rsvp', '1') === '1';
 
-            $subject = "You're invited: " . $title . ' (' . $start . ')';
+            $subject = "You're invited: " . $title . ' (' . $when . ')';
             $rsvpButtons = '';
             if ($rsvp_token !== '') {
                 $rsvp_base = $site_url . '/rsvp.php?token=' . urlencode($rsvp_token);
                 $yes_url   = $rsvp_base . '&r=yes';
                 $no_url    = $rsvp_base . '&r=no';
                 $maybe_url = $rsvp_base . '&r=maybe';
-                $smsBody = "You've been invited to \"$title\" on $start. RSVP:\nYES: $yes_url\nNO: $no_url"
+                $smsBody = "You've been invited to \"$title\" on $when. RSVP:\nYES: $yes_url\nNO: $no_url"
                          . ($allowMaybe ? "\nMAYBE: $maybe_url" : "");
                 $rsvpButtons = '<p style="margin-top:1.5rem">RSVP now:</p>'
                     . '<p>'
@@ -511,14 +517,14 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
                     . ($allowMaybe ? '<a href="' . htmlspecialchars($maybe_url) . '" style="display:inline-block;margin:.25rem .3rem;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;background:#d97706;color:#fff">Maybe</a>' : '')
                     . '</p>';
             } else {
-                $smsBody = "You've been invited to \"$title\" on $start. Reply YES, NO, or MAYBE to RSVP. View: $url";
+                $smsBody = "You've been invited to \"$title\" on $when. Reply YES, NO, or MAYBE to RSVP. View: $url";
             }
             $desc = $event['description'] ?? '';
             // The token-based public page lets invitees view details + RSVP without logging in.
             // Falls back to the login-gated calendar link for legacy invites that have no token.
             $event_link = $rsvp_token !== '' ? ($site_url . '/event.php?token=' . urlencode($rsvp_token)) : $url;
             $htmlBody = '<p>Hi ' . htmlspecialchars($user['username']) . ',</p>'
-                      . '<p>You have been invited to <strong>' . htmlspecialchars($title) . '</strong> on ' . htmlspecialchars($start) . '.</p>'
+                      . '<p>You have been invited to <strong>' . htmlspecialchars($title) . '</strong> on ' . htmlspecialchars($when) . '.</p>'
                       . ($desc ? '<p>' . nl2br(htmlspecialchars($desc)) . '</p>' : '')
                       . $rsvpButtons
                       . '<p style="margin-top:1rem"><a href="' . htmlspecialchars($event_link) . '" style="display:inline-block;padding:.5rem 1.5rem;border-radius:6px;text-decoration:none;font-weight:600;background:#2563eb;color:#fff">Event Details</a></p>';

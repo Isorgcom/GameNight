@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2009] - 2026-06-29
+
+### Changed
+- **Invite notifications now include the event start time, not just the date.** SMS, email, and WhatsApp invites previously told recipients only the date (e.g. "on 2026-06-27"); they now read "on Sat, Jun 27 at 6:00 PM PDT" with a timezone label so invitees know exactly when the game starts without clicking through. The time follows the same per-recipient rule as the rest of the app: a registered recipient who has set a personal timezone sees the event in their own zone, while recipients with no personal timezone — and custom invitees who have no account — see it in the event creator's timezone. All-day events (no start time) still show the date only. The invite builder already computed a tz-aware time but never placed it in the message; this wires it in and closes a gap where a registered recipient without a personal timezone fell back to the site default instead of the creator's zone (`www/_notifications.php`, reusing `display_timezone()` from `www/db.php`).
+
+---
+
 ## [v0.2008] - 2026-06-28
 
 ### Fixed
