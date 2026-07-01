@@ -197,6 +197,14 @@ if ($tab === 'requests' && !$canManageMembers) $tab = 'posts';
 if ($tab === 'settings' && !$isOwner)          $tab = 'posts';
 if ($tab === 'api'      && !$isOwner)          $tab = 'posts';
 
+// Membership gate: a visible (non-hidden) league still exposes its member-only
+// content — posts, roster, events, stats, rules — to members and admins only.
+// (Hidden leagues are blocked entirely above.) A non-member gets a preview with
+// a pointer to join. Without this, any logged-in user could read a league's
+// posts, comment threads, member roster, and leaderboard via ?id=…&tab=….
+$isMember = ($myRole !== null) || $isAdmin;
+if (!$isMember) $tab = 'preview';
+
 // Load members (includes pending contacts — rows with user_id IS NULL)
 $mStmt = $db->prepare(
     "SELECT lm.*,
@@ -484,7 +492,7 @@ function ordinal($n) {
         <div class="lg-meta">
             <?= $member_count ?> member<?= $member_count === 1 ? '' : 's' ?>
             &middot; Join mode: <?= htmlspecialchars($league['approval_mode']) ?>
-            <?php if ($rulesPost): ?>
+            <?php if ($rulesPost && $isMember): ?>
                 &middot; <a class="lg-btn lg-btn-rules" href="?id=<?= $league_id ?>&tab=rules" style="padding:.25rem .7rem;font-size:.75rem;background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:6px;text-decoration:none;font-weight:600">&#128220; League Rules</a>
             <?php endif; ?>
             <?php if ($myRole !== null && $myRole !== 'owner'): ?>
@@ -496,10 +504,12 @@ function ordinal($n) {
     </div>
 
     <div class="lg-tabs">
+        <?php if ($isMember): ?>
         <a class="lg-tab<?= $tab==='posts'    ? ' active' : '' ?>" href="?id=<?= $league_id ?>&tab=posts"><?= htmlspecialchars($league['name']) ?></a>
         <a class="lg-tab<?= $tab==='members'  ? ' active' : '' ?>" href="?id=<?= $league_id ?>&tab=members">Members (<?= $member_count ?>)</a>
         <a class="lg-tab<?= $tab==='events'   ? ' active' : '' ?>" href="?id=<?= $league_id ?>&tab=events">Events (<?= count($leagueEvents) ?>)</a>
         <a class="lg-tab<?= $tab==='stats'    ? ' active' : '' ?>" href="?id=<?= $league_id ?>&tab=stats">Stats</a>
+        <?php endif; ?>
         <?php if ($canManageMembers): ?>
         <a class="lg-tab<?= $tab==='requests' ? ' active' : '' ?>" href="?id=<?= $league_id ?>&tab=requests">Requests (<?= count($requests) ?>)</a>
         <?php endif; ?>
@@ -509,7 +519,16 @@ function ordinal($n) {
         <?php endif; ?>
     </div>
 
-    <?php if ($tab === 'members'): ?>
+    <?php if ($tab === 'preview'): ?>
+        <div class="lg-card" style="display:block">
+            <h3 style="margin:0 0 .5rem;font-size:1rem">Members only</h3>
+            <p style="font-size:.85rem;color:#475569;margin:0 0 .75rem">
+                This league's posts, members, events, and stats are visible to members only.
+                <?php if ($league['approval_mode'] === 'auto'): ?>Anyone can join.<?php else: ?>Joining requires the owner's approval.<?php endif; ?>
+            </p>
+            <a class="lg-btn" href="/leagues.php" style="text-decoration:none">Find &amp; join leagues</a>
+        </div>
+    <?php elseif ($tab === 'members'): ?>
         <?php if ($canManageMembers): ?>
         <div class="lg-card" style="display:block;background:#f8fafc">
             <h3 style="margin:0 0 .5rem;font-size:1rem">Add a member</h3>

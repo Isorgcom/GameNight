@@ -137,12 +137,20 @@ if ($existing) {
     $uid      = (int)$existing['id'];
     $username = (string)$existing['username'];
 
-    $ins = $db->prepare(
-        "INSERT OR IGNORE INTO league_members (league_id, user_id, role, joined_at)
-         VALUES (?, ?, 'member', CURRENT_TIMESTAMP)"
-    );
-    $ins->execute([$league_id, $uid]);
-    $member_added = ($ins->rowCount() > 0);
+    // Only reuse/disclose an existing account when it is ALREADY a member of the
+    // key's league. A bare email/phone match against the GLOBAL users table would
+    // otherwise (a) leak another league's user_id/username as an enumeration
+    // oracle and (b) silently force-add that account to this league — unwanted
+    // membership plus a channel to spam the victim's real email/SMS via invites.
+    // A cross-league match returns a generic 409 that discloses nothing.
+    $mchk = $db->prepare('SELECT 1 FROM league_members WHERE league_id = ? AND user_id = ?');
+    $mchk->execute([$league_id, $uid]);
+    if (!$mchk->fetchColumn()) {
+        db_log_anon_activity("api_create_user: contact already registered outside league $league_id via key=$key_id (not disclosed)");
+        api_log_request($key_id, 409);
+        api_fail('A user with that email or phone already exists.', 409);
+    }
+    $member_added = false; // already a member of this league; nothing to add
 
     // Preferences on existing accounts are not touched. A leaked write key
     // should never be able to silently mute or re-route a real user.

@@ -167,6 +167,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        // Authorization: the user must be able to see/join this event (same
+        // visibility rule as self_signup). Without it, a user could POST any
+        // event_id — including a private/league event they can't see — and
+        // self-insert an approved invite via the occurrence-RSVP path (IDOR).
+        $rsvp_event_visible = false;
+        if ($eid > 0) {
+            $vis  = event_visibility_sql('e', (int)$current['id']);
+            $gate = $db->prepare("SELECT e.id FROM events e WHERE e.id = ? AND {$vis['sql']}");
+            $gate->execute(array_merge([$eid], $vis['params']));
+            $rsvp_event_visible = (bool)$gate->fetch();
+        }
+
         if ($rsvp_locked) {
             if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
                 header('Content-Type: application/json');
@@ -174,6 +186,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
             }
             $_SESSION['flash'] = ['type' => 'error', 'msg' => 'RSVP is locked — this event starts in less than an hour.'];
+        } elseif ($eid > 0 && !$rsvp_event_visible) {
+            if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
+                http_response_code(403);
+                header('Content-Type: application/json');
+                echo json_encode(['ok' => false, 'error' => 'You are not allowed to RSVP to that event.']);
+                exit;
+            }
+            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'You are not allowed to RSVP to that event.'];
         } elseif ($eid > 0) {
             // Approval gate: a user can't RSVP for themselves while their invite is pending or denied.
             $statusStmt = $db->prepare('SELECT approval_status FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL');

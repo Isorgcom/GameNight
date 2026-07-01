@@ -4,6 +4,15 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2012] - 2026-07-01
+
+### Security
+- **League content is now members-only for visible leagues too (broken access control fix).** `www/league.php` only enforced membership for *hidden* leagues; for any non-hidden league, an authenticated non-member could open `?id=…&tab=posts|members|stats` and read the full post bodies, comment threads, member roster (names + roles), and the stats leaderboard — contradicting the members-only model enforced everywhere else (the post feed hides league posts from non-members, `comment.php` blocks non-member comments, and public reading otherwise requires a `share_token`). A non-member now sees a "Members only" preview with a pointer to join, and the Posts/Members/Events/Stats/Rules tabs and their queries render only for members and admins (`$isMember = $myRole !== null || $isAdmin`).
+- **`update_rsvp` can no longer self-insert an invite into an event the user can't see (IDOR fix).** In `www/calendar_dl.php`, the per-occurrence RSVP path inserted a fresh `event_invites` row (defaulting `approval_status='approved'`) without ever checking that the caller could see or join the target event, so any logged-in user could POST an arbitrary `event_id` + `occurrence_date` and add themselves — appearing on the roster and player counts — of a private or league event they were never invited to. `update_rsvp` now applies the same `event_visibility_sql()` gate that `self_signup` already used, returning `403` for events the user cannot see.
+- **The public API no longer discloses or force-joins accounts across leagues.** `POST /api/v1/users` (`www/api/v1/users.php`) looked up existing accounts against the global `users` table with no league filter, so a league-scoped write key could probe any email/phone platform-wide — the response returned another league's `user_id` and `username` (an enumeration oracle) and silently `INSERT`ed that account into the key's league, which also opened a channel to spam the victim's real email/SMS via event invites. The endpoint now treats a contact as "existing" only when the account is already a member of the key's league; a cross-league match returns a generic `409` that discloses nothing and adds no membership.
+
+---
+
 ## [v0.2011] - 2026-07-01
 
 ### Security
