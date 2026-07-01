@@ -1,6 +1,13 @@
 <?php
 require_once __DIR__ . '/auth.php';
 
+// Event times here are rendered in the VIEWER's timezone, so a cached copy can
+// show stale times after the user changes their timezone — or the browser's
+// back/forward cache can replay an old render. Prevent caching entirely;
+// `no-store` also opts the page out of bfcache in modern browsers.
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+
 $db      = get_db();
 $current = current_user();
 $isAdmin = $current && $current['role'] === 'admin';

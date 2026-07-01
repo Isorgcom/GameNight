@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2017] - 2026-07-01
+
+### Fixed
+- **Calendar no longer serves a stale, wrong-timezone render from cache.** The calendar renders every event time in the viewer's timezone, so a page held in the browser's HTTP cache or back/forward (bfcache) could show times computed under a previous timezone — e.g. briefly displaying an event at the wrong hour right after a user changed their profile timezone, until a manual reload. `www/calendar.php` now sends `Cache-Control: no-store, no-cache, must-revalidate` (plus `Pragma: no-cache`); `no-store` also opts the page out of bfcache in modern browsers, so the calendar always re-renders fresh against the current timezone.
+
+---
+
 ## [v0.2016] - 2026-07-01
 
 ### Fixed
