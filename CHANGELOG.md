@@ -4,6 +4,14 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2010] - 2026-07-01
+
+### Security
+- **Timer theme values are now sanitized before they reach the page, closing a stored XSS.** The tournament-timer theme renderer built an inline `:root { ... }` `<style>` block (`www/_timer_theme.php`) from theme JSON while only stripping newlines, then emitted it raw at `www/timer.php`. Because any logged-in user can save a personal theme, an attacker could store a color/gradient/background value like `#fff} </style><script>…</script>` that broke out of the style block and executed — and the site CSP allows `'unsafe-inline'` scripts (needed by the Jodit editor), so the injected script ran. The audience includes the **unauthenticated** `?view=remote&key=…` display link, making it an account-takeover vector for anyone (co-hosts, admins, cast displays) who opened the attacker's shared timer. Two new helpers now guard every emitted value: `timer_css_scrub()` strips CSS/HTML breakout characters (`< > { } ; :` quotes, slashes) from all color/tray fields and gradient stops while preserving valid `#hex`/`rgb()`/`rgba()`/`hsl()`/named colors, and `timer_css_safe_image_url()` pins background images to a relative `^/?uploads/…` path so the `url('…')` sink cannot be escaped. The compound `--timer-bg` variable is assembled from already-sanitized parts. Verified end-to-end on the dev server: breakout payloads render inert while legitimate rgba/gradient/named/uploaded-image themes are unchanged.
+- **Two poker-ledger money actions now enforce CSRF.** `void_ledger_entry` and `edit_ledger_entry` in `www/checkin_dl.php` were dispatched *above* the file's shared `POST + csrf_verify()` gate, so unlike every other mutating action they carried no CSRF protection (their only guard, `verify_event_access()`, stops IDOR but not CSRF). A cross-site auto-submitting form could therefore void a buy-in/rebuy/cash-in/cash-out or rewrite a cash-in/out dollar amount in a logged-in host's session (`poker_session_log.id` is sequential and enumerable). Each handler now performs its own `REQUEST_METHOD === 'POST'` + `csrf_verify()` check up front, matching the existing gate; the frontend already sends the token, so legitimate use is unaffected. Verified on dev: forged requests without a token return `403`, requests with a valid token pass through to the handler.
+
+---
+
 ## [v0.2009] - 2026-06-29
 
 ### Changed

@@ -79,6 +79,14 @@ if ($action === 'get_ledger') {
 // ─── void_ledger_entry ─────────────────────────────────────
 // Clear a bad money entry: keep the row (struck-through) and reverse its effect.
 if ($action === 'void_ledger_entry') {
+    // This mutating action is dispatched above the shared POST+CSRF gate below, so
+    // it must enforce its own — otherwise a cross-site form could void ledger money
+    // entries in a logged-in host's session.
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !csrf_verify()) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => 'Invalid CSRF token']);
+        exit;
+    }
     $entry_id = (int)($_POST['entry_id'] ?? 0);
     $erow = $db->prepare('SELECT * FROM poker_session_log WHERE id = ?');
     $erow->execute([$entry_id]);
@@ -151,6 +159,13 @@ if ($action === 'void_ledger_entry') {
 // carry an editable dollar amount; the player's running total is adjusted by the
 // delta and an audit row records the before/after. Host/admin only.
 if ($action === 'edit_ledger_entry') {
+    // Dispatched above the shared POST+CSRF gate below — enforce its own so a
+    // cross-site form cannot rewrite ledger dollar amounts in a host's session.
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !csrf_verify()) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => 'Invalid CSRF token']);
+        exit;
+    }
     $entry_id   = (int)($_POST['entry_id'] ?? 0);
     $new_amount = (int)round(floatval($_POST['new_amount'] ?? 0) * 100); // dollars -> cents
     if ($new_amount <= 0) { echo json_encode(['ok' => false, 'error' => 'Enter an amount greater than zero']); exit; }

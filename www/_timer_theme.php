@@ -49,25 +49,43 @@ function timer_resolve_theme(PDO $db, ?int $theme_id): array {
     return timer_theme_defaults();
 }
 
+// Strip any character that could break out of a CSS value or the surrounding
+// <style> block. Leaves the chars needed for hex, rgb()/rgba()/hsl() and named
+// colors intact, so legitimate themes render unchanged, while the injection
+// primitives (`<` `>` `{` `}` `;` `:` quotes `/` `\`) are removed. Theme JSON is
+// attacker-controllable (any logged-in user can save a personal theme), so this
+// runs on every value emitted into the timer's inline <style> — see timer.php.
+function timer_css_scrub($v): string {
+    return preg_replace('/[^A-Za-z0-9#%(),.\s_-]/', '', (string)$v);
+}
+
+// Validate a theme background image URL to a relative uploads path; anything else
+// (absolute/external URLs, breakout attempts, protocol-relative) collapses to
+// empty so the `url('...')` sink cannot be escaped.
+function timer_css_safe_image_url($v): string {
+    $v = (string)$v;
+    return preg_match('#^/?uploads/[A-Za-z0-9._/-]+$#', $v) ? $v : '';
+}
+
 // Build the CSS background value (color | gradient | image) for `.timer-body { background: ... }`.
 function timer_theme_background_css(array $props): string {
     $bg = $props['background'] ?? [];
     $type = $bg['type'] ?? 'color';
     if ($type === 'gradient') {
-        $from = $bg['gradient']['from'] ?? '#0f172a';
-        $to   = $bg['gradient']['to']   ?? '#1e293b';
+        $from = timer_css_scrub($bg['gradient']['from'] ?? '#0f172a');
+        $to   = timer_css_scrub($bg['gradient']['to']   ?? '#1e293b');
         $ang  = (int)($bg['gradient']['angle'] ?? 180);
         // Trailing solid color matters: a gradient is a background-IMAGE, and the
         // canvas beyond the root box (iPad overscroll / safe-area gutters) is filled
         // with the background-COLOR — without one those bars render white.
         return "linear-gradient({$ang}deg, {$from}, {$to}) {$to}";
     }
-    if ($type === 'image' && !empty($bg['image_url'])) {
-        $url = $bg['image_url'];
-        $base = $bg['color'] ?? '#0f172a'; // same white-bars rationale as the gradient case
-        return "url('" . str_replace(["'", "\n", "\r"], '', $url) . "') center/cover no-repeat {$base}";
+    $imgUrl = timer_css_safe_image_url($bg['image_url'] ?? '');
+    if ($type === 'image' && $imgUrl !== '') {
+        $base = timer_css_scrub($bg['color'] ?? '#0f172a'); // same white-bars rationale as the gradient case
+        return "url('" . $imgUrl . "') center/cover no-repeat {$base}";
     }
-    return $bg['color'] ?? '#0f172a';
+    return timer_css_scrub($bg['color'] ?? '#0f172a');
 }
 
 // Emit a `:root { ... }` style block setting all the theme CSS variables based on properties.
@@ -111,8 +129,13 @@ function timer_theme_css_vars(array $props): string {
     ];
     $css = ":root {\n";
     foreach ($vars as $k => $v) {
-        // The value comes from JSON we wrote ourselves; still strip newlines/quotes defensively.
-        $safe = str_replace(["\n", "\r"], '', (string)$v);
+        // --timer-bg is a compound value already assembled from sanitized parts
+        // (timer_theme_background_css) and legitimately contains `url('/uploads/…')`
+        // with quotes and slashes, so it must not be scrubbed. Every other var is a
+        // single token (color or numeric scale) that we scrub to strip any CSS/HTML
+        // breakout characters before it lands in the inline <style> in timer.php.
+        $safe = ($k === '--timer-bg') ? (string)$v : timer_css_scrub($v);
+        $safe = str_replace(["\n", "\r"], '', $safe);
         $css .= "  {$k}: {$safe};\n";
     }
     $css .= "}\n";
