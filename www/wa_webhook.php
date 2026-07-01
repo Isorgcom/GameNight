@@ -25,7 +25,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 // ── Token gate ───────────────────────────────────────────────────────────────
 // Mirrors cron.php — fail closed if the token isn't configured or doesn't match.
 $expected_token = (string) (getenv('WAHA_WEBHOOK_TOKEN') ?: '');
-$provided_token = (string) ($_GET['token'] ?? '');
+// Prefer an X-Webhook-Token header (stays out of access logs / referrers);
+// fall back to the ?token= query param for the current WAHA config. Operators
+// should migrate WAHA to send the header so the shared secret never lands in a
+// URL where a log read would let someone forge inbound WhatsApp messages.
+$provided_token = (string) ($_SERVER['HTTP_X_WEBHOOK_TOKEN'] ?? ($_GET['token'] ?? ''));
 if ($expected_token === '' || $provided_token === '' || !hash_equals($expected_token, $provided_token)) {
     http_response_code(403);
     exit;

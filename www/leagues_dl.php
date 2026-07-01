@@ -274,6 +274,11 @@ case 'request_join': {
     $league = $L->fetch();
     if (!$league) fail('League not found', 404);
 
+    // Hidden leagues are excluded from Browse and from viewing, so an enumerated
+    // id must not be joinable via a request either. Joining a hidden league
+    // requires an invite (join_league.php?code=…).
+    if ((int)$league['is_hidden'] === 1) fail('This league is invite-only.', 403);
+
     // Already a member?
     if (league_role($league_id, $uid) !== null) fail('Already a member');
 

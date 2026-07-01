@@ -19,12 +19,12 @@ require_once __DIR__ . '/_response.php';
 
 function api_log_request(?int $key_id, int $status): void {
     try {
-        // Redact the ?key= fallback token so plaintext API keys never land in the
-        // audit log. Keys are stored only as SHA-256 hashes; logging the raw
-        // REQUEST_URI (which for the query-param auth path contains key=<token>)
-        // would otherwise re-expose live, replayable keys to anyone who can read
-        // api_request_log (DB dump, backup, log shipping).
-        $path = preg_replace('/([?&]key=)[^&]*/i', '$1REDACTED', $_SERVER['REQUEST_URI'] ?? '');
+        // Store only the path, dropping the query string entirely. This (a) keeps
+        // the ?key=<token> auth-fallback out of the audit log — keys are stored
+        // only as SHA-256 hashes, so a logged plaintext key would be replayable —
+        // and (b) prevents a caller from padding the URI (e.g. ?z=/api/v1/posts/)
+        // to evade the per-endpoint rate-limit counters, which match on `path`.
+        $path = strtok((string)($_SERVER['REQUEST_URI'] ?? ''), '?');
         $db = get_db();
         $db->prepare(
             'INSERT INTO api_request_log (key_id, ip, method, path, status) VALUES (?, ?, ?, ?, ?)'

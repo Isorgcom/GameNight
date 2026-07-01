@@ -4,6 +4,22 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2014] - 2026-07-01
+
+### Security
+- **Security hardening sweep — closed the remaining low-severity findings from the full-codebase audit.** A batch of defense-in-depth and abuse-resistance fixes, each verified end-to-end on the dev server:
+  - **TOTP codes are now one-time-use per time step (`www/totp.php`, `www/login.php`, `www/mfa_challenge.php`, `www/db.php`).** A valid 6-digit code previously stayed usable for its whole ~60–90s window, so an intercepted code could be replayed. A new `totp_verify_consume()` records the highest accepted step in a new `users.mfa_totp_last_step` column and rejects any code whose step was already used; both authentication paths (login 2FA and the MFA challenge) now consume codes this way.
+  - **"Remember me" tokens can no longer be deleted by unauthenticated attackers (`www/auth.php`).** `clear_remember_cookie()` deleted the token row by the cookie's sequential, guessable id — so anyone could force-log-out arbitrary remembered users by iterating ids with a bogus secret. It now clears only the client cookie; server-side invalidation happens where the actor is authenticated (`logout()` now deletes the token scoped by `user_id`, matching the password/profile-change flows).
+  - **MFA SMS-code resends are throttled (`www/auth.php`, `www/login.php`, `www/mfa_setup.php`).** The login and MFA-setup resend links had no rate limit; someone who knew a victim's password could spam their phone. New `mfa_sms_resend_rate_limited()` caps resends at 3 per user per 15 minutes.
+  - **Registration resend confirmations are uniform (`www/resend_verification.php`).** The phone path returned a distinct "code sent via SMS" message plus an "Enter Code" button, revealing that a number belonged to a registered account; it now shows the same generic confirmation for any input.
+  - **League content access tightened (`www/leagues_dl.php`, `www/_posts.php`).** `request_join` now rejects hidden leagues (they're joinable only by invite), and a post author can edit/delete their own post only while still a member of its league (a demoted/removed manager could otherwise keep altering league content by post id).
+  - **API request logging no longer stores the query string (`www/api/_auth.php`).** Storing only the path keeps the `?key=` auth-fallback token out of `api_request_log` and prevents padding the URI (e.g. `?z=/api/v1/posts/`) to evade the per-endpoint rate-limit counters.
+  - **`s.php` short-link redirects are constrained to the site's own origin**, so the shortener can't become an open-redirect/phishing hop if an attacker-influenced value ever reaches `short_links.target_url`.
+  - **The WhatsApp webhook now accepts its token from an `X-Webhook-Token` header** (preferred; keeps the shared secret out of URLs/access logs), falling back to `?token=` for the current WAHA config. *Operator note: migrate WAHA to send the header so the token stops appearing in logs.*
+  - **The league flash message is now HTML-escaped at render (`www/league.php`)**, closing a latent stored-XSS sink, and the dead **`www/auth_dl.php`** — a stale duplicate login path with no MFA or rate limiting — was deleted.
+
+---
+
 ## [v0.2013] - 2026-07-01
 
 ### Security

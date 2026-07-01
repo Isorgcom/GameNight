@@ -88,16 +88,43 @@ function totp_code(string $secret, int $timestamp, int $period = 30, int $digits
  * of clock skew (default ±1 = ±30s). Constant-time comparison.
  */
 function totp_verify(string $secret, string $code, int $window = 1, int $period = 30, int $digits = 6): bool {
+    return totp_matched_step($secret, $code, $window, $period, $digits) !== null;
+}
+
+/**
+ * Like totp_verify, but returns the matched time-step counter (intdiv(ts,period))
+ * instead of a bool, or null if no candidate matched. The step lets callers
+ * enforce one-time use per window (see totp_verify_consume).
+ */
+function totp_matched_step(string $secret, string $code, int $window = 1, int $period = 30, int $digits = 6): ?int {
     $code = preg_replace('/\D/', '', $code);
-    if (strlen($code) !== $digits) return false;
+    if (strlen($code) !== $digits) return null;
     $now = time();
     for ($i = -$window; $i <= $window; $i++) {
-        $candidate = totp_code($secret, $now + ($i * $period), $period, $digits);
+        $ts = $now + ($i * $period);
+        $candidate = totp_code($secret, $ts, $period, $digits);
         if ($candidate !== '' && hash_equals($candidate, $code)) {
-            return true;
+            return intdiv($ts, $period);
         }
     }
-    return false;
+    return null;
+}
+
+/**
+ * Verify a TOTP code AND consume it: a given time-step can authenticate a user
+ * only once, so an intercepted code can't be replayed while it's still inside its
+ * validity window. Persists the highest accepted step in users.mfa_totp_last_step
+ * and rejects any code whose step is <= the last one already used.
+ */
+function totp_verify_consume(PDO $db, int $uid, string $secret, string $code): bool {
+    $step = totp_matched_step($secret, $code);
+    if ($step === null) return false;
+    $stmt = $db->prepare('SELECT mfa_totp_last_step FROM users WHERE id = ?');
+    $stmt->execute([$uid]);
+    $last = (int)($stmt->fetchColumn() ?: 0);
+    if ($step <= $last) return false; // already used this (or a later) step — replay
+    $db->prepare('UPDATE users SET mfa_totp_last_step = ? WHERE id = ?')->execute([$step, $uid]);
+    return true;
 }
 
 /**

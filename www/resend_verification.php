@@ -67,16 +67,18 @@ $prefill = htmlspecialchars($_GET['email'] ?? $_GET['phone'] ?? $_POST['identifi
         <h2>Resend Verification</h2>
 
         <?php if ($sent): ?>
-            <?php if (in_array($resend_method, ['sms', 'whatsapp'], true)): ?>
+            <?php // Always show the SAME confirmation regardless of whether the
+                  // identifier matched an unverified account — otherwise the
+                  // response (SMS-specific message + "Enter Code" button) reveals
+                  // that the phone/email belongs to a registered account. Phone
+                  // accounts still receive their code; the generic link below lets
+                  // any legitimate phone user enter it. ?>
             <div class="alert alert-success">
-                A new 6-digit code has been sent via <?= ucfirst($resend_method) ?>.
+                If that email or phone has an unverified account, a new verification has been sent.
             </div>
-            <a href="/verify_phone.php" class="btn btn-primary" style="width:100%;margin-top:.75rem;display:block;text-align:center;text-decoration:none">Enter Code</a>
-            <?php else: ?>
-            <div class="alert alert-success">
-                If that email has an unverified account, a new link has been sent.
-            </div>
-            <?php endif; ?>
+            <p style="text-align:center;margin-top:1rem;font-size:.875rem;color:#64748b">
+                Verifying a phone? <a href="/verify_phone.php">Enter your code</a>.
+            </p>
             <p style="text-align:center;margin-top:1.25rem;font-size:.875rem;color:#64748b">
                 <a href="/login.php">&larr; Back to Sign In</a>
             </p>

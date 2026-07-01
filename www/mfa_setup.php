@@ -43,8 +43,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         elseif ($action === 'choose_sms' || $action === 'resend_sms') {
             if (!$sms_available) {
                 $error = 'Add and verify a phone number on your profile before using SMS two-factor.';
+            } elseif ($action === 'resend_sms' && mfa_sms_resend_rate_limited((int)$current['id'])) {
+                // Throttle resends (SMS toll/flooding); the initial choose_sms send is not capped.
+                $_SESSION['mfa_setup'] = ['method' => 'sms'];
+                $error = 'Please wait a bit before requesting another code.';
             } else {
                 send_mfa_sms_code($current['id'], $me['phone']);
+                if ($action === 'resend_sms') db_log_activity((int)$current['id'], 'mfa_sms_resend');
                 $_SESSION['mfa_setup'] = ['method' => 'sms'];
             }
         }

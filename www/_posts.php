@@ -96,7 +96,11 @@ function user_can_edit_post(PDO $db, array $post, int $user_id, bool $is_admin):
     if ($is_admin) return true;
     $league_id = isset($post['league_id']) ? (int)$post['league_id'] : 0;
     if ($league_id === 0) return false;                // global admin post
+    $role = league_role($league_id, $user_id);
     $author_id = isset($post['author_id']) ? (int)$post['author_id'] : 0;
-    if ($author_id === $user_id && $author_id > 0) return true;
-    return in_array(league_role($league_id, $user_id), ['owner', 'manager'], true);
+    // Author can edit/delete their own post, but only while still a member of the
+    // league — otherwise a demoted or removed manager could keep altering/wiping
+    // a league's content (including its rules post) using just the post id.
+    if ($author_id === $user_id && $author_id > 0 && $role !== null) return true;
+    return in_array($role, ['owner', 'manager'], true);
 }

@@ -184,7 +184,7 @@ if ($canManageMembers && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['actio
 
     $msg = "Imported $imported ($linked existing, $pending pending).";
     if ($skipped) $msg .= " Skipped $skipped (already a member).";
-    if ($errors)  $msg .= ' Errors: ' . htmlspecialchars(implode(', ', array_slice($errors, 0, 5))) . (count($errors) > 5 ? '…' : '');
+    if ($errors)  $msg .= ' Errors: ' . implode(', ', array_slice($errors, 0, 5)) . (count($errors) > 5 ? '…' : ''); // escaped at render
     $_SESSION['flash'] = ['type' => $imported > 0 ? 'success' : 'error', 'msg' => $msg];
     header('Location: /league.php?id=' . $league_id . '&tab=members');
     exit;
@@ -478,7 +478,7 @@ function ordinal($n) {
             $_fcls  = $_flash['type'] === 'success' ? 'background:#dcfce7;color:#14532d;border:1px solid #86efac'
                      : ($_flash['type'] === 'error' ? 'background:#fee2e2;color:#7f1d1d;border:1px solid #fca5a5'
                      : 'background:#f1f5f9;color:#334155;border:1px solid #cbd5e1'); ?>
-        <div style="padding:.6rem .9rem;border-radius:8px;font-size:.85rem;margin-bottom:.75rem;<?= $_fcls ?>"><?= $_flash['msg'] ?></div>
+        <div style="padding:.6rem .9rem;border-radius:8px;font-size:.85rem;margin-bottom:.75rem;<?= $_fcls ?>"><?= htmlspecialchars($_flash['msg'] ?? '') ?></div>
         <?php endif; ?>
     <?php endif; ?>
     <div class="lg-head">

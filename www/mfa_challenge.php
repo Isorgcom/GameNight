@@ -81,7 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Factor code (TOTP or SMS).
             if ($method === 'totp') {
                 $secret = decrypt_value($user['mfa_totp_secret'] ?? '');
-                $ok = $secret !== '' && totp_verify($secret, $clean);
+                $ok = $secret !== '' && totp_verify_consume(get_db(), $user_id, $secret, $clean);
             } else { // sms
                 $r = verify_mfa_sms_code($user_id, $clean);
                 if ($r === 'ok') {

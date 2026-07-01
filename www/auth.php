@@ -122,8 +122,10 @@ function consume_remember_cookie(): ?int {
 
     // Constant-time hash compare
     if (!hash_equals($row['token_hash'], hash('sha256', $raw))) {
-        // Possible theft — burn this row defensively.
-        $db->prepare('DELETE FROM remember_tokens WHERE id = ?')->execute([$id]);
+        // Mismatch on a sequential, guessable row id. Do NOT delete the row here:
+        // an unauthenticated attacker could otherwise force-log-out any "remember
+        // me" user by iterating ids with a bogus secret. Just clear this client's
+        // cookie; only a validated-then-rotated token is ever removed (below).
         clear_remember_cookie();
         return null;
     }
@@ -138,16 +140,12 @@ function consume_remember_cookie(): ?int {
 }
 
 function clear_remember_cookie(): void {
-    $cookie = $_COOKIE[REMEMBER_COOKIE] ?? '';
-    if ($cookie !== '' && str_contains($cookie, ':')) {
-        [$id_part, ] = explode(':', $cookie, 2);
-        $id = (int)$id_part;
-        if ($id > 0) {
-            try {
-                get_db()->prepare('DELETE FROM remember_tokens WHERE id = ?')->execute([$id]);
-            } catch (Exception $e) {}
-        }
-    }
+    // Clear ONLY the client cookie. Do not delete the DB token by the cookie's id
+    // here: this also runs on unauthenticated paths (an invalid/mismatched cookie),
+    // and the row id is a guessable sequential integer, so deleting on it alone
+    // would let anyone force-log-out arbitrary "remember me" users. Server-side
+    // token invalidation happens where the actor is authenticated — logout() below
+    // and the password/profile-change flows (each scoped by user_id).
     setcookie(REMEMBER_COOKIE, '', [
         'expires'  => time() - 3600,
         'path'     => '/',
@@ -199,6 +197,20 @@ function require_login(): array {
         }
     }
     return $user;
+}
+
+/**
+ * Throttle MFA-code resends to at most 3 per user per 15 minutes, so someone who
+ * knows a victim's password can't spam their phone (SMS toll / flooding) via the
+ * resend links on the login and MFA-setup screens. Call before send_mfa_sms_code
+ * in a resend path; returns true when the cap is hit (skip the send).
+ */
+function mfa_sms_resend_rate_limited(int $uid): bool {
+    if ($uid <= 0) return false;
+    $db = get_db();
+    $stmt = $db->prepare("SELECT COUNT(*) FROM activity_log WHERE user_id = ? AND action = 'mfa_sms_resend' AND created_at > datetime('now', '-15 minutes')");
+    $stmt->execute([$uid]);
+    return (int)$stmt->fetchColumn() >= 3;
 }
 
 function login_rate_limited(): bool {
@@ -336,7 +348,19 @@ function complete_login(int $user_id): void {
 function logout(): void {
     session_start_safe();
     $id = $_SESSION['user_id'] ?? null;
-    if ($id) db_log_activity($id, 'logout');
+    if ($id) {
+        db_log_activity($id, 'logout');
+        // Invalidate this device's remember-me token server-side. Scoped by
+        // user_id so a manipulated cookie id can only ever remove the current
+        // (authenticated) user's own token — never someone else's.
+        $cookie = $_COOKIE[REMEMBER_COOKIE] ?? '';
+        if ($cookie !== '' && str_contains($cookie, ':')) {
+            $tid = (int)explode(':', $cookie, 2)[0];
+            if ($tid > 0) {
+                try { get_db()->prepare('DELETE FROM remember_tokens WHERE id = ? AND user_id = ?')->execute([$tid, $id]); } catch (Exception $e) {}
+            }
+        }
+    }
     clear_remember_cookie();
     $_SESSION = [];
     session_destroy();

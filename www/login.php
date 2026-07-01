@@ -36,7 +36,7 @@ function _login_verify_2fa(int $uid, string $method, string $code, string $recov
         if ($method === 'totp') {
             $ur = get_db()->prepare('SELECT mfa_totp_secret FROM users WHERE id = ?'); $ur->execute([$uid]);
             $secret = decrypt_value((string)($ur->fetchColumn() ?: ''));
-            if ($secret !== '' && totp_verify($secret, $clean)) return true;
+            if ($secret !== '' && totp_verify_consume(get_db(), $uid, $secret, $clean)) return true;
         } else {
             $r = verify_mfa_sms_code($uid, $clean);
             if ($r === 'ok') return true;
@@ -67,8 +67,10 @@ if (($_GET['reset'] ?? '') === '1') {
 // Resend an SMS code (link shown on the code prompt for SMS accounts).
 if (($_GET['resend'] ?? '') === '1' && !empty($_SESSION['mfa_user_id']) && ($_SESSION['mfa_method'] ?? '') === 'sms') {
     $pu = (int)$_SESSION['mfa_user_id'];
-    $ph = get_db()->prepare('SELECT phone FROM users WHERE id = ?'); $ph->execute([$pu]);
-    if ($phone = $ph->fetchColumn()) send_mfa_sms_code($pu, $phone);
+    if (!mfa_sms_resend_rate_limited($pu)) {
+        $ph = get_db()->prepare('SELECT phone FROM users WHERE id = ?'); $ph->execute([$pu]);
+        if ($phone = $ph->fetchColumn()) { send_mfa_sms_code($pu, $phone); db_log_activity($pu, 'mfa_sms_resend'); }
+    }
     header('Location: /login.php'); exit;
 }
 
