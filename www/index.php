@@ -25,6 +25,9 @@ $now      = (new DateTime('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s'
 // Feed visibility: global posts + posts from leagues the user belongs to; never rules or globally hidden.
 // "Show hidden" mode (logged-in only) flips the feed to show just the user's personally-hidden posts.
 $isAdmin    = $user && ($user['role'] ?? '') === 'admin';
+// Who may create events (mirrors calendar.php): admins always, others only when
+// the site setting allows user-created events. Gates the "+ Add Event" button below.
+$canCreateEvents = $isAdmin || ($user && get_setting('allow_user_events', '0') === '1');
 $showHidden = $user && ($_GET['show'] ?? '') === 'hidden';
 $_vp        = posts_feed_sql_for_user($user ? (int)$user['id'] : null, $isAdmin, $showHidden ? 'only' : 'exclude');
 
@@ -437,8 +440,10 @@ $tlMonths = $tlStmt->fetchAll();
             margin-bottom: 1rem;
         }
         .week-preview-header h2 { font-size: 1rem; font-weight: 700; color: #0f172a; }
-        .week-preview-header a  { font-size: .8rem; color: #2563eb; text-decoration: none; }
-        .week-preview-header a:hover { text-decoration: underline; }
+        /* :not(.btn) so this text-link styling doesn't override the +Add Event button
+           (its .btn-primary white text would otherwise be recolored blue = invisible). */
+        .week-preview-header a:not(.btn)  { font-size: .8rem; color: #2563eb; text-decoration: none; }
+        .week-preview-header a:not(.btn):hover { text-decoration: underline; }
         .week-grid {
             display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px;
         }
@@ -555,9 +560,14 @@ endif; ?>
     <div class="week-preview">
         <div class="week-preview-header">
             <h2>&#128197; Upcoming Events</h2>
-            <?php if (get_setting('show_calendar', '1') === '1'): ?>
-            <a href="/calendar.php">Full Calendar &rarr;</a>
-            <?php endif; ?>
+            <div style="display:flex;align-items:center;gap:.75rem">
+                <?php if ($canCreateEvents): ?>
+                <a class="btn btn-primary btn-sm" href="/event_edit.php" style="text-decoration:none">&#43; Add Event</a>
+                <?php endif; ?>
+                <?php if (get_setting('show_calendar', '1') === '1'): ?>
+                <a href="/calendar.php">Full Calendar &rarr;</a>
+                <?php endif; ?>
+            </div>
         </div>
         <div class="week-grid">
         <?php

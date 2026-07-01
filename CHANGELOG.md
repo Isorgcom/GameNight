@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2015] - 2026-07-01
+
+### Added
+- **"+ Add Event" button on the landing page's Upcoming Events card.** Creating an event previously required navigating to the full Calendar page; the dashboard's Upcoming Events card now carries the same affordance, so users can start a new event from the landing page. The button sits in the card header next to the "Full Calendar →" link (`www/index.php`), styled as the compact `btn btn-primary btn-sm` and linking to `event_edit.php` in new-event mode. It is shown only to users who may create events, reusing the same gate as the calendar (`$canCreateEvents = $isAdmin || ($user && allow_user_events)`), and `event_edit.php` still enforces that permission server-side. Also scoped the card header's text-link CSS to `a:not(.btn)` so the link styling no longer recolored the button's white label to blue (which made the text invisible until hover).
+
+---
+
 ## [v0.2014] - 2026-07-01
 
 ### Security
