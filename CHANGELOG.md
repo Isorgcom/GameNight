@@ -4,6 +4,15 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2011] - 2026-07-01
+
+### Security
+- **Timer state can no longer be read across events by session id (IDOR fix).** The `get_state` action in `www/timer_dl.php` served the timer, blind levels, and pool/payout figures (player counts and dollar amounts) to any logged-in user who passed a `session_id`, checking only that a session existed — never that the caller could access its event. Session ids are sequential, so a user could enumerate them and read other events' live timer data. The `session_id` path now resolves the session's event and requires `check_event_access()`, returning `403` otherwise; the `?key` remote-display path is unchanged because possession of the unguessable `remote_key` is itself the authorization.
+- **API keys are no longer written to the request log in plaintext.** `api_log_request()` in `www/api/_auth.php` stored the raw `REQUEST_URI` in `api_request_log.path`; for clients using the `?key=<token>` query-parameter auth fallback, that put live, replayable keys in the log in cleartext, defeating the SHA-256 hashing used everywhere else. The logger now redacts the value to `key=REDACTED` before insert, so a log/backup read can no longer recover working keys.
+- **Login timing no longer reveals whether an account exists.** `attempt_login()` in `www/auth.php` compared a missing user's password against a hardcoded dummy bcrypt string that was malformed (59 chars, algorithm "unknown"), so `password_verify()` short-circuited instead of doing real work — measured on the dev container as a ~4x faster response for nonexistent accounts, a username-enumeration oracle that defeated the mitigation's intent. The not-found path now performs one equivalent `password_hash()` at the same default cost (result discarded), so found and not-found logins take the same time (measured ratio 1.01) and the fix self-tracks any future cost change.
+
+---
+
 ## [v0.2010] - 2026-07-01
 
 ### Security

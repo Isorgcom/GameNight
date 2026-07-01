@@ -269,9 +269,19 @@ function attempt_login(string $identifier, string $password): bool|string {
 
     $row = find_user_by_identifier($identifier);
 
-    // Constant-time: always run password_verify even if user not found
-    $hash = $row ? $row['password_hash'] : '$2y$10$dummyhashtopreventtimingattacks000000000000000000000';
-    if (!$row || !password_verify($password, $hash)) {
+    // Constant-time guard against username enumeration: always perform exactly one
+    // bcrypt operation whether or not the account exists. A real user gets a
+    // password_verify; a missing user gets an equivalent password_hash at the same
+    // default cost, whose result is discarded. (The previous hardcoded dummy hash
+    // was malformed — 59 chars, algo "unknown" — so password_verify short-circuited
+    // and leaked a ~4x timing difference that revealed which identifiers exist.)
+    if ($row) {
+        $authed = password_verify($password, $row['password_hash']);
+    } else {
+        password_hash($password, PASSWORD_BCRYPT); // burn equivalent time, discard
+        $authed = false;
+    }
+    if (!$authed) {
         db_log_anon_activity('failed_login: ' . strtolower(trim($identifier)), 'critical');
         return false;
     }

@@ -99,12 +99,17 @@ function resolve_timer_from_post($db, $current, $isAdmin) {
 // ─── GET: get_state ───────────────────────────────────────
 if ($action === 'get_state') {
     $timer = null;
+    // The ?key path is authorized by possessing the unguessable remote_key. The
+    // ?session_id path is IDOR-prone (sequential ids), so it additionally requires
+    // event access — enforced below once the session's event is known.
+    $enforce_event_access = false;
     if (!empty($_GET['key'])) {
         $timer = resolve_timer($db, $_GET['key']);
     } elseif (!empty($_GET['session_id'])) {
         $current = current_user();
         if (!$current) { http_response_code(401); echo json_encode(['ok' => false]); exit; }
         $timer = resolve_timer($db, null, (int)$_GET['session_id']);
+        $enforce_event_access = true;
     }
 
     if (!$timer) {
@@ -129,6 +134,19 @@ if ($action === 'get_state') {
             if ($game_type === 'tournament') {
                 $payouts = get_payouts($db, $session_id);
             }
+        }
+    }
+
+    // IDOR guard for the ?session_id path: only return this event's timer/pool/
+    // payout data to someone who may access the event (the ?key path is exempt —
+    // the remote_key itself is the authorization).
+    if ($enforce_event_access) {
+        $cur = current_user();
+        $isAdmin = $cur && $cur['role'] === 'admin';
+        if (!$session || !check_event_access($db, (int)$session['event_id'], $cur, $isAdmin)) {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'Forbidden']);
+            exit;
         }
     }
 
