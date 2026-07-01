@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2016] - 2026-07-01
+
+### Fixed
+- **Calendar now places events on the correct day for the viewer's timezone (fixed events showing on two days).** A user reported that a 9:00 PM–midnight event appeared on both the 16th and the 17th. Events are stored as wall-clock in the site timezone (America/Chicago), but `build_event_by_date()` in `www/db.php` bucketed each event into calendar day cells using its raw stored `start_date`/`end_date` strings — ignoring `start_time`/`end_time` and doing no timezone conversion (its viewer-tz argument was inert on a bare `Y-m-d`). So a near-midnight event whose stored `end_date` had rolled to the next day (e.g. `21:00`→`00:00`, `end_date = start_date + 1`) was drawn on both consecutive days, even though in the viewer's own timezone it falls entirely on one day. `build_event_by_date()` now interprets each timed event's start/end in the site timezone, converts to the viewer timezone, and buckets by the day(s) it actually occupies there — treating an end at exactly `00:00` as ending on the prior day (matching the crossed-midnight handling already in `event_public_time_labels()`). All-day events keep their raw date-range behavior. This one helper feeds the calendar month view (`calendar.php`), the week view, and the landing-page Upcoming Events strip (`index.php`), so all three are corrected together. A viewer east of the site tz will still correctly see a late-night event span two days when it genuinely crosses midnight in their zone.
+
+---
+
 ## [v0.2015] - 2026-07-01
 
 ### Added

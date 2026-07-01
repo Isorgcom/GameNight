@@ -2207,12 +2207,40 @@ function db_log_anon_activity(string $action, string $severity = 'info'): void {
  * Each entry is array_merged with ['occurrence_start' => YYYY-MM-DD].
  */
 function build_event_by_date(array $events, string $rangeStart, string $rangeEnd, DateTimeZone $tz, array $exceptions = []): array {
+    // Events are stored as wall-clock in the SITE timezone; the calendar grid is
+    // drawn in the VIEWER timezone ($tz). We must decide which day cell(s) an event
+    // occupies AFTER converting its start/end into $tz — otherwise a near-midnight
+    // event (e.g. 9pm–midnight) lands on the wrong day, or on two days, for anyone
+    // whose tz differs from the site's. (Times are ignored for all-day events.)
+    $siteTz = new DateTimeZone(get_setting('timezone', 'UTC'));
     $byDate = [];
     foreach ($events as $ev) {
-        $startDt = new DateTime($ev['start_date'], $tz);
-        $endDt   = $ev['end_date'] ? new DateTime($ev['end_date'], $tz) : clone $startDt;
-        $cur = clone $startDt;
-        while ($cur <= $endDt) {
+        if (empty($ev['start_time'])) {
+            // All-day event: date-only, timezone-independent. Bucket by raw dates
+            // so multi-day all-day spans are preserved as stored.
+            $firstDay = $ev['start_date'];
+            $lastDay  = $ev['end_date'] ?: $ev['start_date'];
+        } else {
+            // Timed event: interpret stored wall-clock in site tz, convert to viewer tz.
+            $startDt = new DateTime($ev['start_date'] . ' ' . $ev['start_time'], $siteTz);
+            $endBase = $ev['end_date'] ?: $ev['start_date'];
+            $endTime = !empty($ev['end_time']) ? $ev['end_time'] : $ev['start_time'];
+            $endDt   = new DateTime($endBase . ' ' . $endTime, $siteTz);
+            // Defensive: a cross-midnight event stored without an end_date parses its
+            // end before its start — roll it forward a day (mirrors event_public_time_labels).
+            if ($endDt < $startDt) $endDt->modify('+1 day');
+            $startDt->setTimezone($tz);
+            $endDt->setTimezone($tz);
+            $firstDay = $startDt->format('Y-m-d');
+            // Midnight-exclusive end: an event ending exactly at 00:00 stops on the
+            // prior day (it ends at the very start of the next day, not "on" it).
+            $endMoment = (clone $endDt)->modify('-1 second');
+            $lastDay = ($endMoment >= $startDt) ? $endMoment->format('Y-m-d') : $firstDay;
+            if ($lastDay < $firstDay) $lastDay = $firstDay;
+        }
+        $cur = new DateTime($firstDay, $tz);
+        $end = new DateTime($lastDay, $tz);
+        while ($cur <= $end) {
             $k = $cur->format('Y-m-d');
             if ($k >= $rangeStart && $k <= $rangeEnd) {
                 $byDate[$k][] = array_merge($ev, ['occurrence_start' => $ev['start_date']]);
