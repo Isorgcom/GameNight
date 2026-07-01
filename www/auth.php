@@ -70,6 +70,13 @@ function session_start_safe(): void {
 const REMEMBER_COOKIE   = 'gn_remember';
 const REMEMBER_LIFETIME = 2592000; // 30 days in seconds
 
+// Returned by register_user() when the email/phone is already registered. The
+// caller must treat this like success (show the verification-pending screen)
+// instead of an error, so registration can't be used to enumerate which
+// contacts have accounts. A distinct, non-message value keeps it out of any
+// user-facing error string.
+const REGISTER_EXISTS_SENTINEL = '__account_exists__';
+
 function issue_remember_token(int $user_id): void {
     $raw     = bin2hex(random_bytes(32));
     $hash    = hash('sha256', $raw);
@@ -389,21 +396,24 @@ function register_user(string $username, string $email, string $password, string
 
     $db = get_db();
 
-    // Check email uniqueness (case-insensitive) only if provided.
+    // Check email/phone uniqueness. Do NOT confirm to the caller that a contact
+    // is already registered — that would let anyone probe which emails/phones
+    // have accounts. Return a sentinel the page treats as success (showing the
+    // same "verification pending" screen) while creating nothing. (Username
+    // collisions below still return a plain message: the user must be told to
+    // pick another handle, and usernames are already visible to league members.)
     if ($email !== '') {
         $stmt = $db->prepare('SELECT id FROM users WHERE LOWER(email) = ?');
         $stmt->execute([$email]);
         if ($stmt->fetch()) {
-            return 'That email address is already registered.';
+            return REGISTER_EXISTS_SENTINEL;
         }
     }
-
-    // Check phone uniqueness (normalized) only if provided.
     if ($phone !== '') {
         $stmt = $db->prepare('SELECT id FROM users WHERE phone = ?');
         $stmt->execute([$phone]);
         if ($stmt->fetch()) {
-            return 'That phone number is already registered.';
+            return REGISTER_EXISTS_SENTINEL;
         }
     }
 

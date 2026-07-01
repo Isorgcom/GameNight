@@ -4,6 +4,14 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2013] - 2026-07-01
+
+### Security
+- **Registration no longer confirms whether an email or phone already has an account (enumeration fix).** `register_user()` in `www/auth.php` returned distinct messages — "That email address is already registered." / "That phone number is already registered." — letting anyone probe the user base for a given contact (the 20/IP/hour limit is easily rotated). It now returns a `REGISTER_EXISTS_SENTINEL` for an already-registered email/phone, and both registration pages (`www/register.php`, `www/register_dl.php`) treat it exactly like a real signup: they render the same "Check Your Email" / "Enter Verification Code" screen, create no account, and set no verification session (so the real owner keeps their account and an attacker never receives the code/link). A brand-new signup and a duplicate-contact signup are now indistinguishable in the response. Username collisions still return a clear "already taken" message — the user must be told to pick another handle, and usernames are already visible to league members — but that path is only reachable once the email/phone is confirmed free, so it cannot be used to probe contacts.
+- **phpLiteAdmin console now enforces admin auth inside its own load path (defense in depth).** Access to the bundled SQLite console (`www/phpadmin/`) previously depended entirely on an `.htaccess` `auto_prepend_file` gate, which silently fails under PHP-FPM or if `AllowOverride` stops honoring `php_value` — exposing the full database console (users, password hashes, SMTP creds) with no authentication. `www/phpadmin/phpliteadmin.config.php`, which `phpliteadmin.php` `require()`s before it touches the database, now performs the same GameNight admin-session check and redirects non-admins to login. This runs in PHP regardless of the webserver configuration, so access no longer hinges on a single `.htaccess` directive; the check is a no-op for the normal prepended-gate path where an admin is already established.
+
+---
+
 ## [v0.2012] - 2026-07-01
 
 ### Security

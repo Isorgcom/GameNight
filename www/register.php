@@ -98,12 +98,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = 'Enter an email address or phone number.';
             } else {
                 $result = register_user($username, $email, $password, $phone, $verify_method, $timezone);
-                if ($result === null) {
+                if ($result === null || $result === REGISTER_EXISTS_SENTINEL) {
+                    // Show the same "verification pending" screen whether the account
+                    // was just created ($result === null) or the email/phone was
+                    // already registered (sentinel) — so registration can't reveal
+                    // which contacts exist. On the already-exists path we created
+                    // nothing and set NO verify session: the real owner keeps their
+                    // account, and an attacker never receives the code/link either way.
                     $registered_email  = $email;
                     $registered_method = $verify_method;
                     $registered_phone  = $phone;
-                    // For SMS/WhatsApp, look up the new user ID for code entry
-                    if ($verify_method !== 'email') {
+                    // For a genuinely new SMS/WhatsApp signup, look up the new user ID
+                    // for code entry. Skipped for the already-exists path.
+                    if ($result === null && $verify_method !== 'email') {
                         $uidStmt = get_db()->prepare('SELECT id FROM users WHERE phone = ?');
                         $uidStmt->execute([$phone]);
                         $registered_uid = (int)$uidStmt->fetchColumn();

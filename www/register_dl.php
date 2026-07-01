@@ -65,9 +65,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'Enter an email address or phone number.';
         } else {
             $method = $email !== '' ? 'email' : 'sms';
-            $error = register_user($username, $email, $password, $phone, $method) ?? '';
-            if ($error === '') {
+            $rv = register_user($username, $email, $password, $phone, $method);
+            // Treat an already-registered email/phone exactly like success (no
+            // enumeration): show the same "check your email" confirmation and
+            // create nothing. Only real validation errors surface to the user.
+            if ($rv === null || $rv === REGISTER_EXISTS_SENTINEL) {
                 $registered_email = $email;
+            } else {
+                $error = $rv;
             }
         }
     }
