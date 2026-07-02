@@ -386,6 +386,39 @@ function send_whatsapp(string $to, string $body): ?string {
     return $err;
 }
 
+/**
+ * Reply to whoever messaged in, on the right channel. Shared by the SMS webhook,
+ * the WhatsApp webhook, and the admin-command layer (sms_admin.php):
+ *   - twilio/plivo:        synchronous TwiML/XML written as the webhook response
+ *   - telnyx/vonage/surge: outbound SMS via API
+ *   - whatsapp:            outbound WhatsApp via WAHA
+ * Uses the entry script's global $from (the sender's number). Admin-command
+ * replies pass $append_optout=false so they don't carry the "Reply STOP" footer.
+ */
+function respond_to_provider(string $provider, string $message, bool $append_optout = true): void {
+    global $from;
+    switch ($provider) {
+        case 'twilio':
+            header('Content-Type: text/xml');
+            echo '<?xml version="1.0" encoding="UTF-8"?>';
+            echo '<Response><Message>' . htmlspecialchars($message) . '</Message></Response>';
+            break;
+        case 'plivo':
+            header('Content-Type: text/xml');
+            echo '<?xml version="1.0" encoding="UTF-8"?>';
+            echo '<Response><Message><Body>' . htmlspecialchars($message) . '</Body></Message></Response>';
+            break;
+        case 'telnyx':
+        case 'vonage':
+        case 'surge':
+            send_sms($from, $message, $append_optout);
+            break;
+        case 'whatsapp':
+            send_whatsapp($from, $message);
+            break;
+    }
+}
+
 /* ── SMS Provider implementations ────────────────────────────────────────── */
 
 function _sms_twilio(string $sid, string $token, string $from, string $to, string $body, string &$raw = ''): ?string {

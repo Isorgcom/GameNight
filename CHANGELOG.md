@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2021] - 2026-07-02
+
+### Fixed
+- **Admin/host text commands (ADMIN, PENDING, APPROVE, WHO, MSG, REMIND, CANCEL, CONFIRM) now work over WhatsApp, not just SMS.** Event owners/managers and site admins could run their events by text on SMS, but the WhatsApp inbound handler (`www/wa_webhook.php`) never invoked the admin-command layer, so those users only ever saw the basic RSVP/EVENTS/HELP replies on WhatsApp. `wa_webhook.php` now loads `sms_admin.php` and dispatches `sms_handle_admin_command(..., 'whatsapp', ...)` right after the user lookup (and the lookup now selects `role`, which the elevation check needs) — mirroring `sms_webhook.php`. Non-elevated users and non-admin verbs fall through to the normal handling. To make replies deliver on the right channel, `respond_to_provider()` was moved out of `sms_webhook.php` into the shared `www/sms.php` (both webhooks and `sms_admin.php` already depend on it) and given a `whatsapp` case that sends via `send_whatsapp()`. No behavior change for SMS.
+
+---
+
 ## [v0.2020] - 2026-07-02
 
 ### Fixed

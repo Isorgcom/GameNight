@@ -434,28 +434,6 @@ function notify_creator_of_rsvp($db, $user, $invite, $rsvp, $from): void {
 }
 
 // ── Provider-specific response helpers ───────────────────────────────────────
-function respond_to_provider(string $provider, string $message, bool $append_optout = true): void {
-    switch ($provider) {
-        case 'twilio':
-            // TwiML response (no opt-out footer is ever appended on this path)
-            header('Content-Type: text/xml');
-            echo '<?xml version="1.0" encoding="UTF-8"?>';
-            echo '<Response><Message>' . htmlspecialchars($message) . '</Message></Response>';
-            break;
-        case 'plivo':
-            // Plivo XML response
-            header('Content-Type: text/xml');
-            echo '<?xml version="1.0" encoding="UTF-8"?>';
-            echo '<Response><Message><Body>' . htmlspecialchars($message) . '</Body></Message></Response>';
-            break;
-        case 'telnyx':
-        case 'vonage':
-        case 'surge':
-            // These providers use API calls for replies, not webhook responses.
-            // Send an outbound SMS instead. Admin command replies pass
-            // $append_optout=false so they don't carry the "Reply STOP" footer.
-            global $from;
-            send_sms($from, $message, $append_optout);
-            break;
-    }
-}
+// respond_to_provider() now lives in sms.php (required above) so the SMS webhook,
+// the WhatsApp webhook, and sms_admin.php can all share it — including the
+// 'whatsapp' reply channel.

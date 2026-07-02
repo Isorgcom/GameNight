@@ -103,7 +103,7 @@ $normalized = substr($digits, 0, 3) . '-' . substr($digits, 3, 3) . '-' . substr
 
 // ── Look up user by phone ────────────────────────────────────────────────────
 $db   = get_db();
-$stmt = $db->prepare('SELECT id, username FROM users WHERE phone = ? OR phone = ?');
+$stmt = $db->prepare('SELECT id, username, role FROM users WHERE phone = ? OR phone = ?');
 $stmt->execute([$normalized, $digits]);
 $user = $stmt->fetch();
 
@@ -118,6 +118,16 @@ if (!$user) {
     }
     // Generic response — don't reveal whether phone is registered
     send_whatsapp($from, "Thanks for your message.");
+    exit;
+}
+
+// ── Admin/host commands (ADMIN, PENDING, APPROVE, MSG, REMIND, CANCEL, CONFIRM) ──
+// Same layer the SMS webhook uses; only elevated users (site admins + event
+// owners/managers) match on an admin verb (or HELP) — everyone else, and any
+// non-admin verb, falls through to the RSVP/EVENTS/HELP handling below. Replies
+// route through respond_to_provider('whatsapp', …) → send_whatsapp().
+require_once __DIR__ . '/sms_admin.php';
+if (sms_handle_admin_command($db, $user, $body, 'whatsapp', $from)) {
     exit;
 }
 
