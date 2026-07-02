@@ -700,6 +700,23 @@ $log_rows  = $db->prepare("
 ");
 $log_rows->execute([$per_page, $offset]);
 $log_rows = $log_rows->fetchAll();
+
+// Event ids referenced on this page → keep only those that still exist,
+// so log rows can deep-link to the editor (deleted events stay plain text).
+$log_event_ids = [];
+foreach ($log_rows as $__a) {
+    if (preg_match_all('/event id: (\d+)/', $__a['action'], $__m)) {
+        foreach ($__m[1] as $__id) $log_event_ids[] = (int)$__id;
+    }
+}
+$log_event_ids = array_values(array_unique($log_event_ids));
+if ($log_event_ids) {
+    $ph = implode(',', array_fill(0, count($log_event_ids), '?'));
+    $st = $db->prepare("SELECT id FROM events WHERE id IN ($ph)");
+    $st->execute($log_event_ids);
+    $log_event_ids = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
+}
+
 $smsLogCount = (int)$db->query('SELECT COUNT(*) FROM sms_log')->fetchColumn();
 
 $site_name    = get_setting('site_name', 'Game Night');
@@ -1643,7 +1660,12 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                             ) ?>
                         </td>
                         <td><?= htmlspecialchars($a['username']) ?></td>
-                        <td><?= htmlspecialchars($a['action']) ?></td>
+                        <td><?= preg_replace_callback('/event id: (\d+)/', function ($m) use ($log_event_ids) {
+                                $id = (int)$m[1];
+                                return in_array($id, $log_event_ids, true)
+                                    ? '<a href="/event_edit.php?id=' . $id . '">' . $m[0] . '</a>'
+                                    : $m[0];
+                            }, htmlspecialchars($a['action'])) ?></td>
                         <td><?= htmlspecialchars($a['ip']) ?></td>
                     </tr>
                 <?php endforeach; ?>

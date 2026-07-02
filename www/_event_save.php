@@ -264,7 +264,7 @@ function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allo
             queue_reminders_for_event($db, $notify_eid);
             $db->prepare('UPDATE events SET reminders_queued = 1 WHERE id = ?')->execute([$notify_eid]);
         }
-        db_log_activity($current['id'], "created event: $title");
+        db_log_activity($current['id'], "created event id: $notify_eid ($title)");
     } else {
         // If the toggle is being flipped OFF, auto-approve any pending rows so they don't get orphaned.
         if (!$requires_approval) {

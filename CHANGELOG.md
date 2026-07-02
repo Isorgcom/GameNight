@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2018] - 2026-07-02
+
+### Added
+- **Event entries in the admin activity log are now clickable, jumping straight to the event.** In Site Settings → Logs, an admin reviewing the audit trail previously saw event actions as inert text (e.g. `edited event id: 42`). The Logs tab (`www/admin_settings.php`) now turns any `event id: N` reference into a link to that event's editor (`/event_edit.php?id=N`), covering edits, RSVPs, invites, sign-ups, and occurrence/series changes. To make freshly created events clickable too, the create log line in `www/_event_save.php` was changed from `created event: <title>` (which recorded no id) to `created event id: N (<title>)`, so it carries the id the linkifier keys on. Only events that still exist are linked: the render collects the ids referenced on the visible page and runs a single `SELECT id FROM events WHERE id IN (...)`, so a log row for a since-deleted event stays plain text rather than pointing at a 404. Action text is HTML-escaped before the anchor is inserted, so no log content can inject markup. Note: pre-existing `created event: <title>` rows already in the log remain plain (their id was never recorded), and deleted-event rows stay plain by design.
+
+---
+
 ## [v0.2017] - 2026-07-01
 
 ### Fixed
