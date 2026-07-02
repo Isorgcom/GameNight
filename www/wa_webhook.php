@@ -129,6 +129,13 @@ $rsvpMap = [
     'maybe' => 'maybe',  'm' => 'maybe', 'unsure' => 'maybe',
 ];
 
+// "Today" in the site timezone (so events don't expire early under UTC). Defined
+// here, before any command handler, because EVENTS/STATUS below also filter on it —
+// previously it was only set further down, so those commands ran with a null date
+// and matched zero events ("you don't have any upcoming events").
+$tz    = get_setting('timezone', 'UTC');
+$today = (new DateTime('now', new DateTimeZone($tz)))->format('Y-m-d');
+
 // Handle HELP command
 if (in_array($keyword, ['help', 'h', '?', 'info'], true)) {
     $siteName = get_setting('site_name', 'Game Night');
@@ -198,11 +205,7 @@ if (preg_match('/^(\d+)\s+(yes|no|maybe|y|n|m)$/i', $keyword, $dm)) {
     $rsvp = $rsvpMap[strtolower($dm[2])] ?? null;
 }
 
-// ── Fetch all upcoming approved invites ─────────────────────────────────────
-// Use configured timezone for "today" so events don't expire early in UTC
-$tz = get_setting('timezone', 'UTC');
-$today = (new DateTime('now', new DateTimeZone($tz)))->format('Y-m-d');
-
+// ── Fetch all upcoming approved invites ($tz/$today set above) ──────────────
 $invStmt = $db->prepare("
     SELECT ei.event_id, ei.id as invite_id, ei.rsvp as old_rsvp, e.title, e.start_date
     FROM event_invites ei

@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2020] - 2026-07-02
+
+### Fixed
+- **WhatsApp/SMS `EVENTS` and `STATUS` commands always replied "you don't have any upcoming events."** In `www/wa_webhook.php` the `$today` date (used to filter out past events) was defined further down the file, *after* the `EVENTS`/`STATUS` command handler that references it. So that handler ran with `$today` unset (null), and the query `... AND e.start_date >= NULL` matched zero rows for every user — even those with upcoming invites. Moved the `$tz`/`$today` definition up above the command handlers (right after the RSVP keyword map) so all three queries that filter on it (`EVENTS`/`STATUS`, the approved-invites fetch, and the pending count) use a valid date. Verified against live data: a user with an approved upcoming invite now correctly gets the numbered event list back.
+
+---
+
 ## [v0.2019] - 2026-07-02
 
 ### Fixed
