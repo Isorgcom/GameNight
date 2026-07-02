@@ -71,9 +71,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             if ($action === 'waha_start') {
-                $payload = json_encode(['name' => $waha_sess, 'config' => [
-                    'webhooks' => [['url' => 'http://gamenight/wa_webhook.php', 'events' => ['message']]],
-                ]]);
+                // Inbound replies arrive via the WAHA-level WHATSAPP_HOOK_URL webhook, which
+                // carries the ?token= that wa_webhook.php's security gate requires. Do NOT
+                // also register a per-session webhook: the one previously set here omitted the
+                // token and so was rejected 403 by wa_webhook.php on every inbound message, and
+                // a second *working* webhook would double-deliver (double-processing RSVP
+                // replies). Start with no per-session webhook.
+                $payload = json_encode(['name' => $waha_sess]);
                 $ch = curl_init(rtrim($waha_url, '/') . '/api/sessions/start');
                 curl_setopt_array($ch, [
                     CURLOPT_POST => true, CURLOPT_POSTFIELDS => $payload,

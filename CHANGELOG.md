@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2019] - 2026-07-02
+
+### Fixed
+- **WhatsApp notifications no longer fire into a dead session or get silently dropped on failure.** After a WAHA WhatsApp session flapped into a `FAILED` state (a corrupted NOWEB app-state sync), outbound sends were rejected by WAHA with HTTP 422 (`Session status is not as expected... expected WORKING`) or 500, yet the notification queue still marked each as delivered and never retried, so those notifications were lost even after the account was reconnected. Three changes harden this path: (1) `send_whatsapp()` in `www/sms.php` now pre-checks the session via a new `waha_require_working_session()` helper (result cached ~15s so a bulk drain probes once, not per recipient) and returns a clear `WhatsApp session not connected (status: …)` error instead of firing into a dead session; (2) `dispatch_queued_notification()` in `www/_notifications.php` now treats a WhatsApp-only failure as retryable — it skips the `event_notifications_sent` dedup marker and returns `false` so `cron_drain` re-attempts the row (capped at 3 attempts) once the session recovers. This is scoped strictly to `preferred_contact = 'whatsapp'` users, for whom WhatsApp is the only channel attempted, so no already-succeeded email/SMS is ever re-sent. (3) `www/admin_settings_dl.php` no longer registers a redundant per-session WAHA webhook that omitted the security token and was rejected 403 by `wa_webhook.php` on every inbound message; inbound replies continue to arrive via the WAHA-level `WHATSAPP_HOOK_URL` webhook, which carries the required token.
+
+---
+
 ## [v0.2018] - 2026-07-02
 
 ### Added

@@ -277,12 +277,54 @@ function sms_log(string $direction, string $phone, string $body, ?string $provid
     }
 }
 
-/* ── WhatsApp via Meta Cloud API ──────────────────────────────────────────── */
+/* ── WhatsApp via WAHA (self-hosted WhatsApp HTTP API) ─────────────────────── */
 
 /**
- * Send a WhatsApp message via Meta Cloud API.
- * Uses a pre-approved template for business-initiated messages,
- * or plain text if within a 24-hour reply window.
+ * Return null if the WAHA session is WORKING, else a human error string.
+ *
+ * Result is cached per session for a few seconds so a bulk drain (many
+ * recipients in one process) does a single status probe rather than one per
+ * message, while still catching a session that drops between batches.
+ */
+function waha_require_working_session(string $waha_url, string $session, string $apiKey): ?string {
+    static $cache = []; // session => [checked_at, error]
+    $now = time();
+    if (isset($cache[$session]) && ($now - $cache[$session][0]) < 15) {
+        return $cache[$session][1];
+    }
+
+    $ch = curl_init(rtrim($waha_url, '/') . '/api/sessions/' . rawurlencode($session));
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 8,
+        CURLOPT_HTTPHEADER     => ['X-Api-Key: ' . $apiKey],
+    ]);
+    $resp = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $cerr = curl_error($ch);
+
+    if ($cerr) {
+        $err = "WhatsApp session unreachable: $cerr";
+    } elseif ($code === 404) {
+        $err = 'WhatsApp session not started (STOPPED)';
+    } else {
+        $j      = json_decode($resp, true);
+        $status = $j['status'] ?? 'UNKNOWN';
+        $err    = $status === 'WORKING' ? null : "WhatsApp session not connected (status: $status)";
+    }
+
+    $cache[$session] = [$now, $err];
+    return $err;
+}
+
+
+/**
+ * Send a WhatsApp message via WAHA.
+ *
+ * Verifies the WAHA session is WORKING before sending: a flapping/unlinked
+ * session otherwise returns a 422/500 that reads as a hard failure per message.
+ * Surfacing "session not connected" lets the queue retry once it recovers
+ * instead of silently dropping the notification.
  *
  * Returns null on success, error string on failure.
  */
@@ -293,6 +335,14 @@ function send_whatsapp(string $to, string $body): ?string {
     $waha_url = get_setting('waha_url', 'http://waha:3000');
     $session  = get_setting('waha_session', 'default');
     if (!$waha_url) return 'WhatsApp (WAHA) not configured.';
+    $apiKey = get_setting('waha_api_key', 'gamenight-waha-internal');
+
+    // ── Pre-send session check: only send into a WORKING session ──
+    $err = waha_require_working_session($waha_url, $session, $apiKey);
+    if ($err !== null) {
+        sms_log('outbound', $e164, $body, 'waha', 'failed', $err, '');
+        return $err;
+    }
 
     // Auto-shorten URLs if enabled
     if (get_setting('url_shortener_enabled') === '1') {
@@ -312,7 +362,6 @@ function send_whatsapp(string $to, string $body): ?string {
         'session' => $session,
     ]);
 
-    $apiKey = get_setting('waha_api_key', 'gamenight-waha-internal');
     $ch = curl_init(rtrim($waha_url, '/') . '/api/sendText');
     curl_setopt_array($ch, [
         CURLOPT_POST           => true,

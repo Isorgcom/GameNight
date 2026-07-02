@@ -681,6 +681,22 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
         $subject, $smsBody, $htmlBody, $waBody
     );
 
+    // Determine the per-channel outcome once for the decisions below.
+    $err = get_last_notification_error();
+    $prefContact = strtolower($user['preferred_contact'] ?? 'email');
+
+    // A WhatsApp-only notification that failed (e.g. WAHA session down) is safely
+    // retryable: for a 'whatsapp' user no other channel was attempted, so re-attempting
+    // re-sends nothing that already succeeded. Skip the dedup marker and return false so
+    // cron_drain releases the row for retry (capped at attempts<3) once the session
+    // recovers — this is the one case where NOT recording delivery is correct. (Rate-limit
+    // errors fall through to the pause path below instead of hot-looping.)
+    if ($err !== null && $prefContact === 'whatsapp'
+        && strpos($err, 'whatsapp:') !== false && !looks_like_rate_limit($err)) {
+        error_log("[GameNight] WhatsApp send failed (will retry) event=$event_id user=$username type=$type: $err");
+        return false;
+    }
+
     // Mark as sent IMMEDIATELY after send_notification returns, regardless of per-channel
     // errors. Rationale: if a user is on 'both' and SMS fails but email succeeded, we must
     // NOT re-send the email on the next retry. The dedup row prevents that re-delivery.
@@ -698,7 +714,6 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
     // Surface provider-level errors. Rate limits trigger a pause. Other errors are logged
     // (not thrown) now that we've recorded the dedup marker — retrying the whole row
     // would re-send the email that already succeeded.
-    $err = get_last_notification_error();
     if ($err !== null) {
         error_log("[GameNight] Notification partial failure for event=$event_id user=$username type=$type: $err");
         if (looks_like_rate_limit($err)) {
