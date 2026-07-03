@@ -371,7 +371,7 @@ $pageHeading = $event ? 'Edit Event' : 'Add Event';
                         <option value="">—</option>
                         <option value="0.5">30m</option><option value="1">1h</option><option value="1.5">1.5h</option>
                         <option value="2">2h</option><option value="3">3h</option><option value="4">4h</option>
-                        <option value="6">6h</option><option value="8">8h</option>
+                        <option value="5">5h</option><option value="6">6h</option><option value="8">8h</option>
                     </select>
                 </label>
             </div>

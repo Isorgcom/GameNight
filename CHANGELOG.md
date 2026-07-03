@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2022] - 2026-07-03
+
+### Added
+- **5h option in the event Duration dropdown.** The Duration picker in `www/event_edit.php` skipped from 4h straight to 6h, so a host running a five-hour event couldn't select it. Added `<option value="5">5h</option>` between 4h and 6h. Duration is client-side only (the submit handler computes `end_time` from `start_time` + the selected hours, and the edit-prefill matches the option from the start/end diff), so 5h works for both creating and editing with no server-side change.
+
+---
+
 ## [v0.2021] - 2026-07-02
 
 ### Fixed
