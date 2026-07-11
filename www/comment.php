@@ -66,6 +66,15 @@ if ($action === 'add') {
         $new_id = (int)$db->lastInsertId(); // capture before db_log_activity overwrites it
         db_log_activity($user['id'], "commented on $type id $content_id");
 
+        // Notify the event circle (owner, managers, yes/maybe attendees) that a
+        // comment was posted. Post comments stay silent — events only. Storm
+        // control: the hourly cap above bounds the sender; queue_event_notification
+        // applies its per-recipient daily cap on top.
+        if ($type === 'event' && get_setting('notifications_enabled', '0') === '1') {
+            require_once __DIR__ . '/_notifications.php';
+            queue_event_comment_notifications($db, $content_id, $user['username'], $new_id);
+        }
+
         if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
             $row    = $db->prepare('SELECT c.id, c.user_id, c.body, c.created_at, u.username FROM comments c JOIN users u ON u.id=c.user_id WHERE c.id=?');
             $row->execute([$new_id]);

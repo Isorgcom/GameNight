@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2023] - 2026-07-11
+
+### Added
+- **Event comments now notify the event circle.** Posting a comment on an event previously saved silently — nobody found out until they next opened the event page. Now `www/comment.php` queues an `event_comment` notification (new type in `www/_notifications.php`) to the event owner, every per-event manager, and approved invitees who RSVP'd yes or maybe — never the commenter themselves, and only registered users (custom invitees without accounts have no page to read the thread on). Delivery rides the existing `pending_notifications` queue, so it respects each recipient's preferred channel (email/SMS/WhatsApp), the site-wide `notifications_enabled` switch, and the per-recipient daily cap; the sender side is already bounded by the hourly comment cap. Email gets the full comment as a quoted block plus a View-event button, SMS gets a 120-char snippet + link, WhatsApp gets the full text. The dispatcher re-fetches the comment at send time, so a comment deleted before the queue drains is silently dropped, and dedup is per comment per recipient (`event_comment_<comment_id>`). Comments on posts remain silent by design.
+
+---
+
 ## [v0.2022] - 2026-07-03
 
 ### Added

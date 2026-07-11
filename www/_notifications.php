@@ -10,6 +10,7 @@
  *   cancel_occurrence      — single occurrence cancelled
  *   event_updated          — event details changed
  *   rsvp_to_creator        — creator gets notified of an RSVP (payload: {rsvp, responder_username, responder_display})
+ *   event_comment          — someone commented on the event page (payload: {comment_id, commenter})
  *   waitlist_promoted      — waitlisted invitee moved up
  *   rsvp_deadline_demoted  — non-responder demoted after deadline
  *   poker_approved         — pending poker player approved (payload: {table: int?, seat: int?})
@@ -151,6 +152,50 @@ function queue_rsvp_reply_notifications(
             'rsvp'               => $rsvp,
             'responder_username' => $responder_username,
             'responder_display'  => $responder_display,
+        ]);
+    }
+}
+
+/**
+ * Queue a "<commenter> commented on <event>" notification to the event circle:
+ * the owner (events.created_by), every per-event manager, and approved invitees
+ * who RSVP'd yes or maybe. Only registered users are notified — commenting is an
+ * in-app feature, so custom invitees without accounts have no page to read it on.
+ * The commenter is never notified about their own comment. Callers gate on the
+ * site-wide notifications_enabled setting.
+ */
+function queue_event_comment_notifications(
+    PDO $db,
+    int $event_id,
+    string $commenter_username,
+    int $comment_id
+): void {
+    if ($event_id <= 0 || $comment_id <= 0) return;
+
+    // Collect recipients, keyed by lowercase username to dedupe owner-also-manager.
+    $recips = [];
+    $c = $db->prepare('SELECT u.username FROM events e JOIN users u ON u.id = e.created_by WHERE e.id = ?');
+    $c->execute([$event_id]);
+    if ($cu = $c->fetchColumn()) $recips[strtolower((string)$cu)] = (string)$cu;
+
+    $m = $db->prepare(
+        "SELECT DISTINCT ei.username FROM event_invites ei
+         JOIN users u ON LOWER(u.username) = LOWER(ei.username)
+         WHERE ei.event_id = ?
+           AND (ei.event_role = 'manager'
+                OR (ei.approval_status = 'approved' AND ei.rsvp IN ('yes','maybe')))"
+    );
+    $m->execute([$event_id]);
+    foreach ($m->fetchAll(PDO::FETCH_COLUMN) as $mu) {
+        if ($mu !== null && $mu !== '') $recips[strtolower((string)$mu)] = (string)$mu;
+    }
+
+    unset($recips[strtolower($commenter_username)]);
+
+    foreach ($recips as $u) {
+        queue_event_notification($db, $event_id, $u, 'event_comment', null, [
+            'comment_id' => $comment_id,
+            'commenter'  => $commenter_username,
         ]);
     }
 }
@@ -378,6 +423,9 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
     } elseif ($type === 'event_poll') {
         // Same rationale as event_message: each queued poll row is its own send.
         $type_tag = 'event_poll_' . $row_id;
+    } elseif ($type === 'event_comment') {
+        // One send per comment per recipient; distinct comments never collapse.
+        $type_tag = 'event_comment_' . (int)($payload['comment_id'] ?? $row_id);
     }
     $occ_key = $occ_date ?: '';
     $seenStmt = $db->prepare(
@@ -647,6 +695,30 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
             if (!empty($user['phone']) && in_array($pc, ['sms', 'whatsapp', 'both'], true)) {
                 poll_start_conversation($db, (string)$user['phone'], (int)$recRow['id']);
             }
+            break;
+
+        case 'event_comment':
+            // A member commented on the event page. Fetch the comment fresh so a
+            // deletion or edit between queue and send is honored.
+            $cid = (int)($payload['comment_id'] ?? 0);
+            $cm = null;
+            if ($cid > 0) {
+                $cs = $db->prepare('SELECT c.body, u.username AS commenter FROM comments c JOIN users u ON u.id = c.user_id WHERE c.id = ?');
+                $cs->execute([$cid]);
+                $cm = $cs->fetch();
+            }
+            if (!$cm) return true; // comment deleted before delivery — treat as handled
+            $site      = get_setting('site_name', 'Game Night');
+            $commenter = ($cm['commenter'] ?? '') !== '' ? $cm['commenter'] : (string)($payload['commenter'] ?? 'Someone');
+            $body      = trim((string)$cm['body']);
+            // Plain ASCII truncation marker to stay GSM-7 on the SMS channel.
+            $snippet   = mb_substr($body, 0, 120) . (mb_strlen($body) > 120 ? '...' : '');
+            $subject  = "$commenter commented on \"$title\"";
+            $smsBody  = $site . ": $commenter commented on \"$title\": $snippet\nView: $url";
+            $htmlBody = '<p><strong>' . htmlspecialchars($commenter) . '</strong> commented on <strong>' . htmlspecialchars($title) . '</strong> (' . htmlspecialchars($when) . '):</p>'
+                      . '<blockquote style="margin:.75rem 0;padding:.5rem .9rem;border-left:3px solid #cbd5e1;color:#475569">' . nl2br(htmlspecialchars($body)) . '</blockquote>'
+                      . '<p style="margin-top:1rem"><a href="' . htmlspecialchars($url) . '" style="display:inline-block;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;background:#2563eb;color:#fff">View event</a></p>';
+            $waBody   = $commenter . ' commented on "' . $title . '"' . "\n\n" . $body . "\n\n" . $url;
             break;
 
         case 'waitlist_promoted':
