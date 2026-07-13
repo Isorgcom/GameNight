@@ -381,7 +381,7 @@ function ordinal($n) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($league['name']) ?> — <?= htmlspecialchars($site_name) ?></title>
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
     <style>
         .lg-wrap { max-width: 960px; margin: 1.5rem auto; padding: 0 1rem; }
         .lg-head { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 1.2rem; margin-bottom: 1rem; }
@@ -1057,7 +1057,7 @@ function ordinal($n) {
                 </div>
             </form>
         </div>
-        <script src="/vendor/jodit/jodit.min.js"></script>
+        <script src="/vendor/jodit/jodit.min.js" defer></script>
         <link rel="stylesheet" href="/vendor/jodit/jodit.min.css">
         <script>
             // Jodit must be initialized only after the editor's container is visible;
@@ -1099,8 +1099,9 @@ function ordinal($n) {
                 if (toggle) toggle.style.display = 'block';
             }
             <?php if ($__post_form_open): ?>
-            // Edit mode: form is already visible, init Jodit now.
-            _initLeaguePostEditor();
+            // Edit mode: form is already visible. jodit.min.js is deferred, so
+            // init on DOMContentLoaded (deferred scripts have run by then).
+            document.addEventListener('DOMContentLoaded', _initLeaguePostEditor);
             <?php endif; ?>
         </script>
         <?php endif; ?>

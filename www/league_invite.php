@@ -68,7 +68,7 @@ if (!$row) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Invitation — <?= htmlspecialchars($site) ?></title>
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
     <style>
         .li-wrap { max-width: 520px; margin: 3rem auto; padding: 0 1rem; }
         .li-card { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 1.5rem; text-align: center; }

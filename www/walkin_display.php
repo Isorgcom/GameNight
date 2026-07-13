@@ -57,10 +57,10 @@ if (!empty($event['start_time'])) {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Registration QR &mdash; <?= htmlspecialchars($event['title']) ?></title>
     <link rel="icon" href="/favicon.php">
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
     <style>
         html { height: 100%; }
         body {
@@ -172,7 +172,7 @@ if (!empty($event['start_time'])) {
     </div>
 </div>
 
-<script src="/vendor/qrcode.min.js"></script>
+<script src="/vendor/qrcode.min.js" defer></script>
 <script>
 var EVENT_ID = <?= $event_id ?>;
 var WALKIN_URL = <?= json_encode($walkin_url) ?>;
@@ -245,7 +245,8 @@ document.addEventListener('visibilitychange', function() {
 
 // Resize QR on window resize
 window.addEventListener('resize', renderQR);
-renderQR();
+// qrcode.min.js is deferred; first draw waits for DOMContentLoaded.
+document.addEventListener('DOMContentLoaded', renderQR);
 </script>
 <script src="/pk-dialogs.js?v=<?= @filemtime(__DIR__ . '/pk-dialogs.js') ?>" defer></script>
 </body>

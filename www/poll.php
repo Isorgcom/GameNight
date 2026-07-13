@@ -72,7 +72,7 @@ if (!$recipient || !$poll || !$event || empty($poll['questions'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Poll &mdash; <?= htmlspecialchars($site_name) ?></title>
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
     <style>
         body { background:#f1f5f9; }
         .po-wrap { max-width: 560px; margin: 2rem auto; padding: 0 1rem; }

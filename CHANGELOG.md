@@ -4,6 +4,23 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2025] - 2026-07-13
+
+### Added
+- **Live invite delivery status in the event modal.** After "Send Invitations" or "Save & Send", messages go into `pending_notifications` and drain in the background — but nothing told the host that, which invited "do I need to press it again?" double-sends. `www/event_invites_dl.php` now returns per-event invite queue counts (pending / dispatched / failed, derived from `attempted_at`/`attempts` state), and the calendar modal's invites panel — which already polls every 4 seconds — renders a status line from them: blue "N invitations queued — sending now… (updates automatically)" while draining, green "All queued invitations were sent" once this modal session watched a queue drain, and red "N could not be sent after several retries" pointing admins at the Notification Log when a row exhausts its 3 attempts. The Send button's confirmation bar and the post-save flash messages now say "queued — delivery runs in the background" instead of the misleading "sent", the panel state appears instantly on click (optimistic, corrected by the next poll), and the modal now fires its first RSVP poll immediately on open instead of 4 seconds later.
+- **`pkBusy(btn, promise)` helper in `www/pk-dialogs.js`.** Disables a button (with `aria-busy` and dimming) while an async action is in flight and restores it when the promise settles — double-submit protection plus slow-network feedback. Adopted on the event modal's comment Post, Sign up to attend, and Leave this event buttons; the Send Invitations and Send message buttons already had hand-rolled equivalents.
+
+### Fixed
+- **User-initiated AJAX failures are no longer silent.** Ten `.catch(){}` blocks swallowed network errors with zero feedback: comment post/edit/delete, member RSVP change, host on-behalf RSVP, event sign-up, and leave-event in `www/calendar.php`; the contact-list refresh in `www/event_edit.php`; and the timer's player-panel actions in `www/timer.php` (`ppPost`, which also ignored `ok:false` server responses — those now surface the server's error text). Each now shows a specific pkAlert. The 8 remaining silent catches are deliberate: background polls (check-in, calendar invites, timer state, admin activity snapshot, cast receiver) and autoplay/wake-lock guards, where an alert per dropped poll would be noise.
+- **Pinch-zoom works again on the timer and walk-in QR pages.** `www/timer.php` and `www/walkin_display.php` shipped `maximum-scale=1.0, user-scalable=no`, blocking zoom for low-vision users. Both now use a standard viewport (timer keeps `viewport-fit=cover`); iOS input auto-zoom stays prevented by the existing mobile `font-size:1rem` input rule in `style.css`.
+- **Stale CSS after deploys.** All 44 `style.css` references now carry `?v=<APP_VERSION>` (the pattern the JS files already used), so browsers pick up new styles on the release that follows this one without a hard refresh.
+
+### Changed
+- **Vendor scripts no longer block first paint.** `vendor/jodit/jodit.min.js` (calendar, league, admin_posts) and `vendor/qrcode.min.js` (calendar, mfa_setup, walkin_display) now load with `defer`. Three pages invoked them at parse time and had their init moved into `DOMContentLoaded` handlers: the admin Posts editor setup (`admin_posts.php`, with `editor` hoisted), the MFA-setup QR draw, the walk-in display's first `renderQR()`, and league.php's edit-mode post editor. `timer.php`'s qrcode/nosleep tags were deliberately left alone: they already sit after the main markup, and deferring NoSleep would silently disable its wake-lock fallback behind the `typeof` guard.
+- **Bigger touch targets.** The comment delete control is now a centered 36px hit area instead of a bare 0-padding glyph, the mobile nav hamburger has a 40px minimum, and `.btn-sm` gets a 38px min-height on mobile (`www/style.css`).
+
+---
+
 ## [v0.2024] - 2026-07-13
 
 ### Security

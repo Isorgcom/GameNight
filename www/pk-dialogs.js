@@ -5,6 +5,7 @@
  *   pkPrompt(message, opts?)           -> Promise<string|null>
  *   pkConfirmForm(formEl, message, opts?)  for onsubmit="return ..."  (submits form on OK)
  *   pkConfirmGo(anchorEl, message, opts?)  for onclick="return ..."   (navigates on OK)
+ *   pkBusy(btn, promise)               -> same promise; disables btn until it settles
  * opts: { title, okLabel, cancelLabel, danger, default, placeholder, inputType }
  * The first arg may be a string (message) or an options object.
  * Reuses the app's .pk-modal-overlay / .pk-modal / .pk-modal-actions / .pk-save styles.
@@ -133,5 +134,23 @@
         var o = normalize(message, opts);
         window.pkConfirm(o.message, o).then(function (ok) { if (ok && anchorEl.href) window.location.href = anchorEl.href; });
         return false;
+    };
+
+    // Disable a button while an async action is in flight, then restore it.
+    // Prevents double-submits and gives slow-network feedback. Returns the same
+    // promise so it composes: pkBusy(btn, fetch(...).then(...)).catch(...)
+    window.pkBusy = function (btn, promise) {
+        if (!btn || !promise || typeof promise.then !== 'function') return promise;
+        var wasDisabled = btn.disabled;
+        btn.disabled = true;
+        btn.setAttribute('aria-busy', 'true');
+        btn.style.opacity = '.6';
+        var restore = function () {
+            btn.disabled = wasDisabled;
+            btn.removeAttribute('aria-busy');
+            btn.style.opacity = '';
+        };
+        promise.then(restore, restore);
+        return promise;
     };
 })();

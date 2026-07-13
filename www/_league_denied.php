@@ -18,7 +18,7 @@ $reason = $denyReason ?? 'hidden_non_member';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>League not available &mdash; <?= htmlspecialchars($site_name) ?></title>
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
     <style>
         .deny-wrap { max-width: 640px; margin: 2.5rem auto; padding: 0 1rem; }
         .deny-card { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 2rem 1.75rem; text-align: center; }

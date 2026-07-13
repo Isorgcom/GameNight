@@ -18,7 +18,7 @@ if (get_setting('allow_registration', '1') !== '1') {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title><?= htmlspecialchars($site_name) ?></title>
-        <link rel="stylesheet" href="/style.css">
+        <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
     </head>
     <body>
     <?php $nav_active = ''; require __DIR__ . '/_nav.php'; ?>
@@ -134,7 +134,7 @@ $site_name = get_setting('site_name', 'Game Night');
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($site_name) ?></title>
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
 </head>
 <body>
 

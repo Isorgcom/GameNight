@@ -205,7 +205,7 @@ $now_local = (new DateTime('now', $local_tz))->format('Y-m-d H:i:s');
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($site_name) ?></title>
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
     <link href="/vendor/jodit/jodit.min.css" rel="stylesheet">
     <style>
         .hint { font-size: .78rem; color: #94a3b8; margin-top: .35rem; }
@@ -471,12 +471,16 @@ $now_local = (new DateTime('now', $local_tz))->format('Y-m-d H:i:s');
 
 <?php require __DIR__ . '/_footer.php'; ?>
 
-<script src="/vendor/jodit/jodit.min.js"></script>
+<script src="/vendor/jodit/jodit.min.js" defer></script>
 <script>
 const csrfToken = <?= json_encode($token) ?>;
 
 // ── Jodit setup ───────────────────────────────────────────────────────────────
-const editor = Jodit.make('#jodit-editor', {
+// jodit.min.js is deferred (it's heavy and render-blocking otherwise), so init
+// must wait for DOMContentLoaded — deferred scripts finish before it fires.
+let editor = null;
+document.addEventListener('DOMContentLoaded', function () {
+editor = Jodit.make('#jodit-editor', {
     height: 420,
     toolbarButtonSize: 'middle',
     buttons: [
@@ -525,6 +529,7 @@ const editor = Jodit.make('#jodit-editor', {
     },
     enableDragAndDropFileToEditor: true,
     insertImageAsBase64URI: false
+});
 });
 
 async function uploadImageToEditor(file, ed) {

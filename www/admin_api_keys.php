@@ -64,7 +64,7 @@ function api_keys_admin_fmt(?string $utc_dt, DateTimeZone $local_tz): string {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>API Keys — <?= htmlspecialchars($site_name) ?></title>
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
     <style>
         .ak-card { background:#fff; border:1.5px solid #e2e8f0; border-radius:10px; padding:1.25rem; margin-bottom:1rem; }
         .ak-table { width:100%; border-collapse:collapse; font-size:.875rem; }

@@ -33,7 +33,7 @@ $vals = $league ?: [
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= $isEdit ? 'Edit' : 'Create' ?> League — <?= htmlspecialchars($site_name) ?></title>
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
     <style>
         .le-wrap { max-width: 560px; margin: 1.5rem auto; padding: 0 1rem; }
         .le-card { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 1.25rem; }

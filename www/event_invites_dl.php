@@ -63,5 +63,25 @@ foreach ($stmt->fetchAll() as $inv) {
     }
 }
 
+// Live invite delivery status: invites for this event still waiting in the
+// queue, already dispatched, or dead after exhausting retries. The modal polls
+// this, so the host sees "sending…" progress instead of guessing whether the
+// send button worked. (Failed = attempts exhausted; row ages out after 7 days.)
+$q = $db->prepare(
+    "SELECT
+        SUM(CASE WHEN attempted_at IS NULL AND attempts < 3 THEN 1 ELSE 0 END)  AS pending,
+        SUM(CASE WHEN attempted_at IS NOT NULL THEN 1 ELSE 0 END)               AS dispatched,
+        SUM(CASE WHEN attempted_at IS NULL AND attempts >= 3 THEN 1 ELSE 0 END) AS failed
+     FROM pending_notifications
+     WHERE event_id = ? AND notify_type = 'invite'"
+);
+$q->execute([$eid]);
+$qr = $q->fetch() ?: [];
+$invite_queue = [
+    'pending'    => (int)($qr['pending'] ?? 0),
+    'dispatched' => (int)($qr['dispatched'] ?? 0),
+    'failed'     => (int)($qr['failed'] ?? 0),
+];
+
 header('Content-Type: application/json');
-echo json_encode(['ok' => true, 'base' => $base, 'occ' => $occ]);
+echo json_encode(['ok' => true, 'base' => $base, 'occ' => $occ, 'invite_queue' => $invite_queue]);

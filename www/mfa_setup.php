@@ -134,7 +134,7 @@ $site_name = get_setting('site_name', 'Game Night');
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Two-Factor Setup — <?= htmlspecialchars($site_name) ?></title>
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
 </head>
 <body>
 
@@ -230,9 +230,11 @@ $site_name = get_setting('site_name', 'Game Night');
 </div>
 
 <?php if ($totp_uri): ?>
-<script src="/vendor/qrcode.min.js"></script>
+<script src="/vendor/qrcode.min.js" defer></script>
 <script>
-(function () {
+// qrcode.min.js is deferred, so draw on DOMContentLoaded (deferred scripts
+// are guaranteed to have run by then).
+document.addEventListener('DOMContentLoaded', function () {
     var wrap = document.getElementById('mfaQr');
     if (!wrap || typeof qrcode === 'undefined') return;
     var qr = qrcode(0, 'M');
@@ -244,7 +246,7 @@ $site_name = get_setting('site_name', 'Game Night');
     img.style.imageRendering = 'pixelated';
     img.alt = 'Authenticator QR code';
     wrap.appendChild(img);
-})();
+});
 </script>
 <?php endif; ?>
 </body>

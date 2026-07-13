@@ -71,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
     if (($res['invites_sent'] ?? 0) > 0) {
-        $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event saved. Invitations sent to ' . (int)$res['invites_sent'] . ' invitee(s).'];
+        $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event saved. ' . (int)$res['invites_sent'] . ' invitation(s) queued — delivery runs in the background (the event page shows progress).'];
     } else {
         $_SESSION['flash'] = ['type' => 'success', 'msg' => $action === 'add' ? 'Event added.' : 'Event updated.'];
     }
@@ -171,7 +171,7 @@ $pageHeading = $event ? 'Edit Event' : 'Add Event';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($pageHeading) ?> &mdash; <?= htmlspecialchars($site_name) ?></title>
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
     <style>
         /* Page frame: the editor fills the viewport below the nav, with the invite
            panes scrolling internally — same layout the 95vh modal provided. */
@@ -623,7 +623,7 @@ function refreshUserList() {
                 filterAllUsers(searchEl ? searchEl.value : '');
             }
         })
-        .catch(() => {});
+        .catch(() => pkAlert('Request failed — could not load the contact list.'));
 }
 
 function filterAllUsers(q) {

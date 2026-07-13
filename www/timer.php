@@ -88,7 +88,7 @@ if (isset($_GET['view']) && $_GET['view'] === 'remote' && !empty($_GET['key'])) 
     $ts->execute([$remote_key]);
     $timer = $ts->fetch();
     if (!$timer) {
-        echo '<!DOCTYPE html><html><head><title>Invalid Link</title><link rel="stylesheet" href="/style.css"></head><body style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0f172a;color:#fff"><div class="card" style="text-align:center"><h2>Invalid Timer Link</h2><p>This timer link is no longer valid.</p></div></body></html>';
+        echo '<!DOCTYPE html><html><head><title>Invalid Link</title><link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>"></head><body style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0f172a;color:#fff"><div class="card" style="text-align:center"><h2>Invalid Timer Link</h2><p>This timer link is no longer valid.</p></div></body></html>';
         exit;
     }
 
@@ -272,10 +272,10 @@ $themeCss   = timer_theme_css_vars($themeProps);
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Poker Timer &mdash; <?= htmlspecialchars($site_name) ?></title>
     <link rel="icon" href="/favicon.php">
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
     <link rel="stylesheet" href="/vendor/fonts/fonts.css">
     <script>window.TIMER_THEME = <?= json_encode($themeProps, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?>; window.TIMER_THEME_ID = <?= $themeId ? (int)$themeId : 'null' ?>;</script>
     <style id="themeStyle"><?= $themeCss ?></style>
@@ -5875,8 +5875,11 @@ function ppPost(action, data, cb) {
     for (var k in data) fd.append(k, data[k]);
     fetch('/checkin_dl.php', { method: 'POST', body: fd, credentials: 'same-origin' })
         .then(function(r) { return r.json(); })
-        .then(function(j) { if (j.ok) { fetchPlayers(); if (cb) cb(j); } })
-        .catch(function() {});
+        .then(function(j) {
+            if (j.ok) { fetchPlayers(); if (cb) cb(j); }
+            else pkAlert(j.error || 'Request failed');
+        })
+        .catch(function() { pkAlert('Request failed'); });
 }
 
 function ppBuyin(pid) { ppPost('toggle_buyin', { player_id: pid }); }

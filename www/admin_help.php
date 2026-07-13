@@ -47,7 +47,7 @@ $tips = $tipsStmt->fetchAll();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Help Tips &mdash; <?= htmlspecialchars($site_name) ?></title>
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
     <style>
         .hlp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; align-items: start; }
         @media (max-width: 760px) { .hlp-grid { grid-template-columns: 1fr; } }

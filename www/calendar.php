@@ -125,7 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$__save_res['ok']) {
             $_SESSION['flash'] = ['type' => 'error', 'msg' => $__save_res['error']];
         } elseif (($__save_res['invites_sent'] ?? 0) > 0) {
-            $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event saved. Invitations sent to ' . (int)$__save_res['invites_sent'] . ' invitee(s).'];
+            $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event saved. ' . (int)$__save_res['invites_sent'] . ' invitation(s) queued — delivery runs in the background (the event page shows progress).'];
         } else {
             $_SESSION['flash'] = ['type' => 'success', 'msg' => $action === 'add' ? 'Event added.' : 'Event updated.'];
         }
@@ -886,7 +886,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($site_name) ?></title>
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
     <style>
 
         .cal-header {
@@ -1379,7 +1379,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
             }
         }
     </style>
-    <?php if ($isAdmin): ?><script src="/vendor/qrcode.min.js"></script><?php endif; ?>
+    <?php if ($isAdmin): ?><script src="/vendor/qrcode.min.js" defer></script><?php endif; ?>
     <?php if ($current): ?><link href="/vendor/jodit/jodit.min.css" rel="stylesheet"><?php endif; ?>
 </head>
 <body>
@@ -1731,6 +1731,11 @@ const eventComments      = <?= json_encode($ev_comments, JSON_HEX_TAG) ?>;
 const eventMessages      = <?= json_encode((object)$ev_messages, JSON_HEX_TAG) ?>;
 const eventInvites       = <?= json_encode($ev_invites, JSON_HEX_TAG) ?>;
 const eventInvitesByOcc  = <?= json_encode($ev_invites_occ, JSON_HEX_TAG) ?>;
+// Live invite queue state per event ({pending, dispatched, failed}), fed by the
+// 4s RSVP poll. Drives the "sending…" status line so the host can see the queue
+// draining instead of wondering whether Send worked.
+const eventInviteQueue   = {};
+const _invQueueSawPending = {};
 const eventPoker         = <?= json_encode($ev_poker, JSON_HEX_TAG | JSON_FORCE_OBJECT) ?>;
 const CURRENT_USERNAME  = <?= json_encode($current['username'] ?? '', JSON_HEX_TAG) ?>;
 const CURRENT_USER_ID   = <?= json_encode($current['id'] ?? null, JSON_HEX_TAG) ?>;
@@ -1958,6 +1963,25 @@ function renderInvitesPanel(eid) {
     // "Send Invitations" banner — managers only, when notifications are on and some approved
     // invitee still has no invite on record. Invites are not auto-sent on save anymore.
     if (canManage && NOTIFS_ENABLED) {
+        // Live delivery status: show the queue draining so the host knows Send
+        // worked and doesn't press it again. Green "all sent" appears only after
+        // this modal session actually watched invites go through the queue.
+        const q = eventInviteQueue[eid];
+        if (q && q.pending > 0) {
+            ih += '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:.5rem .7rem;margin-bottom:.7rem;font-size:.8rem;color:#1e40af;font-weight:600">'
+                + '&#9203; ' + q.pending + ' invitation' + (q.pending === 1 ? '' : 's') + ' queued &mdash; sending now&hellip; <span style="font-weight:400;color:#3b82f6">(updates automatically)</span>'
+                + '</div>';
+        } else if (q && _invQueueSawPending[eid]) {
+            ih += '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:.5rem .7rem;margin-bottom:.7rem;font-size:.8rem;color:#166534;font-weight:600">'
+                + '&#10003; All queued invitations were sent.'
+                + '</div>';
+        }
+        if (q && q.failed > 0) {
+            ih += '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.5rem .7rem;margin-bottom:.7rem;font-size:.8rem;color:#991b1b;font-weight:600">'
+                + '&#9888; ' + q.failed + ' invitation' + (q.failed === 1 ? '' : 's') + ' could not be sent after several retries. An admin can check the Notification Log for the error.'
+                + '</div>';
+        }
+
         // Count self too — a host who invites themselves should still be able to send
         // (and receive) the invite email for their own event. Invitees with no email/phone
         // can never be reached, so keep them out of the "not sent" count and warn separately.
@@ -2126,6 +2150,7 @@ let _rsvpPollEid   = null;
 function startRsvpPoll(eid) {
     stopRsvpPoll();
     _rsvpPollEid = eid;
+    pollRsvps(eid); // immediate first poll so queue/sent state shows on open, not 4s later
     _rsvpPollTimer = setInterval(() => pollRsvps(eid), 4000);
 }
 
@@ -2156,6 +2181,16 @@ function pollRsvps(eid) {
                     if (currentEvent && currentEvent.id == eid) renderInvitesPanel(eid);
                 }
             }
+            // Invite queue status (sending / failed counts)
+            if (data.invite_queue) {
+                const oldQ = JSON.stringify(eventInviteQueue[eid] || {});
+                const newQ = JSON.stringify(data.invite_queue);
+                if (data.invite_queue.pending > 0) _invQueueSawPending[eid] = true;
+                if (oldQ !== newQ) {
+                    eventInviteQueue[eid] = data.invite_queue;
+                    if (currentEvent && currentEvent.id == eid) renderInvitesPanel(eid);
+                }
+            }
         })
         .catch(() => {});
 }
@@ -2165,8 +2200,9 @@ if (vCommentForm) {
     vCommentForm.addEventListener('submit', function(e) {
         e.preventDefault();
         const textarea = this.querySelector('textarea[name="body"]');
+        const postBtn  = this.querySelector('button[type="submit"]');
         const data = new FormData(this);
-        fetch('/comment.php', {
+        pkBusy(postBtn, fetch('/comment.php', {
             method: 'POST',
             body: data,
             headers: {'X-Requested-With': 'XMLHttpRequest'}
@@ -2212,7 +2248,7 @@ if (vCommentForm) {
             textarea.value = '';
             showSavedBar();
         })
-        .catch(() => {});
+        .catch(() => pkAlert('Request failed — your comment was not posted.')));
     });
 }
 
@@ -2267,7 +2303,7 @@ if (vRsvpSelect) {
             renderInvitesPanel(eid);
             showSavedBar();
         })
-        .catch(() => {});
+        .catch(() => pkAlert('Request failed — your RSVP was not saved.'));
     });
 }
 
@@ -2301,7 +2337,7 @@ if (vInvDiv) {
                 renderInvitesPanel(eid);
                 showSavedBar();
             })
-            .catch(() => {});
+            .catch(() => pkAlert('Request failed — the RSVP was not saved.'));
     });
 
     // Delegated listener: Approve / Deny / Resend / Send-all buttons in the invites panel
@@ -2328,7 +2364,15 @@ if (vInvDiv) {
                         pkAlert(res.error || 'Could not send invitations.');
                         return;
                     }
-                    showSavedBar(res.sent > 0 ? ('Invitations sent to ' + res.sent) : 'Already sent');
+                    if (res.sent > 0) {
+                        // Reflect the queue immediately (the 4s poll will correct it)
+                        // so the "sending…" line appears without waiting a cycle.
+                        _invQueueSawPending[eid] = true;
+                        eventInviteQueue[eid] = { pending: res.sent, dispatched: (eventInviteQueue[eid] || {}).dispatched || 0, failed: (eventInviteQueue[eid] || {}).failed || 0 };
+                        showSavedBar(res.sent + ' invitation' + (res.sent === 1 ? '' : 's') + ' queued — sending now');
+                    } else {
+                        showSavedBar('Already sent');
+                    }
                     pollRsvps(eid); // refresh sent flags → banner clears, buttons flip to Resend
                 })
                 .catch(() => {
@@ -2443,7 +2487,7 @@ if (vSignupBtn) {
         data.append('csrf_token', CAL_CSRF);
         data.append('action', 'self_signup');
         data.append('event_id', eid);
-        fetch('/calendar.php', {
+        pkBusy(this, fetch('/calendar.php', {
             method: 'POST',
             body: data,
             headers: {'X-Requested-With': 'XMLHttpRequest'}
@@ -2475,7 +2519,7 @@ if (vSignupBtn) {
                 if (vLW) { vLW.style.display = ''; document.getElementById('vLeaveBtn').dataset.eid = eid; }
             }
         })
-        .catch(() => {});
+        .catch(() => pkAlert('Request failed — sign-up did not go through.')));
     });
 }
 
@@ -2488,7 +2532,7 @@ if (vLeaveBtn) {
         data.append('csrf_token', CAL_CSRF);
         data.append('action', 'self_remove');
         data.append('event_id', eid);
-        fetch('/calendar.php', {
+        pkBusy(this, fetch('/calendar.php', {
             method: 'POST',
             body: data,
             headers: {'X-Requested-With': 'XMLHttpRequest'}
@@ -2509,7 +2553,7 @@ if (vLeaveBtn) {
             document.getElementById('vSignupBtn').dataset.eid = eid;
             showSavedBar('Removed');
         })
-        .catch(() => {});
+        .catch(() => pkAlert('Request failed — you were not removed from the event.')));
     });
 }
 
@@ -2560,7 +2604,7 @@ function editCalComment(id, btn, origBody) {
             btn.style.display = '';
             showSavedBar();
         })
-        .catch(() => {});
+        .catch(() => pkAlert('Request failed — the comment edit was not saved.'));
     });
 }
 
@@ -2598,7 +2642,7 @@ async function deleteCalComment(id) {
             onCalSelChange();
         }
     })
-    .catch(() => {});
+    .catch(() => pkAlert('Request failed — the comment was not deleted.'));
 }
 
 function onCalSelChange() {
@@ -2965,7 +3009,7 @@ function copyWalkinLink() {
         </div>
     </div>
 </div>
-<script src="/vendor/jodit/jodit.min.js"></script>
+<script src="/vendor/jodit/jodit.min.js" defer></script>
 <script>
 let _emEditor = null;
 function _emEnsureEditor() {
