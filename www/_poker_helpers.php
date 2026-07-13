@@ -441,6 +441,32 @@ function get_payouts($db, $session_id) {
     return $stmt->fetchAll();
 }
 
+// Persist tournament winnings: recompute every player's payout (cents) from the
+// session's percentage structure and current pool, keyed by finish_position.
+// Called whenever standings or the structure change so poker_players.payout
+// always matches what the screen shows — it's the durable record stats read.
+// No-op for cash games (cash_out is their money record).
+function pk_apply_tournament_payouts($db, $session_id) {
+    $sess = $db->prepare('SELECT game_type FROM poker_sessions WHERE id = ?');
+    $sess->execute([$session_id]);
+    if (($sess->fetchColumn() ?: '') !== 'tournament') return;
+
+    $poolTotal = (int)(calc_pool($db, $session_id)['pool_total'] ?? 0);
+    $pctByPlace = [];
+    foreach (get_payouts($db, $session_id) as $po) {
+        $pctByPlace[(int)$po['place']] = (float)$po['percentage'];
+    }
+
+    $players = $db->prepare('SELECT id, finish_position, payout FROM poker_players WHERE session_id = ? AND removed = 0');
+    $players->execute([$session_id]);
+    $upd = $db->prepare('UPDATE poker_players SET payout = ? WHERE id = ?');
+    foreach ($players->fetchAll() as $p) {
+        $pos = (int)($p['finish_position'] ?? 0);
+        $amt = ($pos > 0 && isset($pctByPlace[$pos])) ? (int)round($poolTotal * $pctByPlace[$pos] / 100) : 0;
+        if ((int)$p['payout'] !== $amt) $upd->execute([$amt, (int)$p['id']]);
+    }
+}
+
 // ─── Per-session activity log ──────────────────────────────
 // Format cents as a short dollar string, dropping ".00" on whole amounts
 // (matches the front-end formatMoney() in checkin.php).

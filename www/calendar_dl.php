@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Helper: check if current user is a manager of the given event
     if (!$isAdmin) {
-        $ownerActions = ['edit', 'delete', 'delete_occurrence', 'cancel_series', 'uncancel_series', 'remove_invitee'];
+        $ownerActions = ['edit', 'delete', 'remove_invitee'];
         if (in_array($action, $ownerActions, true)) {
             // Single authoritative check (creator, per-event manager, league owner/manager, or admin).
             $chkId = (int)($_POST['id'] ?? 0);
@@ -65,63 +65,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    if ($action === 'delete_occurrence') {
-        $id   = (int)($_POST['id'] ?? 0);
-        $date = trim($_POST['occurrence_date'] ?? '');
-        if ($id > 0 && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
-            $db->prepare('INSERT OR IGNORE INTO event_exceptions (event_id, date) VALUES (?, ?)')
-               ->execute([$id, $date]);
-
-            // ── Feature 2: queue cancellation notifications to RSVPed invitees ──
-            $occ_inv = get_occurrence_invitees($db, $id, $date, true);
-            foreach ($occ_inv as $inv) {
-                if (!in_array($inv['rsvp'] ?? '', ['yes', 'maybe'])) continue;
-                queue_event_notification($db, $id, $inv['username'], 'cancel_occurrence', $date);
-            }
-
-            db_log_activity($current['id'], "removed occurrence $date from event id: $id");
-            $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Occurrence removed.'];
-        }
-    }
-
-    // ── Feature 3: Cancel future occurrences of a recurring series ──
-    if ($action === 'cancel_series') {
-        $id          = (int)($_POST['id'] ?? 0);
-        $cancel_from = trim($_POST['cancel_from'] ?? date('Y-m-d'));
-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $cancel_from)) $cancel_from = date('Y-m-d');
-        if ($id > 0) {
-            $db->prepare('UPDATE events SET cancelled_from=? WHERE id=?')->execute([$cancel_from, $id]);
-            // Queue cancellation notifications (queue_event_notification handles the template)
-            $all_inv = $db->prepare("SELECT ei.username FROM event_invites ei
-                                     WHERE ei.event_id=? AND ei.occurrence_date IS NULL");
-            $all_inv->execute([$id]);
-            foreach ($all_inv->fetchAll() as $inv) {
-                queue_event_notification($db, $id, $inv['username'], 'cancel_occurrence', $cancel_from);
-            }
-            db_log_activity($current['id'], "cancelled series from $cancel_from for event id: $id");
-            if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
-                header('Content-Type: application/json');
-                echo json_encode(['ok' => true, 'cancelled_from' => $cancel_from]);
-                exit;
-            }
-            $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Future occurrences cancelled.'];
-        }
-    }
-
-    // ── Feature 3: Uncancel a series ──
-    if ($action === 'uncancel_series') {
-        $id = (int)($_POST['id'] ?? 0);
-        if ($id > 0) {
-            $db->prepare('UPDATE events SET cancelled_from=NULL WHERE id=?')->execute([$id]);
-            db_log_activity($current['id'], "uncancelled series for event id: $id");
-            if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
-                header('Content-Type: application/json');
-                echo json_encode(['ok' => true]);
-                exit;
-            }
-            $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Series resumed.'];
-        }
-    }
+    // (delete_occurrence / cancel_series / uncancel_series handlers removed —
+    // recurrence is gone, nothing in the UI posted them, and cancel_series wrote
+    // to the long-removed events.cancelled_from column.)
 
     // ── Feature 5: Remove an invitee from all future occurrences ──
     if ($action === 'remove_invitee') {

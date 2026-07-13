@@ -114,11 +114,13 @@ if (isset($_GET['view']) && $_GET['view'] === 'remote' && !empty($_GET['key'])) 
         $event = $evStmt->fetch();
     }
 
-    // Check if logged-in user can control
+    // Check if logged-in user can control. The remote key alone is view-only;
+    // control requires manage rights on the event (host/manager/admin) so a
+    // guest scanning the table QR can't pause or skip levels.
     $current = current_user();
     if ($current) {
         $isAdmin = $current['role'] === 'admin';
-        $can_control = check_event_access($db, (int)$session['event_id'], $current, $isAdmin);
+        $can_control = $session && can_manage_event($db, (int)$session['event_id'], (int)$current['id'], $isAdmin);
         $csrf = csrf_token();
     }
 
@@ -238,7 +240,14 @@ if (isset($_GET['view']) && $_GET['view'] === 'remote' && !empty($_GET['key'])) 
         $levels = $lvl->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    $can_control = true;
+    // Event-linked timers: control requires manage rights (host/manager/admin);
+    // invitees who open the timer page get a view-only screen. Standalone
+    // timers are controlled by whoever owns them (enforced above by lookup).
+    if ($event) {
+        $can_control = can_manage_event($db, (int)$event['id'], (int)$current['id'], $isAdmin);
+    } else {
+        $can_control = true;
+    }
     $csrf = csrf_token();
     $is_guest = !$current;
 }

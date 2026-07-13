@@ -3020,6 +3020,36 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
 
     <!-- ── Scheduled Tasks (Cron) tab ── -->
     <div class="tab-panel <?= $tab === 'cron' ? 'active' : '' ?>">
+        <?php $cronToken = get_setting('cron_token', ''); ?>
+        <?php if ($cronToken === ''): ?>
+        <div style="margin-bottom:1rem;padding:.6rem .75rem;background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;font-size:.82rem;color:#dc2626;font-weight:600">
+            &#9888; No cron token set. Generate one below, or restart the container to auto-generate one.
+        </div>
+        <?php else: ?>
+        <?php
+            $lastCronRun = (int)get_setting('last_cron_run_ts', '0');
+            $cronAgeSec  = $lastCronRun > 0 ? (time() - $lastCronRun) : -1;
+            if ($cronAgeSec >= 0) {
+                if ($cronAgeSec < 60)        $cronAgeStr = 'under a minute ago';
+                elseif ($cronAgeSec < 3600)  $cronAgeStr = floor($cronAgeSec / 60) . ' min ago';
+                elseif ($cronAgeSec < 86400) $cronAgeStr = floor($cronAgeSec / 3600) . ' hour(s) ago';
+                else                         $cronAgeStr = floor($cronAgeSec / 86400) . ' day(s) ago';
+            }
+        ?>
+        <?php if ($lastCronRun <= 0): ?>
+        <div style="margin-bottom:1rem;padding:.6rem .75rem;background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;font-size:.82rem;color:#b45309;font-weight:600">
+            &#9888; Cron token configured, but cron has <strong>never run</strong>. Check that the container's background scheduler (or your crontab entry) is actually hitting <code>/cron.php</code>.
+        </div>
+        <?php elseif ($cronAgeSec > 900): ?>
+        <div style="margin-bottom:1rem;padding:.6rem .75rem;background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;font-size:.82rem;color:#dc2626;font-weight:600">
+            &#9888; Cron last ran <?= htmlspecialchars($cronAgeStr) ?> (<?= date('M j, g:i A', $lastCronRun) ?>) &mdash; expected every 5 minutes. The scheduler may be down; reminders and queued notifications are not being processed.
+        </div>
+        <?php else: ?>
+        <div style="margin-bottom:1rem;padding:.6rem .75rem;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;font-size:.82rem;color:#16a34a;font-weight:600">
+            &#10003; Scheduled tasks are active. Last run: <?= date('M j, g:i A', $lastCronRun) ?> (<?= htmlspecialchars($cronAgeStr) ?>).
+        </div>
+        <?php endif; ?>
+        <?php endif; ?>
         <div class="sms-grid">
             <!-- What is the cron job? -->
             <div class="card" style="max-width:100%">
@@ -3108,16 +3138,6 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 </div>
             </div>
 
-            <?php $cronToken = get_setting('cron_token', ''); ?>
-            <?php if ($cronToken === ''): ?>
-            <div style="margin-top:1rem;padding:.6rem .75rem;background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;font-size:.82rem;color:#dc2626;font-weight:600">
-                &#9888; No cron token set. Generate one above, or restart the container to auto-generate one.
-            </div>
-            <?php else: ?>
-            <div style="margin-top:1rem;padding:.6rem .75rem;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;font-size:.82rem;color:#16a34a;font-weight:600">
-                &#10003; Cron token configured. Scheduled tasks are active.
-            </div>
-            <?php endif; ?>
         </div>
     </div>
 

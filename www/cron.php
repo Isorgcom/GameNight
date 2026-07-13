@@ -28,6 +28,12 @@ if ($cron_token === '' || $provided === '' || !hash_equals($cron_token, $provide
 }
 
 $db       = get_db();
+
+// Heartbeat: record that cron actually ran so the admin Cron tab can show real
+// status instead of just "a token exists". Written before any work so a mid-run
+// failure still proves the scheduler is alive.
+set_setting('last_cron_run_ts', (string)time());
+
 $local_tz = new DateTimeZone(get_setting('timezone', 'UTC'));
 $now      = new DateTime('now', $local_tz);
 $today    = $now->format('Y-m-d');

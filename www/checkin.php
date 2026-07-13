@@ -1019,12 +1019,12 @@ function renderPlayerRows() {
             h += '<td><span style="color:#d97706;font-weight:600;background:#fefce8;padding:.1rem .4rem;border-radius:4px;font-size:.75rem;border:1px solid #fde68a">Pending</span></td>';
         } else if (isTourney()) {
             if (isElim) {
-                var elAmt = payoutForPlace(p.finish_position);
+                var elAmt = parseInt(p.payout) || payoutForPlace(p.finish_position);
                 h += '<td><span style="color:#ef4444;font-weight:600">' + ordinalLabel(p.finish_position) + '</span>'
                    + (elAmt > 0 ? ' <span style="color:#16a34a;font-weight:700;font-size:.78rem" title="Prize owed">' + formatMoney(elAmt) + '</span>' : '')
                    + '</td>';
             } else if (isWinner) {
-                var wAmt = payoutForPlace(1);
+                var wAmt = parseInt(p.payout) || payoutForPlace(1);
                 h += '<td><span style="color:#b8860b;font-weight:700">🏆 1st</span>'
                    + (wAmt > 0 ? ' <span style="color:#16a34a;font-weight:700;font-size:.78rem" title="Prize">' + formatMoney(wAmt) + '</span>' : '')
                    + '</td>';
@@ -1108,8 +1108,8 @@ function renderMobileCards() {
         if (isPending) {
             statusText = 'Pending'; statusColor = '#d97706'; statusBg = '#fefce8';
         } else if (isTourney()) {
-            if (isElim) { var moAmt = payoutForPlace(p.finish_position); statusText = ordinalLabel(p.finish_position) + (moAmt > 0 ? ' · ' + formatMoney(moAmt) : ''); statusColor = '#ef4444'; statusBg = '#fef2f2'; }
-            else if (isWinner) { var woAmt = payoutForPlace(1); statusText = '🏆 1st' + (woAmt > 0 ? ' · ' + formatMoney(woAmt) : ''); statusColor = '#b8860b'; statusBg = '#fffbeb'; }
+            if (isElim) { var moAmt = parseInt(p.payout) || payoutForPlace(p.finish_position); statusText = ordinalLabel(p.finish_position) + (moAmt > 0 ? ' · ' + formatMoney(moAmt) : ''); statusColor = '#ef4444'; statusBg = '#fef2f2'; }
+            else if (isWinner) { var woAmt = parseInt(p.payout) || payoutForPlace(1); statusText = '🏆 1st' + (woAmt > 0 ? ' · ' + formatMoney(woAmt) : ''); statusColor = '#b8860b'; statusBg = '#fffbeb'; }
             else if (parseInt(p.bought_in)) { statusText = 'Playing'; statusColor = '#16a34a'; statusBg = '#f0fdf4'; }
         } else {
             if (hasCashedOut) { var mBusted = parseInt(p.cash_out) === 0; statusText = mBusted ? 'Busted' : 'Cashed Out'; statusColor = mBusted ? '#dc2626' : '#64748b'; statusBg = mBusted ? '#fef2f2' : '#f1f5f9'; }
@@ -1980,7 +1980,7 @@ function bulkRemoveConfirm() {
 }
 
 function showWinner(w) {
-    var amt = payoutForPlace(1);
+    var amt = (w && parseInt(w.payout)) || payoutForPlace(1);
     document.getElementById('winnerMsg').textContent = (w && w.display_name ? w.display_name : 'Winner') + ' wins!';
     document.getElementById('winnerSub').innerHTML = '1st place' + (amt > 0 ? ' &middot; ' + formatMoney(amt) : '') + '<br>The game is now finished.';
     document.getElementById('winnerModal').classList.add('open');
@@ -2685,8 +2685,18 @@ loadSession();
 window.addEventListener('resize', function() { positionAllSegThumbs(false); });
 
 // Auto-refresh every 10 seconds
-// Uses poll=1 to skip sync_invitees (prevents re-adding removed players)
-// Pool stats update silently; player list refreshes only if count changes
+// Pool stats update silently; the roster re-renders whenever the server content
+// differs from local state (rebuys, cash-outs, eliminations, seat moves from
+// another device — not just player-count changes). Skipped while the host is
+// typing in a roster field so the re-render can't steal focus mid-edit.
+function rosterEditInProgress() {
+    var ae = document.activeElement;
+    if (!ae) return false;
+    var tag = (ae.tagName || '').toLowerCase();
+    if (tag !== 'input' && tag !== 'textarea' && tag !== 'select') return false;
+    return !!(ae.closest && ae.closest('#playerBody, #mobileList, .pk-table-grid, #payoutCard, #poolCard, #statsRow'));
+}
+
 setInterval(function() {
     if (!SESSION) return;
     fetch('/checkin_dl.php?action=get_session&event_id=' + EVENT_ID)
@@ -2703,7 +2713,10 @@ setInterval(function() {
                     poolEl.innerHTML = '<small>Prize Pool</small>' + formatMoney(POOL.pool_total);
                 }
             }
-            if (j.players.length !== PLAYERS.length) {
+            var changed = JSON.stringify(j.players) !== JSON.stringify(PLAYERS)
+                       || JSON.stringify(j.payouts) !== JSON.stringify(PAYOUTS)
+                       || JSON.stringify(j.session) !== JSON.stringify(SESSION);
+            if (changed && !rosterEditInProgress()) {
                 SESSION = j.session;
                 PLAYERS = j.players;
                 PAYOUTS = j.payouts;

@@ -4,6 +4,24 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2024] - 2026-07-13
+
+### Security
+- **Timer control now requires manage rights on the event; the remote link and QR are view-only.** Previously any logged-in invitee who opened `timer.php?event_id=` got full control buttons, and the `?view=remote&key=` link granted control to any logged-in user with event access — so a table full of guests scanning the display QR could pause the clock or skip blind levels. Control (play/pause, skip, add/sub time, resets, plus every mutating action routed through `resolve_timer_from_post()` in `www/timer_dl.php`: presets, levels, sounds, themes) is now gated on `can_manage_event()` — creator, per-event manager, league owner/manager, or site admin. Viewing via the key is unchanged, guest standalone timers are unchanged, and hosts keep full control on both the main page and the remote view.
+
+### Fixed
+- **Check-in roster now syncs across devices.** The 10-second auto-refresh in `www/checkin.php` only re-rendered when the player *count* changed, so a rebuy, cash-out, elimination, or seat move recorded on a second device (or by a co-host) never appeared on the first screen. The poll now diffs the full players/payouts/session payload against local state and re-renders on any change. A new `rosterEditInProgress()` guard skips the re-render while the host is actively typing in a roster/payout field so the update can't steal focus mid-edit; the change lands on the next poll after blur.
+- **Tournament winnings are actually recorded.** `poker_players.payout` existed but nothing ever wrote it — elimination showed "owed $X" on screen while storing $0, so there was no durable record of who won what. New `pk_apply_tournament_payouts()` in `www/_poker_helpers.php` recomputes every player's payout (in cents, from the session's percentage structure and current pool, keyed by `finish_position`) and is invoked from `www/checkin_dl.php` on elimination, un-elimination (cleared positions revert to $0), payout-structure edits, auto-finish (last player standing), and manual finish via `update_status`. The check-in UI (`www/checkin.php` desktop rows, mobile cards, winner modal) now prefers the recorded amount over the client-side projection.
+- **League invite pages render correctly on phones.** `www/join_league.php` and `www/league_invite.php` — the two pages people most often open from a shared link on a phone — had no `<meta viewport>` tag and rendered at desktop scale. Both now carry the standard viewport meta.
+
+### Added
+- **Cron heartbeat with real status on the admin Cron tab.** The Cron tab's green "Scheduled tasks are active" only checked that a `cron_token` string existed — if the container's background scheduler died, reminders silently stopped with no admin-visible signal. `www/cron.php` now writes a `last_cron_run_ts` heartbeat (via `set_setting`) at the start of every run, before any work, and the Cron tab in `www/admin_settings.php` shows a status banner at the very top of the tab: green with the last-run time when fresh, amber if cron has never run, red with the age when the last run is more than 15 minutes old (expected cadence is 5 minutes).
+
+### Changed
+- **Dead recurrence machinery removed.** Recurrence was dropped from the schema and editor long ago, but its scaffolding lingered and looked alive. Removed: `get_next_occurrence()` (no callers), the `load_exceptions()` stub and its unused `$exceptions` parameter on `build_event_by_date()` in `www/db.php`, `get_occurrence_invitees()`, the `delete_occurrence` handlers in both `www/calendar.php` and `www/calendar_dl.php` (the triggering form was permanently hidden by JS), the never-called `cancel_series`/`uncancel_series` handlers in `calendar_dl.php` (which wrote to the long-removed `events.cancelled_from` column and would have fataled if ever invoked), the hidden delete-occurrence form, and the always-empty `vRecurr` line in the event modal. The `event_exceptions` table and `event_invites.occurrence_date` column remain for legacy rows and delete cascades still clear them; `event_edit.php`'s unlinked `occ=` parameter degrades safely and was left for a future cleanup.
+
+---
+
 ## [v0.2023] - 2026-07-11
 
 ### Added

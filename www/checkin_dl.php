@@ -450,6 +450,12 @@ if ($action === 'update_status') {
 
     $db->prepare('UPDATE poker_sessions SET status = ? WHERE id = ?')->execute([$status, $session_id]);
     db_log_activity((int)$current['id'], "set poker session id=$session_id status=$status");
+
+    // Manual finish: lock in winnings from the final standings.
+    if ($status === 'finished') {
+        pk_apply_tournament_payouts($db, $session_id);
+    }
+
     echo json_encode(['ok' => true, 'status' => $status]);
     exit;
 }
@@ -621,6 +627,7 @@ if ($action === 'eliminate_player') {
     // Heads-up over: if exactly one player remains in, they win (1st place) and the
     // game finishes automatically.
     $winner = null;
+    $winnerId = 0;
     $newStatus = $session['status'] ?? null;
     $remain = $db->prepare('SELECT id FROM poker_players WHERE session_id = ? AND removed = 0 AND eliminated = 0 AND bought_in = 1');
     $remain->execute([$session['id']]);
@@ -630,6 +637,12 @@ if ($action === 'eliminate_player') {
         $db->prepare('UPDATE poker_players SET finish_position = 1 WHERE id = ?')->execute([$winnerId]);
         $db->prepare("UPDATE poker_sessions SET status = 'finished' WHERE id = ?")->execute([$session['id']]);
         $newStatus = 'finished';
+    }
+
+    // Record winnings so finished standings carry real money, not just places.
+    pk_apply_tournament_payouts($db, (int)$session['id']);
+
+    if ($winnerId) {
         $w = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
         $w->execute([$winnerId]);
         $winner = $w->fetch();
@@ -672,6 +685,9 @@ if ($action === 'uneliminate_player') {
         $reopenStmt->execute([$session['id']]);
         $reopened = $reopenStmt->rowCount() > 0;
     }
+
+    // Re-sync stored winnings with the new standings (cleared positions go to $0).
+    pk_apply_tournament_payouts($db, (int)$session['id']);
 
     $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
     $p->execute([$player_id]);
@@ -867,6 +883,9 @@ if ($action === 'update_payouts') {
     }
 
     db_log_activity((int)$current['id'], "updated payout structure for poker session id=$session_id");
+
+    // Structure changed — re-sync any already-recorded winnings to the new split.
+    pk_apply_tournament_payouts($db, $session_id);
 
     echo json_encode([
         'ok'      => true,

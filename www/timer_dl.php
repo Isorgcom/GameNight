@@ -81,7 +81,17 @@ function resolve_timer_from_post($db, $current, $isAdmin) {
         $sess = $db->prepare('SELECT event_id FROM poker_sessions WHERE id = ?');
         $sess->execute([$timer['session_id']]);
         $s = $sess->fetch();
-        if ($s) verify_event_access($db, (int)$s['event_id'], $current, $isAdmin);
+        if ($s) {
+            verify_event_access($db, (int)$s['event_id'], $current, $isAdmin);
+            // Mutating a timer (commands, presets, sounds, themes) requires manage
+            // rights on the event. Event access alone — an invitee, or anyone who
+            // scanned the table QR while logged in — is view-only.
+            if (!$current || !can_manage_event($db, (int)$s['event_id'], (int)$current['id'], $isAdmin)) {
+                http_response_code(403);
+                echo json_encode(['ok' => false, 'error' => 'Only the event host can control this timer']);
+                exit;
+            }
+        }
     } else {
         // Standalone timer (session_id <= 0)
         $timer_uid = (int)($timer['user_id'] ?? 0);
@@ -168,7 +178,9 @@ if ($action === 'get_state') {
     } elseif ($current) {
         $isAdmin = $current['role'] === 'admin';
         if ($session) {
-            $can_control = check_event_access($db, (int)$session['event_id'], $current, $isAdmin);
+            // View is granted by the key or event access; control requires manage
+            // rights so the table QR can't be used to pause/skip the clock.
+            $can_control = can_manage_event($db, (int)$session['event_id'], (int)$current['id'], $isAdmin);
         } elseif ($session_id !== null && $session_id <= 0) {
             $can_control = $isAdmin || $timer_uid === (int)$current['id'];
         }

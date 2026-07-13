@@ -2206,7 +2206,7 @@ function db_log_anon_activity(string $action, string $severity = 'info'): void {
  * Expand a list of events into a by-date map within [rangeStart, rangeEnd].
  * Each entry is array_merged with ['occurrence_start' => YYYY-MM-DD].
  */
-function build_event_by_date(array $events, string $rangeStart, string $rangeEnd, DateTimeZone $tz, array $exceptions = []): array {
+function build_event_by_date(array $events, string $rangeStart, string $rangeEnd, DateTimeZone $tz): array {
     // Events are stored as wall-clock in the SITE timezone; the calendar grid is
     // drawn in the VIEWER timezone ($tz). We must decide which day cell(s) an event
     // occupies AFTER converting its start/end into $tz — otherwise a near-midnight
@@ -2251,69 +2251,10 @@ function build_event_by_date(array $events, string $rangeStart, string $rangeEnd
     return $byDate;
 }
 
-/**
- * Stub kept for compatibility — recurrence was removed; always returns [].
- */
-function load_exceptions(PDO $db, array $events): array {
-    return [];
-}
-
-/**
- * Get the effective invite list for a specific occurrence.
- * Base rows (occurrence_date IS NULL) are merged with occurrence-specific
- * override rows (which take precedence).
- * Returns array of rows each with: username, rsvp (and optionally email, phone, preferred_contact).
- */
-function get_occurrence_invitees(PDO $db, int $event_id, string $occurrence_date, bool $with_contact = true): array {
-    $cols = $with_contact ? 'ei.username, ei.rsvp, u.email, u.phone, u.preferred_contact' : 'ei.username, ei.rsvp';
-    $join = $with_contact ? 'JOIN users u ON LOWER(u.username) = LOWER(ei.username)' : '';
-
-    // NOTE: the original (calendar_dl.php) version also filtered base rows on a
-    // `valid_from <= occurrence_date` condition, but that column never existed in
-    // the schema — the query threw "no such column" on every call, which is why
-    // occurrence-cancellation notifications never went out. All base invitees count.
-    $base = $db->prepare("SELECT $cols FROM event_invites ei $join
-                          WHERE ei.event_id = ? AND ei.occurrence_date IS NULL");
-    $base->execute([$event_id]);
-    $invitees = [];
-    foreach ($base->fetchAll() as $row) {
-        $invitees[strtolower($row['username'])] = $row;
-    }
-    $occ = $db->prepare("SELECT $cols FROM event_invites ei $join
-                         WHERE ei.event_id = ? AND ei.occurrence_date = ?");
-    $occ->execute([$event_id, $occurrence_date]);
-    foreach ($occ->fetchAll() as $row) {
-        $invitees[strtolower($row['username'])] = $row; // override
-    }
-    return array_values($invitees);
-}
-
-/**
- * Find the next occurrence date of a recurring event on or after $from_date.
- */
-function get_next_occurrence(array $ev, array $skip, string $from_date): ?string {
-    if (($ev['recurrence'] ?? 'none') === 'none') {
-        return $ev['start_date'] >= $from_date ? $ev['start_date'] : null;
-    }
-    $tz     = new DateTimeZone(get_setting('timezone', 'UTC'));
-    $cur    = new DateTime($ev['start_date'], $tz);
-    $recEnd = $ev['recurrence_end'] ?? null;
-    $limit  = 500;
-    while ($limit-- > 0) {
-        if ($recEnd && $cur->format('Y-m-d') > $recEnd) break;
-        $occDate = $cur->format('Y-m-d');
-        if (!empty($ev['cancelled_from']) && $occDate >= $ev['cancelled_from']) break;
-        if ($occDate >= $from_date && !in_array($occDate, $skip, true)) return $occDate;
-        switch ($ev['recurrence']) {
-            case 'daily':   $cur->modify('+1 day');   break;
-            case 'weekly':  $cur->modify('+1 week');  break;
-            case 'monthly': $cur->modify('+1 month'); break;
-            case 'yearly':  $cur->modify('+1 year');  break;
-            default: break 2;
-        }
-    }
-    return null;
-}
+// (load_exceptions / get_occurrence_invitees / get_next_occurrence removed —
+// recurrence is gone from the schema and UI. The event_exceptions table and
+// event_invites.occurrence_date column remain for legacy rows; delete cascades
+// still clear them.)
 
 
 /**

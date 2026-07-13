@@ -83,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Non-admins may only update their own RSVP, self-signup, or self-remove
     // When allow_user_events is on, logged-in users can also add/edit/delete their own events
     // Event managers can also edit/delete events they manage
-    $userEventActions = ['add', 'edit', 'delete', 'delete_occurrence'];
+    $userEventActions = ['add', 'edit', 'delete'];
     // Per-event management actions that target an existing event via event_id (not id).
     // Each is allowed for anyone who can manage that specific event; the handlers below
     // re-check with can_manage_event(), so this gate just needs to let managers through.
@@ -91,11 +91,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$isAdmin && !in_array($action, ['update_rsvp', 'self_signup', 'self_remove'], true)) {
         $chkIdForMgr  = (int)($_POST['id'] ?? 0);
         $chkEidForMgr = (int)($_POST['event_id'] ?? 0);
-        // Allow edit/delete/delete_occurrence (keyed on id) or the event-management actions
+        // Allow edit/delete (keyed on id) or the event-management actions
         // (keyed on event_id) if the user can manage this specific event — creator,
         // event-manager, or league owner/manager. Fine-grained checks happen again per-action.
         $isMgr = false;
-        if ($chkIdForMgr > 0 && in_array($action, ['edit', 'delete', 'delete_occurrence'], true)) {
+        if ($chkIdForMgr > 0 && in_array($action, ['edit', 'delete'], true)) {
             $isMgr = can_manage_event($db, $chkIdForMgr, (int)$current['id'], $isAdmin);
         } elseif ($chkEidForMgr > 0 && in_array($action, $eventMgmtActions, true)) {
             $isMgr = can_manage_event($db, $chkEidForMgr, (int)$current['id'], $isAdmin);
@@ -112,7 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Ownership check: non-admins can only edit/delete events they're permitted to manage.
     // Routed through the single can_manage_event() helper in db.php so the same rules
     // apply everywhere (creator, event-manager, league owner/manager, or site admin).
-    if (in_array($action, ['edit', 'delete', 'delete_occurrence'], true)) {
+    if (in_array($action, ['edit', 'delete'], true)) {
         $chkId = (int)($_POST['id'] ?? 0);
         if ($chkId > 0 && !can_manage_event($db, $chkId, (int)$current['id'], $isAdmin)) {
             http_response_code(403); exit('You can only modify events you manage.');
@@ -166,26 +166,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db->prepare('DELETE FROM events WHERE id=?')->execute([$id]);
             db_log_activity($current['id'], "deleted event: $t");
             $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event deleted.'];
-        }
-    }
-
-    if ($action === 'delete_occurrence') {
-        $id   = (int)($_POST['id'] ?? 0);
-        $date = trim($_POST['occurrence_date'] ?? '');
-        if ($id > 0 && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
-            $db->prepare('INSERT OR IGNORE INTO event_exceptions (event_id, date) VALUES (?, ?)')
-               ->execute([$id, $date]);
-
-            // Queue cancellation notifications for RSVPed invitees
-            require_once __DIR__ . '/_notifications.php';
-            $occ_inv = get_occurrence_invitees($db, $id, $date, true);
-            foreach ($occ_inv as $inv) {
-                if (!in_array($inv['rsvp'] ?? '', ['yes', 'maybe'])) continue;
-                queue_event_notification($db, $id, $inv['username'], 'cancel_occurrence', $date);
-            }
-
-            db_log_activity($current['id'], "removed occurrence $date from event id: $id");
-            $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Occurrence removed.'];
         }
     }
 
@@ -662,8 +642,7 @@ $_site_tz = new DateTimeZone(get_setting('timezone', 'UTC'));
 foreach ($allEvents as &$_ev) { $_ev = event_display_times($_ev, $_site_tz, $local_tz); }
 unset($_ev);
 
-$exceptions = load_exceptions($db, $allEvents);
-$byDate     = build_event_by_date($allEvents, $monthStart, $monthEnd, $local_tz, $exceptions);
+$byDate     = build_event_by_date($allEvents, $monthStart, $monthEnd, $local_tz);
 
 $pvEvents = [];
 
@@ -1620,7 +1599,6 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
         </div>
         <div id="vMeta"    class="ev-view-meta"></div>
         <div id="vWaitlistNotice" style="display:none;padding:.4rem .75rem;margin:.4rem 0;font-size:.82rem;font-weight:600;color:#1e40af;background:#eff6ff;border:1px solid #93c5fd;border-radius:6px"></div>
-        <div id="vRecurr" class="ev-view-meta" style="font-style:italic"></div>
         <div id="vDesc"    class="ev-view-desc"></div>
         <?php if ($current): ?>
         <div id="vRsvpWrap" style="display:none;margin:.5rem 0 0;padding:.65rem .85rem;border:2px solid #bfdbfe;border-radius:10px;background:#eff6ff">
@@ -1667,14 +1645,6 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
             <button type="button" class="btn btn-outline" title="Poll your Yes/Maybe guests" onclick="if(currentEvent)location.href='/event_polls.php?event_id='+currentEvent.id">Polls</button>
             <button type="button" class="btn btn-primary" onclick="if(currentEvent)location.href='/event_edit.php?id='+currentEvent.id+'&'+EDITOR_CTX">Edit</button>
             <?php if ($isAdmin): ?><button type="button" class="btn btn-outline" title="Walk-up QR code" onclick="openWalkinQR()" style="font-size:1rem;padding:.38rem .65rem">&#x1F4F1; QR</button><?php endif; ?>
-            <form method="post" action="/calendar.php" id="vDeleteOccForm" style="display:none">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
-                <input type="hidden" name="action" value="delete_occurrence">
-                <input type="hidden" name="id" id="vDeleteOccId" value="">
-                <input type="hidden" name="occurrence_date" id="vDeleteOccDate" value="">
-                <input type="hidden" name="month_param" value="<?= htmlspecialchars($monthParam) ?>">
-                <input type="hidden" name="wk_param" value="<?= $wkStart !== null ? htmlspecialchars($wkStartStr) : '' ?>">
-            </form>
             <form method="post" action="/calendar.php" style="margin:0"
                   onsubmit="return pkConfirmForm(this, 'Delete this event?', {okLabel:'Delete', danger:true})">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
@@ -1824,8 +1794,6 @@ function viewEvent(ev) {
         }
     }
 
-    document.getElementById('vRecurr').textContent = '';
-
     document.getElementById('vDesc').textContent = ev.description || '';
 
     const occDate  = null;
@@ -1874,8 +1842,6 @@ function viewEvent(ev) {
     if (canManageThis) {
         const delId = document.getElementById('vDeleteId');
         if (delId) delId.value = ev.id;
-        const occForm = document.getElementById('vDeleteOccForm');
-        if (occForm) occForm.style.display = 'none';
         const mgBtn = document.getElementById('vManageGameBtn');
         if (mgBtn) {
             if (parseInt(ev.is_poker)) {
