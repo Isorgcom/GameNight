@@ -4,6 +4,18 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2028] - 2026-07-14
+
+### Added
+- **League stats overhaul: cash games, guests, and money.** The leaderboard (`league.php` stats tab) previously counted only finished tournaments played by registered users and knew nothing about money. It now aggregates every finished game: cash games contribute buy-in vs cash-out, tournaments contribute buy-ins/rebuys/add-ons vs the payouts recorded since v0.2024, and guests/walk-ins are included via the `g_<name>` player key (tagged "guest"). New columns: Net (signed, colored) and ROI, plus ITM% (in-the-money tournament finishes); placement stats stay tournament-only and show em-dashes for cash-only players. A **3-game minimum** now gates ranking — under-threshold players list greyed and unranked so a one-game winner can't top a 20-game regular — and a **Rank by: Score / Net $ / Wins** toggle picks the ordering. The "My Stats" card gained Net, ROI, and ITM tiles.
+- **Per-player game history.** New `league_player.php` — click any leaderboard name for that player's summary tiles (games, wins, ITM%, net, ROI, avg score) and a game-by-game table: date, event (linked to the event page), type, finish/field size, money in/out, net, and score. Respects the leaderboard's active date range or season, works for guests, and is access-gated like the stats tab (members-only for hidden leagues).
+- **Seasons.** New `league_seasons` table (league_id, name, start/end dates; migration in `db.php`). League owners/managers get a "Manage seasons" panel on the stats tab (add with name + date window, delete with confirm — deleting only removes the window, never game data). Seasons appear as an optgroup in the Range dropdown; selecting one filters standings to its window and shows a season banner. Once the end date passes, the banner crowns the **champion**: the top qualified player by average score (the league's standard ranking, regardless of the current rank-by toggle), with wins and net shown; a completed season where nobody hit the game minimum says so instead.
+
+### Infrastructure
+- **Historical payout backfill.** Tournaments finished before v0.2024 never had per-player payouts stored, so their money stats would read $0. At deploy, `pk_apply_tournament_payouts()` is run once over every finished tournament session to recompute payouts from each session's payout structure and final standings.
+
+---
+
 ## [v0.2027] - 2026-07-14
 
 ### Added

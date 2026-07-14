@@ -72,6 +72,43 @@ if ($canManageMembers && (($_GET['action'] ?? '') === 'export_members')) {
 }
 
 // ── CSV Import (also pre-output; redirects back on completion) ────────────────
+// ── Seasons: manager-defined date windows for standings/champions ─────────────
+if ($canManageMembers && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'season_add') {
+    $back = '/league.php?id=' . $league_id . '&tab=stats';
+    if (!csrf_verify()) {
+        $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid request token.'];
+        header('Location: ' . $back); exit;
+    }
+    $sn = trim($_POST['season_name'] ?? '');
+    $sd = $_POST['season_start'] ?? '';
+    $se = $_POST['season_end'] ?? '';
+    if ($sn === '' || mb_strlen($sn) > 60
+        || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $sd)
+        || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $se)
+        || $se < $sd) {
+        $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Season needs a name and a valid start/end date (end after start).'];
+        header('Location: ' . $back); exit;
+    }
+    $db->prepare('INSERT INTO league_seasons (league_id, name, start_date, end_date, created_by) VALUES (?, ?, ?, ?, ?)')
+       ->execute([$league_id, $sn, $sd, $se, $uid]);
+    $newSeasonId = (int)$db->lastInsertId();
+    db_log_activity($uid, "added season '$sn' ($sd to $se) to league id=$league_id");
+    $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Season added.'];
+    header('Location: ' . $back . '&range=season:' . $newSeasonId); exit;
+}
+if ($canManageMembers && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'season_delete') {
+    $back = '/league.php?id=' . $league_id . '&tab=stats';
+    if (!csrf_verify()) {
+        $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid request token.'];
+        header('Location: ' . $back); exit;
+    }
+    $sid = (int)($_POST['season_id'] ?? 0);
+    $db->prepare('DELETE FROM league_seasons WHERE id = ? AND league_id = ?')->execute([$sid, $league_id]);
+    db_log_activity($uid, "deleted season id=$sid from league id=$league_id");
+    $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Season deleted.'];
+    header('Location: ' . $back); exit;
+}
+
 if ($canManageMembers && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'import_members') {
     if (!csrf_verify()) {
         $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid request token.'];
@@ -290,18 +327,36 @@ $_st_from_in = '';
 $_st_to_in   = '';
 $_st_from_date = null;
 $_st_to_date   = null;
+$_st_seasons   = [];
+$_st_season    = null;
 
 if ($tab === 'stats') {
+    // Manager-defined seasons, selectable as pseudo-ranges ("season:<id>").
+    $ssStmt = $db->prepare('SELECT * FROM league_seasons WHERE league_id = ? ORDER BY start_date DESC, id DESC');
+    $ssStmt->execute([$league_id]);
+    $_st_seasons = $ssStmt->fetchAll();
+    $_st_season  = null;
+
     $allowed_ranges = ['7', '30', '90', '365', 'ytd', 'all', 'custom'];
     $_st_range   = $_GET['range'] ?? 'all';
     $_st_from_in = trim($_GET['from'] ?? '');
     $_st_to_in   = trim($_GET['to']   ?? '');
-    if (!in_array($_st_range, $allowed_ranges, true)) $_st_range = 'all';
+    if (preg_match('/^season:(\d+)$/', $_st_range, $_sm)) {
+        foreach ($_st_seasons as $_s) {
+            if ((int)$_s['id'] === (int)$_sm[1]) { $_st_season = $_s; break; }
+        }
+        if (!$_st_season) $_st_range = 'all';
+    } elseif (!in_array($_st_range, $allowed_ranges, true)) {
+        $_st_range = 'all';
+    }
 
     $tz    = new DateTimeZone(get_setting('timezone', 'UTC'));
     $today = new DateTime('now', $tz);
 
-    if ($_st_range === 'custom') {
+    if ($_st_season) {
+        $_st_from_date = DateTime::createFromFormat('Y-m-d', $_st_season['start_date'], $tz) ?: null;
+        $_st_to_date   = DateTime::createFromFormat('Y-m-d', $_st_season['end_date'],   $tz) ?: null;
+    } elseif ($_st_range === 'custom') {
         $_st_from_date = DateTime::createFromFormat('Y-m-d', $_st_from_in, $tz) ?: null;
         $_st_to_date   = DateTime::createFromFormat('Y-m-d', $_st_to_in,   $tz) ?: null;
     } elseif ($_st_range === 'ytd') {
@@ -321,25 +376,53 @@ if ($tab === 'stats') {
     if ($from_sql) { $where_date .= " AND e.start_date >= ?"; $params[] = $from_sql; }
     if ($to_sql)   { $where_date .= " AND e.start_date <= ?"; $params[] = $to_sql;   }
 
+    // Ranking metric (?rank=): score (tournament placement quality, default),
+    // net (money won/lost), or wins. Players under the min-games threshold are
+    // listed but sort after everyone who qualifies, so a one-game wonder can't
+    // top a 20-game regular.
+    $LB_MIN_GAMES = 3;
+    $_st_rank = in_array($_GET['rank'] ?? 'score', ['score', 'net', 'wins'], true) ? ($_GET['rank'] ?? 'score') : 'score';
+    $order_by = [
+        'score' => 'qualified DESC, avg_score IS NULL, avg_score DESC, net DESC, games ASC',
+        'net'   => 'qualified DESC, net DESC, avg_score DESC, games ASC',
+        'wins'  => 'qualified DESC, wins DESC, avg_score DESC, games ASC',
+    ][$_st_rank];
+
+    // One row per player per finished session (tournaments AND cash games, guests
+    // included via the g_<name> player_key). Money is in cents:
+    //   tournament: invested = buyin+rebuys+addons, winnings = recorded payout
+    //   cash:       invested = cash_in,             winnings = cash_out
+    // Placement stats (finish/score/wins/ITM) are tournament-only; AVG/MIN skip
+    // the NULLs cash rows produce.
     $stmt = $db->prepare("
         SELECT
             g.player_key, g.display_name, g.user_id,
             COUNT(*) as games,
-            SUM(CASE WHEN g.finish_position = 1 THEN 1 ELSE 0 END) as wins,
-            MIN(g.finish_position) as best_finish,
-            ROUND(AVG(g.finish_position), 1) as avg_finish,
-            ROUND(AVG(g.score), 1) as avg_score,
-            SUM(g.score) as total_score
+            SUM(CASE WHEN g.game_type = 'tournament' THEN 1 ELSE 0 END) as t_games,
+            SUM(CASE WHEN g.game_type = 'tournament' AND g.finish_position = 1 THEN 1 ELSE 0 END) as wins,
+            SUM(CASE WHEN g.game_type = 'tournament' AND g.winnings > 0 THEN 1 ELSE 0 END) as itm,
+            MIN(CASE WHEN g.game_type = 'tournament' THEN g.finish_position END) as best_finish,
+            ROUND(AVG(CASE WHEN g.game_type = 'tournament' THEN g.finish_position END), 1) as avg_finish,
+            ROUND(AVG(CASE WHEN g.game_type = 'tournament' THEN g.score END), 1) as avg_score,
+            SUM(g.invested) as invested,
+            SUM(g.winnings) as winnings,
+            SUM(g.winnings - g.invested) as net,
+            (COUNT(*) >= $LB_MIN_GAMES) as qualified
         FROM (
             SELECT
                 pp.user_id,
                 COALESCE(u.username, pp.display_name) as display_name,
                 COALESCE(CAST(pp.user_id AS TEXT), 'g_' || LOWER(pp.display_name)) as player_key,
-                COALESCE(pp.finish_position, pc.field_size) as finish_position,
-                pp.session_id, pc.field_size,
-                CASE WHEN pc.field_size > 1
+                ps.game_type,
+                CASE WHEN ps.game_type = 'tournament' THEN COALESCE(pp.finish_position, pc.field_size) END as finish_position,
+                CASE WHEN ps.game_type = 'tournament'
+                     THEN pp.bought_in * ps.buyin_amount + pp.rebuys * COALESCE(ps.rebuy_amount, 0) + pp.addons * COALESCE(ps.addon_amount, 0)
+                     ELSE COALESCE(pp.cash_in, 0) END as invested,
+                CASE WHEN ps.game_type = 'tournament' THEN COALESCE(pp.payout, 0)
+                     ELSE COALESCE(pp.cash_out, 0) END as winnings,
+                CASE WHEN ps.game_type = 'tournament' AND pc.field_size > 1
                     THEN ROUND(CAST(pc.field_size - COALESCE(pp.finish_position, pc.field_size) AS REAL) / pc.field_size * 80 + 20, 1)
-                    ELSE 100
+                    WHEN ps.game_type = 'tournament' THEN 100
                 END as score
             FROM poker_players pp
             JOIN poker_sessions ps ON ps.id = pp.session_id
@@ -350,13 +433,13 @@ if ($tab === 'stats') {
                 FROM poker_players WHERE bought_in = 1 AND removed = 0
                 GROUP BY session_id
             ) pc ON pc.session_id = pp.session_id
-            WHERE pp.bought_in = 1 AND pp.removed = 0 AND pp.user_id IS NOT NULL
-              AND ps.status = 'finished' AND ps.game_type = 'tournament'
+            WHERE pp.bought_in = 1 AND pp.removed = 0
+              AND ps.status = 'finished'
               AND e.league_id = ?
               $where_date
         ) g
         GROUP BY g.player_key
-        ORDER BY avg_score DESC, wins DESC, games ASC
+        ORDER BY $order_by
     ");
     $stmt->execute($params);
     $leaderboard = $stmt->fetchAll();
@@ -365,6 +448,13 @@ if ($tab === 'stats') {
     foreach ($leaderboard as $row) {
         if ($row['player_key'] === $myKey) { $myStats = $row; break; }
     }
+}
+
+// Cents → signed short dollar string for the money columns ("+$40", "-$12.50").
+function lg_money(int $cents): string {
+    $v = abs($cents) / 100;
+    $s = '$' . ($v == (int)$v ? number_format($v, 0) : number_format($v, 2));
+    return ($cents < 0 ? '-' : ($cents > 0 ? '+' : '')) . $s;
 }
 
 function ordinal($n) {
@@ -870,6 +960,13 @@ function ordinal($n) {
                     <option value="365"    <?= $_st_range==='365'    ? 'selected' : '' ?>>Last year</option>
                     <option value="ytd"    <?= $_st_range==='ytd'    ? 'selected' : '' ?>>Year to date</option>
                     <option value="custom" <?= $_st_range==='custom' ? 'selected' : '' ?>>Custom&hellip;</option>
+                    <?php if (!empty($_st_seasons)): ?>
+                    <optgroup label="Seasons">
+                        <?php foreach ($_st_seasons as $s): $sv = 'season:' . (int)$s['id']; ?>
+                        <option value="<?= $sv ?>" <?= $_st_range === $sv ? 'selected' : '' ?>><?= htmlspecialchars($s['name']) ?></option>
+                        <?php endforeach; ?>
+                    </optgroup>
+                    <?php endif; ?>
                 </select>
             </label>
             <span class="custom-range" id="custom-range" style="<?= $_st_range==='custom' ? '' : 'display:none' ?>">
@@ -892,11 +989,76 @@ function ordinal($n) {
         }
         </script>
 
+        <?php if ($canManageMembers): ?>
+        <details style="margin:-.4rem 0 1rem">
+            <summary style="cursor:pointer;font-size:.8rem;color:#64748b;font-weight:600">Manage seasons</summary>
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.75rem;margin-top:.5rem">
+                <?php if (!empty($_st_seasons)): ?>
+                <div style="display:flex;flex-direction:column;gap:.35rem;margin-bottom:.75rem">
+                    <?php foreach ($_st_seasons as $s): ?>
+                    <div style="display:flex;align-items:center;gap:.6rem;font-size:.83rem;color:#334155">
+                        <strong style="min-width:0"><?= htmlspecialchars($s['name']) ?></strong>
+                        <span style="color:#94a3b8"><?= htmlspecialchars($s['start_date']) ?> &rarr; <?= htmlspecialchars($s['end_date']) ?></span>
+                        <form method="post" action="/league.php?id=<?= $league_id ?>" style="margin:0 0 0 auto"
+                              onsubmit="return pkConfirmForm(this, 'Delete this season? Standings history is unaffected — only the saved date window is removed.', {okLabel:'Delete', danger:true})">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                            <input type="hidden" name="action" value="season_delete">
+                            <input type="hidden" name="season_id" value="<?= (int)$s['id'] ?>">
+                            <button type="submit" style="background:none;border:none;color:#dc2626;font-size:.78rem;cursor:pointer;font-weight:600">Delete</button>
+                        </form>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+                <?php endif; ?>
+                <form method="post" action="/league.php?id=<?= $league_id ?>" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin:0">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                    <input type="hidden" name="action" value="season_add">
+                    <input type="text" name="season_name" placeholder="Season name (e.g. 2026 Fall)" required maxlength="60"
+                           style="font-size:.83rem;padding:.35rem .5rem;border:1.5px solid #e2e8f0;border-radius:6px;flex:1;min-width:160px">
+                    <input type="date" name="season_start" required style="font-size:.83rem;padding:.35rem .5rem;border:1.5px solid #e2e8f0;border-radius:6px">
+                    <span style="color:#94a3b8">&rarr;</span>
+                    <input type="date" name="season_end" required style="font-size:.83rem;padding:.35rem .5rem;border:1.5px solid #e2e8f0;border-radius:6px">
+                    <button type="submit" style="font-size:.8rem;font-weight:600;padding:.4rem .75rem;border:none;border-radius:6px;background:#2563eb;color:#fff;cursor:pointer">Add season</button>
+                </form>
+            </div>
+        </details>
+        <?php endif; ?>
+
+        <?php
+        // Season header + champion. The champion is always the top QUALIFIED player
+        // by avg score (the league's standard ranking) regardless of the current
+        // rank-by toggle, and only once the season has actually ended.
+        if ($_st_season):
+            $_season_over = $_st_season['end_date'] < $today->format('Y-m-d');
+            $_champ = null;
+            foreach ($leaderboard as $_r) {
+                if ((int)$_r['qualified'] !== 1) continue;
+                if ($_champ === null
+                    || (float)$_r['avg_score'] > (float)$_champ['avg_score']
+                    || ((float)$_r['avg_score'] === (float)$_champ['avg_score'] && (int)$_r['wins'] > (int)$_champ['wins'])) {
+                    $_champ = $_r;
+                }
+            }
+        ?>
+        <div style="background:<?= $_season_over ? '#fffbeb' : '#eff6ff' ?>;border:1px solid <?= $_season_over ? '#fde68a' : '#bfdbfe' ?>;border-radius:8px;padding:.6rem .8rem;margin-bottom:1rem;font-size:.88rem;color:#334155">
+            <strong><?= htmlspecialchars($_st_season['name']) ?></strong>
+            <span style="color:#94a3b8">(<?= htmlspecialchars($_st_season['start_date']) ?> &rarr; <?= htmlspecialchars($_st_season['end_date']) ?>)</span>
+            <?php if ($_season_over && $_champ): ?>
+                &mdash; &#127942; Champion: <strong><?= htmlspecialchars($_champ['display_name']) ?></strong>
+                <span style="color:#64748b">(score <?= $_champ['avg_score'] ?>, <?= (int)$_champ['wins'] ?> win<?= (int)$_champ['wins'] === 1 ? '' : 's' ?>, <?= lg_money((int)$_champ['net']) ?>)</span>
+            <?php elseif ($_season_over): ?>
+                &mdash; season complete (no player reached the <?= $LB_MIN_GAMES ?>-game minimum)
+            <?php else: ?>
+                &mdash; in progress
+            <?php endif; ?>
+        </div>
+        <?php endif; ?>
+
         <?php if (empty($leaderboard)): ?>
         <div class="no-stats">
             <div class="icon">&#128200;</div>
             <?php if ($_st_range === 'all'): ?>
-            <p>No finished tournament games yet. Stats will appear after your first completed tournament.</p>
+            <p>No finished games yet. Stats will appear after your first completed game (tournament or cash).</p>
             <?php else: ?>
             <p>No finished games in this date range. Try a wider range or select <strong>All time</strong>.</p>
             <?php endif; ?>
@@ -906,51 +1068,90 @@ function ordinal($n) {
         <?php if ($myStats): ?>
         <div class="my-stats">
             <?php
-            $games  = (int)$myStats['games'];
-            $wins   = (int)$myStats['wins'];
-            $losses = $games - $wins;
-            $winPct = $games > 0 ? round($wins / $games * 100) : 0;
+            $games   = (int)$myStats['games'];
+            $tGames  = (int)$myStats['t_games'];
+            $wins    = (int)$myStats['wins'];
+            $winPct  = $tGames > 0 ? round($wins / $tGames * 100) : 0;
+            $itmPct  = $tGames > 0 ? round((int)$myStats['itm'] / $tGames * 100) : 0;
+            $net     = (int)$myStats['net'];
+            $roi     = (int)$myStats['invested'] > 0 ? round($net / (int)$myStats['invested'] * 100) : 0;
             ?>
             <div class="stat-item"><div class="stat-value"><?= $games ?></div><div class="stat-label">Games</div></div>
             <div class="stat-item"><div class="stat-value stat-gold"><?= $wins ?></div><div class="stat-label">Wins</div></div>
-            <div class="stat-item"><div class="stat-value stat-negative"><?= $losses ?></div><div class="stat-label">Losses</div></div>
             <div class="stat-item"><div class="stat-value"><?= $winPct ?>%</div><div class="stat-label">Win Rate</div></div>
+            <div class="stat-item"><div class="stat-value"><?= $itmPct ?>%</div><div class="stat-label">In the $</div></div>
+            <div class="stat-item"><div class="stat-value <?= $net >= 0 ? 'stat-gold' : 'stat-negative' ?>"><?= lg_money($net) ?></div><div class="stat-label">Net</div></div>
+            <div class="stat-item"><div class="stat-value <?= $roi >= 0 ? 'stat-gold' : 'stat-negative' ?>"><?= $roi ?>%</div><div class="stat-label">ROI</div></div>
+            <?php if ($tGames > 0): ?>
             <div class="stat-item"><div class="stat-value"><?= ordinal($myStats['best_finish']) ?></div><div class="stat-label">Best Finish</div></div>
-            <div class="stat-item"><div class="stat-value"><?= $myStats['avg_finish'] ?></div><div class="stat-label">Avg Finish</div></div>
             <div class="stat-item"><div class="stat-value stat-gold"><?= $myStats['avg_score'] ?></div><div class="stat-label">Avg Score</div></div>
+            <?php endif; ?>
         </div>
         <?php endif; ?>
 
-        <h2 style="font-size:1.1rem;font-weight:700;margin-bottom:.75rem">Leaderboard</h2>
+        <div style="display:flex;align-items:baseline;gap:1rem;flex-wrap:wrap;margin-bottom:.75rem">
+            <h2 style="font-size:1.1rem;font-weight:700;margin:0">Leaderboard</h2>
+            <?php
+            $_rank_qs = 'id=' . $league_id . '&tab=stats&range=' . urlencode($_st_range)
+                      . ($_st_from_in !== '' ? '&from=' . urlencode($_st_from_in) : '')
+                      . ($_st_to_in   !== '' ? '&to='   . urlencode($_st_to_in)   : '');
+            ?>
+            <span style="font-size:.8rem;color:#64748b">Rank by:
+                <?php foreach (['score' => 'Score', 'net' => 'Net $', 'wins' => 'Wins'] as $rk => $rl): ?>
+                    <?php if ($rk === $_st_rank): ?><strong style="color:#1e293b"><?= $rl ?></strong><?php else: ?><a href="?<?= $_rank_qs ?>&rank=<?= $rk ?>"><?= $rl ?></a><?php endif; ?><?= $rk !== 'wins' ? ' · ' : '' ?>
+                <?php endforeach; ?>
+            </span>
+        </div>
         <table class="lb-table">
             <thead><tr>
-                <th>#</th><th>Player</th><th>Games</th><th>Wins</th><th>Losses</th><th>Win%</th><th>Score</th>
+                <th>#</th><th>Player</th><th>Games</th><th>Wins</th><th>Win%</th>
+                <th class="lb-hide-mobile" title="Finished in the money (tournaments)">ITM%</th>
+                <th>Net</th>
+                <th class="lb-hide-mobile" title="Net / total buy-ins">ROI</th>
+                <th title="Placement quality across tournaments (20-100)">Score</th>
                 <th class="lb-hide-mobile">Best</th><th class="lb-hide-mobile">Avg</th>
             </tr></thead>
             <tbody>
-            <?php foreach ($leaderboard as $i => $row):
-                $rank   = $i + 1;
-                $games  = (int)$row['games'];
-                $wins   = (int)$row['wins'];
-                $losses = $games - $wins;
-                $winPct = $games > 0 ? round($wins / $games * 100) : 0;
-                $isMe   = $row['player_key'] === (string)$uid;
-                $rankCls= $rank <= 3 ? ' lb-rank-' . $rank : '';
+            <?php $shownRank = 0; foreach ($leaderboard as $row):
+                $qualified = (int)$row['qualified'] === 1;
+                if ($qualified) $shownRank++;
+                $games   = (int)$row['games'];
+                $tGames  = (int)$row['t_games'];
+                $wins    = (int)$row['wins'];
+                $winPct  = $tGames > 0 ? round($wins / $tGames * 100) : null;
+                $itmPct  = $tGames > 0 ? round((int)$row['itm'] / $tGames * 100) : null;
+                $net     = (int)$row['net'];
+                $roi     = (int)$row['invested'] > 0 ? round($net / (int)$row['invested'] * 100) : null;
+                $isMe    = $row['player_key'] === (string)$uid;
+                $isGuest = empty($row['user_id']);
+                $rankCls = ($qualified && $shownRank <= 3) ? ' lb-rank-' . $shownRank : '';
+                $histUrl = '/league_player.php?id=' . $league_id . '&pk=' . urlencode($row['player_key'])
+                         . ($_st_season
+                             ? '&range=custom&from=' . urlencode($_st_season['start_date']) . '&to=' . urlencode($_st_season['end_date'])
+                             : '&range=' . urlencode($_st_range)
+                               . ($_st_from_in !== '' ? '&from=' . urlencode($_st_from_in) : '')
+                               . ($_st_to_in   !== '' ? '&to='   . urlencode($_st_to_in)   : ''));
             ?>
-                <tr class="<?= $isMe ? 'is-me' : '' ?>">
-                    <td class="lb-rank<?= $rankCls ?>"><?= $rank ?></td>
-                    <td class="lb-name"><?= htmlspecialchars($row['display_name']) ?></td>
-                    <td><?= $games ?></td>
-                    <td class="stat-gold"><?= $wins ?></td>
-                    <td class="stat-negative"><?= $losses ?></td>
-                    <td><?= $winPct ?>%</td>
-                    <td class="stat-gold" style="font-weight:700"><?= $row['avg_score'] ?></td>
-                    <td class="lb-hide-mobile"><?= ordinal($row['best_finish']) ?></td>
-                    <td class="lb-hide-mobile"><?= $row['avg_finish'] ?></td>
+                <tr class="<?= $isMe ? 'is-me' : '' ?>"<?= $qualified ? '' : ' style="opacity:.55"' ?>>
+                    <td class="lb-rank<?= $rankCls ?>"><?= $qualified ? $shownRank : '<span title="Needs ' . $LB_MIN_GAMES . ' games to rank">–</span>' ?></td>
+                    <td class="lb-name"><a href="<?= htmlspecialchars($histUrl) ?>" style="color:inherit;text-decoration:none;border-bottom:1px dotted #cbd5e1"><?= htmlspecialchars($row['display_name']) ?></a><?= $isGuest ? ' <span style="font-size:.68rem;color:#94a3b8;font-weight:600" title="Guest / walk-in (no account)">guest</span>' : '' ?></td>
+                    <td><?= $games ?><?= $tGames > 0 && $games > $tGames ? '<span class="lb-hide-mobile" style="color:#94a3b8;font-size:.75rem"> (' . $tGames . 'T)</span>' : '' ?></td>
+                    <td class="stat-gold"><?= $tGames > 0 ? $wins : '—' ?></td>
+                    <td><?= $winPct !== null ? $winPct . '%' : '—' ?></td>
+                    <td class="lb-hide-mobile"><?= $itmPct !== null ? $itmPct . '%' : '—' ?></td>
+                    <td style="font-weight:700;color:<?= $net > 0 ? '#16a34a' : ($net < 0 ? '#dc2626' : '#64748b') ?>"><?= lg_money($net) ?></td>
+                    <td class="lb-hide-mobile" style="color:<?= ($roi ?? 0) >= 0 ? '#16a34a' : '#dc2626' ?>"><?= $roi !== null ? $roi . '%' : '—' ?></td>
+                    <td class="stat-gold" style="font-weight:700"><?= $row['avg_score'] !== null ? $row['avg_score'] : '—' ?></td>
+                    <td class="lb-hide-mobile"><?= $tGames > 0 ? ordinal($row['best_finish']) : '—' ?></td>
+                    <td class="lb-hide-mobile"><?= $tGames > 0 ? $row['avg_finish'] : '—' ?></td>
                 </tr>
             <?php endforeach; ?>
             </tbody>
         </table>
+        <p style="font-size:.75rem;color:#94a3b8;margin-top:.5rem">
+            Net counts tournament buy-ins/rebuys/add-ons vs recorded payouts, and cash-game buy-ins vs cash-outs, across finished games.
+            Players need <?= $LB_MIN_GAMES ?> games to be ranked. Click a player for their game history.
+        </p>
         <?php endif; ?>
 
     <?php elseif ($tab === 'rules'): ?>

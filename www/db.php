@@ -907,6 +907,17 @@ JSON;
 
     // Event visibility + league linkage
     try { $pdo->exec("ALTER TABLE events ADD COLUMN league_id  INTEGER"); } catch (Exception $e) {}
+    // League seasons: manager-defined date windows for standings + champions.
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS league_seasons (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        league_id   INTEGER NOT NULL,
+        name        TEXT    NOT NULL,
+        start_date  TEXT    NOT NULL,
+        end_date    TEXT    NOT NULL,
+        created_by  INTEGER,
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (league_id) REFERENCES leagues(id) ON DELETE CASCADE
+    )"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE events ADD COLUMN visibility TEXT NOT NULL DEFAULT 'invitees_only'"); } catch (Exception $e) {}
     // Any pre-existing events were created under the old "everything public" model — keep them public.
     try { $pdo->exec("UPDATE events SET visibility='public' WHERE visibility IS NULL OR visibility=''"); } catch (Exception $e) {}
