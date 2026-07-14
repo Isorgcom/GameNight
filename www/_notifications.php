@@ -426,6 +426,10 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
     } elseif ($type === 'event_comment') {
         // One send per comment per recipient; distinct comments never collapse.
         $type_tag = 'event_comment_' . (int)($payload['comment_id'] ?? $row_id);
+    } elseif ($type === 'rsvp_nudge') {
+        // At most one nudge per recipient per day; the host can re-fire on a
+        // later day to chase remaining stragglers.
+        $type_tag = 'rsvp_nudge_' . (string)($payload['day'] ?? '');
     }
     $occ_key = $occ_date ?: '';
     $seenStmt = $db->prepare(
@@ -435,7 +439,7 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
     $seenStmt->execute([$event_id, $occ_key, strtolower($username), $type_tag]);
     if ($seenStmt->fetchColumn()) return true;
 
-    $evStmt = $db->prepare('SELECT id, title, description, start_date, end_date, start_time, end_time, created_by FROM events WHERE id = ?');
+    $evStmt = $db->prepare('SELECT id, title, description, location, start_date, end_date, start_time, end_time, created_by FROM events WHERE id = ?');
     $evStmt->execute([$event_id]);
     $event = $evStmt->fetch();
     // For types like cancel_event where the event may already be deleted,
@@ -502,9 +506,9 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
     }
 
     $site_url = get_site_url();
-    $month    = substr($occ_date ?: $event['start_date'], 0, 7);
-    $date_for_url = $occ_date ?: $event['start_date'];
-    $url = $site_url . '/calendar.php?m=' . urlencode($month) . '&open=' . $event_id . '&date=' . urlencode($date_for_url);
+    // Canonical event page: shareable, handles the login redirect itself, and
+    // (unlike the old calendar deep link) survives month/date drift.
+    $url = $site_url . '/event.php?id=' . $event_id;
     if (get_setting('url_shortener_enabled') === '1') {
         $url = shorten_url($url);
     }
@@ -539,6 +543,14 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
 
     $subject = ''; $smsBody = ''; $htmlBody = ''; $waBody = null;
 
+    // Location line shared by invite/reminder bodies (empty strings when unset).
+    $loc     = trim((string)($event['location'] ?? ''));
+    $locSms  = $loc !== '' ? " Where: $loc." : '';
+    $locHtml = $loc !== ''
+        ? '<p style="color:#475569">&#128205; ' . htmlspecialchars($loc)
+          . ' &middot; <a href="https://www.google.com/maps/search/?api=1&query=' . urlencode($loc) . '">Open in Maps</a></p>'
+        : '';
+
     switch ($type) {
         case 'invite':
             // One-click RSVP via rsvp_token (no login required). Falls back to the event link
@@ -556,7 +568,7 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
                 $yes_url   = $rsvp_base . '&r=yes';
                 $no_url    = $rsvp_base . '&r=no';
                 $maybe_url = $rsvp_base . '&r=maybe';
-                $smsBody = "You've been invited to \"$title\" on $when. RSVP:\nYES: $yes_url\nNO: $no_url"
+                $smsBody = "You've been invited to \"$title\" on $when.$locSms RSVP:\nYES: $yes_url\nNO: $no_url"
                          . ($allowMaybe ? "\nMAYBE: $maybe_url" : "");
                 $rsvpButtons = '<p style="margin-top:1.5rem">RSVP now:</p>'
                     . '<p>'
@@ -565,7 +577,7 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
                     . ($allowMaybe ? '<a href="' . htmlspecialchars($maybe_url) . '" style="display:inline-block;margin:.25rem .3rem;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;background:#d97706;color:#fff">Maybe</a>' : '')
                     . '</p>';
             } else {
-                $smsBody = "You've been invited to \"$title\" on $when. Reply YES, NO, or MAYBE to RSVP. View: $url";
+                $smsBody = "You've been invited to \"$title\" on $when.$locSms Reply YES, NO, or MAYBE to RSVP. View: $url";
             }
             $desc = $event['description'] ?? '';
             // The token-based public page lets invitees view details + RSVP without logging in.
@@ -573,20 +585,61 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
             $event_link = $rsvp_token !== '' ? ($site_url . '/event.php?token=' . urlencode($rsvp_token)) : $url;
             $htmlBody = '<p>Hi ' . htmlspecialchars($user['username']) . ',</p>'
                       . '<p>You have been invited to <strong>' . htmlspecialchars($title) . '</strong> on ' . htmlspecialchars($when) . '.</p>'
+                      . $locHtml
                       . ($desc ? '<p>' . nl2br(htmlspecialchars($desc)) . '</p>' : '')
                       . $rsvpButtons
                       . '<p style="margin-top:1rem"><a href="' . htmlspecialchars($event_link) . '" style="display:inline-block;padding:.5rem 1.5rem;border-radius:6px;text-decoration:none;font-weight:600;background:#2563eb;color:#fff">Event Details</a></p>';
+            if ($rsvp_token !== '') {
+                $ics_url = $site_url . '/ics.php?token=' . urlencode($rsvp_token);
+                $htmlBody .= '<p style="font-size:.85rem;color:#64748b">&#128197; Add to calendar: '
+                           . '<a href="' . htmlspecialchars($ics_url) . '">Apple / Outlook</a>'
+                           . ' &middot; <a href="' . htmlspecialchars($ics_url . '&google=1') . '">Google</a></p>';
+            }
+            break;
+
+        case 'rsvp_nudge':
+            // Friendly follow-up to invitees who never answered the invite.
+            // Same one-click token RSVP links as the invite itself.
+            $tokStmt = $db->prepare("SELECT rsvp_token FROM event_invites
+                WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL");
+            $tokStmt->execute([$event_id, $username]);
+            $rsvp_token = (string)($tokStmt->fetchColumn() ?: '');
+            $allowMaybe = get_setting('allow_maybe_rsvp', '1') === '1';
+
+            $subject = 'Still deciding? ' . $title . ' (' . $when . ')';
+            $rsvpButtons = '';
+            if ($rsvp_token !== '') {
+                $rsvp_base = $site_url . '/rsvp.php?token=' . urlencode($rsvp_token);
+                $yes_url   = $rsvp_base . '&r=yes';
+                $no_url    = $rsvp_base . '&r=no';
+                $maybe_url = $rsvp_base . '&r=maybe';
+                $smsBody = "Friendly reminder: you haven't RSVPed for \"$title\" on $when.$locSms RSVP:\nYES: $yes_url\nNO: $no_url"
+                         . ($allowMaybe ? "\nMAYBE: $maybe_url" : "");
+                $rsvpButtons = '<p style="margin-top:1.25rem">'
+                    . '<a href="' . htmlspecialchars($yes_url) . '" style="display:inline-block;margin:.25rem .3rem;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;background:#16a34a;color:#fff">Yes</a>'
+                    . '<a href="' . htmlspecialchars($no_url) . '" style="display:inline-block;margin:.25rem .3rem;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;background:#dc2626;color:#fff">No</a>'
+                    . ($allowMaybe ? '<a href="' . htmlspecialchars($maybe_url) . '" style="display:inline-block;margin:.25rem .3rem;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;background:#d97706;color:#fff">Maybe</a>' : '')
+                    . '</p>';
+            } else {
+                $smsBody = "Friendly reminder: you haven't RSVPed for \"$title\" on $when.$locSms Reply YES, NO, or MAYBE. View: $url";
+            }
+            $htmlBody = '<p>Hi ' . htmlspecialchars($user['username']) . ',</p>'
+                      . '<p>Just a friendly nudge &mdash; the host is still waiting on your RSVP for <strong>'
+                      . htmlspecialchars($title) . '</strong> on ' . htmlspecialchars($when) . '.</p>'
+                      . $locHtml
+                      . $rsvpButtons;
             break;
 
         case 'reminder':
             $offset = (int)($payload['offset_minutes'] ?? 0);
             $label  = _format_offset_label($offset);
             $subject  = "Reminder: $title in $label";
-            $smsBody  = "Reminder: \"$title\" is in $label ($start). RSVP: $url";
+            $smsBody  = "Reminder: \"$title\" is in $label ($start).$locSms RSVP: $url";
             $htmlBody = '<p>This is a reminder that <strong>' . htmlspecialchars($title) . '</strong>'
                       . ' is coming up in <strong>' . $label . '</strong>'
                       . ' on <strong>' . htmlspecialchars($start) . '</strong>.</p>';
             if ($pretty_time) $htmlBody .= '<p style="color:#64748b;font-size:.9rem">Start time: ' . htmlspecialchars($pretty_time) . '</p>';
+            $htmlBody .= $locHtml;
             $htmlBody .= '<p style="margin-top:1.25rem"><a href="' . htmlspecialchars($url) . '" style="background:#2563eb;color:#fff;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600">View Event &amp; RSVP</a></p>';
             break;
 

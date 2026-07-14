@@ -106,6 +106,7 @@ $eid   = (int)($_GET['id'] ?? 0);
 $event = null;
 $eventInvitesRows = [];
 $pokerRow = null;
+$isCopy = false;
 
 if ($eid > 0) {
     if (!can_manage_event($db, $eid, (int)$current['id'], $isAdmin)) {
@@ -143,6 +144,41 @@ if ($eid > 0) {
     if (!$canCreateEvents) {
         http_response_code(403); exit('Access denied.');
     }
+
+    // ── Duplicate mode (?copy=ID): prefill the ADD form from an existing event.
+    // Copies title/description/location/times/color/poker/reminders/visibility
+    // and the invite list — but not the date (host must pick) or any RSVPs.
+    $copyId = (int)($_GET['copy'] ?? 0);
+    if ($copyId > 0) {
+        if (!can_manage_event($db, $copyId, (int)$current['id'], $isAdmin)) {
+            http_response_code(403); exit('You can only duplicate events you manage.');
+        }
+        $row = $db->prepare('SELECT * FROM events WHERE id = ?');
+        $row->execute([$copyId]);
+        $src = $row->fetch();
+        if (!$src) { http_response_code(404); exit('Event not found.'); }
+
+        $site_tz   = new DateTimeZone(get_setting('timezone', 'UTC'));
+        $viewer_tz = new DateTimeZone(display_timezone((int)$current['id']));
+        $src = event_display_times($src, $site_tz, $viewer_tz, null);
+
+        $isCopy = true;
+        $event  = $src;
+        $event['id'] = 0;
+        $event['start_date'] = '';
+        $event['start_date_input'] = '';
+        $event['end_date'] = null;
+
+        $is = $db->prepare("SELECT username, phone, email, event_role, approval_status, sort_order
+                            FROM event_invites WHERE event_id = ? AND occurrence_date IS NULL
+                            ORDER BY COALESCE(sort_order, 999999), username");
+        $is->execute([$copyId]);
+        foreach ($is->fetchAll() as $r) { $r['rsvp'] = null; $eventInvitesRows[] = $r; }
+
+        $ps = $db->prepare('SELECT event_id, game_type, buyin_amount, num_tables, seats_per_table FROM poker_sessions WHERE event_id = ?');
+        $ps->execute([$copyId]);
+        $pokerRow = $ps->fetch() ?: null;
+    }
 }
 
 // Editor option sources (same as calendar.php)
@@ -157,13 +193,13 @@ $site_name = get_setting('site_name', 'Game Night');
 
 // Cancel / return link mirrors the post-save destination (without the auto-open).
 $cancelUrl = '/calendar.php' . ($backWk ? '?wk=' . urlencode($backWk) : ($backM ? '?m=' . urlencode($backM) : ''));
-if ($event) {
+if ($event && !$isCopy) {
     $cancelOpen = ($occDate ?: ($event['start_date'] ?? ''));
     if ($cancelOpen !== '') {
         $cancelUrl .= (strpos($cancelUrl, '?') === false ? '?' : '&') . 'open=' . (int)$eid . '&date=' . urlencode($cancelOpen);
     }
 }
-$pageHeading = $event ? 'Edit Event' : 'Add Event';
+$pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -328,8 +364,8 @@ $pageHeading = $event ? 'Edit Event' : 'Add Event';
         </div>
         <form method="post" action="/event_edit.php" id="editForm">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
-            <input type="hidden" name="action" id="eAction" value="<?= $event ? 'edit' : 'add' ?>">
-            <input type="hidden" name="id" id="eId" value="<?= $event ? (int)$event['id'] : '' ?>">
+            <input type="hidden" name="action" id="eAction" value="<?= ($event && !$isCopy) ? 'edit' : 'add' ?>">
+            <input type="hidden" name="id" id="eId" value="<?= ($event && !$isCopy) ? (int)$event['id'] : '' ?>">
             <input type="hidden" name="month_param" value="<?= htmlspecialchars($backM) ?>">
             <input type="hidden" name="wk_param" value="<?= htmlspecialchars($backWk) ?>">
             <input type="hidden" name="occurrence_date" id="eOccDate" value="<?= htmlspecialchars($occDate) ?>">
@@ -374,6 +410,9 @@ $pageHeading = $event ? 'Edit Event' : 'Add Event';
                         <option value="5">5h</option><option value="6">6h</option><option value="8">8h</option>
                     </select>
                 </label>
+                <label style="flex:1;min-width:170px">Location
+                    <input type="text" name="location" id="eLocation" placeholder="Venue or address (optional)" maxlength="200" autocomplete="off">
+                </label>
             </div>
 
             <!-- ── Toolbar: toggles + actions ── -->
@@ -381,6 +420,7 @@ $pageHeading = $event ? 'Edit Event' : 'Add Event';
                 <button type="button" class="btn btn-outline" onclick="addBlankInviteRow()">+ Custom Invitee</button>
                 <label class="edit-notify-row"><span>Poker</span><input type="checkbox" name="is_poker" id="eIsPoker" value="1" class="pk-toggle-input" onchange="togglePokerFields()"><span class="pk-toggle-slider"></span></label>
                 <label class="edit-notify-row" id="eWaitlistLabel" style="display:none"><span>Waitlist</span><input type="checkbox" name="waitlist_enabled" id="eWaitlistEnabled" value="1" class="pk-toggle-input" onchange="updateCapacityLine()"><span class="pk-toggle-slider"></span></label>
+                <label class="edit-notify-row" id="eMaxGuestsLabel" style="display:none" title="Cap the guest count for non-poker events (blank = unlimited); with Waitlist on, extra invitees go to a waitlist"><span>Max guests</span><input type="number" name="max_guests" id="eMaxGuests" min="1" max="999" placeholder="&#8734;" style="width:58px;padding:.22rem .35rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.82rem" oninput="togglePokerFields()"></label>
                 <label class="edit-notify-row" title="Walk-in QR and self-signups require approval"><span>Approval</span><input type="checkbox" name="requires_approval" id="eRequiresApproval" value="1" class="pk-toggle-input"><span class="pk-toggle-slider"></span></label>
                 <label class="edit-notify-row" title="Hide the Going/Maybe guest list on the public RSVP and event pages"><span>Hide guests</span><input type="checkbox" name="hide_guest_list" id="eHideGuestList" value="1" class="pk-toggle-input"><span class="pk-toggle-slider"></span></label>
                 <label class="edit-notify-row" title="Send reminders before the event"><span>Reminders</span><input type="checkbox" name="reminders_enabled" id="eRemindersEnabled" value="1" class="pk-toggle-input" onchange="toggleReminderFields()" checked><span class="pk-toggle-slider"></span></label>
@@ -463,7 +503,7 @@ $pageHeading = $event ? 'Edit Event' : 'Add Event';
             <!-- Hidden inputs synced from invite lists -->
             <div id="eInviteData"></div>
         </form>
-        <?php if ($isAdmin && $event): ?>
+        <?php if ($isAdmin && $event && !$isCopy): ?>
         <div style="padding:.4rem 1rem .6rem;flex-shrink:0">
             <button type="button" id="eRegenWalkinBtn"
                     style="width:100%;padding:.38rem;border:1.5px solid #cbd5e1;border-radius:7px;background:#fff;color:#64748b;font-size:.78rem;cursor:pointer;font-weight:600"
@@ -1049,7 +1089,12 @@ document.getElementById('editForm').addEventListener('submit', function(e) {
 function togglePokerFields() {
     var show = document.getElementById('eIsPoker').checked;
     document.getElementById('ePokerFields').style.display = show ? '' : 'none';
-    document.getElementById('eWaitlistLabel').style.display = show ? '' : 'none';
+    // Max-guests cap applies to non-poker events (poker capacity = seats × tables).
+    // The waitlist toggle shows for poker always, or for non-poker once a cap is set.
+    var mg = document.getElementById('eMaxGuests');
+    var mgVal = mg ? parseInt(mg.value, 10) || 0 : 0;
+    if (mg) document.getElementById('eMaxGuestsLabel').style.display = show ? 'none' : '';
+    document.getElementById('eWaitlistLabel').style.display = (show || mgVal > 0) ? '' : 'none';
     if (show) updateCapacityLine();
     else updateDividerLine(); // clear divider when poker is off
 }
@@ -1139,7 +1184,7 @@ function loadPokerDefaultsIntoEditor() {
         });
 }
 
-<?php if ($isAdmin && $event): ?>
+<?php if ($isAdmin && $event && !$isCopy): ?>
 function regenWalkinFromEdit() {
     var btn = document.getElementById('eRegenWalkinBtn');
     btn.textContent = 'Regenerating…';
@@ -1169,6 +1214,7 @@ function regenWalkinFromEdit() {
     document.getElementById('eStartDate').value = ev ? (ev.start_date_input || ev.start_date)
                                                      : (PREFILL_DATE || new Date().toLocaleDateString('en-CA'));
     setTimePicker(ev ? (ev.start_time_input || ev.start_time || '') : '');
+    document.getElementById('eLocation').value  = ev ? (ev.location || '') : '';
     document.getElementById('eDesc').value      = ev ? (ev.description || '') : '';
     var hasDesc = ev && ev.description && ev.description.trim() !== '';
     document.getElementById('eDescWrap').style.display = hasDesc ? '' : 'none';
@@ -1184,6 +1230,7 @@ function regenWalkinFromEdit() {
     document.getElementById('ePokerSeats').value    = ps ? ps.seats_per_table : '8';
     document.getElementById('eRsvpDeadline').value  = (ev && ev.rsvp_deadline_hours) ? String(ev.rsvp_deadline_hours) : '';
     document.getElementById('eWaitlistEnabled').checked = ev ? !!(parseInt(ev.waitlist_enabled) || ev.waitlist_enabled === null) : false;
+    document.getElementById('eMaxGuests').value = (ev && ev.max_guests) ? ev.max_guests : '';
     togglePokerFields();
 
     // Reminder config: on for new events; for edits, respect the stored toggle.

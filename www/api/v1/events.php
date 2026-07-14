@@ -119,6 +119,7 @@ foreach ($rows as $r) {
         'id'                => (int)$r['id'],
         'title'             => (string)$r['title'],
         'description'       => (string)($r['description'] ?? ''),
+        'location'          => (string)($r['location'] ?? ''),
         'start_at'          => api_local_to_utc_iso((string)$r['start_date'], (string)($r['start_time'] ?? ''), $site_tz, $utc_tz),
         'end_at'            => api_local_to_utc_iso((string)($r['end_date'] ?? ''), (string)($r['end_time'] ?? ''), $site_tz, $utc_tz),
         'color'             => (string)$r['color'],
@@ -183,6 +184,12 @@ function handle_events_post(): void {
     }
 
     $description = trim((string)($body['description'] ?? ''));
+
+    $location = trim((string)($body['location'] ?? ''));
+    if (mb_strlen($location) > 200) {
+        api_log_request($key_id, 400);
+        api_fail('location must be 200 characters or fewer', 400);
+    }
 
     $site_tz = new DateTimeZone(get_setting('timezone', 'UTC'));
 
@@ -345,14 +352,15 @@ function handle_events_post(): void {
     try {
         $db->prepare(
             'INSERT INTO events (
-                title, description, start_date, end_date, start_time, end_time,
+                title, description, location, start_date, end_date, start_time, end_time,
                 color, created_by, requires_approval,
                 league_id, visibility, is_poker, rsvp_deadline_hours, waitlist_enabled,
                 reminders_enabled, reminder_offsets, walkin_token
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         )->execute([
             $title,
             $description !== '' ? $description : null,
+            $location !== '' ? $location : null,
             $start_date,
             $end_date,
             $start_time,
@@ -662,6 +670,12 @@ function handle_events_patch(): void {
         $d = trim((string)$body['description']);
         $new = $d !== '' ? $d : null;
         if ($new !== ($current['description'] ?? null)) { $updates['description'] = $new; $fields_changed[] = 'description'; }
+    }
+    if (array_key_exists('location', $body)) {
+        $l = trim((string)$body['location']);
+        if (mb_strlen($l) > 200) { api_log_request($key_id, 400); api_fail('location must be 200 characters or fewer', 400); }
+        $new = $l !== '' ? $l : null;
+        if ($new !== ($current['location'] ?? null)) { $updates['location'] = $new; $fields_changed[] = 'location'; }
     }
     if (array_key_exists('color', $body)) {
         $c = (string)$body['color'];
@@ -1117,6 +1131,7 @@ function handle_events_get_one(): void {
         'id'                => (int)$row['id'],
         'title'             => (string)$row['title'],
         'description'       => (string)($row['description'] ?? ''),
+        'location'          => (string)($row['location'] ?? ''),
         'start_at'          => api_local_to_utc_iso((string)$row['start_date'], (string)($row['start_time'] ?? ''), $site_tz, $utc_tz),
         'end_at'            => api_local_to_utc_iso((string)($row['end_date'] ?? ''), (string)($row['end_time'] ?? ''), $site_tz, $utc_tz),
         'color'             => (string)$row['color'],

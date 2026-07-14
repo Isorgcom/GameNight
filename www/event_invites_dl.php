@@ -73,7 +73,7 @@ $q = $db->prepare(
         SUM(CASE WHEN attempted_at IS NOT NULL THEN 1 ELSE 0 END)               AS dispatched,
         SUM(CASE WHEN attempted_at IS NULL AND attempts >= 3 THEN 1 ELSE 0 END) AS failed
      FROM pending_notifications
-     WHERE event_id = ? AND notify_type = 'invite'"
+     WHERE event_id = ? AND notify_type IN ('invite', 'rsvp_nudge')"
 );
 $q->execute([$eid]);
 $qr = $q->fetch() ?: [];

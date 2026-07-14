@@ -4,6 +4,24 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2026] - 2026-07-14
+
+### Added
+- **Event location field with maps link.** Events finally have a structured venue/address (`events.location`, 200 chars): a Location box in the editor's top bar (`event_edit.php`, saved via `_event_save.php`), shown with a 📍 and a no-API-key "Open in Maps" Google link in the calendar modal, the public invite page, and the new event page, and included in invite and reminder messages ("Where: …" in SMS, a linked line in email). The REST API (`api/v1/events.php`) accepts and returns `location` on create/update/list/get for the Bayou Burro site.
+- **Add-to-calendar: .ics download + Google Calendar link.** New `www/ics.php` emits a spec-correct VEVENT (site-tz wall clock converted to UTC, RFC 5545 line folding that never splits a UTF-8 character, all-day support, 3-hour default duration when no end time) or 302s to a prefilled Google Calendar template with `&google=1`. Auth is two-mode: `?token=<rsvp_token>` serves invitees with no login (same trust model as event.php), `?id=` uses the calendar's own `event_visibility_sql` view rule for logged-in users. Links appear in the calendar modal, the public invite page, invite emails, and the new event page.
+- **Duplicate event.** A Duplicate button in the event modal (and on the event page) opens `event_edit.php?copy=<id>` — the ADD form prefilled with the source's title, description, location, times, color, poker config, reminder settings, visibility, and full invite list, with all RSVPs cleared and the date blank so the host must pick one. Manage-gated on the source event; saving creates a brand-new event with fresh RSVP tokens. Kills the re-type-everything ritual for recurring game nights.
+- **Nudge non-responders.** When invites went out but people haven't answered, the modal roster shows "⏰ N invited, no response yet" with a Send reminder button. The new `nudge_nonresponders` action (calendar.php) queues an `rsvp_nudge` notification — a friendly "Still deciding?" with the same one-click tokenized RSVP buttons as the invite — deduped to one per recipient per day via an `rsvp_nudge_<date>` marker so re-clicks are harmless and the host can chase remaining stragglers on a later day. Nudges ride the live delivery-status line (its queue counts now include both types).
+- **Guest count and capacity for non-poker events.** New optional `events.max_guests` cap with a "Max guests" editor field (non-poker only; setting it reveals the Waitlist toggle). The modal meta line now shows "N going" (or "N/cap going") for every non-poker event — previously only poker events had any headcount. The public invite page shows a going/maybe count even when `hide_guest_list` hides the roster. `maybe_promote_waitlisted()` (db.php) was generalized: capacity comes from seats×tables for poker and `max_guests` otherwise, and `_event_save.php`'s save-time over-capacity waitlisting now applies to both kinds.
+- **Canonical event page.** `event.php?id=<id>` is now a real server-rendered page for logged-in users (the token-based invitee page is unchanged): title, league badge, viewer-tz date/time, location, add-to-calendar, description, live "going" count, RSVP dropdown (or Sign up / Leave, wired to the existing calendar.php actions), who's-coming lists (headcount-only when the guest list is hidden), comments with a plain-form post that redirects back, and manager shortcuts (Edit / Duplicate / Manage Game / Polls / open-in-calendar). The modal's copy-link button and the central notification URL builder (`_notifications.php`) now point here instead of the fragile `calendar.php?m=&open=&date=` deep link, and the page handles its own login redirect so emailed links survive. Invite management deliberately stays in the calendar modal and editor.
+
+### Fixed
+- **Notification links survive month/date drift.** All event notification links previously deep-linked into the calendar with month + date parameters that could miss (and always dumped comment-notification readers on the calendar to re-find the event). They now land on the canonical event page.
+
+### Known issue (pre-existing, unchanged)
+- For a user whose personal timezone differs from the site timezone, the post-save redirect's auto-open can silently miss (site-tz date in the URL vs viewer-tz day bucketing in the calendar grid). Surfaced during cross-timezone testing of this release; the canonical event page is immune, so a future fix can simply redirect there after save.
+
+---
+
 ## [v0.2025] - 2026-07-13
 
 ### Added

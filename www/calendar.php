@@ -87,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Per-event management actions that target an existing event via event_id (not id).
     // Each is allowed for anyone who can manage that specific event; the handlers below
     // re-check with can_manage_event(), so this gate just needs to let managers through.
-    $eventMgmtActions = ['send_invites', 'resend_invite', 'approve_invite', 'deny_invite', 'send_event_message', 'delete_event_message'];
+    $eventMgmtActions = ['send_invites', 'nudge_nonresponders', 'resend_invite', 'approve_invite', 'deny_invite', 'send_event_message', 'delete_event_message'];
     if (!$isAdmin && !in_array($action, ['update_rsvp', 'self_signup', 'self_remove'], true)) {
         $chkIdForMgr  = (int)($_POST['id'] ?? 0);
         $chkEidForMgr = (int)($_POST['event_id'] ?? 0);
@@ -471,6 +471,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             http_response_code(403);
             exit('Permission denied.');
         }
+    }
+
+    // Nudge approved invitees whose invite went out but who never RSVPed.
+    // Deduped per day (rsvp_nudge_<date> marker) so re-clicks are harmless and
+    // the host can chase remaining stragglers again on a later day.
+    if ($action === 'nudge_nonresponders' && $current) {
+        $eid   = (int)($_POST['event_id'] ?? 0);
+        $isXhr = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest';
+        if ($eid > 0 && can_manage_event($db, $eid, (int)$current['id'], $isAdmin)) {
+            if (get_setting('notifications_enabled', '0') !== '1') {
+                header('Content-Type: application/json');
+                echo json_encode(['ok' => false, 'error' => 'Notifications are currently disabled site-wide.']);
+                exit;
+            }
+            $today = date('Y-m-d');
+            $rows = $db->prepare(
+                "SELECT ei.username FROM event_invites ei
+                 WHERE ei.event_id = ? AND ei.occurrence_date IS NULL AND ei.approval_status = 'approved'
+                   AND ei.rsvp IS NULL
+                   AND EXISTS (
+                       SELECT 1 FROM event_notifications_sent ens
+                       WHERE ens.event_id = ei.event_id AND ens.notification_type = 'invite'
+                         AND ens.occurrence_date = '' AND ens.user_identifier = LOWER(ei.username))
+                   AND NOT EXISTS (
+                       SELECT 1 FROM event_notifications_sent ens2
+                       WHERE ens2.event_id = ei.event_id AND ens2.notification_type = ?
+                         AND ens2.occurrence_date = '' AND ens2.user_identifier = LOWER(ei.username))"
+            );
+            $rows->execute([$eid, 'rsvp_nudge_' . $today]);
+            require_once __DIR__ . '/_notifications.php';
+            $sent = 0;
+            foreach ($rows->fetchAll() as $r) {
+                queue_event_notification($db, $eid, $r['username'], 'rsvp_nudge', null, ['day' => $today]);
+                $sent++;
+            }
+            if ($sent > 0) {
+                db_log_activity((int)$current['id'], "nudged $sent non-responder(s) on event id: $eid");
+                drain_queue_async();
+            }
+            header('Content-Type: application/json');
+            echo json_encode(['ok' => true, 'sent' => $sent]);
+            exit;
+        }
+        http_response_code(403);
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => false, 'error' => 'Permission denied.']);
+        exit;
     }
 
     // Host-authored "final details" message to attendees (owner/manager only).
@@ -1598,6 +1645,8 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
             Saved
         </div>
         <div id="vMeta"    class="ev-view-meta"></div>
+        <div id="vLocation" class="ev-view-meta" style="display:none"></div>
+        <div id="vAddCal"  class="ev-view-meta" style="font-size:.82rem"></div>
         <div id="vWaitlistNotice" style="display:none;padding:.4rem .75rem;margin:.4rem 0;font-size:.82rem;font-weight:600;color:#1e40af;background:#eff6ff;border:1px solid #93c5fd;border-radius:6px"></div>
         <div id="vDesc"    class="ev-view-desc"></div>
         <?php if ($current): ?>
@@ -1644,6 +1693,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
             <a id="vManageGameBtn" href="#" class="btn" style="background:#059669;color:#fff;text-decoration:none">Manage Game</a>
             <button type="button" class="btn btn-outline" title="Poll your Yes/Maybe guests" onclick="if(currentEvent)location.href='/event_polls.php?event_id='+currentEvent.id">Polls</button>
             <button type="button" class="btn btn-primary" onclick="if(currentEvent)location.href='/event_edit.php?id='+currentEvent.id+'&'+EDITOR_CTX">Edit</button>
+            <button type="button" class="btn btn-outline" title="Create a new event prefilled from this one (same details and invite list, new date, no RSVPs)" onclick="if(currentEvent)location.href='/event_edit.php?copy='+currentEvent.id+'&'+EDITOR_CTX">Duplicate</button>
             <?php if ($isAdmin): ?><button type="button" class="btn btn-outline" title="Walk-up QR code" onclick="openWalkinQR()" style="font-size:1rem;padding:.38rem .65rem">&#x1F4F1; QR</button><?php endif; ?>
             <form method="post" action="/calendar.php" style="margin:0"
                   onsubmit="return pkConfirmForm(this, 'Delete this event?', {okLabel:'Delete', danger:true})">
@@ -1768,15 +1818,38 @@ function viewEvent(ev) {
         meta += '  \u00b7  ' + (ev.start_time_display || fmt12(ev.start_time));
         if (ev.end_time) meta += ' \u2013 ' + (ev.end_time_display || fmt12(ev.end_time));
     }
-    // Seat count for poker events
+    // Seat count for poker events; plain "N going" (with optional cap) otherwise
     var ps = ev ? (eventPoker[ev.id] || null) : null;
+    var invList = eventInvites[ev.id] || [];
+    var yesCount = invList.filter(function(i) { return i.rsvp === 'yes' && i.approval_status === 'approved'; }).length;
     if (ps) {
         var cap = (parseInt(ps.seats_per_table,10) || 8) * (parseInt(ps.num_tables,10) || 1);
-        var invList = eventInvites[ev.id] || [];
-        var yesCount = invList.filter(function(i) { return i.rsvp === 'yes' && i.approval_status === 'approved'; }).length;
         meta += '  \u00b7  ' + yesCount + '/' + cap + ' seats filled';
+    } else {
+        var mg = parseInt(ev.max_guests, 10) || 0;
+        meta += '  \u00b7  ' + yesCount + (mg > 0 ? '/' + mg : '') + ' going';
     }
     document.getElementById('vMeta').textContent = meta;
+
+    // Location + maps link
+    var vLoc = document.getElementById('vLocation');
+    if (vLoc) {
+        if (ev.location) {
+            vLoc.innerHTML = '&#128205; ' + escHtml(ev.location)
+                + ' <a href="https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(ev.location)
+                + '" target="_blank" rel="noopener" style="font-size:.8rem">Open in Maps</a>';
+            vLoc.style.display = '';
+        } else {
+            vLoc.style.display = 'none';
+        }
+    }
+
+    // Add-to-calendar links (ics.php handles tz conversion server-side)
+    var vCal = document.getElementById('vAddCal');
+    if (vCal) {
+        vCal.innerHTML = '&#128197; <a href="/ics.php?id=' + ev.id + '">Add to calendar</a>'
+            + ' &middot; <a href="/ics.php?id=' + ev.id + '&google=1" target="_blank" rel="noopener">Google</a>';
+    }
 
     // Waitlist notice for the current user
     var vWaitlistEl = document.getElementById('vWaitlistNotice');
@@ -1884,9 +1957,7 @@ function showSavedBar(msg) {
 }
 function copyEventLink() {
     if (!currentEvent) return;
-    const d   = currentEvent.start_date;
-    const m   = d.substring(0, 7);
-    const url = window.location.origin + '/calendar.php?m=' + m + '&open=' + currentEvent.id + '&date=' + d;
+    const url = window.location.origin + '/event.php?id=' + currentEvent.id;
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(url).then(() => showSavedBar('Link copied!'));
     } else {
@@ -1996,6 +2067,14 @@ function renderInvitesPanel(eid) {
         if (noContact.length) {
             ih += '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.5rem .7rem;margin-bottom:.7rem;font-size:.78rem;color:#991b1b;line-height:1.45">'
                 + '&#9888; ' + noContact.length + ' ' + (noContact.length === 1 ? 'invitee has' : 'invitees have') + ' no email or phone and can’t be notified. Edit the event to add a contact for them.'
+                + '</div>';
+        }
+        // Invited but no answer yet → offer a one-click nudge (server dedups per day).
+        const nonresp = approved.filter(inv => inv.sent && !inv.rsvp && !inv.no_contact);
+        if (nonresp.length) {
+            ih += '<div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.55rem .7rem;margin-bottom:.7rem">'
+                + '<span style="flex:1;min-width:0;font-size:.8rem;color:#475569;font-weight:600">&#9200; ' + nonresp.length + ' invited, no response yet</span>'
+                + '<button type="button" class="btn-nudge" data-eid="' + eid + '" style="font-size:.78rem;padding:.3rem .8rem;border-radius:6px;border:1.5px solid #cbd5e1;background:#fff;color:#334155;font-weight:600;cursor:pointer">Send reminder</button>'
                 + '</div>';
         }
     }
@@ -2380,6 +2459,36 @@ if (vInvDiv) {
                     sendAllBtn.textContent = origText;
                     pkAlert('Network error. Please try again.');
                 });
+            return;
+        }
+
+        // "Send reminder" to non-responders — server dedups one nudge per person per day.
+        const nudgeBtn = e.target.closest('.btn-nudge');
+        if (nudgeBtn) {
+            const eid    = parseInt(nudgeBtn.dataset.eid);
+            const csrfEl = document.getElementById('vRsvpCsrf');
+            if (!csrfEl) return;
+            const data = new FormData();
+            data.append('csrf_token', csrfEl.value);
+            data.append('action',     'nudge_nonresponders');
+            data.append('event_id',   eid);
+            pkBusy(nudgeBtn, fetch('/calendar.php', {method:'POST', body:data, headers:{'X-Requested-With':'XMLHttpRequest'}})
+                .then(r => r.json())
+                .then(res => {
+                    if (!res.ok) { pkAlert(res.error || 'Could not send reminders.'); return; }
+                    if (res.sent > 0) {
+                        _invQueueSawPending[eid] = true;
+                        const q = eventInviteQueue[eid] || {pending:0, dispatched:0, failed:0};
+                        eventInviteQueue[eid] = { pending: q.pending + res.sent, dispatched: q.dispatched, failed: q.failed };
+                        showSavedBar(res.sent + ' reminder' + (res.sent === 1 ? '' : 's') + ' queued — sending now');
+                        renderInvitesPanel(eid);
+                    } else {
+                        showSavedBar('Everyone was already reminded today');
+                        nudgeBtn.textContent = 'Reminded today';
+                    }
+                    pollRsvps(eid);
+                })
+                .catch(() => pkAlert('Network error. Please try again.')));
             return;
         }
 

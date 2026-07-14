@@ -1170,6 +1170,8 @@ JSON;
     try { $pdo->exec("ALTER TABLE event_invites ADD COLUMN sort_order INTEGER"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE events ADD COLUMN rsvp_deadline_hours INTEGER"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE events ADD COLUMN rsvp_deadline_processed INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE events ADD COLUMN location TEXT"); } catch (Exception $e) {}  // free-text venue/address; shown with an Open-in-Maps link
+    try { $pdo->exec("ALTER TABLE events ADD COLUMN max_guests INTEGER"); } catch (Exception $e) {}  // non-poker capacity (NULL = unlimited); poker capacity stays seats*tables
     // Security (v0.19015): cap how many times an `rsvp_token` can flip the RSVP value so a stolen
     // or shoulder-surfed QR/email link can't be replayed indefinitely.
     try { $pdo->exec("ALTER TABLE event_invites ADD COLUMN rsvp_token_flips INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
@@ -2326,17 +2328,22 @@ function user_leagues(int $user_id): array {
  * Only applies to poker events with sort_order-based priority.
  */
 function maybe_promote_waitlisted(PDO $db, int $event_id): void {
-    // Get the event + poker session to compute capacity
-    $ev = $db->prepare('SELECT e.id, e.waitlist_enabled, ps.seats_per_table, ps.num_tables
+    // Capacity source: seats × tables for poker events, max_guests for the rest.
+    $ev = $db->prepare('SELECT e.id, e.is_poker, e.waitlist_enabled, e.max_guests, ps.seats_per_table, ps.num_tables
                         FROM events e
                         LEFT JOIN poker_sessions ps ON ps.event_id = e.id
-                        WHERE e.id = ? AND e.is_poker = 1');
+                        WHERE e.id = ?');
     $ev->execute([$event_id]);
     $row = $ev->fetch();
-    if (!$row || !$row['seats_per_table']) return;
+    if (!$row) return;
     if (!(int)($row['waitlist_enabled'] ?? 1)) return; // waitlist disabled for this event
 
-    $capacity = (int)$row['seats_per_table'] * (int)$row['num_tables'];
+    if ((int)$row['is_poker'] === 1) {
+        if (!$row['seats_per_table']) return;
+        $capacity = (int)$row['seats_per_table'] * (int)$row['num_tables'];
+    } else {
+        $capacity = (int)($row['max_guests'] ?? 0);
+    }
     if ($capacity <= 0) return;
 
     // Count approved invitees who haven't declined
