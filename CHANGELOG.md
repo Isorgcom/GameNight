@@ -4,6 +4,18 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2027] - 2026-07-14
+
+### Added
+- **Tournament timer: estimated finish time.** A new "Ends: ≈ 11:40 PM" stat in the info bar, computed client-side from the remaining structure (current level's remainder plus every later level's duration, breaks included — `computeTotalRemainingSeconds()` in `timer.php`). Shown only while the clock runs, since a paused estimate drifts. Registered as a first-class theme element (`ends_at`): recolorable, rescalable, repositionable, and hideable in the theme editor like the other stats; existing saved themes are unaffected (all hooks are guarded).
+- **Tournament timer: break wall clock.** During a break with the clock running, the big center line now reads "Until 9:15 PM" (viewer's local time) instead of the static "Break Time", which returns when paused. No countdown math from across the room.
+- **Tournament timer: undo.** A ↺ Undo button in the host controls reverses the last timer action — skip, ±time, reset level/timer, or play/pause. One level deep: each mutating command snapshots the pre-command live state into a new `timer_state.prev_state` JSON column (migration in `db.php`), and `undo` in `timer_dl.php` restores and consumes it (no redo ping-pong); snapshots expire after 10 minutes. Command errors on the timer now surface as pk-dialogs instead of dying in the console, so a second undo visibly says "Nothing to undo."
+
+### Fixed
+- **Post-save now lands on the event page, fixing the cross-timezone auto-open miss.** Saving an event (editor page or calendar modal) previously redirected to `calendar.php?open=ID&date=<site-tz date>`; for a user whose personal timezone shifts the event onto a different viewer-tz calendar day, the auto-open silently found nothing (the v0.2026 known issue). Both save paths (`event_edit.php`, `calendar.php`) now redirect to the canonical `event.php?id=` page — which has the roster, Send Invitations banner, and delivery-status line — and the event page renders the "Event saved" flash. Verified headless against the exact previously-broken flow (UTC viewer, site tz America/Chicago, a 00:30 start time).
+
+---
+
 ## [v0.2026] - 2026-07-14
 
 ### Added

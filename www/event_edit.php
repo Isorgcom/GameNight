@@ -76,27 +76,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['flash'] = ['type' => 'success', 'msg' => $action === 'add' ? 'Event added.' : 'Event updated.'];
     }
 
-    // Same post-save navigation as the calendar modal: land on the event's
-    // week/month with the detail view auto-opened.
-    $back_wk   = $_POST['wk_param'] ?? '';
-    $back_m    = $_POST['month_param'] ?? '';
-    $open_date = $res['open_date'] ?? '';
-    if (!empty($open_date)) {
-        if (!empty($back_wk)) {
-            $evDt  = new DateTime($open_date, new DateTimeZone(get_setting('timezone', 'UTC')));
-            $evDow = (int)$evDt->format('w');
-            $back_wk = (clone $evDt)->modify("-{$evDow} days")->format('Y-m-d');
-        } else {
-            $back_m = substr($open_date, 0, 7);
-        }
+    // Land on the canonical event page after save: it has the roster and Send
+    // Invitations, and unlike the calendar ?open= deep link it can't miss when
+    // the viewer's timezone shifts the event onto a different calendar day.
+    if (!empty($res['event_id'])) {
+        header('Location: /event.php?id=' . (int)$res['event_id']);
+        exit;
     }
-    $openSuffix = (!empty($res['event_id']) && !empty($open_date))
-        ? '&open=' . (int)$res['event_id'] . '&date=' . urlencode($open_date)
-        : '';
+    $back_wk = $_POST['wk_param'] ?? '';
+    $back_m  = $_POST['month_param'] ?? '';
     if (!empty($back_wk)) {
-        header('Location: /calendar.php?wk=' . urlencode($back_wk) . $openSuffix);
+        header('Location: /calendar.php?wk=' . urlencode($back_wk));
     } else {
-        header('Location: /calendar.php' . ($back_m ? '?m=' . urlencode($back_m) : '') . $openSuffix);
+        header('Location: /calendar.php' . ($back_m ? '?m=' . urlencode($back_m) : ''));
     }
     exit;
 }

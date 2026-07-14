@@ -1141,6 +1141,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
         #rebuysWrap       { color: var(--timer-rebuys-color, #94a3b8); }
         #chipsInPlayWrap  { color: var(--timer-chips-color, #94a3b8); }
         #nextBreakWrap    { color: var(--timer-nextbreak-color, #94a3b8); }
+        #endsAtWrap       { color: var(--timer-endsat-color, #94a3b8); }
         /* Center guides shown only in layout-edit mode. Subtle by default; brighten when
            an element snaps to them mid-drag. */
         .center-guide-v, .center-guide-h {
@@ -1490,6 +1491,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
         <span class="timer-stat" id="rebuysWrap" style="display:none">Reentries: <b id="rebuysCount">0</b></span>
         <span class="timer-stat" id="chipsInPlayWrap" style="display:none">Chips: <b id="chipsInPlayVal">0</b></span>
         <span class="timer-stat" id="nextBreakWrap" style="display:none">Next break: <b id="nextBreakClock">--:--</b></span>
+        <span class="timer-stat" id="endsAtWrap" style="display:none">Ends: <b id="endsAtVal">--</b></span>
     </div>
 
     <!-- Main display -->
@@ -1520,6 +1522,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
                 <button onclick="resetLevel()" title="Reset level">&#8635;<span class="tray-label">Level</span></button>
                 <button onclick="resetTimer()" title="Reset timer" class="btn-danger">&#10226;<span class="tray-label" style="color:#ef4444">Timer</span></button>
             </span>
+            <button onclick="sendCommand('undo')" title="Undo the last timer action (skip, time change, reset, play/pause)">&#8630;<span class="tray-label">Undo</span></button>
             <span class="timer-tray-sep"></span>
             <?php endif; ?>
             <button id="btnSound" onclick="toggleSound()" title="Toggle sound">&#128276;<span class="tray-label">Sound</span></button>
@@ -1984,6 +1987,28 @@ function fmtBreakClock(secs) {
     return h > 0 ? (h + ':' + pad(m) + ':' + pad(s)) : (pad(m) + ':' + pad(s));
 }
 
+// Total seconds until the structure runs out: current remaining + every later
+// level's duration. Null when there are no levels to sum.
+function computeTotalRemainingSeconds() {
+    if (!LEVELS || !LEVELS.length) return null;
+    var curIdx = -1;
+    for (var i = 0; i < LEVELS.length; i++) {
+        if (parseInt(LEVELS[i].level_number) === TIMER.current_level) { curIdx = i; break; }
+    }
+    if (curIdx < 0) return null;
+    var total = Math.max(0, parseInt(TIMER.time_remaining_seconds) || 0);
+    for (var j = curIdx + 1; j < LEVELS.length; j++) {
+        total += (parseInt(LEVELS[j].duration_minutes) || 0) * 60;
+    }
+    return total;
+}
+
+// "9:15 PM" wall-clock label for a moment N seconds from now, in the viewer's tz.
+function fmtWallTime(secsFromNow) {
+    return new Date(Date.now() + secsFromNow * 1000)
+        .toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
 // ─── §7.3  Render ───────────────────────────────────────────────
 function renderAll() {
     var lv = getLevelData(TIMER.current_level);
@@ -1992,7 +2017,11 @@ function renderAll() {
     if (lv) {
         if (parseInt(lv.is_break)) {
             el('levelLabel').textContent = 'BREAK';
-            el('blinds').textContent = 'Break Time';
+            // While running, show the wall-clock end of the break ("Until 9:15 PM")
+            // so nobody has to do countdown math at the snack table.
+            el('blinds').textContent = TIMER.is_running
+                ? 'Until ' + fmtWallTime(Math.max(0, parseInt(TIMER.time_remaining_seconds) || 0))
+                : 'Break Time';
             el('ante').textContent = '';
         } else {
             // Count play levels only
@@ -2093,6 +2122,20 @@ function renderAll() {
         } else {
             nbWrap.style.display = _inEdit ? '' : 'none';
             if (_inEdit) nbVal.textContent = '--:--';
+        }
+    }
+
+    // Estimated finish ("Ends: ≈ 11:40 PM") — remaining time through the whole
+    // structure. Only meaningful while the clock runs; paused estimates drift.
+    var eaWrap = el('endsAtWrap'), eaVal = el('endsAtVal');
+    if (eaWrap && eaVal) {
+        var eaSecs = computeTotalRemainingSeconds();
+        if (eaSecs !== null && eaSecs > 0 && TIMER.is_running) {
+            eaVal.textContent = '≈ ' + fmtWallTime(eaSecs);
+            eaWrap.style.display = '';
+        } else {
+            eaWrap.style.display = _inEdit ? '' : 'none';
+            if (_inEdit) eaVal.textContent = '≈ --:--';
         }
     }
 
@@ -2295,7 +2338,8 @@ function sendCommand(cmd) {
     fetch('/timer_dl.php', { method: 'POST', body: fd })
         .then(function(r) { return r.json(); })
         .then(function(j) {
-            if (!j.ok) console.error('Command error:', j.error);
+            if (!j.ok && j.error && typeof pkAlert === 'function') pkAlert(j.error);
+            else if (!j.ok) console.error('Command error:', j.error);
             // Immediately poll to get new state
             pollState();
         })
@@ -3528,6 +3572,7 @@ var THEME_ELEMENTS = [
     { key:'rebuys',        label:'Reentries',     reorderable:false, hasClock:false },
     { key:'chips_in_play', label:'Chips in play', reorderable:false, hasClock:false },
     { key:'next_break',    label:'Next break',    reorderable:false, hasClock:false },
+    { key:'ends_at',       label:'Est. finish',   reorderable:false, hasClock:false },
     { key:'streaming',     label:'Stream',        reorderable:false, hasClock:false, noColor:true, hasStreamUrl:true },
 ];
 
@@ -3548,6 +3593,7 @@ var THEME_SELECTORS = {
     rebuys:        '#rebuysWrap',
     chips_in_play: '#chipsInPlayWrap',
     next_break:    '#nextBreakWrap',
+    ends_at:       '#endsAtWrap',
     streaming:     '#streamingWrap',
 };
 
@@ -3558,7 +3604,7 @@ var THEME_SELECTORS = {
 // element carries an explicit elements[key].z_index that overrides this.
 var DEFAULT_LAYER_ORDER = [
     'streaming','image','qr','payouts','avg_stack','player_count','pool_total',
-    'rebuys','chips_in_play','next_break','event_name','level_label','blinds',
+    'rebuys','chips_in_play','next_break','ends_at','event_name','level_label','blinds',
     'next_level','paused_label','clock',
 ];
 // Effective z for sorting: explicit z_index if set, else the baseline rank
@@ -3753,12 +3799,13 @@ function applyTheme(props) {
     if (el.rebuys)        root.setProperty('--timer-rebuys-color', el.rebuys.color || '#94a3b8');
     if (el.chips_in_play) root.setProperty('--timer-chips-color', el.chips_in_play.color || '#94a3b8');
     if (el.next_break)    root.setProperty('--timer-nextbreak-color', el.next_break.color || '#94a3b8');
+    if (el.ends_at)       root.setProperty('--timer-endsat-color', el.ends_at.color || '#94a3b8');
 
     // Generic per-element scale (transform-based) for widgets that don't have their
     // own bespoke scale rule. The matching CSS selector `.timer-positioned[data-has-scale]`
     // reads --el-scale set on each node. Also applies the per-element color inline for
     // elements whose color wasn't already wired via a root-level CSS var (e.g. pool_total).
-    var SCALABLE_INFO_KEYS = ['player_count','pool_total','avg_stack','payouts','rebuys','chips_in_play','next_break'];
+    var SCALABLE_INFO_KEYS = ['player_count','pool_total','avg_stack','payouts','rebuys','chips_in_play','next_break','ends_at'];
     SCALABLE_INFO_KEYS.forEach(function(k) {
         var pe = el[k];
         if (!pe) return;
@@ -4374,6 +4421,7 @@ var LAYOUT_DEFAULT_POS = {
     rebuys:        { x: 30, y: 12 },
     chips_in_play: { x: 50, y: 12 },
     next_break:    { x: 70, y: 12 },
+    ends_at:       { x: 70, y: 16 },
     streaming:     { x: 75, y: 30 },
 };
 

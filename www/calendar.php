@@ -626,9 +626,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $back_m = substr($open_date, 0, 7);
         }
     }
-    // Auto-open the event's detail view after add or edit so the host lands back on the
-    // event (where the "Send Invitations" prompt and RSVP roster live) instead of the bare
-    // month grid. Reuses the generic ?open=ID&date=DATE path handled later in this file.
+    // After a successful add/edit, land on the canonical event page: it has the
+    // roster and Send Invitations too, and unlike the ?open=ID&date= deep link it
+    // can't miss when the viewer's timezone puts the event on a different calendar
+    // day than the site-tz date in the URL.
+    if (in_array($action, ['add', 'edit'], true) && !empty($notify_eid) && !empty($__save_res['ok'])) {
+        header('Location: /event.php?id=' . (int)$notify_eid);
+        exit;
+    }
     $openSuffix = (in_array($action, ['add', 'edit'], true) && !empty($notify_eid) && !empty($open_date))
         ? '&open=' . (int)$notify_eid . '&date=' . urlencode($open_date)
         : '';

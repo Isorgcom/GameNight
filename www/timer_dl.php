@@ -250,6 +250,10 @@ if ($action === 'command') {
     $level = $live['current_level'];
     $running = $live['is_running'];
 
+    // One-deep undo: snapshot the pre-command state; 'undo' restores it and
+    // clears the snapshot (no redo ping-pong). Snapshots expire after 10 min.
+    $prev_state_json = json_encode(['l' => $level, 'r' => $remaining, 'run' => $running, 'ts' => time()]);
+
     // Load levels
     $levelMap = [];
     if ($timer['preset_id']) {
@@ -296,6 +300,17 @@ if ($action === 'command') {
                 $remaining = 900;
             }
             break;
+        case 'undo':
+            $prev = json_decode((string)($timer['prev_state'] ?? ''), true);
+            if (!is_array($prev) || (time() - (int)($prev['ts'] ?? 0)) > 600) {
+                echo json_encode(['ok' => false, 'error' => 'Nothing to undo.']);
+                exit;
+            }
+            $level     = max(1, (int)($prev['l'] ?? 1));
+            $remaining = max(0, (int)($prev['r'] ?? 0));
+            $running   = (int)($prev['run'] ?? 0) ? 1 : 0;
+            $prev_state_json = null; // consumed
+            break;
         default:
             echo json_encode(['ok' => false, 'error' => 'Unknown command']);
             exit;
@@ -303,8 +318,8 @@ if ($action === 'command') {
 
     // Safety clamp: never store more than 24 hours
     $remaining = max(0, min(86400, $remaining));
-    $db->prepare("UPDATE timer_state SET is_running = ?, current_level = ?, time_remaining_seconds = ?, updated_at = datetime('now') WHERE id = ?")
-        ->execute([$running, $level, $remaining, $timer['id']]);
+    $db->prepare("UPDATE timer_state SET is_running = ?, current_level = ?, time_remaining_seconds = ?, prev_state = ?, updated_at = datetime('now') WHERE id = ?")
+        ->execute([$running, $level, $remaining, $prev_state_json, $timer['id']]);
 
     echo json_encode(['ok' => true]);
     exit;

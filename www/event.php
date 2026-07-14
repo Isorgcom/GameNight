@@ -134,6 +134,15 @@ if ($token === '' && $page_eid > 0) {
 <body>
 <?php require __DIR__ . '/_nav.php'; ?>
 <div class="evp-wrap">
+    <?php
+    $flash = $_SESSION['flash'] ?? null;
+    unset($_SESSION['flash']);
+    if ($flash && !empty($flash['msg'])):
+        $ok = ($flash['type'] ?? '') === 'success'; ?>
+    <div style="margin-bottom:.9rem;padding:.6rem .8rem;border-radius:8px;font-size:.9rem;font-weight:600;<?= $ok ? 'background:#f0fdf4;border:1px solid #bbf7d0;color:#166534' : 'background:#fef2f2;border:1px solid #fca5a5;color:#dc2626' ?>">
+        <?= htmlspecialchars($flash['msg']) ?>
+    </div>
+    <?php endif; ?>
     <div class="evp-card">
         <div style="display:flex;align-items:flex-start;gap:.6rem;flex-wrap:wrap">
             <h1 style="font-size:1.4rem;font-weight:800;color:#1e293b;margin:0 0 .5rem;flex:1;min-width:0"><?= htmlspecialchars($ev['title']) ?></h1>
