@@ -4,6 +4,17 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2031] - 2026-07-15
+
+### Added
+- **Walk-in arrival alerts on the check-in screen.** QR self-registrations used to slide into the roster silently on the next poll — at a busy table the host never noticed. The check-in page (`www/checkin.php`) now tracks known pending player ids and, when a new one appears, shows a bottom-center toast naming the arrival ("🚶 Wendy just checked in via QR — awaiting approval") and plays a short two-tone chirp (WebAudio oscillator, no asset; degrades to toast-only until the browser unlocks audio). Alerts fire even while the host is typing in a roster field (the focus guard only skips the re-render, not the alert) and never fire for pendings that pre-date opening the page.
+- **Approve all.** With 2+ walk-ins waiting, an amber banner appears under the stats row with an Approve all button: one confirm, then sequential approvals — each rides the existing `poker_approved` flow, so every guest still gets their table/seat notification. Banner clears itself when the pending queue empties; single pendings keep the per-row Approve/Deny.
+
+### Changed
+- The audit item "the walk-in guest never learns their seat" turned out to be already solved: approval auto-assigns a table/seat and the `poker_approved` notification includes it. Verified rather than rebuilt.
+
+---
+
 ## [v0.2030] - 2026-07-15
 
 ### Added

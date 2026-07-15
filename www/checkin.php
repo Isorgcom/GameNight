@@ -585,6 +585,7 @@ function loadSession() {
                 PAYOUTS = j.payouts;
                 POOL = j.pool;
                 LOG = j.log || [];
+                WALKIN_SEEN = new Set(pendingPlayerIds(PLAYERS)); // baseline: no alerts for pre-existing pendings
                 renderDashboard();
             }
         });
@@ -2660,6 +2661,43 @@ function refreshUI() {
     if (poolCard) poolCard.innerHTML = renderPoolCard();
     var payoutCard = document.getElementById('payoutCard');
     if (payoutCard) payoutCard.innerHTML = renderPayoutCard();
+    renderPendingBanner();
+}
+
+// "Approve all" banner for a rush of QR sign-ups (shows at 2+ pending).
+function renderPendingBanner() {
+    var pend = (PLAYERS || []).filter(function(p) { return (p.approval_status || 'approved') === 'pending'; });
+    var b = document.getElementById('pendingBanner');
+    if (pend.length < 2) { if (b) b.remove(); return; }
+    if (!b) {
+        var anchor = document.getElementById('statsRow') || document.getElementById('statsCompact');
+        if (!anchor) return;
+        b = document.createElement('div');
+        b.id = 'pendingBanner';
+        anchor.insertAdjacentElement('afterend', b);
+    }
+    b.style.cssText = 'display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;background:#fefce8;border:1px solid #fde68a;border-radius:8px;padding:.55rem .7rem;margin:.6rem 0';
+    b.innerHTML = '<span style="flex:1;min-width:0;font-size:.85rem;color:#92400e;font-weight:600">&#9203; ' + pend.length + ' walk-ins awaiting approval</span>'
+        + '<button class="pk-act-btn primary" id="approveAllBtn" onclick="approveAllPending()">Approve all</button>';
+}
+
+async function approveAllPending() {
+    var pend = (PLAYERS || []).filter(function(p) { return (p.approval_status || 'approved') === 'pending'; });
+    if (!pend.length) return;
+    if (!(await pkConfirm('Approve all ' + pend.length + ' pending walk-ins? Each gets a notification with their table and seat.'))) return;
+    var btn = document.getElementById('approveAllBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Approving…'; }
+    var done = 0;
+    (function next() {
+        if (done >= pend.length) { walkinToast(done + ' player' + (done === 1 ? '' : 's') + ' approved'); return; }
+        var p = pend[done++];
+        postAction('approve_player', { player_id: p.id }, function(j) {
+            PLAYERS = j.players;
+            POOL = j.pool;
+            refreshUI();
+            next();
+        });
+    })();
 }
 
 function focusNextCashInput(el) {
@@ -2697,6 +2735,57 @@ function rosterEditInProgress() {
     return !!(ae.closest && ae.closest('#playerBody, #mobileList, .pk-table-grid, #payoutCard, #poolCard, #statsRow'));
 }
 
+// ─── Walk-in arrival alerts ────────────────────────────────
+// The poll used to add QR self-registrations to the roster silently; at a busy
+// table the host never noticed. Track known pending ids and chirp + toast when
+// a new one appears.
+var WALKIN_SEEN = null; // Set of pending player ids; null until first data
+
+function pendingPlayerIds(list) {
+    return (list || [])
+        .filter(function(p) { return (p.approval_status || 'approved') === 'pending'; })
+        .map(function(p) { return parseInt(p.id); });
+}
+
+function walkinToast(msg) {
+    var t = document.createElement('div');
+    t.textContent = msg;
+    t.style.cssText = 'position:fixed;bottom:1.25rem;left:50%;transform:translateX(-50%);z-index:99999;'
+        + 'background:#1e293b;color:#fff;padding:.6rem 1.1rem;border-radius:999px;font-size:.9rem;font-weight:600;'
+        + 'box-shadow:0 6px 24px rgba(0,0,0,.3);cursor:pointer;max-width:90vw';
+    t.onclick = function() { t.remove(); };
+    document.body.appendChild(t);
+    setTimeout(function() { t.remove(); }, 8000);
+}
+
+function walkinChirp() {
+    try {
+        var ctx = window._pkAC || (window._pkAC = new (window.AudioContext || window.webkitAudioContext)());
+        if (ctx.state === 'suspended') { ctx.resume().catch(function() {}); }
+        var o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.frequency.setValueAtTime(880, ctx.currentTime);
+        o.frequency.setValueAtTime(1175, ctx.currentTime + 0.12);
+        g.gain.setValueAtTime(0.001, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+        o.start(); o.stop(ctx.currentTime + 0.4);
+    } catch (e) { /* audio blocked until first user gesture — toast still shows */ }
+}
+
+function checkWalkinArrivals(players) {
+    var ids = pendingPlayerIds(players);
+    if (WALKIN_SEEN === null) { WALKIN_SEEN = new Set(ids); return; }
+    var fresh = ids.filter(function(id) { return !WALKIN_SEEN.has(id); });
+    WALKIN_SEEN = new Set(ids);
+    if (!fresh.length) return;
+    var names = (players || [])
+        .filter(function(p) { return fresh.indexOf(parseInt(p.id)) !== -1; })
+        .map(function(p) { return p.display_name; });
+    walkinToast('🚶 ' + names.join(', ') + ' just checked in via QR — awaiting approval');
+    walkinChirp();
+}
+
 setInterval(function() {
     if (!SESSION) return;
     fetch('/checkin_dl.php?action=get_session&event_id=' + EVENT_ID)
@@ -2704,6 +2793,7 @@ setInterval(function() {
         .then(function(j) {
             if (!j.ok || !j.session) return;
             POOL = j.pool;
+            checkWalkinArrivals(j.players); // alert even when the render below is skipped
             if (j.log) { LOG = j.log; if (VIEW_MODE === 'log') renderLog(); }
             var poolEl = document.getElementById('poolTotal');
             if (poolEl) {
