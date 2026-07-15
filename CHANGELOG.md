@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2032] - 2026-07-15
+
+### Fixed
+- **RSVPing from a reminder no longer requires logging in** (user-reported: invites worked without login, reminders didn't). The notification builder (`www/_notifications.php`) had two generations of link code: invites and nudges used the recipient's `rsvp_token` for one-click no-login links, while reminders and "event updated" messages still used the shared event URL — which, since v0.2026's canonical event page, is login-gated. Reminders now carry the same one-click Yes/No/Maybe links as invites (SMS and email), with the View Event button pointing at the recipient's token page; "event updated" messages got the tokenized view link too. Legacy invitees without a token keep the previous behavior. The token lookup and button/link building were extracted into shared helpers (`_invitee_rsvp_token()`, `_rsvp_buttons_html()`, `_rsvp_links_sms()`) now used by all four message types, so future notification types can't reintroduce the bug by forgetting the token. Verified end-to-end logged out on dev: reminder YES link → confirm screen (no login) → RSVP recorded.
+
+---
+
 ## [v0.2031] - 2026-07-15
 
 ### Added

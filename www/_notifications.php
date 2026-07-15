@@ -396,6 +396,40 @@ function approve_event_invitee(PDO $db, int $event_id, string $target, int $acto
  * subject/sms/html for the notify_type, calls send_notification.
  * Returns true on success, false if the row should be retried.
  */
+/**
+ * The recipient's one-click RSVP token (base invite row). Empty string when the
+ * row predates the token column or is missing — callers fall back to the
+ * login-gated event link in that case.
+ */
+function _invitee_rsvp_token(PDO $db, int $event_id, string $username): string {
+    $stmt = $db->prepare("SELECT rsvp_token FROM event_invites
+        WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL");
+    $stmt->execute([$event_id, $username]);
+    return (string)($stmt->fetchColumn() ?: '');
+}
+
+/**
+ * The styled Yes/No/Maybe one-click button row used by invite/nudge/reminder
+ * emails. All three links go through rsvp.php's confirm-on-POST flow, no login.
+ */
+function _rsvp_buttons_html(string $site_url, string $rsvp_token, bool $allowMaybe): string {
+    $base      = $site_url . '/rsvp.php?token=' . urlencode($rsvp_token);
+    $btn_style = 'display:inline-block;margin:.25rem .3rem;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;color:#fff';
+    return '<p>'
+        . '<a href="' . htmlspecialchars($base . '&r=yes') . '" style="' . $btn_style . ';background:#16a34a">Yes</a>'
+        . '<a href="' . htmlspecialchars($base . '&r=no') . '" style="' . $btn_style . ';background:#dc2626">No</a>'
+        . ($allowMaybe ? '<a href="' . htmlspecialchars($base . '&r=maybe') . '" style="' . $btn_style . ';background:#d97706">Maybe</a>' : '')
+        . '</p>';
+}
+
+/**
+ * The matching plain-text one-click links for SMS bodies.
+ */
+function _rsvp_links_sms(string $site_url, string $rsvp_token, bool $allowMaybe): string {
+    $base = $site_url . '/rsvp.php?token=' . urlencode($rsvp_token);
+    return "RSVP:\nYES: {$base}&r=yes\nNO: {$base}&r=no" . ($allowMaybe ? "\nMAYBE: {$base}&r=maybe" : '');
+}
+
 function dispatch_queued_notification(PDO $db, array $row): bool {
     $event_id    = (int)$row['event_id'];
     $username    = (string)$row['username'];
@@ -555,27 +589,14 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
         case 'invite':
             // One-click RSVP via rsvp_token (no login required). Falls back to the event link
             // if this invitee predates the token column or the row is missing.
-            $tokStmt = $db->prepare("SELECT rsvp_token FROM event_invites
-                WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL");
-            $tokStmt->execute([$event_id, $username]);
-            $rsvp_token = (string)($tokStmt->fetchColumn() ?: '');
+            $rsvp_token = _invitee_rsvp_token($db, $event_id, $username);
             $allowMaybe = get_setting('allow_maybe_rsvp', '1') === '1';
 
             $subject = "You're invited: " . $title . ' (' . $when . ')';
             $rsvpButtons = '';
             if ($rsvp_token !== '') {
-                $rsvp_base = $site_url . '/rsvp.php?token=' . urlencode($rsvp_token);
-                $yes_url   = $rsvp_base . '&r=yes';
-                $no_url    = $rsvp_base . '&r=no';
-                $maybe_url = $rsvp_base . '&r=maybe';
-                $smsBody = "You've been invited to \"$title\" on $when.$locSms RSVP:\nYES: $yes_url\nNO: $no_url"
-                         . ($allowMaybe ? "\nMAYBE: $maybe_url" : "");
-                $rsvpButtons = '<p style="margin-top:1.5rem">RSVP now:</p>'
-                    . '<p>'
-                    . '<a href="' . htmlspecialchars($yes_url) . '" style="display:inline-block;margin:.25rem .3rem;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;background:#16a34a;color:#fff">Yes</a>'
-                    . '<a href="' . htmlspecialchars($no_url) . '" style="display:inline-block;margin:.25rem .3rem;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;background:#dc2626;color:#fff">No</a>'
-                    . ($allowMaybe ? '<a href="' . htmlspecialchars($maybe_url) . '" style="display:inline-block;margin:.25rem .3rem;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;background:#d97706;color:#fff">Maybe</a>' : '')
-                    . '</p>';
+                $smsBody = "You've been invited to \"$title\" on $when.$locSms " . _rsvp_links_sms($site_url, $rsvp_token, $allowMaybe);
+                $rsvpButtons = '<p style="margin-top:1.5rem">RSVP now:</p>' . _rsvp_buttons_html($site_url, $rsvp_token, $allowMaybe);
             } else {
                 $smsBody = "You've been invited to \"$title\" on $when.$locSms Reply YES, NO, or MAYBE to RSVP. View: $url";
             }
@@ -600,26 +621,14 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
         case 'rsvp_nudge':
             // Friendly follow-up to invitees who never answered the invite.
             // Same one-click token RSVP links as the invite itself.
-            $tokStmt = $db->prepare("SELECT rsvp_token FROM event_invites
-                WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL");
-            $tokStmt->execute([$event_id, $username]);
-            $rsvp_token = (string)($tokStmt->fetchColumn() ?: '');
+            $rsvp_token = _invitee_rsvp_token($db, $event_id, $username);
             $allowMaybe = get_setting('allow_maybe_rsvp', '1') === '1';
 
             $subject = 'Still deciding? ' . $title . ' (' . $when . ')';
             $rsvpButtons = '';
             if ($rsvp_token !== '') {
-                $rsvp_base = $site_url . '/rsvp.php?token=' . urlencode($rsvp_token);
-                $yes_url   = $rsvp_base . '&r=yes';
-                $no_url    = $rsvp_base . '&r=no';
-                $maybe_url = $rsvp_base . '&r=maybe';
-                $smsBody = "Friendly reminder: you haven't RSVPed for \"$title\" on $when.$locSms RSVP:\nYES: $yes_url\nNO: $no_url"
-                         . ($allowMaybe ? "\nMAYBE: $maybe_url" : "");
-                $rsvpButtons = '<p style="margin-top:1.25rem">'
-                    . '<a href="' . htmlspecialchars($yes_url) . '" style="display:inline-block;margin:.25rem .3rem;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;background:#16a34a;color:#fff">Yes</a>'
-                    . '<a href="' . htmlspecialchars($no_url) . '" style="display:inline-block;margin:.25rem .3rem;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;background:#dc2626;color:#fff">No</a>'
-                    . ($allowMaybe ? '<a href="' . htmlspecialchars($maybe_url) . '" style="display:inline-block;margin:.25rem .3rem;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;background:#d97706;color:#fff">Maybe</a>' : '')
-                    . '</p>';
+                $smsBody = "Friendly reminder: you haven't RSVPed for \"$title\" on $when.$locSms " . _rsvp_links_sms($site_url, $rsvp_token, $allowMaybe);
+                $rsvpButtons = _rsvp_buttons_html($site_url, $rsvp_token, $allowMaybe);
             } else {
                 $smsBody = "Friendly reminder: you haven't RSVPed for \"$title\" on $when.$locSms Reply YES, NO, or MAYBE. View: $url";
             }
@@ -631,16 +640,27 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
             break;
 
         case 'reminder':
+            // Same no-login token links as the invite — recipients could RSVP from
+            // the invite but hit a login wall from the reminder (user-reported).
             $offset = (int)($payload['offset_minutes'] ?? 0);
             $label  = _format_offset_label($offset);
+            $rsvp_token = _invitee_rsvp_token($db, $event_id, $username);
+            $allowMaybe = get_setting('allow_maybe_rsvp', '1') === '1';
+            $event_link = $rsvp_token !== '' ? ($site_url . '/event.php?token=' . urlencode($rsvp_token)) : $url;
+
             $subject  = "Reminder: $title in $label";
-            $smsBody  = "Reminder: \"$title\" is in $label ($start).$locSms RSVP: $url";
+            $smsBody  = $rsvp_token !== ''
+                ? "Reminder: \"$title\" is in $label ($start).$locSms " . _rsvp_links_sms($site_url, $rsvp_token, $allowMaybe)
+                : "Reminder: \"$title\" is in $label ($start).$locSms RSVP: $url";
             $htmlBody = '<p>This is a reminder that <strong>' . htmlspecialchars($title) . '</strong>'
                       . ' is coming up in <strong>' . $label . '</strong>'
                       . ' on <strong>' . htmlspecialchars($start) . '</strong>.</p>';
             if ($pretty_time) $htmlBody .= '<p style="color:#64748b;font-size:.9rem">Start time: ' . htmlspecialchars($pretty_time) . '</p>';
             $htmlBody .= $locHtml;
-            $htmlBody .= '<p style="margin-top:1.25rem"><a href="' . htmlspecialchars($url) . '" style="background:#2563eb;color:#fff;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600">View Event &amp; RSVP</a></p>';
+            if ($rsvp_token !== '') {
+                $htmlBody .= '<p style="margin-top:1.25rem">RSVP now:</p>' . _rsvp_buttons_html($site_url, $rsvp_token, $allowMaybe);
+            }
+            $htmlBody .= '<p style="margin-top:1rem"><a href="' . htmlspecialchars($event_link) . '" style="background:#2563eb;color:#fff;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600">View Event' . ($rsvp_token !== '' ? '' : ' &amp; RSVP') . '</a></p>';
             break;
 
         case 'cancel_event':
@@ -656,10 +676,13 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
             break;
 
         case 'event_updated':
+            // Tokenized view link so invitees can see the changes without a login.
+            $rsvp_token = _invitee_rsvp_token($db, $event_id, $username);
+            $event_link = $rsvp_token !== '' ? ($site_url . '/event.php?token=' . urlencode($rsvp_token)) : $url;
             $subject = 'Updated: ' . $title;
-            $smsBody = "\"$title\" on $start has been updated. View: $url";
+            $smsBody = "\"$title\" on $start has been updated. View: $event_link";
             $htmlBody = '<p>Details for <strong>' . htmlspecialchars($title) . '</strong> on ' . htmlspecialchars($start) . ' have been updated.</p>'
-                      . '<p style="margin-top:1rem"><a href="' . htmlspecialchars($url) . '">View the latest details</a></p>';
+                      . '<p style="margin-top:1rem"><a href="' . htmlspecialchars($event_link) . '">View the latest details</a></p>';
             break;
 
         case 'rsvp_to_creator':
