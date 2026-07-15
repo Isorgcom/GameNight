@@ -220,10 +220,11 @@ function send_email(string $toAddress, string $toName, string $subject, string $
 function _enqueue_email_retry(string $toAddress, string $toName, string $subject, string $htmlBody, ?string $error): bool {
     try {
         $delay = _email_queue_backoff_minutes(1, _smtp_error_is_quota($error));
+        [$ctx_eid, $ctx_user] = notif_log_context_get();
         get_db()->prepare(
-            "INSERT INTO email_retry_queue (to_address, to_name, subject, body, attempts, last_error, next_attempt_at)
-             VALUES (?, ?, ?, ?, 0, ?, datetime('now', ? || ' minutes'))"
-        )->execute([$toAddress, $toName, $subject, $htmlBody, $error, '+' . $delay]);
+            "INSERT INTO email_retry_queue (to_address, to_name, subject, body, attempts, last_error, next_attempt_at, event_id, username)
+             VALUES (?, ?, ?, ?, 0, ?, datetime('now', ? || ' minutes'), ?, ?)"
+        )->execute([$toAddress, $toName, $subject, $htmlBody, $error, '+' . $delay, $ctx_eid, $ctx_user]);
         return true;
     } catch (Exception $e) {
         error_log('email_retry_queue enqueue failed: ' . $e->getMessage());
@@ -239,7 +240,7 @@ function process_email_retry_queue(PDO $db, int $limit = 50): array {
     $sent = 0; $failed = 0; $requeued = 0;
     try {
         $rows = $db->prepare(
-            "SELECT id, to_address, to_name, subject, body, attempts
+            "SELECT id, to_address, to_name, subject, body, attempts, event_id, username
              FROM email_retry_queue
              WHERE next_attempt_at <= CURRENT_TIMESTAMP
              ORDER BY next_attempt_at, id LIMIT ?"
@@ -264,6 +265,9 @@ function process_email_retry_queue(PDO $db, int $limit = 50): array {
         if ($claim->rowCount() < 1) continue;
 
         $attemptNo = (int)$row['attempts'] + 1; // this attempt's 1-indexed number
+        // Restore the delivery-correlation context saved at enqueue time so the
+        // retry's log rows still point at the right event/recipient.
+        notif_log_context(isset($row['event_id']) ? (int)$row['event_id'] : null, $row['username'] ?? null);
         $err = _email_attempt($row['to_address'], $row['to_name'], $row['subject'], $row['body']);
 
         if ($err === null) {
@@ -286,6 +290,7 @@ function process_email_retry_queue(PDO $db, int $limit = 50): array {
             $requeued++;
         }
     }
+    notif_log_context(null, null);
 
     return ['sent' => $sent, 'failed' => $failed, 'requeued' => $requeued];
 }

@@ -1214,9 +1214,16 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
             <div class="stat-card"><div class="label">Active users &middot; 1h</div><div class="value" id="actUsers"><?= (int)$act['active_users_1h'] ?></div></div>
             <div class="stat-card"><div class="label">API calls &middot; 1h</div><div class="value" id="actApi"><?= (int)$act['api_calls_1h'] ?></div></div>
             <div class="stat-card"><div class="label">Notif queue</div><div class="value" id="actQueue"><?= (int)$act['notif_queue'] ?></div></div>
+            <div class="stat-card"><div class="label">Failed &middot; 24h</div><div class="value" id="actFailed" style="<?= (int)$act['notif_failed_24h'] > 0 ? 'color:#dc2626' : '' ?>"><?= (int)$act['notif_failed_24h'] ?></div></div>
+        </div>
+        <div id="actDrainPaused" style="<?= $act['drain_paused_until'] !== '' ? '' : 'display:none;' ?>margin-top:.75rem;padding:.55rem .75rem;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;font-size:.83rem;color:#dc2626;font-weight:600">
+            &#9888; Notification sending is paused (provider rate limit) until <span id="actDrainUntil"><?= htmlspecialchars($act['drain_paused_until']) ?></span> UTC. Queued messages resume automatically.
+        </div>
+        <div id="actDeadRows" style="<?= (int)$act['notif_dead'] > 0 ? '' : 'display:none;' ?>margin-top:.75rem;padding:.55rem .75rem;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;font-size:.83rem;color:#b45309;font-weight:600">
+            &#9888; <span id="actDeadCount"><?= (int)$act['notif_dead'] ?></span> notification(s) gave up after 3 retries. <a href="/sms_log.php?status=failed" style="color:#b45309">View the delivery log</a> for errors; resend from the event roster.
         </div>
         <p style="color:#94a3b8;font-size:.78rem;margin-top:.5rem">
-            &ldquo;Active users&rdquo; is an estimate from logged activity in the last hour (individual connections aren&rsquo;t tracked). &ldquo;Live timers&rdquo; counts tournament clocks that have polled within the last 2 minutes.
+            &ldquo;Active users&rdquo; is an estimate from logged activity in the last hour (individual connections aren&rsquo;t tracked). &ldquo;Live timers&rdquo; counts tournament clocks that have polled within the last 2 minutes. &ldquo;Failed &middot; 24h&rdquo; counts provider-level delivery failures in the notification log.
         </p>
 
         <div class="card" style="margin-top:1.25rem">
@@ -1255,6 +1262,13 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 document.getElementById('actUsers').textContent  = d.active_users_1h;
                 document.getElementById('actApi').textContent    = d.api_calls_1h;
                 document.getElementById('actQueue').textContent  = d.notif_queue;
+                var af = document.getElementById('actFailed');
+                af.textContent = d.notif_failed_24h;
+                af.style.color = (parseInt(d.notif_failed_24h) > 0) ? '#dc2626' : '';
+                document.getElementById('actDrainPaused').style.display = d.drain_paused_until ? '' : 'none';
+                document.getElementById('actDrainUntil').textContent = d.drain_paused_until || '';
+                document.getElementById('actDeadRows').style.display = (parseInt(d.notif_dead) > 0) ? '' : 'none';
+                document.getElementById('actDeadCount').textContent = d.notif_dead;
                 document.getElementById('actAsOf').textContent   = 'as of ' + d.as_of;
                 var timers = d.timers || [];
                 document.getElementById('actTimersList').innerHTML = timers.map(function(t){

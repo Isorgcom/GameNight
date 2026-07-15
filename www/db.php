@@ -285,6 +285,11 @@ function db_init(PDO $pdo): void {
 
     // Add raw API response to SMS log for debugging
     try { $pdo->exec("ALTER TABLE sms_log ADD COLUMN raw_response TEXT"); } catch (Exception $e) {}
+    // Delivery correlation: which event/recipient a log row belongs to (set via
+    // notif_log_context() by the notification dispatcher; NULL for other sends).
+    try { $pdo->exec("ALTER TABLE sms_log ADD COLUMN event_id INTEGER"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE sms_log ADD COLUMN username TEXT"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_sms_log_event ON sms_log(event_id)"); } catch (Exception $e) {}
 
     // Persistent retry queue for emails whose inline retries were exhausted on a
     // transient SMTP failure. Drained by cron.php (process_email_retry_queue).
@@ -300,6 +305,9 @@ function db_init(PDO $pdo): void {
         created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
     )"); } catch (Exception $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_email_retry_due ON email_retry_queue(next_attempt_at)"); } catch (Exception $e) {}
+    // Delivery correlation carried through retries (must run after the CREATE above).
+    try { $pdo->exec("ALTER TABLE email_retry_queue ADD COLUMN event_id INTEGER"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE email_retry_queue ADD COLUMN username TEXT"); } catch (Exception $e) {}
 
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS short_links (
         id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1326,6 +1334,21 @@ function set_setting(string $key, string $value): void {
         ON CONFLICT(key) DO UPDATE SET value = excluded.value')
         ->execute([$key, $store]);
     $_settings_cache[$key] = $value; // cache the decrypted value
+}
+
+// ─── Delivery-log correlation context ─────────────────────────────────────────
+// The notification dispatcher sets this around its send call so sms_log rows
+// (email/SMS/WhatsApp alike) record which event and recipient they belong to.
+// Sends outside the dispatcher (password resets, league notices) leave it unset
+// and log with NULLs, exactly as before.
+function notif_log_context(?int $event_id, ?string $username): void {
+    $GLOBALS['_notif_log_ctx'] = ($event_id !== null || $username !== null)
+        ? ['event_id' => $event_id, 'username' => $username]
+        : null;
+}
+function notif_log_context_get(): array {
+    $c = $GLOBALS['_notif_log_ctx'] ?? null;
+    return [$c['event_id'] ?? null, $c['username'] ?? null];
 }
 
 // ─── In-app help bubbles ────────────────────────────────────────────────
@@ -2672,6 +2695,15 @@ function admin_activity_snapshot(PDO $db): array {
     $out['active_users_1h'] = $q("SELECT COUNT(DISTINCT user_id) FROM activity_log WHERE user_id>0 AND created_at > datetime('now','-1 hour')");
     $out['api_calls_1h']    = $q("SELECT COUNT(*) FROM api_request_log WHERE created_at > datetime('now','-1 hour')");
     $out['notif_queue']     = $q("SELECT COUNT(*) FROM pending_notifications WHERE attempted_at IS NULL");
+    // Delivery health: provider failures in the last 24h, dead queue rows
+    // (retries exhausted), and whether the drain is rate-limit paused.
+    $out['notif_failed_24h'] = $q("SELECT COUNT(*) FROM sms_log WHERE status='failed' AND created_at > datetime('now','-1 day')");
+    $out['notif_dead']       = $q("SELECT COUNT(*) FROM pending_notifications WHERE attempted_at IS NULL AND attempts >= 3");
+    $out['drain_paused_until'] = '';
+    try {
+        $until = get_setting('notification_drain_paused_until', '');
+        if ($until !== '' && strtotime($until) > time()) $out['drain_paused_until'] = $until;
+    } catch (Throwable $e) {}
     $out['events_today']    = $q("SELECT COUNT(*) FROM events WHERE created_at > datetime('now','-1 day')");
     $out['rsvps_2h']        = $q("SELECT COUNT(*) FROM event_invites WHERE created_at > datetime('now','-2 hours')");
     $out['sms_1h']          = $q("SELECT COUNT(*) FROM sms_log WHERE created_at > datetime('now','-1 hour')");

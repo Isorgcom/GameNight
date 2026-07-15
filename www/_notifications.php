@@ -800,11 +800,15 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
             return true; // unknown type — clear the row silently
     }
 
+    // Correlate every log row this send produces (email/SMS/WhatsApp, including
+    // parked email retries) with the event and recipient being notified.
+    notif_log_context($event_id, $username);
     send_notification(
         $user['username'], $user['email'] ?? '', $user['phone'] ?? '',
         $user['preferred_contact'] ?? 'email',
         $subject, $smsBody, $htmlBody, $waBody
     );
+    notif_log_context(null, null);
 
     // Determine the per-channel outcome once for the decisions below.
     $err = get_last_notification_error();

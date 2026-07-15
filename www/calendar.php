@@ -396,6 +396,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Clear the dedup marker so the queue drain will actually fire for this invitee.
             $db->prepare("DELETE FROM event_notifications_sent WHERE event_id=? AND occurrence_date='' AND user_identifier=? AND notification_type='invite'")
                ->execute([$eid, strtolower($target)]);
+            // Drop any dead (retries-exhausted) rows for this recipient so the fresh
+            // send's status isn't shadowed by an old failure in the delivery view.
+            $db->prepare("DELETE FROM pending_notifications WHERE event_id=? AND LOWER(username)=LOWER(?) AND notify_type IN ('invite','rsvp_nudge') AND attempted_at IS NULL AND attempts >= 3")
+               ->execute([$eid, $target]);
             // Queue a fresh invite notification.
             $db->prepare("INSERT INTO pending_notifications (event_id, username, notify_type) VALUES (?, ?, 'invite')")
                ->execute([$eid, $target]);
@@ -1944,11 +1948,13 @@ function viewEvent(ev) {
     <?php endif; ?>
     renderCommentsPanel(ev.id);
 
-    startRsvpPoll(ev.id);
-
     const sb = document.getElementById('vScrollBody');
     if (sb) sb.scrollTop = 0;
     document.getElementById('viewModal').classList.add('open');
+    // Start polling AFTER the modal is marked open — pollRsvps() bails (and
+    // stops the poll) when the modal is closed, so starting earlier turns the
+    // "immediate first poll" into a no-op and delays fresh data by a full tick.
+    startRsvpPoll(ev.id);
 }
 function showSavedBar(msg) {
     const bar = document.getElementById('vSavedBar');
@@ -2054,7 +2060,8 @@ function renderInvitesPanel(eid) {
         }
         if (q && q.failed > 0) {
             ih += '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.5rem .7rem;margin-bottom:.7rem;font-size:.8rem;color:#991b1b;font-weight:600">'
-                + '&#9888; ' + q.failed + ' invitation' + (q.failed === 1 ? '' : 's') + ' could not be sent after several retries. An admin can check the Notification Log for the error.'
+                + '&#9888; ' + q.failed + ' invitation' + (q.failed === 1 ? '' : 's') + ' could not be sent after several retries. '
+                + '<a href="/sms_log.php?event=' + eid + '&status=failed" style="color:#991b1b">View delivery log</a>'
                 + '</div>';
         }
 
@@ -2106,9 +2113,22 @@ function renderInvitesPanel(eid) {
             ih += '<span style="flex:1;min-width:0">' + escHtml(inv.username)
                 + (inv.no_contact && canManage ? ' <span class="inv-nocontact-tag" title="No email or phone on file — this person can’t be sent an invite">no contact</span>' : '')
                 + '</span>';
+            // Delivery outcome (managers only): from the correlated notification log.
+            // Older sends predate tracking and show nothing.
+            if (canManage) {
+                if (inv.delivery === 'failed') {
+                    ih += '<span title="' + escHtml(inv.delivery_error || 'Delivery failed') + '" style="font-size:.68rem;font-weight:700;color:#dc2626;background:#fef2f2;border:1px solid #fecaca;border-radius:5px;padding:.1rem .4rem;cursor:help">&#10007; failed</span>';
+                } else if (inv.delivery === 'sending') {
+                    ih += '<span title="Queued — delivery in progress" style="font-size:.68rem;font-weight:700;color:#1e40af;background:#eff6ff;border:1px solid #bfdbfe;border-radius:5px;padding:.1rem .4rem">&#9203; sending</span>';
+                } else if (inv.delivery === 'delivered') {
+                    ih += '<span title="Handed to the provider successfully" style="font-size:.68rem;font-weight:700;color:#166534;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:5px;padding:.1rem .4rem">&#10003;</span>';
+                }
+            }
             // Resend button: only for managers, only when no RSVP yet, only for non-self.
-            if (canManage && NOTIFS_ENABLED && !inv.rsvp) {
-                const sendLabel = inv.sent ? 'Resend' : 'Send';
+            // A failed delivery gets a Retry even if an RSVP exists is moot (they never got it),
+            // so failed always offers the button.
+            if (canManage && NOTIFS_ENABLED && (!inv.rsvp || inv.delivery === 'failed')) {
+                const sendLabel = inv.delivery === 'failed' ? 'Retry' : (inv.sent ? 'Resend' : 'Send');
                 ih += '<button type="button" class="btn-resend-inv" data-eid="' + eid + '" data-username="' + escHtml(inv.username) + '" title="' + sendLabel + ' invite SMS/email" style="font-size:.7rem;padding:.15rem .5rem;border-radius:5px;border:1px solid #cbd5e1;background:#fff;color:#475569;font-weight:600;cursor:pointer">' + sendLabel + '</button>';
             }
             ih += '</div>';

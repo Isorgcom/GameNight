@@ -52,11 +52,56 @@ $stmt = $db->prepare(
 );
 $stmt->execute([$eid]);
 
+// Per-recipient delivery outcome for this event's invites/nudges, combining:
+//  - queue state (waiting / dead after retries) from pending_notifications
+//  - the latest correlated provider log row (sent / failed / parked-for-retry).
+// Log correlation exists only for notifications sent after the event_id/username
+// columns were added; older sends simply have no delivery info (state null).
+$q_state = [];
+$qs = $db->prepare(
+    "SELECT LOWER(username) AS u,
+            SUM(CASE WHEN attempted_at IS NULL AND attempts < 3 THEN 1 ELSE 0 END) AS waiting,
+            SUM(CASE WHEN attempted_at IS NULL AND attempts >= 3 THEN 1 ELSE 0 END) AS dead
+     FROM pending_notifications
+     WHERE event_id = ? AND notify_type IN ('invite', 'rsvp_nudge')
+     GROUP BY LOWER(username)"
+);
+$qs->execute([$eid]);
+foreach ($qs->fetchAll() as $r) $q_state[$r['u']] = $r;
+
+$log_state = [];
+$ls = $db->prepare(
+    "SELECT LOWER(username) AS u, status, error, provider, MAX(id) AS mid
+     FROM sms_log
+     WHERE event_id = ? AND direction = 'outbound' AND username IS NOT NULL
+     GROUP BY LOWER(username)"
+);
+$ls->execute([$eid]);
+foreach ($ls->fetchAll() as $r) $log_state[$r['u']] = $r;
+
+function _invite_delivery(?array $q, ?array $l): array {
+    // A fresh queue row (e.g. after Retry) outranks an old dead one.
+    if ($q && (int)$q['waiting'] > 0) {
+        return ['state' => 'sending', 'error' => null];
+    }
+    if ($q && (int)$q['dead'] > 0) {
+        return ['state' => 'failed', 'error' => $l['error'] ?? 'Gave up after retries'];
+    }
+    if ($l) {
+        if ($l['status'] === 'failed') return ['state' => 'failed', 'error' => $l['error'] ?: 'Provider error'];
+        if ($l['status'] === 'queued') return ['state' => 'sending', 'error' => null]; // parked in email retry queue
+        if ($l['status'] === 'sent')   return ['state' => 'delivered', 'error' => null];
+    }
+    return ['state' => null, 'error' => null]; // no correlated info (pre-tracking sends)
+}
+
 $base = [];
 $occ  = [];
 foreach ($stmt->fetchAll() as $inv) {
     if ($inv['occurrence_date'] === null) {
-        $row = ['username' => $inv['username'], 'rsvp' => $inv['rsvp'], 'approval_status' => $inv['approval_status'], 'sort_order' => $inv['sort_order'], 'event_role' => $inv['event_role'] ?? 'invitee', 'sent' => !empty($inv['invite_sent']), 'phone' => $inv['phone'] ?? '', 'email' => $inv['email'] ?? '', 'no_contact' => (trim((string)($inv['phone'] ?? '')) === '' && trim((string)($inv['email'] ?? '')) === '')];
+        $u = strtolower($inv['username']);
+        $delivery = _invite_delivery($q_state[$u] ?? null, $log_state[$u] ?? null);
+        $row = ['username' => $inv['username'], 'rsvp' => $inv['rsvp'], 'approval_status' => $inv['approval_status'], 'sort_order' => $inv['sort_order'], 'event_role' => $inv['event_role'] ?? 'invitee', 'sent' => !empty($inv['invite_sent']), 'phone' => $inv['phone'] ?? '', 'email' => $inv['email'] ?? '', 'no_contact' => (trim((string)($inv['phone'] ?? '')) === '' && trim((string)($inv['email'] ?? '')) === ''), 'delivery' => $delivery['state'], 'delivery_error' => $delivery['error']];
         $base[] = $row;
     } else {
         $occ[$inv['occurrence_date']][] = ['username' => $inv['username'], 'rsvp' => $inv['rsvp'], 'approval_status' => $inv['approval_status']];

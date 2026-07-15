@@ -4,6 +4,18 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2029] - 2026-07-15
+
+### Added
+- **Per-invitee delivery status on the event roster.** Hosts previously saw only a "sent" flag that really meant "queued" — a bounced email looked identical to success. The invites panel now shows each invitee's actual outcome, live on the modal's poll: green ✓ (handed to the provider), blue "⏳ sending" (queued or parked in the email retry queue), or red "✗ failed" with the provider's error on hover; a failed invitee's button becomes **Retry**, which also clears the dead queue row so the fresh attempt isn't shadowed by the old failure. Powered by new `event_id`/`username` correlation columns on `sms_log` and `email_retry_queue` (migrations in `db.php`), populated via a dispatch-scoped context (`notif_log_context()` in `db.php`, set around the send in `_notifications.php`, consumed by `sms.php`'s `sms_log()` and `mail.php`'s `_log_email()`/retry enqueue, and restored when a parked email retries later). Sends outside the dispatcher log with NULLs exactly as before; notifications older than this release show no badge.
+- **Filterable notification log, now host-accessible.** `sms_log.php` gained a filter row (status, channel email/SMS/WhatsApp, recipient search across name/email/phone, date range), Recipient and Event columns (event links to the event page), and filter-preserving pagination. Non-admin event managers can now view the log scoped to an event they manage (`?event=N` — enforced via `can_manage_event()`; anything else is 403, and Clear Log stays admin-only). The roster's "N invitations could not be sent" banner links straight to the event's failed-only view.
+- **Delivery health signals on the admin Activity tab.** A "Failed · 24h" stat card (red when nonzero), a red banner when notification sending is rate-limit paused (previously only visible in cron stdout via `notification_drain_paused_until`), and an amber banner counting queue rows that exhausted their 3 retries, linking to the failed-log view. All included in `admin_activity_snapshot()` and refreshed by the tab's 30-second poll.
+
+### Fixed
+- **The event modal's "immediate first poll" actually fires now.** v0.2027 added an instant `pollRsvps()` call on modal open, but `viewEvent()` started the poll before adding the modal's `open` class, so the guard silently discarded it and fresh roster/queue data still waited a full 4-second tick. Polling now starts after the modal opens, so RSVP, queue, and delivery state appear immediately.
+
+---
+
 ## [v0.2028] - 2026-07-14
 
 ### Added

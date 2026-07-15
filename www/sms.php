@@ -270,8 +270,9 @@ function sms_log_inbound(string $phone, string $body, string $provider, string $
 
 function sms_log(string $direction, string $phone, string $body, ?string $provider, string $status, ?string $error, string $raw = ''): void {
     try {
-        get_db()->prepare('INSERT INTO sms_log (direction, phone, body, provider, status, error, raw_response) VALUES (?, ?, ?, ?, ?, ?, ?)')
-            ->execute([$direction, $phone, $body, $provider, $status, $error, $raw !== '' ? $raw : null]);
+        [$ctx_eid, $ctx_user] = notif_log_context_get();
+        get_db()->prepare('INSERT INTO sms_log (direction, phone, body, provider, status, error, raw_response, event_id, username) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+            ->execute([$direction, $phone, $body, $provider, $status, $error, $raw !== '' ? $raw : null, $ctx_eid, $ctx_user]);
     } catch (Exception $e) {
         // Don't let logging failures break SMS sending
     }
