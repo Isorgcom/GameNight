@@ -126,6 +126,20 @@ if ($email_q['sent'] || $email_q['failed'] || $email_q['requeued']) {
     echo "Email retry queue: {$email_q['sent']} sent, {$email_q['requeued']} requeued, {$email_q['failed']} gave up.\n";
 }
 
+// ── 2c. WhatsApp (WAHA) session watchdog ─────────────────────────────────────
+// Probes the session, auto-restarts FAILED ones, and emails admins when it
+// stays down (see waha_watchdog() in sms.php). Guarded: a WAHA hiccup must
+// never break the rest of cron.
+try {
+    require_once __DIR__ . '/sms.php';
+    $wd = waha_watchdog();
+    if (($wd['action'] ?? '') !== '') {
+        echo "WAHA watchdog: {$wd['status']} -> {$wd['action']}\n";
+    }
+} catch (\Throwable $e) {
+    error_log('cron waha watchdog failed: ' . $e->getMessage());
+}
+
 // ── 3. RSVP deadline processor: demote non-responders, promote waitlisters ─────
 $deadline_processed = 0;
 $now_local = new DateTime('now', $local_tz);

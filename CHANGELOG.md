@@ -4,6 +4,20 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2030] - 2026-07-15
+
+### Added
+- **WhatsApp (WAHA) session watchdog.** Root-caused the multi-day WhatsApp outage: WAHA never reconnects a FAILED session ("do not reconnect the session"), the `start` endpoint rejects FAILED sessions with 422 "already started" (so both the admin Start button and any recovery loop spun uselessly for days), and nothing alerted anyone. New `waha_watchdog()` in `www/sms.php`, run from cron every 5 minutes: probes the session and stores status + timestamp; **auto-restarts FAILED sessions** via the correct `POST /api/sessions/{s}/restart` call, rate-limited to once per 10 minutes (transient connection drops now self-heal); and **emails every admin** when the session is non-WORKING for 2+ consecutive checks (~10 min), deduped to once per 24h, with status-specific instructions (SCAN_QR_CODE → re-scan steps; FAILED → auto-restart is running, re-link if it persists; UNREACHABLE → check the container). It deliberately does not restart SCAN_QR_CODE (needs a human) or STOPPED (may be a deliberate stop), is self-arming (only alerts/restarts after the session has been seen WORKING once, so installs without WhatsApp stay silent), resets its counters and logs recovery when the session comes back, and can be disabled with site setting `waha_watchdog = 0`.
+- **WhatsApp status card on the admin Activity tab.** Shows the watchdog's last recorded session status (green WORKING / red otherwise) with "checked Xm ago", fed from stored state so the 30-second snapshot poll never blocks on a WAHA probe. Hidden until the first probe.
+
+### Fixed
+- **The WhatsApp Start button can now recover a FAILED session.** `admin_settings_dl.php`'s `waha_start` probes the session first and issues `/restart` for FAILED/STARTING sessions instead of the legacy `start` call that returned 422 forever.
+
+### Infrastructure
+- **Incident notes (2026-07-15):** production WhatsApp had been down for days — WhatsApp had revoked the linked device server-side, so every login was rejected in ~1.5s regardless of restarts. Recovery: WAHA image updated 2026.3.4 → 2026.7.1 (ruling out a client-version rejection; session data backed up to `/root/waha_data_backup_20260715.tgz` first), then logout + fresh QR re-link. The watchdog exists so the *silent* part of this failure mode can't recur.
+
+---
+
 ## [v0.2029] - 2026-07-15
 
 ### Added

@@ -2699,6 +2699,15 @@ function admin_activity_snapshot(PDO $db): array {
     // (retries exhausted), and whether the drain is rate-limit paused.
     $out['notif_failed_24h'] = $q("SELECT COUNT(*) FROM sms_log WHERE status='failed' AND created_at > datetime('now','-1 day')");
     $out['notif_dead']       = $q("SELECT COUNT(*) FROM pending_notifications WHERE attempted_at IS NULL AND attempts >= 3");
+    // WhatsApp session health, as last recorded by the cron watchdog (no live
+    // probe here — the 30s snapshot poll must stay fast). Empty = never probed.
+    $out['waha_status'] = '';
+    $out['waha_status_age'] = -1;
+    try {
+        $out['waha_status'] = get_setting('waha_last_status', '');
+        $wts = (int)get_setting('waha_last_status_ts', '0');
+        if ($wts > 0) $out['waha_status_age'] = max(0, time() - $wts);
+    } catch (Throwable $e) {}
     $out['drain_paused_until'] = '';
     try {
         $until = get_setting('notification_drain_paused_until', '');

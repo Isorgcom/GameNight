@@ -1215,6 +1215,11 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
             <div class="stat-card"><div class="label">API calls &middot; 1h</div><div class="value" id="actApi"><?= (int)$act['api_calls_1h'] ?></div></div>
             <div class="stat-card"><div class="label">Notif queue</div><div class="value" id="actQueue"><?= (int)$act['notif_queue'] ?></div></div>
             <div class="stat-card"><div class="label">Failed &middot; 24h</div><div class="value" id="actFailed" style="<?= (int)$act['notif_failed_24h'] > 0 ? 'color:#dc2626' : '' ?>"><?= (int)$act['notif_failed_24h'] ?></div></div>
+            <div class="stat-card" id="actWahaCard" style="<?= $act['waha_status'] === '' ? 'display:none' : '' ?>">
+                <div class="label">WhatsApp</div>
+                <div class="value" id="actWaha" style="font-size:1rem;<?= $act['waha_status'] === 'WORKING' ? 'color:#16a34a' : 'color:#dc2626' ?>"><?= htmlspecialchars($act['waha_status'] ?: '—') ?></div>
+                <div class="subtitle" id="actWahaAge"><?= $act['waha_status_age'] >= 0 ? 'checked ' . (int)ceil($act['waha_status_age'] / 60) . 'm ago' : '' ?></div>
+            </div>
         </div>
         <div id="actDrainPaused" style="<?= $act['drain_paused_until'] !== '' ? '' : 'display:none;' ?>margin-top:.75rem;padding:.55rem .75rem;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;font-size:.83rem;color:#dc2626;font-weight:600">
             &#9888; Notification sending is paused (provider rate limit) until <span id="actDrainUntil"><?= htmlspecialchars($act['drain_paused_until']) ?></span> UTC. Queued messages resume automatically.
@@ -1269,6 +1274,15 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 document.getElementById('actDrainUntil').textContent = d.drain_paused_until || '';
                 document.getElementById('actDeadRows').style.display = (parseInt(d.notif_dead) > 0) ? '' : 'none';
                 document.getElementById('actDeadCount').textContent = d.notif_dead;
+                var wc = document.getElementById('actWahaCard');
+                if (wc) {
+                    wc.style.display = d.waha_status ? '' : 'none';
+                    var wv = document.getElementById('actWaha');
+                    wv.textContent = d.waha_status || '—';
+                    wv.style.color = d.waha_status === 'WORKING' ? '#16a34a' : '#dc2626';
+                    document.getElementById('actWahaAge').textContent =
+                        (d.waha_status_age >= 0) ? 'checked ' + Math.ceil(d.waha_status_age / 60) + 'm ago' : '';
+                }
                 document.getElementById('actAsOf').textContent   = 'as of ' + d.as_of;
                 var timers = d.timers || [];
                 document.getElementById('actTimersList').innerHTML = timers.map(function(t){

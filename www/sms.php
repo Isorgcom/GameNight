@@ -320,6 +320,120 @@ function waha_require_working_session(string $waha_url, string $session, string 
 
 
 /**
+ * WAHA session watchdog — called from cron every ~5 minutes.
+ *
+ * The July 2026 outage taught us three things: WAHA never reconnects a FAILED
+ * session on its own ("do not reconnect the session"), the start endpoint
+ * rejects FAILED sessions with 422 so naive recovery loops spin forever, and
+ * nothing told the admin WhatsApp had been down for days. This watchdog fixes
+ * all three:
+ *   - probes the session and stores its status (Activity tab reads it)
+ *   - FAILED → issues the CORRECT recovery call (POST /sessions/{s}/restart),
+ *     at most once per 10 minutes — transient drops self-heal this way
+ *   - non-WORKING for 2+ consecutive checks (~10 min) → emails every admin,
+ *     deduped to once per 24h, with status-specific instructions (a revoked
+ *     device needs a human to re-scan the QR; no restart can fix that)
+ *
+ * Self-arming: restarts/alerts only happen after the session has been seen
+ * WORKING at least once, so installs that never use WhatsApp stay silent.
+ * Disable entirely with site_setting waha_watchdog = '0'.
+ */
+function waha_watchdog(): array {
+    $out = ['status' => 'skipped', 'action' => ''];
+    if (get_setting('waha_watchdog', '1') !== '1') return $out;
+    $waha_url = get_setting('waha_url', 'http://waha:3000');
+    if ($waha_url === '') return $out;
+    $session = get_setting('waha_session', 'default');
+    $apiKey  = get_setting('waha_api_key', 'gamenight-waha-internal');
+
+    // Probe current status
+    $ch = curl_init(rtrim($waha_url, '/') . '/api/sessions/' . rawurlencode($session));
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 8,
+        CURLOPT_HTTPHEADER     => ['X-Api-Key: ' . $apiKey],
+    ]);
+    $resp = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $cerr = curl_error($ch);
+    curl_close($ch);
+
+    if ($cerr)              $status = 'UNREACHABLE';
+    elseif ($code === 404)  $status = 'STOPPED';
+    else                    $status = strtoupper((string)(json_decode($resp, true)['status'] ?? 'UNKNOWN'));
+
+    $out['status'] = $status;
+    set_setting('waha_last_status', $status);
+    set_setting('waha_last_status_ts', (string)time());
+
+    if ($status === 'WORKING') {
+        set_setting('waha_seen_working', '1');
+        set_setting('waha_fail_streak', '0');
+        if (get_setting('waha_down_alerted_at', '') !== '') {
+            set_setting('waha_down_alerted_at', '');
+            db_log_activity(0, "WAHA watchdog: session '$session' recovered — WORKING again");
+        }
+        return $out;
+    }
+
+    if (get_setting('waha_seen_working', '0') !== '1') return $out; // never armed
+
+    $streak = (int)get_setting('waha_fail_streak', '0') + 1;
+    set_setting('waha_fail_streak', (string)$streak);
+
+    // Auto-restart FAILED sessions. Not SCAN_QR_CODE (needs a human scan),
+    // not STOPPED (may be a deliberate admin stop), not STARTING (in flight).
+    if ($status === 'FAILED') {
+        $lastRestart = (int)get_setting('waha_last_auto_restart', '0');
+        if (time() - $lastRestart >= 600) {
+            set_setting('waha_last_auto_restart', (string)time());
+            $ch = curl_init(rtrim($waha_url, '/') . '/api/sessions/' . rawurlencode($session) . '/restart');
+            curl_setopt_array($ch, [
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => '',
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 30,
+                CURLOPT_HTTPHEADER     => ['X-Api-Key: ' . $apiKey, 'Content-Type: application/json'],
+            ]);
+            curl_exec($ch);
+            curl_close($ch);
+            db_log_activity(0, "WAHA watchdog: session '$session' FAILED — auto-restart issued (check #$streak)", 'critical');
+            $out['action'] = 'restarted';
+        }
+    }
+
+    // Alert admins after 2+ consecutive bad checks, at most once per day.
+    if ($streak >= 2) {
+        $lastAlert = (int)get_setting('waha_down_alerted_at', '0');
+        if (time() - $lastAlert >= 86400) {
+            set_setting('waha_down_alerted_at', (string)time());
+            require_once __DIR__ . '/mail.php';
+            $hint = match ($status) {
+                'SCAN_QR_CODE' => 'The session needs a fresh link: open the WhatsApp tab in Site Settings and scan the QR with the WhatsApp phone (Settings → Linked devices → Link a device).',
+                'FAILED'       => 'The watchdog is auto-restarting it every 10 minutes. If it stays FAILED, WhatsApp has likely revoked the linked device — use Logout then Start on the WhatsApp tab and re-scan the QR.',
+                'UNREACHABLE'  => 'The WAHA container may be down. Check `docker ps` on the server and restart it if needed.',
+                default        => 'Check the WhatsApp tab in Site Settings.',
+            };
+            $subject = 'WhatsApp notifications are down (session ' . $status . ')';
+            $html = '<p>The WhatsApp (WAHA) session <strong>' . htmlspecialchars($session) . '</strong> has not been WORKING for at least '
+                  . (int)($streak * 5) . ' minutes. Current status: <strong>' . htmlspecialchars($status) . '</strong>.</p>'
+                  . '<p>' . htmlspecialchars($hint) . '</p>'
+                  . '<p>Until it recovers, notifications to WhatsApp-preferred users are queued/retried and may be dropped after 3 attempts.</p>'
+                  . '<p><a href="' . htmlspecialchars(get_site_url()) . '/admin_settings.php?tab=sms">Open WhatsApp settings</a></p>';
+            $admins = get_db()->query("SELECT username, email FROM users WHERE role = 'admin' AND email IS NOT NULL AND email != ''")->fetchAll();
+            foreach ($admins as $a) {
+                send_email($a['email'], $a['username'], $subject, $html);
+            }
+            db_log_activity(0, "WAHA watchdog: alerted " . count($admins) . " admin(s) — session $status for ~" . ($streak * 5) . " min", 'critical');
+            $out['action'] .= ($out['action'] !== '' ? '+' : '') . 'alerted';
+        }
+    }
+
+    return $out;
+}
+
+
+/**
  * Send a WhatsApp message via WAHA.
  *
  * Verifies the WAHA session is WORKING before sending: a flapping/unlinked

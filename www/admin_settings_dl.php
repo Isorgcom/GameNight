@@ -77,13 +77,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // token and so was rejected 403 by wa_webhook.php on every inbound message, and
                 // a second *working* webhook would double-deliver (double-processing RSVP
                 // replies). Start with no per-session webhook.
-                $payload = json_encode(['name' => $waha_sess]);
-                $ch = curl_init(rtrim($waha_url, '/') . '/api/sessions/start');
-                curl_setopt_array($ch, [
-                    CURLOPT_POST => true, CURLOPT_POSTFIELDS => $payload,
-                    CURLOPT_HTTPHEADER => $waha_headers,
-                    CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 60,
-                ]);
+
+                // A FAILED session rejects 'start' with 422 ("already started") — it can
+                // only be recovered via /restart. Probe first and pick the right call, so
+                // this button actually works after a connection failure (July 2026 outage:
+                // days of useless 422s from exactly this path).
+                $ch = curl_init(rtrim($waha_url, '/') . '/api/sessions/' . urlencode($waha_sess));
+                curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 10, CURLOPT_HTTPHEADER => $waha_headers]);
+                $stResp = curl_exec($ch);
+                $stCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+                $curStatus = ($stCode === 200) ? strtoupper((string)(json_decode($stResp, true)['status'] ?? '')) : '';
+
+                if (in_array($curStatus, ['FAILED', 'STARTING'], true)) {
+                    $ch = curl_init(rtrim($waha_url, '/') . '/api/sessions/' . urlencode($waha_sess) . '/restart');
+                    curl_setopt_array($ch, [
+                        CURLOPT_POST => true, CURLOPT_POSTFIELDS => '',
+                        CURLOPT_HTTPHEADER => $waha_headers,
+                        CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 60,
+                    ]);
+                } else {
+                    $payload = json_encode(['name' => $waha_sess]);
+                    $ch = curl_init(rtrim($waha_url, '/') . '/api/sessions/start');
+                    curl_setopt_array($ch, [
+                        CURLOPT_POST => true, CURLOPT_POSTFIELDS => $payload,
+                        CURLOPT_HTTPHEADER => $waha_headers,
+                        CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 60,
+                    ]);
+                }
                 $resp = curl_exec($ch);
                 $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                 curl_close($ch);
