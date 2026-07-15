@@ -798,16 +798,25 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
             break;
 
         case 'waitlist_promoted':
+            // Tokenized link: waitlisted players can be walk-ins with no account,
+            // and the token event page doubles as their RSVP surface.
+            $rsvp_token = _invitee_rsvp_token($db, $event_id, $username);
+            $event_link = $rsvp_token !== '' ? ($site_url . '/event.php?token=' . urlencode($rsvp_token)) : $url;
             $subject = "A seat opened up: $title";
-            $smsBody = "A seat opened up for \"$title\" on $start. You're in! View: $url";
+            $smsBody = "A seat opened up for \"$title\" on $start. You're in! View: $event_link";
             $htmlBody = '<p>Good news — a seat has opened up for <strong>' . htmlspecialchars($title) . '</strong> on ' . htmlspecialchars($start) . '. You are now approved.</p>'
-                      . '<p style="margin-top:1rem"><a href="' . htmlspecialchars($url) . '">View event</a></p>';
+                      . '<p style="margin-top:1rem"><a href="' . htmlspecialchars($event_link) . '">View event &amp; RSVP</a></p>';
             break;
 
         case 'rsvp_deadline_demoted':
+            // "You can still RSVP" previously came with no link at all; the token
+            // page shows their waitlist status honestly and takes an RSVP.
+            $rsvp_token = _invitee_rsvp_token($db, $event_id, $username);
+            $event_link = $rsvp_token !== '' ? ($site_url . '/event.php?token=' . urlencode($rsvp_token)) : $url;
             $subject = "Moved to waitlist: $title";
-            $smsBody = "You didn't RSVP by the deadline for \"$title\" — you've been moved to the waitlist.";
-            $htmlBody = '<p>The RSVP deadline for <strong>' . htmlspecialchars($title) . '</strong> passed without a response, so you have been moved to the waitlist. You can still RSVP if a seat opens up.</p>';
+            $smsBody = "You didn't RSVP by the deadline for \"$title\" — you've been moved to the waitlist. Still want in? $event_link";
+            $htmlBody = '<p>The RSVP deadline for <strong>' . htmlspecialchars($title) . '</strong> passed without a response, so you have been moved to the waitlist. You can still RSVP if a seat opens up.</p>'
+                      . '<p style="margin-top:1rem"><a href="' . htmlspecialchars($event_link) . '">View event &amp; RSVP</a></p>';
             break;
 
         case 'poker_approved':

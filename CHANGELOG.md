@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2033] - 2026-07-15
+
+### Fixed
+- **Waitlist notifications now carry working no-login links** — the follow-up sweep after v0.2032's reminder fix, auditing every outbound message for the same bug class. Two more cases in `www/_notifications.php`: `waitlist_promoted` ("a seat opened up, you're in!") linked to the login-gated event page even though waitlisted players can be walk-ins with no account, and `rsvp_deadline_demoted` ("you can still RSVP") shipped an RSVP call-to-action with **no link at all**. Both now use the recipient's tokenized event page (via the v0.2032 helpers), which shows waitlisted invitees their honest status and takes an RSVP without login. Also audited and deliberately unchanged: comment notifications stay login-gated because comments are an account-only feature and the token page can't display them. With this, every message that asks a guest to act includes a working, no-login way to act.
+
+---
+
 ## [v0.2032] - 2026-07-15
 
 ### Fixed
