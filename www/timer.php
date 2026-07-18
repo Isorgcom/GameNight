@@ -1950,7 +1950,8 @@ function linkTimerToEvent() {
 function fmtChips(n) {
     if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
     if (n >= 1000) return (n / 1000).toFixed(0) + 'K';
-    return String(n);
+    // Fractional blinds (.25/.50 home stakes): show up to 2 decimals, no float dust.
+    return (n % 1 === 0) ? String(n) : n.toFixed(2);
 }
 
 // ─── §7.2.1  Get current level data ──────────────────────────────
@@ -2031,9 +2032,9 @@ function renderAll() {
                 if (parseInt(LEVELS[i].level_number) === TIMER.current_level) break;
             }
             el('levelLabel').textContent = 'Level ' + playNum;
-            var blindsHtml = fmtChips(parseInt(lv.small_blind)) + ' / ' + fmtChips(parseInt(lv.big_blind));
-            if (parseInt(lv.ante) > 0) {
-                blindsHtml += ' / <span style="position:relative;display:inline-block">' + fmtChips(parseInt(lv.ante))
+            var blindsHtml = fmtChips(parseFloat(lv.small_blind)) + ' / ' + fmtChips(parseFloat(lv.big_blind));
+            if (parseFloat(lv.ante) > 0) {
+                blindsHtml += ' / <span style="position:relative;display:inline-block">' + fmtChips(parseFloat(lv.ante))
                     + '<span style="position:absolute;left:50%;transform:translateX(-50%);bottom:-0.6em;font-size:0.25em;color:#f59e0b;font-weight:700;letter-spacing:0.05em">ANTE</span></span>';
             }
             el('blinds').innerHTML = blindsHtml;
@@ -2047,9 +2048,9 @@ function renderAll() {
         if (parseInt(nextLv.is_break)) {
             el('nextLevel').innerHTML = 'Next: Break';
         } else {
-            var nextHtml = 'Next: ' + fmtChips(parseInt(nextLv.small_blind)) + ' / ' + fmtChips(parseInt(nextLv.big_blind));
-            if (parseInt(nextLv.ante) > 0) {
-                nextHtml += ' / <span style="position:relative;display:inline-block">' + fmtChips(parseInt(nextLv.ante))
+            var nextHtml = 'Next: ' + fmtChips(parseFloat(nextLv.small_blind)) + ' / ' + fmtChips(parseFloat(nextLv.big_blind));
+            if (parseFloat(nextLv.ante) > 0) {
+                nextHtml += ' / <span style="position:relative;display:inline-block">' + fmtChips(parseFloat(nextLv.ante))
                     + '<span style="position:absolute;left:50%;transform:translateX(-50%);bottom:-0.7em;font-size:0.45em;color:#f59e0b;font-weight:700;letter-spacing:0.05em">ANTE</span></span>';
             }
             el('nextLevel').innerHTML = nextHtml;
@@ -2977,9 +2978,9 @@ function renderLevelsTable() {
         if (parseInt(lv.level_number) === TIMER.current_level) cls = ' class="current-level"';
         h += '<tr' + cls + ' data-idx="' + i + '" ondragover="onDragOver(event)" ondrop="onDrop(event)">';
         h += '<td draggable="true" ondragstart="onDragStart(event)" ondragend="onDragEnd()" style="cursor:grab;color:#64748b;user-select:none" title="Drag to reorder">&#9776; ' + (i + 1) + '</td>';
-        h += '<td><input type="number" value="' + (brk ? 0 : lv.small_blind) + '" data-idx="' + i + '" data-field="small_blind" oninput="markLevelsDirty()"' + (brk ? ' disabled' : '') + '></td>';
-        h += '<td><input type="number" value="' + (brk ? 0 : lv.big_blind) + '" data-idx="' + i + '" data-field="big_blind" oninput="markLevelsDirty()"' + (brk ? ' disabled' : '') + '></td>';
-        h += '<td><input type="number" value="' + (brk ? 0 : lv.ante) + '" data-idx="' + i + '" data-field="ante" oninput="markLevelsDirty()"' + (brk ? ' disabled' : '') + '></td>';
+        h += '<td><input type="number" step="any" min="0" value="' + (brk ? 0 : lv.small_blind) + '" data-idx="' + i + '" data-field="small_blind" oninput="markLevelsDirty()"' + (brk ? ' disabled' : '') + '></td>';
+        h += '<td><input type="number" step="any" min="0" value="' + (brk ? 0 : lv.big_blind) + '" data-idx="' + i + '" data-field="big_blind" oninput="markLevelsDirty()"' + (brk ? ' disabled' : '') + '></td>';
+        h += '<td><input type="number" step="any" min="0" value="' + (brk ? 0 : lv.ante) + '" data-idx="' + i + '" data-field="ante" oninput="markLevelsDirty()"' + (brk ? ' disabled' : '') + '></td>';
         h += '<td><input type="number" value="' + lv.duration_minutes + '" data-idx="' + i + '" data-field="duration_minutes" oninput="markLevelsDirty()" style="width:55px"></td>';
         h += '<td>' + (brk ? 'BREAK' : 'Play') + '</td>';
         h += '<td class="lvl-actions">';
@@ -3101,7 +3102,7 @@ function insertLevel(beforeIdx, isBreak) {
     if (isBreak) {
         newLv = { level_number: 0, small_blind: 0, big_blind: 0, ante: 0, duration_minutes: 10, is_break: 1 };
     } else {
-        var sb = prevLv && !parseInt(prevLv.is_break) ? parseInt(prevLv.big_blind) : 100;
+        var sb = prevLv && !parseInt(prevLv.is_break) ? parseFloat(prevLv.big_blind) : 100;
         newLv = { level_number: 0, small_blind: sb, big_blind: sb * 2, ante: 0, duration_minutes: 15, is_break: 0 };
     }
     LEVELS.splice(beforeIdx + 1, 0, newLv);
@@ -3117,7 +3118,7 @@ function addLevel(isBreak) {
     if (isBreak) {
         newLv = { level_number: 0, small_blind: 0, big_blind: 0, ante: 0, duration_minutes: 10, is_break: 1 };
     } else {
-        var sb = lastLv && !parseInt(lastLv.is_break) ? parseInt(lastLv.big_blind) : 100;
+        var sb = lastLv && !parseInt(lastLv.is_break) ? parseFloat(lastLv.big_blind) : 100;
         newLv = { level_number: 0, small_blind: sb, big_blind: sb * 2, ante: 0, duration_minutes: 15, is_break: 0 };
     }
     LEVELS.push(newLv);
@@ -3143,7 +3144,10 @@ function collectLevelsFromTable() {
     inputs.forEach(function(inp) {
         var idx = parseInt(inp.dataset.idx);
         var field = inp.dataset.field;
-        if (LEVELS[idx]) LEVELS[idx][field] = parseInt(inp.value) || 0;
+        // Blinds/ante take decimals (.25/.50 home stakes); duration stays whole minutes.
+        if (LEVELS[idx]) LEVELS[idx][field] = (field === 'duration_minutes')
+            ? (parseInt(inp.value) || 0)
+            : (parseFloat(inp.value) || 0);
     });
 }
 
@@ -5994,9 +5998,9 @@ function importLevels(input) {
             if (cols.length < 5) continue;
             parsed.push({
                 level_number: i - start + 1,
-                small_blind: parseInt(cols[1]) || 0,
-                big_blind: parseInt(cols[2]) || 0,
-                ante: parseInt(cols[3]) || 0,
+                small_blind: parseFloat(cols[1]) || 0,
+                big_blind: parseFloat(cols[2]) || 0,
+                ante: parseFloat(cols[3]) || 0,
                 duration_minutes: parseInt(cols[4]) || 15,
                 is_break: (cols[5] || '').trim().toLowerCase() === 'break' ? 1 : 0
             });

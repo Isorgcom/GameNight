@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2035] - 2026-07-18
+
+### Fixed
+- **The tournament timer accepts fractional blinds** (user-reported: low-stakes structures like .25/.50 were rejected). The blind editor's SB/BB/Ante inputs gained `step="any"`, the editor's collect path and every render path (main timer display, next-level preview, the remote view, and the Chromecast receiver in `cast_receiver.php`) parse blinds with `parseFloat` instead of `parseInt` (which silently truncated .25 to 0), the level/preset save paths in `timer_dl.php` cast blinds to float (SQLite stores them natively, no migration), CSV import round-trips decimals, and the structure generator seeds from fractional levels without collapsing to its 100-chip fallback. Fractional values render poker-style with two decimals ("0.25 / 0.50"); whole-number and K/M chip formatting is unchanged, and level durations deliberately remain whole minutes.
+
+---
+
 ## [v0.2034] - 2026-07-18
 
 ### Added

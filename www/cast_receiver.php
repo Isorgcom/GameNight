@@ -146,7 +146,8 @@
     function fmtChips(v) {
         if (v >= 1000000) return (v / 1000000) + 'M';
         if (v >= 1000) return (v / 1000) + 'K';
-        return String(v);
+        // Fractional blinds (.25/.50 home stakes): up to 2 decimals, no float dust.
+        return (v % 1 === 0) ? String(v) : v.toFixed(2);
     }
 
     function fmtTime(sec) {
@@ -171,9 +172,9 @@
             }
             document.getElementById('levelLabel').textContent = 'Level ' + playNum;
 
-            var blindsHtml = fmtChips(parseInt(lv.small_blind)) + ' / ' + fmtChips(parseInt(lv.big_blind));
-            if (parseInt(lv.ante) > 0) {
-                blindsHtml += ' / <span style="position:relative;display:inline-block">' + fmtChips(parseInt(lv.ante))
+            var blindsHtml = fmtChips(parseFloat(lv.small_blind)) + ' / ' + fmtChips(parseFloat(lv.big_blind));
+            if (parseFloat(lv.ante) > 0) {
+                blindsHtml += ' / <span style="position:relative;display:inline-block">' + fmtChips(parseFloat(lv.ante))
                     + '<span style="position:absolute;left:50%;transform:translateX(-50%);bottom:-0.5em;font-size:0.3em;color:#f59e0b;font-weight:700">ANTE</span></span>';
             }
             document.getElementById('blinds').innerHTML = blindsHtml;
@@ -193,9 +194,9 @@
             if (parseInt(nextLv.is_break)) {
                 document.getElementById('nextLevel').innerHTML = 'Next: Break';
             } else {
-                var nextHtml = 'Next: ' + fmtChips(parseInt(nextLv.small_blind)) + ' / ' + fmtChips(parseInt(nextLv.big_blind));
-                if (parseInt(nextLv.ante) > 0) {
-                    nextHtml += ' / <span style="position:relative;display:inline-block">' + fmtChips(parseInt(nextLv.ante))
+                var nextHtml = 'Next: ' + fmtChips(parseFloat(nextLv.small_blind)) + ' / ' + fmtChips(parseFloat(nextLv.big_blind));
+                if (parseFloat(nextLv.ante) > 0) {
+                    nextHtml += ' / <span style="position:relative;display:inline-block">' + fmtChips(parseFloat(nextLv.ante))
                         + '<span style="position:absolute;left:50%;transform:translateX(-50%);bottom:-0.6em;font-size:0.4em;color:#f59e0b;font-weight:700">ANTE</span></span>';
                 }
                 document.getElementById('nextLevel').innerHTML = nextHtml;

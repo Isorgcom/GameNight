@@ -455,7 +455,7 @@ if ($action === 'save_preset') {
 
     $ins = $db->prepare('INSERT INTO blind_preset_levels (preset_id, level_number, small_blind, big_blind, ante, duration_minutes, is_break) VALUES (?, ?, ?, ?, ?, ?, ?)');
     foreach ($levels as $lv) {
-        $ins->execute([$pid, (int)$lv['level_number'], (int)($lv['small_blind'] ?? 0), (int)($lv['big_blind'] ?? 0), (int)($lv['ante'] ?? 0), (int)($lv['duration_minutes'] ?? 15), (int)($lv['is_break'] ?? 0)]);
+        $ins->execute([$pid, (int)$lv['level_number'], (float)($lv['small_blind'] ?? 0), (float)($lv['big_blind'] ?? 0), (float)($lv['ante'] ?? 0), (int)($lv['duration_minutes'] ?? 15), (int)($lv['is_break'] ?? 0)]);
     }
 
     echo json_encode(['ok' => true, 'preset_id' => $pid]);
@@ -548,7 +548,7 @@ if ($action === 'update_levels') {
     $db->prepare('DELETE FROM blind_preset_levels WHERE preset_id = ?')->execute([$preset_id]);
     $ins = $db->prepare('INSERT INTO blind_preset_levels (preset_id, level_number, small_blind, big_blind, ante, duration_minutes, is_break) VALUES (?, ?, ?, ?, ?, ?, ?)');
     foreach ($levels as $lv) {
-        $ins->execute([$preset_id, (int)$lv['level_number'], (int)($lv['small_blind'] ?? 0), (int)($lv['big_blind'] ?? 0), (int)($lv['ante'] ?? 0), (int)($lv['duration_minutes'] ?? 15), (int)($lv['is_break'] ?? 0)]);
+        $ins->execute([$preset_id, (int)$lv['level_number'], (float)($lv['small_blind'] ?? 0), (float)($lv['big_blind'] ?? 0), (float)($lv['ante'] ?? 0), (int)($lv['duration_minutes'] ?? 15), (int)($lv['is_break'] ?? 0)]);
     }
 
     echo json_encode(['ok' => true, 'preset_id' => $preset_id, 'created_copy' => $created_copy]);
