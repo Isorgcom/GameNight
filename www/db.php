@@ -915,6 +915,26 @@ JSON;
 
     // Event visibility + league linkage
     try { $pdo->exec("ALTER TABLE events ADD COLUMN league_id  INTEGER"); } catch (Exception $e) {}
+    // In-app notification inbox: one row per notification per registered
+    // recipient, written by the dispatcher alongside the email/SMS send. This is
+    // the durable history behind the nav bell; outbound channel prefs never
+    // suppress it. Pruned at 90 days by cron.
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS user_notifications (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id     INTEGER NOT NULL,
+        event_id    INTEGER,
+        notify_type TEXT    NOT NULL,
+        subject     TEXT    NOT NULL,
+        body        TEXT,
+        link        TEXT,
+        is_read     INTEGER NOT NULL DEFAULT 0,
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_user_notif ON user_notifications(user_id, is_read, id)"); } catch (Exception $e) {}
+    // Per-category outbound notification preferences (JSON; absent key = enabled).
+    try { $pdo->exec("ALTER TABLE users ADD COLUMN notify_prefs TEXT"); } catch (Exception $e) {}
+
     // League seasons: manager-defined date windows for standings + champions.
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS league_seasons (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -943,7 +943,11 @@ function renderPlayerRows() {
         var rsvp = p.rsvp || '';
         var isNo = rsvp === 'no';
         var isPending = (p.approval_status === 'pending');
-        var dis = (isNo || isPending) ? ' disabled' : '';
+        // Never disable the money controls for RSVP-no players: people who said
+        // no and showed up anyway are normal, and a dead checkbox with no
+        // explanation cost a real game two buy-ins (July 2026, pot short $40).
+        // Buying such a player in corrects their RSVP server-side.
+        var dis = '';
         var isWinner = !isElim && isTourney() && parseInt(p.finish_position) === 1;
         var rowClass = isPending ? 'pending-row' : (isElim ? 'elim' : (isWinner ? 'winner' : (hasCashedOut ? 'cashed-out' : (isNo ? 'rsvp-no' : ''))));
         h += '<tr class="' + rowClass + '" data-pid="' + p.id + '">';
@@ -1251,6 +1255,19 @@ function renderPoolCard() {
 
 function renderPayoutCard() {
     var h = '<h3>Payouts</h3>';
+    // Pot-integrity check: a player with rebuys/add-ons but NO buy-in means the
+    // pool is understated — exactly the anomaly that put a real game's payout
+    // math $40 off. Surface it where the host looks at payout time.
+    var anomalies = (PLAYERS || []).filter(function(p) {
+        return !parseInt(p.bought_in)
+            && (parseInt(p.rebuys) > 0 || parseInt(p.addons) > 0 || parseInt(p.checked_in));
+    });
+    if (anomalies.length) {
+        h += '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:.45rem .6rem;margin-bottom:.6rem;font-size:.78rem;color:#991b1b;font-weight:600">'
+           + '&#9888; No buy-in recorded for: ' + anomalies.map(function(p) { return escHtml(p.display_name); }).join(', ')
+           + ' — but they have rebuys/add-ons or are checked in. The pool may be short.'
+           + '</div>';
+    }
     var totalPct = 0;
     for (var i = 0; i < PAYOUTS.length; i++) {
         var pay = PAYOUTS[i];
@@ -2149,17 +2166,34 @@ function bulkAction(action) {
 
     var completed = 0;
     var total = selected.length;
+    var failures = []; // {name, error} — a bulk run must never fail silently
+
+    function nameOf(pid) {
+        var p = (PLAYERS || []).find(function(x) { return parseInt(x.id) === pid; });
+        return p ? p.display_name : ('#' + pid);
+    }
 
     function processNext() {
         if (completed >= total) {
-            // Refresh from server after all done
-            loadSession();
+            loadSession(); // refresh from server after all done
+            if (failures.length) {
+                pkAlert(
+                    (total - failures.length) + ' of ' + total + ' completed.<br><br>Failed:<br>'
+                    + failures.map(function(f) { return '&bull; ' + escHtml(f.name) + ' — ' + escHtml(f.error); }).join('<br>'),
+                    { title: 'Some players were skipped' }
+                );
+            } else if (typeof walkinToast === 'function') {
+                walkinToast(total + ' player' + (total === 1 ? '' : 's') + ' updated');
+            }
             return;
         }
         var pid = selected[completed];
         var params = { player_id: pid };
         if (action === 'add_walkin') params.session_id = SESSION.id;
         if (action === 'eliminate_player') params.finish_position = 0;
+        // Bulk Buy In means "make sure they're in" — never toggle someone OFF
+        // who was already bought in individually.
+        if (action === 'toggle_buyin') params.set = 1;
 
         var fd = new FormData();
         fd.append('csrf_token', CSRF);
@@ -2169,10 +2203,12 @@ function bulkAction(action) {
         fetch('/checkin_dl.php', { method: 'POST', body: fd, credentials: 'same-origin' })
             .then(function(r) { return r.json(); })
             .then(function(j) {
+                if (!j || !j.ok) failures.push({ name: nameOf(pid), error: (j && j.error) || 'Unknown error' });
                 completed++;
                 processNext();
             })
             .catch(function() {
+                failures.push({ name: nameOf(pid), error: 'Network error' });
                 completed++;
                 processNext();
             });

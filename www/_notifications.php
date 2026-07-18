@@ -397,6 +397,35 @@ function approve_event_invitee(PDO $db, int $event_id, string $target, int $acto
  * Returns true on success, false if the row should be retried.
  */
 /**
+ * Notification categories for per-user outbound preferences (settings.php).
+ * Absent/unknown categories are always sent.
+ */
+function _notify_category(string $type): string {
+    return match ($type) {
+        'invite', 'rsvp_nudge'                                       => 'invites',
+        'reminder'                                                   => 'reminders',
+        'event_updated', 'cancel_event', 'cancel_occurrence'         => 'changes',
+        'event_comment'                                              => 'comments',
+        'waitlist_promoted', 'rsvp_deadline_demoted', 'poker_approved' => 'status',
+        'event_message', 'event_poll'                                => 'messages',
+        'rsvp_to_creator'                                            => 'rsvp_replies',
+        default                                                      => 'other',
+    };
+}
+
+/**
+ * Has this registered user muted the outbound category for $type?
+ * (The in-app inbox row is always written regardless — muting only silences
+ * email/SMS/WhatsApp.) Missing prefs/keys mean enabled.
+ */
+function user_notify_pref_enabled(array $user, string $type): bool {
+    $prefs = json_decode((string)($user['notify_prefs'] ?? ''), true);
+    if (!is_array($prefs)) return true;
+    $cat = _notify_category($type);
+    return !array_key_exists($cat, $prefs) || (int)$prefs[$cat] === 1;
+}
+
+/**
  * The recipient's one-click RSVP token (base invite row). Empty string when the
  * row predates the token column or is missing — callers fall back to the
  * login-gated event link in that case.
@@ -494,7 +523,7 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
         }
     }
 
-    $uStmt = $db->prepare('SELECT id, username, email, phone, preferred_contact, timezone FROM users WHERE LOWER(username) = LOWER(?)');
+    $uStmt = $db->prepare('SELECT id, username, email, phone, preferred_contact, timezone, notify_prefs FROM users WHERE LOWER(username) = LOWER(?)');
     $uStmt->execute([$username]);
     $user = $uStmt->fetch();
 
@@ -832,30 +861,47 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
             return true; // unknown type — clear the row silently
     }
 
-    // Correlate every log row this send produces (email/SMS/WhatsApp, including
-    // parked email retries) with the event and recipient being notified.
-    notif_log_context($event_id, $username);
-    send_notification(
-        $user['username'], $user['email'] ?? '', $user['phone'] ?? '',
-        $user['preferred_contact'] ?? 'email',
-        $subject, $smsBody, $htmlBody, $waBody
-    );
-    notif_log_context(null, null);
+    // Muted category (registered users only): outbound channels skipped, but the
+    // in-app inbox row (below) and the dedup marker are still written.
+    $muted = !empty($user['id']) && !user_notify_pref_enabled($user, $type);
 
-    // Determine the per-channel outcome once for the decisions below.
-    $err = get_last_notification_error();
-    $prefContact = strtolower($user['preferred_contact'] ?? 'email');
+    $err = null;
+    if (!$muted) {
+        // Correlate every log row this send produces (email/SMS/WhatsApp, including
+        // parked email retries) with the event and recipient being notified.
+        notif_log_context($event_id, $username);
+        send_notification(
+            $user['username'], $user['email'] ?? '', $user['phone'] ?? '',
+            $user['preferred_contact'] ?? 'email',
+            $subject, $smsBody, $htmlBody, $waBody
+        );
+        notif_log_context(null, null);
 
-    // A WhatsApp-only notification that failed (e.g. WAHA session down) is safely
-    // retryable: for a 'whatsapp' user no other channel was attempted, so re-attempting
-    // re-sends nothing that already succeeded. Skip the dedup marker and return false so
-    // cron_drain releases the row for retry (capped at attempts<3) once the session
-    // recovers — this is the one case where NOT recording delivery is correct. (Rate-limit
-    // errors fall through to the pause path below instead of hot-looping.)
-    if ($err !== null && $prefContact === 'whatsapp'
-        && strpos($err, 'whatsapp:') !== false && !looks_like_rate_limit($err)) {
-        error_log("[GameNight] WhatsApp send failed (will retry) event=$event_id user=$username type=$type: $err");
-        return false;
+        // Determine the per-channel outcome once for the decisions below.
+        $err = get_last_notification_error();
+        $prefContact = strtolower($user['preferred_contact'] ?? 'email');
+
+        // A WhatsApp-only notification that failed (e.g. WAHA session down) is safely
+        // retryable: for a 'whatsapp' user no other channel was attempted, so re-attempting
+        // re-sends nothing that already succeeded. Skip the dedup marker and return false so
+        // cron_drain releases the row for retry (capped at attempts<3) once the session
+        // recovers — this is the one case where NOT recording delivery is correct. (Rate-limit
+        // errors fall through to the pause path below instead of hot-looping.)
+        if ($err !== null && $prefContact === 'whatsapp'
+            && strpos($err, 'whatsapp:') !== false && !looks_like_rate_limit($err)) {
+            error_log("[GameNight] WhatsApp send failed (will retry) event=$event_id user=$username type=$type: $err");
+            return false;
+        }
+    }
+
+    // In-app inbox: one durable row per notification for registered recipients.
+    // Placed after the WhatsApp-retry early return so retried rows don't
+    // duplicate their history entry; muted categories still land here.
+    if (!empty($user['id'])) {
+        try {
+            $db->prepare('INSERT INTO user_notifications (user_id, event_id, notify_type, subject, body, link) VALUES (?, ?, ?, ?, ?, ?)')
+               ->execute([(int)$user['id'], $event_id, $type, $subject, mb_substr($smsBody, 0, 500), '/event.php?id=' . $event_id]);
+        } catch (Throwable $e) { /* inbox is best-effort; never block delivery */ }
     }
 
     // Mark as sent IMMEDIATELY after send_notification returns, regardless of per-channel

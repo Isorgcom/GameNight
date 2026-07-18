@@ -463,35 +463,55 @@ if ($action === 'update_status') {
 // ─── toggle_buyin ──────────────────────────────────────────
 if ($action === 'toggle_buyin') {
     $player_id = (int)($_POST['player_id'] ?? 0);
+    // set=1 turns the toggle into "ensure bought in": already-in players are a
+    // no-op success instead of being flipped OFF. Bulk Buy In uses this so
+    // re-running it can never silently reverse someone's buy-in.
+    $set_only  = !empty($_POST['set']);
     $session = get_session_from_player($db, $player_id);
     if (!$session) { echo json_encode(['ok' => false, 'error' => 'Player not found']); exit; }
     verify_event_access($db, $session['event_id'], $current, $isAdmin);
 
-    // Block buy-in for pending players
     $plName = $db->prepare('SELECT display_name FROM poker_players WHERE id = ?');
     $plName->execute([$player_id]);
     $plRow = $plName->fetch();
-    if ($plRow) {
-        $apSt = $db->prepare("SELECT approval_status FROM event_invites WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL");
-        $apSt->execute([$session['event_id'], $plRow['display_name']]);
-        if (($apSt->fetchColumn() ?: 'approved') === 'pending') {
-            echo json_encode(['ok' => false, 'error' => 'Player must be approved before buying in.']);
-            exit;
-        }
-    }
+    $pname = $plRow['display_name'] ?? '';
 
     // Atomic toggle
     $db->beginTransaction();
     $pl = $db->prepare('SELECT bought_in FROM poker_players WHERE id = ?');
     $pl->execute([$player_id]);
     $cur = $pl->fetch();
-    $pname = $plRow['display_name'] ?? '';
     if ((int)$cur['bought_in'] === 0) {
         $db->prepare('UPDATE poker_players SET bought_in = 1, checked_in = 1 WHERE id = ?')->execute([$player_id]);
         $db->commit();
+
+        // Reality outranks the roster state: the host taking this player's money
+        // means they are approved and attending. A pending row is auto-approved
+        // (host action = approval intent, same as update_rsvp), and an RSVP of
+        // no/none is corrected to yes — previously a "no" RSVP hard-disabled the
+        // buy-in checkbox and a real game's pot ran $40 short (July 2026).
+        $inv = $db->prepare("SELECT approval_status, rsvp FROM event_invites WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL");
+        $inv->execute([$session['event_id'], $pname]);
+        $invRow = $inv->fetch();
+        if ($invRow) {
+            if (($invRow['approval_status'] ?? 'approved') === 'pending') {
+                $db->prepare("UPDATE event_invites SET approval_status = 'approved' WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL")
+                   ->execute([$session['event_id'], $pname]);
+                pk_log($db, (int)$session['id'], (int)$current['id'], 'approve', $player_id, $pname, null, 'Auto-approved by buy-in');
+            }
+            if (($invRow['rsvp'] ?? '') !== 'yes') {
+                $db->prepare("UPDATE event_invites SET rsvp = 'yes' WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL")
+                   ->execute([$session['event_id'], $pname]);
+                $db->prepare('UPDATE poker_players SET rsvp = ? WHERE id = ?')->execute(['yes', $player_id]);
+            }
+        }
+
         auto_assign_table($db, $session['id'], $player_id);
         $amt = (int)$session['buyin_amount'];
         pk_log($db, (int)$session['id'], (int)$current['id'], 'buyin', $player_id, $pname, $amt, 'Bought in — ' . pk_money($amt));
+    } elseif ($set_only) {
+        // Already bought in and the caller only wants to ensure that — no-op.
+        $db->commit();
     } else {
         // Un-buying: clear bought_in and the table assignment
         $db->prepare('UPDATE poker_players SET bought_in = 0, checked_in = 0, table_number = NULL, seat_number = NULL WHERE id = ?')->execute([$player_id]);

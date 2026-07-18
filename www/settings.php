@@ -107,6 +107,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        elseif ($action === 'notify_prefs') {
+            // Per-category outbound notification toggles. Only known categories are
+            // stored; a missing key means enabled, so the JSON stays minimal. The
+            // in-app inbox always records everything regardless of these.
+            $cats = ['invites', 'reminders', 'changes', 'comments', 'status', 'messages', 'rsvp_replies'];
+            $prefs = [];
+            foreach ($cats as $c) {
+                if (empty($_POST['np_' . $c])) $prefs[$c] = 0; // store only the mutes
+            }
+            $db->prepare('UPDATE users SET notify_prefs = ? WHERE id = ?')
+               ->execute([$prefs ? json_encode($prefs) : null, $current['id']]);
+            db_log_activity($current['id'], 'updated notification preferences');
+            $flash = ['type' => 'success', 'msg' => 'Notification preferences saved.'];
+        }
+
         elseif ($action === 'update_password') {
             $current_pw  = $_POST['current_password'] ?? '';
             $new_pw      = $_POST['new_password'] ?? '';
@@ -190,7 +205,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Reload fresh user data after possible username change
-$me = $db->prepare('SELECT username, email, phone, preferred_contact, my_events_past_days, my_events_future_days, phone_verified, role, created_at, last_login, timezone, mfa_enabled, mfa_method FROM users WHERE id = ?');
+$me = $db->prepare('SELECT username, email, phone, preferred_contact, my_events_past_days, my_events_future_days, phone_verified, role, created_at, last_login, timezone, mfa_enabled, mfa_method, notify_prefs FROM users WHERE id = ?');
 $me->execute([$current['id']]);
 $me = $me->fetch();
 
@@ -337,6 +352,42 @@ $site_name = get_setting('site_name', 'Game Night');
 
         <!-- Right column: Change Password with Two-Factor grouped beneath it -->
         <div style="display:flex;flex-direction:column;gap:1.5rem">
+
+        <!-- Notification preferences -->
+        <div class="card" style="max-width:100%">
+            <h2>Notifications</h2>
+            <p class="subtitle">Choose which notifications reach you by email/text. Everything still appears in your <a href="/notifications.php">in-app inbox</a>.</p>
+            <?php
+            $_np = json_decode((string)($me['notify_prefs'] ?? ''), true);
+            if (!is_array($_np)) $_np = [];
+            $_np_on = fn(string $c) => !array_key_exists($c, $_np) || (int)$_np[$c] === 1;
+            $_np_rows = [
+                'invites'      => ['Invitations & RSVP nudges', 'Event invites and "still deciding?" follow-ups'],
+                'reminders'    => ['Event reminders', 'Scheduled reminders before events you\'re invited to'],
+                'changes'      => ['Event changes', 'Updates and cancellations for your events'],
+                'comments'     => ['Comments', 'When someone comments on an event you\'re part of'],
+                'status'       => ['Approvals & waitlist', 'Approved to play, seat opened up, moved to waitlist'],
+                'messages'     => ['Host messages & polls', 'Notes and polls hosts send to attendees'],
+                'rsvp_replies' => ['RSVP replies (hosts)', 'When guests reply to events you manage'],
+            ];
+            ?>
+            <form method="post" action="/settings.php">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                <input type="hidden" name="action" value="notify_prefs">
+                <div style="display:flex;flex-direction:column;gap:.55rem;margin-bottom:1rem">
+                    <?php foreach ($_np_rows as $_c => [$_l, $_d]): ?>
+                    <label style="display:flex;align-items:flex-start;gap:.6rem;cursor:pointer">
+                        <input type="checkbox" name="np_<?= $_c ?>" value="1" <?= $_np_on($_c) ? 'checked' : '' ?> style="margin-top:.2rem">
+                        <span style="min-width:0">
+                            <span style="font-size:.9rem;font-weight:600;color:#1e293b"><?= $_l ?></span><br>
+                            <span style="font-size:.78rem;color:#94a3b8"><?= $_d ?></span>
+                        </span>
+                    </label>
+                    <?php endforeach; ?>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%">Save Notification Preferences</button>
+            </form>
+        </div>
 
         <!-- Change password -->
         <div class="card" style="max-width:100%">

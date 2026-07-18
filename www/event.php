@@ -203,6 +203,18 @@ if ($token === '' && $page_eid > 0) {
                 <?php if (!$isCreator): ?>
                 <button type="button" class="btn btn-outline btn-sm" id="evpLeaveBtn" style="margin-left:.75rem">Leave this event</button>
                 <?php endif; ?>
+                <div style="margin-top:.7rem;font-size:.85rem;color:#475569">
+                    <label style="font-weight:600">Also remind me
+                        <select id="evpRemind" style="margin-left:.4rem;padding:.3rem .5rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.83rem">
+                            <option value="">&mdash;</option>
+                            <option value="60">1 hour before</option>
+                            <option value="180">3 hours before</option>
+                            <option value="720">12 hours before</option>
+                            <option value="1440">1 day before</option>
+                        </select>
+                    </label>
+                    <span style="font-size:.75rem;color:#94a3b8">on top of the host's reminders, via your usual channel</span>
+                </div>
             <?php else: ?>
                 <button type="button" class="btn btn-primary" id="evpSignupBtn">Sign up to attend</button>
             <?php endif; ?>
@@ -281,6 +293,18 @@ if ($token === '' && $page_eid > 0) {
             if (!res.ok) { pkAlert(res.error || 'Could not remove you.'); return; }
             location.reload();
         }).catch(function () { pkAlert('Request failed.'); }));
+    });
+    var rm = document.getElementById('evpRemind');
+    if (rm) rm.addEventListener('change', function () {
+        if (!rm.value) return;
+        var chosen = rm.options[rm.selectedIndex].text;
+        post('self_reminder', { offset: rm.value }).then(function (res) {
+            rm.value = '';
+            if (!res.ok) { pkAlert(res.error || 'Could not set the reminder.'); return; }
+            pkAlert(res.already
+                ? 'You already have a reminder at that time (yours or the host\'s).'
+                : 'Reminder set — you\'ll hear from us ' + chosen.toLowerCase() + ' the event.', { title: 'Reminder' });
+        }).catch(function () { pkAlert('Request failed.'); });
     });
 })();
 </script>

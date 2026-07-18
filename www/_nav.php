@@ -20,6 +20,15 @@ if ($_nu && !empty($_nu['id']) && function_exists('user_active_poker_event_id'))
 // Admin-only "update available" dot on the Site Settings link.
 $_show_update_dot      = ($_nu && ($_nu['role'] ?? '') === 'admin'
                           && function_exists('update_available') && update_available());
+// Unread in-app notifications (bell badge). Guarded: pre-migration DBs lack the table.
+$_nf_unread = 0;
+if ($_nu && !empty($_nu['id'])) {
+    try {
+        $_nfq = get_db()->prepare('SELECT COUNT(*) FROM user_notifications WHERE user_id = ? AND is_read = 0');
+        $_nfq->execute([(int)$_nu['id']]);
+        $_nf_unread = (int)$_nfq->fetchColumn();
+    } catch (Throwable $e) {}
+}
 $_banner               = get_setting('banner_path', '');
 $_header_banner        = get_setting('header_banner_path', '');
 $_header_banner_height = max(20, min(200, (int)get_setting('header_banner_height', '140')));
@@ -63,6 +72,7 @@ $_accent        = get_setting('accent_color', '');
         <?php endif; ?>
         <div class="nav-user">
             <?php if ($_nu): ?>
+                <a href="/notifications.php" title="Notifications" style="position:relative;text-decoration:none;font-size:1.05rem;padding:.2rem .35rem;line-height:1">&#128276;<?php if ($_nf_unread > 0): ?><span style="position:absolute;top:-4px;right:-6px;background:#dc2626;color:#fff;font-size:.6rem;font-weight:700;border-radius:999px;padding:.08rem .32rem;line-height:1.2"><?= $_nf_unread > 99 ? '99+' : $_nf_unread ?></span><?php endif; ?></a>
                 <span class="nav-collapsible"><?= htmlspecialchars($_nu['username']) ?></span>
                 <div class="nav-dropdown-wrap">
                     <button class="nav-hamburger" title="Menu" onclick="var d=this.nextElementSibling;d.style.display=d.style.display==='block'?'none':'block';">&#9776;</button>
@@ -89,6 +99,7 @@ $_accent        = get_setting('accent_color', '');
                             </div>
                         </div>
                         <div class="nav-mobile-divider"></div>
+                        <a href="/notifications.php"<?= $_active === 'notifications' ? ' class="active"' : '' ?>>Notifications<?= $_nf_unread > 0 ? ' <span style="background:#dc2626;color:#fff;font-size:.65rem;font-weight:700;border-radius:999px;padding:.05rem .35rem">' . ($_nf_unread > 99 ? '99+' : $_nf_unread) . '</span>' : '' ?></a>
                         <a href="/settings.php"<?= $_active === 'settings' ? ' class="active"' : '' ?>>My Settings</a>
                         <a href="/logout.php" class="nav-dropdown-signout">Sign out</a>
                     </div>

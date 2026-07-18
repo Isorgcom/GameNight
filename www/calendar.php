@@ -88,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Each is allowed for anyone who can manage that specific event; the handlers below
     // re-check with can_manage_event(), so this gate just needs to let managers through.
     $eventMgmtActions = ['send_invites', 'nudge_nonresponders', 'resend_invite', 'approve_invite', 'deny_invite', 'send_event_message', 'delete_event_message'];
-    if (!$isAdmin && !in_array($action, ['update_rsvp', 'self_signup', 'self_remove'], true)) {
+    if (!$isAdmin && !in_array($action, ['update_rsvp', 'self_signup', 'self_remove', 'self_reminder'], true)) {
         $chkIdForMgr  = (int)($_POST['id'] ?? 0);
         $chkEidForMgr = (int)($_POST['event_id'] ?? 0);
         // Allow edit/delete (keyed on id) or the event-management actions
@@ -167,6 +167,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             db_log_activity($current['id'], "deleted event: $t");
             $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event deleted.'];
         }
+    }
+
+    // Personal "also remind me" on top of the host's reminders. Invitee-only;
+    // rides the standard reminder queue and the reminder_<offset> dedup tag, so
+    // it can never double up with an identical host reminder.
+    if ($action === 'self_reminder' && $current) {
+        header('Content-Type: application/json');
+        $eid    = (int)($_POST['event_id'] ?? 0);
+        $offset = (int)($_POST['offset'] ?? 0);
+        if (!in_array($offset, [60, 180, 720, 1440], true)) {
+            echo json_encode(['ok' => false, 'error' => 'Invalid reminder time.']); exit;
+        }
+        $chk = $db->prepare("SELECT 1 FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL AND approval_status='approved'");
+        $chk->execute([$eid, $current['username']]);
+        if (!$chk->fetchColumn()) {
+            echo json_encode(['ok' => false, 'error' => 'Only invitees can set a reminder.']); exit;
+        }
+        $evq = $db->prepare('SELECT start_date, start_time FROM events WHERE id=?');
+        $evq->execute([$eid]);
+        $eRow = $evq->fetch();
+        if (!$eRow) { echo json_encode(['ok' => false, 'error' => 'Event not found.']); exit; }
+
+        $site_tz = new DateTimeZone(get_setting('timezone', 'UTC'));
+        $startDt = new DateTime($eRow['start_date'] . ' ' . ($eRow['start_time'] ?: '00:00'), $site_tz);
+        $startDt->setTimezone(new DateTimeZone('UTC'));
+        $when = (clone $startDt)->modify("-{$offset} minutes");
+        if ($when <= new DateTime('now', new DateTimeZone('UTC'))) {
+            echo json_encode(['ok' => false, 'error' => 'That reminder time has already passed.']); exit;
+        }
+
+        require_once __DIR__ . '/_notifications.php';
+        // Same dedup keys the host-reminder queue uses (sent marker + queued row).
+        $type_tag = 'reminder_' . $offset;
+        $seen = $db->prepare("SELECT 1 FROM event_notifications_sent WHERE event_id=? AND occurrence_date=? AND user_identifier=? AND notification_type=?");
+        $seen->execute([$eid, $eRow['start_date'], strtolower($current['username']), $type_tag]);
+        $dup = $db->prepare("SELECT 1 FROM pending_notifications WHERE event_id=? AND LOWER(username)=LOWER(?) AND notify_type='reminder' AND payload = ?");
+        $dup->execute([$eid, $current['username'], json_encode(['offset_minutes' => $offset])]);
+        if ($seen->fetchColumn() || $dup->fetchColumn()) {
+            echo json_encode(['ok' => true, 'already' => true]); exit;
+        }
+        queue_event_notification($db, $eid, $current['username'], 'reminder', null,
+            ['offset_minutes' => $offset], $when->format('Y-m-d H:i:s'));
+        db_log_activity((int)$current['id'], "set a personal {$offset}-minute reminder on event id: $eid");
+        echo json_encode(['ok' => true]);
+        exit;
     }
 
     if ($action === 'update_rsvp' && $current) {

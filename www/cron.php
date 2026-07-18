@@ -208,6 +208,7 @@ $pruned += $db->exec("DELETE FROM event_notifications_sent WHERE event_id NOT IN
 // Logs: older than 90 days
 $pruned += $db->exec("DELETE FROM sms_log WHERE created_at < datetime('now', '-90 days')");
 $pruned += $db->exec("DELETE FROM activity_log WHERE created_at < datetime('now', '-90 days')");
+try { $pruned += $db->exec("DELETE FROM user_notifications WHERE created_at < datetime('now', '-90 days')"); } catch (Exception $e) {}
 
 // API request log: older than 30 days. Dominant table by row count (~28k/day);
 // rate limiting only needs the last minute, so 30d is purely forensic headroom.

@@ -4,6 +4,16 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2034] - 2026-07-18
+
+### Added
+- **Notification center.** Members finally get control over, and a record of, what the app sends them. Three pieces: (1) an **in-app inbox** — new `user_notifications` table written by the dispatcher for every notification to a registered recipient, a 🔔 bell with an unread badge in the nav (desktop + mobile menu), and a `/notifications.php` history page (newest first, unread highlighted, rows link to their event, opening marks all read; pruned at 90 days by cron); (2) **per-type preferences** — a "Notifications" card in My Settings with seven category toggles (invitations/nudges, reminders, event changes, comments, approvals/waitlist, host messages/polls, RSVP replies for hosts) stored as `users.notify_prefs` JSON; muting a category stops email/SMS/WhatsApp for it while the inbox still records everything, so history stays complete and WhatsApp users gain a fallback when the session is down; (3) **member-set reminders** — an "Also remind me" picker (1h/3h/12h/1 day before) on the event page's RSVP area, queuing a personal reminder through the standard queue and `reminder_<offset>` dedup so it can never double a matching host reminder, with past times refused.
+
+### Fixed
+- **Check-in could silently lose buy-ins — a real game's pot ran $40 short** (user-reported after a live tournament; two RSVP-no players who showed up anyway had disabled buy-in checkboxes with no explanation, were skipped, and later accrued add-ons the pool never counted). Three-part fix in `www/checkin.php` / `checkin_dl.php`: (1) money controls are never disabled — buying in an RSVP-no player works and corrects their RSVP to yes, and buying in a pending walk-in auto-approves them (host taking money is approval intent; logged as "Auto-approved by buy-in", still queues the seat notification); (2) **bulk Buy In now means "ensure bought in"** (`set=1` on `toggle_buyin`) so re-running it can never toggle an already-entered player off, and bulk actions report their results — any skipped player appears in a "Some players were skipped" dialog with the reason instead of vanishing silently; (3) a **pot-integrity warning** on the Payouts card names any player with rebuys/add-ons or a check-in but no recorded buy-in ("the pool may be short") — the tripwire that would have caught this at payout time.
+
+---
+
 ## [v0.2033] - 2026-07-15
 
 ### Fixed
