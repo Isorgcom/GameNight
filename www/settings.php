@@ -111,7 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Per-category outbound notification toggles. Only known categories are
             // stored; a missing key means enabled, so the JSON stays minimal. The
             // in-app inbox always records everything regardless of these.
-            $cats = ['invites', 'reminders', 'changes', 'comments', 'status', 'messages', 'rsvp_replies'];
+            $cats = ['invites', 'reminders', 'changes', 'comments', 'status', 'messages', 'rsvp_replies', 'dms', 'tickets'];
             $prefs = [];
             foreach ($cats as $c) {
                 if (empty($_POST['np_' . $c])) $prefs[$c] = 0; // store only the mutes
@@ -369,6 +369,8 @@ $site_name = get_setting('site_name', 'Game Night');
                 'status'       => ['Approvals & waitlist', 'Approved to play, seat opened up, moved to waitlist'],
                 'messages'     => ['Host messages & polls', 'Notes and polls hosts send to attendees'],
                 'rsvp_replies' => ['RSVP replies (hosts)', 'When guests reply to events you manage'],
+                'dms'          => ['Direct messages', 'When another user sends you a private message'],
+                'tickets'      => ['Support tickets', 'Replies on your support tickets (admins: new tickets)'],
             ];
             ?>
             <form method="post" action="/settings.php">

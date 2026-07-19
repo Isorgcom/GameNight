@@ -29,6 +29,23 @@ if ($_nu && !empty($_nu['id'])) {
         $_nf_unread = (int)$_nfq->fetchColumn();
     } catch (Throwable $e) {}
 }
+// Unread direct messages (Messages link badge). Guarded like the bell.
+$_dm_unread = 0;
+if ($_nu && !empty($_nu['id'])) {
+    try {
+        $_dmq = get_db()->prepare('SELECT COUNT(*) FROM dm_messages m
+            JOIN dm_conversations c ON c.id = m.conversation_id
+            WHERE m.sender_id <> :me AND m.read_at IS NULL
+              AND ( (c.user_a_id = :me AND m.id > c.a_cleared_before_id)
+                 OR (c.user_b_id = :me AND m.id > c.b_cleared_before_id) )');
+        $_dmq->execute([':me' => (int)$_nu['id']]);
+        $_dm_unread = (int)$_dmq->fetchColumn();
+    } catch (Throwable $e) {}
+}
+// Badges are always rendered (hidden at zero) so the live poller in
+// _footer.php can update them in place without a page reload.
+$_dm_badge = ' <span class="js-dm-badge" style="background:#dc2626;color:#fff;font-size:.65rem;font-weight:700;border-radius:999px;padding:.05rem .35rem'
+           . ($_dm_unread > 0 ? '' : ';display:none') . '">' . ($_dm_unread > 99 ? '99+' : $_dm_unread) . '</span>';
 $_banner               = get_setting('banner_path', '');
 $_header_banner        = get_setting('header_banner_path', '');
 $_header_banner_height = max(20, min(200, (int)get_setting('header_banner_height', '140')));
@@ -72,7 +89,7 @@ $_accent        = get_setting('accent_color', '');
         <?php endif; ?>
         <div class="nav-user">
             <?php if ($_nu): ?>
-                <a href="/notifications.php" title="Notifications" style="position:relative;text-decoration:none;font-size:1.05rem;padding:.2rem .35rem;line-height:1">&#128276;<?php if ($_nf_unread > 0): ?><span style="position:absolute;top:-4px;right:-6px;background:#dc2626;color:#fff;font-size:.6rem;font-weight:700;border-radius:999px;padding:.08rem .32rem;line-height:1.2"><?= $_nf_unread > 99 ? '99+' : $_nf_unread ?></span><?php endif; ?></a>
+                <a href="/notifications.php" title="Notifications" style="position:relative;text-decoration:none;font-size:1.05rem;padding:.2rem .35rem;line-height:1">&#128276;<span class="js-bell-badge" style="position:absolute;top:-4px;right:-6px;background:#dc2626;color:#fff;font-size:.6rem;font-weight:700;border-radius:999px;padding:.08rem .32rem;line-height:1.2<?= $_nf_unread > 0 ? '' : ';display:none' ?>"><?= $_nf_unread > 99 ? '99+' : $_nf_unread ?></span></a>
                 <span class="nav-collapsible"><?= htmlspecialchars($_nu['username']) ?></span>
                 <div class="nav-dropdown-wrap">
                     <button class="nav-hamburger" title="Menu" onclick="var d=this.nextElementSibling;d.style.display=d.style.display==='block'?'none':'block';">&#9776;</button>
@@ -85,6 +102,7 @@ $_accent        = get_setting('accent_color', '');
                         <?php endif; ?>
                         <a href="/my_events.php" class="nav-mobile-link<?= $_active === 'my-events' ? ' active' : '' ?>">My Events</a>
                         <a href="/contacts.php" class="nav-mobile-link<?= $_active === 'contacts' ? ' active' : '' ?>">Contacts</a>
+                        <a href="/messages.php" class="nav-mobile-link<?= $_active === 'messages' ? ' active' : '' ?>">Messages<?= $_dm_badge ?></a>
                         <?php if ($_nu && $_nu['role'] === 'admin'): ?>
                         <a href="/admin_posts.php" class="nav-mobile-link<?= $_active === 'posts' ? ' active' : '' ?>">Posts</a>
                         <a href="/admin_settings.php" class="nav-mobile-link<?= $_active === 'site-settings' ? ' active' : '' ?>">Site Settings<?php if ($_show_update_dot): ?> <span class="nav-update-dot" title="Update available: v<?= htmlspecialchars(get_setting('latest_version')) ?>"></span><?php endif; ?></a>
@@ -99,7 +117,7 @@ $_accent        = get_setting('accent_color', '');
                             </div>
                         </div>
                         <div class="nav-mobile-divider"></div>
-                        <a href="/notifications.php"<?= $_active === 'notifications' ? ' class="active"' : '' ?>>Notifications<?= $_nf_unread > 0 ? ' <span style="background:#dc2626;color:#fff;font-size:.65rem;font-weight:700;border-radius:999px;padding:.05rem .35rem">' . ($_nf_unread > 99 ? '99+' : $_nf_unread) . '</span>' : '' ?></a>
+                        <a href="/notifications.php"<?= $_active === 'notifications' ? ' class="active"' : '' ?>>Notifications <span class="js-bell-badge" style="background:#dc2626;color:#fff;font-size:.65rem;font-weight:700;border-radius:999px;padding:.05rem .35rem<?= $_nf_unread > 0 ? '' : ';display:none' ?>"><?= $_nf_unread > 99 ? '99+' : $_nf_unread ?></span></a>
                         <a href="/settings.php"<?= $_active === 'settings' ? ' class="active"' : '' ?>>My Settings</a>
                         <a href="/logout.php" class="nav-dropdown-signout">Sign out</a>
                     </div>
@@ -149,6 +167,7 @@ $_accent        = get_setting('accent_color', '');
         <?php if ($_nu): ?>
         <a href="/my_events.php"<?= $_active === 'my-events' ? ' class="active"' : '' ?>>My Events</a>
         <a href="/contacts.php"<?= $_active === 'contacts' ? ' class="active"' : '' ?>>Contacts</a>
+        <a href="/messages.php"<?= $_active === 'messages' ? ' class="active"' : '' ?>>Messages<?= $_dm_badge ?></a>
         <?php endif; ?>
         <?php if ($_nu && $_nu['role'] === 'admin'): ?>
             <a href="/admin_posts.php"<?= $_active === 'posts' ? ' class="active"' : '' ?>>Posts</a>

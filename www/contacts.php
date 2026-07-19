@@ -47,21 +47,25 @@ $contacts = $rows->fetchAll();
 
         #cGrid { width: 100%; border-collapse: collapse; font-size: .875rem; background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; overflow: hidden; }
         #cGrid th { background: #f1f5f9; color: #475569; font-weight: 600; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; padding: .55rem .75rem; border-bottom: 2px solid #e2e8f0; border-right: 1px solid #e2e8f0; text-align: left; white-space: nowrap; position: sticky; top: 0; z-index: 2; }
-        #cGrid td { padding: 0; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; vertical-align: middle; }
+        #cGrid td { padding: .5rem .75rem; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; vertical-align: middle; color: #1e293b; }
         #cGrid tr:last-child td { border-bottom: none; }
         #cGrid td:last-child, #cGrid th:last-child { border-right: none; }
         #cGrid tr:hover td { background: #f8fafc; }
         #cGrid tr.c-pending td { background: #fffbeb33; }
         #cGrid tr.c-pending:hover td { background: #fef3c7; }
 
-        .c-status-col { width: 100px; text-align: center; padding: .5rem .75rem !important; }
+        .c-status-col { width: 100px; text-align: center; }
         .c-name-col { min-width: 160px; }
         .c-phone-col { width: 150px; }
-        .c-notes-col { min-width: 140px; }
-        .c-act-col { width: 56px; text-align: center; }
+        .c-notes-col { min-width: 140px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #64748b; }
+        .c-act-col { width: 90px; text-align: center; }
 
-        .c-cell-input { width: 100%; padding: .45rem .6rem; border: none; background: transparent; font: inherit; color: #1e293b; box-sizing: border-box; outline: none; }
-        .c-cell-input:focus { background: #eff6ff; outline: 2px solid #2563eb; outline-offset: -2px; border-radius: 2px; }
+        #cGrid tbody tr { cursor: pointer; }
+        .c-name-link { color: #2563eb; font-weight: 600; text-decoration: none; }
+        .c-name-link:hover { text-decoration: underline; }
+        .c-muted { color: #94a3b8; }
+        .c-msg-btn { background: #fff; color: #2563eb; border: 1.5px solid #bfdbfe; border-radius: 6px; padding: .22rem .6rem; font-size: .75rem; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-block; }
+        .c-msg-btn:hover { background: #eff6ff; }
 
         .c-badge { display: inline-block; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: .15rem .5rem; border-radius: 999px; }
         .c-badge-linked { background: #dcfce7; color: #166534; }
@@ -137,16 +141,21 @@ $contacts = $rows->fetchAll();
                 <th class="c-name-col">Name</th>
                 <th>Email</th>
                 <th class="c-phone-col">Phone</th>
+                <th title="When a contact has both an email and a phone, invites go out on this channel">Invite via</th>
                 <th class="c-notes-col">Notes</th>
-                <th class="c-act-col"></th>
+                <th class="c-act-col">Message</th>
             </tr>
         </thead>
         <tbody>
         <?php foreach ($contacts as $c):
-            $isLinked = !empty($c['linked_user_id']);
+            // Linked only counts when the joined user actually still exists.
+            $isLinked = !empty($c['linked_user_id']) && !empty($c['linked_username']);
+            // No Message button for a contact card that is yourself.
+            $canMsg = $isLinked && (int)$c['linked_user_id'] !== $uid;
             $cid = (int)$c['id'];
+            $hasBoth = !empty($c['contact_email']) && !empty($c['contact_phone']);
         ?>
-            <tr data-contact-id="<?= $cid ?>"<?= $isLinked ? '' : ' class="c-pending"' ?>>
+            <tr data-contact-id="<?= $cid ?>"<?= $isLinked ? '' : ' class="c-pending"' ?> onclick="location.href='/contact_edit.php?id=<?= $cid ?>'" title="Click to edit this contact">
                 <td class="c-status-col">
                     <?php if ($isLinked): ?>
                         <span class="c-badge c-badge-linked">Linked</span>
@@ -155,26 +164,23 @@ $contacts = $rows->fetchAll();
                     <?php endif; ?>
                 </td>
                 <td class="c-name-col">
-                    <input type="text" class="c-cell-input" data-field="contact_name" value="<?= htmlspecialchars($c['contact_name'] ?? '') ?>">
+                    <a class="c-name-link" href="/contact_edit.php?id=<?= $cid ?>" onclick="event.stopPropagation()"><?= htmlspecialchars($c['contact_name'] ?? '') ?></a>
                 </td>
-                <td>
-                    <input type="email" class="c-cell-input" data-field="contact_email" value="<?= htmlspecialchars($c['contact_email'] ?? '') ?>" placeholder="(none)">
-                </td>
-                <td class="c-phone-col">
-                    <input type="tel" class="c-cell-input" data-field="contact_phone" value="<?= htmlspecialchars($c['contact_phone'] ?? '') ?>" placeholder="(none)">
-                </td>
-                <td class="c-notes-col">
-                    <input type="text" class="c-cell-input" data-field="notes" value="<?= htmlspecialchars($c['notes'] ?? '') ?>" placeholder="(none)">
-                </td>
-                <td class="c-act-col">
-                    <button class="c-del-btn" type="button" onclick="deleteContact(<?= $cid ?>)" title="Delete">&times;</button>
+                <td><?= $c['contact_email'] !== null && $c['contact_email'] !== '' ? htmlspecialchars($c['contact_email']) : '<span class="c-muted">&mdash;</span>' ?></td>
+                <td class="c-phone-col"><?= $c['contact_phone'] !== null && $c['contact_phone'] !== '' ? htmlspecialchars($c['contact_phone']) : '<span class="c-muted">&mdash;</span>' ?></td>
+                <td><?= $hasBoth ? (($c['invite_via'] ?? 'email') === 'sms' ? 'Text' : 'Email') : '<span class="c-muted">&mdash;</span>' ?></td>
+                <td class="c-notes-col" title="<?= htmlspecialchars($c['notes'] ?? '') ?>"><?= $c['notes'] !== null && $c['notes'] !== '' ? htmlspecialchars($c['notes']) : '' ?></td>
+                <td class="c-act-col" onclick="event.stopPropagation()">
+                    <?php if ($canMsg): ?>
+                    <a class="c-msg-btn" href="/message_thread.php?user=<?= (int)$c['linked_user_id'] ?>" title="Send a private message">&#9993; Message</a>
+                    <?php endif; ?>
                 </td>
             </tr>
         <?php endforeach; ?>
         </tbody>
     </table>
     </div>
-    <div id="cSaved">&#10003; Saved</div>
+    <p style="color:#94a3b8;font-size:.78rem;margin-top:.5rem">Click any contact to edit their details, invite channel, or notes.</p>
     <?php endif; ?>
 </div>
 
@@ -185,8 +191,11 @@ function post(data) {
     var fd = new FormData();
     fd.append('csrf_token', CSRF);
     for (var k in data) fd.append(k, data[k]);
-    return fetch('/contacts_dl.php', { method: 'POST', body: fd, credentials: 'same-origin' }).then(function(r) { return r.json(); });
+    // keepalive: lets an autosave finish even if the user navigates away
+    // mid-request (the cause of "my phone number didn't stick").
+    return fetch('/contacts_dl.php', { method: 'POST', body: fd, credentials: 'same-origin', keepalive: true }).then(function(r) { return r.json(); });
 }
+
 
 function addContact() {
     var name  = document.getElementById('acName').value.trim();
@@ -200,51 +209,6 @@ function addContact() {
     });
 }
 
-async function deleteContact(cid) {
-    if (!(await pkConfirm('Delete this contact?'))) return;
-    post({ action: 'delete_contact', contact_id: cid }).then(function(j) {
-        if (j.ok) {
-            var row = document.querySelector('tr[data-contact-id="' + cid + '"]');
-            if (row) row.remove();
-        } else {
-            pkAlert(j.error || 'Failed');
-        }
-    });
-}
-
-// Inline autosave
-(function() {
-    var grid = document.getElementById('cGrid');
-    if (!grid) return;
-    var savedInd = document.getElementById('cSaved');
-    var savedTimer;
-    function flashSaved() {
-        if (!savedInd) return;
-        savedInd.style.display = 'block';
-        clearTimeout(savedTimer);
-        savedTimer = setTimeout(function() { savedInd.style.display = 'none'; }, 1500);
-    }
-    grid.querySelectorAll('.c-cell-input').forEach(function(inp) {
-        inp.dataset.orig = inp.value;
-        inp.addEventListener('change', function() {
-            var row = this.closest('tr');
-            var cid = row && row.dataset.contactId;
-            if (!cid) return;
-            if (this.dataset.orig === this.value) return;
-            var orig = this.dataset.orig;
-            var self = this;
-            post({ action: 'update_contact', contact_id: cid, field: this.dataset.field, value: this.value }).then(function(j) {
-                if (j.ok) {
-                    self.dataset.orig = self.value;
-                    flashSaved();
-                } else {
-                    pkAlert(j.error || 'Save failed');
-                    self.value = orig;
-                }
-            });
-        });
-    });
-})();
 </script>
 
 <?php require __DIR__ . '/_footer.php'; ?>

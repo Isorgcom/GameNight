@@ -33,6 +33,7 @@ $typeLabels = [
     'event_comment' => 'Comment', 'event_message' => 'Host message', 'event_poll' => 'Poll',
     'waitlist_promoted' => 'Waitlist', 'rsvp_deadline_demoted' => 'Waitlist', 'poker_approved' => 'Approved',
     'rsvp_to_creator' => 'RSVP reply',
+    'dm' => 'Message', 'ticket_reply' => 'Support', 'ticket_admin' => 'Support',
 ];
 $viewer_tz = new DateTimeZone(display_timezone($uid));
 $utc_tz    = new DateTimeZone('UTC');

@@ -409,8 +409,45 @@ function _notify_category(string $type): string {
         'waitlist_promoted', 'rsvp_deadline_demoted', 'poker_approved' => 'status',
         'event_message', 'event_poll'                                => 'messages',
         'rsvp_to_creator'                                            => 'rsvp_replies',
+        'dm'                                                         => 'dms',
+        'ticket_reply', 'ticket_admin'                               => 'tickets',
         default                                                      => 'other',
     };
+}
+
+/**
+ * Direct (non-event) notification: writes the in-app inbox row and sends the
+ * outbound channels immediately, bypassing the event-keyed pending_notifications
+ * queue. Used by DMs and support tickets. The inbox row is always written;
+ * outbound honors the site master switch and the user's category preference.
+ */
+function notify_user_direct(
+    PDO $db, int $user_id, string $notify_type,
+    string $subject, string $inbox_body, string $link,
+    ?string $smsBody = null, ?string $htmlBody = null
+): void {
+    try {
+        $db->prepare('INSERT INTO user_notifications (user_id, event_id, notify_type, subject, body, link)
+                      VALUES (?, NULL, ?, ?, ?, ?)')
+           ->execute([$user_id, $notify_type, $subject, mb_substr($inbox_body, 0, 500), $link]);
+    } catch (Throwable $e) { /* inbox is best-effort */ }
+
+    if (get_setting('notifications_enabled', '0') !== '1') return;
+    $stmt = $db->prepare('SELECT username, email, phone, preferred_contact, notify_prefs FROM users WHERE id = ?');
+    $stmt->execute([$user_id]);
+    $u = $stmt->fetch();
+    if (!$u || !user_notify_pref_enabled($u, $notify_type)) return;
+    notif_log_context(null, $u['username']);
+    send_notification(
+        $u['username'], $u['email'] ?? '', $u['phone'] ?? '',
+        $u['preferred_contact'] ?? 'email',
+        $subject, $smsBody ?? '', $htmlBody ?? ''
+    );
+    notif_log_context(null, null);
+    $err = get_last_notification_error();
+    if ($err !== null) {
+        error_log("[GameNight] Direct notification failure user={$u['username']} type=$notify_type: $err");
+    }
 }
 
 /**
@@ -423,6 +460,32 @@ function user_notify_pref_enabled(array $user, string $type): bool {
     if (!is_array($prefs)) return true;
     $cat = _notify_category($type);
     return !array_key_exists($cat, $prefs) || (int)$prefs[$cat] === 1;
+}
+
+/**
+ * Delivery channel for a NON-registered invitee: the event creator's
+ * per-contact "Invite via" setting (user_contacts.invite_via), when that
+ * contact matches by name (or linked username) and actually has the channel's
+ * address on file. Falls back to email-if-present, else SMS. Registered users
+ * never come through here — their own preferred_contact wins.
+ */
+function guest_invite_channel(PDO $db, int $creator_id, string $username, string $email, string $phone): string {
+    if ($creator_id > 0 && trim($username) !== '') {
+        try {
+            $q = $db->prepare(
+                "SELECT c.invite_via FROM user_contacts c
+                 LEFT JOIN users u ON u.id = c.linked_user_id
+                 WHERE c.owner_user_id = ?
+                   AND (LOWER(c.contact_name) = LOWER(?) OR LOWER(u.username) = LOWER(?))
+                 LIMIT 1"
+            );
+            $q->execute([$creator_id, $username, $username]);
+            $via = $q->fetchColumn();
+            if ($via === 'sms' && $phone !== '') return 'sms';
+            if ($via === 'email' && $email !== '') return 'email';
+        } catch (Throwable $e) { /* pre-migration DBs: fall through */ }
+    }
+    return $email !== '' ? 'email' : 'sms';
 }
 
 /**
@@ -562,9 +625,11 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
             'username'          => $row['username'],
             'email'             => $inv_email,
             'phone'             => $inv_phone,
-            // Default channel: email if we have it, otherwise SMS (matches how phone-only
-            // signup users are created in register_user()).
-            'preferred_contact' => !empty($inv_email) ? 'email' : 'sms',
+            // Channel: the event creator's per-contact "Invite via" choice wins
+            // when the contact has what it needs; otherwise email if we have it,
+            // else SMS (matches how phone-only signup users are created).
+            'preferred_contact' => guest_invite_channel(
+                $db, (int)($event['created_by'] ?? 0), $username, $inv_email, $inv_phone),
         ];
     }
 

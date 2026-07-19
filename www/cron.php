@@ -140,6 +140,21 @@ try {
     error_log('cron waha watchdog failed: ' . $e->getMessage());
 }
 
+// ── 2d. Unseen direct-message alerts ─────────────────────────────────────────
+// DM sends only write the in-app bell; email/SMS goes out here, and only for
+// messages still unread 10+ minutes later (see dm_alert_drain in _dm.php).
+// Anyone who read the message on the site never gets an email or text.
+if ($notifications_on && !$drain_paused) {
+    try {
+        require_once __DIR__ . '/sms.php';
+        require_once __DIR__ . '/_dm.php';
+        $dm_alerts = dm_alert_drain($db);
+        if ($dm_alerts > 0) echo "DM alerts: $dm_alerts unseen-message alert(s) sent.\n";
+    } catch (\Throwable $e) {
+        error_log('cron dm alert drain failed: ' . $e->getMessage());
+    }
+}
+
 // ── 3. RSVP deadline processor: demote non-responders, promote waitlisters ─────
 $deadline_processed = 0;
 $now_local = new DateTime('now', $local_tz);
@@ -213,6 +228,10 @@ try { $pruned += $db->exec("DELETE FROM user_notifications WHERE created_at < da
 // API request log: older than 30 days. Dominant table by row count (~28k/day);
 // rate limiting only needs the last minute, so 30d is purely forensic headroom.
 $pruned += $db->exec("DELETE FROM api_request_log WHERE created_at < datetime('now', '-30 days')");
+// Heal contact links pointing at deleted accounts — they'd otherwise render as
+// "Linked" with a Message button that leads nowhere.
+try { $db->exec("UPDATE user_contacts SET linked_user_id = NULL
+                 WHERE linked_user_id IS NOT NULL AND linked_user_id NOT IN (SELECT id FROM users)"); } catch (Exception $e) {}
 
 // Short links: older than 90 days
 $pruned += $db->exec("DELETE FROM short_links WHERE created_at < datetime('now', '-90 days')");

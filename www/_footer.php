@@ -74,3 +74,82 @@ if ($_hb_user && empty($_hb_user['timezone'])) {
 }
 ?>
 <script src="/pk-dialogs.js?v=<?= htmlspecialchars(APP_VERSION) ?>" defer></script>
+<?php if ($_hb_user): /* Live badge updater + chime: polls unread counts and
+    updates the nav bell / Messages badges in place. Plays a short two-note
+    chime when the total rises (browsers allow audio only after the user has
+    interacted with the page — until then it updates silently). */ ?>
+<script>
+(function () {
+    var KEY = 'gn_notif_seen';
+    function setBadge(cls, n) {
+        document.querySelectorAll('.' + cls).forEach(function (el) {
+            el.textContent = n > 99 ? '99+' : n;
+            el.style.display = n > 0 ? '' : 'none';
+        });
+    }
+    // Audio unlock: browsers keep AudioContext suspended until the user has
+    // interacted with the page, and resume() is async — so we prime the
+    // context on the first click/keypress/touch and play notes only once the
+    // context reports running (waiting out the resume promise when needed).
+    var audioCtx = null;
+    function ensureCtx() {
+        if (!audioCtx) {
+            try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; }
+        }
+        if (audioCtx.state === 'suspended') {
+            try { audioCtx.resume().catch(function () {}); } catch (e) {}
+        }
+        return audioCtx;
+    }
+    ['click', 'keydown', 'touchstart'].forEach(function (ev) {
+        document.addEventListener(ev, function unlock() {
+            document.removeEventListener(ev, unlock, true);
+            ensureCtx();
+        }, true);
+    });
+    function playNotes(ctx) {
+        [[880, 0], [1174.66, 0.12]].forEach(function (note) {
+            var o = ctx.createOscillator();
+            var g = ctx.createGain();
+            o.type = 'sine';
+            o.frequency.value = note[0];
+            g.gain.setValueAtTime(0.0001, ctx.currentTime + note[1]);
+            g.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + note[1] + 0.02);
+            g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + note[1] + 0.35);
+            o.connect(g); g.connect(ctx.destination);
+            o.start(ctx.currentTime + note[1]);
+            o.stop(ctx.currentTime + note[1] + 0.4);
+        });
+    }
+    // Exposed globally so pages with their own live views (message_thread.php)
+    // can ring the same chime for messages that arrive as in-page bubbles.
+    window.gnChime = chime;
+    function chime() {
+        try {
+            var ctx = ensureCtx();
+            if (!ctx) return;
+            if (ctx.state === 'running') { playNotes(ctx); return; }
+            ctx.resume().then(function () {
+                if (ctx.state === 'running') playNotes(ctx);
+            }).catch(function () {});
+        } catch (e) {}
+    }
+    function poll() {
+        if (document.hidden) return;
+        fetch('/notify_status.php', { credentials: 'same-origin' })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (j) {
+                if (!j || !j.ok) return;
+                setBadge('js-bell-badge', j.bell);
+                setBadge('js-dm-badge', j.dm);
+                var total = j.bell + j.dm;
+                var prev = parseInt(localStorage.getItem(KEY) || '-1', 10);
+                if (prev >= 0 && total > prev) chime();
+                localStorage.setItem(KEY, String(total));
+            }).catch(function () {});
+    }
+    setInterval(poll, 15000);
+    poll();
+})();
+</script>
+<?php endif; ?>

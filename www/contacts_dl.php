@@ -94,7 +94,7 @@ case 'update_contact': {
     $field = (string)($_POST['field'] ?? '');
     $value = trim((string)($_POST['value'] ?? ''));
 
-    if (!in_array($field, ['contact_name', 'contact_email', 'contact_phone', 'notes'], true)) fail('Field not editable.');
+    if (!in_array($field, ['contact_name', 'contact_email', 'contact_phone', 'notes', 'invite_via'], true)) fail('Field not editable.');
 
     // Verify ownership
     $rs = $db->prepare('SELECT * FROM user_contacts WHERE id = ? AND owner_user_id = ?');
@@ -115,6 +115,7 @@ case 'update_contact': {
         $value = $value !== '' ? normalize_phone($value) : '';
     }
     if ($field === 'contact_name' && $value === '') fail('Name is required.');
+    if ($field === 'invite_via' && !in_array($value, ['email', 'sms'], true)) fail('Invalid invite channel.');
 
     // Must keep at least one of email/phone
     if (($field === 'contact_email' || $field === 'contact_phone') && $value === '') {
@@ -134,6 +135,39 @@ case 'update_contact': {
     }
     db_log_activity($uid, "updated contact id=$cid field=$field");
     ok();
+}
+
+case 'save_row': {
+    // Explicit whole-row save (the per-row Save button): validates and writes
+    // every field in one shot, so nothing depends on per-cell blur autosaves.
+    $cid   = (int)($_POST['contact_id'] ?? 0);
+    $rs = $db->prepare('SELECT * FROM user_contacts WHERE id = ? AND owner_user_id = ?');
+    $rs->execute([$cid, $uid]);
+    $row = $rs->fetch();
+    if (!$row) fail('Contact not found.', 404);
+
+    $name  = trim((string)($_POST['contact_name'] ?? ''));
+    $email = strtolower(trim((string)($_POST['contact_email'] ?? '')));
+    $phoneRaw = trim((string)($_POST['contact_phone'] ?? ''));
+    $phone = $phoneRaw !== '' ? normalize_phone($phoneRaw) : '';
+    $notes = trim((string)($_POST['notes'] ?? ''));
+    $via   = (string)($_POST['invite_via'] ?? 'email');
+
+    if ($name === '')                                                fail('Name is required.');
+    if ($email === '' && $phone === '')                              fail('Keep at least an email or phone.');
+    if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) fail('Invalid email.');
+    if (!in_array($via, ['email', 'sms'], true)) $via = 'email';
+    if ($email !== '') {
+        $dup = $db->prepare('SELECT 1 FROM user_contacts WHERE owner_user_id = ? AND LOWER(contact_email) = ? AND id <> ? LIMIT 1');
+        $dup->execute([$uid, $email, $cid]);
+        if ($dup->fetchColumn()) fail('Another contact already uses that email.');
+    }
+
+    $linked = resolve_user_id($db, $email, $phone);
+    $db->prepare('UPDATE user_contacts SET contact_name = ?, contact_email = ?, contact_phone = ?, notes = ?, invite_via = ?, linked_user_id = ? WHERE id = ?')
+       ->execute([$name, $email ?: null, $phone ?: null, $notes ?: null, $via, $linked, $cid]);
+    db_log_activity($uid, "saved contact id=$cid");
+    ok(['phone' => $phone, 'linked' => (bool)$linked]);
 }
 
 case 'delete_contact': {

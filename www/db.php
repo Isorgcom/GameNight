@@ -23,6 +23,8 @@ if (!defined('MAX_COMMENTS_PER_HOUR'))                    define('MAX_COMMENTS_P
 if (!defined('MAX_VERIFY_CODE_ATTEMPTS_PER_DAY'))         define('MAX_VERIFY_CODE_ATTEMPTS_PER_DAY', 20);
 if (!defined('MAX_LOGIN_FAILURES_PER_USER_PER_HOUR'))     define('MAX_LOGIN_FAILURES_PER_USER_PER_HOUR', 5);
 if (!defined('MAX_RSVP_TOKEN_FLIPS'))                     define('MAX_RSVP_TOKEN_FLIPS', 10);
+if (!defined('MAX_DM_MESSAGES_PER_HOUR'))                 define('MAX_DM_MESSAGES_PER_HOUR', 60);
+if (!defined('MAX_DM_NEW_CONVERSATIONS_PER_DAY'))         define('MAX_DM_NEW_CONVERSATIONS_PER_DAY', 10);
 
 if (!defined('APP_SECRET')) {
     $secretFile = dirname(DB_PATH) . '/.app_secret';
@@ -934,6 +936,46 @@ JSON;
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_user_notif ON user_notifications(user_id, is_read, id)"); } catch (Exception $e) {}
     // Per-category outbound notification preferences (JSON; absent key = enabled).
     try { $pdo->exec("ALTER TABLE users ADD COLUMN notify_prefs TEXT"); } catch (Exception $e) {}
+
+    // Per-contact invite channel: when a contact has both an email and a phone,
+    // the owner picks which one invites go to ('email' or 'sms'). Registered
+    // users' own preferred_contact still wins once they have an account.
+    try { $pdo->exec("ALTER TABLE user_contacts ADD COLUMN invite_via TEXT NOT NULL DEFAULT 'email'"); } catch (Exception $e) {}
+
+    // Direct messages: one conversation row per user pair (a = lower id), with
+    // per-side "cleared" watermarks for soft delete — clearing hides messages
+    // with id <= the watermark for that side only; nothing is ever pruned.
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS dm_conversations (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_a_id           INTEGER NOT NULL,
+        user_b_id           INTEGER NOT NULL,
+        last_message_at     DATETIME,
+        a_cleared_before_id INTEGER NOT NULL DEFAULT 0,
+        b_cleared_before_id INTEGER NOT NULL DEFAULT 0,
+        created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (user_a_id, user_b_id),
+        FOREIGN KEY (user_a_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_b_id) REFERENCES users(id) ON DELETE CASCADE
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS dm_messages (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        conversation_id INTEGER NOT NULL,
+        sender_id       INTEGER NOT NULL,
+        body            TEXT    NOT NULL,
+        created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+        read_at         DATETIME,
+        FOREIGN KEY (conversation_id) REFERENCES dm_conversations(id) ON DELETE CASCADE,
+        FOREIGN KEY (sender_id)       REFERENCES users(id) ON DELETE CASCADE
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_dm_msg_conv   ON dm_messages(conversation_id, id)"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_dm_conv_users ON dm_conversations(user_a_id, user_b_id)"); } catch (Exception $e) {}
+    // DM alert damping: per-side "last seen this thread" (presence — active
+    // viewers get no alerts at all) and "last outbound alert" (max one
+    // email/SMS per sender per 30 min regardless of read state).
+    try { $pdo->exec("ALTER TABLE dm_conversations ADD COLUMN a_last_seen_at  DATETIME"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE dm_conversations ADD COLUMN b_last_seen_at  DATETIME"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE dm_conversations ADD COLUMN a_last_alert_at DATETIME"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE dm_conversations ADD COLUMN b_last_alert_at DATETIME"); } catch (Exception $e) {}
 
     // League seasons: manager-defined date windows for standings + champions.
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS league_seasons (

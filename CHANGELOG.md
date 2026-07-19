@@ -4,6 +4,22 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2036] - 2026-07-19
+
+### Added
+- **Private messages.** Users can now DM each other: a Messages page (nav link with live unread badge) lists conversations, and a thread page shows chat bubbles with Enter-to-send, clickable links (escape-first linkify in both the PHP render and the live-append path; `<script>`/`<img onerror>` probes verified inert), and a per-side "Delete conversation" that hides history for you without touching the other person's copy. Who can start a conversation is scope-checked in `_dm.php` (`dm_can_initiate`): shared league, shared event (including host↔guest via `events.created_by`, since hosts have no invite row to their own event), a linked contact in your address book, or either party being an admin — and replying inside an existing conversation is always allowed. New tables `dm_conversations` (pair-per-row, per-side cleared watermarks and alert/presence stamps) and `dm_messages`; rate caps (60 msgs/hour, 10 new conversations/day, 4000 chars) with friendly errors.
+- **Notification behavior tuned for chat: always audible in-app, never spammy outbound.** Every incoming message rings a soft two-note WebAudio chime and updates badges — the thread page appends bubbles within ~4s, the Messages list self-refreshes, and a site-wide 15s poller in `_footer.php` (backed by new `notify_status.php`) updates the nav bell and Messages badges in place on any page (audio unlocks on first click per browser autoplay rules; the original sync-check-after-async-resume bug that silenced it is fixed). Email/SMS/WhatsApp alerts go ONLY through a cron sweep (`dm_alert_drain`) for messages still **unread 10+ minutes after arriving** — read it on the site and no external alert ever fires. One link-only alert per conversation side (never message content in SMS, no reply-by-text since the webhook parses replies as RSVPs), a 30-minute floor between alerts, never re-alerting the same messages, and a new "Direct messages" mute in Settings (plus a "Support tickets" category wired for the upcoming ticket system). Shared plumbing: `notify_user_direct()` in `_notifications.php` for non-event notifications.
+- **Per-contact invite channel** (user-reported: "if there is an email and a phone number, it invites to the email"). Contacts gained an `invite_via` setting (Email or Text) shown in the list and editable on the new edit page; the notification dispatcher honors it for guest invitees via `guest_invite_channel()`, with sane fallbacks (email if present, else SMS) — and once a contact registers, their own account preference takes over.
+
+### Changed
+- **Contacts page redesigned** (user feedback: the Save/Message/× button pile was "very messy"). The list is now a clean read-only table — status, name, email, phone, invite-via, notes, and a single Message button in its own column — and clicking any row opens a dedicated `contact_edit.php` page with all fields, one explicit Save, Cancel, and Delete. The invisible per-cell autosave grid is gone entirely.
+
+### Fixed
+- **Contact phones no longer vanish** (user-reported: phone numbers "stored" but were gone after leaving the page). Root cause: the old grid saved a cell only on blur, and navigating away killed the save request mid-flight. The new edit page saves the whole row in one validated request (`save_row` in `contacts_dl.php`), and remaining background fetches use `keepalive`. This also fixes the follow-on report that removing an email errored "must have a phone number or email" despite a phone being on file — the phone had simply never persisted; clearing one channel with the other present now works (clearing both is still refused).
+- **Message button no longer offered for un-messageable contacts** (user-reported "Unknown user"): your own contact card (self-linked via your own email in your address book) no longer shows Message, contacts whose linked account was deleted fall back to Pending (cron now heals such stale `linked_user_id` rows), and hand-typing your own thread URL redirects to the Messages page instead of erroring.
+
+---
+
 ## [v0.2035] - 2026-07-18
 
 ### Fixed
