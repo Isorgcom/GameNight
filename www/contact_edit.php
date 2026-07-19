@@ -14,7 +14,7 @@ $csrf      = csrf_token();
 
 $cid = (int)($_GET['id'] ?? 0);
 $rs = $db->prepare(
-    "SELECT c.*, u.username AS linked_username
+    "SELECT c.*, u.username AS linked_username, u.preferred_contact AS linked_pref
      FROM user_contacts c
      LEFT JOIN users u ON u.id = c.linked_user_id
      WHERE c.id = ? AND c.owner_user_id = ?"
@@ -87,11 +87,19 @@ $canMsg   = $isLinked && (int)$c['linked_user_id'] !== $uid;
         </div>
         <div class="ce-field">
             <label for="ceVia">Send invites via</label>
+            <?php if ($isLinked):
+                $prefLabels = ['email' => 'Email', 'sms' => 'Text message', 'whatsapp' => 'WhatsApp', 'both' => 'Email + text', 'none' => 'None'];
+            ?>
+            <input type="text" value="<?= htmlspecialchars($prefLabels[$c['linked_pref'] ?? 'email'] ?? 'Email') ?> (their setting)" disabled style="background:#f8fafc;color:#64748b">
+            <input type="hidden" id="ceVia" value="<?= htmlspecialchars($c['invite_via'] ?? 'email') ?>">
+            <div class="ce-hint">This contact has a <?= htmlspecialchars($site_name) ?> account, so invites follow the contact method they chose in their own settings.</div>
+            <?php else: ?>
             <select id="ceVia">
                 <option value="email" <?= ($c['invite_via'] ?? 'email') !== 'sms' ? 'selected' : '' ?>>Email</option>
                 <option value="sms" <?= ($c['invite_via'] ?? 'email') === 'sms' ? 'selected' : '' ?>>Text message</option>
             </select>
             <div class="ce-hint">Used when both an email and a phone are on file. Once this person registers, their own notification preference takes over.</div>
+            <?php endif; ?>
         </div>
         <div class="ce-field">
             <label for="ceNotes">Notes</label>

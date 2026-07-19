@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2037] - 2026-07-19
+
+### Changed
+- **A registered user's own contact preference now always wins over the owner's per-contact invite channel** (user request, closing the loop on v0.2036's `invite_via`). Delivery: `guest_invite_channel()` in `www/_notifications.php` now joins the linked account and returns that user's `preferred_contact` — including `both`, `whatsapp`, and `none` (opted out, nothing sends) — with fallbacks when the invite row lacks the needed address (prefers-text-but-no-phone falls back to email and vice versa); this covers invites created under a contact's address-book name rather than their username, which previously took the guest path and used the owner's choice. UI: the contacts list's "Invite via" column shows the linked account's actual setting with a "(theirs)" marker, and `contact_edit.php` replaces the Email/Text dropdown with a read-only "(their setting)" field plus an explanation for linked contacts — while quietly preserving the owner's stored `invite_via` on save so it resumes if the account is ever deleted. Owner choice still governs contacts without accounts, unchanged.
+
+---
+
 ## [v0.2036] - 2026-07-19
 
 ### Added

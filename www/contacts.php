@@ -8,7 +8,8 @@ $uid       = (int)$current['id'];
 $csrf      = csrf_token();
 
 $rows = $db->prepare(
-    "SELECT c.*, u.username AS linked_username, u.email AS linked_email
+    "SELECT c.*, u.username AS linked_username, u.email AS linked_email,
+            u.preferred_contact AS linked_pref
      FROM user_contacts c
      LEFT JOIN users u ON u.id = c.linked_user_id
      WHERE c.owner_user_id = ?
@@ -16,6 +17,10 @@ $rows = $db->prepare(
 );
 $rows->execute([$uid]);
 $contacts = $rows->fetchAll();
+
+// Labels for a linked user's own preferred_contact (their setting wins over
+// the owner's invite_via once they have an account).
+$prefLabels = ['email' => 'Email', 'sms' => 'Text', 'whatsapp' => 'WhatsApp', 'both' => 'Email + text', 'none' => 'None'];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -168,7 +173,16 @@ $contacts = $rows->fetchAll();
                 </td>
                 <td><?= $c['contact_email'] !== null && $c['contact_email'] !== '' ? htmlspecialchars($c['contact_email']) : '<span class="c-muted">&mdash;</span>' ?></td>
                 <td class="c-phone-col"><?= $c['contact_phone'] !== null && $c['contact_phone'] !== '' ? htmlspecialchars($c['contact_phone']) : '<span class="c-muted">&mdash;</span>' ?></td>
-                <td><?= $hasBoth ? (($c['invite_via'] ?? 'email') === 'sms' ? 'Text' : 'Email') : '<span class="c-muted">&mdash;</span>' ?></td>
+                <td>
+                    <?php if ($isLinked): ?>
+                        <?= htmlspecialchars($prefLabels[$c['linked_pref'] ?? 'email'] ?? 'Email') ?>
+                        <span class="c-muted" style="font-size:.72rem" title="This person has an account; invites follow their own notification preference">(theirs)</span>
+                    <?php elseif ($hasBoth): ?>
+                        <?= ($c['invite_via'] ?? 'email') === 'sms' ? 'Text' : 'Email' ?>
+                    <?php else: ?>
+                        <span class="c-muted">&mdash;</span>
+                    <?php endif; ?>
+                </td>
                 <td class="c-notes-col" title="<?= htmlspecialchars($c['notes'] ?? '') ?>"><?= $c['notes'] !== null && $c['notes'] !== '' ? htmlspecialchars($c['notes']) : '' ?></td>
                 <td class="c-act-col" onclick="event.stopPropagation()">
                     <?php if ($canMsg): ?>

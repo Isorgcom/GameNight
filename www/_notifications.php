@@ -463,26 +463,43 @@ function user_notify_pref_enabled(array $user, string $type): bool {
 }
 
 /**
- * Delivery channel for a NON-registered invitee: the event creator's
- * per-contact "Invite via" setting (user_contacts.invite_via), when that
- * contact matches by name (or linked username) and actually has the channel's
- * address on file. Falls back to email-if-present, else SMS. Registered users
- * never come through here — their own preferred_contact wins.
+ * Delivery channel for an invitee dispatched by contact name (no users-table
+ * match on the invite's username). Priority order:
+ *   1. If the matched contact is LINKED to a registered account, that user's
+ *      own preferred_contact wins ('none' included — they opted out), falling
+ *      back sensibly when the invite row lacks the needed address.
+ *   2. Otherwise the event creator's per-contact "Invite via" choice
+ *      (user_contacts.invite_via), when the channel's address is on file.
+ *   3. Else email-if-present, otherwise SMS.
+ * Invitees whose username matches a registered user never come through here —
+ * the dispatcher uses their account directly.
  */
 function guest_invite_channel(PDO $db, int $creator_id, string $username, string $email, string $phone): string {
     if ($creator_id > 0 && trim($username) !== '') {
         try {
             $q = $db->prepare(
-                "SELECT c.invite_via FROM user_contacts c
+                "SELECT c.invite_via, u.preferred_contact AS user_pref
+                 FROM user_contacts c
                  LEFT JOIN users u ON u.id = c.linked_user_id
                  WHERE c.owner_user_id = ?
                    AND (LOWER(c.contact_name) = LOWER(?) OR LOWER(u.username) = LOWER(?))
                  LIMIT 1"
             );
             $q->execute([$creator_id, $username, $username]);
-            $via = $q->fetchColumn();
-            if ($via === 'sms' && $phone !== '') return 'sms';
-            if ($via === 'email' && $email !== '') return 'email';
+            $row = $q->fetch();
+            if ($row) {
+                $pref = (string)($row['user_pref'] ?? '');
+                if ($pref !== '') {
+                    if ($pref === 'none') return 'none';
+                    $needsPhone = in_array($pref, ['sms', 'whatsapp', 'both'], true);
+                    $needsEmail = in_array($pref, ['email', 'both'], true);
+                    if ($needsPhone && $phone === '' && $pref !== 'both') return $email !== '' ? 'email' : $pref;
+                    if ($needsEmail && $email === '' && $pref === 'email') return $phone !== '' ? 'sms' : $pref;
+                    return $pref;
+                }
+                if ($row['invite_via'] === 'sms' && $phone !== '') return 'sms';
+                if ($row['invite_via'] === 'email' && $email !== '') return 'email';
+            }
         } catch (Throwable $e) { /* pre-migration DBs: fall through */ }
     }
     return $email !== '' ? 'email' : 'sms';
