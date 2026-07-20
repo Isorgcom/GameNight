@@ -88,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Each is allowed for anyone who can manage that specific event; the handlers below
     // re-check with can_manage_event(), so this gate just needs to let managers through.
     $eventMgmtActions = ['send_invites', 'nudge_nonresponders', 'resend_invite', 'approve_invite', 'deny_invite', 'send_event_message', 'delete_event_message'];
-    if (!$isAdmin && !in_array($action, ['update_rsvp', 'self_signup', 'self_remove', 'self_reminder'], true)) {
+    if (!$isAdmin && !in_array($action, ['update_rsvp', 'self_signup', 'self_remove', 'self_reminder', 'self_reminder_remove'], true)) {
         $chkIdForMgr  = (int)($_POST['id'] ?? 0);
         $chkEidForMgr = (int)($_POST['event_id'] ?? 0);
         // Allow edit/delete (keyed on id) or the event-management actions
@@ -210,6 +210,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         queue_event_notification($db, $eid, $current['username'], 'reminder', null,
             ['offset_minutes' => $offset], $when->format('Y-m-d H:i:s'));
         db_log_activity((int)$current['id'], "set a personal {$offset}-minute reminder on event id: $eid");
+        echo json_encode(['ok' => true]);
+        exit;
+    }
+
+    if ($action === 'self_reminder_remove' && $current) {
+        // Cancel one of MY queued reminders (personal or host-queued) for this
+        // event. Only unsent rows can be cancelled; a sent reminder is history.
+        header('Content-Type: application/json');
+        $eid    = (int)($_POST['event_id'] ?? 0);
+        $offset = (int)($_POST['offset'] ?? 0);
+        if ($eid <= 0 || $offset <= 0) {
+            echo json_encode(['ok' => false, 'error' => 'Invalid reminder.']); exit;
+        }
+        $del = $db->prepare("DELETE FROM pending_notifications
+                             WHERE event_id = ? AND LOWER(username) = LOWER(?)
+                               AND notify_type = 'reminder' AND payload = ? AND attempted_at IS NULL");
+        $del->execute([$eid, $current['username'], json_encode(['offset_minutes' => $offset])]);
+        if ($del->rowCount() < 1) {
+            echo json_encode(['ok' => false, 'error' => 'That reminder was already sent (or no longer exists).']); exit;
+        }
+        db_log_activity((int)$current['id'], "removed a personal {$offset}-minute reminder on event id: $eid");
         echo json_encode(['ok' => true]);
         exit;
     }
@@ -955,26 +976,19 @@ if (!empty($allPageEids)) {
     unset($_invList, $_inv, $_occMap);
 }
 
-// Auto-open a specific event when ?open=ID&date=DATE is present (from landing page links)
+// ?open=ID deep links (notifications, My Events, league pages, post-login
+// redirects) used to open the in-calendar popup. The canonical event page has
+// full parity now, so send everyone there — one view of an event, everywhere.
 $autoOpenId    = (int)($_GET['open'] ?? 0);
 $autoOpenDate  = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['date'] ?? '') ? $_GET['date'] : null;
-$autoOpenEvent = null;
-if ($autoOpenId > 0 && $autoOpenDate) {
-    // Redirect to the correct month if the event date isn't in the current view
-    $targetM = substr($autoOpenDate, 0, 7);
-    if ($targetM !== $monthParam) {
-        header('Location: /calendar.php?m=' . urlencode($targetM) . '&open=' . $autoOpenId . '&date=' . urlencode($autoOpenDate));
-        exit;
+$autoOpenEvent = null; // popup auto-open retired; kept for the dormant JS below
+if ($autoOpenId > 0) {
+    if (($_GET['edit'] ?? '') === '1') {
+        header('Location: /event_edit.php?id=' . $autoOpenId);
+    } else {
+        header('Location: /event.php?id=' . $autoOpenId . ($autoOpenDate ? '&date=' . urlencode($autoOpenDate) : ''));
     }
-    $searchSets = [$byDate, $pvByDate, $wkByDate];
-    foreach ($searchSets as $set) {
-        foreach ($set[$autoOpenDate] ?? [] as $ev) {
-            if ((int)$ev['id'] === $autoOpenId) {
-                $autoOpenEvent = $ev;
-                break 2;
-            }
-        }
-    }
+    exit;
 }
 
 $token = ($isAdmin || $current) ? csrf_token() : '';
@@ -1855,7 +1869,13 @@ const MANAGED_EVENT_IDS = <?= json_encode(array_values($managedEventIds), JSON_H
 const EDITOR_CTX = <?= json_encode($editorCtx, JSON_HEX_TAG) ?>; // return-context query for /event_edit.php links
 
 // ── View modal ────────────────────────────────────────────────────────────────
+// Popup retired: every event click now lands on the canonical event page,
+// which has full parity (manager panel, messages, comments, live roster).
+// The legacy modal code below is kept but unreachable.
 function viewEvent(ev) {
+    location.href = '/event.php?id=' + ev.id + (ev.start_date ? '&date=' + encodeURIComponent(ev.start_date) : '');
+}
+function viewEventLegacy(ev) {
     currentEvent = ev;
     document.getElementById('vTitle').textContent = ev.title;
     var lbadge = document.getElementById('vLeagueBadge');

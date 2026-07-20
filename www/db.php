@@ -25,6 +25,7 @@ if (!defined('MAX_LOGIN_FAILURES_PER_USER_PER_HOUR'))     define('MAX_LOGIN_FAIL
 if (!defined('MAX_RSVP_TOKEN_FLIPS'))                     define('MAX_RSVP_TOKEN_FLIPS', 10);
 if (!defined('MAX_DM_MESSAGES_PER_HOUR'))                 define('MAX_DM_MESSAGES_PER_HOUR', 60);
 if (!defined('MAX_DM_NEW_CONVERSATIONS_PER_DAY'))         define('MAX_DM_NEW_CONVERSATIONS_PER_DAY', 10);
+if (!defined('MAX_DM_GROUP_MEMBERS'))                     define('MAX_DM_GROUP_MEMBERS', 20);
 
 if (!defined('APP_SECRET')) {
     $secretFile = dirname(DB_PATH) . '/.app_secret';
@@ -942,21 +943,81 @@ JSON;
     // users' own preferred_contact still wins once they have an account.
     try { $pdo->exec("ALTER TABLE user_contacts ADD COLUMN invite_via TEXT NOT NULL DEFAULT 'email'"); } catch (Exception $e) {}
 
-    // Direct messages: one conversation row per user pair (a = lower id), with
-    // per-side "cleared" watermarks for soft delete — clearing hides messages
-    // with id <= the watermark for that side only; nothing is ever pruned.
+    // Direct messages: conversations + participants. 1:1 threads carry a
+    // pair_key ('minId:maxId', UNIQUE — NULLs are distinct so groups don't
+    // collide); groups have pair_key NULL, is_group=1, optional title. All
+    // per-member state (cleared watermark for soft delete, read pointer,
+    // presence heartbeat, outbound-alert stamp) lives on dm_participants.
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS dm_conversations (
-        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_a_id           INTEGER NOT NULL,
-        user_b_id           INTEGER NOT NULL,
-        last_message_at     DATETIME,
-        a_cleared_before_id INTEGER NOT NULL DEFAULT 0,
-        b_cleared_before_id INTEGER NOT NULL DEFAULT 0,
-        created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE (user_a_id, user_b_id),
-        FOREIGN KEY (user_a_id) REFERENCES users(id) ON DELETE CASCADE,
-        FOREIGN KEY (user_b_id) REFERENCES users(id) ON DELETE CASCADE
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        is_group        INTEGER NOT NULL DEFAULT 0,
+        title           TEXT,
+        created_by      INTEGER,
+        pair_key        TEXT UNIQUE,
+        last_message_at DATETIME,
+        created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
     )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS dm_participants (
+        id                INTEGER PRIMARY KEY AUTOINCREMENT,
+        conversation_id   INTEGER NOT NULL,
+        user_id           INTEGER NOT NULL,
+        cleared_before_id INTEGER NOT NULL DEFAULT 0,
+        last_read_msg_id  INTEGER NOT NULL DEFAULT 0,
+        last_seen_at      DATETIME,
+        last_alert_at     DATETIME,
+        joined_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (conversation_id, user_id),
+        FOREIGN KEY (conversation_id) REFERENCES dm_conversations(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id)         REFERENCES users(id) ON DELETE CASCADE
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_dm_part_user ON dm_participants(user_id, conversation_id)"); } catch (Exception $e) {}
+
+    // One-shot migration from the v0.2036 pair-based schema (user_a_id/user_b_id
+    // with per-side a_*/b_* columns) to the participant model. Detected by the
+    // old column; rebuilds dm_conversations and seeds two participant rows per
+    // pair, converting read_at history into per-member read pointers.
+    try {
+        $dmCols = $pdo->query("PRAGMA table_info(dm_conversations)")->fetchAll(PDO::FETCH_COLUMN, 1);
+        if (in_array('user_a_id', $dmCols, true)) {
+            // FKs OFF for the rebuild: dm_messages references dm_conversations
+            // with ON DELETE CASCADE, and DROP TABLE performs an implicit
+            // DELETE that would cascade-wipe every message. (PRAGMA cannot
+            // change inside a transaction, so it brackets the BEGIN/COMMIT.)
+            $pdo->exec("PRAGMA foreign_keys=OFF");
+            $pdo->exec("BEGIN");
+            $pdo->exec("CREATE TABLE dm_conversations_new (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                is_group        INTEGER NOT NULL DEFAULT 0,
+                title           TEXT,
+                created_by      INTEGER,
+                pair_key        TEXT UNIQUE,
+                last_message_at DATETIME,
+                created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+            )");
+            $pdo->exec("INSERT INTO dm_conversations_new (id, is_group, title, created_by, pair_key, last_message_at, created_at)
+                        SELECT id, 0, NULL, NULL, user_a_id || ':' || user_b_id, last_message_at, created_at
+                        FROM dm_conversations");
+            foreach ([['a', 'b'], ['b', 'a']] as [$me, $them]) {
+                $pdo->exec("INSERT OR IGNORE INTO dm_participants
+                            (conversation_id, user_id, cleared_before_id, last_read_msg_id, last_seen_at, last_alert_at, joined_at)
+                            SELECT c.id, c.user_{$me}_id, c.{$me}_cleared_before_id,
+                                   COALESCE((SELECT MAX(m.id) FROM dm_messages m
+                                             WHERE m.conversation_id = c.id
+                                               AND m.sender_id = c.user_{$them}_id
+                                               AND m.read_at IS NOT NULL), 0),
+                                   c.{$me}_last_seen_at, c.{$me}_last_alert_at, c.created_at
+                            FROM dm_conversations c");
+            }
+            $pdo->exec("DROP TABLE dm_conversations");
+            $pdo->exec("ALTER TABLE dm_conversations_new RENAME TO dm_conversations");
+            $pdo->exec("COMMIT");
+            $pdo->exec("PRAGMA foreign_keys=ON");
+        }
+    } catch (Exception $e) {
+        try { $pdo->exec("ROLLBACK"); } catch (Exception $e2) {}
+        try { $pdo->exec("PRAGMA foreign_keys=ON"); } catch (Exception $e2) {}
+        error_log('dm participant migration failed: ' . $e->getMessage());
+    }
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS dm_messages (
         id              INTEGER PRIMARY KEY AUTOINCREMENT,
         conversation_id INTEGER NOT NULL,
@@ -968,14 +1029,14 @@ JSON;
         FOREIGN KEY (sender_id)       REFERENCES users(id) ON DELETE CASCADE
     )"); } catch (Exception $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_dm_msg_conv   ON dm_messages(conversation_id, id)"); } catch (Exception $e) {}
-    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_dm_conv_users ON dm_conversations(user_a_id, user_b_id)"); } catch (Exception $e) {}
-    // DM alert damping: per-side "last seen this thread" (presence — active
-    // viewers get no alerts at all) and "last outbound alert" (max one
-    // email/SMS per sender per 30 min regardless of read state).
-    try { $pdo->exec("ALTER TABLE dm_conversations ADD COLUMN a_last_seen_at  DATETIME"); } catch (Exception $e) {}
-    try { $pdo->exec("ALTER TABLE dm_conversations ADD COLUMN b_last_seen_at  DATETIME"); } catch (Exception $e) {}
-    try { $pdo->exec("ALTER TABLE dm_conversations ADD COLUMN a_last_alert_at DATETIME"); } catch (Exception $e) {}
-    try { $pdo->exec("ALTER TABLE dm_conversations ADD COLUMN b_last_alert_at DATETIME"); } catch (Exception $e) {}
+    // Event chat: a group conversation bound to an event. Membership is synced
+    // from the roster (host + approved RSVP-yes registered guests + managers)
+    // on open/send; one chat per event (partial unique index).
+    try { $pdo->exec("ALTER TABLE dm_conversations ADD COLUMN event_id INTEGER"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_dm_conv_event ON dm_conversations(event_id) WHERE event_id IS NOT NULL"); } catch (Exception $e) {}
+    // Manually-added members of an event chat (guests of the chat, not the
+    // event): the roster sync must not remove them.
+    try { $pdo->exec("ALTER TABLE dm_participants ADD COLUMN manual_add INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
 
     // League seasons: manager-defined date windows for standings + champions.
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS league_seasons (

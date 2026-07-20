@@ -316,7 +316,29 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
         .modal-close { background:none;border:none;font-size:1rem;cursor:pointer;color:#94a3b8;padding:.25rem .45rem;border-radius:6px;margin-left:auto; }
         .modal-close:hover { background:#e2e8f0; }
 
+        /* Guest-options dropdown rows: checkbox + bold title + muted explainer */
+        .go-panel { min-width: 250px; max-width: 300px; }
+        .go-row { display: flex; align-items: flex-start; gap: .5rem; padding: .32rem 0; cursor: pointer;
+            font-size: .85rem; color: #334155; white-space: normal !important; }
+        .go-row input[type=checkbox] { margin-top: .2rem; flex-shrink: 0; }
+        .go-row span strong { display: block; font-size: .85rem; }
+        .go-row span small { display: block; color: #94a3b8; font-size: .72rem; line-height: 1.3; }
+        /* Explicit per-row remove — visible everywhere (double-click was invisible UX) */
+        .inv-remove-x { flex-shrink:0;color:#cbd5e1;font-weight:700;cursor:pointer;padding:0 .3rem;font-size:1.05rem;line-height:1; }
+        .inv-remove-x:hover { color:#dc2626; }
+        .edit-actions-mobile { display:none; }
         @media (max-width: 1024px) {
+            /* Phone flow: no arrow strip — tap a name to invite, tap again to remove.
+               Action buttons leave the mid-page toolbar for a sticky bottom bar that
+               sits AFTER the invite picker, so guests get picked before saving. */
+            .invite-arrows { display:none !important; }
+            .edit-toolbar .btn { display:none; }
+            .invite-pane-list li.dimmed { cursor:pointer; }
+            .invite-pane-list li.dimmed:hover { background:#f8fafc; }
+            .edit-actions-mobile { display:flex;gap:.5rem;position:sticky;bottom:0;background:#fff;
+                padding:.65rem .25rem;border-top:1.5px solid #e2e8f0;z-index:40; }
+            .edit-actions-mobile .btn { flex:1;text-align:center; }
+        }
             .evedit-wrap { margin:.5rem auto;padding:0 .5rem; }
             .evedit-card { height:auto;min-height:0; }
             .evedit-card form { overflow-y:visible; }
@@ -351,6 +373,14 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
 
     <div class="evedit-card">
         <div class="evedit-head">
+            <div id="eColorDotWrap" style="align-self:center">
+                <div id="eColorDot" style="background:#2563eb" onclick="toggleColorPicker(event)" title="Pick the event's calendar color"></div>
+                <div id="eColorPicker">
+                    <?php foreach (['#2563eb','#16a34a','#dc2626','#d97706','#7c3aed','#0891b2','#db2777'] as $c): ?>
+                        <div class="color-swatch" style="background:<?= $c ?>" data-color="<?= $c ?>" onclick="selectColor('<?= $c ?>')"></div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
             <h1><?= htmlspecialchars($pageHeading) ?><?= $occDate ? ' — ' . htmlspecialchars($occDate) . ' only' : '' ?></h1>
             <a href="<?= htmlspecialchars($cancelUrl) ?>" class="btn btn-outline" style="font-size:.8rem;text-decoration:none">Back to calendar</a>
         </div>
@@ -383,14 +413,6 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                         <?php if ($isAdmin): ?><option value="public">Public</option><?php endif; ?>
                     </select>
                 </label>
-                <div id="eColorDotWrap" style="align-self:center">
-                    <div id="eColorDot" style="background:#2563eb" onclick="toggleColorPicker(event)" title="Pick color"></div>
-                    <div id="eColorPicker">
-                        <?php foreach (['#2563eb','#16a34a','#dc2626','#d97706','#7c3aed','#0891b2','#db2777'] as $c): ?>
-                            <div class="color-swatch" style="background:<?= $c ?>" data-color="<?= $c ?>" onclick="selectColor('<?= $c ?>')"></div>
-                        <?php endforeach; ?>
-                    </div>
-                </div>
                 <input type="text" name="title" id="eTitle" class="edit-title-input" placeholder="Event title" required autocomplete="off">
                 <label>Date <input type="date" name="start_date" id="eStartDate" required></label>
                 <label>Time <input type="time" id="eTimeNative"><input type="hidden" name="start_time" id="eStartTime"></label>
@@ -409,13 +431,34 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
 
             <!-- ── Toolbar: toggles + actions ── -->
             <div class="edit-toolbar">
-                <button type="button" class="btn btn-outline" onclick="addBlankInviteRow()">+ Custom Invitee</button>
                 <label class="edit-notify-row"><span>Poker</span><input type="checkbox" name="is_poker" id="eIsPoker" value="1" class="pk-toggle-input" onchange="togglePokerFields()"><span class="pk-toggle-slider"></span></label>
-                <label class="edit-notify-row" id="eWaitlistLabel" style="display:none"><span>Waitlist</span><input type="checkbox" name="waitlist_enabled" id="eWaitlistEnabled" value="1" class="pk-toggle-input" onchange="updateCapacityLine()"><span class="pk-toggle-slider"></span></label>
-                <label class="edit-notify-row" id="eMaxGuestsLabel" style="display:none" title="Cap the guest count for non-poker events (blank = unlimited); with Waitlist on, extra invitees go to a waitlist"><span>Max guests</span><input type="number" name="max_guests" id="eMaxGuests" min="1" max="999" placeholder="&#8734;" style="width:58px;padding:.22rem .35rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.82rem" oninput="togglePokerFields()"></label>
-                <label class="edit-notify-row" title="Walk-in QR and self-signups require approval"><span>Approval</span><input type="checkbox" name="requires_approval" id="eRequiresApproval" value="1" class="pk-toggle-input"><span class="pk-toggle-slider"></span></label>
-                <label class="edit-notify-row" title="Hide the Going/Maybe guest list on the public RSVP and event pages"><span>Hide guests</span><input type="checkbox" name="hide_guest_list" id="eHideGuestList" value="1" class="pk-toggle-input"><span class="pk-toggle-slider"></span></label>
                 <label class="edit-notify-row" title="Send reminders before the event"><span>Reminders</span><input type="checkbox" name="reminders_enabled" id="eRemindersEnabled" value="1" class="pk-toggle-input" onchange="toggleReminderFields()" checked><span class="pk-toggle-slider"></span></label>
+                <!-- Occasional settings live in one dropdown; same element IDs, so
+                     the show/hide logic (waitlist needs a capacity, max-guests is
+                     non-poker-only) keeps working inside the panel. -->
+                <div class="rem-dd" id="eGuestOptsDD">
+                    <button type="button" class="rem-dd-btn" onclick="toggleGuestOptsDD(event)">
+                        Guest options <span id="eGuestOptsBadge" style="display:none;background:#2563eb;color:#fff;border-radius:999px;font-size:.68rem;font-weight:700;padding:.05rem .38rem"></span> <span style="font-size:.7rem">&#9662;</span>
+                    </button>
+                    <div class="rem-dd-panel go-panel" id="eGuestOptsPanel">
+                        <label class="go-row" id="eWaitlistLabel" style="display:none">
+                            <input type="checkbox" name="waitlist_enabled" id="eWaitlistEnabled" value="1" onchange="updateCapacityLine();updateGuestOptsBadge()">
+                            <span><strong>Waitlist</strong><small>When the event is full, extra guests queue up and get promoted automatically</small></span>
+                        </label>
+                        <label class="go-row">
+                            <input type="checkbox" name="requires_approval" id="eRequiresApproval" value="1" onchange="updateGuestOptsBadge()">
+                            <span><strong>Require approval</strong><small>Walk-in QR and self sign-ups wait for your OK</small></span>
+                        </label>
+                        <label class="go-row">
+                            <input type="checkbox" name="hide_guest_list" id="eHideGuestList" value="1" onchange="updateGuestOptsBadge()">
+                            <span><strong>Hide guest list</strong><small>Guests can't see who else is coming</small></span>
+                        </label>
+                        <label class="go-row" id="eMaxGuestsLabel" style="display:none">
+                            <span><strong>Max guests</strong><small>Blank = unlimited; with Waitlist on, extras queue up</small></span>
+                            <input type="number" name="max_guests" id="eMaxGuests" min="1" max="999" placeholder="&#8734;" style="width:58px;padding:.22rem .35rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.82rem" oninput="togglePokerFields();updateGuestOptsBadge()">
+                        </label>
+                    </div>
+                </div>
                 <span class="edit-desc-toggle" id="eDescToggle" onclick="toggleDesc()">+ Description</span>
                 <div style="flex:1"></div>
                 <button type="submit" class="btn btn-primary" id="eSubmitBtn" onclick="document.getElementById('eSendAfterSave').value=''"><?= $event ? 'Save Changes' : 'Add Event' ?></button>
@@ -435,23 +478,43 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                 <span id="eCapacityHint" style="font-weight:700;color:#2563eb">8 seats</span>
             </div>
 
-            <!-- ── Reminders bar (multi-select presets; hidden when reminders off) ── -->
+            <!-- ── Reminders bar: dropdown of multi-select presets (hidden when reminders off) ── -->
             <div class="edit-poker-bar" id="eReminderFields">
                 <span style="font-weight:600;color:#475569">Send reminders:</span>
-                <?php foreach ($reminder_presets_available as $__off):
-                    $__off = (int)$__off;
-                    $__checked = in_array($__off, $reminder_default_offsets, true) ? 'checked' : '';
-                    $__label = $__off >= 10080 && $__off % 10080 === 0 ? ($__off/10080 . ' wk')
-                            : ($__off >= 1440 && $__off % 1440 === 0 ? ($__off/1440 . ' day')
-                            : ($__off >= 60   && $__off % 60   === 0 ? ($__off/60   . ' hr')
-                            : ($__off . ' min')));
-                ?>
-                <label style="display:inline-flex;align-items:center;gap:.25rem;font-weight:500;white-space:nowrap">
-                    <input type="checkbox" name="reminder_offsets[]" class="eReminderPreset" value="<?= $__off ?>" <?= $__checked ?>>
-                    <?= htmlspecialchars($__label) ?>
-                </label>
-                <?php endforeach; ?>
+                <div class="rem-dd" id="eRemDD">
+                    <button type="button" class="rem-dd-btn" onclick="toggleRemDD(event)">
+                        <span id="eRemSummary">&mdash;</span> <span style="font-size:.7rem">&#9662;</span>
+                    </button>
+                    <div class="rem-dd-panel" id="eRemPanel">
+                        <?php foreach ($reminder_presets_available as $__off):
+                            $__off = (int)$__off;
+                            $__checked = in_array($__off, $reminder_default_offsets, true) ? 'checked' : '';
+                            $__label = $__off >= 10080 && $__off % 10080 === 0 ? ($__off/10080 . ' wk')
+                                    : ($__off >= 1440 && $__off % 1440 === 0 ? ($__off/1440 . ' day')
+                                    : ($__off >= 60   && $__off % 60   === 0 ? ($__off/60   . ' hr')
+                                    : ($__off . ' min')));
+                        ?>
+                        <label>
+                            <input type="checkbox" name="reminder_offsets[]" class="eReminderPreset" value="<?= $__off ?>" <?= $__checked ?> onchange="updateRemSummary()">
+                            <?= htmlspecialchars($__label) ?> before
+                        </label>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
             </div>
+            <style>
+            .rem-dd { position: relative; display: inline-block; }
+            .rem-dd-btn { display: inline-flex; align-items: center; gap: .35rem; padding: .35rem .7rem;
+                border: 1.5px solid #cbd5e1; border-radius: 7px; background: #fff; font: inherit;
+                font-size: .85rem; color: #334155; cursor: pointer; }
+            .rem-dd-btn:hover { border-color: #93c5fd; }
+            .rem-dd-panel { display: none; position: absolute; top: calc(100% + 4px); left: 0; z-index: 50;
+                background: #fff; border: 1.5px solid #cbd5e1; border-radius: 9px; padding: .45rem .7rem;
+                box-shadow: 0 8px 24px rgba(0,0,0,.12); min-width: 150px; }
+            .rem-dd.open .rem-dd-panel { display: block; }
+            .rem-dd-panel label { display: flex; align-items: center; gap: .4rem; font-size: .85rem;
+                font-weight: 500; color: #334155; padding: .18rem 0; white-space: nowrap; cursor: pointer; }
+            </style>
 
             <!-- ── Description (collapsed by default) ── -->
             <div class="edit-desc-wrap" id="eDescWrap" style="display:none">
@@ -482,7 +545,10 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                 </div>
                 <!-- Right: invited users -->
                 <div class="invite-pane">
-                    <div class="invite-pane-header">Invited</div>
+                    <div class="invite-pane-header" style="display:flex;align-items:center;gap:.5rem">
+                        <span style="flex:1">Invited</span>
+                        <button type="button" class="btn btn-outline" style="font-size:.72rem;padding:.18rem .55rem" title="Invite someone who isn't a user — just a name, with optional email/phone" onclick="addBlankInviteRow()">+ Add Name</button>
+                    </div>
                     <div class="inv-col-head">
                         <span style="flex:1;min-width:0">Name</span>
                         <span class="inv-col-contact" title="Click the icon on a row to add/edit email &amp; phone">Contact</span>
@@ -494,6 +560,16 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
             </div>
             <!-- Hidden inputs synced from invite lists -->
             <div id="eInviteData"></div>
+
+            <!-- Mobile action bar: sticky at the bottom, after the invite picker
+                 (the toolbar buttons above are hidden on small screens) -->
+            <div class="edit-actions-mobile">
+                <button type="submit" class="btn btn-primary" onclick="document.getElementById('eSendAfterSave').value=''"><?= $event ? 'Save Changes' : 'Add Event' ?></button>
+                <?php if (get_setting('notifications_enabled', '0') === '1'): ?>
+                <button type="submit" class="btn" style="background:#16a34a;border-color:#16a34a;color:#fff" onclick="document.getElementById('eSendAfterSave').value='1'" title="Save the event and send invitations now">Save &amp; Send</button>
+                <?php endif; ?>
+                <a href="<?= htmlspecialchars($cancelUrl) ?>" class="btn btn-outline" style="text-decoration:none">Cancel</a>
+            </div>
         </form>
         <?php if ($isAdmin && $event && !$isCopy): ?>
         <div style="padding:.4rem 1rem .6rem;flex-shrink:0">
@@ -624,6 +700,16 @@ function buildAllUsersList() {
         }
         li.title = 'Click to select, or double-click to invite';
         li.addEventListener('click', function(e) {
+            // Touch/small screens: single tap toggles invited state directly
+            // (the arrow strip is hidden there).
+            if (window.matchMedia('(max-width: 1024px)').matches) {
+                if (this.classList.contains('dimmed')) {
+                    if (this.dataset.uname) removeInvite(this.dataset.uname);
+                } else if (this.dataset.uname) {
+                    inviteUser(this.dataset.uname, this.dataset.uphone, this.dataset.uemail);
+                }
+                return;
+            }
             if (this.classList.contains('dimmed')) return;
             handleListSelect(e, this, 'eAllUsersList');
         });
@@ -742,6 +828,14 @@ function inviteUser(username, phone, email, rsvp, role, approvalStatus) {
         mgrSlot.appendChild(tog);
     }
     li.appendChild(mgrSlot);
+
+    // Explicit remove control (works on touch, where double-click doesn't exist)
+    const xBtn = document.createElement('span');
+    xBtn.className = 'inv-remove-x';
+    xBtn.textContent = '×';
+    xBtn.title = 'Remove from invite list';
+    xBtn.addEventListener('click', function(e) { e.stopPropagation(); removeInvite(li.dataset.iname); });
+    li.appendChild(xBtn);
 
     li.title = 'Click to select, or double-click to remove';
     li.addEventListener('click', function(e) {
@@ -1089,6 +1183,7 @@ function togglePokerFields() {
     document.getElementById('eWaitlistLabel').style.display = (show || mgVal > 0) ? '' : 'none';
     if (show) updateCapacityLine();
     else updateDividerLine(); // clear divider when poker is off
+    updateGuestOptsBadge(); // runs post-populate on edits, keeps the count honest
 }
 
 function toggleReminderFields() {
@@ -1101,11 +1196,53 @@ function toggleReminderFields() {
 // Apply a list of offset values (array of ints) to the reminder checkboxes.
 function applyReminderOffsets(offsets) {
     var boxes = document.querySelectorAll('.eReminderPreset');
-    if (offsets === null) return; // keep the site-default pre-checked state
+    if (offsets === null) { updateRemSummary(); return; } // keep the site-default pre-checked state
     var set = {};
     offsets.forEach(function(o) { set[parseInt(o,10)] = true; });
     boxes.forEach(function(b) { b.checked = !!set[parseInt(b.value,10)]; });
+    updateRemSummary();
 }
+
+// Reminder dropdown: button shows a summary of the checked presets.
+function toggleRemDD(e) {
+    if (e) e.stopPropagation();
+    document.getElementById('eRemDD').classList.toggle('open');
+}
+
+// Guest-options dropdown: badge shows how many options are active.
+function toggleGuestOptsDD(e) {
+    if (e) e.stopPropagation();
+    document.getElementById('eGuestOptsDD').classList.toggle('open');
+}
+function updateGuestOptsBadge() {
+    var n = 0;
+    ['eWaitlistEnabled', 'eRequiresApproval', 'eHideGuestList'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el && el.checked) n++;
+    });
+    var mg = document.getElementById('eMaxGuests');
+    if (mg && (parseInt(mg.value, 10) || 0) > 0) n++;
+    var badge = document.getElementById('eGuestOptsBadge');
+    if (badge) {
+        badge.textContent = n;
+        badge.style.display = n > 0 ? '' : 'none';
+    }
+}
+function updateRemSummary() {
+    var labels = [];
+    document.querySelectorAll('#eRemPanel label').forEach(function(l) {
+        var cb = l.querySelector('.eReminderPreset');
+        if (cb && cb.checked) labels.push(l.textContent.trim().replace(/\s+before$/, ''));
+    });
+    document.getElementById('eRemSummary').textContent = labels.length ? labels.join(', ') : 'None';
+}
+document.addEventListener('click', function(e) {
+    ['eRemDD', 'eGuestOptsDD'].forEach(function(id) {
+        var dd = document.getElementById(id);
+        if (dd && dd.classList.contains('open') && !dd.contains(e.target)) dd.classList.remove('open');
+    });
+});
+document.addEventListener('DOMContentLoaded', function() { updateRemSummary(); updateGuestOptsBadge(); });
 function toggleDesc() {
     var wrap = document.getElementById('eDescWrap');
     var tog  = document.getElementById('eDescToggle');

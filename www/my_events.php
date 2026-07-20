@@ -210,9 +210,11 @@ function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): strin
 
     <!-- Past -->
     <details>
-        <summary style="cursor:pointer;list-style:none;font-size:.8rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.75rem;display:flex;align-items:center;gap:.4rem">
+        <summary class="me-past-toggle">
             <span style="display:inline-block;transition:transform .15s" class="me-past-caret">&#9656;</span>
-            Past &mdash; <?= count($past) ?>
+            <span style="font-size:.8rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.07em">Past &mdash; <?= count($past) ?></span>
+            <span class="me-past-hint me-hint-show">Show</span>
+            <span class="me-past-hint me-hint-hide">Hide</span>
         </summary>
 
     <?php if (empty($past)): ?>
@@ -268,6 +270,14 @@ function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): strin
 <style>
 details[open] .me-past-caret { transform: rotate(90deg); }
 details > summary::-webkit-details-marker { display: none; }
+/* Obvious click target for the Past section (users missed the bare caret) */
+.me-past-toggle { cursor: pointer; list-style: none; display: flex; align-items: center; gap: .5rem;
+    background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: .6rem .9rem; margin-bottom: .75rem; }
+.me-past-toggle:hover { border-color: #93c5fd; background: #eff6ff; }
+.me-past-hint { margin-left: auto; font-size: .75rem; font-weight: 600; color: #2563eb;
+    border: 1.5px solid #bfdbfe; background: #fff; border-radius: 999px; padding: .15rem .6rem; }
+details[open] .me-hint-show { display: none; }
+details:not([open]) .me-hint-hide { display: none; }
 </style>
 
 <?php require __DIR__ . '/_footer.php'; ?>

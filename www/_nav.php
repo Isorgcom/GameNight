@@ -34,10 +34,9 @@ $_dm_unread = 0;
 if ($_nu && !empty($_nu['id'])) {
     try {
         $_dmq = get_db()->prepare('SELECT COUNT(*) FROM dm_messages m
-            JOIN dm_conversations c ON c.id = m.conversation_id
-            WHERE m.sender_id <> :me AND m.read_at IS NULL
-              AND ( (c.user_a_id = :me AND m.id > c.a_cleared_before_id)
-                 OR (c.user_b_id = :me AND m.id > c.b_cleared_before_id) )');
+            JOIN dm_participants p ON p.conversation_id = m.conversation_id AND p.user_id = :me
+            WHERE m.sender_id <> :me
+              AND m.id > MAX(p.last_read_msg_id, p.cleared_before_id)');
         $_dmq->execute([':me' => (int)$_nu['id']]);
         $_dm_unread = (int)$_dmq->fetchColumn();
     } catch (Throwable $e) {}
