@@ -255,6 +255,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($eid > 0) {
+            // Authorization: a self RSVP requires an existing invite for this user.
+            // RSVP changes your answer — it does not join you (that's self_signup,
+            // which is visibility-gated). Without this, the occurrence-insert branch
+            // below let a non-invitee self-insert an APPROVED event_invites row on
+            // any event_id — an IDOR granting private-event disclosure + approval
+            // bypass. Managers acting on_behalf are already gated (isAdmin||isOwner)
+            // and only ever target existing invitees via the roster panel.
+            if (!$on_behalf) {
+                $selfInv = $db->prepare('SELECT 1 FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL');
+                $selfInv->execute([$eid, $target_username]);
+                if (!$selfInv->fetchColumn()) {
+                    if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
+                        http_response_code(403);
+                        header('Content-Type: application/json');
+                        echo json_encode(['ok' => false, 'error' => 'You are not on this event. Use “Sign up to attend” first.']);
+                        exit;
+                    }
+                    $_SESSION['flash'] = ['type' => 'error', 'msg' => 'You are not on this event.'];
+                    header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '/calendar.php'));
+                    exit;
+                }
+            }
             // Approval gate: a non-host user cannot RSVP for themselves while their invite is pending or denied.
             // A host (creator/manager/admin) acting on_behalf implicitly approves the row by setting an RSVP.
             $statusStmt = $db->prepare('SELECT approval_status FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL');

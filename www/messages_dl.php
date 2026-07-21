@@ -37,11 +37,10 @@ function resolve_target(PDO $db, array $current, int $uid): array {
         // Event chats: refresh roster-driven membership before the access check,
         // so RSVP flips take effect on the next interaction.
         if (!empty($conv['event_id'])) dm_sync_event_chat($db, $conv);
-        if (!dm_participant($db, $conv_id, $uid)) {
-            fail(!empty($conv['event_id'])
-                ? 'The event chat is for the host and guests who RSVPed yes.'
-                : 'Unknown conversation.', !empty($conv['event_id']) ? 403 : 404);
-        }
+        // Uniform 404 for any conversation you're not in (event chat or not) so
+        // conversation IDs can't be enumerated by a 403-vs-404 difference. The
+        // helpful "RSVP yes to join" message lives on message_thread.php?event=.
+        if (!dm_participant($db, $conv_id, $uid)) fail('Unknown conversation.', 404);
         return [$conv, null];
     }
     if ($other_id > 0 && $other_id !== $uid) {
@@ -153,8 +152,16 @@ switch ($action) {
         [$conv, $other] = resolve_target($db, $current, $uid);
         if (!$conv) fail('Start the conversation before adding people.');
         if (!dm_participant($db, (int)$conv['id'], $uid)) fail('Unknown conversation.', 404);
+        // Event-chat membership follows the event roster; only the host/managers
+        // may add extras. (Regular groups let any member add — intended.)
+        if (!empty($conv['event_id']) && dm_event_chat_event_exists($db, (int)$conv['event_id'])
+            && !can_manage_event($db, (int)$conv['event_id'], $uid, $current['role'] === 'admin')) {
+            fail('Only the event host can add people to an event chat.', 403);
+        }
         $ids = array_values(array_unique(array_filter(array_map('intval', explode(',', (string)($_POST['user_ids'] ?? ''))), fn($v) => $v > 0 && $v !== $uid)));
         if (!$ids) fail('Pick someone to add.');
+        // Cap applies to user-made groups; event chats are bounded by their
+        // (host-controlled) roster, so extras aren't capped.
         $count = count(dm_participants($db, (int)$conv['id']));
         if (empty($conv['event_id']) && $count + count($ids) > MAX_DM_GROUP_MEMBERS) fail('Groups are limited to ' . MAX_DM_GROUP_MEMBERS . ' members.');
 
@@ -181,13 +188,14 @@ switch ($action) {
             $db->prepare('UPDATE dm_conversations SET is_group = 1, pair_key = NULL WHERE id = ?')
                ->execute([(int)$conv['id']]);
         }
-        // New members start read at the current tail: no unread backlog.
-        // manual_add=1 marks them safe from the event-chat roster sync.
+        // New members join read-at-tail with a cleared watermark, so they see
+        // messages only from now on — never the pre-join backlog (matches the
+        // 1:1->group conversion). manual_add=1 keeps them through roster sync.
         $ins = $db->prepare('INSERT OR IGNORE INTO dm_participants
                              (conversation_id, user_id, last_read_msg_id, cleared_before_id, manual_add)
                              VALUES (?, ?, ?, ?, 1)');
         foreach ($toAdd as $mid) {
-            $ins->execute([(int)$conv['id'], $mid, $tailId, $wasPair ? $tailId : 0]);
+            $ins->execute([(int)$conv['id'], $mid, $tailId, $tailId]);
         }
         ok(['conv_id' => (int)$conv['id']]);
     }

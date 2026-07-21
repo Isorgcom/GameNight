@@ -610,7 +610,7 @@ async function editComment(id) {
 var NOTIFS_ON   = <?= $notifsEnabled ? 'true' : 'false' ?>;
 var ALLOW_MAYBE = <?= $allowMaybe ? 'true' : 'false' ?>;
 var invBase = [], invQueue = {}, sawPending = false;
-function escH(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escH(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 function renderInvPanel() {
     var panel = document.getElementById('evInvPanel');

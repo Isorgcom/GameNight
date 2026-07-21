@@ -26,6 +26,9 @@ if (!defined('MAX_RSVP_TOKEN_FLIPS'))                     define('MAX_RSVP_TOKEN
 if (!defined('MAX_DM_MESSAGES_PER_HOUR'))                 define('MAX_DM_MESSAGES_PER_HOUR', 60);
 if (!defined('MAX_DM_NEW_CONVERSATIONS_PER_DAY'))         define('MAX_DM_NEW_CONVERSATIONS_PER_DAY', 10);
 if (!defined('MAX_DM_GROUP_MEMBERS'))                     define('MAX_DM_GROUP_MEMBERS', 20);
+if (!defined('MAX_TICKETS_PER_DAY'))                      define('MAX_TICKETS_PER_DAY', 5);
+if (!defined('MAX_TICKET_REPLIES_PER_HOUR'))              define('MAX_TICKET_REPLIES_PER_HOUR', 20);
+if (!defined('MAX_UPLOADS_PER_DAY'))                      define('MAX_UPLOADS_PER_DAY', 20);
 
 if (!defined('APP_SECRET')) {
     $secretFile = dirname(DB_PATH) . '/.app_secret';
@@ -1037,6 +1040,31 @@ JSON;
     // Manually-added members of an event chat (guests of the chat, not the
     // event): the roster sync must not remove them.
     try { $pdo->exec("ALTER TABLE dm_participants ADD COLUMN manual_add INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+
+    // Support tickets: the first ticket_messages row is the description;
+    // is_admin_reply snapshots the sender's role at write time so display
+    // stays correct if roles change later.
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS tickets (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id    INTEGER NOT NULL,
+        subject    TEXT    NOT NULL,
+        status     TEXT    NOT NULL DEFAULT 'open',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS ticket_messages (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        ticket_id       INTEGER NOT NULL,
+        user_id         INTEGER NOT NULL,
+        is_admin_reply  INTEGER NOT NULL DEFAULT 0,
+        body            TEXT    NOT NULL,
+        screenshot_path TEXT,
+        created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_tickets_user ON tickets(user_id, status)"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ticket_msgs  ON ticket_messages(ticket_id, id)"); } catch (Exception $e) {}
 
     // League seasons: manager-defined date windows for standings + champions.
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS league_seasons (

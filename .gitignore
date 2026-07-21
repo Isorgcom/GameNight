@@ -21,8 +21,10 @@ commit.sh
 # Sample data
 www/sample_users.csv
 
-# Runtime user-uploaded files (not source)
-www/uploads/
+# Runtime user-uploaded files (not source) — but keep the exec-guard .htaccess.
+# Use /* (not the bare dir) so the .htaccess exception can re-include.
+www/uploads/*
+!www/uploads/.htaccess
 
 # Backups
 www/_backups/

@@ -716,8 +716,11 @@ function send_verification_email(int $user_id, string $email, string $username):
 }
 
 function csrf_verify(): bool {
-    $token = $_POST['csrf_token'] ?? '';
-    return hash_equals($_SESSION['csrf_token'] ?? '', $token);
+    $sessionToken = $_SESSION['csrf_token'] ?? '';
+    // A token-less session must never validate — otherwise an empty POSTed
+    // token would match an empty session token (hash_equals('','')===true).
+    if ($sessionToken === '') return false;
+    return hash_equals($sessionToken, $_POST['csrf_token'] ?? '');
 }
 
 /**

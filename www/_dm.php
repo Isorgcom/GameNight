@@ -275,9 +275,11 @@ function dm_sync_event_chat(PDO $db, array $conv): void {
         $db->prepare('DELETE FROM dm_participants WHERE conversation_id = ? AND user_id = ?')
            ->execute([$conv_id, $pid]);
     }
-    $ins = $db->prepare('INSERT OR IGNORE INTO dm_participants (conversation_id, user_id, last_read_msg_id) VALUES (?, ?, ?)');
+    // New members join read-at-tail AND with a cleared watermark, so they see
+    // the conversation only from their join forward — not the prior backlog.
+    $ins = $db->prepare('INSERT OR IGNORE INTO dm_participants (conversation_id, user_id, last_read_msg_id, cleared_before_id) VALUES (?, ?, ?, ?)');
     foreach (array_keys($desired) as $uidNew) {
-        if (!isset($currentIds[$uidNew])) $ins->execute([$conv_id, $uidNew, $tail]);
+        if (!isset($currentIds[$uidNew])) $ins->execute([$conv_id, $uidNew, $tail, $tail]);
     }
 }
 

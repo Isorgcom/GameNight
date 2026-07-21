@@ -22,14 +22,22 @@ if (($_GET['action'] ?? '') === 'export') {
     $rows->execute([$uid]);
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="contacts_' . date('Ymd_His') . '.csv"');
+    // Neutralize CSV formula injection: a cell starting with = + - @ (or a
+    // tab/CR that some parsers treat as a lead-in) is prefixed with a single
+    // quote so spreadsheets treat it as text, not a formula.
+    $csvSafe = static function ($v): string {
+        $v = (string)$v;
+        if ($v !== '' && strpbrk($v[0], "=+-@\t\r") !== false) return "'" . $v;
+        return $v;
+    };
     $out = fopen('php://output', 'w');
     fputcsv($out, ['name', 'email', 'phone', 'notes', 'status']);
     foreach ($rows->fetchAll() as $r) {
         fputcsv($out, [
-            $r['contact_name'] ?? '',
-            $r['contact_email'] ?? '',
-            $r['contact_phone'] ?? '',
-            $r['notes'] ?? '',
+            $csvSafe($r['contact_name'] ?? ''),
+            $csvSafe($r['contact_email'] ?? ''),
+            $csvSafe($r['contact_phone'] ?? ''),
+            $csvSafe($r['notes'] ?? ''),
             $r['linked_user_id'] ? 'linked' : 'pending',
         ]);
     }

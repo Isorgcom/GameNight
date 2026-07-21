@@ -1,13 +1,10 @@
 <?php
 require_once __DIR__ . '/auth.php';
 
+// Any logged-in user may upload (league managers' post images, ticket
+// screenshots, help posts). MIME sniffing + the size cap below still apply,
+// plus a per-user daily cap counted from the activity log.
 $current = require_login();
-if ($current['role'] !== 'admin') {
-    http_response_code(403);
-    header('Content-Type: application/json');
-    echo json_encode(['error' => 'Access denied.']);
-    exit;
-}
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -70,6 +67,21 @@ if ($file['size'] > 8 * 1024 * 1024) {
     header('Content-Type: application/json');
     echo json_encode(['error' => 'File too large (max 8 MB).']);
     exit;
+}
+
+// Per-user daily cap (admins exempt): every successful upload logs
+// "uploaded image: <name>", so the activity log is the counter.
+if ($current['role'] !== 'admin') {
+    $capQ = get_db()->prepare("SELECT COUNT(*) FROM activity_log
+                               WHERE user_id = ? AND action LIKE 'uploaded image:%'
+                                 AND created_at > datetime('now', '-1 day')");
+    $capQ->execute([(int)$current['id']]);
+    if ((int)$capQ->fetchColumn() >= MAX_UPLOADS_PER_DAY) {
+        http_response_code(429);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'Daily upload limit reached — try again tomorrow.']);
+        exit;
+    }
 }
 
 $uploadDir = __DIR__ . '/uploads/';

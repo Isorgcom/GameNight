@@ -24,6 +24,7 @@ $_atabs = [
     ['key' => 'communication', 'href' => '/admin_settings.php?tab=email',       'label' => 'Communication'],
     ['key' => 'cron',          'href' => '/admin_settings.php?tab=cron',        'label' => 'Cron'],
     ['key' => 'backup',        'href' => '/admin_settings.php?tab=backup',      'label' => 'Backup'],
+    ['key' => 'tickets',       'href' => '/admin_tickets.php',                  'label' => 'Support'],
     ['key' => 'apikeys',       'href' => '/admin_api_keys.php',                 'label' => 'API Keys'],
     ['key' => 'help',          'href' => '/admin_help.php',                     'label' => 'Help Tips'],
 ];

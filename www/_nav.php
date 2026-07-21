@@ -108,11 +108,12 @@ $_accent        = get_setting('accent_color', '');
                         <?php endif; ?>
                         <a href="<?= htmlspecialchars($_timer_href, ENT_QUOTES) ?>" class="nav-mobile-link">Tournament Timer</a>
                         <div class="nav-mobile-divider"></div>
-                        <div class="nav-help-group<?= $_active === 'help' ? ' open' : '' ?>">
+                        <div class="nav-help-group<?= $_active === 'help' || $_active === 'support' ? ' open' : '' ?>">
                             <button type="button" class="nav-help-toggle" onclick="this.parentElement.classList.toggle('open');">Help <span class="nav-help-caret" aria-hidden="true">&#9656;</span></button>
                             <div class="nav-help-sub">
                                 <a href="/help-hosts.php">Host Guide</a>
                                 <a href="/help-guests.php">Guest Guide</a>
+                                <a href="/support.php"<?= $_active === 'support' ? ' class="active"' : '' ?>>Support</a>
                             </div>
                         </div>
                         <div class="nav-mobile-divider"></div>
