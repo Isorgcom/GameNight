@@ -61,6 +61,24 @@ if [ ! -f "$VENDOR/fonts/fonts.css" ]; then
 FONTSCSS
 fi
 
+# ── Upload dir exec-guard ────────────────────────────────────────────────────
+# uploads/ is a bind-mounted volume, so the repo's www/uploads/.htaccess is
+# shadowed and never reaches the container. Write the guard into the volume on
+# every start so user-uploaded files can never be executed as PHP/CGI.
+UPLOADS="/var/www/html/uploads"
+mkdir -p "$UPLOADS"
+cat > "$UPLOADS/.htaccess" <<'UPHT'
+# Defense-in-depth: user-uploaded files are static assets only. Never execute.
+php_flag engine off
+RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .php8 .phar
+RemoveType .php .phtml .php3 .php4 .php5 .php7 .php8 .phar
+Options -ExecCGI -Indexes
+<FilesMatch "\.(php|phtml|php[0-9]|phar|pl|py|cgi|sh)$">
+    Require all denied
+</FilesMatch>
+UPHT
+chown www-data:www-data "$UPLOADS/.htaccess" 2>/dev/null || true
+
 # ── Scheduled tasks: run cron.php every 5 minutes in the background ──
 # Auto-generate a cron token if one doesn't exist yet
 CRON_TOKEN=$(php -r "require '/var/www/html/db.php'; \$t = get_setting('cron_token',''); if (\$t==='') { \$t = bin2hex(random_bytes(20)); set_setting('cron_token', \$t); } echo \$t;" 2>/dev/null || echo "")
