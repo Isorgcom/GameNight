@@ -209,7 +209,7 @@ switch ($action) {
         if (!$me) fail('Unknown conversation.', 404);
         dm_touch_seen($db, (int)$conv['id'], $uid);
         $after = max((int)($_POST['after_id'] ?? 0), (int)$me['cleared_before_id']);
-        $s = $db->prepare('SELECT m.id, m.sender_id, m.body, m.created_at, u.username
+        $s = $db->prepare('SELECT m.id, m.sender_id, m.body, m.created_at, u.username, u.avatar_path
                            FROM dm_messages m JOIN users u ON u.id = m.sender_id
                            WHERE m.conversation_id = ? AND m.id > ? ORDER BY m.id');
         $s->execute([(int)$conv['id'], $after]);
@@ -221,11 +221,12 @@ switch ($action) {
             $when = new DateTime($r['created_at'], new DateTimeZone('UTC'));
             $when->setTimezone($viewer_tz);
             $out[] = [
-                'id'     => (int)$r['id'],
-                'mine'   => (int)$r['sender_id'] === $uid,
-                'sender' => (string)$r['username'],
-                'body'   => (string)$r['body'],
-                'when'   => $when->format('M j g:ia'),
+                'id'          => (int)$r['id'],
+                'mine'        => (int)$r['sender_id'] === $uid,
+                'sender'      => (string)$r['username'],
+                'avatar_path' => $r['avatar_path'] ?? null,
+                'body'        => (string)$r['body'],
+                'when'        => $when->format('M j g:ia'),
             ];
         }
         ok(['messages' => $out]);

@@ -736,3 +736,7 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
 .pk-modal-actions{display:flex;gap:.5rem;justify-content:flex-end;margin-top:.75rem}
 .pk-modal-actions button{padding:.4rem 1rem;border-radius:6px;font-size:.85rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border,#e2e8f0);background:#fff}
 .pk-modal-actions .pk-save{background:var(--accent,#2563eb);color:#fff;border-color:transparent}
+
+/* ── Shared circular avatar (photo, or deterministic colored initial) ── */
+.gn-avatar{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;color:#fff;font-weight:700;line-height:1;text-transform:uppercase;flex-shrink:0;vertical-align:middle;overflow:hidden;box-sizing:border-box}
+img.gn-avatar{object-fit:cover;background:transparent}

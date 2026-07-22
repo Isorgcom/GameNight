@@ -74,6 +74,7 @@ if ($_hb_user && empty($_hb_user['timezone'])) {
 }
 ?>
 <script src="/pk-dialogs.js?v=<?= htmlspecialchars(APP_VERSION) ?>" defer></script>
+<script src="/avatar.js?v=<?= htmlspecialchars(APP_VERSION) ?>" defer></script>
 <?php if ($_hb_user): /* Live badge updater + chime: polls unread counts and
     updates the nav bell / Messages badges in place. Plays a short two-note
     chime when the total rises (browsers allow audio only after the user has
@@ -143,6 +144,8 @@ if ($_hb_user && empty($_hb_user['timezone'])) {
                 setBadge('js-bell-badge', j.bell);
                 setBadge('js-dm-badge', j.dm);
                 var total = j.bell + j.dm;
+                setBadge('js-avatar-badge', total); // combined counter on the avatar
+
                 var prev = parseInt(localStorage.getItem(KEY) || '-1', 10);
                 if (prev >= 0 && total > prev) chime();
                 localStorage.setItem(KEY, String(total));

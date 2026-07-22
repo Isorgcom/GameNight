@@ -87,9 +87,31 @@ $_accent        = get_setting('accent_color', '');
         <div class="nav-collapsible" style="flex:1"></div>
         <?php endif; ?>
         <div class="nav-user">
-            <?php if ($_nu): ?>
-                <a href="/notifications.php" title="Notifications" style="position:relative;text-decoration:none;font-size:1.05rem;padding:.2rem .35rem;line-height:1">&#128276;<span class="js-bell-badge" style="position:absolute;top:-4px;right:-6px;background:#dc2626;color:#fff;font-size:.6rem;font-weight:700;border-radius:999px;padding:.08rem .32rem;line-height:1.2<?= $_nf_unread > 0 ? '' : ';display:none' ?>"><?= $_nf_unread > 99 ? '99+' : $_nf_unread ?></span></a>
-                <span class="nav-collapsible"><?= htmlspecialchars($_nu['username']) ?></span>
+            <?php if ($_nu):
+                $_combined = $_nf_unread + $_dm_unread;
+            ?>
+                <!-- Account avatar + personal menu (Notifications, Messages, My Events, Contacts, Settings, Sign out) -->
+                <div class="nav-dropdown-wrap nav-account-wrap">
+                    <button type="button" class="nav-avatar-btn" title="Your account"
+                            onclick="var d=this.nextElementSibling;d.style.display=d.style.display==='block'?'none':'block';">
+                        <?= avatar_html($_nu['username'], $_nu['avatar_path'] ?? null, 34) ?>
+                        <span class="js-avatar-badge nav-avatar-badge" style="<?= $_combined > 0 ? '' : 'display:none' ?>"><?= $_combined > 99 ? '99+' : $_combined ?></span>
+                    </button>
+                    <div class="nav-dropdown nav-account-dropdown">
+                        <div class="nav-account-head">
+                            <?= avatar_html($_nu['username'], $_nu['avatar_path'] ?? null, 40) ?>
+                            <div class="nav-account-name"><?= htmlspecialchars($_nu['username']) ?></div>
+                        </div>
+                        <a href="/notifications.php"<?= $_active === 'notifications' ? ' class="active"' : '' ?>>Notifications <span class="js-bell-badge nav-menu-count" style="<?= $_nf_unread > 0 ? '' : 'display:none' ?>"><?= $_nf_unread > 99 ? '99+' : $_nf_unread ?></span></a>
+                        <a href="/messages.php"<?= $_active === 'messages' ? ' class="active"' : '' ?>>Messages <span class="js-dm-badge nav-menu-count" style="<?= $_dm_unread > 0 ? '' : 'display:none' ?>"><?= $_dm_unread > 99 ? '99+' : $_dm_unread ?></span></a>
+                        <a href="/my_events.php"<?= $_active === 'my-events' ? ' class="active"' : '' ?>>My Events</a>
+                        <a href="/contacts.php"<?= $_active === 'contacts' ? ' class="active"' : '' ?>>Contacts</a>
+                        <a href="/settings.php"<?= $_active === 'settings' ? ' class="active"' : '' ?>>My Settings</a>
+                        <div class="nav-mobile-divider"></div>
+                        <a href="/logout.php" class="nav-dropdown-signout">Sign out</a>
+                    </div>
+                </div>
+                <!-- Hamburger = site navigation only -->
                 <div class="nav-dropdown-wrap">
                     <button class="nav-hamburger" title="Menu" onclick="var d=this.nextElementSibling;d.style.display=d.style.display==='block'?'none':'block';">&#9776;</button>
                     <div class="nav-dropdown">
@@ -99,9 +121,6 @@ $_accent        = get_setting('accent_color', '');
                         <?php if (get_setting('show_calendar', '1') === '1'): ?>
                         <a href="/calendar.php" class="nav-mobile-link<?= $_active === 'calendar' ? ' active' : '' ?>">Calendar</a>
                         <?php endif; ?>
-                        <a href="/my_events.php" class="nav-mobile-link<?= $_active === 'my-events' ? ' active' : '' ?>">My Events</a>
-                        <a href="/contacts.php" class="nav-mobile-link<?= $_active === 'contacts' ? ' active' : '' ?>">Contacts</a>
-                        <a href="/messages.php" class="nav-mobile-link<?= $_active === 'messages' ? ' active' : '' ?>">Messages<?= $_dm_badge ?></a>
                         <?php if ($_nu && $_nu['role'] === 'admin'): ?>
                         <a href="/admin_posts.php" class="nav-mobile-link<?= $_active === 'posts' ? ' active' : '' ?>">Posts</a>
                         <a href="/admin_settings.php" class="nav-mobile-link<?= $_active === 'site-settings' ? ' active' : '' ?>">Site Settings<?php if ($_show_update_dot): ?> <span class="nav-update-dot" title="Update available: v<?= htmlspecialchars(get_setting('latest_version')) ?>"></span><?php endif; ?></a>
@@ -116,10 +135,6 @@ $_accent        = get_setting('accent_color', '');
                                 <a href="/support.php"<?= $_active === 'support' ? ' class="active"' : '' ?>>Support</a>
                             </div>
                         </div>
-                        <div class="nav-mobile-divider"></div>
-                        <a href="/notifications.php"<?= $_active === 'notifications' ? ' class="active"' : '' ?>>Notifications <span class="js-bell-badge" style="background:#dc2626;color:#fff;font-size:.65rem;font-weight:700;border-radius:999px;padding:.05rem .35rem<?= $_nf_unread > 0 ? '' : ';display:none' ?>"><?= $_nf_unread > 99 ? '99+' : $_nf_unread ?></span></a>
-                        <a href="/settings.php"<?= $_active === 'settings' ? ' class="active"' : '' ?>>My Settings</a>
-                        <a href="/logout.php" class="nav-dropdown-signout">Sign out</a>
                     </div>
                 </div>
             <?php else: ?>
@@ -164,11 +179,7 @@ $_accent        = get_setting('accent_color', '');
         <?php if (get_setting('show_calendar', '1') === '1'): ?>
         <a href="/calendar.php"<?= $_active === 'calendar' ? ' class="active"' : '' ?>>Calendar</a>
         <?php endif; ?>
-        <?php if ($_nu): ?>
-        <a href="/my_events.php"<?= $_active === 'my-events' ? ' class="active"' : '' ?>>My Events</a>
-        <a href="/contacts.php"<?= $_active === 'contacts' ? ' class="active"' : '' ?>>Contacts</a>
-        <a href="/messages.php"<?= $_active === 'messages' ? ' class="active"' : '' ?>>Messages<?= $_dm_badge ?></a>
-        <?php endif; ?>
+        <?php /* My Events / Contacts / Messages now live in the account (avatar) menu */ ?>
         <?php if ($_nu && $_nu['role'] === 'admin'): ?>
             <a href="/admin_posts.php"<?= $_active === 'posts' ? ' class="active"' : '' ?>>Posts</a>
             <a href="/admin_settings.php"<?= $_active === 'site-settings' ? ' class="active"' : '' ?>>Site Settings<?php if ($_show_update_dot): ?> <span class="nav-update-dot" title="Update available: v<?= htmlspecialchars(get_setting('latest_version')) ?>"></span><?php endif; ?></a>
@@ -189,7 +200,7 @@ $_accent        = get_setting('accent_color', '');
 .nav-collapse-btn:hover{color:#fff;background:rgba(255,255,255,.1)}
 .nav-collapse-banner{max-height:38px;width:auto;cursor:pointer;padding:0;border:none;border-radius:0}
 nav.nav-collapsed .nav-collapsible{display:none !important}
-nav.nav-collapsed .nav-top{height:32px !important;padding:0 .5rem !important}
+nav.nav-collapsed .nav-top{height:42px !important;padding:0 .5rem !important}
 nav.nav-collapsed .nav-collapse-btn:not(.nav-collapse-banner){transform:rotate(180deg)}
 nav.nav-collapsed .nav-collapse-banner{max-height:24px}
 nav.nav-collapsed .nav-banner-img{max-height:24px !important}
@@ -204,6 +215,15 @@ nav.nav-collapsed .nav-top{justify-content:space-between}
 .nav-help-group.open .nav-help-sub{display:block}
 .nav-help-sub a{padding-left:1.85rem}
 .nav-update-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#f59e0b;margin-left:.35rem;vertical-align:middle;box-shadow:0 0 0 2px rgba(245,158,11,.25)}
+/* Account avatar button + personal dropdown */
+.nav-account-wrap{margin-right:.15rem}
+.nav-avatar-btn{position:relative;background:none;border:none;padding:0;cursor:pointer;line-height:0;border-radius:50%;display:inline-flex}
+.nav-avatar-btn .gn-avatar{box-shadow:0 0 0 2px rgba(255,255,255,.25)}
+.nav-avatar-btn:hover .gn-avatar{box-shadow:0 0 0 2px rgba(255,255,255,.55)}
+.nav-avatar-badge{position:absolute;top:-4px;right:-5px;background:#dc2626;color:#fff;font-size:.6rem;font-weight:700;border-radius:999px;padding:.08rem .3rem;line-height:1.2;min-width:.65rem;text-align:center}
+.nav-account-dropdown .nav-account-head{display:flex;align-items:center;gap:.55rem;padding:.7rem 1rem;border-bottom:1px solid rgba(255,255,255,.12);margin-bottom:.25rem}
+.nav-account-name{font-weight:700;font-size:.9rem;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nav-menu-count{background:#dc2626;color:#fff;font-size:.65rem;font-weight:700;border-radius:999px;padding:.05rem .35rem;margin-left:.35rem;vertical-align:middle}
 </style>
 <script>
 function toggleNavCollapse(){
@@ -221,6 +241,15 @@ function toggleNavCollapse(){
     }else if(localStorage.getItem('nav_collapsed')==='1'){
         nav.classList.add('nav-collapsed');
     }
+})();
+// Nav dropdowns: opening one closes the other; clicking outside closes both.
+(function(){
+    document.addEventListener('click', function(e){
+        var wrap = e.target.closest('.nav-dropdown-wrap');
+        document.querySelectorAll('.nav-dropdown-wrap .nav-dropdown').forEach(function(dd){
+            if (!wrap || dd.parentElement !== wrap) dd.style.display = 'none';
+        });
+    });
 })();
 </script>
 <script src="/nav.js" defer></script>

@@ -33,13 +33,22 @@ $q = $db->prepare("
 $q->execute([':me' => $uid]);
 $convos = array_values(array_filter($q->fetchAll(), fn($c) => $c['last_body'] !== null || !empty($c['is_group'])));
 
-// Pair partner ids (to hide from the "new message" picker) + display titles.
+// Pair partner ids (to hide from the "new message" picker) + display titles + avatars.
 $pairOther = [];
+$avq = $db->prepare('SELECT username, avatar_path FROM users WHERE id = ?');
 foreach ($convos as $i => $c) {
     $convos[$i]['display'] = dm_conversation_title($db, $c, $uid);
     if (empty($c['is_group']) && !empty($c['pair_key'])) {
         [$a, $b] = array_map('intval', explode(':', $c['pair_key']));
-        $pairOther[$a === $uid ? $b : $a] = true;
+        $otherId = $a === $uid ? $b : $a;
+        $pairOther[$otherId] = true;
+        // 1:1 row → the other user's avatar (photo or colored initial).
+        $avq->execute([$otherId]);
+        $ou = $avq->fetch();
+        $convos[$i]['avatar'] = avatar_html($ou['username'] ?? $convos[$i]['display'], $ou['avatar_path'] ?? null, 40);
+    } else {
+        // Group/event → colored initial of the group title.
+        $convos[$i]['avatar'] = avatar_html($convos[$i]['display'], null, 40);
     }
 }
 
@@ -123,16 +132,19 @@ $utc_tz    = new DateTimeZone('UTC');
             $href = '/message_thread.php?user=' . ($a === $uid ? $b : $a);
         }
     ?>
-    <a class="dm-row <?= (int)$c['unread'] > 0 ? 'unread' : '' ?>" href="<?= htmlspecialchars($href) ?>">
-        <div class="dm-top">
-            <span class="dm-name"><?= htmlspecialchars($c['display']) ?></span>
-            <?php if ($isGroup): ?><span class="dm-group-tag"><?= !empty($c['event_id']) ? 'Event' : 'Group' ?></span><?php endif; ?>
-            <?php if ((int)$c['unread'] > 0): ?><span class="dm-pill"><?= (int)$c['unread'] ?></span><?php endif; ?>
-            <span class="dm-when"><?= htmlspecialchars($when) ?></span>
+    <a class="dm-row <?= (int)$c['unread'] > 0 ? 'unread' : '' ?>" href="<?= htmlspecialchars($href) ?>" style="display:flex;gap:.65rem;align-items:center">
+        <?= $c['avatar'] ?>
+        <div style="flex:1;min-width:0">
+            <div class="dm-top">
+                <span class="dm-name"><?= htmlspecialchars($c['display']) ?></span>
+                <?php if ($isGroup): ?><span class="dm-group-tag"><?= !empty($c['event_id']) ? 'Event' : 'Group' ?></span><?php endif; ?>
+                <?php if ((int)$c['unread'] > 0): ?><span class="dm-pill"><?= (int)$c['unread'] ?></span><?php endif; ?>
+                <span class="dm-when"><?= htmlspecialchars($when) ?></span>
+            </div>
+            <?php if ($c['last_body'] !== null): ?>
+            <div class="dm-snippet"><?= $isGroup && $c['last_sender'] ? htmlspecialchars($c['last_sender']) . ': ' : '' ?><?= htmlspecialchars(mb_substr((string)$c['last_body'], 0, 160)) ?></div>
+            <?php endif; ?>
         </div>
-        <?php if ($c['last_body'] !== null): ?>
-        <div class="dm-snippet"><?= $isGroup && $c['last_sender'] ? htmlspecialchars($c['last_sender']) . ': ' : '' ?><?= htmlspecialchars(mb_substr((string)$c['last_body'], 0, 160)) ?></div>
-        <?php endif; ?>
     </a>
     <?php endforeach; ?>
     <?php endif; ?>

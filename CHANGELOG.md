@@ -4,6 +4,19 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2041] - 2026-07-22
+
+### Added
+- **User avatars + a redesigned account area in the nav.** The username text in the nav became a circular avatar — an uploaded profile photo, or the user's first initial on a color deterministically derived from their name (the same person always gets the same color; the PHP and JS color hashes are kept in sync so server- and client-rendered avatars match exactly). Clicking the avatar opens a personal menu: name header, Notifications and Messages (each with its own unread count), My Events, Contacts, My Settings, and Sign out — all moved out of the hamburger, which now holds only site navigation (Home/Leagues/Calendar/Timer/admin/Help). The standalone notification bell is gone; a single red counter in the avatar's corner shows notifications + messages combined, updated live by the existing `_footer.php` poller. Opening one nav menu closes the other, and clicking outside closes both. On desktop the top links row slimmed to Home/Leagues/Calendar.
+- **Profile photo upload.** A photo section in Settings > Profile lets users upload (reusing the shared image uploader — content-sniffed, 8 MB cap) or remove a photo; no photo falls back to the colored initial. New nullable `users.avatar_path` column; `set_avatar`/`remove_avatar` actions validate the stored path against exactly what `upload.php` issues.
+- **Avatars rolled out across the app.** The shared `avatar_html()` (PHP) / `gnAvatarHtml()` (avatar.js) helper replaced the old flat-grey initial circles in post, league, and event comments, added avatars to the messages list (the other person's photo, or a colored group circle) and group message-thread bubbles (sender avatar, live-appended ones included via a new `avatar_path` field in the `since` payload), and to event rosters ("who's coming"). The dense manager invite grid stays text-only, and 1:1 message bubbles omit per-message avatars, by design.
+
+### Changed
+- **Avatar colors are dark enough for readable white initials.** The generated background is `hsl(hue, 60%, 30%)`, which clears the WCAG AA 4.5:1 contrast bar for white text at every hue (the previous lighter value washed out some colors). Uploaded photos with transparency now honor their alpha channel (the grey fallback fill behind avatar images was removed).
+- **The collapsed nav bar grew from 32px to 42px** so the 34px avatar seats cleanly inside it instead of overflowing top and bottom when the nav is collapsed.
+
+---
+
 ## [v0.2040] - 2026-07-22
 
 ### Fixed

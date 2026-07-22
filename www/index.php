@@ -77,7 +77,7 @@ $post_comments = [];
 if (!empty($posts)) {
     $pids = array_column($posts, 'id');
     $ph   = implode(',', array_fill(0, count($pids), '?'));
-    $cs   = $db->prepare("SELECT c.*, u.username FROM comments c JOIN users u ON u.id=c.user_id WHERE c.type='post' AND c.content_id IN ($ph) ORDER BY c.created_at ASC");
+    $cs   = $db->prepare("SELECT c.*, u.username, u.avatar_path FROM comments c JOIN users u ON u.id=c.user_id WHERE c.type='post' AND c.content_id IN ($ph) ORDER BY c.created_at ASC");
     $cs->execute($pids);
     foreach ($cs->fetchAll() as $c) $post_comments[$c['content_id']][] = $c;
 }

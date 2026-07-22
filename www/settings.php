@@ -19,7 +19,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $action = $_POST['action'] ?? '';
 
-        if ($action === 'update_profile') {
+        if ($action === 'set_avatar') {
+            // Path comes from upload.php (validated to its exact output shape).
+            $path = trim($_POST['avatar_path'] ?? '');
+            if (preg_match('#^/uploads/[a-f0-9]{32}\.(jpg|png|gif|webp)\z#', $path)) {
+                $db->prepare('UPDATE users SET avatar_path = ? WHERE id = ?')->execute([$path, $current['id']]);
+                db_log_activity($current['id'], 'set profile photo');
+                $flash = ['type' => 'success', 'msg' => 'Profile photo updated.'];
+            } else {
+                $flash = ['type' => 'error', 'msg' => 'That image could not be used.'];
+            }
+        }
+        elseif ($action === 'remove_avatar') {
+            $db->prepare('UPDATE users SET avatar_path = NULL WHERE id = ?')->execute([$current['id']]);
+            db_log_activity($current['id'], 'removed profile photo');
+            $flash = ['type' => 'success', 'msg' => 'Profile photo removed.'];
+        }
+        elseif ($action === 'update_profile') {
             $username = trim($_POST['username'] ?? '');
             $email    = strtolower(trim($_POST['email'] ?? ''));
             $phone    = trim($_POST['phone'] ?? '');
@@ -258,6 +274,50 @@ $site_name = get_setting('site_name', 'Game Night');
         <div class="card" style="max-width:100%">
             <h2>Profile</h2>
             <p class="subtitle">Update your name and email address.</p>
+
+            <!-- Profile photo -->
+            <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.1rem">
+                <span id="stAvatarPreview"><?= avatar_html($current['username'], $current['avatar_path'] ?? null, 64) ?></span>
+                <div>
+                    <div style="font-size:.85rem;font-weight:600;color:#475569;margin-bottom:.35rem">Profile photo</div>
+                    <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+                        <button type="button" class="btn btn-outline" style="font-size:.82rem" onclick="document.getElementById('stAvatarFile').click()">Upload photo</button>
+                        <input type="file" id="stAvatarFile" accept="image/*" style="display:none">
+                        <?php if (!empty($current['avatar_path'])): ?>
+                        <form method="post" action="/settings.php" style="margin:0" onsubmit="return pkConfirmForm(this, 'Remove your profile photo?', {okLabel:'Remove', danger:true})">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                            <input type="hidden" name="action" value="remove_avatar">
+                            <button type="submit" class="btn btn-outline" style="font-size:.82rem;color:#dc2626;border-color:#fecaca">Remove</button>
+                        </form>
+                        <?php endif; ?>
+                    </div>
+                    <div style="font-size:.75rem;color:#94a3b8;margin-top:.3rem">JPEG/PNG/GIF/WebP, up to 8&nbsp;MB. No photo shows your initial in a colored circle.</div>
+                </div>
+            </div>
+            <form id="stAvatarForm" method="post" action="/settings.php" style="display:none">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                <input type="hidden" name="action" value="set_avatar">
+                <input type="hidden" name="avatar_path" id="stAvatarPath">
+            </form>
+            <script>
+            document.getElementById('stAvatarFile').addEventListener('change', function () {
+                var f = this.files && this.files[0];
+                if (!f) return;
+                var fd = new FormData();
+                fd.append('csrf_token', <?= json_encode($token) ?>);
+                fd.append('image', f);
+                var self = this;
+                fetch('/upload.php', { method: 'POST', body: fd, credentials: 'same-origin' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (j) {
+                        if (!j.url) { pkAlert(j.error || 'Upload failed.'); self.value = ''; return; }
+                        document.getElementById('stAvatarPath').value = j.url;
+                        document.getElementById('stAvatarForm').submit();
+                    })
+                    .catch(function () { pkAlert('Upload failed.'); self.value = ''; });
+            });
+            </script>
+
             <form method="post" action="/settings.php">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <input type="hidden" name="action" value="update_profile">

@@ -1314,7 +1314,7 @@ function ordinal($n) {
             </div>
         <?php else: foreach ($leaguePosts as $lp):
             $lp_can_edit = user_can_edit_post($db, $lp, $uid, $isAdmin);
-            $lp_comments_stmt = $db->prepare("SELECT c.*, u.username FROM comments c JOIN users u ON u.id = c.user_id WHERE c.type='post' AND c.content_id = ? ORDER BY c.created_at ASC");
+            $lp_comments_stmt = $db->prepare("SELECT c.*, u.username, u.avatar_path FROM comments c JOIN users u ON u.id = c.user_id WHERE c.type='post' AND c.content_id = ? ORDER BY c.created_at ASC");
             $lp_comments_stmt->execute([$lp['id']]);
             $lp_comments = $lp_comments_stmt->fetchAll();
         ?>
@@ -1410,7 +1410,7 @@ function ordinal($n) {
                 <div class="comments-body" id="cmts-body-<?= (int)$lp['id'] ?>" style="display:none;margin-top:.65rem">
                     <?php foreach ($lp_comments as $c): ?>
                     <div class="comment" style="display:flex;gap:.6rem;margin-bottom:.6rem">
-                        <div class="comment-avatar" style="width:30px;height:30px;border-radius:50%;background:#e2e8f0;color:#475569;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:.85rem;flex-shrink:0"><?= htmlspecialchars(mb_substr($c['username'], 0, 1)) ?></div>
+                        <?= avatar_html($c['username'], $c['avatar_path'] ?? null, 30) ?>
                         <div class="comment-content" style="flex:1;min-width:0">
                             <div style="font-size:.75rem;color:#94a3b8;margin-bottom:.15rem">
                                 <strong style="color:#334155"><?= htmlspecialchars($c['username']) ?></strong>

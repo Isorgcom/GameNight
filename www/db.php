@@ -940,6 +940,8 @@ JSON;
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_user_notif ON user_notifications(user_id, is_read, id)"); } catch (Exception $e) {}
     // Per-category outbound notification preferences (JSON; absent key = enabled).
     try { $pdo->exec("ALTER TABLE users ADD COLUMN notify_prefs TEXT"); } catch (Exception $e) {}
+    // Profile photo path ('/uploads/<name>'); NULL = show a colored initial.
+    try { $pdo->exec("ALTER TABLE users ADD COLUMN avatar_path TEXT"); } catch (Exception $e) {}
 
     // Per-contact invite channel: when a contact has both an email and a phone,
     // the owner picks which one invites go to ('email' or 'sms'). Registered
@@ -2147,6 +2149,40 @@ function get_site_url(): string {
  * SMS provider calls use a separate helper, sms_normalize_phone(), which
  * converts the stored "XXX-XXX-XXXX" back to E.164 ("+1XXXXXXXXXX").
  */
+/**
+ * Deterministic hue (0-359) from a name, so a given user always gets the same
+ * avatar color. MUST stay in sync with gnAvatarHue() in avatar.js.
+ */
+function avatar_hue(string $name): int {
+    $s = strtolower(trim($name));
+    $len = strlen($s);
+    $h = 0;
+    for ($i = 0; $i < $len; $i++) {
+        $h = ($h * 31 + ord($s[$i])) & 0xFFFFFFFF;
+    }
+    return $len ? $h % 360 : 210;
+}
+
+/**
+ * A circular avatar: the user's uploaded photo, or their first initial on a
+ * deterministic colored circle. Self-contained inline sizing so it drops in
+ * anywhere. MUST stay in sync with gnAvatarHtml() in avatar.js.
+ */
+function avatar_html(string $username, ?string $avatarPath = null, int $size = 32, string $extraClass = ''): string {
+    $cls = 'gn-avatar' . ($extraClass !== '' ? ' ' . $extraClass : '');
+    $dim = 'width:' . $size . 'px;height:' . $size . 'px';
+    if ($avatarPath && preg_match('#^/uploads/[a-zA-Z0-9._-]+$#', $avatarPath)) {
+        return '<img class="' . htmlspecialchars($cls) . '" src="' . htmlspecialchars($avatarPath)
+             . '" alt="' . htmlspecialchars($username) . '" style="' . $dim . '">';
+    }
+    $init = '?';
+    if (preg_match('/[a-z0-9]/i', $username, $m)) $init = strtoupper($m[0]);
+    $font = max(10, (int) round($size * 0.45));
+    return '<span class="' . htmlspecialchars($cls) . '" style="' . $dim . ';background:hsl('
+         . avatar_hue($username) . ',60%,30%);font-size:' . $font . 'px" aria-hidden="true">'
+         . htmlspecialchars($init) . '</span>';
+}
+
 function normalize_phone(string $phone): string {
     $phone  = trim($phone);
     $digits = preg_replace('/\D/', '', $phone);

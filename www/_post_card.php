@@ -98,7 +98,7 @@ $redir = '/' . ($monthFilter ? '?month=' . urlencode($monthFilter) : '') . '#pos
                 <input type="checkbox" class="comment-sel" value="<?= (int)$c['id'] ?>"
                        onchange="onSelChange(<?= (int)$post['id'] ?>)">
                 <?php endif; ?>
-                <div class="comment-avatar"><?= htmlspecialchars(mb_substr($c['username'], 0, 1)) ?></div>
+                <?= avatar_html($c['username'], $c['avatar_path'] ?? null, 34) ?>
                 <div class="comment-content">
                     <div class="comment-meta">
                         <strong><?= htmlspecialchars($c['username']) ?></strong>

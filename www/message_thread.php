@@ -72,7 +72,7 @@ $messages = [];
 if ($conv) {
     $me = dm_participant($db, (int)$conv['id'], $uid);
     $mark = max((int)($me['cleared_before_id'] ?? 0), 0);
-    $q = $db->prepare('SELECT m.id, m.sender_id, m.body, m.created_at, u.username
+    $q = $db->prepare('SELECT m.id, m.sender_id, m.body, m.created_at, u.username, u.avatar_path
                        FROM dm_messages m JOIN users u ON u.id = m.sender_id
                        WHERE m.conversation_id = ? AND m.id > ? ORDER BY m.id');
     $q->execute([(int)$conv['id'], $mark]);
@@ -126,7 +126,7 @@ $lastId = $messages ? (int)end($messages)['id'] : 0;
         .dt-bubble.theirs { background:#f1f5f9; color:#1e293b; align-self:flex-start; border-bottom-left-radius:4px; }
         .dt-bubble.mine { background:#2563eb; color:#fff; align-self:flex-end; border-bottom-right-radius:4px; }
         .dt-bubble a { color:inherit; text-decoration:underline; word-break:break-all; }
-        .dt-sender { font-size:.68rem; font-weight:700; color:#7c3aed; margin-bottom:.15rem; }
+        .dt-sender { font-size:.68rem; font-weight:700; color:#7c3aed; margin-bottom:.15rem; display:flex; align-items:center; gap:.3rem; }
         .dt-when { font-size:.65rem; opacity:.65; margin-top:.2rem; }
         .dt-form { display:flex; gap:.5rem; align-items:flex-end; }
         .dt-form textarea { flex:1; min-height:64px; padding:.5rem .7rem; border:1.5px solid #e2e8f0; border-radius:10px; font-size:.9rem; font-family:inherit; resize:vertical; }
@@ -183,7 +183,7 @@ $lastId = $messages ? (int)end($messages)['id'] : 0;
             try { $when = (new DateTime((string)$m['created_at'], $utc_tz))->setTimezone($viewer_tz)->format('M j g:ia'); }
             catch (Throwable $e) { $when = ''; }
         ?>
-        <div class="dt-bubble <?= $mine ? 'mine' : 'theirs' ?>"><?php if ($isGroup && !$mine): ?><div class="dt-sender"><?= htmlspecialchars($m['username']) ?></div><?php endif; ?><?= dm_linkify($m['body']) ?><div class="dt-when"><?= htmlspecialchars($when) ?></div></div>
+        <div class="dt-bubble <?= $mine ? 'mine' : 'theirs' ?>"><?php if ($isGroup && !$mine): ?><div class="dt-sender"><?= avatar_html($m['username'], $m['avatar_path'] ?? null, 16) ?> <?= htmlspecialchars($m['username']) ?></div><?php endif; ?><?= dm_linkify($m['body']) ?><div class="dt-when"><?= htmlspecialchars($when) ?></div></div>
         <?php endforeach; endif; ?>
     </div>
 
@@ -227,7 +227,8 @@ function appendBubble(m) {
     var html = '';
     if (IS_GROUP && !m.mine && m.sender) {
         var senderEsc = String(m.sender).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        html += '<div class="dt-sender">' + senderEsc + '</div>';
+        var av = (typeof window.gnAvatarHtml === 'function') ? window.gnAvatarHtml(m.sender, m.avatar_path, 16) + ' ' : '';
+        html += '<div class="dt-sender">' + av + senderEsc + '</div>';
     }
     html += linkify(m.body);
     d.innerHTML = html;

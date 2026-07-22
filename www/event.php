@@ -98,7 +98,7 @@ if ($token === '' && $page_eid > 0) {
     $psRow = $psq->fetch();
 
     // Comments (registered users only, newest last — same order as the modal)
-    $cq = $db->prepare("SELECT c.id, c.user_id, c.body, c.created_at, u.username
+    $cq = $db->prepare("SELECT c.id, c.user_id, c.body, c.created_at, u.username, u.avatar_path
                         FROM comments c JOIN users u ON u.id = c.user_id
                         WHERE c.type = 'event' AND c.content_id = ?
                         ORDER BY c.created_at ASC, c.id ASC");
@@ -326,10 +326,21 @@ if ($token === '' && $page_eid > 0) {
         <div id="evInvPanel" style="margin-top:1.25rem;padding-top:1.1rem;border-top:1px solid #e2e8f0"></div>
         <?php elseif (empty($ev['hide_guest_list'])): ?>
         <div style="margin-top:1.25rem;padding-top:1.1rem;border-top:1px solid #e2e8f0">
-            <?= ev_names_block('Going', $going, '#16a34a')
-              . ev_names_block('Maybe', $maybe, '#d97706')
-              . ev_names_block('Invited', $pendingR, '#64748b')
-              . ev_names_block("Can't make it", $declined, '#94a3b8') ?>
+            <?php
+            // Avatar map for registered attendees (lower(username) => path).
+            $rosterAvatars = [];
+            try {
+                $ra = $db->prepare("SELECT LOWER(u.username) AS n, u.avatar_path FROM event_invites i
+                                    JOIN users u ON LOWER(u.username) = LOWER(i.username)
+                                    WHERE i.event_id = ? AND i.occurrence_date IS NULL");
+                $ra->execute([$page_eid]);
+                foreach ($ra->fetchAll() as $r) $rosterAvatars[$r['n']] = $r['avatar_path'];
+            } catch (Throwable $e) {}
+            ?>
+            <?= ev_names_block('Going', $going, '#16a34a', $rosterAvatars)
+              . ev_names_block('Maybe', $maybe, '#d97706', $rosterAvatars)
+              . ev_names_block('Invited', $pendingR, '#64748b', $rosterAvatars)
+              . ev_names_block("Can't make it", $declined, '#94a3b8', $rosterAvatars) ?>
         </div>
         <?php elseif (count($going) > 0): ?>
         <div style="margin-top:1.25rem;padding-top:1.1rem;border-top:1px solid #e2e8f0;font-size:.9rem;color:#475569">
@@ -377,15 +388,18 @@ if ($token === '' && $page_eid > 0) {
             <?php foreach ($comments as $c):
                 $canModC = (int)$c['user_id'] === (int)$current['id'] || $isAdmin;
             ?>
-            <div class="evp-comment" id="evc-<?= (int)$c['id'] ?>">
-                <span class="who"><?= htmlspecialchars($c['username']) ?></span><span class="when"><?= htmlspecialchars($c['created_at']) ?></span>
-                <?php if ($canModC): ?>
-                <span style="float:right;display:inline-flex;gap:.3rem">
-                    <button type="button" title="Edit" onclick="editComment(<?= (int)$c['id'] ?>)" style="background:none;border:0;color:#94a3b8;cursor:pointer;font-size:.85rem;padding:0">&#9998;</button>
-                    <button type="button" title="Delete" onclick="deleteComment(<?= (int)$c['id'] ?>)" style="background:none;border:0;color:#94a3b8;cursor:pointer;font-size:.85rem;padding:0">&#x2715;</button>
-                </span>
-                <?php endif; ?>
-                <div class="body" id="evcb-<?= (int)$c['id'] ?>"><?= htmlspecialchars($c['body']) ?></div>
+            <div class="evp-comment" id="evc-<?= (int)$c['id'] ?>" style="display:flex;gap:.5rem;align-items:flex-start">
+                <?= avatar_html($c['username'], $c['avatar_path'] ?? null, 28) ?>
+                <div style="flex:1;min-width:0">
+                    <span class="who"><?= htmlspecialchars($c['username']) ?></span><span class="when"><?= htmlspecialchars($c['created_at']) ?></span>
+                    <?php if ($canModC): ?>
+                    <span style="float:right;display:inline-flex;gap:.3rem">
+                        <button type="button" title="Edit" onclick="editComment(<?= (int)$c['id'] ?>)" style="background:none;border:0;color:#94a3b8;cursor:pointer;font-size:.85rem;padding:0">&#9998;</button>
+                        <button type="button" title="Delete" onclick="deleteComment(<?= (int)$c['id'] ?>)" style="background:none;border:0;color:#94a3b8;cursor:pointer;font-size:.85rem;padding:0">&#x2715;</button>
+                    </span>
+                    <?php endif; ?>
+                    <div class="body" id="evcb-<?= (int)$c['id'] ?>"><?= htmlspecialchars($c['body']) ?></div>
+                </div>
             </div>
             <?php endforeach; ?>
             <form method="post" action="/comment.php" style="margin-top:.75rem;display:flex;gap:.5rem;align-items:flex-start">
@@ -896,13 +910,14 @@ $btn_meta  = [
     'no'    => ['No',    '#dc2626'],
 ];
 
-function ev_names_block(string $label, array $names, string $color): string {
+function ev_names_block(string $label, array $names, string $color, array $avatars = []): string {
     if (empty($names)) return '';
     $out  = '<div style="margin-top:1rem"><div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:' . $color . ';margin-bottom:.35rem">'
           . htmlspecialchars($label) . ' (' . count($names) . ')</div>';
     $out .= '<div style="display:flex;flex-wrap:wrap;gap:.35rem">';
     foreach ($names as $n) {
-        $out .= '<span style="font-size:.85rem;color:#334155;background:#f1f5f9;border-radius:999px;padding:.2rem .7rem">' . htmlspecialchars($n) . '</span>';
+        $av = $avatars ? avatar_html($n, $avatars[strtolower($n)] ?? null, 20) . ' ' : '';
+        $out .= '<span style="display:inline-flex;align-items:center;gap:.35rem;font-size:.85rem;color:#334155;background:#f1f5f9;border-radius:999px;padding:.2rem .7rem .2rem ' . ($av ? '.3rem' : '.7rem') . '">' . $av . htmlspecialchars($n) . '</span>';
     }
     return $out . '</div></div>';
 }
