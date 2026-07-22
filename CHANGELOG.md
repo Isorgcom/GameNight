@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2040] - 2026-07-22
+
+### Fixed
+- **The event editor's invite panes are side-by-side again on desktop** (regression from the v0.2038 mobile pass). A stray `}` in the `event_edit.php` stylesheet closed the `@media (max-width:1024px)` block early, so the mobile "stack the panes" rule (`.edit-invite-panel { grid-template-columns:1fr }`) leaked out of the media query and applied at every width — leaving All Users and Invited stacked on top of each other even on large screens. The brace is restored, so the two panes (with the arrow column between them) render side-by-side at ≥1024px and stack only on small screens, where the tap-to-invite + sticky-save flow stays.
+
+---
+
 ## [v0.2039] - 2026-07-21
 
 ### Security

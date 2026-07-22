@@ -338,12 +338,12 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
             .edit-actions-mobile { display:flex;gap:.5rem;position:sticky;bottom:0;background:#fff;
                 padding:.65rem .25rem;border-top:1.5px solid #e2e8f0;z-index:40; }
             .edit-actions-mobile .btn { flex:1;text-align:center; }
-        }
             .evedit-wrap { margin:.5rem auto;padding:0 .5rem; }
             .evedit-card { height:auto;min-height:0; }
             .evedit-card form { overflow-y:visible; }
             .edit-top-bar { gap:.5rem;padding:.5rem .75rem; }
             .edit-top-bar .edit-title-input { flex:1 1 100%;min-width:0; }
+            /* Stack the two panes only on small screens; side-by-side above. */
             .edit-invite-panel { grid-template-columns:1fr;height:auto;padding:0 .75rem; }
             .invite-arrows { flex-direction:row;justify-content:center;padding:.25rem 0; }
             .arrow-desktop { display:none; }
