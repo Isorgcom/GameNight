@@ -32,7 +32,11 @@ services:
     volumes:
       - ./waha_data:/app/.sessions
     environment:
-      - WHATSAPP_DEFAULT_ENGINE=NOWEB
+      # GOWS (whatsmeow/Go) since 2026-07-28: WhatsApp started rejecting the
+      # NOWEB/Baileys login handshake outright (no QR possible) — a known,
+      # unfixed breakage in that ecosystem. Switching engines requires a fresh
+      # QR link; the session store in ./waha_data carries over per engine.
+      - WHATSAPP_DEFAULT_ENGINE=GOWS
       - WHATSAPP_HOOK_URL=http://gamenight/wa_webhook.php?token=${WAHA_WEBHOOK_TOKEN}
       - WHATSAPP_HOOK_EVENTS=message
       - WAHA_PRINT_QR=false

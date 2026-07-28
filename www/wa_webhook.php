@@ -81,8 +81,11 @@ $fromRaw = $payload['from'] ?? '';
 $body    = trim($payload['body'] ?? '');
 
 if (str_contains($fromRaw, '@lid')) {
-    // LID format — extract phone from remoteJidAlt
-    $altJid = $payload['_data']['key']['remoteJidAlt'] ?? '';
+    // LID format — the real phone lives in an engine-specific alt-JID field:
+    // NOWEB puts it in _data.key.remoteJidAlt, GOWS in _data.Info.SenderAlt.
+    $altJid = $payload['_data']['key']['remoteJidAlt']
+           ?? $payload['_data']['Info']['SenderAlt']
+           ?? '';
     $from = preg_replace('/@s\.whatsapp\.net$/', '', $altJid);
 } else {
     $from = preg_replace('/@c\.us$/', '', $fromRaw);

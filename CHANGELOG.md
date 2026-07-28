@@ -4,6 +4,15 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2042] - 2026-07-28
+
+### Fixed
+- **WhatsApp moved to the GOWS engine after a 31-hour outage.** On 2026-07-27 WhatsApp began rejecting the NOWEB/Baileys engine's login handshake — first as a drop-and-reconnect flap every few minutes, then as outright login refusal where even a fresh QR registration failed (a known, unfixed breakage across the Baileys ecosystem). `docker-compose.yml` now sets `WHATSAPP_DEFAULT_ENGINE=GOWS` (whatsmeow/Go), which linked and worked immediately from the same host. Operator note: an engine switch starts with an empty session store — the session must be created via `POST /api/sessions` (the per-session `start` endpoint 404s) and re-linked by QR, which was done during the incident.
+- **Inbound WhatsApp parsing now understands GOWS payloads.** `wa_webhook.php` resolved LID-format senders (`…@lid`) only via NOWEB's `_data.key.remoteJidAlt`, so under GOWS the phone number came up empty and every inbound message (RSVPs, HELP, admin commands) was silently discarded before even being logged. The handler now also reads GOWS's `_data.Info.SenderAlt`.
+- **The WAHA watchdog can no longer be defeated by a flapping session.** During the outage's first 30 hours the session reconnected for ~3 minutes between drops, so the watchdog's 5-minute probes almost always read WORKING, the consecutive-fail streak reset every time, and no admin alert was ever sent. `waha_watchdog()` in `sms.php` now also counts bad probes in a rolling 6-hour window (alerting at 4, even non-consecutive), auto-restarts sessions stuck in STARTING for 3+ checks (previously only FAILED), adds a STARTING-specific hint to the alert email, and only declares recovery — clearing the alert dedup and flap counter — after 6 consecutive WORKING probes, so a flap can't re-trigger the alert email on every cycle. New site_settings keys: `waha_ok_streak`, `waha_flap_count`, `waha_flap_window_start`.
+
+---
+
 ## [v0.2041] - 2026-07-22
 
 ### Added

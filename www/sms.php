@@ -322,17 +322,25 @@ function waha_require_working_session(string $waha_url, string $session, string 
 /**
  * WAHA session watchdog — called from cron every ~5 minutes.
  *
- * The July 2026 outage taught us three things: WAHA never reconnects a FAILED
- * session on its own ("do not reconnect the session"), the start endpoint
- * rejects FAILED sessions with 422 so naive recovery loops spin forever, and
- * nothing told the admin WhatsApp had been down for days. This watchdog fixes
- * all three:
+ * The July 2026 outages taught us: WAHA never reconnects a FAILED session on
+ * its own ("do not reconnect the session"), the start endpoint rejects FAILED
+ * sessions with 422 so naive recovery loops spin forever, and nothing told
+ * the admin WhatsApp had been down for days. This watchdog fixes all three:
  *   - probes the session and stores its status (Activity tab reads it)
- *   - FAILED → issues the CORRECT recovery call (POST /sessions/{s}/restart),
- *     at most once per 10 minutes — transient drops self-heal this way
- *   - non-WORKING for 2+ consecutive checks (~10 min) → emails every admin,
- *     deduped to once per 24h, with status-specific instructions (a revoked
- *     device needs a human to re-scan the QR; no restart can fix that)
+ *   - FAILED, or STARTING for 3+ checks (a wedged reconnect loop) → issues
+ *     the CORRECT recovery call (POST /sessions/{s}/restart), at most once
+ *     per 10 minutes — transient drops self-heal this way
+ *   - non-WORKING for 2+ consecutive checks (~10 min), OR 4+ bad probes in a
+ *     rolling 6h window → emails every admin, deduped to once per 24h, with
+ *     status-specific instructions (a revoked device needs a human to
+ *     re-scan the QR; no restart can fix that)
+ *
+ * The rolling-window rule exists because a flapping session defeats the
+ * consecutive-streak rule: in the 2026-07-27 outage the session reconnected
+ * for ~3 minutes between drops, so 5-minute probes almost always read
+ * WORKING, the streak reset every time, and 30 hours passed with no alert.
+ * For the same reason, recovery (clearing the alert dedup + the flap
+ * counter) is only declared after 6 consecutive WORKING probes (~30 min).
  *
  * Self-arming: restarts/alerts only happen after the session has been seen
  * WORKING at least once, so installs that never use WhatsApp stay silent.
@@ -369,21 +377,44 @@ function waha_watchdog(): array {
     if ($status === 'WORKING') {
         set_setting('waha_seen_working', '1');
         set_setting('waha_fail_streak', '0');
-        if (get_setting('waha_down_alerted_at', '') !== '') {
-            set_setting('waha_down_alerted_at', '');
-            db_log_activity(0, "WAHA watchdog: session '$session' recovered — WORKING again");
+        $ok = (int)get_setting('waha_ok_streak', '0') + 1;
+        set_setting('waha_ok_streak', (string)$ok);
+        // Only declare recovery after ~30 min stable — a flapping session
+        // reads WORKING on most probes, and clearing the alert dedup on a
+        // single good probe would re-send the alert email on every drop.
+        if ($ok >= 6) {
+            set_setting('waha_flap_count', '0');
+            if (get_setting('waha_down_alerted_at', '') !== '') {
+                set_setting('waha_down_alerted_at', '');
+                db_log_activity(0, "WAHA watchdog: session '$session' recovered — WORKING again");
+            }
         }
         return $out;
     }
 
     if (get_setting('waha_seen_working', '0') !== '1') return $out; // never armed
 
+    set_setting('waha_ok_streak', '0');
     $streak = (int)get_setting('waha_fail_streak', '0') + 1;
     set_setting('waha_fail_streak', (string)$streak);
 
-    // Auto-restart FAILED sessions. Not SCAN_QR_CODE (needs a human scan),
-    // not STOPPED (may be a deliberate admin stop), not STARTING (in flight).
-    if ($status === 'FAILED') {
+    // Flap counter: bad probes in a rolling 6h window, deliberately NOT reset
+    // by a WORKING probe (that's the whole point — see function comment).
+    $winStart = (int)get_setting('waha_flap_window_start', '0');
+    if (time() - $winStart > 21600) {
+        set_setting('waha_flap_window_start', (string)time());
+        $flap = 1;
+    } else {
+        $flap = (int)get_setting('waha_flap_count', '0') + 1;
+    }
+    set_setting('waha_flap_count', (string)$flap);
+
+    // Auto-restart FAILED sessions, and STARTING ones stuck for 3+ checks
+    // (~15 min — a healthy start takes seconds; longer means a wedged
+    // reconnect loop, e.g. WhatsApp rejecting the engine's login handshake).
+    // Not SCAN_QR_CODE (needs a human scan), not STOPPED (may be a
+    // deliberate admin stop).
+    if ($status === 'FAILED' || ($status === 'STARTING' && $streak >= 3)) {
         $lastRestart = (int)get_setting('waha_last_auto_restart', '0');
         if (time() - $lastRestart >= 600) {
             set_setting('waha_last_auto_restart', (string)time());
@@ -397,13 +428,14 @@ function waha_watchdog(): array {
             ]);
             curl_exec($ch);
             curl_close($ch);
-            db_log_activity(0, "WAHA watchdog: session '$session' FAILED — auto-restart issued (check #$streak)", 'critical');
+            db_log_activity(0, "WAHA watchdog: session '$session' $status — auto-restart issued (check #$streak)", 'critical');
             $out['action'] = 'restarted';
         }
     }
 
-    // Alert admins after 2+ consecutive bad checks, at most once per day.
-    if ($streak >= 2) {
+    // Alert admins after 2+ consecutive bad checks, or 4+ bad checks in the
+    // rolling 6h window (flapping), at most once per day.
+    if ($streak >= 2 || $flap >= 4) {
         $lastAlert = (int)get_setting('waha_down_alerted_at', '0');
         if (time() - $lastAlert >= 86400) {
             set_setting('waha_down_alerted_at', (string)time());
@@ -411,12 +443,16 @@ function waha_watchdog(): array {
             $hint = match ($status) {
                 'SCAN_QR_CODE' => 'The session needs a fresh link: open the WhatsApp tab in Site Settings and scan the QR with the WhatsApp phone (Settings → Linked devices → Link a device).',
                 'FAILED'       => 'The watchdog is auto-restarting it every 10 minutes. If it stays FAILED, WhatsApp has likely revoked the linked device — use Logout then Start on the WhatsApp tab and re-scan the QR.',
+                'STARTING'     => 'The session is stuck (re)starting. The watchdog auto-restarts it; if it does not recover, WhatsApp is likely rejecting the login — use Logout then Start on the WhatsApp tab and re-scan the QR.',
                 'UNREACHABLE'  => 'The WAHA container may be down. Check `docker ps` on the server and restart it if needed.',
                 default        => 'Check the WhatsApp tab in Site Settings.',
             };
+            $desc = $streak >= 2
+                ? 'has not been WORKING for at least ' . (int)($streak * 5) . ' minutes'
+                : 'is flapping — it failed ' . (int)$flap . ' status checks over the last few hours, reconnecting in between';
             $subject = 'WhatsApp notifications are down (session ' . $status . ')';
-            $html = '<p>The WhatsApp (WAHA) session <strong>' . htmlspecialchars($session) . '</strong> has not been WORKING for at least '
-                  . (int)($streak * 5) . ' minutes. Current status: <strong>' . htmlspecialchars($status) . '</strong>.</p>'
+            $html = '<p>The WhatsApp (WAHA) session <strong>' . htmlspecialchars($session) . '</strong> ' . $desc
+                  . '. Current status: <strong>' . htmlspecialchars($status) . '</strong>.</p>'
                   . '<p>' . htmlspecialchars($hint) . '</p>'
                   . '<p>Until it recovers, notifications to WhatsApp-preferred users are queued/retried and may be dropped after 3 attempts.</p>'
                   . '<p><a href="' . htmlspecialchars(get_site_url()) . '/admin_settings.php?tab=sms">Open WhatsApp settings</a></p>';
@@ -424,7 +460,8 @@ function waha_watchdog(): array {
             foreach ($admins as $a) {
                 send_email($a['email'], $a['username'], $subject, $html);
             }
-            db_log_activity(0, "WAHA watchdog: alerted " . count($admins) . " admin(s) — session $status for ~" . ($streak * 5) . " min", 'critical');
+            $why = $streak >= 2 ? "for ~" . ($streak * 5) . " min" : "flapping ($flap bad checks in 6h)";
+            db_log_activity(0, "WAHA watchdog: alerted " . count($admins) . " admin(s) — session $status $why", 'critical');
             $out['action'] .= ($out['action'] !== '' ? '+' : '') . 'alerted';
         }
     }
