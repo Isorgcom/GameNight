@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2043] - 2026-07-29
+
+### Changed
+- **Contacts page shows row numbers and a prominent total.** User feedback: with ~30 contacts entered there was "no numbers" on the page — the existing count did exist but was small grey text at the far end of the toolbar, and it went unnoticed. Following the numbered-list pattern from the event invite panel, every row in the contacts table now carries a sequence number in a new leading `#` column, and the total moved into the page heading ("My Contacts (32)"). The redundant toolbar count was removed. `www/contacts.php` only; no schema or endpoint changes.
+
+---
+
 ## [v0.2042] - 2026-07-28
 
 ### Fixed

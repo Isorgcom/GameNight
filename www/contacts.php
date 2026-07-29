@@ -59,6 +59,7 @@ $prefLabels = ['email' => 'Email', 'sms' => 'Text', 'whatsapp' => 'WhatsApp', 'b
         #cGrid tr.c-pending td { background: #fffbeb33; }
         #cGrid tr.c-pending:hover td { background: #fef3c7; }
 
+        .c-num-col { width: 44px; text-align: right; color: #94a3b8; font-weight: 600; }
         .c-status-col { width: 100px; text-align: center; }
         .c-name-col { min-width: 160px; }
         .c-phone-col { width: 150px; }
@@ -93,7 +94,7 @@ $prefLabels = ['email' => 'Email', 'sms' => 'Text', 'whatsapp' => 'WhatsApp', 'b
 <div class="c-wrap">
     <div class="c-header">
         <div>
-            <h1>My Contacts</h1>
+            <h1>My Contacts <span style="color:#94a3b8;font-weight:600">(<?= count($contacts) ?>)</span></h1>
             <p>Your private address book. Only visible to you — never shared with other users.</p>
         </div>
     </div>
@@ -101,7 +102,6 @@ $prefLabels = ['email' => 'Email', 'sms' => 'Text', 'whatsapp' => 'WhatsApp', 'b
     <div class="c-toolbar">
         <a class="c-btn c-btn-ghost" href="/contacts_dl.php?action=export">&#8681; Export CSV</a>
         <button class="c-btn c-btn-ghost" type="button" onclick="document.getElementById('cImport').classList.toggle('open')">&#8679; Import CSV</button>
-        <span style="color:#94a3b8;font-size:.78rem;margin-left:auto"><?= count($contacts) ?> contact<?= count($contacts) === 1 ? '' : 's' ?></span>
     </div>
 
     <div class="c-add-card">
@@ -142,6 +142,7 @@ $prefLabels = ['email' => 'Email', 'sms' => 'Text', 'whatsapp' => 'WhatsApp', 'b
     <table id="cGrid">
         <thead>
             <tr>
+                <th class="c-num-col">#</th>
                 <th class="c-status-col">Status</th>
                 <th class="c-name-col">Name</th>
                 <th>Email</th>
@@ -152,7 +153,7 @@ $prefLabels = ['email' => 'Email', 'sms' => 'Text', 'whatsapp' => 'WhatsApp', 'b
             </tr>
         </thead>
         <tbody>
-        <?php foreach ($contacts as $c):
+        <?php foreach ($contacts as $i => $c):
             // Linked only counts when the joined user actually still exists.
             $isLinked = !empty($c['linked_user_id']) && !empty($c['linked_username']);
             // No Message button for a contact card that is yourself.
@@ -161,6 +162,7 @@ $prefLabels = ['email' => 'Email', 'sms' => 'Text', 'whatsapp' => 'WhatsApp', 'b
             $hasBoth = !empty($c['contact_email']) && !empty($c['contact_phone']);
         ?>
             <tr data-contact-id="<?= $cid ?>"<?= $isLinked ? '' : ' class="c-pending"' ?> onclick="location.href='/contact_edit.php?id=<?= $cid ?>'" title="Click to edit this contact">
+                <td class="c-num-col"><?= $i + 1 ?></td>
                 <td class="c-status-col">
                     <?php if ($isLinked): ?>
                         <span class="c-badge c-badge-linked">Linked</span>
