@@ -83,7 +83,7 @@ if ($days_apart > 366) {
 }
 
 $stmt = $db->prepare(
-    "SELECT id, title, description, start_date, end_date, start_time, end_time,
+    "SELECT id, title, description, location, venue_name, start_date, end_date, start_time, end_time,
             color, is_poker, created_at
      FROM events
      WHERE league_id = ?
@@ -120,6 +120,7 @@ foreach ($rows as $r) {
         'title'             => (string)$r['title'],
         'description'       => (string)($r['description'] ?? ''),
         'location'          => (string)($r['location'] ?? ''),
+        'venue_name'        => (string)($r['venue_name'] ?? ''),
         'start_at'          => api_local_to_utc_iso((string)$r['start_date'], (string)($r['start_time'] ?? ''), $site_tz, $utc_tz),
         'end_at'            => api_local_to_utc_iso((string)($r['end_date'] ?? ''), (string)($r['end_time'] ?? ''), $site_tz, $utc_tz),
         'color'             => (string)$r['color'],
@@ -189,6 +190,12 @@ function handle_events_post(): void {
     if (mb_strlen($location) > 200) {
         api_log_request($key_id, 400);
         api_fail('location must be 200 characters or fewer', 400);
+    }
+
+    $venue_name = trim((string)($body['venue_name'] ?? ''));
+    if (mb_strlen($venue_name) > 120) {
+        api_log_request($key_id, 400);
+        api_fail('venue_name must be 120 characters or fewer', 400);
     }
 
     $site_tz = new DateTimeZone(get_setting('timezone', 'UTC'));
@@ -352,15 +359,16 @@ function handle_events_post(): void {
     try {
         $db->prepare(
             'INSERT INTO events (
-                title, description, location, start_date, end_date, start_time, end_time,
+                title, description, location, venue_name, start_date, end_date, start_time, end_time,
                 color, created_by, requires_approval,
                 league_id, visibility, is_poker, rsvp_deadline_hours, waitlist_enabled,
                 reminders_enabled, reminder_offsets, walkin_token
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         )->execute([
             $title,
             $description !== '' ? $description : null,
             $location !== '' ? $location : null,
+            $venue_name !== '' ? $venue_name : null,
             $start_date,
             $end_date,
             $start_time,
@@ -676,6 +684,12 @@ function handle_events_patch(): void {
         if (mb_strlen($l) > 200) { api_log_request($key_id, 400); api_fail('location must be 200 characters or fewer', 400); }
         $new = $l !== '' ? $l : null;
         if ($new !== ($current['location'] ?? null)) { $updates['location'] = $new; $fields_changed[] = 'location'; }
+    }
+    if (array_key_exists('venue_name', $body)) {
+        $v = trim((string)$body['venue_name']);
+        if (mb_strlen($v) > 120) { api_log_request($key_id, 400); api_fail('venue_name must be 120 characters or fewer', 400); }
+        $new = $v !== '' ? $v : null;
+        if ($new !== ($current['venue_name'] ?? null)) { $updates['venue_name'] = $new; $fields_changed[] = 'venue_name'; }
     }
     if (array_key_exists('color', $body)) {
         $c = (string)$body['color'];
@@ -1099,7 +1113,7 @@ function handle_events_get_one(): void {
     }
 
     $stmt = $db->prepare(
-        'SELECT id, title, description, start_date, end_date, start_time, end_time,
+        'SELECT id, title, description, location, venue_name, start_date, end_date, start_time, end_time,
                 color, is_poker, league_id, visibility, created_at
            FROM events WHERE id = ?'
     );
@@ -1132,6 +1146,7 @@ function handle_events_get_one(): void {
         'title'             => (string)$row['title'],
         'description'       => (string)($row['description'] ?? ''),
         'location'          => (string)($row['location'] ?? ''),
+        'venue_name'        => (string)($row['venue_name'] ?? ''),
         'start_at'          => api_local_to_utc_iso((string)$row['start_date'], (string)($row['start_time'] ?? ''), $site_tz, $utc_tz),
         'end_at'            => api_local_to_utc_iso((string)($row['end_date'] ?? ''), (string)($row['end_time'] ?? ''), $site_tz, $utc_tz),
         'color'             => (string)$row['color'],

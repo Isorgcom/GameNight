@@ -60,6 +60,22 @@ function generate_invite_code(): string {
 }
 
 /**
+ * Dedupe a base slug against the leagues table by appending -2, -3, ...
+ * Returns the first free variant (excluding $excludeId's own row).
+ */
+function league_unique_slug(PDO $db, string $base, int $excludeId = 0): string {
+    if ($base === '') $base = 'league';
+    $chk  = $db->prepare('SELECT 1 FROM leagues WHERE slug = ? AND id <> ?');
+    $slug = $base;
+    $n    = 2;
+    while (true) {
+        $chk->execute([$slug, $excludeId]);
+        if (!$chk->fetchColumn()) return $slug;
+        $slug = $base . '-' . $n++;
+    }
+}
+
+/**
  * Add ONE contact to a league using the same rules as the single "Add" action:
  * resolve to an existing user by email/phone (linked path: add as member +
  * "Added to {league}" notice) or create a pending invited member (pending path:
@@ -154,10 +170,11 @@ case 'create_league': {
     $db->beginTransaction();
     try {
         $ins = $db->prepare(
-            'INSERT INTO leagues (name, description, owner_id, default_visibility, approval_mode, is_hidden, invite_code)
-             VALUES (?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO leagues (name, description, owner_id, default_visibility, approval_mode, is_hidden, invite_code, slug)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
         );
-        $ins->execute([$name, $desc, $uid, $dv, $mode, $hidden, generate_invite_code()]);
+        $slug = league_unique_slug($db, league_slugify($name) ?: 'league');
+        $ins->execute([$name, $desc, $uid, $dv, $mode, $hidden, generate_invite_code(), $slug]);
         $league_id = (int)$db->lastInsertId();
         $db->prepare('INSERT INTO league_members (league_id, user_id, role) VALUES (?, ?, ?)')
             ->execute([$league_id, $uid, 'owner']);
@@ -183,7 +200,79 @@ case 'update_league': {
     $db->prepare(
         'UPDATE leagues SET name = ?, description = ?, default_visibility = ?, approval_mode = ?, is_hidden = ? WHERE id = ?'
     )->execute([$name, $desc, $dv, $mode, $hidden, $league_id]);
+    // Hiding a league kills its public landing page. (Kept as a separate statement:
+    // a CASE WHEN ? = 1 comparison fails in SQLite because PDO binds params as text.)
+    if ($hidden === 1) {
+        $db->prepare('UPDATE leagues SET public_page = 0 WHERE id = ?')->execute([$league_id]);
+    }
     db_log_activity($uid, "updated league id=$league_id");
+    ok();
+}
+
+case 'update_league_public': {
+    $league_id = (int)($_POST['league_id'] ?? 0);
+    league_role_or_fail($db, $league_id, $uid, ['owner'], $isAdmin);
+
+    $L = $db->prepare('SELECT name, is_hidden FROM leagues WHERE id = ?');
+    $L->execute([$league_id]);
+    $league = $L->fetch();
+    if (!$league) fail('League not found', 404);
+
+    $enable = !empty($_POST['public_page']) ? 1 : 0;
+    if ($enable && (int)$league['is_hidden'] === 1) {
+        fail('Hidden leagues cannot have a public page. Unhide the league first.');
+    }
+
+    $slug = strtolower(trim($_POST['slug'] ?? ''));
+    if ($slug === '') $slug = league_unique_slug($db, league_slugify((string)$league['name']) ?: 'league-' . $league_id, $league_id);
+    if (!preg_match('/^[a-z0-9](?:[a-z0-9-]{0,58}[a-z0-9])?$/', $slug)) {
+        fail('URL name can only use lowercase letters, numbers, and hyphens (no leading/trailing hyphen).');
+    }
+    if (in_array($slug, LEAGUE_RESERVED_SLUGS, true)) fail('That URL name is reserved. Pick another.');
+
+    $chk = $db->prepare('SELECT 1 FROM leagues WHERE slug = ? AND id <> ?');
+    $chk->execute([$slug, $league_id]);
+    if ($chk->fetchColumn()) fail('That URL name is already taken by another league.');
+
+    try {
+        $db->prepare('UPDATE leagues SET slug = ?, public_page = ? WHERE id = ?')
+            ->execute([$slug, $enable, $league_id]);
+    } catch (Throwable $e) {
+        // Unique-index backstop for a save race on the same slug.
+        fail('That URL name is already taken by another league.');
+    }
+    db_log_activity($uid, "updated public page for league id=$league_id (public_page=$enable, slug=$slug)");
+    ok(['slug' => $slug, 'public_page' => $enable, 'url' => get_site_url() . '/league/' . $slug]);
+}
+
+case 'league_banner_upload': {
+    $league_id = (int)($_POST['league_id'] ?? 0);
+    league_role_or_fail($db, $league_id, $uid, ['owner'], $isAdmin);
+
+    if (!isset($_FILES['banner']) || $_FILES['banner']['error'] !== UPLOAD_ERR_OK) fail('No file received.');
+    $tmp  = $_FILES['banner']['tmp_name'];
+    $mime = mime_content_type($tmp);
+    $allowed_mime = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp'];
+    if (!isset($allowed_mime[$mime]) || $_FILES['banner']['size'] > 4 * 1024 * 1024) {
+        fail('Invalid file. Use JPEG, PNG, GIF, or WebP under 4 MB.');
+    }
+    // Destination filename is fully server-controlled (league id + sniffed extension).
+    $ext  = $allowed_mime[$mime];
+    $dest = __DIR__ . '/uploads/league_banner_' . $league_id . '.' . $ext;
+    foreach (glob(__DIR__ . '/uploads/league_banner_' . $league_id . '.*') ?: [] as $old) { @unlink($old); }
+    if (!move_uploaded_file($tmp, $dest)) fail('Upload failed — check directory permissions.', 500);
+    $path = '/uploads/league_banner_' . $league_id . '.' . $ext;
+    $db->prepare('UPDATE leagues SET banner_path = ? WHERE id = ?')->execute([$path, $league_id]);
+    db_log_activity($uid, "uploaded banner for league id=$league_id");
+    ok(['banner_path' => $path]);
+}
+
+case 'league_banner_remove': {
+    $league_id = (int)($_POST['league_id'] ?? 0);
+    league_role_or_fail($db, $league_id, $uid, ['owner'], $isAdmin);
+    foreach (glob(__DIR__ . '/uploads/league_banner_' . $league_id . '.*') ?: [] as $f) { @unlink($f); }
+    $db->prepare('UPDATE leagues SET banner_path = NULL WHERE id = ?')->execute([$league_id]);
+    db_log_activity($uid, "removed banner for league id=$league_id");
     ok();
 }
 

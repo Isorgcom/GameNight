@@ -582,7 +582,7 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
     $seenStmt->execute([$event_id, $occ_key, strtolower($username), $type_tag]);
     if ($seenStmt->fetchColumn()) return true;
 
-    $evStmt = $db->prepare('SELECT id, title, description, location, start_date, end_date, start_time, end_time, created_by FROM events WHERE id = ?');
+    $evStmt = $db->prepare('SELECT id, title, description, location, venue_name, start_date, end_date, start_time, end_time, created_by FROM events WHERE id = ?');
     $evStmt->execute([$event_id]);
     $event = $evStmt->fetch();
     // For types like cancel_event where the event may already be deleted,
@@ -689,11 +689,15 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
     $subject = ''; $smsBody = ''; $htmlBody = ''; $waBody = null;
 
     // Location line shared by invite/reminder bodies (empty strings when unset).
-    $loc     = trim((string)($event['location'] ?? ''));
+    // Invitees get the full picture: "Venue Name, address" (either half optional).
+    $venue   = trim((string)($event['venue_name'] ?? ''));
+    $addr    = trim((string)($event['location'] ?? ''));
+    $loc     = trim($venue . ($venue !== '' && $addr !== '' ? ', ' : '') . $addr);
+    $mapsQ   = $addr !== '' ? $addr : $loc;
     $locSms  = $loc !== '' ? " Where: $loc." : '';
     $locHtml = $loc !== ''
         ? '<p style="color:#475569">&#128205; ' . htmlspecialchars($loc)
-          . ' &middot; <a href="https://www.google.com/maps/search/?api=1&query=' . urlencode($loc) . '">Open in Maps</a></p>'
+          . ' &middot; <a href="https://www.google.com/maps/search/?api=1&query=' . urlencode($mapsQ) . '">Open in Maps</a></p>'
         : '';
 
     switch ($type) {

@@ -424,8 +424,11 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                         <option value="5">5h</option><option value="6">6h</option><option value="8">8h</option>
                     </select>
                 </label>
-                <label style="flex:1;min-width:170px">Location
-                    <input type="text" name="location" id="eLocation" placeholder="Venue or address (optional)" maxlength="200" autocomplete="off">
+                <label style="flex:1;min-width:150px">Venue name
+                    <input type="text" name="venue_name" id="eVenue" placeholder="e.g. Mike's Garage (optional)" maxlength="120" autocomplete="off">
+                </label>
+                <label style="flex:1;min-width:170px">Address
+                    <input type="text" name="location" id="eLocation" placeholder="Street address (optional)" maxlength="200" autocomplete="off">
                 </label>
             </div>
 
@@ -1343,6 +1346,7 @@ function regenWalkinFromEdit() {
     document.getElementById('eStartDate').value = ev ? (ev.start_date_input || ev.start_date)
                                                      : (PREFILL_DATE || new Date().toLocaleDateString('en-CA'));
     setTimePicker(ev ? (ev.start_time_input || ev.start_time || '') : '');
+    document.getElementById('eVenue').value     = ev ? (ev.venue_name || '') : '';
     document.getElementById('eLocation').value  = ev ? (ev.location || '') : '';
     document.getElementById('eDesc').value      = ev ? (ev.description || '') : '';
     var hasDesc = ev && ev.description && ev.description.trim() !== '';

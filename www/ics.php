@@ -73,7 +73,10 @@ if ($all_day) {
 
 $title    = (string)$event['title'];
 $desc     = trim((string)($event['description'] ?? ''));
-$location = trim((string)($event['location'] ?? ''));
+// Invitee-facing ICS gets the full location: "Venue Name, address" (either half optional).
+$_venue   = trim((string)($event['venue_name'] ?? ''));
+$_addr    = trim((string)($event['location'] ?? ''));
+$location = trim($_venue . ($_venue !== '' && $_addr !== '' ? ', ' : '') . $_addr);
 
 // ── Google Calendar redirect ──────────────────────────────────────────────────
 if (!empty($_GET['google'])) {

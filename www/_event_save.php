@@ -154,6 +154,9 @@ function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allo
     $location = trim((string)($_POST['location'] ?? ''));
     if (strlen($location) > 200) $location = substr($location, 0, 200);
     $location = $location !== '' ? $location : null;
+    $venue_name = trim((string)($_POST['venue_name'] ?? ''));
+    if (strlen($venue_name) > 120) $venue_name = substr($venue_name, 0, 120);
+    $venue_name = $venue_name !== '' ? $venue_name : null;
 
     $is_poker = !empty($_POST['is_poker']) ? 1 : 0;
     if ($is_poker) require_once __DIR__ . '/_poker_helpers.php';
@@ -196,9 +199,9 @@ function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allo
 
     $new_invitee_usernames = [];
     if ($action === 'add') {
-        $db->prepare('INSERT INTO events (title, description, location, max_guests, start_date, end_date, start_time, end_time, color, created_by, is_poker, requires_approval, hide_guest_list, league_id, visibility, rsvp_deadline_hours, waitlist_enabled, reminders_enabled, reminder_offsets)
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-           ->execute([$title, $desc ?: null, $location, $max_guests, $sd, $ed, $st, $et, $color, $current['id'], $is_poker, $requires_approval, $hide_guest_list, $league_id, $visibility, $rsvp_deadline_hrs, $waitlist_enabled, $reminders_enabled, $reminder_offsets_json]);
+        $db->prepare('INSERT INTO events (title, description, location, venue_name, max_guests, start_date, end_date, start_time, end_time, color, created_by, is_poker, requires_approval, hide_guest_list, league_id, visibility, rsvp_deadline_hours, waitlist_enabled, reminders_enabled, reminder_offsets)
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+           ->execute([$title, $desc ?: null, $location, $venue_name, $max_guests, $sd, $ed, $st, $et, $color, $current['id'], $is_poker, $requires_approval, $hide_guest_list, $league_id, $visibility, $rsvp_deadline_hrs, $waitlist_enabled, $reminders_enabled, $reminder_offsets_json]);
         $notify_eid = (int)$db->lastInsertId();
         // Sticky poker default: remember this create choice for the user's next new event.
         $db->prepare('UPDATE users SET last_poker_default = ? WHERE id = ?')->execute([$is_poker, $current['id']]);
@@ -287,8 +290,8 @@ function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allo
         $oldRow->execute([$id]);
         $oldEv = $oldRow->fetch();
 
-        $db->prepare('UPDATE events SET title=?, description=?, location=?, max_guests=?, start_date=?, end_date=?, start_time=?, end_time=?, color=?, is_poker=?, requires_approval=?, hide_guest_list=?, league_id=?, visibility=?, rsvp_deadline_hours=?, waitlist_enabled=?, reminders_enabled=?, reminder_offsets=? WHERE id=?')
-           ->execute([$title, $desc ?: null, $location, $max_guests, $sd, $ed, $st, $et, $color, $is_poker, $requires_approval, $hide_guest_list, $league_id, $visibility, $rsvp_deadline_hrs, $waitlist_enabled, $reminders_enabled, $reminder_offsets_json, $id]);
+        $db->prepare('UPDATE events SET title=?, description=?, location=?, venue_name=?, max_guests=?, start_date=?, end_date=?, start_time=?, end_time=?, color=?, is_poker=?, requires_approval=?, hide_guest_list=?, league_id=?, visibility=?, rsvp_deadline_hours=?, waitlist_enabled=?, reminders_enabled=?, reminder_offsets=? WHERE id=?')
+           ->execute([$title, $desc ?: null, $location, $venue_name, $max_guests, $sd, $ed, $st, $et, $color, $is_poker, $requires_approval, $hide_guest_list, $league_id, $visibility, $rsvp_deadline_hrs, $waitlist_enabled, $reminders_enabled, $reminder_offsets_json, $id]);
 
         // If start/time, reminder toggle, or offsets changed — purge old queued reminders and mark event for re-queue.
         $reminder_context_changed = !$oldEv

@@ -769,7 +769,7 @@ $monthStart = $display->format('Y-m-01');
 $monthEnd   = $display->format('Y-m-') . $daysInMonth;
 
 // Fetch events that overlap the month (join leagues so the calendar cells can show a league tag)
-$_vis = event_visibility_sql('events', (int)$current['id']);
+$_vis = event_visibility_sql('events', $current ? (int)$current['id'] : null);
 $evQuery = $db->prepare(
     "SELECT events.*, leagues.name AS league_name FROM events
      LEFT JOIN leagues ON leagues.id = events.league_id
@@ -821,7 +821,7 @@ if ($viewMode === 'week') {
     $prevWk = (clone $wkStart)->modify('-7 days')->format('Y-m-d');
     $nextWk = (clone $wkStart)->modify('+7 days')->format('Y-m-d');
 
-    $_visW = event_visibility_sql('events', (int)$current['id']);
+    $_visW = event_visibility_sql('events', $current ? (int)$current['id'] : null);
     $wkEvQ = $db->prepare(
         "SELECT events.*, leagues.name AS league_name FROM events
          LEFT JOIN leagues ON leagues.id = events.league_id

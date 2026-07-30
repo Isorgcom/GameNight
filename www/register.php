@@ -41,6 +41,14 @@ $registered_method = 'email';
 $registered_phone  = '';
 $registered_uid    = 0;
 
+// Optional post-auth destination (e.g. a public league page carrying join intent).
+// Same validation rule as login.php: relative path only, no protocol-relative tricks.
+$redirect = $_POST['redirect'] ?? $_GET['redirect'] ?? '';
+if ($redirect === '' || !str_starts_with($redirect, '/') || str_starts_with($redirect, '//') || str_starts_with($redirect, '/\\')) {
+    $redirect = '';
+}
+$login_url = '/login.php' . ($redirect !== '' ? '?redirect=' . urlencode($redirect) : '');
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     session_start_safe();
     if (!csrf_verify()) {
@@ -157,6 +165,11 @@ $site_name = get_setting('site_name', 'Game Night');
         <p style="text-align:center;margin-top:1.25rem;font-size:.875rem;color:#64748b">
             Didn't get it? <a href="/resend_verification.php?<?= $__resend_query ?>">Resend verification email</a>
         </p>
+        <?php if ($redirect !== ''): ?>
+        <p style="text-align:center;margin-top:.5rem;font-size:.875rem;color:#64748b">
+            Once verified, <a href="<?= htmlspecialchars($login_url) ?>">sign in</a> to pick up where you left off.
+        </p>
+        <?php endif; ?>
 
         <?php elseif ($registered_phone !== '' && in_array($registered_method, ['sms', 'whatsapp'], true)): ?>
         <h2>Enter Verification Code</h2>
@@ -195,6 +208,9 @@ $site_name = get_setting('site_name', 'Game Night');
 
         <form method="post" action="/register.php" novalidate onsubmit="return validateRegister()">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+            <?php if ($redirect !== ''): ?>
+            <input type="hidden" name="redirect" value="<?= htmlspecialchars($redirect) ?>">
+            <?php endif; ?>
 
             <div class="form-group">
                 <label for="username">Username</label>
@@ -286,7 +302,7 @@ $site_name = get_setting('site_name', 'Game Night');
         </p>
 
         <p style="text-align:center;margin-top:.75rem;font-size:.875rem;color:#64748b">
-            Already have an account? <a href="/login.php">Sign in</a>
+            Already have an account? <a href="<?= htmlspecialchars($login_url) ?>">Sign in</a>
         </p>
         <?php endif; ?>
     </div>

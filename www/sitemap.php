@@ -15,6 +15,7 @@ $pages = [
     ['',                '1.0', 'weekly'],
     ['help-hosts.php',  '0.8', 'monthly'],
     ['help-guests.php', '0.8', 'monthly'],
+    ['league',          '0.7', 'weekly'],
     ['register.php',    '0.6', 'monthly'],
     ['login.php',       '0.3', 'yearly'],
     ['terms.php',       '0.2', 'yearly'],
@@ -29,4 +30,17 @@ foreach ($pages as [$path, $priority, $freq]) {
        . '<changefreq>' . $freq . '</changefreq>'
        . '<priority>' . $priority . '</priority></url>' . "\n";
 }
+
+// Public league landing pages (leagues that opted in via the settings toggle)
+try {
+    $pub = get_db()->query(
+        "SELECT slug FROM leagues
+         WHERE public_page = 1 AND is_hidden = 0 AND slug IS NOT NULL AND slug <> ''
+         ORDER BY slug"
+    )->fetchAll();
+    foreach ($pub as $r) {
+        echo '  <url><loc>' . htmlspecialchars($site . '/league/' . $r['slug'], ENT_QUOTES) . '</loc>'
+           . '<changefreq>weekly</changefreq><priority>0.6</priority></url>' . "\n";
+    }
+} catch (Exception $e) {}
 echo '</urlset>' . "\n";

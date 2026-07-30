@@ -290,6 +290,9 @@ foreach ($leagueEvents as $ev) {
     $end_t  = $ev['end_time'] ?: $ev['start_time'] ?: '23:59';
     $end_d  = $ev['end_date'] ?: $ev['start_date'];
     $end_dt = new DateTime($end_d . ' ' . $end_t, $ev_local_tz);
+    // No end time: assume a running game night lasts 4 hours so it stays in
+    // Upcoming while it's plausibly still going (mirrors my_events.php).
+    if (empty($ev['end_time']) && !empty($ev['start_time'])) $end_dt->modify('+4 hours');
     if ($end_dt >= $ev_now) {
         $leagueUpcoming[] = $ev;
     } elseif ($ev['start_date'] >= $lg_cutoff_past) {
@@ -1656,6 +1659,61 @@ function ordinal($n) {
             </div>
             <div id="inviteLinkFlash" style="display:none;margin-top:.4rem;font-size:.78rem;color:#16a34a">&#10003; Copied to clipboard.</div>
         </div>
+        <div class="lg-card" style="display:block">
+            <h3 style="margin:0 0 .5rem">Public page</h3>
+            <?php if ((int)$league['is_hidden'] === 1): ?>
+                <p style="font-size:.85rem;color:#64748b;margin:0">
+                    Hidden leagues can't have a public page. Unhide the league (in
+                    <a href="/league_edit.php?id=<?= $league_id ?>">league settings</a>) to enable one.
+                </p>
+            <?php else: ?>
+                <p style="font-size:.85rem;color:#64748b;margin:0 0 .75rem">
+                    Give your league a public landing page anyone can visit without logging in.
+                    It shows your league name, description, banner, upcoming event dates/times/titles/locations,
+                    posts you've shared with a public link, and a top-5 leaderboard with shortened names
+                    &mdash; never member contact info, attendee lists, or the invite link.
+                </p>
+                <label style="display:flex;align-items:center;gap:.5rem;font-size:.9rem;margin-bottom:.65rem">
+                    <input type="checkbox" id="ppEnabled" <?= (int)($league['public_page'] ?? 0) === 1 ? 'checked' : '' ?>>
+                    <span>Enable public page</span>
+                </label>
+                <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.5rem">
+                    <span style="font-family:ui-monospace,monospace;font-size:.82rem;color:#64748b"><?= htmlspecialchars(preg_replace('#^https?://#', '', get_site_url())) ?>/league/</span>
+                    <input type="text" id="ppSlug" value="<?= htmlspecialchars((string)($league['slug'] ?? '')) ?>"
+                           maxlength="60" autocomplete="off" spellcheck="false"
+                           style="flex:1;min-width:160px;padding:.5rem .6rem;border:1.5px solid #cbd5e1;border-radius:6px;font-family:ui-monospace,monospace;font-size:.82rem">
+                    <button class="lg-btn" type="button" onclick="savePublicPage()">Save</button>
+                </div>
+                <div id="ppUrlRow" style="<?= (int)($league['public_page'] ?? 0) === 1 ? '' : 'display:none;' ?>margin-bottom:.75rem">
+                    <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+                        <input type="text" id="ppUrlField" readonly
+                               value="<?= htmlspecialchars(get_site_url() . '/league/' . (string)($league['slug'] ?? '')) ?>"
+                               onclick="this.select()"
+                               style="flex:1;min-width:260px;padding:.5rem .6rem;border:1.5px solid #cbd5e1;border-radius:6px;font-family:ui-monospace,monospace;font-size:.82rem;background:#f8fafc;color:#334155">
+                        <button class="lg-btn" type="button" onclick="copyPublicUrl()">Copy</button>
+                        <a class="lg-btn lg-btn-ghost" id="ppOpenLink" target="_blank"
+                           href="/league/<?= htmlspecialchars((string)($league['slug'] ?? '')) ?>">Open</a>
+                    </div>
+                    <div id="ppUrlFlash" style="display:none;margin-top:.4rem;font-size:.78rem;color:#16a34a">&#10003; Copied to clipboard.</div>
+                </div>
+                <div id="ppStatus" style="display:none;font-size:.8rem;margin-bottom:.5rem"></div>
+                <div style="border-top:1px solid #e2e8f0;padding-top:.75rem;margin-top:.25rem">
+                    <div style="font-size:.85rem;font-weight:600;color:#475569;margin-bottom:.5rem">Banner image</div>
+                    <?php if (!empty($league['banner_path'])): ?>
+                        <img id="ppBannerPreview" src="<?= htmlspecialchars($league['banner_path']) ?>" alt="League banner"
+                             style="max-width:100%;max-height:140px;border-radius:8px;border:1px solid #e2e8f0;display:block;margin-bottom:.5rem">
+                    <?php endif; ?>
+                    <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+                        <input type="file" id="ppBannerFile" accept="image/jpeg,image/png,image/gif,image/webp" style="font-size:.82rem">
+                        <button class="lg-btn" type="button" onclick="uploadLeagueBanner()">Upload</button>
+                        <?php if (!empty($league['banner_path'])): ?>
+                            <button class="lg-btn lg-btn-ghost" type="button" onclick="removeLeagueBanner()">Remove</button>
+                        <?php endif; ?>
+                    </div>
+                    <div style="font-size:.75rem;color:#94a3b8;margin-top:.35rem">JPEG, PNG, GIF, or WebP up to 4 MB. Shown on the public page and in link previews.</div>
+                </div>
+            <?php endif; ?>
+        </div>
         <div class="lg-card" style="display:block;border-color:#fecaca">
             <h3 style="margin:0 0 .75rem;color:#dc2626">Danger zone</h3>
             <p style="font-size:.85rem;color:#64748b;margin:0 0 .75rem">Deleting a league is <strong>permanent</strong> and will also delete every event attached to it (including poker sessions, buy-ins, and results). You'll be shown a full summary before you confirm.</p>
@@ -1867,6 +1925,73 @@ function copyInviteLink() {
         setTimeout(function() { flash.style.display = 'none'; }, 1800);
     }
 }
+// ── Public page (settings tab) ───────────────────────────────────────────
+function ppFlash(msg, isError) {
+    var s = document.getElementById('ppStatus');
+    if (!s) return;
+    s.textContent = msg;
+    s.style.color = isError ? '#dc2626' : '#16a34a';
+    s.style.display = 'block';
+    setTimeout(function() { s.style.display = 'none'; }, 4000);
+}
+function savePublicPage() {
+    var enabled = document.getElementById('ppEnabled').checked ? 1 : 0;
+    var slug    = document.getElementById('ppSlug').value.trim();
+    post({ action: 'update_league_public', league_id: LEAGUE_ID, public_page: enabled, slug: slug }).then(function(j) {
+        if (!j.ok) { ppFlash(j.error || 'Failed', true); return; }
+        document.getElementById('ppSlug').value = j.slug;
+        var row = document.getElementById('ppUrlRow');
+        if (j.public_page) {
+            document.getElementById('ppUrlField').value = j.url;
+            document.getElementById('ppOpenLink').href = '/league/' + j.slug;
+            row.style.display = '';
+            ppFlash('Saved. Your public page is live.');
+        } else {
+            row.style.display = 'none';
+            ppFlash('Saved. Public page is off.');
+        }
+    });
+}
+function copyPublicUrl() {
+    var f = document.getElementById('ppUrlField');
+    if (!f) return;
+    f.select();
+    var ok = false;
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(f.value);
+            ok = true;
+        } else {
+            ok = document.execCommand('copy');
+        }
+    } catch (e) {}
+    if (ok) {
+        var flash = document.getElementById('ppUrlFlash');
+        flash.style.display = 'block';
+        setTimeout(function() { flash.style.display = 'none'; }, 1800);
+    }
+}
+function uploadLeagueBanner() {
+    var inp = document.getElementById('ppBannerFile');
+    if (!inp || !inp.files.length) { pkAlert('Choose an image file first.'); return; }
+    var fd = new FormData();
+    fd.append('csrf_token', CSRF);
+    fd.append('action', 'league_banner_upload');
+    fd.append('league_id', LEAGUE_ID);
+    fd.append('banner', inp.files[0]);
+    fetch('/leagues_dl.php', { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+            if (j.ok) location.reload(); else pkAlert(j.error || 'Upload failed');
+        });
+}
+async function removeLeagueBanner() {
+    if (!(await pkConfirm('Remove the league banner?'))) return;
+    post({ action: 'league_banner_remove', league_id: LEAGUE_ID }).then(function(j) {
+        if (j.ok) location.reload(); else pkAlert(j.error || 'Failed');
+    });
+}
+
 var LEAGUE_NAME = <?= json_encode($league['name']) ?>;
 
 function openDeleteLeague() {

@@ -1349,6 +1349,34 @@ JSON;
     // or shoulder-surfed QR/email link can't be replayed indefinitely.
     try { $pdo->exec("ALTER TABLE event_invites ADD COLUMN rsvp_token_flips INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
 
+    // ─── Public league landing pages (/league/<slug>) ───────────────────
+    // venue_name is the publishable half of an event's location: shown on public
+    // league pages/feeds, while `location` (street address) stays members-only.
+    try { $pdo->exec("ALTER TABLE events ADD COLUMN venue_name TEXT"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE leagues ADD COLUMN slug TEXT"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE leagues ADD COLUMN public_page INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE leagues ADD COLUMN banner_path TEXT"); } catch (Exception $e) {}
+    // Backfill slugs for pre-existing leagues (idempotent: only touches NULL/empty)
+    try {
+        $rows = $pdo->query("SELECT id, name FROM leagues WHERE slug IS NULL OR slug = ''")->fetchAll();
+        if ($rows) {
+            $chk = $pdo->prepare('SELECT 1 FROM leagues WHERE slug = ? AND id <> ?');
+            $upd = $pdo->prepare('UPDATE leagues SET slug = ? WHERE id = ?');
+            foreach ($rows as $r) {
+                $base = league_slugify((string)$r['name']);
+                if ($base === '') $base = 'league-' . (int)$r['id'];
+                $slug = $base; $n = 2;
+                while (true) {
+                    $chk->execute([$slug, (int)$r['id']]);
+                    if (!$chk->fetchColumn()) break;
+                    $slug = $base . '-' . $n++;
+                }
+                $upd->execute([$slug, (int)$r['id']]);
+            }
+        }
+    } catch (Exception $e) {}
+    try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_leagues_slug ON leagues(slug)"); } catch (Exception $e) {}
+
     // Seed default blind structure if none exists
     $presetCount = $pdo->query('SELECT COUNT(*) FROM blind_presets WHERE is_default = 1')->fetchColumn();
     if ((int)$presetCount === 0) {
@@ -2524,6 +2552,28 @@ function event_visibility_sql(string $alias = 'e', ?int $user_id = null): array 
            )
     )";
     return ['sql' => $sql, 'params' => [$user_id, $user_id, $user_id]];
+}
+
+/**
+ * Slugs that would collide with (or confusingly imitate) app routes if a league claimed them.
+ * Checked at slug-save time and by the db_init() backfill.
+ */
+const LEAGUE_RESERVED_SLUGS = ['new', 'edit', 'create', 'settings', 'admin', 'api', 'join', 'ics', 'feed', 'browse', 'login', 'register', 'public'];
+
+/**
+ * Build a URL slug from a league name: lowercase, ASCII, [a-z0-9-] only, max 60 chars.
+ * Returns '' if nothing usable remains (caller must supply a fallback).
+ */
+function league_slugify(string $name): string {
+    $s = strtolower(trim($name));
+    $t = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $s);
+    if ($t !== false && $t !== '') $s = strtolower($t);
+    $s = preg_replace('/[^a-z0-9]+/', '-', $s);
+    $s = trim(preg_replace('/-{2,}/', '-', $s), '-');
+    $s = substr($s, 0, 60);
+    $s = rtrim($s, '-');
+    if ($s !== '' && in_array($s, LEAGUE_RESERVED_SLUGS, true)) $s .= '-league';
+    return $s;
 }
 
 /**

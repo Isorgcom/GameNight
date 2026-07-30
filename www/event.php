@@ -206,10 +206,13 @@ if ($token === '' && $page_eid > 0) {
                 &middot; <?= count($going) ?><?= !empty($ev['max_guests']) ? '/' . (int)$ev['max_guests'] : '' ?> going
             <?php endif; ?>
         </div>
-        <?php if (!empty($ev['location'])): ?>
+        <?php if (!empty($ev['venue_name']) || !empty($ev['location'])): ?>
         <div style="font-size:.9rem;color:#475569;margin-top:.3rem">
-            &#128205; <?= htmlspecialchars($ev['location']) ?>
-            &middot; <a href="https://www.google.com/maps/search/?api=1&amp;query=<?= urlencode($ev['location']) ?>" target="_blank" rel="noopener">Open in Maps</a>
+            &#128205;
+            <?php if (!empty($ev['venue_name'])): ?><?= htmlspecialchars($ev['venue_name']) ?><?php endif; ?>
+            <?php if (!empty($ev['venue_name']) && !empty($ev['location'])): ?>&middot;<?php endif; ?>
+            <?php if (!empty($ev['location'])): ?><?= htmlspecialchars($ev['location']) ?><?php endif; ?>
+            &middot; <a href="https://www.google.com/maps/search/?api=1&amp;query=<?= urlencode($ev['location'] ?: $ev['venue_name']) ?>" target="_blank" rel="noopener">Open in Maps</a>
         </div>
         <?php endif; ?>
         <div style="font-size:.85rem;color:#64748b;margin-top:.35rem">
@@ -857,7 +860,7 @@ if ($token === '') {
 
 // ── Look up the invite + event by token ──────────────────────────────────────
 $stmt = $db->prepare('SELECT ei.id, ei.event_id, ei.username, ei.rsvp, ei.approval_status,
-                             e.title, e.description, e.location, e.start_date, e.start_time, e.end_time, e.hide_guest_list, e.created_by
+                             e.title, e.description, e.location, e.venue_name, e.start_date, e.start_time, e.end_time, e.hide_guest_list, e.created_by
                       FROM event_invites ei
                       JOIN events e ON e.id = ei.event_id
                       WHERE ei.rsvp_token = ?');
@@ -957,10 +960,13 @@ function ev_names_block(string $label, array $names, string $color, array $avata
         <?php if ($time_lbl !== ''): ?>
         <div style="font-size:.95rem;color:#475569"><?= $time_lbl ?></div>
         <?php endif; ?>
-        <?php if (!empty($invite['location'])): ?>
+        <?php if (!empty($invite['venue_name']) || !empty($invite['location'])): ?>
         <div style="font-size:.9rem;color:#475569;margin-top:.35rem">
-            &#128205; <?= htmlspecialchars($invite['location']) ?>
-            &middot; <a href="https://www.google.com/maps/search/?api=1&amp;query=<?= urlencode($invite['location']) ?>" target="_blank" rel="noopener">Open in Maps</a>
+            &#128205;
+            <?php if (!empty($invite['venue_name'])): ?><?= htmlspecialchars($invite['venue_name']) ?><?php endif; ?>
+            <?php if (!empty($invite['venue_name']) && !empty($invite['location'])): ?>&middot;<?php endif; ?>
+            <?php if (!empty($invite['location'])): ?><?= htmlspecialchars($invite['location']) ?><?php endif; ?>
+            &middot; <a href="https://www.google.com/maps/search/?api=1&amp;query=<?= urlencode($invite['location'] ?: $invite['venue_name']) ?>" target="_blank" rel="noopener">Open in Maps</a>
         </div>
         <?php endif; ?>
         <div style="font-size:.85rem;color:#64748b;margin-top:.45rem">

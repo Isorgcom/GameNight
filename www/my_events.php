@@ -61,6 +61,9 @@ foreach ($all_events as $ev) {
     $ev_end_time = $ev['end_time'] ?: $ev['start_time'] ?: '23:59';
     $ev_end_date = $ev['end_date'] ?: $ev['start_date'];
     $ev_end = new DateTime($ev_end_date . ' ' . $ev_end_time, $local_tz);
+    // No end time: assume a running game night lasts 4 hours so it stays in
+    // Upcoming while it's plausibly still going (mirrors league.php).
+    if (empty($ev['end_time']) && !empty($ev['start_time'])) $ev_end->modify('+4 hours');
     if ($ev_end >= $now) {
         $upcoming[] = $ev;
     } else {
