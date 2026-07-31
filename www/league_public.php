@@ -311,7 +311,8 @@ $autoJoin = $user && $myRole === null && !$pending && ($_GET['join'] ?? '') === 
         .lp-table td { padding: .55rem .8rem; border-bottom: 1px solid #f1f5f9; font-size: .92rem; color: #334155; }
         .lp-table tr:last-child td { border-bottom: none; }
         .lp-empty { color: #64748b; font-size: .9rem; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 10px; padding: 1rem; }
-        .lp-cal { margin-top: 1rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1rem; }
+        .lp-cal { margin: 0 0 1.25rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1rem; }
+        .lp-cal[hidden] { display: none; }
         .lp-cal-row { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
         .lp-cal-row input { flex: 1; min-width: 220px; padding: .5rem .6rem; border: 1px solid #cbd5e1; border-radius: 6px; font-family: ui-monospace, monospace; font-size: .78rem; background: #fff; color: #334155; }
         .lp-post { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.1rem 1.25rem; margin-bottom: .75rem; }
@@ -358,7 +359,27 @@ $autoJoin = $user && $myRole === null && !$pending && ($_GET['join'] ?? '') === 
     <div class="lp-sub">
         <span>&#128101; <?= $memberCount ?> member<?= $memberCount !== 1 ? 's' : '' ?></span>
         <span><?= $league['approval_mode'] === 'auto' ? '&#9989; Open to join' : '&#128274; Join by approval' ?></span>
-        <span>&#128197; <a href="#lp-cal" style="color:#2563eb;text-decoration:none">Subscribe to calendar</a></span>
+        <span>&#128197; <a href="#" id="lp-cal-toggle" role="button" aria-expanded="false" aria-controls="lp-cal"
+                          onclick="return lpToggleCal()" style="color:#2563eb;text-decoration:none">Subscribe to calendar <span id="lp-cal-caret">&#9662;</span></a></span>
+    </div>
+
+    <div class="lp-cal" id="lp-cal" hidden>
+        <div class="lp-cal-row">
+            <a class="lp-btn" href="<?= htmlspecialchars($webcalUrl) ?>">&#128197; Subscribe</a>
+            <a class="lp-btn secondary" href="<?= htmlspecialchars($icsUrl) ?>">Download .ics</a>
+        </div>
+        <div class="lp-note" style="margin:.6rem 0 .5rem">
+            <strong>Subscribe</strong> keeps the schedule up to date automatically on iPhone, iPad, Mac, and Outlook.
+            <strong>Download</strong> adds the current events once and won't update later.
+        </div>
+        <div class="lp-cal-row">
+            <input type="text" id="lp-cal-url" readonly value="<?= htmlspecialchars($icsUrl) ?>" onclick="this.select()">
+            <button class="lp-btn secondary" type="button" onclick="lpCopyCal()">Copy link</button>
+            <span class="lp-note" id="lp-cal-copied" style="display:none;color:#16a34a">&#10003; Copied</span>
+        </div>
+        <div class="lp-note" style="margin-top:.45rem">
+            For Google Calendar, paste that link into <em>Other calendars &rarr; From URL</em>.
+        </div>
     </div>
 
     <?php if (trim((string)$league['description']) !== ''): ?>
@@ -397,25 +418,6 @@ $autoJoin = $user && $myRole === null && !$pending && ($_GET['join'] ?? '') === 
                 <?php if (trim((string)$e['venue_name']) !== ''): ?><span class="lp-ev-meta">&#128205; <?= htmlspecialchars($e['venue_name']) ?></span><?php endif; ?>
             </div>
         <?php endforeach; endif; ?>
-
-        <div class="lp-cal" id="lp-cal">
-            <div class="lp-cal-row">
-                <a class="lp-btn" href="<?= htmlspecialchars($webcalUrl) ?>">&#128197; Subscribe</a>
-                <a class="lp-btn secondary" href="<?= htmlspecialchars($icsUrl) ?>">Download .ics</a>
-            </div>
-            <div class="lp-note" style="margin:.6rem 0 .5rem">
-                <strong>Subscribe</strong> keeps the schedule up to date automatically on iPhone, iPad, Mac, and Outlook.
-                <strong>Download</strong> adds the current events once and won't update later.
-            </div>
-            <div class="lp-cal-row">
-                <input type="text" id="lp-cal-url" readonly value="<?= htmlspecialchars($icsUrl) ?>" onclick="this.select()">
-                <button class="lp-btn secondary" type="button" onclick="lpCopyCal()">Copy link</button>
-                <span class="lp-note" id="lp-cal-copied" style="display:none;color:#16a34a">&#10003; Copied</span>
-            </div>
-            <div class="lp-note" style="margin-top:.45rem">
-                For Google Calendar, paste that link into <em>Other calendars &rarr; From URL</em>.
-            </div>
-        </div>
     </div>
 
     <?php if ($publicPosts): $post_tz = new DateTimeZone(get_setting('timezone', 'UTC')); ?>
@@ -460,6 +462,16 @@ $autoJoin = $user && $myRole === null && !$pending && ($_GET['join'] ?? '') === 
 </div>
 
 <script>
+function lpToggleCal() {
+    var box    = document.getElementById('lp-cal');
+    var link   = document.getElementById('lp-cal-toggle');
+    var caret  = document.getElementById('lp-cal-caret');
+    var open   = box.hasAttribute('hidden');
+    if (open) { box.removeAttribute('hidden'); } else { box.setAttribute('hidden', ''); }
+    link.setAttribute('aria-expanded', open ? 'true' : 'false');
+    caret.innerHTML = open ? '&#9652;' : '&#9662;';
+    return false;   // never navigate; this is a disclosure toggle, not a jump link
+}
 function lpCopyCal() {
     var f = document.getElementById('lp-cal-url');
     f.select();

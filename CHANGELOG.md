@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2047] - 2026-07-31
+
+### Changed
+- **The calendar options are a collapsible panel instead of a jump link.** "Subscribe to calendar" in the league header row was an `#lp-cal` anchor that scrolled the visitor to a block sitting below the events list, which read as the page lurching downward for no obvious reason. The panel now sits directly beneath the header row and starts collapsed; the link toggles it open in place with a caret that flips direction, and the handler returns false so the browser never navigates or writes a hash into the URL. The link carries `aria-expanded` / `aria-controls` so assistive tech announces a disclosure control rather than a link. Panel contents (Subscribe via `webcal://`, one-time Download .ics, and the copyable https URL for Google Calendar) are unchanged.
+
+---
+
 ## [v0.2046] - 2026-07-31
 
 ### Fixed
