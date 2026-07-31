@@ -4,6 +4,14 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2046] - 2026-07-31
+
+### Fixed
+- **"Subscribe to calendar" now actually subscribes instead of importing once.** The public league page linked straight to `https://…/league/<slug>.ics`, and iOS/iPadOS treats an `.ics` served over plain https as a document to import: it offers "Add All", copies the events in once, and keeps no connection to the URL. The feed was never static (`league_ics.php` regenerates it from the database on every request), but the link protocol was wrong. The Subscribe action now uses `webcal://`, the scheme Apple and Outlook recognize as "subscribe and keep polling", and the calendar block on the page splits into three clearly-labelled paths: **Subscribe** (webcal, stays current), **Download .ics** (https, one-time snapshot, previous behavior), and a copyable plain https URL for Google Calendar, which prefers a pasted link under *Other calendars → From URL* over a `webcal://` click. Copy wording states plainly which option updates and which does not; the header-row link now scrolls to that block rather than firing the import.
+- **Subscribed calendars were left to guess their refresh rate.** The feed carried no refresh hint, so clients chose their own interval and some default to daily or weekly, which makes a subscribed league schedule look stale. It now emits `REFRESH-INTERVAL;VALUE=DURATION:PT4H` (RFC 7986) alongside the older `X-PUBLISHED-TTL:PT4H` that Apple and Outlook honor, and sends `Cache-Control: no-cache, must-revalidate` so no intermediate proxy can serve a subscriber an outdated copy. Note that calendar subscriptions are pull-based regardless: a newly added game appears at the client's next refresh, not instantly.
+
+---
+
 ## [v0.2045] - 2026-07-31
 
 ### Added

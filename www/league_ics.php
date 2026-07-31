@@ -64,6 +64,11 @@ $lines = [
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'X-WR-CALNAME:' . ics_escape($league['name']),
+    // Tell subscribers how often to re-poll. Without these, clients guess, and some
+    // default to daily or weekly, which makes a subscribed calendar look stale.
+    // RFC 7986 property plus the older Apple/Outlook X- equivalent.
+    'REFRESH-INTERVAL;VALUE=DURATION:PT4H',
+    'X-PUBLISHED-TTL:PT4H',
 ];
 
 foreach ($events as $event) {
@@ -120,5 +125,8 @@ foreach ($lines as $line) {
 }
 
 header('Content-Type: text/calendar; charset=utf-8');
+// inline (not attachment) so calendar clients subscribe rather than download a copy.
 header('Content-Disposition: inline; filename="' . $league['slug'] . '.ics"');
+// Never let a proxy hand a subscriber a stale copy of the schedule.
+header('Cache-Control: no-cache, must-revalidate');
 echo $out;
