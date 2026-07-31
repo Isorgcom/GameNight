@@ -1699,9 +1699,12 @@ function ordinal($n) {
                 <div id="ppStatus" style="display:none;font-size:.8rem;margin-bottom:.5rem"></div>
                 <div style="border-top:1px solid #e2e8f0;padding-top:.75rem;margin-top:.25rem">
                     <div style="font-size:.85rem;font-weight:600;color:#475569;margin-bottom:.5rem">Banner image</div>
+                    <?php $ppFit = ($league['banner_fit'] ?? 'cover') === 'contain' ? 'contain' : 'cover'; ?>
                     <?php if (!empty($league['banner_path'])): ?>
-                        <img id="ppBannerPreview" src="<?= htmlspecialchars($league['banner_path']) ?>" alt="League banner"
-                             style="max-width:100%;max-height:140px;border-radius:8px;border:1px solid #e2e8f0;display:block;margin-bottom:.5rem">
+                        <div id="ppBannerBox" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:.5rem;max-width:420px">
+                            <img id="ppBannerPreview" src="<?= htmlspecialchars($league['banner_path']) ?>" alt="League banner"
+                                 style="display:block;width:100%;height:140px;object-fit:<?= $ppFit ?>">
+                        </div>
                     <?php endif; ?>
                     <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
                         <input type="file" id="ppBannerFile" accept="image/jpeg,image/png,image/gif,image/webp" style="font-size:.82rem">
@@ -1710,7 +1713,18 @@ function ordinal($n) {
                             <button class="lg-btn lg-btn-ghost" type="button" onclick="removeLeagueBanner()">Remove</button>
                         <?php endif; ?>
                     </div>
-                    <div style="font-size:.75rem;color:#94a3b8;margin-top:.35rem">JPEG, PNG, GIF, or WebP up to 4 MB. Shown on the public page and in link previews.</div>
+                    <div style="margin-top:.6rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+                        <label for="ppBannerFit" style="font-size:.82rem;color:#475569">Image sizing</label>
+                        <select id="ppBannerFit" onchange="saveBannerFit()"
+                                style="padding:.35rem .5rem;border:1.5px solid #cbd5e1;border-radius:6px;font-size:.82rem;background:#fff">
+                            <option value="cover"<?= $ppFit === 'cover'   ? ' selected' : '' ?>>Fill the space (crops edges)</option>
+                            <option value="contain"<?= $ppFit === 'contain' ? ' selected' : '' ?>>Fit whole image (no cropping)</option>
+                        </select>
+                    </div>
+                    <div style="font-size:.75rem;color:#94a3b8;margin-top:.35rem">
+                        JPEG, PNG, GIF, or WebP up to 4 MB. Shown on the public page and in link previews.
+                        Wide banner images look best on Fill; logos and tall images usually want Fit.
+                    </div>
                 </div>
             <?php endif; ?>
         </div>
@@ -1984,6 +1998,15 @@ function uploadLeagueBanner() {
         .then(function(j) {
             if (j.ok) location.reload(); else pkAlert(j.error || 'Upload failed');
         });
+}
+function saveBannerFit() {
+    var sel = document.getElementById('ppBannerFit');
+    var fit = sel.value;
+    var img = document.getElementById('ppBannerPreview');
+    if (img) img.style.objectFit = fit;   // preview matches the public page immediately
+    post({ action: 'league_banner_fit', league_id: LEAGUE_ID, banner_fit: fit }).then(function(j) {
+        ppFlash(j.ok ? 'Image sizing saved.' : (j.error || 'Failed'), !j.ok);
+    });
 }
 async function removeLeagueBanner() {
     if (!(await pkConfirm('Remove the league banner?'))) return;

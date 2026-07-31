@@ -267,6 +267,15 @@ case 'league_banner_upload': {
     ok(['banner_path' => $path]);
 }
 
+case 'league_banner_fit': {
+    $league_id = (int)($_POST['league_id'] ?? 0);
+    league_role_or_fail($db, $league_id, $uid, ['owner'], $isAdmin);
+    $fit = in_array($_POST['banner_fit'] ?? '', ['cover', 'contain'], true) ? $_POST['banner_fit'] : 'cover';
+    $db->prepare('UPDATE leagues SET banner_fit = ? WHERE id = ?')->execute([$fit, $league_id]);
+    db_log_activity($uid, "set banner fit=$fit for league id=$league_id");
+    ok(['banner_fit' => $fit]);
+}
+
 case 'league_banner_remove': {
     $league_id = (int)($_POST['league_id'] ?? 0);
     league_role_or_fail($db, $league_id, $uid, ['owner'], $isAdmin);

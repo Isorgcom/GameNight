@@ -24,7 +24,7 @@ if ($slug === '') {
     $siteTz = new DateTimeZone(get_setting('timezone', 'UTC'));
     $today  = (new DateTime('now', $siteTz))->format('Y-m-d');
     $dStmt = $db->prepare(
-        "SELECT l.name, l.description, l.slug, l.approval_mode, l.banner_path,
+        "SELECT l.name, l.description, l.slug, l.approval_mode, l.banner_path, l.banner_fit,
                 (SELECT COUNT(*) FROM league_members lm WHERE lm.league_id = l.id AND lm.user_id IS NOT NULL) AS member_count,
                 (SELECT COUNT(*) FROM events e WHERE e.league_id = l.id AND COALESCE(NULLIF(e.end_date, ''), e.start_date) >= ?) AS upcoming_count
            FROM leagues l
@@ -55,7 +55,9 @@ if ($slug === '') {
         .ld-sub { color: #64748b; font-size: .92rem; margin-bottom: 1.5rem; }
         .ld-card { display: block; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; margin-bottom: .9rem; text-decoration: none; overflow: hidden; transition: border-color .15s; }
         .ld-card:hover { border-color: #93c5fd; }
-        .ld-banner img { display: block; width: 100%; max-height: 120px; object-fit: cover; }
+        .ld-banner { background: #f1f5f9; }
+        .ld-banner img { display: block; width: 100%; height: 120px; object-fit: cover; }
+        .ld-banner.fit img { object-fit: contain; }
         .ld-body { padding: 1rem 1.25rem; }
         .ld-name { font-size: 1.15rem; font-weight: 700; color: #0f172a; margin-bottom: .25rem; }
         .ld-desc { color: #475569; font-size: .9rem; line-height: 1.55; margin-bottom: .5rem; }
@@ -99,7 +101,7 @@ if ($slug === '') {
     ?>
         <a class="ld-card" href="/league/<?= htmlspecialchars($dl['slug']) ?>">
             <?php if (!empty($dl['banner_path'])): ?>
-            <div class="ld-banner"><img src="<?= htmlspecialchars($dl['banner_path']) ?>" alt="<?= htmlspecialchars($dl['name']) ?>"></div>
+            <div class="ld-banner<?= ($dl['banner_fit'] ?? 'cover') === 'contain' ? ' fit' : '' ?>"><img src="<?= htmlspecialchars($dl['banner_path']) ?>" alt="<?= htmlspecialchars($dl['name']) ?>"></div>
             <?php endif; ?>
             <div class="ld-body">
                 <div class="ld-name"><?= htmlspecialchars($dl['name']) ?></div>
@@ -125,7 +127,7 @@ $league = null;
 if (preg_match('/^[a-z0-9-]{1,60}$/', $slug)) {
     // Explicit column list: this projection is the public contract.
     $L = $db->prepare(
-        "SELECT id, name, description, slug, approval_mode, banner_path
+        "SELECT id, name, description, slug, approval_mode, banner_path, banner_fit
            FROM leagues
           WHERE slug = ? AND public_page = 1 AND is_hidden = 0"
     );
@@ -280,8 +282,11 @@ $autoJoin = $user && $myRole === null && !$pending && ($_GET['join'] ?? '') === 
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
     <style>
         .lp-layout { max-width: 860px; margin: 0 auto; padding: 0 1.25rem 3rem; }
-        .lp-hero { margin: 1.5rem 0 0; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; }
-        .lp-hero img { display: block; width: 100%; max-height: 280px; object-fit: cover; }
+        .lp-hero { margin: 1.5rem 0 0; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; background: #f1f5f9; }
+        .lp-hero img { display: block; width: 100%; height: 280px; object-fit: cover; }
+        /* "Fit" mode: show the whole image, letterboxed against the card background,
+           and never blow a small logo up past its natural size. */
+        .lp-hero.fit img { object-fit: contain; max-height: 280px; height: auto; }
         .lp-head { margin: 1.5rem 0 .35rem; font-size: 2rem; font-weight: 800; color: #0f172a; }
         .lp-sub { color: #64748b; font-size: .9rem; margin-bottom: 1rem; display: flex; gap: .9rem; flex-wrap: wrap; }
         .lp-desc { color: #334155; line-height: 1.7; margin-bottom: 1.4rem; max-width: 62ch; }
@@ -338,7 +343,7 @@ $autoJoin = $user && $myRole === null && !$pending && ($_GET['join'] ?? '') === 
 
 <div class="lp-layout">
     <?php if ($banner !== ''): ?>
-    <div class="lp-hero"><img src="<?= htmlspecialchars($banner) ?>" alt="<?= htmlspecialchars($league['name']) ?>"></div>
+    <div class="lp-hero<?= ($league['banner_fit'] ?? 'cover') === 'contain' ? ' fit' : '' ?>"><img src="<?= htmlspecialchars($banner) ?>" alt="<?= htmlspecialchars($league['name']) ?>"></div>
     <?php endif; ?>
 
     <h1 class="lp-head">&#127942; <?= htmlspecialchars($league['name']) ?></h1>

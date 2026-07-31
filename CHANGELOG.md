@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2045] - 2026-07-31
+
+### Added
+- **League banner images can fit instead of crop.** The public page hero and directory card rendered the banner with `object-fit: cover`, which scales an image up until it fills the box and crops whatever overflows — fine for a wide banner, bad for a logo or any tall image, which lost its top and bottom. A new "Image sizing" dropdown sits under the banner upload in the league Settings tab with two options: *Fill the space (crops edges)*, the previous behavior and still the default so no existing league changes appearance, and *Fit whole image (no cropping)*, which scales the whole image down to fit and letterboxes the remainder against a neutral background without enlarging a small logo past its natural size. New `leagues.banner_fit` column (`'cover'` | `'contain'`, defaults to `'cover'`); the value is validated against that pair on save and coerced to `'cover'` otherwise, so it can never reach the stylesheet as arbitrary text. The setting saves on change through a new owner-gated `league_banner_fit` action and the settings-panel preview updates immediately to match what the public page will render. Applies to both the hero on `/league/<slug>` and the cards in the `/league` directory. Note this is a display fit only, not a server-side resize of the stored file: the container image ships without GD or Imagick, so shrinking the actual upload would require a Dockerfile change.
+
+---
+
 ## [v0.2044] - 2026-07-30
 
 ### Added

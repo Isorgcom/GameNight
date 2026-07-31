@@ -1356,6 +1356,9 @@ JSON;
     try { $pdo->exec("ALTER TABLE leagues ADD COLUMN slug TEXT"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE leagues ADD COLUMN public_page INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE leagues ADD COLUMN banner_path TEXT"); } catch (Exception $e) {}
+    // How the banner fills its box on the public page: 'cover' crops the edges to
+    // fill, 'contain' scales the whole image to fit and letterboxes the remainder.
+    try { $pdo->exec("ALTER TABLE leagues ADD COLUMN banner_fit TEXT NOT NULL DEFAULT 'cover'"); } catch (Exception $e) {}
     // Backfill slugs for pre-existing leagues (idempotent: only touches NULL/empty)
     try {
         $rows = $pdo->query("SELECT id, name FROM leagues WHERE slug IS NULL OR slug = ''")->fetchAll();
