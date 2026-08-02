@@ -116,6 +116,14 @@ require_once __DIR__ . '/_sms_conversations.php';
 $conv_attr = sms_conv_attribute($db, $digits, $user ?: null);
 if ($inbound_log_id) sms_conv_tag_inbound($db, $inbound_log_id, $digits, $conv_attr);
 
+// A numeric reply may be answering a pending "which event is your message
+// about?" question - consume it before the RSVP flows can misread the number.
+$choiceReply = sms_conv_handle_choice($db, $digits, $body, $user ?: null);
+if ($choiceReply !== null) {
+    send_whatsapp($from, $choiceReply);
+    exit;
+}
+
 if (!$user) {
     // Poll answers work even without an account: phone-only invitees get polls
     // too, and their conversation state is keyed by phone, not user id.
@@ -136,6 +144,14 @@ if (!$user) {
             notif_log_context(null, null);
         }
         exit;
+    }
+    if (count($conv_attr['candidates'] ?? []) >= 2) {
+        // Invited to several events: ask which one the message is about.
+        $ask = sms_conv_offer_choices($db, $digits, $body, $conv_attr['candidates']);
+        if ($ask !== null) {
+            send_whatsapp($from, $ask);
+            exit;
+        }
     }
     // Generic response — don't reveal whether phone is registered
     send_whatsapp($from, "Thanks for your message.");
@@ -361,6 +377,14 @@ if (!$rsvp) {
             notif_log_context(null, null);
         }
         exit;
+    }
+    if (count($conv_attr['candidates'] ?? []) >= 2) {
+        // Invited to several events: ask which one the message is about.
+        $ask = sms_conv_offer_choices($db, $digits, $body, $conv_attr['candidates']);
+        if ($ask !== null) {
+            send_whatsapp($from, $ask);
+            exit;
+        }
     }
     send_whatsapp($from, "Reply YES, NO, or MAYBE to RSVP.\nReply HELP for commands.");
     exit;

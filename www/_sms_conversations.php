@@ -33,12 +33,15 @@ function _sms_conv_today(): string {
  *   4. 'none'            — logged unattributed, surfaced in the admin bucket.
  */
 function sms_conv_attribute(PDO $db, string $digits, ?array $user): array {
-    $none = ['event_id' => null, 'username' => $user['username'] ?? null, 'via' => 'none'];
+    $none = ['event_id' => null, 'username' => $user['username'] ?? null, 'via' => 'none', 'candidates' => []];
     if ($digits === '') return $none;
 
-    // Layer 1: recent outbound with event context.
+    // Layer 1: recent outbound with event context. The EXISTS guard matters:
+    // a reply to a reminder for a since-deleted event must not attribute to a
+    // dead event id (hosts can't be resolved, so nobody would be notified).
     $q = $db->prepare("SELECT event_id, username FROM sms_log
                        WHERE phone_digits = ? AND direction = 'outbound' AND event_id IS NOT NULL
+                         AND EXISTS (SELECT 1 FROM events e WHERE e.id = sms_log.event_id)
                          AND created_at > datetime('now', '-72 hours')
                        ORDER BY id DESC LIMIT 1");
     $q->execute([$digits]);
@@ -86,12 +89,90 @@ function sms_conv_attribute(PDO $db, string $digits, ?array $user): array {
         }
         $eventIds = array_keys($eventIds);
     }
-    if (count(array_unique($eventIds)) === 1) {
+    $eventIds = array_values(array_unique($eventIds));
+    if (count($eventIds) === 1) {
         return ['event_id' => (int)reset($eventIds), 'username' => $username, 'via' => 'single_event'];
     }
 
-    $none['username'] = $username;
+    // Ambiguous or no match: expose the candidate events so the webhook can ask
+    // the sender which one they mean (sms_conv_offer_choices).
+    $none['username']   = $username;
+    $none['candidates'] = $eventIds;
     return $none;
+}
+
+/**
+ * Ask the sender which event their message is about (ambiguous attribution).
+ * Stores the original message phone-keyed so a numeric reply can deliver it.
+ * Returns the prompt text, or null if a usable prompt can't be built.
+ */
+function sms_conv_offer_choices(PDO $db, string $digits, string $body, array $event_ids): ?string {
+    $event_ids = array_slice(array_values($event_ids), 0, 5);
+    if ($digits === '' || count($event_ids) < 2) return null;
+    $in = implode(',', array_fill(0, count($event_ids), '?'));
+    $q  = $db->prepare("SELECT id, title, start_date FROM events WHERE id IN ($in)
+                        ORDER BY start_date ASC, id ASC");
+    $q->execute($event_ids);
+    $events = $q->fetchAll();
+    if (count($events) < 2) return null;
+
+    $opts = [];
+    $parts = [];
+    foreach ($events as $i => $ev) {
+        $opts[]  = (int)$ev['id'];
+        $when    = date('M j', strtotime((string)$ev['start_date']));
+        $parts[] = ($i + 1) . ' for ' . $ev['title'] . " ($when)";
+    }
+    $db->prepare('INSERT OR REPLACE INTO sms_pending_conv (phone_digits, body, options, created_at)
+                  VALUES (?, ?, ?, CURRENT_TIMESTAMP)')
+       ->execute([$digits, $body, json_encode($opts)]);
+    return 'Which event is your message about? Reply ' . implode(', ', $parts) . '.';
+}
+
+/**
+ * Consume a numeric reply to a pending which-event question (30-min TTL).
+ * On a valid pick: retroactively attribute the sender's recent unattributed
+ * messages, bind the conversation, notify the hosts with the held message, and
+ * return the confirmation text. Returns null when this isn't a choice reply,
+ * so the normal command/RSVP handling proceeds untouched.
+ */
+function sms_conv_handle_choice(PDO $db, string $digits, string $body, ?array $user): ?string {
+    if ($digits === '' || !preg_match('/^\d{1,2}$/', trim($body))) return null;
+    $q = $db->prepare("SELECT body, options FROM sms_pending_conv
+                       WHERE phone_digits = ? AND created_at > datetime('now', '-30 minutes')");
+    $q->execute([$digits]);
+    $row = $q->fetch();
+    if (!$row) return null;
+    $opts = json_decode((string)$row['options'], true) ?: [];
+    $idx  = (int)trim($body) - 1;
+    if (!isset($opts[$idx])) return null;  // out of range: not answering us
+
+    $event_id = (int)$opts[$idx];
+    $db->prepare('DELETE FROM sms_pending_conv WHERE phone_digits = ?')->execute([$digits]);
+    $t = $db->prepare('SELECT title FROM events WHERE id = ?');
+    $t->execute([$event_id]);
+    $title = $t->fetchColumn();
+    if ($title === false) return 'Sorry, that event is no longer available.';
+
+    // Display name: registered user, else the invite name on the chosen event.
+    $username = $user['username'] ?? null;
+    if ($username === null) {
+        $iq = $db->prepare("SELECT username, phone FROM event_invites
+                            WHERE event_id = ? AND phone IS NOT NULL AND phone != ''");
+        $iq->execute([$event_id]);
+        foreach ($iq->fetchAll() as $inv) {
+            if (sms_conv_digits((string)$inv['phone']) === $digits) { $username = $inv['username'] ?: null; break; }
+        }
+    }
+
+    $db->prepare("UPDATE sms_log SET event_id = ?, username = ?
+                  WHERE phone_digits = ? AND direction = 'inbound' AND event_id IS NULL
+                    AND created_at > datetime('now', '-24 hours')")
+       ->execute([$event_id, $username, $digits]);
+    sms_conv_bind($db, $digits, $event_id, $username);
+    $display = $username ?: (substr($digits, 0, 3) . '-' . substr($digits, 3, 3) . '-' . substr($digits, 6, 4));
+    sms_conv_notify_hosts($db, $event_id, $display, (string)$row['body'], $digits);
+    return 'Got it - passed your message along to the host of "' . $title . '".';
 }
 
 /**

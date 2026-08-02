@@ -4,6 +4,16 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2050] - 2026-08-02
+
+### Fixed
+- **A text reply about a deleted event no longer vanishes into a dead conversation.** The recent-outbound attribution layer didn't check that the referenced event still exists, so a reply to a reminder for a since-cancelled event was tagged with a dead event id: the host lookup joined a missing `events` row and notified nobody, while the sender still heard "Got it - passed along to your host". `sms_conv_attribute()` now guards layer 1 with an `EXISTS` check (the sticky-binding layer already self-healed), so attribution falls through to the sender's remaining live events, and a stale binding pointing at a deleted event is replaced on their next message.
+
+### Added
+- **Ambiguous texts now ask the sender which event they mean.** When a message can't be placed (no recent outbound, no binding, and the sender is invited to two or more upcoming events), the webhook used to reply with the generic help text and drop the message into the admin bucket. It now answers "Which event is your message about? Reply 1 for X (date), 2 for Y (date)" (up to five options), holding the original message in the new phone-keyed `sms_pending_conv` table (30-minute TTL, follows the `sms_pending_poll` pattern). A numeric reply delivers the held message to the chosen event's hosts, retroactively attributes the sender's recent unattributed messages, and sets the sticky binding so follow-ups land in the same conversation. The choice check runs before the RSVP number flows so the digit can't be misread as an RSVP selection, and a number that doesn't match a live question passes through to normal handling untouched. Applies to both the SMS and WhatsApp webhooks; `cron.php` sweeps expired questions.
+
+---
+
 ## [v0.2049] - 2026-08-02
 
 ### Added

@@ -325,6 +325,16 @@ function db_init(PDO $pdo): void {
         updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP
     )"); } catch (Exception $e) {}
 
+    // Pending "which event is your message about?" question after an ambiguous
+    // inbound text (phone-keyed like sms_pending_poll; 30-min TTL at read).
+    // body = the original message, delivered once the sender picks a number.
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS sms_pending_conv (
+        phone_digits TEXT PRIMARY KEY,
+        body         TEXT NOT NULL,
+        options      TEXT NOT NULL,
+        created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+    )"); } catch (Exception $e) {}
+
     // Persistent retry queue for emails whose inline retries were exhausted on a
     // transient SMTP failure. Drained by cron.php (process_email_retry_queue).
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS email_retry_queue (
