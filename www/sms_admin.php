@@ -168,7 +168,9 @@ function sms_handle_admin_command(PDO $db, array $user, string $body, string $pr
     $rest    = trim($parts[1] ?? '');
 
     $adminVerbs = ['admin', 'who', 'count', 'pending', 'approve', 'msg', 'remind', 'cancel', 'confirm'];
-    $isHelp     = in_array(strtolower($trimmed), ['help', 'h', '?', 'commands'], true);
+    // MENU/INFO/COMMANDS included because SMS platforms intercept the reserved
+    // HELP keyword with their own auto-reply before it reaches the webhook.
+    $isHelp     = in_array(strtolower($trimmed), ['help', 'h', '?', 'commands', 'menu', 'info'], true);
 
     if (!in_array($verb, $adminVerbs, true) && !$isHelp) return false; // not an admin verb
     if (!sms_admin_is_elevated($db, $user)) return false;              // fall through to normal flow

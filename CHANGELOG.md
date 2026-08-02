@@ -4,6 +4,14 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2053] - 2026-08-02
+
+### Fixed
+- **Texting HELP never reached GameNight - Surge answers the reserved keyword itself.** The live log showed inbound "Help" rows through July 28 and none after: the Surge platform now intercepts HELP (a CTIA reserved keyword, like STOP) and sends its own compliance auto-reply, so the webhook never fires and the sender only sees Surge's one-liner. The reliable path in is a non-reserved alias: MENU and INFO join COMMANDS as HELP synonyms in both webhooks and the admin command layer, and the opt-out footer appended to outbound SMS now advertises "COMMANDS for options" instead of "HELP for commands" so guests are steered to a keyword that actually reaches the app. Operator note: Surge's HELP auto-response text can be customized in the Surge dashboard - pointing it at "Text COMMANDS for the full list" closes the loop for people who text HELP anyway.
+- **Host-notification emails about text replies failed with "Message body empty".** `sms_conv_notify_hosts()` passed only an SMS body to `notify_user_direct()`, whose email channel sends the HTML body - which was empty, so every `sms_reply` notification to a host whose preferred contact is email errored out (visible in the log as provider='email' failures). The notification now builds a proper HTML body with the sender, the quoted message excerpt, and an "Open the conversation" link.
+
+---
+
 ## [v0.2052] - 2026-08-02
 
 ### Fixed

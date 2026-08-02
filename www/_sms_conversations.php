@@ -282,8 +282,15 @@ function sms_conv_notify_hosts(PDO $db, int $event_id, string $display, string $
     $subject = "Text reply from $display";
     $excerpt = mb_substr($body, 0, 500);
     $smsBody = "$display replied by text about \"$title\": " . get_site_url() . $link;
+    // Email needs its own body - notify_user_direct sends htmlBody as the email
+    // and an empty one makes the send fail with "Message body empty".
+    $htmlBody = '<p><strong>' . htmlspecialchars($display) . '</strong> replied by text about "'
+              . htmlspecialchars($title) . '":</p>'
+              . '<blockquote style="border-left:3px solid #cbd5e1;margin:.5rem 0;padding:.25rem .75rem;color:#334155">'
+              . nl2br(htmlspecialchars($excerpt)) . '</blockquote>'
+              . '<p><a href="' . htmlspecialchars(get_site_url() . $link) . '">Open the conversation</a></p>';
     foreach ($recips as $uid) {
-        notify_user_direct($db, $uid, 'sms_reply', $subject, $excerpt, $link, $smsBody);
+        notify_user_direct($db, $uid, 'sms_reply', $subject, $excerpt, $link, $smsBody, $htmlBody);
     }
 }
 

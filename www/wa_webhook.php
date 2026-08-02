@@ -195,7 +195,7 @@ $tz    = get_setting('timezone', 'UTC');
 $today = (new DateTime('now', new DateTimeZone($tz)))->format('Y-m-d');
 
 // Handle HELP command
-if (in_array($keyword, ['help', 'h', '?', 'info'], true)) {
+if (in_array($keyword, ['help', 'h', '?', 'info', 'commands', 'menu'], true)) {
     $siteName = get_setting('site_name', 'Game Night');
     send_whatsapp($from, "$siteName Commands:\n\n"
         . "YES / NO / MAYBE — RSVP to your next event\n"

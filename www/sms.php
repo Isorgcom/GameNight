@@ -215,9 +215,11 @@ function send_sms(string $to, string $body, bool $append_optout = true): ?string
     if (!$e164) return 'Invalid phone number.';
 
     // Append opt-out instruction for carrier compliance. Admin/host command
-    // replies pass $append_optout=false so their conversational responses stay clean.
+    // replies pass $append_optout=false so their conversational responses stay
+    // clean. COMMANDS (not HELP) because SMS platforms intercept the reserved
+    // HELP keyword with their own auto-reply before it reaches our webhook.
     if ($append_optout) {
-        $body .= "\nReply STOP to unsubscribe, HELP for commands.";
+        $body .= "\nReply STOP to unsubscribe, COMMANDS for options.";
     }
 
     // Auto-shorten any URLs in the body if URL shortener is enabled
