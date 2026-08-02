@@ -31,7 +31,7 @@ if ($action === 'thread') {
 
     $q = $db->prepare("SELECT id, direction, body, status, error, created_at FROM sms_log
                        WHERE event_id = ? AND phone_digits = ? AND id > ?
-                         AND (provider IS NULL OR provider != 'email')
+                         AND is_conversation = 1
                        ORDER BY id ASC LIMIT 100");
     $q->execute([$event, $phone, $after]);
     $msgs = array_map(static fn ($m) => [
@@ -88,6 +88,7 @@ if ($action === 'send') {
     $m = $mq->fetch();
     if (!$m) fail($err ?? 'Send failed and was not logged.');
 
+    sms_conv_mark($db, (int)$m['id']);
     sms_conv_bind($db, $phone, $event, $recip_username ?: null);
     db_log_activity($uid, "conversation reply to $phone for event id: $event");
     $msg = ['id' => (int)$m['id'], 'direction' => $m['direction'], 'body' => $m['body'],
@@ -106,7 +107,7 @@ if ($action === 'assign') {
     $eq->execute([$event]);
     if (!(int)$eq->fetchColumn()) fail('No such event');
 
-    $upd = $db->prepare("UPDATE sms_log SET event_id = ?
+    $upd = $db->prepare("UPDATE sms_log SET event_id = ?, is_conversation = 1
                          WHERE phone_digits = ? AND event_id IS NULL AND direction = 'inbound'");
     $upd->execute([$event, $phone]);
     sms_conv_bind($db, $phone, $event, null);

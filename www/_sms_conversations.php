@@ -160,7 +160,8 @@ function sms_conv_switch_text(PDO $db, string $digits, ?array $user): string {
  * Returns the prompt text, or null if a usable prompt can't be built.
  */
 function sms_conv_offer_choices(PDO $db, string $digits, string $body, array $event_ids,
-                                string $question = 'Which event is your message about?'): ?string {
+                                string $question = 'Which event is your message about?',
+                                ?int $log_id = null): ?string {
     $event_ids = array_slice(array_values($event_ids), 0, 5);
     if ($digits === '' || count($event_ids) < 2) return null;
     $in = implode(',', array_fill(0, count($event_ids), '?'));
@@ -177,9 +178,9 @@ function sms_conv_offer_choices(PDO $db, string $digits, string $body, array $ev
         $when    = date('M j', strtotime((string)$ev['start_date']));
         $parts[] = ($i + 1) . ' for ' . $ev['title'] . " ($when)";
     }
-    $db->prepare('INSERT OR REPLACE INTO sms_pending_conv (phone_digits, body, options, created_at)
-                  VALUES (?, ?, ?, CURRENT_TIMESTAMP)')
-       ->execute([$digits, $body, json_encode($opts)]);
+    $db->prepare('INSERT OR REPLACE INTO sms_pending_conv (phone_digits, body, options, log_id, created_at)
+                  VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)')
+       ->execute([$digits, $body, json_encode($opts), $log_id]);
     return $question . ' Reply ' . implode(', ', $parts) . '.';
 }
 
@@ -192,7 +193,7 @@ function sms_conv_offer_choices(PDO $db, string $digits, string $body, array $ev
  */
 function sms_conv_handle_choice(PDO $db, string $digits, string $body, ?array $user): ?string {
     if ($digits === '' || !preg_match('/^\d{1,2}$/', trim($body))) return null;
-    $q = $db->prepare("SELECT body, options FROM sms_pending_conv
+    $q = $db->prepare("SELECT body, options, log_id FROM sms_pending_conv
                        WHERE phone_digits = ? AND created_at > datetime('now', '-30 minutes')");
     $q->execute([$digits]);
     $row = $q->fetch();
@@ -228,6 +229,7 @@ function sms_conv_handle_choice(PDO $db, string $digits, string $body, ?array $u
         // SWITCH pick: nothing held to deliver, just re-point the conversation.
         return 'Your texts now go to the host of "' . $title . '".';
     }
+    sms_conv_mark($db, $row['log_id'] !== null ? (int)$row['log_id'] : null);
     $display = $username ?: (substr($digits, 0, 3) . '-' . substr($digits, 3, 3) . '-' . substr($digits, 6, 4));
     sms_conv_notify_hosts($db, $event_id, $display, (string)$row['body'], $digits);
     return 'Got it - passed your message along to the host of "' . $title . '".';
@@ -244,6 +246,17 @@ function sms_conv_tag_inbound(PDO $db, int $log_id, string $digits, array $attr)
            ->execute([$attr['event_id'], $attr['username'], $log_id]);
         sms_conv_bind($db, $digits, (int)$attr['event_id'], $attr['username']);
     } catch (Exception $e) { /* attribution is best-effort */ }
+}
+
+/**
+ * Mark a logged message as real conversation so it shows in the host's
+ * conversation view (commands/RSVPs/automated sends stay unmarked).
+ */
+function sms_conv_mark(PDO $db, ?int $log_id): void {
+    if (!$log_id) return;
+    try {
+        $db->prepare('UPDATE sms_log SET is_conversation = 1 WHERE id = ?')->execute([$log_id]);
+    } catch (Exception $e) { /* best-effort */ }
 }
 
 /** Upsert the sticky phone -> event binding. */

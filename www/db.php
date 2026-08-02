@@ -334,6 +334,33 @@ function db_init(PDO $pdo): void {
         options      TEXT NOT NULL,
         created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
     )"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE sms_pending_conv ADD COLUMN log_id INTEGER"); } catch (Exception $e) {}
+
+    // Conversation flag: only rows that are part of a real host<->guest exchange
+    // (attributed free text in, host composer replies out) appear in the
+    // conversation view. Commands, RSVPs, reminders and other automated traffic
+    // stay in the full notification log only.
+    try { $pdo->exec("ALTER TABLE sms_log ADD COLUMN is_conversation INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    // One-shot backfill: past attributed inbound that isn't command vocabulary
+    // was conversation (outbound can't be told apart retroactively; skipped).
+    try {
+        if (get_setting('sms_conv_flag_backfilled', '') !== '1') {
+            $cmds = ['yes','y','going','attend','no','n','not going','decline','maybe','m','unsure',
+                     'help','h','?','commands','menu','info','events','list','e','status','s',
+                     'stop','unsubscribe','quit','start','subscribe','resume','which','where',
+                     'switch','change','all','confirm','admin','who','count','pending'];
+            $rows = $pdo->query("SELECT id, body FROM sms_log WHERE direction='inbound' AND event_id IS NOT NULL AND is_conversation=0")->fetchAll();
+            $upd  = $pdo->prepare('UPDATE sms_log SET is_conversation = 1 WHERE id = ?');
+            foreach ($rows as $r) {
+                $k = strtolower(trim((string)$r['body']));
+                if ($k === '' || in_array($k, $cmds, true)) continue;
+                if (preg_match('/^(all|\d+)(\s+(yes|no|maybe))?$/', $k)) continue;
+                if (preg_match('/^(who|count|msg|remind|cancel|approve)\b/', $k)) continue;
+                $upd->execute([$r['id']]);
+            }
+            set_setting('sms_conv_flag_backfilled', '1');
+        }
+    } catch (Exception $e) {}
 
     // Persistent retry queue for emails whose inline retries were exhausted on a
     // transient SMTP failure. Drained by cron.php (process_email_retry_queue).

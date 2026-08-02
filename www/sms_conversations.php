@@ -36,7 +36,7 @@ $mode = $f_event > 0 ? ($f_phone !== '' ? 'thread' : 'list') : 'unassigned';
 
 if ($mode === 'thread') {
     $q = $db->prepare("SELECT * FROM sms_log
-                       WHERE event_id = ? AND phone_digits = ? AND (provider IS NULL OR provider != 'email')
+                       WHERE event_id = ? AND phone_digits = ? AND is_conversation = 1
                        ORDER BY created_at ASC, id ASC");
     $q->execute([$f_event, $f_phone]);
     $messages = $q->fetchAll();
@@ -59,7 +59,7 @@ if ($mode === 'thread') {
 } elseif ($mode === 'list') {
     $q = $db->prepare("SELECT phone_digits, MAX(id) AS last_id, MAX(created_at) AS last_at, COUNT(*) AS cnt
                        FROM sms_log
-                       WHERE event_id = ? AND phone_digits IS NOT NULL AND (provider IS NULL OR provider != 'email')
+                       WHERE event_id = ? AND phone_digits IS NOT NULL AND is_conversation = 1
                        GROUP BY phone_digits ORDER BY last_at DESC");
     $q->execute([$f_event]);
     $convos = $q->fetchAll();
@@ -245,7 +245,7 @@ if ($mode === 'thread') {
         </div>
     </div>
     <?php if (empty($convos)): ?>
-    <p style="color:#94a3b8">No text conversations for this event yet. Replies to reminders and invites will show up here.</p>
+    <p style="color:#94a3b8">No text conversations for this event yet. Free-text replies from your guests will show up here (commands, RSVPs, and automated messages stay in the notification log).</p>
     <?php else: ?>
     <ul class="conv-list">
         <?php foreach ($convos as $c): ?>

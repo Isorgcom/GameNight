@@ -147,6 +147,7 @@ if (!$user) {
     if (!empty($conv_attr['event_id'])) {
         // Attributed free text from an unregistered invitee: save + tell the host.
         // Only the first message of a session is acked; follow-ups stay silent.
+        sms_conv_mark($db, $inbound_log_id);
         sms_conv_notify_hosts($db, (int)$conv_attr['event_id'],
             $conv_attr['username'] ?: $normalized, $body, $digits);
         if (sms_conv_should_ack($db, $digits)) {
@@ -158,7 +159,8 @@ if (!$user) {
     }
     if (count($conv_attr['candidates'] ?? []) >= 2) {
         // Invited to several events: ask which one the message is about.
-        $ask = sms_conv_offer_choices($db, $digits, $body, $conv_attr['candidates']);
+        $ask = sms_conv_offer_choices($db, $digits, $body, $conv_attr['candidates'],
+            'Which event is your message about?', $inbound_log_id);
         if ($ask !== null) {
             send_whatsapp($from, $ask);
             exit;
@@ -394,6 +396,7 @@ if (!$rsvp) {
         // Attributed free text: save the conversation + tell the host instead of
         // replying with the help menu. Command vocabulary all exited above.
         // Only the first message of a session is acked; follow-ups stay silent.
+        sms_conv_mark($db, $inbound_log_id);
         sms_conv_notify_hosts($db, (int)$conv_attr['event_id'],
             $conv_attr['username'] ?: $user['username'], $body, $digits);
         if (sms_conv_should_ack($db, $digits)) {
@@ -405,7 +408,8 @@ if (!$rsvp) {
     }
     if (count($conv_attr['candidates'] ?? []) >= 2) {
         // Invited to several events: ask which one the message is about.
-        $ask = sms_conv_offer_choices($db, $digits, $body, $conv_attr['candidates']);
+        $ask = sms_conv_offer_choices($db, $digits, $body, $conv_attr['candidates'],
+            'Which event is your message about?', $inbound_log_id);
         if ($ask !== null) {
             send_whatsapp($from, $ask);
             exit;
