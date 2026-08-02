@@ -1949,7 +1949,9 @@ function linkTimerToEvent() {
 }
 function fmtChips(n) {
     if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
-    if (n >= 1000) return (n / 1000).toFixed(0) + 'K';
+    // Abbreviate only when exact at one decimal (1200 → 1.2K); otherwise show in full (1250 stays 1250).
+    if (n >= 1000 && n % 100 === 0) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+    if (n >= 1000) return String(n);
     // Fractional blinds (.25/.50 home stakes): show up to 2 decimals, no float dust.
     return (n % 1 === 0) ? String(n) : n.toFixed(2);
 }

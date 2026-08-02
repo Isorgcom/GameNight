@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2048] - 2026-08-02
+
+### Fixed
+- **The timer no longer rounds four-digit blinds down to a whole "K".** `fmtChips()` in `www/timer.php` abbreviated every value from 1,000 up with `toFixed(0)`, so a 1200/2400 level displayed as "1K/2K" — visibly wrong to everyone at the table for the whole level. Values that are exact at one decimal now keep it (1200 → 1.2K, 2400 → 2.4K) while clean thousands stay short (4000 → 4K), and anything that would still round wrong at one decimal (e.g. a 1250 blind) is shown unabbreviated instead of approximated. The millions branch already carried its decimal and is unchanged. The same fix was ported to the standalone tournament-timer fork.
+
+---
+
 ## [v0.2047] - 2026-07-31
 
 ### Changed
