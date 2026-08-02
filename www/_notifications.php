@@ -532,11 +532,17 @@ function _rsvp_buttons_html(string $site_url, string $rsvp_token, bool $allowMay
 }
 
 /**
- * The matching plain-text one-click links for SMS bodies.
+ * The matching plain-text block for SMS bodies: reply instructions plus one
+ * view link. (Three per-answer links made invite texts long and spammy -
+ * replying directly is the primary path now that the webhook handles both
+ * RSVP keywords and free-text conversation.)
  */
 function _rsvp_links_sms(string $site_url, string $rsvp_token, bool $allowMaybe): string {
-    $base = $site_url . '/rsvp.php?token=' . urlencode($rsvp_token);
-    return "RSVP:\nYES: {$base}&r=yes\nNO: {$base}&r=no" . ($allowMaybe ? "\nMAYBE: {$base}&r=maybe" : '');
+    $opts = $allowMaybe ? 'YES, NO or MAYBE' : 'YES or NO';
+    $link = $rsvp_token !== ''
+        ? $site_url . '/event.php?token=' . urlencode($rsvp_token)
+        : $site_url;
+    return "Reply $opts to RSVP - any other reply goes to your host.\nDetails: $link";
 }
 
 function dispatch_queued_notification(PDO $db, array $row): bool {
