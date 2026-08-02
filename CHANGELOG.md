@@ -4,6 +4,19 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2054] - 2026-08-02
+
+Final round of live-testing refinements for the SMS conversations feature (v0.2049-v0.2053); shipped as three version-less pushes during the hold and consolidated here.
+
+### Fixed
+- **A bare "no" answering the host no longer flips the guest's RSVP.** When the host asked something conversational ("need a ride?"), the guest's one-word answer hit the RSVP parser and changed their attendance. A bare YES/NO/MAYBE now routes to the conversation when the phone's latest conversation activity (12-hour window) is newer than the latest RSVP-soliciting outbound (invite, nudge, or reminder - identified by their "RSVP" wording plus event context via `sms_conv_active()`), so a reply right after a fresh invite still RSVPs normally. Explicit forms always change the RSVP: `1 YES` / `ALL NO` by number, plus a new `RSVP YES` / `RSVP NO` / `RSVP MAYBE` override for mid-chat changes - listed in all three help texts, and taught contextually by the divert ack ("To change your RSVP instead, reply RSVP NO."). Applied to both the SMS and WhatsApp webhooks.
+- **The conversation view shows only real conversation, not command chatter and automated sends.** The thread previously listed every `sms_log` row for the phone+event: reminders, RSVP confirmations, STATUS/WHICH exchanges, acks. A new `is_conversation` flag is set exactly where a message is known to be conversational - attributed free text in the webhooks, messages delivered via the which-event chooser (whose pending row now carries the original `log_id`), host composer replies, and admin-assigned rows - and the list/thread/poll queries filter on it. A one-shot backfill classified existing attributed inbound by excluding command vocabulary; historical outbound could not be classified retroactively and stays out of threads. Everything remains visible in the full Notification Log.
+
+### Changed
+- **Invite, nudge, and reminder texts send one link instead of three RSVP URLs.** `_rsvp_links_sms()` appended per-answer `rsvp.php` links for YES/NO/MAYBE, making every invite text long and link-heavy. It now sends "Reply YES, NO or MAYBE to RSVP - any other reply goes to your host." plus a single token-authenticated `event.php` view link (no login needed; URL shortener applies). The instruction doubles as discovery for the conversation feature.
+
+---
+
 ## [v0.2053] - 2026-08-02
 
 ### Fixed
