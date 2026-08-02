@@ -199,13 +199,15 @@ if (in_array($keyword, ['help', 'h', '?', 'info'], true)) {
     $siteName = get_setting('site_name', 'Game Night');
     send_whatsapp($from, "$siteName Commands:\n\n"
         . "YES / NO / MAYBE — RSVP to your next event\n"
+        . "2 YES or ALL YES — RSVP by event number\n"
         . "EVENTS — List your upcoming events\n"
         . "STATUS — Show your RSVP status\n"
         . "WHICH — Show which event your messages go to\n"
         . "SWITCH — Send your messages to a different event\n"
         . "STOP — Unsubscribe from notifications\n"
         . "START — Re-enable notifications\n"
-        . "HELP — Show this message");
+        . "HELP — Show this message\n"
+        . "Any other message is passed to your event's host.");
     exit;
 }
 

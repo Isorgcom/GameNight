@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2052] - 2026-08-02
+
+### Fixed
+- **HELP now actually lists the whole vocabulary, for hosts too.** Hosts and admins never saw the guest help text: `sms_handle_admin_command()` intercepts HELP for elevated users and answers with `sms_admin_help_text()`, which listed only the admin verbs, so WHICH/SWITCH (v0.2051) and every guest command were invisible to exactly the people testing them. The admin help now appends a compact guest-commands block (RSVP keywords and the `2 YES` / `ALL YES` number forms, EVENTS/STATUS, WHICH/SWITCH, STOP/START) plus the line "Any other text is passed to that event's host." The guest help in both webhooks gains the two things it never mentioned: the RSVP-by-number forms, and the free-text-goes-to-your-host behavior, which is the most important thing a texter can learn from HELP. Files: `sms_admin.php` (`sms_admin_help_text`), `sms_webhook.php` (`$helpText`), `wa_webhook.php` (HELP branch).
+
+---
+
 ## [v0.2051] - 2026-08-02
 
 ### Added

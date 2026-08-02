@@ -115,7 +115,13 @@ function sms_admin_help_text(array $events): string {
           . "MSG # text - message guests\n"
           . "REMIND # - send a reminder\n"
           . "CANCEL # - cancel an event\n"
-          . "(MSG/REMIND/CANCEL need a CONFIRM reply)\n\n";
+          . "(MSG/REMIND/CANCEL need a CONFIRM reply)\n\n"
+          . "Guest commands:\n"
+          . "YES/NO/MAYBE - RSVP (or 2 YES / ALL YES by number)\n"
+          . "EVENTS - list events, STATUS - your RSVPs\n"
+          . "WHICH - where your texts go, SWITCH - change it\n"
+          . "STOP / START - texts off/on\n"
+          . "Any other text is passed to that event's host.\n\n";
     return $help . sms_admin_event_list_text($events);
 }
 

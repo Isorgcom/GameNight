@@ -204,7 +204,7 @@ if (sms_handle_admin_command($db, $user, $body, $provider, $from)) {
 // ── Parse keyword ────────────────────────────────────────────────────────────
 $keyword = strtolower(trim($body));
 
-$helpText = "Commands:\nYES/NO/MAYBE - RSVP to your next event\nEVENTS - List upcoming events\nSTATUS - Show your RSVP status\nWHICH - Show which event your texts go to\nSWITCH - Send your texts to a different event\nSTOP - Opt out of SMS\nSTART - Re-enable SMS\nHELP - Show this message";
+$helpText = "Commands:\nYES/NO/MAYBE - RSVP to your next event\n2 YES or ALL YES - RSVP by event number\nEVENTS - List upcoming events\nSTATUS - Show your RSVP status\nWHICH - Show which event your texts go to\nSWITCH - Send your texts to a different event\nSTOP - Opt out of SMS\nSTART - Re-enable SMS\nHELP - Show this message\nAny other text is passed to your event's host.";
 
 // ── HELP command ────────────────────────────────────────────────────────────
 if (in_array($keyword, ['help', 'h', '?', 'commands'], true)) {
