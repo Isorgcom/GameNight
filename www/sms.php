@@ -262,19 +262,27 @@ function send_sms(string $to, string $body, bool $append_optout = true): ?string
 }
 
 /**
- * Log an inbound SMS (called from sms_webhook.php).
+ * Log an inbound SMS (called from sms_webhook.php / wa_webhook.php).
+ * Returns the sms_log row id so the webhook can tag it with attribution.
  */
-function sms_log_inbound(string $phone, string $body, string $provider, string $raw = ''): void {
-    sms_log('inbound', $phone, $body, $provider, 'received', null, $raw);
+function sms_log_inbound(string $phone, string $body, string $provider, string $raw = ''): ?int {
+    return sms_log('inbound', $phone, $body, $provider, 'received', null, $raw);
 }
 
-function sms_log(string $direction, string $phone, string $body, ?string $provider, string $status, ?string $error, string $raw = ''): void {
+function sms_log(string $direction, string $phone, string $body, ?string $provider, string $status, ?string $error, string $raw = ''): ?int {
     try {
         [$ctx_eid, $ctx_user] = notif_log_context_get();
-        get_db()->prepare('INSERT INTO sms_log (direction, phone, body, provider, status, error, raw_response, event_id, username) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-            ->execute([$direction, $phone, $body, $provider, $status, $error, $raw !== '' ? $raw : null, $ctx_eid, $ctx_user]);
+        // Digits-only conversation key; stays NULL for email rows (address in phone).
+        $d = preg_replace('/\D/', '', $phone);
+        if (strlen($d) === 11 && $d[0] === '1') $d = substr($d, 1);
+        $digits = strlen($d) === 10 ? $d : null;
+        $db = get_db();
+        $db->prepare('INSERT INTO sms_log (direction, phone, body, provider, status, error, raw_response, event_id, username, phone_digits) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+            ->execute([$direction, $phone, $body, $provider, $status, $error, $raw !== '' ? $raw : null, $ctx_eid, $ctx_user, $digits]);
+        return (int)$db->lastInsertId();
     } catch (Exception $e) {
         // Don't let logging failures break SMS sending
+        return null;
     }
 }
 
@@ -554,11 +562,15 @@ function respond_to_provider(string $provider, string $message, bool $append_opt
             header('Content-Type: text/xml');
             echo '<?xml version="1.0" encoding="UTF-8"?>';
             echo '<Response><Message>' . htmlspecialchars($message) . '</Message></Response>';
+            // TwiML replies never pass through send_sms(), so log them here or the
+            // outbound half of a webhook conversation is invisible in sms_log.
+            sms_log('outbound', sms_normalize_phone($from) ?? $from, $message, $provider, 'sent', null);
             break;
         case 'plivo':
             header('Content-Type: text/xml');
             echo '<?xml version="1.0" encoding="UTF-8"?>';
             echo '<Response><Message><Body>' . htmlspecialchars($message) . '</Body></Message></Response>';
+            sms_log('outbound', sms_normalize_phone($from) ?? $from, $message, $provider, 'sent', null);
             break;
         case 'telnyx':
         case 'vonage':

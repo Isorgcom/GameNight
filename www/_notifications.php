@@ -407,7 +407,7 @@ function _notify_category(string $type): string {
         'event_updated', 'cancel_event', 'cancel_occurrence'         => 'changes',
         'event_comment'                                              => 'comments',
         'waitlist_promoted', 'rsvp_deadline_demoted', 'poker_approved' => 'status',
-        'event_message', 'event_poll'                                => 'messages',
+        'event_message', 'event_poll', 'sms_reply'                   => 'messages',
         'rsvp_to_creator'                                            => 'rsvp_replies',
         'dm'                                                         => 'dms',
         'ticket_reply', 'ticket_admin'                               => 'tickets',

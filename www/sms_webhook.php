@@ -119,7 +119,7 @@ if (strlen($digits) !== 10 || $body === '') {
 }
 
 // Log inbound message with full raw payload
-sms_log_inbound($from, $body, $provider, $raw);
+$inbound_log_id = sms_log_inbound($from, $body, $provider, $raw);
 
 // Normalize to XXX-XXX-XXXX for DB lookup
 $normalized = substr($digits, 0, 3) . '-' . substr($digits, 3, 3) . '-' . substr($digits, 6, 4);
@@ -129,6 +129,13 @@ $db   = get_db();
 $stmt = $db->prepare('SELECT id, username, role FROM users WHERE phone = ? OR phone = ?');
 $stmt->execute([$normalized, $digits]);
 $user = $stmt->fetch();
+
+// Attribute this inbound to an event + person and tag the log row so the
+// host's conversation view (sms_conversations.php) picks it up. Passive:
+// never changes the command handling below.
+require_once __DIR__ . '/_sms_conversations.php';
+$conv_attr = sms_conv_attribute($db, $digits, $user ?: null);
+if ($inbound_log_id) sms_conv_tag_inbound($db, $inbound_log_id, $digits, $conv_attr);
 
 if (!$user) {
     // Poll answers work even without an account: phone-only invitees get polls
@@ -141,6 +148,18 @@ if (!$user) {
         exit;
     }
     http_response_code(200);
+    if (!empty($conv_attr['event_id'])) {
+        // Attributed free text from an unregistered invitee: save + tell the host.
+        // Only the first message of a session is acked; follow-ups stay silent.
+        sms_conv_notify_hosts($db, (int)$conv_attr['event_id'],
+            $conv_attr['username'] ?: $normalized, $body, $digits);
+        if (sms_conv_should_ack($db, $digits)) {
+            notif_log_context((int)$conv_attr['event_id'], $conv_attr['username']);
+            respond_to_provider($provider, 'Got it - we passed your message along to your host.', false);
+            notif_log_context(null, null);
+        }
+        exit;
+    }
     // Generic response — don't reveal whether phone is registered
     respond_to_provider($provider, 'Thanks for your message.');
     exit;
@@ -379,6 +398,19 @@ if ($pollReply !== null) {
 // ── Not a valid RSVP keyword, number, or ALL ────────────────────────────────
 if (!$rsvp) {
     http_response_code(200);
+    if (!empty($conv_attr['event_id'])) {
+        // Attributed free text: save the conversation + tell the host instead of
+        // replying with the help menu. Command vocabulary all exited above.
+        // Only the first message of a session is acked; follow-ups stay silent.
+        sms_conv_notify_hosts($db, (int)$conv_attr['event_id'],
+            $conv_attr['username'] ?: $user['username'], $body, $digits);
+        if (sms_conv_should_ack($db, $digits)) {
+            notif_log_context((int)$conv_attr['event_id'], $conv_attr['username'] ?: $user['username']);
+            respond_to_provider($provider, 'Got it - passed along to your host. (Reply HELP for commands.)', false);
+            notif_log_context(null, null);
+        }
+        exit;
+    }
     respond_to_provider($provider, $helpText);
     exit;
 }

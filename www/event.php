@@ -319,6 +319,10 @@ if ($token === '' && $page_eid > 0) {
         <div style="margin-top:1.1rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
             <a class="btn btn-outline" style="text-decoration:none" href="/message_thread.php?event=<?= $page_eid ?>">&#128172; Event chat</a>
             <span style="font-size:.78rem;color:#94a3b8">group chat for the host and everyone going</span>
+            <?php if ($canManage): ?>
+            <a class="btn btn-outline" style="text-decoration:none" href="/sms_conversations.php?event=<?= $page_eid ?>">&#128241; Text conversations</a>
+            <span style="font-size:.78rem;color:#94a3b8">SMS/WhatsApp replies from your guests</span>
+            <?php endif; ?>
         </div>
         <?php endif; ?>
 

@@ -296,6 +296,34 @@ function db_init(PDO $pdo): void {
     try { $pdo->exec("ALTER TABLE sms_log ADD COLUMN event_id INTEGER"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE sms_log ADD COLUMN username TEXT"); } catch (Exception $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_sms_log_event ON sms_log(event_id)"); } catch (Exception $e) {}
+    // Conversation key: digits-only 10-digit phone so inbound (provider-native),
+    // outbound (E.164) and WhatsApp rows all match. NULL for email rows, whose
+    // phone column holds an address (the 10-digit guard excludes them).
+    try { $pdo->exec("ALTER TABLE sms_log ADD COLUMN phone_digits TEXT"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_sms_log_phone_digits ON sms_log(phone_digits, created_at)"); } catch (Exception $e) {}
+    // One-shot backfill of phone_digits (90-day retention keeps the table small).
+    try {
+        if (get_setting('sms_log_digits_backfilled', '') !== '1') {
+            $rows = $pdo->query("SELECT id, phone FROM sms_log WHERE phone_digits IS NULL")->fetchAll();
+            $upd  = $pdo->prepare('UPDATE sms_log SET phone_digits = ? WHERE id = ?');
+            foreach ($rows as $r) {
+                $d = preg_replace('/\D/', '', (string)$r['phone']);
+                if (strlen($d) === 11 && $d[0] === '1') $d = substr($d, 1);
+                if (strlen($d) === 10) $upd->execute([$d, $r['id']]);
+            }
+            set_setting('sms_log_digits_backfilled', '1');
+        }
+    } catch (Exception $e) {}
+
+    // Sticky phone -> event conversation binding so a reply days after the last
+    // outbound still lands in the same host conversation. Refreshed on every
+    // attributed inbound and every host reply; pruned by cron.
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS sms_conversation_bind (
+        phone_digits TEXT PRIMARY KEY,
+        event_id     INTEGER NOT NULL,
+        username     TEXT,
+        updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+    )"); } catch (Exception $e) {}
 
     // Persistent retry queue for emails whose inline retries were exhausted on a
     // transient SMTP failure. Drained by cron.php (process_email_retry_queue).

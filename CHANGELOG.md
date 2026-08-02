@@ -4,6 +4,16 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2049] - 2026-08-02
+
+### Added
+- **Text replies from guests now land in a host-visible, two-way conversation.** GameNight sends every SMS/WhatsApp from one shared number across all events and hosts, so an inbound "running late, save my seat" had nowhere to go: it fell through the RSVP parser to a help-text auto-reply and was lost, logged with no event or sender attribution. Every inbound message is now attributed by layers: the most recent outbound to that phone with event context within 72 hours wins (a reply to a reminder answers that reminder), then a sticky phone-to-event binding in the new `sms_conversation_bind` table, then a sender who maps to exactly one upcoming event via `users` or `event_invites.phone` (which also covers unregistered invitees and recovers their display name). Attributed rows are tagged in `sms_log` via a new digits-only `phone_digits` key (backfilled one-shot; email rows excluded), the event's hosts (creator + managers) get an in-app `sms_reply` notification mutable under the existing Messages preference, and the texter gets a single "Got it - passed along to your host" ack; only the first message of a 12-hour session is acked, follow-ups are captured silently so the auto-reply never feels like spam. Command vocabulary (YES/NO/HELP/STOP/EVENTS/host commands) is untouched; the hooks only replace the two terminal fallbacks. New host UI at `sms_conversations.php` (linked from the event page and the Notification Log): a per-event conversation list, a chat-bubble thread with failed sends shown inline, and a reply composer that sends back over whatever channel the guest last used (SMS or WhatsApp), rate-limited to 30 messages/hour per number, gated by `can_manage_event()`. Site admins additionally get an unassigned bucket for texts that couldn't be matched (e.g. a sender invited to two upcoming events), with a claim-to-event action. Conversations are part of the notification log and share its 90-day retention.
+
+### Fixed
+- **Twilio/Plivo webhook replies were never logged.** `respond_to_provider()` answers those two providers by echoing TwiML into the HTTP response rather than calling `send_sms()`, so the outbound half of every webhook exchange (RSVP confirmations, help text, admin-command replies) was invisible in the Notification Log. Both TwiML branches now write an outbound `sms_log` row, picking up event/recipient context automatically when set.
+
+---
+
 ## [v0.2048] - 2026-08-02
 
 ### Fixed

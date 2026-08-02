@@ -222,6 +222,8 @@ $pruned += $db->exec("DELETE FROM event_notifications_sent WHERE event_id NOT IN
 
 // Logs: older than 90 days
 $pruned += $db->exec("DELETE FROM sms_log WHERE created_at < datetime('now', '-90 days')");
+// Sticky SMS conversation bindings: stale after 30 days or when the event is gone.
+try { $pruned += $db->exec("DELETE FROM sms_conversation_bind WHERE updated_at < datetime('now', '-30 days') OR event_id NOT IN (SELECT id FROM events)"); } catch (Exception $e) {}
 $pruned += $db->exec("DELETE FROM activity_log WHERE created_at < datetime('now', '-90 days')");
 try { $pruned += $db->exec("DELETE FROM user_notifications WHERE created_at < datetime('now', '-90 days')"); } catch (Exception $e) {}
 

@@ -119,6 +119,7 @@ unset($_SESSION['flash']);
                 <button type="submit" class="btn btn-outline" style="font-size:.8rem;padding:.35rem .75rem;color:#dc2626;border-color:#fca5a5">Clear Log</button>
             </form>
             <?php endif; ?>
+            <a href="/sms_conversations.php<?= $f_event > 0 ? '?event=' . $f_event : '' ?>" class="btn btn-outline" style="font-size:.8rem;padding:.35rem .75rem">Conversations</a>
             <?php if ($isAdmin): ?>
             <a href="/admin_settings.php?tab=sms" class="btn btn-outline" style="font-size:.8rem;padding:.35rem .75rem">Back to SMS Settings</a>
             <?php elseif ($f_event > 0): ?>
