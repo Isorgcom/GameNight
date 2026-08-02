@@ -133,6 +133,17 @@ if (!$user) {
         send_whatsapp($from, $pollReply);
         exit;
     }
+    // WHICH/SWITCH work without an account too - phone-only invitees are
+    // exactly who gets confused about where their messages go.
+    $kw = strtolower(trim($body));
+    if (in_array($kw, ['which', 'where'], true)) {
+        send_whatsapp($from, sms_conv_which_text($db, $digits, null));
+        exit;
+    }
+    if (in_array($kw, ['switch', 'change'], true)) {
+        send_whatsapp($from, sms_conv_switch_text($db, $digits, null));
+        exit;
+    }
     if (!empty($conv_attr['event_id'])) {
         // Attributed free text from an unregistered invitee: save + tell the host.
         // Only the first message of a session is acked; follow-ups stay silent.
@@ -190,9 +201,21 @@ if (in_array($keyword, ['help', 'h', '?', 'info'], true)) {
         . "YES / NO / MAYBE — RSVP to your next event\n"
         . "EVENTS — List your upcoming events\n"
         . "STATUS — Show your RSVP status\n"
+        . "WHICH — Show which event your messages go to\n"
+        . "SWITCH — Send your messages to a different event\n"
         . "STOP — Unsubscribe from notifications\n"
         . "START — Re-enable notifications\n"
         . "HELP — Show this message");
+    exit;
+}
+
+// WHICH / SWITCH commands (conversation routing)
+if (in_array($keyword, ['which', 'where'], true)) {
+    send_whatsapp($from, sms_conv_which_text($db, $digits, $user));
+    exit;
+}
+if (in_array($keyword, ['switch', 'change'], true)) {
+    send_whatsapp($from, sms_conv_switch_text($db, $digits, $user));
     exit;
 }
 

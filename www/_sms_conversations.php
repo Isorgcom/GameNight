@@ -68,28 +68,8 @@ function sms_conv_attribute(PDO $db, string $digits, ?array $user): array {
     }
 
     // Layer 3: sender is tied to exactly one upcoming event.
-    $eventIds = [];
-    $username = $user['username'] ?? null;
-    if ($user) {
-        $q = $db->prepare('SELECT DISTINCT ei.event_id FROM event_invites ei
-                           JOIN events e ON e.id = ei.event_id
-                           WHERE LOWER(ei.username) = LOWER(?) AND e.start_date >= ?');
-        $q->execute([$user['username'], $today]);
-        $eventIds = $q->fetchAll(PDO::FETCH_COLUMN);
-    } else {
-        $q = $db->prepare("SELECT ei.event_id, ei.username, ei.phone FROM event_invites ei
-                           JOIN events e ON e.id = ei.event_id
-                           WHERE ei.phone IS NOT NULL AND ei.phone != '' AND e.start_date >= ?");
-        $q->execute([$today]);
-        foreach ($q->fetchAll() as $inv) {
-            if (sms_conv_digits((string)$inv['phone']) === $digits) {
-                $eventIds[(int)$inv['event_id']] = true;
-                $username = $username ?? ($inv['username'] ?: null);
-            }
-        }
-        $eventIds = array_keys($eventIds);
-    }
-    $eventIds = array_values(array_unique($eventIds));
+    [$eventIds, $invUsername] = sms_conv_candidate_events($db, $digits, $user);
+    $username = $user['username'] ?? $invUsername;
     if (count($eventIds) === 1) {
         return ['event_id' => (int)reset($eventIds), 'username' => $username, 'via' => 'single_event'];
     }
@@ -102,11 +82,85 @@ function sms_conv_attribute(PDO $db, string $digits, ?array $user): array {
 }
 
 /**
+ * The sender's candidate upcoming events, matched via users (registered) or
+ * event_invites.phone (unregistered). Returns [event_id list, invite display
+ * name or null]. Shared by attribution layer 3 and the WHICH/SWITCH commands.
+ */
+function sms_conv_candidate_events(PDO $db, string $digits, ?array $user): array {
+    $today    = _sms_conv_today();
+    $eventIds = [];
+    $username = null;
+    if ($user) {
+        $q = $db->prepare('SELECT DISTINCT ei.event_id FROM event_invites ei
+                           JOIN events e ON e.id = ei.event_id
+                           WHERE LOWER(ei.username) = LOWER(?) AND e.start_date >= ?');
+        $q->execute([$user['username'], $today]);
+        $eventIds = $q->fetchAll(PDO::FETCH_COLUMN);
+    } elseif ($digits !== '') {
+        $q = $db->prepare("SELECT ei.event_id, ei.username, ei.phone FROM event_invites ei
+                           JOIN events e ON e.id = ei.event_id
+                           WHERE ei.phone IS NOT NULL AND ei.phone != '' AND e.start_date >= ?");
+        $q->execute([$today]);
+        foreach ($q->fetchAll() as $inv) {
+            if (sms_conv_digits((string)$inv['phone']) === $digits) {
+                $eventIds[(int)$inv['event_id']] = true;
+                $username = $username ?? ($inv['username'] ?: null);
+            }
+        }
+        $eventIds = array_keys($eventIds);
+    }
+    return [array_values(array_unique(array_map('intval', $eventIds))), $username];
+}
+
+/**
+ * WHICH command: tell the sender where their texts currently go.
+ */
+function sms_conv_which_text(PDO $db, string $digits, ?array $user): string {
+    $attr = sms_conv_attribute($db, $digits, $user);
+    [$candidates] = sms_conv_candidate_events($db, $digits, $user);
+    if (!empty($attr['event_id'])) {
+        $q = $db->prepare('SELECT title, start_date FROM events WHERE id = ?');
+        $q->execute([$attr['event_id']]);
+        if ($ev = $q->fetch()) {
+            $when  = date('M j', strtotime((string)$ev['start_date']));
+            $extra = count($candidates) > 1 ? ' Reply SWITCH to pick a different event.' : '';
+            return 'Your texts go to the host of "' . $ev['title'] . '" (' . $when . ').' . $extra;
+        }
+    }
+    if (count($candidates) >= 2) return "Your texts aren't linked to an event yet. Reply SWITCH to pick one.";
+    return "Your texts aren't linked to an event yet.";
+}
+
+/**
+ * SWITCH command: let the sender re-point their conversation. With one
+ * candidate event, binds immediately; with several, asks via the numbered
+ * chooser (empty held body = nothing to deliver on pick, just re-bind).
+ */
+function sms_conv_switch_text(PDO $db, string $digits, ?array $user): string {
+    [$candidates, $invUsername] = sms_conv_candidate_events($db, $digits, $user);
+    $username = $user['username'] ?? $invUsername;
+    if (count($candidates) === 0) return "You don't have any upcoming events to link your texts to.";
+    if (count($candidates) === 1) {
+        $event_id = (int)$candidates[0];
+        $q = $db->prepare('SELECT title, start_date FROM events WHERE id = ?');
+        $q->execute([$event_id]);
+        $ev = $q->fetch();
+        sms_conv_bind($db, $digits, $event_id, $username);
+        $when = $ev ? date('M j', strtotime((string)$ev['start_date'])) : '';
+        return 'Your texts now go to the host of "' . ($ev['title'] ?? 'your event') . '"' . ($when ? " ($when)" : '') . '.';
+    }
+    $ask = sms_conv_offer_choices($db, $digits, '', $candidates,
+        'Which event should your texts go to?');
+    return $ask ?? "Sorry, we couldn't load your events. Try again in a bit.";
+}
+
+/**
  * Ask the sender which event their message is about (ambiguous attribution).
  * Stores the original message phone-keyed so a numeric reply can deliver it.
  * Returns the prompt text, or null if a usable prompt can't be built.
  */
-function sms_conv_offer_choices(PDO $db, string $digits, string $body, array $event_ids): ?string {
+function sms_conv_offer_choices(PDO $db, string $digits, string $body, array $event_ids,
+                                string $question = 'Which event is your message about?'): ?string {
     $event_ids = array_slice(array_values($event_ids), 0, 5);
     if ($digits === '' || count($event_ids) < 2) return null;
     $in = implode(',', array_fill(0, count($event_ids), '?'));
@@ -126,7 +180,7 @@ function sms_conv_offer_choices(PDO $db, string $digits, string $body, array $ev
     $db->prepare('INSERT OR REPLACE INTO sms_pending_conv (phone_digits, body, options, created_at)
                   VALUES (?, ?, ?, CURRENT_TIMESTAMP)')
        ->execute([$digits, $body, json_encode($opts)]);
-    return 'Which event is your message about? Reply ' . implode(', ', $parts) . '.';
+    return $question . ' Reply ' . implode(', ', $parts) . '.';
 }
 
 /**
@@ -170,6 +224,10 @@ function sms_conv_handle_choice(PDO $db, string $digits, string $body, ?array $u
                     AND created_at > datetime('now', '-24 hours')")
        ->execute([$event_id, $username, $digits]);
     sms_conv_bind($db, $digits, $event_id, $username);
+    if ((string)$row['body'] === '') {
+        // SWITCH pick: nothing held to deliver, just re-point the conversation.
+        return 'Your texts now go to the host of "' . $title . '".';
+    }
     $display = $username ?: (substr($digits, 0, 3) . '-' . substr($digits, 3, 3) . '-' . substr($digits, 6, 4));
     sms_conv_notify_hosts($db, $event_id, $display, (string)$row['body'], $digits);
     return 'Got it - passed your message along to the host of "' . $title . '".';

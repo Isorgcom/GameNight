@@ -157,6 +157,17 @@ if (!$user) {
         exit;
     }
     http_response_code(200);
+    // WHICH/SWITCH work without an account too - phone-only invitees are
+    // exactly who gets confused about where their texts go.
+    $kw = strtolower(trim($body));
+    if (in_array($kw, ['which', 'where'], true)) {
+        respond_to_provider($provider, sms_conv_which_text($db, $digits, null), false);
+        exit;
+    }
+    if (in_array($kw, ['switch', 'change'], true)) {
+        respond_to_provider($provider, sms_conv_switch_text($db, $digits, null), false);
+        exit;
+    }
     if (!empty($conv_attr['event_id'])) {
         // Attributed free text from an unregistered invitee: save + tell the host.
         // Only the first message of a session is acked; follow-ups stay silent.
@@ -193,12 +204,24 @@ if (sms_handle_admin_command($db, $user, $body, $provider, $from)) {
 // ── Parse keyword ────────────────────────────────────────────────────────────
 $keyword = strtolower(trim($body));
 
-$helpText = "Commands:\nYES/NO/MAYBE - RSVP to your next event\nEVENTS - List upcoming events\nSTATUS - Show your RSVP status\nSTOP - Opt out of SMS\nSTART - Re-enable SMS\nHELP - Show this message";
+$helpText = "Commands:\nYES/NO/MAYBE - RSVP to your next event\nEVENTS - List upcoming events\nSTATUS - Show your RSVP status\nWHICH - Show which event your texts go to\nSWITCH - Send your texts to a different event\nSTOP - Opt out of SMS\nSTART - Re-enable SMS\nHELP - Show this message";
 
 // ── HELP command ────────────────────────────────────────────────────────────
 if (in_array($keyword, ['help', 'h', '?', 'commands'], true)) {
     http_response_code(200);
     respond_to_provider($provider, $helpText);
+    exit;
+}
+
+// ── WHICH / SWITCH commands (conversation routing) ──────────────────────────
+if (in_array($keyword, ['which', 'where'], true)) {
+    http_response_code(200);
+    respond_to_provider($provider, sms_conv_which_text($db, $digits, $user), false);
+    exit;
+}
+if (in_array($keyword, ['switch', 'change'], true)) {
+    http_response_code(200);
+    respond_to_provider($provider, sms_conv_switch_text($db, $digits, $user), false);
     exit;
 }
 

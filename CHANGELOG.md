@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2051] - 2026-08-02
+
+### Added
+- **WHICH and SWITCH text commands: see and change where your texts go.** With every conversation riding one shared number, a sender had no way to tell which event's host their messages were reaching. Texting **WHICH** (or WHERE) now answers with the currently attributed event, e.g. `Your texts go to the host of "Test Poker Night" (Aug 2).`, appending a SWITCH hint when the sender has more than one upcoming event. Texting **SWITCH** (or CHANGE) re-points the conversation: with one candidate event it binds immediately, with several it reuses the numbered which-event chooser from v0.2050 with an empty held message, so the numeric pick just updates the sticky binding and confirms, without pinging the host. Both commands work for registered users and phone-only invitees (matched via `event_invites.phone`), on both the SMS and WhatsApp webhooks, and are listed in the HELP text. Implementation extracted the candidate-events lookup from attribution layer 3 into `sms_conv_candidate_events()` so the commands and attribution share one definition of "the sender's upcoming events".
+
+---
+
 ## [v0.2050] - 2026-08-02
 
 ### Fixed
