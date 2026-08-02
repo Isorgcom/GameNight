@@ -117,7 +117,7 @@ function sms_admin_help_text(array $events): string {
           . "CANCEL # - cancel an event\n"
           . "(MSG/REMIND/CANCEL need a CONFIRM reply)\n\n"
           . "Guest commands:\n"
-          . "YES/NO/MAYBE - RSVP (or 2 YES / ALL YES by number)\n"
+          . "YES/NO/MAYBE - RSVP (or 2 YES / ALL YES by number; RSVP NO while chatting)\n"
           . "EVENTS - list events, STATUS - your RSVPs\n"
           . "WHICH - where your texts go, SWITCH - change it\n"
           . "STOP / START - texts off/on\n"

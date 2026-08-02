@@ -202,6 +202,7 @@ if (in_array($keyword, ['help', 'h', '?', 'info', 'commands', 'menu'], true)) {
     send_whatsapp($from, "$siteName Commands:\n\n"
         . "YES / NO / MAYBE — RSVP to your next event\n"
         . "2 YES or ALL YES — RSVP by event number\n"
+        . "RSVP NO — change your RSVP while chatting\n"
         . "EVENTS — List your upcoming events\n"
         . "STATUS — Show your RSVP status\n"
         . "WHICH — Show which event your messages go to\n"
@@ -277,6 +278,30 @@ if (preg_match('/^(\d+)\s+(yes|no|maybe|y|n|m)$/i', $keyword, $dm)) {
 } elseif (preg_match('/^(all|a)\s+(yes|no|maybe|y|n|m)$/i', $keyword, $dm)) {
     $directAll = true;
     $rsvp = $rsvpMap[strtolower($dm[2])] ?? null;
+}
+
+// Explicit "RSVP NO" always changes the RSVP, even mid-conversation.
+$forceRsvp = false;
+if (!$rsvp && preg_match('/^rsvp\s+(\S+)$/', $keyword, $mForce)) {
+    $rsvp = $rsvpMap[$mForce[1]] ?? null;
+    $forceRsvp = ($rsvp !== null);
+}
+
+// Bare yes/no/maybe mid-conversation answers the host, not the RSVP question
+// ("need a ride?" - "no" must not flip attendance). Explicit forms (1 YES,
+// ALL NO, RSVP NO) always RSVP, and sms_conv_active() yields to a fresh
+// invite/nudge/reminder so "yes" right after one still RSVPs.
+if ($rsvp && !$forceRsvp && $directNumber === null && !$directAll
+    && !empty($conv_attr['event_id']) && sms_conv_active($db, $digits)) {
+    sms_conv_mark($db, $inbound_log_id);
+    sms_conv_notify_hosts($db, (int)$conv_attr['event_id'],
+        $conv_attr['username'] ?: $user['username'], $body, $digits);
+    if (sms_conv_should_ack($db, $digits)) {
+        // No notif_log_context on purpose: this ack mentions "RSVP", and
+        // event-context + that word is how sms_conv_active() spots solicits.
+        send_whatsapp($from, 'Got it - passed along to your host. (To change your RSVP instead, reply RSVP ' . strtoupper($rsvp) . '.)');
+    }
+    exit;
 }
 
 // ── Fetch all upcoming approved invites ($tz/$today set above) ──────────────

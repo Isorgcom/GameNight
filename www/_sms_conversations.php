@@ -308,6 +308,30 @@ function sms_conv_notify_hosts(PDO $db, int $event_id, string $display, string $
 }
 
 /**
+ * Is this phone mid-conversation? True when the latest conversation row
+ * (either direction, last 12 hours) is newer than the latest outbound that
+ * solicited an RSVP (invite/nudge/reminder - matched by their 'RSVP' wording
+ * plus event context; conversation machinery never carries both). Used to
+ * keep a bare "no" answering the host from flipping the sender's RSVP,
+ * while "yes" right after a fresh invite/reminder still RSVPs.
+ */
+function sms_conv_active(PDO $db, string $digits): bool {
+    if ($digits === '') return false;
+    $q = $db->prepare("SELECT MAX(id) FROM sms_log
+                       WHERE phone_digits = ? AND is_conversation = 1
+                         AND created_at > datetime('now', '-12 hours')");
+    $q->execute([$digits]);
+    $conv = (int)$q->fetchColumn();
+    if (!$conv) return false;
+    $q = $db->prepare("SELECT MAX(id) FROM sms_log
+                       WHERE phone_digits = ? AND direction = 'outbound'
+                         AND is_conversation = 0 AND event_id IS NOT NULL
+                         AND body LIKE '%RSVP%'");
+    $q->execute([$digits]);
+    return $conv > (int)$q->fetchColumn();
+}
+
+/**
  * Should we auto-ack this attributed free text? Only the first message of a
  * conversation session gets "Got it" - repeat acks read as spam, so anything
  * further within 12 hours is captured silently (the host is still notified).

@@ -206,7 +206,7 @@ if (sms_handle_admin_command($db, $user, $body, $provider, $from)) {
 // ── Parse keyword ────────────────────────────────────────────────────────────
 $keyword = strtolower(trim($body));
 
-$helpText = "Commands:\nYES/NO/MAYBE - RSVP to your next event\n2 YES or ALL YES - RSVP by event number\nEVENTS - List upcoming events\nSTATUS - Show your RSVP status\nWHICH - Show which event your texts go to\nSWITCH - Send your texts to a different event\nSTOP - Opt out of SMS\nSTART - Re-enable SMS\nHELP - Show this message\nAny other text is passed to your event's host.";
+$helpText = "Commands:\nYES/NO/MAYBE - RSVP to your next event\n2 YES or ALL YES - RSVP by event number\nRSVP NO - change your RSVP while chatting\nEVENTS - List upcoming events\nSTATUS - Show your RSVP status\nWHICH - Show which event your texts go to\nSWITCH - Send your texts to a different event\nSTOP - Opt out of SMS\nSTART - Re-enable SMS\nHELP - Show this message\nAny other text is passed to your event's host.";
 
 // ── HELP command ────────────────────────────────────────────────────────────
 // MENU/INFO/COMMANDS matter: SMS platforms (Surge included) intercept the
@@ -310,6 +310,32 @@ if (!$rsvp && !$isNumber && !$isAll) {
             }
         }
     }
+}
+
+// ── Explicit "RSVP NO" always changes the RSVP, even mid-conversation ──────
+$forceRsvp = false;
+if (!$rsvp && preg_match('/^rsvp\s+(\S+)$/', $keyword, $mForce)) {
+    $rsvp = $rsvpMap[$mForce[1]] ?? null;
+    $forceRsvp = ($rsvp !== null);
+}
+
+// ── Bare yes/no/maybe mid-conversation answers the host, not the RSVP ───────
+// "Need a ride?" - "no" must not flip attendance. Explicit forms (1 YES,
+// ALL NO, RSVP NO) always RSVP, and sms_conv_active() yields to a fresh
+// invite/nudge/reminder so "yes" right after one still RSVPs.
+if ($rsvp && !$forceRsvp && $directNumber === null && !$directAll
+    && !empty($conv_attr['event_id']) && sms_conv_active($db, $digits)) {
+    sms_conv_mark($db, $inbound_log_id);
+    sms_conv_notify_hosts($db, (int)$conv_attr['event_id'],
+        $conv_attr['username'] ?: $user['username'], $body, $digits);
+    http_response_code(200);
+    if (sms_conv_should_ack($db, $digits)) {
+        // No notif_log_context here on purpose: this ack mentions "RSVP" and
+        // event-context + that word is how sms_conv_active() spots solicits.
+        respond_to_provider($provider,
+            'Got it - passed along to your host. (To change your RSVP instead, reply RSVP ' . strtoupper($rsvp) . '.)', false);
+    }
+    exit;
 }
 
 // ── Fetch all upcoming invites for this user ────────────────────────────────
