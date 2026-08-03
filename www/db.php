@@ -616,6 +616,54 @@ function db_init(PDO $pdo): void {
         }
     } catch (Exception $e) {}
 
+    // ── Multi-reward payouts: points / entry tickets / prize labels / bounties ──
+    // Per-place reward dimensions live beside the cash percentage on both the
+    // preset places and the per-session copy (same DELETE+INSERT rewrite).
+    try { $pdo->exec("ALTER TABLE payout_structure_places ADD COLUMN points INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE payout_structure_places ADD COLUMN ticket_cents INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE payout_structure_places ADD COLUMN prize_label TEXT"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_payouts ADD COLUMN points INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_payouts ADD COLUMN ticket_cents INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_payouts ADD COLUMN prize_label TEXT"); } catch (Exception $e) {}
+    // Bounty config + satellite target on the session; bounty_amount is carved
+    // out of buyin_amount (buyin stays the total collected per player).
+    try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN bounty_amount INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN bounty_points INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN ticket_target_event_id INTEGER"); } catch (Exception $e) {}
+    // Durable per-player reward record (recomputed by pk_apply_tournament_payouts,
+    // same contract as payout); eliminated_by = poker_players.id of the KO-er.
+    try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN points INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN bounties_won INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN bounty_cash INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN eliminated_by INTEGER"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE user_session_defaults ADD COLUMN bounty_amount INTEGER DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE user_session_defaults ADD COLUMN bounty_points INTEGER DEFAULT 0"); } catch (Exception $e) {}
+
+    // Entry tickets: a funded seat at a specific target event, issued at Finish
+    // Game from a place with ticket_cents > 0. ('tickets' is taken by support.)
+    // target FK is SET NULL so cancelling the target orphans the ticket for the
+    // host to re-target or convert to cash rather than silently deleting it.
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS poker_entry_tickets (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        source_session_id   INTEGER NOT NULL,
+        source_place        INTEGER,
+        player_id           INTEGER NOT NULL,
+        user_id             INTEGER,
+        display_name        TEXT NOT NULL,
+        target_event_id     INTEGER,
+        value_cents         INTEGER NOT NULL,
+        status              TEXT NOT NULL DEFAULT 'issued',
+        redeemed_session_id INTEGER,
+        redeemed_player_id  INTEGER,
+        issued_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+        resolved_at         DATETIME,
+        resolved_by         INTEGER,
+        FOREIGN KEY (source_session_id) REFERENCES poker_sessions(id) ON DELETE CASCADE,
+        FOREIGN KEY (target_event_id)   REFERENCES events(id) ON DELETE SET NULL
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_pet_target ON poker_entry_tickets(target_event_id, status)"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_pet_source ON poker_entry_tickets(source_session_id)"); } catch (Exception $e) {}
+
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS timer_state (
         id                     INTEGER PRIMARY KEY AUTOINCREMENT,
         session_id             INTEGER NOT NULL UNIQUE,

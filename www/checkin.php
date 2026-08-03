@@ -528,6 +528,7 @@ var SORT_KEY = '';   // '' = default (entry order); otherwise a column key
 var SORT_DIR = 1;    // 1 = ascending, -1 = descending
 var notesPlayerId = null;
 var LOG = [];        // session activity log entries (newest-first)
+var TICKETS = { incoming: [], outgoing: [] };  // entry tickets touching this session
 
 function isCash() { return SESSION && SESSION.game_type === 'cash'; }
 function isTourney() { return !SESSION || SESSION.game_type === 'tournament'; }
@@ -555,6 +556,44 @@ function rsvpColor(r) {
     if (r === 'no') return '#991b1b';
     if (r === 'maybe') return '#854d0e';
     return '#64748b';
+}
+
+// The full reward entry (pct/points/ticket/prize) for a finishing place.
+function rewardForPlace(place) {
+    place = parseInt(place);
+    if (!place) return null;
+    for (var i = 0; i < PAYOUTS.length; i++) {
+        if (parseInt(PAYOUTS[i].place) === place) return PAYOUTS[i];
+    }
+    return null;
+}
+
+// Compact reward chips (points / ticket / prize label / bounty count) shown
+// next to a player's status. ONE helper shared by the desktop table and the
+// mobile cards so the dual render paths can't drift.
+function rewardChips(p) {
+    var h = '';
+    var pts = parseInt(p.points) || 0;
+    if (pts > 0) h += ' <span style="color:#7c3aed;font-weight:700;font-size:.72rem" title="League points">+' + pts + ' pts</span>';
+    var r = rewardForPlace(p.finish_position);
+    if (r && parseInt(r.ticket_cents) > 0) h += ' <span style="color:#b45309;font-weight:700;font-size:.72rem" title="Entry ticket prize">🎟 ' + formatMoney(parseInt(r.ticket_cents)) + '</span>';
+    if (r && r.prize_label) h += ' <span style="color:#475569;font-weight:600;font-size:.72rem" title="Prize">' + escHtml(r.prize_label) + '</span>';
+    var kos = parseInt(p.bounties_won) || 0;
+    if (kos > 0) h += ' <span style="color:#0e7490;font-weight:700;font-size:.72rem" title="Bounties collected' + (parseInt(p.bounty_cash) > 0 ? ' — ' + formatMoney(parseInt(p.bounty_cash)) : '') + '">🎯 x' + kos + '</span>';
+    return h;
+}
+
+// Plain-text variant for the mobile status pill.
+function rewardText(p) {
+    var parts = [];
+    var pts = parseInt(p.points) || 0;
+    if (pts > 0) parts.push('+' + pts + ' pts');
+    var r = rewardForPlace(p.finish_position);
+    if (r && parseInt(r.ticket_cents) > 0) parts.push('🎟 ' + formatMoney(parseInt(r.ticket_cents)));
+    if (r && r.prize_label) parts.push(escHtml(r.prize_label));
+    var kos = parseInt(p.bounties_won) || 0;
+    if (kos > 0) parts.push('🎯 x' + kos);
+    return parts.length ? ' · ' + parts.join(' · ') : '';
 }
 
 function postAction(action, data, callback) {
@@ -585,6 +624,7 @@ function loadSession() {
                 PAYOUTS = j.payouts;
                 POOL = j.pool;
                 LOG = j.log || [];
+                TICKETS = j.tickets || { incoming: [], outgoing: [] };
                 WALKIN_SEEN = new Set(pendingPlayerIds(PLAYERS)); // baseline: no alerts for pre-existing pendings
                 renderDashboard();
             }
@@ -1027,14 +1067,16 @@ function renderPlayerRows() {
                 var elAmt = parseInt(p.payout) || payoutForPlace(p.finish_position);
                 h += '<td><span style="color:#ef4444;font-weight:600">' + ordinalLabel(p.finish_position) + '</span>'
                    + (elAmt > 0 ? ' <span style="color:#16a34a;font-weight:700;font-size:.78rem" title="Prize owed">' + formatMoney(elAmt) + '</span>' : '')
+                   + rewardChips(p)
                    + '</td>';
             } else if (isWinner) {
                 var wAmt = parseInt(p.payout) || payoutForPlace(1);
                 h += '<td><span style="color:#b8860b;font-weight:700">🏆 1st</span>'
                    + (wAmt > 0 ? ' <span style="color:#16a34a;font-weight:700;font-size:.78rem" title="Prize">' + formatMoney(wAmt) + '</span>' : '')
+                   + rewardChips(p)
                    + '</td>';
             } else if (parseInt(p.bought_in)) {
-                h += '<td><span style="color:#22c55e;font-weight:600">Playing</span></td>';
+                h += '<td><span style="color:#22c55e;font-weight:600">Playing</span>' + rewardChips(p) + '</td>';
             } else {
                 h += '<td><span style="color:#94a3b8">—</span></td>';
             }
@@ -1113,9 +1155,9 @@ function renderMobileCards() {
         if (isPending) {
             statusText = 'Pending'; statusColor = '#d97706'; statusBg = '#fefce8';
         } else if (isTourney()) {
-            if (isElim) { var moAmt = parseInt(p.payout) || payoutForPlace(p.finish_position); statusText = ordinalLabel(p.finish_position) + (moAmt > 0 ? ' · ' + formatMoney(moAmt) : ''); statusColor = '#ef4444'; statusBg = '#fef2f2'; }
-            else if (isWinner) { var woAmt = parseInt(p.payout) || payoutForPlace(1); statusText = '🏆 1st' + (woAmt > 0 ? ' · ' + formatMoney(woAmt) : ''); statusColor = '#b8860b'; statusBg = '#fffbeb'; }
-            else if (parseInt(p.bought_in)) { statusText = 'Playing'; statusColor = '#16a34a'; statusBg = '#f0fdf4'; }
+            if (isElim) { var moAmt = parseInt(p.payout) || payoutForPlace(p.finish_position); statusText = ordinalLabel(p.finish_position) + (moAmt > 0 ? ' · ' + formatMoney(moAmt) : '') + rewardText(p); statusColor = '#ef4444'; statusBg = '#fef2f2'; }
+            else if (isWinner) { var woAmt = parseInt(p.payout) || payoutForPlace(1); statusText = '🏆 1st' + (woAmt > 0 ? ' · ' + formatMoney(woAmt) : '') + rewardText(p); statusColor = '#b8860b'; statusBg = '#fffbeb'; }
+            else if (parseInt(p.bought_in)) { statusText = 'Playing' + rewardText(p); statusColor = '#16a34a'; statusBg = '#f0fdf4'; }
         } else {
             if (hasCashedOut) { var mBusted = parseInt(p.cash_out) === 0; statusText = mBusted ? 'Busted' : 'Cashed Out'; statusColor = mBusted ? '#dc2626' : '#64748b'; statusBg = mBusted ? '#fef2f2' : '#f1f5f9'; }
             else if (parseInt(p.bought_in)) { statusText = 'Playing'; statusColor = '#16a34a'; statusBg = '#f0fdf4'; }
@@ -1248,7 +1290,22 @@ function renderPoolCard() {
         h += '<div class="pk-pool-row"><span>Buy-ins (' + POOL.total_buyins + ' &times; ' + formatMoney(parseInt(SESSION.buyin_amount)) + ')</span><span>' + formatMoney(POOL.buyin_total) + '</span></div>';
         h += '<div class="pk-pool-row"><span>Rebuys (' + POOL.total_rebuys + ' &times; ' + formatMoney(parseInt(SESSION.rebuy_amount)) + ')</span><span>' + formatMoney(POOL.rebuy_total) + '</span></div>';
         h += '<div class="pk-pool-row"><span>Add-ons (' + POOL.total_addons + ' &times; ' + formatMoney(parseInt(SESSION.addon_amount)) + ')</span><span>' + formatMoney(POOL.addon_total) + '</span></div>';
-        h += '<div class="pk-pool-row total"><span>Total</span><span>' + formatMoney(POOL.pool_total) + '</span></div>';
+        // Net-pool adjustments (bounties / entry tickets) — only shown when in play.
+        var bw = parseInt(POOL.bounty_withheld) || 0;
+        var tw = parseInt(POOL.ticket_withheld) || 0;
+        var ti = parseInt(POOL.ticket_in) || 0;
+        if (bw > 0) h += '<div class="pk-pool-row"><span>&minus; Bounties (' + POOL.total_buyins + ' &times; ' + formatMoney(parseInt(SESSION.bounty_amount) || 0) + ')</span><span style="color:#0e7490">&minus;' + formatMoney(bw) + '</span></div>';
+        if (tw > 0) h += '<div class="pk-pool-row"><span>&minus; Ticket prizes</span><span style="color:#b45309">&minus;' + formatMoney(tw) + '</span></div>';
+        if (ti > 0) h += '<div class="pk-pool-row"><span>+ Ticket seat surplus</span><span style="color:#16a34a">+' + formatMoney(ti) + '</span></div>';
+        h += '<div class="pk-pool-row total"><span>' + ((bw || tw || ti) ? 'Prize Pool (net)' : 'Total') + '</span><span>' + formatMoney(POOL.pool_total) + '</span></div>';
+        // Unclaimed bounty tracker: KOs recorded without an eliminator leave
+        // bounty cash on the table — surface the shortfall.
+        if (bw > 0) {
+            var claimed = 0;
+            (PLAYERS || []).forEach(function(p) { claimed += parseInt(p.bounty_cash) || 0; });
+            var unclaimed = bw - claimed;
+            if (unclaimed > 0) h += '<div class="pk-pool-row"><span style="color:#d97706">Unclaimed bounties</span><span style="color:#d97706">' + formatMoney(unclaimed) + '</span></div>';
+        }
     }
     return h;
 }
@@ -1268,6 +1325,11 @@ function renderPayoutCard() {
            + ' — but they have rebuys/add-ons or are checked in. The pool may be short.'
            + '</div>';
     }
+    // Ticket prizes configured but no target event set: they can't be issued.
+    var anyTicket = PAYOUTS.some(function(p) { return parseInt(p.ticket_cents) > 0; });
+    if (anyTicket && !parseInt(SESSION.ticket_target_event_id)) {
+        h += '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:.45rem .6rem;margin-bottom:.6rem;font-size:.78rem;color:#92400e;font-weight:600">&#9888; Ticket prizes need a target event — set one in Game Settings.</div>';
+    }
     var totalPct = 0;
     for (var i = 0; i < PAYOUTS.length; i++) {
         var pay = PAYOUTS[i];
@@ -1275,7 +1337,18 @@ function renderPayoutCard() {
         totalPct += pct;
         var amt = Math.round(POOL.pool_total * pct / 100);
         var placeLabel = pay.place == 1 ? '1st' : pay.place == 2 ? '2nd' : pay.place == 3 ? '3rd' : pay.place + 'th';
-        h += '<div class="pk-payout-row"><span class="pk-payout-place">' + placeLabel + ' (' + pct + '%)</span><span style="font-weight:600;color:#22c55e">' + formatMoney(amt) + '</span></div>';
+        var extras = '';
+        if (parseInt(pay.points) > 0) extras += ' <span style="color:#7c3aed;font-size:.75rem;font-weight:700">+' + parseInt(pay.points) + ' pts</span>';
+        if (parseInt(pay.ticket_cents) > 0) extras += ' <span style="color:#b45309;font-size:.75rem;font-weight:700">🎟 ' + formatMoney(parseInt(pay.ticket_cents)) + '</span>';
+        if (pay.prize_label) extras += ' <span style="color:#475569;font-size:.75rem;font-weight:600">' + escHtml(pay.prize_label) + '</span>';
+        h += '<div class="pk-payout-row"><span class="pk-payout-place">' + placeLabel + (pct > 0 ? ' (' + pct + '%)' : '') + '</span><span>' + (pct > 0 ? '<span style="font-weight:600;color:#22c55e">' + formatMoney(amt) + '</span>' : '') + extras + '</span></div>';
+    }
+    // Bounty summary line when in play.
+    if (isTourney() && (parseInt(SESSION.bounty_amount) > 0 || parseInt(SESSION.bounty_points) > 0)) {
+        var bParts = [];
+        if (parseInt(SESSION.bounty_amount) > 0) bParts.push(formatMoney(parseInt(SESSION.bounty_amount)) + ' cash');
+        if (parseInt(SESSION.bounty_points) > 0) bParts.push(parseInt(SESSION.bounty_points) + ' pts');
+        h += '<div class="pk-payout-row"><span class="pk-payout-place">🎯 Per knockout</span><span style="color:#0e7490;font-weight:600;font-size:.8rem">' + bParts.join(' + ') + '</span></div>';
     }
     h += '<div style="margin-top:.5rem;text-align:center"><button class="pk-act-btn" onclick="toggleSettings()" style="font-size:.8rem">Edit in Settings</button></div>';
     return h;
@@ -1296,6 +1369,9 @@ function renderSettingsPanel() {
     h += '<div><label>Rebuys Allowed</label><select id="cfg_rebuy_allowed"><option value="1"' + (parseInt(SESSION.rebuy_allowed)?' selected':'') + '>Yes</option><option value="0"' + (!parseInt(SESSION.rebuy_allowed)?' selected':'') + '>No</option></select></div>';
     h += '<div><label>Max Rebuys (0=unlimited)</label><input type="number" id="cfg_max_rebuys" value="' + SESSION.max_rebuys + '" min="0"></div>';
     h += '<div><label>Add-ons Allowed</label><select id="cfg_addon_allowed"><option value="1"' + (parseInt(SESSION.addon_allowed)?' selected':'') + '>Yes</option><option value="0"' + (!parseInt(SESSION.addon_allowed)?' selected':'') + '>No</option></select></div>';
+    h += '<div><label>Bounty per buy-in ($) <span title="Knockout format: this much of each buy-in sits on the player\'s head. Knock them out, collect it. Applies to initial buy-ins only, not rebuys." style="cursor:help;color:#94a3b8">?</span></label><input type="number" id="cfg_bounty" value="' + Math.round((parseInt(SESSION.bounty_amount) || 0)/100) + '" step="1" min="0"></div>';
+    h += '<div><label>Bounty points per KO</label><input type="number" id="cfg_bounty_points" value="' + (parseInt(SESSION.bounty_points) || 0) + '" step="1" min="0"></div>';
+    h += '<div><label>Ticket target event <span title="Satellite: ticket prizes in the payout structure win a funded seat at this event." style="cursor:help;color:#94a3b8">?</span></label><select id="cfg_ticket_target"><option value="0">— none —</option></select></div>';
     h += '</div>';
     h += '<div class="pk-settings-grid" style="margin-top:.75rem">';
     h += '<div><label>Number of Tables</label><input type="number" id="cfg_tables" value="' + SESSION.num_tables + '" min="1"></div>';
@@ -1314,9 +1390,10 @@ function renderSettingsPanel() {
     h += '<button id="btnDelPayoutStructure" onclick="deletePayoutStructure()" style="display:none;color:#ef4444" title="Delete selected structure">Delete</button>';
     h += '<button id="btnDefPayoutStructure" onclick="setDefaultPayoutStructure()" style="display:none" title="Set as default (admin)">Set Default</button>';
     h += '</div>';
+    h += '<div style="display:flex;gap:.35rem;font-size:.68rem;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin-bottom:.15rem"><span style="width:40px"></span><span style="flex:1;min-width:56px">Cash %</span><span style="flex:1;min-width:48px">Pts</span><span style="flex:1;min-width:56px">Ticket $</span><span style="flex:2;min-width:80px">Prize</span><span style="width:18px"></span></div>';
     h += '<div id="payoutRows">';
     for (var i = 0; i < PAYOUTS.length; i++) {
-        h += payoutRowHtml(PAYOUTS[i].place, PAYOUTS[i].percentage);
+        h += payoutRowHtml(PAYOUTS[i].place, PAYOUTS[i].percentage, PAYOUTS[i].points, PAYOUTS[i].ticket_cents, PAYOUTS[i].prize_label);
     }
     h += '</div>';
     h += '<div style="display:flex;gap:.5rem;margin-top:.3rem;flex-wrap:wrap">';
@@ -1325,6 +1402,8 @@ function renderSettingsPanel() {
     h += '</div>';
     h += '<div id="payoutSum" style="margin-top:.3rem;font-size:.8rem;color:#64748b"></div>';
     h += '</div>';
+
+    h += renderTicketsPanel();
 
     h += '<button class="pk-settings-save" onclick="saveSettings()">Save Settings</button>';
     h += '<div style="margin-top:1rem;padding-top:1rem;border-top:1.5px solid #e2e8f0;display:flex;gap:.5rem;flex-wrap:wrap">';
@@ -1339,8 +1418,15 @@ function renderSettingsPanel() {
     return h;
 }
 
-function payoutRowHtml(place, pct) {
-    return '<div class="row"><label style="font-size:.8rem;width:40px">' + place + getOrdinal(place) + '</label><input type="number" class="payout-pct" value="' + pct + '" step="0.1" min="0" max="100" data-place="' + place + '" oninput="updatePayoutSum()"> <span style="font-size:.8rem">%</span> <button onclick="this.parentNode.remove();updatePayoutSum()" style="color:#ef4444;background:transparent;border:none;cursor:pointer;font-size:1rem">&times;</button></div>';
+function payoutRowHtml(place, pct, points, ticket_cents, prize_label) {
+    var lbl = prize_label ? String(prize_label).replace(/"/g, '&quot;').replace(/</g, '&lt;') : '';
+    return '<div class="row" style="display:flex;gap:.35rem;align-items:center;flex-wrap:wrap;margin-bottom:.25rem">'
+         + '<label style="font-size:.8rem;width:40px;flex-shrink:0">' + place + getOrdinal(place) + '</label>'
+         + '<input type="number" class="payout-pct" value="' + (pct || 0) + '" step="0.1" min="0" max="100" data-place="' + place + '" oninput="updatePayoutSum()" title="Cash % of the pool" style="flex:1;min-width:56px">'
+         + '<input type="number" class="payout-pts" value="' + (parseInt(points) || 0) + '" step="1" min="0" data-place="' + place + '" title="League points for this place" style="flex:1;min-width:48px">'
+         + '<input type="number" class="payout-ticket" value="' + (ticket_cents ? Math.round(parseInt(ticket_cents)/100) : 0) + '" step="1" min="0" data-place="' + place + '" title="Entry ticket value ($) to the target event" style="flex:1;min-width:56px">'
+         + '<input type="text" class="payout-label" value="' + lbl + '" maxlength="60" placeholder="prize…" data-place="' + place + '" title="Custom prize (trophy, bottle, …)" style="flex:2;min-width:80px">'
+         + '<button onclick="this.parentNode.remove();updatePayoutSum()" style="color:#ef4444;background:transparent;border:none;cursor:pointer;font-size:1rem;flex-shrink:0">&times;</button></div>';
 }
 
 function addPayoutRow() {
@@ -1348,9 +1434,9 @@ function addPayoutRow() {
     var rows = document.querySelectorAll('#payoutRows .row');
     var nextPlace = rows.length + 1;
     var div = document.createElement('div');
-    div.innerHTML = payoutRowHtml(nextPlace, 0);
+    div.innerHTML = payoutRowHtml(nextPlace, 0, 0, 0, '');
     document.getElementById('payoutRows').appendChild(div.firstChild);
-    autoSplitPayouts();
+    autoSplitPayouts();  // only rewrites the % inputs; pts/ticket/prize are kept
 }
 
 function autoSplitPayouts() {
@@ -1430,6 +1516,98 @@ function previewGameType(val) {
     var pf = document.getElementById('cfgPayoutSection');
     if (tf) tf.style.display = val === 'cash' ? 'none' : '';
     if (pf) pf.style.display = val === 'cash' ? 'none' : '';
+    var tk = document.getElementById('ticketsPanel');
+    if (tk) tk.style.display = val === 'cash' ? 'none' : '';
+}
+
+// ─── Entry tickets (host view) ────────────────────────────
+// Awarded tickets from THIS game: holder, value, status, target, with
+// re-target / convert-to-cash actions for orphaned or unwanted tickets.
+function renderTicketsPanel() {
+    var out = (TICKETS && TICKETS.outgoing) || [];
+    if (!out.length || isCash()) return '';
+    var h = '<div id="ticketsPanel" style="margin-top:.75rem;padding-top:.6rem;border-top:1.5px solid #e2e8f0">';
+    h += '<h3 style="margin:0 0 .5rem;font-size:.9rem">🎟 Entry Tickets Awarded</h3>';
+    out.forEach(function(t) {
+        var status = t.status;
+        var target = t.target_title
+            ? escHtml(t.target_title) + ' (' + (t.target_date || '') + ')'
+            : '<span style="color:#dc2626;font-weight:700">⚠ target event cancelled</span>';
+        h += '<div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;font-size:.82rem;padding:.3rem 0;border-bottom:1px solid #f1f5f9">';
+        h += '<span style="font-weight:600">' + escHtml(t.display_name) + '</span>';
+        h += '<span style="color:#b45309;font-weight:700">' + formatMoney(parseInt(t.value_cents)) + '</span>';
+        h += '<span>&rarr; ' + target + '</span>';
+        if (status === 'issued') {
+            h += '<span style="margin-left:auto;display:flex;gap:.35rem">';
+            h += '<button class="pk-act-btn" onclick="retargetTicket(' + t.id + ')">Re-target</button>';
+            h += '<button class="pk-act-btn" onclick="convertTicket(' + t.id + ')">Convert to cash</button>';
+            h += '</span>';
+        } else {
+            h += '<span style="margin-left:auto;color:' + (status === 'redeemed' ? '#16a34a' : '#64748b') + ';font-weight:700;font-size:.75rem;text-transform:uppercase">' + status + '</span>';
+        }
+        h += '</div>';
+    });
+    h += '</div>';
+    return h;
+}
+
+var TARGET_EVENTS = null;
+function loadTargetEvents(cb) {
+    if (TARGET_EVENTS !== null) { cb(TARGET_EVENTS); return; }
+    fetch('/checkin_dl.php?action=list_target_events&exclude_event_id=' + EVENT_ID)
+        .then(function(r) { return r.json(); })
+        .then(function(j) { TARGET_EVENTS = (j.ok && j.events) || []; cb(TARGET_EVENTS); })
+        .catch(function() { cb([]); });
+}
+
+function populateTicketTargetSelect() {
+    var sel = document.getElementById('cfg_ticket_target');
+    if (!sel) return;
+    loadTargetEvents(function(events) {
+        var cur = parseInt(SESSION.ticket_target_event_id) || 0;
+        sel.innerHTML = '<option value="0">— none —</option>';
+        var haveCur = false;
+        events.forEach(function(e) {
+            var opt = document.createElement('option');
+            opt.value = e.id;
+            opt.textContent = e.title + ' (' + e.start_date + ')';
+            if (parseInt(e.id) === cur) { opt.selected = true; haveCur = true; }
+            sel.appendChild(opt);
+        });
+        if (cur && !haveCur) {
+            // Current target isn't in the manageable list (edge) — keep it selectable.
+            var opt = document.createElement('option');
+            opt.value = cur; opt.textContent = 'Event #' + cur; opt.selected = true;
+            sel.appendChild(opt);
+        }
+    });
+}
+
+async function retargetTicket(tid) {
+    loadTargetEvents(async function(events) {
+        if (!events.length) { pkAlert('No other poker events you manage to re-target to.'); return; }
+        var lines = events.map(function(e, i) { return (i + 1) + ': ' + e.title + ' (' + e.start_date + ')'; });
+        var picked = await pkPrompt('Re-target this ticket to:<br><br>' + lines.join('<br>') + '<br><br>Enter 1-' + events.length + ':');
+        if (picked === null) return;
+        var n = parseInt(picked, 10);
+        if (!(n >= 1 && n <= events.length)) return;
+        postAction('resolve_ticket', { ticket_id: tid, op: 'retarget', new_target_event_id: events[n - 1].id }, function(j) {
+            TICKETS.outgoing = j.tickets || TICKETS.outgoing;
+            if (j.pool) POOL = j.pool;
+            if (j.players) PLAYERS = j.players;
+            renderDashboard();
+        });
+    });
+}
+
+async function convertTicket(tid) {
+    if (!(await pkConfirm('Convert this ticket to a cash prize? The value is added to the holder\'s winnings from this game.'))) return;
+    postAction('resolve_ticket', { ticket_id: tid, op: 'convert' }, function(j) {
+        TICKETS.outgoing = j.tickets || TICKETS.outgoing;
+        if (j.pool) POOL = j.pool;
+        if (j.players) PLAYERS = j.players;
+        renderDashboard();
+    });
 }
 
 // ─── ACTIONS ───────────────────────────────────────────
@@ -1439,6 +1617,10 @@ function toggleSettings() {
     // Lazy-load payout structures the first time the settings panel opens
     if (panel && panel.classList.contains('open') && isTourney() && !PAYOUT_STRUCTURES.length) {
         loadPayoutStructures();
+    }
+    // Populate the satellite target dropdown each open (list is cached).
+    if (panel && panel.classList.contains('open') && isTourney()) {
+        populateTicketTargetSelect();
     }
 }
 
@@ -1597,14 +1779,18 @@ async function _continueSavePayoutStructureAs(leagues, inputs) {
     fd.append('name', name);
     if (is_global) fd.append('is_global', '1');
     if (league_id) fd.append('league_id', league_id);
-    for (var i = 0; i < inputs.length; i++) {
-        var place = parseInt(inputs[i].dataset.place);
-        var pct = parseFloat(inputs[i].value || 0);
-        if (place > 0 && pct > 0) {
-            fd.append('places[]', place);
-            fd.append('percentages[]', pct);
-        }
-    }
+    // Carry all four reward dimensions; the backend keeps rows where ANY is set.
+    document.querySelectorAll('#payoutRows .row').forEach(function(row) {
+        var pctEl = row.querySelector('.payout-pct');
+        if (!pctEl) return;
+        var place = parseInt(pctEl.dataset.place);
+        if (!(place > 0)) return;
+        fd.append('places[]', place);
+        fd.append('percentages[]', parseFloat(pctEl.value || 0));
+        fd.append('points[]', (row.querySelector('.payout-pts') || {}).value || 0);
+        fd.append('tickets[]', (row.querySelector('.payout-ticket') || {}).value || 0);
+        fd.append('labels[]', (row.querySelector('.payout-label') || {}).value || '');
+    });
     fetch('/checkin_dl.php', { method: 'POST', body: fd })
         .then(function(r) { return r.json(); })
         .then(function(j) {
@@ -1655,11 +1841,39 @@ function changeStatus(status) {
 }
 
 function toggleBuyin(pid) {
-    postAction('toggle_buyin', { player_id: pid }, function(j) {
-        updatePlayer(j.player);
-        POOL = j.pool;
-        refreshUI();
-    });
+    // Buying in (not un-buying): offer to apply a matching entry ticket won at
+    // a satellite that targeted this event.
+    var player = PLAYERS.find(function(p) { return parseInt(p.id) === pid; });
+    var buyingIn = player && !parseInt(player.bought_in);
+    var ticket = null;
+    if (buyingIn && TICKETS.incoming && TICKETS.incoming.length) {
+        ticket = TICKETS.incoming.find(function(t) {
+            if (t.user_id && player.user_id) return parseInt(t.user_id) === parseInt(player.user_id);
+            return String(t.display_name || '').toLowerCase() === String(player.display_name || '').toLowerCase();
+        }) || null;
+    }
+    var doPost = function(ticketId) {
+        var data = { player_id: pid };
+        if (ticketId) data.ticket_id = ticketId;
+        postAction('toggle_buyin', data, function(j) {
+            updatePlayer(j.player);
+            POOL = j.pool;
+            if (ticketId) loadSession();  // refresh TICKETS + log after redemption
+            else refreshUI();
+        });
+    };
+    if (ticket) {
+        var val = parseInt(ticket.value_cents);
+        var buyin = parseInt(SESSION.buyin_amount);
+        var msg = '<b>' + escHtml(player.display_name) + '</b> holds a <b>' + formatMoney(val) + ' entry ticket</b> for this event. Apply it?';
+        if (buyin > val)      msg += '<br><br>Collect the remaining <b>' + formatMoney(buyin - val) + '</b> in cash.';
+        else if (val > buyin) msg += '<br><br>The extra <b>' + formatMoney(val - buyin) + '</b> joins this game\'s prize pool.';
+        pkConfirm(msg, { title: 'Entry Ticket', okLabel: 'Apply Ticket' }).then(function(ok) {
+            doPost(ok ? ticket.id : 0);
+        });
+        return;
+    }
+    doPost(0);
 }
 
 function updateRebuys(pid, delta) {
@@ -1971,6 +2185,19 @@ function eliminatePlayer(pid) {
     var amt = payoutForPlace(place);
     var msg = 'Eliminate <b>' + escHtml(player ? player.display_name : 'this player') + '</b> in <b>' + place + getOrdinal(place) + ' place</b>?';
     if (amt > 0) msg += '<br><br>They finish in the money and are owed <b>' + formatMoney(amt) + '</b>.';
+    // Bounty games: optional (skippable) picker for who scored the knockout.
+    if (isTourney() && (parseInt(SESSION.bounty_amount) > 0 || parseInt(SESSION.bounty_points) > 0)) {
+        var others = PLAYERS.filter(function(p) {
+            return !parseInt(p.eliminated) && parseInt(p.bought_in) && !parseInt(p.removed) && parseInt(p.id) !== pid;
+        });
+        if (others.length) {
+            msg += '<br><br><label style="font-size:.8rem;font-weight:600;color:#0e7490">🎯 Knocked out by</label><br>'
+                 + '<select id="elimBy" style="margin-top:.25rem;padding:.35rem .5rem;border:1.5px solid #e2e8f0;border-radius:6px;width:100%;font-size:.85rem">'
+                 + '<option value="0">— not recorded —</option>'
+                 + others.map(function(p) { return '<option value="' + p.id + '">' + escHtml(p.display_name) + '</option>'; }).join('')
+                 + '</select>';
+        }
+    }
     elimPid = pid;
     document.getElementById('elimMsg').innerHTML = msg;
     document.getElementById('elimModal').classList.add('open');
@@ -2011,8 +2238,9 @@ function closeWinner() {
 function confirmElim() {
     if (!elimPid) return;
     var pid = elimPid;
+    var elimBy = parseInt((document.getElementById('elimBy') || {}).value || 0);
     closeElim();
-    postAction('eliminate_player', { player_id: pid, finish_position: 0 }, function(j) {
+    postAction('eliminate_player', { player_id: pid, finish_position: 0, eliminated_by: elimBy }, function(j) {
         updatePlayer(j.player);
         POOL = j.pool;
         if (j.winner) {
@@ -2356,6 +2584,9 @@ function saveSettings() {
         data.rebuy_allowed = (document.getElementById('cfg_rebuy_allowed') || {}).value || '1';
         data.max_rebuys = parseInt((document.getElementById('cfg_max_rebuys') || {}).value || 0);
         data.addon_allowed = (document.getElementById('cfg_addon_allowed') || {}).value || '1';
+        data.bounty_amount = Math.max(0, Math.round(parseFloat((document.getElementById('cfg_bounty') || {}).value || 0))) * 100;
+        data.bounty_points = parseInt((document.getElementById('cfg_bounty_points') || {}).value || 0);
+        data.ticket_target_event_id = parseInt((document.getElementById('cfg_ticket_target') || {}).value || 0);
     } else {
         data.rebuy_amount = data.buyin_amount;
         data.addon_amount = 0;
@@ -2370,15 +2601,21 @@ function saveSettings() {
         POOL = j.pool;
         PAYOUTS = j.payouts || PAYOUTS;
         if (j.players) PLAYERS = j.players;
-        // Save payouts too (tournament only)
-        var inputs = document.querySelectorAll('.payout-pct');
-        if (inputs.length > 0 && SESSION.game_type === 'tournament') {
-            var places = [], pcts = [], pctSum = 0;
-            for (var i = 0; i < inputs.length; i++) {
-                places.push(inputs[i].getAttribute('data-place'));
-                pcts.push(inputs[i].value);
-                pctSum += parseFloat(inputs[i].value || 0);
-            }
+        // Save payouts too (tournament only) — all four reward dimensions ride
+        // in parallel arrays keyed by row order.
+        var rows = document.querySelectorAll('#payoutRows .row');
+        if (rows.length > 0 && SESSION.game_type === 'tournament') {
+            var places = [], pcts = [], pts = [], tickets = [], labels = [], pctSum = 0;
+            rows.forEach(function(row) {
+                var pctEl = row.querySelector('.payout-pct');
+                if (!pctEl) return;
+                places.push(pctEl.getAttribute('data-place'));
+                pcts.push(pctEl.value);
+                pctSum += parseFloat(pctEl.value || 0);
+                pts.push((row.querySelector('.payout-pts') || {}).value || 0);
+                tickets.push((row.querySelector('.payout-ticket') || {}).value || 0);
+                labels.push((row.querySelector('.payout-label') || {}).value || '');
+            });
             if (pctSum > 100) {
                 pkAlert('Payout percentages total ' + pctSum.toFixed(1) + '% — cannot exceed 100%.');
                 return;
@@ -2390,6 +2627,9 @@ function saveSettings() {
             for (var i = 0; i < places.length; i++) {
                 fd.append('places[]', places[i]);
                 fd.append('percentages[]', pcts[i]);
+                fd.append('points[]', pts[i]);
+                fd.append('tickets[]', tickets[i]);
+                fd.append('labels[]', labels[i]);
             }
             fetch('/checkin_dl.php', { method: 'POST', body: fd })
                 .then(function(r) { return r.json(); })
@@ -2865,6 +3105,9 @@ function openDealSplit() {
     var h = '<div style="margin-bottom:1rem">';
     h += '<p style="font-size:.85rem;color:#64748b;margin-bottom:.75rem">Enter each remaining player\'s chip count, then choose a split method.</p>';
     h += '<div style="font-weight:600;margin-bottom:.5rem">Prize Pool: ' + formatMoney(poolTotal) + ' &mdash; ' + remaining.length + ' players remaining</div>';
+    if (parseInt(SESSION.bounty_amount) > 0 || PAYOUTS.some(function(p) { return parseInt(p.ticket_cents) > 0; })) {
+        h += '<div style="font-size:.75rem;color:#94a3b8;margin-bottom:.5rem">Chop math uses the cash prize pool only — bounties and ticket prizes are excluded.</div>';
+    }
     h += '</div>';
 
     h += '<table style="width:100%;border-collapse:collapse;font-size:.9rem;margin-bottom:1rem">';

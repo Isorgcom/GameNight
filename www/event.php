@@ -97,6 +97,19 @@ if ($token === '' && $page_eid > 0) {
     $psq->execute([$page_eid]);
     $psRow = $psq->fetch();
 
+    // Entry ticket the viewer holds for THIS event (won at a satellite game).
+    $myTicket = null;
+    try {
+        $tq = $db->prepare("SELECT t.value_cents, e2.title AS source_title
+                            FROM poker_entry_tickets t
+                            JOIN poker_sessions sps ON sps.id = t.source_session_id
+                            LEFT JOIN events e2 ON e2.id = sps.event_id
+                            WHERE t.target_event_id = ? AND t.status = 'issued' AND t.user_id = ?
+                            LIMIT 1");
+        $tq->execute([$page_eid, (int)$current['id']]);
+        $myTicket = $tq->fetch() ?: null;
+    } catch (Exception $e) { /* pre-migration DB */ }
+
     // Comments (registered users only, newest last — same order as the modal)
     $cq = $db->prepare("SELECT c.id, c.user_id, c.body, c.created_at, u.username, u.avatar_path
                         FROM comments c JOIN users u ON u.id = c.user_id
@@ -310,6 +323,13 @@ if ($token === '' && $page_eid > 0) {
                 <button type="button" class="btn btn-primary" id="evpSignupBtn">Sign up to attend</button>
             <?php endif; ?>
         </div>
+
+        <?php if ($myTicket): ?>
+        <div style="margin-top:1rem;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:.6rem .9rem;font-size:.88rem;color:#92400e">
+            🎟 <strong>You hold a $<?= number_format((int)$myTicket['value_cents'] / 100, ((int)$myTicket['value_cents'] % 100) ? 2 : 0) ?> entry ticket for this event</strong><?= $myTicket['source_title'] ? ' (won at "' . htmlspecialchars($myTicket['source_title']) . '")' : '' ?>.
+            Show the host at buy-in — it covers your seat.
+        </div>
+        <?php endif; ?>
 
         <?php
         // Event chat: host/managers always; guests once they're an approved yes.

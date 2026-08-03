@@ -75,8 +75,10 @@ $stmt = $db->prepare("
         CASE WHEN ps.game_type = 'tournament'
              THEN pp.bought_in * ps.buyin_amount + pp.rebuys * COALESCE(ps.rebuy_amount, 0) + pp.addons * COALESCE(ps.addon_amount, 0)
              ELSE COALESCE(pp.cash_in, 0) END as invested,
-        CASE WHEN ps.game_type = 'tournament' THEN COALESCE(pp.payout, 0)
+        CASE WHEN ps.game_type = 'tournament' THEN COALESCE(pp.payout, 0) + COALESCE(pp.bounty_cash, 0)
              ELSE COALESCE(pp.cash_out, 0) END as winnings,
+        COALESCE(pp.points, 0) as points,
+        COALESCE(pp.bounties_won, 0) as bounties_won,
         CASE WHEN ps.game_type = 'tournament' AND pc.field_size > 1
             THEN ROUND(CAST(pc.field_size - COALESCE(pp.finish_position, pc.field_size) AS REAL) / pc.field_size * 80 + 20, 1)
             WHEN ps.game_type = 'tournament' THEN 100
@@ -105,11 +107,12 @@ if (!$games && str_starts_with($pk, 'g_')) $player_name = substr($pk, 2);
 $is_guest = str_starts_with($pk, 'g_');
 
 // Aggregates
-$tot = ['games' => 0, 't' => 0, 'wins' => 0, 'itm' => 0, 'invested' => 0, 'winnings' => 0, 'scoreSum' => 0.0];
+$tot = ['games' => 0, 't' => 0, 'wins' => 0, 'itm' => 0, 'invested' => 0, 'winnings' => 0, 'scoreSum' => 0.0, 'points' => 0];
 foreach ($games as $g) {
     $tot['games']++;
     $tot['invested'] += (int)$g['invested'];
     $tot['winnings'] += (int)$g['winnings'];
+    $tot['points']   += (int)$g['points'];
     if ($g['game_type'] === 'tournament') {
         $tot['t']++;
         if ((int)$g['finish_position'] === 1) $tot['wins']++;
@@ -181,13 +184,16 @@ $site_name = get_setting('site_name', 'Game Night');
             <div class="lp-tile"><div class="v"><?= $tot['t'] > 0 ? round($tot['itm'] / $tot['t'] * 100) . '%' : '—' ?></div><div class="l">In the $</div></div>
             <div class="lp-tile"><div class="v" style="color:<?= $net >= 0 ? '#16a34a' : '#dc2626' ?>"><?= lp_money($net) ?></div><div class="l">Net</div></div>
             <div class="lp-tile"><div class="v" style="color:<?= $roi >= 0 ? '#16a34a' : '#dc2626' ?>"><?= $roi ?>%</div><div class="l">ROI</div></div>
+            <?php if ($tot['points'] > 0): ?>
+            <div class="lp-tile"><div class="v" style="color:#7c3aed"><?= $tot['points'] ?></div><div class="l">Points</div></div>
+            <?php endif; ?>
             <div class="lp-tile"><div class="v"><?= $tot['t'] > 0 ? round($tot['scoreSum'] / $tot['t'], 1) : '—' ?></div><div class="l">Avg Score</div></div>
         </div>
 
         <table class="lp-table">
             <thead><tr>
                 <th>Date</th><th>Event</th><th class="lp-hide-m">Type</th><th>Finish</th>
-                <th class="lp-hide-m">In</th><th class="lp-hide-m">Out</th><th>Net</th><th class="lp-hide-m">Score</th>
+                <th class="lp-hide-m">In</th><th class="lp-hide-m">Out</th><th>Net</th><th title="League points (placement + bounties)">Pts</th><th class="lp-hide-m">Score</th>
             </tr></thead>
             <tbody>
             <?php foreach ($games as $g):
@@ -204,6 +210,7 @@ $site_name = get_setting('site_name', 'Game Night');
                     <td class="lp-hide-m">$<?= number_format((int)$g['invested'] / 100, ((int)$g['invested'] % 100) ? 2 : 0) ?></td>
                     <td class="lp-hide-m">$<?= number_format((int)$g['winnings'] / 100, ((int)$g['winnings'] % 100) ? 2 : 0) ?></td>
                     <td style="font-weight:700;color:<?= $gnet > 0 ? '#16a34a' : ($gnet < 0 ? '#dc2626' : '#64748b') ?>"><?= lp_money($gnet) ?></td>
+                    <td style="color:#7c3aed;font-weight:700"><?= (int)$g['points'] > 0 ? (int)$g['points'] . ((int)$g['bounties_won'] > 0 ? ' <span style="color:#0e7490;font-weight:600;font-size:.72rem" title="Includes bounty knockouts">🎯' . (int)$g['bounties_won'] . '</span>' : '') : '—' ?></td>
                     <td class="lp-hide-m"><?= $isT ? $g['score'] : '—' ?></td>
                 </tr>
             <?php endforeach; ?>
