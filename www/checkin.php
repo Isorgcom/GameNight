@@ -470,6 +470,22 @@ $session = $sessStmt->fetch();
     </div>
 </div>
 
+<!-- Save payout structure modal (opened from the settings editor, so it sits
+     above the z-900 full-screen overlay) -->
+<div class="pk-modal-overlay" id="saveStructModal" style="z-index:1000" onclick="if(event.target===this)closeSaveStruct()">
+    <div class="pk-modal">
+        <h3>Save Payout Structure</h3>
+        <label style="font-size:.85rem;font-weight:600;color:#475569;display:block;margin-bottom:.3rem">Name</label>
+        <input type="text" id="ssName" maxlength="60" placeholder="e.g. Friday night 4-way" style="width:100%;padding:.5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:1rem;box-sizing:border-box">
+        <label style="font-size:.85rem;font-weight:600;color:#475569;display:block;margin:.75rem 0 .3rem">Save to</label>
+        <select id="ssScope" style="width:100%;padding:.5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:1rem;box-sizing:border-box"></select>
+        <div class="pk-modal-actions">
+            <button onclick="closeSaveStruct()">Cancel</button>
+            <button class="pk-save" onclick="confirmSaveStruct()">Save</button>
+        </div>
+    </div>
+</div>
+
 <!-- Cash-in adjust modal -->
 <div class="pk-modal-overlay" id="cashAdjustModal" onclick="if(event.target===this)closeCashAdjust()">
     <div class="pk-modal">
@@ -2014,26 +2030,40 @@ function savePayoutStructureAs() {
         })
         .catch(function() { _continueSavePayoutStructureAs([], inputs); });
 }
-async function _continueSavePayoutStructureAs(leagues, inputs) {
-    var name = await pkPrompt('Structure name:');
-    if (!name) return;
-    var league_id = 0;
-    var is_global = 0;
-    var scopeOptions = ['0: Personal (only you)'];
-    if (IS_ADMIN) scopeOptions.push('G: Global (all users)');
-    leagues.forEach(function(l, idx) {
-        scopeOptions.push((idx + 1) + ': League — ' + l.name);
-    });
-    if (scopeOptions.length > 1) {
-        var picked = await pkPrompt('Save as:<br><br>' + scopeOptions.join('<br>') + '<br><br>Enter your choice (0, G, or 1-' + leagues.length + '):', {default: '0'});
-        if (picked === null) return;
-        picked = String(picked).trim().toUpperCase();
-        if (picked === 'G' && IS_ADMIN) is_global = 1;
-        else if (picked !== '0' && picked !== '') {
-            var n = parseInt(picked, 10);
-            if (n >= 1 && n <= leagues.length) league_id = parseInt(leagues[n - 1].id);
-        }
+// Open the save dialog: name field + a proper scope dropdown (Personal /
+// Global for admins / each league the caller manages).
+function _continueSavePayoutStructureAs(leagues, inputs) {
+    var scope = document.getElementById('ssScope');
+    scope.innerHTML = '';
+    var opt = document.createElement('option');
+    opt.value = 'p'; opt.textContent = 'Personal (only you)';
+    scope.appendChild(opt);
+    if (IS_ADMIN) {
+        opt = document.createElement('option');
+        opt.value = 'g'; opt.textContent = 'Global (all users)';
+        scope.appendChild(opt);
     }
+    leagues.forEach(function(l) {
+        var o = document.createElement('option');
+        o.value = 'l' + l.id; o.textContent = 'League — ' + l.name;
+        scope.appendChild(o);
+    });
+    document.getElementById('ssName').value = '';
+    document.getElementById('saveStructModal').classList.add('open');
+    setTimeout(function() { document.getElementById('ssName').focus(); }, 30);
+}
+
+function closeSaveStruct() {
+    document.getElementById('saveStructModal').classList.remove('open');
+}
+
+function confirmSaveStruct() {
+    var name = (document.getElementById('ssName').value || '').trim();
+    if (!name) { document.getElementById('ssName').focus(); return; }
+    var scopeVal = document.getElementById('ssScope').value || 'p';
+    var is_global = scopeVal === 'g' ? 1 : 0;
+    var league_id = scopeVal.charAt(0) === 'l' ? parseInt(scopeVal.slice(1)) : 0;
+    closeSaveStruct();
 
     var fd = new FormData();
     fd.append('csrf_token', CSRF);
