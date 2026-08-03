@@ -232,12 +232,19 @@ $session = $sessStmt->fetch();
     .pk-subbox-body label{font-size:.8rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem}
     .pk-subbox-body input{width:100%;padding:.4rem .6rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:.85rem}
 
-    /* Payout editor reward columns hide until their feature chip is on */
+    /* $ prefix inside dollar inputs — typing "1" when you meant "$20" is the
+       kind of slip a visible unit prevents. */
+    .pk-money-wrap{position:relative;display:block}
+    .pk-money-wrap::before{content:'$';position:absolute;left:.55rem;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:.85rem;font-weight:700;pointer-events:none}
+    .pk-money-wrap input{padding-left:1.35rem;width:100%;box-sizing:border-box}
+
+    /* Payout editor reward columns hide until their feature chip is on
+       (ticket targets the wrapper so its $ prefix hides too) */
     #cfgPayoutSection .payout-pts, #cfgPayoutSection .col-pts,
-    #cfgPayoutSection .payout-ticket, #cfgPayoutSection .col-ticket,
+    #cfgPayoutSection .payout-ticket-wrap, #cfgPayoutSection .col-ticket,
     #cfgPayoutSection .payout-label, #cfgPayoutSection .col-label{display:none}
     #cfgPayoutSection.show-pts .payout-pts, #cfgPayoutSection.show-pts .col-pts{display:block}
-    #cfgPayoutSection.show-ticket .payout-ticket, #cfgPayoutSection.show-ticket .col-ticket{display:block}
+    #cfgPayoutSection.show-ticket .payout-ticket-wrap, #cfgPayoutSection.show-ticket .col-ticket{display:block}
     #cfgPayoutSection.show-label .payout-label, #cfgPayoutSection.show-label .col-label{display:block}
 
     .pk-btn-view-toggle{background:transparent;color:var(--accent,#2563eb);border:1.5px solid var(--border,#e2e8f0);padding:.4rem .8rem;border-radius:6px;font-size:.8rem;font-weight:600;cursor:pointer}
@@ -725,10 +732,10 @@ function renderSetup() {
     h += '<button class="t-tournament active" onclick="setSetupType(\'tournament\')">Tournament</button>';
     h += '<button class="t-cash" onclick="setSetupType(\'cash\')">Cash Game</button>';
     h += '</div>';
-    h += '<label>Buy-in Amount ($)</label><input type="number" id="s_buyin" value="20" step="1" min="0">';
+    h += '<label>Buy-in Amount</label><div class="pk-money-wrap"><input type="number" id="s_buyin" value="20" step="1" min="0"></div>';
     h += '<div id="setupTourneyFields">';
-    h += '<label>Rebuy Amount ($)</label><input type="number" id="s_rebuy" value="20" step="1" min="0">';
-    h += '<label>Add-on Amount ($)</label><input type="number" id="s_addon" value="10" step="1" min="0">';
+    h += '<label>Rebuy Amount</label><div class="pk-money-wrap"><input type="number" id="s_rebuy" value="20" step="1" min="0"></div>';
+    h += '<label>Add-on Amount</label><div class="pk-money-wrap"><input type="number" id="s_addon" value="10" step="1" min="0"></div>';
     h += '<label>Starting Chips</label><input type="number" id="s_chips" value="5000" step="1" min="1">';
     h += '<label>Add-on Chips</label><input type="number" id="s_addon_chips" value="5000" step="1" min="0">';
     h += '</div>';
@@ -1573,7 +1580,7 @@ function renderGamePane() {
     h += '<div class="pk-cfg-section"><div class="pk-cfg-title">Game</div>';
     h += '<div class="pk-settings-grid">';
     h += '<div><label>Game Type</label><select id="cfg_game_type" onchange="previewGameType(this.value)"><option value="tournament"' + (isTourney()?' selected':'') + '>Tournament</option><option value="cash"' + (isCash()?' selected':'') + '>Cash Game</option></select></div>';
-    h += '<div><label>Buy-in ($)</label><input type="number" id="cfg_buyin" value="' + Math.round(parseInt(SESSION.buyin_amount)/100) + '" step="1" min="0" oninput="updateBountyHint()"></div>';
+    h += '<div><label>Buy-in</label><div class="pk-money-wrap"><input type="number" id="cfg_buyin" value="' + Math.round(parseInt(SESSION.buyin_amount)/100) + '" step="1" min="0" oninput="updateBountyHint()"></div></div>';
     h += '</div></div>';
 
     // ── Chips, rebuys & add-ons (tournament only). Rebuys and Add-ons are
@@ -1586,13 +1593,13 @@ function renderGamePane() {
     h += '<div class="pk-subbox">';
     h += '<div class="pk-subbox-head"><span>&#8635; Rebuys</span><label class="pk-subbox-check"><input type="checkbox" id="cfg_rebuy_allowed"' + (parseInt(SESSION.rebuy_allowed)?' checked':'') + ' onchange="toggleSubBox(\'rebuy\', this.checked ? 1 : 0)"> Allowed</label></div>';
     h += '<div class="pk-subbox-body' + (parseInt(SESSION.rebuy_allowed)?' on':'') + '" id="subbox_rebuy">';
-    h += '<div><label>Rebuy ($)</label><input type="number" id="cfg_rebuy" value="' + Math.round(parseInt(SESSION.rebuy_amount)/100) + '" step="1" min="0"></div>';
+    h += '<div><label>Rebuy</label><div class="pk-money-wrap"><input type="number" id="cfg_rebuy" value="' + Math.round(parseInt(SESSION.rebuy_amount)/100) + '" step="1" min="0"></div></div>';
     h += '<div><label>Max (0=unlimited)</label><input type="number" id="cfg_max_rebuys" value="' + SESSION.max_rebuys + '" min="0"></div>';
     h += '</div></div>';
     h += '<div class="pk-subbox">';
     h += '<div class="pk-subbox-head"><span>&#10133; Add-ons</span><label class="pk-subbox-check"><input type="checkbox" id="cfg_addon_allowed"' + (parseInt(SESSION.addon_allowed)?' checked':'') + ' onchange="toggleSubBox(\'addon\', this.checked ? 1 : 0)"> Allowed</label></div>';
     h += '<div class="pk-subbox-body' + (parseInt(SESSION.addon_allowed)?' on':'') + '" id="subbox_addon">';
-    h += '<div><label>Add-on ($)</label><input type="number" id="cfg_addon" value="' + Math.round(parseInt(SESSION.addon_amount)/100) + '" step="1" min="0"></div>';
+    h += '<div><label>Add-on</label><div class="pk-money-wrap"><input type="number" id="cfg_addon" value="' + Math.round(parseInt(SESSION.addon_amount)/100) + '" step="1" min="0"></div></div>';
     h += '<div><label>Add-on Chips</label><input type="number" id="cfg_addon_chips" value="' + (parseInt(SESSION.addon_chips) || parseInt(SESSION.starting_chips) || 0) + '" min="0" title="Chips granted per add-on taken"></div>';
     h += '</div></div>';
     h += '</div></div>';
@@ -1622,7 +1629,7 @@ function renderPayoutsPane() {
     // Bounty fields
     h += '<div class="pk-reward-body' + (REWARDS_UI.bounty ? ' on' : '') + '" id="rewardBody_bounty">';
     h += '<div class="pk-settings-grid">';
-    h += '<div><label>Bounty per buy-in ($)</label><input type="number" id="cfg_bounty" value="' + Math.round((parseInt(SESSION.bounty_amount) || 0)/100) + '" step="1" min="0" oninput="updateBountyHint()"></div>';
+    h += '<div><label>Bounty per buy-in</label><div class="pk-money-wrap"><input type="number" id="cfg_bounty" value="' + Math.round((parseInt(SESSION.bounty_amount) || 0)/100) + '" step="1" min="0" oninput="updateBountyHint()"></div></div>';
     h += '<div><label>Bounty points per KO</label><input type="number" id="cfg_bounty_points" value="' + (parseInt(SESSION.bounty_points) || 0) + '" step="1" min="0"></div>';
     h += '</div>';
     h += '<div class="pk-bounty-hint" id="bountyHint"></div>';
@@ -1678,7 +1685,7 @@ function payoutRowHtml(place, pct, points, ticket_cents, prize_label) {
          + '<label style="font-size:.8rem;width:40px;flex-shrink:0">' + place + getOrdinal(place) + '</label>'
          + '<input type="number" class="payout-pct" value="' + (pct || 0) + '" step="0.1" min="0" max="100" data-place="' + place + '" oninput="updatePayoutSum()" title="Cash % of the pool" style="flex:1;min-width:56px;max-width:140px">'
          + '<input type="number" class="payout-pts" value="' + (parseInt(points) || 0) + '" step="1" min="0" data-place="' + place + '" title="League points for this place" style="flex:1;min-width:48px;max-width:140px">'
-         + '<input type="number" class="payout-ticket" value="' + (ticket_cents ? Math.round(parseInt(ticket_cents)/100) : 0) + '" step="1" min="0" data-place="' + place + '" title="Entry ticket value ($) to the target event" style="flex:1;min-width:56px;max-width:140px">'
+         + '<span class="pk-money-wrap payout-ticket-wrap" style="flex:1;min-width:56px;max-width:140px"><input type="number" class="payout-ticket" value="' + (ticket_cents ? Math.round(parseInt(ticket_cents)/100) : 0) + '" step="1" min="0" data-place="' + place + '" title="Entry ticket value ($) to the target event"></span>'
          + '<input type="text" class="payout-label" value="' + lbl + '" maxlength="60" placeholder="prize…" data-place="' + place + '" title="Custom prize (trophy, bottle, …)" style="flex:2;min-width:80px">'
          + '<button onclick="this.parentNode.remove();updatePayoutSum();markSettingsDirty()" style="color:#ef4444;background:transparent;border:none;cursor:pointer;font-size:1rem;flex-shrink:0">&times;</button></div>';
 }
