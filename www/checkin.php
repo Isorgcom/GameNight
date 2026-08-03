@@ -200,6 +200,18 @@ $session = $sessStmt->fetch();
     .pk-reward-body{display:none;margin-top:.75rem}
     .pk-reward-body.on{display:block}
     .pk-bounty-hint{font-size:.75rem;color:#0e7490;margin-top:.35rem}
+    /* Rebuys / Add-ons sub-boxes: the Yes/No select is the group header and
+       gates its own fields */
+    .pk-subgrids{display:flex;gap:.75rem;flex-wrap:wrap}
+    .pk-subbox{flex:1;min-width:230px;border:1.5px solid var(--border,#e2e8f0);border-radius:8px;padding:.6rem .75rem}
+    .pk-subbox-head{display:flex;justify-content:space-between;align-items:center;gap:.5rem}
+    .pk-subbox-head span{font-size:.8rem;font-weight:700;color:#475569}
+    .pk-subbox-head select{width:auto;padding:.3rem .5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:.8rem}
+    .pk-subbox-body{display:none;grid-template-columns:1fr 1fr;gap:.6rem;margin-top:.6rem}
+    .pk-subbox-body.on{display:grid}
+    .pk-subbox-body label{font-size:.8rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem}
+    .pk-subbox-body input{width:100%;padding:.4rem .6rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:.85rem}
+
     /* Payout editor reward columns hide until their feature chip is on */
     #cfgPayoutSection .payout-pts, #cfgPayoutSection .col-pts,
     #cfgPayoutSection .payout-ticket, #cfgPayoutSection .col-ticket,
@@ -1394,16 +1406,25 @@ function renderSettingsPanel() {
     h += '<div><label>Buy-in ($)</label><input type="number" id="cfg_buyin" value="' + Math.round(parseInt(SESSION.buyin_amount)/100) + '" step="1" min="0" oninput="updateBountyHint()"></div>';
     h += '</div></div>';
 
-    // ── Chips, rebuys & add-ons (tournament only) ──
+    // ── Chips, rebuys & add-ons (tournament only). Rebuys and Add-ons are
+    // grouped boxes whose Yes/No header gates their own fields. ──
     h += '<div class="pk-cfg-section" id="cfgTourneyFields" style="' + (isCash()?'display:none':'') + '"><div class="pk-cfg-title">Chips, Rebuys &amp; Add-ons</div>';
-    h += '<div class="pk-settings-grid">';
+    h += '<div class="pk-settings-grid" style="margin-bottom:.75rem">';
     h += '<div><label>Starting Chips</label><input type="number" id="cfg_chips" value="' + SESSION.starting_chips + '" min="1"></div>';
+    h += '</div>';
+    h += '<div class="pk-subgrids">';
+    h += '<div class="pk-subbox">';
+    h += '<div class="pk-subbox-head"><span>&#8635; Rebuys</span><select id="cfg_rebuy_allowed" onchange="toggleSubBox(\'rebuy\', this.value)"><option value="1"' + (parseInt(SESSION.rebuy_allowed)?' selected':'') + '>Allowed</option><option value="0"' + (!parseInt(SESSION.rebuy_allowed)?' selected':'') + '>Not allowed</option></select></div>';
+    h += '<div class="pk-subbox-body' + (parseInt(SESSION.rebuy_allowed)?' on':'') + '" id="subbox_rebuy">';
     h += '<div><label>Rebuy ($)</label><input type="number" id="cfg_rebuy" value="' + Math.round(parseInt(SESSION.rebuy_amount)/100) + '" step="1" min="0"></div>';
-    h += '<div><label>Rebuys Allowed</label><select id="cfg_rebuy_allowed"><option value="1"' + (parseInt(SESSION.rebuy_allowed)?' selected':'') + '>Yes</option><option value="0"' + (!parseInt(SESSION.rebuy_allowed)?' selected':'') + '>No</option></select></div>';
-    h += '<div><label>Max Rebuys (0=unlimited)</label><input type="number" id="cfg_max_rebuys" value="' + SESSION.max_rebuys + '" min="0"></div>';
+    h += '<div><label>Max (0=unlimited)</label><input type="number" id="cfg_max_rebuys" value="' + SESSION.max_rebuys + '" min="0"></div>';
+    h += '</div></div>';
+    h += '<div class="pk-subbox">';
+    h += '<div class="pk-subbox-head"><span>&#10133; Add-ons</span><select id="cfg_addon_allowed" onchange="toggleSubBox(\'addon\', this.value)"><option value="1"' + (parseInt(SESSION.addon_allowed)?' selected':'') + '>Allowed</option><option value="0"' + (!parseInt(SESSION.addon_allowed)?' selected':'') + '>Not allowed</option></select></div>';
+    h += '<div class="pk-subbox-body' + (parseInt(SESSION.addon_allowed)?' on':'') + '" id="subbox_addon">';
     h += '<div><label>Add-on ($)</label><input type="number" id="cfg_addon" value="' + Math.round(parseInt(SESSION.addon_amount)/100) + '" step="1" min="0"></div>';
-    h += '<div><label>Add-ons Allowed</label><select id="cfg_addon_allowed"><option value="1"' + (parseInt(SESSION.addon_allowed)?' selected':'') + '>Yes</option><option value="0"' + (!parseInt(SESSION.addon_allowed)?' selected':'') + '>No</option></select></div>';
     h += '<div><label>Add-on Chips</label><input type="number" id="cfg_addon_chips" value="' + (parseInt(SESSION.addon_chips) || parseInt(SESSION.starting_chips) || 0) + '" min="0" title="Chips granted per add-on taken"></div>';
+    h += '</div></div>';
     h += '</div></div>';
 
     // ── Tables ──
@@ -1617,6 +1638,12 @@ function toggleReward(key) {
         if (key === 'ticket') populateTicketTargetSelect();
         if (key === 'bounty') updateBountyHint();
     }
+}
+
+// Rebuys / Add-ons sub-box: the Allowed select shows or hides its fields.
+function toggleSubBox(key, val) {
+    var body = document.getElementById('subbox_' + key);
+    if (body) body.classList.toggle('on', String(val) === '1');
 }
 
 // Live "each buy-in splits into pool + bounty" explainer under the bounty fields.
