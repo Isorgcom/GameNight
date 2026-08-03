@@ -2938,19 +2938,11 @@ function saveSettings() {
     });
 }
 
-// Post-save: refresh both surfaces, clear the dirty dot, flash "Saved ✓".
+// Post-save: refresh the dashboard and close the editor — Save means done.
 function settingsSaved() {
     SETTINGS_DIRTY = false;
     renderDashboard();
-    refreshSettingsView();
-    var saved = document.getElementById('svSaved');
-    if (saved) {
-        saved.style.display = '';
-        setTimeout(function() {
-            var s = document.getElementById('svSaved');
-            if (s && !SETTINGS_DIRTY) s.style.display = 'none';
-        }, 2500);
-    }
+    closeSettings();
 }
 
 function openNotes(pid) {
