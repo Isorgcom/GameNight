@@ -52,15 +52,22 @@
     }
 
     // ── Full-screen progress card (the event editor's save animation, shared) ──
-    // The reveal is DELAYED 250ms: a fast operation completes before the card
-    // ever appears, so quick saves don't flash a one-frame "glitch".
-    var progOverlay = null, progBar = null, progIv = null, progShowTimer = null;
-    function pkProgressDone() {
-        if (progShowTimer) { clearTimeout(progShowTimer); progShowTimer = null; return; }  // finished before reveal
+    // Shows immediately and stays up for a MINIMUM display time: a fast save
+    // still plays a complete sweep-to-100% animation instead of a one-frame
+    // flash, and a slow one animates until done() is called.
+    var PROG_MIN_MS = 700;
+    var progOverlay = null, progBar = null, progIv = null, progShownAt = 0;
+    function _progFinish() {
         if (progIv) { clearInterval(progIv); progIv = null; }
         if (!progOverlay) return;
         if (progBar) progBar.style.width = '100%';
-        setTimeout(function () { if (progOverlay) progOverlay.classList.remove('open'); }, 250);
+        setTimeout(function () { if (progOverlay) progOverlay.classList.remove('open'); }, 300);
+    }
+    function pkProgressDone() {
+        if (!progOverlay || !progOverlay.classList.contains('open')) return;
+        var elapsed = Date.now() - progShownAt;
+        if (elapsed >= PROG_MIN_MS) { _progFinish(); }
+        else { setTimeout(_progFinish, PROG_MIN_MS - elapsed); }
     }
     function pkProgress(title, msg) {
         injectCss();
@@ -79,18 +86,15 @@
         progOverlay.querySelector('.pk-progress-title').textContent = title || 'Saving…';
         progOverlay.querySelector('.pk-progress-msg').textContent = msg || 'Please wait.';
         if (progIv) { clearInterval(progIv); progIv = null; }
-        if (progShowTimer) clearTimeout(progShowTimer);
-        progShowTimer = setTimeout(function () {
-            progShowTimer = null;
-            var pct = 8;
+        progShownAt = Date.now();
+        var pct = 8;
+        progBar.style.width = pct + '%';
+        progOverlay.classList.add('open');
+        progIv = setInterval(function () {
+            pct += Math.max(1, (92 - pct) * 0.12);
+            if (pct >= 92) { pct = 92; clearInterval(progIv); progIv = null; }
             progBar.style.width = pct + '%';
-            progOverlay.classList.add('open');
-            progIv = setInterval(function () {
-                pct += Math.max(1, (92 - pct) * 0.12);
-                if (pct >= 92) { pct = 92; clearInterval(progIv); progIv = null; }
-                progBar.style.width = pct + '%';
-            }, 180);
-        }, 250);
+        }, 180);
         return { done: pkProgressDone };
     }
     window.pkProgress = pkProgress;
