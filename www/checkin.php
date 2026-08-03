@@ -472,7 +472,8 @@ $session = $sessStmt->fetch();
 
 <!-- Save payout structure modal (opened from the settings editor, so it sits
      above the z-900 full-screen overlay) -->
-<div class="pk-modal-overlay" id="saveStructModal" style="z-index:1000" onclick="if(event.target===this)closeSaveStruct()">
+<!-- No click-outside dismiss: a mis-click must not eat a half-typed name. -->
+<div class="pk-modal-overlay" id="saveStructModal" style="z-index:1000">
     <div class="pk-modal">
         <h3>Save Payout Structure</h3>
         <label style="font-size:.85rem;font-weight:600;color:#475569;display:block;margin-bottom:.3rem">Name</label>
