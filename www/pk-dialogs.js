@@ -6,6 +6,10 @@
  *   pkConfirmForm(formEl, message, opts?)  for onsubmit="return ..."  (submits form on OK)
  *   pkConfirmGo(anchorEl, message, opts?)  for onclick="return ..."   (navigates on OK)
  *   pkBusy(btn, promise)               -> same promise; disables btn until it settles
+ *   pkProgress(title?, msg?)           -> handle {done()} — full-screen "Saving…"
+ *                                         card with an easing progress bar; call
+ *                                         .done() (or pkProgressDone()) when the
+ *                                         work finishes or fails
  * opts: { title, okLabel, cancelLabel, danger, default, placeholder, inputType }
  * The first arg may be a string (message) or an options object.
  * Reuses the app's .pk-modal-overlay / .pk-modal / .pk-modal-actions / .pk-save styles.
@@ -34,9 +38,56 @@
             '.pk-dialog .pk-modal-actions{display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem}' +
             '.pk-dialog .pk-modal-actions button{padding:.5rem 1rem;border-radius:6px;font-size:.9rem;font-weight:600;' +
                 'cursor:pointer;border:1.5px solid #e2e8f0;background:#fff;color:#0f172a}' +
-            '.pk-dialog .pk-modal-actions .pk-save{background:#2563eb;color:#fff;border-color:transparent}';
+            '.pk-dialog .pk-modal-actions .pk-save{background:#2563eb;color:#fff;border-color:transparent}' +
+            '.pk-progress{position:fixed!important;inset:0!important;z-index:100001!important;display:none;' +
+                'align-items:center;justify-content:center;background:rgba(15,23,42,.55);padding:1rem}' +
+            '.pk-progress.open{display:flex!important}' +
+            '.pk-progress-card{background:#fff;border-radius:14px;padding:1.75rem 2rem;max-width:360px;width:100%;' +
+                'text-align:center;box-shadow:0 16px 48px rgba(0,0,0,.3)}' +
+            '.pk-progress-title{font-size:1.05rem;font-weight:700;color:#1e293b;margin-bottom:.4rem}' +
+            '.pk-progress-msg{font-size:.85rem;color:#64748b;margin-bottom:1.1rem}' +
+            '.pk-progress-track{height:9px;background:#e2e8f0;border-radius:99px;overflow:hidden}' +
+            '.pk-progress-bar{height:100%;width:8%;background:#16a34a;border-radius:99px;transition:width .35s ease}';
         document.head.appendChild(s);
     }
+
+    // ── Full-screen progress card (the event editor's save animation, shared) ──
+    var progOverlay = null, progBar = null, progIv = null;
+    function pkProgressDone() {
+        if (progIv) { clearInterval(progIv); progIv = null; }
+        if (!progOverlay) return;
+        if (progBar) progBar.style.width = '100%';
+        setTimeout(function () { if (progOverlay) progOverlay.classList.remove('open'); }, 250);
+    }
+    function pkProgress(title, msg) {
+        injectCss();
+        if (!progOverlay) {
+            progOverlay = document.createElement('div');
+            progOverlay.className = 'pk-progress';
+            progOverlay.innerHTML =
+                '<div class="pk-progress-card">' +
+                    '<div class="pk-progress-title"></div>' +
+                    '<div class="pk-progress-msg"></div>' +
+                    '<div class="pk-progress-track"><div class="pk-progress-bar"></div></div>' +
+                '</div>';
+            document.body.appendChild(progOverlay);
+            progBar = progOverlay.querySelector('.pk-progress-bar');
+        }
+        progOverlay.querySelector('.pk-progress-title').textContent = title || 'Saving…';
+        progOverlay.querySelector('.pk-progress-msg').textContent = msg || 'Please wait.';
+        if (progIv) clearInterval(progIv);
+        var pct = 8;
+        progBar.style.width = pct + '%';
+        progOverlay.classList.add('open');
+        progIv = setInterval(function () {
+            pct += Math.max(1, (92 - pct) * 0.12);
+            if (pct >= 92) { pct = 92; clearInterval(progIv); progIv = null; }
+            progBar.style.width = pct + '%';
+        }, 180);
+        return { done: pkProgressDone };
+    }
+    window.pkProgress = pkProgress;
+    window.pkProgressDone = pkProgressDone;
 
     function build() {
         if (overlay) return;

@@ -606,17 +606,6 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
     </div>
 </div>
 
-<!-- ── Save / Send progress overlay (shown while the editor POSTs + queues invites) ── -->
-<div id="saveSendOverlay" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.55);align-items:center;justify-content:center;padding:1rem">
-    <div style="background:#fff;border-radius:14px;padding:1.75rem 2rem;max-width:360px;width:100%;text-align:center;box-shadow:0 16px 48px rgba(0,0,0,.3)">
-        <div id="saveSendTitle" style="font-size:1.05rem;font-weight:700;color:#1e293b;margin-bottom:.4rem">Saving event&hellip;</div>
-        <div id="saveSendMsg" style="font-size:.85rem;color:#64748b;margin-bottom:1.1rem">Please wait.</div>
-        <div style="height:9px;background:#e2e8f0;border-radius:99px;overflow:hidden">
-            <div id="saveSendBar" style="height:100%;width:8%;background:#16a34a;border-radius:99px;transition:width .35s ease"></div>
-        </div>
-    </div>
-</div>
-
 <?php require __DIR__ . '/_footer.php'; ?>
 
 <script>
@@ -1092,20 +1081,11 @@ function getTimePicker() {
     return document.getElementById('eTimeNative').value || '';
 }
 
-// Progress overlay shown during the editor's full-page POST.
+// Progress overlay shown during the editor's full-page POST (shared pkProgress
+// from pk-dialogs.js; the card lives until the navigation completes).
 function showSaveSendOverlay(sending) {
-    const ov = document.getElementById('saveSendOverlay');
-    if (!ov) return;
-    document.getElementById('saveSendTitle').textContent = sending ? 'Saving & sending invitations…' : 'Saving event…';
-    document.getElementById('saveSendMsg').textContent   = sending ? 'Saving the event and sending invitation emails.' : 'Saving your changes.';
-    const bar = document.getElementById('saveSendBar');
-    let pct = 8; bar.style.width = pct + '%';
-    ov.style.display = 'flex';
-    const iv = setInterval(function() {
-        pct += Math.max(1, (92 - pct) * 0.12);
-        if (pct >= 92) { pct = 92; clearInterval(iv); }
-        bar.style.width = pct + '%';
-    }, 180);
+    pkProgress(sending ? 'Saving & sending invitations…' : 'Saving event…',
+               sending ? 'Saving the event and sending invitation emails.' : 'Saving your changes.');
 }
 
 document.getElementById('editForm').addEventListener('submit', function(e) {

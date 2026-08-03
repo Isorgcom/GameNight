@@ -472,17 +472,6 @@ $session = $sessStmt->fetch();
 
 <!-- Save payout structure modal (opened from the settings editor, so it sits
      above the z-900 full-screen overlay) -->
-<!-- Save progress overlay (same pattern as event_edit's saveSendOverlay) -->
-<div id="svSaveOverlay" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.55);align-items:center;justify-content:center;padding:1rem">
-    <div style="background:#fff;border-radius:14px;padding:1.75rem 2rem;max-width:360px;width:100%;text-align:center;box-shadow:0 16px 48px rgba(0,0,0,.3)">
-        <div style="font-size:1.05rem;font-weight:700;color:#1e293b;margin-bottom:.4rem">Saving settings&hellip;</div>
-        <div style="font-size:.85rem;color:#64748b;margin-bottom:1.1rem">Saving the game configuration and payout structure.</div>
-        <div style="height:9px;background:#e2e8f0;border-radius:99px;overflow:hidden">
-            <div id="svSaveBar" style="height:100%;width:8%;background:#16a34a;border-radius:99px;transition:width .35s ease"></div>
-        </div>
-    </div>
-</div>
-
 <!-- No click-outside dismiss: a mis-click must not eat a half-typed name. -->
 <div class="pk-modal-overlay" id="saveStructModal" style="z-index:1000">
     <div class="pk-modal">
@@ -2877,33 +2866,8 @@ function updateRsvp(pid, val) {
     });
 }
 
-// Progress overlay for the settings save (same easing as event_edit's).
-var _svSaveIv = null;
-function showSvSaveOverlay() {
-    var ov = document.getElementById('svSaveOverlay');
-    if (!ov) return;
-    var bar = document.getElementById('svSaveBar');
-    var pct = 8;
-    bar.style.width = pct + '%';
-    ov.style.display = 'flex';
-    _svSaveIv = setInterval(function() {
-        pct += Math.max(1, (92 - pct) * 0.12);
-        if (pct >= 92) { pct = 92; clearInterval(_svSaveIv); _svSaveIv = null; }
-        bar.style.width = pct + '%';
-    }, 180);
-}
-function hideSvSaveOverlay() {
-    if (_svSaveIv) { clearInterval(_svSaveIv); _svSaveIv = null; }
-    var bar = document.getElementById('svSaveBar');
-    if (bar) bar.style.width = '100%';
-    setTimeout(function() {
-        var ov = document.getElementById('svSaveOverlay');
-        if (ov) ov.style.display = 'none';
-    }, 250);
-}
-
 function saveSettings() {
-    showSvSaveOverlay();
+    pkProgress('Saving settings…', 'Saving the game configuration and payout structure.');
     var data = {
         session_id: SESSION.id,
         buyin_amount: Math.max(0, Math.round(parseFloat(document.getElementById('cfg_buyin').value || 0))) * 100,
@@ -2953,7 +2917,7 @@ function saveSettings() {
                 labels.push((row.querySelector('.payout-label') || {}).value || '');
             });
             if (pctSum > 100) {
-                hideSvSaveOverlay();
+                pkProgressDone();
                 pkAlert('Payout percentages total ' + pctSum.toFixed(1) + '% — cannot exceed 100%.');
                 return;
             }
@@ -2971,18 +2935,18 @@ function saveSettings() {
             fetch('/checkin_dl.php', { method: 'POST', body: fd })
                 .then(function(r) { return r.json(); })
                 .then(function(j2) {
-                    if (!j2.ok) { hideSvSaveOverlay(); pkAlert(j2.error || 'Error saving payouts'); return; }
+                    if (!j2.ok) { pkProgressDone(); pkAlert(j2.error || 'Error saving payouts'); return; }
                     PAYOUTS = j2.payouts;
                     POOL = j2.pool;
                     settingsSaved();
                 })
-                .catch(function() { hideSvSaveOverlay(); pkAlert('Request failed'); });
+                .catch(function() { pkProgressDone(); pkAlert('Request failed'); });
         } else {
             settingsSaved();
         }
     }, function(errJ) {
         // update_config failed: drop the overlay so the error is readable.
-        hideSvSaveOverlay();
+        pkProgressDone();
         pkAlert(errJ.error || 'Error');
     });
 }
@@ -2991,7 +2955,7 @@ function saveSettings() {
 function settingsSaved() {
     SETTINGS_DIRTY = false;
     renderDashboard();
-    hideSvSaveOverlay();
+    pkProgressDone();
     closeSettings();
 }
 
