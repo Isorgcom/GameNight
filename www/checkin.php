@@ -190,6 +190,24 @@ $session = $sessStmt->fetch();
     .pk-settings-save{margin-top:.75rem;padding:.5rem 1.5rem;background:var(--accent,#2563eb);color:#fff;border:none;border-radius:6px;font-weight:600;font-size:.85rem;cursor:pointer}
     .pk-settings-save:hover{opacity:.9}
 
+    /* Settings sections + opt-in reward toggles (progressive disclosure) */
+    .pk-cfg-section{margin-top:1rem;padding-top:.75rem;border-top:1px solid var(--border,#e2e8f0)}
+    .pk-cfg-section:first-child{margin-top:0;padding-top:0;border-top:none}
+    .pk-cfg-title{font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;margin:0 0 .5rem}
+    .pk-reward-chips{display:flex;gap:.5rem;flex-wrap:wrap}
+    .pk-reward-chip{padding:.4rem .8rem;border-radius:999px;border:1.5px solid var(--border,#e2e8f0);background:transparent;font-size:.8rem;font-weight:600;color:#64748b;cursor:pointer}
+    .pk-reward-chip.on{background:#eff6ff;border-color:#93c5fd;color:#1d4ed8}
+    .pk-reward-body{display:none;margin-top:.75rem}
+    .pk-reward-body.on{display:block}
+    .pk-bounty-hint{font-size:.75rem;color:#0e7490;margin-top:.35rem}
+    /* Payout editor reward columns hide until their feature chip is on */
+    #cfgPayoutSection .payout-pts, #cfgPayoutSection .col-pts,
+    #cfgPayoutSection .payout-ticket, #cfgPayoutSection .col-ticket,
+    #cfgPayoutSection .payout-label, #cfgPayoutSection .col-label{display:none}
+    #cfgPayoutSection.show-pts .payout-pts, #cfgPayoutSection.show-pts .col-pts{display:block}
+    #cfgPayoutSection.show-ticket .payout-ticket, #cfgPayoutSection.show-ticket .col-ticket{display:block}
+    #cfgPayoutSection.show-label .payout-label, #cfgPayoutSection.show-label .col-label{display:block}
+
     .pk-btn-view-toggle{background:transparent;color:var(--accent,#2563eb);border:1.5px solid var(--border,#e2e8f0);padding:.4rem .8rem;border-radius:6px;font-size:.8rem;font-weight:600;cursor:pointer}
     .pk-btn-view-toggle:hover{background:#f1f5f9}
     .pk-btn-green{background:#16a34a;color:#fff;border:1.5px solid #16a34a;padding:.4rem .8rem;border-radius:6px;font-size:.8rem;font-weight:600;cursor:pointer}
@@ -1354,34 +1372,86 @@ function renderPayoutCard() {
     return h;
 }
 
+// Which opt-in reward features are visible in the settings UI. Derived from the
+// session/structure on load (a feature with data is on) and flipped by chips.
+var REWARDS_UI = { bounty: false, pts: false, ticket: false, label: false };
+function initRewardsUI() {
+    REWARDS_UI.bounty = (parseInt(SESSION.bounty_amount) > 0 || parseInt(SESSION.bounty_points) > 0);
+    REWARDS_UI.pts    = PAYOUTS.some(function(p) { return parseInt(p.points) > 0; });
+    REWARDS_UI.ticket = parseInt(SESSION.ticket_target_event_id) > 0 || PAYOUTS.some(function(p) { return parseInt(p.ticket_cents) > 0; });
+    REWARDS_UI.label  = PAYOUTS.some(function(p) { return !!p.prize_label; });
+}
+
 function renderSettingsPanel() {
+    initRewardsUI();
     var h = '<div class="pk-settings-panel" id="settingsPanel">';
     h += '<h3 style="margin:0 0 .75rem;font-size:1rem">Game Settings</h3>';
+
+    // ── Game ──
+    h += '<div class="pk-cfg-section"><div class="pk-cfg-title">Game</div>';
     h += '<div class="pk-settings-grid">';
     h += '<div><label>Game Type</label><select id="cfg_game_type" onchange="previewGameType(this.value)"><option value="tournament"' + (isTourney()?' selected':'') + '>Tournament</option><option value="cash"' + (isCash()?' selected':'') + '>Cash Game</option></select></div>';
-    h += '<div><label>Buy-in ($)</label><input type="number" id="cfg_buyin" value="' + Math.round(parseInt(SESSION.buyin_amount)/100) + '" step="1" min="0"></div>';
-    h += '</div>'; // close pk-settings-grid
-    h += '<div class="pk-settings-grid" id="cfgTourneyFields" style="margin-top:.75rem;' + (isCash()?'display:none':'') + '">';
-    h += '<div><label>Rebuy ($)</label><input type="number" id="cfg_rebuy" value="' + Math.round(parseInt(SESSION.rebuy_amount)/100) + '" step="1" min="0"></div>';
-    h += '<div><label>Add-on ($)</label><input type="number" id="cfg_addon" value="' + Math.round(parseInt(SESSION.addon_amount)/100) + '" step="1" min="0"></div>';
+    h += '<div><label>Buy-in ($)</label><input type="number" id="cfg_buyin" value="' + Math.round(parseInt(SESSION.buyin_amount)/100) + '" step="1" min="0" oninput="updateBountyHint()"></div>';
+    h += '</div></div>';
+
+    // ── Chips, rebuys & add-ons (tournament only) ──
+    h += '<div class="pk-cfg-section" id="cfgTourneyFields" style="' + (isCash()?'display:none':'') + '"><div class="pk-cfg-title">Chips, Rebuys &amp; Add-ons</div>';
+    h += '<div class="pk-settings-grid">';
     h += '<div><label>Starting Chips</label><input type="number" id="cfg_chips" value="' + SESSION.starting_chips + '" min="1"></div>';
-    h += '<div><label>Add-on Chips</label><input type="number" id="cfg_addon_chips" value="' + (parseInt(SESSION.addon_chips) || parseInt(SESSION.starting_chips) || 0) + '" min="0" title="Chips granted per add-on taken"></div>';
+    h += '<div><label>Rebuy ($)</label><input type="number" id="cfg_rebuy" value="' + Math.round(parseInt(SESSION.rebuy_amount)/100) + '" step="1" min="0"></div>';
     h += '<div><label>Rebuys Allowed</label><select id="cfg_rebuy_allowed"><option value="1"' + (parseInt(SESSION.rebuy_allowed)?' selected':'') + '>Yes</option><option value="0"' + (!parseInt(SESSION.rebuy_allowed)?' selected':'') + '>No</option></select></div>';
     h += '<div><label>Max Rebuys (0=unlimited)</label><input type="number" id="cfg_max_rebuys" value="' + SESSION.max_rebuys + '" min="0"></div>';
+    h += '<div><label>Add-on ($)</label><input type="number" id="cfg_addon" value="' + Math.round(parseInt(SESSION.addon_amount)/100) + '" step="1" min="0"></div>';
     h += '<div><label>Add-ons Allowed</label><select id="cfg_addon_allowed"><option value="1"' + (parseInt(SESSION.addon_allowed)?' selected':'') + '>Yes</option><option value="0"' + (!parseInt(SESSION.addon_allowed)?' selected':'') + '>No</option></select></div>';
-    h += '<div><label>Bounty per buy-in ($) <span title="Knockout format: this much of each buy-in sits on the player\'s head. Knock them out, collect it. Applies to initial buy-ins only, not rebuys." style="cursor:help;color:#94a3b8">?</span></label><input type="number" id="cfg_bounty" value="' + Math.round((parseInt(SESSION.bounty_amount) || 0)/100) + '" step="1" min="0"></div>';
-    h += '<div><label>Bounty points per KO</label><input type="number" id="cfg_bounty_points" value="' + (parseInt(SESSION.bounty_points) || 0) + '" step="1" min="0"></div>';
-    h += '<div><label>Ticket target event <span title="Satellite: ticket prizes in the payout structure win a funded seat at this event." style="cursor:help;color:#94a3b8">?</span></label><select id="cfg_ticket_target"><option value="0">— none —</option></select></div>';
-    h += '</div>';
-    h += '<div class="pk-settings-grid" style="margin-top:.75rem">';
+    h += '<div><label>Add-on Chips</label><input type="number" id="cfg_addon_chips" value="' + (parseInt(SESSION.addon_chips) || parseInt(SESSION.starting_chips) || 0) + '" min="0" title="Chips granted per add-on taken"></div>';
+    h += '</div></div>';
+
+    // ── Tables ──
+    h += '<div class="pk-cfg-section"><div class="pk-cfg-title">Tables</div>';
+    h += '<div class="pk-settings-grid">';
     h += '<div><label>Number of Tables</label><input type="number" id="cfg_tables" value="' + SESSION.num_tables + '" min="1"></div>';
     h += '<div><label>Seats per Table</label><input type="number" id="cfg_seats_per_table" value="' + (SESSION.seats_per_table || 8) + '" min="2" max="20"></div>';
     h += '<div><label>Auto-Assign Tables</label><select id="cfg_auto_assign"><option value="1"' + (parseInt(SESSION.auto_assign_tables) ? ' selected' : '') + '>Yes</option><option value="0"' + (!parseInt(SESSION.auto_assign_tables) ? ' selected' : '') + '>No</option></select></div>';
+    h += '</div></div>';
+
+    // ── Bonus rewards: opt-in toggles keep a plain game plain ──
+    h += '<div class="pk-cfg-section" id="cfgRewardsSection" style="' + (isCash()?'display:none':'') + '"><div class="pk-cfg-title">Bonus Rewards <span style="font-weight:400;text-transform:none;letter-spacing:0">— optional, tap to enable</span></div>';
+    h += '<div class="pk-reward-chips">';
+    h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.bounty ? ' on' : '') + '" id="chip_bounty" onclick="toggleReward(\'bounty\')">🎯 Bounties</button>';
+    h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.pts ? ' on' : '') + '" id="chip_pts" onclick="toggleReward(\'pts\')">🏆 League points</button>';
+    h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.ticket ? ' on' : '') + '" id="chip_ticket" onclick="toggleReward(\'ticket\')">🎟 Satellite seat</button>';
+    h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.label ? ' on' : '') + '" id="chip_label" onclick="toggleReward(\'label\')">🎁 Prizes</button>';
+    h += '</div>';
+    // Bounty fields
+    h += '<div class="pk-reward-body' + (REWARDS_UI.bounty ? ' on' : '') + '" id="rewardBody_bounty">';
+    h += '<div class="pk-settings-grid">';
+    h += '<div><label>Bounty per buy-in ($)</label><input type="number" id="cfg_bounty" value="' + Math.round((parseInt(SESSION.bounty_amount) || 0)/100) + '" step="1" min="0" oninput="updateBountyHint()"></div>';
+    h += '<div><label>Bounty points per KO</label><input type="number" id="cfg_bounty_points" value="' + (parseInt(SESSION.bounty_points) || 0) + '" step="1" min="0"></div>';
+    h += '</div>';
+    h += '<div class="pk-bounty-hint" id="bountyHint"></div>';
+    h += '</div>';
+    // Points hint
+    h += '<div class="pk-reward-body' + (REWARDS_UI.pts ? ' on' : '') + '" id="rewardBody_pts">';
+    h += '<div style="font-size:.78rem;color:#64748b">Set points per place in the payout structure below. Points feed the league leaderboard and season championship.</div>';
+    h += '</div>';
+    // Ticket target
+    h += '<div class="pk-reward-body' + (REWARDS_UI.ticket ? ' on' : '') + '" id="rewardBody_ticket">';
+    h += '<div class="pk-settings-grid">';
+    h += '<div><label>Winner\'s seat is good for</label><select id="cfg_ticket_target"><option value="0">— pick a target event —</option></select></div>';
+    h += '</div>';
+    h += '<div style="font-size:.78rem;color:#64748b;margin-top:.35rem">Set the Ticket $ per place below — that value is held out of this pool and funds the seat at the target game.</div>';
+    h += '</div>';
+    // Prize label hint
+    h += '<div class="pk-reward-body' + (REWARDS_UI.label ? ' on' : '') + '" id="rewardBody_label">';
+    h += '<div style="font-size:.78rem;color:#64748b">Add a prize per place below — trophy, bottle, bragging rights. Display only, no money math.</div>';
+    h += '</div>';
     h += '</div>';
 
-    // Payout editor (tournament only)
-    h += '<div class="pk-payout-editor" id="cfgPayoutSection" style="' + (isCash()?'display:none':'') + '">';
-    h += '<h3 style="margin:.75rem 0 .5rem;font-size:.9rem">Payout Structure</h3>';
+    // Payout editor (tournament only). Reward columns show only when their
+    // feature chip is on (show-pts / show-ticket / show-label classes).
+    var payoutCls = (REWARDS_UI.pts ? ' show-pts' : '') + (REWARDS_UI.ticket ? ' show-ticket' : '') + (REWARDS_UI.label ? ' show-label' : '');
+    h += '<div class="pk-payout-editor pk-cfg-section' + payoutCls + '" id="cfgPayoutSection" style="' + (isCash()?'display:none':'') + '">';
+    h += '<div class="pk-cfg-title">Payout Structure</div>';
     // Saved structure picker
     h += '<div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.5rem;flex-wrap:wrap">';
     h += '<select id="payoutStructureSelect" onchange="onPayoutStructureChange()" style="flex:1;min-width:160px;padding:.3rem .5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:4px;font-size:.85rem"></select>';
@@ -1390,7 +1460,7 @@ function renderSettingsPanel() {
     h += '<button id="btnDelPayoutStructure" onclick="deletePayoutStructure()" style="display:none;color:#ef4444" title="Delete selected structure">Delete</button>';
     h += '<button id="btnDefPayoutStructure" onclick="setDefaultPayoutStructure()" style="display:none" title="Set as default (admin)">Set Default</button>';
     h += '</div>';
-    h += '<div style="display:flex;gap:.35rem;font-size:.68rem;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin-bottom:.15rem"><span style="width:40px"></span><span style="flex:1;min-width:56px">Cash %</span><span style="flex:1;min-width:48px">Pts</span><span style="flex:1;min-width:56px">Ticket $</span><span style="flex:2;min-width:80px">Prize</span><span style="width:18px"></span></div>';
+    h += '<div style="display:flex;gap:.35rem;font-size:.68rem;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin-bottom:.15rem"><span style="width:40px"></span><span style="flex:1;min-width:56px;max-width:140px">Cash %</span><span class="col-pts" style="flex:1;min-width:48px;max-width:140px">Pts</span><span class="col-ticket" style="flex:1;min-width:56px;max-width:140px">Ticket $</span><span class="col-label" style="flex:2;min-width:80px">Prize</span><span style="width:18px"></span></div>';
     h += '<div id="payoutRows">';
     for (var i = 0; i < PAYOUTS.length; i++) {
         h += payoutRowHtml(PAYOUTS[i].place, PAYOUTS[i].percentage, PAYOUTS[i].points, PAYOUTS[i].ticket_cents, PAYOUTS[i].prize_label);
@@ -1422,9 +1492,9 @@ function payoutRowHtml(place, pct, points, ticket_cents, prize_label) {
     var lbl = prize_label ? String(prize_label).replace(/"/g, '&quot;').replace(/</g, '&lt;') : '';
     return '<div class="row" style="display:flex;gap:.35rem;align-items:center;flex-wrap:wrap;margin-bottom:.25rem">'
          + '<label style="font-size:.8rem;width:40px;flex-shrink:0">' + place + getOrdinal(place) + '</label>'
-         + '<input type="number" class="payout-pct" value="' + (pct || 0) + '" step="0.1" min="0" max="100" data-place="' + place + '" oninput="updatePayoutSum()" title="Cash % of the pool" style="flex:1;min-width:56px">'
-         + '<input type="number" class="payout-pts" value="' + (parseInt(points) || 0) + '" step="1" min="0" data-place="' + place + '" title="League points for this place" style="flex:1;min-width:48px">'
-         + '<input type="number" class="payout-ticket" value="' + (ticket_cents ? Math.round(parseInt(ticket_cents)/100) : 0) + '" step="1" min="0" data-place="' + place + '" title="Entry ticket value ($) to the target event" style="flex:1;min-width:56px">'
+         + '<input type="number" class="payout-pct" value="' + (pct || 0) + '" step="0.1" min="0" max="100" data-place="' + place + '" oninput="updatePayoutSum()" title="Cash % of the pool" style="flex:1;min-width:56px;max-width:140px">'
+         + '<input type="number" class="payout-pts" value="' + (parseInt(points) || 0) + '" step="1" min="0" data-place="' + place + '" title="League points for this place" style="flex:1;min-width:48px;max-width:140px">'
+         + '<input type="number" class="payout-ticket" value="' + (ticket_cents ? Math.round(parseInt(ticket_cents)/100) : 0) + '" step="1" min="0" data-place="' + place + '" title="Entry ticket value ($) to the target event" style="flex:1;min-width:56px;max-width:140px">'
          + '<input type="text" class="payout-label" value="' + lbl + '" maxlength="60" placeholder="prize…" data-place="' + place + '" title="Custom prize (trophy, bottle, …)" style="flex:2;min-width:80px">'
          + '<button onclick="this.parentNode.remove();updatePayoutSum()" style="color:#ef4444;background:transparent;border:none;cursor:pointer;font-size:1rem;flex-shrink:0">&times;</button></div>';
 }
@@ -1512,12 +1582,55 @@ function payoutForPlace(place) {
 }
 
 function previewGameType(val) {
-    var tf = document.getElementById('cfgTourneyFields');
-    var pf = document.getElementById('cfgPayoutSection');
-    if (tf) tf.style.display = val === 'cash' ? 'none' : '';
-    if (pf) pf.style.display = val === 'cash' ? 'none' : '';
-    var tk = document.getElementById('ticketsPanel');
-    if (tk) tk.style.display = val === 'cash' ? 'none' : '';
+    var hide = val === 'cash';
+    ['cfgTourneyFields', 'cfgPayoutSection', 'ticketsPanel', 'cfgRewardsSection'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.style.display = hide ? 'none' : '';
+    });
+}
+
+// ─── Reward feature toggles (progressive disclosure) ──────
+// Turning a feature ON reveals its fields/columns; turning it OFF clears the
+// values too — the chip is the single switch for "this game uses X".
+function toggleReward(key) {
+    REWARDS_UI[key] = !REWARDS_UI[key];
+    var on = REWARDS_UI[key];
+    var chip = document.getElementById('chip_' + key);
+    if (chip) chip.classList.toggle('on', on);
+    var body = document.getElementById('rewardBody_' + key);
+    if (body) body.classList.toggle('on', on);
+    var editor = document.getElementById('cfgPayoutSection');
+    if (editor && key !== 'bounty') editor.classList.toggle('show-' + key, on);
+
+    if (!on) {
+        if (key === 'bounty') {
+            var b = document.getElementById('cfg_bounty'); if (b) b.value = 0;
+            var bp = document.getElementById('cfg_bounty_points'); if (bp) bp.value = 0;
+        }
+        if (key === 'pts') document.querySelectorAll('#payoutRows .payout-pts').forEach(function(i) { i.value = 0; });
+        if (key === 'ticket') {
+            var t = document.getElementById('cfg_ticket_target'); if (t) t.value = '0';
+            document.querySelectorAll('#payoutRows .payout-ticket').forEach(function(i) { i.value = 0; });
+        }
+        if (key === 'label') document.querySelectorAll('#payoutRows .payout-label').forEach(function(i) { i.value = ''; });
+    } else {
+        if (key === 'ticket') populateTicketTargetSelect();
+        if (key === 'bounty') updateBountyHint();
+    }
+}
+
+// Live "each buy-in splits into pool + bounty" explainer under the bounty fields.
+function updateBountyHint() {
+    var el = document.getElementById('bountyHint');
+    if (!el) return;
+    var buyin = Math.max(0, Math.round(parseFloat((document.getElementById('cfg_buyin') || {}).value || 0)));
+    var bounty = Math.max(0, Math.round(parseFloat((document.getElementById('cfg_bounty') || {}).value || 0)));
+    if (bounty <= 0) { el.textContent = ''; return; }
+    if (bounty >= buyin) {
+        el.innerHTML = '<span style="color:#dc2626">Bounty must be less than the buy-in — it comes out of it.</span>';
+        return;
+    }
+    el.textContent = 'Each $' + buyin + ' buy-in = $' + (buyin - bounty) + ' to the prize pool + $' + bounty + ' bounty on that player\'s head. Knock someone out, collect their bounty.';
 }
 
 // ─── Entry tickets (host view) ────────────────────────────
@@ -1621,6 +1734,7 @@ function toggleSettings() {
     // Populate the satellite target dropdown each open (list is cached).
     if (panel && panel.classList.contains('open') && isTourney()) {
         populateTicketTargetSelect();
+        updateBountyHint();
     }
 }
 
