@@ -1115,19 +1115,15 @@ function ordinal($n) {
         <?php
         // League progressive jackpots (funded by per-buy-in carve-outs at
         // tournament finish; hits recorded from the check-in console).
-        $_jp = ['badbeat' => 0, 'royal' => 0];
+        $_jp = 0;
         try {
-            $_jpq = $db->prepare('SELECT jackpot_type, balance FROM league_jackpots WHERE league_id = ?');
+            $_jpq = $db->prepare("SELECT balance FROM league_jackpots WHERE league_id = ? AND jackpot_type = 'main'");
             $_jpq->execute([$league_id]);
-            foreach ($_jpq->fetchAll() as $_jpr) {
-                if (isset($_jp[$_jpr['jackpot_type']])) $_jp[$_jpr['jackpot_type']] = (int)$_jpr['balance'];
-            }
+            $_jp = (int)($_jpq->fetchColumn() ?: 0);
         } catch (Exception $e) { /* pre-migration DB */ }
-        if ($_jp['badbeat'] > 0 || $_jp['royal'] > 0): ?>
+        if ($_jp > 0): ?>
         <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;padding:.55rem .8rem;margin-bottom:1rem;font-size:.88rem;color:#4c1d95;display:flex;gap:1.25rem;flex-wrap:wrap">
-            <span>💎 <strong>League Jackpots</strong></span>
-            <span>🃏 Bad Beat: <strong><?= '$' . number_format($_jp['badbeat'] / 100, ($_jp['badbeat'] % 100) ? 2 : 0) ?></strong></span>
-            <span>👑 Royal Flush: <strong><?= '$' . number_format($_jp['royal'] / 100, ($_jp['royal'] % 100) ? 2 : 0) ?></strong></span>
+            <span>💎 <strong>League Jackpot</strong> (bad beat / royal flush): <strong><?= '$' . number_format($_jp / 100, ($_jp % 100) ? 2 : 0) ?></strong></span>
         </div>
         <?php endif; ?>
 

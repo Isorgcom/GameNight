@@ -663,11 +663,35 @@ function db_init(PDO $pdo): void {
         FOREIGN KEY (jackpot_id) REFERENCES league_jackpots(id) ON DELETE CASCADE
     )"); } catch (Exception $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ljl_jackpot ON league_jackpot_log(jackpot_id, id)"); } catch (Exception $e) {}
-    // Per-buy-in jackpot contributions (cents), carved out of buyin_amount.
+    // Per-buy-in jackpot contribution (cents), carved out of buyin_amount.
+    // Single league fund; the hit type (bad beat / royal flush) is recorded on
+    // the payout, not as separate pots.
     try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN jackpot_badbeat INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN jackpot_royal INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE user_session_defaults ADD COLUMN jackpot_badbeat INTEGER DEFAULT 0"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE user_session_defaults ADD COLUMN jackpot_royal INTEGER DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN jackpot_amount INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE user_session_defaults ADD COLUMN jackpot_amount INTEGER DEFAULT 0"); } catch (Exception $e) {}
+    // One-shot merge of the short-lived split funds (badbeat/royal) into the
+    // single 'main' fund per league; log rows follow their fund.
+    try {
+        if (get_setting('jackpot_merged_single', '') !== '1') {
+            $pdo->exec("UPDATE poker_sessions SET jackpot_amount = COALESCE(jackpot_badbeat,0) + COALESCE(jackpot_royal,0) WHERE COALESCE(jackpot_amount,0) = 0");
+            $pdo->exec("UPDATE user_session_defaults SET jackpot_amount = COALESCE(jackpot_badbeat,0) + COALESCE(jackpot_royal,0) WHERE COALESCE(jackpot_amount,0) = 0");
+            $leagues = $pdo->query("SELECT DISTINCT league_id FROM league_jackpots WHERE jackpot_type != 'main'")->fetchAll(PDO::FETCH_COLUMN);
+            foreach ($leagues as $lid) {
+                $sum = (int)$pdo->query("SELECT COALESCE(SUM(balance),0) FROM league_jackpots WHERE league_id = " . (int)$lid)->fetchColumn();
+                $pdo->prepare("INSERT INTO league_jackpots (league_id, jackpot_type, balance) VALUES (?, 'main', 0)
+                               ON CONFLICT(league_id, jackpot_type) DO NOTHING")->execute([(int)$lid]);
+                $mainId = (int)$pdo->query("SELECT id FROM league_jackpots WHERE league_id = " . (int)$lid . " AND jackpot_type = 'main'")->fetchColumn();
+                $pdo->prepare("UPDATE league_jackpot_log SET jackpot_id = ? WHERE jackpot_id IN (SELECT id FROM league_jackpots WHERE league_id = ? AND jackpot_type != 'main')")
+                    ->execute([$mainId, (int)$lid]);
+                $pdo->prepare("UPDATE league_jackpots SET balance = ? WHERE id = ?")->execute([$sum, $mainId]);
+                $pdo->prepare("DELETE FROM league_jackpots WHERE league_id = ? AND jackpot_type != 'main'")->execute([(int)$lid]);
+            }
+            set_setting('jackpot_merged_single', '1');
+        }
+    } catch (Exception $e) {}
 
     // Entry tickets: a funded seat at a specific target event, issued at Finish
     // Game from a place with ticket_cents > 0. ('tickets' is taken by support.)
