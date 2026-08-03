@@ -639,6 +639,36 @@ function db_init(PDO $pdo): void {
     try { $pdo->exec("ALTER TABLE user_session_defaults ADD COLUMN bounty_amount INTEGER DEFAULT 0"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE user_session_defaults ADD COLUMN bounty_points INTEGER DEFAULT 0"); } catch (Exception $e) {}
 
+    // League progressive jackpots (Bad Beat / Royal Flush): funded by per-buy-in
+    // carve-outs configured on tournament sessions, paid out via host-recorded
+    // hits with per-recipient splits. Balance is cents; the log is append-only.
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS league_jackpots (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        league_id    INTEGER NOT NULL,
+        jackpot_type TEXT NOT NULL,
+        balance      INTEGER NOT NULL DEFAULT 0,
+        created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(league_id, jackpot_type)
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS league_jackpot_log (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        jackpot_id   INTEGER NOT NULL,
+        session_id   INTEGER,
+        event_type   TEXT NOT NULL,
+        player_name  TEXT,
+        amount       INTEGER NOT NULL,
+        detail       TEXT,
+        created_by   INTEGER,
+        created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (jackpot_id) REFERENCES league_jackpots(id) ON DELETE CASCADE
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ljl_jackpot ON league_jackpot_log(jackpot_id, id)"); } catch (Exception $e) {}
+    // Per-buy-in jackpot contributions (cents), carved out of buyin_amount.
+    try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN jackpot_badbeat INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN jackpot_royal INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE user_session_defaults ADD COLUMN jackpot_badbeat INTEGER DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE user_session_defaults ADD COLUMN jackpot_royal INTEGER DEFAULT 0"); } catch (Exception $e) {}
+
     // Entry tickets: a funded seat at a specific target event, issued at Finish
     // Game from a place with ticket_cents > 0. ('tickets' is taken by support.)
     // target FK is SET NULL so cancelling the target orphans the ticket for the

@@ -51,14 +51,19 @@ if ($action === 'get_session') {
                           WHERE t.source_session_id = ? ORDER BY t.source_place, t.id");
     $tout->execute([(int)$session['id']]);
 
+    $evLeague = $db->prepare('SELECT league_id FROM events WHERE id = ?');
+    $evLeague->execute([(int)$session['event_id']]);
+    $league_id = (int)$evLeague->fetchColumn() ?: null;
+
     echo json_encode([
-        'ok'      => true,
-        'session' => $session,
-        'players' => get_players($db, $session['id']),
-        'payouts' => get_payouts($db, $session['id']),
-        'pool'    => calc_pool($db, $session['id']),
-        'log'     => get_session_log($db, (int)$session['id']),
-        'tickets' => ['incoming' => $tin->fetchAll(), 'outgoing' => $tout->fetchAll()],
+        'ok'       => true,
+        'session'  => $session,
+        'players'  => get_players($db, $session['id']),
+        'payouts'  => get_payouts($db, $session['id']),
+        'pool'     => calc_pool($db, $session['id']),
+        'log'      => get_session_log($db, (int)$session['id']),
+        'tickets'  => ['incoming' => $tin->fetchAll(), 'outgoing' => $tout->fetchAll()],
+        'jackpots' => ['league_id' => $league_id] + pk_jackpot_balances($db, $league_id),
     ]);
     exit;
 }
@@ -396,14 +401,23 @@ if ($action === 'update_config') {
     $game_type = in_array($_POST['game_type'] ?? '', ['tournament', 'cash']) ? $_POST['game_type'] : $s['game_type'];
     $new_num_tables = (int)($_POST['num_tables'] ?? $s['num_tables']);
 
-    // Bounty config: the bounty is carved out of the buy-in, so it can never
-    // equal or exceed it (a $20 buy-in with a $20 bounty leaves no prize pool).
+    // Bounty + jackpot carve-outs come out of the buy-in, so together they can
+    // never reach it (a $20 buy-in fully carved leaves no prize pool).
     $new_buyin  = (int)($_POST['buyin_amount'] ?? $s['buyin_amount']);
-    $bounty_amt = (int)($_POST['bounty_amount'] ?? $s['bounty_amount'] ?? 0);
+    $bounty_amt = max(0, (int)($_POST['bounty_amount'] ?? $s['bounty_amount'] ?? 0));
     $bounty_pts = max(0, (int)($_POST['bounty_points'] ?? $s['bounty_points'] ?? 0));
-    if ($bounty_amt < 0) $bounty_amt = 0;
-    if ($game_type === 'tournament' && $bounty_amt >= $new_buyin && $bounty_amt > 0) {
-        echo json_encode(['ok' => false, 'error' => 'Bounty must be less than the buy-in (it comes out of it).']); exit;
+    $jp_badbeat = max(0, (int)($_POST['jackpot_badbeat'] ?? $s['jackpot_badbeat'] ?? 0));
+    $jp_royal   = max(0, (int)($_POST['jackpot_royal'] ?? $s['jackpot_royal'] ?? 0));
+    if ($game_type === 'tournament' && ($bounty_amt + $jp_badbeat + $jp_royal) >= $new_buyin
+        && ($bounty_amt + $jp_badbeat + $jp_royal) > 0) {
+        echo json_encode(['ok' => false, 'error' => 'Bounty + jackpot contributions must total less than the buy-in (they come out of it).']); exit;
+    }
+    if (($jp_badbeat > 0 || $jp_royal > 0)) {
+        $lgq = $db->prepare('SELECT league_id FROM events WHERE id = ?');
+        $lgq->execute([(int)$s['event_id']]);
+        if (!(int)$lgq->fetchColumn()) {
+            echo json_encode(['ok' => false, 'error' => 'Jackpots are league funds — this event must belong to a league first.']); exit;
+        }
     }
 
     // Satellite target: another upcoming poker event the caller can manage.
@@ -420,7 +434,7 @@ if ($action === 'update_config') {
         $target = 0;
     }
 
-    $db->prepare('UPDATE poker_sessions SET buyin_amount=?, rebuy_amount=?, addon_amount=?, rebuy_allowed=?, addon_allowed=?, max_rebuys=?, starting_chips=?, addon_chips=?, num_tables=?, game_type=?, auto_assign_tables=?, seats_per_table=?, bounty_amount=?, bounty_points=?, ticket_target_event_id=? WHERE id=?')->execute([
+    $db->prepare('UPDATE poker_sessions SET buyin_amount=?, rebuy_amount=?, addon_amount=?, rebuy_allowed=?, addon_allowed=?, max_rebuys=?, starting_chips=?, addon_chips=?, num_tables=?, game_type=?, auto_assign_tables=?, seats_per_table=?, bounty_amount=?, bounty_points=?, ticket_target_event_id=?, jackpot_badbeat=?, jackpot_royal=? WHERE id=?')->execute([
         $new_buyin,
         (int)($_POST['rebuy_amount'] ?? $s['rebuy_amount']),
         (int)($_POST['addon_amount'] ?? $s['addon_amount']),
@@ -436,6 +450,8 @@ if ($action === 'update_config') {
         $bounty_amt,
         $bounty_pts,
         $target > 0 ? $target : null,
+        $jp_badbeat,
+        $jp_royal,
         $session_id,
     ]);
 
@@ -478,6 +494,8 @@ if ($action === 'update_config') {
         'auto_assign_tables' => (int)$srow['auto_assign_tables'],
         'bounty_amount'      => (int)($srow['bounty_amount'] ?? 0),
         'bounty_points'      => (int)($srow['bounty_points'] ?? 0),
+        'jackpot_badbeat'    => (int)($srow['jackpot_badbeat'] ?? 0),
+        'jackpot_royal'      => (int)($srow['jackpot_royal'] ?? 0),
     ]);
 
     echo json_encode([
@@ -1561,6 +1579,58 @@ if ($action === 'resolve_ticket') {
         'pool'    => calc_pool($db, (int)$t['source_session_id']),
         'players' => get_players($db, (int)$t['source_session_id']),
     ]);
+    exit;
+}
+
+// ─── POST: record_jackpot_hit ──────────────────────────────
+// Bad beat / royal flush hit: pay one or more recipients from the league fund.
+// Deducts the fund, logs one 'hit' row per recipient, and mirrors into the
+// session log so the game's ledger tells the story too.
+if ($action === 'record_jackpot_hit') {
+    $session_id = (int)($_POST['session_id'] ?? 0);
+    $jtype      = $_POST['jackpot_type'] ?? '';
+    $names      = $_POST['names'] ?? [];
+    $amounts    = $_POST['amounts'] ?? [];  // dollars
+    if (!isset(PK_JACKPOT_TYPES[$jtype])) { echo json_encode(['ok' => false, 'error' => 'Unknown jackpot type']); exit; }
+
+    $sess = $db->prepare('SELECT ps.*, e.league_id, e.title FROM poker_sessions ps JOIN events e ON e.id = ps.event_id WHERE ps.id = ?');
+    $sess->execute([$session_id]);
+    $s = $sess->fetch();
+    if (!$s) { echo json_encode(['ok' => false, 'error' => 'Session not found']); exit; }
+    if (!is_owner_or_manager($db, $s['event_id'], $current, $isAdmin)) {
+        http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Access denied']); exit;
+    }
+    if (empty($s['league_id'])) { echo json_encode(['ok' => false, 'error' => 'This event has no league (jackpots are league funds).']); exit; }
+
+    $recips = [];
+    $total = 0;
+    for ($i = 0; $i < count($names); $i++) {
+        $n = trim((string)$names[$i]);
+        $a = (int)round(((float)($amounts[$i] ?? 0)) * 100);
+        if ($n === '' || $a <= 0) continue;
+        $recips[] = ['name' => $n, 'amount' => $a];
+        $total += $a;
+    }
+    if (!$recips) { echo json_encode(['ok' => false, 'error' => 'Add at least one recipient with an amount.']); exit; }
+
+    $fund = pk_jackpot_fund($db, (int)$s['league_id'], $jtype);
+    if ($total > (int)$fund['balance']) {
+        echo json_encode(['ok' => false, 'error' => 'Payout ' . pk_money($total) . ' exceeds the fund (' . pk_money((int)$fund['balance']) . ').']); exit;
+    }
+
+    $label = PK_JACKPOT_TYPES[$jtype];
+    foreach ($recips as $rc) {
+        $db->prepare('INSERT INTO league_jackpot_log (jackpot_id, session_id, event_type, player_name, amount, detail, created_by)
+                      VALUES (?, ?, ?, ?, ?, ?, ?)')
+           ->execute([(int)$fund['id'], $session_id, 'hit', $rc['name'], -$rc['amount'],
+                      "$label hit at \"{$s['title']}\"", (int)$current['id']]);
+        pk_log($db, $session_id, (int)$current['id'], 'jackpot', null, $rc['name'], -$rc['amount'],
+               "$label jackpot hit — " . pk_money($rc['amount']) . ' to ' . $rc['name']);
+    }
+    $db->prepare('UPDATE league_jackpots SET balance = balance - ? WHERE id = ?')->execute([$total, (int)$fund['id']]);
+    db_log_activity((int)$current['id'], "$label jackpot hit: " . pk_money($total) . " paid (session id=$session_id)");
+
+    echo json_encode(['ok' => true, 'jackpots' => ['league_id' => (int)$s['league_id']] + pk_jackpot_balances($db, (int)$s['league_id'])]);
     exit;
 }
 

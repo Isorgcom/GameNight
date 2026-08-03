@@ -479,6 +479,26 @@ $session = $sessStmt->fetch();
 
 <!-- Save payout structure modal (opened from the settings editor, so it sits
      above the z-900 full-screen overlay) -->
+<!-- League jackpot hit modal (funds display + per-recipient split) -->
+<div class="pk-modal-overlay" id="jackpotModal" style="z-index:1000">
+    <div class="pk-modal">
+        <h3>💎 League Jackpots</h3>
+        <div id="jpBalances" style="font-size:.9rem;color:#334155;margin-bottom:.75rem"></div>
+        <label style="font-size:.85rem;font-weight:600;color:#475569;display:block;margin-bottom:.3rem">Jackpot hit</label>
+        <select id="jpType" style="width:100%;padding:.5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:1rem;box-sizing:border-box;margin-bottom:.6rem">
+            <option value="badbeat">🃏 Bad Beat</option>
+            <option value="royal">👑 Royal Flush</option>
+        </select>
+        <label style="font-size:.85rem;font-weight:600;color:#475569;display:block;margin-bottom:.3rem">Paid to</label>
+        <div id="jpRecipients"></div>
+        <button type="button" onclick="addJackpotRecipient()" style="font-size:.78rem;padding:.3rem .6rem;border-radius:4px;cursor:pointer;border:1.5px solid var(--border,#e2e8f0);background:#f8fafc;margin-top:.2rem">+ Add recipient</button>
+        <div class="pk-modal-actions">
+            <button onclick="closeJackpotModal()">Cancel</button>
+            <button class="pk-save" onclick="confirmJackpotHit()">Record Hit</button>
+        </div>
+    </div>
+</div>
+
 <!-- No click-outside dismiss: a mis-click must not eat a half-typed name. -->
 <div class="pk-modal-overlay" id="saveStructModal" style="z-index:1000">
     <div class="pk-modal">
@@ -606,6 +626,7 @@ var SORT_DIR = 1;    // 1 = ascending, -1 = descending
 var notesPlayerId = null;
 var LOG = [];        // session activity log entries (newest-first)
 var TICKETS = { incoming: [], outgoing: [] };  // entry tickets touching this session
+var JACKPOTS = { league_id: null, badbeat: 0, royal: 0 };  // league fund balances (cents)
 
 // Fallback shims: if a stale-cached pk-dialogs.js predates pkProgress, Save
 // must still work (just without the animation). The deferred fresh script
@@ -714,6 +735,7 @@ function loadSession() {
                 POOL = j.pool;
                 LOG = j.log || [];
                 TICKETS = j.tickets || { incoming: [], outgoing: [] };
+                JACKPOTS = j.jackpots || JACKPOTS;
                 WALKIN_SEEN = new Set(pendingPlayerIds(PLAYERS)); // baseline: no alerts for pre-existing pendings
                 renderDashboard();
             }
@@ -820,6 +842,10 @@ function renderDashboard() {
         h += '<button class="pk-btn-settings" onclick="openDealSplit()" title="Payout Calculator">&#128176;<span class="pk-act-label"> Payout</span></button>';
     } else {
         h += '<button class="pk-btn-settings" onclick="openCashBox()" title="Cash box: record tips and square the box">&#129534;<span class="pk-act-label"> Cash Box</span></button>';
+    }
+    // League jackpots: record a bad-beat / royal hit from the table.
+    if (JACKPOTS.league_id) {
+        h += '<button class="pk-btn-settings" onclick="openJackpotModal()" title="League jackpots: view funds and record a hit">💎<span class="pk-act-label"> Jackpot</span></button>';
     }
     // Game lifecycle lives in the header now, not buried in Settings.
     if (SESSION.status !== 'finished') {
@@ -1387,9 +1413,11 @@ function renderPoolCard() {
         var tw = parseInt(POOL.ticket_withheld) || 0;
         var ti = parseInt(POOL.ticket_in) || 0;
         if (bw > 0) h += '<div class="pk-pool-row"><span>&minus; Bounties (' + POOL.total_buyins + ' &times; ' + formatMoney(parseInt(SESSION.bounty_amount) || 0) + ')</span><span style="color:#0e7490">&minus;' + formatMoney(bw) + '</span></div>';
+        var jw = parseInt(POOL.jackpot_withheld) || 0;
+        if (jw > 0) h += '<div class="pk-pool-row"><span>&minus; 💎 Jackpots (' + POOL.total_buyins + ' &times; ' + formatMoney((parseInt(SESSION.jackpot_badbeat) || 0) + (parseInt(SESSION.jackpot_royal) || 0)) + ')</span><span style="color:#7c3aed">&minus;' + formatMoney(jw) + '</span></div>';
         if (tw > 0) h += '<div class="pk-pool-row"><span>&minus; Ticket prizes</span><span style="color:#b45309">&minus;' + formatMoney(tw) + '</span></div>';
         if (ti > 0) h += '<div class="pk-pool-row"><span>+ Ticket seat surplus</span><span style="color:#16a34a">+' + formatMoney(ti) + '</span></div>';
-        h += '<div class="pk-pool-row total"><span>' + ((bw || tw || ti) ? 'Prize Pool (net)' : 'Total') + '</span><span>' + formatMoney(POOL.pool_total) + '</span></div>';
+        h += '<div class="pk-pool-row total"><span>' + ((bw || jw || tw || ti) ? 'Prize Pool (net)' : 'Total') + '</span><span>' + formatMoney(POOL.pool_total) + '</span></div>';
         // Unclaimed bounty tracker: KOs recorded without an eliminator leave
         // bounty cash on the table — surface the shortfall.
         if (bw > 0) {
@@ -1448,12 +1476,13 @@ function renderPayoutCard() {
 
 // Which opt-in reward features are visible in the settings UI. Derived from the
 // session/structure on load (a feature with data is on) and flipped by chips.
-var REWARDS_UI = { bounty: false, pts: false, ticket: false, label: false };
+var REWARDS_UI = { bounty: false, pts: false, ticket: false, label: false, jackpot: false };
 function initRewardsUI() {
-    REWARDS_UI.bounty = (parseInt(SESSION.bounty_amount) > 0 || parseInt(SESSION.bounty_points) > 0);
-    REWARDS_UI.pts    = PAYOUTS.some(function(p) { return parseInt(p.points) > 0; });
-    REWARDS_UI.ticket = parseInt(SESSION.ticket_target_event_id) > 0 || PAYOUTS.some(function(p) { return parseInt(p.ticket_cents) > 0; });
-    REWARDS_UI.label  = PAYOUTS.some(function(p) { return !!p.prize_label; });
+    REWARDS_UI.bounty  = (parseInt(SESSION.bounty_amount) > 0 || parseInt(SESSION.bounty_points) > 0);
+    REWARDS_UI.pts     = PAYOUTS.some(function(p) { return parseInt(p.points) > 0; });
+    REWARDS_UI.ticket  = parseInt(SESSION.ticket_target_event_id) > 0 || PAYOUTS.some(function(p) { return parseInt(p.ticket_cents) > 0; });
+    REWARDS_UI.label   = PAYOUTS.some(function(p) { return !!p.prize_label; });
+    REWARDS_UI.jackpot = (parseInt(SESSION.jackpot_badbeat) > 0 || parseInt(SESSION.jackpot_royal) > 0);
 }
 
 // ─── Full-screen Game Settings editor ─────────────────────
@@ -1625,6 +1654,11 @@ function renderPayoutsPane() {
     h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.pts ? ' on' : '') + '" id="chip_pts" onclick="toggleReward(\'pts\')">🏆 League points</button>';
     h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.ticket ? ' on' : '') + '" id="chip_ticket" onclick="toggleReward(\'ticket\')">🎟 Satellite seat</button>';
     h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.label ? ' on' : '') + '" id="chip_label" onclick="toggleReward(\'label\')">🎁 Prizes</button>';
+    if (EVENT_LEAGUE_ID) {
+        h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.jackpot ? ' on' : '') + '" id="chip_jackpot" onclick="toggleReward(\'jackpot\')">💎 Jackpots</button>';
+    } else {
+        h += '<button type="button" class="pk-reward-chip" disabled style="opacity:.4;cursor:default" title="Jackpots are league funds — this event has no league">💎 Jackpots</button>';
+    }
     h += '</div>';
     // Bounty fields
     h += '<div class="pk-reward-body' + (REWARDS_UI.bounty ? ' on' : '') + '" id="rewardBody_bounty">';
@@ -1648,6 +1682,14 @@ function renderPayoutsPane() {
     // Prize label hint
     h += '<div class="pk-reward-body' + (REWARDS_UI.label ? ' on' : '') + '" id="rewardBody_label">';
     h += '<div style="font-size:.78rem;color:#64748b">Add a prize per place below — trophy, bottle, bragging rights. Display only, no money math.</div>';
+    h += '</div>';
+    // Jackpot contributions (league funds)
+    h += '<div class="pk-reward-body' + (REWARDS_UI.jackpot ? ' on' : '') + '" id="rewardBody_jackpot">';
+    h += '<div class="pk-settings-grid">';
+    h += '<div><label>Bad Beat per buy-in</label><div class="pk-money-wrap"><input type="number" id="cfg_jackpot_badbeat" value="' + Math.round((parseInt(SESSION.jackpot_badbeat) || 0)/100) + '" step="1" min="0"></div></div>';
+    h += '<div><label>Royal Flush per buy-in</label><div class="pk-money-wrap"><input type="number" id="cfg_jackpot_royal" value="' + Math.round((parseInt(SESSION.jackpot_royal) || 0)/100) + '" step="1" min="0"></div></div>';
+    h += '</div>';
+    h += '<div style="font-size:.78rem;color:#64748b;margin-top:.35rem">Carved from each buy-in into the league\'s progressive funds when the game finishes. Current funds: 🃏 Bad Beat <b>' + formatMoney(JACKPOTS.badbeat) + '</b> · 👑 Royal Flush <b>' + formatMoney(JACKPOTS.royal) + '</b>. Record a hit from the 💎 button on the game screen.</div>';
     h += '</div>';
     h += '</div>';
 
@@ -1793,12 +1835,16 @@ function toggleReward(key) {
     var body = document.getElementById('rewardBody_' + key);
     if (body) body.classList.toggle('on', on);
     var editor = document.getElementById('cfgPayoutSection');
-    if (editor && key !== 'bounty') editor.classList.toggle('show-' + key, on);
+    if (editor && (key === 'pts' || key === 'ticket' || key === 'label')) editor.classList.toggle('show-' + key, on);
 
     if (!on) {
         if (key === 'bounty') {
             var b = document.getElementById('cfg_bounty'); if (b) b.value = 0;
             var bp = document.getElementById('cfg_bounty_points'); if (bp) bp.value = 0;
+        }
+        if (key === 'jackpot') {
+            var jb = document.getElementById('cfg_jackpot_badbeat'); if (jb) jb.value = 0;
+            var jr = document.getElementById('cfg_jackpot_royal'); if (jr) jr.value = 0;
         }
         if (key === 'pts') document.querySelectorAll('#payoutRows .payout-pts').forEach(function(i) { i.value = 0; });
         if (key === 'ticket') {
@@ -1810,6 +1856,60 @@ function toggleReward(key) {
         if (key === 'ticket') populateTicketTargetSelect();
         if (key === 'bounty') updateBountyHint();
     }
+}
+
+// ─── League jackpot hit recording ─────────────────────────
+function openJackpotModal() {
+    var b = document.getElementById('jpBalances');
+    b.innerHTML = '🃏 Bad Beat: <b>' + formatMoney(JACKPOTS.badbeat) + '</b> &nbsp;·&nbsp; 👑 Royal Flush: <b>' + formatMoney(JACKPOTS.royal) + '</b>';
+    document.getElementById('jpRecipients').innerHTML = '';
+    addJackpotRecipient();
+    document.getElementById('jackpotModal').classList.add('open');
+}
+function closeJackpotModal() {
+    document.getElementById('jackpotModal').classList.remove('open');
+}
+function addJackpotRecipient() {
+    var wrap = document.getElementById('jpRecipients');
+    var row = document.createElement('div');
+    row.className = 'jp-recip-row';
+    row.style.cssText = 'display:flex;gap:.4rem;align-items:center;margin-bottom:.35rem';
+    var opts = '<option value="">— player —</option>';
+    (PLAYERS || []).filter(function(p) { return !parseInt(p.removed); }).forEach(function(p) {
+        opts += '<option value="' + escHtml(p.display_name) + '">' + escHtml(p.display_name) + '</option>';
+    });
+    row.innerHTML = '<select class="jp-name" style="flex:2;padding:.45rem .5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:.9rem">' + opts + '</select>'
+        + '<span class="pk-money-wrap" style="flex:1;min-width:80px"><input type="number" class="jp-amount" step="0.01" min="0" placeholder="0"></span>'
+        + '<button type="button" onclick="this.parentNode.remove()" style="color:#ef4444;background:transparent;border:none;cursor:pointer;font-size:1rem">&times;</button>';
+    wrap.appendChild(row);
+}
+function confirmJackpotHit() {
+    var data = { session_id: SESSION.id, jackpot_type: document.getElementById('jpType').value };
+    var fd = new FormData();
+    fd.append('csrf_token', CSRF);
+    fd.append('action', 'record_jackpot_hit');
+    fd.append('session_id', SESSION.id);
+    fd.append('jackpot_type', data.jackpot_type);
+    var any = false;
+    document.querySelectorAll('#jpRecipients .jp-recip-row').forEach(function(row) {
+        var name = (row.querySelector('.jp-name') || {}).value || '';
+        var amt = parseFloat((row.querySelector('.jp-amount') || {}).value || 0);
+        if (name && amt > 0) {
+            fd.append('names[]', name);
+            fd.append('amounts[]', amt);
+            any = true;
+        }
+    });
+    if (!any) { pkAlert('Pick at least one player and amount.'); return; }
+    fetch('/checkin_dl.php', { method: 'POST', body: fd })
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+            if (!j.ok) { pkAlert(j.error || 'Error'); return; }
+            JACKPOTS = j.jackpots || JACKPOTS;
+            closeJackpotModal();
+            pkAlert('Jackpot hit recorded. 🃏 Bad Beat: ' + formatMoney(JACKPOTS.badbeat) + ' · 👑 Royal Flush: ' + formatMoney(JACKPOTS.royal), { title: '💎 Jackpots' });
+            refreshLogIfOpen();
+        });
 }
 
 // Rebuys / Add-ons sub-box: the Allowed select shows or hides its fields.
@@ -2900,6 +3000,8 @@ function saveSettings() {
         data.bounty_amount = Math.max(0, Math.round(parseFloat((document.getElementById('cfg_bounty') || {}).value || 0))) * 100;
         data.bounty_points = parseInt((document.getElementById('cfg_bounty_points') || {}).value || 0);
         data.ticket_target_event_id = parseInt((document.getElementById('cfg_ticket_target') || {}).value || 0);
+        data.jackpot_badbeat = Math.max(0, Math.round(parseFloat((document.getElementById('cfg_jackpot_badbeat') || {}).value || 0))) * 100;
+        data.jackpot_royal = Math.max(0, Math.round(parseFloat((document.getElementById('cfg_jackpot_royal') || {}).value || 0))) * 100;
     } else {
         data.rebuy_amount = data.buyin_amount;
         data.addon_amount = 0;

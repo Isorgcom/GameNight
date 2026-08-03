@@ -1112,6 +1112,25 @@ function ordinal($n) {
         </div>
         <?php endif; ?>
 
+        <?php
+        // League progressive jackpots (funded by per-buy-in carve-outs at
+        // tournament finish; hits recorded from the check-in console).
+        $_jp = ['badbeat' => 0, 'royal' => 0];
+        try {
+            $_jpq = $db->prepare('SELECT jackpot_type, balance FROM league_jackpots WHERE league_id = ?');
+            $_jpq->execute([$league_id]);
+            foreach ($_jpq->fetchAll() as $_jpr) {
+                if (isset($_jp[$_jpr['jackpot_type']])) $_jp[$_jpr['jackpot_type']] = (int)$_jpr['balance'];
+            }
+        } catch (Exception $e) { /* pre-migration DB */ }
+        if ($_jp['badbeat'] > 0 || $_jp['royal'] > 0): ?>
+        <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;padding:.55rem .8rem;margin-bottom:1rem;font-size:.88rem;color:#4c1d95;display:flex;gap:1.25rem;flex-wrap:wrap">
+            <span>💎 <strong>League Jackpots</strong></span>
+            <span>🃏 Bad Beat: <strong><?= '$' . number_format($_jp['badbeat'] / 100, ($_jp['badbeat'] % 100) ? 2 : 0) ?></strong></span>
+            <span>👑 Royal Flush: <strong><?= '$' . number_format($_jp['royal'] / 100, ($_jp['royal'] % 100) ? 2 : 0) ?></strong></span>
+        </div>
+        <?php endif; ?>
+
         <div style="display:flex;align-items:baseline;gap:1rem;flex-wrap:wrap;margin-bottom:.75rem">
             <h2 style="font-size:1.1rem;font-weight:700;margin:0">Leaderboard</h2>
             <?php
