@@ -1524,6 +1524,9 @@ if ($action === 'resolve_ticket') {
         $db->prepare('UPDATE poker_entry_tickets SET target_event_id = ? WHERE id = ?')->execute([$new_target, $ticket_id]);
         pk_log($db, (int)$t['source_session_id'], (int)$current['id'], 'ticket_issue', (int)$t['player_id'],
                (string)$t['display_name'], null, 'Entry ticket re-targeted to "' . $tevRow['title'] . '"');
+        // The invitation follows the seat to its new target event.
+        pk_ticket_ensure_invite($db, $new_target, $t['user_id'] ? (int)$t['user_id'] : null,
+                                (string)$t['display_name'], (int)$t['source_event_id']);
         if (!empty($t['user_id'])) {
             notify_user_direct($db, (int)$t['user_id'], 'reward_ticket',
                 'Your entry ticket moved: ' . $tevRow['title'],

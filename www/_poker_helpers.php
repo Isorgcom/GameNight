@@ -529,6 +529,33 @@ function pk_apply_tournament_payouts($db, $session_id) {
     }
 }
 
+// A ticket holder is automatically invited to the target event (RSVP yes,
+// approved — the awarded seat IS the invitation). No-op if an invite for that
+// name already exists. Contact info comes from users (registered) or the
+// source event's invite row (guests) so reminders can reach them.
+function pk_ticket_ensure_invite($db, int $target_event_id, ?int $user_id, string $display_name, ?int $source_event_id): void {
+    if ($target_event_id <= 0 || $display_name === '') return;
+    try {
+        $chk = $db->prepare('SELECT id FROM event_invites WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL');
+        $chk->execute([$target_event_id, $display_name]);
+        if ($chk->fetch()) return;
+
+        $phone = null; $email = null; $username = $display_name;
+        if ($user_id) {
+            $u = $db->prepare('SELECT username, phone, email FROM users WHERE id = ?');
+            $u->execute([$user_id]);
+            if ($ur = $u->fetch()) { $username = $ur['username']; $phone = $ur['phone'] ?: null; $email = $ur['email'] ?: null; }
+        } elseif ($source_event_id) {
+            $s = $db->prepare('SELECT phone, email FROM event_invites WHERE event_id = ? AND LOWER(username) = LOWER(?) LIMIT 1');
+            $s->execute([$source_event_id, $display_name]);
+            if ($sr = $s->fetch()) { $phone = $sr['phone'] ?: null; $email = $sr['email'] ?: null; }
+        }
+        $db->prepare("INSERT INTO event_invites (event_id, username, phone, email, rsvp, event_role, approval_status)
+                      VALUES (?, ?, ?, ?, 'yes', 'invitee', 'approved')")
+           ->execute([$target_event_id, $username, $phone, $email]);
+    } catch (Exception $e) { /* invite is best-effort; the ticket itself is the record */ }
+}
+
 // Finish hook shared by the manual Finish button and the last-elimination
 // auto-finish: locks in the recompute, then issues entry tickets exactly once
 // (guarded per (source_session, place) so a re-finish never double-issues).
@@ -568,6 +595,12 @@ function pk_finish_session($db, int $session_id, int $actor_id): void {
            ->execute([$session_id, $place, (int)$w['id'], $w['user_id'] ?: null, (string)$w['display_name'], $target, $value]);
         pk_log($db, $session_id, $actor_id, 'ticket_issue', (int)$w['id'], (string)$w['display_name'], $value,
                'Entry ticket to "' . $tev['title'] . '" (' . $tev['start_date'] . ') — ' . pk_money($value) . ' for ' . pk_ordinal($place));
+
+        // The seat comes with the guest list spot: auto-invite at the target.
+        $srcEv = $db->prepare('SELECT event_id FROM poker_sessions WHERE id = ?');
+        $srcEv->execute([$session_id]);
+        pk_ticket_ensure_invite($db, $target, $w['user_id'] ? (int)$w['user_id'] : null,
+                                (string)$w['display_name'], (int)$srcEv->fetchColumn());
 
         if (!empty($w['user_id'])) {
             require_once __DIR__ . '/_notifications.php';
