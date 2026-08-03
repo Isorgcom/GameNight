@@ -180,7 +180,10 @@ $session = $sessStmt->fetch();
 
     .pk-settings-panel{display:none;background:var(--surface,#fff);border:1.5px solid var(--border,#e2e8f0);border-radius:8px;padding:1.25rem;margin:.75rem 1.5rem}
     .pk-settings-panel.open{display:block}
-    .pk-settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.75rem}
+    /* Left-aligned: fields take a compact fixed width and cluster left instead
+       of stretching across the panel. */
+    .pk-settings-grid{display:flex;flex-wrap:wrap;gap:.75rem}
+    .pk-settings-grid>div{flex:0 1 190px;min-width:150px}
     .pk-settings-grid label{font-size:.8rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem}
     .pk-settings-grid input,.pk-settings-grid select{width:100%;padding:.4rem .6rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:.85rem}
     .pk-payout-editor{margin-top:.75rem}
@@ -203,7 +206,7 @@ $session = $sessStmt->fetch();
     /* Rebuys / Add-ons sub-boxes: the Yes/No select is the group header and
        gates its own fields */
     .pk-subgrids{display:flex;gap:.75rem;flex-wrap:wrap}
-    .pk-subbox{flex:1;min-width:230px;border:1.5px solid var(--border,#e2e8f0);border-radius:8px;padding:.6rem .75rem}
+    .pk-subbox{flex:0 1 320px;min-width:230px;border:1.5px solid var(--border,#e2e8f0);border-radius:8px;padding:.6rem .75rem}
     .pk-subbox-head{display:flex;justify-content:space-between;align-items:center;gap:.5rem}
     .pk-subbox-head span{font-size:.8rem;font-weight:700;color:#475569}
     .pk-subbox-head select{width:auto;padding:.3rem .5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:.8rem}
@@ -1475,7 +1478,7 @@ function renderSettingsPanel() {
     h += '<div class="pk-cfg-title">Payout Structure</div>';
     // Saved structure picker
     h += '<div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.5rem;flex-wrap:wrap">';
-    h += '<select id="payoutStructureSelect" onchange="onPayoutStructureChange()" style="flex:1;min-width:160px;padding:.3rem .5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:4px;font-size:.85rem"></select>';
+    h += '<select id="payoutStructureSelect" onchange="onPayoutStructureChange()" style="flex:0 1 300px;min-width:160px;padding:.3rem .5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:4px;font-size:.85rem"></select>';
     h += '<button onclick="loadPayoutStructure()" title="Apply selected structure">Load</button>';
     h += '<button onclick="savePayoutStructureAs()" title="Save current payouts as a named structure">Save As…</button>';
     h += '<button id="btnDelPayoutStructure" onclick="deletePayoutStructure()" style="display:none;color:#ef4444" title="Delete selected structure">Delete</button>';
