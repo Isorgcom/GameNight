@@ -209,7 +209,8 @@ $session = $sessStmt->fetch();
     .pk-subbox{flex:0 1 320px;min-width:230px;border:1.5px solid var(--border,#e2e8f0);border-radius:8px;padding:.6rem .75rem}
     .pk-subbox-head{display:flex;justify-content:space-between;align-items:center;gap:.5rem}
     .pk-subbox-head span{font-size:.8rem;font-weight:700;color:#475569}
-    .pk-subbox-head select{width:auto;padding:.3rem .5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:.8rem}
+    .pk-subbox-check{display:flex;align-items:center;gap:.35rem;font-size:.8rem;font-weight:600;color:#475569;cursor:pointer;user-select:none}
+    .pk-subbox-check input{width:1rem;height:1rem;accent-color:var(--accent,#2563eb);cursor:pointer}
     .pk-subbox-body{display:none;grid-template-columns:1fr 1fr;gap:.6rem;margin-top:.6rem}
     .pk-subbox-body.on{display:grid}
     .pk-subbox-body label{font-size:.8rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem}
@@ -1417,13 +1418,13 @@ function renderSettingsPanel() {
     h += '</div>';
     h += '<div class="pk-subgrids">';
     h += '<div class="pk-subbox">';
-    h += '<div class="pk-subbox-head"><span>&#8635; Rebuys</span><select id="cfg_rebuy_allowed" onchange="toggleSubBox(\'rebuy\', this.value)"><option value="1"' + (parseInt(SESSION.rebuy_allowed)?' selected':'') + '>Allowed</option><option value="0"' + (!parseInt(SESSION.rebuy_allowed)?' selected':'') + '>Not allowed</option></select></div>';
+    h += '<div class="pk-subbox-head"><span>&#8635; Rebuys</span><label class="pk-subbox-check"><input type="checkbox" id="cfg_rebuy_allowed"' + (parseInt(SESSION.rebuy_allowed)?' checked':'') + ' onchange="toggleSubBox(\'rebuy\', this.checked ? 1 : 0)"> Allowed</label></div>';
     h += '<div class="pk-subbox-body' + (parseInt(SESSION.rebuy_allowed)?' on':'') + '" id="subbox_rebuy">';
     h += '<div><label>Rebuy ($)</label><input type="number" id="cfg_rebuy" value="' + Math.round(parseInt(SESSION.rebuy_amount)/100) + '" step="1" min="0"></div>';
     h += '<div><label>Max (0=unlimited)</label><input type="number" id="cfg_max_rebuys" value="' + SESSION.max_rebuys + '" min="0"></div>';
     h += '</div></div>';
     h += '<div class="pk-subbox">';
-    h += '<div class="pk-subbox-head"><span>&#10133; Add-ons</span><select id="cfg_addon_allowed" onchange="toggleSubBox(\'addon\', this.value)"><option value="1"' + (parseInt(SESSION.addon_allowed)?' selected':'') + '>Allowed</option><option value="0"' + (!parseInt(SESSION.addon_allowed)?' selected':'') + '>Not allowed</option></select></div>';
+    h += '<div class="pk-subbox-head"><span>&#10133; Add-ons</span><label class="pk-subbox-check"><input type="checkbox" id="cfg_addon_allowed"' + (parseInt(SESSION.addon_allowed)?' checked':'') + ' onchange="toggleSubBox(\'addon\', this.checked ? 1 : 0)"> Allowed</label></div>';
     h += '<div class="pk-subbox-body' + (parseInt(SESSION.addon_allowed)?' on':'') + '" id="subbox_addon">';
     h += '<div><label>Add-on ($)</label><input type="number" id="cfg_addon" value="' + Math.round(parseInt(SESSION.addon_amount)/100) + '" step="1" min="0"></div>';
     h += '<div><label>Add-on Chips</label><input type="number" id="cfg_addon_chips" value="' + (parseInt(SESSION.addon_chips) || parseInt(SESSION.starting_chips) || 0) + '" min="0" title="Chips granted per add-on taken"></div>';
@@ -1435,7 +1436,7 @@ function renderSettingsPanel() {
     h += '<div class="pk-settings-grid">';
     h += '<div><label>Number of Tables</label><input type="number" id="cfg_tables" value="' + SESSION.num_tables + '" min="1"></div>';
     h += '<div><label>Seats per Table</label><input type="number" id="cfg_seats_per_table" value="' + (SESSION.seats_per_table || 8) + '" min="2" max="20"></div>';
-    h += '<div><label>Auto-Assign Tables</label><select id="cfg_auto_assign"><option value="1"' + (parseInt(SESSION.auto_assign_tables) ? ' selected' : '') + '>Yes</option><option value="0"' + (!parseInt(SESSION.auto_assign_tables) ? ' selected' : '') + '>No</option></select></div>';
+    h += '<div style="align-self:end"><label class="pk-subbox-check" style="padding:.4rem 0;display:inline-flex"><input type="checkbox" id="cfg_auto_assign"' + (parseInt(SESSION.auto_assign_tables) ? ' checked' : '') + '> Auto-assign tables</label></div>';
     h += '</div></div>';
 
     // ── Bonus rewards: opt-in toggles keep a plain game plain ──
@@ -2718,16 +2719,16 @@ function saveSettings() {
         game_type: document.getElementById('cfg_game_type').value,
         num_tables: parseInt(document.getElementById('cfg_tables').value || 1),
         seats_per_table: parseInt(document.getElementById('cfg_seats_per_table').value || 9),
-        auto_assign_tables: parseInt((document.getElementById('cfg_auto_assign') || {}).value || 1),
+        auto_assign_tables: (document.getElementById('cfg_auto_assign') || {}).checked ? 1 : 0,
     };
     if (document.getElementById('cfg_game_type').value === 'tournament') {
         data.rebuy_amount = Math.max(0, Math.round(parseFloat((document.getElementById('cfg_rebuy') || {}).value || 0))) * 100;
         data.addon_amount = Math.max(0, Math.round(parseFloat((document.getElementById('cfg_addon') || {}).value || 0))) * 100;
         data.starting_chips = parseInt((document.getElementById('cfg_chips') || {}).value || 5000);
         data.addon_chips = parseInt((document.getElementById('cfg_addon_chips') || {}).value || data.starting_chips);
-        data.rebuy_allowed = (document.getElementById('cfg_rebuy_allowed') || {}).value || '1';
+        data.rebuy_allowed = (document.getElementById('cfg_rebuy_allowed') || {}).checked ? 1 : 0;
         data.max_rebuys = parseInt((document.getElementById('cfg_max_rebuys') || {}).value || 0);
-        data.addon_allowed = (document.getElementById('cfg_addon_allowed') || {}).value || '1';
+        data.addon_allowed = (document.getElementById('cfg_addon_allowed') || {}).checked ? 1 : 0;
         data.bounty_amount = Math.max(0, Math.round(parseFloat((document.getElementById('cfg_bounty') || {}).value || 0))) * 100;
         data.bounty_points = parseInt((document.getElementById('cfg_bounty_points') || {}).value || 0);
         data.ticket_target_event_id = parseInt((document.getElementById('cfg_ticket_target') || {}).value || 0);
