@@ -1435,7 +1435,10 @@ function openSettings(tab) {
     document.body.style.overflow = 'hidden';
     try { history.pushState({ settings: SETTINGS_TAB }, ''); } catch (e) {}
     if (isTourney()) {
+        // First open fetches the saved-structure list; later opens must still
+        // re-render it into the freshly-built (empty) select.
         if (!PAYOUT_STRUCTURES.length) loadPayoutStructures();
+        else renderPayoutStructureSelect();
         populateTicketTargetSelect();
         updateBountyHint();
     }
