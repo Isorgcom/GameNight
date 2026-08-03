@@ -1082,8 +1082,10 @@ function getTimePicker() {
 }
 
 // Progress overlay shown during the editor's full-page POST (shared pkProgress
-// from pk-dialogs.js; the card lives until the navigation completes).
+// from pk-dialogs.js; the card lives until the navigation completes). Guarded
+// so a stale-cached pk-dialogs.js can never block the form submit.
 function showSaveSendOverlay(sending) {
+    if (typeof pkProgress !== 'function') return;
     pkProgress(sending ? 'Saving & sending invitations…' : 'Saving event…',
                sending ? 'Saving the event and sending invitation emails.' : 'Saving your changes.');
 }

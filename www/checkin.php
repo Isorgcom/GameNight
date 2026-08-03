@@ -600,6 +600,12 @@ var notesPlayerId = null;
 var LOG = [];        // session activity log entries (newest-first)
 var TICKETS = { incoming: [], outgoing: [] };  // entry tickets touching this session
 
+// Fallback shims: if a stale-cached pk-dialogs.js predates pkProgress, Save
+// must still work (just without the animation). The deferred fresh script
+// overwrites these with the real implementations.
+if (!window.pkProgress)     window.pkProgress = function () { return { done: function () {} }; };
+if (!window.pkProgressDone) window.pkProgressDone = function () {};
+
 function isCash() { return SESSION && SESSION.game_type === 'cash'; }
 function isTourney() { return !SESSION || SESSION.game_type === 'tournament'; }
 

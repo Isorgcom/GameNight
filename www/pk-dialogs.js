@@ -52,8 +52,11 @@
     }
 
     // ── Full-screen progress card (the event editor's save animation, shared) ──
-    var progOverlay = null, progBar = null, progIv = null;
+    // The reveal is DELAYED 250ms: a fast operation completes before the card
+    // ever appears, so quick saves don't flash a one-frame "glitch".
+    var progOverlay = null, progBar = null, progIv = null, progShowTimer = null;
     function pkProgressDone() {
+        if (progShowTimer) { clearTimeout(progShowTimer); progShowTimer = null; return; }  // finished before reveal
         if (progIv) { clearInterval(progIv); progIv = null; }
         if (!progOverlay) return;
         if (progBar) progBar.style.width = '100%';
@@ -75,15 +78,19 @@
         }
         progOverlay.querySelector('.pk-progress-title').textContent = title || 'Saving…';
         progOverlay.querySelector('.pk-progress-msg').textContent = msg || 'Please wait.';
-        if (progIv) clearInterval(progIv);
-        var pct = 8;
-        progBar.style.width = pct + '%';
-        progOverlay.classList.add('open');
-        progIv = setInterval(function () {
-            pct += Math.max(1, (92 - pct) * 0.12);
-            if (pct >= 92) { pct = 92; clearInterval(progIv); progIv = null; }
+        if (progIv) { clearInterval(progIv); progIv = null; }
+        if (progShowTimer) clearTimeout(progShowTimer);
+        progShowTimer = setTimeout(function () {
+            progShowTimer = null;
+            var pct = 8;
             progBar.style.width = pct + '%';
-        }, 180);
+            progOverlay.classList.add('open');
+            progIv = setInterval(function () {
+                pct += Math.max(1, (92 - pct) * 0.12);
+                if (pct >= 92) { pct = 92; clearInterval(progIv); progIv = null; }
+                progBar.style.width = pct + '%';
+            }, 180);
+        }, 250);
         return { done: pkProgressDone };
     }
     window.pkProgress = pkProgress;
