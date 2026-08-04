@@ -1613,8 +1613,21 @@ function renderSettingsView() {
     }
     h += '</div>';
 
-    // Scrolling body: all panes mounted, active one visible.
+    // Scrolling body: all panes mounted, active one visible. The preset bar
+    // sits ABOVE the panes because a preset restores BOTH tabs.
     h += '<div class="pk-sv-body">';
+    if (!isCash()) {
+        h += '<div class="pk-cfg-section" style="border-top:none;padding-top:0;margin-top:0"><div class="pk-cfg-title">Game Preset</div>';
+        h += '<div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">';
+        h += '<select id="payoutStructureSelect" onchange="onPayoutStructureChange()" style="flex:0 1 300px;min-width:160px;padding:.3rem .5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:4px;font-size:.85rem"></select>';
+        h += '<button onclick="loadPayoutStructure()" title="Apply the selected preset to BOTH tabs: game setup, payout split, points, ticket prizes, prizes, bounty and jackpot entry">Load</button>';
+        h += '<button onclick="savePayoutStructureAs()" title="Save everything in this editor (both tabs) as a named preset">Save As…</button>';
+        h += '<button id="btnDelPayoutStructure" onclick="deletePayoutStructure()" style="display:none;color:#ef4444" title="Delete selected preset">Delete</button>';
+        h += '<button id="btnDefPayoutStructure" onclick="setDefaultPayoutStructure()" style="display:none" title="Set as default (admin)">Set Default</button>';
+        h += '</div>';
+        h += '<div style="font-size:.75rem;color:#94a3b8;margin-top:.3rem">A preset stores the whole editor — game setup (buy-in, chips, rebuys, tables) and payouts &amp; rewards. (The satellite target event stays per-game.)</div>';
+        h += '</div>';
+    }
     h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'game' ? ' active' : '') + '" data-pane="game">' + renderGamePane() + '</div>';
     h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'payouts' ? ' active' : '') + '" data-pane="payouts">' + renderPayoutsPane() + '</div>';
     h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'tickets' ? ' active' : '') + '" data-pane="tickets">' + renderTicketsPanel() + '</div>';
@@ -1675,19 +1688,6 @@ function renderGamePane() {
 
 function renderPayoutsPane() {
     var h = '';
-
-    // ── Reward preset: saves/loads EVERYTHING on this tab (cash split,
-    // points, ticket prizes, prize labels, bounty, jackpot entry) ──
-    h += '<div class="pk-cfg-section"><div class="pk-cfg-title">Reward Preset</div>';
-    h += '<div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">';
-    h += '<select id="payoutStructureSelect" onchange="onPayoutStructureChange()" style="flex:0 1 300px;min-width:160px;padding:.3rem .5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:4px;font-size:.85rem"></select>';
-    h += '<button onclick="loadPayoutStructure()" title="Apply the selected preset: payout split, points, ticket prizes, prize labels, bounty and jackpot entry">Load</button>';
-    h += '<button onclick="savePayoutStructureAs()" title="Save everything on this tab as a named preset">Save As…</button>';
-    h += '<button id="btnDelPayoutStructure" onclick="deletePayoutStructure()" style="display:none;color:#ef4444" title="Delete selected preset">Delete</button>';
-    h += '<button id="btnDefPayoutStructure" onclick="setDefaultPayoutStructure()" style="display:none" title="Set as default (admin)">Set Default</button>';
-    h += '</div>';
-    h += '<div style="font-size:.75rem;color:#94a3b8;margin-top:.3rem">A preset stores everything on this tab — payout split, points, ticket prizes, prizes, bounty and jackpot entry. (The satellite target event stays per-game.)</div>';
-    h += '</div>';
 
     // ── Bonus rewards: opt-in toggles keep a plain game plain ──
     h += '<div class="pk-cfg-section" id="cfgRewardsSection" style="' + (isCash()?'display:none':'') + '"><div class="pk-cfg-title">Bonus Rewards <span style="font-weight:400;text-transform:none;letter-spacing:0">— optional, tap to enable</span></div>';
@@ -2290,6 +2290,18 @@ function confirmSaveStruct() {
     fd.append('bounty_amount', Math.max(0, Math.round(parseFloat((document.getElementById('cfg_bounty') || {}).value || 0))) * 100);
     fd.append('bounty_points', parseInt((document.getElementById('cfg_bounty_points') || {}).value || 0));
     fd.append('jackpot_amount', Math.max(0, Math.round(parseFloat((document.getElementById('cfg_jackpot') || {}).value || 0))) * 100);
+    // Game-tab config rides too: a preset restores the whole editor.
+    fd.append('gc_buyin_amount', Math.max(0, Math.round(parseFloat((document.getElementById('cfg_buyin') || {}).value || 0))) * 100);
+    fd.append('gc_rebuy_amount', Math.max(0, Math.round(parseFloat((document.getElementById('cfg_rebuy') || {}).value || 0))) * 100);
+    fd.append('gc_addon_amount', Math.max(0, Math.round(parseFloat((document.getElementById('cfg_addon') || {}).value || 0))) * 100);
+    fd.append('gc_starting_chips', parseInt((document.getElementById('cfg_chips') || {}).value || 0));
+    fd.append('gc_addon_chips', parseInt((document.getElementById('cfg_addon_chips') || {}).value || 0));
+    fd.append('gc_rebuy_allowed', (document.getElementById('cfg_rebuy_allowed') || {}).checked ? 1 : 0);
+    fd.append('gc_max_rebuys', parseInt((document.getElementById('cfg_max_rebuys') || {}).value || 0));
+    fd.append('gc_addon_allowed', (document.getElementById('cfg_addon_allowed') || {}).checked ? 1 : 0);
+    fd.append('gc_num_tables', parseInt((document.getElementById('cfg_tables') || {}).value || 1));
+    fd.append('gc_seats_per_table', parseInt((document.getElementById('cfg_seats_per_table') || {}).value || 8));
+    fd.append('gc_auto_assign_tables', (document.getElementById('cfg_auto_assign') || {}).checked ? 1 : 0);
     // Carry all four reward dimensions; the backend keeps rows where ANY is set.
     document.querySelectorAll('#payoutRows .row').forEach(function(row) {
         var pctEl = row.querySelector('.payout-pct');

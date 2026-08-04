@@ -1474,6 +1474,16 @@ if ($action === 'save_payout_structure') {
     $st_bounty_pts = max(0, (int)($_POST['bounty_points'] ?? 0));
     $st_jackpot    = max(0, (int)($_POST['jackpot_amount'] ?? 0));
 
+    // Game-tab config (buy-in, chips, rebuys/add-ons, tables) rides too, so a
+    // preset restores the ENTIRE settings editor. Whitelisted keys only.
+    $gc = [];
+    foreach (['buyin_amount', 'rebuy_amount', 'addon_amount', 'starting_chips', 'addon_chips',
+              'rebuy_allowed', 'max_rebuys', 'addon_allowed', 'num_tables', 'seats_per_table',
+              'auto_assign_tables'] as $k) {
+        if (isset($_POST['gc_' . $k])) $gc[$k] = max(0, (int)$_POST['gc_' . $k]);
+    }
+    $game_config = $gc ? json_encode($gc) : null;
+
     $pointsArr  = $_POST['points'] ?? [];
     $ticketsArr = $_POST['tickets'] ?? [];
     $labelsArr  = $_POST['labels'] ?? [];
@@ -1488,14 +1498,14 @@ if ($action === 'save_payout_structure') {
             $rows[] = [$pl, $pct, $pts, $ticket, $label !== '' ? mb_substr($label, 0, 60) : null];
         }
     }
-    // An all-zero structure with no reward recipe is unsaveable — loading it
-    // later would be an empty no-op (this used to create broken structures).
-    if (!$rows && $st_bounty === 0 && $st_bounty_pts === 0 && $st_jackpot === 0) {
+    // An all-zero structure with no reward recipe and no game config is
+    // unsaveable — loading it later would be an empty no-op.
+    if (!$rows && $st_bounty === 0 && $st_bounty_pts === 0 && $st_jackpot === 0 && $game_config === null) {
         echo json_encode(['ok' => false, 'error' => 'Nothing to save — set at least one payout value, points, prize, bounty, or jackpot entry first.']); exit;
     }
 
-    $db->prepare('INSERT INTO payout_structures (name, created_by, is_global, league_id, bounty_amount, bounty_points, jackpot_amount) VALUES (?, ?, ?, ?, ?, ?, ?)')
-       ->execute([$name, (int)$current['id'], $is_global, $league_id, $st_bounty, $st_bounty_pts, $st_jackpot]);
+    $db->prepare('INSERT INTO payout_structures (name, created_by, is_global, league_id, bounty_amount, bounty_points, jackpot_amount, game_config) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+       ->execute([$name, (int)$current['id'], $is_global, $league_id, $st_bounty, $st_bounty_pts, $st_jackpot, $game_config]);
     $sid = (int)$db->lastInsertId();
 
     $ins = $db->prepare('INSERT INTO payout_structure_places (structure_id, place, percentage, points, ticket_cents, prize_label) VALUES (?, ?, ?, ?, ?, ?)');
@@ -1531,8 +1541,36 @@ if ($action === 'load_payout_structure') {
     $sp->execute([$structure_id]);
     $rows = $sp->fetchAll(PDO::FETCH_ASSOC);
     $hasRecipe = $struct['bounty_amount'] !== null || $struct['bounty_points'] !== null || $struct['jackpot_amount'] !== null;
-    if (!$rows && !$hasRecipe) {
+    if (!$rows && !$hasRecipe && empty($struct['game_config'])) {
         echo json_encode(['ok' => false, 'error' => 'This structure is empty (saved before reward recipes existed) — re-save it with values.']); exit;
+    }
+
+    // Game-tab config: applied FIRST so the recipe's bounty guard compares
+    // against the preset's buy-in, not the old one. NULL = legacy preset.
+    if (!empty($struct['game_config'])) {
+        $gc = json_decode((string)$struct['game_config'], true) ?: [];
+        $allowed = ['buyin_amount', 'rebuy_amount', 'addon_amount', 'starting_chips', 'addon_chips',
+                    'rebuy_allowed', 'max_rebuys', 'addon_allowed', 'num_tables', 'seats_per_table',
+                    'auto_assign_tables'];
+        $sets = []; $vals = [];
+        foreach ($allowed as $k) {
+            if (isset($gc[$k])) { $sets[] = "$k = ?"; $vals[] = max(0, (int)$gc[$k]); }
+        }
+        if ($sets) {
+            $vals[] = $session_id;
+            $db->prepare('UPDATE poker_sessions SET ' . implode(', ', $sets) . ' WHERE id = ?')->execute($vals);
+            // Shrinking the table count displaces seated players, same as update_config.
+            if (isset($gc['num_tables']) && (int)$gc['num_tables'] < (int)$s['num_tables']) {
+                $db->prepare('UPDATE poker_players SET table_number = NULL, seat_number = NULL WHERE session_id = ? AND table_number > ?')
+                   ->execute([$session_id, (int)$gc['num_tables']]);
+                if ((int)$gc['num_tables'] > 1) rebalance_tables($db, $session_id);
+                else $db->prepare('UPDATE poker_players SET table_number = NULL, seat_number = NULL WHERE session_id = ?')->execute([$session_id]);
+            }
+            // Refresh the row so downstream guards see the preset's buy-in.
+            $sq = $db->prepare('SELECT ps.*, e.created_by FROM poker_sessions ps JOIN events e ON ps.event_id = e.id WHERE ps.id = ?');
+            $sq->execute([$session_id]);
+            $s = $sq->fetch();
+        }
     }
 
     // Session-level recipe: bounty/jackpot ride with the preset (NULL = legacy

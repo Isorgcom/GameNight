@@ -622,6 +622,9 @@ function db_init(PDO $pdo): void {
     try { $pdo->exec("ALTER TABLE payout_structures ADD COLUMN bounty_amount INTEGER"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE payout_structures ADD COLUMN bounty_points INTEGER"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE payout_structures ADD COLUMN jackpot_amount INTEGER"); } catch (Exception $e) {}
+    // Presets capture the Game tab too (buy-in, chips, rebuys/add-ons, tables)
+    // as a JSON blob; NULL = legacy preset that leaves those settings alone.
+    try { $pdo->exec("ALTER TABLE payout_structures ADD COLUMN game_config TEXT"); } catch (Exception $e) {}
 
     // ── Multi-reward payouts: points / entry tickets / prize labels / bounties ──
     // Per-place reward dimensions live beside the cash percentage on both the
