@@ -493,6 +493,20 @@ $session = $sessStmt->fetch();
         <label style="font-size:.85rem;font-weight:600;color:#475569;display:block;margin-bottom:.3rem">Paid to</label>
         <div id="jpRecipients"></div>
         <button type="button" onclick="addJackpotRecipient()" style="font-size:.78rem;padding:.3rem .6rem;border-radius:4px;cursor:pointer;border:1.5px solid var(--border,#e2e8f0);background:#f8fafc;margin-top:.2rem">+ Add recipient</button>
+
+        <div style="margin-top:.9rem;padding-top:.7rem;border-top:1.5px solid #e2e8f0">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="font-size:.85rem;font-weight:600;color:#475569">Fund history</span>
+                <button type="button" onclick="jpToggleAdjust()" style="font-size:.72rem;padding:.25rem .55rem;border-radius:4px;cursor:pointer;border:1.5px solid var(--border,#e2e8f0);background:#f8fafc">± Adjust fund</button>
+            </div>
+            <div id="jpAdjustRow" style="display:none;margin-top:.5rem;gap:.4rem;align-items:center">
+                <span class="pk-money-wrap" style="flex:0 0 90px"><input type="number" id="jpAdjAmount" step="0.01" placeholder="-5 or 5"></span>
+                <input type="text" id="jpAdjNote" maxlength="120" placeholder="reason…" style="flex:1;padding:.45rem .5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:.85rem">
+                <button type="button" class="pk-save" onclick="confirmJackpotAdjust()" style="padding:.4rem .7rem;border-radius:6px;border:none;background:#2563eb;color:#fff;font-size:.8rem;font-weight:600;cursor:pointer">Apply</button>
+            </div>
+            <div id="jpHistory" style="margin-top:.5rem;max-height:180px;overflow-y:auto;font-size:.78rem;color:#334155"></div>
+        </div>
+
         <div class="pk-modal-actions">
             <button onclick="closeJackpotModal()">Cancel</button>
             <button class="pk-save" onclick="confirmJackpotHit()">Record Hit</button>
@@ -1877,10 +1891,72 @@ function openJackpotModal() {
     b.innerHTML = 'Fund: <b>' + formatMoney(JACKPOTS.balance) + '</b>';
     document.getElementById('jpRecipients').innerHTML = '';
     addJackpotRecipient();
+    document.getElementById('jpAdjustRow').style.display = 'none';
+    loadJackpotHistory();
     document.getElementById('jackpotModal').classList.add('open');
 }
 function closeJackpotModal() {
     document.getElementById('jackpotModal').classList.remove('open');
+}
+
+// ── Fund history (view + void, same correction model as the game ledger) ──
+function loadJackpotHistory() {
+    var box = document.getElementById('jpHistory');
+    box.innerHTML = '<span style="color:#94a3b8">Loading…</span>';
+    fetch('/checkin_dl.php?action=jackpot_log&session_id=' + SESSION.id)
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+            if (!j.ok) { box.textContent = j.error || 'Error'; return; }
+            if (typeof j.balance === 'number') {
+                JACKPOTS.balance = j.balance;
+                document.getElementById('jpBalances').innerHTML = 'Fund: <b>' + formatMoney(j.balance) + '</b>';
+            }
+            if (!j.entries.length) { box.innerHTML = '<span style="color:#94a3b8">No activity yet.</span>'; return; }
+            var h = '';
+            j.entries.forEach(function(e) {
+                var amt = parseInt(e.amount);
+                var icon = e.event_type === 'hit' ? '💥' : (e.event_type === 'adjust' ? '±' : '➕');
+                var struck = parseInt(e.voided) ? 'text-decoration:line-through;opacity:.5;' : '';
+                h += '<div style="display:flex;gap:.4rem;align-items:center;padding:.2rem 0;border-bottom:1px solid #f1f5f9">'
+                   + '<span style="' + struck + 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escHtml(e.detail || '') + '">'
+                   + icon + ' ' + (e.player_name ? escHtml(e.player_name) + ' — ' : '') + escHtml((e.detail || '').substring(0, 60))
+                   + ' <span style="color:#94a3b8">' + (e.created_at || '').substring(0, 10) + '</span></span>'
+                   + '<span style="' + struck + 'font-weight:700;color:' + (amt >= 0 ? '#16a34a' : '#dc2626') + '">' + (amt >= 0 ? '+' : '−') + formatMoney(Math.abs(amt)) + '</span>'
+                   + (parseInt(e.voided) ? '' : '<button onclick="voidJackpotEntry(' + e.id + ')" title="Void this entry (reverses its effect on the fund)" style="color:#ef4444;background:transparent;border:none;cursor:pointer;font-size:.9rem">&times;</button>')
+                   + '</div>';
+            });
+            box.innerHTML = h;
+        })
+        .catch(function() { box.textContent = 'Failed to load history.'; });
+}
+
+async function voidJackpotEntry(entryId) {
+    if (!(await pkConfirm('Void this jackpot entry? Its effect on the fund is reversed; the row stays visible struck-through.', { okLabel: 'Void', danger: true }))) return;
+    postAction('void_jackpot_entry', { session_id: SESSION.id, entry_id: entryId }, function(j) {
+        JACKPOTS.balance = j.balance;
+        loadJackpotHistory();
+    });
+}
+
+function jpToggleAdjust() {
+    var row = document.getElementById('jpAdjustRow');
+    row.style.display = row.style.display === 'none' ? 'flex' : 'none';
+}
+
+function confirmJackpotAdjust() {
+    var amt = parseFloat((document.getElementById('jpAdjAmount') || {}).value || 0);
+    if (!amt) { pkAlert('Enter a non-zero amount (negative to remove money).'); return; }
+    postAction('adjust_jackpot', {
+        session_id: SESSION.id,
+        amount: amt,
+        note: (document.getElementById('jpAdjNote') || {}).value || ''
+    }, function(j) {
+        JACKPOTS.balance = j.balance;
+        document.getElementById('jpAdjAmount').value = '';
+        document.getElementById('jpAdjNote').value = '';
+        jpToggleAdjust();
+        loadJackpotHistory();
+    });
 }
 function addJackpotRecipient() {
     var wrap = document.getElementById('jpRecipients');

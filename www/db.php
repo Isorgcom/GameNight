@@ -663,6 +663,11 @@ function db_init(PDO $pdo): void {
         FOREIGN KEY (jackpot_id) REFERENCES league_jackpots(id) ON DELETE CASCADE
     )"); } catch (Exception $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ljl_jackpot ON league_jackpot_log(jackpot_id, id)"); } catch (Exception $e) {}
+    // Jackpot ledger corrections mirror the game ledger: entries are voided
+    // (reversing their balance effect), never deleted.
+    try { $pdo->exec("ALTER TABLE league_jackpot_log ADD COLUMN voided INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE league_jackpot_log ADD COLUMN voided_by INTEGER"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE league_jackpot_log ADD COLUMN voided_at DATETIME"); } catch (Exception $e) {}
     // Per-buy-in jackpot contribution (cents), carved out of buyin_amount.
     // Single league fund; the hit type (bad beat / royal flush) is recorded on
     // the payout, not as separate pots.

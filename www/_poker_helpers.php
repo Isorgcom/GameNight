@@ -611,7 +611,7 @@ function pk_finish_session($db, int $session_id, int $actor_id): void {
             try {
                 $fund = pk_jackpot_fund($db, (int)$s['league_id']);
                 $dupe = $db->prepare("SELECT COUNT(*) FROM league_jackpot_log
-                                      WHERE jackpot_id = ? AND session_id = ? AND event_type = 'contribution'");
+                                      WHERE jackpot_id = ? AND session_id = ? AND event_type = 'contribution' AND voided = 0");
                 $dupe->execute([(int)$fund['id'], $session_id]);
                 if ((int)$dupe->fetchColumn() === 0) {
                     $amt = $buyins * $per;
@@ -689,7 +689,7 @@ function pk_unfinish_session($db, int $session_id, int $actor_id): array {
         // a hit already paid those contributions out, the money is physically
         // gone and reversing would overdraw the fund — block the reopen.
         $jc = $db->prepare("SELECT l.id, l.jackpot_id, l.amount FROM league_jackpot_log l
-                            WHERE l.session_id = ? AND l.event_type = 'contribution'");
+                            WHERE l.session_id = ? AND l.event_type = 'contribution' AND l.voided = 0");
         $jc->execute([$session_id]);
         $jrows = $jc->fetchAll();
         foreach ($jrows as $row) {

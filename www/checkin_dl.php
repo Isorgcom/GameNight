@@ -295,6 +295,27 @@ if ($action === 'list_target_events') {
     exit;
 }
 
+// ─── GET: jackpot_log ──────────────────────────────────────
+// The league jackpot's ledger (newest first), for the 💎 modal's history view.
+if ($action === 'jackpot_log') {
+    $session_id = (int)($_GET['session_id'] ?? 0);
+    $sess = $db->prepare('SELECT ps.*, e.league_id FROM poker_sessions ps JOIN events e ON e.id = ps.event_id WHERE ps.id = ?');
+    $sess->execute([$session_id]);
+    $s = $sess->fetch();
+    if (!$s) { echo json_encode(['ok' => false, 'error' => 'Session not found']); exit; }
+    if (!is_owner_or_manager($db, $s['event_id'], $current, $isAdmin)) {
+        http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Access denied']); exit;
+    }
+    if (empty($s['league_id'])) { echo json_encode(['ok' => true, 'entries' => []]); exit; }
+    $fund = pk_jackpot_fund($db, (int)$s['league_id']);
+    $q = $db->prepare('SELECT id, event_type, player_name, amount, detail, voided, created_at
+                       FROM league_jackpot_log WHERE jackpot_id = ? ORDER BY id DESC LIMIT 100');
+    $q->execute([(int)$fund['id']]);
+    echo json_encode(['ok' => true, 'entries' => $q->fetchAll(),
+                      'balance' => (int)$fund['balance']]);
+    exit;
+}
+
 // All remaining actions require POST + CSRF
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -1577,6 +1598,64 @@ if ($action === 'resolve_ticket') {
         'pool'    => calc_pool($db, (int)$t['source_session_id']),
         'players' => get_players($db, (int)$t['source_session_id']),
     ]);
+    exit;
+}
+
+// ─── POST: void_jackpot_entry ──────────────────────────────
+// Reverse a jackpot ledger entry's balance effect and strike it through —
+// entries are never deleted (same correction model as the game ledger).
+if ($action === 'void_jackpot_entry') {
+    $session_id = (int)($_POST['session_id'] ?? 0);
+    $entry_id   = (int)($_POST['entry_id'] ?? 0);
+    $sess = $db->prepare('SELECT ps.*, e.league_id FROM poker_sessions ps JOIN events e ON e.id = ps.event_id WHERE ps.id = ?');
+    $sess->execute([$session_id]);
+    $s = $sess->fetch();
+    if (!$s || empty($s['league_id'])) { echo json_encode(['ok' => false, 'error' => 'Session/league not found']); exit; }
+    if (!is_owner_or_manager($db, $s['event_id'], $current, $isAdmin)) {
+        http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Access denied']); exit;
+    }
+    $fund = pk_jackpot_fund($db, (int)$s['league_id']);
+    $eq = $db->prepare('SELECT * FROM league_jackpot_log WHERE id = ? AND jackpot_id = ?');
+    $eq->execute([$entry_id, (int)$fund['id']]);
+    $entry = $eq->fetch();
+    if (!$entry) { echo json_encode(['ok' => false, 'error' => 'Entry not found']); exit; }
+    if ((int)$entry['voided']) { echo json_encode(['ok' => false, 'error' => 'Already voided']); exit; }
+    $newBal = (int)$fund['balance'] - (int)$entry['amount'];
+    if ($newBal < 0) {
+        echo json_encode(['ok' => false, 'error' => 'Voiding this entry would make the fund negative (' . pk_money($newBal) . ') — that money was already paid out.']); exit;
+    }
+    $db->prepare('UPDATE league_jackpot_log SET voided = 1, voided_by = ?, voided_at = CURRENT_TIMESTAMP WHERE id = ?')
+       ->execute([(int)$current['id'], $entry_id]);
+    $db->prepare('UPDATE league_jackpots SET balance = ? WHERE id = ?')->execute([$newBal, (int)$fund['id']]);
+    db_log_activity((int)$current['id'], 'voided jackpot ledger entry id=' . $entry_id . ' (' . pk_money((int)$entry['amount']) . ')');
+    echo json_encode(['ok' => true, 'balance' => $newBal]);
+    exit;
+}
+
+// ─── POST: adjust_jackpot ──────────────────────────────────
+// Manual fund correction: signed dollar amount + note, logged as 'adjust'.
+if ($action === 'adjust_jackpot') {
+    $session_id = (int)($_POST['session_id'] ?? 0);
+    $amount     = (int)round(((float)($_POST['amount'] ?? 0)) * 100);
+    $note       = trim((string)($_POST['note'] ?? ''));
+    if ($amount === 0) { echo json_encode(['ok' => false, 'error' => 'Enter a non-zero amount (negative to remove money).']); exit; }
+    $sess = $db->prepare('SELECT ps.*, e.league_id FROM poker_sessions ps JOIN events e ON e.id = ps.event_id WHERE ps.id = ?');
+    $sess->execute([$session_id]);
+    $s = $sess->fetch();
+    if (!$s || empty($s['league_id'])) { echo json_encode(['ok' => false, 'error' => 'Session/league not found']); exit; }
+    if (!is_owner_or_manager($db, $s['event_id'], $current, $isAdmin)) {
+        http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Access denied']); exit;
+    }
+    $fund = pk_jackpot_fund($db, (int)$s['league_id']);
+    $newBal = (int)$fund['balance'] + $amount;
+    if ($newBal < 0) { echo json_encode(['ok' => false, 'error' => 'Fund cannot go negative (would be ' . pk_money($newBal) . ').']); exit; }
+    $db->prepare('INSERT INTO league_jackpot_log (jackpot_id, session_id, event_type, amount, detail, created_by)
+                  VALUES (?, ?, ?, ?, ?, ?)')
+       ->execute([(int)$fund['id'], $session_id, 'adjust', $amount,
+                  $note !== '' ? mb_substr($note, 0, 120) : 'Manual adjustment', (int)$current['id']]);
+    $db->prepare('UPDATE league_jackpots SET balance = ? WHERE id = ?')->execute([$newBal, (int)$fund['id']]);
+    db_log_activity((int)$current['id'], 'jackpot manual adjustment ' . pk_money($amount));
+    echo json_encode(['ok' => true, 'balance' => $newBal]);
     exit;
 }
 
