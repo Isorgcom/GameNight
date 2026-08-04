@@ -2208,6 +2208,7 @@ function loadPayoutStructure() {
     var sel = document.getElementById('payoutStructureSelect');
     if (!sel || !sel.value) { pkAlert('Pick a structure first.'); return; }
     var sid = sel.value;
+    pkProgress('Loading preset…', 'Applying the game setup and rewards to this game.');
     var fd = new FormData();
     fd.append('csrf_token', CSRF);
     fd.append('action', 'load_payout_structure');
@@ -2216,6 +2217,7 @@ function loadPayoutStructure() {
     fetch('/checkin_dl.php', { method: 'POST', body: fd })
         .then(function(r) { return r.json(); })
         .then(function(j) {
+            pkProgressDone();
             if (!j.ok) { pkAlert(j.error || 'Error'); return; }
             PAYOUTS = j.payouts;
             POOL = j.pool || POOL;
@@ -2225,7 +2227,8 @@ function loadPayoutStructure() {
             // and the dashboard refreshes underneath it.
             renderDashboard();
             refreshSettingsView();
-        });
+        })
+        .catch(function() { pkProgressDone(); pkAlert('Request failed'); });
 }
 
 function savePayoutStructureAs() {
