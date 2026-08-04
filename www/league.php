@@ -585,6 +585,23 @@ function ordinal($n) {
             <?php if ((int)$league['is_hidden'] === 1): ?><span class="lg-pill hidden" style="margin-left:.4rem">Hidden</span><?php endif; ?>
         </h1>
         <?php if ($league['description']): ?><p><?= nl2br(htmlspecialchars($league['description'])) ?></p><?php endif; ?>
+        <?php
+        // League progressive jackpot: shown on every tab once the fund exists
+        // (a $0 balance after a hit is itself news). Funded by optional per-
+        // player entries at tournament games; hits recorded from check-in.
+        $_hj = false; $_hjBal = 0;
+        try {
+            $_hjq = $db->prepare("SELECT balance FROM league_jackpots WHERE league_id = ? AND jackpot_type = 'main'");
+            $_hjq->execute([$league_id]);
+            $_hjRow = $_hjq->fetchColumn();
+            if ($_hjRow !== false) { $_hj = true; $_hjBal = (int)$_hjRow; }
+        } catch (Exception $e) { /* pre-migration DB */ }
+        if ($_hj): ?>
+        <div style="display:inline-flex;align-items:center;gap:.45rem;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:999px;padding:.3rem .85rem;margin:.35rem 0 .2rem;font-size:.88rem;color:#4c1d95">
+            💎 <strong>Jackpot:</strong> <strong><?= '$' . number_format($_hjBal / 100, ($_hjBal % 100) ? 2 : 0) ?></strong>
+            <span style="color:#7c6bb0;font-size:.75rem">bad beat / royal flush</span>
+        </div>
+        <?php endif; ?>
         <div class="lg-meta">
             <?= $member_count ?> member<?= $member_count === 1 ? '' : 's' ?>
             &middot; Join mode: <?= htmlspecialchars($league['approval_mode']) ?>
@@ -1109,21 +1126,6 @@ function ordinal($n) {
             <div class="stat-item"><div class="stat-value"><?= ordinal($myStats['best_finish']) ?></div><div class="stat-label">Best Finish</div></div>
             <div class="stat-item"><div class="stat-value stat-gold"><?= $myStats['avg_score'] ?></div><div class="stat-label">Avg Score</div></div>
             <?php endif; ?>
-        </div>
-        <?php endif; ?>
-
-        <?php
-        // League progressive jackpots (funded by per-buy-in carve-outs at
-        // tournament finish; hits recorded from the check-in console).
-        $_jp = 0;
-        try {
-            $_jpq = $db->prepare("SELECT balance FROM league_jackpots WHERE league_id = ? AND jackpot_type = 'main'");
-            $_jpq->execute([$league_id]);
-            $_jp = (int)($_jpq->fetchColumn() ?: 0);
-        } catch (Exception $e) { /* pre-migration DB */ }
-        if ($_jp > 0): ?>
-        <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;padding:.55rem .8rem;margin-bottom:1rem;font-size:.88rem;color:#4c1d95;display:flex;gap:1.25rem;flex-wrap:wrap">
-            <span>💎 <strong>League Jackpot</strong> (bad beat / royal flush): <strong><?= '$' . number_format($_jp / 100, ($_jp % 100) ? 2 : 0) ?></strong></span>
         </div>
         <?php endif; ?>
 
