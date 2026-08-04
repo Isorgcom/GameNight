@@ -308,6 +308,54 @@ function sms_conv_notify_hosts(PDO $db, int $event_id, string $display, string $
 }
 
 /**
+ * Bare YES/NO/MAYBE from a phone-only invitee (no account): the invite text
+ * tells every recipient to reply, so guests must be able to RSVP by SMS.
+ * Applies to the soonest upcoming approved invite matching the phone; the
+ * confirmation names the event so a multi-invite guest can spot a wrong
+ * target. Returns the reply text, or null when not an RSVP / nothing to answer.
+ */
+function sms_guest_rsvp(PDO $db, string $digits, string $body): ?string {
+    $map = ['yes' => 'yes', 'y' => 'yes', 'going' => 'yes', 'attend' => 'yes',
+            'no' => 'no', 'n' => 'no', 'not going' => 'no', 'decline' => 'no',
+            'maybe' => 'maybe', 'm' => 'maybe', 'unsure' => 'maybe'];
+    $rsvp = $map[strtolower(trim($body))] ?? null;
+    if ($rsvp === null || $digits === '') return null;
+
+    $q = $db->prepare("SELECT ei.id, ei.event_id, ei.username, ei.phone, e.title, e.start_date
+                       FROM event_invites ei JOIN events e ON e.id = ei.event_id
+                       WHERE ei.phone IS NOT NULL AND ei.phone != '' AND e.start_date >= ?
+                         AND ei.approval_status = 'approved' AND ei.occurrence_date IS NULL
+                       ORDER BY e.start_date ASC, e.id ASC");
+    $q->execute([_sms_conv_today()]);
+    $inv = null;
+    foreach ($q->fetchAll() as $row) {
+        if (sms_conv_digits((string)$row['phone']) === $digits) { $inv = $row; break; }
+    }
+    if (!$inv) return null;
+
+    $db->prepare('UPDATE event_invites SET rsvp = ? WHERE id = ?')->execute([$rsvp, (int)$inv['id']]);
+    if ($rsvp === 'no') maybe_promote_waitlisted($db, (int)$inv['event_id']);
+    require_once __DIR__ . '/_notifications.php';
+    queue_rsvp_reply_notifications($db, (int)$inv['event_id'], null,
+                                   (string)$inv['username'], (string)$inv['username'], $rsvp);
+    return 'Got it! Your RSVP for "' . $inv['title'] . '" on ' . $inv['start_date'] . ' is now: ' . ucfirst($rsvp) . '.';
+}
+
+/**
+ * Does this registered user still have an unanswered upcoming invite? A bare
+ * RSVP keyword must then RSVP — never divert to conversation (an invitee who
+ * was just told "Reply YES" and did exactly that expects an RSVP).
+ */
+function sms_unanswered_invite(PDO $db, array $user): bool {
+    $q = $db->prepare("SELECT COUNT(*) FROM event_invites ei JOIN events e ON e.id = ei.event_id
+                       WHERE LOWER(ei.username) = LOWER(?) AND e.start_date >= ?
+                         AND ei.approval_status = 'approved'
+                         AND (ei.rsvp IS NULL OR ei.rsvp = '')");
+    $q->execute([$user['username'], _sms_conv_today()]);
+    return (int)$q->fetchColumn() > 0;
+}
+
+/**
  * Is this phone mid-conversation? True when the latest conversation row
  * (either direction, last 12 hours) is newer than the latest outbound that
  * solicited an RSVP (invite/nudge/reminder - matched by their 'RSVP' wording
