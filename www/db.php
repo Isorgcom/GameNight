@@ -672,6 +672,8 @@ function db_init(PDO $pdo): void {
     try { $pdo->exec("ALTER TABLE user_session_defaults ADD COLUMN jackpot_royal INTEGER DEFAULT 0"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN jackpot_amount INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE user_session_defaults ADD COLUMN jackpot_amount INTEGER DEFAULT 0"); } catch (Exception $e) {}
+    // Jackpot is an OPTIONAL side entry (on top of the buy-in), tracked per player.
+    try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN jackpot_in INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     // One-shot merge of the short-lived split funds (badbeat/royal) into the
     // single 'main' fund per league; log rows follow their fund.
     try {

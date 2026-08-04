@@ -406,10 +406,11 @@ if ($action === 'update_config') {
     $new_buyin  = (int)($_POST['buyin_amount'] ?? $s['buyin_amount']);
     $bounty_amt = max(0, (int)($_POST['bounty_amount'] ?? $s['bounty_amount'] ?? 0));
     $bounty_pts = max(0, (int)($_POST['bounty_points'] ?? $s['bounty_points'] ?? 0));
+    // Jackpot is an optional side entry ON TOP of the buy-in, so only the
+    // bounty is validated against the buy-in it's carved from.
     $jp_amount = max(0, (int)($_POST['jackpot_amount'] ?? $s['jackpot_amount'] ?? 0));
-    if ($game_type === 'tournament' && ($bounty_amt + $jp_amount) >= $new_buyin
-        && ($bounty_amt + $jp_amount) > 0) {
-        echo json_encode(['ok' => false, 'error' => 'Bounty + jackpot contribution must total less than the buy-in (they come out of it).']); exit;
+    if ($game_type === 'tournament' && $bounty_amt >= $new_buyin && $bounty_amt > 0) {
+        echo json_encode(['ok' => false, 'error' => 'Bounty must be less than the buy-in (it comes out of it).']); exit;
     }
     if ($jp_amount > 0) {
         $lgq = $db->prepare('SELECT league_id FROM events WHERE id = ?');
@@ -1576,6 +1577,32 @@ if ($action === 'resolve_ticket') {
         'pool'    => calc_pool($db, (int)$t['source_session_id']),
         'players' => get_players($db, (int)$t['source_session_id']),
     ]);
+    exit;
+}
+
+// ─── POST: toggle_jackpot ──────────────────────────────────
+// Optional jackpot side entry: flip a player's participation. Money is
+// collected on top of the buy-in (never pool money); the ledger row keeps the
+// cash story straight.
+if ($action === 'toggle_jackpot') {
+    $player_id = (int)($_POST['player_id'] ?? 0);
+    $session = get_session_from_player($db, $player_id);
+    if (!$session) { echo json_encode(['ok' => false, 'error' => 'Player not found']); exit; }
+    verify_event_access($db, $session['event_id'], $current, $isAdmin);
+    $per = (int)($session['jackpot_amount'] ?? 0);
+    if ($per <= 0) { echo json_encode(['ok' => false, 'error' => 'No jackpot entry configured for this game.']); exit; }
+
+    $p = $db->prepare('SELECT jackpot_in, display_name FROM poker_players WHERE id = ?');
+    $p->execute([$player_id]);
+    $row = $p->fetch();
+    $now = (int)$row['jackpot_in'] ? 0 : 1;
+    $db->prepare('UPDATE poker_players SET jackpot_in = ? WHERE id = ?')->execute([$now, $player_id]);
+    pk_log($db, (int)$session['id'], (int)$current['id'], 'jackpot', $player_id, (string)$row['display_name'],
+           $now ? $per : -$per, $now ? ('Jackpot entry — ' . pk_money($per)) : ('Jackpot entry reversed — ' . pk_money($per)));
+
+    $pl = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
+    $pl->execute([$player_id]);
+    echo json_encode(['ok' => true, 'player' => $pl->fetch(), 'pool' => calc_pool($db, (int)$session['id'])]);
     exit;
 }
 
