@@ -1676,6 +1676,19 @@ function renderGamePane() {
 function renderPayoutsPane() {
     var h = '';
 
+    // ── Reward preset: saves/loads EVERYTHING on this tab (cash split,
+    // points, ticket prizes, prize labels, bounty, jackpot entry) ──
+    h += '<div class="pk-cfg-section"><div class="pk-cfg-title">Reward Preset</div>';
+    h += '<div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">';
+    h += '<select id="payoutStructureSelect" onchange="onPayoutStructureChange()" style="flex:0 1 300px;min-width:160px;padding:.3rem .5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:4px;font-size:.85rem"></select>';
+    h += '<button onclick="loadPayoutStructure()" title="Apply the selected preset: payout split, points, ticket prizes, prize labels, bounty and jackpot entry">Load</button>';
+    h += '<button onclick="savePayoutStructureAs()" title="Save everything on this tab as a named preset">Save As…</button>';
+    h += '<button id="btnDelPayoutStructure" onclick="deletePayoutStructure()" style="display:none;color:#ef4444" title="Delete selected preset">Delete</button>';
+    h += '<button id="btnDefPayoutStructure" onclick="setDefaultPayoutStructure()" style="display:none" title="Set as default (admin)">Set Default</button>';
+    h += '</div>';
+    h += '<div style="font-size:.75rem;color:#94a3b8;margin-top:.3rem">A preset stores everything on this tab — payout split, points, ticket prizes, prizes, bounty and jackpot entry. (The satellite target event stays per-game.)</div>';
+    h += '</div>';
+
     // ── Bonus rewards: opt-in toggles keep a plain game plain ──
     h += '<div class="pk-cfg-section" id="cfgRewardsSection" style="' + (isCash()?'display:none':'') + '"><div class="pk-cfg-title">Bonus Rewards <span style="font-weight:400;text-transform:none;letter-spacing:0">— optional, tap to enable</span></div>';
     h += '<div class="pk-reward-chips">';
@@ -1726,14 +1739,6 @@ function renderPayoutsPane() {
     var payoutCls = (REWARDS_UI.pts ? ' show-pts' : '') + (REWARDS_UI.ticket ? ' show-ticket' : '') + (REWARDS_UI.label ? ' show-label' : '');
     h += '<div class="pk-payout-editor pk-cfg-section' + payoutCls + '" id="cfgPayoutSection" style="' + (isCash()?'display:none':'') + '">';
     h += '<div class="pk-cfg-title">Payout Structure</div>';
-    // Saved structure picker
-    h += '<div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.5rem;flex-wrap:wrap">';
-    h += '<select id="payoutStructureSelect" onchange="onPayoutStructureChange()" style="flex:0 1 300px;min-width:160px;padding:.3rem .5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:4px;font-size:.85rem"></select>';
-    h += '<button onclick="loadPayoutStructure()" title="Apply selected structure">Load</button>';
-    h += '<button onclick="savePayoutStructureAs()" title="Save current payouts as a named structure">Save As…</button>';
-    h += '<button id="btnDelPayoutStructure" onclick="deletePayoutStructure()" style="display:none;color:#ef4444" title="Delete selected structure">Delete</button>';
-    h += '<button id="btnDefPayoutStructure" onclick="setDefaultPayoutStructure()" style="display:none" title="Set as default (admin)">Set Default</button>';
-    h += '</div>';
     h += '<div style="display:flex;gap:.35rem;font-size:.68rem;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin-bottom:.15rem"><span style="width:40px"></span><span style="flex:1;min-width:56px;max-width:140px">Cash %</span><span class="col-pts" style="flex:1;min-width:48px;max-width:140px">Pts</span><span class="col-ticket" style="flex:1;min-width:56px;max-width:140px">Ticket $</span><span class="col-label" style="flex:2;min-width:80px">Prize</span><span style="width:18px"></span></div>';
     h += '<div id="payoutRows">';
     for (var i = 0; i < PAYOUTS.length; i++) {
