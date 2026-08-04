@@ -504,7 +504,7 @@ $session = $sessStmt->fetch();
                 <input type="text" id="jpAdjNote" maxlength="120" placeholder="reason…" style="flex:1;padding:.45rem .5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:.85rem">
                 <button type="button" class="pk-save" onclick="confirmJackpotAdjust()" style="padding:.4rem .7rem;border-radius:6px;border:none;background:#2563eb;color:#fff;font-size:.8rem;font-weight:600;cursor:pointer">Apply</button>
             </div>
-            <div id="jpHistory" style="margin-top:.5rem;max-height:180px;overflow-y:auto;font-size:.78rem;color:#334155"></div>
+            <div id="jpHistory" style="margin-top:.5rem;max-height:180px;overflow-y:auto;scrollbar-gutter:stable;padding-right:.75rem;font-size:.78rem;color:#334155"></div>
         </div>
 
         <div class="pk-modal-actions">
