@@ -4,6 +4,14 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2055] - 2026-08-04
+
+### Fixed
+- **A phone-only invitee's "Yes" now actually RSVPs instead of being forwarded to the host as a chat message.** SMS keyword RSVP had always been registered-users-only, but v0.2054's invite text tells every recipient "Reply YES, NO or MAYBE to RSVP" — so a guest with no account (observed live: Peggy B on event 155) replied Yes one minute after her invite, the conversation layer captured it as free text, told her "we passed your message along to your host", notified the host by SMS, and left her RSVP blank. New `sms_guest_rsvp()` in the unregistered branch of both webhooks matches the sender's phone against upcoming approved invites (soonest first), sets the RSVP, promotes the waitlist on a "no", notifies the hosts through the normal RSVP-reply path, and confirms with the event named. Runs before conversation capture.
+- **Registered users with an unanswered invite can no longer have a bare YES/NO/MAYBE diverted to conversation.** The v0.2054 mid-conversation guard now also requires that the sender has no upcoming approved invite awaiting an answer (`sms_unanswered_invite()`): someone who was just asked to RSVP and typed exactly that gets an RSVP, and the "need a ride?" → "no" chat protection still applies once their invites are answered.
+
+---
+
 ## [v0.2054] - 2026-08-02
 
 Final round of live-testing refinements for the SMS conversations feature (v0.2049-v0.2053); shipped as three version-less pushes during the hold and consolidated here.

@@ -133,6 +133,14 @@ if (!$user) {
         send_whatsapp($from, $pollReply);
         exit;
     }
+    // Guest RSVP: the invite text tells everyone to reply YES/NO/MAYBE, so a
+    // phone-only invitee's answer must set their RSVP — never get captured as
+    // a conversation message.
+    $guestReply = sms_guest_rsvp($db, $digits, $body);
+    if ($guestReply !== null) {
+        send_whatsapp($from, $guestReply);
+        exit;
+    }
     // WHICH/SWITCH work without an account too - phone-only invitees are
     // exactly who gets confused about where their messages go.
     $kw = strtolower(trim($body));
@@ -292,7 +300,8 @@ if (!$rsvp && preg_match('/^rsvp\s+(\S+)$/', $keyword, $mForce)) {
 // ALL NO, RSVP NO) always RSVP, and sms_conv_active() yields to a fresh
 // invite/nudge/reminder so "yes" right after one still RSVPs.
 if ($rsvp && !$forceRsvp && $directNumber === null && !$directAll
-    && !empty($conv_attr['event_id']) && sms_conv_active($db, $digits)) {
+    && !empty($conv_attr['event_id']) && sms_conv_active($db, $digits)
+    && !sms_unanswered_invite($db, $user)) {
     sms_conv_mark($db, $inbound_log_id);
     sms_conv_notify_hosts($db, (int)$conv_attr['event_id'],
         $conv_attr['username'] ?: $user['username'], $body, $digits);
