@@ -616,6 +616,13 @@ function db_init(PDO $pdo): void {
         }
     } catch (Exception $e) {}
 
+    // Payout presets also capture the session-level reward recipe (bounty,
+    // jackpot entry) so a freeroll/points/jackpot structure round-trips.
+    // NULL = legacy structure that doesn't touch those settings on load.
+    try { $pdo->exec("ALTER TABLE payout_structures ADD COLUMN bounty_amount INTEGER"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE payout_structures ADD COLUMN bounty_points INTEGER"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE payout_structures ADD COLUMN jackpot_amount INTEGER"); } catch (Exception $e) {}
+
     // ── Multi-reward payouts: points / entry tickets / prize labels / bounties ──
     // Per-place reward dimensions live beside the cash percentage on both the
     // preset places and the per-session copy (same DELETE+INSERT rewrite).

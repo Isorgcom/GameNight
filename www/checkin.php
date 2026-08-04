@@ -2214,6 +2214,7 @@ function loadPayoutStructure() {
             if (!j.ok) { pkAlert(j.error || 'Error'); return; }
             PAYOUTS = j.payouts;
             POOL = j.pool || POOL;
+            if (j.session) SESSION = j.session;  // recipe presets update bounty/jackpot too
             CURRENT_STRUCTURE_ID = parseInt(sid);
             // Redraw: the editor re-renders in place (keeps tab + open state),
             // and the dashboard refreshes underneath it.
@@ -2223,9 +2224,9 @@ function loadPayoutStructure() {
 }
 
 function savePayoutStructureAs() {
-    // Gather current rows
+    // Gather current rows (a recipe-only freeroll with zero rows is fine —
+    // the backend rejects saves where nothing at all is set).
     var inputs = document.querySelectorAll('.payout-pct');
-    if (!inputs.length) { pkAlert('No payout rows to save.'); return; }
     var total = 0;
     for (var i = 0; i < inputs.length; i++) total += parseFloat(inputs[i].value || 0);
     if (total > 100.001) { pkAlert('Total is ' + total.toFixed(1) + '% — cannot exceed 100%.'); return; }
@@ -2280,6 +2281,10 @@ function confirmSaveStruct() {
     fd.append('name', name);
     if (is_global) fd.append('is_global', '1');
     if (league_id) fd.append('league_id', league_id);
+    // Session-level reward recipe (bounty / jackpot entry) rides with the preset.
+    fd.append('bounty_amount', Math.max(0, Math.round(parseFloat((document.getElementById('cfg_bounty') || {}).value || 0))) * 100);
+    fd.append('bounty_points', parseInt((document.getElementById('cfg_bounty_points') || {}).value || 0));
+    fd.append('jackpot_amount', Math.max(0, Math.round(parseFloat((document.getElementById('cfg_jackpot') || {}).value || 0))) * 100);
     // Carry all four reward dimensions; the backend keeps rows where ANY is set.
     document.querySelectorAll('#payoutRows .row').forEach(function(row) {
         var pctEl = row.querySelector('.payout-pct');

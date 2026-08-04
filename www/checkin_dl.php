@@ -1469,14 +1469,15 @@ if ($action === 'save_payout_structure') {
         echo json_encode(['ok' => false, 'error' => 'Percentages total ' . number_format($total, 1) . '% — cannot exceed 100%']); exit;
     }
 
-    $db->prepare('INSERT INTO payout_structures (name, created_by, is_global, league_id) VALUES (?, ?, ?, ?)')
-       ->execute([$name, (int)$current['id'], $is_global, $league_id]);
-    $sid = (int)$db->lastInsertId();
+    // Session-level reward recipe rides along with the per-place rows.
+    $st_bounty     = max(0, (int)($_POST['bounty_amount'] ?? 0));
+    $st_bounty_pts = max(0, (int)($_POST['bounty_points'] ?? 0));
+    $st_jackpot    = max(0, (int)($_POST['jackpot_amount'] ?? 0));
 
     $pointsArr  = $_POST['points'] ?? [];
     $ticketsArr = $_POST['tickets'] ?? [];
     $labelsArr  = $_POST['labels'] ?? [];
-    $ins = $db->prepare('INSERT INTO payout_structure_places (structure_id, place, percentage, points, ticket_cents, prize_label) VALUES (?, ?, ?, ?, ?, ?)');
+    $rows = [];
     for ($i = 0; $i < count($places); $i++) {
         $pl     = (int)$places[$i];
         $pct    = (float)($percentages[$i] ?? 0);
@@ -1484,8 +1485,22 @@ if ($action === 'save_payout_structure') {
         $ticket = (int)round(((float)($ticketsArr[$i] ?? 0)) * 100);
         $label  = trim((string)($labelsArr[$i] ?? ''));
         if ($pl > 0 && ($pct > 0 || $pts > 0 || $ticket > 0 || $label !== '')) {
-            $ins->execute([$sid, $pl, $pct, $pts, $ticket, $label !== '' ? mb_substr($label, 0, 60) : null]);
+            $rows[] = [$pl, $pct, $pts, $ticket, $label !== '' ? mb_substr($label, 0, 60) : null];
         }
+    }
+    // An all-zero structure with no reward recipe is unsaveable — loading it
+    // later would be an empty no-op (this used to create broken structures).
+    if (!$rows && $st_bounty === 0 && $st_bounty_pts === 0 && $st_jackpot === 0) {
+        echo json_encode(['ok' => false, 'error' => 'Nothing to save — set at least one payout value, points, prize, bounty, or jackpot entry first.']); exit;
+    }
+
+    $db->prepare('INSERT INTO payout_structures (name, created_by, is_global, league_id, bounty_amount, bounty_points, jackpot_amount) VALUES (?, ?, ?, ?, ?, ?, ?)')
+       ->execute([$name, (int)$current['id'], $is_global, $league_id, $st_bounty, $st_bounty_pts, $st_jackpot]);
+    $sid = (int)$db->lastInsertId();
+
+    $ins = $db->prepare('INSERT INTO payout_structure_places (structure_id, place, percentage, points, ticket_cents, prize_label) VALUES (?, ?, ?, ?, ?, ?)');
+    foreach ($rows as $r) {
+        $ins->execute([$sid, $r[0], $r[1], $r[2], $r[3], $r[4]]);
     }
 
     db_log_activity((int)$current['id'], "saved payout structure: $name (id=$sid" . ($league_id ? ", league id=$league_id" : ($is_global ? ", global" : "")) . ")");
@@ -1507,10 +1522,35 @@ if ($action === 'load_payout_structure') {
         http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Access denied']); exit;
     }
 
+    $stq = $db->prepare('SELECT * FROM payout_structures WHERE id = ?');
+    $stq->execute([$structure_id]);
+    $struct = $stq->fetch();
+    if (!$struct) { echo json_encode(['ok' => false, 'error' => 'Structure not found']); exit; }
+
     $sp = $db->prepare('SELECT place, percentage, points, ticket_cents, prize_label FROM payout_structure_places WHERE structure_id = ? ORDER BY place');
     $sp->execute([$structure_id]);
     $rows = $sp->fetchAll(PDO::FETCH_ASSOC);
-    if (!$rows) { echo json_encode(['ok' => false, 'error' => 'Structure not found or empty']); exit; }
+    $hasRecipe = $struct['bounty_amount'] !== null || $struct['bounty_points'] !== null || $struct['jackpot_amount'] !== null;
+    if (!$rows && !$hasRecipe) {
+        echo json_encode(['ok' => false, 'error' => 'This structure is empty (saved before reward recipes existed) — re-save it with values.']); exit;
+    }
+
+    // Session-level recipe: bounty/jackpot ride with the preset (NULL = legacy
+    // structure, leave the session's settings alone). Bounty is carved from
+    // the buy-in, so a recipe that would swallow it is refused.
+    if ($hasRecipe) {
+        $nb  = max(0, (int)$struct['bounty_amount']);
+        $nbp = max(0, (int)$struct['bounty_points']);
+        $nj  = max(0, (int)$struct['jackpot_amount']);
+        if ($nb > 0 && $nb >= (int)$s['buyin_amount']) {
+            echo json_encode(['ok' => false, 'error' => 'This structure\'s bounty (' . pk_money($nb) . ') is not less than the buy-in — raise the buy-in first.']); exit;
+        }
+        $evL = $db->prepare('SELECT league_id FROM events WHERE id = ?');
+        $evL->execute([(int)$s['event_id']]);
+        if (!(int)$evL->fetchColumn()) $nj = 0;  // jackpots are league funds
+        $db->prepare('UPDATE poker_sessions SET bounty_amount = ?, bounty_points = ?, jackpot_amount = ? WHERE id = ?')
+           ->execute([$nb, $nbp, $nj, $session_id]);
+    }
 
     $db->prepare('DELETE FROM poker_payouts WHERE session_id = ?')->execute([$session_id]);
     $ins = $db->prepare('INSERT INTO poker_payouts (session_id, place, percentage, points, ticket_cents, prize_label) VALUES (?, ?, ?, ?, ?, ?)');
@@ -1524,8 +1564,12 @@ if ($action === 'load_payout_structure') {
     // Structure changed — re-sync recorded winnings/points to the new split.
     pk_apply_tournament_payouts($db, $session_id);
 
+    $sess2 = $db->prepare('SELECT * FROM poker_sessions WHERE id = ?');
+    $sess2->execute([$session_id]);
+
     echo json_encode([
         'ok'      => true,
+        'session' => $sess2->fetch(),
         'payouts' => get_payouts($db, $session_id),
         'pool'    => calc_pool($db, $session_id),
     ]);
