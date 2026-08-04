@@ -1431,8 +1431,14 @@ function renderPoolCard() {
     } else {
         h += '<h3>Prize Pool</h3>';
         h += '<div class="pk-pool-row"><span>Buy-ins (' + POOL.total_buyins + ' &times; ' + formatMoney(parseInt(SESSION.buyin_amount)) + ')</span><span>' + formatMoney(POOL.buyin_total) + '</span></div>';
-        h += '<div class="pk-pool-row"><span>Rebuys (' + POOL.total_rebuys + ' &times; ' + formatMoney(parseInt(SESSION.rebuy_amount)) + ')</span><span>' + formatMoney(POOL.rebuy_total) + '</span></div>';
-        h += '<div class="pk-pool-row"><span>Add-ons (' + POOL.total_addons + ' &times; ' + formatMoney(parseInt(SESSION.addon_amount)) + ')</span><span>' + formatMoney(POOL.addon_total) + '</span></div>';
+        // Rebuy/add-on lines only when the feature is enabled — or when entries
+        // were already recorded, so history never hides after a rule change.
+        if (parseInt(SESSION.rebuy_allowed) || parseInt(POOL.total_rebuys) > 0) {
+            h += '<div class="pk-pool-row"><span>Rebuys (' + POOL.total_rebuys + ' &times; ' + formatMoney(parseInt(SESSION.rebuy_amount)) + ')</span><span>' + formatMoney(POOL.rebuy_total) + '</span></div>';
+        }
+        if (parseInt(SESSION.addon_allowed) || parseInt(POOL.total_addons) > 0) {
+            h += '<div class="pk-pool-row"><span>Add-ons (' + POOL.total_addons + ' &times; ' + formatMoney(parseInt(SESSION.addon_amount)) + ')</span><span>' + formatMoney(POOL.addon_total) + '</span></div>';
+        }
         // Net-pool adjustments (bounties / entry tickets) — only shown when in play.
         var bw = parseInt(POOL.bounty_withheld) || 0;
         var tw = parseInt(POOL.ticket_withheld) || 0;
