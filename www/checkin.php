@@ -990,7 +990,8 @@ function renderTableHeader() {
     if (isTourney()) h += sortableTh('RSVP', 'rsvp');
     if (isTourney()) {
         h += sortableTh('$ ' + tip('Tick the box to record a buy-in. It also checks the player in and seats them. The 📒 ledger icon shows their buy-in / rebuy / add-on history and lets you edit or clear a mistake.'), 'buyin', 'title="Buy-in"');
-        if (parseInt(SESSION.jackpot_amount) > 0) h += sortableTh('💎 ' + tip('Optional jackpot side entry (' + formatMoney(parseInt(SESSION.jackpot_amount)) + ', on top of the buy-in). Tick for each player who\'s in — entries feed the league jackpot at finish.'), 'jackpot', 'title="Jackpot entry"');
+        if (parseInt(SESSION.jackpot_amount) > 0 && parseInt(SESSION.jackpot_optional)) h += sortableTh('💎 ' + tip('Optional jackpot side entry (' + formatMoney(parseInt(SESSION.jackpot_amount)) + ', on top of the buy-in). Tick for each player who\'s in — entries feed the league jackpot at finish.'), 'jackpot', 'title="Jackpot entry"');
+        if (parseInt(SESSION.bounty_amount) > 0 && parseInt(SESSION.bounty_optional)) h += sortableTh('🎯 ' + tip('Optional bounty side pot (' + formatMoney(parseInt(SESSION.bounty_amount)) + ', on top of the buy-in). Tick for each player who\'s in — only pool members carry and collect bounties.'), 'bountyin', 'title="Bounty side pot"');
         if (parseInt(SESSION.rebuy_allowed)) h += sortableTh('Rebuys', 'rebuys');
         if (parseInt(SESSION.addon_allowed)) h += sortableTh('Add-ons', 'addons');
     } else {
@@ -1143,12 +1144,15 @@ function renderPlayerRows() {
         }
 
         if (isPending) {
-            h += '<td colspan="' + (isTourney() ? (1 + (parseInt(SESSION.jackpot_amount)>0?1:0) + (parseInt(SESSION.rebuy_allowed)?1:0) + (parseInt(SESSION.addon_allowed)?1:0)) : 3) + '" style="text-align:center;color:#d97706;font-size:.8rem;font-style:italic">Awaiting approval</td>';
+            h += '<td colspan="' + (isTourney() ? (1 + ((parseInt(SESSION.jackpot_amount)>0&&parseInt(SESSION.jackpot_optional))?1:0) + ((parseInt(SESSION.bounty_amount)>0&&parseInt(SESSION.bounty_optional))?1:0) + (parseInt(SESSION.rebuy_allowed)?1:0) + (parseInt(SESSION.addon_allowed)?1:0)) : 3) + '" style="text-align:center;color:#d97706;font-size:.8rem;font-style:italic">Awaiting approval</td>';
         } else {
         if (isTourney()) {
             h += '<td><div style="display:inline-flex;align-items:center;gap:.15rem"><input type="checkbox" class="pk-check" title="Record this player\'s buy-in. Checks them in and assigns a seat automatically — no separate check-in step needed." ' + (parseInt(p.bought_in) ? 'checked' : '') + dis + ' onchange="toggleBuyin(' + p.id + ')">' + ledgerBtn(p.id) + '</div></td>';
-            if (parseInt(SESSION.jackpot_amount) > 0) {
+            if (parseInt(SESSION.jackpot_amount) > 0 && parseInt(SESSION.jackpot_optional)) {
                 h += '<td><input type="checkbox" class="pk-check" style="accent-color:#7c3aed" title="Jackpot side entry (' + formatMoney(parseInt(SESSION.jackpot_amount)) + ')" ' + (parseInt(p.jackpot_in) ? 'checked' : '') + dis + ' onchange="toggleJackpot(' + p.id + ')"></td>';
+            }
+            if (parseInt(SESSION.bounty_amount) > 0 && parseInt(SESSION.bounty_optional)) {
+                h += '<td><input type="checkbox" class="pk-check" style="accent-color:#0e7490" title="Bounty side pot (' + formatMoney(parseInt(SESSION.bounty_amount)) + ')" ' + (parseInt(p.bounty_in) ? 'checked' : '') + dis + ' onchange="toggleBounty(' + p.id + ')"></td>';
             }
             if (parseInt(SESSION.rebuy_allowed)) {
                 h += '<td><div class="pk-counter"><button onclick="updateRebuys(' + p.id + ',-1)"' + dis + '>-</button><span>' + p.rebuys + '</span><button onclick="updateRebuys(' + p.id + ',1)"' + dis + '>+</button></div></td>';
@@ -1258,7 +1262,7 @@ function renderPlayerRows() {
     }
     if (filtered.length === 0) {
         var cols = isTourney()
-            ? 7 + (parseInt(SESSION.jackpot_amount)>0?1:0) + (parseInt(SESSION.rebuy_allowed)?1:0) + (parseInt(SESSION.addon_allowed)?1:0) + (parseInt(SESSION.num_tables)>1?1:0)
+            ? 7 + ((parseInt(SESSION.jackpot_amount)>0&&parseInt(SESSION.jackpot_optional))?1:0) + ((parseInt(SESSION.bounty_amount)>0&&parseInt(SESSION.bounty_optional))?1:0) + (parseInt(SESSION.rebuy_allowed)?1:0) + (parseInt(SESSION.addon_allowed)?1:0) + (parseInt(SESSION.num_tables)>1?1:0)
             : 8 + (parseInt(SESSION.num_tables)>1?1:0);
         h += '<tr><td colspan="' + cols + '" style="text-align:center;padding:2rem;color:#94a3b8">No players</td></tr>';
     }
@@ -1331,10 +1335,16 @@ function renderMobileCards() {
             h += '</div>';
         } else if (!isNo) {
             if (isTourney()) {
-                if (parseInt(SESSION.jackpot_amount) > 0) {
+                if (parseInt(SESSION.jackpot_amount) > 0 && parseInt(SESSION.jackpot_optional)) {
                     h += '<div class="pk-mobile-row">';
                     h += '<label>💎 Jackpot entry (' + formatMoney(parseInt(SESSION.jackpot_amount)) + ')</label>'
                        + '<input type="checkbox" class="pk-check" style="width:22px;height:22px;accent-color:#7c3aed" ' + (parseInt(p.jackpot_in) ? 'checked' : '') + ' onchange="toggleJackpot(' + p.id + ')">';
+                    h += '</div>';
+                }
+                if (parseInt(SESSION.bounty_amount) > 0 && parseInt(SESSION.bounty_optional)) {
+                    h += '<div class="pk-mobile-row">';
+                    h += '<label>🎯 Bounty side pot (' + formatMoney(parseInt(SESSION.bounty_amount)) + ')</label>'
+                       + '<input type="checkbox" class="pk-check" style="width:22px;height:22px;accent-color:#0e7490" ' + (parseInt(p.bounty_in) ? 'checked' : '') + ' onchange="toggleBounty(' + p.id + ')">';
                     h += '</div>';
                 }
                 if (parseInt(SESSION.rebuy_allowed)) {
@@ -1444,14 +1454,20 @@ function renderPoolCard() {
         var tw = parseInt(POOL.ticket_withheld) || 0;
         var ti = parseInt(POOL.ticket_in) || 0;
         if (bw > 0) h += '<div class="pk-pool-row"><span>&minus; Bounties (' + POOL.total_buyins + ' &times; ' + formatMoney(parseInt(SESSION.bounty_amount) || 0) + ')</span><span style="color:#0e7490">&minus;' + formatMoney(bw) + '</span></div>';
+        var jw = parseInt(POOL.jackpot_withheld) || 0;
+        if (jw > 0) h += '<div class="pk-pool-row"><span>&minus; 💎 Jackpot (' + POOL.total_buyins + ' &times; ' + formatMoney(parseInt(SESSION.jackpot_amount) || 0) + ')</span><span style="color:#7c3aed">&minus;' + formatMoney(jw) + '</span></div>';
         if (tw > 0) h += '<div class="pk-pool-row"><span>&minus; Ticket prizes</span><span style="color:#b45309">&minus;' + formatMoney(tw) + '</span></div>';
         if (ti > 0) h += '<div class="pk-pool-row"><span>+ Ticket seat surplus</span><span style="color:#16a34a">+' + formatMoney(ti) + '</span></div>';
-        h += '<div class="pk-pool-row total"><span>' + ((bw || tw || ti) ? 'Prize Pool (net)' : 'Total') + '</span><span>' + formatMoney(POOL.pool_total) + '</span></div>';
-        // Jackpot side money: optional entries on top of the buy-in, shown for
+        h += '<div class="pk-pool-row total"><span>' + ((bw || jw || tw || ti) ? 'Prize Pool (net)' : 'Total') + '</span><span>' + formatMoney(POOL.pool_total) + '</span></div>';
+        // Optional-mode side money: collected on top of the buy-in, shown for
         // the cash count but never part of the prize pool.
-        if (parseInt(SESSION.jackpot_amount) > 0) {
+        if (parseInt(SESSION.jackpot_amount) > 0 && parseInt(SESSION.jackpot_optional)) {
             var je = parseInt(POOL.jackpot_entries) || 0;
             h += '<div class="pk-pool-row"><span style="color:#7c3aed">💎 Jackpot entries (' + je + ' &times; ' + formatMoney(parseInt(SESSION.jackpot_amount)) + ', side money)</span><span style="color:#7c3aed">' + formatMoney(parseInt(POOL.jackpot_collected) || 0) + '</span></div>';
+        }
+        if (parseInt(SESSION.bounty_amount) > 0 && parseInt(SESSION.bounty_optional)) {
+            var be = parseInt(POOL.bounty_entries) || 0;
+            h += '<div class="pk-pool-row"><span style="color:#0e7490">🎯 Bounty pool (' + be + ' &times; ' + formatMoney(parseInt(SESSION.bounty_amount)) + ', side money)</span><span style="color:#0e7490">' + formatMoney(parseInt(POOL.bounty_collected) || 0) + '</span></div>';
         }
         // Unclaimed bounty tracker: KOs recorded without an eliminator leave
         // bounty cash on the table — surface the shortfall.
@@ -1711,7 +1727,8 @@ function renderPayoutsPane() {
     // Bounty fields
     h += '<div class="pk-reward-body' + (REWARDS_UI.bounty ? ' on' : '') + '" id="rewardBody_bounty">';
     h += '<div class="pk-settings-grid">';
-    h += '<div><label>Bounty per buy-in</label><div class="pk-money-wrap"><input type="number" id="cfg_bounty" value="' + Math.round((parseInt(SESSION.bounty_amount) || 0)/100) + '" step="1" min="0" oninput="updateBountyHint()"></div></div>';
+    h += '<div><label>Bounty ($ each)</label><div class="pk-money-wrap"><input type="number" id="cfg_bounty" value="' + Math.round((parseInt(SESSION.bounty_amount) || 0)/100) + '" step="1" min="0" oninput="updateBountyHint()"></div></div>';
+    h += '<div><label>Collected as</label><select id="cfg_bounty_mode" onchange="updateBountyHint();refreshOptInColumns()"><option value="0"' + (!parseInt(SESSION.bounty_optional) ? ' selected' : '') + '>Baked into buy-in (everyone)</option><option value="1"' + (parseInt(SESSION.bounty_optional) ? ' selected' : '') + '>Optional add-on (per player)</option></select></div>';
     h += '<div><label>Bounty points per KO</label><input type="number" id="cfg_bounty_points" value="' + (parseInt(SESSION.bounty_points) || 0) + '" step="1" min="0"></div>';
     h += '</div>';
     h += '<div class="pk-bounty-hint" id="bountyHint"></div>';
@@ -1735,8 +1752,9 @@ function renderPayoutsPane() {
     h += '<div class="pk-reward-body' + (REWARDS_UI.jackpot ? ' on' : '') + '" id="rewardBody_jackpot">';
     h += '<div class="pk-settings-grid">';
     h += '<div><label>Jackpot entry ($)</label><div class="pk-money-wrap"><input type="number" id="cfg_jackpot" value="' + Math.round((parseInt(SESSION.jackpot_amount) || 0)/100) + '" step="1" min="0"></div></div>';
+    h += '<div><label>Collected as</label><select id="cfg_jackpot_mode" onchange="refreshOptInColumns()"><option value="1"' + (parseInt(SESSION.jackpot_optional) ? ' selected' : '') + '>Optional add-on (per player)</option><option value="0"' + (!parseInt(SESSION.jackpot_optional) ? ' selected' : '') + '>Baked into buy-in (everyone)</option></select></div>';
     h += '</div>';
-    h += '<div style="font-size:.78rem;color:#64748b;margin-top:.35rem">An <b>optional</b> side entry collected on top of the buy-in (never pool money). Tick the 💎 box next to each player who\'s in; their entries feed the league\'s progressive jackpot when the game finishes. Pays out on a bad beat or royal flush. Current fund: 💎 <b>' + formatMoney(JACKPOTS.balance) + '</b>. Record a hit from the 💎 button on the game screen.</div>';
+    h += '<div style="font-size:.78rem;color:#64748b;margin-top:.35rem"><b>Optional</b>: tick the 💎 box next to each player who\'s in (on top of the buy-in). <b>Baked in</b>: every buy-in contributes and the amount is withheld from the prize pool. Entries feed the league\'s progressive jackpot at finish; pays out on a bad beat or royal flush. Current fund: 💎 <b>' + formatMoney(JACKPOTS.balance) + '</b>. Record a hit from the 💎 button on the game screen.</div>';
     h += '</div>';
     h += '</div>';
 
@@ -2018,19 +2036,28 @@ function toggleSubBox(key, val) {
     if (body) body.classList.toggle('on', String(val) === '1');
 }
 
-// Live "each buy-in splits into pool + bounty" explainer under the bounty fields.
+// Live explainer under the bounty fields, mode-aware.
 function updateBountyHint() {
     var el = document.getElementById('bountyHint');
     if (!el) return;
     var buyin = Math.max(0, Math.round(parseFloat((document.getElementById('cfg_buyin') || {}).value || 0)));
     var bounty = Math.max(0, Math.round(parseFloat((document.getElementById('cfg_bounty') || {}).value || 0)));
+    var optional = ((document.getElementById('cfg_bounty_mode') || {}).value || '0') === '1';
     if (bounty <= 0) { el.textContent = ''; return; }
+    if (optional) {
+        el.textContent = 'Optional side pot: tick the 🎯 box for each player who\'s in — they pay $' + bounty + ' on top of the buy-in, carry a $' + bounty + ' bounty, and only pool members can collect. The prize pool is untouched.';
+        return;
+    }
     if (bounty >= buyin) {
-        el.innerHTML = '<span style="color:#dc2626">Bounty must be less than the buy-in — it comes out of it.</span>';
+        el.innerHTML = '<span style="color:#dc2626">A baked-in bounty must be less than the buy-in — it comes out of it.</span>';
         return;
     }
     el.textContent = 'Each $' + buyin + ' buy-in = $' + (buyin - bounty) + ' to the prize pool + $' + bounty + ' bounty on that player\'s head. Knock someone out, collect their bounty.';
 }
+
+// Mode selects change which opt-in columns exist — but only after Save; the
+// roster reads SESSION. This just nudges the hint copy live.
+function refreshOptInColumns() { updateBountyHint(); }
 
 // ─── Entry tickets (host view) ────────────────────────────
 // Awarded tickets from THIS game: holder, value, status, target, with
@@ -2311,6 +2338,8 @@ function confirmSaveStruct() {
     fd.append('gc_num_tables', parseInt((document.getElementById('cfg_tables') || {}).value || 1));
     fd.append('gc_seats_per_table', parseInt((document.getElementById('cfg_seats_per_table') || {}).value || 8));
     fd.append('gc_auto_assign_tables', (document.getElementById('cfg_auto_assign') || {}).checked ? 1 : 0);
+    fd.append('gc_bounty_optional', ((document.getElementById('cfg_bounty_mode') || {}).value || '0') === '1' ? 1 : 0);
+    fd.append('gc_jackpot_optional', ((document.getElementById('cfg_jackpot_mode') || {}).value || '1') === '1' ? 1 : 0);
     // Carry all four reward dimensions; the backend keeps rows where ANY is set.
     document.querySelectorAll('#payoutRows .row').forEach(function(row) {
         var pctEl = row.querySelector('.payout-pct');
@@ -2410,6 +2439,14 @@ function toggleBuyin(pid) {
 
 function toggleJackpot(pid) {
     postAction('toggle_jackpot', { player_id: pid }, function(j) {
+        updatePlayer(j.player);
+        POOL = j.pool;
+        refreshUI();
+    });
+}
+
+function toggleBounty(pid) {
+    postAction('toggle_bounty', { player_id: pid }, function(j) {
         updatePlayer(j.player);
         POOL = j.pool;
         refreshUI();
@@ -3129,6 +3166,8 @@ function saveSettings() {
         data.bounty_points = parseInt((document.getElementById('cfg_bounty_points') || {}).value || 0);
         data.ticket_target_event_id = parseInt((document.getElementById('cfg_ticket_target') || {}).value || 0);
         data.jackpot_amount = Math.max(0, Math.round(parseFloat((document.getElementById('cfg_jackpot') || {}).value || 0))) * 100;
+        data.bounty_optional = ((document.getElementById('cfg_bounty_mode') || {}).value || '0') === '1' ? 1 : 0;
+        data.jackpot_optional = ((document.getElementById('cfg_jackpot_mode') || {}).value || '1') === '1' ? 1 : 0;
     } else {
         data.rebuy_amount = data.buyin_amount;
         data.addon_amount = 0;

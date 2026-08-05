@@ -427,11 +427,15 @@ if ($action === 'update_config') {
     $new_buyin  = (int)($_POST['buyin_amount'] ?? $s['buyin_amount']);
     $bounty_amt = max(0, (int)($_POST['bounty_amount'] ?? $s['bounty_amount'] ?? 0));
     $bounty_pts = max(0, (int)($_POST['bounty_points'] ?? $s['bounty_points'] ?? 0));
-    // Jackpot is an optional side entry ON TOP of the buy-in, so only the
-    // bounty is validated against the buy-in it's carved from.
-    $jp_amount = max(0, (int)($_POST['jackpot_amount'] ?? $s['jackpot_amount'] ?? 0));
-    if ($game_type === 'tournament' && $bounty_amt >= $new_buyin && $bounty_amt > 0) {
-        echo json_encode(['ok' => false, 'error' => 'Bounty must be less than the buy-in (it comes out of it).']); exit;
+    // Collection modes: baked (carved/withheld from every buy-in) or optional
+    // (per-player side purchase on top). Only BAKED money is validated against
+    // the buy-in it comes out of.
+    $jp_amount  = max(0, (int)($_POST['jackpot_amount'] ?? $s['jackpot_amount'] ?? 0));
+    $bounty_opt = (int)($_POST['bounty_optional'] ?? $s['bounty_optional'] ?? 0) ? 1 : 0;
+    $jp_opt     = (int)($_POST['jackpot_optional'] ?? $s['jackpot_optional'] ?? 1) ? 1 : 0;
+    $baked = (!$bounty_opt ? $bounty_amt : 0) + (!$jp_opt ? $jp_amount : 0);
+    if ($game_type === 'tournament' && $baked >= $new_buyin && $baked > 0) {
+        echo json_encode(['ok' => false, 'error' => 'Baked-in bounty + jackpot must total less than the buy-in (they come out of it).']); exit;
     }
     if ($jp_amount > 0) {
         $lgq = $db->prepare('SELECT league_id FROM events WHERE id = ?');
@@ -455,7 +459,7 @@ if ($action === 'update_config') {
         $target = 0;
     }
 
-    $db->prepare('UPDATE poker_sessions SET buyin_amount=?, rebuy_amount=?, addon_amount=?, rebuy_allowed=?, addon_allowed=?, max_rebuys=?, starting_chips=?, addon_chips=?, num_tables=?, game_type=?, auto_assign_tables=?, seats_per_table=?, bounty_amount=?, bounty_points=?, ticket_target_event_id=?, jackpot_amount=? WHERE id=?')->execute([
+    $db->prepare('UPDATE poker_sessions SET buyin_amount=?, rebuy_amount=?, addon_amount=?, rebuy_allowed=?, addon_allowed=?, max_rebuys=?, starting_chips=?, addon_chips=?, num_tables=?, game_type=?, auto_assign_tables=?, seats_per_table=?, bounty_amount=?, bounty_points=?, ticket_target_event_id=?, jackpot_amount=?, bounty_optional=?, jackpot_optional=? WHERE id=?')->execute([
         $new_buyin,
         (int)($_POST['rebuy_amount'] ?? $s['rebuy_amount']),
         (int)($_POST['addon_amount'] ?? $s['addon_amount']),
@@ -472,6 +476,8 @@ if ($action === 'update_config') {
         $bounty_pts,
         $target > 0 ? $target : null,
         $jp_amount,
+        $bounty_opt,
+        $jp_opt,
         $session_id,
     ]);
 
@@ -515,6 +521,8 @@ if ($action === 'update_config') {
         'bounty_amount'      => (int)($srow['bounty_amount'] ?? 0),
         'bounty_points'      => (int)($srow['bounty_points'] ?? 0),
         'jackpot_amount'     => (int)($srow['jackpot_amount'] ?? 0),
+        'bounty_optional'    => (int)($srow['bounty_optional'] ?? 0),
+        'jackpot_optional'   => (int)($srow['jackpot_optional'] ?? 1),
     ]);
 
     echo json_encode([
@@ -777,6 +785,15 @@ if ($action === 'eliminate_player') {
     $session = get_session_from_player($db, $player_id);
     if (!$session) { echo json_encode(['ok' => false, 'error' => 'Player not found']); exit; }
     verify_event_access($db, $session['event_id'], $current, $isAdmin);
+
+    // Re-eliminating an already-out player would recompute their place from
+    // the wrong remaining-count and silently corrupt standings — use Undo Elim
+    // first if the order needs fixing.
+    $elimChk = $db->prepare('SELECT eliminated FROM poker_players WHERE id = ?');
+    $elimChk->execute([$player_id]);
+    if ((int)$elimChk->fetchColumn() === 1) {
+        echo json_encode(['ok' => false, 'error' => 'Player is already eliminated. Undo their elimination first to change the order.']); exit;
+    }
 
     // Auto-assign finishing place by elimination order when one isn't supplied:
     // the place is the number of players still in (including the one being knocked out).
@@ -1479,7 +1496,7 @@ if ($action === 'save_payout_structure') {
     $gc = [];
     foreach (['buyin_amount', 'rebuy_amount', 'addon_amount', 'starting_chips', 'addon_chips',
               'rebuy_allowed', 'max_rebuys', 'addon_allowed', 'num_tables', 'seats_per_table',
-              'auto_assign_tables'] as $k) {
+              'auto_assign_tables', 'bounty_optional', 'jackpot_optional'] as $k) {
         if (isset($_POST['gc_' . $k])) $gc[$k] = max(0, (int)$_POST['gc_' . $k]);
     }
     $game_config = $gc ? json_encode($gc) : null;
@@ -1551,7 +1568,7 @@ if ($action === 'load_payout_structure') {
         $gc = json_decode((string)$struct['game_config'], true) ?: [];
         $allowed = ['buyin_amount', 'rebuy_amount', 'addon_amount', 'starting_chips', 'addon_chips',
                     'rebuy_allowed', 'max_rebuys', 'addon_allowed', 'num_tables', 'seats_per_table',
-                    'auto_assign_tables'];
+                    'auto_assign_tables', 'bounty_optional', 'jackpot_optional'];
         $sets = []; $vals = [];
         foreach ($allowed as $k) {
             if (isset($gc[$k])) { $sets[] = "$k = ?"; $vals[] = max(0, (int)$gc[$k]); }
@@ -1738,6 +1755,33 @@ if ($action === 'adjust_jackpot') {
     $db->prepare('UPDATE league_jackpots SET balance = ? WHERE id = ?')->execute([$newBal, (int)$fund['id']]);
     db_log_activity((int)$current['id'], 'jackpot manual adjustment ' . pk_money($amount));
     echo json_encode(['ok' => true, 'balance' => $newBal]);
+    exit;
+}
+
+// ─── POST: toggle_bounty ───────────────────────────────────
+// Optional-mode bounty: flip a player's participation in the bounty side pot.
+if ($action === 'toggle_bounty') {
+    $player_id = (int)($_POST['player_id'] ?? 0);
+    $session = get_session_from_player($db, $player_id);
+    if (!$session) { echo json_encode(['ok' => false, 'error' => 'Player not found']); exit; }
+    verify_event_access($db, $session['event_id'], $current, $isAdmin);
+    $per = (int)($session['bounty_amount'] ?? 0);
+    if ($per <= 0 || !(int)($session['bounty_optional'] ?? 0)) {
+        echo json_encode(['ok' => false, 'error' => 'No optional bounty configured for this game.']); exit;
+    }
+
+    $p = $db->prepare('SELECT bounty_in, display_name FROM poker_players WHERE id = ?');
+    $p->execute([$player_id]);
+    $row = $p->fetch();
+    $now = (int)$row['bounty_in'] ? 0 : 1;
+    $db->prepare('UPDATE poker_players SET bounty_in = ? WHERE id = ?')->execute([$now, $player_id]);
+    pk_log($db, (int)$session['id'], (int)$current['id'], 'bounty', $player_id, (string)$row['display_name'],
+           $now ? $per : -$per, $now ? ('Bounty side pot entry — ' . pk_money($per)) : ('Bounty entry reversed — ' . pk_money($per)));
+    pk_apply_tournament_payouts($db, (int)$session['id']);
+
+    $pl = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
+    $pl->execute([$player_id]);
+    echo json_encode(['ok' => true, 'player' => $pl->fetch(), 'pool' => calc_pool($db, (int)$session['id'])]);
     exit;
 }
 

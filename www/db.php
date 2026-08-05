@@ -689,6 +689,14 @@ function db_init(PDO $pdo): void {
     try { $pdo->exec("ALTER TABLE user_session_defaults ADD COLUMN jackpot_amount INTEGER DEFAULT 0"); } catch (Exception $e) {}
     // Jackpot is an OPTIONAL side entry (on top of the buy-in), tracked per player.
     try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN jackpot_in INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    // Collection modes: bounty and jackpot can each be baked into the buy-in
+    // (everyone, carved/withheld) or an optional per-player side purchase.
+    // Defaults preserve prior behavior: bounty baked, jackpot optional.
+    try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN bounty_optional INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN jackpot_optional INTEGER NOT NULL DEFAULT 1"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN bounty_in INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE user_session_defaults ADD COLUMN bounty_optional INTEGER DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE user_session_defaults ADD COLUMN jackpot_optional INTEGER DEFAULT 1"); } catch (Exception $e) {}
     // One-shot merge of the short-lived split funds (badbeat/royal) into the
     // single 'main' fund per league; log rows follow their fund.
     try {
