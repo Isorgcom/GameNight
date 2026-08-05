@@ -366,10 +366,12 @@ $themeCss   = timer_theme_css_vars($themeProps);
             font-size: clamp(0.85rem, 2vw, 1.2rem);
             opacity: 0.85;
         }
-        .timer-event-name {
+        /* Double-class specificity beats `.timer-info-bar > span` without
+           !important — fit-text needs its inline font-size to win when shrinking. */
+        .timer-event-name.timer-event-name {
             font-weight: 700;
-            font-size: calc(clamp(1rem, 2.5vw, 1.5rem) * var(--timer-event-scale)) !important;
-            opacity: 1 !important;
+            font-size: calc(clamp(1rem, 2.5vw, 1.5rem) * var(--timer-event-scale));
+            opacity: 1;
             color: var(--timer-event-color);
         }
         .timer-stat { color: var(--timer-stat-color); }
@@ -387,6 +389,10 @@ $themeCss   = timer_theme_css_vars($themeProps);
             min-height: 0;
             overflow: hidden;
         }
+        /* Flow-mode fit bound: a shrink-to-fit flex child (align-items:center)
+           takes max-content width and can silently escape its container; capping
+           at 100% turns that into measurable overflow that fit-text shrinks. */
+        .timer-display > *, .timer-info-bar > * { max-width: 100%; }
         .timer-level-label {
             font-size: calc(clamp(0.9rem, 3vw, 2.5rem) * var(--timer-level-scale));
             font-weight: 600;
@@ -1085,6 +1091,9 @@ $themeCss   = timer_theme_css_vars($themeProps);
             margin: 0;
             z-index: 20;
             white-space: nowrap;
+            /* Soft extent caps (applyTheme) include padding+border, so a capped
+               element's edge lands exactly at the viewport edge, not padding past it. */
+            box-sizing: border-box;
         }
         /* QR keeps its current size unless theme overrides; transform stacks translate+scale. */
         #qrWrap.timer-positioned {
@@ -2032,11 +2041,71 @@ window.DATA_AVAIL = window.DATA_AVAIL || {};
 // Keeps the 2s poll from dirtying layout (and, later, from re-running fit-text).
 function setText(node, s) {
     if (!node) return;
-    if (node._gnTxt !== s) { node._gnTxt = s; node._gnHtml = undefined; node.textContent = s; }
+    if (node._gnTxt !== s) { node._gnTxt = s; node._gnHtml = undefined; node.textContent = s; window._contentDirty = true; }
 }
 function setHtml(node, s) {
     if (!node) return;
-    if (node._gnHtml !== s) { node._gnHtml = s; node._gnTxt = undefined; node.innerHTML = s; }
+    if (node._gnHtml !== s) { node._gnHtml = s; node._gnTxt = undefined; node.innerHTML = s; window._contentDirty = true; }
+}
+
+// ─── §7.3.1  Fit-text ────────────────────────────────────────────
+// Auto-shrink: an element's themed font-size is its MAXIMUM. When nowrap
+// content is wider or taller than the space the element is allowed (soft
+// extent caps on positioned elements, container width in flow, real boxes in
+// later phases), the font scales down just enough to fit — long event names
+// and 1.2K/2.4K blinds stop sliding under their neighbors. Batched into
+// clear-all → read-all → write-all so each cycle costs one reflow, and only
+// scheduled when content or layout actually changed.
+var FIT_SKIP = { qr: 1, image: 1, streaming: 1 };
+var FIT_MIN_PX = 8;
+
+function fitAllText() {
+    var nodes = [];
+    for (var k in THEME_SELECTORS) {
+        if (FIT_SKIP[k]) continue;
+        var node = document.querySelector(THEME_SELECTORS[k]);
+        if (!node || node.style.display === 'none') continue;
+        nodes.push(node);
+    }
+    // Pass 1 (write): clear any previous fit so we measure at the themed max.
+    nodes.forEach(function (n) { n.style.fontSize = ''; });
+    // Pass 2 (read): one layout for all measurements.
+    var meas = nodes.map(function (n) {
+        return {
+            n: n,
+            base: parseFloat(getComputedStyle(n).fontSize) || 0,
+            cw: n.clientWidth, sw: n.scrollWidth,
+            ch: n.clientHeight, sh: n.scrollHeight,
+        };
+    });
+    // Pass 3 (write): shrink only where content genuinely overflows.
+    meas.forEach(function (m) {
+        if (!m.base) return;
+        var r = 1;
+        if (m.sw > m.cw + 1 && m.sw > 0) r = Math.min(r, m.cw / m.sw);
+        if (m.sh > m.ch + 1 && m.sh > 0) r = Math.min(r, m.ch / m.sh);
+        if (r < 1) m.n.style.fontSize = Math.max(FIT_MIN_PX, Math.floor(m.base * r)) + 'px';
+    });
+}
+
+var _fitQueued = false;
+function scheduleFit() {
+    if (_fitQueued) return;
+    _fitQueued = true;
+    requestAnimationFrame(function () { _fitQueued = false; fitAllText(); });
+}
+
+// Re-apply layout + fit when the viewport itself changes (window resize,
+// device rotation, entering/leaving fullscreen). Debounced — resize fires in
+// bursts. This is the hook the timer never had: positions are % of viewport,
+// so nothing used to re-evaluate when the viewport changed shape.
+var _relayoutTimer = null;
+function reapplyLayout() {
+    clearTimeout(_relayoutTimer);
+    _relayoutTimer = setTimeout(function () {
+        if (window.TIMER_THEME) applyTheme(window.TIMER_THEME);
+        scheduleFit();
+    }, 150);
 }
 
 function renderAll() {
@@ -2062,8 +2131,11 @@ function renderAll() {
             setText(el('levelLabel'), 'Level ' + playNum);
             var blindsHtml = fmtChips(parseFloat(lv.small_blind)) + ' / ' + fmtChips(parseFloat(lv.big_blind));
             if (parseFloat(lv.ante) > 0) {
-                blindsHtml += ' / <span style="position:relative;display:inline-block">' + fmtChips(parseFloat(lv.ante))
-                    + '<span style="position:absolute;left:50%;transform:translateX(-50%);bottom:-0.6em;font-size:0.25em;color:#f59e0b;font-weight:700;letter-spacing:0.05em">ANTE</span></span>';
+                // In-flow stacked ante (number over its ANTE label): the label
+                // occupies real height so measurement/fit-text sees it — the old
+                // absolutely-hung version was invisible to every bounding box.
+                blindsHtml += ' / <span style="display:inline-flex;flex-direction:column;align-items:center;vertical-align:baseline">' + fmtChips(parseFloat(lv.ante))
+                    + '<span style="font-size:0.25em;line-height:1.2;color:#f59e0b;font-weight:700;letter-spacing:0.05em">ANTE</span></span>';
             }
             setHtml(el('blinds'), blindsHtml);
             el('ante').textContent = '';
@@ -2078,8 +2150,8 @@ function renderAll() {
         } else {
             var nextHtml = 'Next: ' + fmtChips(parseFloat(nextLv.small_blind)) + ' / ' + fmtChips(parseFloat(nextLv.big_blind));
             if (parseFloat(nextLv.ante) > 0) {
-                nextHtml += ' / <span style="position:relative;display:inline-block">' + fmtChips(parseFloat(nextLv.ante))
-                    + '<span style="position:absolute;left:50%;transform:translateX(-50%);bottom:-0.7em;font-size:0.45em;color:#f59e0b;font-weight:700;letter-spacing:0.05em">ANTE</span></span>';
+                nextHtml += ' / <span style="display:inline-flex;flex-direction:column;align-items:center;vertical-align:baseline">' + fmtChips(parseFloat(nextLv.ante))
+                    + '<span style="font-size:0.45em;line-height:1.2;color:#f59e0b;font-weight:700;letter-spacing:0.05em">ANTE</span></span>';
             }
             setHtml(el('nextLevel'), nextHtml);
         }
@@ -2185,6 +2257,7 @@ function renderAll() {
     setText(el('pausedLabel'), (_inEdit || !TIMER.is_running) ? 'PAUSED' : '');
 
     syncVisibility();
+    if (window._contentDirty) { window._contentDirty = false; scheduleFit(); }
 }
 
 // Renderer registry — keyed by element key, then by variant name.
@@ -2226,7 +2299,13 @@ function renderClock() {
 
 function renderClockText(node, secs) {
     var s = fmtTime(secs);
-    if (node.textContent !== s) node.textContent = s;
+    if (node.textContent !== s) {
+        // Refit only when the string LENGTH changes (1:00:00 → 59:59) — the
+        // once-a-second same-width tick must not re-run measurement.
+        var lenChanged = (node.textContent || '').length !== s.length;
+        node.textContent = s;
+        if (lenChanged) scheduleFit();
+    }
 }
 
 // SVG arc-path helper used by the radial-checks variant.
@@ -3956,10 +4035,22 @@ function applyTheme(props) {
             node2.classList.add('timer-positioned');
             node2.style.setProperty('--pos-x', pos.x + '%');
             node2.style.setProperty('--pos-y', pos.y + '%');
+            // Soft extent caps: a center-anchored element can extend at most
+            // twice the distance to its nearest viewport edge before hanging
+            // off-screen. Fit-text shrinks content into this cap, so legacy
+            // point-positioned themes stop overflowing with no stored changes.
+            // Elements scaled via transform (data-has-scale) are laid out
+            // pre-transform, so their cap shrinks by the scale factor to keep
+            // the VISUAL box at the edge.
+            var _capScl = (node2.dataset.hasScale === '1' && pe && pe.scale) ? (parseFloat(pe.scale) || 1) : 1;
+            node2.style.maxWidth  = (Math.max(4, 2 * Math.min(pos.x, 100 - pos.x)) / _capScl) + 'vw';
+            node2.style.maxHeight = (Math.max(3, 2 * Math.min(pos.y, 100 - pos.y)) / _capScl) + 'vh';
         } else {
             node2.classList.remove('timer-positioned');
             node2.style.removeProperty('--pos-x');
             node2.style.removeProperty('--pos-y');
+            node2.style.maxWidth = '';
+            node2.style.maxHeight = '';
         }
         // Per-element stacking. When z_index is set (after the user restacks via
         // the Objects panel) it overrides the stylesheet default — including the
@@ -3973,6 +4064,7 @@ function applyTheme(props) {
     // Variant / thickness changes from the inspector mutate the theme but don't change
     // the next tick's text — force a clock re-render so visual feedback is instant.
     if (typeof renderClock === 'function') renderClock();
+    scheduleFit();
 }
 
 // ─── §7.15.0  syncVisibility — the ONE writer of style.display ───
@@ -5707,6 +5799,11 @@ renderAll();
 // First theme application done — lift the first-paint gate (the head-script
 // failsafe would lift it at 2.5s anyway if we never got here).
 document.documentElement.classList.remove('theme-pending');
+// Viewport-shape changes re-apply layout + fit (debounced in reapplyLayout).
+window.addEventListener('resize', reapplyLayout);
+window.addEventListener('orientationchange', reapplyLayout);
+document.addEventListener('fullscreenchange', reapplyLayout);
+try { window.matchMedia('(orientation: portrait)').addEventListener('change', reapplyLayout); } catch (e) { /* older Safari */ }
 startLocalTick(); // smooth second-by-second display between polls
 setInterval(pollState, POLL_INTERVAL); // everyone polls server — server is master
 
