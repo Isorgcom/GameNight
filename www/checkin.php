@@ -1639,7 +1639,8 @@ function renderSettingsView() {
     // sits ABOVE the panes because a preset restores BOTH tabs.
     h += '<div class="pk-sv-body">';
     if (!isCash()) {
-        h += '<div class="pk-cfg-section" style="border-top:none;padding-top:0;margin-top:0"><div class="pk-cfg-title">Game Preset</div>';
+        h += '<div class="pk-cfg-section" style="border-top:none;padding-top:0;margin-top:0"><div class="pk-cfg-title" style="display:flex;align-items:center;gap:.45rem">Game Preset'
+           + '<button class="pk-help-btn" style="margin-left:0;padding:.15rem .5rem;font-size:.7rem" title="What game presets do" aria-label="Game preset help" onclick="showPresetHelp()">?</button></div>';
         h += '<div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">';
         h += '<select id="payoutStructureSelect" onchange="onPayoutStructureChange()" style="flex:0 1 300px;min-width:160px;padding:.3rem .5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:4px;font-size:.85rem"></select>';
         h += '<button onclick="loadPayoutStructure()" title="Apply the selected preset to BOTH tabs: game setup, payout split, points, ticket prizes, prizes, bounty and jackpot entry">Load</button>';
@@ -2169,6 +2170,22 @@ function loadPayoutStructures() {
             PAYOUT_STRUCTURES = j.structures || [];
             renderPayoutStructureSelect();
         });
+}
+
+function showPresetHelp() {
+    pkAlert(
+        '<div class="pk-help-content">'
+        + '<h4>What a preset stores</h4>'
+        + '<p>A snapshot of everything in this editor, across both tabs: the Game tab (buy-in, rebuys, add-ons, chips, tables) and the Payouts &amp; Rewards tab (payout split, points, ticket prize values, prize labels, and the bounty and jackpot setup including baked-in vs. optional). The satellite target event is the one thing not stored; that stays per-game.</p>'
+        + '<h4>Load</h4>'
+        + '<p>Applies the selected preset to <b>this game</b> right away, replacing the current setup on both tabs. There is no separate save step after loading.</p>'
+        + '<h4>Save As&#8230;</h4>'
+        + '<p>Saves the editor as a named preset so you can reuse the same setup for future games, e.g. "Friday $20 bounty" or "Free roll".</p>'
+        + '<h4>Delete / Set Default</h4>'
+        + '<p><b>Delete</b> removes the selected preset (saved games are not affected). <b>Set Default</b> (admins) makes it the starting setup for new games.</p>'
+        + '</div>',
+        { title: 'Game presets', okLabel: 'Got it' }
+    );
 }
 
 function renderPayoutStructureSelect() {
