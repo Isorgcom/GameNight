@@ -2181,8 +2181,8 @@ function showPresetHelp() {
         + '<p>Applies the selected preset to <b>this game</b> right away, replacing the current setup on both tabs. There is no separate save step after loading.</p>'
         + '<h4>Save As&#8230;</h4>'
         + '<p>Saves the editor as a named preset so you can reuse the same setup for future games, e.g. "Friday $20 bounty" or "Free roll".</p>'
-        + '<h4>Delete / Set Default</h4>'
-        + '<p><b>Delete</b> removes the selected preset (saved games are not affected). <b>Set Default</b> (admins) makes it the starting setup for new games.</p>'
+        + '<h4>Delete</h4>'
+        + '<p><b>Delete</b> removes the selected preset. Games that used it are not affected.</p>'
         + '</div>',
         { title: 'Game presets', okLabel: 'Got it' }
     );
