@@ -4,6 +4,28 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2056] - 2026-08-05
+
+Payout 2.0: the complete multi-reward tournament payout system, developed and dev-tested on the `GameNight-Payout2.0` branch (35 commits) and landed as a single release.
+
+### Added
+- **Tournament payouts can now award more than cash: league points, entry tickets, and prize labels per finishing place.** `payout_structure_places` and `poker_payouts` gain `points`, `ticket_cents`, and `prize_label` columns; the payout editor shows PTS / TICKET $ / PRIZE columns toggled by reward chips. League standings rank by points (`league.php`, with per-game detail in `league_player.php`), winnings include bounty cash, and the season champion is decided by points with the old average-score fallback.
+- **Knockout bounties, baked in or optional.** A per-session bounty (`bounty_amount`/`bounty_points`) pays the eliminator cash and/or points per knockout, recorded via the eliminate dialog's "knocked out by" picker. Two collection modes (`bounty_optional`): baked into the buy-in (everyone carries a bounty, funded by withholding from the pool, winner keeps their own) or an optional side pot (per-player 🎯 opt-in, side money that never touches the pool; only opted-in heads carry money and only opted-in players collect). Bounty points per KO are universal in both modes.
+- **Rebuying an eliminated player re-enters them into the game.** Clicking + on Rebuys for a knocked-out player (rebuys remaining) clears their elimination, reseats them, and reopens an auto-finished game. The eliminator permanently keeps the bounty they collected (banked in new `bounties_banked`/`bounty_cash_banked` columns), and the re-entering player's bounty chip resets: optional mode clears their opt-in so they can buy a new chip (consumed chips still count in side-pot totals), baked mode marks their head claimed (`bounty_claimed`) so it can't pay out twice. Bounty money stays exactly balanced through any number of re-entries.
+- **Funded satellite entry tickets.** A place can award a ticket to a target event (`ticket_target_event_id`): its value is withheld from the pool, issued at game finish (`poker_entry_tickets`), and the winner is auto-invited to the target event (RSVP yes, approved). At the target, the host redeems the ticket toward the buy-in, with any surplus over the buy-in flowing into that game's pool; tickets can be re-targeted to another event or converted to cash winnings. Reopening a game voids its issued tickets and is blocked once one has been redeemed.
+- **League progressive jackpot.** A single per-league fund (`league_jackpots`) grows from per-game contributions: baked into the buy-in or an optional per-player 💎 entry (`jackpot_optional`, default). Recording a hit (bad beat, royal flush, or other) pays out any split across selected players; every movement lives in an append-only ledger (`league_jackpot_log`) with strike-through voiding and signed manual adjustments, guarded against overdrawing the fund. The fund balance shows as a badge in the league header on every tab.
+- **Full-screen tabbed Game Settings editor.** The inline settings panel is replaced by a fixed overlay with Game | Payouts & Rewards | Tickets tabs, dirty-state tracking with discard confirmation, Esc/browser-Back close, and Save that closes the editor. Finish/Reopen moved out of settings into the page header. All panes stay mounted so the 10-second poll and unsaved values survive tab switches.
+- **Game presets capture the entire editor.** Saving a preset stores the payout places plus the bounty/jackpot recipe and the whole Game tab (`payout_structures.game_config` JSON); loading applies all of it to the current game immediately. The picker sits above the tabs as "Game Preset" with a help dialog explaining store/load/save-as/delete.
+- **Shared animated save overlay.** `pkProgress()`/`pkProgressDone()` in `pk-dialogs.js` (minimum 700ms display) replace ad-hoc save spinners; used by settings save, event edit, and preset loading. `_footer.php` cache-busts `pk-dialogs.js` by file mtime.
+
+### Changed
+- **Money inputs show a $ prefix** across the settings editor, so a "1" in Ticket $ reads as one dollar, not a mystery unit.
+- **Pool math is explicit about withholding**: net pool = gross (buy-ins + rebuys + add-ons) minus baked bounty and jackpot withholding (initial buy-ins only) minus ticket prize values, plus redeemed-ticket surplus; the pool card itemizes each line including optional-mode side money.
+- **Eliminating an already-eliminated player is rejected** ("Undo their elimination first") instead of silently corrupting finishing places, and hitting max rebuys returns a clear error instead of clamping.
+- Ticket awards notify through a new **reward_ticket** notification category under Rewards.
+
+---
+
 ## [v0.2055] - 2026-08-04
 
 ### Fixed
