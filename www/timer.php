@@ -1231,6 +1231,11 @@ $themeCss   = timer_theme_css_vars($themeProps);
         .pill-mode-seg { display: inline-flex; border-radius: 6px; overflow: hidden; border: 1px solid #475569; }
         .pill-mode-seg button { border: none !important; border-radius: 0 !important; margin: 0 !important; }
         .pill-mode-seg button.mode-on { background: #2563eb !important; color: #fff !important; }
+        /* Letterboxed orientation simulation: framed stage, viewport-fixed snap
+           guides hidden (their coordinates are stage-relative only in spirit). */
+        .stage-letterbox #layoutStage { outline: 2px solid rgba(37, 99, 235, 0.65); outline-offset: 2px; z-index: 5; }
+        .stage-letterbox .center-guide-v, .stage-letterbox .center-guide-h,
+        .stage-letterbox .align-guide-v, .stage-letterbox .align-guide-h { display: none !important; }
         /* QR keeps its current size unless theme overrides; transform stacks translate+scale. */
         #qrWrap.timer-positioned {
             transform: translate(-50%, -50%) scale(var(--timer-qr-scale, 1));
@@ -1580,6 +1585,11 @@ $themeCss   = timer_theme_css_vars($themeProps);
         <button type="button" id="modeFreeBtn" onclick="setLayoutMode('free')">Free</button>
         <button type="button" id="modeZonesBtn" onclick="setLayoutMode('zones')">Zones</button>
     </span>
+    <span class="pill-mode-seg" title="Edit the landscape (TV/desktop) or portrait (phone) layout. The other orientation shows letterboxed.">
+        <button type="button" id="orientLandBtn" onclick="setEditOrientation('landscape')">&#128421;</button>
+        <button type="button" id="orientPortBtn" onclick="setEditOrientation('portrait')">&#128241;</button>
+    </span>
+    <button type="button" onclick="copyFromOtherOrientation()" title="Copy the layout from the other orientation into this one">&#8646;</button>
     <button type="button" onclick="openObjectsPanel()" title="Show / hide / select objects">&#128203; Objects</button>
     <button type="button" onclick="openThemes()" title="Load / save themes">&#128218; Library</button>
     <button class="btn-done" type="button" onclick="exitLayoutEdit(true)">&#10003; Save</button>
@@ -2272,6 +2282,8 @@ var _relayoutTimer = null;
 function reapplyLayout() {
     clearTimeout(_relayoutTimer);
     _relayoutTimer = setTimeout(function () {
+        if (typeof applyStageLetterbox === 'function') applyStageLetterbox();
+        if (typeof setOrientationButtonsUI === 'function') setOrientationButtonsUI();
         if (window.TIMER_THEME) applyTheme(window.TIMER_THEME);
         scheduleFit();
     }, 150);
@@ -4203,7 +4215,8 @@ function applyTheme(props) {
     //   2. legacy center point pos {x,y} (% of viewport) — .timer-positioned
     //   3. neither — element stays in flex flow (or its zone, in zones mode)
     var zonesActive = props.mode === 'zones';
-    var freeMap = (props.layouts && props.layouts.landscape && props.layouts.landscape.free) || null;
+    var _lo = currentLayoutOrientationKey(props);
+    var freeMap = (props.layouts && props.layouts[_lo] && props.layouts[_lo].free) || null;
     for (var k2 in THEME_SELECTORS) {
         var node2 = document.querySelector(THEME_SELECTORS[k2]);
         if (!node2) continue;
@@ -4291,7 +4304,8 @@ function syncVisibility() {
     var zonesOn = theme.mode === 'zones';
     var zAssign = null;
     if (zonesOn) {
-        var zc = (theme.layouts && theme.layouts.landscape && theme.layouts.landscape.zones) || {};
+        var _so = currentLayoutOrientationKey(theme);
+        var zc = (theme.layouts && theme.layouts[_so] && theme.layouts[_so].zones) || {};
         zAssign = zc.assign || {};
     }
     for (var k in THEME_SELECTORS) {
@@ -4808,20 +4822,57 @@ var BOX_DEFAULTS = {
     streaming:     { x: 62, y: 16, w: 30, h: 28 },
 };
 
-// Accessor for the active orientation's free-box map. Phase 3 uses a single
-// 'landscape' layout; Phase 5 keys this by the live/edited orientation.
+// ─── Per-orientation layouts: a theme carries layouts.landscape and
+// layouts.portrait; the display renders the one matching the viewport and
+// falls back to the other when it's empty. The editor can pin an orientation
+// (EDIT_ORIENTATION) and letterbox the stage to simulate it. ───
+var EDIT_ORIENTATION = null;   // editor override; null = follow the viewport
+
+function getActiveOrientation() {
+    try { return window.matchMedia('(orientation: portrait)').matches ? 'portrait' : 'landscape'; }
+    catch (e) { return window.innerHeight > window.innerWidth ? 'portrait' : 'landscape'; }
+}
+
+function otherOrientation(o) { return o === 'portrait' ? 'landscape' : 'portrait'; }
+
+function hasLayoutContent(l) {
+    if (!l) return false;
+    if (l.free && Object.keys(l.free).length) return true;
+    if (l.zones && l.zones.assign && Object.keys(l.zones.assign).length) return true;
+    return false;
+}
+
+// Which orientation's layout should RENDER right now.
+function resolveLayoutOrientation(props) {
+    var o = getActiveOrientation();
+    var L = props && props.layouts;
+    if (!L) return o;
+    if (hasLayoutContent(L[o])) return o;
+    if (hasLayoutContent(L[otherOrientation(o)])) return otherOrientation(o);
+    return o;
+}
+
+// The orientation every reader/writer targets: the editor's pin wins in edit
+// mode; otherwise the resolved display orientation.
+function currentLayoutOrientationKey(props) {
+    if (typeof LAYOUT_EDIT_ON !== 'undefined' && LAYOUT_EDIT_ON && EDIT_ORIENTATION) return EDIT_ORIENTATION;
+    return resolveLayoutOrientation(props || window.TIMER_THEME);
+}
+
+// Accessor for the target orientation's free-box map.
 function activeLayoutFree(create) {
     var t = window.TIMER_THEME;
     if (!t) return null;
+    var o = currentLayoutOrientationKey(t);
     if (!create) {
-        return (t.layouts && t.layouts.landscape && t.layouts.landscape.free) || null;
+        return (t.layouts && t.layouts[o] && t.layouts[o].free) || null;
     }
     t.layouts = t.layouts || {};
-    t.layouts.landscape = t.layouts.landscape || {};
-    t.layouts.landscape.free = t.layouts.landscape.free || {};
+    t.layouts[o] = t.layouts[o] || {};
+    t.layouts[o].free = t.layouts[o].free || {};
     t.schema = 2;
     if (t.mode !== 'zones') t.mode = 'free';
-    return t.layouts.landscape.free;
+    return t.layouts[o].free;
 }
 
 function validBox(b) {
@@ -4872,12 +4923,13 @@ var DEFAULT_ZONE_ASSIGN = {
 function activeLayoutZones(create) {
     var t = window.TIMER_THEME;
     if (!t) return null;
+    var o = currentLayoutOrientationKey(t);
     if (!create) {
-        return (t.layouts && t.layouts.landscape && t.layouts.landscape.zones) || null;
+        return (t.layouts && t.layouts[o] && t.layouts[o].zones) || null;
     }
     t.layouts = t.layouts || {};
-    t.layouts.landscape = t.layouts.landscape || {};
-    var z = t.layouts.landscape.zones = t.layouts.landscape.zones || {};
+    t.layouts[o] = t.layouts[o] || {};
+    var z = t.layouts[o].zones = t.layouts[o].zones || {};
     z.opts = z.opts || {};
     z.assign = z.assign || {};
     t.schema = 2;
@@ -4922,7 +4974,8 @@ function applyLayout(props) {
         }
         return;
     }
-    var zc = (props.layouts && props.layouts.landscape && props.layouts.landscape.zones) || {};
+    var _zo = currentLayoutOrientationKey(props);
+    var zc = (props.layouts && props.layouts[_zo] && props.layouts[_zo].zones) || {};
     var assign = zc.assign || {};
     var opts = zc.opts || {};
     // Per-zone options → CSS vars/styles.
@@ -5031,6 +5084,12 @@ function enterLayoutEdit() {
             delete pe.pos;
         }
     });
+    // Edit the orientation the user is physically on; if it has no layout yet
+    // but the other does, start from a copy of it (in-memory until Save).
+    EDIT_ORIENTATION = getActiveOrientation();
+    ensureOrientationSeeded(EDIT_ORIENTATION);
+    applyStageLetterbox();
+
     if (window.TIMER_THEME.mode !== 'zones') seedBoxes();
 
     applyTheme(window.TIMER_THEME);
@@ -5038,6 +5097,7 @@ function enterLayoutEdit() {
     openObjectsPanel();
     checkOverlaps();
     setModeButtonsUI();
+    setOrientationButtonsUI();
 }
 
 // Measure every visible element's current rendered rect into a v2 box (stage-%).
@@ -5230,6 +5290,98 @@ function setModeButtonsUI() {
     if (zb) zb.classList.toggle('mode-on', m === 'zones');
 }
 
+// ─── Editor orientation switching + letterboxed simulation ───
+function setOrientationButtonsUI() {
+    var o = (LAYOUT_EDIT_ON && EDIT_ORIENTATION) ? EDIT_ORIENTATION : getActiveOrientation();
+    var lb = document.getElementById('orientLandBtn');
+    var pb = document.getElementById('orientPortBtn');
+    if (lb) lb.classList.toggle('mode-on', o === 'landscape');
+    if (pb) pb.classList.toggle('mode-on', o === 'portrait');
+}
+
+// Simulate the non-matching orientation by letterboxing the stage to a centered
+// 16:9 / 9:16 rect. All geometry is stage-relative (boxes, drags, resize), so
+// the simulation is exact; only the viewport-fixed snap GUIDES go dark.
+function applyStageLetterbox() {
+    var stage = document.getElementById('layoutStage');
+    if (!stage) return;
+    var real = getActiveOrientation();
+    var want = (LAYOUT_EDIT_ON && EDIT_ORIENTATION) ? EDIT_ORIENTATION : real;
+    if (!LAYOUT_EDIT_ON || want === real) {
+        stage.style.position = '';
+        stage.style.left = ''; stage.style.top = '';
+        stage.style.width = ''; stage.style.height = '';
+        document.body.classList.remove('stage-letterbox');
+        return;
+    }
+    var vw = window.innerWidth, vh = window.innerHeight, w, h;
+    if (want === 'portrait') {
+        h = vh * 0.95; w = h * 9 / 16;
+        if (w > vw * 0.95) { w = vw * 0.95; h = w * 16 / 9; }
+    } else {
+        w = vw * 0.95; h = w * 9 / 16;
+        if (h > vh * 0.95) { h = vh * 0.95; w = h * 16 / 9; }
+    }
+    stage.style.position = 'fixed';
+    stage.style.left = ((vw - w) / 2) + 'px';
+    stage.style.top = ((vh - h) / 2) + 'px';
+    stage.style.width = w + 'px';
+    stage.style.height = h + 'px';
+    document.body.classList.add('stage-letterbox');
+}
+
+// First edit of an undefined orientation starts from a copy of the defined one
+// (in-memory; persists only on Save). Display never seeds — it just falls back.
+function ensureOrientationSeeded(o) {
+    var t = window.TIMER_THEME;
+    if (!t) return;
+    t.layouts = t.layouts || {};
+    var other = otherOrientation(o);
+    if (!hasLayoutContent(t.layouts[o]) && hasLayoutContent(t.layouts[other])) {
+        t.layouts[o] = JSON.parse(JSON.stringify(t.layouts[other]));
+    }
+}
+
+function setEditOrientation(o) {
+    if (!LAYOUT_EDIT_ON || (o !== 'landscape' && o !== 'portrait') || EDIT_ORIENTATION === o) return;
+    deselectElement();
+    EDIT_ORIENTATION = o;
+    ensureOrientationSeeded(o);
+    detachAllDragHandlers();
+    removeAllEyeIcons();
+    applyStageLetterbox();
+    applyTheme(window.TIMER_THEME);
+    renderAll();
+    if (window.TIMER_THEME.mode !== 'zones') { seedBoxes(); applyTheme(window.TIMER_THEME); }
+    attachAllDragHandlers();
+    checkOverlaps();
+    renderObjectsPanel();
+    setOrientationButtonsUI();
+    scheduleFit();
+}
+
+function copyFromOtherOrientation() {
+    var o = EDIT_ORIENTATION || getActiveOrientation();
+    var other = otherOrientation(o);
+    var t = window.TIMER_THEME;
+    if (!t || !hasLayoutContent(t.layouts && t.layouts[other])) {
+        pkAlert('The ' + other + ' layout is empty — nothing to copy.');
+        return;
+    }
+    pkConfirm('Replace the ' + o + ' layout with a copy of the ' + other + ' one? Overlap warnings will show anything that does not survive the aspect change.').then(function (ok) {
+        if (!ok) return;
+        t.layouts[o] = JSON.parse(JSON.stringify(t.layouts[other]));
+        detachAllDragHandlers();
+        removeAllEyeIcons();
+        applyTheme(t);
+        renderAll();
+        attachAllDragHandlers();
+        checkOverlaps();
+        renderObjectsPanel();
+        scheduleFit();
+    });
+}
+
 // ─── Live preview toggle: position against real data instead of placeholders ───
 window.LIVE_PREVIEW = false;
 function toggleLivePreview() {
@@ -5243,6 +5395,8 @@ function toggleLivePreview() {
 function exitLayoutEdit(keep) {
     if (!LAYOUT_EDIT_ON) return;
     LAYOUT_EDIT_ON = false;
+    EDIT_ORIENTATION = null;
+    applyStageLetterbox();   // clears any letterboxed simulation
     document.body.classList.remove('layout-edit');
     detachAllDragHandlers();
     deselectElement();
@@ -6603,6 +6757,17 @@ window.addEventListener('beforeunload', function(e) {
 });
 
 // ─── §7.19  Init ─────────────────────────────────────────────────
+// Adopt body-level themable elements into the stage so boxed %-geometry is
+// stage-relative — vital when the stage letterboxes for orientation preview.
+// Runs before the first applyTheme so ORIGINAL_SLOTS capture the new homes.
+(function adoptIntoStage() {
+    var stage = document.getElementById('layoutStage');
+    if (!stage) return;
+    ['qrWrap', 'themeImage', 'streamingWrap'].forEach(function (id) {
+        var n = document.getElementById(id);
+        if (n && !n.closest('#layoutStage')) stage.appendChild(n);
+    });
+})();
 if (window.TIMER_THEME) applyTheme(window.TIMER_THEME);
 renderAll();
 // First theme application done — lift the first-paint gate (the head-script
