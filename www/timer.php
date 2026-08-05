@@ -269,7 +269,7 @@ $themeProps = timer_resolve_theme($db, $themeId);
 $themeCss   = timer_theme_css_vars($themeProps);
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="theme-pending">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -278,6 +278,11 @@ $themeCss   = timer_theme_css_vars($themeProps);
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
     <link rel="stylesheet" href="/vendor/fonts/fonts.css">
     <script>window.TIMER_THEME = <?= json_encode($themeProps, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?>; window.TIMER_THEME_ID = <?= $themeId ? (int)$themeId : 'null' ?>;</script>
+    <script>
+        // Failsafe for the theme-pending first-paint gate: if the main script dies
+        // before applyTheme() runs, un-hide anyway so a remote TV never goes blank.
+        setTimeout(function () { document.documentElement.classList.remove('theme-pending'); }, 2500);
+    </script>
     <style id="themeStyle"><?= $themeCss ?></style>
     <style>
         html {
@@ -285,6 +290,10 @@ $themeCss   = timer_theme_css_vars($themeProps);
             background: var(--timer-bg);   /* iPad: keeps overscroll/safe-area gutters from showing white */
             overscroll-behavior: none;
         }
+        /* First-paint gate: JS owns visibility/positions, so keep the stage invisible
+           (background still paints) until the first applyTheme() — or the head-script
+           failsafe — lifts the class. Prevents hidden elements flashing on load. */
+        .theme-pending .timer-container { visibility: hidden; }
         body { overscroll-behavior: none; }
         :root {
             --timer-bg: #0f172a;
@@ -2013,18 +2022,35 @@ function fmtWallTime(secsFromNow) {
 }
 
 // ─── §7.3  Render ───────────────────────────────────────────────
+// Data-availability map: renderAll records whether each themable widget has
+// anything to show; syncVisibility() (§7.15.0) is the ONLY writer of
+// style.display and combines this with theme visibility. Keys absent from the
+// map are always-available (clock, blinds, event name, ...).
+window.DATA_AVAIL = window.DATA_AVAIL || {};
+
+// Change-guarded writers: skip the DOM write when the content is unchanged.
+// Keeps the 2s poll from dirtying layout (and, later, from re-running fit-text).
+function setText(node, s) {
+    if (!node) return;
+    if (node._gnTxt !== s) { node._gnTxt = s; node._gnHtml = undefined; node.textContent = s; }
+}
+function setHtml(node, s) {
+    if (!node) return;
+    if (node._gnHtml !== s) { node._gnHtml = s; node._gnTxt = undefined; node.innerHTML = s; }
+}
+
 function renderAll() {
     var lv = getLevelData(TIMER.current_level);
     var el = document.getElementById.bind(document);
 
     if (lv) {
         if (parseInt(lv.is_break)) {
-            el('levelLabel').textContent = 'BREAK';
+            setText(el('levelLabel'), 'BREAK');
             // While running, show the wall-clock end of the break ("Until 9:15 PM")
             // so nobody has to do countdown math at the snack table.
-            el('blinds').textContent = TIMER.is_running
+            setText(el('blinds'), TIMER.is_running
                 ? 'Until ' + fmtWallTime(Math.max(0, parseInt(TIMER.time_remaining_seconds) || 0))
-                : 'Break Time';
+                : 'Break Time');
             el('ante').textContent = '';
         } else {
             // Count play levels only
@@ -2033,13 +2059,13 @@ function renderAll() {
                 if (!parseInt(LEVELS[i].is_break)) playNum++;
                 if (parseInt(LEVELS[i].level_number) === TIMER.current_level) break;
             }
-            el('levelLabel').textContent = 'Level ' + playNum;
+            setText(el('levelLabel'), 'Level ' + playNum);
             var blindsHtml = fmtChips(parseFloat(lv.small_blind)) + ' / ' + fmtChips(parseFloat(lv.big_blind));
             if (parseFloat(lv.ante) > 0) {
                 blindsHtml += ' / <span style="position:relative;display:inline-block">' + fmtChips(parseFloat(lv.ante))
                     + '<span style="position:absolute;left:50%;transform:translateX(-50%);bottom:-0.6em;font-size:0.25em;color:#f59e0b;font-weight:700;letter-spacing:0.05em">ANTE</span></span>';
             }
-            el('blinds').innerHTML = blindsHtml;
+            setHtml(el('blinds'), blindsHtml);
             el('ante').textContent = '';
         }
     }
@@ -2048,132 +2074,117 @@ function renderAll() {
     var nextLv = getLevelData(TIMER.current_level + 1);
     if (nextLv) {
         if (parseInt(nextLv.is_break)) {
-            el('nextLevel').innerHTML = 'Next: Break';
+            setHtml(el('nextLevel'), 'Next: Break');
         } else {
             var nextHtml = 'Next: ' + fmtChips(parseFloat(nextLv.small_blind)) + ' / ' + fmtChips(parseFloat(nextLv.big_blind));
             if (parseFloat(nextLv.ante) > 0) {
                 nextHtml += ' / <span style="position:relative;display:inline-block">' + fmtChips(parseFloat(nextLv.ante))
                     + '<span style="position:absolute;left:50%;transform:translateX(-50%);bottom:-0.7em;font-size:0.45em;color:#f59e0b;font-weight:700;letter-spacing:0.05em">ANTE</span></span>';
             }
-            el('nextLevel').innerHTML = nextHtml;
+            setHtml(el('nextLevel'), nextHtml);
         }
     } else {
-        el('nextLevel').innerHTML = 'Final Level';
+        setHtml(el('nextLevel'), 'Final Level');
     }
 
     renderClock();
     renderPlayBtn();
 
-    // Stats
-    // While in layout-edit mode, force-show all themable widgets even if their normal
-    // display rules say "no data, hide me" — the user is positioning, not playing.
+    // Stats — renderAll only writes CONTENT and records data availability in
+    // DATA_AVAIL; syncVisibility() owns style.display. In layout-edit mode it
+    // force-shows widgets with the placeholder text set below.
     var _inEdit = document.body.classList.contains('layout-edit');
 
     if (POOL) {
-        var pc = el('playerCount'), pt = el('poolTotal');
-        if (pc) pc.textContent = (POOL.still_playing || 0) + '/' + (POOL.bought_in || 0);
-        if (pt) pt.textContent = fmtMoney(POOL.pool_total || 0);
+        setText(el('playerCount'), (POOL.still_playing || 0) + '/' + (POOL.bought_in || 0));
+        setText(el('poolTotal'), fmtMoney(POOL.pool_total || 0));
     }
     // Pool + Players are always visible — theme.visible controls them if the user wants to hide.
 
     // Average stack (tournament only)
-    var avgWrap = el('avgStackWrap');
-    var avgVal  = el('avgStackValue');
-    if (avgWrap && avgVal) {
-        var stillPlaying = POOL ? (POOL.still_playing || 0) : 0;
-        var chipsInPlay  = POOL ? (POOL.chips_in_play || 0) : 0;
-        if (GAME_TYPE === 'tournament' && stillPlaying > 0 && chipsInPlay > 0) {
-            var avg = Math.round(chipsInPlay / stillPlaying);
-            avgVal.textContent = avg.toLocaleString();
-            avgWrap.style.display = '';
-        } else {
-            avgWrap.style.display = _inEdit ? '' : 'none';
-            if (_inEdit && !avgVal.textContent) avgVal.textContent = '-';
-        }
+    var avgVal = el('avgStackValue');
+    var stillPlaying = POOL ? (POOL.still_playing || 0) : 0;
+    var chipsInPlay  = POOL ? (POOL.chips_in_play || 0) : 0;
+    if (GAME_TYPE === 'tournament' && stillPlaying > 0 && chipsInPlay > 0) {
+        setText(avgVal, Math.round(chipsInPlay / stillPlaying).toLocaleString());
+        DATA_AVAIL.avg_stack = true;
+    } else {
+        DATA_AVAIL.avg_stack = false;
+        if (_inEdit && avgVal && !avgVal.textContent) setText(avgVal, '-');
     }
 
     // Reentries (tournament only) — total rebuys across the field
-    var rbWrap = el('rebuysWrap'), rbVal = el('rebuysCount');
-    if (rbWrap && rbVal) {
-        if (GAME_TYPE === 'tournament' && POOL) {
-            rbVal.textContent = (POOL.total_rebuys || 0);
-            rbWrap.style.display = '';
-        } else {
-            rbWrap.style.display = _inEdit ? '' : 'none';
-        }
+    if (GAME_TYPE === 'tournament' && POOL) {
+        setText(el('rebuysCount'), String(POOL.total_rebuys || 0));
+        DATA_AVAIL.rebuys = true;
+    } else {
+        DATA_AVAIL.rebuys = false;
     }
 
     // Chips in play (tournament only) — server-computed, single source of truth
-    var cpWrap = el('chipsInPlayWrap'), cpVal = el('chipsInPlayVal');
-    if (cpWrap && cpVal) {
-        if (GAME_TYPE === 'tournament' && POOL && (POOL.chips_in_play || 0) > 0) {
-            cpVal.textContent = (POOL.chips_in_play || 0).toLocaleString();
-            cpWrap.style.display = '';
-        } else {
-            cpWrap.style.display = _inEdit ? '' : 'none';
-            if (_inEdit && !cpVal.textContent) cpVal.textContent = '0';
-        }
+    var cpVal = el('chipsInPlayVal');
+    if (GAME_TYPE === 'tournament' && POOL && (POOL.chips_in_play || 0) > 0) {
+        setText(cpVal, (POOL.chips_in_play || 0).toLocaleString());
+        DATA_AVAIL.chips_in_play = true;
+    } else {
+        DATA_AVAIL.chips_in_play = false;
+        if (_inEdit && cpVal && !cpVal.textContent) setText(cpVal, '0');
     }
 
     // Next break countdown (tournament only) — derived client-side from LEVELS
-    var nbWrap = el('nextBreakWrap'), nbVal = el('nextBreakClock');
-    if (nbWrap && nbVal) {
-        var nbSecs = (GAME_TYPE === 'tournament') ? computeNextBreakSeconds() : null;
-        if (nbSecs !== null) {
-            nbVal.textContent = fmtBreakClock(Math.max(0, nbSecs));
-            nbWrap.style.display = '';
-        } else {
-            nbWrap.style.display = _inEdit ? '' : 'none';
-            if (_inEdit) nbVal.textContent = '--:--';
-        }
+    var nbVal = el('nextBreakClock');
+    var nbSecs = (GAME_TYPE === 'tournament') ? computeNextBreakSeconds() : null;
+    if (nbSecs !== null) {
+        setText(nbVal, fmtBreakClock(Math.max(0, nbSecs)));
+        DATA_AVAIL.next_break = true;
+    } else {
+        DATA_AVAIL.next_break = false;
+        if (_inEdit) setText(nbVal, '--:--');
     }
 
     // Estimated finish ("Ends: ≈ 11:40 PM") — remaining time through the whole
     // structure. Only meaningful while the clock runs; paused estimates drift.
-    var eaWrap = el('endsAtWrap'), eaVal = el('endsAtVal');
-    if (eaWrap && eaVal) {
-        var eaSecs = computeTotalRemainingSeconds();
-        if (eaSecs !== null && eaSecs > 0 && TIMER.is_running) {
-            eaVal.textContent = '≈ ' + fmtWallTime(eaSecs);
-            eaWrap.style.display = '';
-        } else {
-            eaWrap.style.display = _inEdit ? '' : 'none';
-            if (_inEdit) eaVal.textContent = '≈ --:--';
-        }
+    var eaVal = el('endsAtVal');
+    var eaSecs = computeTotalRemainingSeconds();
+    if (eaSecs !== null && eaSecs > 0 && TIMER.is_running) {
+        setText(eaVal, '≈ ' + fmtWallTime(eaSecs));
+        DATA_AVAIL.ends_at = true;
+    } else {
+        DATA_AVAIL.ends_at = false;
+        if (_inEdit) setText(eaVal, '≈ --:--');
     }
 
     // Payouts (tournament only)
-    var payWrap = el('payoutsWrap');
     var payBody = el('payoutsBody');
-    if (payWrap && payBody) {
-        if (GAME_TYPE === 'tournament' && PAYOUTS && PAYOUTS.length > 0 && POOL && POOL.pool_total > 0) {
-            var h = '';
-            var ordinals = ['1st','2nd','3rd','4th','5th','6th','7th','8th','9th','10th'];
-            for (var i = 0; i < PAYOUTS.length; i++) {
-                var pct = parseFloat(PAYOUTS[i].percentage) || 0;
-                var amt = Math.round(POOL.pool_total * pct / 100);
-                // Reward suffixes (points / entry ticket / prize label) ride in
-                // the same themeable row as the cash amount.
-                var extra = '';
-                if (parseInt(PAYOUTS[i].points) > 0) extra += ' · ' + parseInt(PAYOUTS[i].points) + 'pts';
-                if (parseInt(PAYOUTS[i].ticket_cents) > 0) extra += ' · 🎟' + fmtMoney(parseInt(PAYOUTS[i].ticket_cents));
-                if (PAYOUTS[i].prize_label) extra += ' · ' + String(PAYOUTS[i].prize_label).replace(/&/g,'&amp;').replace(/</g,'&lt;');
-                h += '<div class="payout-row">' + (ordinals[i] || (i+1)+'th') + ': <b>' + fmtMoney(amt) + '</b>' + (pct > 0 ? ' (' + pct + '%)' : '') + extra + '</div>';
-            }
-            payBody.innerHTML = h;
-            payWrap.style.display = '';
-        } else {
-            payWrap.style.display = _inEdit ? '' : 'none';
-            if (_inEdit && !payBody.innerHTML.trim()) {
-                payBody.innerHTML = '<div class="payout-row">1st: <b>$0.00</b> (50%)</div>'
-                                  + '<div class="payout-row">2nd: <b>$0.00</b> (30%)</div>'
-                                  + '<div class="payout-row">3rd: <b>$0.00</b> (20%)</div>';
-            }
+    if (GAME_TYPE === 'tournament' && PAYOUTS && PAYOUTS.length > 0 && POOL && POOL.pool_total > 0) {
+        var h = '';
+        var ordinals = ['1st','2nd','3rd','4th','5th','6th','7th','8th','9th','10th'];
+        for (var i = 0; i < PAYOUTS.length; i++) {
+            var pct = parseFloat(PAYOUTS[i].percentage) || 0;
+            var amt = Math.round(POOL.pool_total * pct / 100);
+            // Reward suffixes (points / entry ticket / prize label) ride in
+            // the same themeable row as the cash amount.
+            var extra = '';
+            if (parseInt(PAYOUTS[i].points) > 0) extra += ' · ' + parseInt(PAYOUTS[i].points) + 'pts';
+            if (parseInt(PAYOUTS[i].ticket_cents) > 0) extra += ' · 🎟' + fmtMoney(parseInt(PAYOUTS[i].ticket_cents));
+            if (PAYOUTS[i].prize_label) extra += ' · ' + String(PAYOUTS[i].prize_label).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+            h += '<div class="payout-row">' + (ordinals[i] || (i+1)+'th') + ': <b>' + fmtMoney(amt) + '</b>' + (pct > 0 ? ' (' + pct + '%)' : '') + extra + '</div>';
+        }
+        setHtml(payBody, h);
+        DATA_AVAIL.payouts = true;
+    } else {
+        DATA_AVAIL.payouts = false;
+        if (_inEdit && payBody && !payBody.innerHTML.trim()) {
+            setHtml(payBody, '<div class="payout-row">1st: <b>$0.00</b> (50%)</div>'
+                           + '<div class="payout-row">2nd: <b>$0.00</b> (30%)</div>'
+                           + '<div class="payout-row">3rd: <b>$0.00</b> (20%)</div>');
         }
     }
 
     // Paused label — show "PAUSED" placeholder while in edit mode so it can be themed.
-    el('pausedLabel').textContent = (_inEdit || !TIMER.is_running) ? 'PAUSED' : '';
+    setText(el('pausedLabel'), (_inEdit || !TIMER.is_running) ? 'PAUSED' : '');
+
+    syncVisibility();
 }
 
 // Renderer registry — keyed by element key, then by variant name.
@@ -3861,21 +3872,17 @@ function applyTheme(props) {
         bg.type = 'color';
         props.elements = el;
     }
-    // Apply the image element (src + scale).
+    // Apply the image element (src + scale). Visibility is syncVisibility()'s job;
+    // here we only manage the src and record whether there is anything to show.
     var imgNode = document.getElementById('themeImage');
     if (imgNode) {
-        if (el.image && el.image.url && el.image.visible !== false) {
+        if (el.image && el.image.url) {
             if (imgNode.getAttribute('src') !== el.image.url) imgNode.setAttribute('src', el.image.url);
-            imgNode.style.display = '';
             imgNode.style.setProperty('--timer-image-scale', String(el.image.scale || 1));
-        } else if (el.image && el.image.url && el.image.visible === false) {
-            // Theme-hidden: keep src but let the standard visibility loop ghost/hide it.
-            if (imgNode.getAttribute('src') !== el.image.url) imgNode.setAttribute('src', el.image.url);
-            imgNode.style.display = '';
-            imgNode.style.setProperty('--timer-image-scale', String(el.image.scale || 1));
+            DATA_AVAIL.image = true;
         } else {
             imgNode.removeAttribute('src');
-            imgNode.style.display = 'none';
+            DATA_AVAIL.image = false;
         }
     }
 
@@ -3900,12 +3907,14 @@ function applyTheme(props) {
             var ph = document.getElementById('streamingPlaceholder');
             if (ph) ph.remove();
             delete streamWrap.dataset.placeholderSet;
-            streamWrap.style.display = (s.visible === false && !inEditNow) ? 'none' : '';
+            DATA_AVAIL.streaming = true;
         } else {
-            // No URL — clear iframe src so nothing autoplays.
+            // No URL — clear iframe src so nothing autoplays. The wrapper itself is
+            // hidden (or edit-force-shown with this placeholder) by syncVisibility.
             streamFrame.removeAttribute('src');
+            DATA_AVAIL.streaming = false;
             if (inEditNow) {
-                // Show a labeled placeholder inside the wrapper so the user can see and click it.
+                // Labeled placeholder inside the wrapper so the user can see and click it.
                 streamFrame.style.display = 'none';
                 streamWrap.classList.add('is-empty');
                 if (!streamWrap.dataset.placeholderSet) {
@@ -3916,10 +3925,8 @@ function applyTheme(props) {
                     streamWrap.appendChild(label);
                     streamWrap.dataset.placeholderSet = '1';
                 }
-                streamWrap.style.display = '';
             } else {
                 streamWrap.classList.remove('is-empty');
-                streamWrap.style.display = 'none';
             }
         }
     }
@@ -3928,35 +3935,7 @@ function applyTheme(props) {
     root.setProperty('--timer-tray-button-color', tray.button_color || '#e2e8f0');
     root.setProperty('--timer-accent', tray.accent_color || '#2563eb');
 
-    // Visibility — hidden elements are truly hidden, even in edit mode. They only
-    // ghost on canvas while currently selected (so the user can position them). This
-    // moves the "where is my hidden element?" discovery into the Objects panel rather
-    // than ghosting every hidden object on screen.
-    var inEdit = document.body.classList.contains('layout-edit');
-    var selSet = (typeof LAYOUT_SELECTION_SET !== 'undefined') ? LAYOUT_SELECTION_SET : null;
-    for (var k in THEME_SELECTORS) {
-        var node = document.querySelector(THEME_SELECTORS[k]);
-        if (!node) continue;
-        var visible = el[k] && el[k].visible !== false;
-        var isSelected = inEdit && selSet && selSet.has && selSet.has(k);
-        if (!visible) {
-            node.dataset._themeHidden = '1';
-            if (isSelected) {
-                node.style.display = '';
-                node.style.opacity = '0.45';
-                node.dataset.ghostSelected = '1';
-            } else {
-                node.style.display = 'none';
-                node.style.opacity = '';
-                delete node.dataset.ghostSelected;
-            }
-        } else if (node.dataset._themeHidden === '1') {
-            delete node.dataset._themeHidden;
-            delete node.dataset.ghostSelected;
-            node.style.display = '';
-            node.style.opacity = '';
-        }
-    }
+    syncVisibility();
 
     // Order
     ['level_label','blinds','clock','next_level'].forEach(function(k){
@@ -3994,6 +3973,46 @@ function applyTheme(props) {
     // Variant / thickness changes from the inspector mutate the theme but don't change
     // the next tick's text — force a clock re-render so visual feedback is instant.
     if (typeof renderClock === 'function') renderClock();
+}
+
+// ─── §7.15.0  syncVisibility — the ONE writer of style.display ───
+// Combines theme visibility (elements[key].visible) with data availability
+// (DATA_AVAIL, written by renderAll/applyTheme). Widgets in EDIT_FORCE_KEYS are
+// shown in layout-edit mode even without data (renderAll seeds placeholder
+// text) so they can be positioned. Theme-hidden elements are truly hidden and
+// only ghost at 45% opacity while selected on the edit canvas — discovery of
+// hidden elements lives in the Objects panel.
+var EDIT_FORCE_KEYS = { avg_stack:1, rebuys:1, chips_in_play:1, next_break:1, ends_at:1, payouts:1, streaming:1 };
+
+function syncVisibility() {
+    var theme = window.TIMER_THEME || {};
+    var el = theme.elements || {};
+    var inEdit = document.body.classList.contains('layout-edit');
+    var selSet = (typeof LAYOUT_SELECTION_SET !== 'undefined') ? LAYOUT_SELECTION_SET : null;
+    for (var k in THEME_SELECTORS) {
+        var node = document.querySelector(THEME_SELECTORS[k]);
+        if (!node) continue;
+        var themeVisible = !el[k] || el[k].visible !== false;
+        var dataOk = DATA_AVAIL[k] !== false || (inEdit && EDIT_FORCE_KEYS[k]);
+        var isSelected = inEdit && selSet && selSet.has && selSet.has(k);
+        if (!themeVisible) {
+            node.dataset._themeHidden = '1';
+            if (isSelected) {
+                node.style.display = '';
+                node.style.opacity = '0.45';
+                node.dataset.ghostSelected = '1';
+            } else {
+                node.style.display = 'none';
+                node.style.opacity = '';
+                delete node.dataset.ghostSelected;
+            }
+        } else {
+            delete node.dataset._themeHidden;
+            delete node.dataset.ghostSelected;
+            node.style.display = dataOk ? '' : 'none';
+            node.style.opacity = '';
+        }
+    }
 }
 
 // Build a deep-cloned theme payload from the current in-memory state. With the modal
@@ -5685,6 +5704,9 @@ window.addEventListener('beforeunload', function(e) {
 // ─── §7.19  Init ─────────────────────────────────────────────────
 if (window.TIMER_THEME) applyTheme(window.TIMER_THEME);
 renderAll();
+// First theme application done — lift the first-paint gate (the head-script
+// failsafe would lift it at 2.5s anyway if we never got here).
+document.documentElement.classList.remove('theme-pending');
 startLocalTick(); // smooth second-by-second display between polls
 setInterval(pollState, POLL_INTERVAL); // everyone polls server — server is master
 

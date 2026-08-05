@@ -22,6 +22,7 @@ function timer_theme_defaults(): array {
             'rebuys'        => ['visible'=>true,'color'=>'#94a3b8','scale'=>1.0],
             'chips_in_play' => ['visible'=>true,'color'=>'#94a3b8','scale'=>1.0],
             'next_break'    => ['visible'=>true,'color'=>'#94a3b8','scale'=>1.0],
+            'ends_at'       => ['visible'=>true,'color'=>'#94a3b8','scale'=>1.0],
             'streaming'     => ['visible'=>false,'scale'=>1.0,'url'=>''],
         ],
         'tray' => ['bg_color'=>'#1e293b','button_color'=>'#e2e8f0','accent_color'=>'#2563eb'],
@@ -116,6 +117,7 @@ function timer_theme_css_vars(array $props): string {
         '--timer-rebuys-color'    => $el['rebuys']['color']        ?? '#94a3b8',
         '--timer-chips-color'     => $el['chips_in_play']['color'] ?? '#94a3b8',
         '--timer-nextbreak-color' => $el['next_break']['color']    ?? '#94a3b8',
+        '--timer-endsat-color'    => $el['ends_at']['color']       ?? '#94a3b8',
         '--timer-tray-button-bg' => $tray['bg_color']            ?? '#1e293b',
         '--timer-tray-button-color' => $tray['button_color']     ?? '#e2e8f0',
         '--timer-accent'         => $tray['accent_color']        ?? '#2563eb',
@@ -140,45 +142,9 @@ function timer_theme_css_vars(array $props): string {
     }
     $css .= "}\n";
 
-    // Element visibility — emit `display:none` for hidden elements so first paint matches.
-    $visMap = [
-        'event_name'   => '.timer-event-name',
-        'player_count' => '#playerWrap',
-        'pool_total'   => '#poolWrap',
-        'level_label'  => '.timer-level-label',
-        'blinds'       => '.timer-blinds',
-        'clock'        => '.timer-clock',
-        'paused_label' => '#pausedLabel',
-        'next_level'   => '.timer-next',
-        'avg_stack'    => '#avgStackWrap',
-        'payouts'      => '#payoutsWrap',
-        'qr'           => '#qrWrap',
-        'image'        => '#themeImage',
-        'rebuys'        => '#rebuysWrap',
-        'chips_in_play' => '#chipsInPlayWrap',
-        'next_break'    => '#nextBreakWrap',
-        'streaming'     => '#streamingWrap',
-    ];
-    foreach ($visMap as $key => $sel) {
-        $visible = $el[$key]['visible'] ?? true;
-        if (!$visible) {
-            $css .= "{$sel} { display: none !important; }\n";
-        }
-    }
-
-    // Order — emit CSS `order` for the four main display elements.
-    $orderMap = [
-        'level_label' => '.timer-level-label',
-        'blinds'      => '.timer-blinds',
-        'clock'       => '.timer-clock',
-        'next_level'  => '.timer-next',
-    ];
-    foreach ($orderMap as $key => $sel) {
-        $ord = (int)($el[$key]['order'] ?? 0);
-        if ($ord > 0) {
-            $css .= "{$sel} { order: {$ord}; }\n";
-        }
-    }
+    // Visibility and flex-order are JS-owned (syncVisibility / applyTheme in
+    // timer.php). Emitting them here too is the parallel-path pattern that let
+    // ends_at drift; the theme-pending gate on <html> covers first paint instead.
 
     return $css;
 }
