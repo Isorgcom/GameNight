@@ -616,6 +616,140 @@ function db_init(PDO $pdo): void {
         }
     } catch (Exception $e) {}
 
+    // Payout presets also capture the session-level reward recipe (bounty,
+    // jackpot entry) so a freeroll/points/jackpot structure round-trips.
+    // NULL = legacy structure that doesn't touch those settings on load.
+    try { $pdo->exec("ALTER TABLE payout_structures ADD COLUMN bounty_amount INTEGER"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE payout_structures ADD COLUMN bounty_points INTEGER"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE payout_structures ADD COLUMN jackpot_amount INTEGER"); } catch (Exception $e) {}
+    // Presets capture the Game tab too (buy-in, chips, rebuys/add-ons, tables)
+    // as a JSON blob; NULL = legacy preset that leaves those settings alone.
+    try { $pdo->exec("ALTER TABLE payout_structures ADD COLUMN game_config TEXT"); } catch (Exception $e) {}
+
+    // ── Multi-reward payouts: points / entry tickets / prize labels / bounties ──
+    // Per-place reward dimensions live beside the cash percentage on both the
+    // preset places and the per-session copy (same DELETE+INSERT rewrite).
+    try { $pdo->exec("ALTER TABLE payout_structure_places ADD COLUMN points INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE payout_structure_places ADD COLUMN ticket_cents INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE payout_structure_places ADD COLUMN prize_label TEXT"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_payouts ADD COLUMN points INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_payouts ADD COLUMN ticket_cents INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_payouts ADD COLUMN prize_label TEXT"); } catch (Exception $e) {}
+    // Bounty config + satellite target on the session; bounty_amount is carved
+    // out of buyin_amount (buyin stays the total collected per player).
+    try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN bounty_amount INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN bounty_points INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN ticket_target_event_id INTEGER"); } catch (Exception $e) {}
+    // Durable per-player reward record (recomputed by pk_apply_tournament_payouts,
+    // same contract as payout); eliminated_by = poker_players.id of the KO-er.
+    try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN points INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN bounties_won INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN bounty_cash INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN eliminated_by INTEGER"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE user_session_defaults ADD COLUMN bounty_amount INTEGER DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE user_session_defaults ADD COLUMN bounty_points INTEGER DEFAULT 0"); } catch (Exception $e) {}
+
+    // League progressive jackpots (Bad Beat / Royal Flush): funded by per-buy-in
+    // carve-outs configured on tournament sessions, paid out via host-recorded
+    // hits with per-recipient splits. Balance is cents; the log is append-only.
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS league_jackpots (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        league_id    INTEGER NOT NULL,
+        jackpot_type TEXT NOT NULL,
+        balance      INTEGER NOT NULL DEFAULT 0,
+        created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(league_id, jackpot_type)
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS league_jackpot_log (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        jackpot_id   INTEGER NOT NULL,
+        session_id   INTEGER,
+        event_type   TEXT NOT NULL,
+        player_name  TEXT,
+        amount       INTEGER NOT NULL,
+        detail       TEXT,
+        created_by   INTEGER,
+        created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (jackpot_id) REFERENCES league_jackpots(id) ON DELETE CASCADE
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ljl_jackpot ON league_jackpot_log(jackpot_id, id)"); } catch (Exception $e) {}
+    // Jackpot ledger corrections mirror the game ledger: entries are voided
+    // (reversing their balance effect), never deleted.
+    try { $pdo->exec("ALTER TABLE league_jackpot_log ADD COLUMN voided INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE league_jackpot_log ADD COLUMN voided_by INTEGER"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE league_jackpot_log ADD COLUMN voided_at DATETIME"); } catch (Exception $e) {}
+    // Per-buy-in jackpot contribution (cents), carved out of buyin_amount.
+    // Single league fund; the hit type (bad beat / royal flush) is recorded on
+    // the payout, not as separate pots.
+    try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN jackpot_badbeat INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN jackpot_royal INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE user_session_defaults ADD COLUMN jackpot_badbeat INTEGER DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE user_session_defaults ADD COLUMN jackpot_royal INTEGER DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN jackpot_amount INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE user_session_defaults ADD COLUMN jackpot_amount INTEGER DEFAULT 0"); } catch (Exception $e) {}
+    // Jackpot is an OPTIONAL side entry (on top of the buy-in), tracked per player.
+    try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN jackpot_in INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    // Collection modes: bounty and jackpot can each be baked into the buy-in
+    // (everyone, carved/withheld) or an optional per-player side purchase.
+    // Defaults preserve prior behavior: bounty baked, jackpot optional.
+    try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN bounty_optional INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN jackpot_optional INTEGER NOT NULL DEFAULT 1"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN bounty_in INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    // Rebuy re-entry support: when an eliminated player rebuys back in, the
+    // knockout is BANKED on the eliminator (they physically collected the
+    // bounty) before the live eliminated_by link is cleared; the re-entering
+    // player's head-bounty is marked claimed so it can't pay out twice.
+    try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN bounties_banked INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN bounty_cash_banked INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN bounty_claimed INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE user_session_defaults ADD COLUMN bounty_optional INTEGER DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE user_session_defaults ADD COLUMN jackpot_optional INTEGER DEFAULT 1"); } catch (Exception $e) {}
+    // One-shot merge of the short-lived split funds (badbeat/royal) into the
+    // single 'main' fund per league; log rows follow their fund.
+    try {
+        if (get_setting('jackpot_merged_single', '') !== '1') {
+            $pdo->exec("UPDATE poker_sessions SET jackpot_amount = COALESCE(jackpot_badbeat,0) + COALESCE(jackpot_royal,0) WHERE COALESCE(jackpot_amount,0) = 0");
+            $pdo->exec("UPDATE user_session_defaults SET jackpot_amount = COALESCE(jackpot_badbeat,0) + COALESCE(jackpot_royal,0) WHERE COALESCE(jackpot_amount,0) = 0");
+            $leagues = $pdo->query("SELECT DISTINCT league_id FROM league_jackpots WHERE jackpot_type != 'main'")->fetchAll(PDO::FETCH_COLUMN);
+            foreach ($leagues as $lid) {
+                $sum = (int)$pdo->query("SELECT COALESCE(SUM(balance),0) FROM league_jackpots WHERE league_id = " . (int)$lid)->fetchColumn();
+                $pdo->prepare("INSERT INTO league_jackpots (league_id, jackpot_type, balance) VALUES (?, 'main', 0)
+                               ON CONFLICT(league_id, jackpot_type) DO NOTHING")->execute([(int)$lid]);
+                $mainId = (int)$pdo->query("SELECT id FROM league_jackpots WHERE league_id = " . (int)$lid . " AND jackpot_type = 'main'")->fetchColumn();
+                $pdo->prepare("UPDATE league_jackpot_log SET jackpot_id = ? WHERE jackpot_id IN (SELECT id FROM league_jackpots WHERE league_id = ? AND jackpot_type != 'main')")
+                    ->execute([$mainId, (int)$lid]);
+                $pdo->prepare("UPDATE league_jackpots SET balance = ? WHERE id = ?")->execute([$sum, $mainId]);
+                $pdo->prepare("DELETE FROM league_jackpots WHERE league_id = ? AND jackpot_type != 'main'")->execute([(int)$lid]);
+            }
+            set_setting('jackpot_merged_single', '1');
+        }
+    } catch (Exception $e) {}
+
+    // Entry tickets: a funded seat at a specific target event, issued at Finish
+    // Game from a place with ticket_cents > 0. ('tickets' is taken by support.)
+    // target FK is SET NULL so cancelling the target orphans the ticket for the
+    // host to re-target or convert to cash rather than silently deleting it.
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS poker_entry_tickets (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        source_session_id   INTEGER NOT NULL,
+        source_place        INTEGER,
+        player_id           INTEGER NOT NULL,
+        user_id             INTEGER,
+        display_name        TEXT NOT NULL,
+        target_event_id     INTEGER,
+        value_cents         INTEGER NOT NULL,
+        status              TEXT NOT NULL DEFAULT 'issued',
+        redeemed_session_id INTEGER,
+        redeemed_player_id  INTEGER,
+        issued_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+        resolved_at         DATETIME,
+        resolved_by         INTEGER,
+        FOREIGN KEY (source_session_id) REFERENCES poker_sessions(id) ON DELETE CASCADE,
+        FOREIGN KEY (target_event_id)   REFERENCES events(id) ON DELETE SET NULL
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_pet_target ON poker_entry_tickets(target_event_id, status)"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_pet_source ON poker_entry_tickets(source_session_id)"); } catch (Exception $e) {}
+
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS timer_state (
         id                     INTEGER PRIMARY KEY AUTOINCREMENT,
         session_id             INTEGER NOT NULL UNIQUE,

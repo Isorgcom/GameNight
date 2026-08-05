@@ -8,6 +8,8 @@ const USER_SESSION_DEFAULT_COLS = [
     'game_type', 'buyin_amount', 'rebuy_amount', 'addon_amount',
     'starting_chips', 'addon_chips', 'rebuy_allowed', 'addon_allowed',
     'max_rebuys', 'num_tables', 'seats_per_table', 'auto_assign_tables',
+    'bounty_amount', 'bounty_points', 'jackpot_amount',
+    'bounty_optional', 'jackpot_optional',
 ];
 
 // Hardcoded fallback for first-time users.
@@ -25,7 +27,36 @@ function default_session_defaults(): array {
         'num_tables'         => 1,
         'seats_per_table'    => 8,
         'auto_assign_tables' => 1,
+        'bounty_amount'      => 0,
+        'bounty_points'      => 0,
+        'jackpot_amount'     => 0,
+        'bounty_optional'    => 0,
+        'jackpot_optional'   => 1,
     ];
+}
+
+// ─── League progressive jackpot (single fund; hit type is a label) ──
+const PK_JACKPOT_HIT_TYPES = ['badbeat' => 'Bad Beat', 'royal' => 'Royal Flush', 'other' => 'Jackpot'];
+
+// Fetch-or-create the league's jackpot fund row.
+function pk_jackpot_fund($db, int $league_id): array {
+    $q = $db->prepare("SELECT * FROM league_jackpots WHERE league_id = ? AND jackpot_type = 'main'");
+    $q->execute([$league_id]);
+    if ($row = $q->fetch()) return $row;
+    $db->prepare("INSERT INTO league_jackpots (league_id, jackpot_type) VALUES (?, 'main')")->execute([$league_id]);
+    $q->execute([$league_id]);
+    return $q->fetch();
+}
+
+// Fund balance for a league (0 when never funded — no row created).
+function pk_jackpot_balance($db, ?int $league_id): int {
+    if (!$league_id) return 0;
+    try {
+        $q = $db->prepare("SELECT balance FROM league_jackpots WHERE league_id = ? AND jackpot_type = 'main'");
+        $q->execute([$league_id]);
+        $v = $q->fetchColumn();
+        return $v === false ? 0 : (int)$v;
+    } catch (Exception $e) { return 0; /* pre-migration DB */ }
 }
 
 // Upsert a user's last-used session defaults. league_id null = personal scope.
@@ -145,7 +176,7 @@ function get_session_from_player($db, $player_id) {
 
 // Calculate pool stats for a session
 function calc_pool($db, $session_id) {
-    $sess = $db->prepare('SELECT buyin_amount, rebuy_amount, addon_amount, starting_chips, addon_chips, game_type FROM poker_sessions WHERE id = ?');
+    $sess = $db->prepare('SELECT buyin_amount, rebuy_amount, addon_amount, starting_chips, addon_chips, game_type, bounty_amount, jackpot_amount, bounty_optional, jackpot_optional FROM poker_sessions WHERE id = ?');
     $sess->execute([$session_id]);
     $s = $sess->fetch();
 
@@ -159,24 +190,70 @@ function calc_pool($db, $session_id) {
         SUM(addons) as total_addons,
         SUM(CASE WHEN cash_out IS NOT NULL THEN 1 ELSE 0 END) as cashed_out,
         SUM(COALESCE(cash_out, 0)) as total_cash_out,
-        SUM(COALESCE(cash_in, 0)) as total_cash_in
+        SUM(COALESCE(cash_in, 0)) as total_cash_in,
+        SUM(COALESCE(jackpot_in, 0)) as jackpot_entries,
+        SUM(COALESCE(bounty_in, 0)) as bounty_entries,
+        SUM(COALESCE(bounty_cash_banked, 0)) as bounty_consumed
     FROM poker_players WHERE session_id = ? AND removed = 0');
     $stats->execute([$session_id]);
     $r = $stats->fetch();
 
+    $bounty_withheld        = 0;
+    $jackpot_baked_withheld = 0;
+    $ticket_withheld        = 0;
+    $ticket_in              = 0;
     if ($s['game_type'] === 'cash') {
         $pool_total = (int)$r['total_cash_in'];
         $buyin_total = $pool_total;
         $rebuy_total = 0;
         $addon_total = 0;
+        $pool_gross  = $pool_total;
     } else {
         $buyin_total  = (int)$r['total_buyins'] * (int)$s['buyin_amount'];
         $rebuy_total  = (int)$r['total_rebuys'] * (int)$s['rebuy_amount'];
         $addon_total  = (int)$r['total_addons'] * (int)$s['addon_amount'];
-        $pool_total   = $buyin_total + $rebuy_total + $addon_total;
+        $pool_gross   = $buyin_total + $rebuy_total + $addon_total;
+
+        // Net pool: BAKED bounty/jackpot ride on initial buy-ins only (not
+        // rebuys) and are withheld from the pool; OPTIONAL mode collects them
+        // on top of the buy-in per opted-in player — never pool money. Ticket
+        // prize values are withheld for the target event, and tickets redeemed
+        // INTO this session add any surplus over this game's buy-in.
+        $bounty_withheld = (int)($s['bounty_optional'] ?? 0)
+            ? 0
+            : (int)$r['total_buyins'] * (int)($s['bounty_amount'] ?? 0);
+        $jackpot_baked_withheld = (int)($s['jackpot_optional'] ?? 1)
+            ? 0
+            : (int)$r['total_buyins'] * (int)($s['jackpot_amount'] ?? 0);
+        try {
+            $tw = $db->prepare('SELECT COALESCE(SUM(ticket_cents), 0) FROM poker_payouts WHERE session_id = ?');
+            $tw->execute([$session_id]);
+            $ticket_withheld = (int)$tw->fetchColumn();
+            $ti = $db->prepare("SELECT COALESCE(SUM(CASE WHEN value_cents > ? THEN value_cents - ? ELSE 0 END), 0)
+                                FROM poker_entry_tickets WHERE redeemed_session_id = ? AND status = 'redeemed'");
+            $ti->execute([(int)$s['buyin_amount'], (int)$s['buyin_amount'], $session_id]);
+            $ticket_in = (int)$ti->fetchColumn();
+        } catch (Exception $e) { /* pre-migration DB */ }
+
+        $pool_total = $pool_gross - $bounty_withheld - $jackpot_baked_withheld - $ticket_withheld + $ticket_in;
     }
 
+    $jackpot_entries = (int)($r['jackpot_entries'] ?? 0);
+    // Optional mode: a re-entry consumes the victim's chip (bounty_in resets,
+    // the eliminator banks it) — those chips were still bought and paid out,
+    // so they stay in the side-pot totals.
+    $bounty_entries  = (int)($r['bounty_entries'] ?? 0)
+        + ((int)($s['bounty_optional'] ?? 0) ? (int)($r['bounty_consumed'] ?? 0) : 0);
     return [
+        'pool_gross'        => $pool_gross,
+        'bounty_withheld'   => $bounty_withheld,
+        'bounty_entries'    => $bounty_entries,
+        'bounty_collected'  => $bounty_entries * (int)($s['bounty_amount'] ?? 0),
+        'jackpot_withheld'  => $jackpot_baked_withheld,
+        'jackpot_entries'   => $jackpot_entries,
+        'jackpot_collected' => $jackpot_entries * (int)($s['jackpot_amount'] ?? 0),
+        'ticket_withheld'   => $ticket_withheld,
+        'ticket_in'         => $ticket_in,
         'total_players'  => (int)$r['total_players'],
         'bought_in'      => (int)$r['bought_in'],
         'still_playing'  => (int)$r['still_playing'],
@@ -441,30 +518,247 @@ function get_payouts($db, $session_id) {
     return $stmt->fetchAll();
 }
 
-// Persist tournament winnings: recompute every player's payout (cents) from the
-// session's percentage structure and current pool, keyed by finish_position.
-// Called whenever standings or the structure change so poker_players.payout
-// always matches what the screen shows — it's the durable record stats read.
-// No-op for cash games (cash_out is their money record).
+// Persist tournament winnings: recompute every player's payout (cents), points,
+// and bounty tallies from the session's reward structure and current standings.
+// Called whenever standings or the structure change so the poker_players columns
+// always match what the screen shows — they're the durable record stats read.
+// Idempotent; safe to re-run. No-op for cash games (cash_out is their record).
+// NOT covered here: ticket issuance (not recompute-safe) — see pk_finish_session().
 function pk_apply_tournament_payouts($db, $session_id) {
-    $sess = $db->prepare('SELECT game_type FROM poker_sessions WHERE id = ?');
+    $sess = $db->prepare('SELECT game_type, bounty_amount, bounty_points, bounty_optional FROM poker_sessions WHERE id = ?');
     $sess->execute([$session_id]);
-    if (($sess->fetchColumn() ?: '') !== 'tournament') return;
+    $s = $sess->fetch();
+    if (($s['game_type'] ?? '') !== 'tournament') return;
+    $bountyAmt = (int)($s['bounty_amount'] ?? 0);
+    $bountyPts = (int)($s['bounty_points'] ?? 0);
+    $bountyOpt = (int)($s['bounty_optional'] ?? 0) === 1;
 
     $poolTotal = (int)(calc_pool($db, $session_id)['pool_total'] ?? 0);
     $pctByPlace = [];
+    $ptsByPlace = [];
     foreach (get_payouts($db, $session_id) as $po) {
         $pctByPlace[(int)$po['place']] = (float)$po['percentage'];
+        $ptsByPlace[(int)$po['place']] = (int)($po['points'] ?? 0);
     }
 
-    $players = $db->prepare('SELECT id, finish_position, payout FROM poker_players WHERE session_id = ? AND removed = 0');
+    // Tickets converted back to cash land in the holder's payout so the value
+    // isn't lost when a target evaporates; survives every recompute.
+    $converted = [];
+    try {
+        $cv = $db->prepare("SELECT player_id, COALESCE(SUM(value_cents), 0) AS v FROM poker_entry_tickets
+                            WHERE source_session_id = ? AND status = 'converted' GROUP BY player_id");
+        $cv->execute([$session_id]);
+        foreach ($cv->fetchAll() as $row) $converted[(int)$row['player_id']] = (int)$row['v'];
+    } catch (Exception $e) { /* pre-migration DB */ }
+
+    // Knockout counts per eliminator — LIVE KOs (current eliminated_by links)
+    // plus BANKED KOs (victims who rebought back in; the collected bounty is
+    // permanent). Cash-eligible live KOs additionally require the victim's
+    // head to still be payable: unclaimed in baked mode, opted-in in optional.
+    $koCount = [];
+    $ko = $db->prepare('SELECT eliminated_by, COUNT(*) AS n FROM poker_players
+                        WHERE session_id = ? AND removed = 0 AND eliminated = 1 AND eliminated_by IS NOT NULL
+                        GROUP BY eliminated_by');
+    $ko->execute([$session_id]);
+    foreach ($ko->fetchAll() as $row) $koCount[(int)$row['eliminated_by']] = (int)$row['n'];
+    $koCash = [];
+    $cashCond = $bountyOpt ? 'bounty_in = 1' : 'bounty_claimed = 0';
+    $ko2 = $db->prepare("SELECT eliminated_by, COUNT(*) AS n FROM poker_players
+                         WHERE session_id = ? AND removed = 0 AND eliminated = 1 AND eliminated_by IS NOT NULL AND $cashCond
+                         GROUP BY eliminated_by");
+    $ko2->execute([$session_id]);
+    foreach ($ko2->fetchAll() as $row) $koCash[(int)$row['eliminated_by']] = (int)$row['n'];
+
+    $players = $db->prepare('SELECT id, finish_position, payout, points, bounties_won, bounty_cash, bought_in, bounty_in,
+                                    bounties_banked, bounty_cash_banked, bounty_claimed
+                             FROM poker_players WHERE session_id = ? AND removed = 0');
     $players->execute([$session_id]);
-    $upd = $db->prepare('UPDATE poker_players SET payout = ? WHERE id = ?');
+    $upd = $db->prepare('UPDATE poker_players SET payout = ?, points = ?, bounties_won = ?, bounty_cash = ? WHERE id = ?');
     foreach ($players->fetchAll() as $p) {
+        $pid = (int)$p['id'];
         $pos = (int)($p['finish_position'] ?? 0);
         $amt = ($pos > 0 && isset($pctByPlace[$pos])) ? (int)round($poolTotal * $pctByPlace[$pos] / 100) : 0;
-        if ((int)$p['payout'] !== $amt) $upd->execute([$amt, (int)$p['id']]);
+        $amt += $converted[$pid] ?? 0;
+        $kos = ($koCount[$pid] ?? 0) + (int)($p['bounties_banked'] ?? 0);
+        // Cash: baked mode — winner keeps their own head-bounty unless it was
+        // already claimed by a knockout they rebought through. Optional mode —
+        // only bounty-pool members carry/collect (a re-entry resets bounty_in).
+        $inPool  = !$bountyOpt || (int)($p['bounty_in'] ?? 0) === 1;
+        $cashKos = ($inPool ? ($koCash[$pid] ?? 0) : 0) + (int)($p['bounty_cash_banked'] ?? 0);
+        $keepOwn = $pos === 1 && (int)$p['bought_in'] === 1 && $inPool
+                   && (!$bountyOpt ? (int)($p['bounty_claimed'] ?? 0) === 0 : true);
+        $bcash = $cashKos * $bountyAmt + ($keepOwn ? $bountyAmt : 0);
+        // Points per KO stay universal — they're not money.
+        $pts = (($pos > 0) ? ($ptsByPlace[$pos] ?? 0) : 0) + $kos * $bountyPts;
+        if ((int)$p['payout'] !== $amt || (int)$p['points'] !== $pts
+            || (int)$p['bounties_won'] !== $kos || (int)$p['bounty_cash'] !== $bcash) {
+            $upd->execute([$amt, $pts, $kos, $bcash, $pid]);
+        }
     }
+}
+
+// A ticket holder is automatically invited to the target event (RSVP yes,
+// approved — the awarded seat IS the invitation). No-op if an invite for that
+// name already exists. Contact info comes from users (registered) or the
+// source event's invite row (guests) so reminders can reach them.
+function pk_ticket_ensure_invite($db, int $target_event_id, ?int $user_id, string $display_name, ?int $source_event_id): void {
+    if ($target_event_id <= 0 || $display_name === '') return;
+    try {
+        $chk = $db->prepare('SELECT id FROM event_invites WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL');
+        $chk->execute([$target_event_id, $display_name]);
+        if ($chk->fetch()) return;
+
+        $phone = null; $email = null; $username = $display_name;
+        if ($user_id) {
+            $u = $db->prepare('SELECT username, phone, email FROM users WHERE id = ?');
+            $u->execute([$user_id]);
+            if ($ur = $u->fetch()) { $username = $ur['username']; $phone = $ur['phone'] ?: null; $email = $ur['email'] ?: null; }
+        } elseif ($source_event_id) {
+            $s = $db->prepare('SELECT phone, email FROM event_invites WHERE event_id = ? AND LOWER(username) = LOWER(?) LIMIT 1');
+            $s->execute([$source_event_id, $display_name]);
+            if ($sr = $s->fetch()) { $phone = $sr['phone'] ?: null; $email = $sr['email'] ?: null; }
+        }
+        $db->prepare("INSERT INTO event_invites (event_id, username, phone, email, rsvp, event_role, approval_status)
+                      VALUES (?, ?, ?, ?, 'yes', 'invitee', 'approved')")
+           ->execute([$target_event_id, $username, $phone, $email]);
+    } catch (Exception $e) { /* invite is best-effort; the ticket itself is the record */ }
+}
+
+// Finish hook shared by the manual Finish button and the last-elimination
+// auto-finish: locks in the recompute, then issues entry tickets exactly once
+// (guarded per (source_session, place) so a re-finish never double-issues).
+function pk_finish_session($db, int $session_id, int $actor_id): void {
+    pk_apply_tournament_payouts($db, $session_id);
+
+    $sess = $db->prepare('SELECT ps.game_type, ps.ticket_target_event_id, ps.jackpot_amount, ps.jackpot_optional,
+                                 e.title AS src_title, e.league_id
+                          FROM poker_sessions ps JOIN events e ON e.id = ps.event_id WHERE ps.id = ?');
+    $sess->execute([$session_id]);
+    $s = $sess->fetch();
+    if (!$s || $s['game_type'] !== 'tournament') return;
+
+    // Jackpot contribution, once per finish (guarded so a re-finish never
+    // double-contributes): optional mode = opted-in entries × price; baked
+    // mode = every buy-in × price (withheld from the pool by calc_pool).
+    $per = (int)($s['jackpot_amount'] ?? 0);
+    if (!empty($s['league_id']) && $per > 0) {
+        if ((int)($s['jackpot_optional'] ?? 1)) {
+            $bq = $db->prepare('SELECT COALESCE(SUM(jackpot_in), 0) FROM poker_players WHERE session_id = ? AND removed = 0');
+        } else {
+            $bq = $db->prepare('SELECT COUNT(*) FROM poker_players WHERE session_id = ? AND removed = 0 AND bought_in = 1');
+        }
+        $bq->execute([$session_id]);
+        $buyins = (int)$bq->fetchColumn();
+        $unit = (int)($s['jackpot_optional'] ?? 1) ? 'entries' : 'buy-ins';
+        if ($buyins > 0) {
+            try {
+                $fund = pk_jackpot_fund($db, (int)$s['league_id']);
+                $dupe = $db->prepare("SELECT COUNT(*) FROM league_jackpot_log
+                                      WHERE jackpot_id = ? AND session_id = ? AND event_type = 'contribution' AND voided = 0");
+                $dupe->execute([(int)$fund['id'], $session_id]);
+                if ((int)$dupe->fetchColumn() === 0) {
+                    $amt = $buyins * $per;
+                    $db->prepare('INSERT INTO league_jackpot_log (jackpot_id, session_id, event_type, amount, detail, created_by)
+                                  VALUES (?, ?, ?, ?, ?, ?)')
+                       ->execute([(int)$fund['id'], $session_id, 'contribution', $amt,
+                                  "$buyins $unit × " . pk_money($per) . ' from "' . $s['src_title'] . '"', $actor_id]);
+                    $db->prepare('UPDATE league_jackpots SET balance = balance + ? WHERE id = ?')->execute([$amt, (int)$fund['id']]);
+                    pk_log($db, $session_id, $actor_id, 'jackpot', null, null, $amt,
+                           'Jackpot contribution — ' . pk_money($amt) . " ($buyins $unit × " . pk_money($per) . ')');
+                }
+            } catch (Exception $e) { /* pre-migration DB */ }
+        }
+    }
+    $target = (int)($s['ticket_target_event_id'] ?? 0);
+    if ($target <= 0) return;
+    $tq = $db->prepare('SELECT id, title, start_date FROM events WHERE id = ?');
+    $tq->execute([$target]);
+    $tev = $tq->fetch();
+    if (!$tev) return;  // target vanished before finish: nothing to issue against
+
+    $places = $db->prepare('SELECT place, ticket_cents FROM poker_payouts WHERE session_id = ? AND ticket_cents > 0');
+    $places->execute([$session_id]);
+    foreach ($places->fetchAll() as $pl) {
+        $place = (int)$pl['place'];
+        $value = (int)$pl['ticket_cents'];
+        $winner = $db->prepare('SELECT id, user_id, display_name FROM poker_players
+                                WHERE session_id = ? AND removed = 0 AND finish_position = ? LIMIT 1');
+        $winner->execute([$session_id, $place]);
+        $w = $winner->fetch();
+        if (!$w) continue;
+        $dupe = $db->prepare("SELECT COUNT(*) FROM poker_entry_tickets
+                              WHERE source_session_id = ? AND source_place = ? AND status != 'converted'");
+        $dupe->execute([$session_id, $place]);
+        if ((int)$dupe->fetchColumn() > 0) continue;
+
+        $db->prepare('INSERT INTO poker_entry_tickets
+                        (source_session_id, source_place, player_id, user_id, display_name, target_event_id, value_cents)
+                      VALUES (?, ?, ?, ?, ?, ?, ?)')
+           ->execute([$session_id, $place, (int)$w['id'], $w['user_id'] ?: null, (string)$w['display_name'], $target, $value]);
+        pk_log($db, $session_id, $actor_id, 'ticket_issue', (int)$w['id'], (string)$w['display_name'], $value,
+               'Entry ticket to "' . $tev['title'] . '" (' . $tev['start_date'] . ') — ' . pk_money($value) . ' for ' . pk_ordinal($place));
+
+        // The seat comes with the guest list spot: auto-invite at the target.
+        $srcEv = $db->prepare('SELECT event_id FROM poker_sessions WHERE id = ?');
+        $srcEv->execute([$session_id]);
+        pk_ticket_ensure_invite($db, $target, $w['user_id'] ? (int)$w['user_id'] : null,
+                                (string)$w['display_name'], (int)$srcEv->fetchColumn());
+
+        if (!empty($w['user_id'])) {
+            require_once __DIR__ . '/_notifications.php';
+            notify_user_direct($db, (int)$w['user_id'], 'reward_ticket',
+                'You won a seat: ' . $tev['title'],
+                'Your ' . pk_ordinal($place) . ' place finish in "' . $s['src_title'] . '" won a ' . pk_money($value)
+                    . ' entry ticket to "' . $tev['title'] . '" on ' . $tev['start_date'] . '. Show the host at buy-in.',
+                '/event.php?id=' . $target,
+                'You won a ' . pk_money($value) . ' entry to "' . $tev['title'] . '" (' . $tev['start_date'] . ')! ' . get_site_url() . '/event.php?id=' . $target);
+        }
+    }
+}
+
+// Reopen hook: a finished game can only reopen if none of its tickets were
+// redeemed at the target yet. Issued tickets are deleted (and re-issued on the
+// next finish); converted ones survive so their cash stays in the recompute.
+// Returns ['ok' => true] or ['ok' => false, 'error' => ...].
+function pk_unfinish_session($db, int $session_id, int $actor_id): array {
+    try {
+        $q = $db->prepare("SELECT COUNT(*) FROM poker_entry_tickets WHERE source_session_id = ? AND status = 'redeemed'");
+        $q->execute([$session_id]);
+        if ((int)$q->fetchColumn() > 0) {
+            return ['ok' => false, 'error' => 'A ticket from this game was already redeemed at its target event. Resolve it there before reopening.'];
+        }
+        // Reverse this session's jackpot contributions so a re-finish re-adds
+        // them from the (possibly changed) final buy-in count. Guard first: if
+        // a hit already paid those contributions out, the money is physically
+        // gone and reversing would overdraw the fund — block the reopen.
+        $jc = $db->prepare("SELECT l.id, l.jackpot_id, l.amount FROM league_jackpot_log l
+                            WHERE l.session_id = ? AND l.event_type = 'contribution' AND l.voided = 0");
+        $jc->execute([$session_id]);
+        $jrows = $jc->fetchAll();
+        foreach ($jrows as $row) {
+            $bal = $db->prepare('SELECT balance FROM league_jackpots WHERE id = ?');
+            $bal->execute([(int)$row['jackpot_id']]);
+            if ((int)$bal->fetchColumn() < (int)$row['amount']) {
+                return ['ok' => false, 'error' => 'A jackpot hit already paid out this game\'s contributions — the fund would go negative. Resolve the jackpot before reopening.'];
+            }
+        }
+        foreach ($jrows as $row) {
+            $db->prepare('UPDATE league_jackpots SET balance = balance - ? WHERE id = ?')
+               ->execute([(int)$row['amount'], (int)$row['jackpot_id']]);
+            $db->prepare('DELETE FROM league_jackpot_log WHERE id = ?')->execute([(int)$row['id']]);
+            pk_log($db, $session_id, $actor_id, 'jackpot', null, null, -(int)$row['amount'],
+                   'Jackpot contribution reversed (game reopened) — ' . pk_money((int)$row['amount']));
+        }
+        $q = $db->prepare("SELECT id, player_id, display_name, value_cents FROM poker_entry_tickets
+                           WHERE source_session_id = ? AND status = 'issued'");
+        $q->execute([$session_id]);
+        foreach ($q->fetchAll() as $t) {
+            $db->prepare('DELETE FROM poker_entry_tickets WHERE id = ?')->execute([(int)$t['id']]);
+            pk_log($db, $session_id, $actor_id, 'ticket_void', (int)$t['player_id'], (string)$t['display_name'],
+                   -(int)$t['value_cents'], 'Entry ticket voided (game reopened) — ' . pk_money((int)$t['value_cents']));
+        }
+    } catch (Exception $e) { /* pre-migration DB */ }
+    return ['ok' => true];
 }
 
 // ─── Per-session activity log ──────────────────────────────

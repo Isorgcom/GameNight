@@ -2152,7 +2152,13 @@ function renderAll() {
             for (var i = 0; i < PAYOUTS.length; i++) {
                 var pct = parseFloat(PAYOUTS[i].percentage) || 0;
                 var amt = Math.round(POOL.pool_total * pct / 100);
-                h += '<div class="payout-row">' + (ordinals[i] || (i+1)+'th') + ': <b>' + fmtMoney(amt) + '</b> (' + pct + '%)</div>';
+                // Reward suffixes (points / entry ticket / prize label) ride in
+                // the same themeable row as the cash amount.
+                var extra = '';
+                if (parseInt(PAYOUTS[i].points) > 0) extra += ' · ' + parseInt(PAYOUTS[i].points) + 'pts';
+                if (parseInt(PAYOUTS[i].ticket_cents) > 0) extra += ' · 🎟' + fmtMoney(parseInt(PAYOUTS[i].ticket_cents));
+                if (PAYOUTS[i].prize_label) extra += ' · ' + String(PAYOUTS[i].prize_label).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+                h += '<div class="payout-row">' + (ordinals[i] || (i+1)+'th') + ': <b>' + fmtMoney(amt) + '</b>' + (pct > 0 ? ' (' + pct + '%)' : '') + extra + '</div>';
             }
             payBody.innerHTML = h;
             payWrap.style.display = '';

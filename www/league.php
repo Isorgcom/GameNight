@@ -384,11 +384,12 @@ if ($tab === 'stats') {
     // listed but sort after everyone who qualifies, so a one-game wonder can't
     // top a 20-game regular.
     $LB_MIN_GAMES = 3;
-    $_st_rank = in_array($_GET['rank'] ?? 'score', ['score', 'net', 'wins'], true) ? ($_GET['rank'] ?? 'score') : 'score';
+    $_st_rank = in_array($_GET['rank'] ?? 'score', ['score', 'net', 'wins', 'points'], true) ? ($_GET['rank'] ?? 'score') : 'score';
     $order_by = [
-        'score' => 'qualified DESC, avg_score IS NULL, avg_score DESC, net DESC, games ASC',
-        'net'   => 'qualified DESC, net DESC, avg_score DESC, games ASC',
-        'wins'  => 'qualified DESC, wins DESC, avg_score DESC, games ASC',
+        'score'  => 'qualified DESC, avg_score IS NULL, avg_score DESC, net DESC, games ASC',
+        'net'    => 'qualified DESC, net DESC, avg_score DESC, games ASC',
+        'wins'   => 'qualified DESC, wins DESC, avg_score DESC, games ASC',
+        'points' => 'qualified DESC, points DESC, wins DESC, avg_score DESC, games ASC',
     ][$_st_rank];
 
     // One row per player per finished session (tournaments AND cash games, guests
@@ -410,6 +411,7 @@ if ($tab === 'stats') {
             SUM(g.invested) as invested,
             SUM(g.winnings) as winnings,
             SUM(g.winnings - g.invested) as net,
+            SUM(g.points) as points,
             (COUNT(*) >= $LB_MIN_GAMES) as qualified
         FROM (
             SELECT
@@ -421,8 +423,9 @@ if ($tab === 'stats') {
                 CASE WHEN ps.game_type = 'tournament'
                      THEN pp.bought_in * ps.buyin_amount + pp.rebuys * COALESCE(ps.rebuy_amount, 0) + pp.addons * COALESCE(ps.addon_amount, 0)
                      ELSE COALESCE(pp.cash_in, 0) END as invested,
-                CASE WHEN ps.game_type = 'tournament' THEN COALESCE(pp.payout, 0)
+                CASE WHEN ps.game_type = 'tournament' THEN COALESCE(pp.payout, 0) + COALESCE(pp.bounty_cash, 0)
                      ELSE COALESCE(pp.cash_out, 0) END as winnings,
+                COALESCE(pp.points, 0) as points,
                 CASE WHEN ps.game_type = 'tournament' AND pc.field_size > 1
                     THEN ROUND(CAST(pc.field_size - COALESCE(pp.finish_position, pc.field_size) AS REAL) / pc.field_size * 80 + 20, 1)
                     WHEN ps.game_type = 'tournament' THEN 100
@@ -582,6 +585,23 @@ function ordinal($n) {
             <?php if ((int)$league['is_hidden'] === 1): ?><span class="lg-pill hidden" style="margin-left:.4rem">Hidden</span><?php endif; ?>
         </h1>
         <?php if ($league['description']): ?><p><?= nl2br(htmlspecialchars($league['description'])) ?></p><?php endif; ?>
+        <?php
+        // League progressive jackpot: shown on every tab once the fund exists
+        // (a $0 balance after a hit is itself news). Funded by optional per-
+        // player entries at tournament games; hits recorded from check-in.
+        $_hj = false; $_hjBal = 0;
+        try {
+            $_hjq = $db->prepare("SELECT balance FROM league_jackpots WHERE league_id = ? AND jackpot_type = 'main'");
+            $_hjq->execute([$league_id]);
+            $_hjRow = $_hjq->fetchColumn();
+            if ($_hjRow !== false) { $_hj = true; $_hjBal = (int)$_hjRow; }
+        } catch (Exception $e) { /* pre-migration DB */ }
+        if ($_hj): ?>
+        <div style="display:inline-flex;align-items:center;gap:.45rem;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:999px;padding:.3rem .85rem;margin:.35rem 0 .2rem;font-size:.88rem;color:#4c1d95">
+            💎 <strong>Jackpot:</strong> <strong><?= '$' . number_format($_hjBal / 100, ($_hjBal % 100) ? 2 : 0) ?></strong>
+            <span style="color:#7c6bb0;font-size:.75rem">bad beat / royal flush</span>
+        </div>
+        <?php endif; ?>
         <div class="lg-meta">
             <?= $member_count ?> member<?= $member_count === 1 ? '' : 's' ?>
             &middot; Join mode: <?= htmlspecialchars($league['approval_mode']) ?>
@@ -1033,13 +1053,27 @@ function ordinal($n) {
         // rank-by toggle, and only once the season has actually ended.
         if ($_st_season):
             $_season_over = $_st_season['end_date'] < $today->format('Y-m-d');
+            // Champion: by season POINTS when any were awarded in the window
+            // (points payouts are the competitive season metric); tie-break wins
+            // then avg_score. Pre-points seasons fall back to the avg_score rule.
+            $_has_points = false;
+            foreach ($leaderboard as $_r) { if ((int)$_r['points'] > 0) { $_has_points = true; break; } }
             $_champ = null;
             foreach ($leaderboard as $_r) {
                 if ((int)$_r['qualified'] !== 1) continue;
-                if ($_champ === null
-                    || (float)$_r['avg_score'] > (float)$_champ['avg_score']
-                    || ((float)$_r['avg_score'] === (float)$_champ['avg_score'] && (int)$_r['wins'] > (int)$_champ['wins'])) {
-                    $_champ = $_r;
+                if ($_has_points) {
+                    if ($_champ === null
+                        || (int)$_r['points'] > (int)$_champ['points']
+                        || ((int)$_r['points'] === (int)$_champ['points'] && (int)$_r['wins'] > (int)$_champ['wins'])
+                        || ((int)$_r['points'] === (int)$_champ['points'] && (int)$_r['wins'] === (int)$_champ['wins'] && (float)$_r['avg_score'] > (float)$_champ['avg_score'])) {
+                        $_champ = $_r;
+                    }
+                } else {
+                    if ($_champ === null
+                        || (float)$_r['avg_score'] > (float)$_champ['avg_score']
+                        || ((float)$_r['avg_score'] === (float)$_champ['avg_score'] && (int)$_r['wins'] > (int)$_champ['wins'])) {
+                        $_champ = $_r;
+                    }
                 }
             }
         ?>
@@ -1048,7 +1082,7 @@ function ordinal($n) {
             <span style="color:#94a3b8">(<?= htmlspecialchars($_st_season['start_date']) ?> &rarr; <?= htmlspecialchars($_st_season['end_date']) ?>)</span>
             <?php if ($_season_over && $_champ): ?>
                 &mdash; &#127942; Champion: <strong><?= htmlspecialchars($_champ['display_name']) ?></strong>
-                <span style="color:#64748b">(score <?= $_champ['avg_score'] ?>, <?= (int)$_champ['wins'] ?> win<?= (int)$_champ['wins'] === 1 ? '' : 's' ?>, <?= lg_money((int)$_champ['net']) ?>)</span>
+                <span style="color:#64748b">(<?= $_has_points ? (int)$_champ['points'] . ' pts, ' : 'score ' . $_champ['avg_score'] . ', ' ?><?= (int)$_champ['wins'] ?> win<?= (int)$_champ['wins'] === 1 ? '' : 's' ?>, <?= lg_money((int)$_champ['net']) ?>)</span>
             <?php elseif ($_season_over): ?>
                 &mdash; season complete (no player reached the <?= $LB_MIN_GAMES ?>-game minimum)
             <?php else: ?>
@@ -1085,6 +1119,9 @@ function ordinal($n) {
             <div class="stat-item"><div class="stat-value"><?= $itmPct ?>%</div><div class="stat-label">In the $</div></div>
             <div class="stat-item"><div class="stat-value <?= $net >= 0 ? 'stat-gold' : 'stat-negative' ?>"><?= lg_money($net) ?></div><div class="stat-label">Net</div></div>
             <div class="stat-item"><div class="stat-value <?= $roi >= 0 ? 'stat-gold' : 'stat-negative' ?>"><?= $roi ?>%</div><div class="stat-label">ROI</div></div>
+            <?php if ((int)$myStats['points'] > 0): ?>
+            <div class="stat-item"><div class="stat-value" style="color:#7c3aed"><?= (int)$myStats['points'] ?></div><div class="stat-label">Points</div></div>
+            <?php endif; ?>
             <?php if ($tGames > 0): ?>
             <div class="stat-item"><div class="stat-value"><?= ordinal($myStats['best_finish']) ?></div><div class="stat-label">Best Finish</div></div>
             <div class="stat-item"><div class="stat-value stat-gold"><?= $myStats['avg_score'] ?></div><div class="stat-label">Avg Score</div></div>
@@ -1100,7 +1137,7 @@ function ordinal($n) {
                       . ($_st_to_in   !== '' ? '&to='   . urlencode($_st_to_in)   : '');
             ?>
             <span style="font-size:.8rem;color:#64748b">Rank by:
-                <?php foreach (['score' => 'Score', 'net' => 'Net $', 'wins' => 'Wins'] as $rk => $rl): ?>
+                <?php foreach (['points' => 'Points', 'score' => 'Score', 'net' => 'Net $', 'wins' => 'Wins'] as $rk => $rl): ?>
                     <?php if ($rk === $_st_rank): ?><strong style="color:#1e293b"><?= $rl ?></strong><?php else: ?><a href="?<?= $_rank_qs ?>&rank=<?= $rk ?>"><?= $rl ?></a><?php endif; ?><?= $rk !== 'wins' ? ' · ' : '' ?>
                 <?php endforeach; ?>
             </span>
@@ -1109,6 +1146,7 @@ function ordinal($n) {
             <thead><tr>
                 <th>#</th><th>Player</th><th>Games</th><th>Wins</th><th>Win%</th>
                 <th class="lb-hide-mobile" title="Finished in the money (tournaments)">ITM%</th>
+                <th title="League points from tournament payouts and bounties">Pts</th>
                 <th>Net</th>
                 <th class="lb-hide-mobile" title="Net / total buy-ins">ROI</th>
                 <th title="Placement quality across tournaments (20-100)">Score</th>
@@ -1142,6 +1180,7 @@ function ordinal($n) {
                     <td class="stat-gold"><?= $tGames > 0 ? $wins : '—' ?></td>
                     <td><?= $winPct !== null ? $winPct . '%' : '—' ?></td>
                     <td class="lb-hide-mobile"><?= $itmPct !== null ? $itmPct . '%' : '—' ?></td>
+                    <td style="font-weight:700;color:#7c3aed"><?= (int)$row['points'] > 0 ? (int)$row['points'] : '—' ?></td>
                     <td style="font-weight:700;color:<?= $net > 0 ? '#16a34a' : ($net < 0 ? '#dc2626' : '#64748b') ?>"><?= lg_money($net) ?></td>
                     <td class="lb-hide-mobile" style="color:<?= ($roi ?? 0) >= 0 ? '#16a34a' : '#dc2626' ?>"><?= $roi !== null ? $roi . '%' : '—' ?></td>
                     <td class="stat-gold" style="font-weight:700"><?= $row['avg_score'] !== null ? $row['avg_score'] : '—' ?></td>

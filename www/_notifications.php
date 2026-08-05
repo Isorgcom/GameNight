@@ -411,6 +411,7 @@ function _notify_category(string $type): string {
         'rsvp_to_creator'                                            => 'rsvp_replies',
         'dm'                                                         => 'dms',
         'ticket_reply', 'ticket_admin'                               => 'tickets',
+        'reward_ticket'                                              => 'rewards',
         default                                                      => 'other',
     };
 }
