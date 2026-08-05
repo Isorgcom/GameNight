@@ -1095,6 +1095,68 @@ $themeCss   = timer_theme_css_vars($themeProps);
                element's edge lands exactly at the viewport edge, not padding past it. */
             box-sizing: border-box;
         }
+        /* ─── v2 free-mode boxes: top-left anchored {x,y,w,h} in % of #layoutStage.
+           Doubled class beats every single-class base rule (position/width/transform)
+           without !important; ID base rules don't exist for these elements. ─── */
+        .timer-boxed.timer-boxed {
+            position: absolute;
+            left: var(--box-x, 40%);
+            top:  var(--box-y, 40%);
+            width:  var(--box-w, 20%);
+            height: var(--box-h, 10%);
+            right: auto;
+            bottom: auto;
+            transform: none;
+            margin: 0;
+            z-index: 20;
+            white-space: nowrap;
+            box-sizing: border-box;
+            text-align: center;
+            align-content: center; /* modern block-container vertical centering; older engines top-align */
+        }
+        #themeImage.timer-boxed { max-width: none; max-height: none; object-fit: contain; }
+        #qrWrap.timer-boxed img { width: 100%; height: 100%; object-fit: contain; }
+        #streamingWrap.timer-boxed { aspect-ratio: auto; }
+        #streamingWrap.timer-boxed iframe { width: 100%; height: 100%; }
+        /* Edit-mode overlap warning (checkOverlaps AABB pass). */
+        .box-overlap { outline: 2px solid #ef4444; outline-offset: 2px; }
+        /* Resize overlay: dashed frame + 8 handles tracking the selected box.
+           Lives in the stage, NOT inside the element, so handles never pollute
+           scrollWidth and trigger phantom fit-text shrinks. */
+        #rzOverlay {
+            position: absolute;
+            display: none;
+            border: 1.5px dashed rgba(37, 99, 235, 0.9);
+            pointer-events: none;
+            z-index: 60;
+            box-sizing: border-box;
+        }
+        .gn-rz {
+            position: absolute;
+            width: 14px; height: 14px;
+            background: #fff;
+            border: 2px solid #2563eb;
+            border-radius: 3px;
+            pointer-events: auto;
+            box-sizing: border-box;
+        }
+        .gn-rz[data-dir="nw"] { left: -7px;              top: -7px;               cursor: nwse-resize; }
+        .gn-rz[data-dir="n"]  { left: calc(50% - 7px);   top: -7px;               cursor: ns-resize; }
+        .gn-rz[data-dir="ne"] { right: -7px;             top: -7px;               cursor: nesw-resize; }
+        .gn-rz[data-dir="e"]  { right: -7px;             top: calc(50% - 7px);    cursor: ew-resize; }
+        .gn-rz[data-dir="se"] { right: -7px;             bottom: -7px;            cursor: nwse-resize; }
+        .gn-rz[data-dir="s"]  { left: calc(50% - 7px);   bottom: -7px;            cursor: ns-resize; }
+        .gn-rz[data-dir="sw"] { left: -7px;              bottom: -7px;            cursor: nesw-resize; }
+        .gn-rz[data-dir="w"]  { left: -7px;              top: calc(50% - 7px);    cursor: ew-resize; }
+        .pill-overlap-badge {
+            display: none;
+            background: #ef4444;
+            color: #fff;
+            font-weight: 700;
+            font-size: 0.72rem;
+            padding: 0.1rem 0.45rem;
+            border-radius: 10px;
+        }
         /* QR keeps its current size unless theme overrides; transform stacks translate+scale. */
         #qrWrap.timer-positioned {
             transform: translate(-50%, -50%) scale(var(--timer-qr-scale, 1));
@@ -1213,13 +1275,17 @@ $themeCss   = timer_theme_css_vars($themeProps);
         body.layout-edit .snap-hint { display: inline-block; }
         body.layout-edit { user-select: none; -webkit-user-select: none; }
         body.layout-edit .timer-positioned,
+        body.layout-edit .timer-boxed,
         body.layout-edit .layout-draggable {
             outline: 2px dashed #fbbf24;
             outline-offset: 4px;
             cursor: grab;
         }
         body.layout-edit .timer-positioned:active,
+        body.layout-edit .timer-boxed:active,
         body.layout-edit .layout-draggable:active { cursor: grabbing; }
+        /* Overlap warning must win over the dashed edit outline. */
+        body.layout-edit .box-overlap { outline: 2px solid #ef4444; }
         body.layout-edit .timer-tray,
         body.layout-edit .timer-back { display: none !important; }
         .layout-edit-pill {
@@ -1287,9 +1353,11 @@ $themeCss   = timer_theme_css_vars($themeProps);
         }
         .layout-eye:hover { transform: scale(1.25); }
         .layout-eye.is-hidden { color: #64748b; border-color: #64748b; }
-        body.layout-edit .timer-positioned .layout-eye { display: inline-flex; }
+        body.layout-edit .timer-positioned .layout-eye,
+        body.layout-edit .timer-boxed .layout-eye { display: inline-flex; }
         /* Selected element gets a different (solid blue) outline. */
-        body.layout-edit .timer-positioned.is-selected {
+        body.layout-edit .timer-positioned.is-selected,
+        body.layout-edit .timer-boxed.is-selected {
             outline: 3px solid #2563eb;
             outline-offset: 4px;
         }
@@ -1416,7 +1484,8 @@ $themeCss   = timer_theme_css_vars($themeProps);
         .layout-object-row.is-dragging {
             background: #1e3a8a; box-shadow: 0 4px 14px rgba(0,0,0,0.5); opacity: 0.95;
         }
-        body.layout-edit .timer-positioned[data-ghost-selected="1"] { opacity: 0.45; }
+        body.layout-edit .timer-positioned[data-ghost-selected="1"],
+        body.layout-edit .timer-boxed[data-ghost-selected="1"] { opacity: 0.45; }
     </style>
 </head>
 <body class="timer-body<?= $is_display ? ' display-mode' : '' ?>">
@@ -1437,6 +1506,8 @@ $themeCss   = timer_theme_css_vars($themeProps);
     <button class="btn-done" type="button" onclick="exitLayoutEdit(true)">&#10003; Save</button>
     <button type="button" onclick="resetPositions()" title="Snap elements back to default positions">&#8635; Reset</button>
     <button type="button" id="snapToggleBtn" onclick="toggleSnap()" title="Toggle snap (Shift = momentary off on a keyboard)">&#129522; Snap</button>
+    <button type="button" id="livePreviewBtn" onclick="toggleLivePreview()" title="Position against the real current game data instead of placeholders">&#128250; Live</button>
+    <span class="pill-overlap-badge" id="overlapBadge" title="Boxes outlined in red overlap each other"></span>
     <span class="pill-sep"></span>
     <button type="button" onclick="exitLayoutEdit(false)">&times; Close</button>
 </div>
@@ -1488,7 +1559,11 @@ $themeCss   = timer_theme_css_vars($themeProps);
 </div>
 <?php endif; ?>
 
-<div class="timer-container">
+<div class="timer-container" id="layoutStage">
+<?php if (!$is_remote && !$is_guest): ?>
+    <!-- Resize frame for the selected box in layout-edit mode (8 handles). -->
+    <div id="rzOverlay"><?php foreach (['nw','n','ne','e','se','s','sw','w'] as $d): ?><div class="gn-rz" data-dir="<?= $d ?>"></div><?php endforeach; ?></div>
+<?php endif; ?>
     <!-- Average stack display (tournaments only) -->
     <div class="timer-avgstack" id="avgStackWrap" style="display:none">
         <div class="timer-avgstack-title">Avg Stack</div>
@@ -2069,16 +2144,24 @@ function fitAllText() {
     }
     // Pass 1 (write): clear any previous fit so we measure at the themed max.
     nodes.forEach(function (n) { n.style.fontSize = ''; });
-    // Pass 2 (read): one layout for all measurements.
-    var meas = nodes.map(function (n) {
+    // Pass 2 (read): CSS base sizes.
+    var bases = nodes.map(function (n) { return parseFloat(getComputedStyle(n).fontSize) || 0; });
+    // Pass 2b (write): boxed widgets whose scale became a font multiplier
+    // (data-box-scale, set by applyTheme) measure at base × scale.
+    var anyScaled = false;
+    nodes.forEach(function (n, i) {
+        var bs = parseFloat(n.dataset.boxScale) || 0;
+        if (bs && bs !== 1 && bases[i]) { n.style.fontSize = (bases[i] * bs) + 'px'; bases[i] = bases[i] * bs; anyScaled = true; }
+    });
+    // Pass 3 (read): overflow measurements (second layout only if 2b wrote).
+    var meas = nodes.map(function (n, i) {
         return {
-            n: n,
-            base: parseFloat(getComputedStyle(n).fontSize) || 0,
+            n: n, base: bases[i],
             cw: n.clientWidth, sw: n.scrollWidth,
             ch: n.clientHeight, sh: n.scrollHeight,
         };
     });
-    // Pass 3 (write): shrink only where content genuinely overflows.
+    // Pass 4 (write): shrink only where content genuinely overflows.
     meas.forEach(function (m) {
         if (!m.base) return;
         var r = 1;
@@ -2182,7 +2265,7 @@ function renderAll() {
         DATA_AVAIL.avg_stack = true;
     } else {
         DATA_AVAIL.avg_stack = false;
-        if (_inEdit && avgVal && !avgVal.textContent) setText(avgVal, '-');
+        if (_inEdit && avgVal && !avgVal.textContent) setText(avgVal, '25,000');
     }
 
     // Reentries (tournament only) — total rebuys across the field
@@ -2200,7 +2283,7 @@ function renderAll() {
         DATA_AVAIL.chips_in_play = true;
     } else {
         DATA_AVAIL.chips_in_play = false;
-        if (_inEdit && cpVal && !cpVal.textContent) setText(cpVal, '0');
+        if (_inEdit && cpVal && !cpVal.textContent) setText(cpVal, '150,000');
     }
 
     // Next break countdown (tournament only) — derived client-side from LEVELS
@@ -2247,9 +2330,10 @@ function renderAll() {
     } else {
         DATA_AVAIL.payouts = false;
         if (_inEdit && payBody && !payBody.innerHTML.trim()) {
-            setHtml(payBody, '<div class="payout-row">1st: <b>$0.00</b> (50%)</div>'
-                           + '<div class="payout-row">2nd: <b>$0.00</b> (30%)</div>'
-                           + '<div class="payout-row">3rd: <b>$0.00</b> (20%)</div>');
+            // Realistic widths — the user positions against believable content.
+            setHtml(payBody, '<div class="payout-row">1st: <b>$250.00</b> (50%)</div>'
+                           + '<div class="payout-row">2nd: <b>$150.00</b> (30%)</div>'
+                           + '<div class="payout-row">3rd: <b>$100.00</b> (20%)</div>');
         }
     }
 
@@ -4024,14 +4108,35 @@ function applyTheme(props) {
         if (ord > 0) node.style.order = String(ord);
     });
 
-    // Free-form positions: any element with elements[key].pos = {x,y} gets pulled out of
-    // flow and pinned to (x%, y%) of the viewport, anchored at the element's center.
+    // Free-form geometry. Preference order per element:
+    //   1. v2 box {x,y,w,h} (% of #layoutStage, top-left anchored) — .timer-boxed
+    //   2. legacy center point pos {x,y} (% of viewport) — .timer-positioned
+    //   3. neither — element stays in flex flow
+    var freeMap = (props.layouts && props.layouts.landscape && props.layouts.landscape.free) || null;
     for (var k2 in THEME_SELECTORS) {
         var node2 = document.querySelector(THEME_SELECTORS[k2]);
         if (!node2) continue;
         var pe = el[k2];
-        var pos = (pe && pe.pos && typeof pe.pos.x === 'number' && typeof pe.pos.y === 'number') ? pe.pos : null;
-        if (pos) {
+        var box = (props.mode !== 'zones' && freeMap && validBox(freeMap[k2])) ? freeMap[k2] : null;
+        var pos = (!box && pe && pe.pos && typeof pe.pos.x === 'number' && typeof pe.pos.y === 'number') ? pe.pos : null;
+        if (box) {
+            node2.classList.add('timer-boxed');
+            node2.classList.remove('timer-positioned');
+            applyBoxToNode(node2, box);
+            node2.style.removeProperty('--pos-x');
+            node2.style.removeProperty('--pos-y');
+            node2.style.maxWidth = '';
+            node2.style.maxHeight = '';
+            // Transform-scaled widgets: in box mode the box is the size authority,
+            // so the scale becomes a font multiplier (fit-text reads boxScale)
+            // instead of a transform that would escape the box.
+            if (node2.dataset.hasScale === '1') {
+                delete node2.dataset.hasScale;
+                node2.dataset.boxScale = String((pe && pe.scale) || 1);
+            }
+        } else if (pos) {
+            node2.classList.remove('timer-boxed');
+            delete node2.dataset.boxScale;
             node2.classList.add('timer-positioned');
             node2.style.setProperty('--pos-x', pos.x + '%');
             node2.style.setProperty('--pos-y', pos.y + '%');
@@ -4047,6 +4152,8 @@ function applyTheme(props) {
             node2.style.maxHeight = (Math.max(3, 2 * Math.min(pos.y, 100 - pos.y)) / _capScl) + 'vh';
         } else {
             node2.classList.remove('timer-positioned');
+            node2.classList.remove('timer-boxed');
+            delete node2.dataset.boxScale;
             node2.style.removeProperty('--pos-x');
             node2.style.removeProperty('--pos-y');
             node2.style.maxWidth = '';
@@ -4065,6 +4172,7 @@ function applyTheme(props) {
     // the next tick's text — force a clock re-render so visual feedback is instant.
     if (typeof renderClock === 'function') renderClock();
     scheduleFit();
+    if (typeof LAYOUT_EDIT_ON !== 'undefined' && LAYOUT_EDIT_ON && typeof syncRzOverlay === 'function') syncRzOverlay();
 }
 
 // ─── §7.15.0  syncVisibility — the ONE writer of style.display ───
@@ -4085,7 +4193,9 @@ function syncVisibility() {
         var node = document.querySelector(THEME_SELECTORS[k]);
         if (!node) continue;
         var themeVisible = !el[k] || el[k].visible !== false;
-        var dataOk = DATA_AVAIL[k] !== false || (inEdit && EDIT_FORCE_KEYS[k]);
+        // Live preview: skip the edit-mode force-show and honor real data
+        // availability, so the user positions against what actually renders.
+        var dataOk = DATA_AVAIL[k] !== false || (inEdit && !window.LIVE_PREVIEW && EDIT_FORCE_KEYS[k]);
         var isSelected = inEdit && selSet && selSet.has && selSet.has(k);
         if (!themeVisible) {
             node.dataset._themeHidden = '1';
@@ -4110,8 +4220,26 @@ function syncVisibility() {
 // Build a deep-cloned theme payload from the current in-memory state. With the modal
 // slimmed down to a pure library, all element/bg/tray edits flow through the in-place
 // inspector (which mutates window.TIMER_THEME directly), so we can just return a copy.
+// v2 boxes additionally mirror their centers into the legacy pos fields for one
+// release, so a long-lived open page running v1 JS still positions roughly right.
 function readThemeFromUI() {
-    return JSON.parse(JSON.stringify(window.TIMER_THEME || {}));
+    var t = JSON.parse(JSON.stringify(window.TIMER_THEME || {}));
+    var free = t.layouts && t.layouts.landscape && t.layouts.landscape.free;
+    if (free) {
+        t.schema = 2;
+        if (t.mode !== 'zones') t.mode = 'free';
+        t.elements = t.elements || {};
+        Object.keys(free).forEach(function(k) {
+            var b = free[k];
+            if (!b || typeof b.x !== 'number' || typeof b.w !== 'number') return;
+            t.elements[k] = t.elements[k] || {};
+            t.elements[k].pos = {
+                x: Math.round((b.x + b.w / 2) * 100) / 100,
+                y: Math.round((b.y + b.h / 2) * 100) / 100,
+            };
+        });
+    }
+    return t;
 }
 
 function openThemes() {
@@ -4548,6 +4676,64 @@ var LAYOUT_DEFAULT_POS = {
     streaming:     { x: 75, y: 30 },
 };
 
+// ─── v2 box layout: {x,y,w,h} top-left anchored, % of #layoutStage ───
+// Heuristic seeds for elements that can't be measured (hidden / zero-size);
+// measured seeds from the live DOM are always preferred (seedBoxes).
+var BOX_DEFAULTS = {
+    event_name:    { x: 20, y:  1, w: 60, h:  7 },
+    player_count:  { x: 28, y:  9, w: 14, h:  5 },
+    pool_total:    { x: 58, y:  9, w: 14, h:  5 },
+    level_label:   { x: 35, y: 16, w: 30, h:  8 },
+    blinds:        { x: 20, y: 26, w: 60, h: 18 },
+    clock:         { x: 25, y: 46, w: 50, h: 26 },
+    paused_label:  { x: 35, y: 74, w: 30, h:  6 },
+    next_level:    { x: 25, y: 82, w: 50, h:  9 },
+    avg_stack:     { x:  1, y: 10, w: 14, h: 10 },
+    payouts:       { x: 85, y: 10, w: 14, h: 22 },
+    qr:            { x: 89, y: 82, w: 10, h: 16 },
+    image:         { x: 35, y: 35, w: 30, h: 30 },
+    rebuys:        { x: 24, y:  2, w: 12, h:  5 },
+    chips_in_play: { x: 44, y:  2, w: 12, h:  5 },
+    next_break:    { x: 64, y:  2, w: 12, h:  5 },
+    ends_at:       { x: 64, y:  8, w: 12, h:  5 },
+    streaming:     { x: 62, y: 16, w: 30, h: 28 },
+};
+
+// Accessor for the active orientation's free-box map. Phase 3 uses a single
+// 'landscape' layout; Phase 5 keys this by the live/edited orientation.
+function activeLayoutFree(create) {
+    var t = window.TIMER_THEME;
+    if (!t) return null;
+    if (!create) {
+        return (t.layouts && t.layouts.landscape && t.layouts.landscape.free) || null;
+    }
+    t.layouts = t.layouts || {};
+    t.layouts.landscape = t.layouts.landscape || {};
+    t.layouts.landscape.free = t.layouts.landscape.free || {};
+    t.schema = 2;
+    if (t.mode !== 'zones') t.mode = 'free';
+    return t.layouts.landscape.free;
+}
+
+function validBox(b) {
+    return b && typeof b.x === 'number' && typeof b.y === 'number'
+        && typeof b.w === 'number' && typeof b.h === 'number'
+        && b.w > 0 && b.h > 0 && b.x >= -1 && b.y >= -1 && b.x + b.w <= 101 && b.y + b.h <= 101;
+}
+
+function stageRect() {
+    var s = document.getElementById('layoutStage');
+    return s ? s.getBoundingClientRect() : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+}
+
+// Write a box to both the theme and the element's inline vars (drag/resize hot path).
+function applyBoxToNode(node, b) {
+    node.style.setProperty('--box-x', b.x + '%');
+    node.style.setProperty('--box-y', b.y + '%');
+    node.style.setProperty('--box-w', b.w + '%');
+    node.style.setProperty('--box-h', b.h + '%');
+}
+
 // ─── §7.16.1  Snap toggle (touch-friendly alternative to holding Shift) ──────────────
 // Default ON. Persisted across edit sessions in localStorage so a user who
 // turned snap off for fine positioning doesn't have to do it again next time.
@@ -4593,37 +4779,176 @@ function enterLayoutEdit() {
     renderAll();
     window.TIMER_THEME.elements = window.TIMER_THEME.elements || {};
 
+    // Validate any stale pos values (legacy), then convert everything visible to
+    // v2 boxes measured from the CURRENT rendered layout — the theme looks
+    // identical the moment edit mode opens; only Save persists the conversion.
     Object.keys(THEME_SELECTORS).forEach(function(key) {
-        var node = document.querySelector(THEME_SELECTORS[key]);
-        if (!node) return;
         var pe = window.TIMER_THEME.elements[key] = window.TIMER_THEME.elements[key] || {};
-        // Validate any existing pos — drop stale/out-of-bounds values from a previous session.
         if (pe.pos && (
             typeof pe.pos.x !== 'number' || typeof pe.pos.y !== 'number' ||
             pe.pos.x < 0 || pe.pos.x > 100 || pe.pos.y < 0 || pe.pos.y > 100
         )) {
             delete pe.pos;
         }
-        if (pe.pos) return;
-        // Hidden elements without a pos: defer seeding until the user selects them from
-        // the Objects panel. Otherwise they'd silently acquire a position they can't see.
-        if (pe.visible === false) return;
-        var rect = node.getBoundingClientRect();
-        if (rect.width > 1 && rect.height > 1) {
-            pe.pos = {
-                x: ((rect.left + rect.width / 2) / window.innerWidth)  * 100,
-                y: ((rect.top  + rect.height / 2) / window.innerHeight) * 100,
-            };
-        } else if (LAYOUT_DEFAULT_POS[key]) {
-            // Fall back to a sensible default so the element doesn't get stuck in flex
-            // flow under the other (now-positioned) siblings.
-            pe.pos = { x: LAYOUT_DEFAULT_POS[key].x, y: LAYOUT_DEFAULT_POS[key].y };
-        }
     });
+    seedBoxes();
 
     applyTheme(window.TIMER_THEME);
     attachAllDragHandlers();
     openObjectsPanel();
+    checkOverlaps();
+}
+
+// Measure every visible element's current rendered rect into a v2 box (stage-%).
+// Elements that already have a box keep it; hidden boxless elements defer until
+// selected/unhidden (they'd otherwise acquire a position the user can't see).
+function seedBoxes() {
+    var free = activeLayoutFree(true);
+    var sr = stageRect();
+    if (!sr.width || !sr.height) return;
+    Object.keys(THEME_SELECTORS).forEach(function(key) {
+        if (validBox(free[key])) return;
+        var pe = (window.TIMER_THEME.elements || {})[key] || {};
+        if (pe.visible === false) return;
+        var node = document.querySelector(THEME_SELECTORS[key]);
+        var b = null;
+        if (node && node.style.display !== 'none') {
+            var r = node.getBoundingClientRect();
+            if (r.width > 1 && r.height > 1) {
+                b = {
+                    x: ((r.left - sr.left) / sr.width)  * 100,
+                    y: ((r.top  - sr.top)  / sr.height) * 100,
+                    w: (r.width  / sr.width)  * 100,
+                    h: (r.height / sr.height) * 100,
+                };
+            }
+        }
+        if (!b && BOX_DEFAULTS[key]) b = Object.assign({}, BOX_DEFAULTS[key]);
+        if (!b) return;
+        b.w = Math.max(2, Math.min(100, b.w));
+        b.h = Math.max(2, Math.min(100, b.h));
+        b.x = Math.max(0, Math.min(100 - b.w, b.x));
+        b.y = Math.max(0, Math.min(100 - b.h, b.y));
+        free[key] = { x: +b.x.toFixed(2), y: +b.y.toFixed(2), w: +b.w.toFixed(2), h: +b.h.toFixed(2) };
+    });
+}
+
+// ─── Overlap detection: AABB pass over the visible boxes (edit mode only) ───
+function checkOverlaps() {
+    var badge = document.getElementById('overlapBadge');
+    document.querySelectorAll('.box-overlap').forEach(function(n){ n.classList.remove('box-overlap'); });
+    var free = LAYOUT_EDIT_ON ? activeLayoutFree() : null;
+    if (!free) { if (badge) badge.style.display = 'none'; return; }
+    var el = (window.TIMER_THEME && window.TIMER_THEME.elements) || {};
+    var items = [];
+    Object.keys(free).forEach(function(k) {
+        var b = free[k];
+        if (!validBox(b)) return;
+        var pe = el[k];
+        if (pe && pe.visible === false) return;
+        var node = document.querySelector(THEME_SELECTORS[k]);
+        if (!node) return;
+        items.push({ b: b, node: node });
+    });
+    var count = 0;
+    for (var i = 0; i < items.length; i++) {
+        for (var j = i + 1; j < items.length; j++) {
+            var a = items[i].b, c = items[j].b;
+            if (a.x < c.x + c.w && c.x < a.x + a.w && a.y < c.y + c.h && c.y < a.y + a.h) {
+                items[i].node.classList.add('box-overlap');
+                items[j].node.classList.add('box-overlap');
+                count++;
+            }
+        }
+    }
+    if (badge) {
+        badge.textContent = '⚠ ' + count;
+        badge.style.display = count > 0 ? 'inline-block' : 'none';
+    }
+}
+
+// ─── Resize frame: 8 handles tracking the single selected box ───
+function syncRzOverlay() {
+    var ov = document.getElementById('rzOverlay');
+    if (!ov) return;
+    var free = activeLayoutFree();
+    var key = LAYOUT_SELECTED_KEY;
+    var b = (LAYOUT_EDIT_ON && key && LAYOUT_SELECTION_SET.size === 1 && free) ? free[key] : null;
+    if (!validBox(b)) { ov.style.display = 'none'; return; }
+    ov.style.display = 'block';
+    ov.style.left = b.x + '%';
+    ov.style.top = b.y + '%';
+    ov.style.width = b.w + '%';
+    ov.style.height = b.h + '%';
+}
+
+function initResizeHandles() {
+    document.querySelectorAll('#rzOverlay .gn-rz').forEach(function(h) {
+        function start(ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            var key = LAYOUT_SELECTED_KEY;
+            if (!LAYOUT_EDIT_ON || !key) return;
+            var free = activeLayoutFree(true);
+            if (!validBox(free[key])) return;
+            var dir = h.dataset.dir;
+            var sr = stageRect();
+            var pt = ev.touches ? ev.touches[0] : ev;
+            var sx = pt.clientX, sy = pt.clientY;
+            var b0 = free[key];
+            b0 = { x: b0.x, y: b0.y, w: b0.w, h: b0.h };
+            var node = document.querySelector(THEME_SELECTORS[key]);
+            function onMove(e2) {
+                e2.preventDefault();
+                var p = e2.touches ? e2.touches[0] : e2;
+                var dx = ((p.clientX - sx) / sr.width) * 100;
+                var dy = ((p.clientY - sy) / sr.height) * 100;
+                var nb = { x: b0.x, y: b0.y, w: b0.w, h: b0.h };
+                if (dir.indexOf('e') >= 0) nb.w = b0.w + dx;
+                if (dir.indexOf('s') >= 0) nb.h = b0.h + dy;
+                if (dir.indexOf('w') >= 0) { nb.x = b0.x + dx; nb.w = b0.w - dx; }
+                if (dir.indexOf('n') >= 0) { nb.y = b0.y + dy; nb.h = b0.h - dy; }
+                if (nb.w < 4) { if (dir.indexOf('w') >= 0) nb.x = b0.x + b0.w - 4; nb.w = 4; }
+                if (nb.h < 3) { if (dir.indexOf('n') >= 0) nb.y = b0.y + b0.h - 3; nb.h = 3; }
+                nb.x = Math.max(0, nb.x);
+                nb.y = Math.max(0, nb.y);
+                if (nb.x + nb.w > 100) nb.w = 100 - nb.x;
+                if (nb.y + nb.h > 100) nb.h = 100 - nb.y;
+                nb.x = Math.round(nb.x * 100) / 100; nb.y = Math.round(nb.y * 100) / 100;
+                nb.w = Math.round(nb.w * 100) / 100; nb.h = Math.round(nb.h * 100) / 100;
+                free[key] = nb;
+                if (node) applyBoxToNode(node, nb);
+                syncRzOverlay();
+            }
+            function onUp() {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+                document.removeEventListener('touchmove', onMove);
+                document.removeEventListener('touchend', onUp);
+                document.removeEventListener('touchcancel', onUp);
+                checkOverlaps();
+                scheduleFit();
+                if (typeof refreshBoxRow === 'function') refreshBoxRow(key);
+            }
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+            document.addEventListener('touchmove', onMove, { passive: false });
+            document.addEventListener('touchend', onUp);
+            document.addEventListener('touchcancel', onUp);
+        }
+        h.addEventListener('mousedown', start);
+        h.addEventListener('touchstart', start, { passive: false });
+    });
+}
+
+// ─── Live preview toggle: position against real data instead of placeholders ───
+window.LIVE_PREVIEW = false;
+function toggleLivePreview() {
+    window.LIVE_PREVIEW = !window.LIVE_PREVIEW;
+    var btn = document.getElementById('livePreviewBtn');
+    if (btn) btn.classList.toggle('snap-on', window.LIVE_PREVIEW);
+    renderAll();
+    checkOverlaps();
 }
 
 function exitLayoutEdit(keep) {
@@ -4634,6 +4959,7 @@ function exitLayoutEdit(keep) {
     deselectElement();
     removeAllEyeIcons();
     closeObjectsPanel();
+    checkOverlaps();   // clears all outlines + badge (edit off)
     if (!keep && LAYOUT_EDIT_SNAPSHOT) {
         window.TIMER_THEME = LAYOUT_EDIT_SNAPSHOT;
     }
@@ -4683,34 +5009,29 @@ function confirmSaveAsNew() {
 
 function resetPositions() {
     if (!window.TIMER_THEME || !window.TIMER_THEME.elements) return;
+    // Clear all v2 boxes AND legacy positions, let everything reflow to the
+    // default flex layout, then re-measure that layout into fresh boxes.
+    var free = activeLayoutFree(true);
+    Object.keys(free).forEach(function(k){ delete free[k]; });
     Object.keys(window.TIMER_THEME.elements).forEach(function(k){
         delete window.TIMER_THEME.elements[k].pos;
     });
-    applyTheme(window.TIMER_THEME);
-    // After resetting, re-promote elements to dragging using their natural positions.
     detachAllDragHandlers();
-    // Recompute pos values from current rendered positions, then re-attach.
-    Object.keys(THEME_SELECTORS).forEach(function(key) {
-        var node = document.querySelector(THEME_SELECTORS[key]);
-        if (!node) return;
-        var pe = window.TIMER_THEME.elements[key] = window.TIMER_THEME.elements[key] || {};
-        if (pe.visible === false) return;
-        var rect = node.getBoundingClientRect();
-        if (rect.width === 0 && rect.height === 0) return;
-        pe.pos = {
-            x: ((rect.left + rect.width/2) / window.innerWidth) * 100,
-            y: ((rect.top + rect.height/2) / window.innerHeight) * 100,
-        };
-    });
+    applyTheme(window.TIMER_THEME);
+    renderAll();
+    seedBoxes();
     applyTheme(window.TIMER_THEME);
     attachAllDragHandlers();
+    checkOverlaps();
+    syncRzOverlay();
+    scheduleFit();
 }
 
 function attachAllDragHandlers() {
     Object.keys(THEME_SELECTORS).forEach(function(key) {
         var node = document.querySelector(THEME_SELECTORS[key]);
         if (!node) return;
-        if (!node.classList.contains('timer-positioned')) return;
+        if (!node.classList.contains('timer-positioned') && !node.classList.contains('timer-boxed')) return;
         // Eye icon for quick visibility toggle.
         attachEyeIcon(node, key);
         // Combined drag-OR-select handler. Movement above threshold = drag (reposition).
@@ -4783,7 +5104,17 @@ function toggleElementVisibility(key) {
     window.TIMER_THEME.elements = window.TIMER_THEME.elements || {};
     var pe = window.TIMER_THEME.elements[key] = window.TIMER_THEME.elements[key] || {};
     pe.visible = pe.visible === false;  // flip
+    // Unhiding in edit mode: give the element a box (it was skipped by seeding)
+    // and a drag handler so it's immediately usable.
+    if (LAYOUT_EDIT_ON && pe.visible !== false) {
+        var free = activeLayoutFree(true);
+        if (!validBox(free[key]) && BOX_DEFAULTS[key]) free[key] = Object.assign({}, BOX_DEFAULTS[key]);
+        detachAllDragHandlers();
+        applyTheme(window.TIMER_THEME);
+        attachAllDragHandlers();
+    }
     applyTheme(window.TIMER_THEME);
+    if (LAYOUT_EDIT_ON) checkOverlaps();
     // Refresh the eye icon glyph (open/closed) for this element.
     var node = document.querySelector(THEME_SELECTORS[key]);
     var eye = node && node.querySelector(':scope > .layout-eye');
@@ -4805,18 +5136,22 @@ function makeDragStart(node, key) {
         // mouseup (toggle vs replace), and whether the element is part of a group drag.
         var modifierKey = !!(ev.ctrlKey || ev.metaKey);
 
+        var free = activeLayoutFree(true);
+        if (!validBox(free[key])) return;
+        var sr = stageRect();
         var pt = ev.touches ? ev.touches[0] : ev;
         var startX = pt.clientX, startY = pt.clientY;
-        var rect = node.getBoundingClientRect();
-        var offX = pt.clientX - (rect.left + rect.width / 2);
-        var offY = pt.clientY - (rect.top  + rect.height / 2);
-        // Dragging element's half-dimensions in % of viewport (stable during drag).
-        var halfWdr = (rect.width  / window.innerWidth)  * 50;
-        var halfHdr = (rect.height / window.innerHeight) * 50;
+        var box0 = free[key];
+        // Dragging box half-dimensions in stage-% (stable during drag).
+        var halfWdr = box0.w / 2;
+        var halfHdr = box0.h / 2;
+        // Pointer offset from the box CENTER, in stage-%.
+        var offX = ((pt.clientX - sr.left) / sr.width)  * 100 - (box0.x + halfWdr);
+        var offY = ((pt.clientY - sr.top)  / sr.height) * 100 - (box0.y + halfHdr);
         var moved = false;
         var THRESH = 5;
 
-        var SNAP_PCT       = 2;    // snap-to-center distance (% of viewport)
+        var SNAP_PCT       = 2;    // snap-to-center distance (% of stage)
         var ALIGN_SNAP_PCT = 1.5;  // tighter — snap-to-other-element distance
         var guideV  = document.getElementById('centerGuideV');
         var guideH  = document.getElementById('centerGuideH');
@@ -4835,34 +5170,25 @@ function makeDragStart(node, key) {
         }
         var groupStart = {};
         groupKeys.forEach(function(gk) {
-            var ge = window.TIMER_THEME.elements && window.TIMER_THEME.elements[gk];
-            if (ge && ge.pos && typeof ge.pos.x === 'number') {
-                groupStart[gk] = { x: ge.pos.x, y: ge.pos.y };
-            }
+            var gb = free[gk];
+            if (validBox(gb)) groupStart[gk] = { x: gb.x, y: gb.y, w: gb.w, h: gb.h };
         });
 
-        // Snapshot every other positioned element's center + half-dimensions so
-        // snap math doesn't repeatedly hit the layout engine during mousemove.
-        // Exclude the group itself (we shouldn't snap a group to one of its own members).
-        var others = (window.TIMER_THEME && window.TIMER_THEME.elements) || {};
+        // Snapshot every other box's center + half-dimensions from the box map —
+        // no DOM measurement needed. Exclude the group itself and hidden elements.
         var groupSet = {}; groupKeys.forEach(function(gk){ groupSet[gk] = 1; });
         var othersGeom = [];
-        for (var ok in others) {
-            if (groupSet[ok]) continue;
-            var op = others[ok] && others[ok].pos;
-            if (!op || typeof op.x !== 'number' || typeof op.y !== 'number') continue;
-            var sel = THEME_SELECTORS[ok];
-            if (!sel) continue;
-            var otherNode = document.querySelector(sel);
-            if (!otherNode) continue;
-            var orect = otherNode.getBoundingClientRect();
-            if (orect.width < 1 || orect.height < 1) continue;
+        Object.keys(free).forEach(function(ok) {
+            if (groupSet[ok]) return;
+            var ob = free[ok];
+            if (!validBox(ob)) return;
+            var oe = (window.TIMER_THEME.elements || {})[ok];
+            if (oe && oe.visible === false) return;
             othersGeom.push({
-                x: op.x, y: op.y,
-                halfW: (orect.width  / window.innerWidth)  * 50,
-                halfH: (orect.height / window.innerHeight) * 50,
+                x: ob.x + ob.w / 2, y: ob.y + ob.h / 2,
+                halfW: ob.w / 2, halfH: ob.h / 2,
             });
-        }
+        });
 
         // For each other element produce 9 candidate snap targets per axis:
         // center↔center, edge↔edge (4 combos), and edge↔center (4 combos).
@@ -4901,8 +5227,8 @@ function makeDragStart(node, key) {
             }
             if (!moved) return;
             ev2.preventDefault();
-            var cx = ((p.clientX - offX) / window.innerWidth)  * 100;
-            var cy = ((p.clientY - offY) / window.innerHeight) * 100;
+            var cx = ((p.clientX - sr.left) / sr.width)  * 100 - offX;
+            var cy = ((p.clientY - sr.top)  / sr.height) * 100 - offY;
 
             // Shift bypasses all snapping for fine adjustments.
             var snapDisabled = !SNAP_ENABLED || !!ev2.shiftKey;
@@ -4939,29 +5265,27 @@ function makeDragStart(node, key) {
                 else alignH.classList.remove('is-snapping');
             }
 
-            cx = Math.max(2, Math.min(98, cx));
-            cy = Math.max(2, Math.min(98, cy));
+            // Extent-aware clamp: the box's EDGES stay inside the stage.
+            cx = Math.max(halfWdr, Math.min(100 - halfWdr, cx));
+            cy = Math.max(halfHdr, Math.min(100 - halfHdr, cy));
 
-            // Apply the post-snap delta (from primary's starting position) to every
-            // group member. For a solo drag this loop just runs once for `key`.
+            // Apply the post-snap delta (from primary's starting center) to every
+            // group member's top-left. For a solo drag this runs once for `key`.
             var pStart = groupStart[key];
-            var deltaX = pStart ? (cx - pStart.x) : 0;
-            var deltaY = pStart ? (cy - pStart.y) : 0;
-            window.TIMER_THEME.elements = window.TIMER_THEME.elements || {};
+            var deltaX = pStart ? (cx - (pStart.x + pStart.w / 2)) : 0;
+            var deltaY = pStart ? (cy - (pStart.y + pStart.h / 2)) : 0;
             for (var gi = 0; gi < groupKeys.length; gi++) {
                 var gk = groupKeys[gi];
                 var gs = groupStart[gk];
                 if (!gs) continue;
-                var gcx = Math.max(2, Math.min(98, gs.x + deltaX));
-                var gcy = Math.max(2, Math.min(98, gs.y + deltaY));
+                var gx = Math.max(0, Math.min(100 - gs.w, gs.x + deltaX));
+                var gy = Math.max(0, Math.min(100 - gs.h, gs.y + deltaY));
+                var nb = { x: Math.round(gx * 100) / 100, y: Math.round(gy * 100) / 100, w: gs.w, h: gs.h };
+                free[gk] = nb;
                 var gn = document.querySelector(THEME_SELECTORS[gk]);
-                if (gn) {
-                    gn.style.setProperty('--pos-x', gcx + '%');
-                    gn.style.setProperty('--pos-y', gcy + '%');
-                }
-                window.TIMER_THEME.elements[gk] = window.TIMER_THEME.elements[gk] || {};
-                window.TIMER_THEME.elements[gk].pos = { x: gcx, y: gcy };
+                if (gn) applyBoxToNode(gn, nb);
             }
+            syncRzOverlay();
         }
         function onUp() {
             document.removeEventListener('mousemove', onMove);
@@ -4977,6 +5301,9 @@ function makeDragStart(node, key) {
                 // Treat as click. Ctrl/Cmd toggles multi-selection; plain click replaces.
                 if (modifierKey) toggleSelectElement(key);
                 else selectElement(key);
+            } else {
+                checkOverlaps();
+                scheduleFit();
             }
         }
         document.addEventListener('mousemove', onMove);
@@ -4992,12 +5319,13 @@ var LAYOUT_SELECTED_KEY = null;          // primary selection — drives the ins
 var LAYOUT_SELECTION_SET = new Set();    // all selected keys (always contains primary)
 
 function updateSelectionVisuals() {
-    document.querySelectorAll('.timer-positioned.is-selected').forEach(function(n){ n.classList.remove('is-selected'); });
+    document.querySelectorAll('.timer-positioned.is-selected, .timer-boxed.is-selected').forEach(function(n){ n.classList.remove('is-selected'); });
     LAYOUT_SELECTION_SET.forEach(function(k) {
         var sel = THEME_SELECTORS[k];
         var n = sel && document.querySelector(sel);
         if (n) n.classList.add('is-selected');
     });
+    syncRzOverlay();
 }
 
 function selectElement(key) {
@@ -5042,7 +5370,8 @@ function toggleSelectElement(key) {
 function deselectElement() {
     LAYOUT_SELECTED_KEY = null;
     LAYOUT_SELECTION_SET.clear();
-    document.querySelectorAll('.timer-positioned.is-selected').forEach(function(n){ n.classList.remove('is-selected'); });
+    document.querySelectorAll('.timer-positioned.is-selected, .timer-boxed.is-selected').forEach(function(n){ n.classList.remove('is-selected'); });
+    syncRzOverlay();
     var panel = document.getElementById('layoutInspector');
     if (panel) panel.classList.remove('is-open');
     if (window.TIMER_THEME) applyTheme(window.TIMER_THEME);
@@ -5322,6 +5651,18 @@ function renderInspector(key) {
         + '<span class="ins-scale" id="ins_scale_'+key+'">'+Math.round(sc*100)+'%</span>'
         + '<button type="button" class="ins-btn" onclick="onInspectorScale(\''+key+'\',0.1)">+</button>'
         + '</span></div>');
+
+    // Box size (v2): numeric W/H steppers in stage-%, live while resizing.
+    var _fb = activeLayoutFree();
+    var _bx = _fb && _fb[key];
+    if (_bx && typeof _bx.w === 'number') {
+        rows.push(''
+            + '<div class="layout-inspector-row"><label>Box</label>'
+            + '<span id="ins_box_' + key + '" style="display:inline-flex;align-items:center;gap:.25rem">'
+            + 'W <input type="number" min="4" max="100" step="1" value="' + Math.round(_bx.w) + '" style="width:3.4rem" onchange="onInspectorBox(\'' + key + '\',\'w\',this.value)">'
+            + 'H <input type="number" min="3" max="100" step="1" value="' + Math.round(_bx.h) + '" style="width:3.4rem" onchange="onInspectorBox(\'' + key + '\',\'h\',this.value)">'
+            + '<span style="opacity:.7">%</span></span></div>');
+    }
 
     // Reset position
     rows.push(''
@@ -5700,15 +6041,47 @@ function onInspectorScale(key, delta) {
 function resetElementPosition(key) {
     var pe = (window.TIMER_THEME.elements || {})[key];
     if (pe) delete pe.pos;
-    // Re-capture from a sensible default so the element stays draggable.
-    if (LAYOUT_DEFAULT_POS[key]) pe.pos = { x: LAYOUT_DEFAULT_POS[key].x, y: LAYOUT_DEFAULT_POS[key].y };
+    var free = activeLayoutFree(true);
+    delete free[key];
+    // Re-seed from the heuristic default so the element stays draggable.
+    if (BOX_DEFAULTS[key]) free[key] = Object.assign({}, BOX_DEFAULTS[key]);
     applyTheme(window.TIMER_THEME);
+    if (LAYOUT_EDIT_ON) { checkOverlaps(); syncRzOverlay(); scheduleFit(); }
 }
 
 function refreshHiddenInInspector() {
     // If the currently inspected element had its visibility flipped, the panel button
     // label needs updating. Just re-render.
     if (LAYOUT_SELECTED_KEY) renderInspector(LAYOUT_SELECTED_KEY);
+}
+
+// Inspector W/H stepper commit — resizes the box keeping its top-left anchored.
+function onInspectorBox(key, dim, val) {
+    var free = activeLayoutFree(true);
+    var b = free[key];
+    if (!validBox(b)) return;
+    var v = parseFloat(val);
+    if (isNaN(v)) { refreshBoxRow(key); return; }
+    if (dim === 'w') b.w = Math.max(4, Math.min(100 - b.x, v));
+    if (dim === 'h') b.h = Math.max(3, Math.min(100 - b.y, v));
+    var node = document.querySelector(THEME_SELECTORS[key]);
+    if (node) applyBoxToNode(node, b);
+    syncRzOverlay();
+    checkOverlaps();
+    scheduleFit();
+    refreshBoxRow(key);
+}
+
+// Sync the inspector's Box row inputs after a handle-drag resize.
+function refreshBoxRow(key) {
+    if (LAYOUT_SELECTED_KEY !== key) return;
+    var row = document.getElementById('ins_box_' + key);
+    var free = activeLayoutFree();
+    var b = free && free[key];
+    if (!row || !validBox(b)) return;
+    var inputs = row.querySelectorAll('input');
+    if (inputs[0]) inputs[0].value = Math.round(b.w);
+    if (inputs[1]) inputs[1].value = Math.round(b.h);
 }
 
 // ─── §7.18  Generic drag-by-header helper for the pill & inspector panel ──
@@ -5799,6 +6172,7 @@ renderAll();
 // First theme application done — lift the first-paint gate (the head-script
 // failsafe would lift it at 2.5s anyway if we never got here).
 document.documentElement.classList.remove('theme-pending');
+if (typeof initResizeHandles === 'function' && document.getElementById('rzOverlay')) initResizeHandles();
 // Viewport-shape changes re-apply layout + fit (debounced in reapplyLayout).
 window.addEventListener('resize', reapplyLayout);
 window.addEventListener('orientationchange', reapplyLayout);
