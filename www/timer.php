@@ -1157,6 +1157,80 @@ $themeCss   = timer_theme_css_vars($themeProps);
             padding: 0.1rem 0.45rem;
             border-radius: 10px;
         }
+        /* ─── Zones mode: fixed 5-zone grid; overlap impossible by construction ─── */
+        .gn-zone { display: none; }
+        body.layout-zones #layoutStage {
+            display: grid;
+            grid-template-areas: "top top top" "left center right" "bottom bottom bottom";
+            grid-template-rows: minmax(0, var(--zone-top-size, 12%)) minmax(0, 1fr) minmax(0, var(--zone-bottom-size, 10%));
+            grid-template-columns: minmax(0, var(--zone-left-size, 16%)) minmax(0, 1fr) minmax(0, var(--zone-right-size, 16%));
+            /* .timer-container's flex align-items:center would otherwise leak in
+               and size zones by content (letting a huge clock burst its track). */
+            align-items: stretch;
+            justify-items: stretch;
+        }
+        /* The flow containers empty out in zones mode (their children reparent). */
+        body.layout-zones .timer-info-bar,
+        body.layout-zones .timer-display { display: none; }
+        body.layout-zones .gn-zone {
+            display: flex;
+            min-width: 0;
+            min-height: 0;
+            overflow: hidden;
+            align-items: center;
+            justify-content: var(--zone-align, center);
+            gap: calc(var(--zone-gap, 2) * 1vmin);
+            padding: 0.25rem;
+            box-sizing: border-box;
+        }
+        #zoneTop    { grid-area: top;    flex-direction: row; flex-wrap: wrap; }
+        #zoneBottom { grid-area: bottom; flex-direction: row; flex-wrap: wrap; }
+        #zoneLeft   { grid-area: left;   flex-direction: column; }
+        #zoneCenter { grid-area: center; flex-direction: column; text-align: center; }
+        #zoneRight  { grid-area: right;  flex-direction: column; }
+        /* min-height:0 + shrink lets a too-tall column compress its items, which
+           gives fit-text a real height bound to shrink text into — a center
+           stage with clock+blinds+labels self-fits instead of clipping. */
+        body.layout-zones .gn-zone > * { min-width: 0; min-height: 0; max-width: 100%; flex-shrink: 1; overflow: hidden; }
+        /* Zone-mode geometry overrides for widgets whose base CSS absolutely
+           positions or sizes them — inside a zone they are plain flex items. */
+        body.layout-zones .gn-zone > .timer-avgstack,
+        body.layout-zones .gn-zone > .timer-payouts,
+        body.layout-zones .gn-zone > .timer-qr {
+            position: static;
+        }
+        body.layout-zones .gn-zone > .timer-image {
+            position: static;
+            transform: none;
+            max-width: 100%; max-height: 100%;
+        }
+        body.layout-zones .gn-zone > .timer-stream {
+            position: static;
+            width: 100%;
+        }
+        /* Edit chrome: visible zone bounds + labels while editing. */
+        body.layout-edit.layout-zones .gn-zone {
+            outline: 1px dashed rgba(148, 163, 184, 0.55);
+            outline-offset: -2px;
+            position: relative;
+        }
+        body.layout-edit.layout-zones .gn-zone::before {
+            content: attr(data-zone);
+            position: absolute;
+            top: 2px; left: 5px;
+            font-size: 0.58rem;
+            color: rgba(148, 163, 184, 0.85);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            pointer-events: none;
+        }
+        body.layout-edit .gn-zone > .is-selected {
+            outline: 3px solid #2563eb;
+            outline-offset: 2px;
+        }
+        .pill-mode-seg { display: inline-flex; border-radius: 6px; overflow: hidden; border: 1px solid #475569; }
+        .pill-mode-seg button { border: none !important; border-radius: 0 !important; margin: 0 !important; }
+        .pill-mode-seg button.mode-on { background: #2563eb !important; color: #fff !important; }
         /* QR keeps its current size unless theme overrides; transform stacks translate+scale. */
         #qrWrap.timer-positioned {
             transform: translate(-50%, -50%) scale(var(--timer-qr-scale, 1));
@@ -1354,7 +1428,8 @@ $themeCss   = timer_theme_css_vars($themeProps);
         .layout-eye:hover { transform: scale(1.25); }
         .layout-eye.is-hidden { color: #64748b; border-color: #64748b; }
         body.layout-edit .timer-positioned .layout-eye,
-        body.layout-edit .timer-boxed .layout-eye { display: inline-flex; }
+        body.layout-edit .timer-boxed .layout-eye,
+        body.layout-edit .gn-zone .layout-eye { display: inline-flex; }
         /* Selected element gets a different (solid blue) outline. */
         body.layout-edit .timer-positioned.is-selected,
         body.layout-edit .timer-boxed.is-selected {
@@ -1501,6 +1576,10 @@ $themeCss   = timer_theme_css_vars($themeProps);
 <!-- Floating control while in free-form layout edit mode (draggable). -->
 <div class="layout-edit-pill" id="layoutEditPill">
     <span class="pill-handle" id="pillHandle" title="Drag to move toolbar">&#9776;</span>
+    <span class="pill-mode-seg" title="Free = drag boxes anywhere. Zones = structured rows/rails, overlap impossible.">
+        <button type="button" id="modeFreeBtn" onclick="setLayoutMode('free')">Free</button>
+        <button type="button" id="modeZonesBtn" onclick="setLayoutMode('zones')">Zones</button>
+    </span>
     <button type="button" onclick="openObjectsPanel()" title="Show / hide / select objects">&#128203; Objects</button>
     <button type="button" onclick="openThemes()" title="Load / save themes">&#128218; Library</button>
     <button class="btn-done" type="button" onclick="exitLayoutEdit(true)">&#10003; Save</button>
@@ -1564,6 +1643,13 @@ $themeCss   = timer_theme_css_vars($themeProps);
     <!-- Resize frame for the selected box in layout-edit mode (8 handles). -->
     <div id="rzOverlay"><?php foreach (['nw','n','ne','e','se','s','sw','w'] as $d): ?><div class="gn-rz" data-dir="<?= $d ?>"></div><?php endforeach; ?></div>
 <?php endif; ?>
+    <!-- Zones-mode containers: applyLayout() reparents elements into these when
+         the theme's mode is 'zones'; display:none (and empty) otherwise. -->
+    <div class="gn-zone" data-zone="top" id="zoneTop"></div>
+    <div class="gn-zone" data-zone="left" id="zoneLeft"></div>
+    <div class="gn-zone" data-zone="center" id="zoneCenter"></div>
+    <div class="gn-zone" data-zone="right" id="zoneRight"></div>
+    <div class="gn-zone" data-zone="bottom" id="zoneBottom"></div>
     <!-- Average stack display (tournaments only) -->
     <div class="timer-avgstack" id="avgStackWrap" style="display:none">
         <div class="timer-avgstack-title">Avg Stack</div>
@@ -4108,17 +4194,22 @@ function applyTheme(props) {
         if (ord > 0) node.style.order = String(ord);
     });
 
+    // Zones-vs-free structural layout (reparenting + grid class) happens first,
+    // then per-element geometry.
+    if (typeof applyLayout === 'function') applyLayout(props);
+
     // Free-form geometry. Preference order per element:
     //   1. v2 box {x,y,w,h} (% of #layoutStage, top-left anchored) — .timer-boxed
     //   2. legacy center point pos {x,y} (% of viewport) — .timer-positioned
-    //   3. neither — element stays in flex flow
+    //   3. neither — element stays in flex flow (or its zone, in zones mode)
+    var zonesActive = props.mode === 'zones';
     var freeMap = (props.layouts && props.layouts.landscape && props.layouts.landscape.free) || null;
     for (var k2 in THEME_SELECTORS) {
         var node2 = document.querySelector(THEME_SELECTORS[k2]);
         if (!node2) continue;
         var pe = el[k2];
-        var box = (props.mode !== 'zones' && freeMap && validBox(freeMap[k2])) ? freeMap[k2] : null;
-        var pos = (!box && pe && pe.pos && typeof pe.pos.x === 'number' && typeof pe.pos.y === 'number') ? pe.pos : null;
+        var box = (!zonesActive && freeMap && validBox(freeMap[k2])) ? freeMap[k2] : null;
+        var pos = (!zonesActive && !box && pe && pe.pos && typeof pe.pos.x === 'number' && typeof pe.pos.y === 'number') ? pe.pos : null;
         if (box) {
             node2.classList.add('timer-boxed');
             node2.classList.remove('timer-positioned');
@@ -4158,6 +4249,12 @@ function applyTheme(props) {
             node2.style.removeProperty('--pos-y');
             node2.style.maxWidth = '';
             node2.style.maxHeight = '';
+            // Zone items: transform scale doesn't apply outside .timer-positioned,
+            // so per-element scale rides the font multiplier instead.
+            if (zonesActive && node2.dataset.hasScale === '1') {
+                delete node2.dataset.hasScale;
+                node2.dataset.boxScale = String((pe && pe.scale) || 1);
+            }
         }
         // Per-element stacking. When z_index is set (after the user restacks via
         // the Objects panel) it overrides the stylesheet default — including the
@@ -4189,6 +4286,14 @@ function syncVisibility() {
     var el = theme.elements || {};
     var inEdit = document.body.classList.contains('layout-edit');
     var selSet = (typeof LAYOUT_SELECTION_SET !== 'undefined') ? LAYOUT_SELECTION_SET : null;
+    // Zones mode: elements without a zone assignment don't render (the Objects
+    // panel lists them under "Unplaced" with an add-to-zone control).
+    var zonesOn = theme.mode === 'zones';
+    var zAssign = null;
+    if (zonesOn) {
+        var zc = (theme.layouts && theme.layouts.landscape && theme.layouts.landscape.zones) || {};
+        zAssign = zc.assign || {};
+    }
     for (var k in THEME_SELECTORS) {
         var node = document.querySelector(THEME_SELECTORS[k]);
         if (!node) continue;
@@ -4196,10 +4301,13 @@ function syncVisibility() {
         // Live preview: skip the edit-mode force-show and honor real data
         // availability, so the user positions against what actually renders.
         var dataOk = DATA_AVAIL[k] !== false || (inEdit && !window.LIVE_PREVIEW && EDIT_FORCE_KEYS[k]);
+        var placed = !zonesOn || !!(zAssign && zAssign[k] && ZONE_NAMES[zAssign[k].zone]);
         var isSelected = inEdit && selSet && selSet.has && selSet.has(k);
-        if (!themeVisible) {
-            node.dataset._themeHidden = '1';
-            if (isSelected) {
+        if (!themeVisible || !placed) {
+            if (!themeVisible) node.dataset._themeHidden = '1';
+            // Theme-hidden elements ghost at 45% while selected on the canvas;
+            // unplaced elements (zones mode) are always fully hidden.
+            if (isSelected && !themeVisible && placed) {
                 node.style.display = '';
                 node.style.opacity = '0.45';
                 node.dataset.ghostSelected = '1';
@@ -4215,6 +4323,7 @@ function syncVisibility() {
             node.style.opacity = '';
         }
     }
+    if (zonesOn && typeof updateZoneCollapse === 'function') updateZoneCollapse();
 }
 
 // Build a deep-cloned theme payload from the current in-memory state. With the modal
@@ -4734,6 +4843,137 @@ function applyBoxToNode(node, b) {
     node.style.setProperty('--box-h', b.h + '%');
 }
 
+// ─── Zones mode: fixed 5-zone grid, elements assigned per zone with an order ───
+var ZONE_NAMES = { top: 1, left: 1, center: 1, right: 1, bottom: 1 };
+var ZONE_LIST = ['top', 'left', 'center', 'right', 'bottom'];
+var ZONE_DEFAULT_SIZE = { top: 12, left: 16, right: 16, bottom: 10 };
+
+// Mirrors today's flow layout, so switching a theme to zones is a familiar start.
+var DEFAULT_ZONE_ASSIGN = {
+    event_name:    { zone: 'top',    order: 10 },
+    player_count:  { zone: 'top',    order: 20 },
+    pool_total:    { zone: 'top',    order: 30 },
+    rebuys:        { zone: 'top',    order: 40 },
+    chips_in_play: { zone: 'top',    order: 50 },
+    next_break:    { zone: 'top',    order: 60 },
+    ends_at:       { zone: 'top',    order: 70 },
+    avg_stack:     { zone: 'left',   order: 10 },
+    level_label:   { zone: 'center', order: 10 },
+    blinds:        { zone: 'center', order: 20 },
+    clock:         { zone: 'center', order: 30 },
+    paused_label:  { zone: 'center', order: 40 },
+    next_level:    { zone: 'center', order: 50 },
+    image:         { zone: 'center', order: 60 },
+    payouts:       { zone: 'right',  order: 10 },
+    streaming:     { zone: 'right',  order: 20 },
+    qr:            { zone: 'bottom', order: 10 },
+};
+
+function activeLayoutZones(create) {
+    var t = window.TIMER_THEME;
+    if (!t) return null;
+    if (!create) {
+        return (t.layouts && t.layouts.landscape && t.layouts.landscape.zones) || null;
+    }
+    t.layouts = t.layouts || {};
+    t.layouts.landscape = t.layouts.landscape || {};
+    var z = t.layouts.landscape.zones = t.layouts.landscape.zones || {};
+    z.opts = z.opts || {};
+    z.assign = z.assign || {};
+    t.schema = 2;
+    return z;
+}
+
+// Where each element natively lives in the flow markup — captured once so
+// leaving zones mode can put every node back exactly where it came from.
+var ORIGINAL_SLOTS = null;
+function captureOriginalSlots() {
+    if (ORIGINAL_SLOTS) return;
+    ORIGINAL_SLOTS = {};
+    for (var k in THEME_SELECTORS) {
+        var n = document.querySelector(THEME_SELECTORS[k]);
+        if (!n) continue;
+        ORIGINAL_SLOTS[k] = { parent: n.parentNode, next: n.nextSibling };
+    }
+}
+
+// Minimal-move ordered reparenting: nodes already in place are not touched,
+// so the streaming iframe never reloads from an unrelated reassignment.
+function syncChildren(container, desiredNodes) {
+    var ref = container.firstElementChild;
+    desiredNodes.forEach(function (n) {
+        if (n === ref) { ref = ref.nextElementSibling; return; }
+        container.insertBefore(n, ref);
+    });
+}
+
+function applyLayout(props) {
+    captureOriginalSlots();
+    var zonesOn = props && props.mode === 'zones';
+    document.body.classList.toggle('layout-zones', !!zonesOn);
+    var stage = document.getElementById('layoutStage');
+    if (!zonesOn) {
+        // Restore every element to its native flow slot (no-op when untouched).
+        for (var k in THEME_SELECTORS) {
+            var slot = ORIGINAL_SLOTS[k];
+            var n = document.querySelector(THEME_SELECTORS[k]);
+            if (!slot || !n || !slot.parent) continue;
+            if (n.parentNode !== slot.parent) slot.parent.insertBefore(n, slot.next && slot.next.parentNode === slot.parent ? slot.next : null);
+        }
+        return;
+    }
+    var zc = (props.layouts && props.layouts.landscape && props.layouts.landscape.zones) || {};
+    var assign = zc.assign || {};
+    var opts = zc.opts || {};
+    // Per-zone options → CSS vars/styles.
+    ZONE_LIST.forEach(function (z) {
+        var zn = document.querySelector('#layoutStage .gn-zone[data-zone="' + z + '"]');
+        if (!zn) return;
+        var o = opts[z] || {};
+        var align = { start: 'flex-start', center: 'center', end: 'flex-end' }[o.align] || 'center';
+        zn.style.setProperty('--zone-align', align);
+        zn.style.setProperty('--zone-gap', String(Math.max(0, Math.min(8, parseFloat(o.gap) || 2))));
+    });
+    // Group assigned elements by zone, sorted by order, and reparent.
+    var byZone = {};
+    Object.keys(assign).forEach(function (k) {
+        var a = assign[k];
+        if (!a || !ZONE_NAMES[a.zone] || !THEME_SELECTORS[k]) return;
+        (byZone[a.zone] = byZone[a.zone] || []).push({ k: k, order: parseInt(a.order, 10) || 0 });
+    });
+    ZONE_LIST.forEach(function (z) {
+        var zn = document.querySelector('#layoutStage .gn-zone[data-zone="' + z + '"]');
+        if (!zn) return;
+        var nodes = (byZone[z] || [])
+            .sort(function (a, b) { return a.order - b.order; })
+            .map(function (it) { return document.querySelector(THEME_SELECTORS[it.k]); })
+            .filter(Boolean);
+        syncChildren(zn, nodes);
+    });
+    updateZoneCollapse();
+}
+
+// Empty zones collapse to zero outside edit mode; in edit mode they keep their
+// configured size so there's somewhere to assign elements into.
+function updateZoneCollapse() {
+    var stage = document.getElementById('layoutStage');
+    if (!stage || !document.body.classList.contains('layout-zones')) return;
+    var zc = activeLayoutZones() || {};
+    var opts = zc.opts || {};
+    var inEdit = document.body.classList.contains('layout-edit');
+    ['top', 'left', 'right', 'bottom'].forEach(function (z) {
+        var zn = document.querySelector('#layoutStage .gn-zone[data-zone="' + z + '"]');
+        var size = Math.max(5, Math.min(45, parseFloat((opts[z] || {}).size) || ZONE_DEFAULT_SIZE[z]));
+        var hasVisible = false;
+        if (zn) {
+            for (var c = zn.firstElementChild; c; c = c.nextElementSibling) {
+                if (c.style.display !== 'none') { hasVisible = true; break; }
+            }
+        }
+        stage.style.setProperty('--zone-' + z + '-size', (hasVisible || inEdit) ? size + '%' : '0%');
+    });
+}
+
 // ─── §7.16.1  Snap toggle (touch-friendly alternative to holding Shift) ──────────────
 // Default ON. Persisted across edit sessions in localStorage so a user who
 // turned snap off for fine positioning doesn't have to do it again next time.
@@ -4791,12 +5031,13 @@ function enterLayoutEdit() {
             delete pe.pos;
         }
     });
-    seedBoxes();
+    if (window.TIMER_THEME.mode !== 'zones') seedBoxes();
 
     applyTheme(window.TIMER_THEME);
     attachAllDragHandlers();
     openObjectsPanel();
     checkOverlaps();
+    setModeButtonsUI();
 }
 
 // Measure every visible element's current rendered rect into a v2 box (stage-%).
@@ -4837,7 +5078,9 @@ function seedBoxes() {
 function checkOverlaps() {
     var badge = document.getElementById('overlapBadge');
     document.querySelectorAll('.box-overlap').forEach(function(n){ n.classList.remove('box-overlap'); });
-    var free = LAYOUT_EDIT_ON ? activeLayoutFree() : null;
+    // Zones mode can't overlap by construction — nothing to check.
+    var zonesOn = window.TIMER_THEME && window.TIMER_THEME.mode === 'zones';
+    var free = (LAYOUT_EDIT_ON && !zonesOn) ? activeLayoutFree() : null;
     if (!free) { if (badge) badge.style.display = 'none'; return; }
     var el = (window.TIMER_THEME && window.TIMER_THEME.elements) || {};
     var items = [];
@@ -4871,6 +5114,7 @@ function checkOverlaps() {
 function syncRzOverlay() {
     var ov = document.getElementById('rzOverlay');
     if (!ov) return;
+    if (window.TIMER_THEME && window.TIMER_THEME.mode === 'zones') { ov.style.display = 'none'; return; }
     var free = activeLayoutFree();
     var key = LAYOUT_SELECTED_KEY;
     var b = (LAYOUT_EDIT_ON && key && LAYOUT_SELECTION_SET.size === 1 && free) ? free[key] : null;
@@ -4939,6 +5183,51 @@ function initResizeHandles() {
         h.addEventListener('mousedown', start);
         h.addEventListener('touchstart', start, { passive: false });
     });
+}
+
+// ─── Layout mode switcher (Free ↔ Zones). Both sub-trees persist in the theme,
+// so switching back and forth loses nothing. ───
+function setLayoutMode(m) {
+    var t = window.TIMER_THEME;
+    if (!t || (m !== 'free' && m !== 'zones')) return;
+    if (t.mode === m) { setModeButtonsUI(); return; }
+    if (m === 'zones') {
+        t.mode = 'zones';
+        var z = activeLayoutZones(true);
+        if (!Object.keys(z.assign).length) {
+            z.assign = JSON.parse(JSON.stringify(DEFAULT_ZONE_ASSIGN));
+        }
+    } else {
+        t.mode = 'free';
+        t.schema = 2;
+    }
+    detachAllDragHandlers();
+    removeAllEyeIcons();
+    applyTheme(t);
+    renderAll();
+    if (m === 'free' && LAYOUT_EDIT_ON) {
+        // Coming from zones: elements are back in flow slots; give any boxless
+        // ones a measured box so free mode is immediately draggable.
+        seedBoxes();
+        applyTheme(t);
+    }
+    if (LAYOUT_EDIT_ON) {
+        attachAllDragHandlers();
+        checkOverlaps();
+        syncRzOverlay();
+        renderObjectsPanel();
+        if (LAYOUT_SELECTED_KEY) renderInspector(LAYOUT_SELECTED_KEY);
+    }
+    setModeButtonsUI();
+    scheduleFit();
+}
+
+function setModeButtonsUI() {
+    var m = (window.TIMER_THEME && window.TIMER_THEME.mode === 'zones') ? 'zones' : 'free';
+    var fb = document.getElementById('modeFreeBtn');
+    var zb = document.getElementById('modeZonesBtn');
+    if (fb) fb.classList.toggle('mode-on', m === 'free');
+    if (zb) zb.classList.toggle('mode-on', m === 'zones');
 }
 
 // ─── Live preview toggle: position against real data instead of placeholders ───
@@ -5028,9 +5317,27 @@ function resetPositions() {
 }
 
 function attachAllDragHandlers() {
+    var zonesOn = window.TIMER_THEME && window.TIMER_THEME.mode === 'zones';
     Object.keys(THEME_SELECTORS).forEach(function(key) {
         var node = document.querySelector(THEME_SELECTORS[key]);
         if (!node) return;
+        if (zonesOn) {
+            // Zone items aren't draggable (the grid owns geometry) but stay
+            // click-selectable so the inspector and wheel-resize still work.
+            if (!node.closest('.gn-zone')) return;
+            attachEyeIcon(node, key);
+            var clickSel = (function(k){ return function(ev) {
+                if (ev.target.closest('.layout-eye')) return;
+                ev.preventDefault(); ev.stopPropagation();
+                if (ev.ctrlKey || ev.metaKey) toggleSelectElement(k); else selectElement(k);
+            }; })(key);
+            var wheelZ = makeWheelScale(key);
+            node.addEventListener('mousedown', clickSel);
+            node.addEventListener('touchstart', clickSel, { passive: false });
+            node.addEventListener('wheel', wheelZ, { passive: false });
+            LAYOUT_DRAG_HANDLERS.push({ node: node, handler: clickSel, wheel: wheelZ });
+            return;
+        }
         if (!node.classList.contains('timer-positioned') && !node.classList.contains('timer-boxed')) return;
         // Eye icon for quick visibility toggle.
         attachEyeIcon(node, key);
@@ -5403,6 +5710,10 @@ function objectsSortedMetas() {
 function renderObjectsPanel() {
     var body = document.getElementById('objectsBody');
     if (!body) return;
+    if (window.TIMER_THEME && window.TIMER_THEME.mode === 'zones') {
+        renderObjectsPanelZones(body);
+        return;
+    }
     var metas = objectsSortedMetas();
     var html = '';
     metas.forEach(function(meta, i) {
@@ -5429,6 +5740,97 @@ function renderObjectsPanel() {
     });
     body.innerHTML = html;
     attachObjectsDrag();
+}
+
+// ─── Zones-mode Objects panel: rows grouped by zone, with a zone dropdown and
+// ▲/▼ IN-ZONE order controls per row, plus an "Unplaced" group for elements
+// with no zone (they don't render until placed). ───
+var ZONE_LABELS = { top: 'Top bar', left: 'Left rail', center: 'Center stage', right: 'Right rail', bottom: 'Bottom bar', '': 'Unplaced' };
+
+function renderObjectsPanelZones(body) {
+    var z = activeLayoutZones(true);
+    var assign = z.assign;
+    var groups = { top: [], left: [], center: [], right: [], bottom: [], '': [] };
+    THEME_ELEMENTS.forEach(function (meta) {
+        var a = assign[meta.key];
+        var zone = (a && ZONE_NAMES[a.zone]) ? a.zone : '';
+        groups[zone].push({ meta: meta, order: a ? (parseInt(a.order, 10) || 0) : 0 });
+    });
+    var zoneOpts = ZONE_LIST.map(function (zn) { return '<option value="' + zn + '">' + ZONE_LABELS[zn] + '</option>'; }).join('');
+    var html = '';
+    ZONE_LIST.concat(['']).forEach(function (zone) {
+        var rows = groups[zone];
+        if (zone === '' && !rows.length) return;
+        rows.sort(function (a, b) { return a.order - b.order; });
+        html += '<div style="font-size:.68rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;margin:.45rem 0 .15rem">' + ZONE_LABELS[zone] + '</div>';
+        if (!rows.length) {
+            html += '<div style="font-size:.7rem;color:#475569;font-style:italic;padding:0 .25rem">empty</div>';
+            return;
+        }
+        rows.forEach(function (it, i) {
+            var meta = it.meta;
+            var pe = (window.TIMER_THEME.elements || {})[meta.key] || {};
+            var hidden = (pe.visible === false);
+            var selected = LAYOUT_SELECTION_SET && LAYOUT_SELECTION_SET.has && LAYOUT_SELECTION_SET.has(meta.key);
+            var rowCls = 'layout-object-row' + (selected ? ' is-selected' : '') + (hidden ? ' is-hidden' : '');
+            var eyeCls = 'obj-eye' + (hidden ? ' is-hidden' : '');
+            var eyeGlyph = hidden ? '&#128064;' : '&#128065;';
+            var safeKey = meta.key.replace(/'/g, "\\'");
+            var sel = zoneOpts.replace('value="' + zone + '"', 'value="' + zone + '" selected');
+            html += '<div class="' + rowCls + '" data-key="' + meta.key + '" onclick="onObjectsRowClick(event,\'' + safeKey + '\')">'
+                  +   '<button type="button" class="' + eyeCls + '" '
+                  +           'onclick="event.stopPropagation();onObjectsRowEye(\'' + safeKey + '\')"'
+                  +           ' title="Toggle visibility">' + eyeGlyph + '</button>'
+                  +   '<span class="obj-label">' + meta.label + '</span>'
+                  +   '<select onclick="event.stopPropagation()" onchange="event.stopPropagation();setElementZone(\'' + safeKey + '\',this.value)" '
+                  +           'style="font-size:.68rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:4px;padding:.1rem">'
+                  +     (zone === '' ? '<option value="" selected>—</option>' : '') + sel + '</select>'
+                  +   '<span class="obj-move">'
+                  +     '<button type="button" title="Move up in zone" onclick="event.stopPropagation();moveZoneOrder(\'' + safeKey + '\',-1)"' + (i === 0 ? ' disabled' : '') + '>&#9650;</button>'
+                  +     '<button type="button" title="Move down in zone" onclick="event.stopPropagation();moveZoneOrder(\'' + safeKey + '\',1)"' + (i === rows.length - 1 ? ' disabled' : '') + '>&#9660;</button>'
+                  +   '</span>'
+                  + '</div>';
+        });
+    });
+    body.innerHTML = html;
+}
+
+function setElementZone(key, zone) {
+    if (!ZONE_NAMES[zone]) return;
+    var z = activeLayoutZones(true);
+    // Append at the end of the target zone.
+    var maxOrder = 0;
+    Object.keys(z.assign).forEach(function (k) {
+        var a = z.assign[k];
+        if (a && a.zone === zone) maxOrder = Math.max(maxOrder, parseInt(a.order, 10) || 0);
+    });
+    z.assign[key] = { zone: zone, order: maxOrder + 10 };
+    detachAllDragHandlers();
+    applyTheme(window.TIMER_THEME);
+    renderAll();
+    if (LAYOUT_EDIT_ON) attachAllDragHandlers();
+    renderObjectsPanel();
+    scheduleFit();
+}
+
+function moveZoneOrder(key, dir) {
+    var z = activeLayoutZones(true);
+    var a = z.assign[key];
+    if (!a) return;
+    // Ordered siblings in the same zone.
+    var sibs = Object.keys(z.assign)
+        .filter(function (k) { return z.assign[k] && z.assign[k].zone === a.zone; })
+        .sort(function (x, y) { return (parseInt(z.assign[x].order, 10) || 0) - (parseInt(z.assign[y].order, 10) || 0); });
+    var idx = sibs.indexOf(key);
+    var swap = idx + dir;
+    if (idx < 0 || swap < 0 || swap >= sibs.length) return;
+    var other = sibs[swap];
+    var tmp = z.assign[key].order;
+    z.assign[key].order = z.assign[other].order;
+    z.assign[other].order = tmp;
+    applyTheme(window.TIMER_THEME);
+    renderObjectsPanel();
+    scheduleFit();
 }
 
 // Assign explicit z_index to every element from a top→bottom (front→back) key
@@ -5842,6 +6244,28 @@ function renderPageInspector() {
         + '<input type="range" min="0" max="360" value="'+gAng+'" style="width:7rem" oninput="onPageBgChange(\'gangle\', this.value);document.getElementById(\'page_gang_lbl\').textContent=this.value+\'°\'"></div>'
         + '</div>');
 
+    // Per-zone options (zones mode only): size of the four edge zones, content
+    // alignment, and gap between items.
+    if (window.TIMER_THEME.mode === 'zones') {
+        var zc = activeLayoutZones(true);
+        rows.push('<div style="font-size:0.75rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin:0.6rem 0 0.25rem">Zones</div>');
+        ZONE_LIST.forEach(function (zn) {
+            var o = zc.opts[zn] || {};
+            var size = Math.max(5, Math.min(45, parseFloat(o.size) || ZONE_DEFAULT_SIZE[zn] || 0));
+            var alignSel = ['start', 'center', 'end'].map(function (a) {
+                return '<option value="' + a + '"' + ((o.align || 'center') === a ? ' selected' : '') + '>' + a + '</option>';
+            }).join('');
+            rows.push('<div class="layout-inspector-row"><label>' + ZONE_LABELS[zn] + '</label>'
+                + '<span style="display:inline-flex;align-items:center;gap:.25rem;font-size:.72rem">'
+                + (zn !== 'center'
+                    ? '<input type="number" min="5" max="45" step="1" value="' + Math.round(size) + '" style="width:3rem" title="Zone size (% of screen)" onchange="onZoneOpt(\'' + zn + '\',\'size\',this.value)">%'
+                    : '')
+                + '<select title="Content alignment" onchange="onZoneOpt(\'' + zn + '\',\'align\',this.value)" style="background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:4px;padding:.1rem">' + alignSel + '</select>'
+                + '<input type="number" min="0" max="8" step="1" value="' + Math.max(0, Math.min(8, parseFloat(o.gap) || 2)) + '" style="width:2.6rem" title="Gap between items" onchange="onZoneOpt(\'' + zn + '\',\'gap\',this.value)">'
+                + '</span></div>');
+        });
+    }
+
     rows.push('<div style="font-size:0.75rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin:0.6rem 0 0.25rem">Toolbar</div>');
     rows.push('<div class="layout-inspector-row"><label>Button bg</label>'
         + '<input type="color" value="'+trayBg+'" oninput="onPageTrayChange(\'bg_color\', this.value)"></div>');
@@ -6053,6 +6477,18 @@ function refreshHiddenInInspector() {
     // If the currently inspected element had its visibility flipped, the panel button
     // label needs updating. Just re-render.
     if (LAYOUT_SELECTED_KEY) renderInspector(LAYOUT_SELECTED_KEY);
+}
+
+// Page-inspector zone option commit (size / align / gap for one zone).
+function onZoneOpt(zone, field, val) {
+    if (!ZONE_NAMES[zone]) return;
+    var z = activeLayoutZones(true);
+    var o = z.opts[zone] = z.opts[zone] || {};
+    if (field === 'size') o.size = Math.max(5, Math.min(45, parseFloat(val) || ZONE_DEFAULT_SIZE[zone]));
+    if (field === 'gap') o.gap = Math.max(0, Math.min(8, parseFloat(val) || 0));
+    if (field === 'align') o.align = { start: 1, center: 1, end: 1 }[val] ? val : 'center';
+    applyTheme(window.TIMER_THEME);
+    scheduleFit();
 }
 
 // Inspector W/H stepper commit — resizes the box keeping its top-left anchored.
