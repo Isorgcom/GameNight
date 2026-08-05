@@ -192,7 +192,8 @@ function calc_pool($db, $session_id) {
         SUM(COALESCE(cash_out, 0)) as total_cash_out,
         SUM(COALESCE(cash_in, 0)) as total_cash_in,
         SUM(COALESCE(jackpot_in, 0)) as jackpot_entries,
-        SUM(COALESCE(bounty_in, 0)) as bounty_entries
+        SUM(COALESCE(bounty_in, 0)) as bounty_entries,
+        SUM(COALESCE(bounty_cash_banked, 0)) as bounty_consumed
     FROM poker_players WHERE session_id = ? AND removed = 0');
     $stats->execute([$session_id]);
     $r = $stats->fetch();
@@ -238,7 +239,11 @@ function calc_pool($db, $session_id) {
     }
 
     $jackpot_entries = (int)($r['jackpot_entries'] ?? 0);
-    $bounty_entries  = (int)($r['bounty_entries'] ?? 0);
+    // Optional mode: a re-entry consumes the victim's chip (bounty_in resets,
+    // the eliminator banks it) — those chips were still bought and paid out,
+    // so they stay in the side-pot totals.
+    $bounty_entries  = (int)($r['bounty_entries'] ?? 0)
+        + ((int)($s['bounty_optional'] ?? 0) ? (int)($r['bounty_consumed'] ?? 0) : 0);
     return [
         'pool_gross'        => $pool_gross,
         'bounty_withheld'   => $bounty_withheld,
@@ -546,26 +551,26 @@ function pk_apply_tournament_payouts($db, $session_id) {
         foreach ($cv->fetchAll() as $row) $converted[(int)$row['player_id']] = (int)$row['v'];
     } catch (Exception $e) { /* pre-migration DB */ }
 
-    // Knockout counts per eliminator — all KOs (drives points), and KOs of
-    // bounty-pool members only (drives cash when the bounty is optional:
-    // only opted-in heads carry money, and only opted-in players collect).
+    // Knockout counts per eliminator — LIVE KOs (current eliminated_by links)
+    // plus BANKED KOs (victims who rebought back in; the collected bounty is
+    // permanent). Cash-eligible live KOs additionally require the victim's
+    // head to still be payable: unclaimed in baked mode, opted-in in optional.
     $koCount = [];
     $ko = $db->prepare('SELECT eliminated_by, COUNT(*) AS n FROM poker_players
                         WHERE session_id = ? AND removed = 0 AND eliminated = 1 AND eliminated_by IS NOT NULL
                         GROUP BY eliminated_by');
     $ko->execute([$session_id]);
     foreach ($ko->fetchAll() as $row) $koCount[(int)$row['eliminated_by']] = (int)$row['n'];
-    $koOpted = $koCount;
-    if ($bountyOpt) {
-        $koOpted = [];
-        $ko2 = $db->prepare('SELECT eliminated_by, COUNT(*) AS n FROM poker_players
-                             WHERE session_id = ? AND removed = 0 AND eliminated = 1 AND eliminated_by IS NOT NULL AND bounty_in = 1
-                             GROUP BY eliminated_by');
-        $ko2->execute([$session_id]);
-        foreach ($ko2->fetchAll() as $row) $koOpted[(int)$row['eliminated_by']] = (int)$row['n'];
-    }
+    $koCash = [];
+    $cashCond = $bountyOpt ? 'bounty_in = 1' : 'bounty_claimed = 0';
+    $ko2 = $db->prepare("SELECT eliminated_by, COUNT(*) AS n FROM poker_players
+                         WHERE session_id = ? AND removed = 0 AND eliminated = 1 AND eliminated_by IS NOT NULL AND $cashCond
+                         GROUP BY eliminated_by");
+    $ko2->execute([$session_id]);
+    foreach ($ko2->fetchAll() as $row) $koCash[(int)$row['eliminated_by']] = (int)$row['n'];
 
-    $players = $db->prepare('SELECT id, finish_position, payout, points, bounties_won, bounty_cash, bought_in, bounty_in
+    $players = $db->prepare('SELECT id, finish_position, payout, points, bounties_won, bounty_cash, bought_in, bounty_in,
+                                    bounties_banked, bounty_cash_banked, bounty_claimed
                              FROM poker_players WHERE session_id = ? AND removed = 0');
     $players->execute([$session_id]);
     $upd = $db->prepare('UPDATE poker_players SET payout = ?, points = ?, bounties_won = ?, bounty_cash = ? WHERE id = ?');
@@ -574,13 +579,15 @@ function pk_apply_tournament_payouts($db, $session_id) {
         $pos = (int)($p['finish_position'] ?? 0);
         $amt = ($pos > 0 && isset($pctByPlace[$pos])) ? (int)round($poolTotal * $pctByPlace[$pos] / 100) : 0;
         $amt += $converted[$pid] ?? 0;
-        $kos = $koCount[$pid] ?? 0;
-        // Cash: baked mode — everyone carries a bounty, winner keeps their own
-        // ((buyins × bounty) = (buyins−1) KOs + winner's own). Optional mode —
-        // only bounty-pool members carry/collect; winner keeps own only if in.
+        $kos = ($koCount[$pid] ?? 0) + (int)($p['bounties_banked'] ?? 0);
+        // Cash: baked mode — winner keeps their own head-bounty unless it was
+        // already claimed by a knockout they rebought through. Optional mode —
+        // only bounty-pool members carry/collect (a re-entry resets bounty_in).
         $inPool  = !$bountyOpt || (int)($p['bounty_in'] ?? 0) === 1;
-        $cashKos = $inPool ? ($koOpted[$pid] ?? 0) : 0;
-        $bcash = $cashKos * $bountyAmt + (($pos === 1 && (int)$p['bought_in'] === 1 && $inPool) ? $bountyAmt : 0);
+        $cashKos = ($inPool ? ($koCash[$pid] ?? 0) : 0) + (int)($p['bounty_cash_banked'] ?? 0);
+        $keepOwn = $pos === 1 && (int)$p['bought_in'] === 1 && $inPool
+                   && (!$bountyOpt ? (int)($p['bounty_claimed'] ?? 0) === 0 : true);
+        $bcash = $cashKos * $bountyAmt + ($keepOwn ? $bountyAmt : 0);
         // Points per KO stay universal — they're not money.
         $pts = (($pos > 0) ? ($ptsByPlace[$pos] ?? 0) : 0) + $kos * $bountyPts;
         if ((int)$p['payout'] !== $amt || (int)$p['points'] !== $pts

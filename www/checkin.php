@@ -2460,11 +2460,29 @@ function toggleBounty(pid) {
 }
 
 function updateRebuys(pid, delta) {
-    postAction('update_rebuys', { player_id: pid, delta: delta }, function(j) {
-        updatePlayer(j.player);
-        POOL = j.pool;
-        refreshUI();
-    });
+    var doPost = function() {
+        postAction('update_rebuys', { player_id: pid, delta: delta }, function(j) {
+            // Re-entry changes more than one row (eliminator's banked bounty,
+            // recomputed payouts, possibly a reopened game) — full resync.
+            if (j.reentered || j.reopened) { loadSession(); return; }
+            updatePlayer(j.player);
+            POOL = j.pool;
+            refreshUI();
+        });
+    };
+    var p = (PLAYERS || []).find(function(x) { return x.id == pid; });
+    if (p && delta > 0 && parseInt(p.eliminated)) {
+        var bountyNote = '';
+        if (parseInt(SESSION.bounty_amount) > 0) {
+            bountyNote = parseInt(SESSION.bounty_optional)
+                ? ' Their old bounty chip stays with whoever collected it — they can buy a new one.'
+                : ' Any bounty already collected on them stays collected.';
+        }
+        pkConfirm('Rebuy and re-enter ' + p.display_name + '? They come back into the game with a fresh stack.' + bountyNote, { okLabel: 'Re-enter' })
+            .then(function(ok) { if (ok) doPost(); });
+        return;
+    }
+    doPost();
 }
 
 function addAddon(pid) {

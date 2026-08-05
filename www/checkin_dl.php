@@ -693,14 +693,88 @@ if ($action === 'update_rebuys') {
         echo json_encode(['ok' => false, 'error' => 'Rebuys not allowed']); exit;
     }
 
-    $pl = $db->prepare('SELECT rebuys FROM poker_players WHERE id = ?');
+    $pl = $db->prepare('SELECT rebuys, eliminated, eliminated_by, bounty_in, bounty_claimed, finish_position, display_name
+                        FROM poker_players WHERE id = ?');
     $pl->execute([$player_id]);
-    $cur = (int)$pl->fetch()['rebuys'];
+    $plRow = $pl->fetch();
+    $cur = (int)$plRow['rebuys'];
     $newVal = max(0, $cur + $delta);
 
     // Enforce max_rebuys if set
     if ((int)$session['max_rebuys'] > 0 && $newVal > (int)$session['max_rebuys']) {
         $newVal = (int)$session['max_rebuys'];
+    }
+
+    // Rebuy re-entry: a paid rebuy brings an eliminated player back into the
+    // game. The recorded knockout is BANKED on the eliminator first (they keep
+    // the bounty they collected), then the live elimination link is cleared.
+    // The re-entering player's bounty chip resets: in optional mode they must
+    // buy a new one (bounty_in → 0), in baked mode their head is marked
+    // claimed so it can't pay a second time.
+    $reentered = false;
+    $reopened  = false;
+    $newStatus = $session['status'] ?? null;
+    if ($delta > 0 && (int)$plRow['eliminated'] === 1) {
+        if ($newVal === $cur) {
+            echo json_encode(['ok' => false, 'error' => 'No rebuys remaining — max is ' . (int)$session['max_rebuys'] . '.']); exit;
+        }
+        $bountyOpt = (int)($session['bounty_optional'] ?? 0) === 1;
+        $bAmt      = (int)($session['bounty_amount'] ?? 0);
+        $elimBy    = (int)($plRow['eliminated_by'] ?? 0);
+        if ($elimBy > 0) {
+            // Cash eligibility mirrors the recompute rules at KO time.
+            $cashOk = false;
+            if ($bAmt > 0) {
+                if ($bountyOpt) {
+                    $eb = $db->prepare('SELECT bounty_in FROM poker_players WHERE id = ?');
+                    $eb->execute([$elimBy]);
+                    $cashOk = (int)$plRow['bounty_in'] === 1 && (int)$eb->fetchColumn() === 1;
+                } else {
+                    $cashOk = (int)($plRow['bounty_claimed'] ?? 0) === 0;
+                }
+            }
+            $db->prepare('UPDATE poker_players SET bounties_banked = bounties_banked + 1,
+                          bounty_cash_banked = bounty_cash_banked + ? WHERE id = ?')
+               ->execute([$cashOk ? 1 : 0, $elimBy]);
+            if ($cashOk) {
+                if ($bountyOpt) {
+                    $db->prepare('UPDATE poker_players SET bounty_in = 0 WHERE id = ?')->execute([$player_id]);
+                } else {
+                    $db->prepare('UPDATE poker_players SET bounty_claimed = 1 WHERE id = ?')->execute([$player_id]);
+                }
+                $en = $db->prepare('SELECT display_name FROM poker_players WHERE id = ?');
+                $en->execute([$elimBy]);
+                pk_log($db, (int)$session['id'], (int)$current['id'], 'bounty', $elimBy,
+                       (string)$en->fetchColumn(), null,
+                       'Bounty kept — ' . (string)$plRow['display_name'] . ' re-entered with a rebuy');
+            }
+        }
+
+        $db->prepare('UPDATE poker_players SET eliminated = 0, finish_position = NULL, eliminated_by = NULL WHERE id = ?')
+           ->execute([$player_id]);
+
+        // If the game had auto-finished (e.g. heads-up KO), the re-entry
+        // reopens it — same guard-and-rollback as Undo Elim.
+        if (($session['status'] ?? '') === 'finished') {
+            $un = pk_unfinish_session($db, (int)$session['id'], (int)$current['id']);
+            if (!$un['ok']) {
+                $db->prepare('UPDATE poker_players SET eliminated = 1, eliminated_by = ?, finish_position = ?, bounty_in = ?, bounty_claimed = ? WHERE id = ?')
+                   ->execute([$elimBy ?: null, $plRow['finish_position'] ?: null, (int)$plRow['bounty_in'], (int)($plRow['bounty_claimed'] ?? 0), $player_id]);
+                if ($elimBy > 0) {
+                    $db->prepare('UPDATE poker_players SET bounties_banked = MAX(0, bounties_banked - 1),
+                                  bounty_cash_banked = MAX(0, bounty_cash_banked - ?) WHERE id = ?')
+                       ->execute([!empty($cashOk) ? 1 : 0, $elimBy]);
+                }
+                echo json_encode(['ok' => false, 'error' => $un['error']]); exit;
+            }
+            $db->prepare('UPDATE poker_players SET finish_position = NULL WHERE session_id = ? AND removed = 0 AND eliminated = 0 AND finish_position IS NOT NULL')->execute([$session['id']]);
+            $db->prepare("UPDATE poker_sessions SET status = 'active' WHERE id = ?")->execute([$session['id']]);
+            $reopened = true;
+            $newStatus = 'active';
+        }
+
+        auto_assign_table($db, $session['id'], $player_id);
+        $reentered = true;
     }
 
     $db->prepare('UPDATE poker_players SET rebuys = ? WHERE id = ?')->execute([$newVal, $player_id]);
@@ -711,14 +785,23 @@ if ($action === 'update_rebuys') {
     if ($newVal !== $cur) {
         $amt = (int)$session['rebuy_amount'];
         $detail = ($newVal > $cur)
-            ? 'Rebuy #' . $newVal . ' — ' . pk_money($amt)
+            ? 'Rebuy #' . $newVal . ' — ' . pk_money($amt) . ($reentered ? ' — re-entered the game' : '')
             : 'Rebuy removed (now ' . $newVal . ')';
         pk_log($db, (int)$session['id'], (int)$current['id'], 'rebuy', $player_id, $prow['display_name'] ?? '', ($newVal > $cur ? $amt : -$amt), $detail);
     }
+    if ($reentered) {
+        // Standings changed (their place cleared, KOs re-banked) — re-sync money.
+        pk_apply_tournament_payouts($db, (int)$session['id']);
+        $p->execute([$player_id]);
+        $prow = $p->fetch();
+    }
     echo json_encode([
-        'ok'     => true,
-        'player' => $prow,
-        'pool'   => calc_pool($db, $session['id']),
+        'ok'        => true,
+        'player'    => $prow,
+        'reentered' => $reentered,
+        'reopened'  => $reopened,
+        'status'    => $newStatus,
+        'pool'      => calc_pool($db, $session['id']),
     ]);
     exit;
 }

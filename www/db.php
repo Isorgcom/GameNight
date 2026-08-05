@@ -695,6 +695,13 @@ function db_init(PDO $pdo): void {
     try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN bounty_optional INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN jackpot_optional INTEGER NOT NULL DEFAULT 1"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN bounty_in INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    // Rebuy re-entry support: when an eliminated player rebuys back in, the
+    // knockout is BANKED on the eliminator (they physically collected the
+    // bounty) before the live eliminated_by link is cleared; the re-entering
+    // player's head-bounty is marked claimed so it can't pay out twice.
+    try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN bounties_banked INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN bounty_cash_banked INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN bounty_claimed INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE user_session_defaults ADD COLUMN bounty_optional INTEGER DEFAULT 0"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE user_session_defaults ADD COLUMN jackpot_optional INTEGER DEFAULT 1"); } catch (Exception $e) {}
     // One-shot merge of the short-lived split funds (badbeat/royal) into the
