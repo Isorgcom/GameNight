@@ -1190,27 +1190,32 @@ $themeCss   = timer_theme_css_vars($themeProps);
         #zoneRight  { grid-area: right;  flex-direction: column; }
         /* min-height:0 + shrink lets a too-tall column compress its items, which
            gives fit-text a real height bound to shrink text into — a center
-           stage with clock+blinds+labels self-fits instead of clipping. */
-        body.layout-zones .gn-zone > * { min-width: 0; min-height: 0; max-width: 100%; flex-shrink: 1; overflow: hidden; }
+           stage with clock+blinds+labels self-fits instead of clipping.
+           position:relative so each item's eye icon anchors to the ITEM, not
+           the zone (static items made every eye pile up at the zone corner). */
+        body.layout-zones .gn-zone > * { min-width: 0; min-height: 0; max-width: 100%; flex-shrink: 1; overflow: hidden; position: relative; }
         /* Zone-mode geometry overrides for widgets whose base CSS absolutely
            positions or sizes them — inside a zone they are plain flex items. */
         body.layout-zones .gn-zone > .timer-avgstack,
         body.layout-zones .gn-zone > .timer-payouts,
         body.layout-zones .gn-zone > .timer-qr {
-            position: static;
+            position: relative;
+            top: auto; left: auto; right: auto; bottom: auto;
         }
         body.layout-zones .gn-zone > .timer-image {
-            position: static;
+            position: relative;
+            top: auto; left: auto; right: auto; bottom: auto;
             transform: none;
             max-width: 100%; max-height: 100%;
         }
         body.layout-zones .gn-zone > .timer-stream {
-            position: static;
+            position: relative;
+            top: auto; left: auto; right: auto; bottom: auto;
             width: 100%;
         }
-        /* Edit chrome: visible zone bounds + labels while editing. */
+        /* Edit chrome: subtle zone bounds + labels while editing. */
         body.layout-edit.layout-zones .gn-zone {
-            outline: 1px dashed rgba(148, 163, 184, 0.55);
+            outline: 1px dashed rgba(148, 163, 184, 0.3);
             outline-offset: -2px;
             position: relative;
         }
@@ -1218,12 +1223,29 @@ $themeCss   = timer_theme_css_vars($themeProps);
             content: attr(data-zone);
             position: absolute;
             top: 2px; left: 5px;
-            font-size: 0.58rem;
-            color: rgba(148, 163, 184, 0.85);
+            font-size: 0.55rem;
+            color: rgba(148, 163, 184, 0.5);
             text-transform: uppercase;
             letter-spacing: 0.06em;
             pointer-events: none;
         }
+        /* Drop target while dragging an element across zones. */
+        .gn-zone.zone-drop {
+            outline: 2px solid #2563eb !important;
+            outline-offset: -2px;
+            background: rgba(37, 99, 235, 0.1);
+        }
+        /* Draggable zone boundaries (edit mode): grab the line, resize the zone. */
+        .gn-zdiv { display: none; position: absolute; z-index: 65; }
+        body.layout-edit.layout-zones .gn-zdiv { display: block; }
+        .gn-zdiv[data-div="top"]    { left: 0; right: 0; top: calc(var(--zone-top-size, 10%) - 5px); height: 10px; cursor: ns-resize; }
+        .gn-zdiv[data-div="bottom"] { left: 0; right: 0; bottom: calc(var(--zone-bottom-size, 8%) - 5px); height: 10px; cursor: ns-resize; }
+        .gn-zdiv[data-div="left"]   { top: 0; bottom: 0; left: calc(var(--zone-left-size, 14%) - 5px); width: 10px; cursor: ew-resize; }
+        .gn-zdiv[data-div="right"]  { top: 0; bottom: 0; right: calc(var(--zone-right-size, 14%) - 5px); width: 10px; cursor: ew-resize; }
+        .gn-zdiv::after { content: ''; position: absolute; background: rgba(37, 99, 235, 0.45); border-radius: 2px; }
+        .gn-zdiv[data-div="top"]::after, .gn-zdiv[data-div="bottom"]::after { left: 0; right: 0; top: 4px; bottom: 4px; }
+        .gn-zdiv[data-div="left"]::after, .gn-zdiv[data-div="right"]::after { top: 0; bottom: 0; left: 4px; right: 4px; }
+        .gn-zdiv:hover::after, .gn-zdiv.is-dragging::after { background: #2563eb; }
         body.layout-edit .gn-zone > .is-selected {
             outline: 3px solid #2563eb;
             outline-offset: 2px;
@@ -1369,18 +1391,24 @@ $themeCss   = timer_theme_css_vars($themeProps);
         body.layout-edit .timer-back { display: none !important; }
         .layout-edit-pill {
             position: fixed;
-            top: 25%;
-            left: 25%;
+            top: 12%;
+            left: 50%;
             transform: translate(-50%, -50%);
             z-index: 999;
             background: rgba(15, 23, 42, 0.95);
             border: 1px solid #475569;
-            border-radius: 999px;
+            border-radius: 18px;
             padding: 0.35rem 0.65rem;
             display: none;
             gap: 0.4rem;
             align-items: center;
             box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+            /* The pill grew controls (mode/orientation/copy/live): never let it
+               exceed the viewport — wrap to more rows instead, so the drag
+               handle can't end up off-screen. */
+            max-width: calc(100vw - 16px);
+            flex-wrap: wrap;
+            justify-content: center;
         }
         body.layout-edit .layout-edit-pill { display: inline-flex; }
         .layout-edit-pill button {
@@ -1435,6 +1463,9 @@ $themeCss   = timer_theme_css_vars($themeProps);
         body.layout-edit .timer-positioned .layout-eye,
         body.layout-edit .timer-boxed .layout-eye,
         body.layout-edit .gn-zone .layout-eye { display: inline-flex; }
+        /* Inside a zone the eye must sit INSIDE the element: zones clip overflow,
+           so the default -1.4rem offset showed only a sliver of the button. */
+        body.layout-edit .gn-zone .layout-eye { top: 0; left: 0; }
         /* Selected element gets a different (solid blue) outline. */
         body.layout-edit .timer-positioned.is-selected,
         body.layout-edit .timer-boxed.is-selected {
@@ -1660,6 +1691,11 @@ $themeCss   = timer_theme_css_vars($themeProps);
     <div class="gn-zone" data-zone="center" id="zoneCenter"></div>
     <div class="gn-zone" data-zone="right" id="zoneRight"></div>
     <div class="gn-zone" data-zone="bottom" id="zoneBottom"></div>
+    <!-- Draggable zone-boundary dividers (visible in zones edit mode). -->
+    <div class="gn-zdiv" data-div="top"></div>
+    <div class="gn-zdiv" data-div="bottom"></div>
+    <div class="gn-zdiv" data-div="left"></div>
+    <div class="gn-zdiv" data-div="right"></div>
     <!-- Average stack display (tournaments only) -->
     <div class="timer-avgstack" id="avgStackWrap" style="display:none">
         <div class="timer-avgstack-title">Avg Stack</div>
@@ -4897,7 +4933,7 @@ function applyBoxToNode(node, b) {
 // ─── Zones mode: fixed 5-zone grid, elements assigned per zone with an order ───
 var ZONE_NAMES = { top: 1, left: 1, center: 1, right: 1, bottom: 1 };
 var ZONE_LIST = ['top', 'left', 'center', 'right', 'bottom'];
-var ZONE_DEFAULT_SIZE = { top: 12, left: 16, right: 16, bottom: 10 };
+var ZONE_DEFAULT_SIZE = { top: 10, left: 14, right: 14, bottom: 8 };
 
 // Mirrors today's flow layout, so switching a theme to zones is a familiar start.
 var DEFAULT_ZONE_ASSIGN = {
@@ -5245,6 +5281,148 @@ function initResizeHandles() {
     });
 }
 
+// ─── Zone item drag: pick up a ghost, highlight the zone under the pointer,
+// drop to reassign with ordering derived from the drop position. A sub-
+// threshold press stays a click (select). ───
+function makeZoneDragStart(node, key) {
+    return function start(ev) {
+        if (ev.target.closest('.layout-eye')) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        var modifierKey = !!(ev.ctrlKey || ev.metaKey);
+        var pt = ev.touches ? ev.touches[0] : ev;
+        var startX = pt.clientX, startY = pt.clientY;
+        var moved = false, THRESH = 6;
+        var ghost = null, hlZone = null;
+        function onMove(e2) {
+            var p = e2.touches ? e2.touches[0] : e2;
+            if (!moved && (Math.abs(p.clientX - startX) > THRESH || Math.abs(p.clientY - startY) > THRESH)) {
+                moved = true;
+                ghost = node.cloneNode(true);
+                ghost.style.cssText = 'position:fixed;pointer-events:none;opacity:.55;z-index:1000;margin:0;transform:none;max-width:40vw;max-height:25vh;overflow:hidden;';
+                ghost.classList.remove('is-selected', 'box-overlap');
+                document.body.appendChild(ghost);
+                node.style.opacity = '0.3';
+            }
+            if (!moved) return;
+            e2.preventDefault();
+            ghost.style.left = (p.clientX + 10) + 'px';
+            ghost.style.top = (p.clientY + 10) + 'px';
+            var over = document.elementFromPoint(p.clientX, p.clientY);
+            over = over && over.closest('.gn-zone');
+            if (hlZone && hlZone !== over) hlZone.classList.remove('zone-drop');
+            hlZone = over;
+            if (hlZone) hlZone.classList.add('zone-drop');
+        }
+        function onUp(e3) {
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+            document.removeEventListener('touchmove', onMove);
+            document.removeEventListener('touchend', onUp);
+            document.removeEventListener('touchcancel', onUp);
+            node.style.opacity = '';
+            if (ghost) ghost.remove();
+            if (hlZone) hlZone.classList.remove('zone-drop');
+            if (!moved) {
+                if (modifierKey) toggleSelectElement(key); else selectElement(key);
+                return;
+            }
+            if (!hlZone) return;
+            var p = e3.changedTouches ? e3.changedTouches[0] : e3;
+            dropIntoZone(key, hlZone.dataset.zone, p.clientX, p.clientY);
+        }
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+        document.addEventListener('touchmove', onMove, { passive: false });
+        document.addEventListener('touchend', onUp);
+        document.addEventListener('touchcancel', onUp);
+    };
+}
+
+function dropIntoZone(key, zone, cx, cy) {
+    if (!ZONE_NAMES[zone]) return;
+    var z = activeLayoutZones(true);
+    var zn = document.querySelector('#layoutStage .gn-zone[data-zone="' + zone + '"]');
+    if (!zn) return;
+    var horizontal = (zone === 'top' || zone === 'bottom');
+    // Current children of the target zone, in DOM order, mapped back to keys.
+    var kids = [];
+    for (var c = zn.firstElementChild; c; c = c.nextElementSibling) {
+        for (var k in THEME_SELECTORS) {
+            if (document.querySelector(THEME_SELECTORS[k]) === c) { kids.push({ k: k, node: c }); break; }
+        }
+    }
+    // Insertion point: before the first sibling whose midpoint is past the drop.
+    var seq = [], inserted = false;
+    kids.forEach(function (it) {
+        if (it.k === key) return;
+        if (!inserted) {
+            var r = it.node.getBoundingClientRect();
+            var mid = horizontal ? (r.left + r.width / 2) : (r.top + r.height / 2);
+            if ((horizontal ? cx : cy) < mid) { seq.push(key); inserted = true; }
+        }
+        seq.push(it.k);
+    });
+    if (!inserted) seq.push(key);
+    seq.forEach(function (k2, i) { z.assign[k2] = { zone: zone, order: (i + 1) * 10 }; });
+    detachAllDragHandlers();
+    applyTheme(window.TIMER_THEME);
+    renderAll();
+    attachAllDragHandlers();
+    renderObjectsPanel();
+    scheduleFit();
+}
+
+// ─── Zone-boundary dividers: drag the line between zones to resize them ───
+function initZoneDividers() {
+    document.querySelectorAll('#layoutStage .gn-zdiv').forEach(function (div) {
+        function start(ev) {
+            if (!LAYOUT_EDIT_ON) return;
+            ev.preventDefault();
+            ev.stopPropagation();
+            var zone = div.dataset.div;   // top/bottom/left/right — matches the zone it sizes
+            var stage = document.getElementById('layoutStage');
+            var sr = stage.getBoundingClientRect();
+            div.classList.add('is-dragging');
+            function onMove(e2) {
+                e2.preventDefault();
+                var p = e2.touches ? e2.touches[0] : e2;
+                var v;
+                if (zone === 'top')         v = ((p.clientY - sr.top) / sr.height) * 100;
+                else if (zone === 'bottom') v = ((sr.bottom - p.clientY) / sr.height) * 100;
+                else if (zone === 'left')   v = ((p.clientX - sr.left) / sr.width) * 100;
+                else                        v = ((sr.right - p.clientX) / sr.width) * 100;
+                v = Math.max(5, Math.min(45, v));
+                var z = activeLayoutZones(true);
+                z.opts[zone] = z.opts[zone] || {};
+                z.opts[zone].size = Math.round(v * 10) / 10;
+                stage.style.setProperty('--zone-' + zone + '-size', z.opts[zone].size + '%');
+            }
+            function onUp() {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+                document.removeEventListener('touchmove', onMove);
+                document.removeEventListener('touchend', onUp);
+                document.removeEventListener('touchcancel', onUp);
+                div.classList.remove('is-dragging');
+                applyTheme(window.TIMER_THEME);
+                scheduleFit();
+                // Keep the page-inspector numbers in step if it's open on Page.
+                if (LAYOUT_SELECTED_KEY === null && document.getElementById('layoutInspector').classList.contains('is-open')) {
+                    renderInspector('page');
+                }
+            }
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+            document.addEventListener('touchmove', onMove, { passive: false });
+            document.addEventListener('touchend', onUp);
+            document.addEventListener('touchcancel', onUp);
+        }
+        div.addEventListener('mousedown', start);
+        div.addEventListener('touchstart', start, { passive: false });
+    });
+}
+
 // ─── Layout mode switcher (Free ↔ Zones). Both sub-trees persist in the theme,
 // so switching back and forth loses nothing. ───
 function setLayoutMode(m) {
@@ -5476,20 +5654,16 @@ function attachAllDragHandlers() {
         var node = document.querySelector(THEME_SELECTORS[key]);
         if (!node) return;
         if (zonesOn) {
-            // Zone items aren't draggable (the grid owns geometry) but stay
-            // click-selectable so the inspector and wheel-resize still work.
+            // Zone items: click = select, drag = pick up a ghost and drop into
+            // any zone (ordering by drop position). Wheel still resizes.
             if (!node.closest('.gn-zone')) return;
             attachEyeIcon(node, key);
-            var clickSel = (function(k){ return function(ev) {
-                if (ev.target.closest('.layout-eye')) return;
-                ev.preventDefault(); ev.stopPropagation();
-                if (ev.ctrlKey || ev.metaKey) toggleSelectElement(k); else selectElement(k);
-            }; })(key);
+            var handlerZ = makeZoneDragStart(node, key);
             var wheelZ = makeWheelScale(key);
-            node.addEventListener('mousedown', clickSel);
-            node.addEventListener('touchstart', clickSel, { passive: false });
+            node.addEventListener('mousedown', handlerZ);
+            node.addEventListener('touchstart', handlerZ, { passive: false });
             node.addEventListener('wheel', wheelZ, { passive: false });
-            LAYOUT_DRAG_HANDLERS.push({ node: node, handler: clickSel, wheel: wheelZ });
+            LAYOUT_DRAG_HANDLERS.push({ node: node, handler: handlerZ, wheel: wheelZ });
             return;
         }
         if (!node.classList.contains('timer-positioned') && !node.classList.contains('timer-boxed')) return;
@@ -6774,6 +6948,7 @@ renderAll();
 // failsafe would lift it at 2.5s anyway if we never got here).
 document.documentElement.classList.remove('theme-pending');
 if (typeof initResizeHandles === 'function' && document.getElementById('rzOverlay')) initResizeHandles();
+if (typeof initZoneDividers === 'function') initZoneDividers();
 // Viewport-shape changes re-apply layout + fit (debounced in reapplyLayout).
 window.addEventListener('resize', reapplyLayout);
 window.addEventListener('orientationchange', reapplyLayout);
