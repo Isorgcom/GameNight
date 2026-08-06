@@ -105,9 +105,10 @@ If `GameNight` and `GameNight-dev` diverge on tracked source files, that almost 
 1. Edit in `GameNight` → mirror to `GameNight-dev` (same edit, same path).
 2. If the dev container is down or the change is server-side (PHP), restart it: `cd /home/bryce/Claude/GameNight-dev && docker compose up -d --build`. For pure PHP/static edits the bind-mount picks them up live — no rebuild needed.
 3. User verifies at http://localhost:8080.
-4. On confirmation: `git add` + `git commit` + `git push` from `GameNight`.
-5. Tag the release on `main` (see **Release Tags**) and push the tag.
-6. Deploy to live: SSH to the production server and `git pull`; never scp from Windows (CRLF).
+4. On confirmation: `git add` + `git commit` + `git push` from `GameNight` — to the branch for feature/fix work, or straight to `main` for a small change (see **Branches & Pull Requests**).
+5. Branch work: bump `www/version.php` + add the `CHANGELOG.md` entry as the final commit, then `gh pr merge --squash`. GitHub squashes using the PR title/body and deletes the branch.
+6. Tag the release on `main` (see **Release Tags**) and push the tag.
+7. Deploy to live: SSH to the production server and `git pull`; never scp from Windows (CRLF).
 
 ## Version
 
@@ -126,21 +127,33 @@ Tag name matches `APP_VERSION` with a `v` prefix (`0.2057` → `v0.2057`). Do th
 
 (Tags before `v0.0155` are historical and irregular, and `gamenight-standalone-*` belongs to the tournament-timer fork, not this release line.)
 
-## Branches
+## Branches & Pull Requests
 
-Feature/fix work happens on a branch off `main` (`GameNight-<Topic>`), is dev-tested, then **squash-merged** to `main` so `main` keeps one commit per release.
+Small, low-risk changes (docs, a one-line fix) go straight to `main`. Feature and fix work happens on a branch off `main` named `GameNight-<Topic>`, and **lands through a pull request** — never a local `git merge`.
 
-Because the merge squashes, the branch's individual commits exist nowhere else — and this repo does not use pull requests, so there is no PR page preserving them. Before deleting a merged branch, archive it:
+The repo is configured to enforce the convention: squash is the only merge method (so `main` keeps one commit per release), the head branch is deleted automatically on merge, and the squash commit takes its **title from the PR title and its body from the PR description**. Write the release description in the PR body and it becomes the permanent commit message on `main`.
 
 ```bash
-git tag -a archive/<topic> origin/GameNight-<Topic> -m "Archived tip of GameNight-<Topic> — squash-merged as <sha> / vX.Y"
+git push -u origin GameNight-<Topic>          # after the user confirms on dev
+gh pr create --title "Short release summary (vX.Y)" --body "$(cat <<'EOF'
+What changed and why, in the same long-form style as CHANGELOG.md.
+EOF
+)"
+gh pr merge --squash                          # squashes, deletes the branch
+```
+
+The PR page permanently preserves every individual commit and diff, so a merged branch can be deleted safely — **no archive tag is needed for PR-merged work**. Recover the granular history any time from the PR, or with `gh pr checkout <number>`.
+
+Archive tags remain the fallback for a branch that was merged *without* a PR (anything squash-merged locally before this workflow, e.g. `archive/payout2.0`):
+
+```bash
+git tag -a archive/<topic> origin/GameNight-<Topic> -m "Archived tip — squash-merged as <sha> / vX.Y"
 git push origin archive/<topic>
-# verify the tag is on the REMOTE before deleting anything
-git ls-remote --tags origin | grep archive/<topic>
+git ls-remote --tags origin | grep archive/<topic>   # confirm on the REMOTE first
 git push origin --delete GameNight-<Topic>
 ```
 
-Never delete a branch until the user has confirmed testing is done — merging it "for more testing" is a promotion, not sign-off. Restore an archived branch any time with `git checkout -b <name> archive/<topic>`.
+Never merge or delete a branch until the user has confirmed testing is done — merging it "for more testing" is a promotion, not sign-off. Long-running work can sit in a **draft** PR (`gh pr create --draft`) so the diff and history accumulate somewhere visible before it is ready.
 
 ## Changelog
 
