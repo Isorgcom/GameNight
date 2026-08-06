@@ -106,11 +106,41 @@ If `GameNight` and `GameNight-dev` diverge on tracked source files, that almost 
 2. If the dev container is down or the change is server-side (PHP), restart it: `cd /home/bryce/Claude/GameNight-dev && docker compose up -d --build`. For pure PHP/static edits the bind-mount picks them up live — no rebuild needed.
 3. User verifies at http://localhost:8080.
 4. On confirmation: `git add` + `git commit` + `git push` from `GameNight`.
-5. Deploy to live: SSH to the production server and `git pull`; never scp from Windows (CRLF).
+5. Tag the release on `main` (see **Release Tags**) and push the tag.
+6. Deploy to live: SSH to the production server and `git pull`; never scp from Windows (CRLF).
 
 ## Version
 
 Tracked manually in `www/version.php`. **Bump exactly once per `git push`** — immediately before the commit that ships a change. Do not bump during in-dev troubleshooting iterations against the local `gamenight-dev` container; the version is a release marker for shipped commits, not a build counter for intermediate fix attempts.
+
+## Release Tags
+
+Every version bump that reaches `main` gets an annotated tag on the commit that ships it, pushed to origin:
+
+```bash
+git tag -a v0.2057 <commit> -m "v0.2057 — short summary of the release"
+git push origin v0.2057
+```
+
+Tag name matches `APP_VERSION` with a `v` prefix (`0.2057` → `v0.2057`). Do this as part of the push routine, not later — tags are how "what exactly was running when this broke?" gets answered, and how a rollback point is found. Tag the squash commit on `main`, never a branch tip.
+
+(Tags before `v0.0155` are historical and irregular, and `gamenight-standalone-*` belongs to the tournament-timer fork, not this release line.)
+
+## Branches
+
+Feature/fix work happens on a branch off `main` (`GameNight-<Topic>`), is dev-tested, then **squash-merged** to `main` so `main` keeps one commit per release.
+
+Because the merge squashes, the branch's individual commits exist nowhere else — and this repo does not use pull requests, so there is no PR page preserving them. Before deleting a merged branch, archive it:
+
+```bash
+git tag -a archive/<topic> origin/GameNight-<Topic> -m "Archived tip of GameNight-<Topic> — squash-merged as <sha> / vX.Y"
+git push origin archive/<topic>
+# verify the tag is on the REMOTE before deleting anything
+git ls-remote --tags origin | grep archive/<topic>
+git push origin --delete GameNight-<Topic>
+```
+
+Never delete a branch until the user has confirmed testing is done — merging it "for more testing" is a promotion, not sign-off. Restore an archived branch any time with `git checkout -b <name> archive/<topic>`.
 
 ## Changelog
 
