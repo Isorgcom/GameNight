@@ -741,10 +741,19 @@ function pk_finish_session($db, int $session_id, int $actor_id): void {
 // Returns ['ok' => true] or ['ok' => false, 'error' => ...].
 function pk_unfinish_session($db, int $session_id, int $actor_id): array {
     try {
-        $q = $db->prepare("SELECT COUNT(*) FROM poker_entry_tickets WHERE source_session_id = ? AND status = 'redeemed'");
+        // Blocks on a ticket that is redeemed, and also on one that is merely
+        // RELEASED mid-correction at its target (status back to 'issued' but
+        // still carrying its redeemed_session_id breadcrumb). Otherwise a host
+        // un-buying a player at the target would silently unlock this reopen,
+        // which deletes the ticket out from under a seat that is about to be
+        // restored.
+        $q = $db->prepare("SELECT COUNT(*) FROM poker_entry_tickets
+                           WHERE source_session_id = ?
+                             AND (status = 'redeemed'
+                                  OR (status = 'issued' AND redeemed_session_id IS NOT NULL))");
         $q->execute([$session_id]);
         if ((int)$q->fetchColumn() > 0) {
-            return ['ok' => false, 'error' => 'A ticket from this game was already redeemed at its target event. Resolve it there before reopening.'];
+            return ['ok' => false, 'error' => 'A ticket from this game is in use at its target event. Resolve it there before reopening.'];
         }
         // Reverse this session's jackpot contributions so a re-finish re-adds
         // them from the (possibly changed) final buy-in count. Guard first: if

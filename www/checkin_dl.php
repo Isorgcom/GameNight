@@ -652,6 +652,28 @@ if ($action === 'toggle_buyin') {
                 elseif ($value > $amt)  $detail .= ' (' . pk_money($value - $amt) . ' surplus to pool)';
                 pk_log($db, (int)$session['id'], (int)$current['id'], 'ticket_redeem', $player_id, $pname, $value, $detail);
             }
+        } else {
+            // No ticket named: if this player's ticket was released by an earlier
+            // un-buy of this same seat, re-apply it. Without this the re-buy
+            // silently converts a ticket seat into a cash seat — the pot counts a
+            // buy-in nobody paid while the holder walks away with a live ticket
+            // (bulk Buy In never passes ticket_id, so it always took this path).
+            // The release keeps redeemed_session_id/redeemed_player_id precisely
+            // as this breadcrumb; target_event_id must still match, so a ticket
+            // re-targeted or converted in the meantime is correctly ignored.
+            try {
+                $rq = $db->prepare("SELECT id, value_cents FROM poker_entry_tickets
+                                    WHERE redeemed_session_id = ? AND redeemed_player_id = ?
+                                      AND status = 'issued' AND target_event_id = ? LIMIT 1");
+                $rq->execute([(int)$session['id'], $player_id, (int)$session['event_id']]);
+                if ($rt = $rq->fetch()) {
+                    $db->prepare("UPDATE poker_entry_tickets SET status = 'redeemed', resolved_at = CURRENT_TIMESTAMP, resolved_by = ? WHERE id = ?")
+                       ->execute([(int)$current['id'], (int)$rt['id']]);
+                    $rv = (int)$rt['value_cents'];
+                    pk_log($db, (int)$session['id'], (int)$current['id'], 'ticket_redeem', $player_id, $pname, $rv,
+                           'Entry ticket re-applied (buy-in restored) — ' . pk_money($rv));
+                }
+            } catch (Exception $e) { /* pre-migration DB */ }
         }
     } elseif ($set_only) {
         // Already bought in and the caller only wants to ensure that — no-op.
@@ -663,13 +685,17 @@ if ($action === 'toggle_buyin') {
         pk_log($db, (int)$session['id'], (int)$current['id'], 'unbuyin', $player_id, $pname, null, 'Buy-in reversed');
 
         // A ticket redeemed by this player in this session flips back to issued
-        // so the un-buy is fully reversible.
+        // so the un-buy is fully reversible. redeemed_session_id/_player_id are
+        // deliberately KEPT: with status='issued' they mark the ticket as
+        // released-from-this-seat, which is what lets a re-buy re-apply it
+        // instead of quietly turning a ticket seat into an unpaid cash seat.
+        // Nothing reads those columns without also filtering status='redeemed'.
         try {
             $rt = $db->prepare("SELECT id, display_name, value_cents FROM poker_entry_tickets
                                 WHERE redeemed_session_id = ? AND redeemed_player_id = ? AND status = 'redeemed'");
             $rt->execute([(int)$session['id'], $player_id]);
             foreach ($rt->fetchAll() as $t) {
-                $db->prepare("UPDATE poker_entry_tickets SET status = 'issued', redeemed_session_id = NULL, redeemed_player_id = NULL, resolved_at = NULL, resolved_by = NULL WHERE id = ?")
+                $db->prepare("UPDATE poker_entry_tickets SET status = 'issued', resolved_at = NULL, resolved_by = NULL WHERE id = ?")
                    ->execute([(int)$t['id']]);
                 pk_log($db, (int)$session['id'], (int)$current['id'], 'ticket_void', $player_id, $pname,
                        -(int)$t['value_cents'], 'Entry ticket un-applied (buy-in reversed) — ' . pk_money((int)$t['value_cents']));
