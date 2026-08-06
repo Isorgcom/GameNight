@@ -303,11 +303,17 @@ if ($action === 'jackpot_log') {
     $sess->execute([$session_id]);
     $s = $sess->fetch();
     if (!$s) { echo json_encode(['ok' => false, 'error' => 'Session not found']); exit; }
-    if (!is_owner_or_manager($db, $s['event_id'], $current, $isAdmin)) {
+    if (!pk_can_manage_league_money($db, (int)($s['league_id'] ?? 0), (int)$current['id'], $isAdmin)) {
         http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Access denied']); exit;
     }
     if (empty($s['league_id'])) { echo json_encode(['ok' => true, 'entries' => []]); exit; }
-    $fund = pk_jackpot_fund($db, (int)$s['league_id']);
+    // Read-only endpoint: use the non-creating balance reader. pk_jackpot_fund()
+    // upserts, so this GET (no CSRF) could be induced to create a fund row and
+    // make a "💎 Jackpot $0" badge appear on a league that never had one.
+    $fundQ = $db->prepare("SELECT id, balance FROM league_jackpots WHERE league_id = ? AND jackpot_type = 'main'");
+    $fundQ->execute([(int)$s['league_id']]);
+    $fund = $fundQ->fetch();
+    if (!$fund) { echo json_encode(['ok' => true, 'entries' => [], 'balance' => 0]); exit; }
     $q = $db->prepare('SELECT id, event_type, player_name, amount, detail, voided, created_at
                        FROM league_jackpot_log WHERE jackpot_id = ? ORDER BY id DESC LIMIT 100');
     $q->execute([(int)$fund['id']]);
@@ -1827,8 +1833,9 @@ if ($action === 'void_jackpot_entry') {
     $sess->execute([$session_id]);
     $s = $sess->fetch();
     if (!$s || empty($s['league_id'])) { echo json_encode(['ok' => false, 'error' => 'Session/league not found']); exit; }
-    if (!is_owner_or_manager($db, $s['event_id'], $current, $isAdmin)) {
-        http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Access denied']); exit;
+    // League money needs a league role — see pk_can_manage_league_money().
+    if (!pk_can_manage_league_money($db, (int)$s['league_id'], (int)$current['id'], $isAdmin)) {
+        http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Only a league owner or manager can change the jackpot fund.']); exit;
     }
     $fund = pk_jackpot_fund($db, (int)$s['league_id']);
     $eq = $db->prepare('SELECT * FROM league_jackpot_log WHERE id = ? AND jackpot_id = ?');
@@ -1859,8 +1866,9 @@ if ($action === 'adjust_jackpot') {
     $sess->execute([$session_id]);
     $s = $sess->fetch();
     if (!$s || empty($s['league_id'])) { echo json_encode(['ok' => false, 'error' => 'Session/league not found']); exit; }
-    if (!is_owner_or_manager($db, $s['event_id'], $current, $isAdmin)) {
-        http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Access denied']); exit;
+    // League money needs a league role — see pk_can_manage_league_money().
+    if (!pk_can_manage_league_money($db, (int)$s['league_id'], (int)$current['id'], $isAdmin)) {
+        http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Only a league owner or manager can change the jackpot fund.']); exit;
     }
     $fund = pk_jackpot_fund($db, (int)$s['league_id']);
     $newBal = (int)$fund['balance'] + $amount;
@@ -1943,10 +1951,11 @@ if ($action === 'record_jackpot_hit') {
     $sess->execute([$session_id]);
     $s = $sess->fetch();
     if (!$s) { echo json_encode(['ok' => false, 'error' => 'Session not found']); exit; }
-    if (!is_owner_or_manager($db, $s['event_id'], $current, $isAdmin)) {
-        http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Access denied']); exit;
-    }
     if (empty($s['league_id'])) { echo json_encode(['ok' => false, 'error' => 'This event has no league (jackpots are league funds).']); exit; }
+    // League money needs a league role — see pk_can_manage_league_money().
+    if (!pk_can_manage_league_money($db, (int)$s['league_id'], (int)$current['id'], $isAdmin)) {
+        http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Only a league owner or manager can pay out the jackpot.']); exit;
+    }
 
     $recips = [];
     $total = 0;

@@ -38,6 +38,19 @@ function default_session_defaults(): array {
 // ─── League progressive jackpot (single fund; hit type is a label) ──
 const PK_JACKPOT_HIT_TYPES = ['badbeat' => 'Bad Beat', 'royal' => 'Royal Flush', 'other' => 'Jackpot'];
 
+// Authority to move a LEAGUE's jackpot money. Deliberately narrower than
+// can_manage_event(): that grants on events.created_by and per-event manager
+// invites, so event-level authority would reach a league-wide fund — anyone
+// who put an event on the league's calendar could adjust, pay out or void
+// its ledger. League money takes a league role.
+function pk_can_manage_league_money($db, ?int $league_id, int $user_id, bool $is_admin = false): bool {
+    if ($is_admin) return true;
+    if (!$league_id || $user_id <= 0) return false;
+    $q = $db->prepare('SELECT role FROM league_members WHERE league_id = ? AND user_id = ?');
+    $q->execute([$league_id, $user_id]);
+    return in_array((string)$q->fetchColumn(), ['owner', 'manager'], true);
+}
+
 // Fetch-or-create the league's jackpot fund row.
 function pk_jackpot_fund($db, int $league_id): array {
     $q = $db->prepare("SELECT * FROM league_jackpots WHERE league_id = ? AND jackpot_type = 'main'");
