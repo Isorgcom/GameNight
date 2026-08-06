@@ -65,6 +65,23 @@ function sms_admin_is_elevated(PDO $db, array $user): bool {
     return count(sms_admin_manageable_events($db, $user)) > 0;
 }
 
+/**
+ * True once the texter has proved the number is theirs (Settings > Profile >
+ * Verify). Required for the commands that destroy an event or blast every
+ * guest: authority over SMS is otherwise just "this number matches a user
+ * row", and a phone number is self-asserted until verified. The webhook's
+ * user lookup only selects id/username/role, so read the flag here.
+ */
+function sms_admin_phone_verified(PDO $db, array $user): bool {
+    $q = $db->prepare('SELECT phone_verified FROM users WHERE id = ?');
+    $q->execute([(int)($user['id'] ?? 0)]);
+    return (int)$q->fetchColumn() === 1;
+}
+
+const SMS_ADMIN_VERIFY_MSG =
+    "That command needs a verified phone number. Open Settings > Profile on the site, "
+    . "tap Verify next to your number, enter the code we text you, then try again.";
+
 /** Resolve a 1-based event number against the manageable list. */
 function sms_admin_resolve_event(array $events, string $token): ?array {
     if (!preg_match('/^\d+$/', $token)) return null;
@@ -262,6 +279,13 @@ function sms_handle_admin_command(PDO $db, array $user, string $body, string $pr
 
     // ── MSG / REMIND / CANCEL: stage a pending action, ask for CONFIRM ───────
     if (in_array($verb, ['msg', 'remind', 'cancel'], true)) {
+        // These either delete an event or send to every guest, so they need a
+        // verified number — spoofing one is otherwise enough to reach them.
+        // Read-only verbs (ADMIN/WHO/COUNT/PENDING) are deliberately unaffected.
+        if (!sms_admin_phone_verified($db, $user)) {
+            sms_admin_reply($provider, SMS_ADMIN_VERIFY_MSG);
+            return true;
+        }
         $tok  = preg_split('/\s+/', $rest, 2);
         $num  = $tok[0] ?? '';
         $ev   = sms_admin_resolve_event($events, $num);
@@ -364,6 +388,13 @@ function sms_admin_handle_confirm(PDO $db, array $user, string $provider): void 
         return;
     }
     $db->prepare('DELETE FROM sms_pending_admin WHERE user_id = ?')->execute([$actorId]);
+
+    // Re-check at execution time, not just at staging — the number could have
+    // been un-verified in between (changing it in Settings resets the flag).
+    if (!sms_admin_phone_verified($db, $user)) {
+        sms_admin_reply($provider, SMS_ADMIN_VERIFY_MSG);
+        return;
+    }
 
     $eid     = (int)$pending['event_id'];
     $command = (string)$pending['command'];
