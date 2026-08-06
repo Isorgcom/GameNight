@@ -53,6 +53,30 @@ if ($action === 'send') {
     if (mb_strlen($body) > 1000) fail('Message too long (1000 characters max).');
     if (!$isAdmin && !can_manage_event($db, $event, $uid, false)) fail('Access denied', 403);
 
+    // Managing the EVENT was the only check; $phone was never tied to it. That
+    // let a host of any event text an arbitrary number from the shared site
+    // number, and the sms_conv_bind() below would re-point that phone's
+    // conversation at their event — capturing the victim's next reply out of
+    // the real host's thread. Require the number to belong to this event:
+    // it has already messaged here, or it is on the guest list.
+    $linked = $db->prepare('SELECT 1 FROM sms_log WHERE event_id = ? AND phone_digits = ? LIMIT 1');
+    $linked->execute([$event, $phone]);
+    $isLinked = (bool)$linked->fetchColumn();
+    if (!$isLinked) {
+        // Guest-list match. Normalizing in PHP (sms_conv_digits) rather than SQL
+        // so stored formats like "(555) 123-4567" compare the same way the
+        // inbound webhook path compares them.
+        $inv = $db->prepare('SELECT ei.phone AS ip, u.phone AS up FROM event_invites ei
+                             LEFT JOIN users u ON LOWER(u.username) = LOWER(ei.username)
+                             WHERE ei.event_id = ?');
+        $inv->execute([$event]);
+        foreach ($inv->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            if (sms_conv_digits((string)($r['ip'] ?? '')) === $phone
+                || sms_conv_digits((string)($r['up'] ?? '')) === $phone) { $isLinked = true; break; }
+        }
+    }
+    if (!$isLinked) fail('That number is not on this event — you can only message people who texted this event or are on its guest list.', 403);
+
     // Simple abuse guard: cap outbound to one phone at 30/hour.
     $rl = $db->prepare("SELECT COUNT(*) FROM sms_log
                         WHERE direction = 'outbound' AND phone_digits = ?

@@ -6,7 +6,7 @@ require_once __DIR__ . '/db.php';
  * Used by both send_sms() and the admin settings UI.
  */
 function get_sms_providers(): array {
-    return [
+    $providers = [
         'twilio' => [
             'label'  => 'Twilio (untested)',
             'fields' => [
@@ -84,6 +84,54 @@ function get_sms_providers(): array {
             ],
         ],
     ];
+
+    // Shared secret usable with ANY provider. Only Surge signs its webhooks in
+    // a way we verify; for every other provider this token is the only way an
+    // inbound request can prove it is legitimate, so sms_webhook.php rejects
+    // unverifiable requests rather than trusting a spoofable From field.
+    foreach ($providers as $k => $_) {
+        $providers[$k]['fields']['sms_webhook_token'] = [
+            'label'       => 'Webhook URL Token',
+            'type'        => 'password',
+            'placeholder' => 'long random string',
+        ];
+        $providers[$k]['help'][] = ['Webhook URL Token',
+            'Append <code>?token=YOUR_TOKEN</code> to the webhook URL you give the provider. '
+            . ($k === 'surge'
+                ? 'Optional for Surge — the Signing Secret already authenticates inbound.'
+                : 'Required for this provider: without it inbound messages are rejected, because a forged request could otherwise impersonate any member or host.')];
+    }
+    return $providers;
+}
+
+/**
+ * Can inbound webhook requests be authenticated with the current settings?
+ * sms_webhook.php rejects everything it cannot verify, so an unconfigured
+ * provider means inbound SMS silently stops working — this backs the warning
+ * shown on the SMS settings tab so that is discoverable before a game night.
+ * Returns ['ok' => bool, 'how' => string, 'msg' => string].
+ */
+function sms_webhook_auth_status(): array {
+    $provider = get_setting('sms_provider', 'twilio');
+    $hasToken = get_setting('sms_webhook_token', '') !== '';
+    if ($provider === 'surge' && get_setting('sms_webhook_secret', '') !== '') {
+        return ['ok' => true, 'how' => 'signature',
+                'msg' => 'Inbound requests are verified by the Surge signing secret.'];
+    }
+    if ($hasToken) {
+        return ['ok' => true, 'how' => 'token',
+                'msg' => 'Inbound requests are verified by the webhook URL token. Make sure the provider posts to '
+                       . '<code>/sms_webhook.php?token=…</code> with that value.'];
+    }
+    if ($provider === 'surge') {
+        return ['ok' => false, 'how' => 'none',
+                'msg' => 'No Signing Secret and no Webhook URL Token: inbound texts are being rejected. '
+                       . 'Paste the signing secret from your Surge webhook settings.'];
+    }
+    return ['ok' => false, 'how' => 'none',
+            'msg' => 'This provider has no signature verification, and no Webhook URL Token is set, so inbound '
+                   . 'texts are being rejected. Set a token and append <code>?token=…</code> to the webhook URL '
+                   . 'you gave the provider. (Without it, anyone could forge a text from any member or host.)'];
 }
 
 /**

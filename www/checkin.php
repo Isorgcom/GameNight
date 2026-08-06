@@ -2132,7 +2132,7 @@ function populateTicketTargetSelect() {
 async function retargetTicket(tid) {
     loadTargetEvents(async function(events) {
         if (!events.length) { pkAlert('No other poker events you manage to re-target to.'); return; }
-        var lines = events.map(function(e, i) { return (i + 1) + ': ' + e.title + ' (' + e.start_date + ')'; });
+        var lines = events.map(function(e, i) { return (i + 1) + ': ' + escHtml(e.title) + ' (' + escHtml(e.start_date) + ')'; });
         var picked = await pkPrompt('Re-target this ticket to:<br><br>' + lines.join('<br>') + '<br><br>Enter 1-' + events.length + ':');
         if (picked === null) return;
         var n = parseInt(picked, 10);
@@ -2495,7 +2495,7 @@ function updateRebuys(pid, delta) {
                 ? ' Their old bounty chip stays with whoever collected it — they can buy a new one.'
                 : ' Any bounty already collected on them stays collected.';
         }
-        pkConfirm('Rebuy and re-enter ' + p.display_name + '? They come back into the game with a fresh stack.' + bountyNote, { okLabel: 'Re-enter' })
+        pkConfirm('Rebuy and re-enter ' + escHtml(p.display_name) + '? They come back into the game with a fresh stack.' + bountyNote, { okLabel: 'Re-enter' })
             .then(function(ok) { if (ok) doPost(); });
         return;
     }
@@ -2667,7 +2667,7 @@ function executeBalance() {
             var msg = j.moves.length + ' player(s) moved:\n';
             for (var i = 0; i < j.moves.length; i++) {
                 var m = j.moves[i];
-                msg += m.display_name + ': Table ' + (m.old_table || '?') + ' \u2192 ' + m.new_table + '\n';
+                msg += escHtml(m.display_name) + ': Table ' + (m.old_table || '?') + ' \u2192 ' + m.new_table + '\n';
             }
             pkAlert(msg);
         } else {
@@ -2696,7 +2696,7 @@ async function breakUpTable(tableNum) {
             var msg = j.moves.length + ' player(s) moved:\n';
             for (var i = 0; i < j.moves.length; i++) {
                 var m = j.moves[i];
-                msg += m.display_name + ': Table ' + (m.old_table || '?') + ' \u2192 ' + m.new_table + '\n';
+                msg += escHtml(m.display_name) + ': Table ' + (m.old_table || '?') + ' \u2192 ' + m.new_table + '\n';
             }
             pkAlert(msg);
         }
@@ -3079,7 +3079,10 @@ function walkinSuggest(val) {
     if (matches.length === 0) { dd.classList.remove('open'); dd.innerHTML = ''; _walkinIdx = -1; return; }
 
     dd.innerHTML = matches.map(function(u, i) {
-        return '<div class="walkin-dropdown-item" onmousedown="walkinPick(\'' + escHtml(u) + '\')">' + escHtml(u) + '</div>';
+        // Name rides in a data attribute rather than inside the inline handler's
+        // JS string: attribute values are HTML-decoded before JS parses them, so
+        // an escaped quote would come back and break out of the literal.
+        return '<div class="walkin-dropdown-item" data-u="' + escHtml(u) + '" onmousedown="walkinPick(this.dataset.u)">' + escHtml(u) + '</div>';
     }).join('');
     dd.classList.add('open');
     _walkinIdx = -1;
@@ -3620,11 +3623,20 @@ function focusNextCashInput(el) {
     }
 }
 
+// Escape for interpolation into an HTML string. The text-node round-trip only
+// escapes & < >, which is safe in a text position but NOT inside a quoted
+// attribute — a name containing a double quote could close the attribute and
+// add an event handler. Quotes are escaped explicitly so the same helper is
+// safe in both contexts; text positions render identically because the parser
+// decodes the entities anyway.
+// NOTE: still not safe for building a JS string literal inside an attribute
+// (e.g. onclick="f('...')") — the parser HTML-decodes before JS parses, so the
+// quote comes back. Pass those through a data-* attribute instead.
 function escHtml(s) {
     if (!s) return '';
     var div = document.createElement('div');
     div.appendChild(document.createTextNode(s));
-    return div.innerHTML;
+    return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 // ─── INIT ──────────────────────────────────────────────

@@ -28,6 +28,18 @@ if ($raw_input !== '') {
     }
 }
 
+// ── Authenticate the inbound request ────────────────────────────────────────
+// This endpoint is public and the sender's identity comes from a POST field, so
+// an unauthenticated request can impersonate any member or host (RSVP changes,
+// conversation injection, and the CANCEL / MSG host commands). A request must
+// therefore prove it is legitimate by ONE of:
+//   1. a valid provider signature — implemented for Surge, or
+//   2. the shared webhook token, which works with any provider.
+// Anything else is rejected. This used to fall through to full processing for
+// any non-Surge provider, or when the Surge secret was simply left blank, and
+// nothing anywhere reported that inbound was unauthenticated.
+$webhook_verified = false;
+
 // ── Verify webhook signature (Surge) ─────────────────────────────────────────
 if ($provider === 'surge') {
     $secret = get_setting('sms_webhook_secret');
@@ -55,7 +67,28 @@ if ($provider === 'surge') {
             http_response_code(403);
             exit;
         }
+        $webhook_verified = true;   // signature checked out
     }
+}
+
+// ── Shared-secret fallback (any provider) ───────────────────────────────────
+// Same pattern as cron.php and wa_webhook.php: a token on the webhook URL (or
+// an X-Webhook-Token header). Fails closed — an unset token authenticates
+// nobody, it does not wave everyone through.
+if (!$webhook_verified) {
+    $expected_token = (string)get_setting('sms_webhook_token', '');
+    $provided_token = (string)($_SERVER['HTTP_X_WEBHOOK_TOKEN'] ?? ($_GET['token'] ?? ''));
+    if ($expected_token !== '' && $provided_token !== '' && hash_equals($expected_token, $provided_token)) {
+        $webhook_verified = true;
+    }
+}
+
+if (!$webhook_verified) {
+    // Deliberately terse to the caller; the operator-facing explanation lives
+    // in the SMS settings tab, which warns when the active provider has no
+    // usable credential configured.
+    http_response_code(403);
+    exit;
 }
 
 // ── Parse inbound message from the provider ──────────────────────────────────
@@ -118,8 +151,33 @@ if (strlen($digits) !== 10 || $body === '') {
     exit;
 }
 
+// Cap what an inbound message can store. post_max_size is 22M, and both the
+// body and the raw payload were persisted verbatim — a handful of oversized
+// requests could fill the disk on a small host. A concatenated SMS tops out
+// around 1600 characters; anything beyond that is not a real message.
+if (mb_strlen($body) > 1600) $body = mb_substr($body, 0, 1600);
+if (strlen($raw)   > 16384)  $raw  = substr($raw, 0, 16384);
+
 // Log inbound message with full raw payload
 $inbound_log_id = sms_log_inbound($from, $body, $provider, $raw);
+
+// ── Inbound flood guard ─────────────────────────────────────────────────────
+// Every inbound message can trigger an auto-reply to the sender AND a
+// notification to every host by email and SMS. That fan-out had no ceiling, so
+// one number texting in a loop costs money on both legs and puts the shared
+// 10DLC number's reputation at risk. Past the cap we still LOG the message (so
+// the host's conversation view misses nothing) but stop processing and send
+// nothing back, which is what breaks the amplification.
+try {
+    $rl = get_db()->prepare("SELECT COUNT(*) FROM sms_log
+                             WHERE direction = 'inbound' AND phone_digits = ?
+                               AND created_at > datetime('now', '-1 hour')");
+    $rl->execute([$digits]);
+    if ((int)$rl->fetchColumn() > 25) {
+        http_response_code(200);   // 200 so the provider does not retry
+        exit;
+    }
+} catch (Exception $e) { /* never let the guard itself break inbound */ }
 
 // Normalize to XXX-XXX-XXXX for DB lookup
 $normalized = substr($digits, 0, 3) . '-' . substr($digits, 3, 3) . '-' . substr($digits, 6, 4);

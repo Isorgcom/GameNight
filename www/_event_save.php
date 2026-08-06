@@ -186,11 +186,22 @@ function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allo
         : json_encode($reminder_offsets_clean);
 
     // League + visibility
+    // Putting an event on a league's calendar is a league-management act, so it
+    // takes an owner/manager role — plain membership used to be enough, which
+    // also handed the creator can_manage_event() rights over a league event.
     $req_league_id = (int)($_POST['league_id'] ?? 0);
     $league_id     = null;
     if ($req_league_id > 0) {
         $role = league_role($req_league_id, (int)$current['id']);
-        if ($role !== null || $isAdmin) $league_id = $req_league_id;
+        $may  = $isAdmin || in_array($role, ['owner', 'manager'], true);
+        // Editing an event that is ALREADY on this league keeps its binding, so
+        // a co-host without a league role doesn't silently unlink it on save.
+        if (!$may && $action === 'edit' && $id > 0) {
+            $curLg = $db->prepare('SELECT league_id FROM events WHERE id = ?');
+            $curLg->execute([$id]);
+            if ((int)$curLg->fetchColumn() === $req_league_id) $may = true;
+        }
+        if ($may) $league_id = $req_league_id;
     }
     $visibility = in_array($_POST['visibility'] ?? '', ['public','league','invitees_only'], true)
                   ? $_POST['visibility'] : 'invitees_only';

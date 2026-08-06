@@ -1683,7 +1683,7 @@ JSON;
 // Settings that contain secrets — automatically encrypted at rest
 define('ENCRYPTED_SETTINGS', [
     'smtp_pass', 'smtp_password',
-    'sms_token', 'sms_webhook_secret',
+    'sms_token', 'sms_webhook_secret', 'sms_webhook_token',
     'wa_token',
     'shortio_api_key',
 ]);

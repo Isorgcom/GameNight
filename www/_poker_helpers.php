@@ -38,6 +38,19 @@ function default_session_defaults(): array {
 // ─── League progressive jackpot (single fund; hit type is a label) ──
 const PK_JACKPOT_HIT_TYPES = ['badbeat' => 'Bad Beat', 'royal' => 'Royal Flush', 'other' => 'Jackpot'];
 
+// Authority to move a LEAGUE's jackpot money. Deliberately narrower than
+// can_manage_event(): that grants on events.created_by and per-event manager
+// invites, so event-level authority would reach a league-wide fund — anyone
+// who put an event on the league's calendar could adjust, pay out or void
+// its ledger. League money takes a league role.
+function pk_can_manage_league_money($db, ?int $league_id, int $user_id, bool $is_admin = false): bool {
+    if ($is_admin) return true;
+    if (!$league_id || $user_id <= 0) return false;
+    $q = $db->prepare('SELECT role FROM league_members WHERE league_id = ? AND user_id = ?');
+    $q->execute([$league_id, $user_id]);
+    return in_array((string)$q->fetchColumn(), ['owner', 'manager'], true);
+}
+
 // Fetch-or-create the league's jackpot fund row.
 function pk_jackpot_fund($db, int $league_id): array {
     $q = $db->prepare("SELECT * FROM league_jackpots WHERE league_id = ? AND jackpot_type = 'main'");
@@ -686,8 +699,14 @@ function pk_finish_session($db, int $session_id, int $actor_id): void {
         $winner->execute([$session_id, $place]);
         $w = $winner->fetch();
         if (!$w) continue;
+        // A place issues its ticket ONCE, whatever became of it. Excluding
+        // 'converted' here meant convert-to-cash → reopen → finish minted a
+        // second ticket while the converted value stayed folded into the
+        // player's payout (pk_apply_tournament_payouts), creating money on
+        // every cycle. Reopening deletes the still-'issued' rows, so a
+        // legitimate re-finish still re-issues.
         $dupe = $db->prepare("SELECT COUNT(*) FROM poker_entry_tickets
-                              WHERE source_session_id = ? AND source_place = ? AND status != 'converted'");
+                              WHERE source_session_id = ? AND source_place = ?");
         $dupe->execute([$session_id, $place]);
         if ((int)$dupe->fetchColumn() > 0) continue;
 
@@ -722,10 +741,19 @@ function pk_finish_session($db, int $session_id, int $actor_id): void {
 // Returns ['ok' => true] or ['ok' => false, 'error' => ...].
 function pk_unfinish_session($db, int $session_id, int $actor_id): array {
     try {
-        $q = $db->prepare("SELECT COUNT(*) FROM poker_entry_tickets WHERE source_session_id = ? AND status = 'redeemed'");
+        // Blocks on a ticket that is redeemed, and also on one that is merely
+        // RELEASED mid-correction at its target (status back to 'issued' but
+        // still carrying its redeemed_session_id breadcrumb). Otherwise a host
+        // un-buying a player at the target would silently unlock this reopen,
+        // which deletes the ticket out from under a seat that is about to be
+        // restored.
+        $q = $db->prepare("SELECT COUNT(*) FROM poker_entry_tickets
+                           WHERE source_session_id = ?
+                             AND (status = 'redeemed'
+                                  OR (status = 'issued' AND redeemed_session_id IS NOT NULL))");
         $q->execute([$session_id]);
         if ((int)$q->fetchColumn() > 0) {
-            return ['ok' => false, 'error' => 'A ticket from this game was already redeemed at its target event. Resolve it there before reopening.'];
+            return ['ok' => false, 'error' => 'A ticket from this game is in use at its target event. Resolve it there before reopening.'];
         }
         // Reverse this session's jackpot contributions so a re-finish re-adds
         // them from the (possibly changed) final buy-in count. Guard first: if

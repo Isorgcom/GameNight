@@ -303,11 +303,17 @@ if ($action === 'jackpot_log') {
     $sess->execute([$session_id]);
     $s = $sess->fetch();
     if (!$s) { echo json_encode(['ok' => false, 'error' => 'Session not found']); exit; }
-    if (!is_owner_or_manager($db, $s['event_id'], $current, $isAdmin)) {
+    if (!pk_can_manage_league_money($db, (int)($s['league_id'] ?? 0), (int)$current['id'], $isAdmin)) {
         http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Access denied']); exit;
     }
     if (empty($s['league_id'])) { echo json_encode(['ok' => true, 'entries' => []]); exit; }
-    $fund = pk_jackpot_fund($db, (int)$s['league_id']);
+    // Read-only endpoint: use the non-creating balance reader. pk_jackpot_fund()
+    // upserts, so this GET (no CSRF) could be induced to create a fund row and
+    // make a "💎 Jackpot $0" badge appear on a league that never had one.
+    $fundQ = $db->prepare("SELECT id, balance FROM league_jackpots WHERE league_id = ? AND jackpot_type = 'main'");
+    $fundQ->execute([(int)$s['league_id']]);
+    $fund = $fundQ->fetch();
+    if (!$fund) { echo json_encode(['ok' => true, 'entries' => [], 'balance' => 0]); exit; }
     $q = $db->prepare('SELECT id, event_type, player_name, amount, detail, voided, created_at
                        FROM league_jackpot_log WHERE jackpot_id = ? ORDER BY id DESC LIMIT 100');
     $q->execute([(int)$fund['id']]);
@@ -646,6 +652,28 @@ if ($action === 'toggle_buyin') {
                 elseif ($value > $amt)  $detail .= ' (' . pk_money($value - $amt) . ' surplus to pool)';
                 pk_log($db, (int)$session['id'], (int)$current['id'], 'ticket_redeem', $player_id, $pname, $value, $detail);
             }
+        } else {
+            // No ticket named: if this player's ticket was released by an earlier
+            // un-buy of this same seat, re-apply it. Without this the re-buy
+            // silently converts a ticket seat into a cash seat — the pot counts a
+            // buy-in nobody paid while the holder walks away with a live ticket
+            // (bulk Buy In never passes ticket_id, so it always took this path).
+            // The release keeps redeemed_session_id/redeemed_player_id precisely
+            // as this breadcrumb; target_event_id must still match, so a ticket
+            // re-targeted or converted in the meantime is correctly ignored.
+            try {
+                $rq = $db->prepare("SELECT id, value_cents FROM poker_entry_tickets
+                                    WHERE redeemed_session_id = ? AND redeemed_player_id = ?
+                                      AND status = 'issued' AND target_event_id = ? LIMIT 1");
+                $rq->execute([(int)$session['id'], $player_id, (int)$session['event_id']]);
+                if ($rt = $rq->fetch()) {
+                    $db->prepare("UPDATE poker_entry_tickets SET status = 'redeemed', resolved_at = CURRENT_TIMESTAMP, resolved_by = ? WHERE id = ?")
+                       ->execute([(int)$current['id'], (int)$rt['id']]);
+                    $rv = (int)$rt['value_cents'];
+                    pk_log($db, (int)$session['id'], (int)$current['id'], 'ticket_redeem', $player_id, $pname, $rv,
+                           'Entry ticket re-applied (buy-in restored) — ' . pk_money($rv));
+                }
+            } catch (Exception $e) { /* pre-migration DB */ }
         }
     } elseif ($set_only) {
         // Already bought in and the caller only wants to ensure that — no-op.
@@ -657,13 +685,17 @@ if ($action === 'toggle_buyin') {
         pk_log($db, (int)$session['id'], (int)$current['id'], 'unbuyin', $player_id, $pname, null, 'Buy-in reversed');
 
         // A ticket redeemed by this player in this session flips back to issued
-        // so the un-buy is fully reversible.
+        // so the un-buy is fully reversible. redeemed_session_id/_player_id are
+        // deliberately KEPT: with status='issued' they mark the ticket as
+        // released-from-this-seat, which is what lets a re-buy re-apply it
+        // instead of quietly turning a ticket seat into an unpaid cash seat.
+        // Nothing reads those columns without also filtering status='redeemed'.
         try {
             $rt = $db->prepare("SELECT id, display_name, value_cents FROM poker_entry_tickets
                                 WHERE redeemed_session_id = ? AND redeemed_player_id = ? AND status = 'redeemed'");
             $rt->execute([(int)$session['id'], $player_id]);
             foreach ($rt->fetchAll() as $t) {
-                $db->prepare("UPDATE poker_entry_tickets SET status = 'issued', redeemed_session_id = NULL, redeemed_player_id = NULL, resolved_at = NULL, resolved_by = NULL WHERE id = ?")
+                $db->prepare("UPDATE poker_entry_tickets SET status = 'issued', resolved_at = NULL, resolved_by = NULL WHERE id = ?")
                    ->execute([(int)$t['id']]);
                 pk_log($db, (int)$session['id'], (int)$current['id'], 'ticket_void', $player_id, $pname,
                        -(int)$t['value_cents'], 'Entry ticket un-applied (buy-in reversed) — ' . pk_money((int)$t['value_cents']));
@@ -1192,9 +1224,20 @@ if ($action === 'update_payouts') {
     $ticketsArr  = $_POST['tickets'] ?? [];   // dollars from the form
     $labelsArr   = $_POST['labels'] ?? [];
 
+    // Reject negatives BEFORE summing: only rows with a positive percentage are
+    // stored below, so a negative row would be silently dropped after having
+    // offset the total — "150 and -50" summed to 100, passed the cap, and left
+    // a 150% first place paying more than the pot holds.
     $totalPct = 0;
     $anyTicket = false;
-    for ($i = 0; $i < count($percentages); $i++) $totalPct += (float)$percentages[$i];
+    for ($i = 0; $i < count($percentages); $i++) {
+        $pctIn = (float)$percentages[$i];
+        if ($pctIn < 0) {
+            echo json_encode(['ok' => false, 'error' => 'Payout percentages cannot be negative.']);
+            exit;
+        }
+        $totalPct += $pctIn;
+    }
     foreach ($ticketsArr as $t) { if ((float)$t > 0) { $anyTicket = true; break; } }
     if ($totalPct > 100) {
         echo json_encode(['ok' => false, 'error' => 'Payout percentages cannot exceed 100%']);
@@ -1562,9 +1605,17 @@ if ($action === 'save_payout_structure') {
         $is_global = 0; // league structures are not global
     }
 
-    // Validate totals
+    // Validate totals. Negatives are rejected before summing — same reason as
+    // update_payouts: only positive rows persist, so a negative one would just
+    // buy headroom for an over-100% row and bake it into a reusable preset.
     $total = 0.0;
-    for ($i = 0; $i < count($percentages); $i++) $total += (float)$percentages[$i];
+    for ($i = 0; $i < count($percentages); $i++) {
+        $pctIn = (float)$percentages[$i];
+        if ($pctIn < 0) {
+            echo json_encode(['ok' => false, 'error' => 'Payout percentages cannot be negative.']); exit;
+        }
+        $total += $pctIn;
+    }
     if ($total > 100.0 + 0.001) {
         echo json_encode(['ok' => false, 'error' => 'Percentages total ' . number_format($total, 1) . '% — cannot exceed 100%']); exit;
     }
@@ -1690,6 +1741,21 @@ if ($action === 'load_payout_structure') {
            ->execute([$nb, $nbp, $nj, $session_id]);
     }
 
+    // Re-validate the split on the way in. Presets are stored rows that may
+    // pre-date the save-side checks (or have been written before they existed),
+    // and this path used to apply whatever it found without looking.
+    $loadPct = 0.0;
+    foreach ($rows as $r) {
+        $pctL = (float)$r['percentage'];
+        if ($pctL < 0) {
+            echo json_encode(['ok' => false, 'error' => 'This structure contains a negative payout percentage — edit and re-save it.']); exit;
+        }
+        $loadPct += $pctL;
+    }
+    if ($loadPct > 100.0 + 0.001) {
+        echo json_encode(['ok' => false, 'error' => 'This structure\'s payouts total ' . number_format($loadPct, 1) . '% — edit and re-save it before loading.']); exit;
+    }
+
     $db->prepare('DELETE FROM poker_payouts WHERE session_id = ?')->execute([$session_id]);
     $ins = $db->prepare('INSERT INTO poker_payouts (session_id, place, percentage, points, ticket_cents, prize_label) VALUES (?, ?, ?, ?, ?, ?)');
     foreach ($rows as $r) {
@@ -1793,8 +1859,9 @@ if ($action === 'void_jackpot_entry') {
     $sess->execute([$session_id]);
     $s = $sess->fetch();
     if (!$s || empty($s['league_id'])) { echo json_encode(['ok' => false, 'error' => 'Session/league not found']); exit; }
-    if (!is_owner_or_manager($db, $s['event_id'], $current, $isAdmin)) {
-        http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Access denied']); exit;
+    // League money needs a league role — see pk_can_manage_league_money().
+    if (!pk_can_manage_league_money($db, (int)$s['league_id'], (int)$current['id'], $isAdmin)) {
+        http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Only a league owner or manager can change the jackpot fund.']); exit;
     }
     $fund = pk_jackpot_fund($db, (int)$s['league_id']);
     $eq = $db->prepare('SELECT * FROM league_jackpot_log WHERE id = ? AND jackpot_id = ?');
@@ -1825,8 +1892,9 @@ if ($action === 'adjust_jackpot') {
     $sess->execute([$session_id]);
     $s = $sess->fetch();
     if (!$s || empty($s['league_id'])) { echo json_encode(['ok' => false, 'error' => 'Session/league not found']); exit; }
-    if (!is_owner_or_manager($db, $s['event_id'], $current, $isAdmin)) {
-        http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Access denied']); exit;
+    // League money needs a league role — see pk_can_manage_league_money().
+    if (!pk_can_manage_league_money($db, (int)$s['league_id'], (int)$current['id'], $isAdmin)) {
+        http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Only a league owner or manager can change the jackpot fund.']); exit;
     }
     $fund = pk_jackpot_fund($db, (int)$s['league_id']);
     $newBal = (int)$fund['balance'] + $amount;
@@ -1909,10 +1977,11 @@ if ($action === 'record_jackpot_hit') {
     $sess->execute([$session_id]);
     $s = $sess->fetch();
     if (!$s) { echo json_encode(['ok' => false, 'error' => 'Session not found']); exit; }
-    if (!is_owner_or_manager($db, $s['event_id'], $current, $isAdmin)) {
-        http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Access denied']); exit;
-    }
     if (empty($s['league_id'])) { echo json_encode(['ok' => false, 'error' => 'This event has no league (jackpots are league funds).']); exit; }
+    // League money needs a league role — see pk_can_manage_league_money().
+    if (!pk_can_manage_league_money($db, (int)$s['league_id'], (int)$current['id'], $isAdmin)) {
+        http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Only a league owner or manager can pay out the jackpot.']); exit;
+    }
 
     $recips = [];
     $total = 0;
