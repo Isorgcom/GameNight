@@ -686,8 +686,14 @@ function pk_finish_session($db, int $session_id, int $actor_id): void {
         $winner->execute([$session_id, $place]);
         $w = $winner->fetch();
         if (!$w) continue;
+        // A place issues its ticket ONCE, whatever became of it. Excluding
+        // 'converted' here meant convert-to-cash → reopen → finish minted a
+        // second ticket while the converted value stayed folded into the
+        // player's payout (pk_apply_tournament_payouts), creating money on
+        // every cycle. Reopening deletes the still-'issued' rows, so a
+        // legitimate re-finish still re-issues.
         $dupe = $db->prepare("SELECT COUNT(*) FROM poker_entry_tickets
-                              WHERE source_session_id = ? AND source_place = ? AND status != 'converted'");
+                              WHERE source_session_id = ? AND source_place = ?");
         $dupe->execute([$session_id, $place]);
         if ((int)$dupe->fetchColumn() > 0) continue;
 

@@ -1192,9 +1192,20 @@ if ($action === 'update_payouts') {
     $ticketsArr  = $_POST['tickets'] ?? [];   // dollars from the form
     $labelsArr   = $_POST['labels'] ?? [];
 
+    // Reject negatives BEFORE summing: only rows with a positive percentage are
+    // stored below, so a negative row would be silently dropped after having
+    // offset the total — "150 and -50" summed to 100, passed the cap, and left
+    // a 150% first place paying more than the pot holds.
     $totalPct = 0;
     $anyTicket = false;
-    for ($i = 0; $i < count($percentages); $i++) $totalPct += (float)$percentages[$i];
+    for ($i = 0; $i < count($percentages); $i++) {
+        $pctIn = (float)$percentages[$i];
+        if ($pctIn < 0) {
+            echo json_encode(['ok' => false, 'error' => 'Payout percentages cannot be negative.']);
+            exit;
+        }
+        $totalPct += $pctIn;
+    }
     foreach ($ticketsArr as $t) { if ((float)$t > 0) { $anyTicket = true; break; } }
     if ($totalPct > 100) {
         echo json_encode(['ok' => false, 'error' => 'Payout percentages cannot exceed 100%']);
@@ -1562,9 +1573,17 @@ if ($action === 'save_payout_structure') {
         $is_global = 0; // league structures are not global
     }
 
-    // Validate totals
+    // Validate totals. Negatives are rejected before summing — same reason as
+    // update_payouts: only positive rows persist, so a negative one would just
+    // buy headroom for an over-100% row and bake it into a reusable preset.
     $total = 0.0;
-    for ($i = 0; $i < count($percentages); $i++) $total += (float)$percentages[$i];
+    for ($i = 0; $i < count($percentages); $i++) {
+        $pctIn = (float)$percentages[$i];
+        if ($pctIn < 0) {
+            echo json_encode(['ok' => false, 'error' => 'Payout percentages cannot be negative.']); exit;
+        }
+        $total += $pctIn;
+    }
     if ($total > 100.0 + 0.001) {
         echo json_encode(['ok' => false, 'error' => 'Percentages total ' . number_format($total, 1) . '% — cannot exceed 100%']); exit;
     }
@@ -1688,6 +1707,21 @@ if ($action === 'load_payout_structure') {
         if (!(int)$evL->fetchColumn()) $nj = 0;  // jackpots are league funds
         $db->prepare('UPDATE poker_sessions SET bounty_amount = ?, bounty_points = ?, jackpot_amount = ? WHERE id = ?')
            ->execute([$nb, $nbp, $nj, $session_id]);
+    }
+
+    // Re-validate the split on the way in. Presets are stored rows that may
+    // pre-date the save-side checks (or have been written before they existed),
+    // and this path used to apply whatever it found without looking.
+    $loadPct = 0.0;
+    foreach ($rows as $r) {
+        $pctL = (float)$r['percentage'];
+        if ($pctL < 0) {
+            echo json_encode(['ok' => false, 'error' => 'This structure contains a negative payout percentage — edit and re-save it.']); exit;
+        }
+        $loadPct += $pctL;
+    }
+    if ($loadPct > 100.0 + 0.001) {
+        echo json_encode(['ok' => false, 'error' => 'This structure\'s payouts total ' . number_format($loadPct, 1) . '% — edit and re-save it before loading.']); exit;
     }
 
     $db->prepare('DELETE FROM poker_payouts WHERE session_id = ?')->execute([$session_id]);
