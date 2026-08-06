@@ -2577,6 +2577,15 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                         </select>
                     </div>
 
+                    <?php $wh_auth = sms_webhook_auth_status(); ?>
+                    <div style="margin:.75rem 0;padding:.6rem .75rem;border-radius:8px;font-size:.85rem;line-height:1.45;
+                                <?= $wh_auth['ok']
+                                    ? 'background:#f0fdf4;border:1px solid #bbf7d0;color:#166534'
+                                    : 'background:#fef2f2;border:1px solid #fecaca;color:#991b1b' ?>">
+                        <b><?= $wh_auth['ok'] ? '&#10003; Inbound texts authenticated' : '&#9888; Inbound texts are being rejected' ?></b><br>
+                        <?= $wh_auth['msg'] /* fixed operator copy from sms_webhook_auth_status(), no user input */ ?>
+                    </div>
+
                     <?php
                     // Current values for each field
                     $sms_field_values = [
@@ -2584,6 +2593,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                         'sms_token'          => $sms_token,
                         'sms_from'           => $sms_from,
                         'sms_webhook_secret' => get_setting('sms_webhook_secret'),
+                        'sms_webhook_token'  => get_setting('sms_webhook_token'),
                     ];
                     foreach ($sms_providers as $pkey => $prov):
                         foreach ($prov['fields'] as $fkey => $fdef):
