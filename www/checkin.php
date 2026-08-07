@@ -201,7 +201,9 @@ $session = $sessStmt->fetch();
 
     /* Full-screen Game Settings editor (timer-editor pattern: fixed header,
        tab strip, scrolling body; all panes stay mounted). */
-    .pk-sv-overlay{position:fixed;inset:0;z-index:900;background:var(--surface,#fff);display:flex;flex-direction:column}
+    /* Settings renders inside the content area like the other views, so the
+       page keeps its header, stats row and toolbar. */
+    .pk-sv-inline{display:flex;flex-direction:column;background:var(--surface,#fff);border:1px solid var(--border,#e2e8f0);border-radius:8px;overflow:hidden}
     .pk-sv-head{display:flex;justify-content:space-between;align-items:center;gap:.75rem;padding:.7rem 1.25rem;border-bottom:1.5px solid var(--border,#e2e8f0);flex-shrink:0}
     .pk-sv-title{font-size:1rem;font-weight:700;color:#1e293b}
     .pk-sv-title #svDirty{color:#f59e0b;font-size:.8rem;vertical-align:middle}
@@ -213,7 +215,9 @@ $session = $sessStmt->fetch();
     .pk-sv-tab.active{color:var(--accent,#2563eb);border-bottom-color:var(--accent,#2563eb)}
     .pk-sv-tab.disabled{opacity:.4;cursor:default}
     .pk-sv-badge{background:#fde68a;color:#92400e;border-radius:999px;font-size:.68rem;padding:.05rem .4rem;font-weight:700}
-    .pk-sv-body{flex:1;overflow-y:auto;padding:1rem 1.25rem 2rem}
+    /* Was flex:1 inside a full-height fixed overlay; inline it grows with its
+       content and the page scrolls, like every other view. */
+    .pk-sv-body{padding:1rem 1.25rem 1.5rem}
     .pk-sv-pane{display:none}
     .pk-sv-pane.active{display:block}
     @media (max-width:480px){.pk-subbox-body{grid-template-columns:1fr}}
@@ -986,6 +990,7 @@ function renderDashboard() {
 
 // Renders the content area for the active view (list / table / log).
 function renderViewContent() {
+    if (VIEW_MODE === 'settings') return renderSettingsView();
     if (VIEW_MODE === 'payouts') return renderPayoutsView();
     if (VIEW_MODE === 'log') {
         return '<div class="pk-log-sub">Buy-ins, rebuys, cash-outs, adds &amp; more &mdash; newest first, last 200. '
@@ -1757,13 +1762,17 @@ var SETTINGS_OPEN = false;
 var SETTINGS_TAB = 'game';
 var SETTINGS_DIRTY = false;
 
+// Settings is a VIEW, not an overlay: it renders into the content area like
+// List / Table / Log / Payouts, so the page keeps its header, stats row and
+// toolbar. VIEW_MODE_PREV is where Close returns to.
+var VIEW_MODE_PREV = 'list';
+
 function openSettings(tab) {
     SETTINGS_TAB = tab || 'game';
+    if (VIEW_MODE !== 'settings') VIEW_MODE_PREV = VIEW_MODE;
     SETTINGS_OPEN = true;
     SETTINGS_DIRTY = false;
-    renderSettingsView();
-    document.body.style.overflow = 'hidden';
-    try { history.pushState({ settings: SETTINGS_TAB }, ''); } catch (e) {}
+    setViewMode('settings', true);   // force: SETTINGS_TAB may have changed
     if (isTourney()) {
         // First open fetches the saved-structure list; later opens must still
         // re-render it into the freshly-built (empty) select.
@@ -1772,34 +1781,18 @@ function openSettings(tab) {
         populateTicketTargetSelect();
         updateBountyHint();
     }
-    // Borrow the thumb. Done here rather than in the click handler so every
-    // entry point is covered — the segment, the payout card's "Edit in
-    // Settings", the ticket warning link and the Payouts view footer.
-    markViewSegActive('settings');
 }
 
-async function closeSettings(skipHistory) {
+async function closeSettings() {
     if (!SETTINGS_OPEN) return;
     if (SETTINGS_DIRTY) {
         var ok = await pkConfirm('Discard unsaved settings changes?', { okLabel: 'Discard', danger: true });
-        if (!ok) {
-            // Back-button path already popped the state; restore it so the next
-            // Back still routes through this confirm.
-            if (skipHistory) { try { history.pushState({ settings: SETTINGS_TAB }, ''); } catch (e) {} }
-            return;
-        }
+        if (!ok) return;   // stay put — the editor is still on screen
     }
     SETTINGS_OPEN = false;
     SETTINGS_DIRTY = false;
-    // Hand the thumb back to the view underneath. Deliberately after the
-    // discard-confirm early return above: cancelling leaves the overlay open,
-    // so the thumb has to stay on Settings.
-    markViewSegActive(VIEW_MODE);
-    document.getElementById('settingsRoot').innerHTML = '';
-    document.body.style.overflow = '';
-    if (!skipHistory) { try { history.back(); } catch (e) {} }
+    setViewMode(VIEW_MODE_PREV === 'settings' ? 'list' : VIEW_MODE_PREV);
 }
-window.addEventListener('popstate', function() { if (SETTINGS_OPEN) closeSettings(true); });
 document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && SETTINGS_OPEN) closeSettings(); });
 
 function setSettingsTab(tab) {
@@ -1825,7 +1818,8 @@ function markSettingsDirty() {
 // actions), preserving the active tab and open state.
 function refreshSettingsView() {
     if (!SETTINGS_OPEN) return;
-    renderSettingsView();
+    var vc = document.getElementById('viewContent');
+    if (vc) vc.innerHTML = renderSettingsView();
     if (isTourney()) {
         renderPayoutStructureSelect();
         populateTicketTargetSelect();
@@ -1839,8 +1833,8 @@ function renderSettingsView() {
     if (SETTINGS_TAB === 'tickets' && !hasTickets) SETTINGS_TAB = 'game';
     if (isCash() && SETTINGS_TAB !== 'game') SETTINGS_TAB = 'game';
 
-    var h = '<div class="pk-sv-overlay">';
-    // Fixed header: title + dirty dot + Save/Close (timer editor pattern).
+    var h = '<div class="pk-sv-inline">';
+    // Editor header: title + dirty dot + Save/Close.
     h += '<div class="pk-sv-head">';
     h += '<span class="pk-sv-title">&#9881; Game Settings <span id="svDirty" style="display:' + (SETTINGS_DIRTY ? '' : 'none') + '" title="Unsaved changes">&#9679;</span><span id="svSaved" style="display:none">Saved &#10003;</span></span>';
     h += '<div style="display:flex;gap:.5rem">';
@@ -1879,14 +1873,17 @@ function renderSettingsView() {
     h += '</div>';
     h += '</div>';
 
-    var root = document.getElementById('settingsRoot');
-    root.innerHTML = h;
-    // Delegated dirty tracking: any input/change inside the editor.
-    if (!root._dirtyBound) {
-        root.addEventListener('input', markSettingsDirty);
-        root.addEventListener('change', markSettingsDirty);
-        root._dirtyBound = true;
-    }
+    return h;
+}
+
+// Delegated dirty tracking. Bound once at document level because the editor is
+// re-rendered into #viewContent (a fresh element each time), so binding to the
+// container itself would be lost on every repaint.
+document.addEventListener('input', _settingsDirtyDelegate);
+document.addEventListener('change', _settingsDirtyDelegate);
+function _settingsDirtyDelegate(e) {
+    if (!SETTINGS_OPEN) return;
+    if (e.target && e.target.closest && e.target.closest('.pk-sv-inline')) markSettingsDirty();
 }
 
 function renderGamePane() {
@@ -2758,15 +2755,22 @@ function markViewSegActive(which) {
     positionSegThumb('viewSeg', true);
 }
 
-function setViewMode(mode) {
-    // Settings is a full-screen overlay, not a view. Open it and let the thumb
-    // rest there, but leave VIEW_MODE alone so closeSettings() can hand the
-    // thumb back to whatever is actually underneath.
-    if (mode === 'settings') { openSettings('game'); return; }
+function setViewMode(mode, force) {
+    // Entering Settings from a segment click goes through openSettings so the
+    // structure/ticket selects get populated; openSettings calls back with
+    // force=true once its state is set.
+    if (mode === 'settings' && !force) { openSettings('game'); return; }
     // Cash games have no payout structure — the segment isn't rendered, but a
     // stale handler or a game-type change shouldn't be able to strand the user.
     if (mode === 'payouts' && isCash()) mode = 'list';
-    if (mode === VIEW_MODE) return;
+    if (mode !== 'settings' && VIEW_MODE === 'settings' && SETTINGS_OPEN) {
+        // Leaving Settings by clicking another segment routes through the
+        // discard confirm rather than silently dropping unsaved edits.
+        VIEW_MODE_PREV = mode;
+        closeSettings();
+        return;
+    }
+    if (mode === VIEW_MODE && !force) return;
     VIEW_MODE = mode;
     document.body.classList.toggle('view-payouts', mode === 'payouts');
     var vc = document.getElementById('viewContent');
@@ -3511,12 +3515,16 @@ function saveSettings() {
     });
 }
 
-// Post-save: refresh the dashboard and close the editor — Save means done.
+// Post-save: close the editor and rebuild the dashboard — Save means done.
+// Order matters now that Settings is a view: clear the open flag and return to
+// the previous view FIRST, so renderDashboard() paints that view rather than
+// re-rendering the editor we are leaving.
 function settingsSaved() {
     SETTINGS_DIRTY = false;
+    SETTINGS_OPEN = false;
+    VIEW_MODE = (VIEW_MODE_PREV && VIEW_MODE_PREV !== 'settings') ? VIEW_MODE_PREV : 'list';
     renderDashboard();
     pkProgressDone();
-    closeSettings();
 }
 
 function openNotes(pid) {
@@ -3826,6 +3834,13 @@ function updatePlayer(updated) {
 }
 
 function refreshUI() {
+    // The Settings editor holds unsaved form state, so the 10s poll must never
+    // repaint it — this is the reason it used to live outside #app entirely.
+    // Everything below #viewContent (stats, pool header, cards) still updates.
+    if (VIEW_MODE === 'settings') {
+        refreshUIChrome();
+        return;
+    }
     if (VIEW_MODE === 'payouts') {
         // Read-only view built entirely from PAYOUTS/POOL/PLAYERS — repaint it
         // wholesale so the ladder and pool track buy-ins as they land.
@@ -3854,6 +3869,13 @@ function refreshUI() {
             if (el) el.classList.add('open');
         });
     }
+    refreshUIChrome();
+}
+
+// Everything outside the content area: stats, pool header, sidebar cards and
+// the mobile summary bar. Split out so the Settings view can keep these live
+// without its own form being repainted underneath the host.
+function refreshUIChrome() {
     var stats = document.getElementById('statsRow');
     if (stats) stats.innerHTML = renderStats();
     var statsC = document.getElementById('statsCompact');
@@ -3954,7 +3976,7 @@ function rosterEditInProgress() {
     if (!ae) return false;
     var tag = (ae.tagName || '').toLowerCase();
     if (tag !== 'input' && tag !== 'textarea' && tag !== 'select') return false;
-    return !!(ae.closest && ae.closest('#playerBody, #mobileList, .pk-table-grid, #payoutCard, #poolCard, #statsRow, #settingsRoot'));
+    return !!(ae.closest && ae.closest('#playerBody, #mobileList, .pk-table-grid, #payoutCard, #poolCard, #statsRow, .pk-sv-inline'));
 }
 
 // ─── Walk-in arrival alerts ────────────────────────────────
