@@ -878,7 +878,7 @@ function renderDashboard() {
     var typeLabel = isCash() ? 'CASH' : 'TOURNAMENT';
     // Switching a tournament to a cash game in Settings removes the Payouts
     // segment — don't leave the user parked on a view that no longer exists.
-    if (VIEW_MODE === 'payouts' && isCash()) VIEW_MODE = 'list';
+    if ((VIEW_MODE === 'payouts' || VIEW_MODE === 'chop') && isCash()) VIEW_MODE = 'list';
     document.body.classList.toggle('view-payouts', VIEW_MODE === 'payouts');
     var h = '';
 
@@ -895,7 +895,7 @@ function renderDashboard() {
     }
     h += '<a class="pk-btn-settings" href="/walkin_display.php?event_id=' + <?= (int)$event['id'] ?> + '" target="_blank" style="text-decoration:none" title="QR Registration">&#128241;<span class="pk-act-label"> QR</span></a>';
     if (isTourney()) {
-        h += '<button class="pk-btn-settings" onclick="openDealSplit()" title="Payout Calculator">&#128176;<span class="pk-act-label"> Payout</span></button>';
+        // The deal-split calculator moved into the view switcher as "Chop".
     } else {
         h += '<button class="pk-btn-settings" onclick="openCashBox()" title="Cash box: record tips and square the box">&#129534;<span class="pk-act-label"> Cash Box</span></button>';
     }
@@ -960,6 +960,7 @@ function renderDashboard() {
     h += '<button data-view="settings" title="Game settings" onclick="setViewMode(\'settings\')">&#9881;<span class="pk-seg-label"> Settings</span></button>';
     if (isTourney()) {
         h += '<button data-view="payouts" class="' + (VIEW_MODE === 'payouts' ? 'active' : '') + '" title="Prize ladder, pool breakdown and rewards" onclick="setViewMode(\'payouts\')">&#128176;<span class="pk-seg-label"> Payouts</span></button>';
+        h += '<button data-view="chop" class="' + (VIEW_MODE === 'chop' ? 'active' : '') + '" title="Deal split calculator: ICM, standard or chip chop" onclick="setViewMode(\'chop\')">&#129535;<span class="pk-seg-label"> Chop</span></button>';
     }
     h += '</div>';
     h += '<button class="pk-help-btn" title="How this screen works" aria-label="Help" onclick="openHelp()">? Help</button>';
@@ -992,6 +993,7 @@ function renderDashboard() {
 function renderViewContent() {
     if (VIEW_MODE === 'settings') return renderSettingsView();
     if (VIEW_MODE === 'payouts') return renderPayoutsView();
+    if (VIEW_MODE === 'chop') return renderChopView();
     if (VIEW_MODE === 'log') {
         return '<div class="pk-log-sub">Buy-ins, rebuys, cash-outs, adds &amp; more &mdash; newest first, last 200. '
              + '<b>Edit</b> corrects a wrong amount in place; <b>Clear</b> reverses an entry from the player\'s totals. '
@@ -2762,7 +2764,7 @@ function setViewMode(mode, force) {
     if (mode === 'settings' && !force) { openSettings('game'); return; }
     // Cash games have no payout structure — the segment isn't rendered, but a
     // stale handler or a game-type change shouldn't be able to strand the user.
-    if (mode === 'payouts' && isCash()) mode = 'list';
+    if ((mode === 'payouts' || mode === 'chop') && isCash()) mode = 'list';
     if (mode !== 'settings' && VIEW_MODE === 'settings' && SETTINGS_OPEN) {
         // Leaving Settings by clicking another segment routes through the
         // discard confirm rather than silently dropping unsaved edits.
@@ -3837,7 +3839,10 @@ function refreshUI() {
     // The Settings editor holds unsaved form state, so the 10s poll must never
     // repaint it — this is the reason it used to live outside #app entirely.
     // Everything below #viewContent (stats, pool header, cards) still updates.
-    if (VIEW_MODE === 'settings') {
+    // Settings holds unsaved form state and Chop holds typed chip counts, so
+    // the 10s poll must not repaint either. Everything outside the content
+    // area still updates.
+    if (VIEW_MODE === 'settings' || VIEW_MODE === 'chop') {
         refreshUIChrome();
         return;
     }
@@ -4061,16 +4066,25 @@ setInterval(function() {
 }, 10000);
 
 // ─── DEAL SPLIT MODAL ────────────────────────────────────
-function openDealSplit() {
+// Chop: the deal-split calculator, rendered as a view beside Payouts rather
+// than a modal behind a header button. The calc helpers below are unchanged —
+// they address .deal-chips / #dealRows / #dealResult, which this still emits.
+function renderChopView() {
+    if (isCash()) {
+        return '<div class="pk-card"><h3>Chop</h3><div style="color:#64748b;font-size:.85rem">'
+             + 'Chopping applies to tournaments — a cash game is settled per player in the List view.</div></div>';
+    }
     var remaining = PLAYERS.filter(function(p) { return !parseInt(p.eliminated) && parseInt(p.bought_in); });
-    if (remaining.length < 2) { pkAlert('Need at least 2 active players for a deal split.'); return; }
-
-    var modal = document.getElementById('dealSplitModal');
-    var body = document.getElementById('dealSplitBody');
+    if (remaining.length < 2) {
+        return '<div class="pk-card"><h3>Chop</h3><div style="color:#64748b;font-size:.85rem">'
+             + 'A chop needs at least 2 players still in. ' + remaining.length + ' currently playing.</div></div>';
+    }
     var poolTotal = POOL.pool_total;
 
     // Build chip entry form
-    var h = '<div style="margin-bottom:1rem">';
+    var h = '<div class="pk-card">';
+    h += '<h3>Chop &mdash; Deal Split Calculator</h3>';
+    h += '<div style="margin-bottom:1rem">';
     h += '<p style="font-size:.85rem;color:#64748b;margin-bottom:.75rem">Enter each remaining player\'s chip count, then choose a split method.</p>';
     h += '<div style="font-weight:600;margin-bottom:.5rem">Prize Pool: ' + formatMoney(poolTotal) + ' &mdash; ' + remaining.length + ' players remaining</div>';
     if (parseInt(SESSION.bounty_amount) > 0 || PAYOUTS.some(function(p) { return parseInt(p.ticket_cents) > 0; })) {
@@ -4097,13 +4111,8 @@ function openDealSplit() {
     h += '</div>';
 
     h += '<div id="dealResult" style="display:none;background:#f0fdf4;border:1.5px solid #86efac;border-radius:8px;padding:1rem;margin-bottom:1rem"></div>';
-
-    body.innerHTML = h;
-    modal.style.display = 'flex';
-}
-
-function closeDealSplit() {
-    document.getElementById('dealSplitModal').style.display = 'none';
+    h += '</div>';
+    return h;
 }
 
 function getChipInputs() {
@@ -4238,15 +4247,7 @@ function calcICM(chips, poolTotal, payoutStructure) {
 }
 </script>
 
-<!-- Deal Split Modal -->
-<div id="dealSplitModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;align-items:center;justify-content:center;padding:1rem" onclick="if(event.target===this)closeDealSplit()">
-    <div style="background:#fff;border-radius:12px;padding:1.5rem;width:100%;max-width:520px;max-height:85vh;overflow-y:auto;position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
-        <button onclick="closeDealSplit()" style="position:absolute;top:.75rem;right:.75rem;background:none;border:none;font-size:1.3rem;cursor:pointer;color:#64748b">&times;</button>
-        <h2 style="font-size:1.1rem;font-weight:700;margin:0 0 1rem">Deal Split Calculator</h2>
-        <div id="dealSplitBody"></div>
-        <button class="btn" onclick="closeDealSplit()" style="width:100%;background:#f1f5f9;color:#475569;margin-top:.5rem">Close</button>
-    </div>
-</div>
+<!-- The deal-split calculator is the "Chop" view now (renderChopView), not a modal. -->
 
 </body>
 </html>
