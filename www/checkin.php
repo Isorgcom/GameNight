@@ -185,13 +185,14 @@ $session = $sessStmt->fetch();
 
     /* Payouts view — the full-width read-only counterpart to the sidebar card. */
     /* View transitions — the content slides in from the side the thumb travelled,
-       on the same curve and duration, so the switcher and the content read as
-       one gesture. Enter-only: animating the outgoing view too would need both
-       stacked, which doubles the page height mid-swap. */
+       on the thumb's easing curve. Deliberately slower than the thumb's .2s: the
+       content is a far larger object covering the same distance, and matching the
+       thumb exactly made it feel snapped rather than slid. Enter-only: animating
+       the outgoing view too would need both stacked, doubling page height mid-swap. */
     @keyframes pkViewInRight{from{opacity:0;transform:translateX(26px)}to{opacity:1;transform:none}}
     @keyframes pkViewInLeft{from{opacity:0;transform:translateX(-26px)}to{opacity:1;transform:none}}
-    .pk-view-in-right{animation:pkViewInRight .2s cubic-bezier(.4,0,.2,1)}
-    .pk-view-in-left{animation:pkViewInLeft .2s cubic-bezier(.4,0,.2,1)}
+    .pk-view-in-right{animation:pkViewInRight .32s cubic-bezier(.4,0,.2,1)}
+    .pk-view-in-left{animation:pkViewInLeft .32s cubic-bezier(.4,0,.2,1)}
     /* `clip` rather than `hidden`: it doesn't create a scroll container, so the
        26px offset can't flash a horizontal scrollbar. Removed on animationend
        so the Table view keeps its own horizontal scrolling. */
