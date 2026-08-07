@@ -964,20 +964,7 @@ function renderDashboard() {
     h += '</div>';
 
     // Inline pool/payout summary for mobile/tablet (compact bar above player list)
-    h += '<div class="pk-inline-summary">';
-    if (isCash()) {
-        h += '<span>In Play: <b>' + formatMoney(POOL.total_cash_in) + '</b></span>';
-        h += '<span>On Table: <b>' + formatMoney(POOL.total_cash_in - POOL.total_cash_out) + '</b></span>';
-    } else {
-        h += '<span>Pool: <b style="color:#22c55e">' + formatMoney(POOL.pool_total) + '</b></span>';
-        for (var pi = 0; pi < PAYOUTS.length && pi < 3; pi++) {
-            var pct = parseFloat(PAYOUTS[pi].percentage);
-            var amt = Math.round(POOL.pool_total * pct / 100);
-            var pl = PAYOUTS[pi].place == 1 ? '1st' : PAYOUTS[pi].place == 2 ? '2nd' : PAYOUTS[pi].place == 3 ? '3rd' : PAYOUTS[pi].place + 'th';
-            h += '<span>' + pl + ': <b>' + formatMoney(amt) + '</b></span>';
-        }
-    }
-    h += '</div>';
+    h += '<div class="pk-inline-summary" id="inlineSummary">' + renderInlineSummary() + '</div>';
 
     h += '<div id="viewContent">' + renderViewContent() + '</div>';
     h += '</div>';
@@ -1523,6 +1510,27 @@ function renderPoolCard() {
             (PLAYERS || []).forEach(function(p) { claimed += parseInt(p.bounty_cash) || 0; });
             var unclaimed = bw - claimed;
             if (unclaimed > 0) h += '<div class="pk-pool-row"><span style="color:#d97706">Unclaimed bounties</span><span style="color:#d97706">' + formatMoney(unclaimed) + '</span></div>';
+        }
+    }
+    return h;
+}
+
+// The compact pool/payout bar shown below 1024px, where the sidebar is hidden.
+// Extracted so refreshUI() can repaint it: it was rendered once and then went
+// stale, so on a phone the payout figures stopped matching the pool header
+// after any buy-in until something forced a full dashboard re-render.
+function renderInlineSummary() {
+    var h = '';
+    if (isCash()) {
+        h += '<span>In Play: <b>' + formatMoney(POOL.total_cash_in) + '</b></span>';
+        h += '<span>On Table: <b>' + formatMoney(POOL.total_cash_in - POOL.total_cash_out) + '</b></span>';
+    } else {
+        h += '<span>Pool: <b style="color:#22c55e">' + formatMoney(POOL.pool_total) + '</b></span>';
+        for (var pi = 0; pi < PAYOUTS.length && pi < 3; pi++) {
+            var pct = parseFloat(PAYOUTS[pi].percentage);
+            var amt = Math.round(POOL.pool_total * pct / 100);
+            var pl = PAYOUTS[pi].place == 1 ? '1st' : PAYOUTS[pi].place == 2 ? '2nd' : PAYOUTS[pi].place == 3 ? '3rd' : PAYOUTS[pi].place + 'th';
+            h += '<span>' + pl + ': <b>' + formatMoney(amt) + '</b></span>';
         }
     }
     return h;
@@ -3862,6 +3870,10 @@ function refreshUI() {
     if (poolCard) poolCard.innerHTML = renderPoolCard();
     var payoutCard = document.getElementById('payoutCard');
     if (payoutCard) payoutCard.innerHTML = renderPayoutCard();
+    // The mobile stand-in for those two cards — it was never refreshed, so its
+    // figures drifted from the pool header on every buy-in.
+    var inlineSum = document.getElementById('inlineSummary');
+    if (inlineSum) inlineSum.innerHTML = renderInlineSummary();
     renderPendingBanner();
 }
 
