@@ -101,6 +101,10 @@ $session = $sessStmt->fetch();
     .pk-stat-value{font-size:1.3rem;font-weight:700;color:var(--accent,#2563eb)}
 
     .pk-grid{display:grid;grid-template-columns:1fr 280px;gap:1rem;padding:.75rem 1.5rem;width:100%;box-sizing:border-box}
+    /* The Payouts view already shows the pool breakdown and the ladder in full
+       width — leaving the sidebar up would print both cards twice on one screen. */
+    body.view-payouts .pk-grid{grid-template-columns:1fr}
+    body.view-payouts .pk-sidebar{display:none}
     @media(max-width:1200px){.pk-grid{grid-template-columns:1fr 220px;gap:.75rem;padding:.75rem}}
     @media(max-width:1024px){.pk-grid{grid-template-columns:1fr;padding:.75rem}}
 
@@ -177,6 +181,23 @@ $session = $sessStmt->fetch();
     .pk-pool-row.total{font-weight:700;font-size:.95rem;border-top:2px solid var(--border,#e2e8f0);margin-top:.3rem;padding-top:.4rem;color:#22c55e}
     .pk-payout-row{display:flex;justify-content:space-between;padding:.15rem 0;font-size:.8rem;gap:.25rem}
     .pk-payout-place{font-weight:600}
+
+    /* Payouts view — the full-width read-only counterpart to the sidebar card. */
+    .pk-pv-sub{font-size:.8rem;color:#64748b;margin:0 0 .6rem}
+    .pk-pv-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:.75rem;align-items:start}
+    .pk-pv-grid > div{display:flex;flex-direction:column;gap:.75rem;min-width:0}
+    .pk-pv-table{width:100%;font-size:.82rem}
+    .pk-pv-table th{text-align:left;font-size:.68rem;text-transform:uppercase;letter-spacing:.03em;color:#94a3b8;padding:.3rem .4rem;border-bottom:1px solid var(--border,#e2e8f0)}
+    .pk-pv-table td{padding:.35rem .4rem;border-bottom:1px solid #f1f5f9}
+    .pk-pv-foot{margin-top:.75rem;text-align:center}
+    @media(max-width:900px){.pk-pv-grid{grid-template-columns:1fr}}
+    /* Five segments don't fit a phone with labels. Collapse to icons at the
+       same breakpoint where the header buttons lose theirs, so the two rows
+       degrade together. Titles keep the tooltips. */
+    @media(max-width:768px){
+        .pk-view-seg .pk-seg-label{display:none}
+        .pk-view-seg button{padding:.4rem .6rem;font-size:1rem}
+    }
 
     /* Full-screen Game Settings editor (timer-editor pattern: fixed header,
        tab strip, scrolling body; all panes stay mounted). */
@@ -851,6 +872,10 @@ function renderDashboard() {
     var statusClass = 'pk-badge-' + SESSION.status;
     var typeClass = 'pk-badge-' + SESSION.game_type;
     var typeLabel = isCash() ? 'CASH' : 'TOURNAMENT';
+    // Switching a tournament to a cash game in Settings removes the Payouts
+    // segment — don't leave the user parked on a view that no longer exists.
+    if (VIEW_MODE === 'payouts' && isCash()) VIEW_MODE = 'list';
+    document.body.classList.toggle('view-payouts', VIEW_MODE === 'payouts');
     var h = '';
 
     // Header
@@ -859,7 +884,8 @@ function renderDashboard() {
     h += '<h1>' + escHtml(<?= json_encode($event['title'], JSON_HEX_TAG) ?>) + ' <a href="/calendar.php"><span class="pk-act-label">Calendar</span></a></h1>';
     h += '<span class="pk-badge ' + typeClass + '">' + typeLabel + '</span>';
     h += '<div class="pk-actions">';
-    h += '<button class="pk-btn-settings" onclick="openSettings(\'game\')" title="Settings">&#9881;<span class="pk-act-label"> Settings</span></button>';
+    // Settings moved into the view switcher below — a duplicate entry point here
+    // would defeat the point of grouping it with the other things hosts open.
     if (isTourney()) {
         h += '<a class="pk-btn-settings" href="/timer.php?event_id=' + <?= (int)$event['id'] ?> + '" style="text-decoration:none" title="Timer">&#9201;<span class="pk-act-label"> Timer</span></a>';
     }
@@ -919,11 +945,18 @@ function renderDashboard() {
         h += '<button data-filter="eliminated" class="' + (FILTER==='eliminated'?'active':'') + '" onclick="setFilter(\'eliminated\')">Out</button>';
     }
     h += '</div>';
+    // Views plus the two things hosts reach for most: Settings (an overlay, so
+    // it borrows the thumb and hands it back on close) and Payouts, which used
+    // to be a tab buried inside Settings. Labels collapse to icons on phones.
     h += '<div class="pk-seg pk-view-seg" id="viewSeg">';
     h += '<span class="pk-seg-thumb"></span>';
-    h += '<button data-view="list" class="' + (VIEW_MODE === 'list' ? 'active' : '') + '" onclick="setViewMode(\'list\')">&#9776; List</button>';
-    h += '<button data-view="table" class="' + (VIEW_MODE === 'table' ? 'active' : '') + '" onclick="setViewMode(\'table\')">&#9638; Table</button>';
-    h += '<button data-view="log" class="' + (VIEW_MODE === 'log' ? 'active' : '') + '" title="Activity log: buy-ins, cash-outs, adds and more" onclick="setViewMode(\'log\')">&#128203; Log</button>';
+    h += '<button data-view="list" class="' + (VIEW_MODE === 'list' ? 'active' : '') + '" title="Player list" onclick="setViewMode(\'list\')">&#9776;<span class="pk-seg-label"> List</span></button>';
+    h += '<button data-view="table" class="' + (VIEW_MODE === 'table' ? 'active' : '') + '" title="Table &amp; seat layout" onclick="setViewMode(\'table\')">&#9638;<span class="pk-seg-label"> Table</span></button>';
+    h += '<button data-view="log" class="' + (VIEW_MODE === 'log' ? 'active' : '') + '" title="Activity log: buy-ins, cash-outs, adds and more" onclick="setViewMode(\'log\')">&#128203;<span class="pk-seg-label"> Log</span></button>';
+    h += '<button data-view="settings" title="Game settings" onclick="setViewMode(\'settings\')">&#9881;<span class="pk-seg-label"> Settings</span></button>';
+    if (isTourney()) {
+        h += '<button data-view="payouts" class="' + (VIEW_MODE === 'payouts' ? 'active' : '') + '" title="Prize ladder, pool breakdown and rewards" onclick="setViewMode(\'payouts\')">&#128176;<span class="pk-seg-label"> Payouts</span></button>';
+    }
     h += '</div>';
     h += '<button class="pk-help-btn" title="How this screen works" aria-label="Help" onclick="openHelp()">? Help</button>';
     h += '<button class="pk-btn-view-toggle" onclick="balanceTables()">&#9878; Balance</button>';
@@ -966,6 +999,7 @@ function renderDashboard() {
 
 // Renders the content area for the active view (list / table / log).
 function renderViewContent() {
+    if (VIEW_MODE === 'payouts') return renderPayoutsView();
     if (VIEW_MODE === 'log') {
         return '<div class="pk-log-sub">Buy-ins, rebuys, cash-outs, adds &amp; more &mdash; newest first, last 200. '
              + '<b>Edit</b> corrects a wrong amount in place; <b>Clear</b> reverses an entry from the player\'s totals. '
@@ -1494,8 +1528,11 @@ function renderPoolCard() {
     return h;
 }
 
-function renderPayoutCard() {
-    var h = '<h3>Payouts</h3>';
+// Payout warnings, shared by the sidebar card and the Payouts view so the two
+// can't drift. Worth noting the sidebar is display:none below 1024px, so until
+// the Payouts view existed these were invisible on phones and tablets.
+function payoutWarningsHtml() {
+    var h = '';
     // Pot-integrity check: a player with rebuys/add-ons but NO buy-in means the
     // pool is understated — exactly the anomaly that put a real game's payout
     // math $40 off. Surface it where the host looks at payout time.
@@ -1514,6 +1551,12 @@ function renderPayoutCard() {
     if (anyTicket && !parseInt(SESSION.ticket_target_event_id)) {
         h += '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:.45rem .6rem;margin-bottom:.6rem;font-size:.78rem;color:#92400e;font-weight:600">&#9888; Ticket prizes need a target event — <a href="#" onclick="openSettings(\'payouts\');return false" style="color:#92400e">set one in Settings</a>.</div>';
     }
+    return h;
+}
+
+function renderPayoutCard() {
+    var h = '<h3>Payouts</h3>';
+    h += payoutWarningsHtml();
     var totalPct = 0;
     for (var i = 0; i < PAYOUTS.length; i++) {
         var pay = PAYOUTS[i];
@@ -1535,6 +1578,156 @@ function renderPayoutCard() {
         h += '<div class="pk-payout-row"><span class="pk-payout-place">🎯 Per knockout</span><span style="color:#0e7490;font-weight:600;font-size:.8rem">' + bParts.join(' + ') + '</span></div>';
     }
     h += '<div style="margin-top:.5rem;text-align:center"><button class="pk-act-btn" onclick="openSettings(\'payouts\')" style="font-size:.8rem">Edit in Settings</button></div>';
+    return h;
+}
+
+// ─── Payouts view ──────────────────────────────────────
+// The full-width read-only counterpart to the sidebar card: the prize ladder
+// with every reward column, the pool breakdown, bounty/jackpot state, and the
+// final results once the game is over. Editing still lives in Settings.
+function renderPayoutsView() {
+    if (isCash()) {
+        return '<div class="pk-card"><h3>Payouts</h3><div style="color:#64748b;font-size:.85rem">'
+             + 'Cash games have no payout structure — money is settled per player in the List view.</div></div>';
+    }
+    var h = '<div class="pk-pv-sub">Where the money goes. Live from the current pool — figures move as buy-ins, rebuys and add-ons land.</div>';
+    h += payoutWarningsHtml();
+    h += '<div class="pk-pv-grid">';
+
+    // ── Left: prize ladder ──
+    h += '<div><div class="pk-card"><h3>Prize Ladder</h3>';
+    if (!PAYOUTS || !PAYOUTS.length) {
+        h += '<div style="color:#64748b;font-size:.85rem">No payout places set yet. Add them in Settings &rsaquo; Payouts &amp; Rewards.</div>';
+    } else {
+        var anyPts    = PAYOUTS.some(function(p) { return parseInt(p.points) > 0; });
+        var anyTicket = PAYOUTS.some(function(p) { return parseInt(p.ticket_cents) > 0; });
+        var anyLabel  = PAYOUTS.some(function(p) { return !!p.prize_label; });
+        var finished  = SESSION.status === 'finished';
+        h += '<table class="pk-table pk-pv-table"><thead><tr>'
+           + '<th>Place</th><th>%</th><th>Prize</th>'
+           + (anyPts ? '<th>Pts</th>' : '')
+           + (anyTicket ? '<th>&#127903; Ticket</th>' : '')
+           + (anyLabel ? '<th>Prize</th>' : '')
+           + '<th>Winner</th></tr></thead><tbody>';
+        var sumPct = 0, sumAmt = 0;
+        for (var i = 0; i < PAYOUTS.length; i++) {
+            var pay = PAYOUTS[i];
+            var pct = parseFloat(pay.percentage) || 0;
+            var amt = Math.round(POOL.pool_total * pct / 100);
+            sumPct += pct; sumAmt += amt;
+            // Who finished in this place, and what they were actually credited.
+            var win = (PLAYERS || []).filter(function(p) { return parseInt(p.finish_position) === parseInt(pay.place); })[0];
+            var winHtml = '&mdash;';
+            if (win) {
+                var stored = parseInt(win.payout) || 0;
+                winHtml = '<b>' + escHtml(win.display_name) + '</b>';
+                // Stored winnings are frozen at finish time; the computed prize
+                // tracks the live pool. If they disagree the game was edited
+                // after finishing — show both rather than quietly picking one.
+                if (finished && stored !== amt) {
+                    winHtml += ' <span style="color:#d97706;font-weight:700" title="Recorded winnings differ from the current pool — the game was edited after it finished. Reopen and re-finish to re-sync.">&#9888; ' + formatMoney(stored) + '</span>';
+                } else if (stored > 0) {
+                    winHtml += ' <span style="color:#16a34a;font-weight:600">' + formatMoney(stored) + '</span>';
+                }
+            }
+            h += '<tr><td><b>' + ordinalLabel(pay.place) + '</b></td>'
+               + '<td>' + (pct > 0 ? pct + '%' : '&mdash;') + '</td>'
+               + '<td style="font-weight:600;color:#16a34a">' + (pct > 0 ? formatMoney(amt) : '&mdash;') + '</td>'
+               + (anyPts ? '<td>' + (parseInt(pay.points) > 0 ? '<span style="color:#7c3aed;font-weight:700">+' + parseInt(pay.points) + '</span>' : '&mdash;') + '</td>' : '')
+               + (anyTicket ? '<td>' + (parseInt(pay.ticket_cents) > 0 ? '<span style="color:#b45309;font-weight:700">' + formatMoney(parseInt(pay.ticket_cents)) + '</span>' : '&mdash;') + '</td>' : '')
+               + (anyLabel ? '<td>' + (pay.prize_label ? escHtml(pay.prize_label) : '&mdash;') + '</td>' : '')
+               + '<td>' + winHtml + '</td></tr>';
+        }
+        var span = 3 + (anyPts?1:0) + (anyTicket?1:0) + (anyLabel?1:0);
+        h += '<tr style="border-top:2px solid #e2e8f0;font-weight:700">'
+           + '<td>Total</td><td>' + (Math.round(sumPct * 10) / 10) + '%</td><td>' + formatMoney(sumAmt) + '</td>'
+           + '<td colspan="' + (span - 2) + '"></td></tr>';
+        h += '</tbody></table>';
+        if (sumPct < 99.999) {
+            h += '<div style="margin-top:.5rem;font-size:.78rem;color:#d97706;font-weight:600">&#9888; Unallocated: '
+               + (Math.round((100 - sumPct) * 10) / 10) + '% &middot; ' + formatMoney(POOL.pool_total - sumAmt) + ' of the pool is not assigned to any place.</div>';
+        } else if (sumPct > 100.001) {
+            h += '<div style="margin-top:.5rem;font-size:.78rem;color:#991b1b;font-weight:700">&#9888; Payouts total ' + (Math.round(sumPct * 10) / 10) + '% — more than the pool holds.</div>';
+        }
+    }
+    h += '</div>';   // /prize ladder card
+
+    // ── Final results (finished games only) ──
+    if (SESSION.status === 'finished') {
+        var placed = (PLAYERS || []).filter(function(p) { return parseInt(p.finish_position) > 0; })
+                                    .sort(function(a, b) { return parseInt(a.finish_position) - parseInt(b.finish_position); });
+        if (placed.length) {
+            h += '<div class="pk-card"><h3>Final Results</h3>';
+            placed.forEach(function(p) {
+                var paid = parseInt(p.payout) || 0;
+                var bc   = parseInt(p.bounty_cash) || 0;
+                h += '<div class="pk-payout-row"><span class="pk-payout-place">' + ordinalLabel(p.finish_position) + ' ' + escHtml(p.display_name) + '</span>'
+                   + '<span>' + (paid > 0 ? '<span style="font-weight:600;color:#22c55e">' + formatMoney(paid) + '</span>' : '')
+                   + (bc > 0 ? ' <span style="color:#0e7490;font-size:.75rem;font-weight:700">+' + formatMoney(bc) + ' KO</span>' : '')
+                   + '<span style="color:#64748b;font-size:.75rem">' + rewardText(p) + '</span></span></div>';
+            });
+            h += '</div>';
+        }
+    }
+    h += '</div>';   // /left column
+
+    // ── Right: pool breakdown + bounty/jackpot ──
+    h += '<div>';
+    h += '<div class="pk-card" id="poolCardView">' + renderPoolCard() + '</div>';
+    h += bountyJackpotHtml();
+    h += '</div>';
+
+    h += '</div>';   // /grid
+    h += '<div class="pk-pv-foot"><button class="pk-act-btn" onclick="openSettings(\'payouts\')">Edit payouts &amp; rewards in Settings</button></div>';
+    return h;
+}
+
+// Bounty + jackpot state, rendered only when either is configured.
+function bountyJackpotHtml() {
+    var bAmt = parseInt(SESSION.bounty_amount) || 0;
+    var bPts = parseInt(SESSION.bounty_points) || 0;
+    var jAmt = parseInt(SESSION.jackpot_amount) || 0;
+    if (!bAmt && !bPts && !jAmt) return '';
+    var h = '<div class="pk-card"><h3>Bounties &amp; Jackpot</h3>';
+    if (bAmt > 0 || bPts > 0) {
+        var per = [];
+        if (bAmt > 0) per.push(formatMoney(bAmt) + ' cash');
+        if (bPts > 0) per.push(bPts + ' pts');
+        h += '<div class="pk-pool-row"><span>&#127919; Per knockout</span><span style="font-weight:600;color:#0e7490">' + per.join(' + ') + '</span></div>';
+        h += '<div class="pk-pool-row"><span style="color:#64748b;font-size:.78rem">' + (parseInt(SESSION.bounty_optional) ? 'Optional side pot' : 'Baked into the buy-in') + '</span><span></span></div>';
+        if (bAmt > 0) {
+            var collected = parseInt(SESSION.bounty_optional) ? (parseInt(POOL.bounty_collected) || 0) : (parseInt(POOL.bounty_withheld) || 0);
+            var claimed = 0;
+            (PLAYERS || []).forEach(function(p) { claimed += parseInt(p.bounty_cash) || 0; });
+            h += '<div class="pk-pool-row"><span>Collected</span><span>' + formatMoney(collected) + '</span></div>';
+            h += '<div class="pk-pool-row"><span>Claimed</span><span>' + formatMoney(claimed) + '</span></div>';
+            if (collected - claimed > 0) {
+                h += '<div class="pk-pool-row"><span style="color:#d97706">Still on the table</span><span style="color:#d97706">' + formatMoney(collected - claimed) + '</span></div>';
+            }
+        }
+        var koPlayers = (PLAYERS || []).filter(function(p) { return (parseInt(p.bounties_won) || 0) > 0; })
+                                       .sort(function(a, b) { return (parseInt(b.bounties_won) || 0) - (parseInt(a.bounties_won) || 0); });
+        if (koPlayers.length) {
+            h += '<div style="margin-top:.4rem;border-top:1px solid #f1f5f9;padding-top:.4rem">';
+            koPlayers.forEach(function(p) {
+                h += '<div class="pk-pool-row"><span>' + escHtml(p.display_name) + ' <span style="color:#0e7490;font-weight:700">&#127919; &times;' + parseInt(p.bounties_won) + '</span></span>'
+                   + '<span>' + ((parseInt(p.bounty_cash) || 0) > 0 ? formatMoney(parseInt(p.bounty_cash)) : '') + '</span></div>';
+            });
+            h += '</div>';
+        }
+    }
+    if (jAmt > 0) {
+        h += '<div style="margin-top:.5rem;border-top:1px solid #f1f5f9;padding-top:.5rem">';
+        h += '<div class="pk-pool-row"><span>&#128142; Jackpot entry</span><span style="font-weight:600;color:#7c3aed">' + formatMoney(jAmt) + '</span></div>';
+        h += '<div class="pk-pool-row"><span style="color:#64748b;font-size:.78rem">' + (parseInt(SESSION.jackpot_optional) ? 'Optional per player' : 'Baked into the buy-in') + '</span><span></span></div>';
+        var jc = parseInt(SESSION.jackpot_optional) ? (parseInt(POOL.jackpot_collected) || 0) : (parseInt(POOL.jackpot_withheld) || 0);
+        h += '<div class="pk-pool-row"><span>This game contributes</span><span>' + formatMoney(jc) + '</span></div>';
+        if (JACKPOTS && JACKPOTS.league_id) {
+            h += '<div class="pk-pool-row"><span>League fund</span><span style="font-weight:600;color:#7c3aed">' + formatMoney(parseInt(JACKPOTS.balance) || 0) + '</span></div>';
+        }
+        h += '</div>';
+    }
+    h += '</div>';
     return h;
 }
 
@@ -1571,6 +1764,10 @@ function openSettings(tab) {
         populateTicketTargetSelect();
         updateBountyHint();
     }
+    // Borrow the thumb. Done here rather than in the click handler so every
+    // entry point is covered — the segment, the payout card's "Edit in
+    // Settings", the ticket warning link and the Payouts view footer.
+    markViewSegActive('settings');
 }
 
 async function closeSettings(skipHistory) {
@@ -1586,6 +1783,10 @@ async function closeSettings(skipHistory) {
     }
     SETTINGS_OPEN = false;
     SETTINGS_DIRTY = false;
+    // Hand the thumb back to the view underneath. Deliberately after the
+    // discard-confirm early return above: cancelling leaves the overlay open,
+    // so the thumb has to stay on Settings.
+    markViewSegActive(VIEW_MODE);
     document.getElementById('settingsRoot').innerHTML = '';
     document.body.style.overflow = '';
     if (!skipHistory) { try { history.back(); } catch (e) {} }
@@ -2537,23 +2738,36 @@ function setTable(pid, val) {
 
 // Switch between the list / table / log views. Swaps only the content area so
 // the toolbar persists and the segmented-control thumb can slide.
-function setViewMode(mode) {
-    if (mode === VIEW_MODE) return;
-    VIEW_MODE = mode;
-    var vc = document.getElementById('viewContent');
-    if (vc) vc.innerHTML = renderViewContent();
+// Move the thumb + .active onto a segment. `which` is a real VIEW_MODE, or
+// 'settings' for the pseudo-segment that opens the overlay.
+function markViewSegActive(which) {
     var seg = document.getElementById('viewSeg');
-    if (seg) {
-        var btns = seg.querySelectorAll('button');
-        for (var i = 0; i < btns.length; i++) {
-            btns[i].classList.toggle('active', btns[i].getAttribute('data-view') === mode);
-        }
+    if (!seg) return;
+    var btns = seg.querySelectorAll('button');
+    for (var i = 0; i < btns.length; i++) {
+        btns[i].classList.toggle('active', btns[i].getAttribute('data-view') === which);
     }
     positionSegThumb('viewSeg', true);
+}
+
+function setViewMode(mode) {
+    // Settings is a full-screen overlay, not a view. Open it and let the thumb
+    // rest there, but leave VIEW_MODE alone so closeSettings() can hand the
+    // thumb back to whatever is actually underneath.
+    if (mode === 'settings') { openSettings('game'); return; }
+    // Cash games have no payout structure — the segment isn't rendered, but a
+    // stale handler or a game-type change shouldn't be able to strand the user.
+    if (mode === 'payouts' && isCash()) mode = 'list';
+    if (mode === VIEW_MODE) return;
+    VIEW_MODE = mode;
+    document.body.classList.toggle('view-payouts', mode === 'payouts');
+    var vc = document.getElementById('viewContent');
+    if (vc) vc.innerHTML = renderViewContent();
+    markViewSegActive(mode);
     var addBtn = document.getElementById('addTableBtn');
     if (addBtn) addBtn.style.display = (mode === 'table') ? '' : 'none';
     if (mode === 'log') { renderLog(); fetchLog(); }
-    else { updateBulkBar(); }
+    else if (mode !== 'payouts') { updateBulkBar(); }
 }
 
 // Position a segmented control's sliding thumb under its active button. Pass
@@ -3604,7 +3818,12 @@ function updatePlayer(updated) {
 }
 
 function refreshUI() {
-    if (VIEW_MODE === 'table') {
+    if (VIEW_MODE === 'payouts') {
+        // Read-only view built entirely from PAYOUTS/POOL/PLAYERS — repaint it
+        // wholesale so the ladder and pool track buy-ins as they land.
+        var pv = document.getElementById('viewContent');
+        if (pv) pv.innerHTML = renderPayoutsView();
+    } else if (VIEW_MODE === 'table') {
         // Table view: re-render the table grid in place
         var grid = document.querySelector('.pk-table-grid');
         if (grid) {
