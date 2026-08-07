@@ -4,6 +4,22 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2059] - 2026-08-07
+
+### Added
+- **Money entries can be corrected and reversed straight from the Log.** The Log is where a host notices a wrong buy-in, but it was read-only — fixing one meant knowing whose row it was and opening that player's ledger. Money rows now carry the same **Edit** and **Clear** actions the ledger has, and show the amount they were already carrying in their payload. This is not a new mechanism: the ledger and the Log are the same table, `get_player_ledger()` being `poker_session_log` filtered by player and by the five money types, so it reuses `void_ledger_entry` and `edit_ledger_entry` unchanged — both already validate the event type, cross-check the entry's session against the player's, and re-run `verify_event_access`. Actions appear only on money rows; bounty, jackpot, ticket, elimination and approval rows stay read-only because Clear has no defined behaviour for them and would strike the sentence while leaving the money untouched. `logTagLabel()` and the tag colours also gained the five types that were rendering as raw unstyled strings.
+- **Payouts is now a view, not a tab buried in Settings.** `renderPayoutsView()` gives the prize ladder a full-width table with Pts / Ticket / Prize columns emitted only when a place uses them, each place's winner and what they were actually credited, a total row, and an unallocated-percentage warning. Beside it sit the pool breakdown (reusing `renderPoolCard()` verbatim, so gross → withholdings → net can't drift from the sidebar), a Bounties & Jackpot card covering per-KO value, collection mode, collected versus claimed, who holds knockouts and the league fund, and — once a game is finished — the final results with stored winnings and reward chips. Editing still lives in Settings. Where stored winnings disagree with the live computed prize on a finished game, both are shown with a warning marker rather than quietly picking one; that only happens when a game is edited after finishing, and hiding it would be worse than surfacing it.
+
+### Changed
+- **Settings and Payouts join the List / Table / Log switcher.** One five-segment control replaces the header gear, which is gone — a duplicate entry point would have defeated the point of grouping them. Settings is a pseudo-segment: it opens the overlay without touching the active view, borrows the sliding thumb, and hands it back on close. That handoff lives in `openSettings()` / `closeSettings()` rather than the click handler so every entry point is covered — the segment, the payout card's "Edit in Settings", the ticket warning link, the view footer, Escape and browser Back — and sits after the discard-confirm early return, since cancelling leaves the overlay open and the thumb must stay put. The sidebar hides while the Payouts view is up, without which the pool and payout cards printed twice on one screen. Cash games get four segments and no Payouts, with coercion in both `renderDashboard()` and `setViewMode()` so changing game type can't strand a host on a view that no longer exists. Labels collapse to icons below 768px, matching where the header buttons already lose theirs.
+- The pot-integrity and ticket-target warnings moved into a shared `payoutWarningsHtml()` used by both the sidebar card and the new view. That closes a real gap: the sidebar is `display:none` below 1024px, so those two warnings were invisible on phones and tablets, while the view is on the toolbar at every width.
+
+### Fixed
+- **The compact pool/payout bar on phones and tablets went stale.** It is rendered once and was never touched again, so after any buy-in its figures drifted from the pool header directly above it (observed reading "Pool: $30" against a $45 header). Below 1024px the sidebar is hidden, so that bar *is* the pool and payout readout on mobile. Extracted to `renderInlineSummary()` and repainted in `refreshUI()` alongside the cards it stands in for. Pre-existing, surfaced while testing the new view at 390px.
+- **Clear is suppressed on rebuy and add-on rows with a zero amount.** A removal is logged as `-amount`, and `void_ledger_entry` reads that sign to know which way to correct the count — so at a $0 rebuy price the direction is lost (`-0 === 0`) and clearing would decrement again instead of restoring. Pre-existing in the ledger; guarded now in both surfaces because the Log makes it far easier to reach.
+
+---
+
 ## [v0.2058] - 2026-08-07
 
 ### Fixed
