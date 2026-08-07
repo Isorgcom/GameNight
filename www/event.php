@@ -644,6 +644,12 @@ async function editComment(id) {
         </div>
     </div>
 </div>
+<!-- Jodit needs BOTH files. Shipping the script without the stylesheet leaves the
+     editor unstyled: the typing area collapses to a single line and the toolbar's
+     SVG icons render at natural size, one of which covers the modal as a giant
+     black X. Lost in the v0.2038 port of this composer from the calendar popup,
+     which loads the stylesheet (calendar.php) as do league.php and admin_posts.php. -->
+<link rel="stylesheet" href="/vendor/jodit/jodit.min.css">
 <script src="/vendor/jodit/jodit.min.js" defer></script>
 <script>
 // ── Manager panel: live roster, approvals, delivery status, invites ─────────

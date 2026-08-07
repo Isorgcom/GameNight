@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2058] - 2026-08-07
+
+### Fixed
+- **"Message guests" was unusable — the message box was covered by a giant black X.** `event.php` loaded `vendor/jodit/jodit.min.js` but never its stylesheet, so the editor initialised completely unstyled: the typing area collapsed to a single 26px line and the toolbar's SVG icons rendered at natural size, one of them spilling across the modal as the black X hosts were seeing. Reported from live. The stylesheet was lost in the v0.2038 port of this composer out of the calendar popup — `calendar.php`, `league.php` and `admin_posts.php` all load both files, and only `event.php` was missing it, so the feature has been broken for every host since that release. Adds the `<link>` beside the existing `<script>` inside the same `$canManage` block. Verified on dev: typing area 26px → 219px, toolbar icons 0×0 → 14×14, and a typed message round-trips to clean HTML.
+
+---
+
 ## [v0.2057] - 2026-08-06
 
 Security pass over everything shipped since v0.2048 (the SMS conversations feature and Payout 2.0), reviewed across four dimensions — injection, authorization, money integrity, and the untrusted inbound boundary — and landed from the `GameNight-SecFix` branch. Every finding below was reproduced before the fix and re-tested after.
