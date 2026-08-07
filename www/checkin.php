@@ -101,10 +101,11 @@ $session = $sessStmt->fetch();
     .pk-stat-value{font-size:1.3rem;font-weight:700;color:var(--accent,#2563eb)}
 
     .pk-grid{display:grid;grid-template-columns:1fr 280px;gap:1rem;padding:.75rem 1.5rem;width:100%;box-sizing:border-box}
-    /* The Payouts view already shows the pool breakdown and the ladder in full
-       width — leaving the sidebar up would print both cards twice on one screen. */
-    body.view-payouts .pk-grid{grid-template-columns:1fr}
-    body.view-payouts .pk-sidebar{display:none}
+    /* The Payouts view keeps the sidebar exactly where it sits on every other
+       screen — moving the Prize Pool card into the content area made it jump.
+       Only the sidebar's condensed Payouts card hides, because the view shows
+       that same ladder in full. */
+    body.view-payouts #payoutCard{display:none}
     @media(max-width:1200px){.pk-grid{grid-template-columns:1fr 220px;gap:.75rem;padding:.75rem}}
     @media(max-width:1024px){.pk-grid{grid-template-columns:1fr;padding:.75rem}}
 
@@ -184,13 +185,13 @@ $session = $sessStmt->fetch();
 
     /* Payouts view — the full-width read-only counterpart to the sidebar card. */
     .pk-pv-sub{font-size:.8rem;color:#64748b;margin:0 0 .6rem}
-    .pk-pv-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:.75rem;align-items:start}
-    .pk-pv-grid > div{display:flex;flex-direction:column;gap:.75rem;min-width:0}
+    /* Cards stack in the content column; the sidebar keeps its own cards in
+       the position they hold on every other view. */
+    #viewContent > .pk-card + .pk-card{margin-top:.75rem}
     .pk-pv-table{width:100%;font-size:.82rem}
     .pk-pv-table th{text-align:left;font-size:.68rem;text-transform:uppercase;letter-spacing:.03em;color:#94a3b8;padding:.3rem .4rem;border-bottom:1px solid var(--border,#e2e8f0)}
     .pk-pv-table td{padding:.35rem .4rem;border-bottom:1px solid #f1f5f9}
     .pk-pv-foot{margin-top:.75rem;text-align:center}
-    @media(max-width:900px){.pk-pv-grid{grid-template-columns:1fr}}
     /* Five segments don't fit a phone with labels. Collapse to icons at the
        same breakpoint where the header buttons lose theirs, so the two rows
        degrade together. Titles keep the tooltips. */
@@ -1607,10 +1608,11 @@ function renderPayoutsView() {
     }
     var h = '<div class="pk-pv-sub">Where the money goes. Live from the current pool — figures move as buy-ins, rebuys and add-ons land.</div>';
     h += payoutWarningsHtml();
-    h += '<div class="pk-pv-grid">';
 
-    // ── Left: prize ladder ──
-    h += '<div><div class="pk-card"><h3>Prize Ladder</h3>';
+    // Single column. The pool breakdown deliberately is NOT repeated here — the
+    // sidebar's Prize Pool card stays put in the same spot it occupies on every
+    // other view, rather than moving into the content area for this one screen.
+    h += '<div class="pk-card"><h3>Prize Ladder</h3>';
     if (!PAYOUTS || !PAYOUTS.length) {
         h += '<div style="color:#64748b;font-size:.85rem">No payout places set yet. Add them in Settings &rsaquo; Payouts &amp; Rewards.</div>';
     } else {
@@ -1684,15 +1686,7 @@ function renderPayoutsView() {
             h += '</div>';
         }
     }
-    h += '</div>';   // /left column
-
-    // ── Right: pool breakdown + bounty/jackpot ──
-    h += '<div>';
-    h += '<div class="pk-card" id="poolCardView">' + renderPoolCard() + '</div>';
     h += bountyJackpotHtml();
-    h += '</div>';
-
-    h += '</div>';   // /grid
     h += '<div class="pk-pv-foot"><button class="pk-act-btn" onclick="openSettings(\'payouts\')">Edit payouts &amp; rewards in Settings</button></div>';
     return h;
 }
