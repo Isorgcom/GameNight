@@ -373,6 +373,17 @@ $session = $sessStmt->fetch();
     .pk-log-tag.t-uneliminate{background:#ede9fe;color:#5b21b6}
     .pk-log-tag.t-remove,.pk-log-tag.t-unbuyin{background:#f1f5f9;color:#64748b}
     .pk-log-tag.t-void{background:#fee2e2;color:#991b1b}
+    .pk-log-tag.t-edit{background:#e0f2fe;color:#075985}
+    .pk-log-tag.t-bounty{background:#cffafe;color:#155e75}
+    .pk-log-tag.t-jackpot{background:#ede9fe;color:#5b21b6}
+    .pk-log-tag.t-ticket_issue,.pk-log-tag.t-ticket_redeem{background:#fef3c7;color:#92400e}
+    .pk-log-tag.t-ticket_void{background:#f1f5f9;color:#64748b}
+    /* Cleared rows: same treatment as the ledger, via a class so the row can
+       still carry an actions block that is NOT struck through. */
+    .pk-log-row.voided{opacity:.55}
+    .pk-log-row.voided .pk-log-text{text-decoration:line-through}
+    /* Buttons centre themselves against a baseline-aligned row. */
+    .pk-log-actions{flex:0 0 auto;display:flex;gap:.3rem;align-self:center}
 
     /* ── Per-player ledger ── */
     .pk-ledger-btn{flex:0 0 auto;border:none;background:transparent;cursor:pointer;font-size:1rem;line-height:1;padding:.1rem .25rem;border-radius:4px;color:#64748b}
@@ -956,7 +967,9 @@ function renderDashboard() {
 // Renders the content area for the active view (list / table / log).
 function renderViewContent() {
     if (VIEW_MODE === 'log') {
-        return '<div class="pk-log-sub">Buy-ins, rebuys, cash-outs, adds &amp; more &mdash; newest first.</div>'
+        return '<div class="pk-log-sub">Buy-ins, rebuys, cash-outs, adds &amp; more &mdash; newest first, last 200. '
+             + '<b>Edit</b> corrects a wrong amount in place; <b>Clear</b> reverses an entry from the player\'s totals. '
+             + 'A player\'s full history is in their ledger (&#128210; next to their name).</div>'
              + '<div class="pk-log-list" id="logList"><div class="pk-log-empty">Loading&hellip;</div></div>';
     }
     if (VIEW_MODE === 'table') return renderTableView();
@@ -3430,7 +3443,9 @@ function renderLedger(entries) {
             if ((e.event_type === 'cashin' || e.event_type === 'cashout') && amt !== null && amt > 0) {
                 h += '<button class="pk-ledger-edit" onclick="editLedgerEntry(' + e.id + ',' + amt + ')">Edit</button>';
             }
-            h += '<button class="pk-ledger-clear" onclick="voidLedgerEntry(' + e.id + ')">Clear</button>';
+            if (ledgerRowClearable(e, amt)) {
+                h += '<button class="pk-ledger-clear" onclick="voidLedgerEntry(' + e.id + ')">Clear</button>';
+            }
         }
         h += '</div>';
     }
@@ -3443,7 +3458,11 @@ function voidLedgerEntry(entryId) {
         postAction('void_ledger_entry', { entry_id: entryId }, function(j){
             if (j.player) updatePlayer(j.player);
             if (j.pool) POOL = j.pool;
-            if (j.ledger) renderLedger(j.ledger);
+            // These two actions now fire from the Log view as well, where the
+            // ledger modal is closed and j.ledger belongs to whichever player
+            // the log row named — #ledgerList is always in the DOM, so repaint
+            // it only when it is genuinely open for that same player.
+            if (j.ledger && LEDGER_PID && j.player && parseInt(LEDGER_PID) === parseInt(j.player.id)) renderLedger(j.ledger);
             refreshUI();
         });
     });
@@ -3463,7 +3482,11 @@ function editLedgerEntry(entryId, currentCents) {
         postAction('edit_ledger_entry', { entry_id: entryId, new_amount: dollars }, function(j){
             if (j.player) updatePlayer(j.player);
             if (j.pool) POOL = j.pool;
-            if (j.ledger) renderLedger(j.ledger);
+            // These two actions now fire from the Log view as well, where the
+            // ledger modal is closed and j.ledger belongs to whichever player
+            // the log row named — #ledgerList is always in the DOM, so repaint
+            // it only when it is genuinely open for that same player.
+            if (j.ledger && LEDGER_PID && j.player && parseInt(LEDGER_PID) === parseInt(j.player.id)) renderLedger(j.ledger);
             refreshUI();
         });
     });
@@ -3473,8 +3496,29 @@ function editLedgerEntry(entryId, currentCents) {
 function logTagLabel(t) {
     var m = { buyin:'Buy In', unbuyin:'Un-Buy', rebuy:'Rebuy', addon:'Add-on',
               cashin:'Cash In', cashout:'Cash Out', add:'Add', approve:'Approve',
-              eliminate:'Out', uneliminate:'Back In', remove:'Remove', void:'Cleared', edit:'Edited' };
+              eliminate:'Out', uneliminate:'Back In', remove:'Remove', void:'Cleared', edit:'Edited',
+              bounty:'Bounty', jackpot:'Jackpot',
+              ticket_issue:'Ticket', ticket_redeem:'Ticket In', ticket_void:'Ticket Void' };
     return m[t] || t;
+}
+
+// The log and the per-player ledger are the SAME table (poker_session_log);
+// get_player_ledger() is just this list filtered by player and by these five
+// types. Only they carry money, so only they can be cleared or corrected —
+// clearing e.g. a bounty row would strike the sentence and leave the money.
+// Mirrors PK_LEDGER_TYPES in _poker_helpers.php.
+var PK_LEDGER_TYPES = ['buyin', 'cashin', 'rebuy', 'addon', 'cashout'];
+function isMoneyLogRow(e) {
+    return PK_LEDGER_TYPES.indexOf(e.event_type) >= 0 && parseInt(e.player_id) > 0;
+}
+
+// A rebuy/add-on REMOVAL is logged as -amount, and void_ledger_entry reads that
+// sign to know which way to correct the count. When the rebuy price is $0 the
+// sign is lost (-0 === 0) and clearing would decrement again instead of
+// restoring, so the row offers no Clear. Guards both the log and the ledger.
+function ledgerRowClearable(e, amt) {
+    if ((e.event_type === 'rebuy' || e.event_type === 'addon') && (amt === null || amt === 0)) return false;
+    return true;
 }
 
 function renderLog() {
@@ -3488,11 +3532,35 @@ function renderLog() {
     for (var i = 0; i < LOG.length; i++) {
         var e = LOG[i];
         var by = e.actor ? '<span class="pk-log-by">by ' + escHtml(e.actor) + '</span>' : '';
-        var vd = parseInt(e.voided) === 1 ? ' style="opacity:.55;text-decoration:line-through"' : '';
-        h += '<div class="pk-log-row">'
+        var voided = parseInt(e.voided) === 1;
+        var amt = (e.amount === null || e.amount === undefined) ? null : parseInt(e.amount);
+        // Same amount chip as the ledger — the log carried the value in its
+        // payload but never showed it, and an editable amount has to be visible.
+        var amtHtml = '';
+        if (amt !== null && amt !== 0) {
+            amtHtml = '<span class="pk-ledger-amt ' + (amt > 0 ? 'pos' : 'neg') + '">' + (amt > 0 ? '+' : '-') + formatMoney(Math.abs(amt)) + '</span>';
+        }
+        var actions = '';
+        if (isMoneyLogRow(e)) {
+            if (voided) {
+                actions = '<span class="pk-ledger-void-tag">Cleared</span>';
+            } else {
+                var btns = '';
+                if ((e.event_type === 'cashin' || e.event_type === 'cashout') && amt !== null && amt > 0) {
+                    btns += '<button class="pk-ledger-edit" onclick="editLedgerEntry(' + e.id + ',' + amt + ')">Edit</button>';
+                }
+                if (ledgerRowClearable(e, amt)) {
+                    btns += '<button class="pk-ledger-clear" onclick="voidLedgerEntry(' + e.id + ')">Clear</button>';
+                }
+                if (btns) actions = '<span class="pk-log-actions">' + btns + '</span>';
+            }
+        }
+        h += '<div class="pk-log-row' + (voided ? ' voided' : '') + '">'
            + '<span class="pk-log-time">' + escHtml(fmtLocalTime(e.time_ts, e.time)) + '</span>'
            + '<span class="pk-log-tag t-' + escHtml(e.event_type) + '">' + escHtml(logTagLabel(e.event_type)) + '</span>'
-           + '<span class="pk-log-text"' + vd + '><b>' + escHtml(e.player_name || '') + '</b> ' + escHtml(e.detail || '') + ' ' + by + '</span>'
+           + amtHtml
+           + '<span class="pk-log-text"><b>' + escHtml(e.player_name || '') + '</b> ' + escHtml(e.detail || '') + ' ' + by + '</span>'
+           + actions
            + '</div>';
     }
     el.innerHTML = h;
