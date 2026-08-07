@@ -184,6 +184,21 @@ $session = $sessStmt->fetch();
     .pk-payout-place{font-weight:600}
 
     /* Payouts view — the full-width read-only counterpart to the sidebar card. */
+    /* View transitions — the content slides in from the side the thumb travelled,
+       on the same curve and duration, so the switcher and the content read as
+       one gesture. Enter-only: animating the outgoing view too would need both
+       stacked, which doubles the page height mid-swap. */
+    @keyframes pkViewInRight{from{opacity:0;transform:translateX(26px)}to{opacity:1;transform:none}}
+    @keyframes pkViewInLeft{from{opacity:0;transform:translateX(-26px)}to{opacity:1;transform:none}}
+    .pk-view-in-right{animation:pkViewInRight .2s cubic-bezier(.4,0,.2,1)}
+    .pk-view-in-left{animation:pkViewInLeft .2s cubic-bezier(.4,0,.2,1)}
+    /* `clip` rather than `hidden`: it doesn't create a scroll container, so the
+       26px offset can't flash a horizontal scrollbar. Removed on animationend
+       so the Table view keeps its own horizontal scrolling. */
+    .pk-view-animating{overflow-x:clip}
+    @media(prefers-reduced-motion:reduce){
+        .pk-view-in-right,.pk-view-in-left{animation:none}
+    }
     .pk-pv-sub{font-size:.8rem;color:#64748b;margin:0 0 .6rem}
     /* Cards stack in the content column; the sidebar keeps its own cards in
        the position they hold on every other view. */
@@ -2767,15 +2782,47 @@ function setViewMode(mode, force) {
         return;
     }
     if (mode === VIEW_MODE && !force) return;
+    var fromMode = VIEW_MODE;
     VIEW_MODE = mode;
     document.body.classList.toggle('view-payouts', mode === 'payouts');
     var vc = document.getElementById('viewContent');
-    if (vc) vc.innerHTML = renderViewContent();
+    if (vc) {
+        vc.innerHTML = renderViewContent();
+        slideViewIn(vc, segDirection(fromMode, mode));
+    }
     markViewSegActive(mode);
     var addBtn = document.getElementById('addTableBtn');
     if (addBtn) addBtn.style.display = (mode === 'table') ? '' : 'none';
     if (mode === 'log') { renderLog(); fetchLog(); }
     else if (mode !== 'payouts') { updateBulkBar(); }
+}
+
+// Which way the thumb travels between two views, so the content can enter from
+// the same side. Reads the live button order rather than a hardcoded list, so
+// it stays right when a segment is absent (cash games have no Payouts/Chop).
+function segDirection(fromMode, toMode) {
+    var seg = document.getElementById('viewSeg');
+    if (!seg) return 1;
+    var order = [].map.call(seg.querySelectorAll('button'), function(b) { return b.getAttribute('data-view'); });
+    var a = order.indexOf(fromMode), b = order.indexOf(toMode);
+    if (a < 0 || b < 0) return 1;
+    return b >= a ? 1 : -1;
+}
+
+// Slide the freshly-rendered view in from `dir` (1 = from the right).
+function slideViewIn(el, dir) {
+    if (!el) return;
+    el.classList.remove('pk-view-in-right', 'pk-view-in-left');
+    void el.offsetWidth;   // reflow, so re-picking the same class restarts it
+    el.classList.add('pk-view-animating', dir < 0 ? 'pk-view-in-left' : 'pk-view-in-right');
+    var done = function() {
+        el.classList.remove('pk-view-animating', 'pk-view-in-right', 'pk-view-in-left');
+        el.removeEventListener('animationend', done);
+    };
+    el.addEventListener('animationend', done);
+    // animationend never fires under prefers-reduced-motion (animation:none),
+    // so drop the clip guard regardless.
+    setTimeout(done, 400);
 }
 
 // Position a segmented control's sliding thumb under its active button. Pass
