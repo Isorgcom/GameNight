@@ -279,6 +279,14 @@ $themeCss   = timer_theme_css_vars($themeProps);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <!-- iPhone Safari has no Fullscreen API (iPad does; the Full button is hidden
+         on iPhone for that reason). Add to Home Screen is the only way to lose
+         the browser chrome there, and these are what make it launch chrome-free
+         and edge-to-edge rather than in a plain Safari window. -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Poker Timer">
     <title>Poker Timer &mdash; <?= htmlspecialchars($site_name) ?></title>
     <link rel="icon" href="/favicon.php">
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
@@ -315,9 +323,21 @@ $themeCss   = timer_theme_css_vars($themeProps);
             --timer-event-scale: 1;
             --timer-level-scale: 1;
             --timer-blinds-scale: 1;
+            /* Shrink-to-fit factor written by fitBlinds(), separate from the
+               theme's scale so auto-fitting never overwrites what the theme set.
+               The two multiply. */
+            --timer-blinds-fit: 1;
+            /* Vertical shrink-to-fit for the whole display stack, written by
+               fitDisplayHeight(). Multiplies with every per-element scale and
+               horizontal fit. Separate from those because it answers a different
+               question: not "is this line too wide" but "does the whole column
+               fit the height this browser actually gave us". */
+            --timer-vfit: 1;
             --timer-clock-scale: 1;
             --timer-next-scale: 1;
+            --timer-next-fit: 1;
             --timer-paused-scale: 1;
+            --timer-paused-fit: 1;
         }
         .timer-body {
             background: var(--timer-bg);
@@ -342,6 +362,14 @@ $themeCss   = timer_theme_css_vars($themeProps);
             flex-direction: column;
             align-items: center;
             padding: 0.5rem 1rem;
+            /* viewport-fit=cover is set, so on an iPhone the layout runs under the
+               home indicator and, in landscape, under the notch. Only the tray
+               honoured the insets, which left the bottom-most line (Next) sitting
+               in the home-indicator strip. max() keeps the desktop padding where
+               there are no insets to honour. */
+            padding-left: max(1rem, env(safe-area-inset-left));
+            padding-right: max(1rem, env(safe-area-inset-right));
+            padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
             position: relative;
             min-height: 0;
             overflow: hidden;
@@ -364,6 +392,15 @@ $themeCss   = timer_theme_css_vars($themeProps);
             opacity: 0.85;
         }
         .timer-event-name {
+            /* Truncated, not shrunk. A 54-character tournament name scaled to
+               fit a 358px phone bar lands near 10px and stops being readable,
+               and this is identity rather than something you read at a glance.
+               min-width:0 is required for a flex item to shrink below its
+               content width at all; without it the ellipsis never engages. */
+            min-width: 0;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
             font-weight: 700;
             font-size: calc(clamp(1rem, 2.5vw, 1.5rem) * var(--timer-event-scale)) !important;
             opacity: 1 !important;
@@ -385,32 +422,59 @@ $themeCss   = timer_theme_css_vars($themeProps);
             overflow: hidden;
         }
         .timer-level-label {
-            font-size: calc(clamp(0.9rem, 3vw, 2.5rem) * var(--timer-level-scale));
+            font-size: calc((calc(clamp(0.9rem, 3vw, 2.5rem) * var(--timer-level-scale))) * var(--timer-vfit));
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.15em;
             color: var(--timer-level-color);
         }
         .timer-blinds {
-            font-size: calc(clamp(2rem, 10vw, 10rem) * var(--timer-blinds-scale));
+            font-size: calc((calc(clamp(2rem, 10vw, 10rem) * var(--timer-blinds-scale) * var(--timer-blinds-fit))) * var(--timer-vfit));
             font-weight: 800;
             color: var(--timer-blinds-color);
             line-height: 1.1;
             font-variant-numeric: tabular-nums;
+            /* Never wrap: a deep level like 20,000 / 40,000 / 5,000 broke onto a
+               second line and shoved the clock down the screen. fitBlinds()
+               shrinks the text to fit instead. nowrap is also what makes the
+               measurement possible — wrapped text reports no overflow. */
+            white-space: nowrap;
         }
+        .timer-blinds > span, .timer-next > span, .timer-paused-label > span { display: inline-block; white-space: nowrap; }
         .timer-ante {
-            font-size: clamp(1rem, 2.5vw, 2.2rem);
+            font-size: calc((clamp(1rem, 2.5vw, 2.2rem)) * var(--timer-vfit));
             color: var(--timer-ante-color);
             font-weight: 700;
         }
         .timer-clock {
-            font-size: calc(min(25vw, 35vh) * var(--timer-clock-scale));
+            font-size: calc((calc(min(25vw, 35vh) * var(--timer-clock-scale))) * var(--timer-vfit));
             font-weight: 800;
             font-variant-numeric: tabular-nums;
             line-height: 1;
             margin: 0;
             transition: color 0.3s;
+            /* Double-tap here starts and pauses. manipulation stops the browser
+               claiming the gesture for double-tap-to-zoom, and suppressing
+               selection stops the digits flashing highlighted on a double-click. */
+            touch-action: manipulation;
+            -webkit-user-select: none;
+            user-select: none;
         }
+        /* A theme can position these anywhere, and they routinely end up over the
+           clock — PAUSED sits across it by default. They are read-only text, so
+           they must not swallow the clock's double-tap. The layout editor is the
+           one place they are interactive, where they have to be draggable. */
+        .timer-level-label,
+        .timer-blinds,
+        .timer-ante,
+        .timer-paused-label,
+        .timer-next { pointer-events: none; }
+        body.layout-edit .timer-level-label,
+        body.layout-edit .timer-blinds,
+        body.layout-edit .timer-ante,
+        body.layout-edit .timer-paused-label,
+        body.layout-edit .timer-next { pointer-events: auto; }
+
         .timer-green { color: var(--timer-clock-green); }
         .timer-yellow { color: var(--timer-clock-yellow); }
         .timer-red { color: var(--timer-clock-red); animation: pulse 1s ease-in-out infinite; }
@@ -433,7 +497,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
         }
         .timer-clock[data-variant="radial-ring"] .clock-num,
         .timer-clock[data-variant="radial-checks"] .clock-num {
-            font-size: 9.5px;
+            font-size: calc((9.5px) * var(--timer-vfit));
             font-weight: 800;
             font-variant-numeric: tabular-nums;
             fill: currentColor;
@@ -443,7 +507,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
             transition: stroke-dashoffset 0.5s linear;
         }
         .timer-paused-label {
-            font-size: calc(clamp(0.8rem, 2vw, 1.8rem) * var(--timer-paused-scale));
+            font-size: calc((calc(clamp(0.8rem, 2vw, 1.8rem) * var(--timer-paused-scale) * var(--timer-paused-fit))) * var(--timer-vfit));
             color: var(--timer-paused-color);
             font-weight: 600;
             letter-spacing: 0.2em;
@@ -455,7 +519,8 @@ $themeCss   = timer_theme_css_vars($themeProps);
             50% { opacity: 0.5; }
         }
         .timer-next {
-            font-size: calc(clamp(1.3rem, 3.5vw, 2.5rem) * var(--timer-next-scale));
+            white-space: nowrap;
+            font-size: calc((calc(clamp(1.3rem, 3.5vw, 2.5rem) * var(--timer-next-scale) * var(--timer-next-fit))) * var(--timer-vfit));
             color: var(--timer-next-color);
             font-weight: 600;
         }
@@ -960,9 +1025,9 @@ $themeCss   = timer_theme_css_vars($themeProps);
             .timer-primary-controls button.btn-play, .timer-controls button.btn-play {
                 padding: 0.4rem 1rem;
             }
-            .timer-blinds { font-size: calc(clamp(2rem, 9vw, 6rem) * var(--timer-blinds-scale)); }
-            .timer-clock { font-size: calc(min(22vw, 30vh) * var(--timer-clock-scale)); }
-            .timer-level-label { font-size: calc(clamp(0.9rem, 2.5vw, 1.5rem) * var(--timer-level-scale)); }
+            .timer-blinds { font-size: calc((calc(clamp(2rem, 9vw, 6rem) * var(--timer-blinds-scale) * var(--timer-blinds-fit))) * var(--timer-vfit)); }
+            .timer-clock { font-size: calc((calc(min(22vw, 30vh) * var(--timer-clock-scale))) * var(--timer-vfit)); }
+            .timer-level-label { font-size: calc((calc(clamp(0.9rem, 2.5vw, 1.5rem) * var(--timer-level-scale))) * var(--timer-vfit)); }
         }
         @media (max-width: 500px) {
             .timer-primary-controls button, .timer-tray-grid button, .timer-controls button {
@@ -976,15 +1041,21 @@ $themeCss   = timer_theme_css_vars($themeProps);
         }
         /* Landscape phones: shrink everything to fit */
         @media (max-height: 500px) {
-            .timer-container { padding: 0.25rem 0.5rem; }
+            .timer-container { padding: 0.25rem 0.5rem;
+                /* Restated: the shorthand above resets the base rule's insets,
+                   and this block is exactly the iPhone-landscape case where the
+                   home indicator and notch eat into the layout. */
+                padding-left: max(0.5rem, env(safe-area-inset-left));
+                padding-right: max(0.5rem, env(safe-area-inset-right));
+                padding-bottom: max(0.25rem, env(safe-area-inset-bottom)); }
             .timer-info-bar { padding: 0.15rem 0.5rem; gap: 1rem; }
             .timer-info-bar > span { font-size: 0.8rem; }
-            .timer-level-label { font-size: calc(1rem * var(--timer-level-scale)); }
-            .timer-blinds { font-size: calc(clamp(1.5rem, 6vw, 3rem) * var(--timer-blinds-scale)); }
-            .timer-ante { font-size: 0.85rem; }
-            .timer-clock { font-size: calc(min(20vw, 25vh) * var(--timer-clock-scale)); }
-            .timer-paused-label { font-size: 0.9rem; min-height: 1.2em; }
-            .timer-next { font-size: calc(1.1rem * var(--timer-next-scale)); }
+            .timer-level-label { font-size: calc((calc(1rem * var(--timer-level-scale))) * var(--timer-vfit)); }
+            .timer-blinds { font-size: calc((calc(clamp(1.5rem, 6vw, 3rem) * var(--timer-blinds-scale) * var(--timer-blinds-fit))) * var(--timer-vfit)); }
+            .timer-ante { font-size: calc((0.85rem) * var(--timer-vfit)); }
+            .timer-clock { font-size: calc((calc(min(20vw, 25vh) * var(--timer-clock-scale))) * var(--timer-vfit)); }
+            .timer-paused-label { font-size: calc((calc(0.9rem * var(--timer-paused-fit))) * var(--timer-vfit)); min-height: 1.2em; }
+            .timer-next { font-size: calc((calc(1.1rem * var(--timer-next-scale) * var(--timer-next-fit))) * var(--timer-vfit)); }
             .timer-primary-controls, .timer-tray-grid { padding: 0.2rem 0; gap: 0.25rem; }
             .timer-primary-controls button, .timer-tray-grid button, .timer-controls button { padding: 0.3rem 0.5rem; font-size: 0.7rem; }
             .timer-primary-controls button.btn-play, .timer-controls button.btn-play { padding: 0.3rem 0.8rem; }
@@ -1059,13 +1130,16 @@ $themeCss   = timer_theme_css_vars($themeProps);
         body.display-mode .player-panel,
         body.display-mode .player-panel-overlay { display: none !important; }
 
-        body.display-mode .timer-container { padding: 1rem 2rem; }
-        body.display-mode .timer-level-label { font-size: calc(clamp(2rem, 4vw, 4rem) * var(--timer-level-scale)); }
-        body.display-mode .timer-blinds { font-size: calc(clamp(3rem, 12vw, 12rem) * var(--timer-blinds-scale)); }
-        body.display-mode .timer-clock { font-size: calc(min(30vw, 45vh) * var(--timer-clock-scale)); }
-        body.display-mode .timer-next { font-size: calc(clamp(1.8rem, 4vw, 4rem) * var(--timer-next-scale)); }
-        body.display-mode .timer-ante { font-size: clamp(1.5rem, 3vw, 3rem); }
-        body.display-mode .timer-paused-label { font-size: clamp(2rem, 4vw, 3.5rem); }
+        body.display-mode .timer-container { padding: 1rem 2rem;
+            padding-left: max(2rem, env(safe-area-inset-left));
+            padding-right: max(2rem, env(safe-area-inset-right));
+            padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+        body.display-mode .timer-level-label { font-size: calc((calc(clamp(2rem, 4vw, 4rem) * var(--timer-level-scale))) * var(--timer-vfit)); }
+        body.display-mode .timer-blinds { font-size: calc((calc(clamp(3rem, 12vw, 12rem) * var(--timer-blinds-scale) * var(--timer-blinds-fit))) * var(--timer-vfit)); }
+        body.display-mode .timer-clock { font-size: calc((calc(min(30vw, 45vh) * var(--timer-clock-scale))) * var(--timer-vfit)); }
+        body.display-mode .timer-next { font-size: calc((calc(clamp(1.8rem, 4vw, 4rem) * var(--timer-next-scale) * var(--timer-next-fit))) * var(--timer-vfit)); }
+        body.display-mode .timer-ante { font-size: calc((clamp(1.5rem, 3vw, 3rem)) * var(--timer-vfit)); }
+        body.display-mode .timer-paused-label { font-size: calc((calc(clamp(2rem, 4vw, 3.5rem) * var(--timer-paused-fit))) * var(--timer-vfit)); }
         body.display-mode .timer-info-bar { font-size: clamp(1.2rem, 2.5vw, 2.2rem); padding: 0.75rem 2rem; gap: 2rem; }
 
         /* ── Free-form layout editing ── */
@@ -1503,11 +1577,14 @@ $themeCss   = timer_theme_css_vars($themeProps);
     <!-- Main display -->
     <div class="timer-display">
         <div class="timer-level-label" id="levelLabel">Level 1</div>
-        <div class="timer-blinds" id="blinds">-</div>
+        <!-- The inner span is what fitBlinds() measures: an inline-block hugs its
+             text exactly, where the block would always report the full width and
+             a Range over a bare text node reports the line box, not the glyphs. -->
+        <div class="timer-blinds" id="blinds"><span id="blindsInner">-</span></div>
         <div class="timer-ante" id="ante"></div>
         <div class="timer-clock timer-green" id="timerClock">00:00</div>
-        <div class="timer-paused-label" id="pausedLabel"></div>
-        <div class="timer-next" id="nextLevel"></div>
+        <div class="timer-paused-label" id="pausedLabel"><span id="pausedInner"></span></div>
+        <div class="timer-next" id="nextLevel"><span id="nextInner"></span></div>
     </div>
 
     <!-- Primary controls (always visible) -->
@@ -1967,6 +2044,118 @@ function fmtChips(n) {
         : n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+// Shrink a display line just enough to keep it on one line. Text width scales
+// linearly with font-size, so one measure-and-scale pass lands it exactly and
+// there is no need to loop. Writes a --*-fit variable that MULTIPLIES with the
+// theme's --*-scale rather than replacing it, so a themed timer keeps the size
+// its theme asked for until the text genuinely will not fit.
+//
+// Two traps here, both of which produced a fit that measured clean and still
+// overflowed on screen:
+//   1. The line div is a flex item, so it stretches to its own content and its
+//      clientWidth IS the text width. Comparing the two can never overflow. The
+//      real limit is the content box of .timer-display, its parent.
+//   2. scrollWidth sees nothing either: the text is centred, so it spills
+//      equally both ways and scrollWidth stays equal to clientWidth. And a
+//      Range over a bare text node reports the line box, not the glyphs, which
+//      shrank short lines by 2% for nothing. The inline-block inner span hugs
+//      its text exactly, so its offsetWidth is the honest number.
+function fitLine(innerId, cssVar) {
+    var inner = document.getElementById(innerId);
+    var line  = inner && inner.parentElement;
+    var host  = line && line.parentElement;
+    if (!inner || !host) return;
+    var root = document.documentElement.style;
+    // Reset first: the previous level may have been narrower, and without this
+    // the line would only ever shrink over the course of a tournament.
+    root.setProperty(cssVar, '1');
+    var hcs = getComputedStyle(host);
+    var avail = host.clientWidth
+              - (parseFloat(hcs.paddingLeft) || 0)
+              - (parseFloat(hcs.paddingRight) || 0);
+    var needed = inner.offsetWidth;
+    if (!avail || !needed || needed <= avail) return;
+    // 0.98 leaves a hair of slack so sub-pixel rounding cannot re-overflow.
+    // 0.25 is a floor: a pathological level should get small, never vanish.
+    root.setProperty(cssVar, String(Math.max(0.25, (avail / needed) * 0.98)));
+}
+
+// Vertical counterpart to fitLine(). .timer-display centres its children and
+// clips (overflow:hidden), so anything that does not fit is silently cut off the
+// ends — the Next line, being last, is what disappears. That is the landscape
+// bug on iPhone: Safari's chrome leaves less height than the CSS assumed, and
+// nothing in the layout noticed.
+//
+// Sums the in-flow children rather than reading scrollHeight, for the same
+// reason the horizontal fit could not use it: with centred content and hidden
+// overflow, scrollHeight reports no overflow however far the content spills.
+// Skipping positioned children is deliberate — a theme pulls elements out to
+// position:fixed, and those neither contribute to the stack nor should shrink
+// because the stack is tall.
+function fitDisplayHeight() {
+    var disp = document.querySelector('.timer-display');
+    if (!disp) return;
+    var root = document.documentElement.style;
+    root.setProperty('--timer-vfit', '1');
+
+    var dcs = getComputedStyle(disp);
+    var avail = disp.clientHeight
+              - (parseFloat(dcs.paddingTop) || 0)
+              - (parseFloat(dcs.paddingBottom) || 0);
+
+    // clientHeight is only as honest as the CSS height it came from. If 100dvh
+    // over-reports — which is the standing suspicion on iOS Safari in landscape,
+    // where this bug lives — the box measures fine while its bottom sits under
+    // the browser chrome. visualViewport is the one number that describes what
+    // the user can actually see, so the smaller of the two wins.
+    var vvH = (window.visualViewport && window.visualViewport.height) || window.innerHeight || 0;
+    if (vvH) {
+        var visible = vvH - disp.getBoundingClientRect().top - (parseFloat(dcs.paddingBottom) || 0);
+        if (visible > 0) avail = Math.min(avail, visible);
+    }
+    if (!avail) return;
+
+    var need = 0;
+    for (var i = 0; i < disp.children.length; i++) {
+        var ch = disp.children[i];
+        var cs = getComputedStyle(ch);
+        if (cs.display === 'none' || cs.position === 'fixed' || cs.position === 'absolute') continue;
+        need += ch.getBoundingClientRect().height
+              + (parseFloat(cs.marginTop) || 0)
+              + (parseFloat(cs.marginBottom) || 0);
+    }
+    if (!need || need <= avail) return;
+
+    // Type does not scale perfectly linearly in height (line-height rounding,
+    // min-heights), so leave more slack than the horizontal fit does and floor
+    // it lower: a cramped landscape phone should still show every line.
+    root.setProperty('--timer-vfit', String(Math.max(0.4, (avail / need) * 0.95)));
+}
+
+// Both headline lines carry the same risk: a deep level renders 20,000 / 40,000
+// / 5,000 on the current line and again, prefixed with "Next:", below it.
+function fitBlinds() {
+    // Height first: shrinking the stack changes every line's width, so the
+    // horizontal fits below must measure the post-shrink type.
+    fitDisplayHeight();
+    fitLine('blindsInner', '--timer-blinds-fit');
+    fitLine('nextInner',   '--timer-next-fit');
+    // PAUSED is short, but a theme's paused scale can push it past the edge on
+    // a phone — it renders near 77px there, not the 13px the responsive rule
+    // suggests, because the scale multiplies after the clamp.
+    fitLine('pausedInner', '--timer-paused-fit');
+}
+
+// The available width changes without the text changing: window resize, entering
+// or leaving fullscreen, and phone rotation all need a re-fit.
+window.addEventListener('resize', fitBlinds);
+document.addEventListener('fullscreenchange', fitBlinds);
+// iOS reports the new viewport late on rotation, and visualViewport fires when
+// Safari's chrome collapses or expands — which is exactly what changed the
+// available height out from under the layout in landscape.
+window.addEventListener('orientationchange', function () { setTimeout(fitBlinds, 250); });
+if (window.visualViewport) window.visualViewport.addEventListener('resize', fitBlinds);
+
 // ─── §7.2.1  Get current level data ──────────────────────────────
 function getLevelData(num) {
     for (var i = 0; i < LEVELS.length; i++) {
@@ -2033,9 +2222,10 @@ function renderAll() {
             el('levelLabel').textContent = 'BREAK';
             // While running, show the wall-clock end of the break ("Until 9:15 PM")
             // so nobody has to do countdown math at the snack table.
-            el('blinds').textContent = TIMER.is_running
+            el('blindsInner').textContent = TIMER.is_running
                 ? 'Until ' + fmtWallTime(Math.max(0, parseInt(TIMER.time_remaining_seconds) || 0))
                 : 'Break Time';
+            fitBlinds();
             el('ante').textContent = '';
         } else {
             // Count play levels only
@@ -2050,7 +2240,8 @@ function renderAll() {
                 blindsHtml += ' / <span style="position:relative;display:inline-block">' + fmtChips(parseFloat(lv.ante))
                     + '<span style="position:absolute;left:50%;transform:translateX(-50%);bottom:-0.6em;font-size:0.25em;color:#f59e0b;font-weight:700;letter-spacing:0.05em">ANTE</span></span>';
             }
-            el('blinds').innerHTML = blindsHtml;
+            el('blindsInner').innerHTML = blindsHtml;
+            fitBlinds();
             el('ante').textContent = '';
         }
     }
@@ -2059,18 +2250,21 @@ function renderAll() {
     var nextLv = getLevelData(TIMER.current_level + 1);
     if (nextLv) {
         if (parseInt(nextLv.is_break)) {
-            el('nextLevel').innerHTML = 'Next: Break';
+            el('nextInner').innerHTML = 'Next: Break';
         } else {
             var nextHtml = 'Next: ' + fmtChips(parseFloat(nextLv.small_blind)) + ' / ' + fmtChips(parseFloat(nextLv.big_blind));
             if (parseFloat(nextLv.ante) > 0) {
                 nextHtml += ' / <span style="position:relative;display:inline-block">' + fmtChips(parseFloat(nextLv.ante))
                     + '<span style="position:absolute;left:50%;transform:translateX(-50%);bottom:-0.7em;font-size:0.45em;color:#f59e0b;font-weight:700;letter-spacing:0.05em">ANTE</span></span>';
             }
-            el('nextLevel').innerHTML = nextHtml;
+            el('nextInner').innerHTML = nextHtml;
         }
     } else {
-        el('nextLevel').innerHTML = 'Final Level';
+        el('nextInner').innerHTML = 'Final Level';
     }
+    // Both lines are written by now, so one pass fits them together. The call
+    // after the blinds write above only ever sees last level's "Next:" text.
+    fitBlinds();
 
     renderClock();
     renderPlayBtn();
@@ -2184,7 +2378,10 @@ function renderAll() {
     }
 
     // Paused label — show "PAUSED" placeholder while in edit mode so it can be themed.
-    el('pausedLabel').textContent = (_inEdit || !TIMER.is_running) ? 'PAUSED' : '';
+    // Writes the inner span, not the container: assigning textContent to the
+    // container would delete the span that fitLine() measures.
+    el('pausedInner').textContent = (_inEdit || !TIMER.is_running) ? 'PAUSED' : '';
+    fitLine('pausedInner', '--timer-paused-fit');
 }
 
 // Renderer registry — keyed by element key, then by variant name.
@@ -2479,6 +2676,50 @@ function startLocalTick() {
 
 // ─── §7.4.1  Controls (all send commands to server) ───────────────
 function togglePlay() { sendCommand('toggle_play'); }
+
+// Double-tap / double-click the clock to start or pause. The tray button stays
+// the primary control; this is for the host standing at the table with a tablet
+// propped up, where hitting a small button is the awkward part.
+(function () {
+    var clock = document.getElementById('timerClock');
+    if (!clock) return;
+
+    function armed() {
+        // A viewer must never be able to control the game, and in the layout
+        // editor the clock is a draggable object rather than a button.
+        return CAN_CONTROL && !document.body.classList.contains('layout-edit');
+    }
+    function toggleFromClock(e) {
+        if (!armed()) return;
+        if (e && e.preventDefault) e.preventDefault();
+        togglePlay();
+    }
+
+    clock.addEventListener('dblclick', toggleFromClock);
+
+    // Touch needs its own detector. dblclick is unreliable across mobile
+    // browsers, and where it does fire it can arrive after the synthetic-click
+    // delay, which reads as a lag between the tap and the timer reacting.
+    var lastTap = 0;
+    clock.addEventListener('touchend', function (e) {
+        if (e.touches && e.touches.length) return;              // still multi-touch
+        if (e.changedTouches && e.changedTouches.length > 1) return;
+        var now = e.timeStamp || 0;
+        if (lastTap && (now - lastTap) < 400) {
+            lastTap = 0;
+            toggleFromClock(e);
+        } else {
+            lastTap = now;
+        }
+    }, { passive: false });
+
+    // Affordance, and it keeps up with a mid-session permission change (the
+    // poll rewrites CAN_CONTROL when a co-host is promoted or demoted).
+    function syncCursor() { clock.style.cursor = armed() ? 'pointer' : ''; }
+    syncCursor();
+    setInterval(syncCursor, 5000);
+    clock.title = 'Double-tap to start or pause';
+})();
 function toggleTray() {
     var tray = document.getElementById('timerTray');
     if (tray) tray.classList.toggle('open');
@@ -3808,15 +4049,17 @@ function applyTheme(props) {
     if (el.event_name)   { root.setProperty('--timer-event-color', el.event_name.color || '#fff');     root.setProperty('--timer-event-scale', String(el.event_name.scale || 1)); }
     if (el.player_count) root.setProperty('--timer-stat-color', el.player_count.color || '#94a3b8');
     if (el.level_label)  { root.setProperty('--timer-level-color', el.level_label.color || '#94a3b8'); root.setProperty('--timer-level-scale', String(el.level_label.scale || 1)); }
-    if (el.blinds)       { root.setProperty('--timer-blinds-color', el.blinds.color || '#fff');        root.setProperty('--timer-blinds-scale', String(el.blinds.scale || 1)); }
+    // Changing the theme's blinds scale changes whether the line still fits, so
+    // re-fit after it lands rather than waiting for the next level change.
+    if (el.blinds)       { root.setProperty('--timer-blinds-color', el.blinds.color || '#fff');        root.setProperty('--timer-blinds-scale', String(el.blinds.scale || 1)); fitBlinds(); }
     if (el.clock) {
         root.setProperty('--timer-clock-green', el.clock.color_green || '#22c55e');
         root.setProperty('--timer-clock-yellow', el.clock.color_yellow || '#fbbf24');
         root.setProperty('--timer-clock-red', el.clock.color_red || '#ef4444');
         root.setProperty('--timer-clock-scale', String(el.clock.scale || 1));
     }
-    if (el.next_level)   { root.setProperty('--timer-next-color', el.next_level.color || '#94a3b8');   root.setProperty('--timer-next-scale', String(el.next_level.scale || 1)); }
-    if (el.paused_label) { root.setProperty('--timer-paused-color', el.paused_label.color || '#fbbf24'); root.setProperty('--timer-paused-scale', String(el.paused_label.scale || 1)); }
+    if (el.next_level)   { root.setProperty('--timer-next-color', el.next_level.color || '#94a3b8');   root.setProperty('--timer-next-scale', String(el.next_level.scale || 1)); fitBlinds(); }
+    if (el.paused_label) { root.setProperty('--timer-paused-color', el.paused_label.color || '#fbbf24'); root.setProperty('--timer-paused-scale', String(el.paused_label.scale || 1)); fitBlinds(); }
     if (el.avg_stack)     root.setProperty('--timer-avgstack-color', el.avg_stack.color || '#94a3b8');
     if (el.payouts)       root.setProperty('--timer-payouts-color', el.payouts.color || '#94a3b8');
     if (el.rebuys)        root.setProperty('--timer-rebuys-color', el.rebuys.color || '#94a3b8');

@@ -34,14 +34,20 @@
             letter-spacing: 0.1em;
             margin-bottom: 0.5rem;
         }
+        :root { --tv-blinds-fit: 1; --tv-next-fit: 1; }
+        .tv-blinds > span, .tv-next > span { display: inline-block; white-space: nowrap; }
         .tv-blinds {
-            font-size: 8rem;
+            white-space: nowrap;
+            font-size: calc(8rem * var(--tv-blinds-fit));
             font-weight: 800;
             line-height: 1.1;
             margin-bottom: 0.5rem;
         }
         .tv-clock {
-            font-size: 18rem;
+            /* 18rem is right on a 1280x720 cast target and 141px too wide by
+               820px. min() keeps the TV size and scales down on anything
+               narrower, e.g. previewing the cast URL on a phone. */
+            font-size: min(18rem, 20vw);
             font-weight: 800;
             font-variant-numeric: tabular-nums;
             line-height: 1;
@@ -57,7 +63,8 @@
             min-height: 3rem;
         }
         .tv-next {
-            font-size: 3rem;
+            white-space: nowrap;
+            font-size: calc(3rem * var(--tv-next-fit));
             font-weight: 600;
             color: #94a3b8;
             margin-top: 1rem;
@@ -84,10 +91,10 @@
     <div class="tv-container" id="display" style="display:none">
         <div class="tv-info-bar" id="infoBar"></div>
         <div class="tv-level" id="levelLabel">Level 1</div>
-        <div class="tv-blinds" id="blinds">-</div>
+        <div class="tv-blinds" id="blinds"><span id="blindsInner">-</span></div>
         <div class="tv-clock" id="clock">00:00</div>
         <div class="tv-paused-label" id="pausedLabel"></div>
-        <div class="tv-next" id="nextLevel"></div>
+        <div class="tv-next" id="nextLevel"><span id="nextInner"></span></div>
     </div>
 
     <script src="//www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
@@ -162,13 +169,41 @@
         return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
     }
 
+    // Mirrors fitLine() in timer.php. The cast screen has fixed rem font sizes
+    // rather than a clamp, so a deep level overflows it sooner, not later.
+    // Measure the inline-block inner span against .tv-container's content box:
+    // the line div is a flex item that stretches to its own content, so its own
+    // clientWidth can never report the overflow, and centred text defeats
+    // scrollWidth entirely.
+    function fitLine(innerId, cssVar) {
+        var inner = document.getElementById(innerId);
+        var line  = inner && inner.parentElement;
+        var host  = line && line.parentElement;
+        if (!inner || !host) return;
+        var root = document.documentElement.style;
+        root.setProperty(cssVar, '1');
+        var hcs = getComputedStyle(host);
+        var avail = host.clientWidth
+                  - (parseFloat(hcs.paddingLeft) || 0)
+                  - (parseFloat(hcs.paddingRight) || 0);
+        var needed = inner.offsetWidth;
+        if (!avail || !needed || needed <= avail) return;
+        root.setProperty(cssVar, String(Math.max(0.25, (avail / needed) * 0.98)));
+    }
+
+    function fitLines() {
+        fitLine('blindsInner', '--tv-blinds-fit');
+        fitLine('nextInner',   '--tv-next-fit');
+    }
+    window.addEventListener('resize', fitLines);
+
     function renderDisplay() {
         var lv = getLevelData(TIMER.current_level);
         if (!lv) return;
 
         if (parseInt(lv.is_break)) {
             document.getElementById('levelLabel').textContent = 'BREAK';
-            document.getElementById('blinds').textContent = 'Break Time';
+            document.getElementById('blindsInner').textContent = 'Break Time';
         } else {
             var playNum = 0;
             for (var i = 0; i < LEVELS.length; i++) {
@@ -182,7 +217,7 @@
                 blindsHtml += ' / <span style="position:relative;display:inline-block">' + fmtChips(parseFloat(lv.ante))
                     + '<span style="position:absolute;left:50%;transform:translateX(-50%);bottom:-0.5em;font-size:0.3em;color:#f59e0b;font-weight:700">ANTE</span></span>';
             }
-            document.getElementById('blinds').innerHTML = blindsHtml;
+            document.getElementById('blindsInner').innerHTML = blindsHtml;
         }
 
         var clock = document.getElementById('clock');
@@ -197,18 +232,19 @@
         var nextLv = getLevelData(TIMER.current_level + 1);
         if (nextLv) {
             if (parseInt(nextLv.is_break)) {
-                document.getElementById('nextLevel').innerHTML = 'Next: Break';
+                document.getElementById('nextInner').innerHTML = 'Next: Break';
             } else {
                 var nextHtml = 'Next: ' + fmtChips(parseFloat(nextLv.small_blind)) + ' / ' + fmtChips(parseFloat(nextLv.big_blind));
                 if (parseFloat(nextLv.ante) > 0) {
                     nextHtml += ' / <span style="position:relative;display:inline-block">' + fmtChips(parseFloat(nextLv.ante))
                         + '<span style="position:absolute;left:50%;transform:translateX(-50%);bottom:-0.6em;font-size:0.4em;color:#f59e0b;font-weight:700">ANTE</span></span>';
                 }
-                document.getElementById('nextLevel').innerHTML = nextHtml;
+                document.getElementById('nextInner').innerHTML = nextHtml;
             }
         } else {
-            document.getElementById('nextLevel').textContent = 'Final Level';
+            document.getElementById('nextInner').textContent = 'Final Level';
         }
+        fitLines();
     }
 
     function renderInfoBar(session, pool) {
