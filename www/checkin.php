@@ -2110,6 +2110,32 @@ function previewGameType(val) {
         var el = document.getElementById(id);
         if (el) el.style.display = hide ? 'none' : '';
     });
+    // The Payouts & Rewards and Tickets tabs are gated on game type, which is
+    // read from the SAVED session when the editor renders. Without this, picking
+    // Tournament left both tabs dead until you saved and reopened — you had to
+    // save a game type before you could configure the payouts for it.
+    var payTab = document.querySelector('.pk-sv-tab[data-tab="payouts"]');
+    if (payTab) {
+        payTab.classList.toggle('disabled', hide);
+        if (hide) {
+            payTab.setAttribute('disabled', 'disabled');
+            payTab.setAttribute('title', 'Cash games have no payout structure');
+            payTab.onclick = null;
+            // Don't strand the user on a tab that just became unreachable.
+            if (SETTINGS_TAB === 'payouts') setSettingsTab('game');
+        } else {
+            payTab.removeAttribute('disabled');
+            payTab.removeAttribute('title');
+            payTab.onclick = function() { setSettingsTab('payouts'); };
+        }
+    }
+    // Tickets only exists when the game has already awarded some; hide rather
+    // than enable, since switching to cash makes it meaningless either way.
+    var tickTab = document.querySelector('.pk-sv-tab[data-tab="tickets"]');
+    if (tickTab) {
+        tickTab.style.display = hide ? 'none' : '';
+        if (hide && SETTINGS_TAB === 'tickets') setSettingsTab('game');
+    }
 }
 
 // ─── Reward feature toggles (progressive disclosure) ──────
