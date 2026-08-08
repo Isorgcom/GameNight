@@ -1180,17 +1180,27 @@ if ($action === 'add_walkin') {
         auto_assign_table($db, $session_id, $newId);
     }
 
+    // The roster row is what the console renders, so its RSVP has to agree with
+    // the event_invites row set above. Without this the RSVP column read blank
+    // and the RSVP-Yes filter excluded a player the host had just marked yes,
+    // until the next get_session ran sync_invitees and quietly corrected it.
+    $db->prepare("UPDATE poker_players SET rsvp = 'yes' WHERE id = ?")->execute([$newId]);
+
     if ($user_id) auto_add_to_league($db, (int)$s['event_id'], (int)$user_id);
 
     db_log_activity((int)$current['id'], "added walk-in '$name' (player id=$newId) to poker session id=$session_id");
     pk_log($db, $session_id, (int)$current['id'], 'add', $newId, $name, null, 'Added to roster');
 
-    $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
-    $p->execute([$newId]);
+    // Return the roster in the same shape every other roster action does. A bare
+    // SELECT * row has no event_invites join, so a freshly added walk-in reached
+    // the client with rsvp = NULL even though the INSERT above just set it to
+    // 'yes' — and the RSVP-Yes filter then hid the player the host had only just
+    // added, until the 10s poll happened to replace them with a get_players() row.
     echo json_encode([
-        'ok'     => true,
-        'player' => $p->fetch(),
-        'pool'   => calc_pool($db, $session_id),
+        'ok'        => true,
+        'players'   => get_players($db, $session_id),
+        'player_id' => $newId,
+        'pool'      => calc_pool($db, $session_id),
     ]);
     exit;
 }

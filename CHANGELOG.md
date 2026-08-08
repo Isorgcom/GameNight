@@ -4,6 +4,17 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2065] - 2026-08-08
+
+### Fixed
+- **A walk-in you had just added could be missing from the player list.** With a player filter active, adding someone and then switching to List showed no sign of them, and only a page refresh brought them back — because the refresh reset the filter, not because the data was wrong. Two separate causes. `add_walkin` in `checkin_dl.php` responded with a bare `SELECT * FROM poker_players` row, which carries no `event_invites` join, so the client's copy had `rsvp` NULL and no `approval_status` and the RSVP-Yes filter excluded a player the host had just marked yes; it now returns `get_players()` output as `players` plus the new `player_id`, the same shape `approve_player` and every other roster mutation uses, and `addWalkin()` assigns the roster wholesale instead of splicing a single row in. Separately, a brand-new walk-in has no buy-in, so the Playing filter legitimately excluded them with nothing on screen to say so; adding someone is an explicit request to see them, so on a successful add the filter now yields to `all`, the filter bar's active segment and thumb are updated, and the toast says so. The RSVP-Yes filter is deliberately left alone, since a walk-in genuinely passes it now.
+- **A walk-in's RSVP never reached the roster row.** `add_walkin` set `rsvp = 'yes'` on the `event_invites` row but left `poker_players.rsvp` NULL, and the roster row is what the console renders. The RSVP column read blank for up to ten seconds and any RSVP-based filtering was wrong in that window, until the next `get_session` ran `sync_invitees` and quietly corrected it. The add now writes both.
+- **The Game Preset buttons were tiny on tablets.** Load, Save As…, Delete and Set Default carried no class at all, so they rendered at the browser default and never picked up the touch sizing every other control in the check-in console gets below 1024px. They now share a `.pk-preset-bar` style and reach a 44px target on tablet against 30px on desktop, alongside the existing `.pk-toolbar button` and `.pk-actions button` rules. The preset select gets a matching `min-height` so the row lines up; its padding and font-size are inline and cannot be outranked from the stylesheet, but `min-height` is untouched there.
+
+### Changed
+- **Bonus Reward chips are filled green when switched on**, matching the Finish button and the mobile primary action. They were tinted blue, the app's information colour, which made an armed bounty or points scheme read as a hint *about* bounties rather than a switch that is on. Filled-versus-outlined also separates on from off at a glance better than two shades of one colour did.
+- **The player-list filter predicate lives in one place.** `renderPlayerRows()` and `renderMobileCards()` held byte-identical copies and `addWalkin()` needed the same answer to know whether the person it just added would be filtered out, so all three now call `passesFilter()`. `renderTableView()` deliberately keeps its own copy: the seating chart has never branched on cash versus tournament for "playing", and changing that would be a behaviour change rather than a consolidation.
+
 ## [v0.2064] - 2026-08-08
 
 ### Added
