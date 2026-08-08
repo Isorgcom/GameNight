@@ -106,7 +106,7 @@ function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): strin
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Events — <?= htmlspecialchars($site_name) ?></title>
-    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
+    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
         @media (max-width: 1024px) {
             .me-view-btn { min-height:44px !important;font-size:.9rem !important;padding:.5rem .85rem !important;display:inline-flex;align-items:center; }

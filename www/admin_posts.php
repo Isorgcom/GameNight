@@ -205,7 +205,7 @@ $now_local = (new DateTime('now', $local_tz))->format('Y-m-d H:i:s');
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($site_name) ?></title>
-    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
+    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <link href="/vendor/jodit/jodit.min.css" rel="stylesheet">
     <style>
         .hint { font-size: .78rem; color: #94a3b8; margin-top: .35rem; }

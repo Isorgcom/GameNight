@@ -20,6 +20,35 @@ if (!can_manage_event($db, (int)$event_id, (int)$current['id'], $isAdmin)) {
 $site_name = get_setting('site_name', 'Game Night');
 $csrf = csrf_token();
 
+// Leagues this host may bind the event to, for the League select in Setup.
+// Same rule the server enforces in update_config: owner/manager of that league,
+// or site admin. The event's CURRENT league is always included even without a
+// role on it, so a co-host can see where the game sits (and re-save) without
+// being able to move it somewhere new.
+$assignable_leagues = [];
+$_curLeague = (int)($event['league_id'] ?? 0);
+foreach (user_leagues((int)$current['id']) as $_lg) {
+    if (in_array($_lg['role'], ['owner', 'manager'], true)) {
+        $assignable_leagues[(int)$_lg['id']] = $_lg['name'];
+    }
+}
+if ($isAdmin) {
+    foreach ($db->query('SELECT id, name FROM leagues ORDER BY LOWER(name)') as $_lg) {
+        $assignable_leagues[(int)$_lg['id']] = $_lg['name'];
+    }
+}
+// Anyone holding a role on a league can also unbind the event (set None), so the
+// picker is offered whenever they have at least one — even if that one is the
+// league the event is already on.
+$_canMoveLeague = $isAdmin || count($assignable_leagues) > 0;
+// The current league is always listed, even without a role on it, so a co-host
+// can see where the game sits. Marked so it doesn't read as a free choice.
+if ($_curLeague && !isset($assignable_leagues[$_curLeague])) {
+    $_lgName = $db->prepare('SELECT name FROM leagues WHERE id = ?');
+    $_lgName->execute([$_curLeague]);
+    $assignable_leagues[$_curLeague] = ($_lgName->fetchColumn() ?: 'League #' . $_curLeague) . ' (current)';
+}
+
 // Walk-in autocomplete suggestions. Admins see every site username; non-admins see only
 // usernames they would already have access to via the event editor's invite picker:
 // the event's league roster (if any) plus their personal contacts.
@@ -69,7 +98,7 @@ $session = $sessStmt->fetch();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Manage Game — <?= htmlspecialchars($event['title']) ?> — <?= htmlspecialchars($site_name) ?></title>
-    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
+    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
     .pk-wrap{padding:0 1rem 2rem;max-width:100%}
     .pk-header{background:var(--dark,#0f172a);color:#fff;padding:.75rem 1.5rem;display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;position:sticky;top:0;z-index:50}
@@ -141,13 +170,9 @@ $session = $sessStmt->fetch();
     .pk-help-content h4{margin:.9rem 0 .25rem;font-size:.9rem;color:#0f172a}
     .pk-help-content h4:first-child{margin-top:0}
     .pk-help-content p{margin:0;font-size:.85rem;color:#475569;line-height:1.45}
-    /* Shared "pill slider" segmented control — used by the player filter and the view switcher
-       so the two read as matched grouped controls. A thumb slides under the active button. */
-    .pk-seg{position:relative;display:inline-flex;border:1.5px solid #cbd5e1;border-radius:8px;background:#dde3ec;padding:3px;box-shadow:inset 0 1px 2px rgba(15,23,42,.14)}
-    .pk-seg-thumb{position:absolute;top:3px;bottom:3px;left:0;width:0;border-radius:6px;background:var(--accent,#2563eb);box-shadow:0 1px 3px rgba(37,99,235,.5);z-index:0;transition:transform .2s cubic-bezier(.4,0,.2,1),width .2s cubic-bezier(.4,0,.2,1)}
-    .pk-seg button{position:relative;z-index:1;border:none;background:transparent;cursor:pointer;padding:.34rem .75rem;font-size:.76rem;font-weight:600;color:#475569;white-space:nowrap;transition:color .15s}
-    .pk-seg button:hover:not(.active){color:#1e293b}
-    .pk-seg button.active{color:#fff}
+    /* .pk-seg / .pk-seg-thumb / the slide-in keyframes now live in style.css,
+       with the behaviour in pk-seg.js — see CLAUDE.md "UI Conventions". Only
+       page-specific tweaks to the control belong here. */
 
     .pk-table-wrap{overflow-x:auto;border:1.5px solid var(--border,#e2e8f0);border-radius:8px;background:var(--surface,#fff)}
     .pk-table{width:100%;border-collapse:collapse;font-size:.85rem}
@@ -212,35 +237,21 @@ $session = $sessStmt->fetch();
         box-shadow:0 1px 2px rgba(15,23,42,.08);transition:background .15s,color .15s}
     .pk-toolbar .pk-btn-setup:hover{background:#eff6ff}
     .pk-toolbar .pk-btn-setup.active{background:var(--accent,#2563eb);color:#fff;box-shadow:0 1px 3px rgba(37,99,235,.5)}
-    /* When Setup is the active view no segment is selected, so hide the thumb
-       rather than leaving it parked under a button that isn't current. */
-    .pk-view-seg.thumb-off .pk-seg-thumb{opacity:0}
 
     /* "This game isn't set up yet" prompt — the loudest signal, shown only
-       while it's true and gone the moment the game is configured. */
+       while it's true and gone the moment the game is configured. Amber, not
+       blue: in blue it read as an informational tip and disappeared into the
+       page. This is the app's warning palette, matching the ticket-target
+       warning and the seat-cutoff divider. */
     .pk-setup-cta{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin:0 0 .6rem;padding:.7rem .9rem;
-        background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:8px}
-    .pk-setup-cta-txt{flex:1 1 240px;min-width:0;font-size:.82rem;color:#1e3a8a;line-height:1.4}
-    .pk-setup-cta-txt b{display:block;font-size:.9rem;color:#1e40af}
-    .pk-setup-cta button{flex:0 0 auto;border:none;background:var(--accent,#2563eb);color:#fff;border-radius:6px;
+        background:#fffbeb;border:1.5px solid #f59e0b;border-left-width:5px;border-radius:8px}
+    .pk-setup-cta-txt{flex:1 1 240px;min-width:0;font-size:.82rem;color:#92400e;line-height:1.4}
+    .pk-setup-cta-txt b{display:block;font-size:.9rem;color:#b45309}
+    .pk-setup-cta button{flex:0 0 auto;border:none;background:#d97706;color:#fff;border-radius:6px;
         padding:.45rem 1rem;font-size:.82rem;font-weight:700;cursor:pointer}
+    .pk-setup-cta button:hover{background:#b45309}
 
-    /* View transitions — the content slides in from the side the thumb travelled,
-       on the thumb's easing curve. Deliberately slower than the thumb's .2s: the
-       content is a far larger object covering the same distance, and matching the
-       thumb exactly made it feel snapped rather than slid. Enter-only: animating
-       the outgoing view too would need both stacked, doubling page height mid-swap. */
-    @keyframes pkViewInRight{from{opacity:0;transform:translateX(26px)}to{opacity:1;transform:none}}
-    @keyframes pkViewInLeft{from{opacity:0;transform:translateX(-26px)}to{opacity:1;transform:none}}
-    .pk-view-in-right{animation:pkViewInRight .32s cubic-bezier(.4,0,.2,1)}
-    .pk-view-in-left{animation:pkViewInLeft .32s cubic-bezier(.4,0,.2,1)}
-    /* `clip` rather than `hidden`: it doesn't create a scroll container, so the
-       26px offset can't flash a horizontal scrollbar. Removed on animationend
-       so the Table view keeps its own horizontal scrolling. */
-    .pk-view-animating{overflow-x:clip}
-    @media(prefers-reduced-motion:reduce){
-        .pk-view-in-right,.pk-view-in-left{animation:none}
-    }
+    /* View/pane transitions live in style.css — see pk-seg.js. */
     .pk-pv-sub{font-size:.8rem;color:#64748b;margin:0 0 .6rem}
     /* Cards stack in the content column; the sidebar keeps its own cards in
        the position they hold on every other view. */
@@ -271,10 +282,23 @@ $session = $sessStmt->fetch();
     .pk-sv-title #svSaved{color:#16a34a;font-size:.8rem;font-weight:600;margin-left:.4rem}
     .pk-sv-save{padding:.45rem 1.4rem;background:var(--accent,#2563eb);color:#fff;border:none;border-radius:6px;font-weight:600;font-size:.85rem;cursor:pointer}
     .pk-sv-close{padding:.45rem 1rem;background:transparent;color:#64748b;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-weight:600;font-size:.85rem;cursor:pointer}
-    .pk-sv-tabs{display:flex;gap:.25rem;padding:0 1.25rem;border-bottom:1.5px solid var(--border,#e2e8f0);flex-shrink:0}
-    .pk-sv-tab{padding:.55rem .9rem;border:none;background:transparent;font-size:.85rem;font-weight:600;color:#64748b;cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-1.5px}
-    .pk-sv-tab.active{color:var(--accent,#2563eb);border-bottom-color:var(--accent,#2563eb)}
-    .pk-sv-tab.disabled{opacity:.4;cursor:default}
+    /* Setup's tabs are the same segmented control as the toolbar sliders, thumb
+       and all. They switch between panes exactly like the view strip switches
+       between views, so an underlined-tab idiom here was a third way of saying
+       the same thing. Buttons keep .pk-sv-tab so the gating code that enables
+       and disables them by data-tab is unchanged. */
+    .pk-sv-tabs{display:flex;padding:.6rem 1.25rem;border-bottom:1.5px solid var(--border,#e2e8f0);flex-shrink:0}
+    .pk-sv-seg{max-width:100%;flex-wrap:wrap}
+    .pk-sv-seg .pk-sv-tab{padding:.42rem .9rem;font-size:.82rem}
+    /* Disabled (cash game has no payout structure) must not look selectable, and
+       must not light up on hover the way a live segment does. */
+    .pk-sv-seg .pk-sv-tab.disabled,
+    .pk-sv-seg .pk-sv-tab:disabled{opacity:.4;cursor:default}
+    .pk-sv-seg .pk-sv-tab.disabled:hover,
+    .pk-sv-seg .pk-sv-tab:disabled:hover{color:#475569}
+    /* On the active segment the thumb is behind the label, so the amber badge
+       needs to hold up against the accent fill rather than the grey track. */
+    .pk-sv-seg .pk-sv-tab.active .pk-sv-badge{background:#fff;color:#b45309}
     .pk-sv-badge{background:#fde68a;color:#92400e;border-radius:999px;font-size:.68rem;padding:.05rem .4rem;font-weight:700}
     /* Was flex:1 inside a full-height fixed overlay; inline it grows with its
        content and the page scrolls, like every other view. */
@@ -732,6 +756,13 @@ var CSRF = <?= json_encode($csrf, JSON_HEX_TAG) ?>;
 var ALL_USERS = <?= json_encode($allUsernames, JSON_HEX_TAG) ?>;
 var EVENT_ID = <?= $event_id ?>;
 var EVENT_LEAGUE_ID = <?= (int)($event['league_id'] ?? 0) ?>;
+var ASSIGNABLE_LEAGUES = <?= json_encode(array_map(
+        function ($id, $name) { return ['id' => (int)$id, 'name' => $name]; },
+        array_keys($assignable_leagues), array_values($assignable_leagues)
+    ), JSON_HEX_TAG) ?>;
+// A co-host with no league role anywhere can see the binding but must not be
+// offered a change — the server refuses it, so don't present it as possible.
+var CAN_MOVE_LEAGUE = <?= $_canMoveLeague ? 'true' : 'false' ?>;
 var IS_ADMIN = <?= $isAdmin ? 'true' : 'false' ?>;
 var SESSION = <?= $session ? json_encode($session, JSON_HEX_TAG) : 'null' ?>;
 var PAYOUT_STRUCTURES = [];
@@ -1673,7 +1704,7 @@ function renderSetupCta() {
     // Don't nag while they're already in the editor doing it.
     if (SETTINGS_OPEN || VIEW_MODE === 'settings') return '';
     var h = '<div class="pk-setup-cta">';
-    h += '<div class="pk-setup-cta-txt"><b>&#9881; This game isn\'t set up yet</b>';
+    h += '<div class="pk-setup-cta-txt"><b>&#9888; This game isn\'t set up yet</b>';
     h += 'Set the ' + (isTourney() ? 'buy-in, chips, rebuys, payouts and rewards' : 'buy-in and table rules')
        + ' before players start buying in, so the money and prizes add up.';
     if (isTourney() && !(PAYOUTS || []).length) h += ' No payout structure is set yet.';
@@ -1908,11 +1939,14 @@ function openSettings(tab) {
     SETTINGS_OPEN = true;
     SETTINGS_DIRTY = false;
     setViewMode('settings', true);   // force: SETTINGS_TAB may have changed
+    // The preset list is populated for BOTH game types: the bar is rendered
+    // (hidden) on a cash session so switching the dropdown to Tournament can
+    // reveal a select that already has its options.
+    // First open fetches the saved-structure list; later opens must still
+    // re-render it into the freshly-built (empty) select.
+    if (!PAYOUT_STRUCTURES.length) loadPayoutStructures();
+    else renderPayoutStructureSelect();
     if (isTourney()) {
-        // First open fetches the saved-structure list; later opens must still
-        // re-render it into the freshly-built (empty) select.
-        if (!PAYOUT_STRUCTURES.length) loadPayoutStructures();
-        else renderPayoutStructureSelect();
         populateTicketTargetSelect();
         updateBountyHint();
     }
@@ -1931,6 +1965,7 @@ async function closeSettings() {
 document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && SETTINGS_OPEN) closeSettings(); });
 
 function setSettingsTab(tab) {
+    var prev = SETTINGS_TAB;
     SETTINGS_TAB = tab;
     document.querySelectorAll('.pk-sv-tab').forEach(function(t) {
         t.classList.toggle('active', t.getAttribute('data-tab') === tab);
@@ -1938,6 +1973,14 @@ function setSettingsTab(tab) {
     document.querySelectorAll('.pk-sv-pane').forEach(function(p) {
         p.classList.toggle('active', p.getAttribute('data-pane') === tab);
     });
+    positionSegThumb('settingsSeg', true);   // animate: the thumb is moving
+    // Slide the newly-shown pane in from the side the thumb travelled, exactly
+    // as the views do. Skipped when the tab did not actually change, so a
+    // re-render or a redundant click doesn't replay the animation.
+    if (prev !== tab) {
+        slideViewIn(document.querySelector('.pk-sv-pane[data-pane="' + tab + '"]'),
+                    segTravelDirection('settingsSeg', 'data-tab', prev, tab));
+    }
 }
 
 function markSettingsDirty() {
@@ -1953,13 +1996,25 @@ function markSettingsDirty() {
 // actions), preserving the active tab and open state.
 function refreshSettingsView() {
     if (!SETTINGS_OPEN) return;
+    // The pane is rebuilt from the SAVED session, so an unsaved game-type choice
+    // would be thrown away — and with it the sections that choice reveals. That
+    // is what made the preset bar vanish the moment a preset was loaded on a
+    // game still saved as cash: load re-renders, the dropdown snapped back, and
+    // the bar you had just used hid itself.
+    var pendingType = (document.getElementById('cfg_game_type') || {}).value || '';
     var vc = document.getElementById('viewContent');
     if (vc) vc.innerHTML = renderSettingsView();
+    var typeSel = document.getElementById('cfg_game_type');
+    if (typeSel && pendingType && pendingType !== typeSel.value) {
+        typeSel.value = pendingType;
+        previewGameType(pendingType);
+    }
+    renderPayoutStructureSelect();
     if (isTourney()) {
-        renderPayoutStructureSelect();
         populateTicketTargetSelect();
         updateBountyHint();
     }
+    positionSegThumb('settingsSeg', false);   // the strip was just rebuilt
 }
 
 function renderSettingsView() {
@@ -1977,20 +2032,28 @@ function renderSettingsView() {
     h += '<button class="pk-sv-close" onclick="closeSettings()">Close</button>';
     h += '</div></div>';
 
-    // Tab strip
+    // Tab strip — a segmented control with a sliding thumb, same as the toolbar.
     h += '<div class="pk-sv-tabs">';
+    h += '<div class="pk-seg pk-sv-seg" id="settingsSeg">';
+    h += '<span class="pk-seg-thumb"></span>';
     h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'game' ? ' active' : '') + '" data-tab="game" onclick="setSettingsTab(\'game\')">Game</button>';
     h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'payouts' ? ' active' : '') + (isCash() ? ' disabled' : '') + '" data-tab="payouts" ' + (isCash() ? 'disabled title="Cash games have no payout structure"' : 'onclick="setSettingsTab(\'payouts\')"') + '>Payouts &amp; Rewards</button>';
     if (hasTickets && !isCash()) {
         h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'tickets' ? ' active' : '') + '" data-tab="tickets" onclick="setSettingsTab(\'tickets\')">Tickets <span class="pk-sv-badge">' + TICKETS.outgoing.length + '</span></button>';
     }
     h += '</div>';
+    h += '</div>';
 
     // Scrolling body: all panes mounted, active one visible. The preset bar
     // sits ABOVE the panes because a preset restores BOTH tabs.
     h += '<div class="pk-sv-body">';
-    if (!isCash()) {
-        h += '<div class="pk-cfg-section" style="border-top:none;padding-top:0;margin-top:0"><div class="pk-cfg-title" style="display:flex;align-items:center;gap:.45rem">Game Preset'
+    // Rendered for BOTH game types and hidden by previewGameType() when cash, so
+    // switching the dropdown to Tournament reveals it immediately. It used to be
+    // omitted from the markup entirely on a cash session, which meant presets
+    // could not be reached until the game type had been saved and the editor
+    // reopened — the same defect the Payouts tab had.
+    {
+        h += '<div class="pk-cfg-section" id="cfgPresetSection" style="border-top:none;padding-top:0;margin-top:0' + (isCash() ? ';display:none' : '') + '"><div class="pk-cfg-title" style="display:flex;align-items:center;gap:.45rem">Game Preset'
            + '<button class="pk-help-btn" style="padding:.15rem .5rem;font-size:.7rem" title="What game presets do" aria-label="Game preset help" onclick="showPresetHelp()">?</button></div>';
         h += '<div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">';
         h += '<select id="payoutStructureSelect" onchange="onPayoutStructureChange()" style="flex:0 1 300px;min-width:160px;padding:.3rem .5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:4px;font-size:.85rem"></select>';
@@ -2027,6 +2090,30 @@ function renderGamePane() {
     // ── Game ──
     h += '<div class="pk-cfg-section"><div class="pk-cfg-title">Game</div>';
     h += '<div class="pk-settings-grid">';
+    // League first: jackpots are league funds and payout presets are scoped to a
+    // league, so hitting "this event must belong to a league" used to mean
+    // leaving Setup for the event editor and coming back. Saved with everything
+    // else by Save, and applied before the jackpot check server-side so a league
+    // and a jackpot can be set in one go.
+    h += '<div><label>League ' + tip('Jackpot funds and saved payout presets belong to a league. Changing this moves the event.') + '</label>';
+    if (CAN_MOVE_LEAGUE) {
+        h += '<select id="cfg_league_id" onchange="markSettingsDirty()">';
+        h += '<option value="0"' + (!EVENT_LEAGUE_ID ? ' selected' : '') + '>&mdash; None &mdash;</option>';
+        for (var li = 0; li < ASSIGNABLE_LEAGUES.length; li++) {
+            var lg = ASSIGNABLE_LEAGUES[li];
+            h += '<option value="' + lg.id + '"' + (parseInt(EVENT_LEAGUE_ID) === lg.id ? ' selected' : '') + '>' + escHtml(lg.name) + '</option>';
+        }
+        h += '</select>';
+    } else {
+        // No league role anywhere: show the binding, don't offer to change it.
+        var curName = '';
+        for (var lj = 0; lj < ASSIGNABLE_LEAGUES.length; lj++) {
+            if (ASSIGNABLE_LEAGUES[lj].id === parseInt(EVENT_LEAGUE_ID)) curName = ASSIGNABLE_LEAGUES[lj].name;
+        }
+        h += '<div style="padding:.4rem 0;font-size:.85rem;color:#64748b">' + (curName ? escHtml(curName) : 'None')
+           + '<br><span style="font-size:.72rem">Only a league owner or manager can change this.</span></div>';
+    }
+    h += '</div>';
     h += '<div><label>Game Type</label><select id="cfg_game_type" onchange="previewGameType(this.value)"><option value="tournament"' + (isTourney()?' selected':'') + '>Tournament</option><option value="cash"' + (isCash()?' selected':'') + '>Cash Game</option></select></div>';
     h += '<div><label>Buy-in</label><div class="pk-money-wrap"><input type="number" id="cfg_buyin" value="' + Math.round(parseInt(SESSION.buyin_amount)/100) + '" step="1" min="0" oninput="updateBountyHint()"></div></div>';
     h += '</div></div>';
@@ -2229,7 +2316,7 @@ function payoutForPlace(place) {
 
 function previewGameType(val) {
     var hide = val === 'cash';
-    ['cfgTourneyFields', 'cfgPayoutSection', 'ticketsPanel', 'cfgRewardsSection'].forEach(function(id) {
+    ['cfgTourneyFields', 'cfgPayoutSection', 'ticketsPanel', 'cfgRewardsSection', 'cfgPresetSection'].forEach(function(id) {
         var el = document.getElementById(id);
         if (el) el.style.display = hide ? 'none' : '';
     });
@@ -2259,6 +2346,9 @@ function previewGameType(val) {
         tickTab.style.display = hide ? 'none' : '';
         if (hide && SETTINGS_TAB === 'tickets') setSettingsTab('game');
     }
+    // Showing or hiding a segment changes the strip's widths, so the thumb has
+    // to be re-measured even when the active tab itself did not change.
+    positionSegThumb('settingsSeg', true);
 }
 
 // ─── Reward feature toggles (progressive disclosure) ──────
@@ -2697,10 +2787,21 @@ function loadPayoutStructure() {
             POOL = j.pool || POOL;
             if (j.session) SESSION = j.session;  // recipe presets update bounty/jackpot too
             CURRENT_STRUCTURE_ID = parseInt(sid);
+            // Capture an unsaved game-type choice BEFORE the redraw. Both
+            // renderDashboard() and refreshSettingsView() rebuild the pane from
+            // the SAVED session, so picking Tournament on a game still saved as
+            // cash and then loading a preset used to snap the dropdown back and
+            // hide the preset bar you had just used.
+            var pendingType = (document.getElementById('cfg_game_type') || {}).value || '';
             // Redraw: the editor re-renders in place (keeps tab + open state),
             // and the dashboard refreshes underneath it.
             renderDashboard();
             refreshSettingsView();
+            var typeSel = document.getElementById('cfg_game_type');
+            if (typeSel && pendingType && pendingType !== typeSel.value) {
+                typeSel.value = pendingType;
+                previewGameType(pendingType);
+            }
         })
         .catch(function() { pkProgressDone(); pkAlert('Request failed'); });
 }
@@ -2987,80 +3088,30 @@ function setViewMode(mode, force) {
     // The unconfigured prompt hides inside the editor and comes back on exit.
     var cta = document.getElementById('setupCta');
     if (cta) cta.innerHTML = renderSetupCta();
-    // The filter bar is rebuilt with the view, so its thumb starts unpositioned.
-    // No animation: it is a brand-new element, not one that moved. Balance and
-    // Add Table are rendered inside that bar, so they need no toggling here.
+    // Freshly-rendered controls start with an unpositioned thumb. No animation:
+    // these are brand-new elements, not ones that moved. Balance and Add Table
+    // are rendered inside the filter bar, so they need no toggling here.
     if (filterApplies(mode)) positionSegThumb('filterSeg', false);
+    if (mode === 'settings') positionSegThumb('settingsSeg', false);
     if (mode === 'log') { renderLog(); fetchLog(); }
     else if (mode !== 'payouts') { updateBulkBar(); }
 }
 
-// Which way the thumb travels between two views, so the content can enter from
-// the same side. Reads the live button order rather than a hardcoded list, so
-// it stays right when a segment is absent (cash games have no Payouts/Chop).
+// segTravelDirection() / slideViewIn() / positionSegThumb() / positionAllSegThumbs()
+// live in pk-seg.js, loaded for every page by _footer.php. Only the page's own
+// rule about where Setup sits belongs here.
 function segDirection(fromMode, toMode) {
-    var seg = document.getElementById('viewSeg');
-    if (!seg) return 1;
     // Setup isn't a segment, but it leads the toolbar, so treat it as living
     // before the first button — enter from the left, leave to the right.
     if (toMode === 'settings') return -1;
     if (fromMode === 'settings') return 1;
-    var order = [].map.call(seg.querySelectorAll('button'), function(b) { return b.getAttribute('data-view'); });
-    var a = order.indexOf(fromMode), b = order.indexOf(toMode);
-    if (a < 0 || b < 0) return 1;
-    return b >= a ? 1 : -1;
+    return segTravelDirection('viewSeg', 'data-view', fromMode, toMode);
 }
 
-// Slide the freshly-rendered view in from `dir` (1 = from the right).
-function slideViewIn(el, dir) {
-    if (!el) return;
-    el.classList.remove('pk-view-in-right', 'pk-view-in-left');
-    void el.offsetWidth;   // reflow, so re-picking the same class restarts it
-    el.classList.add('pk-view-animating', dir < 0 ? 'pk-view-in-left' : 'pk-view-in-right');
-    var done = function() {
-        el.classList.remove('pk-view-animating', 'pk-view-in-right', 'pk-view-in-left');
-        el.removeEventListener('animationend', done);
-    };
-    el.addEventListener('animationend', done);
-    // animationend never fires under prefers-reduced-motion (animation:none),
-    // so drop the clip guard regardless.
-    setTimeout(done, 400);
-}
-
-// Position a segmented control's sliding thumb under its active button. Pass
-// animate=false to snap without a transition (used on full re-renders). Shared by
-// the player filter (#filterSeg) and the view switcher (#viewSeg).
 // Views that actually read FILTER. Keep in step with renderPlayerRows(),
 // renderMobileCards() and renderTableView() if a new view starts filtering.
 function filterApplies(mode) {
     return mode === 'list' || mode === 'table';
-}
-
-function positionSegThumb(segId, animate) {
-    var seg = document.getElementById(segId);
-    if (!seg) return;
-    // A hidden control measures zero, and writing that would park the thumb at
-    // zero width in the corner for whenever it is shown again.
-    if (!seg.offsetParent) return;
-    var thumb = seg.querySelector('.pk-seg-thumb');
-    var active = seg.querySelector('button.active');
-    if (!thumb || !active) return;
-    if (!animate) {
-        thumb.style.transition = 'none';
-        thumb.style.width = active.offsetWidth + 'px';
-        thumb.style.transform = 'translateX(' + active.offsetLeft + 'px)';
-        void thumb.offsetWidth; // force reflow so the next change can transition
-        thumb.style.transition = '';
-    } else {
-        thumb.style.width = active.offsetWidth + 'px';
-        thumb.style.transform = 'translateX(' + active.offsetLeft + 'px)';
-    }
-}
-
-// Reposition both toolbar sliders (e.g. after a full dashboard re-render or resize).
-function positionAllSegThumbs(animate) {
-    positionSegThumb('filterSeg', animate);
-    positionSegThumb('viewSeg', animate);
 }
 
 function movePlayer(pid, newTable) {
@@ -3691,6 +3742,10 @@ function saveSettings() {
         seats_per_table: parseInt(document.getElementById('cfg_seats_per_table').value || 9),
         auto_assign_tables: (document.getElementById('cfg_auto_assign') || {}).checked ? 1 : 0,
     };
+    // Only sent when the host can actually change it; the server re-checks the
+    // league role regardless and refuses a move it doesn't like.
+    var lgSel = document.getElementById('cfg_league_id');
+    if (lgSel) data.league_id = parseInt(lgSel.value || 0);
     if (document.getElementById('cfg_game_type').value === 'tournament') {
         data.rebuy_amount = Math.max(0, Math.round(parseFloat((document.getElementById('cfg_rebuy') || {}).value || 0))) * 100;
         data.addon_amount = Math.max(0, Math.round(parseFloat((document.getElementById('cfg_addon') || {}).value || 0))) * 100;
@@ -3718,6 +3773,11 @@ function saveSettings() {
         SESSION = j.session;
         POOL = j.pool;
         PAYOUTS = j.payouts || PAYOUTS;
+        // The league may have moved: the jackpot fund and the saved payout
+        // presets are both scoped to it, so pick up the server's view rather
+        // than keep showing the old league's figures.
+        if (j.jackpots) JACKPOTS = j.jackpots;
+        if (typeof j.league_id !== 'undefined') EVENT_LEAGUE_ID = parseInt(j.league_id) || 0;
         if (j.players) PLAYERS = j.players;
         // Save payouts too (tournament only) — all four reward dimensions ride
         // in parallel arrays keyed by row order.
@@ -4223,7 +4283,6 @@ function escHtml(s) {
 loadSession();
 
 // Keep both toolbar sliders aligned if the toolbar reflows on resize.
-window.addEventListener('resize', function() { positionAllSegThumbs(false); });
 
 // Auto-refresh every 10 seconds
 // Pool stats update silently; the roster re-renders whenever the server content

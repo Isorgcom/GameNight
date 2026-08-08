@@ -740,3 +740,34 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
 /* ── Shared circular avatar (photo, or deterministic colored initial) ── */
 .gn-avatar{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;color:#fff;font-weight:700;line-height:1;text-transform:uppercase;flex-shrink:0;vertical-align:middle;overflow:hidden;box-sizing:border-box}
 img.gn-avatar{object-fit:cover;background:transparent}
+
+/* ── Segmented control + slide-in (see pk-seg.js and CLAUDE.md) ──────────────
+   The house switcher for picking between sibling views, panes or filters:
+   a pill track with a thumb that slides under the active button, and content
+   that enters from the side the thumb travelled. Prefer this over tab strips,
+   underlined tabs, radio groups or plain button rows.
+
+   Timings are shared on purpose — thumb .2s, content .32s, both on the same
+   easing curve. Don't introduce new durations for the same gesture. */
+.pk-seg{position:relative;display:inline-flex;border:1.5px solid #cbd5e1;border-radius:8px;background:#dde3ec;padding:3px;box-shadow:inset 0 1px 2px rgba(15,23,42,.14)}
+.pk-seg-thumb{position:absolute;top:3px;bottom:3px;left:0;width:0;border-radius:6px;background:var(--accent,#2563eb);box-shadow:0 1px 3px rgba(37,99,235,.5);z-index:0;transition:transform .2s cubic-bezier(.4,0,.2,1),width .2s cubic-bezier(.4,0,.2,1)}
+.pk-seg button{position:relative;z-index:1;border:none;background:transparent;cursor:pointer;padding:.34rem .75rem;font-size:.76rem;font-weight:600;color:#475569;white-space:nowrap;transition:color .15s}
+.pk-seg button:hover:not(.active){color:#1e293b}
+.pk-seg button.active{color:#fff}
+/* For when the selection lives outside the control, so no segment is current —
+   parking the thumb under a stale button would look like two things selected. */
+.pk-seg.thumb-off .pk-seg-thumb{opacity:0}
+
+/* Content entry. Only the INCOMING element animates: cross-fading the outgoing
+   one too would need both stacked, doubling page height mid-swap. */
+@keyframes pkViewInRight{from{opacity:0;transform:translateX(26px)}to{opacity:1;transform:none}}
+@keyframes pkViewInLeft{from{opacity:0;transform:translateX(-26px)}to{opacity:1;transform:none}}
+.pk-view-in-right{animation:pkViewInRight .32s cubic-bezier(.4,0,.2,1)}
+.pk-view-in-left{animation:pkViewInLeft .32s cubic-bezier(.4,0,.2,1)}
+/* `clip` rather than `hidden`: it doesn't create a scroll container, so the
+   26px offset can't flash a horizontal scrollbar. Removed when the animation
+   ends so content keeps any horizontal scrolling of its own. */
+.pk-view-animating{overflow-x:clip}
+@media(prefers-reduced-motion:reduce){
+    .pk-view-in-right,.pk-view-in-left{animation:none}
+}

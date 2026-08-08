@@ -64,7 +64,7 @@ $utc_tz    = new DateTimeZone('UTC');
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Messages &ndash; <?= htmlspecialchars($site_name) ?></title>
-    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
+    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
         .dm-wrap { max-width: 680px; margin: 1.25rem auto 2rem; padding: 0 1rem; }
         .dm-row { display:block; background:#fff; border:1.5px solid #e2e8f0; border-radius:10px; padding:.7rem .9rem; margin-bottom:.5rem; text-decoration:none; color:inherit; }

@@ -124,7 +124,7 @@ function render_page(string $site, string $title, string $body_html, string $act
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($title) ?> — <?= htmlspecialchars($site) ?></title>
-    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
+    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
         .jl-wrap { max-width: 520px; margin: 3rem auto; padding: 0 1rem; }
         .jl-card { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 1.75rem; text-align: center; }

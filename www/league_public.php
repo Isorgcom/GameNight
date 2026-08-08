@@ -48,7 +48,7 @@ if ($slug === '') {
     <meta property="og:description" content="Browse the leagues on <?= htmlspecialchars($site_name) ?> and see their upcoming events.">
     <meta property="og:url" content="<?= htmlspecialchars($dirUrl) ?>">
     <meta name="description" content="Browse the leagues on <?= htmlspecialchars($site_name) ?> and see their upcoming events.">
-    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
+    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
         .ld-layout { max-width: 860px; margin: 0 auto; padding: 0 1.25rem 3rem; }
         .ld-head { margin: 1.75rem 0 .35rem; font-size: 1.8rem; font-weight: 800; color: #0f172a; }
@@ -144,7 +144,7 @@ if (!$league) {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <meta name="robots" content="noindex,nofollow">
         <title>League Not Found &mdash; <?= htmlspecialchars($site_name) ?></title>
-        <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
+        <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     </head><body style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:1rem">
         <div style="max-width:480px;width:100%;text-align:center">
             <div style="background:#fef2f2;border:2px solid #dc2626;border-radius:12px;padding:2rem 1.5rem;margin-bottom:1.5rem">
@@ -284,7 +284,7 @@ $autoJoin = $user && $myRole === null && !$pending && ($_GET['join'] ?? '') === 
     <meta name="twitter:card" content="summary">
     <?php endif; ?>
     <meta name="description" content="<?= htmlspecialchars($ogDesc) ?>">
-    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
+    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
         .lp-layout { max-width: 860px; margin: 0 auto; padding: 0 1.25rem 3rem; }
         .lp-hero { margin: 1.5rem 0 0; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; background: #f1f5f9; }
