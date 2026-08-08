@@ -207,7 +207,7 @@ unset($_SESSION['flash']);
                             <?php if (!empty($log['raw_response'])): ?>
                                 <button type="button"
                                         data-raw="<?= htmlspecialchars($log['raw_response'], ENT_QUOTES) ?>"
-                                        onclick="navigator.clipboard.writeText(this.dataset.raw).then(function(){ var b=event.target; b.textContent='Copied!'; setTimeout(function(){ b.textContent='Copy'; },1500); });"
+                                        onclick="var b=this;pkCopy(this.dataset.raw).then(function(ok){ b.textContent=ok?'Copied!':'Copy failed'; setTimeout(function(){ b.textContent='Copy'; },1500); });"
                                         class="btn btn-outline btn-sm">Copy</button>
                             <?php else: ?>
                                 <span style="color:#94a3b8">&mdash;</span>

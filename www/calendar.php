@@ -2056,17 +2056,13 @@ function showSavedBar(msg) {
 function copyEventLink() {
     if (!currentEvent) return;
     const url = window.location.origin + '/event.php?id=' + currentEvent.id;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(url).then(() => showSavedBar('Link copied!'));
-    } else {
-        const ta = document.createElement('textarea');
-        ta.value = url;
-        ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
-        document.body.appendChild(ta);
-        ta.select();
-        try { document.execCommand('copy'); showSavedBar('Link copied!'); } catch(e) {}
-        ta.remove();
-    }
+    // The old guard checked for navigator.clipboard but not for a secure
+    // context, so on plain http it took the textarea branch anyway; pkCopy
+    // makes that one decision in one place and reports whether it worked.
+    pkCopy(url).then(function(ok) {
+        if (ok) showSavedBar('Link copied!');
+        else pkAlert(url, { title: 'Event link — copy it from here' });
+    });
 }
 function renderCommentsPanel(eid) {
     const comments = eventComments[eid] || [];
@@ -3182,8 +3178,8 @@ function openWalkinSeparate() {
 function copyWalkinLink() {
     var urlEl = document.getElementById('walkinQRUrl');
     var btn   = document.getElementById('walkinCopyBtn');
-    navigator.clipboard.writeText(urlEl.textContent).then(function() {
-        btn.textContent = 'Copied!';
+    pkCopy(urlEl.textContent).then(function(ok) {
+        btn.textContent = ok ? 'Copied!' : 'Press Ctrl+C';
         setTimeout(function() { btn.textContent = 'Copy link'; }, 2000);
     });
 }

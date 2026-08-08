@@ -5777,8 +5777,8 @@ if (!IS_REMOTE) {
 
         qrWrap.style.cursor = 'pointer';
         qrWrap.addEventListener('click', function() {
-            navigator.clipboard.writeText(remoteUrl).then(function() {
-                qrWrap.title = 'Link copied!';
+            pkCopy(remoteUrl).then(function(ok) {
+                qrWrap.title = ok ? 'Link copied!' : remoteUrl;
                 setTimeout(function() { qrWrap.title = 'Scan to view timer on your phone'; }, 2000);
             });
         });

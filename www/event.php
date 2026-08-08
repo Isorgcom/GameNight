@@ -566,9 +566,14 @@ document.addEventListener('click', function (e) {
     if (dd && dd.classList.contains('open') && !dd.contains(e.target)) dd.classList.remove('open');
 });
 function evpCopyLink(btn) {
-    navigator.clipboard.writeText(location.origin + '/event.php?id=' + EV_EID).then(function () {
-        evToast('Link copied');
-    }).catch(function () { pkAlert(location.origin + '/event.php?id=' + EV_EID, { title: 'Event link' }); });
+    // pkCopy falls back to execCommand outside a secure context and tells us
+    // whether it actually worked, so a failure shows the link to copy by hand
+    // instead of silently leaving the old clipboard contents in place.
+    var url = location.origin + '/event.php?id=' + EV_EID;
+    pkCopy(url).then(function (ok) {
+        if (ok) evToast('Link copied');
+        else pkAlert(url, { title: 'Event link — copy it from here' });
+    });
 }
 async function deleteComment(id) {
     if (!(await pkConfirm('Delete this comment?'))) return;
