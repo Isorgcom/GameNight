@@ -694,6 +694,17 @@ function db_init(PDO $pdo): void {
     // Defaults preserve prior behavior: bounty baked, jackpot optional.
     try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN bounty_optional INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN jackpot_optional INTEGER NOT NULL DEFAULT 1"); } catch (Exception $e) {}
+    // Has a host ever saved Setup (or loaded a preset) for this session? Drives
+    // the "this game isn't set up yet" prompt on the check-in console. It has to
+    // be a flag, not a guess from the numbers: a $0 buy-in is a perfectly valid
+    // freeroll, so sniffing values nags forever on a game that IS configured.
+    // Backfill runs only on the ALTER's success path, i.e. exactly once, and
+    // marks every pre-existing session as done — they predate the flag and no
+    // host should be told an old game is unconfigured.
+    try {
+        $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN setup_saved INTEGER NOT NULL DEFAULT 0");
+        $pdo->exec("UPDATE poker_sessions SET setup_saved = 1");
+    } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN bounty_in INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     // Rebuy re-entry support: when an eliminated player rebuys back in, the
     // knockout is BANKED on the eliminator (they physically collected the
