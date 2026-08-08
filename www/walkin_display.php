@@ -198,8 +198,9 @@ function renderQR() {
 }
 
 function copyLink() {
-    navigator.clipboard.writeText(WALKIN_URL).then(function() {
+    pkCopy(WALKIN_URL).then(function(ok) {
         var btn = document.getElementById('copyBtn');
+        if (!ok) { pkAlert(WALKIN_URL, { title: 'Walk-in link — copy it from here' }); return; }
         btn.textContent = 'Copied!';
         setTimeout(function() { btn.textContent = 'Copy Link'; }, 2000);
     });

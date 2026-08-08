@@ -2726,7 +2726,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 <input type="text" id="webhook-url-field" readonly value="<?= htmlspecialchars($webhook_url) ?>"
                        style="flex:1;font-family:monospace;font-size:.85rem;background:#f1f5f9;border:1.5px solid #e2e8f0;border-radius:7px;padding:.5rem .75rem;color:#1e293b;cursor:text">
                 <button type="button" onclick="
-                    navigator.clipboard.writeText(document.getElementById('webhook-url-field').value).then(function(){
+                    pkCopy(document.getElementById('webhook-url-field').value).then(function(){
                         var b = this; b.textContent = 'Copied!';
                         setTimeout(function(){ b.textContent = 'Copy'; }, 1500);
                     }.bind(this));

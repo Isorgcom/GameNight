@@ -568,7 +568,7 @@ function ordinal($n) {
             <p style="margin:.5rem 0 .35rem;font-size:.85rem;color:#475569">Copy this token now and store it in the consumer's config. You will not be able to see it again.</p>
             <div id="newApiKeyBox" style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.85rem;background:#fff;border:1.5px dashed #16a34a;border-radius:6px;padding:.6rem .8rem;word-break:break-all"><?= htmlspecialchars($_flash['plaintext']) ?></div>
             <button type="button" class="lg-btn" style="margin-top:.6rem;font-size:.78rem;padding:.35rem .8rem"
-                    onclick="(async()=>{try{await navigator.clipboard.writeText(document.getElementById('newApiKeyBox').textContent);this.textContent='Copied';setTimeout(()=>this.textContent='Copy key',1500);}catch(e){}})()">Copy key</button>
+                    onclick="var b=this;pkCopy(document.getElementById('newApiKeyBox').textContent).then(function(ok){b.textContent=ok?'Copied':'Copy failed';setTimeout(function(){b.textContent='Copy key';},1500);})">Copy key</button>
         </div>
         <?php else:
             $_fcls  = $_flash['type'] === 'success' ? 'background:#dcfce7;color:#14532d;border:1px solid #86efac'
@@ -1419,7 +1419,7 @@ function ordinal($n) {
                            onclick="this.select()"
                            style="flex:1;min-width:200px;font-family:monospace;font-size:.78rem;padding:.35rem .5rem;border:1px solid #cbd5e1;border-radius:5px;background:#fff">
                     <button type="button" class="lg-btn lg-btn-ghost" style="font-size:.72rem;padding:.25rem .7rem"
-                            onclick="(async()=>{try{await navigator.clipboard.writeText(document.getElementById('share-url-<?= (int)$lp['id'] ?>').value);this.textContent='Copied';setTimeout(()=>this.textContent='Copy',1500);}catch(e){document.getElementById('share-url-<?= (int)$lp['id'] ?>').select();document.execCommand('copy');this.textContent='Copied';setTimeout(()=>this.textContent='Copy',1500);}})()">Copy</button>
+                            onclick="var b=this;pkCopy(document.getElementById('share-url-<?= (int)$lp['id'] ?>').value).then(function(ok){b.textContent=ok?'Copied':'Copy failed';setTimeout(function(){b.textContent='Copy';},1500);})">Copy</button>
                     <form method="post" action="/league_posts_dl.php" style="margin:0"
                           onsubmit="return pkConfirmForm(this, 'Generate a new link? The current link will stop working.');">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
@@ -1963,20 +1963,14 @@ function copyInviteLink() {
     var f = document.getElementById('inviteLinkField');
     if (!f) return;
     f.select();
-    var ok = false;
-    try {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(f.value);
-            ok = true;
-        } else {
-            ok = document.execCommand('copy');
-        }
-    } catch (e) {}
-    if (ok) {
+    // Was reporting success the moment writeText() was CALLED, so a denied
+    // clipboard still flashed "Copied!". pkCopy resolves with what happened.
+    pkCopy(f.value).then(function(ok) {
+        if (!ok) return;
         var flash = document.getElementById('inviteLinkFlash');
         flash.style.display = 'block';
         setTimeout(function() { flash.style.display = 'none'; }, 1800);
-    }
+    });
 }
 // ── Public page (settings tab) ───────────────────────────────────────────
 function ppFlash(msg, isError) {
@@ -2009,20 +2003,14 @@ function copyPublicUrl() {
     var f = document.getElementById('ppUrlField');
     if (!f) return;
     f.select();
-    var ok = false;
-    try {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(f.value);
-            ok = true;
-        } else {
-            ok = document.execCommand('copy');
-        }
-    } catch (e) {}
-    if (ok) {
+    // Was reporting success the moment writeText() was CALLED, so a denied
+    // clipboard still flashed "Copied!". pkCopy resolves with what happened.
+    pkCopy(f.value).then(function(ok) {
+        if (!ok) return;
         var flash = document.getElementById('ppUrlFlash');
         flash.style.display = 'block';
         setTimeout(function() { flash.style.display = 'none'; }, 1800);
-    }
+    });
 }
 function uploadLeagueBanner() {
     var inp = document.getElementById('ppBannerFile');

@@ -475,16 +475,12 @@ function lpToggleCal() {
 function lpCopyCal() {
     var f = document.getElementById('lp-cal-url');
     f.select();
-    var ok = false;
-    try {
-        if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(f.value); ok = true; }
-        else { ok = document.execCommand('copy'); }
-    } catch (e) {}
-    if (ok) {
+    pkCopy(f.value).then(function (ok) {
+        if (!ok) return;
         var m = document.getElementById('lp-cal-copied');
         m.style.display = '';
         setTimeout(function () { m.style.display = 'none'; }, 1800);
-    }
+    });
 }
 </script>
 

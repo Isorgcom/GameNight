@@ -101,6 +101,13 @@ $session = $sessStmt->fetch();
     .pk-stat-value{font-size:1.3rem;font-weight:700;color:var(--accent,#2563eb)}
 
     .pk-grid{display:grid;grid-template-columns:1fr 280px;gap:1rem;padding:.75rem 1.5rem;width:100%;box-sizing:border-box}
+    /* Grid items default to min-width:auto, so the 1fr column refuses to shrink
+       below the player table's min-content width and pushes the whole page into
+       a horizontal scroll between ~768px and 1000px. .pk-sidebar already sets
+       min-width:0; the content column was the one that was missed. With it, the
+       column tracks the viewport and the table scrolls inside .pk-table-wrap's
+       own overflow-x:auto, which is what that container exists for. */
+    .pk-grid > div{min-width:0}
     /* The Payouts view keeps the sidebar exactly where it sits on every other
        screen — moving the Prize Pool card into the content area made it jump.
        Only the sidebar's condensed Payouts card hides, because the view shows
@@ -117,7 +124,18 @@ $session = $sessStmt->fetch();
     .pk-btn-refresh{background:transparent;color:var(--accent,#2563eb);border-color:var(--border,#e2e8f0)}
     .pk-btn-refresh:hover{background:#f1f5f9}
     .pk-toolbar-sep{width:1px;height:1.5rem;background:#e2e8f0;margin:0 .25rem}
-    .pk-help-btn{margin-left:auto;flex:0 0 auto;padding:.4rem .8rem;border-radius:6px;border:1.5px solid #2563eb;background:#eff6ff;color:#1d4ed8;font-weight:700;font-size:.8rem;cursor:pointer;line-height:1;min-height:auto}
+    /* Toolbar groups. Each is one flex item of .pk-toolbar, so the row can only
+       break BETWEEN them, never through the middle of a control cluster.
+       .pk-tb-controls still wraps internally, but only once a phone genuinely
+       cannot fit filters + Setup + views on one line. */
+    .pk-tb-group{display:flex;align-items:center;gap:.5rem;min-width:0}
+    .pk-tb-controls{flex-wrap:wrap}
+    /* Per-view controls, now part of the page rather than the toolbar. */
+    .pk-filter-bar{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem}
+    /* No margin-left:auto here any more. In a wrapping flex row it pins the
+       button to the right end of whatever line it lands on, so it drifted as the
+       window resized; the one remaining caller was already cancelling it inline. */
+    .pk-help-btn{flex:0 0 auto;padding:.4rem .8rem;border-radius:6px;border:1.5px solid #2563eb;background:#eff6ff;color:#1d4ed8;font-weight:700;font-size:.8rem;cursor:pointer;line-height:1;min-height:auto}
     .pk-help-btn:hover{background:#dbeafe}
     .pk-help-content{text-align:left;max-height:70vh;overflow-y:auto}
     .pk-help-content h4{margin:.9rem 0 .25rem;font-size:.9rem;color:#0f172a}
@@ -233,11 +251,13 @@ $session = $sessStmt->fetch();
     .pk-pv-foot{margin-top:.75rem;text-align:center}
     /* Five segments don't fit a phone with labels. Collapse to icons at the
        same breakpoint where the header buttons lose theirs, so the two rows
-       degrade together. Titles keep the tooltips. Setup deliberately KEEPS its
-       word — a bare gear is exactly the ambiguity this change exists to fix. */
+       degrade together. Titles keep the tooltips. Setup collapses with them and
+       matches their metrics — its outline still sets it apart from the pills,
+       so it stays findable without spending a label's worth of width. */
     @media(max-width:768px){
-        .pk-view-seg .pk-seg-label{display:none}
+        .pk-view-seg .pk-seg-label, .pk-btn-setup .pk-seg-label{display:none}
         .pk-view-seg button{padding:.4rem .6rem;font-size:1rem}
+        .pk-toolbar .pk-btn-setup{padding:.4rem .6rem;font-size:1rem}
     }
 
     /* Full-screen Game Settings editor (timer-editor pattern: fixed header,
@@ -503,7 +523,13 @@ $session = $sessStmt->fetch();
         .pk-sidebar{display:none}
         .pk-inline-summary{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;padding:.4rem .75rem;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;margin-bottom:.5rem;font-size:.8rem;color:#334155}
         .pk-stats { padding:.75rem 1rem; }
-        .pk-stat { min-width:0;flex:1 1 calc(50% - .5rem); }
+        /* Was flex:1 1 calc(50% - .5rem), a 2-up grid clearly meant for phones —
+           but phones never reach it, because at <=768px .pk-stats is replaced
+           wholesale by the compact one-line bar. So it only ever fired on
+           tablets, where it stacked four 490px cards into two rows and made the
+           header 179px tall against 96px on desktop. Sharing one row instead
+           gives that height back and still fills the width. */
+        .pk-stat { min-width:0;flex:1 1 0; }
         .pk-grid { padding:.75rem 1rem; }
         .pk-toolbar { gap:.4rem; }
         .pk-toolbar input[type=text] { width:100%;font-size:1rem;min-height:44px; }
@@ -933,6 +959,14 @@ function renderDashboard() {
     h += '<div class="pk-actions">';
     // Settings moved into the view switcher below — a duplicate entry point here
     // would defeat the point of grouping it with the other things hosts open.
+    //
+    // Help is about the whole screen, not the player list, so it belongs with
+    // the other page-level actions. It used to sit in the toolbar with
+    // margin-left:auto, which in a wrapping flex row pins it to the right end of
+    // whichever line it happens to land on — so it moved as the window resized.
+    // First in the group keeps it clear of Finish and steady when the
+    // conditional Timer / Cash Box / Jackpot buttons come and go.
+    h += '<button class="pk-btn-settings" title="How this screen works" aria-label="Help" onclick="openHelp()">?<span class="pk-act-label"> Help</span></button>';
     if (isTourney()) {
         h += '<a class="pk-btn-settings" href="/timer.php?event_id=' + <?= (int)$event['id'] ?> + '" style="text-decoration:none" title="Timer">&#9201;<span class="pk-act-label"> Timer</span></a>';
     }
@@ -973,29 +1007,34 @@ function renderDashboard() {
 
     // Left: player table
     h += '<div>';
+    // Two groups, so the row breaks where it means something. Left flat, the
+    // toolbar wrapped wherever it happened to run out — usually between Setup
+    // and the view strip, orphaning the views on their own line under a
+    // half-empty first row. Grouping makes the only break point the one that
+    // reads as deliberate: "add a player" above, "what am I looking at" below.
     h += '<div class="pk-toolbar">';
+    h += '<div class="pk-tb-group pk-tb-add">';
     h += '<div class="walkin-autocomplete">';
     h += '<input type="text" id="walkinName" placeholder="Walk-in name..." autocomplete="off" oninput="walkinSuggest(this.value)" onkeydown="walkinKeydown(event)">';
     h += '<div class="walkin-dropdown" id="walkinDropdown"></div>';
     h += '</div>';
     h += '<button class="pk-btn-add" onclick="addWalkin()">+ Add</button>';
-    h += '<div class="pk-toolbar-sep"></div>';
-    h += '<div class="pk-seg pk-filter" id="filterSeg">';
-    h += '<span class="pk-seg-thumb"></span>';
-    h += '<button data-filter="all" class="' + (FILTER==='all'?'active':'') + '" onclick="setFilter(\'all\')">All</button>';
-    if (isTourney()) h += '<button data-filter="rsvp_yes" class="' + (FILTER==='rsvp_yes'?'active':'') + '" onclick="setFilter(\'rsvp_yes\')">RSVP Yes</button>';
-    if (isTourney()) {
-        h += '<button data-filter="playing" class="' + (FILTER==='playing'?'active':'') + '" onclick="setFilter(\'playing\')">Playing</button>';
-        h += '<button data-filter="eliminated" class="' + (FILTER==='eliminated'?'active':'') + '" onclick="setFilter(\'eliminated\')">Out</button>';
-    } else {
-        h += '<button data-filter="playing" class="' + (FILTER==='playing'?'active':'') + '" onclick="setFilter(\'playing\')">Active</button>';
-        h += '<button data-filter="eliminated" class="' + (FILTER==='eliminated'?'active':'') + '" onclick="setFilter(\'eliminated\')">Out</button>';
-    }
     h += '</div>';
-    // The strip holds VIEWS — things you look at. Setup is a different kind of
-    // thing (how the game works, not what you're looking at), so it sits
-    // outside the control as its own button; inside, six equal segments made it
-    // read as a sixth view and it got lost. Labels collapse to icons on phones.
+    h += '<div class="pk-tb-group pk-tb-controls">';
+    // The player filter used to live here. It belongs to the page, not the
+    // toolbar: it only applies to List and Table, so in the toolbar it appeared
+    // and vanished and shoved Setup and the view strip sideways every time you
+    // changed view. It now renders at the top of the views that use it, inside
+    // #viewContent, so it slides in with them and the toolbar never moves.
+    // Setup sits between the two sliders. It is neither a filter nor a view, and
+    // an outlined button of a different shape between two grey pills is already
+    // hard to skim past — which is the whole point, since "Settings" read as
+    // optional preferences when it holds the buy-in, chips, rebuys and the
+    // whole payout structure. No dividers: the shape does the separating.
+    h += '<button class="pk-btn-setup' + (VIEW_MODE === 'settings' ? ' active' : '') + '" id="setupBtn" title="Buy-in, chips, rebuys, payouts and rewards" onclick="setViewMode(\'settings\')">&#9881;<span class="pk-seg-label"> Setup</span></button>';
+    // The strip holds VIEWS — things you look at. Six equal segments made Setup
+    // read as a sixth view and it got lost, hence the button above. Labels
+    // collapse to icons on phones, Setup's along with them.
     h += '<div class="pk-seg pk-view-seg" id="viewSeg">';
     h += '<span class="pk-seg-thumb"></span>';
     h += '<button data-view="list" class="' + (VIEW_MODE === 'list' ? 'active' : '') + '" title="Player list" onclick="setViewMode(\'list\')">&#9776;<span class="pk-seg-label"> List</span></button>';
@@ -1006,14 +1045,10 @@ function renderDashboard() {
         h += '<button data-view="chop" class="' + (VIEW_MODE === 'chop' ? 'active' : '') + '" title="Deal split calculator: ICM, standard or chip chop" onclick="setViewMode(\'chop\')">&#129535;<span class="pk-seg-label"> Chop</span></button>';
     }
     h += '</div>';
-    // Setup: outside the strip, its own weight, behind a divider. "Settings"
-    // reads as optional preferences; this is the buy-in, chips, rebuys and the
-    // whole payout structure — the thing that has to happen before a game works.
-    h += '<div class="pk-toolbar-sep"></div>';
-    h += '<button class="pk-btn-setup' + (VIEW_MODE === 'settings' ? ' active' : '') + '" id="setupBtn" title="Buy-in, chips, rebuys, payouts and rewards" onclick="setViewMode(\'settings\')">&#9881;<span class="pk-seg-label"> Setup</span></button>';
-    h += '<button class="pk-help-btn" title="How this screen works" aria-label="Help" onclick="openHelp()">? Help</button>';
-    h += '<button class="pk-btn-view-toggle" onclick="balanceTables()">&#9878; Balance</button>';
-    h += '<button id="addTableBtn" class="pk-btn-green" onclick="addTable()"' + (VIEW_MODE === 'table' ? '' : ' style="display:none"') + '>Add Table</button>';
+    h += '</div>';  // .pk-tb-controls
+    // Balance and Add Table act on the seating chart, so they render inside the
+    // Table view (see renderFilterBar) rather than here. In the toolbar they
+    // were the last thing making it change size between views.
     h += '</div>';
 
     // Inline pool/payout summary for mobile/tablet (compact bar above player list)
@@ -1040,6 +1075,35 @@ function renderDashboard() {
 }
 
 // Renders the content area for the active view (list / table / log).
+// Per-view controls, rendered into the page rather than the toolbar: the player
+// filter (only List and Table read FILTER) and, in Table view, the two seating
+// actions. Putting them here means they slide in with the view they belong to,
+// and the toolbar above stays exactly the same size and shape on every screen.
+// Deliberately no margin-left:auto on the actions — in a wrapping flex row that
+// pins to the end of whichever line they land on, which is what made the old
+// Help button drift.
+function renderFilterBar() {
+    if (!filterApplies(VIEW_MODE)) return '';
+    var h = '<div class="pk-filter-bar"><div class="pk-seg pk-filter" id="filterSeg">';
+    h += '<span class="pk-seg-thumb"></span>';
+    h += '<button data-filter="all" class="' + (FILTER==='all'?'active':'') + '" onclick="setFilter(\'all\')">All</button>';
+    if (isTourney()) h += '<button data-filter="rsvp_yes" class="' + (FILTER==='rsvp_yes'?'active':'') + '" onclick="setFilter(\'rsvp_yes\')">RSVP Yes</button>';
+    if (isTourney()) {
+        h += '<button data-filter="playing" class="' + (FILTER==='playing'?'active':'') + '" onclick="setFilter(\'playing\')">Playing</button>';
+        h += '<button data-filter="eliminated" class="' + (FILTER==='eliminated'?'active':'') + '" onclick="setFilter(\'eliminated\')">Out</button>';
+    } else {
+        h += '<button data-filter="playing" class="' + (FILTER==='playing'?'active':'') + '" onclick="setFilter(\'playing\')">Active</button>';
+        h += '<button data-filter="eliminated" class="' + (FILTER==='eliminated'?'active':'') + '" onclick="setFilter(\'eliminated\')">Out</button>';
+    }
+    h += '</div>';
+    if (VIEW_MODE === 'table') {
+        h += '<button id="balanceBtn" class="pk-btn-view-toggle" title="Even out the number of players at each table" onclick="balanceTables()">&#9878; Balance</button>';
+        h += '<button id="addTableBtn" class="pk-btn-green" onclick="addTable()">Add Table</button>';
+    }
+    h += '</div>';
+    return h;
+}
+
 function renderViewContent() {
     if (VIEW_MODE === 'settings') return renderSettingsView();
     if (VIEW_MODE === 'payouts') return renderPayoutsView();
@@ -1050,9 +1114,10 @@ function renderViewContent() {
              + 'A player\'s full history is in their ledger (&#128210; next to their name).</div>'
              + '<div class="pk-log-list" id="logList"><div class="pk-log-empty">Loading&hellip;</div></div>';
     }
-    if (VIEW_MODE === 'table') return renderTableView();
+    if (VIEW_MODE === 'table') return renderFilterBar() + renderTableView();
 
-    var h = '<div class="pk-bulk-bar" id="bulkBar">';
+    var h = renderFilterBar();
+    h += '<div class="pk-bulk-bar" id="bulkBar">';
     h += '<span class="pk-bulk-count" id="bulkCount">0 selected</span>';
     if (isTourney()) {
         h += '<button class="primary" title="Record buy-in for the selected players (also checks them in and seats them)" onclick="bulkAction(\'toggle_buyin\')">Buy In</button>';
@@ -1926,7 +1991,7 @@ function renderSettingsView() {
     h += '<div class="pk-sv-body">';
     if (!isCash()) {
         h += '<div class="pk-cfg-section" style="border-top:none;padding-top:0;margin-top:0"><div class="pk-cfg-title" style="display:flex;align-items:center;gap:.45rem">Game Preset'
-           + '<button class="pk-help-btn" style="margin-left:0;padding:.15rem .5rem;font-size:.7rem" title="What game presets do" aria-label="Game preset help" onclick="showPresetHelp()">?</button></div>';
+           + '<button class="pk-help-btn" style="padding:.15rem .5rem;font-size:.7rem" title="What game presets do" aria-label="Game preset help" onclick="showPresetHelp()">?</button></div>';
         h += '<div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">';
         h += '<select id="payoutStructureSelect" onchange="onPayoutStructureChange()" style="flex:0 1 300px;min-width:160px;padding:.3rem .5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:4px;font-size:.85rem"></select>';
         h += '<button onclick="loadPayoutStructure()" title="Apply the selected preset to BOTH tabs: game setup, payout split, points, ticket prizes, prizes, bounty and jackpot entry">Load</button>';
@@ -2884,8 +2949,10 @@ function setViewMode(mode, force) {
     // The unconfigured prompt hides inside the editor and comes back on exit.
     var cta = document.getElementById('setupCta');
     if (cta) cta.innerHTML = renderSetupCta();
-    var addBtn = document.getElementById('addTableBtn');
-    if (addBtn) addBtn.style.display = (mode === 'table') ? '' : 'none';
+    // The filter bar is rebuilt with the view, so its thumb starts unpositioned.
+    // No animation: it is a brand-new element, not one that moved. Balance and
+    // Add Table are rendered inside that bar, so they need no toggling here.
+    if (filterApplies(mode)) positionSegThumb('filterSeg', false);
     if (mode === 'log') { renderLog(); fetchLog(); }
     else if (mode !== 'payouts') { updateBulkBar(); }
 }
@@ -2896,10 +2963,10 @@ function setViewMode(mode, force) {
 function segDirection(fromMode, toMode) {
     var seg = document.getElementById('viewSeg');
     if (!seg) return 1;
-    // Setup isn't a segment, but it sits to the right of the strip, so treat it
-    // as living past the last button — enter from the right, leave to the left.
-    if (toMode === 'settings') return 1;
-    if (fromMode === 'settings') return -1;
+    // Setup isn't a segment, but it leads the toolbar, so treat it as living
+    // before the first button — enter from the left, leave to the right.
+    if (toMode === 'settings') return -1;
+    if (fromMode === 'settings') return 1;
     var order = [].map.call(seg.querySelectorAll('button'), function(b) { return b.getAttribute('data-view'); });
     var a = order.indexOf(fromMode), b = order.indexOf(toMode);
     if (a < 0 || b < 0) return 1;
@@ -2925,9 +2992,18 @@ function slideViewIn(el, dir) {
 // Position a segmented control's sliding thumb under its active button. Pass
 // animate=false to snap without a transition (used on full re-renders). Shared by
 // the player filter (#filterSeg) and the view switcher (#viewSeg).
+// Views that actually read FILTER. Keep in step with renderPlayerRows(),
+// renderMobileCards() and renderTableView() if a new view starts filtering.
+function filterApplies(mode) {
+    return mode === 'list' || mode === 'table';
+}
+
 function positionSegThumb(segId, animate) {
     var seg = document.getElementById(segId);
     if (!seg) return;
+    // A hidden control measures zero, and writing that would park the thumb at
+    // zero width in the corner for whenever it is shown again.
+    if (!seg.offsetParent) return;
     var thumb = seg.querySelector('.pk-seg-thumb');
     var active = seg.querySelector('button.active');
     if (!thumb || !active) return;

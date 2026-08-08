@@ -6,6 +6,8 @@
  *   pkConfirmForm(formEl, message, opts?)  for onsubmit="return ..."  (submits form on OK)
  *   pkConfirmGo(anchorEl, message, opts?)  for onclick="return ..."   (navigates on OK)
  *   pkBusy(btn, promise)               -> same promise; disables btn until it settles
+ *   pkCopy(text)                       -> Promise<boolean>; clipboard write that
+ *                                         also works outside a secure context
  *   pkProgress(title?, msg?)           -> handle {done()} — full-screen "Saving…"
  *                                         card with an easing progress bar; call
  *                                         .done() (or pkProgressDone()) when the
@@ -214,5 +216,64 @@
         };
         promise.then(restore, restore);
         return promise;
+    };
+
+    // ── pkCopy ───────────────────────────────────────────────────────────────
+    // Copy text to the clipboard and report honestly whether it worked.
+    //
+    // navigator.clipboard is UNDEFINED outside a secure context — anything
+    // served over plain http:// that isn't localhost, which includes the app on
+    // a LAN address. So `navigator.clipboard.writeText(x)` throws a SYNCHRONOUS
+    // TypeError there, not a rejected promise, and a trailing .catch() never
+    // runs. Every copy button written that way failed in total silence, leaving
+    // whatever was already on the clipboard for the user to paste.
+    //
+    // Falls back to a hidden textarea + execCommand('copy'), which is not
+    // secure-context gated. That path must be called from a user gesture (all
+    // callers are click handlers, so it is).
+    function copyViaTextarea(text) {
+        try {
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            ta.setAttribute('readonly', '');
+            // Off-screen but focusable; display:none would not be selectable.
+            ta.style.position = 'fixed';
+            ta.style.top = '0';
+            ta.style.left = '0';
+            ta.style.width = '1px';
+            ta.style.height = '1px';
+            ta.style.padding = '0';
+            ta.style.border = 'none';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+
+            // Preserve whatever the user had selected on the page.
+            var sel = document.getSelection();
+            var prev = (sel && sel.rangeCount) ? sel.getRangeAt(0) : null;
+
+            ta.select();
+            ta.setSelectionRange(0, ta.value.length);   // iOS needs the range
+            var ok = false;
+            try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+
+            document.body.removeChild(ta);
+            if (prev && sel) { sel.removeAllRanges(); sel.addRange(prev); }
+            return !!ok;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    window.pkCopy = function (text) {
+        text = String(text == null ? '' : text);
+        if (window.isSecureContext && navigator.clipboard && navigator.clipboard.writeText) {
+            try {
+                return navigator.clipboard.writeText(text).then(
+                    function () { return true; },
+                    function () { return copyViaTextarea(text); }   // denied permission
+                );
+            } catch (e) { /* fall through to the textarea path */ }
+        }
+        return Promise.resolve(copyViaTextarea(text));
     };
 })();

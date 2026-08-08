@@ -243,8 +243,15 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
         .pk-toggle-input:checked + .pk-toggle-sm::after { transform:translateX(12px); }
         #eInvitedList li[data-iname].inv-dragging { opacity:.4;background:#dbeafe; }
         #eInvitedList { counter-reset: inv; }
-        #eInvitedList li[data-iname] { counter-increment: inv; display:flex;align-items:center;gap:.4rem; }
+        /* Hand-typed rows count too. They hold a real place in the list — the
+           number IS the priority order that decides who makes capacity — so
+           leaving them out made the numbering describe a different list than
+           the one being saved. */
+        #eInvitedList li[data-iname],
+        #eInvitedList li.custom-row { counter-increment: inv; }
+        #eInvitedList li[data-iname] { display:flex;align-items:center;gap:.4rem; }
         #eInvitedList li[data-iname] .inv-name-text::before { content: counter(inv) ". "; color:#94a3b8;font-weight:600; }
+        #eInvitedList li.custom-row .custom-row-inner::before { content: counter(inv) ". "; color:#94a3b8;font-weight:600;font-size:.8rem;flex:0 0 auto; }
         .inv-rsvp-badge { font-size:.6rem;font-weight:700;padding:.1rem .35rem;border-radius:3px;text-transform:uppercase;letter-spacing:.03em;flex-shrink:0; }
         .inv-rsvp-yes { background:#dcfce7;color:#166534; }
         .inv-rsvp-no { background:#fee2e2;color:#991b1b; }
@@ -903,14 +910,48 @@ function addBlankInviteRow() {
     const ul = document.getElementById('eInvitedList');
     const li = document.createElement('li');
     li.className = 'custom-row';
+    // The name input re-checks the seat cutoff as you type: a row starts blank
+    // (counting for nothing) and becomes a real guest the moment it has a name,
+    // which is exactly when it can push someone onto the waitlist. Removing a
+    // row has to re-check for the same reason.
     li.innerHTML = '<div class="custom-row-inner">' +
-        '<input type="text" class="cr-name"    placeholder="Name *">' +
+        '<input type="text" class="cr-name"    placeholder="Name *" oninput="updateDividerLine()">' +
         '<input type="text" class="cr-contact" placeholder="Email or phone" autocomplete="off">' +
-        '<button type="button" class="cr-remove" onclick="this.closest(\'li\').remove()">&times;</button>' +
+        '<button type="button" class="cr-remove" onclick="this.closest(\'li\').remove();updateDividerLine()">&times;</button>' +
         '</div>';
     ul.appendChild(li);
+    // Divider first, focus last — anything that reshuffles the list would steal
+    // the caret straight back out of the field we just opened.
+    updateDividerLine();
     li.querySelector('.cr-name').focus();
 }
+
+// Enter inside the invite panel used to save the event. A form with submit
+// buttons implicitly submits on Enter from any text input, so typing a guest's
+// name and pressing Enter — the most natural thing to do — clicked "Save
+// Changes" instead of adding the name. Delegated from document so it also
+// covers the rows addBlankInviteRow() creates after page load.
+document.addEventListener('keydown', function(e) {
+    if (e.key !== 'Enter' || e.shiftKey) return;
+    var el = e.target;
+    if (!el || !el.closest) return;
+    if (el.classList.contains('cr-name')) {
+        // Name -> contact, the order the row reads in.
+        e.preventDefault();
+        var contact = el.closest('.custom-row-inner').querySelector('.cr-contact');
+        if (contact) contact.focus();
+    } else if (el.classList.contains('cr-contact')) {
+        // Row finished: open the next one so a list of guests can be typed
+        // straight through. Blank rows are ignored on save (see the !uname
+        // guard in the submit handler), so an unused one costs nothing.
+        e.preventDefault();
+        addBlankInviteRow();
+    } else if (el.id === 'eUserSearch') {
+        // The list filters as you type; Enter has nothing left to do here, and
+        // certainly should not save the event.
+        e.preventDefault();
+    }
+});
 
 function syncInviteState() {
     const invited = Array.from(document.querySelectorAll('#eInvitedList li[data-iname]'))
@@ -1002,6 +1043,15 @@ function moveAllLeft() {
     }
 })();
 
+// Does this row become a saved invite? Registered invitees always do; a
+// hand-typed row only once it has a name (matching the !uname guard on save).
+function inviteRowCounts(li) {
+    if (li.hasAttribute('data-iname')) return true;
+    if (!li.classList.contains('custom-row')) return false;
+    var n = li.querySelector('.cr-name');
+    return !!(n && n.value.trim());
+}
+
 function updateDividerLine() {
     var ul = document.getElementById('eInvitedList');
     if (!ul) return;
@@ -1017,28 +1067,44 @@ function updateDividerLine() {
 
     var cap = getPokerCapacity();
 
-    // Separate active (non-declined) from declined
-    var allItems = Array.from(ul.querySelectorAll('li[data-iname]'));
+    // Separate active (non-declined) from declined. Hand-typed rows are counted
+    // alongside registered invitees: they take real seats, so leaving them out
+    // meant the cutoff was drawn against a shorter list than the one being
+    // saved, and considering only [data-iname] rows silently shuffled every
+    // hand-typed guest to the top of the list.
+    var allItems = Array.from(ul.querySelectorAll('li[data-iname], li.custom-row'));
     var active = [];
     var declined = [];
     allItems.forEach(function(li) {
-        if (li.dataset.irsvp === 'no') {
-            declined.push(li);
-        } else {
-            active.push(li);
-        }
+        if (li.dataset.irsvp === 'no') declined.push(li);
+        else active.push(li);
     });
 
-    // Re-append active items first (preserves their order), then declined
-    active.forEach(function(li) { ul.appendChild(li); });
+    // Active rows are deliberately NOT re-appended. They are already in the
+    // right relative order, and the declined block below moves declined rows to
+    // the end on its own, so touching them changes nothing about the result.
+    // It does change one thing that matters: moving a DOM node blurs it, and
+    // this function now runs on every keystroke in a name field, so re-appending
+    // kicked the caret out after a single letter.
 
-    // Insert capacity divider among active items
-    if (cap > 0 && active.length > cap) {
-        var divider = document.createElement('li');
-        divider.className = 'inv-capacity-divider';
-        divider.textContent = '--- Seat cutoff (' + cap + ' seats) --- waitlist below ---';
-        divider.draggable = false;
-        ul.insertBefore(divider, active[cap]);
+    // Insert capacity divider before the first guest past the cutoff. Counted
+    // by the same rule the save uses: every registered invitee, and every
+    // hand-typed row that actually has a name (a blank row saves nothing, so it
+    // must not push someone onto the waitlist).
+    if (cap > 0) {
+        var counted = 0, cutoffAt = null;
+        for (var i = 0; i < active.length; i++) {
+            if (!inviteRowCounts(active[i])) continue;
+            counted++;
+            if (counted === cap + 1) { cutoffAt = active[i]; break; }
+        }
+        if (cutoffAt) {
+            var divider = document.createElement('li');
+            divider.className = 'inv-capacity-divider';
+            divider.textContent = '--- Seat cutoff (' + cap + ' seats) --- waitlist below ---';
+            divider.draggable = false;
+            ul.insertBefore(divider, cutoffAt);
+        }
     }
 
     // Add declined section at the bottom
@@ -1119,20 +1185,26 @@ document.getElementById('editForm').addEventListener('submit', function(e) {
         inp.type = 'hidden'; inp.name = name; inp.value = val;
         container.appendChild(inp);
     }
-    // Regular invited users (order in DOM = priority order)
+    // Order in the DOM is priority order, which with a capacity cap decides who
+    // is in and who is waitlisted. This walks BOTH kinds of row in one pass, in
+    // document order. It used to be two passes — registered invitees, then
+    // host-typed rows — so a hand-typed guest dropped to the end of the list on
+    // save no matter where the host had placed them.
     var sortIdx = 0;
-    document.querySelectorAll('#eInvitedList li[data-iname]').forEach(li => {
-        sortIdx++;
-        addHidden('invite_username[]',   li.dataset.iname);
-        addHidden('invite_phone[]',      li.dataset.iphone);
-        addHidden('invite_email[]',      li.dataset.iemail);
-        addHidden('invite_rsvp[]',       li.dataset.irsvp);
-        addHidden('invite_role[]',       li.dataset.irole || 'invitee');
-        addHidden('invite_sort_order[]', sortIdx);
-    });
-    // Custom rows — host-typed invitees (not registered users). Single contact field:
-    // auto-detect email (contains '@') vs phone (everything else).
-    document.querySelectorAll('#eInvitedList li.custom-row').forEach(li => {
+    document.querySelectorAll('#eInvitedList li').forEach(li => {
+        if (li.hasAttribute('data-iname')) {
+            sortIdx++;
+            addHidden('invite_username[]',   li.dataset.iname);
+            addHidden('invite_phone[]',      li.dataset.iphone);
+            addHidden('invite_email[]',      li.dataset.iemail);
+            addHidden('invite_rsvp[]',       li.dataset.irsvp);
+            addHidden('invite_role[]',       li.dataset.irole || 'invitee');
+            addHidden('invite_sort_order[]', sortIdx);
+            return;
+        }
+        if (!li.classList.contains('custom-row')) return;   // dividers etc.
+        // Host-typed invitee (not a registered user). Single contact field:
+        // auto-detect email (contains '@') vs phone (everything else).
         const uname   = li.querySelector('.cr-name').value.trim();
         const contact = (li.querySelector('.cr-contact') || {value:''}).value.trim();
         if (!uname) return;
