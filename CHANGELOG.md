@@ -4,6 +4,15 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2063] - 2026-08-08
+
+### Fixed
+- **The jackpot screen showed nothing of the money collected for the current game.** Jackpot entries were contributed to the league fund only when a game was *finished*, so mid-game the modal read `Fund: $0.00` with a table full of paid-up entries behind it. It now shows what this game has taken and what the fund becomes: `+ $7.00 collected this game (7 entries × $1.00) — added to the fund when the game is finished, total after finish $7.00`. The line is absent once that money is banked, so nothing is ever counted twice; `jackpots.contributed` rides along with the balance in the session load, the jackpot log and the hit response so the client can tell the difference.
+- **A jackpot could not be paid out mid-game.** `record_jackpot_hit` capped the payout at the banked fund balance, which excluded everything the current game had collected — so a bad beat, which by its nature happens at the table mid-game, was refused with "Payout $X exceeds the fund ($0.00)" and could not be settled until the game was finished. New `pk_jackpot_sync_contribution()` banks a session's collected entries on demand, and the hit handler calls it before the balance check.
+- The contribution is computed as the **delta** between what a session has collected and what it has already contributed, so it is safe to call repeatedly: an early bank at hit time followed by a finish tops up only the entries that arrived in between, and a re-finish adds nothing. `pk_finish_session()` now delegates to the same helper instead of carrying its own dupe-guarded copy, so both paths share one rule. The sync only ever moves upward — if entries are withdrawn after a hit has drawn on them, that money really did leave the box and stays contributed. Reopening a game whose contributions have already been paid out remains blocked by the existing guard, which now matters more often.
+
+---
+
 ## [v0.2062] - 2026-08-08
 
 ### Changed
