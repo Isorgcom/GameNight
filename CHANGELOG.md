@@ -4,6 +4,13 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2060] - 2026-08-08
+
+### Fixed
+- **The Payouts & Rewards tab stayed disabled until you saved the game type.** Setting up a new tournament meant choosing Tournament, saving, and then reopening Settings before the payout structure could be configured at all. The tab's disabled state is derived from `isCash()`, which reads the *saved* session, while `previewGameType()` — the dropdown's change handler — only showed and hid sections inside the panes and never touched the tab strip. It now updates both gated tabs live: Payouts enables and disables with the pending choice, and Tickets shows and hides with it. Switching back to Cash while sitting on Payouts returns you to the Game tab rather than leaving you on a dead tab with no panel showing.
+
+---
+
 ## [v0.2059] - 2026-08-07
 
 ### Added
