@@ -1954,12 +1954,17 @@ function linkTimerToEvent() {
     window.location.href = '/timer.php?event_id=' + encodeURIComponent(sel.value);
 }
 function fmtChips(n) {
-    if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
-    // Abbreviate only when exact at one decimal (1200 → 1.2K); otherwise show in full (1250 stays 1250).
-    if (n >= 1000 && n % 100 === 0) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
-    if (n >= 1000) return String(n);
-    // Fractional blinds (.25/.50 home stakes): show up to 2 decimals, no float dust.
-    return (n % 1 === 0) ? String(n) : n.toFixed(2);
+    // Blinds show the literal amount, grouped: 2,000 never 2K, 2,500 never 2.5K.
+    // This is read from across the room, where an abbreviation costs more than
+    // the width it saves — 2.5K and 25K differ by one glyph at a glance — and
+    // the grouping is what keeps 100,000 legible once the levels get deep.
+    // Fractional blinds (.25/.50 home stakes): up to 2 decimals, no float dust.
+    // en-US is pinned rather than using the visitor's locale: a timer on a TV
+    // is a shared display, and a browser set to de-DE would render 2.000, which
+    // reads as two at this font size.
+    return (n % 1 === 0)
+        ? n.toLocaleString('en-US')
+        : n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 // ─── §7.2.1  Get current level data ──────────────────────────────

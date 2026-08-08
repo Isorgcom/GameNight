@@ -4,6 +4,11 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2067] - 2026-08-08
+
+### Changed
+- **Blinds show the whole amount with thousand separators, not an abbreviation.** The timer rendered 2000 as `2K` and 2500 as `2.5K`, and at a glance across a room `2.5K` and `25K` differ by a single glyph, which is a bad trade for the width it saved on the one number everyone at the table is reading. `fmtChips()` in `www/timer.php` now returns `2,000` and `2,500`, and `100,000` once the levels get deep. The grouping is pinned to `en-US` rather than the visitor's locale: a timer on a TV is a shared display, and a browser set to a European locale would render `2.000`, which reads as two at that font size. Fractional blinds for home stakes keep their two decimals with no float dust, the behaviour added in v0.2035, and values under a thousand are unchanged. The function is used only for the current and next level's blinds and antes, so nothing else in the timer moved. Note the standalone tournament-timer fork carries its own copy of this function and does not inherit the change.
+
 ## [v0.2066] - 2026-08-08
 
 ### Fixed
