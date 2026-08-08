@@ -144,10 +144,15 @@
     }
 
     function fmtChips(v) {
-        if (v >= 1000000) return (v / 1000000) + 'M';
-        if (v >= 1000) return (v / 1000) + 'K';
+        // Kept in step with fmtChips() in timer.php: the literal amount, grouped,
+        // never 2K or 2.5K. This is the cast display, so the case against
+        // abbreviating is stronger here than anywhere — it is furthest from the
+        // reader. en-US is pinned so a browser locale that groups with dots
+        // cannot render 2.000, which reads as two across a room.
         // Fractional blinds (.25/.50 home stakes): up to 2 decimals, no float dust.
-        return (v % 1 === 0) ? String(v) : v.toFixed(2);
+        return (v % 1 === 0)
+            ? v.toLocaleString('en-US')
+            : v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
     function fmtTime(sec) {

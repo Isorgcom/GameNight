@@ -4,6 +4,11 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2068] - 2026-08-08
+
+### Changed
+- **The cast display's blinds match the timer's.** v0.2067 stopped abbreviating blinds in `www/timer.php`, but `www/cast_receiver.php` carries its own `fmtChips()` and kept rendering `2K` and `2.5K` — on the screen furthest from the reader, where the abbreviation is least defensible. Its copy now formats identically: the whole amount with `en-US` thousand separators, two decimals preserved for fractional home stakes. Those are the only two chip formatters in the tree; a grep for the abbreviating pattern across `www/` returns nothing else. Worth remembering that the timer has two display surfaces and a change to one is not a change to both.
+
 ## [v0.2067] - 2026-08-08
 
 ### Changed
