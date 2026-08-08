@@ -4,6 +4,11 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2066] - 2026-08-08
+
+### Fixed
+- **The timer was a white page on every request.** `www/timer.php` had a fatal parse error, so Apache returned a 500 with an empty body for every hit, including from the check-in console's Timer button. The cause was the v0.2064 stylesheet cache-buster sweep: it rewrote the `style.css` link on all 54 pages that carry one, and in `timer.php` one of those links lives inside a PHP string rather than in template output, in the invalid-remote-link branch at line 91. A short-echo tag is not evaluated inside a string literal, and its quotes terminated the string, which made the whole file unparseable and took down every code path in it, not just that branch. The markup is now concatenated. Note this shipped in v0.2064 and was live from that deploy until now; the file has been unparseable that whole time, which is why the timer failed rather than degraded. A `php -l` sweep across `www/*.php` catches this class of breakage in seconds and is worth running before any push that touches many files at once; the other 53 pages were checked this way and are clean.
+
 ## [v0.2065] - 2026-08-08
 
 ### Fixed
