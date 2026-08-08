@@ -72,6 +72,64 @@ function pk_jackpot_balance($db, ?int $league_id): int {
     } catch (Exception $e) { return 0; /* pre-migration DB */ }
 }
 
+// Bring the league fund up to date with what this session has collected in
+// jackpot entries. Returns the amount added (0 if nothing was owed).
+//
+// Contributions used to land only when a game was finished, which made a
+// mid-game jackpot hit unpayable: the money was in the box but not in the fund,
+// so record_jackpot_hit refused it. A bad beat is inherently a mid-game event,
+// so this is callable at hit time as well as at finish.
+//
+// It works on the DELTA between what the session has collected and what it has
+// already contributed, so calling it repeatedly never double-banks, and a finish
+// after an early bank tops up only the entries that arrived in between. It only
+// ever syncs UPWARD — if entries are withdrawn after a hit has already drawn on
+// them, the money really did leave the box, so it stays contributed.
+function pk_jackpot_sync_contribution($db, int $session_id, ?int $actor_id): int {
+    $sess = $db->prepare('SELECT ps.game_type, ps.jackpot_amount, ps.jackpot_optional,
+                                 e.title AS src_title, e.league_id
+                          FROM poker_sessions ps JOIN events e ON e.id = ps.event_id WHERE ps.id = ?');
+    $sess->execute([$session_id]);
+    $s = $sess->fetch();
+    if (!$s || $s['game_type'] !== 'tournament') return 0;
+
+    $per = (int)($s['jackpot_amount'] ?? 0);
+    if (empty($s['league_id']) || $per <= 0) return 0;
+
+    // Optional mode = opted-in entries; baked mode = every buy-in (calc_pool
+    // withholds those from the prize pool). Same rule the pool math uses.
+    if ((int)($s['jackpot_optional'] ?? 1)) {
+        $bq = $db->prepare('SELECT COALESCE(SUM(jackpot_in), 0) FROM poker_players WHERE session_id = ? AND removed = 0');
+        $unit = 'entries';
+    } else {
+        $bq = $db->prepare('SELECT COUNT(*) FROM poker_players WHERE session_id = ? AND removed = 0 AND bought_in = 1');
+        $unit = 'buy-ins';
+    }
+    $bq->execute([$session_id]);
+    $units = (int)$bq->fetchColumn();
+    if ($units <= 0) return 0;
+
+    try {
+        $fund = pk_jackpot_fund($db, (int)$s['league_id']);
+        $prev = $db->prepare("SELECT COALESCE(SUM(amount), 0) FROM league_jackpot_log
+                              WHERE jackpot_id = ? AND session_id = ? AND event_type = 'contribution' AND voided = 0");
+        $prev->execute([(int)$fund['id'], $session_id]);
+        $already = (int)$prev->fetchColumn();
+        $owed = $units * $per - $already;
+        if ($owed <= 0) return 0;
+
+        $detail = ($already > 0 ? 'Top-up to ' : '')
+                . "$units $unit × " . pk_money($per) . ' from "' . $s['src_title'] . '"';
+        $db->prepare('INSERT INTO league_jackpot_log (jackpot_id, session_id, event_type, amount, detail, created_by)
+                      VALUES (?, ?, ?, ?, ?, ?)')
+           ->execute([(int)$fund['id'], $session_id, 'contribution', $owed, $detail, $actor_id]);
+        $db->prepare('UPDATE league_jackpots SET balance = balance + ? WHERE id = ?')->execute([$owed, (int)$fund['id']]);
+        pk_log($db, $session_id, $actor_id, 'jackpot', null, null, $owed,
+               'Jackpot contribution — ' . pk_money($owed) . " ($units $unit × " . pk_money($per) . ')');
+        return $owed;
+    } catch (Exception $e) { return 0; /* pre-migration DB */ }
+}
+
 // Upsert a user's last-used session defaults. league_id null = personal scope.
 // Security: every column name interpolated into SQL is intersected with the
 // USER_SESSION_DEFAULT_COLS whitelist so unknown keys in $data can never reach SQL.
@@ -650,38 +708,11 @@ function pk_finish_session($db, int $session_id, int $actor_id): void {
     $s = $sess->fetch();
     if (!$s || $s['game_type'] !== 'tournament') return;
 
-    // Jackpot contribution, once per finish (guarded so a re-finish never
-    // double-contributes): optional mode = opted-in entries × price; baked
-    // mode = every buy-in × price (withheld from the pool by calc_pool).
-    $per = (int)($s['jackpot_amount'] ?? 0);
-    if (!empty($s['league_id']) && $per > 0) {
-        if ((int)($s['jackpot_optional'] ?? 1)) {
-            $bq = $db->prepare('SELECT COALESCE(SUM(jackpot_in), 0) FROM poker_players WHERE session_id = ? AND removed = 0');
-        } else {
-            $bq = $db->prepare('SELECT COUNT(*) FROM poker_players WHERE session_id = ? AND removed = 0 AND bought_in = 1');
-        }
-        $bq->execute([$session_id]);
-        $buyins = (int)$bq->fetchColumn();
-        $unit = (int)($s['jackpot_optional'] ?? 1) ? 'entries' : 'buy-ins';
-        if ($buyins > 0) {
-            try {
-                $fund = pk_jackpot_fund($db, (int)$s['league_id']);
-                $dupe = $db->prepare("SELECT COUNT(*) FROM league_jackpot_log
-                                      WHERE jackpot_id = ? AND session_id = ? AND event_type = 'contribution' AND voided = 0");
-                $dupe->execute([(int)$fund['id'], $session_id]);
-                if ((int)$dupe->fetchColumn() === 0) {
-                    $amt = $buyins * $per;
-                    $db->prepare('INSERT INTO league_jackpot_log (jackpot_id, session_id, event_type, amount, detail, created_by)
-                                  VALUES (?, ?, ?, ?, ?, ?)')
-                       ->execute([(int)$fund['id'], $session_id, 'contribution', $amt,
-                                  "$buyins $unit × " . pk_money($per) . ' from "' . $s['src_title'] . '"', $actor_id]);
-                    $db->prepare('UPDATE league_jackpots SET balance = balance + ? WHERE id = ?')->execute([$amt, (int)$fund['id']]);
-                    pk_log($db, $session_id, $actor_id, 'jackpot', null, null, $amt,
-                           'Jackpot contribution — ' . pk_money($amt) . " ($buyins $unit × " . pk_money($per) . ')');
-                }
-            } catch (Exception $e) { /* pre-migration DB */ }
-        }
-    }
+    // Jackpot contribution. Delegated to pk_jackpot_sync_contribution(), which
+    // banks the difference between what this game collected and what it has
+    // already contributed — so a re-finish adds nothing, and a finish after a
+    // mid-game hit banked part of it tops up only the rest.
+    pk_jackpot_sync_contribution($db, $session_id, $actor_id);
     $target = (int)($s['ticket_target_event_id'] ?? 0);
     if ($target <= 0) return;
     $tq = $db->prepare('SELECT id, title, start_date FROM events WHERE id = ?');

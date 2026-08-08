@@ -63,7 +63,8 @@ if ($action === 'get_session') {
         'pool'     => calc_pool($db, $session['id']),
         'log'      => get_session_log($db, (int)$session['id']),
         'tickets'  => ['incoming' => $tin->fetchAll(), 'outgoing' => $tout->fetchAll()],
-        'jackpots' => ['league_id' => $league_id, 'balance' => pk_jackpot_balance($db, $league_id)],
+        'jackpots' => ['league_id' => $league_id, 'balance' => pk_jackpot_balance($db, $league_id),
+                       'contributed' => pk_jackpot_contributed($db, (int)$session['id'])],
     ]);
     exit;
 }
@@ -297,6 +298,18 @@ if ($action === 'list_target_events') {
 
 // ─── GET: jackpot_log ──────────────────────────────────────
 // The league jackpot's ledger (newest first), for the 💎 modal's history view.
+// How much of a session's jackpot money is already banked in the fund. The
+// client subtracts this from what the game has collected to show what is still
+// pending, so an early bank at hit time does not get counted twice.
+function pk_jackpot_contributed($db, int $session_id): int {
+    try {
+        $q = $db->prepare("SELECT COALESCE(SUM(amount), 0) FROM league_jackpot_log
+                           WHERE session_id = ? AND event_type = 'contribution' AND voided = 0");
+        $q->execute([$session_id]);
+        return (int)$q->fetchColumn();
+    } catch (Exception $e) { return 0; /* pre-migration DB */ }
+}
+
 if ($action === 'jackpot_log') {
     $session_id = (int)($_GET['session_id'] ?? 0);
     $sess = $db->prepare('SELECT ps.*, e.league_id FROM poker_sessions ps JOIN events e ON e.id = ps.event_id WHERE ps.id = ?');
@@ -313,12 +326,13 @@ if ($action === 'jackpot_log') {
     $fundQ = $db->prepare("SELECT id, balance FROM league_jackpots WHERE league_id = ? AND jackpot_type = 'main'");
     $fundQ->execute([(int)$s['league_id']]);
     $fund = $fundQ->fetch();
-    if (!$fund) { echo json_encode(['ok' => true, 'entries' => [], 'balance' => 0]); exit; }
+    if (!$fund) { echo json_encode(['ok' => true, 'entries' => [], 'balance' => 0, 'contributed' => 0]); exit; }
     $q = $db->prepare('SELECT id, event_type, player_name, amount, detail, voided, created_at
                        FROM league_jackpot_log WHERE jackpot_id = ? ORDER BY id DESC LIMIT 100');
     $q->execute([(int)$fund['id']]);
     echo json_encode(['ok' => true, 'entries' => $q->fetchAll(),
-                      'balance' => (int)$fund['balance']]);
+                      'balance' => (int)$fund['balance'],
+                      'contributed' => pk_jackpot_contributed($db, $session_id)]);
     exit;
 }
 
@@ -2002,6 +2016,13 @@ if ($action === 'record_jackpot_hit') {
     }
     if (!$recips) { echo json_encode(['ok' => false, 'error' => 'Add at least one recipient with an amount.']); exit; }
 
+    // A bad beat happens mid-game, so this game's collected entries must be
+    // payable now — they used to sit outside the fund until the game finished,
+    // which refused every mid-game payout. Bank what this session has collected
+    // first; the sync works on the delta, so finishing later tops up the rest
+    // rather than contributing twice.
+    pk_jackpot_sync_contribution($db, $session_id, (int)$current['id']);
+
     $fund = pk_jackpot_fund($db, (int)$s['league_id']);
     if ($total > (int)$fund['balance']) {
         echo json_encode(['ok' => false, 'error' => 'Payout ' . pk_money($total) . ' exceeds the fund (' . pk_money((int)$fund['balance']) . ').']); exit;
@@ -2019,7 +2040,9 @@ if ($action === 'record_jackpot_hit') {
     $db->prepare('UPDATE league_jackpots SET balance = balance - ? WHERE id = ?')->execute([$total, (int)$fund['id']]);
     db_log_activity((int)$current['id'], "$label jackpot hit: " . pk_money($total) . " paid (session id=$session_id)");
 
-    echo json_encode(['ok' => true, 'jackpots' => ['league_id' => (int)$s['league_id'], 'balance' => pk_jackpot_balance($db, (int)$s['league_id'])]]);
+    echo json_encode(['ok' => true, 'jackpots' => ['league_id' => (int)$s['league_id'],
+        'balance' => pk_jackpot_balance($db, (int)$s['league_id']),
+        'contributed' => pk_jackpot_contributed($db, $session_id)]]);
     exit;
 }
 

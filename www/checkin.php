@@ -2296,9 +2296,46 @@ function toggleReward(key) {
 }
 
 // ─── League jackpot hit recording ─────────────────────────
+// The league fund only receives this game's jackpot money when the game is
+// FINISHED — the contribution is written once, guarded against re-finishing, in
+// pk_apply_tournament_payouts(). Mid-game the balance alone therefore reads as
+// "nothing collected" even with a table full of paid-up entries, which is
+// exactly wrong on the screen used to pay a jackpot out. Show what this game has
+// taken and what the fund becomes, clearly marked as not banked yet.
+function jackpotPendingCents() {
+    if (!SESSION) return 0;
+    var jAmt = parseInt(SESSION.jackpot_amount) || 0;
+    if (jAmt <= 0) return 0;
+    var collected = parseInt(SESSION.jackpot_optional)
+        ? (parseInt(POOL.jackpot_collected) || 0)
+        : (parseInt(POOL.jackpot_withheld) || 0);
+    // Subtract what is already in the fund for this game. Finishing banks all of
+    // it; recording a hit mid-game banks it early so the payout can draw on it.
+    // Without this the banked money would be shown as pending as well.
+    return Math.max(0, collected - (parseInt(JACKPOTS.contributed) || 0));
+}
+
+function jackpotBalanceHtml() {
+    var bal = parseInt(JACKPOTS.balance) || 0;
+    var h = 'Fund: <b>' + formatMoney(bal) + '</b>';
+    var pending = jackpotPendingCents();
+    if (pending > 0) {
+        var optional = parseInt(SESSION.jackpot_optional);
+        var n = optional ? (parseInt(POOL.jackpot_entries) || 0) : (parseInt(POOL.total_buyins) || 0);
+        var unit = optional ? (n === 1 ? 'entry' : 'entries') : (n === 1 ? 'buy-in' : 'buy-ins');
+        h += '<div style="margin-top:.35rem;font-size:.8rem;color:#7c3aed;font-weight:600">'
+           + '+ ' + formatMoney(pending) + ' collected this game '
+           + '<span style="color:#64748b;font-weight:400">(' + n + ' ' + unit + ' &times; '
+           + formatMoney(parseInt(SESSION.jackpot_amount)) + ')</span></div>'
+           + '<div style="font-size:.75rem;color:#64748b">Added to the fund when the game is finished &mdash; '
+           + 'total after finish <b>' + formatMoney(bal + pending) + '</b></div>';
+    }
+    return h;
+}
+
 function openJackpotModal() {
     var b = document.getElementById('jpBalances');
-    b.innerHTML = 'Fund: <b>' + formatMoney(JACKPOTS.balance) + '</b>';
+    b.innerHTML = jackpotBalanceHtml();
     document.getElementById('jpRecipients').innerHTML = '';
     addJackpotRecipient();
     document.getElementById('jpAdjustRow').style.display = 'none';
@@ -2319,7 +2356,8 @@ function loadJackpotHistory() {
             if (!j.ok) { box.textContent = j.error || 'Error'; return; }
             if (typeof j.balance === 'number') {
                 JACKPOTS.balance = j.balance;
-                document.getElementById('jpBalances').innerHTML = 'Fund: <b>' + formatMoney(j.balance) + '</b>';
+                if (typeof j.contributed === 'number') JACKPOTS.contributed = j.contributed;
+                document.getElementById('jpBalances').innerHTML = jackpotBalanceHtml();
             }
             if (!j.entries.length) { box.innerHTML = '<span style="color:#94a3b8">No activity yet.</span>'; return; }
             var h = '';
