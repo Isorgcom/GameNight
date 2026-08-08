@@ -322,10 +322,20 @@ $session = $sessStmt->fetch();
     /* Settings sections + opt-in reward toggles (progressive disclosure) */
     .pk-cfg-section{margin-top:1rem;padding-top:.75rem;border-top:1px solid var(--border,#e2e8f0)}
     .pk-cfg-section:first-child{margin-top:0;padding-top:0;border-top:none}
+    /* Load / Save As / Delete / Set Default carried no class at all, so they
+       rendered at the browser default size and stayed there on tablets, where
+       every other control in this console grows to a 44px touch target. */
+    .pk-preset-bar{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+    .pk-preset-bar button{padding:.4rem .8rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;background:#fff;font-size:.8rem;font-weight:600;color:#334155;cursor:pointer}
+    .pk-preset-bar button:hover{background:#f1f5f9}
     .pk-cfg-title{font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;margin:0 0 .5rem}
     .pk-reward-chips{display:flex;gap:.5rem;flex-wrap:wrap}
     .pk-reward-chip{padding:.4rem .8rem;border-radius:999px;border:1.5px solid var(--border,#e2e8f0);background:transparent;font-size:.8rem;font-weight:600;color:#64748b;cursor:pointer}
-    .pk-reward-chip.on{background:#eff6ff;border-color:#93c5fd;color:#1d4ed8}
+    /* On means this reward is switched on for the game, so it reads green like
+       every other "this is active" control here (.pk-btn-green, the mobile
+       .primary action). Blue was the information colour and made an armed
+       bounty or points scheme look like a hint about one. */
+    .pk-reward-chip.on{background:#16a34a;border-color:#16a34a;color:#fff}
     .pk-reward-body{display:none;margin-top:.75rem}
     .pk-reward-body.on{display:block}
     .pk-bounty-hint{font-size:.75rem;color:#0e7490;margin-top:.35rem}
@@ -560,6 +570,11 @@ $session = $sessStmt->fetch();
         .pk-toolbar button { min-height:44px;font-size:.85rem; }
         .pk-actions button, .pk-actions a { min-height:44px;font-size:.85rem;padding:.5rem .8rem; }
         .pk-seg button { min-height:40px;font-size:.85rem;padding:.4rem .7rem; }
+        .pk-preset-bar button { min-height:44px;font-size:.85rem;padding:.5rem .9rem; }
+        /* The select carries its padding and font-size inline, which a rule here
+           cannot outrank — min-height is untouched there, so it is what keeps the
+           row's controls the same height. */
+        .pk-preset-bar select { min-height:44px; }
         .pk-counter button { width:36px;height:36px;font-size:1rem; }
         .pk-counter span { min-width:28px;font-size:.95rem; }
         .pk-tbl-input { width:48px;padding:.4rem .3rem;font-size:1rem;min-height:36px; }
@@ -1282,20 +1297,28 @@ function playerProfit(p) {
     return parseInt(p.cash_out) - playerTotalIn(p);
 }
 
+// The one filter predicate for the player list. renderPlayerRows(),
+// renderMobileCards() and addWalkin() all read it, so "would this player show
+// right now?" has a single answer — addWalkin() needs it to notice that the
+// person it just added would be filtered straight back out.
+// renderTableView() deliberately keeps its own copy: the seating chart has
+// never branched on cash vs tournament for "playing".
+function passesFilter(p) {
+    if (FILTER === 'rsvp_yes') return p.rsvp === 'yes';
+    if (isCash()) {
+        if (FILTER === 'playing') return parseInt(p.bought_in) && (p.cash_out === null || p.cash_out === undefined);
+        if (FILTER === 'eliminated') return p.cash_out !== null && p.cash_out !== undefined;
+    } else {
+        if (FILTER === 'playing') return !parseInt(p.eliminated) && parseInt(p.bought_in);
+        if (FILTER === 'eliminated') return parseInt(p.eliminated);
+    }
+    return true;
+}
+
 function renderPlayerRows() {
     var h = '';
     var num = 0;
-    var filtered = sortPlayers(PLAYERS.filter(function(p) {
-        if (FILTER === 'rsvp_yes') return p.rsvp === 'yes';
-        if (isCash()) {
-            if (FILTER === 'playing') return parseInt(p.bought_in) && (p.cash_out === null || p.cash_out === undefined);
-            if (FILTER === 'eliminated') return p.cash_out !== null && p.cash_out !== undefined;
-        } else {
-            if (FILTER === 'playing') return !parseInt(p.eliminated) && parseInt(p.bought_in);
-            if (FILTER === 'eliminated') return parseInt(p.eliminated);
-        }
-        return true;
-    }));
+    var filtered = sortPlayers(PLAYERS.filter(passesFilter));
     for (var i = 0; i < filtered.length; i++) {
         var p = filtered[i];
         num++;
@@ -1458,17 +1481,7 @@ function renderPlayerRows() {
 
 function renderMobileCards() {
     var h = '';
-    var filtered = sortPlayers(PLAYERS.filter(function(p) {
-        if (FILTER === 'rsvp_yes') return p.rsvp === 'yes';
-        if (isCash()) {
-            if (FILTER === 'playing') return parseInt(p.bought_in) && (p.cash_out === null || p.cash_out === undefined);
-            if (FILTER === 'eliminated') return p.cash_out !== null && p.cash_out !== undefined;
-        } else {
-            if (FILTER === 'playing') return !parseInt(p.eliminated) && parseInt(p.bought_in);
-            if (FILTER === 'eliminated') return parseInt(p.eliminated);
-        }
-        return true;
-    }));
+    var filtered = sortPlayers(PLAYERS.filter(passesFilter));
     for (var i = 0; i < filtered.length; i++) {
         var p = filtered[i];
         var isElim = parseInt(p.eliminated);
@@ -2055,7 +2068,7 @@ function renderSettingsView() {
     {
         h += '<div class="pk-cfg-section" id="cfgPresetSection" style="border-top:none;padding-top:0;margin-top:0' + (isCash() ? ';display:none' : '') + '"><div class="pk-cfg-title" style="display:flex;align-items:center;gap:.45rem">Game Preset'
            + '<button class="pk-help-btn" style="padding:.15rem .5rem;font-size:.7rem" title="What game presets do" aria-label="Game preset help" onclick="showPresetHelp()">?</button></div>';
-        h += '<div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">';
+        h += '<div class="pk-preset-bar">';
         h += '<select id="payoutStructureSelect" onchange="onPayoutStructureChange()" style="flex:0 1 300px;min-width:160px;padding:.3rem .5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:4px;font-size:.85rem"></select>';
         h += '<button onclick="loadPayoutStructure()" title="Apply the selected preset to BOTH tabs: game setup, payout split, points, ticket prizes, prizes, bounty and jackpot entry">Load</button>';
         h += '<button onclick="savePayoutStructureAs()" title="Save everything in this editor (both tabs) as a named preset">Save As…</button>';
@@ -3690,12 +3703,28 @@ function addWalkin() {
     var dd = document.getElementById('walkinDropdown');
     if (dd) { dd.classList.remove('open'); dd.innerHTML = ''; _walkinIdx = -1; }
     postAction('add_walkin', { session_id: SESSION.id, name: name }, function(j) {
-        // Replace if already exists (re-activated), otherwise add
-        var existing = PLAYERS.findIndex(function(p) { return parseInt(p.id) === parseInt(j.player.id); });
-        if (existing >= 0) { PLAYERS[existing] = j.player; } else { PLAYERS.push(j.player); }
+        // The endpoint returns the whole roster, so a re-activated player is
+        // replaced and a new one appended without the client reasoning about it.
+        PLAYERS = j.players;
         POOL = j.pool;
         document.getElementById('walkinName').value = '';
+        // A brand-new walk-in has no buy-in yet, so under "Playing" they are
+        // filtered straight back out and the host sees nothing happen. Adding
+        // someone is an explicit request to see them, so the filter yields.
+        var added = PLAYERS.filter(function(p) { return parseInt(p.id) === parseInt(j.player_id); })[0];
+        var cleared = false;
+        if (added && !passesFilter(added)) { FILTER = 'all'; cleared = true; }
         refreshUI();
+        if (cleared) {
+            // The filter bar lives inside #viewContent and refreshUI() repaints
+            // only the rows, so its active segment is updated here. On a view
+            // with no filter bar this finds nothing and positionSegThumb() bails.
+            document.querySelectorAll('.pk-filter button').forEach(function(btn) {
+                btn.classList.toggle('active', btn.getAttribute('data-filter') === 'all');
+            });
+            positionSegThumb('filterSeg', true);
+            walkinToast(added.display_name + ' added — filter cleared to show them');
+        }
     });
 }
 
