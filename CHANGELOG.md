@@ -4,6 +4,23 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2064] - 2026-08-08
+
+### Added
+- **The event's league can be set from Game Setup.** Jackpot funds and saved payout presets both belong to a league, so configuring a jackpot on an event with no league hit "Jackpots are league funds — this event must belong to a league first" and the only way forward was to leave Setup, edit the event, and come back. A League field now sits left of Game Type and saves with everything else. Server-side it is applied *before* the jackpot validation, so a league and a jackpot can be set in a single save. Authorization mirrors the event editor exactly: binding an event to a league takes owner or manager of **that** league, or site admin — membership alone is not enough. The event's current league is always shown, marked, even to a co-host with no role on it. A game that has already banked or paid jackpot money cannot change league: that money is held in one league's fund, and moving the event would leave the two apart.
+
+### Changed
+- **Setup's tabs are the segmented control with the sliding thumb**, matching the toolbar's view and filter strips, and the pane slides in from the side the thumb travelled. An underlined-tab strip was a third idiom for the same gesture. Disabled tabs (a cash game has no payout structure) are dimmed and do not light up on hover, and the thumb is re-measured whenever a segment is shown, hidden, enabled or disabled — the widths move even when the selection does not.
+- **The segmented control is now shared, not page-local.** Styles moved to `style.css` and behaviour to a new `pk-seg.js` that `_footer.php` loads on every page, so any page can use the pattern with no per-page wiring. `positionAllSegThumbs()` scans every `.pk-seg[id]` rather than three hardcoded ids, and the `resize` re-measure moved into the shared file. `pk-seg.js` is deliberately not deferred: a page may put its own inline `<script>` after the footer, as `checkin.php` does, and must see the functions already defined. Documented in CLAUDE.md as the preferred switcher for future work, with the rules that keep it from breaking.
+- **The "this game isn't set up yet" prompt is amber, not blue.** In the informational palette it read as a tip and disappeared into the page; it now uses the app's warning colours with a heavier left bar and a warning glyph, matching the ticket-target warning and the seat cutoff divider.
+
+### Fixed
+- **The Game Preset bar was unreachable on a cash game.** It was rendered only when the *saved* game type was tournament, and `previewGameType()` did not touch it — so choosing Tournament in the dropdown revealed the tournament fields and the Payouts tab but not the presets, and they could not be reached until the game type had been saved and the editor reopened. Same defect the Payouts tab had in v0.2060. The section is now always rendered and hidden by game type, and the preset list is populated for both types so a revealed select is not empty.
+- **Loading a preset threw away an unsaved game-type choice.** `loadPayoutStructure()` redraws through `renderDashboard()` and `refreshSettingsView()`, both of which rebuild the pane from the saved session — so picking Tournament on a game still saved as cash and then loading a preset snapped the dropdown back to Cash and hid everything that choice had revealed, including the preset bar just used. The pending choice is now captured before the redraw and re-applied after.
+- **Stylesheet edits between releases served stale CSS.** `style.css` was cache-busted on `APP_VERSION` alone, so any change to it between version bumps kept browsers on their cached copy. It now carries the file's mtime as well, the same guard `pk-dialogs.js` already used, across all 54 pages that link it. This surfaced when shared rules moved out of a page's inline `<style>` into `style.css`: the rules were gone from the page and not yet in the cached stylesheet, so the segmented control lost its styling and animation entirely.
+
+---
+
 ## [v0.2063] - 2026-08-08
 
 ### Fixed

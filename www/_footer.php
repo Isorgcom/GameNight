@@ -73,6 +73,11 @@ if ($_hb_user && empty($_hb_user['timezone'])) {
     <?php
 }
 ?>
+<?php /* Segmented control + slide engine. Deliberately NOT deferred: a page may
+         put its own inline <script> after this footer (checkin.php does), and it
+         must see these functions already defined. Tiny, and already at the end
+         of the body, so blocking is a non-issue. */ ?>
+<script src="/pk-seg.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-seg.js') ?: 0)) ?>"></script>
 <?php /* filemtime cache-buster: pk-dialogs.js changes must reach browsers even
          between version bumps (a stale copy silently breaks pk* callers). */ ?>
 <script src="/pk-dialogs.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-dialogs.js') ?: 0)) ?>" defer></script>

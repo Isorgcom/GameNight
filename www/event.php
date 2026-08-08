@@ -29,7 +29,7 @@ function ev_show_simple(string $heading, string $body, string $type = 'error'): 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($heading) ?> &ndash; <?= htmlspecialchars($site_name) ?></title>
-    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
+    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
 </head>
 <body style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:1rem">
     <div style="max-width:480px;width:100%;text-align:center">
@@ -182,7 +182,7 @@ if ($token === '' && $page_eid > 0) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($ev['title']) ?> &ndash; <?= htmlspecialchars($site_name) ?></title>
-    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
+    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
         .evp-wrap { max-width: 640px; margin: 1.25rem auto 2rem; padding: 0 1rem; }
         .evp-card { background:#fff; border:1.5px solid #e2e8f0; border-radius:12px; padding:1.5rem; }
@@ -965,7 +965,7 @@ function ev_names_block(string $label, array $names, string $color, array $avata
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= htmlspecialchars($invite['title']) ?> &ndash; <?= htmlspecialchars($site_name) ?></title>
-    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
+    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
         body { background: var(--bg, #f8fafc); }
         .ev-wrap { min-height:100vh; display:flex; align-items:flex-start; justify-content:center; padding:1.5rem; }

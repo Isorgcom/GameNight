@@ -48,7 +48,7 @@ if (!$post || (int)($post['hidden'] ?? 0) === 1 || (int)($post['league_id'] ?? 0
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <meta name="robots" content="noindex,nofollow">
         <title>Link Not Found — <?= htmlspecialchars($site_name) ?></title>
-        <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
+        <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     </head><body style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:1rem">
         <div style="max-width:480px;width:100%;text-align:center">
             <div style="background:#fef2f2;border:2px solid #dc2626;border-radius:12px;padding:2rem 1.5rem;margin-bottom:1.5rem">
@@ -85,7 +85,7 @@ $redir = '/post_public.php?token=' . urlencode($token);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex,nofollow">
     <title><?= htmlspecialchars($post['title']) ?> — <?= htmlspecialchars($site_name) ?></title>
-    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
+    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
         .page-layout { max-width: 740px; margin: 2rem auto 0; padding: 0 1.5rem; }
         .post-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:1.75rem; margin-bottom:1.5rem; }

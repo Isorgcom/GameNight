@@ -12,7 +12,7 @@ $allow_reg   = get_setting('allow_registration', '1') === '1';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Guest Guide &mdash; <?= htmlspecialchars($site_name) ?></title>
     <?php render_seo_meta('Guest Guide', 'Got an invite to a game night? How to RSVP in one click and check in at the door, no account required.', 'help-guests.php'); ?>
-    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
+    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
         .help-wrap { max-width: 760px; margin: 2rem auto 4rem; padding: 0 1.5rem; }
         .help-wrap h1 { font-size: 2rem; margin-bottom: .5rem; }

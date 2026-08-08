@@ -477,7 +477,7 @@ function ordinal($n) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($league['name']) ?> — <?= htmlspecialchars($site_name) ?></title>
-    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
+    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
         .lg-wrap { max-width: 960px; margin: 1.5rem auto; padding: 0 1rem; }
         .lg-head { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 1.2rem; margin-bottom: 1rem; }

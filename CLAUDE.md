@@ -73,6 +73,54 @@ Schema and migrations live entirely in `db_init()` inside `www/db.php`. New colu
 - Security headers (CSP, X-Frame-Options, etc.) are set in `auth.php` and applied globally
 - RSVP tokens allow one-click RSVP without login (stored in `event_invites.rsvp_token`)
 
+## UI Conventions
+
+### Segmented control + slide — the preferred switcher
+
+**When a user picks between sibling views, panes or filters, use the segmented control with the sliding thumb, and slide the new content in behind it.** This is the house style: prefer it over tab strips, underlined tabs, radio groups or plain button rows. It is in use on the check-in console's view strip, its player filter, and the Setup editor's tabs — new switchers should match rather than invent a fourth idiom.
+
+Styles are in `www/style.css` and behaviour in `www/pk-seg.js`, which `_footer.php` loads on every page — so any page can use this, no per-page wiring:
+
+| Piece | Where | What it does |
+|---|---|---|
+| `.pk-seg` + `.pk-seg-thumb` | `style.css` | the pill track and the accent-filled thumb |
+| `.pk-seg.thumb-off` | `style.css` | hides the thumb when the selection lives outside the control |
+| `positionSegThumb(segId, animate)` | `pk-seg.js` | measures the active button and moves the thumb. `animate: false` on a fresh render (nothing moved), `true` on a user click |
+| `positionAllSegThumbs(animate)` | `pk-seg.js` | re-measures every `.pk-seg[id]` on the page; already wired to `resize` |
+| `segTravelDirection(segId, attr, from, to)` | `pk-seg.js` | which way the thumb travelled, `1` right / `-1` left. Reads the **live** button order, so an absent segment doesn't break it |
+| `slideViewIn(el, dir)` | `pk-seg.js` | slides the newly-shown content in from that side |
+
+Markup contract:
+
+```html
+<div class="pk-seg" id="mySeg">
+  <span class="pk-seg-thumb"></span>
+  <button data-x="a" class="active">A</button>
+  <button data-x="b">B</button>
+</div>
+```
+
+`pk-seg.js` is loaded **without `defer`** on purpose: a page may put its own inline `<script>` after the footer (`checkin.php` does) and must see these already defined.
+
+Note `_admin_tabs.php` is a different thing and should stay as it is — those tabs are links to separate *pages*, not an in-page switcher.
+
+Timings are deliberate and shared: **thumb `.2s`**, **content `.32s`**, both `cubic-bezier(.4,0,.2,1)`. Don't introduce new durations for the same gesture.
+
+Rules that keep it from breaking:
+
+- **Content enters from the side the thumb travelled.** Never a fixed direction — that is what makes it read as movement rather than a flicker.
+- **Re-measure the thumb whenever the strip's widths change**, not only when the selection changes: a segment being shown, hidden, enabled or disabled all move the buttons.
+- **A hidden control measures zero.** `positionSegThumb()` bails when the element isn't rendered, so it never writes a zero-width thumb over a good position. Position *after* a control becomes visible, not before.
+- **Don't replay the animation when the value didn't change** (a re-render or a click on the already-active segment).
+- **Reduced motion is handled centrally** — `@media (prefers-reduced-motion: reduce)` sets `animation: none`, and `slideViewIn()` has a timeout fallback because `animationend` never fires in that case. Reuse the helper and you get this for free.
+
+### Other UI conventions
+
+- **Amber means warning, blue means information.** Warnings use `#fffbeb` / `#f59e0b` / `#92400e` (see `.pk-setup-cta`, the ticket-target warning, the seat-cutoff divider). A warning styled in blue reads as a tip and gets ignored.
+- **Never `margin-left: auto` in a wrapping flex row.** It pins to the right end of whichever *line* the element lands on, so the element drifts between rows as the window resizes. Group the row's children instead so it breaks in one deliberate place.
+- Full pages over modals for multi-step flows.
+- All dialogs go through the `pk*` helpers in `pk-dialogs.js` — never native `alert`/`confirm`/`prompt`. Use `pkCopy()` for clipboard writes; `navigator.clipboard` is undefined outside a secure context and throws synchronously.
+
 ## Dates & Times
 
 - All dates stored in UTC

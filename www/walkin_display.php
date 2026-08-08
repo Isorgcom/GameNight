@@ -60,7 +60,7 @@ if (!empty($event['start_time'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Registration QR &mdash; <?= htmlspecialchars($event['title']) ?></title>
     <link rel="icon" href="/favicon.php">
-    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
+    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
         html { height: 100%; }
         body {

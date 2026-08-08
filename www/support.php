@@ -28,7 +28,7 @@ $utc_tz    = new DateTimeZone('UTC');
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Support &ndash; <?= htmlspecialchars($site_name) ?></title>
-    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
+    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
         .sp-wrap { max-width: 680px; margin: 1.25rem auto 2rem; padding: 0 1rem; }
         .sp-card { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 1rem 1.15rem; margin-bottom: 1.1rem; }

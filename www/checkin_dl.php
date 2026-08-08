@@ -457,12 +457,58 @@ if ($action === 'update_config') {
     if ($game_type === 'tournament' && $baked >= $new_buyin && $baked > 0) {
         echo json_encode(['ok' => false, 'error' => 'Baked-in bounty + jackpot must total less than the buy-in (they come out of it).']); exit;
     }
-    if ($jp_amount > 0) {
-        $lgq = $db->prepare('SELECT league_id FROM events WHERE id = ?');
-        $lgq->execute([(int)$s['event_id']]);
-        if (!(int)$lgq->fetchColumn()) {
-            echo json_encode(['ok' => false, 'error' => 'Jackpots are league funds — this event must belong to a league first.']); exit;
+    // League. Editable here so a host can attach the event to a league without
+    // leaving Setup — jackpots are league funds, so hitting "this event must
+    // belong to a league first" used to mean exiting to the event editor and
+    // coming back. Applied BEFORE the jackpot check below, so setting a league
+    // and a jackpot in one save works.
+    $lgq = $db->prepare('SELECT league_id, visibility FROM events WHERE id = ?');
+    $lgq->execute([(int)$s['event_id']]);
+    $evRow0 = $lgq->fetch();
+    $cur_league = (int)($evRow0['league_id'] ?? 0);
+    $event_league = $cur_league;
+
+    if (array_key_exists('league_id', $_POST)) {
+        $want = max(0, (int)$_POST['league_id']);
+        if ($want !== $cur_league) {
+            // Same rule as the event editor: binding an event to a league takes
+            // owner/manager of THAT league (or site admin). Membership alone is
+            // not enough, and unbinding is always allowed to someone who can
+            // already manage the event.
+            $may = true;
+            if ($want > 0) {
+                $role = league_role($want, (int)$current['id']);
+                $may  = $isAdmin || in_array($role, ['owner', 'manager'], true);
+            }
+            if (!$may) {
+                echo json_encode(['ok' => false, 'error' => 'Only an owner or manager of that league can move an event into it.']); exit;
+            }
+            // Jackpot money is held per league. Once this game has banked or paid
+            // any, moving the event would leave that money in the old league's
+            // fund while the game belongs to another — refuse rather than split
+            // the two silently.
+            try {
+                $jq = $db->prepare("SELECT COUNT(*) FROM league_jackpot_log WHERE session_id = ? AND voided = 0");
+                $jq->execute([$session_id]);
+                if ((int)$jq->fetchColumn() > 0) {
+                    echo json_encode(['ok' => false, 'error' => 'This game already has jackpot money in the league fund — that money is held per league, so the league can\'t be changed now.']); exit;
+                }
+            } catch (Exception $e) { /* pre-migration DB: no jackpot log yet */ }
+
+            $db->prepare('UPDATE events SET league_id = ? WHERE id = ?')
+               ->execute([$want ?: null, (int)$s['event_id']]);
+            // "League members only" is meaningless without a league — same
+            // coercion the event editor applies.
+            if (!$want && ($evRow0['visibility'] ?? '') === 'league') {
+                $db->prepare("UPDATE events SET visibility = 'invitees_only' WHERE id = ?")->execute([(int)$s['event_id']]);
+            }
+            db_log_activity((int)$current['id'], "set event id={$s['event_id']} league_id=" . ($want ?: 'none') . " from poker setup");
+            $event_league = $want;
         }
+    }
+
+    if ($jp_amount > 0 && !$event_league) {
+        echo json_encode(['ok' => false, 'error' => 'Jackpots are league funds — this event must belong to a league first.']); exit;
     }
 
     // Satellite target: another upcoming poker event the caller can manage.
@@ -549,11 +595,18 @@ if ($action === 'update_config') {
     ]);
 
     echo json_encode([
-        'ok'      => true,
-        'session' => $srow,
-        'players' => get_players($db, $session_id),
-        'pool'    => calc_pool($db, $session_id),
-        'payouts' => get_payouts($db, $session_id),
+        'ok'        => true,
+        'session'   => $srow,
+        'players'   => get_players($db, $session_id),
+        'pool'      => calc_pool($db, $session_id),
+        'payouts'   => get_payouts($db, $session_id),
+        // The league can change here now, and the jackpot fund and the preset
+        // list are both scoped to it, so hand both back rather than leaving the
+        // page showing the old league's figures.
+        'league_id' => $event_league ?: null,
+        'jackpots'  => ['league_id' => $event_league ?: null,
+                        'balance'     => pk_jackpot_balance($db, $event_league ?: null),
+                        'contributed' => pk_jackpot_contributed($db, $session_id)],
     ]);
     exit;
 }

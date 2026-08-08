@@ -101,7 +101,7 @@ $tlMonths = $tlStmt->fetchAll();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($site_name) ?></title>
     <?php render_seo_meta($site_name, 'Plan game nights and poker tournaments: invite friends by email, SMS, or WhatsApp, track RSVPs, run a tournament clock, and check players in at the door.', ''); ?>
-    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION) ?>">
+    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
         /* ── Main layout: centered content, sidebar pinned to viewport left ── */
         .page-layout {
