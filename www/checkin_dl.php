@@ -465,7 +465,10 @@ if ($action === 'update_config') {
         $target = 0;
     }
 
-    $db->prepare('UPDATE poker_sessions SET buyin_amount=?, rebuy_amount=?, addon_amount=?, rebuy_allowed=?, addon_allowed=?, max_rebuys=?, starting_chips=?, addon_chips=?, num_tables=?, game_type=?, auto_assign_tables=?, seats_per_table=?, bounty_amount=?, bounty_points=?, ticket_target_event_id=?, jackpot_amount=?, bounty_optional=?, jackpot_optional=? WHERE id=?')->execute([
+    // setup_saved=1: the host has been through the editor, so the "not set up
+    // yet" prompt retires for this session whatever the numbers end up being
+    // (a freeroll's $0 buy-in is a real answer, not a blank).
+    $db->prepare('UPDATE poker_sessions SET buyin_amount=?, rebuy_amount=?, addon_amount=?, rebuy_allowed=?, addon_allowed=?, max_rebuys=?, starting_chips=?, addon_chips=?, num_tables=?, game_type=?, auto_assign_tables=?, seats_per_table=?, bounty_amount=?, bounty_points=?, ticket_target_event_id=?, jackpot_amount=?, bounty_optional=?, jackpot_optional=?, setup_saved=1 WHERE id=?')->execute([
         $new_buyin,
         (int)($_POST['rebuy_amount'] ?? $s['rebuy_amount']),
         (int)($_POST['addon_amount'] ?? $s['addon_amount']),
@@ -1762,6 +1765,11 @@ if ($action === 'load_payout_structure') {
         $ins->execute([$session_id, (int)$r['place'], (float)$r['percentage'],
                        (int)($r['points'] ?? 0), (int)($r['ticket_cents'] ?? 0), $r['prize_label'] ?: null]);
     }
+
+    // Applying a preset IS setting the game up — a legacy preset carries no
+    // game_config, so it can leave the buy-in untouched, and the host must not
+    // keep being told the game is unconfigured after deliberately loading one.
+    $db->prepare('UPDATE poker_sessions SET setup_saved = 1 WHERE id = ?')->execute([$session_id]);
 
     db_log_activity((int)$current['id'], "loaded payout structure id=$structure_id into poker session id=$session_id");
 

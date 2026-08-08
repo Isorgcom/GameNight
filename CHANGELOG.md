@@ -4,6 +4,21 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2061] - 2026-08-08
+
+### Changed
+- **Game setup is no longer a sixth segment in the view switcher.** Settings had been folded into the List / Table / Log strip, where six equal segments made the most consequential control on the page read as just another thing to look at, and it got lost. The strip now holds views only — List, Table, Log, Payouts, Chop — and setup moved out past a divider as its own outlined button, a different shape carrying different weight. When it is active the segment thumb hides and no segment is highlighted, so nothing looks doubly selected, and it enters from the right and leaves to the left to match where it physically sits. On phones the view segments still collapse to bare icons, but Setup deliberately keeps its label: a lone gear is exactly the ambiguity this change exists to remove.
+- **"Settings" is now "Setup" everywhere it faces a host** — the button, the editor header, the "Edit in Setup" links on the payout card and Payouts view, and the empty-payouts hint. The old name reads as optional preferences; what it actually holds is the buy-in, chips, rebuys, payout structure and rewards, which is to say the difference between a game whose money adds up and one whose money doesn't. Code identifiers (`openSettings`, `VIEW_MODE === 'settings'`, `SETTINGS_OPEN`) are untouched. The ? Help panel gained a matching Setup entry, placed first because that is the order the work happens in.
+
+### Added
+- **A prompt on games that have not been set up yet.** A toolbar button can only be so loud, so a session whose host has never opened Setup now says so directly above the player list, with a button that opens the editor. It hides while the editor is open, never appears on a finished game, and retires permanently once setup has been saved.
+- `poker_sessions.setup_saved` records whether a host has been through the editor. The migration backfills every existing session to `1`, so no game already on a server starts prompting. `update_config` and `load_payout_structure` both set it — applying a preset counts as setting the game up.
+
+### Fixed
+- **The setup prompt kept firing on games that were already configured.** It originally decided by inspecting the numbers: no buy-in amount, or no payout structure, meant not set up. That is wrong in two ways that compound. A **$0 buy-in is a legitimate freeroll** — there are saved presets and finished tournaments that run at zero — so a freeroll host would have been told their game was unconfigured forever with no way to stop it. And several presets predate `game_config`, carrying only the payout split, so loading one onto a game created with a blank buy-in leaves the buy-in at zero and the prompt stayed up even though the host had just deliberately configured the game. Both disappear once the prompt keys off `setup_saved` instead of guessing from values; the missing-payout-structure note survives as a detail line, but no longer decides whether the prompt appears at all.
+
+---
+
 ## [v0.2060] - 2026-08-08
 
 ### Fixed

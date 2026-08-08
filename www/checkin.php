@@ -184,6 +184,29 @@ $session = $sessStmt->fetch();
     .pk-payout-place{font-weight:600}
 
     /* Payouts view — the full-width read-only counterpart to the sidebar card. */
+    /* Setup — deliberately NOT a segment. Outlined in the accent colour so it
+       reads as a distinct, consequential action beside the view strip, and
+       filled when it's the active view. */
+    /* Selectors carry .pk-toolbar to outrank `.pk-toolbar button`, which sets a
+       transparent border and would otherwise erase the outline. */
+    .pk-toolbar .pk-btn-setup{display:inline-flex;align-items:center;gap:.1rem;border:1.5px solid var(--accent,#2563eb);background:#fff;color:var(--accent,#2563eb);
+        border-radius:8px;padding:.4rem .85rem;font-size:.8rem;font-weight:700;cursor:pointer;white-space:nowrap;
+        box-shadow:0 1px 2px rgba(15,23,42,.08);transition:background .15s,color .15s}
+    .pk-toolbar .pk-btn-setup:hover{background:#eff6ff}
+    .pk-toolbar .pk-btn-setup.active{background:var(--accent,#2563eb);color:#fff;box-shadow:0 1px 3px rgba(37,99,235,.5)}
+    /* When Setup is the active view no segment is selected, so hide the thumb
+       rather than leaving it parked under a button that isn't current. */
+    .pk-view-seg.thumb-off .pk-seg-thumb{opacity:0}
+
+    /* "This game isn't set up yet" prompt — the loudest signal, shown only
+       while it's true and gone the moment the game is configured. */
+    .pk-setup-cta{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin:0 0 .6rem;padding:.7rem .9rem;
+        background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:8px}
+    .pk-setup-cta-txt{flex:1 1 240px;min-width:0;font-size:.82rem;color:#1e3a8a;line-height:1.4}
+    .pk-setup-cta-txt b{display:block;font-size:.9rem;color:#1e40af}
+    .pk-setup-cta button{flex:0 0 auto;border:none;background:var(--accent,#2563eb);color:#fff;border-radius:6px;
+        padding:.45rem 1rem;font-size:.82rem;font-weight:700;cursor:pointer}
+
     /* View transitions — the content slides in from the side the thumb travelled,
        on the thumb's easing curve. Deliberately slower than the thumb's .2s: the
        content is a far larger object covering the same distance, and matching the
@@ -210,7 +233,8 @@ $session = $sessStmt->fetch();
     .pk-pv-foot{margin-top:.75rem;text-align:center}
     /* Five segments don't fit a phone with labels. Collapse to icons at the
        same breakpoint where the header buttons lose theirs, so the two rows
-       degrade together. Titles keep the tooltips. */
+       degrade together. Titles keep the tooltips. Setup deliberately KEEPS its
+       word — a bare gear is exactly the ambiguity this change exists to fix. */
     @media(max-width:768px){
         .pk-view-seg .pk-seg-label{display:none}
         .pk-view-seg button{padding:.4rem .6rem;font-size:1rem}
@@ -634,6 +658,8 @@ $session = $sessStmt->fetch();
     <div class="pk-modal">
         <h3>How this screen works</h3>
         <div class="pk-help-content">
+            <h4>Setup</h4>
+            <p>Do this first. <b>&#9881; Setup</b> holds the buy-in amount, starting chips, rebuy and add-on rules, the payout structure and any bounties, tickets or jackpot. Until it's set, buy-ins and prizes won't add up.</p>
             <h4>Buy In</h4>
             <p>Records a player's buy-in. It also checks them in and assigns them a seat automatically &mdash; there is no separate check-in step to do first.</p>
             <h4>Approve / Deny</h4>
@@ -966,20 +992,25 @@ function renderDashboard() {
         h += '<button data-filter="eliminated" class="' + (FILTER==='eliminated'?'active':'') + '" onclick="setFilter(\'eliminated\')">Out</button>';
     }
     h += '</div>';
-    // Views plus the two things hosts reach for most: Settings (an overlay, so
-    // it borrows the thumb and hands it back on close) and Payouts, which used
-    // to be a tab buried inside Settings. Labels collapse to icons on phones.
+    // The strip holds VIEWS — things you look at. Setup is a different kind of
+    // thing (how the game works, not what you're looking at), so it sits
+    // outside the control as its own button; inside, six equal segments made it
+    // read as a sixth view and it got lost. Labels collapse to icons on phones.
     h += '<div class="pk-seg pk-view-seg" id="viewSeg">';
     h += '<span class="pk-seg-thumb"></span>';
     h += '<button data-view="list" class="' + (VIEW_MODE === 'list' ? 'active' : '') + '" title="Player list" onclick="setViewMode(\'list\')">&#9776;<span class="pk-seg-label"> List</span></button>';
     h += '<button data-view="table" class="' + (VIEW_MODE === 'table' ? 'active' : '') + '" title="Table &amp; seat layout" onclick="setViewMode(\'table\')">&#9638;<span class="pk-seg-label"> Table</span></button>';
     h += '<button data-view="log" class="' + (VIEW_MODE === 'log' ? 'active' : '') + '" title="Activity log: buy-ins, cash-outs, adds and more" onclick="setViewMode(\'log\')">&#128203;<span class="pk-seg-label"> Log</span></button>';
-    h += '<button data-view="settings" title="Game settings" onclick="setViewMode(\'settings\')">&#9881;<span class="pk-seg-label"> Settings</span></button>';
     if (isTourney()) {
         h += '<button data-view="payouts" class="' + (VIEW_MODE === 'payouts' ? 'active' : '') + '" title="Prize ladder, pool breakdown and rewards" onclick="setViewMode(\'payouts\')">&#128176;<span class="pk-seg-label"> Payouts</span></button>';
         h += '<button data-view="chop" class="' + (VIEW_MODE === 'chop' ? 'active' : '') + '" title="Deal split calculator: ICM, standard or chip chop" onclick="setViewMode(\'chop\')">&#129535;<span class="pk-seg-label"> Chop</span></button>';
     }
     h += '</div>';
+    // Setup: outside the strip, its own weight, behind a divider. "Settings"
+    // reads as optional preferences; this is the buy-in, chips, rebuys and the
+    // whole payout structure — the thing that has to happen before a game works.
+    h += '<div class="pk-toolbar-sep"></div>';
+    h += '<button class="pk-btn-setup' + (VIEW_MODE === 'settings' ? ' active' : '') + '" id="setupBtn" title="Buy-in, chips, rebuys, payouts and rewards" onclick="setViewMode(\'settings\')">&#9881;<span class="pk-seg-label"> Setup</span></button>';
     h += '<button class="pk-help-btn" title="How this screen works" aria-label="Help" onclick="openHelp()">? Help</button>';
     h += '<button class="pk-btn-view-toggle" onclick="balanceTables()">&#9878; Balance</button>';
     h += '<button id="addTableBtn" class="pk-btn-green" onclick="addTable()"' + (VIEW_MODE === 'table' ? '' : ' style="display:none"') + '>Add Table</button>';
@@ -987,6 +1018,8 @@ function renderDashboard() {
 
     // Inline pool/payout summary for mobile/tablet (compact bar above player list)
     h += '<div class="pk-inline-summary" id="inlineSummary">' + renderInlineSummary() + '</div>';
+
+    h += '<div id="setupCta">' + renderSetupCta() + '</div>';
 
     h += '<div id="viewContent">' + renderViewContent() + '</div>';
     h += '</div>';
@@ -1560,6 +1593,31 @@ function renderInlineSummary() {
     return h;
 }
 
+// "This game isn't set up yet" prompt. A button in a toolbar can only shout so
+// loud; a host who has never opened Setup gets told directly, in the content
+// area, and it retires for good once they have been.
+//
+// The gate is the session's setup_saved flag, NOT a look at the numbers. A $0
+// buy-in is a legitimate freeroll and an empty payout list is legitimate for a
+// points-only game, so value-sniffing keeps nagging games that are configured
+// exactly as intended. Server-side, update_config and load_payout_structure
+// both set the flag, so saving Setup or applying a preset clears this.
+function renderSetupCta() {
+    if (!SESSION || SESSION.status === 'finished') return '';
+    if (parseInt(SESSION.setup_saved)) return '';
+    // Don't nag while they're already in the editor doing it.
+    if (SETTINGS_OPEN || VIEW_MODE === 'settings') return '';
+    var h = '<div class="pk-setup-cta">';
+    h += '<div class="pk-setup-cta-txt"><b>&#9881; This game isn\'t set up yet</b>';
+    h += 'Set the ' + (isTourney() ? 'buy-in, chips, rebuys, payouts and rewards' : 'buy-in and table rules')
+       + ' before players start buying in, so the money and prizes add up.';
+    if (isTourney() && !(PAYOUTS || []).length) h += ' No payout structure is set yet.';
+    h += '</div>';
+    h += '<button onclick="setViewMode(\'settings\')">Set up game</button>';
+    h += '</div>';
+    return h;
+}
+
 // Payout warnings, shared by the sidebar card and the Payouts view so the two
 // can't drift. Worth noting the sidebar is display:none below 1024px, so until
 // the Payouts view existed these were invisible on phones and tablets.
@@ -1581,7 +1639,7 @@ function payoutWarningsHtml() {
     // Ticket prizes configured but no target event set: they can't be issued.
     var anyTicket = PAYOUTS.some(function(p) { return parseInt(p.ticket_cents) > 0; });
     if (anyTicket && !parseInt(SESSION.ticket_target_event_id)) {
-        h += '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:.45rem .6rem;margin-bottom:.6rem;font-size:.78rem;color:#92400e;font-weight:600">&#9888; Ticket prizes need a target event — <a href="#" onclick="openSettings(\'payouts\');return false" style="color:#92400e">set one in Settings</a>.</div>';
+        h += '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:.45rem .6rem;margin-bottom:.6rem;font-size:.78rem;color:#92400e;font-weight:600">&#9888; Ticket prizes need a target event — <a href="#" onclick="openSettings(\'payouts\');return false" style="color:#92400e">set one in Setup</a>.</div>';
     }
     return h;
 }
@@ -1609,7 +1667,7 @@ function renderPayoutCard() {
         if (parseInt(SESSION.bounty_points) > 0) bParts.push(parseInt(SESSION.bounty_points) + ' pts');
         h += '<div class="pk-payout-row"><span class="pk-payout-place">🎯 Per knockout</span><span style="color:#0e7490;font-weight:600;font-size:.8rem">' + bParts.join(' + ') + '</span></div>';
     }
-    h += '<div style="margin-top:.5rem;text-align:center"><button class="pk-act-btn" onclick="openSettings(\'payouts\')" style="font-size:.8rem">Edit in Settings</button></div>';
+    h += '<div style="margin-top:.5rem;text-align:center"><button class="pk-act-btn" onclick="openSettings(\'payouts\')" style="font-size:.8rem">Edit in Setup</button></div>';
     return h;
 }
 
@@ -1630,7 +1688,7 @@ function renderPayoutsView() {
     // other view, rather than moving into the content area for this one screen.
     h += '<div class="pk-card"><h3>Prize Ladder</h3>';
     if (!PAYOUTS || !PAYOUTS.length) {
-        h += '<div style="color:#64748b;font-size:.85rem">No payout places set yet. Add them in Settings &rsaquo; Payouts &amp; Rewards.</div>';
+        h += '<div style="color:#64748b;font-size:.85rem">No payout places set yet. Add them in Setup &rsaquo; Payouts &amp; Rewards.</div>';
     } else {
         var anyPts    = PAYOUTS.some(function(p) { return parseInt(p.points) > 0; });
         var anyTicket = PAYOUTS.some(function(p) { return parseInt(p.ticket_cents) > 0; });
@@ -1703,7 +1761,7 @@ function renderPayoutsView() {
         }
     }
     h += bountyJackpotHtml();
-    h += '<div class="pk-pv-foot"><button class="pk-act-btn" onclick="openSettings(\'payouts\')">Edit payouts &amp; rewards in Settings</button></div>';
+    h += '<div class="pk-pv-foot"><button class="pk-act-btn" onclick="openSettings(\'payouts\')">Edit payouts &amp; rewards in Setup</button></div>';
     return h;
 }
 
@@ -1848,7 +1906,7 @@ function renderSettingsView() {
     var h = '<div class="pk-sv-inline">';
     // Editor header: title + dirty dot + Save/Close.
     h += '<div class="pk-sv-head">';
-    h += '<span class="pk-sv-title">&#9881; Game Settings <span id="svDirty" style="display:' + (SETTINGS_DIRTY ? '' : 'none') + '" title="Unsaved changes">&#9679;</span><span id="svSaved" style="display:none">Saved &#10003;</span></span>';
+    h += '<span class="pk-sv-title">&#9881; Game Setup <span id="svDirty" style="display:' + (SETTINGS_DIRTY ? '' : 'none') + '" title="Unsaved changes">&#9679;</span><span id="svSaved" style="display:none">Saved &#10003;</span></span>';
     h += '<div style="display:flex;gap:.5rem">';
     h += '<button class="pk-sv-save" onclick="saveSettings()">Save</button>';
     h += '<button class="pk-sv-close" onclick="closeSettings()">Close</button>';
@@ -2784,13 +2842,18 @@ function setTable(pid, val) {
 // Move the thumb + .active onto a segment. `which` is a real VIEW_MODE, or
 // 'settings' for the pseudo-segment that opens the overlay.
 function markViewSegActive(which) {
+    // Setup lives outside the strip, so when it's the active view no segment is
+    // active and the thumb hides — otherwise two things would look selected.
+    var setupBtn = document.getElementById('setupBtn');
+    if (setupBtn) setupBtn.classList.toggle('active', which === 'settings');
     var seg = document.getElementById('viewSeg');
     if (!seg) return;
+    seg.classList.toggle('thumb-off', which === 'settings');
     var btns = seg.querySelectorAll('button');
     for (var i = 0; i < btns.length; i++) {
         btns[i].classList.toggle('active', btns[i].getAttribute('data-view') === which);
     }
-    positionSegThumb('viewSeg', true);
+    if (which !== 'settings') positionSegThumb('viewSeg', true);
 }
 
 function setViewMode(mode, force) {
@@ -2818,6 +2881,9 @@ function setViewMode(mode, force) {
         slideViewIn(vc, segDirection(fromMode, mode));
     }
     markViewSegActive(mode);
+    // The unconfigured prompt hides inside the editor and comes back on exit.
+    var cta = document.getElementById('setupCta');
+    if (cta) cta.innerHTML = renderSetupCta();
     var addBtn = document.getElementById('addTableBtn');
     if (addBtn) addBtn.style.display = (mode === 'table') ? '' : 'none';
     if (mode === 'log') { renderLog(); fetchLog(); }
@@ -2830,6 +2896,10 @@ function setViewMode(mode, force) {
 function segDirection(fromMode, toMode) {
     var seg = document.getElementById('viewSeg');
     if (!seg) return 1;
+    // Setup isn't a segment, but it sits to the right of the strip, so treat it
+    // as living past the last button — enter from the right, leave to the left.
+    if (toMode === 'settings') return 1;
+    if (fromMode === 'settings') return -1;
     var order = [].map.call(seg.querySelectorAll('button'), function(b) { return b.getAttribute('data-view'); });
     var a = order.indexOf(fromMode), b = order.indexOf(toMode);
     if (a < 0 || b < 0) return 1;
@@ -3969,6 +4039,8 @@ function refreshUIChrome() {
     // figures drifted from the pool header on every buy-in.
     var inlineSum = document.getElementById('inlineSummary');
     if (inlineSum) inlineSum.innerHTML = renderInlineSummary();
+    var cta = document.getElementById('setupCta');
+    if (cta) cta.innerHTML = renderSetupCta();
     renderPendingBanner();
 }
 
