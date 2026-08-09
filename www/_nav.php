@@ -252,4 +252,7 @@ function toggleNavCollapse(){
     });
 })();
 </script>
-<script src="/nav.js" defer></script>
+<!-- Cache-busted like every other asset: nav.js now holds the delegated
+     handlers for data-nav controls, so a stale cached copy leaves the nav
+     dead rather than merely out of date. -->
+<script src="/nav.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/nav.js') ?: 0)) ?>" defer></script>

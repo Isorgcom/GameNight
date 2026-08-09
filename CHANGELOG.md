@@ -4,6 +4,11 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2074] - 2026-08-09
+
+### Fixed
+- **The nav stopped responding after v0.2073 for anyone with a cached `nav.js`.** v0.2073 moved the nav's click handling out of inline `onclick` attributes and into `nav.js`, but that was the one local script tag in the tree served without a cache-buster, so browsers kept the previous copy. The markup emitted `data-nav` attributes that the stale file knew nothing about and every nav control went dead: account menu, hamburger, Help toggle and the collapse arrow. `_nav.php` now versions it as `?v=APP_VERSION.mtime`, the same form `pk-seg.js`, `pk-dialogs.js` and `help-bubble.js` already used. `_phone_input.js` had the identical gap across 9 pages and is versioned too; no local script tag is left unbusted. This is the same failure mode as the stale-stylesheet fix in v0.2062: moving behaviour into an asset makes a stale copy a broken feature rather than merely an out-of-date one.
+
 ## [v0.2073] - 2026-08-09
 
 ### Security
