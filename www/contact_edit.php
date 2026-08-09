@@ -106,9 +106,9 @@ $canMsg   = $isLinked && (int)$c['linked_user_id'] !== $uid;
             <textarea id="ceNotes" rows="2"><?= htmlspecialchars($c['notes'] ?? '') ?></textarea>
         </div>
         <div class="ce-actions">
-            <button class="btn" type="button" id="ceSave" onclick="saveContact(this)">Save</button>
+            <button class="btn" type="button" id="ceSave" data-act="saveContact" data-a1="@self">Save</button>
             <a href="/contacts.php" class="btn btn-outline">Cancel</a>
-            <button class="ce-del" type="button" onclick="deleteContact()">Delete contact</button>
+            <button class="ce-del" type="button" data-act="deleteContact">Delete contact</button>
         </div>
     </div>
 </div>

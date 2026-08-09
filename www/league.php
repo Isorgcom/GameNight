@@ -609,7 +609,7 @@ function ordinal($n) {
                 &middot; <a class="lg-btn lg-btn-rules" href="?id=<?= $league_id ?>&tab=rules" style="padding:.25rem .7rem;font-size:.75rem;background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:6px;text-decoration:none;font-weight:600">&#128220; League Rules</a>
             <?php endif; ?>
             <?php if ($myRole !== null && $myRole !== 'owner'): ?>
-                <button class="lg-btn" style="margin-left:.6rem;padding:.3rem .8rem;font-size:.78rem;font-weight:600;background:#fff;color:#dc2626;border:1.5px solid #fca5a5;border-radius:6px;cursor:pointer" onclick="leaveLeague()"
+                <button class="lg-btn" style="margin-left:.6rem;padding:.3rem .8rem;font-size:.78rem;font-weight:600;background:#fff;color:#dc2626;border:1.5px solid #fca5a5;border-radius:6px;cursor:pointer" data-act="leaveLeague"
                         onmouseover="this.style.background='#fee2e2';this.style.borderColor='#dc2626'"
                         onmouseout="this.style.background='#fff';this.style.borderColor='#fca5a5'">&#10060; Leave league</button>
             <?php endif; ?>
@@ -663,7 +663,7 @@ function ordinal($n) {
                     <input type="tel" id="acPhone" placeholder="(optional)"
                            style="width:100%;padding:.4rem;border:1.5px solid #cbd5e1;border-radius:6px;font:inherit;margin-top:.2rem">
                 </label>
-                <button class="lg-btn" type="button" onclick="addContact()" style="height:fit-content">Add</button>
+                <button class="lg-btn" type="button" data-act="addContact" style="height:fit-content">Add</button>
             </div>
         </div>
         <div class="lg-card" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;background:#f8fafc">
@@ -721,9 +721,9 @@ function ordinal($n) {
                 <p style="color:#64748b;font-size:.85rem;margin:0">You don't have any saved contacts yet. Add some on the <a href="/contacts.php">Contacts</a> page.</p>
             <?php else: ?>
                 <div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.5rem;flex-wrap:wrap">
-                    <input type="text" id="lgcSearch" placeholder="Search contacts&hellip;" oninput="lgcFilter(this.value)"
+                    <input type="text" id="lgcSearch" placeholder="Search contacts&hellip;" data-act-input="lgcFilter" data-input-a1="@value"
                            style="flex:1;min-width:160px;padding:.4rem;border:1.5px solid #cbd5e1;border-radius:6px;font:inherit">
-                    <button type="button" class="lg-btn lg-btn-ghost" onclick="lgcSelectAll()">Select all shown</button>
+                    <button type="button" class="lg-btn lg-btn-ghost" data-act="lgcSelectAll">Select all shown</button>
                 </div>
                 <div id="lgcList" style="max-height:280px;overflow-y:auto;border:1.5px solid #dbeafe;border-radius:8px;background:#fff">
                     <?php foreach ($myContacts as $c):
@@ -753,7 +753,7 @@ function ordinal($n) {
                     <?php endforeach; ?>
                 </div>
                 <div style="display:flex;align-items:center;gap:.6rem;margin-top:.6rem;flex-wrap:wrap">
-                    <button type="button" class="lg-btn" id="lgcImportBtn" onclick="importContacts()">Import selected</button>
+                    <button type="button" class="lg-btn" id="lgcImportBtn" data-act="importContacts">Import selected</button>
                     <span id="lgcStatus" style="font-size:.8rem;color:#64748b"></span>
                 </div>
             <?php endif; ?>
@@ -834,7 +834,7 @@ function ordinal($n) {
                         <?php else: ?>
                             <div class="mg-act-wrap">
                                 <?php if ($isPending): ?>
-                                    <button class="mg-iconbtn" title="Resend invite" onclick="resendInvite(<?= $memId ?>)">&#9993;</button>
+                                    <button class="mg-iconbtn" title="Resend invite" data-act="resendInvite" data-a1="<?= $memId ?>">&#9993;</button>
                                 <?php elseif ($isOwner): ?>
                                     <button class="mg-iconbtn" title="Transfer ownership" onclick="act('transfer_ownership', <?= $targetUid ?>, 'Transfer ownership to this member? You will be demoted to member.')">&#9812;</button>
                                 <?php endif; ?>
@@ -921,8 +921,8 @@ function ordinal($n) {
                     <div style="font-size:.75rem;color:#94a3b8;margin-top:.2rem">Requested <?= htmlspecialchars($r['requested_at']) ?></div>
                 </div>
                 <div class="lg-actions">
-                    <button class="lg-btn"            onclick="decide(<?= (int)$r['id'] ?>, 'approve_request')">Approve</button>
-                    <button class="lg-btn lg-btn-ghost" onclick="decide(<?= (int)$r['id'] ?>, 'deny_request')">Deny</button>
+                    <button class="lg-btn"            data-act="decide" data-a1="<?= (int)$r['id'] ?>" data-a2="approve_request">Approve</button>
+                    <button class="lg-btn lg-btn-ghost" data-act="decide" data-a1="<?= (int)$r['id'] ?>" data-a2="deny_request">Deny</button>
                 </div>
             </div>
         <?php endforeach; endif; ?>
@@ -975,7 +975,7 @@ function ordinal($n) {
             <input type="hidden" name="id" value="<?= $league_id ?>">
             <input type="hidden" name="tab" value="stats">
             <label>Range:
-                <select name="range" onchange="onRangeChange(this)">
+                <select name="range" data-act-change="onRangeChange" data-change-a1="@self">
                     <option value="all"    <?= $_st_range==='all'    ? 'selected' : '' ?>>All time</option>
                     <option value="7"      <?= $_st_range==='7'      ? 'selected' : '' ?>>Last 7 days</option>
                     <option value="30"     <?= $_st_range==='30'     ? 'selected' : '' ?>>Last 30 days</option>
@@ -1023,7 +1023,7 @@ function ordinal($n) {
                         <strong style="min-width:0"><?= htmlspecialchars($s['name']) ?></strong>
                         <span style="color:#94a3b8"><?= htmlspecialchars($s['start_date']) ?> &rarr; <?= htmlspecialchars($s['end_date']) ?></span>
                         <form method="post" action="/league.php?id=<?= $league_id ?>" style="margin:0 0 0 auto"
-                              onsubmit="return pkConfirmForm(this, 'Delete this season? Standings history is unaffected — only the saved date window is removed.', {okLabel:'Delete', danger:true})">
+                              data-confirm="Delete this season? Standings history is unaffected — only the saved date window is removed." data-confirm-ok="Delete" data-confirm-danger="1"">
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                             <input type="hidden" name="action" value="season_delete">
                             <input type="hidden" name="season_id" value="<?= (int)$s['id'] ?>">
@@ -1212,7 +1212,7 @@ function ordinal($n) {
                         <?php endif; ?>
                         <?php if ($canPost): ?>
                         <form method="post" action="/league_posts_dl.php" style="margin:0"
-                              onsubmit="return pkConfirmForm(this, 'Unset this post as the league rules? It will reappear in the main feed.')">
+                              data-confirm="Unset this post as the league rules? It will reappear in the main feed."">
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                             <input type="hidden" name="action" value="clear_rules">
                             <input type="hidden" name="post_id" value="<?= (int)$rulesPost['id'] ?>">
@@ -1260,7 +1260,7 @@ function ordinal($n) {
         <?php if (!$__post_form_open): ?>
         <div class="lg-card" id="newPostToggleCard" style="display:block">
             <button type="button" id="newPostToggle"
-                    onclick="openNewPostForm()"
+                    data-act="openNewPostForm"
                     class="lg-btn lg-btn-primary"
                     style="width:100%;text-align:left;display:flex;align-items:center;gap:.5rem;padding:.75rem 1rem">
                 <span style="font-size:1.1rem;line-height:1">&#43;</span>
@@ -1272,7 +1272,7 @@ function ordinal($n) {
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
                 <h3 style="margin:0"><?= $editPost ? ($backTab === 'rules' ? 'Edit rules' : 'Edit post') : 'New post' ?></h3>
                 <?php if (!$editPost): ?>
-                <button type="button" onclick="closeNewPostForm()" class="lg-btn lg-btn-ghost"
+                <button type="button" data-act="closeNewPostForm" class="lg-btn lg-btn-ghost"
                         style="font-size:.78rem;padding:.3rem .7rem"
                         title="Close without saving">&times; Close</button>
                 <?php endif; ?>
@@ -1295,7 +1295,7 @@ function ordinal($n) {
                     <?php if ($editPost): ?>
                     <a href="?id=<?= $league_id ?>&tab=<?= $backTab ?>" class="lg-btn lg-btn-ghost">Cancel</a>
                     <?php else: ?>
-                    <button type="button" onclick="closeNewPostForm()" class="lg-btn lg-btn-ghost">Cancel</button>
+                    <button type="button" data-act="closeNewPostForm" class="lg-btn lg-btn-ghost">Cancel</button>
                     <?php endif; ?>
                 </div>
             </form>
@@ -1372,7 +1372,7 @@ function ordinal($n) {
                 <?php $__pbtn = 'font-size:.72rem;padding:.25rem .7rem;min-width:72px;text-align:center;line-height:1.2;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center'; ?>
                 <div style="margin-left:auto;display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
                     <a href="?id=<?= $league_id ?>&tab=posts&edit=<?= (int)$lp['id'] ?>" class="lg-btn lg-btn-ghost" style="<?= $__pbtn ?>">Edit</a>
-                    <form method="post" action="/league_posts_dl.php" style="margin:0" onsubmit="return pkConfirmForm(this, 'Delete this post?', {okLabel:'Delete', danger:true})">
+                    <form method="post" action="/league_posts_dl.php" style="margin:0" data-confirm="Delete this post?" data-confirm-ok="Delete" data-confirm-danger="1"">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="post_id" value="<?= (int)$lp['id'] ?>">
@@ -1390,7 +1390,7 @@ function ordinal($n) {
                     </form>
                     <?php if (empty($lp['share_token'])): ?>
                     <form method="post" action="/league_posts_dl.php" style="margin:0"
-                          onsubmit="return pkConfirmForm(this, 'Make this post readable by anyone with the link? It will not appear in any public feed.');">
+                          data-confirm="Make this post readable by anyone with the link? It will not appear in any public feed.";">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                         <input type="hidden" name="action" value="share_enable">
                         <input type="hidden" name="post_id" value="<?= (int)$lp['id'] ?>">
@@ -1416,12 +1416,12 @@ function ordinal($n) {
                 <div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
                     <input type="text" readonly value="<?= htmlspecialchars($__share_url) ?>"
                            id="share-url-<?= (int)$lp['id'] ?>"
-                           onclick="this.select()"
+                           data-select-all-on-focus="1"
                            style="flex:1;min-width:200px;font-family:monospace;font-size:.78rem;padding:.35rem .5rem;border:1px solid #cbd5e1;border-radius:5px;background:#fff">
                     <button type="button" class="lg-btn lg-btn-ghost" style="font-size:.72rem;padding:.25rem .7rem"
                             onclick="var b=this;pkCopy(document.getElementById('share-url-<?= (int)$lp['id'] ?>').value).then(function(ok){b.textContent=ok?'Copied':'Copy failed';setTimeout(function(){b.textContent='Copy';},1500);})">Copy</button>
                     <form method="post" action="/league_posts_dl.php" style="margin:0"
-                          onsubmit="return pkConfirmForm(this, 'Generate a new link? The current link will stop working.');">
+                          data-confirm="Generate a new link? The current link will stop working.";">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                         <input type="hidden" name="action" value="share_regen">
                         <input type="hidden" name="post_id" value="<?= (int)$lp['id'] ?>">
@@ -1429,7 +1429,7 @@ function ordinal($n) {
                         <button type="submit" class="lg-btn lg-btn-ghost" style="font-size:.72rem;padding:.25rem .7rem;color:#92400e">Regenerate</button>
                     </form>
                     <form method="post" action="/league_posts_dl.php" style="margin:0"
-                          onsubmit="return pkConfirmForm(this, 'Disable the public link? The URL will stop working immediately.');">
+                          data-confirm="Disable the public link? The URL will stop working immediately.";">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                         <input type="hidden" name="action" value="share_disable">
                         <input type="hidden" name="post_id" value="<?= (int)$lp['id'] ?>">
@@ -1443,7 +1443,7 @@ function ordinal($n) {
             <div class="post-body" style="line-height:1.75;color:#334155"><?= sanitize_html($lp['content']) ?></div>
 
             <div class="comments-section" id="csec-<?= (int)$lp['id'] ?>" style="margin-top:1rem;padding-top:.75rem;border-top:1px solid #e2e8f0">
-                <div class="comments-heading" onclick="toggleComments(<?= (int)$lp['id'] ?>)" style="cursor:pointer;user-select:none">
+                <div class="comments-heading" data-act="toggleComments" data-a1="<?= (int)$lp['id'] ?>" style="cursor:pointer;user-select:none">
                     <span class="cmts-toggle-label" style="display:flex;align-items:center;gap:.4rem;color:#475569;font-size:.85rem;font-weight:600">
                         <span class="cmts-chevron" style="font-size:.65rem;color:#94a3b8">&#9658;</span>
                         <?= count($lp_comments) ?> Comment<?= count($lp_comments) !== 1 ? 's' : '' ?>
@@ -1560,7 +1560,7 @@ function ordinal($n) {
                         <td style="padding:.55rem .6rem;border-bottom:1px solid #f1f5f9"><?= htmlspecialchars($ak_fmt($k['created_at'])) ?></td>
                         <td style="padding:.55rem .6rem;border-bottom:1px solid #f1f5f9"><?= htmlspecialchars($ak_fmt($k['last_used_at'])) ?></td>
                         <td style="padding:.55rem .6rem;border-bottom:1px solid #f1f5f9;text-align:right">
-                            <form method="post" action="/league_api_keys_dl.php" style="margin:0;display:inline" onsubmit="return pkConfirmForm(this, 'Delete this API key permanently? Consumers using it will start getting 401 immediately. This cannot be undone.', {okLabel:'Delete', danger:true})">
+                            <form method="post" action="/league_api_keys_dl.php" style="margin:0;display:inline" data-confirm="Delete this API key permanently? Consumers using it will start getting 401 immediately. This cannot be undone." data-confirm-ok="Delete" data-confirm-danger="1"">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                                 <input type="hidden" name="action" value="revoke">
                                 <input type="hidden" name="key_id" value="<?= (int)$k['id'] ?>">
@@ -1691,10 +1691,10 @@ function ordinal($n) {
             ?>
             <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
                 <input type="text" id="inviteLinkField" readonly value="<?= htmlspecialchars($inviteLink) ?>"
-                       onclick="this.select()"
+                       data-select-all-on-focus="1"
                        style="flex:1;min-width:260px;padding:.5rem .6rem;border:1.5px solid #cbd5e1;border-radius:6px;font-family:ui-monospace,monospace;font-size:.82rem;background:#f8fafc;color:#334155">
-                <button class="lg-btn" type="button" onclick="copyInviteLink()">Copy</button>
-                <button class="lg-btn lg-btn-ghost" type="button" onclick="regen()">Regenerate</button>
+                <button class="lg-btn" type="button" data-act="copyInviteLink">Copy</button>
+                <button class="lg-btn lg-btn-ghost" type="button" data-act="regen">Regenerate</button>
             </div>
             <div id="inviteLinkFlash" style="display:none;margin-top:.4rem;font-size:.78rem;color:#16a34a">&#10003; Copied to clipboard.</div>
         </div>
@@ -1721,15 +1721,15 @@ function ordinal($n) {
                     <input type="text" id="ppSlug" value="<?= htmlspecialchars((string)($league['slug'] ?? '')) ?>"
                            maxlength="60" autocomplete="off" spellcheck="false"
                            style="flex:1;min-width:160px;padding:.5rem .6rem;border:1.5px solid #cbd5e1;border-radius:6px;font-family:ui-monospace,monospace;font-size:.82rem">
-                    <button class="lg-btn" type="button" onclick="savePublicPage()">Save</button>
+                    <button class="lg-btn" type="button" data-act="savePublicPage">Save</button>
                 </div>
                 <div id="ppUrlRow" style="<?= (int)($league['public_page'] ?? 0) === 1 ? '' : 'display:none;' ?>margin-bottom:.75rem">
                     <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
                         <input type="text" id="ppUrlField" readonly
                                value="<?= htmlspecialchars(get_site_url() . '/league/' . (string)($league['slug'] ?? '')) ?>"
-                               onclick="this.select()"
+                               data-select-all-on-focus="1"
                                style="flex:1;min-width:260px;padding:.5rem .6rem;border:1.5px solid #cbd5e1;border-radius:6px;font-family:ui-monospace,monospace;font-size:.82rem;background:#f8fafc;color:#334155">
-                        <button class="lg-btn" type="button" onclick="copyPublicUrl()">Copy</button>
+                        <button class="lg-btn" type="button" data-act="copyPublicUrl">Copy</button>
                         <a class="lg-btn lg-btn-ghost" id="ppOpenLink" target="_blank"
                            href="/league/<?= htmlspecialchars((string)($league['slug'] ?? '')) ?>">Open</a>
                     </div>
@@ -1747,14 +1747,14 @@ function ordinal($n) {
                     <?php endif; ?>
                     <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
                         <input type="file" id="ppBannerFile" accept="image/jpeg,image/png,image/gif,image/webp" style="font-size:.82rem">
-                        <button class="lg-btn" type="button" onclick="uploadLeagueBanner()">Upload</button>
+                        <button class="lg-btn" type="button" data-act="uploadLeagueBanner">Upload</button>
                         <?php if (!empty($league['banner_path'])): ?>
-                            <button class="lg-btn lg-btn-ghost" type="button" onclick="removeLeagueBanner()">Remove</button>
+                            <button class="lg-btn lg-btn-ghost" type="button" data-act="removeLeagueBanner">Remove</button>
                         <?php endif; ?>
                     </div>
                     <div style="margin-top:.6rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
                         <label for="ppBannerFit" style="font-size:.82rem;color:#475569">Image sizing</label>
-                        <select id="ppBannerFit" onchange="saveBannerFit()"
+                        <select id="ppBannerFit" data-act-change="saveBannerFit"
                                 style="padding:.35rem .5rem;border:1.5px solid #cbd5e1;border-radius:6px;font-size:.82rem;background:#fff">
                             <option value="cover"<?= $ppFit === 'cover'   ? ' selected' : '' ?>>Fill the space (crops edges)</option>
                             <option value="contain"<?= $ppFit === 'contain' ? ' selected' : '' ?>>Fit whole image (no cropping)</option>
@@ -1770,7 +1770,7 @@ function ordinal($n) {
         <div class="lg-card" style="display:block;border-color:#fecaca">
             <h3 style="margin:0 0 .75rem;color:#dc2626">Danger zone</h3>
             <p style="font-size:.85rem;color:#64748b;margin:0 0 .75rem">Deleting a league is <strong>permanent</strong> and will also delete every event attached to it (including poker sessions, buy-ins, and results). You'll be shown a full summary before you confirm.</p>
-            <button class="lg-btn lg-btn-danger" onclick="openDeleteLeague()">Delete league&hellip;</button>
+            <button class="lg-btn lg-btn-danger" data-act="openDeleteLeague">Delete league&hellip;</button>
         </div>
     <?php endif; ?>
 </div>
@@ -1789,13 +1789,13 @@ function ordinal($n) {
             To confirm, type the league name <code style="background:#f1f5f9;padding:.1rem .3rem;border-radius:3px"><?= htmlspecialchars($league['name']) ?></code> below:
         </p>
         <input type="text" id="delConfirmName" placeholder="Type the league name" autocomplete="off"
-               oninput="onDelTyping()"
+               data-act-input="onDelTyping"
                style="width:100%;padding:.55rem;border:1.5px solid #cbd5e1;border-radius:6px;font:inherit;margin-bottom:.75rem">
         <div style="display:flex;gap:.5rem;justify-content:flex-end">
-            <button class="lg-btn lg-btn-ghost" onclick="closeDeleteLeague()">Cancel</button>
+            <button class="lg-btn lg-btn-ghost" data-act="closeDeleteLeague">Cancel</button>
             <button id="delConfirmBtn" class="lg-btn lg-btn-danger" disabled
                     style="opacity:.5;pointer-events:none"
-                    onclick="confirmDeleteLeague()">Permanently delete</button>
+                    data-act="confirmDeleteLeague">Permanently delete</button>
         </div>
     </div>
 </div>

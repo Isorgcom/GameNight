@@ -226,7 +226,7 @@ $site_name = get_setting('site_name', 'Game Night');
                 <input type="text" id="contact" name="contact" data-phone-contact="1"
                        value="<?= htmlspecialchars($_POST['contact'] ?? $_GET['email'] ?? $_GET['phone'] ?? '') ?>"
                        autocomplete="email" required
-                       oninput="updateContactHint()">
+                       data-act-input="updateContactHint">
                 <p class="hint" id="contactHint">We'll send a verification link by email, or a 6-digit code by text.</p>
                 <div id="smsConsent" style="display:none;margin-top:.5rem;padding:.75rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:.8rem;line-height:1.5;color:#475569;align-items:flex-start;gap:.5rem">
                     <span>&#9888; By registering with a phone number you agree to receive event-related messages (invites, reminders, RSVP updates) via text. Message and data rates may apply. Reply STOP to unsubscribe, HELP for help. <a href="/privacy.php" target="_blank">Privacy Policy</a>.</span>
@@ -402,5 +402,6 @@ updateContactHint();
 <script src="/_phone_input.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/_phone_input.js') ?: 0)) ?>"></script>
 <script nonce="<?= csp_nonce() ?>">initPhoneAutoFormat();</script>
 <script src="/pk-dialogs.js?v=<?= @filemtime(__DIR__ . '/pk-dialogs.js') ?>" defer></script>
+<script src="/pk-dispatch.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-dispatch.js') ?: 0)) ?>" defer></script>
 </body>
 </html>

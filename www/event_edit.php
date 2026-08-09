@@ -381,10 +381,10 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
     <div class="evedit-card">
         <div class="evedit-head">
             <div id="eColorDotWrap" style="align-self:center">
-                <div id="eColorDot" style="background:#2563eb" onclick="toggleColorPicker(event)" title="Pick the event's calendar color"></div>
+                <div id="eColorDot" style="background:#2563eb" data-act="toggleColorPicker" data-a1="@event" title="Pick the event's calendar color"></div>
                 <div id="eColorPicker">
                     <?php foreach (['#2563eb','#16a34a','#dc2626','#d97706','#7c3aed','#0891b2','#db2777'] as $c): ?>
-                        <div class="color-swatch" style="background:<?= $c ?>" data-color="<?= $c ?>" onclick="selectColor('<?= $c ?>')"></div>
+                        <div class="color-swatch" style="background:<?= $c ?>" data-color="<?= $c ?>" data-act="selectColor" data-a1="<?= $c ?>"></div>
                     <?php endforeach; ?>
                 </div>
             </div>
@@ -406,7 +406,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
             <!-- ── Unified top bar: league + vis + color + title + date + time + duration ── -->
             <div class="edit-top-bar">
                 <label>League
-                    <select name="league_id" id="eLeagueId" onchange="onLeagueChange()">
+                    <select name="league_id" id="eLeagueId" data-act-change="onLeagueChange">
                         <option value="0">None</option>
                         <?php foreach ($myLeaguesForForm as $_lg): ?>
                             <option value="<?= (int)$_lg['id'] ?>" data-default-visibility="<?= htmlspecialchars($_lg['default_visibility']) ?>"><?= htmlspecialchars($_lg['name']) ?></option>
@@ -441,13 +441,13 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
 
             <!-- ── Toolbar: toggles + actions ── -->
             <div class="edit-toolbar">
-                <label class="edit-notify-row"><span>Poker</span><input type="checkbox" name="is_poker" id="eIsPoker" value="1" class="pk-toggle-input" onchange="togglePokerFields()"><span class="pk-toggle-slider"></span></label>
-                <label class="edit-notify-row" title="Send reminders before the event"><span>Reminders</span><input type="checkbox" name="reminders_enabled" id="eRemindersEnabled" value="1" class="pk-toggle-input" onchange="toggleReminderFields()" checked><span class="pk-toggle-slider"></span></label>
+                <label class="edit-notify-row"><span>Poker</span><input type="checkbox" name="is_poker" id="eIsPoker" value="1" class="pk-toggle-input" data-act-change="togglePokerFields"><span class="pk-toggle-slider"></span></label>
+                <label class="edit-notify-row" title="Send reminders before the event"><span>Reminders</span><input type="checkbox" name="reminders_enabled" id="eRemindersEnabled" value="1" class="pk-toggle-input" data-act-change="toggleReminderFields" checked><span class="pk-toggle-slider"></span></label>
                 <!-- Occasional settings live in one dropdown; same element IDs, so
                      the show/hide logic (waitlist needs a capacity, max-guests is
                      non-poker-only) keeps working inside the panel. -->
                 <div class="rem-dd" id="eGuestOptsDD">
-                    <button type="button" class="rem-dd-btn" onclick="toggleGuestOptsDD(event)">
+                    <button type="button" class="rem-dd-btn" data-act="toggleGuestOptsDD" data-a1="@event">
                         Guest options <span id="eGuestOptsBadge" style="display:none;background:#2563eb;color:#fff;border-radius:999px;font-size:.68rem;font-weight:700;padding:.05rem .38rem"></span> <span style="font-size:.7rem">&#9662;</span>
                     </button>
                     <div class="rem-dd-panel go-panel" id="eGuestOptsPanel">
@@ -456,11 +456,11 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                             <span><strong>Waitlist</strong><small>When the event is full, extra guests queue up and get promoted automatically</small></span>
                         </label>
                         <label class="go-row">
-                            <input type="checkbox" name="requires_approval" id="eRequiresApproval" value="1" onchange="updateGuestOptsBadge()">
+                            <input type="checkbox" name="requires_approval" id="eRequiresApproval" value="1" data-act-change="updateGuestOptsBadge">
                             <span><strong>Require approval</strong><small>Walk-in QR and self sign-ups wait for your OK</small></span>
                         </label>
                         <label class="go-row">
-                            <input type="checkbox" name="hide_guest_list" id="eHideGuestList" value="1" onchange="updateGuestOptsBadge()">
+                            <input type="checkbox" name="hide_guest_list" id="eHideGuestList" value="1" data-act-change="updateGuestOptsBadge">
                             <span><strong>Hide guest list</strong><small>Guests can't see who else is coming</small></span>
                         </label>
                         <label class="go-row" id="eMaxGuestsLabel" style="display:none">
@@ -469,7 +469,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                         </label>
                     </div>
                 </div>
-                <span class="edit-desc-toggle" id="eDescToggle" onclick="toggleDesc()">+ Description</span>
+                <span class="edit-desc-toggle" id="eDescToggle" data-act="toggleDesc">+ Description</span>
                 <div style="flex:1"></div>
                 <button type="submit" class="btn btn-primary" id="eSubmitBtn" onclick="document.getElementById('eSendAfterSave').value=''"><?= $event ? 'Save Changes' : 'Add Event' ?></button>
                 <?php if (get_setting('notifications_enabled', '0') === '1'): ?>
@@ -482,8 +482,8 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
             <div class="edit-poker-bar" id="ePokerFields" style="display:none">
                 <label>Type <select name="poker_game_type" id="ePokerGameType"><option value="tournament">Tournament</option><option value="cash">Cash</option></select></label>
                 <label>Buy-in $ <input type="number" name="poker_buyin" id="ePokerBuyin" min="0" step="1" value="20"></label>
-                <label>Tables <input type="number" name="poker_tables" id="ePokerTables" min="1" max="50" value="1" onchange="updateCapacityLine()" oninput="updateCapacityLine()"></label>
-                <label>Seats <input type="number" name="poker_seats" id="ePokerSeats" min="2" max="12" value="8" onchange="updateCapacityLine()" oninput="updateCapacityLine()"></label>
+                <label>Tables <input type="number" name="poker_tables" id="ePokerTables" min="1" max="50" value="1" data-act-change="updateCapacityLine" data-act-input="updateCapacityLine"></label>
+                <label>Seats <input type="number" name="poker_seats" id="ePokerSeats" min="2" max="12" value="8" data-act-change="updateCapacityLine" data-act-input="updateCapacityLine"></label>
                 <label>Deadline <select name="rsvp_deadline_hours" id="eRsvpDeadline"><option value="">None</option><option value="24">24h</option><option value="48">48h</option><option value="72">72h</option></select></label>
                 <span id="eCapacityHint" style="font-weight:700;color:#2563eb">8 seats</span>
             </div>
@@ -492,7 +492,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
             <div class="edit-poker-bar" id="eReminderFields">
                 <span style="font-weight:600;color:#475569">Send reminders:</span>
                 <div class="rem-dd" id="eRemDD">
-                    <button type="button" class="rem-dd-btn" onclick="toggleRemDD(event)">
+                    <button type="button" class="rem-dd-btn" data-act="toggleRemDD" data-a1="@event">
                         <span id="eRemSummary">&mdash;</span> <span style="font-size:.7rem">&#9662;</span>
                     </button>
                     <div class="rem-dd-panel" id="eRemPanel">
@@ -505,7 +505,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                                     : ($__off . ' min')));
                         ?>
                         <label>
-                            <input type="checkbox" name="reminder_offsets[]" class="eReminderPreset" value="<?= $__off ?>" <?= $__checked ?> onchange="updateRemSummary()">
+                            <input type="checkbox" name="reminder_offsets[]" class="eReminderPreset" value="<?= $__off ?>" <?= $__checked ?> data-act-change="updateRemSummary">
                             <?= htmlspecialchars($__label) ?> before
                         </label>
                         <?php endforeach; ?>
@@ -538,9 +538,9 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                     <div class="invite-pane-header">All Users</div>
                     <input type="text" id="eUserSearch" class="invite-pane-search"
                            placeholder="<?= $isAdmin ? 'Search name, email, phone&hellip;' : 'Search name&hellip;' ?>"
-                           oninput="filterAllUsers(this.value)" autocomplete="off">
+                           data-act-input="filterAllUsers" data-input-a1="@value" autocomplete="off">
                     <label id="eHideNonMembersWrap" style="display:none;align-items:center;gap:.4rem;padding:.25rem .65rem .35rem;font-size:.75rem;color:#64748b;cursor:pointer">
-                        <input type="checkbox" id="eHideNonMembers" class="pk-toggle-input" onchange="onHideNonMembersChange()">
+                        <input type="checkbox" id="eHideNonMembers" class="pk-toggle-input" data-act-change="onHideNonMembersChange">
                         <span class="pk-toggle-sm"></span>
                         <span>Hide non-members</span>
                     </label>
@@ -548,16 +548,16 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                 </div>
                 <!-- Center: arrow buttons (desktop: left/right, mobile: up/down) -->
                 <div class="invite-arrows">
-                    <button type="button" class="inv-arrow-btn" onclick="moveRight()" title="Add selected"><span class="arrow-desktop">&rsaquo;</span><span class="arrow-mobile">&darr;</span></button>
-                    <button type="button" class="inv-arrow-btn" onclick="moveAllRight()" title="Add all visible"><span class="arrow-desktop">&raquo;</span><span class="arrow-mobile">&dArr;</span></button>
-                    <button type="button" class="inv-arrow-btn" onclick="moveLeft()" title="Remove selected"><span class="arrow-desktop">&lsaquo;</span><span class="arrow-mobile">&uarr;</span></button>
-                    <button type="button" class="inv-arrow-btn" onclick="moveAllLeft()" title="Remove all"><span class="arrow-desktop">&laquo;</span><span class="arrow-mobile">&uArr;</span></button>
+                    <button type="button" class="inv-arrow-btn" data-act="moveRight" title="Add selected"><span class="arrow-desktop">&rsaquo;</span><span class="arrow-mobile">&darr;</span></button>
+                    <button type="button" class="inv-arrow-btn" data-act="moveAllRight" title="Add all visible"><span class="arrow-desktop">&raquo;</span><span class="arrow-mobile">&dArr;</span></button>
+                    <button type="button" class="inv-arrow-btn" data-act="moveLeft" title="Remove selected"><span class="arrow-desktop">&lsaquo;</span><span class="arrow-mobile">&uarr;</span></button>
+                    <button type="button" class="inv-arrow-btn" data-act="moveAllLeft" title="Remove all"><span class="arrow-desktop">&laquo;</span><span class="arrow-mobile">&uArr;</span></button>
                 </div>
                 <!-- Right: invited users -->
                 <div class="invite-pane">
                     <div class="invite-pane-header" style="display:flex;align-items:center;gap:.5rem">
                         <span style="flex:1">Invited</span>
-                        <button type="button" class="btn btn-outline" style="font-size:.72rem;padding:.18rem .55rem" title="Invite someone who isn't a user — just a name, with optional email/phone" onclick="addBlankInviteRow()">+ Add Name</button>
+                        <button type="button" class="btn btn-outline" style="font-size:.72rem;padding:.18rem .55rem" title="Invite someone who isn't a user — just a name, with optional email/phone" data-act="addBlankInviteRow">+ Add Name</button>
                     </div>
                     <div class="inv-col-head">
                         <span style="flex:1;min-width:0">Name</span>
@@ -585,7 +585,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
         <div style="padding:.4rem 1rem .6rem;flex-shrink:0">
             <button type="button" id="eRegenWalkinBtn"
                     style="width:100%;padding:.38rem;border:1.5px solid #cbd5e1;border-radius:7px;background:#fff;color:#64748b;font-size:.78rem;cursor:pointer;font-weight:600"
-                    onclick="regenWalkinFromEdit()">
+                    data-act="regenWalkinFromEdit">
                 Regenerate walk-up link
             </button>
         </div>
@@ -594,11 +594,11 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
 </div>
 
 <!-- ── Per-invitee contact editor (email / phone) ── -->
-<div class="modal-overlay" id="invContactModal" onclick="if(event.target===this)closeContactEdit()">
+<div class="modal-overlay" id="invContactModal" data-act-self="closeContactEdit">
     <div class="modal" style="max-width:340px">
         <div class="modal-header" style="justify-content:space-between">
             <h2 style="font-size:1rem;font-weight:700">Contact for <span id="invContactName"></span></h2>
-            <button class="modal-close" type="button" onclick="closeContactEdit()">&#x2715;</button>
+            <button class="modal-close" type="button" data-act="closeContactEdit">&#x2715;</button>
         </div>
         <label style="display:block;font-size:.8rem;color:#475569;margin:.4rem 0 .15rem">Email</label>
         <input type="email" id="invContactEmail" autocomplete="off" placeholder="name@example.com"
@@ -607,8 +607,8 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
         <input type="tel" id="invContactPhone" autocomplete="off" placeholder="(555) 123-4567"
                style="width:100%;padding:.5rem .6rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.9rem;box-sizing:border-box">
         <div style="display:flex;gap:.5rem;margin-top:1rem">
-            <button type="button" class="btn btn-primary" style="flex:1" onclick="saveContactEdit()">Save</button>
-            <button type="button" class="btn btn-outline" style="flex:1" onclick="closeContactEdit()">Cancel</button>
+            <button type="button" class="btn btn-primary" style="flex:1" data-act="saveContactEdit">Save</button>
+            <button type="button" class="btn btn-outline" style="flex:1" data-act="closeContactEdit">Cancel</button>
         </div>
     </div>
 </div>
@@ -915,7 +915,7 @@ function addBlankInviteRow() {
     // which is exactly when it can push someone onto the waitlist. Removing a
     // row has to re-check for the same reason.
     li.innerHTML = '<div class="custom-row-inner">' +
-        '<input type="text" class="cr-name"    placeholder="Name *" oninput="updateDividerLine()">' +
+        '<input type="text" class="cr-name"    placeholder="Name *" data-act-input="updateDividerLine">' +
         '<input type="text" class="cr-contact" placeholder="Email or phone" autocomplete="off">' +
         '<button type="button" class="cr-remove" onclick="this.closest(\'li\').remove();updateDividerLine()">&times;</button>' +
         '</div>';

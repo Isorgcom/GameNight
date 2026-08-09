@@ -100,7 +100,7 @@ $utc_tz    = new DateTimeZone('UTC');
             <?php endforeach; ?>
         </select>
         <button class="btn" type="button" onclick="var v=document.getElementById('dmNewUser').value; if(!v){pkAlert('Pick a person first.');return;} location.href='/message_thread.php?user='+v;">Start</button>
-        <button class="btn btn-outline" type="button" onclick="document.getElementById('dmGroupCard').classList.toggle('open')">New group</button>
+        <button class="btn btn-outline" type="button" data-toggle-class="dmGroupCard:open">New group</button>
     </div>
 
     <div class="dm-group-card" id="dmGroupCard">
@@ -113,7 +113,7 @@ $utc_tz    = new DateTimeZone('UTC');
             <?php endforeach; ?>
         </div>
         <div style="margin-top:.6rem">
-            <button class="btn" type="button" onclick="createGroup(this)">Create group</button>
+            <button class="btn" type="button" data-act="createGroup" data-a1="@self">Create group</button>
         </div>
     </div>
     <?php endif; ?>

@@ -165,9 +165,9 @@ $tips = $tipsStmt->fetchAll();
                     <p class="hint">Reappears every visit, even after the user dismisses help with the X (the X only closes it for that page view). Use sparingly. Normal tips stay hidden once dismissed, but any tip you add later still pops up automatically for everyone.</p>
                 </div>
                 <div style="display:flex;gap:.5rem">
-                    <button type="button" class="hlp-btn primary" onclick="saveTip()">Save tip</button>
-                    <button type="button" class="hlp-btn" onclick="resetForm()">Clear</button>
-                    <button type="button" class="hlp-btn" style="margin-left:auto" onclick="showPreview()">Show example &#9654;</button>
+                    <button type="button" class="hlp-btn primary" data-act="saveTip">Save tip</button>
+                    <button type="button" class="hlp-btn" data-act="resetForm">Clear</button>
+                    <button type="button" class="hlp-btn" style="margin-left:auto" data-act="showPreview">Show example &#9654;</button>
                 </div>
                 <p id="hlpMsg"></p>
             </form>
@@ -210,11 +210,11 @@ function renderList() {
             ${t.anchor_selector ? `<div class="hlp-tip-anchor">&#128279; ${esc(t.anchor_selector)}</div>` : ''}
             ${(t.bubble_index !== null && t.bubble_index !== undefined && t.bubble_index !== '') ? `<div class="hlp-tip-anchor" style="color:#2563eb">&#9635; Step index ${esc(t.bubble_index)}</div>` : ''}
             <div class="hlp-tip-actions">
-                <button class="hlp-btn" onclick="moveTip(${i},-1)" ${i === 0 ? 'disabled' : ''}>&#9650;</button>
-                <button class="hlp-btn" onclick="moveTip(${i},1)" ${i === TIPS.length - 1 ? 'disabled' : ''}>&#9660;</button>
-                <button class="hlp-btn" onclick="editTip(${t.id})">Edit</button>
-                <button class="hlp-btn" onclick="toggleTip(${t.id})">${on ? 'Hide' : 'Show'}</button>
-                <button class="hlp-btn danger" onclick="deleteTip(${t.id})">Delete</button>
+                <button class="hlp-btn" data-act="moveTip" data-a1="${i}" data-a2="-1" ${i === 0 ? 'disabled' : ''}>&#9650;</button>
+                <button class="hlp-btn" data-act="moveTip" data-a1="${i}" data-a2="1" ${i === TIPS.length - 1 ? 'disabled' : ''}>&#9660;</button>
+                <button class="hlp-btn" data-act="editTip" data-a1="${t.id}">Edit</button>
+                <button class="hlp-btn" data-act="toggleTip" data-a1="${t.id}">${on ? 'Hide' : 'Show'}</button>
+                <button class="hlp-btn danger" data-act="deleteTip" data-a1="${t.id}">Delete</button>
             </div>
         </div>`;
     }).join('');

@@ -373,8 +373,8 @@ $autoJoin = $user && $myRole === null && !$pending && ($_GET['join'] ?? '') === 
             <strong>Download</strong> adds the current events once and won't update later.
         </div>
         <div class="lp-cal-row">
-            <input type="text" id="lp-cal-url" readonly value="<?= htmlspecialchars($icsUrl) ?>" onclick="this.select()">
-            <button class="lp-btn secondary" type="button" onclick="lpCopyCal()">Copy link</button>
+            <input type="text" id="lp-cal-url" readonly value="<?= htmlspecialchars($icsUrl) ?>" data-select-all-on-focus="1">
+            <button class="lp-btn secondary" type="button" data-act="lpCopyCal">Copy link</button>
             <span class="lp-note" id="lp-cal-copied" style="display:none;color:#16a34a">&#10003; Copied</span>
         </div>
         <div class="lp-note" style="margin-top:.45rem">

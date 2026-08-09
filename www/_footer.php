@@ -81,6 +81,9 @@ if ($_hb_user && empty($_hb_user['timezone'])) {
 <?php /* filemtime cache-buster: pk-dialogs.js changes must reach browsers even
          between version bumps (a stale copy silently breaks pk* callers). */ ?>
 <script src="/pk-dialogs.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-dialogs.js') ?: 0)) ?>" defer></script>
+<!-- Shared declarative handler dispatch (see SECURITY.md). External, so it needs
+     no CSP nonce; cache-busted because it carries behaviour, not just styling. -->
+<script src="/pk-dispatch.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-dispatch.js') ?: 0)) ?>" defer></script>
 <script src="/avatar.js?v=<?= htmlspecialchars(APP_VERSION) ?>" defer></script>
 <?php if ($_hb_user): /* Live badge updater + chime: polls unread counts and
     updates the nav bell / Messages badges in place. Plays a short two-note

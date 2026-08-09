@@ -288,10 +288,10 @@ $site_name = get_setting('site_name', 'Game Night');
                 <div>
                     <div style="font-size:.85rem;font-weight:600;color:#475569;margin-bottom:.35rem">Profile photo</div>
                     <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
-                        <button type="button" class="btn btn-outline" style="font-size:.82rem" onclick="document.getElementById('stAvatarFile').click()">Upload photo</button>
+                        <button type="button" class="btn btn-outline" style="font-size:.82rem" data-click-file="stAvatarFile">Upload photo</button>
                         <input type="file" id="stAvatarFile" accept="image/*" style="display:none">
                         <?php if (!empty($current['avatar_path'])): ?>
-                        <form method="post" action="/settings.php" style="margin:0" onsubmit="return pkConfirmForm(this, 'Remove your profile photo?', {okLabel:'Remove', danger:true})">
+                        <form method="post" action="/settings.php" style="margin:0" data-confirm="Remove your profile photo?" data-confirm-ok="Remove" data-confirm-danger="1"">
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                             <input type="hidden" name="action" value="remove_avatar">
                             <button type="submit" class="btn btn-outline" style="font-size:.82rem;color:#dc2626;border-color:#fecaca">Remove</button>
@@ -560,7 +560,7 @@ $site_name = get_setting('site_name', 'Game Night');
                      (oninput) so typing "delete" doesn't silently submit lowercase and fail. -->
                 <input type="text" id="confirm_delete" name="confirm_delete" required
                        autocomplete="off" placeholder="DELETE"
-                       oninput="this.value=this.value.toUpperCase()"
+                       data-uppercase="1"
                        style="border-color:#fca5a5;text-transform:uppercase">
             </div>
             <button type="submit" class="btn" style="width:100%;background:#dc2626;color:#fff;border:none;font-weight:600;padding:.6rem">

@@ -166,9 +166,9 @@ if (!empty($event['start_time'])) {
     <div class="qr-url" id="qrUrl"><?= htmlspecialchars($walkin_url) ?></div>
 
     <div class="qr-actions">
-        <button onclick="copyLink()" id="copyBtn">Copy Link</button>
-        <button onclick="regenToken()">Regenerate QR</button>
-        <button onclick="goFullscreen()">Fullscreen</button>
+        <button data-act="copyLink" id="copyBtn">Copy Link</button>
+        <button data-act="regenToken">Regenerate QR</button>
+        <button data-act="goFullscreen">Fullscreen</button>
     </div>
 </div>
 
@@ -250,5 +250,6 @@ window.addEventListener('resize', renderQR);
 document.addEventListener('DOMContentLoaded', renderQR);
 </script>
 <script src="/pk-dialogs.js?v=<?= @filemtime(__DIR__ . '/pk-dialogs.js') ?>" defer></script>
+<script src="/pk-dispatch.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-dispatch.js') ?: 0)) ?>" defer></script>
 </body>
 </html>

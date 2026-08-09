@@ -865,7 +865,7 @@ function editComment(id, btn) {
         <div style="display:flex;gap:.5rem;margin-top:.35rem">
             <button type="submit" class="btn btn-primary" style="font-size:.78rem;padding:.3rem .8rem">Save</button>
             <button type="button" class="btn btn-outline" style="font-size:.78rem;padding:.3rem .8rem"
-                    onclick="cancelEdit(${id}, this)">Cancel</button>
+                    data-act="cancelEdit" data-a1="${id}" data-a2="@self">Cancel</button>
         </div>`;
     bodyEl.appendChild(form);
     form.querySelector('textarea').focus();

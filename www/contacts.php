@@ -101,7 +101,7 @@ $prefLabels = ['email' => 'Email', 'sms' => 'Text', 'whatsapp' => 'WhatsApp', 'b
 
     <div class="c-toolbar">
         <a class="c-btn c-btn-ghost" href="/contacts_dl.php?action=export">&#8681; Export CSV</a>
-        <button class="c-btn c-btn-ghost" type="button" onclick="document.getElementById('cImport').classList.toggle('open')">&#8679; Import CSV</button>
+        <button class="c-btn c-btn-ghost" type="button" data-toggle-class="cImport:open">&#8679; Import CSV</button>
     </div>
 
     <div class="c-add-card">
@@ -110,7 +110,7 @@ $prefLabels = ['email' => 'Email', 'sms' => 'Text', 'whatsapp' => 'WhatsApp', 'b
             <label>Name <input type="text" id="acName" placeholder="Display name"></label>
             <label>Email <input type="email" id="acEmail" placeholder="name@example.com"></label>
             <label>Phone <input type="tel" id="acPhone" placeholder="Optional"></label>
-            <button class="c-btn" type="button" onclick="addContact()">Add</button>
+            <button class="c-btn" type="button" data-act="addContact">Add</button>
         </div>
     </div>
 
@@ -161,7 +161,7 @@ $prefLabels = ['email' => 'Email', 'sms' => 'Text', 'whatsapp' => 'WhatsApp', 'b
             $cid = (int)$c['id'];
             $hasBoth = !empty($c['contact_email']) && !empty($c['contact_phone']);
         ?>
-            <tr data-contact-id="<?= $cid ?>"<?= $isLinked ? '' : ' class="c-pending"' ?> onclick="location.href='/contact_edit.php?id=<?= $cid ?>'" title="Click to edit this contact">
+            <tr data-contact-id="<?= $cid ?>"<?= $isLinked ? '' : ' class="c-pending"' ?> data-href="/contact_edit.php?id=<?= $cid ?>" title="Click to edit this contact">
                 <td class="c-num-col"><?= $i + 1 ?></td>
                 <td class="c-status-col">
                     <?php if ($isLinked): ?>
@@ -171,7 +171,7 @@ $prefLabels = ['email' => 'Email', 'sms' => 'Text', 'whatsapp' => 'WhatsApp', 'b
                     <?php endif; ?>
                 </td>
                 <td class="c-name-col">
-                    <a class="c-name-link" href="/contact_edit.php?id=<?= $cid ?>" onclick="event.stopPropagation()"><?= htmlspecialchars($c['contact_name'] ?? '') ?></a>
+                    <a class="c-name-link" href="/contact_edit.php?id=<?= $cid ?>" data-stop="1"><?= htmlspecialchars($c['contact_name'] ?? '') ?></a>
                 </td>
                 <td><?= $c['contact_email'] !== null && $c['contact_email'] !== '' ? htmlspecialchars($c['contact_email']) : '<span class="c-muted">&mdash;</span>' ?></td>
                 <td class="c-phone-col"><?= $c['contact_phone'] !== null && $c['contact_phone'] !== '' ? htmlspecialchars($c['contact_phone']) : '<span class="c-muted">&mdash;</span>' ?></td>
@@ -186,7 +186,7 @@ $prefLabels = ['email' => 'Email', 'sms' => 'Text', 'whatsapp' => 'WhatsApp', 'b
                     <?php endif; ?>
                 </td>
                 <td class="c-notes-col" title="<?= htmlspecialchars($c['notes'] ?? '') ?>"><?= $c['notes'] !== null && $c['notes'] !== '' ? htmlspecialchars($c['notes']) : '' ?></td>
-                <td class="c-act-col" onclick="event.stopPropagation()">
+                <td class="c-act-col" data-stop="1">
                     <?php if ($canMsg): ?>
                     <a class="c-msg-btn" href="/message_thread.php?user=<?= (int)$c['linked_user_id'] ?>" title="Send a private message">&#9993; Message</a>
                     <?php endif; ?>

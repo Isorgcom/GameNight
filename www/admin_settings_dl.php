@@ -722,7 +722,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                                    placeholder="#0f172a" maxlength="7" style="flex:1"
                                    oninput="syncPicker('nav_bg_picker',this.value);updatePreview()">
                             <button type="button" class="btn btn-outline btn-sm"
-                                    onclick="resetColor('nav_bg_color','nav_bg_picker','#0f172a')">Default</button>
+                                    data-act="resetColor" data-a1="nav_bg_color" data-a2="nav_bg_picker" data-a3="#0f172a">Default</button>
                         </div>
                     </div>
                     <div class="form-group">
@@ -737,7 +737,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                                    placeholder="#ffffff" maxlength="7" style="flex:1"
                                    oninput="syncPicker('nav_text_picker',this.value);updatePreview()">
                             <button type="button" class="btn btn-outline btn-sm"
-                                    onclick="resetColor('nav_text_color','nav_text_picker','#ffffff')">Default</button>
+                                    data-act="resetColor" data-a1="nav_text_color" data-a2="nav_text_picker" data-a3="#ffffff">Default</button>
                         </div>
                     </div>
                     <div class="form-group">
@@ -752,7 +752,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                                    placeholder="#2563eb" maxlength="7" style="flex:1"
                                    oninput="syncPicker('accent_picker',this.value);updatePreview()">
                             <button type="button" class="btn btn-outline btn-sm"
-                                    onclick="resetColor('accent_color','accent_picker','#2563eb')">Default</button>
+                                    data-act="resetColor" data-a1="accent_color" data-a2="accent_picker" data-a3="#2563eb">Default</button>
                         </div>
                         <p class="hint">Used for buttons, active links, and highlights across the site.</p>
                     </div>
@@ -871,7 +871,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                 All user activity &mdash; <?= number_format($log_total) ?> total entries.
             </p>
             <form method="post" action="/admin_settings.php"
-                  onsubmit="return pkConfirmForm(this, 'Clear all log entries? This cannot be undone.', {danger:true})">
+                  data-confirm="Clear all log entries? This cannot be undone." data-confirm-danger="1"">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <input type="hidden" name="action" value="clear_logs">
                 <input type="hidden" name="tab" value="logs">
@@ -939,19 +939,19 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
 
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:1rem">
             <span style="color:#64748b;font-size:.875rem"><?= count($users) ?> user<?= count($users) !== 1 ? 's' : '' ?></span>
-            <button class="btn btn-primary" onclick="openUserModal()">+ New User</button>
+            <button class="btn btn-primary" data-act="openUserModal">+ New User</button>
         </div>
 
         <div id="bulkBar">
             <span class="bulk-label"><span id="bulkCount">0</span> selected</span>
             <form id="bulkForm" method="post" action="/admin_settings.php"
-                  onsubmit="return pkConfirmForm(this, 'Delete selected users? This cannot be undone.', {okLabel:'Delete', danger:true})">
+                  data-confirm="Delete selected users? This cannot be undone." data-confirm-ok="Delete" data-confirm-danger="1"">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <input type="hidden" name="action" value="bulk_delete">
                 <input type="hidden" name="tab" value="users">
                 <button type="submit" class="btn btn-sm" style="background:#ef4444;color:#fff">Delete Selected</button>
             </form>
-            <button class="btn btn-sm btn-outline" onclick="clearSelection()">Clear</button>
+            <button class="btn btn-sm btn-outline" data-act="clearSelection">Clear</button>
         </div>
 
         <div class="table-card">
@@ -1126,11 +1126,11 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
 </div>
 
 <!-- ── New User Modal ── -->
-<div class="modal-overlay" id="newUserModal" onclick="overlayClick(event)">
+<div class="modal-overlay" id="newUserModal" data-act="overlayClick" data-a1="@event">
     <div class="modal">
         <div class="modal-header">
             <h2>New User</h2>
-            <button class="modal-close" onclick="closeUserModal()" title="Close">&#x2715;</button>
+            <button class="modal-close" data-act="closeUserModal" title="Close">&#x2715;</button>
         </div>
         <form method="post" action="/admin_settings.php">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
@@ -1157,7 +1157,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
             </div>
             <div style="display:flex;gap:.75rem;margin-top:1.5rem">
                 <button type="submit" class="btn btn-primary" style="flex:1">Create User</button>
-                <button type="button" class="btn btn-outline" onclick="closeUserModal()">Cancel</button>
+                <button type="button" class="btn btn-outline" data-act="closeUserModal">Cancel</button>
             </div>
         </form>
     </div>

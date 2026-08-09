@@ -1598,7 +1598,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
                     ?>
                     <div class="cal-event"
                          style="background:<?= htmlspecialchars($ev['color']) ?>"
-                         onclick="viewEvent(<?= htmlspecialchars(json_encode($ev)) ?>)"
+                         data-act="viewEvent" data-a1="<?= htmlspecialchars(json_encode($ev)) ?>"
                          title="<?= htmlspecialchars($_lgName ? $_lgName . ' — ' . $ev['title'] : $ev['title']) ?>">
                         <span class="ev-label">
                             <?php if ($ev['start_time'] && $ev['start_date'] === $dateStr): ?>
@@ -1674,7 +1674,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
                 <div class="week-allday-chip"
                      style="background:<?= htmlspecialchars($ev['color']) ?>"
                      title="<?= htmlspecialchars($_lgName ? $_lgName . ' — ' . $ev['title'] : $ev['title']) ?>"
-                     onclick="viewEvent(<?= htmlspecialchars(json_encode($ev)) ?>)">
+                     data-act="viewEvent" data-a1="<?= htmlspecialchars(json_encode($ev)) ?>">
                     <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">
                         <?php if ($_lgTag !== ''): ?><span class="ev-league-tag" title="<?= htmlspecialchars($_lgName) ?>"><?= htmlspecialchars($_lgTag) ?></span><?php endif; ?>
                         <?= htmlspecialchars($ev['title']) ?>
@@ -1715,7 +1715,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
 </div>
 
 <!-- ── View Event Modal ── -->
-<div class="modal-overlay" id="viewModal" onclick="if(event.target===this)closeView()">
+<div class="modal-overlay" id="viewModal" data-act-self="closeView">
     <div class="modal" style="overflow:hidden;display:flex;flex-direction:column">
         <div class="modal-header" style="flex-shrink:0">
             <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;flex:1;min-width:0">
@@ -1724,8 +1724,8 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
             </div>
             <div style="display:flex;gap:.3rem;align-items:center">
                 <button class="modal-close" id="vCopyLinkBtn" title="Copy link to this event"
-                        onclick="copyEventLink()" style="font-size:.95rem">&#128279;</button>
-                <button class="modal-close" onclick="closeView()">&#x2715;</button>
+                        data-act="copyEventLink" style="font-size:.95rem">&#128279;</button>
+                <button class="modal-close" data-act="closeView">&#x2715;</button>
             </div>
         </div>
         <!-- Single scroll region: header stays pinned, everything else (incl. the
@@ -1784,9 +1784,9 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
             <button type="button" class="btn btn-outline" title="Poll your Yes/Maybe guests" onclick="if(currentEvent)location.href='/event_polls.php?event_id='+currentEvent.id">Polls</button>
             <button type="button" class="btn btn-primary" onclick="if(currentEvent)location.href='/event_edit.php?id='+currentEvent.id+'&'+EDITOR_CTX">Edit</button>
             <button type="button" class="btn btn-outline" title="Create a new event prefilled from this one (same details and invite list, new date, no RSVPs)" onclick="if(currentEvent)location.href='/event_edit.php?copy='+currentEvent.id+'&'+EDITOR_CTX">Duplicate</button>
-            <?php if ($isAdmin): ?><button type="button" class="btn btn-outline" title="Walk-up QR code" onclick="openWalkinQR()" style="font-size:1rem;padding:.38rem .65rem">&#x1F4F1; QR</button><?php endif; ?>
+            <?php if ($isAdmin): ?><button type="button" class="btn btn-outline" title="Walk-up QR code" data-act="openWalkinQR" style="font-size:1rem;padding:.38rem .65rem">&#x1F4F1; QR</button><?php endif; ?>
             <form method="post" action="/calendar.php" style="margin:0"
-                  onsubmit="return pkConfirmForm(this, 'Delete this event?', {okLabel:'Delete', danger:true})">
+                  data-confirm="Delete this event?" data-confirm-ok="Delete" data-confirm-danger="1"">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <input type="hidden" name="action" value="delete">
                 <input type="hidden" name="id" id="vDeleteId">
@@ -1803,7 +1803,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
                 <span id="vCommentsHeading">0 Comments</span>
                 <?php if ($isAdmin): ?>
                 <label class="sel-all-label" id="vSelAllWrap" style="display:none">
-                    <input type="checkbox" id="vSelAll" onchange="toggleCalSelAll(this)"> Select all
+                    <input type="checkbox" id="vSelAll" data-act-change="toggleCalSelAll" data-change-a1="@self"> Select all
                 </label>
                 <?php endif; ?>
             </div>
@@ -1818,7 +1818,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
                     <input type="hidden" name="redirect" id="vBulkRedir" value="">
                     <button type="submit" class="btn btn-danger" style="font-size:.75rem;padding:.25rem .65rem">Delete selected</button>
                 </form>
-                <button type="button" onclick="clearCalSel()"
+                <button type="button" data-act="clearCalSel"
                         class="btn btn-outline" style="font-size:.75rem;padding:.25rem .65rem">Cancel</button>
             </div>
             <?php endif; ?>
@@ -1845,17 +1845,17 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
 
 <?php if ($isAdmin): ?>
 <!-- ── Walk-up QR Modal ── -->
-<div class="modal-overlay" id="walkinModal" onclick="if(event.target===this)closeWalkinQR()">
+<div class="modal-overlay" id="walkinModal" data-act-self="closeWalkinQR">
     <div class="modal" style="max-width:380px;text-align:center">
         <div class="modal-header" style="justify-content:space-between">
             <h2 style="font-size:1rem;font-weight:700">Walk-up Registration</h2>
-            <button class="modal-close" onclick="closeWalkinQR()">&#x2715;</button>
+            <button class="modal-close" data-act="closeWalkinQR">&#x2715;</button>
         </div>
         <div id="walkinQRCode" style="display:flex;justify-content:center;margin:.5rem 0 1rem"></div>
         <div id="walkinQRUrl" style="font-size:.72rem;color:#64748b;word-break:break-all;margin-bottom:.75rem;padding:0 .5rem"></div>
-        <button class="btn btn-outline" onclick="copyWalkinLink()" style="width:100%;margin-bottom:.5rem" id="walkinCopyBtn">Copy link</button>
-        <button class="btn btn-outline" onclick="openWalkinSeparate()" style="width:100%;margin-bottom:.5rem">Open on separate screen</button>
-        <button class="btn" onclick="closeWalkinQR()" style="width:100%;background:#f1f5f9;color:#475569">Close</button>
+        <button class="btn btn-outline" data-act="copyWalkinLink" style="width:100%;margin-bottom:.5rem" id="walkinCopyBtn">Copy link</button>
+        <button class="btn btn-outline" data-act="openWalkinSeparate" style="width:100%;margin-bottom:.5rem">Open on separate screen</button>
+        <button class="btn" data-act="closeWalkinQR" style="width:100%;background:#f1f5f9;color:#475569">Close</button>
     </div>
 </div>
 <?php endif; ?>
@@ -2081,14 +2081,14 @@ function renderCommentsPanel(eid) {
     list.innerHTML = comments.map(c => {
         const canAct = CAL_CURRENT_ID && (CAL_CURRENT_ID == c.user_id || IS_ADMIN);
         const checkbox = IS_ADMIN
-            ? `<input type="checkbox" class="comment-sel cal-comment-sel" value="${c.id}" onchange="onCalSelChange()">`
+            ? `<input type="checkbox" class="comment-sel cal-comment-sel" value="${c.id}" data-act-change="onCalSelChange">`
             : '';
         const actBtns = canAct ? `
             <div class="comment-actions">
                 <button type="button" class="comment-delete" title="Edit"
-                        onclick="editCalComment(${c.id}, this, ${escHtml(JSON.stringify(c.body))})">&#9998;</button>
+                        data-act="editCalComment" data-a1="${c.id}" data-a2="@self" data-a3="${escHtml(JSON.stringify(c.body))}">&#9998;</button>
                 <button type="button" class="comment-delete" title="Delete"
-                        onclick="deleteCalComment(${c.id})">&#x2715;</button>
+                        data-act="deleteCalComment" data-a1="${c.id}">&#x2715;</button>
             </div>` : '';
         return `
         <div class="comment" id="ccmt-${c.id}">
@@ -2406,9 +2406,9 @@ if (vCommentForm) {
             const actBtns = canAct ? `
                 <div class="comment-actions">
                     <button type="button" class="comment-delete" title="Edit"
-                            onclick="editCalComment(${c.id}, this, ${escHtml(JSON.stringify(c.body))})">&#9998;</button>
+                            data-act="editCalComment" data-a1="${c.id}" data-a2="@self" data-a3="${escHtml(JSON.stringify(c.body))}">&#9998;</button>
                     <button type="button" class="comment-delete" title="Delete"
-                            onclick="deleteCalComment(${c.id})">&#x2715;</button>
+                            data-act="deleteCalComment" data-a1="${c.id}">&#x2715;</button>
                 </div>` : '';
             const div = document.createElement('div');
             div.className = 'comment';
@@ -3196,11 +3196,11 @@ function copyWalkinLink() {
 
 <?php if ($current): ?>
 <!-- Compose "final details" message to going guests (host/manager only) -->
-<div class="modal-overlay" id="eventMsgModal" onclick="if(event.target===this)closeEventMsgModal()">
+<div class="modal-overlay" id="eventMsgModal" data-act-self="closeEventMsgModal">
     <div class="modal" style="max-width:640px;display:flex;flex-direction:column;max-height:92vh">
         <div class="modal-header" style="display:flex;align-items:center;gap:.6rem;border-bottom:1px solid #e2e8f0;padding-bottom:.6rem;margin-bottom:.75rem">
             <h2 style="margin:0;flex:1;font-size:1.15rem">Message going guests</h2>
-            <a href="javascript:void(0)" onclick="closeEventMsgModal()" aria-label="Close" style="font-size:1.5rem;line-height:1;color:#94a3b8;text-decoration:none">&times;</a>
+            <a href="javascript:void(0)" data-act="closeEventMsgModal" aria-label="Close" style="font-size:1.5rem;line-height:1;color:#94a3b8;text-decoration:none">&times;</a>
         </div>
         <p class="subtitle" style="margin-top:0">Send a message to your guests. They'll get it by their preferred channel; text recipients get a link to read it.</p>
         <input type="hidden" id="emEventId" value="">
@@ -3221,8 +3221,8 @@ function copyWalkinLink() {
             <textarea id="emBody" name="body"></textarea>
         </div>
         <div style="display:flex;gap:.6rem;justify-content:flex-end;margin-top:.5rem">
-            <button type="button" class="btn" onclick="closeEventMsgModal()">Cancel</button>
-            <button type="button" class="btn btn-primary" id="emSendBtn" onclick="sendEventMessage()">Send message</button>
+            <button type="button" class="btn" data-act="closeEventMsgModal">Cancel</button>
+            <button type="button" class="btn btn-primary" id="emSendBtn" data-act="sendEventMessage">Send message</button>
         </div>
     </div>
 </div>

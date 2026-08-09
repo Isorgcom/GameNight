@@ -113,7 +113,7 @@ unset($_SESSION['flash']);
         <h2>Notification Log (<?= $smsLogCount ?>)<?= $f_event_title !== '' ? ' — ' . htmlspecialchars($f_event_title) : '' ?></h2>
         <div class="sms-log-actions">
             <?php if ($isAdmin && $smsLogCount > 0): ?>
-            <form method="post" style="margin:0" onsubmit="return pkConfirmForm(this, 'Clear all SMS logs?', {danger:true})">
+            <form method="post" style="margin:0" data-confirm="Clear all SMS logs?" data-confirm-danger="1"">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <input type="hidden" name="action" value="sms_clear_log">
                 <button type="submit" class="btn btn-outline" style="font-size:.8rem;padding:.35rem .75rem;color:#dc2626;border-color:#fca5a5">Clear Log</button>

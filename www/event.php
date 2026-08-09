@@ -248,7 +248,7 @@ if ($token === '' && $page_eid > 0) {
             <a class="btn" style="background:#059669;color:#fff;text-decoration:none" href="/checkin.php?event_id=<?= $page_eid ?>">Manage Game</a>
             <?php endif; ?>
             <div class="ev-more-dd" id="evMoreDD">
-                <button type="button" class="btn btn-outline" onclick="toggleEvMore(event)">More <span style="font-size:.7rem">&#9662;</span></button>
+                <button type="button" class="btn btn-outline" data-act="toggleEvMore" data-a1="@event">More <span style="font-size:.7rem">&#9662;</span></button>
                 <div class="ev-more-panel" id="evMorePanel">
                     <a href="/event_edit.php?copy=<?= $page_eid ?>">Duplicate event</a>
                     <a href="/event_polls.php?event_id=<?= $page_eid ?>">Polls</a>
@@ -257,7 +257,7 @@ if ($token === '' && $page_eid > 0) {
                     <a href="/walkin_display.php?event_id=<?= $page_eid ?>" target="_blank" rel="noopener">&#x1F4F1; Walk-up QR</a>
                     <?php endif; ?>
                     <form method="post" action="/calendar.php" style="margin:0;border-top:1px solid #f1f5f9"
-                          onsubmit="return pkConfirmForm(this, 'Delete this event?', {okLabel:'Delete', danger:true})">
+                          data-confirm="Delete this event?" data-confirm-ok="Delete" data-confirm-danger="1"">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="id" value="<?= $page_eid ?>">
@@ -381,7 +381,7 @@ if ($token === '' && $page_eid > 0) {
             <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.45rem">
                 <span style="flex:1;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8">Messages from the host</span>
                 <?php if ($canManage && $notifsEnabled): ?>
-                <button type="button" class="btn" style="background:#16a34a;color:#fff;font-size:.78rem;padding:.3rem .8rem" onclick="openEventMsgModal()">Message guests</button>
+                <button type="button" class="btn" style="background:#16a34a;color:#fff;font-size:.78rem;padding:.3rem .8rem" data-act="openEventMsgModal">Message guests</button>
                 <?php endif; ?>
             </div>
             <?php if ($evMsgs): ?>
@@ -393,7 +393,7 @@ if ($token === '' && $page_eid > 0) {
                     <div style="display:flex;align-items:flex-start;gap:.5rem">
                         <div style="flex:1;min-width:0;font-weight:600;font-size:.85rem;color:#1e293b"><?= htmlspecialchars($m['subject']) ?></div>
                         <?php if ($canManage): ?>
-                        <button type="button" title="Delete this message" onclick="deleteEventMsg(<?= (int)$m['id'] ?>, this)" style="background:none;border:0;color:#cbd5e1;cursor:pointer;font-size:1.15rem;line-height:1;padding:0 .15rem">&times;</button>
+                        <button type="button" title="Delete this message" data-act="deleteEventMsg" data-a1="<?= (int)$m['id'] ?>" data-a2="@self" style="background:none;border:0;color:#cbd5e1;cursor:pointer;font-size:1.15rem;line-height:1;padding:0 .15rem">&times;</button>
                         <?php endif; ?>
                     </div>
                     <div style="font-size:.7rem;color:#94a3b8;margin:.1rem 0 .4rem"><?= htmlspecialchars($m['created_at']) ?><?= $canManage ? ' &middot; ' . htmlspecialchars($aud) : '' ?></div>
@@ -421,8 +421,8 @@ if ($token === '' && $page_eid > 0) {
                     <span class="who"><?= htmlspecialchars($c['username']) ?></span><span class="when"><?= htmlspecialchars($c['created_at']) ?></span>
                     <?php if ($canModC): ?>
                     <span style="float:right;display:inline-flex;gap:.3rem">
-                        <button type="button" title="Edit" onclick="editComment(<?= (int)$c['id'] ?>)" style="background:none;border:0;color:#94a3b8;cursor:pointer;font-size:.85rem;padding:0">&#9998;</button>
-                        <button type="button" title="Delete" onclick="deleteComment(<?= (int)$c['id'] ?>)" style="background:none;border:0;color:#94a3b8;cursor:pointer;font-size:.85rem;padding:0">&#x2715;</button>
+                        <button type="button" title="Edit" data-act="editComment" data-a1="<?= (int)$c['id'] ?>" style="background:none;border:0;color:#94a3b8;cursor:pointer;font-size:.85rem;padding:0">&#9998;</button>
+                        <button type="button" title="Delete" data-act="deleteComment" data-a1="<?= (int)$c['id'] ?>" style="background:none;border:0;color:#94a3b8;cursor:pointer;font-size:.85rem;padding:0">&#x2715;</button>
                     </span>
                     <?php endif; ?>
                     <div class="body" id="evcb-<?= (int)$c['id'] ?>"><?= htmlspecialchars($c['body']) ?></div>
@@ -620,11 +620,11 @@ async function editComment(id) {
 .inv-nocontact-tag{font-size:.65rem;font-weight:700;color:#991b1b;background:#fef2f2;border:1px solid #fecaca;border-radius:4px;padding:.05rem .3rem}
 .rsvp-yes{color:#16a34a;font-weight:700;font-size:.78rem}.rsvp-no{color:#dc2626;font-weight:700;font-size:.78rem}.rsvp-maybe{color:#d97706;font-weight:700;font-size:.78rem}
 </style>
-<div class="modal-overlay" id="eventMsgModal" onclick="if(event.target===this)closeEventMsgModal()">
+<div class="modal-overlay" id="eventMsgModal" data-act-self="closeEventMsgModal">
     <div class="modal" style="display:flex;flex-direction:column;max-height:92vh">
         <div style="display:flex;align-items:center;gap:.6rem;border-bottom:1px solid #e2e8f0;padding-bottom:.6rem;margin-bottom:.75rem">
             <h2 style="margin:0;flex:1;font-size:1.15rem">Message going guests</h2>
-            <a href="javascript:void(0)" onclick="closeEventMsgModal()" aria-label="Close" style="font-size:1.5rem;line-height:1;color:#94a3b8;text-decoration:none">&times;</a>
+            <a href="javascript:void(0)" data-act="closeEventMsgModal" aria-label="Close" style="font-size:1.5rem;line-height:1;color:#94a3b8;text-decoration:none">&times;</a>
         </div>
         <p style="margin-top:0;color:#64748b;font-size:.85rem">Send a message to your guests. They'll get it by their preferred channel; text recipients get a link to read it.</p>
         <div class="form-group">
@@ -644,8 +644,8 @@ async function editComment(id) {
             <textarea id="emBody" name="body"></textarea>
         </div>
         <div style="display:flex;gap:.6rem;justify-content:flex-end;margin-top:.5rem">
-            <button type="button" class="btn btn-outline" onclick="closeEventMsgModal()">Cancel</button>
-            <button type="button" class="btn btn-primary" id="emSendBtn" onclick="sendEventMessage()">Send message</button>
+            <button type="button" class="btn btn-outline" data-act="closeEventMsgModal">Cancel</button>
+            <button type="button" class="btn btn-primary" id="emSendBtn" data-act="sendEventMessage">Send message</button>
         </div>
     </div>
 </div>
