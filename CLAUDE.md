@@ -72,6 +72,11 @@ Schema and migrations live entirely in `db_init()` inside `www/db.php`. New colu
 - All DB queries use PDO prepared statements — never interpolate user input into SQL
 - Security headers (CSP, X-Frame-Options, etc.) are set in `auth.php` and applied globally
 - RSVP tokens allow one-click RSVP without login (stored in `event_invites.rsvp_token`)
+- **Authorization resolves through ids, never display strings.** Event authority comes from `event_invites.user_id` via `can_manage_event()` / `event_visibility_sql()`. A row with a NULL `user_id` is an invitee with no account and confers nothing. Never reintroduce a `LOWER(users.username) = LOWER(event_invites.username)` join: a username is user-chosen, so matching on it lets someone aim their account at another person's invite.
+- **Escaping into an HTML attribute has exactly two correct forms.** PHP: `htmlspecialchars(json_encode($v), ENT_QUOTES)`. JS in `timer.php`: `escAttr()`. Note `escHtml()` covers `<`, `>` and `&` but **not quotes**, so it is not safe for attribute context. Never `json_encode()` alone (its own delimiters close the attribute) and never `addslashes(htmlspecialchars(...))` (the entity encoding leaves no raw quote, so `addslashes` is a no-op and the browser decodes it back before compiling the handler).
+- **Two pre-push sweeps**, both run in a container since the build host has no `php`. See `SECURITY.md` for the commands and why each exists. Run them before any push touching more than one PHP file, and again against production after a deploy.
+
+**Known hardening gap:** the CSP allows `script-src 'unsafe-inline'`, so it provides no XSS mitigation. See `SECURITY.md` for why and the agreed path out.
 
 ## UI Conventions
 
