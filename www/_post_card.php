@@ -43,7 +43,7 @@ $redir = '/' . ($monthFilter ? '?month=' . urlencode($monthFilter) : '') . '#pos
                         ? '/admin_posts.php?edit=' . (int)$post['id']
                         : '/league.php?id=' . $__p_league_id . '&tab=posts&edit=' . (int)$post['id'] ?>">Edit</a>
                     <form method="post" action="<?= $__p_is_global ? '/admin_posts.php' : '/league_posts_dl.php' ?>" style="margin:0"
-                          onsubmit="return pkConfirmForm(this, 'Delete this post?', {okLabel:'Delete', danger:true})">
+                          data-confirm="Delete this post?" data-confirm-ok="Delete" data-confirm-danger="1">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
                         <input type="hidden" name="action" value="delete">
                         <?php if ($__p_is_global): ?>
@@ -64,14 +64,14 @@ $redir = '/' . ($monthFilter ? '?month=' . urlencode($monthFilter) : '') . '#pos
 
     <!-- Comments -->
     <div class="comments-section" id="csec-<?= (int)$post['id'] ?>">
-        <div class="comments-heading" onclick="toggleComments(<?= (int)$post['id'] ?>)">
+        <div class="comments-heading" data-pc="toggle-comments" data-post="<?= (int)$post['id'] ?>">
             <span class="cmts-toggle-label">
                 <span class="cmts-chevron">&#9658;</span>
                 <?= count($comments) ?> Comment<?= count($comments) !== 1 ? 's' : '' ?>
             </span>
             <?php if ($isAdmin && count($comments) > 0): ?>
-            <label class="sel-all-label" onclick="event.stopPropagation()">
-                <input type="checkbox" class="sel-all" onchange="toggleSelAll(<?= (int)$post['id'] ?>, this)"> Select all
+            <label class="sel-all-label" data-pc="stop">
+                <input type="checkbox" class="sel-all" data-pc="sel-all" data-post="<?= (int)$post['id'] ?>"> Select all
             </label>
             <?php endif; ?>
         </div>
@@ -80,14 +80,14 @@ $redir = '/' . ($monthFilter ? '?month=' . urlencode($monthFilter) : '') . '#pos
             <div class="bulk-bar" id="bulk-<?= (int)$post['id'] ?>" style="display:none">
                 <span class="bulk-count" id="bulkcount-<?= (int)$post['id'] ?>">0 selected</span>
                 <form method="post" action="/comment.php" style="margin:0;display:contents"
-                      onsubmit="return prepareBulkDelete(<?= (int)$post['id'] ?>, this)">
+                      data-pc="bulk-delete" data-post="<?= (int)$post['id'] ?>">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
                     <input type="hidden" name="action" value="bulk_delete">
                     <input type="hidden" name="comment_ids" value="">
                     <input type="hidden" name="redirect" value="<?= htmlspecialchars($redir) ?>">
                     <button type="submit" class="btn btn-danger" style="font-size:.75rem;padding:.25rem .65rem">Delete selected</button>
                 </form>
-                <button type="button" onclick="clearSel(<?= (int)$post['id'] ?>)"
+                <button type="button" data-pc="clear-sel" data-post="<?= (int)$post['id'] ?>"
                         class="btn btn-outline" style="font-size:.75rem;padding:.25rem .65rem">Cancel</button>
             </div>
             <?php endif; ?>
@@ -96,7 +96,7 @@ $redir = '/' . ($monthFilter ? '?month=' . urlencode($monthFilter) : '') . '#pos
             <div class="comment" id="cmt-<?= (int)$c['id'] ?>">
                 <?php if ($isAdmin): ?>
                 <input type="checkbox" class="comment-sel" value="<?= (int)$c['id'] ?>"
-                       onchange="onSelChange(<?= (int)$post['id'] ?>)">
+                       data-pc="sel-change" data-post="<?= (int)$post['id'] ?>">
                 <?php endif; ?>
                 <?= avatar_html($c['username'], $c['avatar_path'] ?? null, 34) ?>
                 <div class="comment-content">
@@ -108,10 +108,10 @@ $redir = '/' . ($monthFilter ? '?month=' . urlencode($monthFilter) : '') . '#pos
                     <?php if ($user && ($user['id'] == $c['user_id'] || $isAdmin)): ?>
                     <div class="comment-actions">
                         <button type="button" class="comment-delete"
-                                onclick="editComment(<?= (int)$c['id'] ?>, this)"
+                                data-pc="edit-comment" data-comment="<?= (int)$c['id'] ?>"
                                 title="Edit">&#9998;</button>
                         <form method="post" action="/comment.php" style="margin:0;display:contents"
-                              onsubmit="return pkConfirmForm(this, 'Delete this comment?', {okLabel:'Delete', danger:true})">
+                              data-confirm="Delete this comment?" data-confirm-ok="Delete" data-confirm-danger="1">
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
                             <input type="hidden" name="action" value="delete">
                             <input type="hidden" name="comment_id" value="<?= (int)$c['id'] ?>">

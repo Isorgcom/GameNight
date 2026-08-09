@@ -4,6 +4,11 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2073] - 2026-08-09
+
+### Security
+- **Inline event handlers removed from the nav and the post card, the first step toward dropping `script-src-attr 'unsafe-inline'`.** Inline `on*` attributes cannot be authorized by a CSP nonce, so they have to go before that directive can be tightened. `_nav.php` (7 handlers) and `_post_card.php` (9) are now at zero: controls carry `data-nav` / `data-pc` attributes and are dispatched by delegated listeners on `document`. Nav dispatch lives in the existing external `nav.js`, which needs no nonce since it is covered by `'self'`; post-card dispatch sits in `index.php` beside the functions it calls. Delegation rather than per-element binding is a requirement here, not a preference: `posts_chunk.php` injects further cards by AJAX after load. Form confirmations move to a reusable `data-confirm` / `data-confirm-ok` / `data-confirm-danger` trio handled by one `submit` listener that calls the existing `pkConfirmForm()`. Tree-wide count is 579 down to 564; `checkin.php` (165) and `timer.php` (154) remain, and the established pattern is written up in `SECURITY.md`.
+
 ## [v0.2072] - 2026-08-09
 
 ### Security

@@ -93,7 +93,7 @@ $_accent        = get_setting('accent_color', '');
                 <!-- Account avatar + personal menu (Notifications, Messages, My Events, Contacts, Settings, Sign out) -->
                 <div class="nav-dropdown-wrap nav-account-wrap">
                     <button type="button" class="nav-avatar-btn" title="Your account"
-                            onclick="var d=this.nextElementSibling;d.style.display=d.style.display==='block'?'none':'block';">
+                            data-nav="dropdown">
                         <?= avatar_html($_nu['username'], $_nu['avatar_path'] ?? null, 34) ?>
                         <span class="js-avatar-badge nav-avatar-badge" style="<?= $_combined > 0 ? '' : 'display:none' ?>"><?= $_combined > 99 ? '99+' : $_combined ?></span>
                     </button>
@@ -113,7 +113,7 @@ $_accent        = get_setting('accent_color', '');
                 </div>
                 <!-- Hamburger = site navigation only -->
                 <div class="nav-dropdown-wrap">
-                    <button class="nav-hamburger" title="Menu" onclick="var d=this.nextElementSibling;d.style.display=d.style.display==='block'?'none':'block';">&#9776;</button>
+                    <button class="nav-hamburger" title="Menu" data-nav="dropdown">&#9776;</button>
                     <div class="nav-dropdown">
                         <!-- Page links shown only on mobile (nav-links row hidden) -->
                         <a href="/" class="nav-mobile-link<?= $_active === 'home' ? ' active' : '' ?>">Home</a>
@@ -128,7 +128,7 @@ $_accent        = get_setting('accent_color', '');
                         <a href="<?= htmlspecialchars($_timer_href, ENT_QUOTES) ?>" class="nav-mobile-link">Tournament Timer</a>
                         <div class="nav-mobile-divider"></div>
                         <div class="nav-help-group<?= $_active === 'help' || $_active === 'support' ? ' open' : '' ?>">
-                            <button type="button" class="nav-help-toggle" onclick="this.parentElement.classList.toggle('open');">Help <span class="nav-help-caret" aria-hidden="true">&#9656;</span></button>
+                            <button type="button" class="nav-help-toggle" data-nav="help">Help <span class="nav-help-caret" aria-hidden="true">&#9656;</span></button>
                             <div class="nav-help-sub">
                                 <a href="/help-hosts.php">Host Guide</a>
                                 <a href="/help-guests.php">Guest Guide</a>
@@ -139,14 +139,14 @@ $_accent        = get_setting('accent_color', '');
                 </div>
             <?php else: ?>
                 <div class="nav-dropdown-wrap">
-                    <button class="nav-hamburger" title="Menu" onclick="var d=this.nextElementSibling;d.style.display=d.style.display==='block'?'none':'block';">&#9776;</button>
+                    <button class="nav-hamburger" title="Menu" data-nav="dropdown">&#9776;</button>
                     <div class="nav-dropdown">
                         <?php if (get_setting('show_landing_page', '0') !== '1'): ?>
                         <a href="/timer.php" class="nav-mobile-link">Tournament Timer</a>
                         <div class="nav-mobile-divider"></div>
                         <?php endif; ?>
                         <div class="nav-help-group<?= $_active === 'help' ? ' open' : '' ?>">
-                            <button type="button" class="nav-help-toggle" onclick="this.parentElement.classList.toggle('open');">Help <span class="nav-help-caret" aria-hidden="true">&#9656;</span></button>
+                            <button type="button" class="nav-help-toggle" data-nav="help">Help <span class="nav-help-caret" aria-hidden="true">&#9656;</span></button>
                             <div class="nav-help-sub">
                                 <a href="/help-hosts.php">Host Guide</a>
                                 <a href="/help-guests.php">Guest Guide</a>
@@ -166,9 +166,9 @@ $_accent        = get_setting('accent_color', '');
              src="<?= htmlspecialchars($_banner) ?>?v=<?= $_banner_v ?>"
              alt="<?= htmlspecialchars($site_name) ?>"
              style="max-height:38px;width:auto"
-             onclick="toggleNavCollapse()" title="Toggle navigation">
+             data-nav="collapse" title="Toggle navigation">
         <?php else: ?>
-        <button class="nav-collapse-btn" id="navCollapseBtn" title="Toggle navigation" onclick="toggleNavCollapse()">&#x25B2;</button>
+        <button class="nav-collapse-btn" id="navCollapseBtn" title="Toggle navigation" data-nav="collapse">&#x25B2;</button>
         <?php endif; ?>
     </div>
     <div class="nav-links nav-collapsible">

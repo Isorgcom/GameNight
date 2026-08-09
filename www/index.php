@@ -788,6 +788,51 @@ endif; ?>
 </script>
 
 <script nonce="<?= csp_nonce() ?>">
+// ── Post-card event delegation ────────────────────────────────────────────
+// _post_card.php carries no inline on* handlers; it tags elements with data-pc
+// and data-confirm instead, and they are dispatched here. Delegation on
+// document is what makes this work for cards injected later by posts_chunk.php
+// as well as the ones rendered with the page. Step 2 of the CSP work in
+// SECURITY.md: inline handlers cannot be authorised by a nonce, so they have to
+// go before script-src-attr 'unsafe-inline' can be dropped.
+document.addEventListener('click', function (e) {
+    var t = e.target.closest('[data-pc]');
+    if (!t) return;
+    var post = parseInt(t.dataset.post, 10);
+    switch (t.dataset.pc) {
+        case 'toggle-comments': toggleComments(post); break;
+        case 'stop':            e.stopPropagation(); break;
+        case 'clear-sel':       clearSel(post); break;
+        case 'edit-comment':    editComment(parseInt(t.dataset.comment, 10), t); break;
+    }
+});
+
+document.addEventListener('change', function (e) {
+    var t = e.target.closest('[data-pc]');
+    if (!t) return;
+    var post = parseInt(t.dataset.post, 10);
+    if (t.dataset.pc === 'sel-all')    toggleSelAll(post, t);
+    if (t.dataset.pc === 'sel-change') onSelChange(post);
+});
+
+document.addEventListener('submit', function (e) {
+    var f = e.target;
+    if (f.dataset && f.dataset.pc === 'bulk-delete') {
+        if (prepareBulkDelete(parseInt(f.dataset.post, 10), f) === false) e.preventDefault();
+        return;
+    }
+    // Generic confirm-before-submit, replacing onsubmit="return pkConfirmForm(...)".
+    // pkConfirmForm() resolves the dialog and then calls formEl.submit(), which
+    // does NOT fire the submit event again, so this cannot recurse.
+    if (f.dataset && f.dataset.confirm) {
+        e.preventDefault();
+        pkConfirmForm(f, f.dataset.confirm, {
+            okLabel: f.dataset.confirmOk || 'OK',
+            danger:  f.dataset.confirmDanger === '1'
+        });
+    }
+});
+
 function toggleComments(postId) {
     const body = document.getElementById('cmts-body-' + postId);
     const hdr  = body.previousElementSibling;
