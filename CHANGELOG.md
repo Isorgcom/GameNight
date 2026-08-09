@@ -4,6 +4,11 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2071] - 2026-08-09
+
+### Security
+- **Timer theme values are escaped and validated.** The layout inspector interpolated theme strings straight into HTML attributes, and theme properties were stored as whatever JSON was posted. Two layers now: a new `escAttr()` in `www/timer.php` covers all 21 interpolations across the element, page and tray inspectors, plus the theme picker's name; and `pk_theme_sanitize_props()` in `www/timer_dl.php` runs on every write path, requiring colour-named fields to be a hex value, an `rgb()`/`rgba()` expression or a CSS keyword, and stripping angle brackets and quotes from every stored string. Note the existing `escHtml()` handles `<`, `>` and `&` but not quotes, so it was never suitable for attribute context; that is what `escAttr()` is for, and new attribute interpolation should use it. Legitimate themes are unaffected: 3- and 6-digit hex, colour keywords, `rgba()`, numeric scales, stream URLs and nested gradient objects all round-trip unchanged.
+
 ## [v0.2070] - 2026-08-09
 
 ### Security

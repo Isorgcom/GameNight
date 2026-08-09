@@ -4289,7 +4289,7 @@ function renderThemeSelect() {
         } else groups.mine.push(t);
     });
     var html = '';
-    function opt(t) { return '<option value="'+t.id+'"'+(t.id == CURRENT_THEME_ID ? ' selected' : '')+'>'+t.name+'</option>'; }
+    function opt(t) { return '<option value="'+t.id+'"'+(t.id == CURRENT_THEME_ID ? ' selected' : '')+'>'+escHtml(t.name)+'</option>'; }
     if (groups.def.length)    html += '<optgroup label="Default">' + groups.def.map(opt).join('') + '</optgroup>';
     if (groups.global.length) html += '<optgroup label="Global">' + groups.global.map(opt).join('') + '</optgroup>';
     Object.keys(groups.league).forEach(function(k){
@@ -5397,24 +5397,24 @@ function renderInspector(key) {
             var critSec = parseInt(pe.critical_seconds, 10) || 30;
             // Normal — color only, no threshold (everything above Warning is Normal).
             rows.push('<div class="layout-inspector-row"><label>Normal</label>'
-                + '<input type="color" value="'+(pe.color_green||'#22c55e')+'" oninput="onInspectorColor(\'clock\',\'green\',this.value)"></div>');
+                + '<input type="color" value="'+escAttr(pe.color_green||'#22c55e')+'" oninput="onInspectorColor(\'clock\',\'green\',this.value)"></div>');
             // Warning ≤ N sec
             rows.push('<div class="layout-inspector-row"><label>Warning &le;</label>'
                 + '<span style="display:inline-flex;gap:.3rem;align-items:center">'
-                + '<input type="number" min="1" max="86400" value="'+warnSec+'" '
+                + '<input type="number" min="1" max="86400" value="'+escAttr(warnSec)+'" '
                 + 'style="width:4rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:4px;padding:.15rem .3rem;font-size:.8rem" '
                 + 'oninput="onClockThreshold(\'warning\',this.value)" title="Seconds remaining when clock switches to Warning color">'
                 + '<span style="color:#94a3b8;font-size:.75rem">sec</span>'
-                + '<input type="color" value="'+(pe.color_yellow||'#fbbf24')+'" oninput="onInspectorColor(\'clock\',\'yellow\',this.value)">'
+                + '<input type="color" value="'+escAttr(pe.color_yellow||'#fbbf24')+'" oninput="onInspectorColor(\'clock\',\'yellow\',this.value)">'
                 + '</span></div>');
             // Critical ≤ N sec
             rows.push('<div class="layout-inspector-row"><label>Critical &le;</label>'
                 + '<span style="display:inline-flex;gap:.3rem;align-items:center">'
-                + '<input type="number" min="1" max="86400" value="'+critSec+'" '
+                + '<input type="number" min="1" max="86400" value="'+escAttr(critSec)+'" '
                 + 'style="width:4rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:4px;padding:.15rem .3rem;font-size:.8rem" '
                 + 'oninput="onClockThreshold(\'critical\',this.value)" title="Seconds remaining when clock switches to Critical color (pulse)">'
                 + '<span style="color:#94a3b8;font-size:.75rem">sec</span>'
-                + '<input type="color" value="'+(pe.color_red||'#ef4444')+'" oninput="onInspectorColor(\'clock\',\'red\',this.value)">'
+                + '<input type="color" value="'+escAttr(pe.color_red||'#ef4444')+'" oninput="onInspectorColor(\'clock\',\'red\',this.value)">'
                 + '</span></div>');
 
             // Clock variant — Text / Radial ring / Radial w/ checks
@@ -5430,7 +5430,7 @@ function renderInspector(key) {
                 var thick = (pe.radial_thickness != null) ? parseFloat(pe.radial_thickness) : 0.12;
                 rows.push('<div class="layout-inspector-row"><label>Thickness</label>'
                     + '<span style="display:inline-flex;align-items:center;gap:.3rem">'
-                    + '<input type="range" min="0.04" max="0.30" step="0.01" value="'+thick+'" '
+                    + '<input type="range" min="0.04" max="0.30" step="0.01" value="'+escAttr(thick)+'" '
                     + 'oninput="onClockRadialOpt(\'radial_thickness\', parseFloat(this.value))" style="width:6rem">'
                     + '<span style="color:#94a3b8;font-size:.75rem" id="ins_thick_val">'+Math.round(thick*100)+'%</span>'
                     + '</span></div>');
@@ -5444,7 +5444,7 @@ function renderInspector(key) {
                 if (variant === 'radial-checks') {
                     var segs = parseInt(pe.radial_segments, 10) || 12;
                     rows.push('<div class="layout-inspector-row"><label>Segments</label>'
-                        + '<input type="number" min="2" max="60" value="'+segs+'" '
+                        + '<input type="number" min="2" max="60" value="'+escAttr(segs)+'" '
                         + 'style="width:4rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:4px;padding:.15rem .3rem;font-size:.8rem" '
                         + 'oninput="onClockRadialOpt(\'radial_segments\', Math.max(2, Math.min(60, parseInt(this.value,10)||12)))"></div>');
                 }
@@ -5452,7 +5452,7 @@ function renderInspector(key) {
         } else {
             var col = pe.color || '#94a3b8';
             rows.push('<div class="layout-inspector-row"><label>Color</label>'
-                + '<input type="color" value="'+col+'" oninput="onInspectorColor(\''+key+'\',null,this.value)"></div>');
+                + '<input type="color" value="'+escAttr(col)+'" oninput="onInspectorColor(\''+key+'\',null,this.value)"></div>');
         }
     }
 
@@ -5476,7 +5476,7 @@ function renderInspector(key) {
         var fontKey = pe.font || '';
         var fontOpts = FONT_OPTIONS.map(function(f){
             var sel = (f.key === fontKey) ? ' selected' : '';
-            return '<option value="'+f.key+'"'+sel+'>'+f.label+'</option>';
+            return '<option value="'+escAttr(f.key)+'"'+sel+'>'+escHtml(f.label)+'</option>';
         }).join('');
         rows.push('<div class="layout-inspector-row"><label>Font</label>'
             + '<select onchange="onInspectorFont(\''+key+'\',this.value)" class="ins-btn" style="padding:.2rem .4rem;min-width:8.5rem">'
@@ -5485,7 +5485,7 @@ function renderInspector(key) {
         var lsKey = pe.letter_spacing || '';
         var lsOpts = LETTER_SPACING_OPTIONS.map(function(s){
             var sel = (s.key === lsKey) ? ' selected' : '';
-            return '<option value="'+s.key+'"'+sel+'>'+s.label+'</option>';
+            return '<option value="'+escAttr(s.key)+'"'+sel+'>'+escHtml(s.label)+'</option>';
         }).join('');
         rows.push('<div class="layout-inspector-row"><label>Spacing</label>'
             + '<select onchange="onInspectorLetterSpacing(\''+key+'\',this.value)" class="ins-btn" style="padding:.2rem .4rem;min-width:6rem">'
@@ -5523,7 +5523,7 @@ function renderInspector(key) {
         var safeUrl = (pe.url || '').replace(/"/g, '&quot;');
         rows.push(''
             + '<div class="layout-inspector-row"><label>URL</label>'
-            + '<input type="url" value="'+safeUrl+'" placeholder="YouTube / Twitch / Prime URL" '
+            + '<input type="url" value="'+escAttr(safeUrl)+'" placeholder="YouTube / Twitch / Prime URL" '
             + 'style="flex:1;min-width:11rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:4px;padding:.2rem .4rem;font-size:.8rem" '
             + 'onchange="onStreamUrlChange(this.value)"></div>');
         if (pe.url) {
@@ -5619,7 +5619,7 @@ function renderPageInspector() {
         var sel = (bgType === val) ? 'checked' : '';
         var disp = hidden ? 'display:none' : '';
         return '<div class="layout-inspector-row" id="page_bg_row_'+val+'" style="'+disp+'">'
-            + '<label><input type="radio" name="pageBgType" value="'+val+'" '+sel+' onchange="onPageBgType(this.value)"> '+label+'</label></div>';
+            + '<label><input type="radio" name="pageBgType" value="'+escAttr(val)+'" '+sel+' onchange="onPageBgType(this.value)"> '+label+'</label></div>';
     }
 
     var rows = [];
@@ -5633,24 +5633,24 @@ function renderPageInspector() {
     // Solid color row
     rows.push('<div class="layout-inspector-row" id="page_solid_row" style="'+(bgType==='color'?'':'display:none')+'">'
         + '<label>Color</label>'
-        + '<input type="color" value="'+solidColor+'" oninput="onPageBgChange(\'color\', this.value)"></div>');
+        + '<input type="color" value="'+escAttr(solidColor)+'" oninput="onPageBgChange(\'color\', this.value)"></div>');
     // Gradient rows
     rows.push('<div id="page_grad_block" style="'+(bgType==='gradient'?'':'display:none')+'">'
         + '<div class="layout-inspector-row"><label>From</label>'
-        + '<input type="color" value="'+gFrom+'" oninput="onPageBgChange(\'gfrom\', this.value)"></div>'
+        + '<input type="color" value="'+escAttr(gFrom)+'" oninput="onPageBgChange(\'gfrom\', this.value)"></div>'
         + '<div class="layout-inspector-row"><label>To</label>'
-        + '<input type="color" value="'+gTo+'" oninput="onPageBgChange(\'gto\', this.value)"></div>'
+        + '<input type="color" value="'+escAttr(gTo)+'" oninput="onPageBgChange(\'gto\', this.value)"></div>'
         + '<div class="layout-inspector-row"><label>Angle <span id="page_gang_lbl" style="color:#94a3b8;font-size:0.75rem">'+gAng+'°</span></label>'
-        + '<input type="range" min="0" max="360" value="'+gAng+'" style="width:7rem" oninput="onPageBgChange(\'gangle\', this.value);document.getElementById(\'page_gang_lbl\').textContent=this.value+\'°\'"></div>'
+        + '<input type="range" min="0" max="360" value="'+escAttr(gAng)+'" style="width:7rem" oninput="onPageBgChange(\'gangle\', this.value);document.getElementById(\'page_gang_lbl\').textContent=this.value+\'°\'"></div>'
         + '</div>');
 
     rows.push('<div style="font-size:0.75rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin:0.6rem 0 0.25rem">Toolbar</div>');
     rows.push('<div class="layout-inspector-row"><label>Button bg</label>'
-        + '<input type="color" value="'+trayBg+'" oninput="onPageTrayChange(\'bg_color\', this.value)"></div>');
+        + '<input type="color" value="'+escAttr(trayBg)+'" oninput="onPageTrayChange(\'bg_color\', this.value)"></div>');
     rows.push('<div class="layout-inspector-row"><label>Button text</label>'
-        + '<input type="color" value="'+trayBtn+'" oninput="onPageTrayChange(\'button_color\', this.value)"></div>');
+        + '<input type="color" value="'+escAttr(trayBtn)+'" oninput="onPageTrayChange(\'button_color\', this.value)"></div>');
     rows.push('<div class="layout-inspector-row"><label>Accent</label>'
-        + '<input type="color" value="'+trayAccent+'" oninput="onPageTrayChange(\'accent_color\', this.value)"></div>');
+        + '<input type="color" value="'+escAttr(trayAccent)+'" oninput="onPageTrayChange(\'accent_color\', this.value)"></div>');
 
     // Stream URL — placed in the Page inspector so it's discoverable without first
     // clicking the (initially hidden) Stream element on the canvas. Bootstraps the
@@ -5659,7 +5659,7 @@ function renderPageInspector() {
     var streamUrl = (streamEl.url || '').replace(/"/g, '&quot;');
     rows.push('<div style="font-size:0.75rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin:0.6rem 0 0.25rem">Stream</div>');
     rows.push('<div class="layout-inspector-row"><label>URL</label>'
-        + '<input type="url" value="'+streamUrl+'" placeholder="YouTube / Twitch / Prime URL" '
+        + '<input type="url" value="'+escAttr(streamUrl)+'" placeholder="YouTube / Twitch / Prime URL" '
         + 'style="flex:1;min-width:11rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:4px;padding:.2rem .4rem;font-size:.8rem" '
         + 'onchange="onStreamUrlChange(this.value);renderInspector(\'page\')"></div>');
     if (streamEl.url) {
@@ -6224,6 +6224,17 @@ function escHtml(s) {
     var d = document.createElement('div');
     d.appendChild(document.createTextNode(s));
     return d.innerHTML;
+}
+
+// Attribute-safe escape. escHtml() covers < > &, which is enough for text nodes
+// but NOT for an attribute: a value containing a double quote closes the
+// attribute and everything after it is parsed as markup. Theme properties are
+// stored as free-form JSON, so a league theme could carry
+//   #fff"><img src=x onerror=...>
+// in a colour field and inject into the layout inspector for every member who
+// opened it. Everything interpolated into an attribute below goes through this.
+function escAttr(s) {
+    return escHtml(String(s == null ? '' : s)).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 // ─── §7.21  Export/Import Blind Structures ──────────────────────────
