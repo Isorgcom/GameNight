@@ -4,6 +4,12 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2076] - 2026-08-09
+
+### Security
+- **The tournament timer has no inline event handlers left.** All 157 `on*` attributes in `www/timer.php` are gone, replaced by `data-act*` attributes dispatched from delegated listeners, matching the idiom `checkin.php` uses. Arguments are namespaced per event from the outset (`data-keydown-a1` and so on) so the duplicate-attribute collision fixed in v0.2075 cannot recur, and element- or event-derived values use `@value`, `@checked`, `@checked01`, `@event` and `@self` tokens resolved at call time. Former inline expressions became named functions: `savePresetOnEnter`, `saveThemeOnEnter`, `objectsRowEye`, `objectsRowUp`, `objectsRowDown`, `toggleElementAndRefresh`, `flipClockRadialDirection`, `pageGradientAngle`, `streamUrlChanged`, `streamUrlCleared`, `clickFileInput`, `clockRadialSegments`, `clockRadialThickness`. Tree-wide the count is 401 down to 244, with the remaining handlers spread across smaller pages. This is step 2 of the CSP work in `SECURITY.md`; the nonce from v0.2072 already blocks injected `<script>` elements, and dropping `script-src-attr 'unsafe-inline'` becomes possible once the count reaches zero.
+- **Timer delegation runs in the capture phase.** The control tray stops click propagation so that clicking it does not trigger the close-on-outside-click handler, which left a bubble-phase listener on `document` unable to see the play, sound and level buttons at all. Inline handlers were unaffected because they run at the target; capturing restores that ordering without altering tray behaviour, and guards against any other ancestor doing the same. Verified against a before/after snapshot of every handler binding in the live DOM: 167 bindings before, 167 after, none lost or gained, plus 924 dispatch checks across seven panels and nine event types confirming each control receives exactly the arguments its attributes describe.
+
 ## [v0.2075] - 2026-08-09
 
 ### Security
