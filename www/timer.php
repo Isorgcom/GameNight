@@ -1494,20 +1494,20 @@ $themeCss   = timer_theme_css_vars($themeProps);
 <!-- Floating control while in free-form layout edit mode (draggable). -->
 <div class="layout-edit-pill" id="layoutEditPill">
     <span class="pill-handle" id="pillHandle" title="Drag to move toolbar">&#9776;</span>
-    <button type="button" onclick="openObjectsPanel()" title="Show / hide / select objects">&#128203; Objects</button>
-    <button type="button" onclick="openThemes()" title="Load / save themes">&#128218; Library</button>
-    <button class="btn-done" type="button" onclick="exitLayoutEdit(true)">&#10003; Save</button>
-    <button type="button" onclick="resetPositions()" title="Snap elements back to default positions">&#8635; Reset</button>
-    <button type="button" id="snapToggleBtn" onclick="toggleSnap()" title="Toggle snap (Shift = momentary off on a keyboard)">&#129522; Snap</button>
+    <button type="button" data-act="openObjectsPanel" title="Show / hide / select objects">&#128203; Objects</button>
+    <button type="button" data-act="openThemes" title="Load / save themes">&#128218; Library</button>
+    <button class="btn-done" type="button" data-act="exitLayoutEdit" data-a1="true">&#10003; Save</button>
+    <button type="button" data-act="resetPositions" title="Snap elements back to default positions">&#8635; Reset</button>
+    <button type="button" id="snapToggleBtn" data-act="toggleSnap" title="Toggle snap (Shift = momentary off on a keyboard)">&#129522; Snap</button>
     <span class="pill-sep"></span>
-    <button type="button" onclick="exitLayoutEdit(false)">&times; Close</button>
+    <button type="button" data-act="exitLayoutEdit" data-a1="false">&times; Close</button>
 </div>
 
 <!-- Inspector for the selected element (draggable). -->
 <div class="layout-inspector" id="layoutInspector">
     <div class="layout-inspector-header" id="inspectorHeader">
         <h4 id="inspectorTitle">Element</h4>
-        <button class="layout-inspector-close" type="button" onclick="closeInspector()" title="Close">&times;</button>
+        <button class="layout-inspector-close" type="button" data-act="closeInspector" title="Close">&times;</button>
     </div>
     <div class="layout-inspector-body" id="inspectorBody"></div>
 </div>
@@ -1516,7 +1516,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
 <div class="layout-objects-panel" id="layoutObjectsPanel">
     <div class="layout-objects-header" id="objectsHeader">
         <h4>Objects</h4>
-        <button class="layout-inspector-close" type="button" onclick="closeObjectsPanel()" title="Close">&times;</button>
+        <button class="layout-inspector-close" type="button" data-act="closeObjectsPanel" title="Close">&times;</button>
     </div>
     <div class="layout-objects-body" id="objectsBody"></div>
 </div>
@@ -1545,7 +1545,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
             <option value="<?= (int)$le['id'] ?>"><?= htmlspecialchars($le['title']) ?><?= ($le['session_status'] ?? '') === 'active' ? ' (live)' : '' ?> &mdash; <?= htmlspecialchars($le['start_date']) ?></option>
             <?php endforeach; ?>
         </select>
-        <button type="button" class="tlb-btn" onclick="linkTimerToEvent()">Link</button>
+        <button type="button" class="tlb-btn" data-act="linkTimerToEvent">Link</button>
     </span>
 </div>
 <?php endif; ?>
@@ -1592,38 +1592,38 @@ $themeCss   = timer_theme_css_vars($themeProps);
     <div class="timer-tray" id="timerTray">
         <div class="timer-tray-grid">
             <?php if ($can_control): ?>
-            <button onclick="skipLevel(-1)" title="Previous level">&#9198;<span class="tray-label">Prev</span></button>
-            <button class="btn-play" id="btnPlay" onclick="togglePlay()">&#9654;<span class="tray-label">Start</span></button>
-            <button onclick="skipLevel(1)" title="Next level">&#9197;<span class="tray-label">Next</span></button>
+            <button data-act="skipLevel" data-a1="-1" title="Previous level">&#9198;<span class="tray-label">Prev</span></button>
+            <button class="btn-play" id="btnPlay" data-act="togglePlay">&#9654;<span class="tray-label">Start</span></button>
+            <button data-act="skipLevel" data-a1="1" title="Next level">&#9197;<span class="tray-label">Next</span></button>
             <span class="timer-tray-sep"></span>
             <span class="timer-min-group">
-                <button onclick="adjustTime(-60)" title="Remove 1 minute">&#9660;</button>
+                <button data-act="adjustTime" data-a1="-60" title="Remove 1 minute">&#9660;</button>
                 <span class="timer-min-label">Min</span>
-                <button onclick="adjustTime(60)" title="Add 1 minute">&#9650;</button>
+                <button data-act="adjustTime" data-a1="60" title="Add 1 minute">&#9650;</button>
             </span>
             <span class="timer-reset-group">
-                <button onclick="resetLevel()" title="Reset level">&#8635;<span class="tray-label">Level</span></button>
-                <button onclick="resetTimer()" title="Reset timer" class="btn-danger">&#10226;<span class="tray-label" style="color:#ef4444">Timer</span></button>
+                <button data-act="resetLevel" title="Reset level">&#8635;<span class="tray-label">Level</span></button>
+                <button data-act="resetTimer" title="Reset timer" class="btn-danger">&#10226;<span class="tray-label" style="color:#ef4444">Timer</span></button>
             </span>
-            <button onclick="sendCommand('undo')" title="Undo the last timer action (skip, time change, reset, play/pause)">&#8630;<span class="tray-label">Undo</span></button>
+            <button data-act="sendCommand" data-a1="'undo'" title="Undo the last timer action (skip, time change, reset, play/pause)">&#8630;<span class="tray-label">Undo</span></button>
             <span class="timer-tray-sep"></span>
             <?php endif; ?>
-            <button id="btnSound" onclick="toggleSound()" title="Toggle sound">&#128276;<span class="tray-label">Sound</span></button>
-            <button id="btnFullscreen" onclick="goFullscreen()" title="Fullscreen">&#9974;<span class="tray-label">Full</span></button>
+            <button id="btnSound" data-act="toggleSound" title="Toggle sound">&#128276;<span class="tray-label">Sound</span></button>
+            <button id="btnFullscreen" data-act="goFullscreen" title="Fullscreen">&#9974;<span class="tray-label">Full</span></button>
             <?php if (!$is_display): ?>
-            <button onclick="openDisplayMode()" title="Open TV display in new tab">&#128250;<span class="tray-label">TV</span></button>
+            <button data-act="openDisplayMode" title="Open TV display in new tab">&#128250;<span class="tray-label">TV</span></button>
             <?php endif; ?>
             <?php if (!$is_remote): ?>
             <span class="timer-tray-sep"></span>
-            <button onclick="openLevels()" title="Blind structure">&#128203;<span class="tray-label">Levels</span></button>
+            <button data-act="openLevels" title="Blind structure">&#128203;<span class="tray-label">Levels</span></button>
             <?php if (!$is_guest): ?>
-            <button onclick="enterLayoutEdit()" title="Customize theme &amp; layout">&#127912;<span class="tray-label">Theme</span></button>
-            <button onclick="openSoundSettings()" title="Sound settings">&#9881;<span class="tray-label">Sounds</span></button>
+            <button data-act="enterLayoutEdit" title="Customize theme &amp; layout">&#127912;<span class="tray-label">Theme</span></button>
+            <button data-act="openSoundSettings" title="Sound settings">&#9881;<span class="tray-label">Sounds</span></button>
             <?php endif; ?>
             <?php endif; ?>
             <?php if ($can_control && $event && $session): ?>
             <span class="timer-tray-sep"></span>
-            <button id="ppTrayBtn" onclick="togglePlayerPanel()" title="Players">&#128101;<span class="tray-label">Players</span></button>
+            <button id="ppTrayBtn" data-act="togglePlayerPanel" title="Players">&#128101;<span class="tray-label">Players</span></button>
             <?php endif; ?>
         </div>
     </div>
@@ -1637,11 +1637,11 @@ $themeCss   = timer_theme_css_vars($themeProps);
 
 <?php if ($can_control && $event && $session): ?>
 <!-- Player management slide-out panel -->
-<div class="player-panel-overlay" id="playerPanelOverlay" onclick="togglePlayerPanel()" style="display:none"></div>
+<div class="player-panel-overlay" id="playerPanelOverlay" data-act="togglePlayerPanel" style="display:none"></div>
 <div class="player-panel" id="playerPanel">
     <div class="player-panel-header">
         <span>Players</span>
-        <button onclick="togglePlayerPanel()" style="background:none;border:none;color:#94a3b8;font-size:1.3rem;cursor:pointer">&times;</button>
+        <button data-act="togglePlayerPanel" style="background:none;border:none;color:#94a3b8;font-size:1.3rem;cursor:pointer">&times;</button>
     </div>
     <div class="player-panel-body" id="playerPanelBody">
         <div style="text-align:center;padding:2rem;color:#64748b">Loading...</div>
@@ -1666,28 +1666,28 @@ $themeCss   = timer_theme_css_vars($themeProps);
 
 <?php if (!$is_remote): ?>
 <!-- Levels editor overlay -->
-<div class="timer-levels-overlay" id="levelsOverlay" onclick="if(event.target===this)closeLevels()">
+<div class="timer-levels-overlay" id="levelsOverlay" data-act-self="closeLevels">
     <div class="timer-levels-panel" style="position:relative">
-        <button onclick="closeLevels()" style="position:absolute;top:0.75rem;right:0.75rem;z-index:7;background:none;border:none;color:#94a3b8;font-size:1.5rem;cursor:pointer;line-height:1;padding:0.25rem">&times;</button>
+        <button data-act="closeLevels" style="position:absolute;top:0.75rem;right:0.75rem;z-index:7;background:none;border:none;color:#94a3b8;font-size:1.5rem;cursor:pointer;line-height:1;padding:0.25rem">&times;</button>
         <div class="timer-editor-head">
             <div class="timer-editor-titlebar">
                 <h3>Blind Structure</h3>
-                <button id="btnSaveLevels" class="btn-save" onclick="saveLevels()">Save</button>
-                <button onclick="openGenerator()" title="Build a full structure from a few settings">&#9881; Generate</button>
-                <button onclick="addLevel(false)">+ Add Level</button>
-                <button onclick="addLevel(true)">+ Add Break</button>
-                <button class="btn-close-panel" onclick="closeLevels()">Close</button>
+                <button id="btnSaveLevels" class="btn-save" data-act="saveLevels">Save</button>
+                <button data-act="openGenerator" title="Build a full structure from a few settings">&#9881; Generate</button>
+                <button data-act="addLevel" data-a1="false">+ Add Level</button>
+                <button data-act="addLevel" data-a1="true">+ Add Break</button>
+                <button class="btn-close-panel" data-act="closeLevels">Close</button>
             </div>
             <?php if (!$is_guest): ?>
             <div class="timer-preset-bar">
-                <select id="presetSelect" onchange="updatePresetButtons()"><option value="">Loading...</option></select>
-                <button onclick="loadPreset()">Load</button>
-                <button onclick="savePresetAs()">Save As...</button>
-                <button id="btnDeletePreset" onclick="deletePreset()">Delete</button>
-                <button id="btnSetDefault" onclick="setAsDefault()" style="display:none">Set Default</button>
-                <button onclick="exportLevels()">Export</button>
-                <button onclick="document.getElementById('importFile').click()">Import</button>
-                <input type="file" id="importFile" accept=".csv" style="display:none" onchange="importLevels(this)">
+                <select id="presetSelect" data-act-change="updatePresetButtons"><option value="">Loading...</option></select>
+                <button data-act="loadPreset">Load</button>
+                <button data-act="savePresetAs">Save As...</button>
+                <button id="btnDeletePreset" data-act="deletePreset">Delete</button>
+                <button id="btnSetDefault" data-act="setAsDefault" style="display:none">Set Default</button>
+                <button data-act="exportLevels">Export</button>
+                <button data-act="clickFileInput" data-a1="importFile">Import</button>
+                <input type="file" id="importFile" accept=".csv" style="display:none" data-act-change="importLevels" data-change-a1="@self">
             </div>
             <?php else: ?>
             <div class="timer-preset-bar" style="justify-content:center">
@@ -1705,23 +1705,23 @@ $themeCss   = timer_theme_css_vars($themeProps);
 </div>
 
 <!-- Unsaved-changes confirmation (closing the levels editor) -->
-<div class="timer-levels-overlay" id="closeConfirmOverlay" onclick="if(event.target===this)closeCloseConfirm()">
+<div class="timer-levels-overlay" id="closeConfirmOverlay" data-act-self="closeCloseConfirm">
     <div class="timer-levels-panel" style="max-width:420px;position:relative">
-        <button onclick="closeCloseConfirm()" type="button"
+        <button data-act="closeCloseConfirm" type="button"
                 style="position:absolute;top:0.75rem;right:0.75rem;background:none;border:none;color:#94a3b8;font-size:1.5rem;cursor:pointer;line-height:1;padding:0.25rem">&times;</button>
         <h3>Unsaved changes</h3>
         <p style="color:#cbd5e1;font-size:.9rem;margin:0 0 1rem">You have unsaved changes to the blind structure. Discard them, or keep editing?</p>
         <div class="timer-level-btns">
-            <button type="button" onclick="discardLevelsAndClose()" style="background:#dc2626;border-color:#dc2626;color:#fff">Discard</button>
-            <button class="btn-save" type="button" onclick="closeCloseConfirm()">Keep editing</button>
+            <button type="button" data-act="discardLevelsAndClose" style="background:#dc2626;border-color:#dc2626;color:#fff">Discard</button>
+            <button class="btn-save" type="button" data-act="closeCloseConfirm">Keep editing</button>
         </div>
     </div>
 </div>
 
 <!-- Save Preset As modal -->
-<div class="timer-levels-overlay" id="savePresetOverlay" onclick="if(event.target===this)closeSavePresetModal()">
+<div class="timer-levels-overlay" id="savePresetOverlay" data-act-self="closeSavePresetModal">
     <div class="timer-levels-panel" style="max-width:440px;position:relative">
-        <button onclick="closeSavePresetModal()" type="button"
+        <button data-act="closeSavePresetModal" type="button"
                 style="position:absolute;top:0.75rem;right:0.75rem;background:none;border:none;color:#94a3b8;font-size:1.5rem;cursor:pointer;line-height:1;padding:0.25rem">&times;</button>
         <h3>Save Preset As</h3>
         <div style="display:flex;flex-direction:column;gap:1rem;margin-bottom:1rem">
@@ -1729,7 +1729,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
                 Preset name
                 <input type="text" id="savePresetName" autocomplete="off"
                        style="display:block;width:100%;margin-top:.3rem;padding:.5rem .65rem;border:1.5px solid #334155;border-radius:6px;background:#0f172a;color:#e2e8f0;font-size:.95rem"
-                       onkeydown="if(event.key==='Enter'){event.preventDefault();confirmSavePresetAs();}">
+                       data-act-keydown="savePresetOnEnter" data-keydown-a1="@event">
             </label>
             <label style="font-size:.85rem;color:#cbd5e1">
                 Save to
@@ -1738,16 +1738,16 @@ $themeCss   = timer_theme_css_vars($themeProps);
             </label>
         </div>
         <div class="timer-level-btns">
-            <button class="btn-save" type="button" onclick="confirmSavePresetAs()">Save</button>
-            <button class="btn-close-panel" type="button" onclick="closeSavePresetModal()">Cancel</button>
+            <button class="btn-save" type="button" data-act="confirmSavePresetAs">Save</button>
+            <button class="btn-close-panel" type="button" data-act="closeSavePresetModal">Cancel</button>
         </div>
     </div>
 </div>
 
 <!-- Structure generator modal — build a full blind schedule from a few inputs -->
-<div class="timer-levels-overlay" id="genOverlay" onclick="if(event.target===this)closeGenerator()">
+<div class="timer-levels-overlay" id="genOverlay" data-act-self="closeGenerator">
     <div class="timer-levels-panel" style="max-width:460px;position:relative">
-        <button onclick="closeGenerator()" type="button"
+        <button data-act="closeGenerator" type="button"
                 style="position:absolute;top:0.75rem;right:0.75rem;background:none;border:none;color:#94a3b8;font-size:1.5rem;cursor:pointer;line-height:1;padding:0.25rem">&times;</button>
         <h3>Generate Structure</h3>
         <p style="font-size:.8rem;color:#94a3b8;margin:0 0 1rem">Builds a full blind schedule you can then fine-tune. Big blind is always twice the small blind.</p>
@@ -1772,61 +1772,61 @@ $themeCss   = timer_theme_css_vars($themeProps);
                        style="display:block;width:100%;margin-top:.3rem;padding:.5rem .65rem;border:1.5px solid #334155;border-radius:6px;background:#0f172a;color:#e2e8f0;font-size:.95rem"></label>
         </div>
         <div class="timer-level-btns">
-            <button class="btn-save" type="button" onclick="confirmGenerate()">Generate</button>
-            <button class="btn-close-panel" type="button" onclick="closeGenerator()">Cancel</button>
+            <button class="btn-save" type="button" data-act="confirmGenerate">Generate</button>
+            <button class="btn-close-panel" type="button" data-act="closeGenerator">Cancel</button>
         </div>
     </div>
 </div>
 
 <?php if (!$is_guest): ?>
 <!-- Theme library modal — pick / load / save-as / delete / set-default a saved theme. -->
-<div class="timer-levels-overlay" id="themeOverlay" onclick="if(event.target===this)closeThemes()">
+<div class="timer-levels-overlay" id="themeOverlay" data-act-self="closeThemes">
     <div class="timer-levels-panel" style="max-width:520px;position:relative">
-        <button onclick="closeThemes()" type="button"
+        <button data-act="closeThemes" type="button"
                 style="position:absolute;top:0.75rem;right:0.75rem;background:none;border:none;color:#94a3b8;font-size:1.5rem;cursor:pointer;line-height:1;padding:0.25rem">&times;</button>
         <h3>Theme Library</h3>
         <p style="font-size:.8rem;color:#94a3b8;margin:0 0 .75rem">Pick a saved theme, save your current edits as a new one, or set the default.</p>
 
         <div class="timer-preset-bar">
-            <select id="themeSelect" onchange="updateThemeButtons()"><option value="">Loading...</option></select>
-            <button onclick="loadTheme()">Load</button>
-            <button onclick="saveThemeAs()">Save As...</button>
-            <button id="btnDeleteTheme" onclick="deleteTheme()">Delete</button>
-            <button id="btnSetDefaultTheme" onclick="setAsDefaultTheme()" style="display:none">Set Default</button>
-            <button onclick="exportTheme()" title="Download selected theme as a JSON file">Export</button>
-            <button onclick="document.getElementById('themeImportFile').click()" title="Load a theme JSON file from another install">Import</button>
-            <input type="file" id="themeImportFile" accept=".json,application/json" style="display:none" onchange="importTheme(this)">
-            <button onclick="openPresets()" title="Browse built-in preset themes">Presets&hellip;</button>
+            <select id="themeSelect" data-act-change="updateThemeButtons"><option value="">Loading...</option></select>
+            <button data-act="loadTheme">Load</button>
+            <button data-act="saveThemeAs">Save As...</button>
+            <button id="btnDeleteTheme" data-act="deleteTheme">Delete</button>
+            <button id="btnSetDefaultTheme" data-act="setAsDefaultTheme" style="display:none">Set Default</button>
+            <button data-act="exportTheme" title="Download selected theme as a JSON file">Export</button>
+            <button data-act="clickFileInput" data-a1="themeImportFile" title="Load a theme JSON file from another install">Import</button>
+            <input type="file" id="themeImportFile" accept=".json,application/json" style="display:none" data-act-change="importTheme" data-change-a1="@self">
+            <button data-act="openPresets" title="Browse built-in preset themes">Presets&hellip;</button>
         </div>
 
         <div class="timer-level-btns" style="margin-top:1rem">
-            <button class="btn-close-panel" onclick="closeThemes()">Close</button>
+            <button class="btn-close-panel" data-act="closeThemes">Close</button>
         </div>
     </div>
 </div>
 
 <!-- Preset theme gallery — built-in .gnt.json presets with live mini-previews. -->
-<div class="timer-levels-overlay" id="presetOverlay" onclick="if(event.target===this)closePresets()">
+<div class="timer-levels-overlay" id="presetOverlay" data-act-self="closePresets">
     <div class="timer-levels-panel" style="max-width:760px;position:relative">
-        <button onclick="closePresets()" type="button"
+        <button data-act="closePresets" type="button"
                 style="position:absolute;top:0.75rem;right:0.75rem;background:none;border:none;color:#94a3b8;font-size:1.5rem;cursor:pointer;line-height:1;padding:0.25rem">&times;</button>
         <h3>Preset Themes</h3>
         <p style="font-size:.8rem;color:#94a3b8;margin:0 0 .75rem">Browse built-in presets. Loading one saves it as your own editable theme.</p>
         <div id="presetAdminBar" style="display:none;margin-bottom:.5rem">
-            <button onclick="document.getElementById('presetUploadFile').click()" title="Upload a .gnt.json preset to the shared library">&#8593; Upload preset</button>
-            <input type="file" id="presetUploadFile" accept=".json,application/json" style="display:none" onchange="uploadPreset(this)">
+            <button data-act="clickFileInput" data-a1="presetUploadFile" title="Upload a .gnt.json preset to the shared library">&#8593; Upload preset</button>
+            <input type="file" id="presetUploadFile" accept=".json,application/json" style="display:none" data-act-change="uploadPreset" data-change-a1="@self">
         </div>
         <div class="preset-gallery-grid" id="presetGrid"><p style="color:#94a3b8">Loading&hellip;</p></div>
         <div class="timer-level-btns" style="margin-top:.5rem">
-            <button class="btn-close-panel" onclick="closePresets()">Close</button>
+            <button class="btn-close-panel" data-act="closePresets">Close</button>
         </div>
     </div>
 </div>
 
 <!-- Save Theme As modal -->
-<div class="timer-levels-overlay" id="saveThemeOverlay" onclick="if(event.target===this)closeSaveThemeModal()">
+<div class="timer-levels-overlay" id="saveThemeOverlay" data-act-self="closeSaveThemeModal">
     <div class="timer-levels-panel" style="max-width:440px;position:relative">
-        <button onclick="closeSaveThemeModal()" type="button"
+        <button data-act="closeSaveThemeModal" type="button"
                 style="position:absolute;top:0.75rem;right:0.75rem;background:none;border:none;color:#94a3b8;font-size:1.5rem;cursor:pointer;line-height:1;padding:0.25rem">&times;</button>
         <h3>Save Theme As</h3>
         <div style="display:flex;flex-direction:column;gap:1rem;margin-bottom:1rem">
@@ -1834,7 +1834,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
                 Theme name
                 <input type="text" id="saveThemeName" autocomplete="off"
                        style="display:block;width:100%;margin-top:.3rem;padding:.5rem .65rem;border:1.5px solid #334155;border-radius:6px;background:#0f172a;color:#e2e8f0;font-size:.95rem"
-                       onkeydown="if(event.key==='Enter'){event.preventDefault();confirmSaveThemeAs();}">
+                       data-act-keydown="saveThemeOnEnter" data-keydown-a1="@event">
             </label>
             <label style="font-size:.85rem;color:#cbd5e1">
                 Save to
@@ -1843,16 +1843,16 @@ $themeCss   = timer_theme_css_vars($themeProps);
             </label>
         </div>
         <div class="timer-level-btns">
-            <button class="btn-save" type="button" onclick="confirmSaveThemeAs()">Save</button>
-            <button class="btn-close-panel" type="button" onclick="closeSaveThemeModal()">Cancel</button>
+            <button class="btn-save" type="button" data-act="confirmSaveThemeAs">Save</button>
+            <button class="btn-close-panel" type="button" data-act="closeSaveThemeModal">Cancel</button>
         </div>
     </div>
 </div>
 
 <!-- Confirm Save modal — overwrite current theme or branch to Save As New -->
-<div class="timer-levels-overlay" id="confirmSaveOverlay" onclick="if(event.target===this)closeConfirmSave()">
+<div class="timer-levels-overlay" id="confirmSaveOverlay" data-act-self="closeConfirmSave">
     <div class="timer-levels-panel" style="max-width:420px;position:relative">
-        <button onclick="closeConfirmSave()" type="button"
+        <button data-act="closeConfirmSave" type="button"
                 style="position:absolute;top:0.75rem;right:0.75rem;background:none;border:none;color:#94a3b8;font-size:1.5rem;cursor:pointer;line-height:1;padding:0.25rem">&times;</button>
         <h3>Save Theme</h3>
         <p style="color:#cbd5e1;font-size:.9rem;margin:0 0 .5rem">Saving to: <b id="confirmSaveName" style="color:#fff">My Theme</b></p>
@@ -1860,9 +1860,9 @@ $themeCss   = timer_theme_css_vars($themeProps);
             This theme is protected &mdash; saving will create a personal copy.
         </p>
         <div class="timer-level-btns">
-            <button class="btn-save" type="button" onclick="confirmSaveOverwrite()">&#128190; Save</button>
-            <button type="button" onclick="confirmSaveAsNew()">&#128221; Save As New&hellip;</button>
-            <button class="btn-close-panel" type="button" onclick="closeConfirmSave()">Cancel</button>
+            <button class="btn-save" type="button" data-act="confirmSaveOverwrite">&#128190; Save</button>
+            <button type="button" data-act="confirmSaveAsNew">&#128221; Save As New&hellip;</button>
+            <button class="btn-close-panel" type="button" data-act="closeConfirmSave">Cancel</button>
         </div>
     </div>
 </div>
@@ -1871,7 +1871,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
 
 <?php if (!$is_remote): ?>
 <!-- Sound settings overlay -->
-<div class="timer-levels-overlay" id="soundOverlay" onclick="if(event.target===this)closeSoundSettings()">
+<div class="timer-levels-overlay" id="soundOverlay" data-act-self="closeSoundSettings">
     <div class="timer-levels-panel" style="max-width:500px">
         <h3>Sound Settings</h3>
 
@@ -1899,12 +1899,12 @@ $themeCss   = timer_theme_css_vars($themeProps);
                     <option value="preset:countdown">Countdown (3-2-1-GO)</option>
                     <option value="preset:double">Double Beep</option>
 </select>
-                <button onclick="previewSound('end')" style="background:#334155;color:#e2e8f0;border:1px solid #475569;border-radius:6px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.85rem">&#9654; Test</button>
+                <button data-act="previewSound" data-a1="'end'" style="background:#334155;color:#e2e8f0;border:1px solid #475569;border-radius:6px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.85rem">&#9654; Test</button>
             </div>
             <div style="margin-top:0.5rem">
                 <label style="display:inline-block;background:#334155;color:#e2e8f0;border:1px solid #475569;border-radius:6px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.85rem">
                     Upload Custom...
-                    <input type="file" id="alarmUpload" accept="audio/*" style="display:none" onchange="uploadSound('alarm')">
+                    <input type="file" id="alarmUpload" accept="audio/*" style="display:none" data-act-change="uploadSound" data-change-a1="'alarm'">
                 </label>
                 <span id="alarmUploadStatus" style="color:#94a3b8;font-size:0.8rem;margin-left:0.5rem"></span>
             </div>
@@ -1922,12 +1922,12 @@ $themeCss   = timer_theme_css_vars($themeProps);
                     <option value="preset:countdown">Countdown (3-2-1-GO)</option>
                     <option value="preset:double">Double Beep</option>
 </select>
-                <button onclick="previewSound('start')" style="background:#334155;color:#e2e8f0;border:1px solid #475569;border-radius:6px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.85rem">&#9654; Test</button>
+                <button data-act="previewSound" data-a1="'start'" style="background:#334155;color:#e2e8f0;border:1px solid #475569;border-radius:6px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.85rem">&#9654; Test</button>
             </div>
             <div style="margin-top:0.5rem">
                 <label style="display:inline-block;background:#334155;color:#e2e8f0;border:1px solid #475569;border-radius:6px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.85rem">
                     Upload Custom...
-                    <input type="file" id="startUpload" accept="audio/*" style="display:none" onchange="uploadSound('start')">
+                    <input type="file" id="startUpload" accept="audio/*" style="display:none" data-act-change="uploadSound" data-change-a1="'start'">
                 </label>
                 <span id="startUploadStatus" style="color:#94a3b8;font-size:0.8rem;margin-left:0.5rem"></span>
             </div>
@@ -1943,26 +1943,26 @@ $themeCss   = timer_theme_css_vars($themeProps);
                     <option value="preset:chirp">Chirp</option>
                     <option value="preset:gentle">Gentle Tone</option>
                 </select>
-                <button onclick="previewSound('warning')" style="background:#334155;color:#e2e8f0;border:1px solid #475569;border-radius:6px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.85rem">&#9654; Test</button>
+                <button data-act="previewSound" data-a1="'warning'" style="background:#334155;color:#e2e8f0;border:1px solid #475569;border-radius:6px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.85rem">&#9654; Test</button>
             </div>
             <div style="margin-top:0.5rem">
                 <label style="display:inline-block;background:#334155;color:#e2e8f0;border:1px solid #475569;border-radius:6px;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.85rem">
                     Upload Custom...
-                    <input type="file" id="warningUpload" accept="audio/*" style="display:none" onchange="uploadSound('warning')">
+                    <input type="file" id="warningUpload" accept="audio/*" style="display:none" data-act-change="uploadSound" data-change-a1="'warning'">
                 </label>
                 <span id="warningUploadStatus" style="color:#94a3b8;font-size:0.8rem;margin-left:0.5rem"></span>
             </div>
         </div>
 
         <label style="display:flex;align-items:center;gap:.5rem;font-size:.85rem;color:#cbd5e1;margin-top:1rem;cursor:pointer">
-            <input type="checkbox" id="muteStreamCheckbox" onchange="onMuteStreamToggle(this.checked)">
+            <input type="checkbox" id="muteStreamCheckbox" data-act-change="onMuteStreamToggle" data-change-a1="@checked">
             Mute streaming video while alarms play
             <span style="color:#94a3b8;font-size:.72rem">&nbsp;(YouTube &amp; Vimeo only)</span>
         </label>
 
         <div class="timer-level-btns">
-            <button class="btn-save" onclick="saveSoundSettings()">Save</button>
-            <button class="btn-close-panel" onclick="closeSoundSettings()">Close</button>
+            <button class="btn-save" data-act="saveSoundSettings">Save</button>
+            <button class="btn-close-panel" data-act="closeSoundSettings">Close</button>
         </div>
     </div>
 </div>
@@ -1981,6 +1981,126 @@ var REMOTE_KEY = <?= json_encode($remote_key) ?>;
 // Admin-configured extra stream hosts (must mirror the CSP frame-src allowlist in auth.php).
 var EXTRA_STREAM_HOSTS = <?= json_encode(stream_allowed_hosts()) ?>;
 var CSRF = <?= json_encode($csrf) ?>;
+
+// ── Declarative handler dispatch (CSP step 2, see SECURITY.md) ────────────
+// Same idiom as checkin.php. Inline on* attributes cannot be authorised by a
+// nonce, so controls carry a data-act* attribute naming the function and these
+// delegated listeners invoke it. Delegation on document is required, not
+// tidier: the timer re-renders its panels and the layout inspector constantly,
+// so per-element binding would be lost on every repaint.
+//
+//   data-act            click       -> fn()
+//   data-act-<evt>      that event  -> fn()      (change, input, keydown,
+//                                                 dragstart, dragover, drop,
+//                                                 dragend)
+//   data-act-self       click, but ONLY when the click is on the element itself
+//                       (the modal-backdrop pattern, was if(event.target===this))
+//   data-stop           swallow the click so an ancestor action does not fire
+//
+// Arguments live in data-a1..a4 for click and data-<evt>-a1..a4 for every other
+// event. They are namespaced per event because one element can carry two
+// handlers, and a shared namespace emits a duplicate attribute — HTML keeps the
+// first, so the second handler silently gets the wrong arguments. That bug cost
+// a broken Enter key in checkin.php (v0.2075); it is designed out here.
+// ── Named replacements for former inline expressions (CSP step 2) ─────────
+function savePresetOnEnter(ev) {
+    if (ev.key !== 'Enter') return;
+    ev.preventDefault();
+    confirmSavePresetAs();
+}
+function saveThemeOnEnter(ev) {
+    if (ev.key !== 'Enter') return;
+    ev.preventDefault();
+    confirmSaveThemeAs();
+}
+// The objects-list row buttons sit inside a row that has its own click action,
+// so each swallowed the click before doing its own job.
+function objectsRowEye(ev, key)   { ev.stopPropagation(); onObjectsRowEye(key); }
+function objectsRowUp(ev, key)    { ev.stopPropagation(); moveObjectLayer(key, -1); }
+function objectsRowDown(ev, key)  { ev.stopPropagation(); moveObjectLayer(key, 1); }
+function toggleElementAndRefresh(key) {
+    toggleElementVisibility(key);
+    renderInspector(key);
+}
+function flipClockRadialDirection(dir) {
+    onClockRadialOpt('radial_direction', dir === 'ccw' ? 'cw' : 'ccw');
+    renderInspector('clock');
+}
+function pageGradientAngle() {
+    onPageBgChange('gangle', this.value);
+    var lbl = document.getElementById('page_gang_lbl');
+    if (lbl) lbl.textContent = this.value + '\u00B0';
+}
+function streamUrlChanged() {
+    onStreamUrlChange(this.value);
+    renderInspector('page');
+}
+function streamUrlCleared() {
+    onStreamUrlChange('');
+    renderInspector('page');
+}
+
+function clickFileInput(id) {
+    var el = document.getElementById(id);
+    if (el) el.click();
+}
+function clockRadialSegments() {
+    onClockRadialOpt('radial_segments', Math.max(2, Math.min(60, parseInt(this.value, 10) || 12)));
+}
+function clockRadialThickness() {
+    onClockRadialOpt('radial_thickness', parseFloat(this.value));
+}
+
+function _tokenT(tok, el, ev) {
+    switch (tok) {
+        case '@value':     return el.value;
+        case '@checked':   return el.checked;
+        case '@checked01': return el.checked ? 1 : 0;
+        case '@event':     return ev;
+        case '@self':      return el;
+        default:           return tok;
+    }
+}
+function _argsT(el, ev, pfx) {
+    var out = [];
+    for (var i = 1; i <= 4; i++) {
+        var v = el.getAttribute('data-' + (pfx || '') + 'a' + i);
+        if (v === null) break;
+        if (v.charAt(0) === '@')        out.push(_tokenT(v, el, ev));
+        else if (v === 'true')          out.push(true);
+        else if (v === 'false')         out.push(false);
+        else if (v !== '' && !isNaN(v)) out.push(Number(v));
+        else out.push(v);
+    }
+    return out;
+}
+function _dispatchT(name, el, ev, pfx) {
+    var fn = window[name];
+    if (typeof fn === 'function') return fn.apply(el || null, _argsT(el, ev, pfx));
+    console.warn('[timer] no handler named', name);   // a dead control is silent otherwise
+}
+// CAPTURE phase, deliberately. The control tray stops click propagation so a
+// click inside it does not trigger the close-on-outside-click handler
+// (see tray.addEventListener('click', ...) further down), which means a
+// bubble-phase listener on document never sees the play, sound or level
+// buttons at all. Inline handlers were unaffected because they ran AT the
+// target. Capturing restores that ordering without changing tray behaviour.
+document.addEventListener('click', function (e) {
+    if (e.target instanceof Element && e.target.hasAttribute('data-act-self')) {
+        _dispatchT(e.target.getAttribute('data-act-self'), e.target, e, '');
+        return;
+    }
+    if (!e.target.closest) return;
+    var t = e.target.closest('[data-act], [data-stop]');
+    if (!t || t.hasAttribute('data-stop')) return;
+    _dispatchT(t.getAttribute('data-act'), t, e, '');
+}, true);
+['change', 'input', 'keydown', 'dragstart', 'dragover', 'drop', 'dragend'].forEach(function (evt) {
+    document.addEventListener(evt, function (e) {
+        var t = e.target.closest ? e.target.closest('[data-act-' + evt + ']') : null;
+        if (t) _dispatchT(t.getAttribute('data-act-' + evt), t, e, evt + '-');
+    }, true);
+});
 var POLL_INTERVAL = 2000; // everyone polls server every 2s
 // Touch/mobile detection — used to skip rendering the streaming iframe on phones/tablets,
 // because cross-origin iframes capture taps that would otherwise re-acquire the wake lock.
@@ -3236,19 +3356,19 @@ function renderLevelsTable() {
         var brk = parseInt(lv.is_break);
         var cls = brk ? ' class="is-break"' : '';
         if (parseInt(lv.level_number) === TIMER.current_level) cls = ' class="current-level"';
-        h += '<tr' + cls + ' data-idx="' + i + '" ondragover="onDragOver(event)" ondrop="onDrop(event)">';
-        h += '<td draggable="true" ondragstart="onDragStart(event)" ondragend="onDragEnd()" style="cursor:grab;color:#64748b;user-select:none" title="Drag to reorder">&#9776; ' + (i + 1) + '</td>';
-        h += '<td><input type="number" step="any" min="0" value="' + (brk ? 0 : lv.small_blind) + '" data-idx="' + i + '" data-field="small_blind" oninput="markLevelsDirty()"' + (brk ? ' disabled' : '') + '></td>';
-        h += '<td><input type="number" step="any" min="0" value="' + (brk ? 0 : lv.big_blind) + '" data-idx="' + i + '" data-field="big_blind" oninput="markLevelsDirty()"' + (brk ? ' disabled' : '') + '></td>';
-        h += '<td><input type="number" step="any" min="0" value="' + (brk ? 0 : lv.ante) + '" data-idx="' + i + '" data-field="ante" oninput="markLevelsDirty()"' + (brk ? ' disabled' : '') + '></td>';
-        h += '<td><input type="number" value="' + lv.duration_minutes + '" data-idx="' + i + '" data-field="duration_minutes" oninput="markLevelsDirty()" style="width:55px"></td>';
+        h += '<tr' + cls + ' data-idx="' + i + '" data-act-dragover="onDragOver" data-dragover-a1="@event" data-act-drop="onDrop" data-drop-a1="@event">';
+        h += '<td draggable="true" data-act-dragstart="onDragStart" data-dragstart-a1="@event" data-act-dragend="onDragEnd" style="cursor:grab;color:#64748b;user-select:none" title="Drag to reorder">&#9776; ' + (i + 1) + '</td>';
+        h += '<td><input type="number" step="any" min="0" value="' + (brk ? 0 : lv.small_blind) + '" data-idx="' + i + '" data-field="small_blind" data-act-input="markLevelsDirty"' + (brk ? ' disabled' : '') + '></td>';
+        h += '<td><input type="number" step="any" min="0" value="' + (brk ? 0 : lv.big_blind) + '" data-idx="' + i + '" data-field="big_blind" data-act-input="markLevelsDirty"' + (brk ? ' disabled' : '') + '></td>';
+        h += '<td><input type="number" step="any" min="0" value="' + (brk ? 0 : lv.ante) + '" data-idx="' + i + '" data-field="ante" data-act-input="markLevelsDirty"' + (brk ? ' disabled' : '') + '></td>';
+        h += '<td><input type="number" value="' + lv.duration_minutes + '" data-idx="' + i + '" data-field="duration_minutes" data-act-input="markLevelsDirty" style="width:55px"></td>';
         h += '<td>' + (brk ? 'BREAK' : 'Play') + '</td>';
         h += '<td class="lvl-actions">';
-        h += '<button class="lvl-move" onclick="moveLevel(' + i + ', -1)" title="Move up" style="color:#94a3b8"' + (i === 0 ? ' disabled' : '') + '>&#9650;</button>';
-        h += '<button class="lvl-move" onclick="moveLevel(' + i + ', 1)" title="Move down" style="color:#94a3b8"' + (i === LEVELS.length - 1 ? ' disabled' : '') + '>&#9660;</button>';
-        h += '<button onclick="insertLevel(' + i + ', false)" title="Insert level here" style="color:#22c55e;font-size:0.9rem">+</button>';
-        h += '<button onclick="insertLevel(' + i + ', true)" title="Insert break here" style="color:#fbbf24;font-size:0.9rem">&#9202;</button>';
-        h += '<button onclick="removeLevel(' + i + ')" title="Remove">&times;</button>';
+        h += '<button class="lvl-move" data-act="moveLevel" data-a1="' + i + '" data-a2="-1" title="Move up" style="color:#94a3b8"' + (i === 0 ? ' disabled' : '') + '>&#9650;</button>';
+        h += '<button class="lvl-move" data-act="moveLevel" data-a1="' + i + '" data-a2="1" title="Move down" style="color:#94a3b8"' + (i === LEVELS.length - 1 ? ' disabled' : '') + '>&#9660;</button>';
+        h += '<button data-act="insertLevel" data-a1="' + i + '" data-a2="false" title="Insert level here" style="color:#22c55e;font-size:0.9rem">+</button>';
+        h += '<button data-act="insertLevel" data-a1="' + i + '" data-a2="true" title="Insert break here" style="color:#fbbf24;font-size:0.9rem">&#9202;</button>';
+        h += '<button data-act="removeLevel" data-a1="' + i + '" title="Remove">&times;</button>';
         h += '</td>';
         h += '</tr>';
     }
@@ -4398,8 +4518,8 @@ function renderPresetCard(preset) {
         '<div class="preset-foot">' +
             '<span class="preset-name" title="' + esc(preset.name) + '">' + esc(preset.name) + '</span>' +
             '<span style="display:flex;gap:.3rem;flex:0 0 auto">' +
-                '<button onclick="loadPresetTheme(' + esc(keyJson) + ')">Load</button>' +
-                (IS_ADMIN ? '<button onclick="deletePresetTheme(' + esc(keyJson) + ')" title="Delete preset file">&times;</button>' : '') +
+                '<button data-act="loadPresetTheme" data-a1="' + esc(keyJson) + '">Load</button>' +
+                (IS_ADMIN ? '<button data-act="deletePresetTheme" data-a1="' + esc(keyJson) + '" title="Delete preset file">&times;</button>' : '') +
             '</span>' +
         '</div>';
     return card;
@@ -5229,15 +5349,15 @@ function renderObjectsPanel() {
         var safeKey = meta.key.replace(/'/g, "\\'");
         var upDis = (i === 0) ? ' disabled' : '';
         var dnDis = (i === metas.length - 1) ? ' disabled' : '';
-        html += '<div class="' + rowCls + '" data-key="' + meta.key + '" onclick="onObjectsRowClick(event,\'' + safeKey + '\')">'
-              +   '<span class="obj-grip" title="Drag to restack" onclick="event.stopPropagation()">&#9776;</span>'
+        html += '<div class="' + rowCls + '" data-key="' + meta.key + '" data-act="onObjectsRowClick" data-a1="@event" data-a2="' + safeKey + '">'
+              +   '<span class="obj-grip" title="Drag to restack" data-stop="1">&#9776;</span>'
               +   '<button type="button" class="' + eyeCls + '" '
-              +           'onclick="event.stopPropagation();onObjectsRowEye(\'' + safeKey + '\')"'
+              +           'data-act="objectsRowEye" data-a1="@event" data-a2="' + safeKey + '"'
               +           ' title="Toggle visibility">' + eyeGlyph + '</button>'
               +   '<span class="obj-label">' + meta.label + '</span>'
               +   '<span class="obj-move">'
-              +     '<button type="button" title="Bring forward" onclick="event.stopPropagation();moveObjectLayer(\'' + safeKey + '\',-1)"' + upDis + '>&#9650;</button>'
-              +     '<button type="button" title="Send backward" onclick="event.stopPropagation();moveObjectLayer(\'' + safeKey + '\',1)"' + dnDis + '>&#9660;</button>'
+              +     '<button type="button" title="Bring forward" data-act="objectsRowUp" data-a1="@event" data-a2="' + safeKey + '"' + upDis + '>&#9650;</button>'
+              +     '<button type="button" title="Send backward" data-act="objectsRowDown" data-a1="@event" data-a2="' + safeKey + '"' + dnDis + '>&#9660;</button>'
               +   '</span>'
               + '</div>';
     });
@@ -5386,7 +5506,7 @@ function renderInspector(key) {
     // Visibility
     rows.push(''
         + '<div class="layout-inspector-row"><label>Visible</label>'
-        + '<button type="button" class="ins-btn" onclick="toggleElementVisibility(\''+key+'\');renderInspector(\''+key+'\')">'
+        + '<button type="button" class="ins-btn" data-act="toggleElementAndRefresh" data-a1="'+key+'">'
         + (pe.visible === false ? '&#128064; Show' : '&#128065; Hide')
         + '</button></div>');
 
@@ -5397,30 +5517,30 @@ function renderInspector(key) {
             var critSec = parseInt(pe.critical_seconds, 10) || 30;
             // Normal — color only, no threshold (everything above Warning is Normal).
             rows.push('<div class="layout-inspector-row"><label>Normal</label>'
-                + '<input type="color" value="'+escAttr(pe.color_green||'#22c55e')+'" oninput="onInspectorColor(\'clock\',\'green\',this.value)"></div>');
+                + '<input type="color" value="'+escAttr(pe.color_green||'#22c55e')+'" data-act-input="onInspectorColor" data-input-a1="clock" data-input-a2="green" data-input-a3="@value"></div>');
             // Warning ≤ N sec
             rows.push('<div class="layout-inspector-row"><label>Warning &le;</label>'
                 + '<span style="display:inline-flex;gap:.3rem;align-items:center">'
                 + '<input type="number" min="1" max="86400" value="'+escAttr(warnSec)+'" '
                 + 'style="width:4rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:4px;padding:.15rem .3rem;font-size:.8rem" '
-                + 'oninput="onClockThreshold(\'warning\',this.value)" title="Seconds remaining when clock switches to Warning color">'
+                + 'data-act-input="onClockThreshold" data-input-a1="warning" data-input-a2="@value" title="Seconds remaining when clock switches to Warning color">'
                 + '<span style="color:#94a3b8;font-size:.75rem">sec</span>'
-                + '<input type="color" value="'+escAttr(pe.color_yellow||'#fbbf24')+'" oninput="onInspectorColor(\'clock\',\'yellow\',this.value)">'
+                + '<input type="color" value="'+escAttr(pe.color_yellow||'#fbbf24')+'" data-act-input="onInspectorColor" data-input-a1="clock" data-input-a2="yellow" data-input-a3="@value">'
                 + '</span></div>');
             // Critical ≤ N sec
             rows.push('<div class="layout-inspector-row"><label>Critical &le;</label>'
                 + '<span style="display:inline-flex;gap:.3rem;align-items:center">'
                 + '<input type="number" min="1" max="86400" value="'+escAttr(critSec)+'" '
                 + 'style="width:4rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:4px;padding:.15rem .3rem;font-size:.8rem" '
-                + 'oninput="onClockThreshold(\'critical\',this.value)" title="Seconds remaining when clock switches to Critical color (pulse)">'
+                + 'data-act-input="onClockThreshold" data-input-a1="critical" data-input-a2="@value" title="Seconds remaining when clock switches to Critical color (pulse)">'
                 + '<span style="color:#94a3b8;font-size:.75rem">sec</span>'
-                + '<input type="color" value="'+escAttr(pe.color_red||'#ef4444')+'" oninput="onInspectorColor(\'clock\',\'red\',this.value)">'
+                + '<input type="color" value="'+escAttr(pe.color_red||'#ef4444')+'" data-act-input="onInspectorColor" data-input-a1="clock" data-input-a2="red" data-input-a3="@value">'
                 + '</span></div>');
 
             // Clock variant — Text / Radial ring / Radial w/ checks
             var variant = pe.variant || 'text';
             rows.push('<div class="layout-inspector-row"><label>Style</label>'
-                + '<select onchange="onClockVariant(this.value)" class="ins-btn" style="padding:.2rem .4rem;min-width:9rem">'
+                + '<select data-act-change="onClockVariant" data-change-a1="@value" class="ins-btn" style="padding:.2rem .4rem;min-width:9rem">'
                 +   '<option value="text"'          + (variant==='text'?' selected':'')          + '>Text</option>'
                 +   '<option value="radial-ring"'   + (variant==='radial-ring'?' selected':'')   + '>Radial ring</option>'
                 +   '<option value="radial-checks"' + (variant==='radial-checks'?' selected':'') + '>Radial w/ checks</option>'
@@ -5431,14 +5551,13 @@ function renderInspector(key) {
                 rows.push('<div class="layout-inspector-row"><label>Thickness</label>'
                     + '<span style="display:inline-flex;align-items:center;gap:.3rem">'
                     + '<input type="range" min="0.04" max="0.30" step="0.01" value="'+escAttr(thick)+'" '
-                    + 'oninput="onClockRadialOpt(\'radial_thickness\', parseFloat(this.value))" style="width:6rem">'
+                    + 'data-act-input="clockRadialThickness" style="width:6rem">'
                     + '<span style="color:#94a3b8;font-size:.75rem" id="ins_thick_val">'+Math.round(thick*100)+'%</span>'
                     + '</span></div>');
 
                 var dir = (pe.radial_direction === 'cw') ? 'cw' : 'ccw';
                 rows.push('<div class="layout-inspector-row"><label>Direction</label>'
-                    + '<button type="button" class="ins-btn" onclick="onClockRadialOpt(\'radial_direction\', \''
-                    + (dir==='ccw'?'cw':'ccw') + '\');renderInspector(\'clock\')">'
+                    + '<button type="button" class="ins-btn" data-act="flipClockRadialDirection" data-a1="' + dir + '">'
                     + (dir==='ccw' ? 'Counter-clockwise' : 'Clockwise') + '</button></div>');
 
                 if (variant === 'radial-checks') {
@@ -5446,13 +5565,13 @@ function renderInspector(key) {
                     rows.push('<div class="layout-inspector-row"><label>Segments</label>'
                         + '<input type="number" min="2" max="60" value="'+escAttr(segs)+'" '
                         + 'style="width:4rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:4px;padding:.15rem .3rem;font-size:.8rem" '
-                        + 'oninput="onClockRadialOpt(\'radial_segments\', Math.max(2, Math.min(60, parseInt(this.value,10)||12)))"></div>');
+                        + 'data-act-input="clockRadialSegments"></div>');
                 }
             }
         } else {
             var col = pe.color || '#94a3b8';
             rows.push('<div class="layout-inspector-row"><label>Color</label>'
-                + '<input type="color" value="'+escAttr(col)+'" oninput="onInspectorColor(\''+key+'\',null,this.value)"></div>');
+                + '<input type="color" value="'+escAttr(col)+'" data-act-input="onInspectorColor" data-input-a1="'+key+'" data-input-a2="null" data-input-a3="@value"></div>');
         }
     }
 
@@ -5461,15 +5580,15 @@ function renderInspector(key) {
     rows.push(''
         + '<div class="layout-inspector-row"><label>Size</label>'
         + '<span style="display:inline-flex;align-items:center;gap:.3rem">'
-        + '<button type="button" class="ins-btn" onclick="onInspectorScale(\''+key+'\',-0.1)">&minus;</button>'
+        + '<button type="button" class="ins-btn" data-act="onInspectorScale" data-a1="'+key+'" data-a2="-0.1">&minus;</button>'
         + '<span class="ins-scale" id="ins_scale_'+key+'">'+Math.round(sc*100)+'%</span>'
-        + '<button type="button" class="ins-btn" onclick="onInspectorScale(\''+key+'\',0.1)">+</button>'
+        + '<button type="button" class="ins-btn" data-act="onInspectorScale" data-a1="'+key+'" data-a2="0.1">+</button>'
         + '</span></div>');
 
     // Reset position
     rows.push(''
         + '<div class="layout-inspector-row"><label>Position</label>'
-        + '<button type="button" class="ins-btn" onclick="resetElementPosition(\''+key+'\')">&#8635; Reset</button></div>');
+        + '<button type="button" class="ins-btn" data-act="resetElementPosition" data-a1="'+key+'">&#8635; Reset</button></div>');
 
     // Font controls — text elements only (skipped for QR/Image/Stream which are noColor).
     if (!meta.noColor) {
@@ -5479,7 +5598,7 @@ function renderInspector(key) {
             return '<option value="'+escAttr(f.key)+'"'+sel+'>'+escHtml(f.label)+'</option>';
         }).join('');
         rows.push('<div class="layout-inspector-row"><label>Font</label>'
-            + '<select onchange="onInspectorFont(\''+key+'\',this.value)" class="ins-btn" style="padding:.2rem .4rem;min-width:8.5rem">'
+            + '<select data-act-change="onInspectorFont" data-change-a1="'+key+'" data-change-a2="@value" class="ins-btn" style="padding:.2rem .4rem;min-width:8.5rem">'
             + fontOpts + '</select></div>');
 
         var lsKey = pe.letter_spacing || '';
@@ -5488,18 +5607,18 @@ function renderInspector(key) {
             return '<option value="'+escAttr(s.key)+'"'+sel+'>'+escHtml(s.label)+'</option>';
         }).join('');
         rows.push('<div class="layout-inspector-row"><label>Spacing</label>'
-            + '<select onchange="onInspectorLetterSpacing(\''+key+'\',this.value)" class="ins-btn" style="padding:.2rem .4rem;min-width:6rem">'
+            + '<select data-act-change="onInspectorLetterSpacing" data-change-a1="'+key+'" data-change-a2="@value" class="ins-btn" style="padding:.2rem .4rem;min-width:6rem">'
             + lsOpts + '</select></div>');
 
         // Bold / Italic / Uppercase as inline toggle buttons.
         rows.push('<div class="layout-inspector-row"><label>Style</label>'
             + '<span style="display:inline-flex;gap:.25rem">'
             + '<button type="button" class="ins-btn'+(pe.bold?' is-active':'')+'" '
-            + 'onclick="onInspectorTextToggle(\''+key+'\',\'bold\',this)" title="Bold" style="font-weight:700;min-width:1.8rem">B</button>'
+            + 'data-act="onInspectorTextToggle" data-a1="'+key+'" data-a2="bold" data-a3="@self" title="Bold" style="font-weight:700;min-width:1.8rem">B</button>'
             + '<button type="button" class="ins-btn'+(pe.italic?' is-active':'')+'" '
-            + 'onclick="onInspectorTextToggle(\''+key+'\',\'italic\',this)" title="Italic" style="font-style:italic;min-width:1.8rem">I</button>'
+            + 'data-act="onInspectorTextToggle" data-a1="'+key+'" data-a2="italic" data-a3="@self" title="Italic" style="font-style:italic;min-width:1.8rem">I</button>'
             + '<button type="button" class="ins-btn'+(pe.uppercase?' is-active':'')+'" '
-            + 'onclick="onInspectorTextToggle(\''+key+'\',\'uppercase\',this)" title="Uppercase" style="font-size:.7rem;letter-spacing:.05em;min-width:2.6rem">AA</button>'
+            + 'data-act="onInspectorTextToggle" data-a1="'+key+'" data-a2="uppercase" data-a3="@self" title="Uppercase" style="font-size:.7rem;letter-spacing:.05em;min-width:2.6rem">AA</button>'
             + '</span></div>');
     }
 
@@ -5507,14 +5626,14 @@ function renderInspector(key) {
     if (meta.hasUpload) {
         rows.push(''
             + '<div class="layout-inspector-row"><label>Image</label>'
-            + '<button type="button" class="ins-btn" onclick="document.getElementById(\'imageElUpload\').click()">'
+            + '<button type="button" class="ins-btn" data-act="clickFileInput" data-a1="imageElUpload">'
             + (pe.url ? 'Replace&hellip;' : 'Upload&hellip;')
             + '</button></div>');
-        rows.push('<input type="file" id="imageElUpload" accept="image/*" style="display:none" onchange="onImageElementUpload(this)">');
+        rows.push('<input type="file" id="imageElUpload" accept="image/*" style="display:none" data-act-change="onImageElementUpload" data-change-a1="@self">');
         if (pe.url) {
             rows.push(''
                 + '<div class="layout-inspector-row"><label>&nbsp;</label>'
-                + '<button type="button" class="ins-btn" style="background:#7f1d1d;border-color:#991b1b;color:#fff" onclick="onImageElementRemove()">Remove image</button></div>');
+                + '<button type="button" class="ins-btn" style="background:#7f1d1d;border-color:#991b1b;color:#fff" data-act="onImageElementRemove">Remove image</button></div>');
         }
     }
 
@@ -5525,11 +5644,11 @@ function renderInspector(key) {
             + '<div class="layout-inspector-row"><label>URL</label>'
             + '<input type="url" value="'+escAttr(safeUrl)+'" placeholder="YouTube / Twitch / Prime URL" '
             + 'style="flex:1;min-width:11rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:4px;padding:.2rem .4rem;font-size:.8rem" '
-            + 'onchange="onStreamUrlChange(this.value)"></div>');
+            + 'data-act-change="onStreamUrlChange" data-change-a1="@value"></div>');
         if (pe.url) {
             rows.push(''
                 + '<div class="layout-inspector-row"><label>&nbsp;</label>'
-                + '<button type="button" class="ins-btn" style="background:#7f1d1d;border-color:#991b1b;color:#fff" onclick="onStreamUrlChange(\'\')">Clear URL</button></div>');
+                + '<button type="button" class="ins-btn" style="background:#7f1d1d;border-color:#991b1b;color:#fff" data-act="onStreamUrlChange" data-a1="">Clear URL</button></div>');
             // Inline warning for hosts that commonly block iframe embedding.
             try {
                 var h = (new URL(pe.url)).hostname.replace(/^www\./, '').toLowerCase();
@@ -5619,13 +5738,13 @@ function renderPageInspector() {
         var sel = (bgType === val) ? 'checked' : '';
         var disp = hidden ? 'display:none' : '';
         return '<div class="layout-inspector-row" id="page_bg_row_'+val+'" style="'+disp+'">'
-            + '<label><input type="radio" name="pageBgType" value="'+escAttr(val)+'" '+sel+' onchange="onPageBgType(this.value)"> '+label+'</label></div>';
+            + '<label><input type="radio" name="pageBgType" value="'+escAttr(val)+'" '+sel+' data-act-change="onPageBgType" data-change-a1="@value"> '+label+'</label></div>';
     }
 
     var rows = [];
     rows.push('<div style="font-size:0.75rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.25rem">Background</div>');
     rows.push('<div class="layout-inspector-row"><label>Type</label>'
-        + '<select onchange="onPageBgType(this.value)" class="ins-btn" style="padding:0.2rem 0.4rem">'
+        + '<select data-act-change="onPageBgType" data-change-a1="@value" class="ins-btn" style="padding:0.2rem 0.4rem">'
         + '<option value="color"'    + (bgType==='color'?' selected':'')    + '>Solid</option>'
         + '<option value="gradient"' + (bgType==='gradient'?' selected':'') + '>Gradient</option>'
         + '</select></div>');
@@ -5633,24 +5752,24 @@ function renderPageInspector() {
     // Solid color row
     rows.push('<div class="layout-inspector-row" id="page_solid_row" style="'+(bgType==='color'?'':'display:none')+'">'
         + '<label>Color</label>'
-        + '<input type="color" value="'+escAttr(solidColor)+'" oninput="onPageBgChange(\'color\', this.value)"></div>');
+        + '<input type="color" value="'+escAttr(solidColor)+'" data-act-input="onPageBgChange" data-input-a1="color" data-input-a2="@value"></div>');
     // Gradient rows
     rows.push('<div id="page_grad_block" style="'+(bgType==='gradient'?'':'display:none')+'">'
         + '<div class="layout-inspector-row"><label>From</label>'
-        + '<input type="color" value="'+escAttr(gFrom)+'" oninput="onPageBgChange(\'gfrom\', this.value)"></div>'
+        + '<input type="color" value="'+escAttr(gFrom)+'" data-act-input="onPageBgChange" data-input-a1="gfrom" data-input-a2="@value"></div>'
         + '<div class="layout-inspector-row"><label>To</label>'
-        + '<input type="color" value="'+escAttr(gTo)+'" oninput="onPageBgChange(\'gto\', this.value)"></div>'
+        + '<input type="color" value="'+escAttr(gTo)+'" data-act-input="onPageBgChange" data-input-a1="gto" data-input-a2="@value"></div>'
         + '<div class="layout-inspector-row"><label>Angle <span id="page_gang_lbl" style="color:#94a3b8;font-size:0.75rem">'+gAng+'°</span></label>'
-        + '<input type="range" min="0" max="360" value="'+escAttr(gAng)+'" style="width:7rem" oninput="onPageBgChange(\'gangle\', this.value);document.getElementById(\'page_gang_lbl\').textContent=this.value+\'°\'"></div>'
+        + '<input type="range" min="0" max="360" value="'+escAttr(gAng)+'" style="width:7rem" data-act-input="pageGradientAngle"></div>'
         + '</div>');
 
     rows.push('<div style="font-size:0.75rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin:0.6rem 0 0.25rem">Toolbar</div>');
     rows.push('<div class="layout-inspector-row"><label>Button bg</label>'
-        + '<input type="color" value="'+escAttr(trayBg)+'" oninput="onPageTrayChange(\'bg_color\', this.value)"></div>');
+        + '<input type="color" value="'+escAttr(trayBg)+'" data-act-input="onPageTrayChange" data-input-a1="bg_color" data-input-a2="@value"></div>');
     rows.push('<div class="layout-inspector-row"><label>Button text</label>'
-        + '<input type="color" value="'+escAttr(trayBtn)+'" oninput="onPageTrayChange(\'button_color\', this.value)"></div>');
+        + '<input type="color" value="'+escAttr(trayBtn)+'" data-act-input="onPageTrayChange" data-input-a1="button_color" data-input-a2="@value"></div>');
     rows.push('<div class="layout-inspector-row"><label>Accent</label>'
-        + '<input type="color" value="'+escAttr(trayAccent)+'" oninput="onPageTrayChange(\'accent_color\', this.value)"></div>');
+        + '<input type="color" value="'+escAttr(trayAccent)+'" data-act-input="onPageTrayChange" data-input-a1="accent_color" data-input-a2="@value"></div>');
 
     // Stream URL — placed in the Page inspector so it's discoverable without first
     // clicking the (initially hidden) Stream element on the canvas. Bootstraps the
@@ -5661,13 +5780,13 @@ function renderPageInspector() {
     rows.push('<div class="layout-inspector-row"><label>URL</label>'
         + '<input type="url" value="'+escAttr(streamUrl)+'" placeholder="YouTube / Twitch / Prime URL" '
         + 'style="flex:1;min-width:11rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:4px;padding:.2rem .4rem;font-size:.8rem" '
-        + 'onchange="onStreamUrlChange(this.value);renderInspector(\'page\')"></div>');
+        + 'data-act-change="streamUrlChanged"></div>');
     if (streamEl.url) {
         rows.push('<div class="layout-inspector-row"><label>&nbsp;</label>'
-            + '<button type="button" class="ins-btn" onclick="selectElement(\'streaming\')">Edit stream panel</button></div>');
+            + '<button type="button" class="ins-btn" data-act="selectElement" data-a1="streaming">Edit stream panel</button></div>');
         rows.push('<div class="layout-inspector-row"><label>&nbsp;</label>'
             + '<button type="button" class="ins-btn" style="background:#7f1d1d;border-color:#991b1b;color:#fff" '
-            + 'onclick="onStreamUrlChange(\'\');renderInspector(\'page\')">Clear stream URL</button></div>');
+            + 'data-act="streamUrlCleared">Clear stream URL</button></div>');
         if (IS_TOUCH_DEVICE) {
             rows.push('<div class="layout-inspector-row" style="color:#94a3b8;font-size:.72rem;line-height:1.3">'
                 + 'Hidden on this device: the stream iframe captures taps and would block the screen-wake handler. It will appear on desktop/TV viewers.</div>');
@@ -6152,30 +6271,30 @@ function renderPlayerPanel() {
             if (isTourney) {
                 if (parseInt(p.bought_in)) {
                     if (PP_SESSION && parseInt(PP_SESSION.rebuy_allowed)) {
-                        h += '<div class="pp-counter"><span style="font-size:.55rem;color:#94a3b8;font-weight:700;letter-spacing:.03em;min-width:1.2rem">RE</span><button onclick="ppRebuy(' + p.id + ',-1)">-</button><span>' + (p.rebuys||0) + '</span><button onclick="ppRebuy(' + p.id + ',1)">+</button></div>';
+                        h += '<div class="pp-counter"><span style="font-size:.55rem;color:#94a3b8;font-weight:700;letter-spacing:.03em;min-width:1.2rem">RE</span><button data-act="ppRebuy" data-a1="' + p.id + '" data-a2="-1">-</button><span>' + (p.rebuys||0) + '</span><button data-act="ppRebuy" data-a1="' + p.id + '" data-a2="1">+</button></div>';
                     }
                     if (PP_SESSION && parseInt(PP_SESSION.addon_allowed)) {
                         var aoCount = parseInt(p.addons || 0);
                         h += '<div class="pp-counter" style="gap:.25rem;align-items:center">'
                            + '<span style="font-size:.55rem;color:#94a3b8;font-weight:700;letter-spacing:.03em;min-width:1.2rem">AO</span>'
-                           + '<button onclick="ppAddAddon(' + p.id + ')" style="font-size:.7rem;padding:.15rem .45rem;border-radius:3px;border:1px solid #c4b5fd;background:#f5f3ff;color:#6d28d9;cursor:pointer;font-weight:600">+</button>'
-                           + (aoCount > 0 ? '<span onclick="ppRemoveAddon(' + p.id + ')" title="Tap to remove last" style="display:inline-flex;align-items:center;justify-content:center;min-width:1.1rem;height:1.1rem;padding:0 .3rem;border-radius:9px;background:#7c3aed;color:#fff;font-size:.65rem;font-weight:700;cursor:pointer">' + aoCount + '</span>' : '')
+                           + '<button data-act="ppAddAddon" data-a1="' + p.id + '" style="font-size:.7rem;padding:.15rem .45rem;border-radius:3px;border:1px solid #c4b5fd;background:#f5f3ff;color:#6d28d9;cursor:pointer;font-weight:600">+</button>'
+                           + (aoCount > 0 ? '<span data-act="ppRemoveAddon" data-a1="' + p.id + '" title="Tap to remove last" style="display:inline-flex;align-items:center;justify-content:center;min-width:1.1rem;height:1.1rem;padding:0 .3rem;border-radius:9px;background:#7c3aed;color:#fff;font-size:.65rem;font-weight:700;cursor:pointer">' + aoCount + '</span>' : '')
                            + '</div>';
                     }
-                    h += '<button class="pp-elim" onclick="ppEliminate(' + p.id + ')">Elim</button>';
+                    h += '<button class="pp-elim" data-act="ppEliminate" data-a1="' + p.id + '">Elim</button>';
                 } else {
-                    h += '<button onclick="ppBuyin(' + p.id + ')">Buy In</button>';
+                    h += '<button data-act="ppBuyin" data-a1="' + p.id + '">Buy In</button>';
                 }
             } else {
                 if (parseInt(p.bought_in)) {
-                    h += '<button onclick="ppCashout(' + p.id + ')">Cash Out</button>';
+                    h += '<button data-act="ppCashout" data-a1="' + p.id + '">Cash Out</button>';
                 } else {
-                    h += '<button onclick="ppCashin(' + p.id + ')">Cash In</button>';
+                    h += '<button data-act="ppCashin" data-a1="' + p.id + '">Cash In</button>';
                 }
             }
         }
-        if (isElim) h += '<button class="pp-undo" onclick="ppUnelim(' + p.id + ')">Undo</button>';
-        if (hasCashedOut) h += '<button class="pp-undo" onclick="ppUndoCashout(' + p.id + ')">Undo</button>';
+        if (isElim) h += '<button class="pp-undo" data-act="ppUnelim" data-a1="' + p.id + '">Undo</button>';
+        if (hasCashedOut) h += '<button class="pp-undo" data-act="ppUndoCashout" data-a1="' + p.id + '">Undo</button>';
         h += '</div></div>';
     }
     if (activePlayers.length === 0) h = '<div style="text-align:center;padding:2rem;color:#64748b">No players</div>';

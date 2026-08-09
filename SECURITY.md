@@ -4,7 +4,7 @@ Working notes for this codebase: the checks to run before shipping, and the one
 known hardening gap that has not been closed yet. Kept in the repo so neither
 gets lost between sessions.
 
-Last reviewed: 2026-08-09 (v0.2075).
+Last reviewed: 2026-08-09 (v0.2076).
 
 ---
 
@@ -90,7 +90,7 @@ It is load-bearing. As of 2026-08-09:
 
 | | Count |
 |---|---|
-| Inline `on*` handler attributes | 399 (was 579; `_nav.php`, `_post_card.php` v0.2073, `checkin.php` v0.2075) |
+| Inline `on*` handler attributes | 244 (was 401 by a complete count; `_nav.php`/`_post_card.php` v0.2073, `checkin.php` v0.2075, `timer.php` v0.2076) |
 | Inline `<script>` blocks | 64, all nonced as of v0.2072 |
 | External `.js` files | 6 |
 
@@ -170,6 +170,20 @@ which is exactly the pattern that has to move to event delegation.
      catch it. The collision above survived 315 passing dispatch assertions and
      was found by a human pressing Enter. Add one real-gesture test per
      interaction class (type-and-Enter, click, select-change).
+   - **Delegate in the CAPTURE phase.** An ancestor that calls
+     `stopPropagation()` makes a bubble-phase listener on `document` blind to
+     everything beneath it. `timer.php`'s control tray does exactly that, so the
+     play, sound and level buttons dispatched nothing until the listeners moved
+     to capture. Inline handlers were immune because they run *at the target*;
+     capture restores that ordering.
+   - **Count with a complete `on[a-z]+=` pattern.** An enumerated list of event
+     names will miss some: `ondragstart`/`ondragover`/`ondrop`/`ondragend` were
+     absent from the first sweep, so `timer.php` was reported as 154 rather than
+     157 and drag-to-reorder would have been left inline.
+   - **Capture a before/after baseline of the live DOM.** Snapshot every element
+     carrying a handler, convert, snapshot again, and diff on (element, event).
+     That is what proves nothing was dropped; a passing dispatch sweep only
+     proves that what remains works.
    - When testing a conversion, make sure the fixture actually exists. A check
      that skips because no post card rendered will report a pass for work it
      never verified.
