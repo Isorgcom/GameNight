@@ -700,6 +700,34 @@ if ($action === 'load_theme') {
     exit;
 }
 
+
+/**
+ * Strip anything from a theme blob that could break out of an HTML attribute
+ * when the layout inspector renders it. The inspector escapes on output too,
+ * but a colour field is never legitimately anything but a colour, so refusing
+ * to store the junk is the cheaper guarantee. Applied on every write path.
+ */
+function pk_theme_sanitize_props($props) {
+    if (!is_array($props)) return $props;
+    foreach ($props as $k => $v) {
+        if (is_array($v)) { $props[$k] = pk_theme_sanitize_props($v); continue; }
+        if (!is_string($v)) continue;
+        if (preg_match('/(^|_)colou?r$/i', (string)$k)) {
+            // #rgb / #rrggbb / #rrggbbaa, rgb()/rgba(), or a bare CSS keyword.
+            if (!preg_match('/^#[0-9a-fA-F]{3,8}$/', $v)
+                && !preg_match('/^rgba?\(\s*[0-9.,\s%]+\)$/', $v)
+                && !preg_match('/^[a-zA-Z]{3,20}$/', $v)) {
+                unset($props[$k]);
+                continue;
+            }
+        }
+        // Nothing in a theme needs these, and every one of them is a way out of
+        // an attribute or into a tag.
+        $props[$k] = str_replace(['<', '>', '"', "'"], '', $props[$k] ?? $v);
+    }
+    return $props;
+}
+
 // ─── POST: save_theme (creates a new theme row) ───────────
 if ($action === 'save_theme') {
     if (!$current) { echo json_encode(['ok' => false, 'error' => 'Login required']); exit; }
@@ -729,7 +757,7 @@ if ($action === 'save_theme') {
     }
 
     $db->prepare('INSERT INTO timer_themes (name, created_by, is_global, league_id, properties) VALUES (?, ?, ?, ?, ?)')
-       ->execute([$name, $current['id'], $is_global, $league_id, json_encode($props)]);
+       ->execute([$name, $current['id'], $is_global, $league_id, json_encode(pk_theme_sanitize_props($props))]);
     $tid = (int)$db->lastInsertId();
 
     // Point the current timer at the newly-saved theme.
@@ -775,14 +803,14 @@ if ($action === 'update_theme') {
     $created_copy = false;
     if ($is_protected && !$isAdmin) {
         $db->prepare('INSERT INTO timer_themes (name, created_by, properties) VALUES (?, ?, ?)')
-           ->execute(['Custom', $current['id'], json_encode($props)]);
+           ->execute(['Custom', $current['id'], json_encode(pk_theme_sanitize_props($props))]);
         $theme_id = (int)$db->lastInsertId();
         $db->prepare("UPDATE timer_state SET theme_id = ?, updated_at = datetime('now') WHERE id = ?")
            ->execute([$theme_id, $timer['id']]);
         $created_copy = true;
     } elseif ($theme_league_id > 0 && !$isAdmin && !$can_edit_league) {
         $db->prepare('INSERT INTO timer_themes (name, created_by, properties) VALUES (?, ?, ?)')
-           ->execute(['Custom', $current['id'], json_encode($props)]);
+           ->execute(['Custom', $current['id'], json_encode(pk_theme_sanitize_props($props))]);
         $theme_id = (int)$db->lastInsertId();
         $db->prepare("UPDATE timer_state SET theme_id = ?, updated_at = datetime('now') WHERE id = ?")
            ->execute([$theme_id, $timer['id']]);
@@ -793,14 +821,14 @@ if ($action === 'update_theme') {
         // user could overwrite any other user's theme by id. Copy on edit, the
         // same as every other branch here, and as delete_theme already required.
         $db->prepare('INSERT INTO timer_themes (name, created_by, properties) VALUES (?, ?, ?)')
-           ->execute(['Custom', $current['id'], json_encode($props)]);
+           ->execute(['Custom', $current['id'], json_encode(pk_theme_sanitize_props($props))]);
         $theme_id = (int)$db->lastInsertId();
         $db->prepare("UPDATE timer_state SET theme_id = ?, updated_at = datetime('now') WHERE id = ?")
            ->execute([$theme_id, $timer['id']]);
         $created_copy = true;
     } else {
         $db->prepare('UPDATE timer_themes SET properties = ? WHERE id = ?')
-           ->execute([json_encode($props), $theme_id]);
+           ->execute([json_encode(pk_theme_sanitize_props($props)), $theme_id]);
     }
 
     echo json_encode(['ok' => true, 'theme_id' => $theme_id, 'created_copy' => $created_copy]);
@@ -967,7 +995,7 @@ if ($action === 'apply_preset_theme') {
     }
     $name      = trim((string)($data['name'] ?? basename($path, '.gnt.json'))) ?: 'Preset';
     $props     = $data['properties'];
-    $propsJson = json_encode($props);
+    $propsJson = json_encode(pk_theme_sanitize_props($props));
 
     // Find-or-create one personal row per (user, preset name) so repeated loads are
     // idempotent (reset to the preset baseline) rather than piling up duplicate copies.
