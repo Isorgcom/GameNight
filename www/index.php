@@ -657,7 +657,7 @@ endif; ?>
 </div><!-- /.posts-wrap -->
 </div><!-- /.page-layout -->
 
-<script>
+<script nonce="<?= csp_nonce() ?>">
 // ── Timeline active-month highlight (scroll-tracked) ─────────────────────────
 <?php if (!$monthFilter): ?>
 (function () {
@@ -787,7 +787,7 @@ endif; ?>
 })();
 </script>
 
-<script>
+<script nonce="<?= csp_nonce() ?>">
 function toggleComments(postId) {
     const body = document.getElementById('cmts-body-' + postId);
     const hdr  = body.previousElementSibling;
@@ -798,7 +798,7 @@ function toggleComments(postId) {
 </script>
 
 <?php if ($user): ?>
-<script>
+<script nonce="<?= csp_nonce() ?>">
 const _csrf = <?= json_encode($csrf) ?>;
 
 function editComment(id, btn) {
@@ -880,7 +880,7 @@ function prepareBulkDelete(postId, form) {
 <?php endif; ?>
 
 <?php if ($user): ?>
-<script>
+<script nonce="<?= csp_nonce() ?>">
 // Per-post kebab menu + personal hide/unhide. Delegated on document so cards
 // loaded later by infinite scroll work without re-binding.
 (function () {

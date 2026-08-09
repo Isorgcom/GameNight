@@ -501,6 +501,6 @@ $csrf_token = csrf_token();
     </div>
 </div>
 <script src="/_phone_input.js"></script>
-<script>initPhoneAutoFormat();</script>
+<script nonce="<?= csp_nonce() ?>">initPhoneAutoFormat();</script>
 </body>
 </html>

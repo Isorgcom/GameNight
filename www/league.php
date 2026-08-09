@@ -999,7 +999,7 @@ function ordinal($n) {
                 <button type="submit">Apply</button>
             </span>
         </form>
-        <script>
+        <script nonce="<?= csp_nonce() ?>">
         function onRangeChange(sel) {
             var cr = document.getElementById('custom-range');
             if (sel.value === 'custom') { cr.style.display = ''; }
@@ -1302,7 +1302,7 @@ function ordinal($n) {
         </div>
         <script src="/vendor/jodit/jodit.min.js" defer></script>
         <link rel="stylesheet" href="/vendor/jodit/jodit.min.css">
-        <script>
+        <script nonce="<?= csp_nonce() ?>">
             // Jodit must be initialized only after the editor's container is visible;
             // initializing inside a display:none parent causes height/toolbar glitches.
             // For edit mode the form starts open, so we init immediately. For "new post"
@@ -1477,7 +1477,7 @@ function ordinal($n) {
         </div>
         <?php endforeach; endif; ?>
 
-        <script>
+        <script nonce="<?= csp_nonce() ?>">
         function toggleComments(pid) {
             var body = document.getElementById('cmts-body-' + pid);
             if (!body) return;
@@ -1800,7 +1800,7 @@ function ordinal($n) {
     </div>
 </div>
 
-<script>
+<script nonce="<?= csp_nonce() ?>">
 var CSRF      = <?= json_encode($csrf) ?>;
 var LEAGUE_ID = <?= $league_id ?>;
 
@@ -2104,6 +2104,6 @@ function escapeHtml(s) {
 
 <?php require __DIR__ . '/_footer.php'; ?>
 <script src="/_phone_input.js"></script>
-<script>initPhoneAutoFormat();</script>
+<script nonce="<?= csp_nonce() ?>">initPhoneAutoFormat();</script>
 </body>
 </html>

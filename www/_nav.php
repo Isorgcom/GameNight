@@ -187,7 +187,7 @@ $_accent        = get_setting('accent_color', '');
     </div>
 </nav>
 <?php if ($_banner): ?>
-<script>
+<script nonce="<?= csp_nonce() ?>">
 (function(){
     var l = document.querySelector('link[rel~="icon"]');
     if (!l) { l = document.createElement('link'); l.rel = 'icon'; document.head.appendChild(l); }
@@ -225,7 +225,7 @@ nav.nav-collapsed .nav-top{justify-content:space-between}
 .nav-account-name{font-weight:700;font-size:.9rem;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nav-menu-count{background:#dc2626;color:#fff;font-size:.65rem;font-weight:700;border-radius:999px;padding:.05rem .35rem;margin-left:.35rem;vertical-align:middle}
 </style>
-<script>
+<script nonce="<?= csp_nonce() ?>">
 function toggleNavCollapse(){
     var nav=document.getElementById('mainNav');
     if(!nav)return;

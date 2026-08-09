@@ -1165,7 +1165,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
 
 <?php require __DIR__ . '/_footer.php'; ?>
 
-<script>
+<script nonce="<?= csp_nonce() ?>">
 function openUserModal() {
     document.getElementById('newUserModal').classList.add('open');
     document.getElementById('m_username').focus();

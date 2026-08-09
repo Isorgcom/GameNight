@@ -44,7 +44,7 @@ if ($_hb_user) {
             'preview'   => false,
         ];
         ?>
-        <script>window.__help = <?= json_encode($_hb_payload, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;</script>
+        <script nonce="<?= csp_nonce() ?>">window.__help = <?= json_encode($_hb_payload, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;</script>
         <script src="/help-bubble.js?v=<?= htmlspecialchars(APP_VERSION) ?>" defer></script>
         <?php
     }
@@ -56,7 +56,7 @@ if ($_hb_user) {
    once stored, this block stops emitting on the next page load. */
 if ($_hb_user && empty($_hb_user['timezone'])) {
     ?>
-    <script>
+    <script nonce="<?= csp_nonce() ?>">
     (function () {
         try {
             var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -74,7 +74,7 @@ if ($_hb_user && empty($_hb_user['timezone'])) {
 }
 ?>
 <?php /* Segmented control + slide engine. Deliberately NOT deferred: a page may
-         put its own inline <script> after this footer (checkin.php does), and it
+         put its own inline <script nonce="<?= csp_nonce() ?>"> after this footer (checkin.php does), and it
          must see these functions already defined. Tiny, and already at the end
          of the body, so blocking is a non-issue. */ ?>
 <script src="/pk-seg.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-seg.js') ?: 0)) ?>"></script>
@@ -86,7 +86,7 @@ if ($_hb_user && empty($_hb_user['timezone'])) {
     updates the nav bell / Messages badges in place. Plays a short two-note
     chime when the total rises (browsers allow audio only after the user has
     interacted with the page — until then it updates silently). */ ?>
-<script>
+<script nonce="<?= csp_nonce() ?>">
 (function () {
     var KEY = 'gn_notif_seen';
     function setBadge(cls, n) {

@@ -441,7 +441,7 @@ if ($token === '' && $page_eid > 0) {
         </div>
     </div>
 </div>
-<script>
+<script nonce="<?= csp_nonce() ?>">
 (function () {
     var CSRF = <?= json_encode($csrf) ?>;
     var EID  = <?= (int)$page_eid ?>;
@@ -656,7 +656,7 @@ async function editComment(id) {
      which loads the stylesheet (calendar.php) as do league.php and admin_posts.php. -->
 <link rel="stylesheet" href="/vendor/jodit/jodit.min.css">
 <script src="/vendor/jodit/jodit.min.js" defer></script>
-<script>
+<script nonce="<?= csp_nonce() ?>">
 // ── Manager panel: live roster, approvals, delivery status, invites ─────────
 // Ported from the calendar popup (renderInvitesPanel/pollRsvps) — one view now.
 var NOTIFS_ON   = <?= $notifsEnabled ? 'true' : 'false' ?>;

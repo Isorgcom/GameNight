@@ -297,7 +297,7 @@ $backUrl   = '/calendar.php?m=' . urlencode(substr($event['start_date'], 0, 7)) 
 
 <?php require __DIR__ . '/_footer.php'; ?>
 
-<script>
+<script nonce="<?= csp_nonce() ?>">
 var qIdx = 0;
 function addQuestion() {
     var wrap = document.getElementById('plQuestions');

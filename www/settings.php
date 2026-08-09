@@ -306,7 +306,7 @@ $site_name = get_setting('site_name', 'Game Night');
                 <input type="hidden" name="action" value="set_avatar">
                 <input type="hidden" name="avatar_path" id="stAvatarPath">
             </form>
-            <script>
+            <script nonce="<?= csp_nonce() ?>">
             document.getElementById('stAvatarFile').addEventListener('change', function () {
                 var f = this.files && this.files[0];
                 if (!f) return;
@@ -573,6 +573,6 @@ $site_name = get_setting('site_name', 'Game Night');
 
 <?php require __DIR__ . '/_footer.php'; ?>
 <script src="/_phone_input.js"></script>
-<script>initPhoneAutoFormat();</script>
+<script nonce="<?= csp_nonce() ?>">initPhoneAutoFormat();</script>
 </body>
 </html>

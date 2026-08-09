@@ -28,8 +28,8 @@
  *          §5.7  #saveThemeOverlay     save theme as
  *          §5.8  #confirmSaveOverlay   theme save confirm
  *          §5.9  #soundOverlay         sound settings
- *  §6    Vendor <script>s — qrcode.min.js, nosleep.min.js
- *  §7    Inline <script> (~3,600 lines)
+ *  §6    Vendor <script nonce="<?= csp_nonce() ?>">s — qrcode.min.js, nosleep.min.js
+ *  §7    Inline <script nonce="<?= csp_nonce() ?>"> (~3,600 lines)
  *          §7.1   Config from PHP (CSRF, TIMER, LEVELS, SOUNDS, IS_REMOTE, ...)
  *          §7.2   Formatters (fmtTime, fmtMoney, fmtChips, fmtBreakClock, ...)
  *          §7.3   Render (renderAll, renderClock, renderPlayBtn, appendTimerId)
@@ -291,7 +291,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
     <link rel="icon" href="/favicon.php">
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <link rel="stylesheet" href="/vendor/fonts/fonts.css">
-    <script>window.TIMER_THEME = <?= json_encode($themeProps, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?>; window.TIMER_THEME_ID = <?= $themeId ? (int)$themeId : 'null' ?>;</script>
+    <script nonce="<?= csp_nonce() ?>">window.TIMER_THEME = <?= json_encode($themeProps, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?>; window.TIMER_THEME_ID = <?= $themeId ? (int)$themeId : 'null' ?>;</script>
     <style id="themeStyle"><?= $themeCss ?></style>
     <style>
         html {
@@ -1970,7 +1970,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
 
 <script src="/vendor/qrcode.min.js"></script>
 <script src="/vendor/nosleep.min.js"></script>
-<script>
+<script nonce="<?= csp_nonce() ?>">
 // ─── §7.1  Config from PHP ──────────────────────────────────────
 var IS_REMOTE = <?= json_encode($is_remote) ?>;
 var IS_GUEST = <?= json_encode($is_guest) ?>;

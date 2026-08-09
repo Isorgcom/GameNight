@@ -93,7 +93,7 @@ $utc_tz    = new DateTimeZone('UTC');
     <?php endforeach; endif; ?>
 </div>
 <?php require __DIR__ . '/_footer.php'; ?>
-<script>
+<script nonce="<?= csp_nonce() ?>">
 var CSRF = <?= json_encode($csrf) ?>;
 var SHOT_PATH = '';
 

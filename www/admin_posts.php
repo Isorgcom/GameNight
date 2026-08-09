@@ -472,7 +472,7 @@ $now_local = (new DateTime('now', $local_tz))->format('Y-m-d H:i:s');
 <?php require __DIR__ . '/_footer.php'; ?>
 
 <script src="/vendor/jodit/jodit.min.js" defer></script>
-<script>
+<script nonce="<?= csp_nonce() ?>">
 const csrfToken = <?= json_encode($token) ?>;
 
 // ── Jodit setup ───────────────────────────────────────────────────────────────

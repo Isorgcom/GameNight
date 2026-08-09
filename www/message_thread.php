@@ -193,7 +193,7 @@ $lastId = $messages ? (int)end($messages)['id'] : 0;
     </div>
 </div>
 <?php require __DIR__ . '/_footer.php'; ?>
-<script>
+<script nonce="<?= csp_nonce() ?>">
 var CSRF = <?= json_encode($csrf) ?>;
 var CONV = <?= $conv ? (int)$conv['id'] : 0 ?>;
 var OTHER = <?= $other ? (int)$other['id'] : 0 ?>;

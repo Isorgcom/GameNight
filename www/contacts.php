@@ -200,7 +200,7 @@ $prefLabels = ['email' => 'Email', 'sms' => 'Text', 'whatsapp' => 'WhatsApp', 'b
     <?php endif; ?>
 </div>
 
-<script>
+<script nonce="<?= csp_nonce() ?>">
 var CSRF = <?= json_encode($csrf) ?>;
 
 function post(data) {
@@ -229,6 +229,6 @@ function addContact() {
 
 <?php require __DIR__ . '/_footer.php'; ?>
 <script src="/_phone_input.js"></script>
-<script>initPhoneAutoFormat();</script>
+<script nonce="<?= csp_nonce() ?>">initPhoneAutoFormat();</script>
 </body>
 </html>
