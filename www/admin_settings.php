@@ -3270,7 +3270,7 @@ function updatePreview() {
     if (accentEl) accentEl.style.color = /^#[0-9a-fA-F]{6}$/.test(acc)  ? acc  : '#2563eb';
 }
 </script>
-<script src="/_phone_input.js"></script>
+<script src="/_phone_input.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/_phone_input.js') ?: 0)) ?>"></script>
 <script nonce="<?= csp_nonce() ?>">initPhoneAutoFormat();</script>
 </body>
 </html>

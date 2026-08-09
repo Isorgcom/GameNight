@@ -199,7 +199,7 @@ document.querySelectorAll('button[aria-label="Show password"], button[aria-label
     btn.addEventListener('touchend', toggle);
 });
 </script>
-<script src="/_phone_input.js"></script>
+<script src="/_phone_input.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/_phone_input.js') ?: 0)) ?>"></script>
 <script nonce="<?= csp_nonce() ?>">initPhoneAutoFormat();</script>
 </body>
 </html>

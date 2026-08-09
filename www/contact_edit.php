@@ -113,7 +113,7 @@ $canMsg   = $isLinked && (int)$c['linked_user_id'] !== $uid;
     </div>
 </div>
 <?php require __DIR__ . '/_footer.php'; ?>
-<script src="/_phone_input.js"></script>
+<script src="/_phone_input.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/_phone_input.js') ?: 0)) ?>"></script>
 <script nonce="<?= csp_nonce() ?>">
 initPhoneAutoFormat();
 var CSRF = <?= json_encode($csrf) ?>;
