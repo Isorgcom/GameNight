@@ -1559,6 +1559,24 @@ JSON;
     // or shoulder-surfed QR/email link can't be replayed indefinitely.
     try { $pdo->exec("ALTER TABLE event_invites ADD COLUMN rsvp_token_flips INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
 
+    // Event authority used to be resolved by matching users.username against the
+    // free-text event_invites.username. Invites for people with no account store
+    // a typed name, an email, a phone or "pending:<id>", so anyone who could
+    // choose that username inherited that invite's visibility and, if it was a
+    // co-host row, full host control of the event. Authority now hangs off this
+    // column instead. NULL means "not a known account", which grants nothing.
+    try { $pdo->exec("ALTER TABLE event_invites ADD COLUMN user_id INTEGER"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_event_invites_user ON event_invites(user_id)"); } catch (Exception $e) {}
+    // One-time backfill from the existing username match. This only records the
+    // access people already had; it grants nothing new. Rows that match no
+    // account stay NULL and stop conferring anything, which is the fix.
+    try {
+        $pdo->exec("UPDATE event_invites
+                       SET user_id = (SELECT u.id FROM users u
+                                       WHERE LOWER(u.username) = LOWER(event_invites.username))
+                     WHERE user_id IS NULL");
+    } catch (Exception $e) {}
+
     // ─── Public league landing pages (/league/<slug>) ───────────────────
     // venue_name is the publishable half of an event's location: shown on public
     // league pages/feeds, while `location` (street address) stays members-only.
@@ -2569,6 +2587,14 @@ function sanitize_html(string $html): string {
             $tag = strtolower($child->nodeName);
 
             if (!in_array($tag, $allowed_tags, true)) {
+                // Walk the subtree BEFORE queueing the unwrap. Unwrapping promotes
+                // this element's children into $node after the loop above has
+                // already finished, so anything not sanitized here is emitted
+                // verbatim: <div><font><img onerror=...></font></div> survived a
+                // full pass, because <font> is not allowed and so was never
+                // walked. One extra wrapper bought one extra pass, which is why
+                // sanitizing twice was not the mitigation it looked like.
+                $walk($child);
                 $to_remove[] = [$child, true]; // unwrap: keep text, drop tag
                 continue;
             }
@@ -2577,6 +2603,7 @@ function sanitize_html(string $html): string {
             if ($tag === 'iframe') {
                 $src = $child->getAttribute('src');
                 if (!$iframe_src_ok($src)) {
+                    $walk($child); // same reason as above
                     $to_remove[] = [$child, true];
                     continue;
                 }
@@ -2760,8 +2787,7 @@ function event_visibility_sql(string $alias = 'e', ?int $user_id = null): array 
            ))
         OR EXISTS (
                SELECT 1 FROM event_invites ei
-               JOIN users u ON LOWER(u.username) = LOWER(ei.username)
-               WHERE ei.event_id = {$alias}.id AND u.id = ?
+               WHERE ei.event_id = {$alias}.id AND ei.user_id = ?
            )
     )";
     return ['sql' => $sql, 'params' => [$user_id, $user_id, $user_id]];
@@ -3106,8 +3132,7 @@ function can_manage_event(PDO $db, int $event_id, int $user_id, bool $is_admin =
     $stmt = $db->prepare("
         SELECT e.created_by, e.league_id,
                (SELECT 1 FROM event_invites ei
-                 JOIN users u ON LOWER(u.username) = LOWER(ei.username)
-                 WHERE ei.event_id = e.id AND u.id = ? AND ei.event_role = 'manager' LIMIT 1) AS is_event_mgr,
+                 WHERE ei.event_id = e.id AND ei.user_id = ? AND ei.event_role = 'manager' LIMIT 1) AS is_event_mgr,
                (SELECT lm.role FROM league_members lm
                  WHERE lm.league_id = e.league_id AND lm.user_id = ? LIMIT 1) AS league_role
         FROM events e WHERE e.id = ?

@@ -295,7 +295,7 @@ $site_name = get_setting('site_name', 'Game Night');
                 If this user lost their device <em>and</em> their recovery codes, reset it so they can sign in with just their password and re-enroll.
             </p>
             <form method="post" action="/user_edit.php?id=<?= $id ?>"
-                  onsubmit="return pkConfirmForm(this, 'Reset (disable) two-factor for ' + <?= json_encode($target['username']) ?> + '? They will sign in with just their password until they set it up again.', {danger:true})">
+                  onsubmit="return pkConfirmForm(this, 'Reset (disable) two-factor for ' + <?= htmlspecialchars(json_encode($target['username']), ENT_QUOTES) ?> + '? They will sign in with just their password until they set it up again.', {danger:true})">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <input type="hidden" name="action" value="reset_mfa">
                 <button type="submit" class="btn" style="width:100%;background:#dc2626;color:#fff;border:none;font-weight:600">Reset Two-Factor</button>
@@ -336,7 +336,7 @@ $site_name = get_setting('site_name', 'Game Night');
             Permanently delete this account and all associated activity logs. This cannot be undone.
         </p>
         <form method="post" action="/user_edit.php?id=<?= $id ?>"
-              onsubmit="return pkConfirmForm(this, 'Permanently delete ' + <?= json_encode($target['username']) ?> + '? This cannot be undone.', {okLabel:'Delete', danger:true})">
+              onsubmit="return pkConfirmForm(this, 'Permanently delete ' + <?= htmlspecialchars(json_encode($target['username']), ENT_QUOTES) ?> + '? This cannot be undone.', {okLabel:'Delete', danger:true})">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
             <input type="hidden" name="action" value="delete">
             <button type="submit" class="btn" style="background:#dc2626;color:#fff">

@@ -47,8 +47,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $valid_tzs = array_values(get_timezone_options());
             $timezone  = ($tz_in !== '' && in_array($tz_in, $valid_tzs, true)) ? $tz_in : '';
 
+            // Same rule as registration and the API. This path used to accept any
+            // non-empty string, which mattered because event authority is resolved
+            // by matching users.username against event_invites.username: a username
+            // containing a space, an @ or a colon can be aimed at an invite row for
+            // someone who has no account (see can_manage_event() in db.php).
             if ($username === '') {
                 $flash = ['type' => 'error', 'msg' => 'Username cannot be empty.'];
+            } elseif ($err = username_format_error($username)) {
+                $flash = ['type' => 'error', 'msg' => $err];
             } elseif ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 $flash = ['type' => 'error', 'msg' => 'A valid email address is required.'];
             } else {

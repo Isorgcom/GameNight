@@ -402,8 +402,12 @@ if ($action === 'load_preset') {
     if (!$timer) { echo json_encode(['ok' => false, 'error' => 'Timer not found']); exit; }
     $preset_id = (int)($_POST['preset_id'] ?? 0);
 
-    $p = $db->prepare('SELECT id FROM blind_presets WHERE id = ?');
-    $p->execute([$preset_id]);
+    // Scoped exactly like get_presets() above, for the same reason as load_theme.
+    $p = $db->prepare('SELECT id FROM blind_presets WHERE id = ? AND (is_default = 1
+                OR is_global  = 1
+                OR created_by = ?
+                OR league_id IN (SELECT league_id FROM league_members WHERE user_id = ?))');
+    $p->execute([$preset_id, (int)$current['id'], (int)$current['id']]);
     if (!$p->fetch()) {
         echo json_encode(['ok' => false, 'error' => 'Preset not found']);
         exit;
@@ -542,6 +546,15 @@ if ($action === 'update_levels') {
             $preset_id = (int)$db->lastInsertId();
             $db->prepare("UPDATE timer_state SET preset_id = ?, updated_at = datetime('now') WHERE id = ?")->execute([$preset_id, $timer['id']]);
             $created_copy = true;
+        } elseif ((int)($presetRow['created_by'] ?? 0) !== (int)$current['id'] && !$isAdmin) {
+            // Someone else's personal preset. Falling through here did not just
+            // overwrite it — the code below DELETEs every level row and re-inserts,
+            // so it destroyed another user's saved blind structure. delete_preset
+            // already required ownership; this is the same rule applied to edits.
+            $db->prepare('INSERT INTO blind_presets (name, created_by) VALUES (?, ?)')->execute(['Custom', $current['id']]);
+            $preset_id = (int)$db->lastInsertId();
+            $db->prepare("UPDATE timer_state SET preset_id = ?, updated_at = datetime('now') WHERE id = ?")->execute([$preset_id, $timer['id']]);
+            $created_copy = true;
         }
     }
 
@@ -667,8 +680,14 @@ if ($action === 'load_theme') {
     if (!$timer) { echo json_encode(['ok' => false, 'error' => 'Timer not found']); exit; }
     $theme_id = (int)($_POST['theme_id'] ?? 0);
 
-    $t = $db->prepare('SELECT id, properties FROM timer_themes WHERE id = ?');
-    $t->execute([$theme_id]);
+    // Scoped exactly like get_theme() above. Without this any authenticated user
+    // could point their own timer at any theme id and read it back — and, because
+    // update_theme derives its target from timer_state.theme_id, then overwrite it.
+    $t = $db->prepare('SELECT id, properties FROM timer_themes WHERE id = ? AND (is_default = 1
+                OR is_global  = 1
+                OR created_by = ?
+                OR league_id IN (SELECT league_id FROM league_members WHERE user_id = ?))');
+    $t->execute([$theme_id, (int)$current['id'], (int)$current['id']]);
     $themeRow = $t->fetch();
     if (!$themeRow) { echo json_encode(['ok' => false, 'error' => 'Theme not found']); exit; }
 
@@ -762,6 +781,17 @@ if ($action === 'update_theme') {
            ->execute([$theme_id, $timer['id']]);
         $created_copy = true;
     } elseif ($theme_league_id > 0 && !$isAdmin && !$can_edit_league) {
+        $db->prepare('INSERT INTO timer_themes (name, created_by, properties) VALUES (?, ?, ?)')
+           ->execute(['Custom', $current['id'], json_encode($props)]);
+        $theme_id = (int)$db->lastInsertId();
+        $db->prepare("UPDATE timer_state SET theme_id = ?, updated_at = datetime('now') WHERE id = ?")
+           ->execute([$theme_id, $timer['id']]);
+        $created_copy = true;
+    } elseif ((int)($themeRow['created_by'] ?? 0) !== (int)$current['id'] && !$isAdmin) {
+        // Someone else's personal theme. The chain above covered protected and
+        // league themes but let this case fall through to a bare UPDATE, so any
+        // user could overwrite any other user's theme by id. Copy on edit, the
+        // same as every other branch here, and as delete_theme already required.
         $db->prepare('INSERT INTO timer_themes (name, created_by, properties) VALUES (?, ?, ?)')
            ->execute(['Custom', $current['id'], json_encode($props)]);
         $theme_id = (int)$db->lastInsertId();
