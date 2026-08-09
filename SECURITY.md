@@ -4,7 +4,7 @@ Working notes for this codebase: the checks to run before shipping, and the one
 known hardening gap that has not been closed yet. Kept in the repo so neither
 gets lost between sessions.
 
-Last reviewed: 2026-08-09 (v0.2072).
+Last reviewed: 2026-08-09 (v0.2073).
 
 ---
 
@@ -90,7 +90,7 @@ It is load-bearing. As of 2026-08-09:
 
 | | Count |
 |---|---|
-| Inline `on*` handler attributes | 579 (the remaining work) |
+| Inline `on*` handler attributes | 564 (was 579; `_nav.php` and `_post_card.php` converted in v0.2073) |
 | Inline `<script>` blocks | 64, all nonced as of v0.2072 |
 | External `.js` files | 6 |
 
@@ -132,9 +132,26 @@ which is exactly the pattern that has to move to event delegation.
    **What this buys:** an injected `<script>` element is now refused by the
    browser. **What it does not:** an injected `on*` attribute still runs, since
    `script-src-attr` still allows them. That is what step 2 closes.
-2. **Convert handlers file by file**, smallest first (`_nav.php` 7,
-   `_post_card.php` 9) to settle the delegation pattern before touching
-   `checkin.php` and `timer.php`.
+2. **Convert handlers file by file**, smallest first, to settle the delegation
+   pattern before touching `checkin.php` (165) and `timer.php` (154).
+   **Started in v0.2073:** `_nav.php` (7) and `_post_card.php` (9) are at zero.
+   The established pattern:
+   - Tag the control with a `data-*` attribute carrying whatever the old handler
+     passed as arguments (`data-nav="dropdown"`, `data-pc="toggle-comments"
+     data-post="12"`).
+   - Dispatch from a **delegated listener on `document`**, not a per-element
+     binding. Delegation is required, not stylistic: `posts_chunk.php` injects
+     cards by AJAX after load, and per-element listeners would miss them.
+   - Prefer an existing **external** `.js` file as the destination (`nav.js`).
+     External scripts are covered by `'self'` and need no nonce. Otherwise put
+     the listener in the page's nonced block, next to the functions it calls.
+   - For `onsubmit="return pkConfirmForm(...)"` use the generic
+     `data-confirm="…" data-confirm-ok="…" data-confirm-danger="1"` handled by
+     one delegated `submit` listener. `pkConfirmForm()` calls `formEl.submit()`,
+     which does not re-fire the submit event, so it cannot recurse.
+   - When testing a conversion, make sure the fixture actually exists. A check
+     that skips because no post card rendered will report a pass for work it
+     never verified.
 3. **Drop `'unsafe-inline'`** only once the count reaches zero, after running
    `Content-Security-Policy-Report-Only` for a while to catch stragglers.
 
