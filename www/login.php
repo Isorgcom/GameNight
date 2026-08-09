@@ -273,7 +273,7 @@ $site_name = get_setting('site_name', 'Game Night');
     </div>
 </div>
 
-<script>
+<script nonce="<?= csp_nonce() ?>">
 document.querySelectorAll('button[aria-label="Show password"], button[aria-label="Hide password"]').forEach(function(btn) {
     function toggle(e) {
         e.preventDefault();

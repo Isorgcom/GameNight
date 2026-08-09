@@ -231,7 +231,7 @@ $site_name = get_setting('site_name', 'Game Night');
 
 <?php if ($totp_uri): ?>
 <script src="/vendor/qrcode.min.js" defer></script>
-<script>
+<script nonce="<?= csp_nonce() ?>">
 // qrcode.min.js is deferred, so draw on DOMContentLoaded (deferred scripts
 // are guaranteed to have run by then).
 document.addEventListener('DOMContentLoaded', function () {

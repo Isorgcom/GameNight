@@ -4,6 +4,11 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2072] - 2026-08-09
+
+### Security
+- **Inline scripts now carry a per-request CSP nonce, so an injected `<script>` is refused by the browser.** `auth.php` mints `CSP_NONCE` once per request and `csp_nonce()` stamps it on all 64 inline blocks across 33 files. External `<script src="/...">` needs no nonce, it is covered by `'self'`; `cast_receiver.php` is deliberately excluded, being standalone with no CSP header of its own. The header now carries three script directives rather than one, and the split is the whole trick: adding a nonce to `script-src` makes a browser ignore `'unsafe-inline'` **including for `on*` attributes**, which would break every button in the app, so `script-src-elem` takes the nonce while `script-src-attr` keeps `'unsafe-inline'` until the inline handlers are converted, and a plain `script-src` remains as the fallback for browsers without CSP3 granularity (behaviour there is unchanged). Scope, stated plainly: this blocks injected script **elements**, not injected `on*` **attributes**, so it narrows the gap rather than closing it. Converting the remaining 579 inline handlers to `addEventListener` is the next step, tracked in `SECURITY.md`. Verified across 20 pages with zero CSP violations, inline scripts confirmed executing (not merely present), inline handlers confirmed still firing, and the nonce confirmed to change per request.
+
 ## [v0.2071] - 2026-08-09
 
 ### Security

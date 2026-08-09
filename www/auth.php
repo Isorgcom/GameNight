@@ -19,9 +19,24 @@ $_frame_src = "frame-src https://www.youtube.com https://www.youtube-nocookie.co
 try {
     foreach (stream_allowed_hosts() as $_h) { $_frame_src .= ' https://' . $_h; }
 } catch (\Throwable $e) { /* keep the built-in frame-src */ }
+// Per-request nonce for inline <script> blocks. See SECURITY.md.
+// Why three script directives instead of one:
+//   script-src       fallback for browsers without CSP3 granularity (Firefox).
+//                    Keeps 'unsafe-inline' so behaviour there is unchanged.
+//   script-src-elem  script ELEMENTS must carry this nonce. Adding a nonce makes
+//                    a browser ignore 'unsafe-inline', so an injected <script> is
+//                    refused — which is the point.
+//   script-src-attr  event handler ATTRIBUTES stay allowed for now. They cannot
+//                    be nonced (there is no syntax for it), so until the ~579
+//                    inline on* handlers become addEventListener they need their
+//                    own directive or every button on the site stops working.
+if (!defined('CSP_NONCE')) define('CSP_NONCE', base64_encode(random_bytes(16)));
+
 $_csp = implode('; ', [
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline'",
+    "script-src-elem 'self' 'nonce-" . CSP_NONCE . "'",
+    "script-src-attr 'unsafe-inline'",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https://*.ytimg.com https://*.twitch.tv https://*.jtvnw.net",
     "object-src 'none'",
@@ -40,6 +55,16 @@ if ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HT
 
 // ── Mobile detection (available to all pages) ────────────────────────────────
 $_is_mobile = (bool) preg_match('/Mobile|Android|iPhone|iPad|iPod|CriOS|FxiOS/i', $_SERVER['HTTP_USER_AGENT'] ?? '');
+
+/**
+ * Nonce for an inline script block: <script nonce="<?= csp_nonce() ?>">.
+ * Required by script-src-elem. External <script src="/..."> does not need one,
+ * it is covered by 'self'. Pages that do not include auth.php (cast_receiver.php)
+ * get no CSP header and must NOT call this.
+ */
+function csp_nonce(): string {
+    return defined('CSP_NONCE') ? CSP_NONCE : '';
+}
 
 function _is_https(): bool {
     return (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')

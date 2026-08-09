@@ -351,6 +351,6 @@ $site_name = get_setting('site_name', 'Game Night');
 
 <?php require __DIR__ . '/_footer.php'; ?>
 <script src="/_phone_input.js"></script>
-<script>initPhoneAutoFormat();</script>
+<script nonce="<?= csp_nonce() ?>">initPhoneAutoFormat();</script>
 </body>
 </html>

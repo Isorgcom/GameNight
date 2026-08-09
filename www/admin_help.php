@@ -183,7 +183,7 @@ $tips = $tipsStmt->fetchAll();
 
 <?php require __DIR__ . '/_footer.php'; ?>
 
-<script>
+<script nonce="<?= csp_nonce() ?>">
 const CSRF   = <?= json_encode($token) ?>;
 const SCREEN = <?= json_encode($screen) ?>;
 let TIPS     = <?= json_encode($tips, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;

@@ -1256,7 +1256,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
             </div>
         </div>
 
-        <script>
+        <script nonce="<?= csp_nonce() ?>">
         (function(){
             var CSRF = <?= json_encode($token) ?>;
             function esc(s){ var d=document.createElement('div'); d.textContent=(s==null?'':String(s)); return d.innerHTML; }
@@ -1891,7 +1891,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
 
         <div class="ug-save-indicator" id="ugSaveIndicator">Saved</div>
 
-        <script>
+        <script nonce="<?= csp_nonce() ?>">
         (function () {
             const csrf = <?= json_encode($token) ?>;
             const ind  = document.getElementById('ugSaveIndicator');
@@ -2263,7 +2263,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
 
         <div class="ev-save-indicator" id="evSaveIndicator">Saved</div>
 
-        <script>
+        <script nonce="<?= csp_nonce() ?>">
         (function () {
             const csrf   = <?= json_encode($token) ?>;
             const ind    = document.getElementById('evSaveIndicator');
@@ -2380,7 +2380,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
             <?php endif; ?>
         </div>
 
-        <script>
+        <script nonce="<?= csp_nonce() ?>">
         function filterAdminLeagues(q) {
             q = (q || '').trim().toLowerCase();
             var rows = document.querySelectorAll('.admin-lg-row');
@@ -2741,7 +2741,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
         </div>
 
 
-        <script>
+        <script nonce="<?= csp_nonce() ?>">
         function toggleSmsFields() {
             var p = document.getElementById('sms_provider').value;
             document.querySelectorAll('.sms-field').forEach(function(el) {
@@ -2845,7 +2845,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
         </div>
     </div>
 
-    <script>
+    <script nonce="<?= csp_nonce() ?>">
     var WAHA_URL = <?= json_encode($waha_url, JSON_HEX_TAG) ?>;
     var WAHA_SESSION = <?= json_encode($waha_session, JSON_HEX_TAG) ?>;
     var WAHA_CSRF = <?= json_encode($token, JSON_HEX_TAG) ?>;
@@ -3228,7 +3228,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
 
 <?php require __DIR__ . '/_footer.php'; ?>
 
-<script>
+<script nonce="<?= csp_nonce() ?>">
 function openUserModal() {
     document.getElementById('newUserModal').classList.add('open');
     document.getElementById('m_username').focus();
@@ -3271,6 +3271,6 @@ function updatePreview() {
 }
 </script>
 <script src="/_phone_input.js"></script>
-<script>initPhoneAutoFormat();</script>
+<script nonce="<?= csp_nonce() ?>">initPhoneAutoFormat();</script>
 </body>
 </html>

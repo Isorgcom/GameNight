@@ -461,7 +461,7 @@ $autoJoin = $user && $myRole === null && !$pending && ($_GET['join'] ?? '') === 
     <?php endif; ?>
 </div>
 
-<script>
+<script nonce="<?= csp_nonce() ?>">
 function lpToggleCal() {
     var box    = document.getElementById('lp-cal');
     var link   = document.getElementById('lp-cal-toggle');
@@ -485,7 +485,7 @@ function lpCopyCal() {
 </script>
 
 <?php if ($user && $myRole === null && !$pending): ?>
-<script>
+<script nonce="<?= csp_nonce() ?>">
 (function () {
     var btn  = document.getElementById('lp-join-btn');
     var note = document.getElementById('lp-join-note');

@@ -4,7 +4,7 @@ Working notes for this codebase: the checks to run before shipping, and the one
 known hardening gap that has not been closed yet. Kept in the repo so neither
 gets lost between sessions.
 
-Last reviewed: 2026-08-09 (v0.2071).
+Last reviewed: 2026-08-09 (v0.2072).
 
 ---
 
@@ -76,10 +76,13 @@ script-src 'self' 'unsafe-inline'
 
 `'self'` stops an attacker loading script from another origin. `'unsafe-inline'`
 additionally permits script written inside the HTML, covering both `<script>`
-blocks and `onclick="…"` attributes. Because the browser cannot distinguish the
-app's own inline script from an injected one, **the CSP currently provides no XSS
-mitigation**. Every XSS issue found in the v0.2070 review would have executed
-without friction.
+blocks and `onclick="…"` attributes. Because the browser cannot distinguish the app's own inline script from an
+injected one, **the CSP originally provided no XSS mitigation at all** — every
+XSS issue found in the v0.2070 review would have executed without friction.
+
+As of v0.2072 that is partly closed: injected `<script>` elements are blocked by
+the nonce (see step 1 below). Injected `on*` attributes still execute, so the
+gap is narrowed, not shut.
 
 ### Why it is still there
 
@@ -87,8 +90,8 @@ It is load-bearing. As of 2026-08-09:
 
 | | Count |
 |---|---|
-| Inline `on*` handler attributes | 579 |
-| Inline `<script>` blocks | 62 |
+| Inline `on*` handler attributes | 579 (the remaining work) |
+| Inline `<script>` blocks | 64, all nonced as of v0.2072 |
 | External `.js` files | 6 |
 
 `checkin.php` has 165 inline handlers and `timer.php` 154. Removing the directive
@@ -97,10 +100,21 @@ today breaks the application completely.
 ### Why a nonce is only half a fix
 
 A nonce authorizes a `<script>` block. **There is no syntax to nonce an `on*`
-attribute** — inline event handlers cannot be authorized under a strict CSP at
-all. They have to become `addEventListener` with their data carried in `data-`
-attributes. Most of this codebase's handlers are built inside JS strings at
-runtime, e.g.
+attribute** — inline event handlers cannot be authorized by nonce at all. They
+have to become `addEventListener` with their data carried in `data-` attributes.
+
+Note the trap: adding a nonce to `script-src` makes a browser **ignore
+`'unsafe-inline'` entirely**, which blocks event handler attributes too. Done
+naively that breaks every button on the site. The split is what makes step 1
+shippable on its own:
+
+| Directive | Purpose |
+|---|---|
+| `script-src 'self' 'unsafe-inline'` | fallback for browsers without CSP3 granularity (Firefox); behaviour there is unchanged |
+| `script-src-elem 'self' 'nonce-…'` | script **elements** must carry the nonce, so an injected `<script>` is refused |
+| `script-src-attr 'unsafe-inline'` | event handler **attributes** stay allowed until they are converted |
+
+Most of this codebase's handlers are built inside JS strings at runtime, e.g.
 
 ```js
 h += '<button onclick="toggleBuyin(' + p.id + ')">';
@@ -110,10 +124,14 @@ which is exactly the pattern that has to move to event delegation.
 
 ### Agreed path, each step independently shippable
 
-1. **Add a per-request nonce and keep `'unsafe-inline'` alongside it.** Browsers
-   ignore `'unsafe-inline'` for script blocks once a nonce is present, so this
-   hardens the 62 blocks immediately while attribute handlers keep working.
-   Roughly an hour, low risk.
+1. ~~**Add a per-request nonce** via the three-directive split above.~~ **Done in
+   v0.2072.** `auth.php` mints a per-request `CSP_NONCE`; `csp_nonce()` stamps it
+   on all 64 inline blocks across 33 files. External `<script src="/...">` needs
+   no nonce, it is covered by `'self'`. `cast_receiver.php` is excluded: it is
+   standalone, sends no CSP header, and must not call `csp_nonce()`.
+   **What this buys:** an injected `<script>` element is now refused by the
+   browser. **What it does not:** an injected `on*` attribute still runs, since
+   `script-src-attr` still allows them. That is what step 2 closes.
 2. **Convert handlers file by file**, smallest first (`_nav.php` 7,
    `_post_card.php` 9) to settle the delegation pattern before touching
    `checkin.php` and `timer.php`.

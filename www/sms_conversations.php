@@ -171,7 +171,7 @@ if ($mode === 'thread') {
     <div class="conv-err" id="convError" style="display:none"></div>
     <p class="conv-note">Sent as <?= $channel === 'whatsapp' ? 'WhatsApp' : 'SMS' ?> from the shared number. Texts over 160 characters go out as multiple segments. Conversations are part of the notification log and are kept for 90 days.</p>
 
-    <script>
+    <script nonce="<?= csp_nonce() ?>">
     (function () {
         var eventId = <?= (int)$f_event ?>, phone = <?= json_encode($f_phone) ?>, lastId = <?= (int)$last_id ?>;
         var thread = document.getElementById('convThread');
@@ -300,7 +300,7 @@ if ($mode === 'thread') {
             </tbody>
         </table>
     </div>
-    <script>
+    <script nonce="<?= csp_nonce() ?>">
     document.querySelectorAll('.assign-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
             var row = btn.closest('tr');

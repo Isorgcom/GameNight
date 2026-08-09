@@ -766,7 +766,7 @@ $session = $sessStmt->fetch();
 
 <?php require __DIR__ . '/_footer.php'; ?>
 
-<script>
+<script nonce="<?= csp_nonce() ?>">
 var CSRF = <?= json_encode($csrf, JSON_HEX_TAG) ?>;
 var ALL_USERS = <?= json_encode($allUsernames, JSON_HEX_TAG) ?>;
 var EVENT_ID = <?= $event_id ?>;

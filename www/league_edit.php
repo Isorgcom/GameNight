@@ -96,7 +96,7 @@ $vals = $league ?: [
     </div>
 </div>
 
-<script>
+<script nonce="<?= csp_nonce() ?>">
 var CSRF = <?= json_encode($csrf) ?>;
 var IS_EDIT = <?= $isEdit ? 'true' : 'false' ?>;
 var LEAGUE_ID = <?= $isEdit ? $league_id : 0 ?>;

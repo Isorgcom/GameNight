@@ -1863,7 +1863,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
 
 <?php require __DIR__ . '/_footer.php'; ?>
 
-<script>
+<script nonce="<?= csp_nonce() ?>">
 let currentEvent = null;
 const eventComments      = <?= json_encode($ev_comments, JSON_HEX_TAG) ?>;
 /* (object) cast keeps the top level an object (incl. empty {}) WITHOUT JSON_FORCE_OBJECT,
@@ -3227,7 +3227,7 @@ function copyWalkinLink() {
     </div>
 </div>
 <script src="/vendor/jodit/jodit.min.js" defer></script>
-<script>
+<script nonce="<?= csp_nonce() ?>">
 let _emEditor = null;
 function _emEnsureEditor() {
     if (_emEditor || typeof Jodit === 'undefined') return;

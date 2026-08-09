@@ -615,7 +615,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
 
 <?php require __DIR__ . '/_footer.php'; ?>
 
-<script>
+<script nonce="<?= csp_nonce() ?>">
 // ── Server-provided state ─────────────────────────────────────────────────────
 const CSRF              = <?= json_encode($token, JSON_HEX_TAG) ?>;
 const IS_ADMIN          = <?= $isAdmin ? 'true' : 'false' ?>;

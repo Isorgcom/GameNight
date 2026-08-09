@@ -176,7 +176,7 @@ $csrf = csrf_token();
     </div>
 </div>
 
-<script>
+<script nonce="<?= csp_nonce() ?>">
 var CSRF = <?= json_encode($csrf) ?>;
 var _rqLeagueId = null;
 
