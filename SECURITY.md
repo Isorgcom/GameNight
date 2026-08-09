@@ -4,7 +4,7 @@ Working notes for this codebase: the checks to run before shipping, and the one
 known hardening gap that has not been closed yet. Kept in the repo so neither
 gets lost between sessions.
 
-Last reviewed: 2026-08-09 (v0.2074).
+Last reviewed: 2026-08-09 (v0.2075).
 
 ---
 
@@ -90,7 +90,7 @@ It is load-bearing. As of 2026-08-09:
 
 | | Count |
 |---|---|
-| Inline `on*` handler attributes | 564 (was 579; `_nav.php` and `_post_card.php` converted in v0.2073) |
+| Inline `on*` handler attributes | 399 (was 579; `_nav.php`, `_post_card.php` v0.2073, `checkin.php` v0.2075) |
 | Inline `<script>` blocks | 64, all nonced as of v0.2072 |
 | External `.js` files | 6 |
 
@@ -158,6 +158,18 @@ which is exactly the pattern that has to move to event delegation.
      anyone holding a cached copy. Every local script tag now carries
      `?v=<?= APP_VERSION . '.' . filemtime(...) ?>`; keep it that way. The same
      trap hit `style.css` in v0.2062.
+   - **Namespace argument attributes per event.** One element can carry two
+     handlers (the walk-in box has both `input` and `keydown`). A shared
+     `data-a1..a4` namespace produces a *duplicate attribute*, HTML keeps the
+     first, and the second handler silently receives the wrong arguments. Click
+     uses the bare `data-aN`; every other event prefixes its own
+     (`data-keydown-a1`). This shipped in v0.2073's pattern and broke
+     Enter-to-add-walk-in plus Enter in cash-in fields; fixed in v0.2075.
+   - **Test the actual gesture, not just the dispatch.** A sweep that reads the
+     same attributes the dispatcher reads will agree with a bug rather than
+     catch it. The collision above survived 315 passing dispatch assertions and
+     was found by a human pressing Enter. Add one real-gesture test per
+     interaction class (type-and-Enter, click, select-change).
    - When testing a conversion, make sure the fixture actually exists. A check
      that skips because no post card rendered will report a pass for work it
      never verified.

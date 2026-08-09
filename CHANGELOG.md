@@ -4,6 +4,14 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2075] - 2026-08-09
+
+### Security
+- **The check-in console has no inline event handlers left.** All 157 `on*` attributes in `www/checkin.php` are gone, replaced by `data-act*` attributes dispatched from delegated listeners on `document`. Delegation is required rather than tidier: nearly everything in this console is re-rendered from JS on each poll, so per-element binding would be lost on every repaint. Arguments ride in `data-a*` attributes and are coerced back to their original types, since the inline form passed `toggleBuyin(12)` as a number; element- and event-derived values use `@value`, `@checked`, `@checked01`, `@prevValue`, `@dataU` and `@event` tokens resolved at call time. Former inline lambdas became named functions (`finishGameConfirm`, `reopenGameConfirm`, `cashInOnEnter`, `cashOutOnEnter`, `removePayoutRow`, `goBackOrHome` and others). Tree-wide the count is 579 down to 399; `timer.php` (154) is the remaining file. The dispatcher warns to the console when a name does not resolve, because a dead control is otherwise silent.
+
+### Fixed
+- **Enter no longer failed when adding a walk-in, and the same fault affected cash-in fields.** Argument attributes shared one `data-a1..a4` namespace, so an element carrying two handlers emitted a duplicate attribute; HTML keeps the first, so the second handler received the wrong arguments. The walk-in box carries both `input` and `keydown`, so `walkinKeydown` was handed the input's text instead of the event and `e.key` was undefined. The cash-in field had the identical collision, giving `cashInOnEnter` `(pid, value)` where it expects `(event, pid)`. Argument attributes are now namespaced per event (`data-keydown-a1`, `data-change-a1`, and so on), with click keeping the bare form. Verified by typing a name and pressing Enter, and on a cash game for both the cash-in and cash-out fields; a collision guard now fails the test suite outright if any element reuses an argument slot.
+
 ## [v0.2074] - 2026-08-09
 
 ### Fixed

@@ -613,8 +613,8 @@ $session = $sessStmt->fetch();
         <h3>Player Notes</h3>
         <textarea id="notesText" placeholder="Notes about this player..."></textarea>
         <div class="pk-modal-actions">
-            <button onclick="closeNotes()">Cancel</button>
-            <button class="pk-save" onclick="saveNotes()">Save</button>
+            <button data-act="closeNotes">Cancel</button>
+            <button class="pk-save" data-act="saveNotes">Save</button>
         </div>
     </div>
 </div>
@@ -634,24 +634,24 @@ $session = $sessStmt->fetch();
         </select>
         <label style="font-size:.85rem;font-weight:600;color:#475569;display:block;margin-bottom:.3rem">Paid to</label>
         <div id="jpRecipients"></div>
-        <button type="button" onclick="addJackpotRecipient()" style="font-size:.78rem;padding:.3rem .6rem;border-radius:4px;cursor:pointer;border:1.5px solid var(--border,#e2e8f0);background:#f8fafc;margin-top:.2rem">+ Add recipient</button>
+        <button type="button" data-act="addJackpotRecipient" style="font-size:.78rem;padding:.3rem .6rem;border-radius:4px;cursor:pointer;border:1.5px solid var(--border,#e2e8f0);background:#f8fafc;margin-top:.2rem">+ Add recipient</button>
 
         <div style="margin-top:.9rem;padding-top:.7rem;border-top:1.5px solid #e2e8f0">
             <div style="display:flex;justify-content:space-between;align-items:center">
                 <span style="font-size:.85rem;font-weight:600;color:#475569">Fund history</span>
-                <button type="button" onclick="jpToggleAdjust()" style="font-size:.72rem;padding:.25rem .55rem;border-radius:4px;cursor:pointer;border:1.5px solid var(--border,#e2e8f0);background:#f8fafc">± Adjust fund</button>
+                <button type="button" data-act="jpToggleAdjust" style="font-size:.72rem;padding:.25rem .55rem;border-radius:4px;cursor:pointer;border:1.5px solid var(--border,#e2e8f0);background:#f8fafc">± Adjust fund</button>
             </div>
             <div id="jpAdjustRow" style="display:none;margin-top:.5rem;gap:.4rem;align-items:center">
                 <span class="pk-money-wrap" style="flex:0 0 90px"><input type="number" id="jpAdjAmount" step="0.01" placeholder="-5 or 5"></span>
                 <input type="text" id="jpAdjNote" maxlength="120" placeholder="reason…" style="flex:1;padding:.45rem .5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:.85rem">
-                <button type="button" class="pk-save" onclick="confirmJackpotAdjust()" style="padding:.4rem .7rem;border-radius:6px;border:none;background:#2563eb;color:#fff;font-size:.8rem;font-weight:600;cursor:pointer">Apply</button>
+                <button type="button" class="pk-save" data-act="confirmJackpotAdjust" style="padding:.4rem .7rem;border-radius:6px;border:none;background:#2563eb;color:#fff;font-size:.8rem;font-weight:600;cursor:pointer">Apply</button>
             </div>
             <div id="jpHistory" style="margin-top:.5rem;max-height:180px;overflow-y:auto;scrollbar-gutter:stable;padding-right:.75rem;font-size:.78rem;color:#334155"></div>
         </div>
 
         <div class="pk-modal-actions">
-            <button onclick="closeJackpotModal()">Cancel</button>
-            <button class="pk-save" onclick="confirmJackpotHit()">Record Hit</button>
+            <button data-act="closeJackpotModal">Cancel</button>
+            <button class="pk-save" data-act="confirmJackpotHit">Record Hit</button>
         </div>
     </div>
 </div>
@@ -665,39 +665,39 @@ $session = $sessStmt->fetch();
         <label style="font-size:.85rem;font-weight:600;color:#475569;display:block;margin:.75rem 0 .3rem">Save to</label>
         <select id="ssScope" style="width:100%;padding:.5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:1rem;box-sizing:border-box"></select>
         <div class="pk-modal-actions">
-            <button onclick="closeSaveStruct()">Cancel</button>
-            <button class="pk-save" onclick="confirmSaveStruct()">Save</button>
+            <button data-act="closeSaveStruct">Cancel</button>
+            <button class="pk-save" data-act="confirmSaveStruct">Save</button>
         </div>
     </div>
 </div>
 
 <!-- Cash-in adjust modal -->
-<div class="pk-modal-overlay" id="cashAdjustModal" onclick="if(event.target===this)closeCashAdjust()">
+<div class="pk-modal-overlay" id="cashAdjustModal" data-act-self="closeCashAdjust">
     <div class="pk-modal">
         <h3 id="cashAdjustTitle">Add Money</h3>
         <label style="font-size:.85rem;font-weight:600;color:#475569;display:block;margin-bottom:.3rem">Amount ($)</label>
         <input type="number" id="cashAdjustAmount" step="0.01" min="0" style="width:100%;padding:.5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:1rem;box-sizing:border-box">
         <div class="pk-modal-actions">
-            <button onclick="closeCashAdjust()">Cancel</button>
-            <button class="pk-save" id="cashAdjustOk" onclick="applyCashAdjust()">Add</button>
+            <button data-act="closeCashAdjust">Cancel</button>
+            <button class="pk-save" id="cashAdjustOk" data-act="applyCashAdjust">Add</button>
         </div>
     </div>
 </div>
 
 <!-- Ledger modal: per-player money history + corrections -->
-<div class="pk-modal-overlay" id="ledgerModal" onclick="if(event.target===this)closeLedger()">
+<div class="pk-modal-overlay" id="ledgerModal" data-act-self="closeLedger">
     <div class="pk-modal pk-log-modal">
         <h3 id="ledgerTitle">Ledger</h3>
         <div class="pk-log-sub">Every buy-in, add-on and cash-out for this player. Tap <b>Edit</b> to fix a wrong amount in place, or <b>Clear</b> to reverse an entry.</div>
         <div class="pk-ledger-list" id="ledgerList"><div class="pk-ledger-empty">Loading&hellip;</div></div>
         <div class="pk-modal-actions">
-            <button class="pk-save" onclick="closeLedger()">Close</button>
+            <button class="pk-save" data-act="closeLedger">Close</button>
         </div>
     </div>
 </div>
 
 <!-- Cash box reconciliation modal (cash games) -->
-<div class="pk-modal-overlay" id="cashBoxModal" onclick="if(event.target===this)closeCashBox()">
+<div class="pk-modal-overlay" id="cashBoxModal" data-act-self="closeCashBox">
     <div class="pk-modal">
         <h3>&#129534; Cash Box</h3>
         <div class="pk-log-sub">Record tips and square the cash box at the end of the game.</div>
@@ -705,21 +705,21 @@ $session = $sessStmt->fetch();
             <div class="pk-cb-row"><span>Total bought in</span><span id="cbCashIn">$0</span></div>
             <div class="pk-cb-row"><span>Total cashed out</span><span id="cbCashOut">$0</span></div>
             <div class="pk-cb-row"><span>Still on table (owed)</span><span id="cbOnTable">$0</span></div>
-            <div class="pk-cb-row pk-cb-input-row"><label for="cbTips">Tips (host)</label><span class="pk-cb-money">$<input type="number" inputmode="decimal" step="0.01" min="0" id="cbTips" oninput="cashBoxRecompute()" placeholder="0.00"></span></div>
+            <div class="pk-cb-row pk-cb-input-row"><label for="cbTips">Tips (host)</label><span class="pk-cb-money">$<input type="number" inputmode="decimal" step="0.01" min="0" id="cbTips" data-act-input="cashBoxRecompute" placeholder="0.00"></span></div>
             <div class="pk-cb-row pk-cb-sub"><span>Expected in box</span><span id="cbExpected">$0</span></div>
-            <div class="pk-cb-row pk-cb-input-row"><label for="cbCounted">Counted in box</label><span class="pk-cb-money">$<input type="number" inputmode="decimal" step="0.01" min="0" id="cbCounted" oninput="cashBoxRecompute()" placeholder="count it"></span></div>
+            <div class="pk-cb-row pk-cb-input-row"><label for="cbCounted">Counted in box</label><span class="pk-cb-money">$<input type="number" inputmode="decimal" step="0.01" min="0" id="cbCounted" data-act-input="cashBoxRecompute" placeholder="count it"></span></div>
             <div class="pk-cb-row pk-cb-total"><span>Over / Short</span><span id="cbOverShort" class="pk-cb-os">&mdash;</span></div>
-            <button type="button" id="cbTipSurplus" class="pk-cb-tipbtn" onclick="cashBoxTipSurplus()" style="display:none">Record the surplus as tips</button>
+            <button type="button" id="cbTipSurplus" class="pk-cb-tipbtn" data-act="cashBoxTipSurplus" style="display:none">Record the surplus as tips</button>
         </div>
         <div class="pk-modal-actions">
-            <button onclick="closeCashBox()">Cancel</button>
-            <button class="pk-save" onclick="saveCashBox()">Save</button>
+            <button data-act="closeCashBox">Cancel</button>
+            <button class="pk-save" data-act="saveCashBox">Save</button>
         </div>
     </div>
 </div>
 
 <!-- Help modal -->
-<div class="pk-modal-overlay" id="helpModal" onclick="if(event.target===this)closeHelp()">
+<div class="pk-modal-overlay" id="helpModal" data-act-self="closeHelp">
     <div class="pk-modal">
         <h3>How this screen works</h3>
         <div class="pk-help-content">
@@ -735,31 +735,31 @@ $session = $sessStmt->fetch();
             <p>Marks a player as knocked out. Their finishing place is filled in automatically by elimination order (9th, 8th … down to 1st), and if that place is in the money the prize owed shows next to their name. Eliminate players in the order they bust. Use <b>Undo</b> if you make a mistake.</p>
         </div>
         <div class="pk-modal-actions">
-            <button class="pk-save" onclick="closeHelp()">Got it</button>
+            <button class="pk-save" data-act="closeHelp">Got it</button>
         </div>
     </div>
 </div>
 
 <!-- Eliminate confirmation modal -->
-<div class="pk-modal-overlay" id="elimModal" onclick="if(event.target===this)closeElim()">
+<div class="pk-modal-overlay" id="elimModal" data-act-self="closeElim">
     <div class="pk-modal">
         <h3>Eliminate Player</h3>
         <p id="elimMsg" style="font-size:.9rem;color:#475569;line-height:1.45;margin:0"></p>
         <div class="pk-modal-actions">
-            <button onclick="closeElim()">Cancel</button>
-            <button class="pk-save" style="background:#dc2626" onclick="confirmElim()">Eliminate</button>
+            <button data-act="closeElim">Cancel</button>
+            <button class="pk-save" style="background:#dc2626" data-act="confirmElim">Eliminate</button>
         </div>
     </div>
 </div>
 
 <!-- Winner / game-over modal -->
-<div class="pk-modal-overlay" id="winnerModal" onclick="if(event.target===this)closeWinner()">
+<div class="pk-modal-overlay" id="winnerModal" data-act-self="closeWinner">
     <div class="pk-modal" style="text-align:center">
         <div style="font-size:2.75rem;line-height:1">🏆</div>
         <h3 id="winnerMsg" style="margin:.4rem 0 .25rem"></h3>
         <p id="winnerSub" style="font-size:.9rem;color:#475569;line-height:1.45;margin:0"></p>
         <div class="pk-modal-actions" style="justify-content:center">
-            <button class="pk-save" onclick="closeWinner()">Nice!</button>
+            <button class="pk-save" data-act="closeWinner">Nice!</button>
         </div>
     </div>
 </div>
@@ -768,6 +768,130 @@ $session = $sessStmt->fetch();
 
 <script nonce="<?= csp_nonce() ?>">
 var CSRF = <?= json_encode($csrf, JSON_HEX_TAG) ?>;
+
+// ── Declarative handler dispatch (CSP step 2, see SECURITY.md) ────────────
+// Inline on* attributes cannot be authorised by a nonce, so controls carry a
+// data-act* attribute naming the function to call and these delegated listeners
+// invoke it. Delegation on document is required rather than tidier: almost
+// everything in this console is re-rendered from JS, so per-element binding
+// would be lost on every repaint.
+//   data-act        click  -> fn()          (bubbles, so it works on children)
+//   data-act-self   click  -> fn()  ONLY when the click is on the element
+//                                    itself, the modal-backdrop pattern that
+//                                    used to be if(event.target===this)
+//   data-act-input  input  -> fn()
+// Arguments ride in data-a1..data-a4. They arrive as strings, so a value that
+// looks numeric or boolean is coerced back: the inline form passed
+// toggleBuyin(12) as a NUMBER, and reproducing that exactly is the point.
+// A leading @ marks a value read from the element or the event at call time —
+// the inline forms these replaced said this.value, this.checked and so on.
+// ── Named replacements for former inline expressions (CSP step 2) ─────────
+// Each of these was an inline lambda or a DOM mutation written straight into an
+// on* attribute. A nonce cannot authorise those, so they get names.
+function finishGameConfirm() {
+    pkConfirm('Mark this game as finished? This finalizes all stats and payouts.')
+        .then(function (ok) { if (ok) changeStatus('finished'); });
+}
+function reopenGameConfirm() {
+    pkConfirm('Reopen this game?').then(function (ok) { if (ok) changeStatus('active'); });
+}
+function goBackOrHome(ev) {
+    // Was: if(history.length>1){history.back();return false;}
+    if (history.length > 1) { ev.preventDefault(); history.back(); }
+}
+function openPayoutsSetup(ev) {
+    if (ev) ev.preventDefault();
+    openSettings('payouts');
+}
+function removeSelfParent() { this.parentNode.remove(); }
+function removePayoutRow() {
+    this.parentNode.remove();
+    updatePayoutSum();
+    markSettingsDirty();
+}
+function closeBalanceModal() {
+    var m = document.getElementById('balanceModal');
+    if (m) m.remove();
+}
+function cashInOnEnter(ev, pid) {
+    if (ev.key !== 'Enter') return;
+    ev.preventDefault();
+    setCashIn(pid, this.value);
+    focusNextCashInput(this);
+}
+function cashOutOnEnter(ev, pid) {
+    if (ev.key !== 'Enter') return;
+    ev.preventDefault();
+    commitCashOut(pid, this.value);
+}
+
+function _token(tok, el, ev) {
+    switch (tok) {
+        case '@value':      return el.value;
+        case '@checked':    return el.checked;
+        case '@checked01':  return el.checked ? 1 : 0;
+        case '@prevValue':  return el.previousElementSibling ? el.previousElementSibling.value : '';
+        case '@dataU':      return el.dataset.u;
+        case '@event':      return ev;
+        case '@self':       return el;
+        default:            return tok;
+    }
+}
+// Arguments are namespaced PER EVENT. One element can carry several data-act*
+// attributes (the walk-in box has both input and keydown), and a shared data-aN
+// namespace means a duplicate attribute — HTML keeps the first, so the second
+// handler silently receives the wrong arguments. Click keeps the bare data-aN
+// form because it is the common case; every other event prefixes its own.
+function _args(el, ev, pfx) {
+    var out = [];
+    for (var i = 1; i <= 4; i++) {
+        var v = el.getAttribute('data-' + (pfx || '') + 'a' + i);
+        if (v === null) break;
+        if (v.charAt(0) === '@')     out.push(_token(v, el, ev));
+        else if (v === 'true')       out.push(true);
+        else if (v === 'false')      out.push(false);
+        else if (v !== '' && !isNaN(v)) out.push(Number(v));
+        else out.push(v);
+    }
+    return out;
+}
+function _dispatch(name, el, ev, pfx) {
+    var fn = window[name];
+    if (typeof fn === 'function') return fn.apply(el || null, el ? _args(el, ev, pfx) : []);
+    console.warn('[checkin] no handler named', name);   // a dead control is silent otherwise
+}
+document.addEventListener('click', function (e) {
+    // Backdrop first: it must not fire when a child was clicked.
+    if (e.target instanceof Element && e.target.hasAttribute('data-act-self')) {
+        _dispatch(e.target.getAttribute('data-act-self'), e.target, e);
+        return;
+    }
+    if (!e.target.closest) return;
+    // data-stop replaces an inline stopPropagation(), which sat ON the element
+    // and kept the click from reaching an ANCESTOR's handler. Calling
+    // stopPropagation() from here would be too late: the event has already
+    // reached document. Treat it as a boundary instead — find the nearest
+    // data-act OR data-stop, and if the boundary is nearer, dispatch nothing.
+    var t = e.target.closest('[data-act], [data-stop]');
+    if (!t || t.hasAttribute('data-stop')) return;
+    _dispatch(t.getAttribute('data-act'), t, e);
+});
+document.addEventListener('change', function (e) {
+    var t = e.target.closest ? e.target.closest('[data-act-change]') : null;
+    if (t) _dispatch(t.getAttribute('data-act-change'), t, e, 'change-');
+});
+document.addEventListener('keydown', function (e) {
+    var t = e.target.closest ? e.target.closest('[data-act-keydown]') : null;
+    if (t) _dispatch(t.getAttribute('data-act-keydown'), t, e, 'keydown-');
+});
+document.addEventListener('mousedown', function (e) {
+    var t = e.target.closest ? e.target.closest('[data-act-mousedown]') : null;
+    if (t) _dispatch(t.getAttribute('data-act-mousedown'), t, e, 'mousedown-');
+});
+document.addEventListener('input', function (e) {
+    var t = e.target.closest ? e.target.closest('[data-act-input]') : null;
+    if (t) _dispatch(t.getAttribute('data-act-input'), t, e, 'input-');
+});
 var ALL_USERS = <?= json_encode($allUsernames, JSON_HEX_TAG) ?>;
 var EVENT_ID = <?= $event_id ?>;
 var EVENT_LEAGUE_ID = <?= (int)($event['league_id'] ?? 0) ?>;
@@ -917,8 +1041,8 @@ function renderSetup() {
     h += '<p>Configure the game for <strong>' + escHtml(<?= json_encode($event['title'], JSON_HEX_TAG) ?>) + '</strong></p>';
     h += '<label>Game Type</label>';
     h += '<div class="pk-type-toggle" id="typeToggle">';
-    h += '<button class="t-tournament active" onclick="setSetupType(\'tournament\')">Tournament</button>';
-    h += '<button class="t-cash" onclick="setSetupType(\'cash\')">Cash Game</button>';
+    h += '<button class="t-tournament active" data-act="setSetupType" data-a1="tournament">Tournament</button>';
+    h += '<button class="t-cash" data-act="setSetupType" data-a1="cash">Cash Game</button>';
     h += '</div>';
     h += '<label>Buy-in Amount</label><div class="pk-money-wrap"><input type="number" id="s_buyin" value="20" step="1" min="0"></div>';
     h += '<div id="setupTourneyFields">';
@@ -928,7 +1052,7 @@ function renderSetup() {
     h += '<label>Add-on Chips</label><input type="number" id="s_addon_chips" value="5000" step="1" min="0">';
     h += '</div>';
     h += '<label>Number of Tables</label><input type="number" id="s_tables" value="1" step="1" min="1">';
-    h += '<button type="submit" onclick="initSession()">Create Session &amp; Import Players</button>';
+    h += '<button type="submit" data-act="initSession">Create Session &amp; Import Players</button>';
     h += '</div>';
     document.getElementById('app').innerHTML = h;
     // Prefill from remembered defaults (last-used for this league, else personal, else hardcoded).
@@ -999,7 +1123,7 @@ function renderDashboard() {
 
     // Header
     h += '<div class="pk-header">';
-    h += '<a href="/calendar.php" class="pk-btn-back" title="Back" style="text-decoration:none" onclick="if(history.length>1){history.back();return false;}">&larr;</a>';
+    h += '<a href="/calendar.php" class="pk-btn-back" title="Back" style="text-decoration:none" data-act="goBackOrHome" data-a1="@event">&larr;</a>';
     h += '<h1>' + escHtml(<?= json_encode($event['title'], JSON_HEX_TAG) ?>) + ' <a href="/calendar.php"><span class="pk-act-label">Calendar</span></a></h1>';
     h += '<span class="pk-badge ' + typeClass + '">' + typeLabel + '</span>';
     h += '<div class="pk-actions">';
@@ -1012,7 +1136,7 @@ function renderDashboard() {
     // whichever line it happens to land on — so it moved as the window resized.
     // First in the group keeps it clear of Finish and steady when the
     // conditional Timer / Cash Box / Jackpot buttons come and go.
-    h += '<button class="pk-btn-settings" title="How this screen works" aria-label="Help" onclick="openHelp()">?<span class="pk-act-label"> Help</span></button>';
+    h += '<button class="pk-btn-settings" title="How this screen works" aria-label="Help" data-act="openHelp">?<span class="pk-act-label"> Help</span></button>';
     if (isTourney()) {
         h += '<a class="pk-btn-settings" href="/timer.php?event_id=' + <?= (int)$event['id'] ?> + '" style="text-decoration:none" title="Timer">&#9201;<span class="pk-act-label"> Timer</span></a>';
     }
@@ -1020,17 +1144,17 @@ function renderDashboard() {
     if (isTourney()) {
         // The deal-split calculator moved into the view switcher as "Chop".
     } else {
-        h += '<button class="pk-btn-settings" onclick="openCashBox()" title="Cash box: record tips and square the box">&#129534;<span class="pk-act-label"> Cash Box</span></button>';
+        h += '<button class="pk-btn-settings" data-act="openCashBox" title="Cash box: record tips and square the box">&#129534;<span class="pk-act-label"> Cash Box</span></button>';
     }
     // League jackpots: record a bad-beat / royal hit from the table.
     if (JACKPOTS.league_id) {
-        h += '<button class="pk-btn-settings" onclick="openJackpotModal()" title="League jackpots: view funds and record a hit">💎<span class="pk-act-label"> Jackpot</span></button>';
+        h += '<button class="pk-btn-settings" data-act="openJackpotModal" title="League jackpots: view funds and record a hit">💎<span class="pk-act-label"> Jackpot</span></button>';
     }
     // Game lifecycle lives in the header now, not buried in Settings.
     if (SESSION.status !== 'finished') {
-        h += '<button class="pk-btn-green" onclick="pkConfirm(\'Mark this game as finished? This finalizes all stats and payouts.\').then(function(ok){if(ok)changeStatus(\'finished\')})" title="Finish the game and lock in payouts">&#10003;<span class="pk-act-label"> Finish</span></button>';
+        h += '<button class="pk-btn-green" data-act="finishGameConfirm" title="Finish the game and lock in payouts">&#10003;<span class="pk-act-label"> Finish</span></button>';
     } else {
-        h += '<button class="pk-btn-settings" style="color:#d97706;border-color:#fcd34d" onclick="pkConfirm(\'Reopen this game?\').then(function(ok){if(ok)changeStatus(\'active\')})" title="Reopen the finished game">&#8634;<span class="pk-act-label"> Reopen</span></button>';
+        h += '<button class="pk-btn-settings" style="color:#d97706;border-color:#fcd34d" data-act="reopenGameConfirm" title="Reopen the finished game">&#8634;<span class="pk-act-label"> Reopen</span></button>';
     }
     h += '</div>';
     if (isCash()) {
@@ -1061,10 +1185,10 @@ function renderDashboard() {
     h += '<div class="pk-toolbar">';
     h += '<div class="pk-tb-group pk-tb-add">';
     h += '<div class="walkin-autocomplete">';
-    h += '<input type="text" id="walkinName" placeholder="Walk-in name..." autocomplete="off" oninput="walkinSuggest(this.value)" onkeydown="walkinKeydown(event)">';
+    h += '<input type="text" id="walkinName" placeholder="Walk-in name..." autocomplete="off" data-act-input="walkinSuggest" data-input-a1="@value" data-act-keydown="walkinKeydown" data-keydown-a1="@event">';
     h += '<div class="walkin-dropdown" id="walkinDropdown"></div>';
     h += '</div>';
-    h += '<button class="pk-btn-add" onclick="addWalkin()">+ Add</button>';
+    h += '<button class="pk-btn-add" data-act="addWalkin">+ Add</button>';
     h += '</div>';
     h += '<div class="pk-tb-group pk-tb-controls">';
     // The player filter used to live here. It belongs to the page, not the
@@ -1077,18 +1201,18 @@ function renderDashboard() {
     // hard to skim past — which is the whole point, since "Settings" read as
     // optional preferences when it holds the buy-in, chips, rebuys and the
     // whole payout structure. No dividers: the shape does the separating.
-    h += '<button class="pk-btn-setup' + (VIEW_MODE === 'settings' ? ' active' : '') + '" id="setupBtn" title="Buy-in, chips, rebuys, payouts and rewards" onclick="setViewMode(\'settings\')">&#9881;<span class="pk-seg-label"> Setup</span></button>';
+    h += '<button class="pk-btn-setup' + (VIEW_MODE === 'settings' ? ' active' : '') + '" id="setupBtn" title="Buy-in, chips, rebuys, payouts and rewards" data-act="setViewMode" data-a1="settings">&#9881;<span class="pk-seg-label"> Setup</span></button>';
     // The strip holds VIEWS — things you look at. Six equal segments made Setup
     // read as a sixth view and it got lost, hence the button above. Labels
     // collapse to icons on phones, Setup's along with them.
     h += '<div class="pk-seg pk-view-seg" id="viewSeg">';
     h += '<span class="pk-seg-thumb"></span>';
-    h += '<button data-view="list" class="' + (VIEW_MODE === 'list' ? 'active' : '') + '" title="Player list" onclick="setViewMode(\'list\')">&#9776;<span class="pk-seg-label"> List</span></button>';
-    h += '<button data-view="table" class="' + (VIEW_MODE === 'table' ? 'active' : '') + '" title="Table &amp; seat layout" onclick="setViewMode(\'table\')">&#9638;<span class="pk-seg-label"> Table</span></button>';
-    h += '<button data-view="log" class="' + (VIEW_MODE === 'log' ? 'active' : '') + '" title="Activity log: buy-ins, cash-outs, adds and more" onclick="setViewMode(\'log\')">&#128203;<span class="pk-seg-label"> Log</span></button>';
+    h += '<button data-view="list" class="' + (VIEW_MODE === 'list' ? 'active' : '') + '" title="Player list" data-act="setViewMode" data-a1="list">&#9776;<span class="pk-seg-label"> List</span></button>';
+    h += '<button data-view="table" class="' + (VIEW_MODE === 'table' ? 'active' : '') + '" title="Table &amp; seat layout" data-act="setViewMode" data-a1="table">&#9638;<span class="pk-seg-label"> Table</span></button>';
+    h += '<button data-view="log" class="' + (VIEW_MODE === 'log' ? 'active' : '') + '" title="Activity log: buy-ins, cash-outs, adds and more" data-act="setViewMode" data-a1="log">&#128203;<span class="pk-seg-label"> Log</span></button>';
     if (isTourney()) {
-        h += '<button data-view="payouts" class="' + (VIEW_MODE === 'payouts' ? 'active' : '') + '" title="Prize ladder, pool breakdown and rewards" onclick="setViewMode(\'payouts\')">&#128176;<span class="pk-seg-label"> Payouts</span></button>';
-        h += '<button data-view="chop" class="' + (VIEW_MODE === 'chop' ? 'active' : '') + '" title="Deal split calculator: ICM, standard or chip chop" onclick="setViewMode(\'chop\')">&#129535;<span class="pk-seg-label"> Chop</span></button>';
+        h += '<button data-view="payouts" class="' + (VIEW_MODE === 'payouts' ? 'active' : '') + '" title="Prize ladder, pool breakdown and rewards" data-act="setViewMode" data-a1="payouts">&#128176;<span class="pk-seg-label"> Payouts</span></button>';
+        h += '<button data-view="chop" class="' + (VIEW_MODE === 'chop' ? 'active' : '') + '" title="Deal split calculator: ICM, standard or chip chop" data-act="setViewMode" data-a1="chop">&#129535;<span class="pk-seg-label"> Chop</span></button>';
     }
     h += '</div>';
     h += '</div>';  // .pk-tb-controls
@@ -1132,19 +1256,19 @@ function renderFilterBar() {
     if (!filterApplies(VIEW_MODE)) return '';
     var h = '<div class="pk-filter-bar"><div class="pk-seg pk-filter" id="filterSeg">';
     h += '<span class="pk-seg-thumb"></span>';
-    h += '<button data-filter="all" class="' + (FILTER==='all'?'active':'') + '" onclick="setFilter(\'all\')">All</button>';
-    if (isTourney()) h += '<button data-filter="rsvp_yes" class="' + (FILTER==='rsvp_yes'?'active':'') + '" onclick="setFilter(\'rsvp_yes\')">RSVP Yes</button>';
+    h += '<button data-filter="all" class="' + (FILTER==='all'?'active':'') + '" data-act="setFilter" data-a1="all">All</button>';
+    if (isTourney()) h += '<button data-filter="rsvp_yes" class="' + (FILTER==='rsvp_yes'?'active':'') + '" data-act="setFilter" data-a1="rsvp_yes">RSVP Yes</button>';
     if (isTourney()) {
-        h += '<button data-filter="playing" class="' + (FILTER==='playing'?'active':'') + '" onclick="setFilter(\'playing\')">Playing</button>';
-        h += '<button data-filter="eliminated" class="' + (FILTER==='eliminated'?'active':'') + '" onclick="setFilter(\'eliminated\')">Out</button>';
+        h += '<button data-filter="playing" class="' + (FILTER==='playing'?'active':'') + '" data-act="setFilter" data-a1="playing">Playing</button>';
+        h += '<button data-filter="eliminated" class="' + (FILTER==='eliminated'?'active':'') + '" data-act="setFilter" data-a1="eliminated">Out</button>';
     } else {
-        h += '<button data-filter="playing" class="' + (FILTER==='playing'?'active':'') + '" onclick="setFilter(\'playing\')">Active</button>';
-        h += '<button data-filter="eliminated" class="' + (FILTER==='eliminated'?'active':'') + '" onclick="setFilter(\'eliminated\')">Out</button>';
+        h += '<button data-filter="playing" class="' + (FILTER==='playing'?'active':'') + '" data-act="setFilter" data-a1="playing">Active</button>';
+        h += '<button data-filter="eliminated" class="' + (FILTER==='eliminated'?'active':'') + '" data-act="setFilter" data-a1="eliminated">Out</button>';
     }
     h += '</div>';
     if (VIEW_MODE === 'table') {
-        h += '<button id="balanceBtn" class="pk-btn-view-toggle" title="Even out the number of players at each table" onclick="balanceTables()">&#9878; Balance</button>';
-        h += '<button id="addTableBtn" class="pk-btn-green" onclick="addTable()">Add Table</button>';
+        h += '<button id="balanceBtn" class="pk-btn-view-toggle" title="Even out the number of players at each table" data-act="balanceTables">&#9878; Balance</button>';
+        h += '<button id="addTableBtn" class="pk-btn-green" data-act="addTable">Add Table</button>';
     }
     h += '</div>';
     return h;
@@ -1166,12 +1290,12 @@ function renderViewContent() {
     h += '<div class="pk-bulk-bar" id="bulkBar">';
     h += '<span class="pk-bulk-count" id="bulkCount">0 selected</span>';
     if (isTourney()) {
-        h += '<button class="primary" title="Record buy-in for the selected players (also checks them in and seats them)" onclick="bulkAction(\'toggle_buyin\')">Buy In</button>';
-        h += '<button onclick="bulkAction(\'eliminate_player\')">Eliminate</button>';
+        h += '<button class="primary" title="Record buy-in for the selected players (also checks them in and seats them)" data-act="bulkAction" data-a1="toggle_buyin">Buy In</button>';
+        h += '<button data-act="bulkAction" data-a1="eliminate_player">Eliminate</button>';
     }
-    h += '<button title="Approve the selected pending self-signups / walk-ins onto the roster" onclick="bulkAction(\'approve_player\')">Approve</button>';
-    h += '<button class="danger" onclick="bulkRemoveConfirm()">Remove</button>';
-    h += '<button onclick="clearSelection()">Clear</button>';
+    h += '<button title="Approve the selected pending self-signups / walk-ins onto the roster" data-act="bulkAction" data-a1="approve_player">Approve</button>';
+    h += '<button class="danger" data-act="bulkRemoveConfirm">Remove</button>';
+    h += '<button data-act="clearSelection">Clear</button>';
     h += '</div>';
     h += '<div class="pk-table-wrap"><table class="pk-table">';
     h += '<thead><tr id="playerHead">' + renderTableHeader() + '</tr></thead>';
@@ -1182,11 +1306,11 @@ function renderViewContent() {
 
 function sortableTh(label, key, extra) {
     var arrow = (SORT_KEY === key) ? ' <span style="font-size:.7em">' + (SORT_DIR === 1 ? '▲' : '▼') + '</span>' : '';
-    return '<th class="pk-sortable" ' + (extra || '') + ' onclick="setSort(\'' + key + '\')">' + label + arrow + '</th>';
+    return '<th class="pk-sortable" ' + (extra || '') + ' data-act="setSort" data-a1="' + key + '">' + label + arrow + '</th>';
 }
 
 function renderTableHeader() {
-    var h = '<th style="width:2rem"><span style="display:inline-flex;align-items:center"><input type="checkbox" id="selectAll" class="pk-row-select" onchange="toggleSelectAll(this.checked)">' + tip('Select one or more players to act on several at once (buy in, remove, etc.). You don\'t need this to enter a single player.') + '</span></th>';
+    var h = '<th style="width:2rem"><span style="display:inline-flex;align-items:center"><input type="checkbox" id="selectAll" class="pk-row-select" data-act-change="toggleSelectAll" data-change-a1="@checked">' + tip('Select one or more players to act on several at once (buy in, remove, etc.). You don\'t need this to enter a single player.') + '</span></th>';
     h += '<th>#</th>';
     h += sortableTh('Name', 'name');
     if (isTourney()) h += sortableTh('RSVP', 'rsvp');
@@ -1336,7 +1460,7 @@ function renderPlayerRows() {
         var isWinner = !isElim && isTourney() && parseInt(p.finish_position) === 1;
         var rowClass = isPending ? 'pending-row' : (isElim ? 'elim' : (isWinner ? 'winner' : (hasCashedOut ? 'cashed-out' : (isNo ? 'rsvp-no' : ''))));
         h += '<tr class="' + rowClass + '" data-pid="' + p.id + '">';
-        h += '<td><input type="checkbox" class="pk-row-select pk-player-cb" value="' + p.id + '" onchange="updateBulkBar()"></td>';
+        h += '<td><input type="checkbox" class="pk-row-select pk-player-cb" value="' + p.id + '" data-act-change="updateBulkBar"></td>';
         h += '<td>' + num + '</td>';
         h += '<td class="name-cell">' + escHtml(p.display_name);
         if (isWalkin) h += '<span class="walkin-badge" title="Walk-in player" aria-label="Walk-in player">&#128694;</span>';
@@ -1345,7 +1469,7 @@ function renderPlayerRows() {
 
         // RSVP dropdown (tournaments only — not used in the cash-game flow)
         if (isTourney()) {
-            h += '<td><select class="pk-rsvp-select" onchange="updateRsvp(' + p.id + ',this.value)" style="font-size:.75rem;padding:.15rem .3rem;border-radius:4px;border:1px solid #e2e8f0;background:' + rsvpBg(rsvp) + ';color:' + rsvpColor(rsvp) + ';font-weight:600">';
+            h += '<td><select class="pk-rsvp-select" data-act-change="updateRsvp" data-change-a1="' + p.id + '" data-change-a2="@value" style="font-size:.75rem;padding:.15rem .3rem;border-radius:4px;border:1px solid #e2e8f0;background:' + rsvpBg(rsvp) + ';color:' + rsvpColor(rsvp) + ';font-weight:600">';
             h += '<option value=""' + (rsvp===''?' selected':'') + '>—</option>';
             h += '<option value="yes"' + (rsvp==='yes'?' selected':'') + '>Yes</option>';
             h += '<option value="no"' + (rsvp==='no'?' selected':'') + '>No</option>';
@@ -1357,21 +1481,21 @@ function renderPlayerRows() {
             h += '<td colspan="' + (isTourney() ? (1 + ((parseInt(SESSION.jackpot_amount)>0&&parseInt(SESSION.jackpot_optional))?1:0) + ((parseInt(SESSION.bounty_amount)>0&&parseInt(SESSION.bounty_optional))?1:0) + (parseInt(SESSION.rebuy_allowed)?1:0) + (parseInt(SESSION.addon_allowed)?1:0)) : 3) + '" style="text-align:center;color:#d97706;font-size:.8rem;font-style:italic">Awaiting approval</td>';
         } else {
         if (isTourney()) {
-            h += '<td><div style="display:inline-flex;align-items:center;gap:.15rem"><input type="checkbox" class="pk-check" title="Record this player\'s buy-in. Checks them in and assigns a seat automatically — no separate check-in step needed." ' + (parseInt(p.bought_in) ? 'checked' : '') + dis + ' onchange="toggleBuyin(' + p.id + ')">' + ledgerBtn(p.id) + '</div></td>';
+            h += '<td><div style="display:inline-flex;align-items:center;gap:.15rem"><input type="checkbox" class="pk-check" title="Record this player\'s buy-in. Checks them in and assigns a seat automatically — no separate check-in step needed." ' + (parseInt(p.bought_in) ? 'checked' : '') + dis + ' data-act-change="toggleBuyin" data-change-a1="' + p.id + '">' + ledgerBtn(p.id) + '</div></td>';
             if (parseInt(SESSION.jackpot_amount) > 0 && parseInt(SESSION.jackpot_optional)) {
-                h += '<td><input type="checkbox" class="pk-check" style="accent-color:#7c3aed" title="Jackpot side entry (' + formatMoney(parseInt(SESSION.jackpot_amount)) + ')" ' + (parseInt(p.jackpot_in) ? 'checked' : '') + dis + ' onchange="toggleJackpot(' + p.id + ')"></td>';
+                h += '<td><input type="checkbox" class="pk-check" style="accent-color:#7c3aed" title="Jackpot side entry (' + formatMoney(parseInt(SESSION.jackpot_amount)) + ')" ' + (parseInt(p.jackpot_in) ? 'checked' : '') + dis + ' data-act-change="toggleJackpot" data-change-a1="' + p.id + '"></td>';
             }
             if (parseInt(SESSION.bounty_amount) > 0 && parseInt(SESSION.bounty_optional)) {
-                h += '<td><input type="checkbox" class="pk-check" style="accent-color:#0e7490" title="Bounty side pot (' + formatMoney(parseInt(SESSION.bounty_amount)) + ')" ' + (parseInt(p.bounty_in) ? 'checked' : '') + dis + ' onchange="toggleBounty(' + p.id + ')"></td>';
+                h += '<td><input type="checkbox" class="pk-check" style="accent-color:#0e7490" title="Bounty side pot (' + formatMoney(parseInt(SESSION.bounty_amount)) + ')" ' + (parseInt(p.bounty_in) ? 'checked' : '') + dis + ' data-act-change="toggleBounty" data-change-a1="' + p.id + '"></td>';
             }
             if (parseInt(SESSION.rebuy_allowed)) {
-                h += '<td><div class="pk-counter"><button onclick="updateRebuys(' + p.id + ',-1)"' + dis + '>-</button><span>' + p.rebuys + '</span><button onclick="updateRebuys(' + p.id + ',1)"' + dis + '>+</button></div></td>';
+                h += '<td><div class="pk-counter"><button data-act="updateRebuys" data-a1="' + p.id + '" data-a2="-1"' + dis + '>-</button><span>' + p.rebuys + '</span><button data-act="updateRebuys" data-a1="' + p.id + '" data-a2="1"' + dis + '>+</button></div></td>';
             }
             if (parseInt(SESSION.addon_allowed)) {
                 var aoCount = parseInt(p.addons) || 0;
                 h += '<td style="width:6.5rem;min-width:6.5rem"><div style="display:flex;align-items:center;gap:.3rem;width:100%">'
-                   + '<button class="pk-addon-btn" onclick="addAddon(' + p.id + ')"' + dis + ' style="font-size:.75rem;padding:.2rem .5rem;border-radius:4px;border:1px solid #c4b5fd;background:#f5f3ff;color:#6d28d9;cursor:pointer;font-weight:600;flex:0 0 auto">+ Add-on</button>'
-                   + '<span onclick="' + (aoCount > 0 ? 'removeAddon(' + p.id + ')' : '') + '" title="' + (aoCount > 0 ? 'Click to remove last add-on' : '') + '" style="display:inline-flex;align-items:center;justify-content:center;min-width:1.3rem;height:1.3rem;padding:0 .35rem;border-radius:10px;font-size:.72rem;font-weight:700;flex:0 0 auto;' + (aoCount > 0 ? 'background:#7c3aed;color:#fff;cursor:pointer' : 'background:transparent;color:transparent;pointer-events:none') + '">' + (aoCount > 0 ? aoCount : '0') + '</span>'
+                   + '<button class="pk-addon-btn" data-act="addAddon" data-a1="' + p.id + '"' + dis + ' style="font-size:.75rem;padding:.2rem .5rem;border-radius:4px;border:1px solid #c4b5fd;background:#f5f3ff;color:#6d28d9;cursor:pointer;font-weight:600;flex:0 0 auto">+ Add-on</button>'
+                   + '<span ' + (aoCount > 0 ? 'data-act="removeAddon" data-a1="' + p.id + '"' : '') + '" title="' + (aoCount > 0 ? 'Click to remove last add-on' : '') + '" style="display:inline-flex;align-items:center;justify-content:center;min-width:1.3rem;height:1.3rem;padding:0 .35rem;border-radius:10px;font-size:.72rem;font-weight:700;flex:0 0 auto;' + (aoCount > 0 ? 'background:#7c3aed;color:#fff;cursor:pointer' : 'background:transparent;color:transparent;pointer-events:none') + '">' + (aoCount > 0 ? aoCount : '0') + '</span>'
                    + '</div></td>';
             }
         } else {
@@ -1382,15 +1506,15 @@ function renderPlayerRows() {
                 h += '<td><span style="color:#94a3b8">—</span></td>';
                 h += '<td><span style="color:#94a3b8">—</span></td>';
             } else {
-                h += '<td><div class="pk-counter"><input type="number" inputmode="decimal" step="0.01" min="0" class="pk-cash-input" data-pid="' + p.id + '" value="' + (cashIn/100) + '" onchange="setCashIn(' + p.id + ',this.value)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();setCashIn(' + p.id + ',this.value);focusNextCashInput(this);}" style="border:none;min-width:60px"><button onclick="adjustMoney(' + p.id + ',1)">+</button>' + ledgerBtn(p.id) + '</div></td>';
+                h += '<td><div class="pk-counter"><input type="number" inputmode="decimal" step="0.01" min="0" class="pk-cash-input" data-pid="' + p.id + '" value="' + (cashIn/100) + '" data-act-change="setCashIn" data-change-a1="' + p.id + '" data-change-a2="@value" data-act-keydown="cashInOnEnter" data-keydown-a1="@event" data-keydown-a2="' + p.id + '" style="border:none;min-width:60px"><button data-act="adjustMoney" data-a1="' + p.id + '" data-a2="1">+</button>' + ledgerBtn(p.id) + '</div></td>';
                 if (parseInt(p.bought_in)) {
                     // Inline cash-out field (mirrors Cash In). Green check commits for mouse users;
                     // Enter also commits. Clearing the field reverts the player to still-playing.
                     var coVal = hasCashedOut ? (parseInt(p.cash_out) / 100) : '';
                     h += '<td><div class="pk-counter">'
-                       + '<input type="number" inputmode="decimal" step="0.01" min="0" class="pk-co-input" value="' + coVal + '" placeholder="0.00" onkeydown="if(event.key===\'Enter\'){event.preventDefault();commitCashOut(' + p.id + ',this.value);}" style="border:none;min-width:60px">'
-                       + '<button title="Record cash-out" style="color:#16a34a;font-weight:700" onclick="commitCashOut(' + p.id + ', this.previousElementSibling.value)">✓</button>'
-                       + (hasCashedOut ? '' : '<button class="pk-bust-btn" title="Busted: out with $0. Frees their seat. Add cash to bring them back in." onclick="bustOut(' + p.id + ')">&#128165;</button>')
+                       + '<input type="number" inputmode="decimal" step="0.01" min="0" class="pk-co-input" value="' + coVal + '" placeholder="0.00" data-act-keydown="cashOutOnEnter" data-keydown-a1="@event" data-keydown-a2="' + p.id + '" style="border:none;min-width:60px">'
+                       + '<button title="Record cash-out" style="color:#16a34a;font-weight:700" data-act="commitCashOut" data-a1="' + p.id + '" data-a2="@prevValue">✓</button>'
+                       + (hasCashedOut ? '' : '<button class="pk-bust-btn" title="Busted: out with $0. Frees their seat. Add cash to bring them back in." data-act="bustOut" data-a1="' + p.id + '">&#128165;</button>')
                        + '</div></td>';
                     if (hasCashedOut) {
                         var prof = parseInt(p.cash_out) - cashIn;
@@ -1407,7 +1531,7 @@ function renderPlayerRows() {
         }
         } // close isPending else
 
-        h += '<td><input type="number" class="pk-tbl-input" value="' + (p.table_number || '') + '" min="1" max="' + SESSION.num_tables + '" onchange="setTable(' + p.id + ',this.value)" style="width:3rem"></td>';
+        h += '<td><input type="number" class="pk-tbl-input" value="' + (p.table_number || '') + '" min="1" max="' + SESSION.num_tables + '" data-act-change="setTable" data-change-a1="' + p.id + '" data-change-a2="@value" style="width:3rem"></td>';
         h += '<td style="text-align:center;color:#64748b;font-size:.8rem;font-weight:600">' + (p.seat_number || '—') + '</td>';
 
         // Status
@@ -1445,27 +1569,27 @@ function renderPlayerRows() {
         // Actions
         h += '<td style="white-space:nowrap">';
         if (isPending) {
-            h += '<button class="pk-act-btn primary" title="This player joined via self-signup / walk-in QR. Approve to add them to the roster so they can buy in." onclick="approvePlayer(' + p.id + ')">Approve</button>';
-            h += '<button class="pk-act-btn danger" title="Reject this join request and remove them from the list." onclick="denyPlayer(' + p.id + ')">Deny</button>';
+            h += '<button class="pk-act-btn primary" title="This player joined via self-signup / walk-in QR. Approve to add them to the roster so they can buy in." data-act="approvePlayer" data-a1="' + p.id + '">Approve</button>';
+            h += '<button class="pk-act-btn danger" title="Reject this join request and remove them from the list." data-act="denyPlayer" data-a1="' + p.id + '">Deny</button>';
         } else {
             if (!isNo) {
                 if (isTourney()) {
                     if (!isElim && parseInt(p.bought_in) && !isWinner) {
-                        h += '<button class="pk-act-btn primary" onclick="eliminatePlayer(' + p.id + ')">Eliminate</button>';
+                        h += '<button class="pk-act-btn primary" data-act="eliminatePlayer" data-a1="' + p.id + '">Eliminate</button>';
                     }
                     if (isElim) {
-                        h += '<button class="pk-act-btn" onclick="uneliminate(' + p.id + ')">Undo</button>';
+                        h += '<button class="pk-act-btn" data-act="uneliminate" data-a1="' + p.id + '">Undo</button>';
                     }
                 } else {
                     // Cash games: cashing out lives in the Cash Out column. Undo lives in
                     // that dialog. Keep Undo Elim for any player eliminated before that rule.
                     if (isElim) {
-                        h += '<button class="pk-act-btn" onclick="uneliminate(' + p.id + ')">Undo Elim</button>';
+                        h += '<button class="pk-act-btn" data-act="uneliminate" data-a1="' + p.id + '">Undo Elim</button>';
                     }
                 }
             }
-            h += '<button class="pk-act-btn" onclick="openNotes(' + p.id + ')">Notes</button>';
-            h += '<button class="pk-act-btn danger" onclick="removePlayerConfirm(' + p.id + ')">Remove</button>';
+            h += '<button class="pk-act-btn" data-act="openNotes" data-a1="' + p.id + '">Notes</button>';
+            h += '<button class="pk-act-btn danger" data-act="removePlayerConfirm" data-a1="' + p.id + '">Remove</button>';
         }
         h += '</td>';
         h += '</tr>';
@@ -1505,21 +1629,21 @@ function renderMobileCards() {
         }
 
         h += '<div class="pk-mobile-card ' + cardClass + '" data-pid="' + p.id + '">';
-        h += '<div class="pk-mobile-summary" onclick="toggleMobileExpand(' + p.id + ')">';
+        h += '<div class="pk-mobile-summary" data-act="toggleMobileExpand" data-a1="' + p.id + '">';
         var seatInfo = p.seat_number ? 'T' + (p.table_number || '?') + ' #' + p.seat_number : '';
         h += '<span class="pk-mobile-name">' + escHtml(p.display_name) + (seatInfo ? ' <span style="color:#94a3b8;font-size:.72rem;font-weight:600">' + seatInfo + '</span>' : '') + '</span>';
         if (isPending) {
             // Approve/deny buttons directly on the summary row instead of a status badge
-            h += '<span onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:.35rem;margin-left:auto;flex-shrink:0">';
-            h += '<button title="This player joined via self-signup / walk-in QR. Approve to add them to the roster so they can buy in." onclick="approvePlayer(' + p.id + ')" style="font-size:.72rem;padding:.25rem .6rem;border-radius:5px;border:0;background:#16a34a;color:#fff;font-weight:700;cursor:pointer">Approve</button>';
-            h += '<button title="Reject this join request and remove them from the list." onclick="denyPlayer(' + p.id + ')" style="font-size:.72rem;padding:.25rem .6rem;border-radius:5px;border:0;background:#dc2626;color:#fff;font-weight:700;cursor:pointer">Deny</button>';
+            h += '<span data-stop="1" style="display:flex;align-items:center;gap:.35rem;margin-left:auto;flex-shrink:0">';
+            h += '<button title="This player joined via self-signup / walk-in QR. Approve to add them to the roster so they can buy in." data-act="approvePlayer" data-a1="' + p.id + '" style="font-size:.72rem;padding:.25rem .6rem;border-radius:5px;border:0;background:#16a34a;color:#fff;font-weight:700;cursor:pointer">Approve</button>';
+            h += '<button title="Reject this join request and remove them from the list." data-act="denyPlayer" data-a1="' + p.id + '" style="font-size:.72rem;padding:.25rem .6rem;border-radius:5px;border:0;background:#dc2626;color:#fff;font-weight:700;cursor:pointer">Deny</button>';
             h += '</span>';
         } else {
             // Buy-in checkbox on the summary row (not inside expand)
             if (!isNo && isTourney()) {
-                h += '<span onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:.6rem;margin-left:auto;margin-right:.5rem;flex-shrink:0">';
+                h += '<span data-stop="1" style="display:flex;align-items:center;gap:.6rem;margin-left:auto;margin-right:.5rem;flex-shrink:0">';
                 h += '<label title="Record this player\'s buy-in. Checks them in and assigns a seat automatically — no separate check-in step needed." style="display:flex;align-items:center;gap:.2rem;font-size:.65rem;color:#64748b;font-weight:700;cursor:pointer;padding:.25rem 0;-webkit-tap-highlight-color:transparent">'
-                   + '<input type="checkbox" class="pk-check" ' + (parseInt(p.bought_in)?'checked':'') + ' onchange="toggleBuyin(' + p.id + ')" style="width:22px;height:22px;accent-color:#7c3aed"> Buy In</label>';
+                   + '<input type="checkbox" class="pk-check" ' + (parseInt(p.bought_in)?'checked':'') + ' data-act-change="toggleBuyin" data-change-a1="' + p.id + '" style="width:22px;height:22px;accent-color:#7c3aed"> Buy In</label>';
                 h += '</span>';
             }
             h += '<span class="pk-mobile-status" style="color:' + statusColor + ';background:' + statusBg + '">' + statusText + '</span>';
@@ -1530,46 +1654,46 @@ function renderMobileCards() {
         h += '<div class="pk-mobile-expand" id="mexp_' + p.id + '">';
         if (isPending) {
             h += '<div class="pk-mobile-row" style="justify-content:center;gap:.5rem;padding:.5rem 0">';
-            h += '<button class="pk-act-btn" style="background:#16a34a;color:#fff;font-weight:600;padding:.4rem 1rem" onclick="approvePlayer(' + p.id + ')">Approve</button>';
-            h += '<button class="pk-act-btn danger" style="padding:.4rem 1rem" onclick="denyPlayer(' + p.id + ')">Deny</button>';
+            h += '<button class="pk-act-btn" style="background:#16a34a;color:#fff;font-weight:600;padding:.4rem 1rem" data-act="approvePlayer" data-a1="' + p.id + '">Approve</button>';
+            h += '<button class="pk-act-btn danger" style="padding:.4rem 1rem" data-act="denyPlayer" data-a1="' + p.id + '">Deny</button>';
             h += '</div>';
         } else if (!isNo) {
             if (isTourney()) {
                 if (parseInt(SESSION.jackpot_amount) > 0 && parseInt(SESSION.jackpot_optional)) {
                     h += '<div class="pk-mobile-row">';
                     h += '<label>💎 Jackpot entry (' + formatMoney(parseInt(SESSION.jackpot_amount)) + ')</label>'
-                       + '<input type="checkbox" class="pk-check" style="width:22px;height:22px;accent-color:#7c3aed" ' + (parseInt(p.jackpot_in) ? 'checked' : '') + ' onchange="toggleJackpot(' + p.id + ')">';
+                       + '<input type="checkbox" class="pk-check" style="width:22px;height:22px;accent-color:#7c3aed" ' + (parseInt(p.jackpot_in) ? 'checked' : '') + ' data-act-change="toggleJackpot" data-change-a1="' + p.id + '">';
                     h += '</div>';
                 }
                 if (parseInt(SESSION.bounty_amount) > 0 && parseInt(SESSION.bounty_optional)) {
                     h += '<div class="pk-mobile-row">';
                     h += '<label>🎯 Bounty side pot (' + formatMoney(parseInt(SESSION.bounty_amount)) + ')</label>'
-                       + '<input type="checkbox" class="pk-check" style="width:22px;height:22px;accent-color:#0e7490" ' + (parseInt(p.bounty_in) ? 'checked' : '') + ' onchange="toggleBounty(' + p.id + ')">';
+                       + '<input type="checkbox" class="pk-check" style="width:22px;height:22px;accent-color:#0e7490" ' + (parseInt(p.bounty_in) ? 'checked' : '') + ' data-act-change="toggleBounty" data-change-a1="' + p.id + '">';
                     h += '</div>';
                 }
                 if (parseInt(SESSION.rebuy_allowed)) {
                     h += '<div class="pk-mobile-row">';
-                    h += '<label>Rebuys</label><div class="pk-counter"><button onclick="updateRebuys(' + p.id + ',-1)">-</button><span>' + p.rebuys + '</span><button onclick="updateRebuys(' + p.id + ',1)">+</button></div>';
+                    h += '<label>Rebuys</label><div class="pk-counter"><button data-act="updateRebuys" data-a1="' + p.id + '" data-a2="-1">-</button><span>' + p.rebuys + '</span><button data-act="updateRebuys" data-a1="' + p.id + '" data-a2="1">+</button></div>';
                     h += '</div>';
                 }
                 if (parseInt(SESSION.addon_allowed)) {
                     var mAoCount = parseInt(p.addons) || 0;
                     h += '<div class="pk-mobile-row">';
                     h += '<label>Add-ons</label><div style="display:flex;align-items:center;gap:.3rem">'
-                       + '<button onclick="addAddon(' + p.id + ')" style="font-size:.85rem;padding:.35rem .7rem;border-radius:4px;border:1px solid #c4b5fd;background:#f5f3ff;color:#6d28d9;cursor:pointer;font-weight:600">+ Add-on</button>'
-                       + (mAoCount > 0 ? '<span onclick="removeAddon(' + p.id + ')" title="Tap to remove last" style="display:inline-flex;align-items:center;justify-content:center;min-width:1.5rem;height:1.5rem;padding:0 .45rem;border-radius:12px;background:#7c3aed;color:#fff;font-size:.8rem;font-weight:700;cursor:pointer">' + mAoCount + '</span>' : '')
+                       + '<button data-act="addAddon" data-a1="' + p.id + '" style="font-size:.85rem;padding:.35rem .7rem;border-radius:4px;border:1px solid #c4b5fd;background:#f5f3ff;color:#6d28d9;cursor:pointer;font-weight:600">+ Add-on</button>'
+                       + (mAoCount > 0 ? '<span data-act="removeAddon" data-a1="' + p.id + '" title="Tap to remove last" style="display:inline-flex;align-items:center;justify-content:center;min-width:1.5rem;height:1.5rem;padding:0 .45rem;border-radius:12px;background:#7c3aed;color:#fff;font-size:.8rem;font-weight:700;cursor:pointer">' + mAoCount + '</span>' : '')
                        + '</div>';
                     h += '</div>';
                 }
             } else {
                 var cashIn = parseInt(p.cash_in) || 0;
                 h += '<div class="pk-mobile-row">';
-                h += '<label>Cash In</label><div class="pk-counter"><input type="number" inputmode="decimal" step="0.01" min="0" class="pk-cash-input" value="' + (cashIn/100) + '" onchange="setCashIn(' + p.id + ',this.value)" style="border:none;min-width:50px"><button onclick="adjustMoney(' + p.id + ',1)">+</button>' + ledgerBtn(p.id) + '</div>';
+                h += '<label>Cash In</label><div class="pk-counter"><input type="number" inputmode="decimal" step="0.01" min="0" class="pk-cash-input" value="' + (cashIn/100) + '" data-act-change="setCashIn" data-change-a1="' + p.id + '" data-change-a2="@value" style="border:none;min-width:50px"><button data-act="adjustMoney" data-a1="' + p.id + '" data-a2="1">+</button>' + ledgerBtn(p.id) + '</div>';
                 h += '</div>';
                 if (parseInt(p.bought_in)) {
                     var coVal = hasCashedOut ? (parseInt(p.cash_out)/100) : '';
                     h += '<div class="pk-mobile-row">';
-                    h += '<label>Cash Out</label><div class="pk-counter"><input type="number" inputmode="decimal" step="0.01" min="0" class="pk-co-input" value="' + coVal + '" placeholder="0.00" onkeydown="if(event.key===\'Enter\'){event.preventDefault();commitCashOut(' + p.id + ',this.value);}" style="border:none;min-width:50px"><button title="Record cash-out" style="color:#16a34a;font-weight:700" onclick="commitCashOut(' + p.id + ', this.previousElementSibling.value)">✓</button>' + (hasCashedOut ? '' : '<button class="pk-bust-btn" title="Busted: out with $0. Frees their seat. Add cash to bring them back in." onclick="bustOut(' + p.id + ')">&#128165;</button>') + '</div>';
+                    h += '<label>Cash Out</label><div class="pk-counter"><input type="number" inputmode="decimal" step="0.01" min="0" class="pk-co-input" value="' + coVal + '" placeholder="0.00" data-act-keydown="cashOutOnEnter" data-keydown-a1="@event" data-keydown-a2="' + p.id + '" style="border:none;min-width:50px"><button title="Record cash-out" style="color:#16a34a;font-weight:700" data-act="commitCashOut" data-a1="' + p.id + '" data-a2="@prevValue">✓</button>' + (hasCashedOut ? '' : '<button class="pk-bust-btn" title="Busted: out with $0. Frees their seat. Add cash to bring them back in." data-act="bustOut" data-a1="' + p.id + '">&#128165;</button>') + '</div>';
                     h += '</div>';
                 }
                 if (hasCashedOut) {
@@ -1580,14 +1704,14 @@ function renderMobileCards() {
 
             if (parseInt(SESSION.num_tables) > 1) {
                 h += '<div class="pk-mobile-row">';
-                h += '<label>Table</label><input type="number" class="pk-tbl-input" value="' + (p.table_number||'') + '" min="1" max="' + SESSION.num_tables + '" onchange="setTable(' + p.id + ',this.value)" style="width:50px">';
+                h += '<label>Table</label><input type="number" class="pk-tbl-input" value="' + (p.table_number||'') + '" min="1" max="' + SESSION.num_tables + '" data-act-change="setTable" data-change-a1="' + p.id + '" data-change-a2="@value" style="width:50px">';
                 h += '</div>';
             }
 
             // RSVP (tournaments only \u2014 not used in the cash-game flow)
             if (isTourney()) {
             h += '<div class="pk-mobile-row">';
-            h += '<label>RSVP</label><select onchange="updateRsvp(' + p.id + ',this.value)" style="font-size:.8rem;padding:.25rem .4rem;border-radius:4px;border:1px solid #e2e8f0">';
+            h += '<label>RSVP</label><select data-act-change="updateRsvp" data-change-a1="' + p.id + '" data-change-a2="@value" style="font-size:.8rem;padding:.25rem .4rem;border-radius:4px;border:1px solid #e2e8f0">';
             var rsvp = p.rsvp || '';
             h += '<option value=""' + (rsvp===''?' selected':'') + '>\u2014</option>';
             h += '<option value="yes"' + (rsvp==='yes'?' selected':'') + '>Yes</option>';
@@ -1601,16 +1725,16 @@ function renderMobileCards() {
         h += '<div class="pk-mobile-actions">';
         if (!isNo) {
             if (isTourney()) {
-                if (!isElim && parseInt(p.bought_in) && !isWinner) h += '<button class="primary" onclick="eliminatePlayer(' + p.id + ')">Eliminate</button>';
-                if (isElim) h += '<button onclick="uneliminate(' + p.id + ')">Undo Elim</button>';
+                if (!isElim && parseInt(p.bought_in) && !isWinner) h += '<button class="primary" data-act="eliminatePlayer" data-a1="' + p.id + '">Eliminate</button>';
+                if (isElim) h += '<button data-act="uneliminate" data-a1="' + p.id + '">Undo Elim</button>';
             } else {
                 // Cash games: cashing out is inline in the Cash Out row above.
                 // Keep Undo Elim for any player eliminated before that rule.
-                if (isElim) h += '<button onclick="uneliminate(' + p.id + ')">Undo Elim</button>';
+                if (isElim) h += '<button data-act="uneliminate" data-a1="' + p.id + '">Undo Elim</button>';
             }
         }
-        h += '<button onclick="openNotes(' + p.id + ')">Notes</button>';
-        h += '<button class="danger" onclick="removePlayerConfirm(' + p.id + ')">Remove</button>';
+        h += '<button data-act="openNotes" data-a1="' + p.id + '">Notes</button>';
+        h += '<button class="danger" data-act="removePlayerConfirm" data-a1="' + p.id + '">Remove</button>';
         h += '</div>';
 
         h += '</div>'; // pk-mobile-expand
@@ -1637,7 +1761,7 @@ function renderPoolCard() {
         h += '<div class="pk-pool-row total"><span>Still On Table</span><span>' + formatMoney(onTable) + '</span></div>';
         var tips = parseInt(SESSION.tips) || 0;
         if (tips > 0) h += '<div class="pk-pool-row"><span>Tips</span><span>' + formatMoney(tips) + '</span></div>';
-        h += '<button class="pk-cashbox-link" onclick="openCashBox()">&#129534; Reconcile cash box</button>';
+        h += '<button class="pk-cashbox-link" data-act="openCashBox">&#129534; Reconcile cash box</button>';
     } else {
         h += '<h3>Prize Pool</h3>';
         h += '<div class="pk-pool-row"><span>Buy-ins (' + POOL.total_buyins + ' &times; ' + formatMoney(parseInt(SESSION.buyin_amount)) + ')</span><span>' + formatMoney(POOL.buyin_total) + '</span></div>';
@@ -1722,7 +1846,7 @@ function renderSetupCta() {
        + ' before players start buying in, so the money and prizes add up.';
     if (isTourney() && !(PAYOUTS || []).length) h += ' No payout structure is set yet.';
     h += '</div>';
-    h += '<button onclick="setViewMode(\'settings\')">Set up game</button>';
+    h += '<button data-act="setViewMode" data-a1="settings">Set up game</button>';
     h += '</div>';
     return h;
 }
@@ -1748,7 +1872,7 @@ function payoutWarningsHtml() {
     // Ticket prizes configured but no target event set: they can't be issued.
     var anyTicket = PAYOUTS.some(function(p) { return parseInt(p.ticket_cents) > 0; });
     if (anyTicket && !parseInt(SESSION.ticket_target_event_id)) {
-        h += '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:.45rem .6rem;margin-bottom:.6rem;font-size:.78rem;color:#92400e;font-weight:600">&#9888; Ticket prizes need a target event — <a href="#" onclick="openSettings(\'payouts\');return false" style="color:#92400e">set one in Setup</a>.</div>';
+        h += '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:.45rem .6rem;margin-bottom:.6rem;font-size:.78rem;color:#92400e;font-weight:600">&#9888; Ticket prizes need a target event — <a href="#" data-act="openPayoutsSetup" data-a1="@event" style="color:#92400e">set one in Setup</a>.</div>';
     }
     return h;
 }
@@ -1776,7 +1900,7 @@ function renderPayoutCard() {
         if (parseInt(SESSION.bounty_points) > 0) bParts.push(parseInt(SESSION.bounty_points) + ' pts');
         h += '<div class="pk-payout-row"><span class="pk-payout-place">🎯 Per knockout</span><span style="color:#0e7490;font-weight:600;font-size:.8rem">' + bParts.join(' + ') + '</span></div>';
     }
-    h += '<div style="margin-top:.5rem;text-align:center"><button class="pk-act-btn" onclick="openSettings(\'payouts\')" style="font-size:.8rem">Edit in Setup</button></div>';
+    h += '<div style="margin-top:.5rem;text-align:center"><button class="pk-act-btn" data-act="openSettings" data-a1="payouts" style="font-size:.8rem">Edit in Setup</button></div>';
     return h;
 }
 
@@ -1870,7 +1994,7 @@ function renderPayoutsView() {
         }
     }
     h += bountyJackpotHtml();
-    h += '<div class="pk-pv-foot"><button class="pk-act-btn" onclick="openSettings(\'payouts\')">Edit payouts &amp; rewards in Setup</button></div>';
+    h += '<div class="pk-pv-foot"><button class="pk-act-btn" data-act="openSettings" data-a1="payouts">Edit payouts &amp; rewards in Setup</button></div>';
     return h;
 }
 
@@ -2041,18 +2165,18 @@ function renderSettingsView() {
     h += '<div class="pk-sv-head">';
     h += '<span class="pk-sv-title">&#9881; Game Setup <span id="svDirty" style="display:' + (SETTINGS_DIRTY ? '' : 'none') + '" title="Unsaved changes">&#9679;</span><span id="svSaved" style="display:none">Saved &#10003;</span></span>';
     h += '<div style="display:flex;gap:.5rem">';
-    h += '<button class="pk-sv-save" onclick="saveSettings()">Save</button>';
-    h += '<button class="pk-sv-close" onclick="closeSettings()">Close</button>';
+    h += '<button class="pk-sv-save" data-act="saveSettings">Save</button>';
+    h += '<button class="pk-sv-close" data-act="closeSettings">Close</button>';
     h += '</div></div>';
 
     // Tab strip — a segmented control with a sliding thumb, same as the toolbar.
     h += '<div class="pk-sv-tabs">';
     h += '<div class="pk-seg pk-sv-seg" id="settingsSeg">';
     h += '<span class="pk-seg-thumb"></span>';
-    h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'game' ? ' active' : '') + '" data-tab="game" onclick="setSettingsTab(\'game\')">Game</button>';
-    h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'payouts' ? ' active' : '') + (isCash() ? ' disabled' : '') + '" data-tab="payouts" ' + (isCash() ? 'disabled title="Cash games have no payout structure"' : 'onclick="setSettingsTab(\'payouts\')"') + '>Payouts &amp; Rewards</button>';
+    h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'game' ? ' active' : '') + '" data-tab="game" data-act="setSettingsTab" data-a1="game">Game</button>';
+    h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'payouts' ? ' active' : '') + (isCash() ? ' disabled' : '') + '" data-tab="payouts" ' + (isCash() ? 'disabled title="Cash games have no payout structure"' : 'data-act="setSettingsTab" data-a1="payouts"') + '>Payouts &amp; Rewards</button>';
     if (hasTickets && !isCash()) {
-        h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'tickets' ? ' active' : '') + '" data-tab="tickets" onclick="setSettingsTab(\'tickets\')">Tickets <span class="pk-sv-badge">' + TICKETS.outgoing.length + '</span></button>';
+        h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'tickets' ? ' active' : '') + '" data-tab="tickets" data-act="setSettingsTab" data-a1="tickets">Tickets <span class="pk-sv-badge">' + TICKETS.outgoing.length + '</span></button>';
     }
     h += '</div>';
     h += '</div>';
@@ -2067,13 +2191,13 @@ function renderSettingsView() {
     // reopened — the same defect the Payouts tab had.
     {
         h += '<div class="pk-cfg-section" id="cfgPresetSection" style="border-top:none;padding-top:0;margin-top:0' + (isCash() ? ';display:none' : '') + '"><div class="pk-cfg-title" style="display:flex;align-items:center;gap:.45rem">Game Preset'
-           + '<button class="pk-help-btn" style="padding:.15rem .5rem;font-size:.7rem" title="What game presets do" aria-label="Game preset help" onclick="showPresetHelp()">?</button></div>';
+           + '<button class="pk-help-btn" style="padding:.15rem .5rem;font-size:.7rem" title="What game presets do" aria-label="Game preset help" data-act="showPresetHelp">?</button></div>';
         h += '<div class="pk-preset-bar">';
-        h += '<select id="payoutStructureSelect" onchange="onPayoutStructureChange()" style="flex:0 1 300px;min-width:160px;padding:.3rem .5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:4px;font-size:.85rem"></select>';
-        h += '<button onclick="loadPayoutStructure()" title="Apply the selected preset to BOTH tabs: game setup, payout split, points, ticket prizes, prizes, bounty and jackpot entry">Load</button>';
-        h += '<button onclick="savePayoutStructureAs()" title="Save everything in this editor (both tabs) as a named preset">Save As…</button>';
-        h += '<button id="btnDelPayoutStructure" onclick="deletePayoutStructure()" style="display:none;color:#ef4444" title="Delete selected preset">Delete</button>';
-        h += '<button id="btnDefPayoutStructure" onclick="setDefaultPayoutStructure()" style="display:none" title="Set as default (admin)">Set Default</button>';
+        h += '<select id="payoutStructureSelect" data-act-change="onPayoutStructureChange" style="flex:0 1 300px;min-width:160px;padding:.3rem .5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:4px;font-size:.85rem"></select>';
+        h += '<button data-act="loadPayoutStructure" title="Apply the selected preset to BOTH tabs: game setup, payout split, points, ticket prizes, prizes, bounty and jackpot entry">Load</button>';
+        h += '<button data-act="savePayoutStructureAs" title="Save everything in this editor (both tabs) as a named preset">Save As…</button>';
+        h += '<button id="btnDelPayoutStructure" data-act="deletePayoutStructure" style="display:none;color:#ef4444" title="Delete selected preset">Delete</button>';
+        h += '<button id="btnDefPayoutStructure" data-act="setDefaultPayoutStructure" style="display:none" title="Set as default (admin)">Set Default</button>';
         h += '</div>';
         h += '<div style="font-size:.75rem;color:#94a3b8;margin-top:.3rem">A preset stores the whole editor — game setup (buy-in, chips, rebuys, tables) and payouts &amp; rewards. (The satellite target event stays per-game.)</div>';
         h += '</div>';
@@ -2110,7 +2234,7 @@ function renderGamePane() {
     // and a jackpot can be set in one go.
     h += '<div><label>League ' + tip('Jackpot funds and saved payout presets belong to a league. Changing this moves the event.') + '</label>';
     if (CAN_MOVE_LEAGUE) {
-        h += '<select id="cfg_league_id" onchange="markSettingsDirty()">';
+        h += '<select id="cfg_league_id" data-act-change="markSettingsDirty">';
         h += '<option value="0"' + (!EVENT_LEAGUE_ID ? ' selected' : '') + '>&mdash; None &mdash;</option>';
         for (var li = 0; li < ASSIGNABLE_LEAGUES.length; li++) {
             var lg = ASSIGNABLE_LEAGUES[li];
@@ -2127,8 +2251,8 @@ function renderGamePane() {
            + '<br><span style="font-size:.72rem">Only a league owner or manager can change this.</span></div>';
     }
     h += '</div>';
-    h += '<div><label>Game Type</label><select id="cfg_game_type" onchange="previewGameType(this.value)"><option value="tournament"' + (isTourney()?' selected':'') + '>Tournament</option><option value="cash"' + (isCash()?' selected':'') + '>Cash Game</option></select></div>';
-    h += '<div><label>Buy-in</label><div class="pk-money-wrap"><input type="number" id="cfg_buyin" value="' + Math.round(parseInt(SESSION.buyin_amount)/100) + '" step="1" min="0" oninput="updateBountyHint()"></div></div>';
+    h += '<div><label>Game Type</label><select id="cfg_game_type" data-act-change="previewGameType" data-change-a1="@value"><option value="tournament"' + (isTourney()?' selected':'') + '>Tournament</option><option value="cash"' + (isCash()?' selected':'') + '>Cash Game</option></select></div>';
+    h += '<div><label>Buy-in</label><div class="pk-money-wrap"><input type="number" id="cfg_buyin" value="' + Math.round(parseInt(SESSION.buyin_amount)/100) + '" step="1" min="0" data-act-input="updateBountyHint"></div></div>';
     h += '</div></div>';
 
     // ── Chips, rebuys & add-ons (tournament only). Rebuys and Add-ons are
@@ -2139,13 +2263,13 @@ function renderGamePane() {
     h += '</div>';
     h += '<div class="pk-subgrids">';
     h += '<div class="pk-subbox">';
-    h += '<div class="pk-subbox-head"><span>&#8635; Rebuys</span><label class="pk-subbox-check"><input type="checkbox" id="cfg_rebuy_allowed"' + (parseInt(SESSION.rebuy_allowed)?' checked':'') + ' onchange="toggleSubBox(\'rebuy\', this.checked ? 1 : 0)"> Allowed</label></div>';
+    h += '<div class="pk-subbox-head"><span>&#8635; Rebuys</span><label class="pk-subbox-check"><input type="checkbox" id="cfg_rebuy_allowed"' + (parseInt(SESSION.rebuy_allowed)?' checked':'') + ' data-act-change="toggleSubBox" data-change-a1="rebuy" data-change-a2="@checked01"> Allowed</label></div>';
     h += '<div class="pk-subbox-body' + (parseInt(SESSION.rebuy_allowed)?' on':'') + '" id="subbox_rebuy">';
     h += '<div><label>Rebuy</label><div class="pk-money-wrap"><input type="number" id="cfg_rebuy" value="' + Math.round(parseInt(SESSION.rebuy_amount)/100) + '" step="1" min="0"></div></div>';
     h += '<div><label>Max (0=unlimited)</label><input type="number" id="cfg_max_rebuys" value="' + SESSION.max_rebuys + '" min="0"></div>';
     h += '</div></div>';
     h += '<div class="pk-subbox">';
-    h += '<div class="pk-subbox-head"><span>&#10133; Add-ons</span><label class="pk-subbox-check"><input type="checkbox" id="cfg_addon_allowed"' + (parseInt(SESSION.addon_allowed)?' checked':'') + ' onchange="toggleSubBox(\'addon\', this.checked ? 1 : 0)"> Allowed</label></div>';
+    h += '<div class="pk-subbox-head"><span>&#10133; Add-ons</span><label class="pk-subbox-check"><input type="checkbox" id="cfg_addon_allowed"' + (parseInt(SESSION.addon_allowed)?' checked':'') + ' data-act-change="toggleSubBox" data-change-a1="addon" data-change-a2="@checked01"> Allowed</label></div>';
     h += '<div class="pk-subbox-body' + (parseInt(SESSION.addon_allowed)?' on':'') + '" id="subbox_addon">';
     h += '<div><label>Add-on</label><div class="pk-money-wrap"><input type="number" id="cfg_addon" value="' + Math.round(parseInt(SESSION.addon_amount)/100) + '" step="1" min="0"></div></div>';
     h += '<div><label>Add-on Chips</label><input type="number" id="cfg_addon_chips" value="' + (parseInt(SESSION.addon_chips) || parseInt(SESSION.starting_chips) || 0) + '" min="0" title="Chips granted per add-on taken"></div>';
@@ -2169,12 +2293,12 @@ function renderPayoutsPane() {
     // ── Bonus rewards: opt-in toggles keep a plain game plain ──
     h += '<div class="pk-cfg-section" id="cfgRewardsSection" style="' + (isCash()?'display:none':'') + '"><div class="pk-cfg-title">Bonus Rewards <span style="font-weight:400;text-transform:none;letter-spacing:0">— optional, tap to enable</span></div>';
     h += '<div class="pk-reward-chips">';
-    h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.bounty ? ' on' : '') + '" id="chip_bounty" onclick="toggleReward(\'bounty\')">🎯 Bounties</button>';
-    h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.pts ? ' on' : '') + '" id="chip_pts" onclick="toggleReward(\'pts\')">🏆 League points</button>';
-    h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.ticket ? ' on' : '') + '" id="chip_ticket" onclick="toggleReward(\'ticket\')">🎟 Satellite seat</button>';
-    h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.label ? ' on' : '') + '" id="chip_label" onclick="toggleReward(\'label\')">🎁 Prizes</button>';
+    h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.bounty ? ' on' : '') + '" id="chip_bounty" data-act="toggleReward" data-a1="bounty">🎯 Bounties</button>';
+    h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.pts ? ' on' : '') + '" id="chip_pts" data-act="toggleReward" data-a1="pts">🏆 League points</button>';
+    h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.ticket ? ' on' : '') + '" id="chip_ticket" data-act="toggleReward" data-a1="ticket">🎟 Satellite seat</button>';
+    h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.label ? ' on' : '') + '" id="chip_label" data-act="toggleReward" data-a1="label">🎁 Prizes</button>';
     if (EVENT_LEAGUE_ID) {
-        h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.jackpot ? ' on' : '') + '" id="chip_jackpot" onclick="toggleReward(\'jackpot\')">💎 Jackpots</button>';
+        h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.jackpot ? ' on' : '') + '" id="chip_jackpot" data-act="toggleReward" data-a1="jackpot">💎 Jackpots</button>';
     } else {
         h += '<button type="button" class="pk-reward-chip" disabled style="opacity:.4;cursor:default" title="Jackpots are league funds — this event has no league">💎 Jackpots</button>';
     }
@@ -2182,8 +2306,8 @@ function renderPayoutsPane() {
     // Bounty fields
     h += '<div class="pk-reward-body' + (REWARDS_UI.bounty ? ' on' : '') + '" id="rewardBody_bounty">';
     h += '<div class="pk-settings-grid">';
-    h += '<div><label>Bounty ($ each)</label><div class="pk-money-wrap"><input type="number" id="cfg_bounty" value="' + Math.round((parseInt(SESSION.bounty_amount) || 0)/100) + '" step="1" min="0" oninput="updateBountyHint()"></div></div>';
-    h += '<div><label>Collected as</label><select id="cfg_bounty_mode" onchange="updateBountyHint()"><option value="0"' + (!parseInt(SESSION.bounty_optional) ? ' selected' : '') + '>Baked into buy-in (everyone)</option><option value="1"' + (parseInt(SESSION.bounty_optional) ? ' selected' : '') + '>Optional add-on (per player)</option></select></div>';
+    h += '<div><label>Bounty ($ each)</label><div class="pk-money-wrap"><input type="number" id="cfg_bounty" value="' + Math.round((parseInt(SESSION.bounty_amount) || 0)/100) + '" step="1" min="0" data-act-input="updateBountyHint"></div></div>';
+    h += '<div><label>Collected as</label><select id="cfg_bounty_mode" data-act-change="updateBountyHint"><option value="0"' + (!parseInt(SESSION.bounty_optional) ? ' selected' : '') + '>Baked into buy-in (everyone)</option><option value="1"' + (parseInt(SESSION.bounty_optional) ? ' selected' : '') + '>Optional add-on (per player)</option></select></div>';
     h += '<div><label>Bounty points per KO</label><input type="number" id="cfg_bounty_points" value="' + (parseInt(SESSION.bounty_points) || 0) + '" step="1" min="0"></div>';
     h += '</div>';
     h += '<div class="pk-bounty-hint" id="bountyHint"></div>';
@@ -2225,8 +2349,8 @@ function renderPayoutsPane() {
     }
     h += '</div>';
     h += '<div style="display:flex;gap:.5rem;margin-top:.3rem;flex-wrap:wrap">';
-    h += '<button onclick="addPayoutRow()">+ Add Place</button>';
-    h += '<button onclick="autoSplitPayouts()">Auto Split</button>';
+    h += '<button data-act="addPayoutRow">+ Add Place</button>';
+    h += '<button data-act="autoSplitPayouts">Auto Split</button>';
     h += '</div>';
     h += '<div id="payoutSum" style="margin-top:.3rem;font-size:.8rem;color:#64748b"></div>';
     h += '</div>';
@@ -2237,11 +2361,11 @@ function payoutRowHtml(place, pct, points, ticket_cents, prize_label) {
     var lbl = prize_label ? String(prize_label).replace(/"/g, '&quot;').replace(/</g, '&lt;') : '';
     return '<div class="row" style="display:flex;gap:.35rem;align-items:center;flex-wrap:wrap;margin-bottom:.25rem">'
          + '<label style="font-size:.8rem;width:40px;flex-shrink:0">' + place + getOrdinal(place) + '</label>'
-         + '<input type="number" class="payout-pct" value="' + (pct || 0) + '" step="0.1" min="0" max="100" data-place="' + place + '" oninput="updatePayoutSum()" title="Cash % of the pool" style="flex:1;min-width:56px;max-width:140px">'
+         + '<input type="number" class="payout-pct" value="' + (pct || 0) + '" step="0.1" min="0" max="100" data-place="' + place + '" data-act-input="updatePayoutSum" title="Cash % of the pool" style="flex:1;min-width:56px;max-width:140px">'
          + '<input type="number" class="payout-pts" value="' + (parseInt(points) || 0) + '" step="1" min="0" data-place="' + place + '" title="League points for this place" style="flex:1;min-width:48px;max-width:140px">'
          + '<span class="pk-money-wrap payout-ticket-wrap" style="flex:1;min-width:56px;max-width:140px"><input type="number" class="payout-ticket" value="' + (ticket_cents ? Math.round(parseInt(ticket_cents)/100) : 0) + '" step="1" min="0" data-place="' + place + '" title="Entry ticket value ($) to the target event"></span>'
          + '<input type="text" class="payout-label" value="' + lbl + '" maxlength="60" placeholder="prize…" data-place="' + place + '" title="Custom prize (trophy, bottle, …)" style="flex:2;min-width:80px">'
-         + '<button onclick="this.parentNode.remove();updatePayoutSum();markSettingsDirty()" style="color:#ef4444;background:transparent;border:none;cursor:pointer;font-size:1rem;flex-shrink:0">&times;</button></div>';
+         + '<button data-act="removePayoutRow" style="color:#ef4444;background:transparent;border:none;cursor:pointer;font-size:1rem;flex-shrink:0">&times;</button></div>';
 }
 
 function addPayoutRow() {
@@ -2473,7 +2597,7 @@ function loadJackpotHistory() {
                    + icon + ' ' + (e.player_name ? escHtml(e.player_name) + ' — ' : '') + escHtml((e.detail || '').substring(0, 60))
                    + ' <span style="color:#94a3b8">' + (e.created_at || '').substring(0, 10) + '</span></span>'
                    + '<span style="' + struck + 'font-weight:700;color:' + (amt >= 0 ? '#16a34a' : '#dc2626') + '">' + (amt >= 0 ? '+' : '−') + formatMoney(Math.abs(amt)) + '</span>'
-                   + (parseInt(e.voided) ? '' : '<button onclick="voidJackpotEntry(' + e.id + ')" title="Void this entry (reverses its effect on the fund)" style="color:#ef4444;background:transparent;border:none;cursor:pointer;font-size:.9rem">&times;</button>')
+                   + (parseInt(e.voided) ? '' : '<button data-act="voidJackpotEntry" data-a1="' + e.id + '" title="Void this entry (reverses its effect on the fund)" style="color:#ef4444;background:transparent;border:none;cursor:pointer;font-size:.9rem">&times;</button>')
                    + '</div>';
             });
             box.innerHTML = h;
@@ -2520,7 +2644,7 @@ function addJackpotRecipient() {
     });
     row.innerHTML = '<select class="jp-name" style="flex:2;padding:.45rem .5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:.9rem">' + opts + '</select>'
         + '<span class="pk-money-wrap" style="flex:1;min-width:80px"><input type="number" class="jp-amount" step="0.01" min="0" placeholder="0"></span>'
-        + '<button type="button" onclick="this.parentNode.remove()" style="color:#ef4444;background:transparent;border:none;cursor:pointer;font-size:1rem">&times;</button>';
+        + '<button type="button" data-act="removeSelfParent" style="color:#ef4444;background:transparent;border:none;cursor:pointer;font-size:1rem">&times;</button>';
     wrap.appendChild(row);
 }
 function confirmJackpotHit() {
@@ -2606,8 +2730,8 @@ function renderTicketsPanel() {
         h += '<span>&rarr; ' + target + '</span>';
         if (status === 'issued') {
             h += '<span style="margin-left:auto;display:flex;gap:.35rem">';
-            h += '<button class="pk-act-btn" onclick="retargetTicket(' + t.id + ')">Re-target</button>';
-            h += '<button class="pk-act-btn" onclick="convertTicket(' + t.id + ')">Convert to cash</button>';
+            h += '<button class="pk-act-btn" data-act="retargetTicket" data-a1="' + t.id + '">Re-target</button>';
+            h += '<button class="pk-act-btn" data-act="convertTicket" data-a1="' + t.id + '">Convert to cash</button>';
             h += '</span>';
         } else {
             h += '<span style="margin-left:auto;color:' + (status === 'redeemed' ? '#16a34a' : '#64748b') + ';font-weight:700;font-size:.75rem;text-transform:uppercase">' + status + '</span>';
@@ -3181,8 +3305,8 @@ function balanceTables() {
         + '<h3 style="margin:0 0 .75rem;font-size:1rem">Balance Tables</h3>'
         + html
         + '<div style="display:flex;gap:.5rem;margin-top:1rem;justify-content:flex-end">'
-        + '<button onclick="document.getElementById(\'balanceModal\').remove()" style="padding:.4rem 1rem;border:1.5px solid #e2e8f0;border-radius:6px;background:#fff;cursor:pointer;font-size:.85rem">Cancel</button>'
-        + '<button onclick="executeBalance()" style="padding:.4rem 1rem;border:none;border-radius:6px;background:#2563eb;color:#fff;cursor:pointer;font-weight:600;font-size:.85rem">Balance</button>'
+        + '<button data-act="closeBalanceModal" style="padding:.4rem 1rem;border:1.5px solid #e2e8f0;border-radius:6px;background:#fff;cursor:pointer;font-size:.85rem">Cancel</button>'
+        + '<button data-act="executeBalance" style="padding:.4rem 1rem;border:none;border-radius:6px;background:#2563eb;color:#fff;cursor:pointer;font-weight:600;font-size:.85rem">Balance</button>'
         + '</div></div>';
     document.body.appendChild(overlay);
 }
@@ -3292,7 +3416,7 @@ function renderTableView() {
         var maxSeats = parseInt(SESSION.seats_per_table) || 9;
         h += '<div class="pk-table-card">';
         h += '<div class="pk-table-card-header"><h3>Table ' + t + ' <span>(' + players.length + '/' + maxSeats + ')</span></h3>'
-           + (numTables > 1 ? '<button class="pk-act-btn danger" onclick="breakUpTable(' + t + ')" style="font-size:.7rem;flex-shrink:0" title="Break up this table and distribute players to other tables">Break Up</button>' : '')
+           + (numTables > 1 ? '<button class="pk-act-btn danger" data-act="breakUpTable" data-a1="' + t + '" style="font-size:.7rem;flex-shrink:0" title="Break up this table and distribute players to other tables">Break Up</button>' : '')
            + '</div>';
         h += '<div class="pk-table-card-body">';
         players.sort(function(a, b) { return (parseInt(a.seat_number) || 99) - (parseInt(b.seat_number) || 99); });
@@ -3304,14 +3428,14 @@ function renderTableView() {
             h += '<span class="pk-tv-name">' + seatTag + escHtml(p.display_name) + '</span>';
             h += '<span class="pk-tv-actions">';
             if (isElim) {
-                h += '<button class="pk-act-btn" onclick="uneliminate(' + p.id + ')" title="Undo eliminate">Undo</button>';
+                h += '<button class="pk-act-btn" data-act="uneliminate" data-a1="' + p.id + '" title="Undo eliminate">Undo</button>';
             } else if (parseInt(p.finish_position) === 1) {
                 h += '<span title="Winner" style="color:#b8860b;font-weight:700">\ud83c\udfc6</span>';
             } else {
                 if (!isCash()) {
-                    h += '<button class="pk-act-btn" onclick="eliminatePlayer(' + p.id + ')" title="Eliminate" style="color:#ef4444;font-weight:700">&#10005;</button>';
+                    h += '<button class="pk-act-btn" data-act="eliminatePlayer" data-a1="' + p.id + '" title="Eliminate" style="color:#ef4444;font-weight:700">&#10005;</button>';
                 }
-                h += '<select class="pk-tv-move" onchange="movePlayer(' + p.id + ', this.value)">';
+                h += '<select class="pk-tv-move" data-act-change="movePlayer" data-change-a1="' + p.id + '" data-change-a2="@value">';
                 h += '<option value="">Move\u2026</option>';
                 for (var mt = 1; mt <= numTables; mt++) {
                     if (mt !== t) h += '<option value="' + mt + '">Table ' + mt + ' (' + tables[mt].length + ')</option>';
@@ -3334,7 +3458,7 @@ function renderTableView() {
             var p = unassigned[j];
             h += '<div class="pk-tv-player">';
             h += '<span class="pk-tv-name">' + escHtml(p.display_name) + '</span>';
-            h += '<select class="pk-tv-move" onchange="movePlayer(' + p.id + ', this.value)">';
+            h += '<select class="pk-tv-move" data-act-change="movePlayer" data-change-a1="' + p.id + '" data-change-a2="@value">';
             h += '<option value="">Assign\u2026</option>';
             for (var mt = 1; mt <= numTables; mt++) h += '<option value="' + mt + '">Table ' + mt + ' (' + tables[mt].length + ')</option>';
             h += '</select>';
@@ -3639,7 +3763,7 @@ function walkinSuggest(val) {
         // Name rides in a data attribute rather than inside the inline handler's
         // JS string: attribute values are HTML-decoded before JS parses them, so
         // an escaped quote would come back and break out of the literal.
-        return '<div class="walkin-dropdown-item" data-u="' + escHtml(u) + '" onmousedown="walkinPick(this.dataset.u)">' + escHtml(u) + '</div>';
+        return '<div class="walkin-dropdown-item" data-u="' + escHtml(u) + '" data-act-mousedown="walkinPick" data-mousedown-a1="@dataU">' + escHtml(u) + '</div>';
     }).join('');
     dd.classList.add('open');
     _walkinIdx = -1;
@@ -3894,12 +4018,12 @@ function closeHelp() {
 var LEDGER_PID = null;
 
 function ledgerBtn(pid) {
-    return '<button type="button" class="pk-ledger-btn" title="Money history &amp; corrections" onclick="openLedger(' + pid + ')">&#128210;</button>';
+    return '<button type="button" class="pk-ledger-btn" title="Money history &amp; corrections" data-act="openLedger" data-a1="' + pid + '">&#128210;</button>';
 }
 
 // Small tap-friendly help marker; data-tip is shown on hover or focus/tap.
 function tip(text) {
-    return '<span class="pk-tip" tabindex="0" role="note" data-tip="' + escHtml(text) + '" onclick="event.stopPropagation()">?</span>';
+    return '<span class="pk-tip" tabindex="0" role="note" data-tip="' + escHtml(text) + '" data-stop="1">?</span>';
 }
 
 // Render a log/ledger timestamp in the VIEWER's local timezone (so a host in a
@@ -4014,10 +4138,10 @@ function renderLedger(entries) {
             // Edit corrects a typo in place (e.g. 189 -> 180) without re-entry; only
             // money totals (cash in/out) carry an editable dollar amount.
             if ((e.event_type === 'cashin' || e.event_type === 'cashout') && amt !== null && amt > 0) {
-                h += '<button class="pk-ledger-edit" onclick="editLedgerEntry(' + e.id + ',' + amt + ')">Edit</button>';
+                h += '<button class="pk-ledger-edit" data-act="editLedgerEntry" data-a1="' + e.id + '" data-a2="' + amt + '">Edit</button>';
             }
             if (ledgerRowClearable(e, amt)) {
-                h += '<button class="pk-ledger-clear" onclick="voidLedgerEntry(' + e.id + ')">Clear</button>';
+                h += '<button class="pk-ledger-clear" data-act="voidLedgerEntry" data-a1="' + e.id + '">Clear</button>';
             }
         }
         h += '</div>';
@@ -4120,10 +4244,10 @@ function renderLog() {
             } else {
                 var btns = '';
                 if ((e.event_type === 'cashin' || e.event_type === 'cashout') && amt !== null && amt > 0) {
-                    btns += '<button class="pk-ledger-edit" onclick="editLedgerEntry(' + e.id + ',' + amt + ')">Edit</button>';
+                    btns += '<button class="pk-ledger-edit" data-act="editLedgerEntry" data-a1="' + e.id + '" data-a2="' + amt + '">Edit</button>';
                 }
                 if (ledgerRowClearable(e, amt)) {
-                    btns += '<button class="pk-ledger-clear" onclick="voidLedgerEntry(' + e.id + ')">Clear</button>';
+                    btns += '<button class="pk-ledger-clear" data-act="voidLedgerEntry" data-a1="' + e.id + '">Clear</button>';
                 }
                 if (btns) actions = '<span class="pk-log-actions">' + btns + '</span>';
             }
@@ -4261,7 +4385,7 @@ function renderPendingBanner() {
     }
     b.style.cssText = 'display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;background:#fefce8;border:1px solid #fde68a;border-radius:8px;padding:.55rem .7rem;margin:.6rem 0';
     b.innerHTML = '<span style="flex:1;min-width:0;font-size:.85rem;color:#92400e;font-weight:600">&#9203; ' + pend.length + ' walk-ins awaiting approval</span>'
-        + '<button class="pk-act-btn primary" id="approveAllBtn" onclick="approveAllPending()">Approve all</button>';
+        + '<button class="pk-act-btn primary" id="approveAllBtn" data-act="approveAllPending">Approve all</button>';
 }
 
 async function approveAllPending() {
@@ -4299,7 +4423,7 @@ function focusNextCashInput(el) {
 // safe in both contexts; text positions render identically because the parser
 // decodes the entities anyway.
 // NOTE: still not safe for building a JS string literal inside an attribute
-// (e.g. onclick="f('...')") — the parser HTML-decodes before JS parses, so the
+// (e.g. data-act="f" data-a1="'...'") — the parser HTML-decodes before JS parses, so the
 // quote comes back. Pass those through a data-* attribute instead.
 function escHtml(s) {
     if (!s) return '';
@@ -4440,16 +4564,16 @@ function renderChopView() {
     for (var i = 0; i < remaining.length; i++) {
         h += '<tr data-player-id="' + remaining[i].id + '" style="border-bottom:1px solid #f1f5f9">';
         h += '<td style="padding:.4rem">' + escHtml(remaining[i].display_name) + '</td>';
-        h += '<td style="padding:.4rem"><input type="number" class="deal-chips" min="0" step="1" value="" placeholder="0" style="width:100%;padding:.3rem .5rem;border:1.5px solid #e2e8f0;border-radius:4px;text-align:right;font-size:.9rem" oninput="recalcDeal()"></td>';
+        h += '<td style="padding:.4rem"><input type="number" class="deal-chips" min="0" step="1" value="" placeholder="0" style="width:100%;padding:.3rem .5rem;border:1.5px solid #e2e8f0;border-radius:4px;text-align:right;font-size:.9rem" data-act-input="recalcDeal"></td>';
         h += '<td style="padding:.4rem;text-align:right;font-weight:600" class="deal-payout">-</td>';
         h += '</tr>';
     }
     h += '</tbody></table>';
 
     h += '<div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap">';
-    h += '<button class="btn btn-primary" onclick="calcDeal(\'icm\')" id="btnICM">ICM Split</button>';
-    h += '<button class="btn btn-outline" onclick="calcDeal(\'standard\')">Standard Split</button>';
-    h += '<button class="btn btn-outline" onclick="calcDeal(\'chip_chop\')">Chip Chop</button>';
+    h += '<button class="btn btn-primary" data-act="calcDeal" data-a1="icm" id="btnICM">ICM Split</button>';
+    h += '<button class="btn btn-outline" data-act="calcDeal" data-a1="standard">Standard Split</button>';
+    h += '<button class="btn btn-outline" data-act="calcDeal" data-a1="chip_chop">Chip Chop</button>';
     h += '</div>';
 
     h += '<div id="dealResult" style="display:none;background:#f0fdf4;border:1.5px solid #86efac;border-radius:8px;padding:1rem;margin-bottom:1rem"></div>';
