@@ -75,8 +75,9 @@ Schema and migrations live entirely in `db_init()` inside `www/db.php`. New colu
 - **Authorization resolves through ids, never display strings.** Event authority comes from `event_invites.user_id` via `can_manage_event()` / `event_visibility_sql()`. A row with a NULL `user_id` is an invitee with no account and confers nothing. Never reintroduce a `LOWER(users.username) = LOWER(event_invites.username)` join: a username is user-chosen, so matching on it lets someone aim their account at another person's invite.
 - **Escaping into an HTML attribute has exactly two correct forms.** PHP: `htmlspecialchars(json_encode($v), ENT_QUOTES)`. JS in `timer.php`: `escAttr()`. Note `escHtml()` covers `<`, `>` and `&` but **not quotes**, so it is not safe for attribute context. Never `json_encode()` alone (its own delimiters close the attribute) and never `addslashes(htmlspecialchars(...))` (the entity encoding leaves no raw quote, so `addslashes` is a no-op and the browser decodes it back before compiling the handler).
 - **Two pre-push sweeps**, both run in a container since the build host has no `php`. See `SECURITY.md` for the commands and why each exists. Run them before any push touching more than one PHP file, and again against production after a deploy.
+- **An asset that gains behaviour gets a cache-buster in the same change.** Every local `.js`/`.css` tag carries `?v=<?= APP_VERSION . '.' . filemtime(...) ?>`. Without it a stale cached copy is not merely out of date, it is a broken feature: markup emitting `data-*` attributes an old script has never seen leaves the control silently dead. Cost this the whole nav in v0.2073 (fixed v0.2074) and the stylesheet in v0.2062.
 
-**Known hardening gap:** the CSP allows `script-src 'unsafe-inline'`, so it provides no XSS mitigation. See `SECURITY.md` for why and the agreed path out.
+**Known hardening gap:** the CSP allows `script-src-attr 'unsafe-inline'` because ~564 inline `on*` handlers remain. Injected `<script>` elements are blocked by a nonce as of v0.2072. See `SECURITY.md` for the conversion pattern and the path out.
 
 ## UI Conventions
 

@@ -4,7 +4,7 @@ Working notes for this codebase: the checks to run before shipping, and the one
 known hardening gap that has not been closed yet. Kept in the repo so neither
 gets lost between sessions.
 
-Last reviewed: 2026-08-09 (v0.2073).
+Last reviewed: 2026-08-09 (v0.2074).
 
 ---
 
@@ -149,9 +149,21 @@ which is exactly the pattern that has to move to event delegation.
      `data-confirm="…" data-confirm-ok="…" data-confirm-danger="1"` handled by
      one delegated `submit` listener. `pkConfirmForm()` calls `formEl.submit()`,
      which does not re-fire the submit event, so it cannot recurse.
+   - **If the destination asset is not cache-busted, bust it in the same change.**
+     Moving behaviour into a `.js` file turns a stale cached copy from an
+     out-of-date file into a *broken feature*: the new markup emits `data-*`
+     attributes the old file has never heard of, and the control silently does
+     nothing. This shipped as v0.2073 and was fixed in v0.2074 — `nav.js` was the
+     only local script tag without a `?v=` and the entire nav went dead for
+     anyone holding a cached copy. Every local script tag now carries
+     `?v=<?= APP_VERSION . '.' . filemtime(...) ?>`; keep it that way. The same
+     trap hit `style.css` in v0.2062.
    - When testing a conversion, make sure the fixture actually exists. A check
      that skips because no post card rendered will report a pass for work it
      never verified.
+   - Verify with the **old** asset forced back in (Playwright `page.route()` can
+     serve the previous file) to prove the cache-buster is what fixes it, rather
+     than assuming.
 3. **Drop `'unsafe-inline'`** only once the count reaches zero, after running
    `Content-Security-Policy-Report-Only` for a while to catch stragglers.
 
