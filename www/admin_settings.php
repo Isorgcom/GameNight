@@ -1871,7 +1871,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                         <td class="ug-act-cell">
                             <?php if (!$isSelf): ?>
                             <form method="post" action="/admin_settings.php"
-                                  onsubmit="return pkConfirmForm(this, 'Delete <?= addslashes(htmlspecialchars($u['username'])) ?>? This cannot be undone.', {okLabel:'Delete', danger:true})">
+                                  onsubmit="return pkConfirmForm(this, 'Delete ' + <?= htmlspecialchars(json_encode($u['username']), ENT_QUOTES) ?> + '? This cannot be undone.', {okLabel:'Delete', danger:true})">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                                 <input type="hidden" name="action" value="delete">
                                 <input type="hidden" name="tab" value="users">
@@ -2244,7 +2244,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
 
                         <td class="ev-del-cell">
                             <form method="post" action="/admin_settings.php"
-                                  onsubmit="return pkConfirmForm(this, 'Delete event &quot;<?= addslashes(htmlspecialchars($ev['title'])) ?>&quot;? This cannot be undone.', {okLabel:'Delete', danger:true})">
+                                  onsubmit="return pkConfirmForm(this, 'Delete event ' + <?= htmlspecialchars(json_encode('"' . $ev['title'] . '"'), ENT_QUOTES) ?> + '? This cannot be undone.', {okLabel:'Delete', danger:true})">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                                 <input type="hidden" name="action" value="delete_event">
                                 <input type="hidden" name="tab" value="events">

@@ -988,7 +988,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                                    class="btn-icon" title="Edit">&#9881;</a>
                                 <?php if ((int)$u['id'] !== (int)$current['id']): ?>
                                 <form method="post" action="/admin_settings.php"
-                                      onsubmit="return pkConfirmForm(this, 'Delete ' + <?= json_encode($u['username']) ?> + '?', {okLabel:'Delete', danger:true})">
+                                      onsubmit="return pkConfirmForm(this, 'Delete ' + <?= htmlspecialchars(json_encode($u['username']), ENT_QUOTES) ?> + '?', {okLabel:'Delete', danger:true})">
                                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="tab" value="users">

@@ -50,6 +50,28 @@ if (league_role($league_id, $uid) !== null) {
     exit;
 }
 
+// Joining is a state change, so it needs an explicit POST with a CSRF token.
+// On a bare GET this used to insert straight into league_members: one top-level
+// navigation (SameSite=Lax still sends the cookie) silently made the victim a
+// member of an attacker-owned league, and a league owner can export every
+// member's email and phone. Same GET-renders / POST-writes split that rsvp.php,
+// verify_email.php and poll.php already use.
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !csrf_verify()) {
+    $auto = $league['approval_mode'] === 'auto';
+    $body = '<p>You have been invited to join <strong>' . htmlspecialchars($league['name']) . '</strong>.</p>'
+          . '<p style="color:#64748b;font-size:.9rem">'
+          . ($auto ? 'Joining adds you to the league straight away.'
+                   : 'Your request will be sent to the league owner for approval.')
+          . ' The owner will be able to see your account\'s email address and phone number.</p>'
+          . '<form method="post" action="/join_league.php?code=' . htmlspecialchars(urlencode($code)) . '" style="margin-top:1rem">'
+          . '<input type="hidden" name="csrf_token" value="' . htmlspecialchars(csrf_token()) . '">'
+          . '<button type="submit" class="btn-primary">'
+          . ($auto ? 'Join league' : 'Request to join')
+          . '</button></form>';
+    render_page($site, $auto ? 'Join league' : 'Request to join', $body, '/leagues.php', 'Not now');
+    exit;
+}
+
 // Handle the join based on approval mode.
 if ($league['approval_mode'] === 'auto') {
     $db->prepare('INSERT INTO league_members (league_id, user_id, role, invited_by, invited_at) VALUES (?, ?, ?, NULL, CURRENT_TIMESTAMP)')

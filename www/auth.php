@@ -374,6 +374,22 @@ function csrf_token(): string {
     return $_SESSION['csrf_token'];
 }
 
+
+/**
+ * The one username rule. Registration, the API and the self-service profile
+ * editor must agree: authorization joins events to people by username string
+ * (see can_manage_event() / event_visibility_sql() in db.php), so a username
+ * that can contain spaces, an @, or a colon can be pointed at an invite row
+ * belonging to someone else. settings.php used to check only non-emptiness,
+ * which is how "pending:12" and "someone@example.com" became claimable.
+ */
+function username_format_error(string $username): ?string {
+    if (!preg_match('/^[a-zA-Z0-9_]{3,30}$/', $username)) {
+        return 'Username must be 3-30 characters (letters, numbers, underscores).';
+    }
+    return null;
+}
+
 /**
  * Register a new user. Returns null on success or an error string on failure.
  * New users are created with email_verified=0 and must verify before logging in.
@@ -388,8 +404,8 @@ function register_user(string $username, string $email, string $password, string
     if ($username === '' || $password === '') {
         return 'Username and password are required.';
     }
-    if (!preg_match('/^[a-zA-Z0-9_]{3,30}$/', $username)) {
-        return 'Username must be 3-30 characters (letters, numbers, underscores).';
+    if ($err = username_format_error($username)) {
+        return $err;
     }
     if (strlen($password) < MIN_PASSWORD_LENGTH) {
         return 'Password must be at least ' . MIN_PASSWORD_LENGTH . ' characters.';

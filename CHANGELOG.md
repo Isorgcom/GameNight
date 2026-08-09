@@ -4,6 +4,16 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2070] - 2026-08-09
+
+### Security
+- **Event authorization now hangs off an account id rather than a username string.** `event_invites` gains a `user_id` column, backfilled once from the existing username match, and both `can_manage_event()` and `event_visibility_sql()` join on it. An invite row that does not correspond to a real account no longer confers visibility or co-host authority. Verified access-preserving before shipping: every existing (user, event, role) pair was compared under the old and new logic, with none lost and none gained. Note the deliberate behaviour change: an invite typed as a plain name no longer starts granting access if someone later registers under that name, so a host who wants a real co-host adds them once they have an account.
+- **Hardened HTML sanitization.** `sanitize_html()` did not descend into elements it was about to unwrap, so their contents were emitted without the tag allowlist, attribute stripping or URL scheme checks being applied. It now sanitizes those subtrees before unwrapping. Allowed formatting, lists, links and whitelisted embeds are unaffected.
+- **Corrected escaping in admin confirmation dialogs.** Five `onsubmit` handlers across `user_edit.php`, `admin_settings.php` and `admin_settings_dl.php` interpolated a username or event title into an HTML attribute using `json_encode()` alone or `addslashes(htmlspecialchars(...))`, neither of which is correct for that context. All now use the `htmlspecialchars(json_encode($v), ENT_QUOTES)` form already used elsewhere. This also fixes a live bug: the delete confirmation was silently broken for any event whose title contains an apostrophe, so the prompt never appeared.
+- **Username format is enforced on every path that sets one.** The rule lives in one `username_format_error()` helper in `auth.php`; the self-service profile editor in `settings.php` previously checked only that the value was non-empty, while registration and the API enforced the documented charset.
+- **Timer themes and blind presets are scoped to their owner.** `load_theme` and `load_preset` now apply the same visibility filter `get_theme` and `get_presets` already used, and `update_theme` and `update_levels` copy-on-edit when the target belongs to someone else, matching the ownership rule their delete counterparts already enforced.
+- **Joining a league requires a confirmed POST.** `join_league.php` performed the membership insert on a bare GET with no CSRF token, so a single top-level navigation could add someone to a league without their agreement. The link now renders a confirmation page naming the league and stating that its owner will be able to see the member's email address and phone number; the write happens on POST with a verified token, the same split `rsvp.php`, `verify_email.php` and `poll.php` already use.
+
 ## [v0.2069] - 2026-08-08
 
 ### Fixed

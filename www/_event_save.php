@@ -64,10 +64,14 @@ function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allo
         }
 
         // Creator/manager-added invites auto-approve regardless of the event's requires_approval flag.
-        $ins = $db->prepare("INSERT INTO event_invites (event_id, username, phone, email, rsvp, rsvp_token, rsvp_token_flips, occurrence_date, event_role, approval_status, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved', ?)");
+        // user_id links the invite to a real account and is what confers visibility
+        // and co-host authority (see can_manage_event()). It is resolved from the
+        // username only when that username IS an existing account; a typed-in name
+        // for someone with no account stays NULL and grants nothing.
+        $ins = $db->prepare("INSERT INTO event_invites (event_id, username, user_id, phone, email, rsvp, rsvp_token, rsvp_token_flips, occurrence_date, event_role, approval_status, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved', ?)");
         // Build a lookup of user contact info for auto-filling
         $userLookup = [];
-        $uAll = $db->query('SELECT username, email, phone FROM users ORDER BY username')->fetchAll();
+        $uAll = $db->query('SELECT id, username, email, phone FROM users ORDER BY username')->fetchAll();
         foreach ($uAll as $uRow) $userLookup[strtolower($uRow['username'])] = $uRow;
 
         for ($i = 0; $i < count($inv_usernames); $i++) {
@@ -95,7 +99,8 @@ function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allo
             $token = ($prior['rsvp_token'] ?? '') !== '' ? $prior['rsvp_token'] : bin2hex(random_bytes(16));
             $tokenFlips = (int)($prior['rsvp_token_flips'] ?? 0);
             $sortOrd = $inv_sort_orders[$i] ?? ($i + 1);
-            $ins->execute([$eid, canonical_username($inv_usernames[$i]), $phone_norm ?: null, $email_raw ?: null, $rsvp, $token, $tokenFlips, $invite_occ_date, $role, $sortOrd]);
+            $linked = $userLookup[strtolower(trim($inv_usernames[$i]))]['id'] ?? null;
+            $ins->execute([$eid, canonical_username($inv_usernames[$i]), $linked, $phone_norm ?: null, $email_raw ?: null, $rsvp, $token, $tokenFlips, $invite_occ_date, $role, $sortOrd]);
             // Only track new invitees for base (all-occurrence) saves so notifications go out
             if (!$invite_occ_date && !in_array(strtolower($inv_usernames[$i]), $old_names, true)) {
                 $new_usernames[] = strtolower($inv_usernames[$i]);
