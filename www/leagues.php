@@ -120,7 +120,7 @@ $csrf = csrf_token();
         <?php else: ?>
         <div style="margin-bottom:.75rem">
             <input type="search" id="lgSearch" placeholder="Search leagues by name or description&hellip;" autocomplete="off"
-                   oninput="filterBrowse(this.value)"
+                   data-act-input="filterBrowse" data-input-a1="@value"
                    style="width:100%;padding:.55rem .75rem;border:1.5px solid #cbd5e1;border-radius:6px;font:inherit">
         </div>
         <div id="lgNoResults" class="lg-empty" style="display:none">No leagues match your search.</div>
@@ -137,9 +137,9 @@ $csrf = csrf_token();
                 <?php if ((int)$l['has_request'] > 0): ?>
                     <span class="lg-btn lg-btn-ghost" style="cursor:default">Request pending</span>
                 <?php elseif ($l['approval_mode'] === 'auto'): ?>
-                    <button class="lg-btn" onclick="joinLeague(<?= (int)$l['id'] ?>)">Join</button>
+                    <button class="lg-btn" data-act="joinLeague" data-a1="<?= (int)$l['id'] ?>">Join</button>
                 <?php else: ?>
-                    <button class="lg-btn" onclick="openRequestModal(<?= (int)$l['id'] ?>, <?= htmlspecialchars(json_encode($l['name']), ENT_QUOTES) ?>)">Request to Join</button>
+                    <button class="lg-btn" data-act="openRequestModal" data-a1="<?= (int)$l['id'] ?>" data-a2="<?= htmlspecialchars(json_encode($l['name']), ENT_QUOTES) ?>">Request to Join</button>
                 <?php endif; ?>
             </div>
         <?php endforeach; ?>
@@ -156,7 +156,7 @@ $csrf = csrf_token();
                     <?php if ($r['message']): ?><p class="lg-desc"><em>Your message:</em> <?= htmlspecialchars($r['message']) ?></p><?php endif; ?>
                     <div class="lg-meta">Requested <?= htmlspecialchars($r['requested_at']) ?></div>
                 </div>
-                <button class="lg-btn lg-btn-ghost" onclick="cancelRequest(<?= (int)$r['league_id'] ?>)">Cancel</button>
+                <button class="lg-btn lg-btn-ghost" data-act="cancelRequest" data-a1="<?= (int)$r['league_id'] ?>">Cancel</button>
             </div>
         <?php endforeach; endif; ?>
 
@@ -170,8 +170,8 @@ $csrf = csrf_token();
         <p style="font-size:.85rem;color:#64748b;margin:.25rem 0 .5rem">Optional message to the league owner:</p>
         <textarea id="rqMsg" placeholder="Hi, I'd like to join!"></textarea>
         <div class="lg-row">
-            <button class="lg-btn lg-btn-ghost" onclick="closeRequestModal()">Cancel</button>
-            <button class="lg-btn" onclick="submitRequest()">Send Request</button>
+            <button class="lg-btn lg-btn-ghost" data-act="closeRequestModal">Cancel</button>
+            <button class="lg-btn" data-act="submitRequest">Send Request</button>
         </div>
     </div>
 </div>

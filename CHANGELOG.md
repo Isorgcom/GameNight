@@ -4,6 +4,11 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2077] - 2026-08-09
+
+### Security
+- **Shared handler dispatch, and 169 more inline handlers removed across 24 files.** New `www/pk-dispatch.js`, loaded from `_footer.php`, provides the same delegated dispatch that `checkin.php` and `timer.php` carry internally, so ordinary pages no longer need their own copy. It is an external file, so it is covered by `script-src 'self'` and needs no nonce, and it is cache-busted because it carries behaviour rather than styling — a stale copy of a behaviour file is a broken feature, as v0.2073 demonstrated. It also provides generic declarative behaviours for the idioms that recurred dozens of times: `data-confirm` / `data-confirm-ok` / `data-confirm-danger` on a form, `data-href`, `data-toggle-class="id:class"`, `data-click-file="inputId"`, `data-select-all-on-focus` and `data-uppercase`. Listeners run in the capture phase throughout, because an ancestor calling `stopPropagation()` makes a bubble-phase listener on `document` blind to everything beneath it. `walkin_display.php` and `register.php` load the script directly, having no footer. Tree-wide the count is 401 down to 68; the remainder are multi-statement or PHP-interpolated bodies in admin and editor screens, each needing an individually written helper, and `script-src-attr 'unsafe-inline'` stays until they are done.
+
 ## [v0.2076] - 2026-08-09
 
 ### Security

@@ -71,7 +71,7 @@ $utc_tz    = new DateTimeZone('UTC');
         <span class="sp-chip <?= $ticket['status'] === 'open' ? 'sp-open' : 'sp-resolved' ?>" id="stStatusChip"><?= htmlspecialchars($ticket['status']) ?></span>
         <?php if ($isAdmin): ?>
         <button type="button" class="btn btn-outline" style="font-size:.78rem;padding:.28rem .6rem" id="stStatusBtn"
-                onclick="toggleStatus(this)"><?= $ticket['status'] === 'open' ? 'Mark resolved' : 'Reopen' ?></button>
+                data-act="toggleStatus" data-a1="@self"><?= $ticket['status'] === 'open' ? 'Mark resolved' : 'Reopen' ?></button>
         <?php endif; ?>
     </div>
     <p style="font-size:.78rem;color:#94a3b8;margin:0 0 1rem">Opened by <?= htmlspecialchars($ticket['owner_name']) ?></p>
@@ -96,7 +96,7 @@ $utc_tz    = new DateTimeZone('UTC');
     <div class="st-reply" style="margin-top:1rem">
         <textarea id="stBody" rows="3" maxlength="5000" placeholder="Write a reply&hellip;"></textarea>
         <div style="display:flex;align-items:center;gap:.6rem;margin-top:.5rem;flex-wrap:wrap">
-            <button class="btn btn-primary" type="button" onclick="sendReply(this)">Reply</button>
+            <button class="btn btn-primary" type="button" data-act="sendReply" data-a1="@self">Reply</button>
             <label style="font-size:.8rem;color:#64748b">&#128247; Attach screenshot
                 <input type="file" id="stShot" accept="image/*" style="font-size:.8rem">
             </label>

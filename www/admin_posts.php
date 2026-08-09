@@ -302,7 +302,7 @@ $now_local = (new DateTime('now', $local_tz))->format('Y-m-d H:i:s');
 
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:1rem">
         <h1 style="font-size:1.5rem">Manage Posts</h1>
-        <button class="btn btn-primary" onclick="openModal()">&#43; New Post</button>
+        <button class="btn btn-primary" data-act="openModal">&#43; New Post</button>
     </div>
 
     <?php if ($flash['msg']): ?>
@@ -334,8 +334,8 @@ $now_local = (new DateTime('now', $local_tz))->format('Y-m-d H:i:s');
         <!-- Bulk action bar (shown when rows selected) -->
         <div class="bulk-bar" id="bulk-bar">
             <span class="bulk-count" id="bulk-count-label">0 selected</span>
-            <button class="btn-sm-text danger" onclick="bulkDelete()">Delete selected</button>
-            <button class="btn-sm-text" onclick="clearSel()">Clear</button>
+            <button class="btn-sm-text danger" data-act="bulkDelete">Delete selected</button>
+            <button class="btn-sm-text" data-act="clearSel">Clear</button>
         </div>
 
         <table>
@@ -356,7 +356,7 @@ $now_local = (new DateTime('now', $local_tz))->format('Y-m-d H:i:s');
                 <tr data-title="<?= htmlspecialchars(mb_strtolower($p['title'])) ?>"
                     class="<?= $p['hidden'] ? 'post-hidden' : '' ?>">
                     <td class="col-cb">
-                        <input type="checkbox" class="row-cb post-cb" value="<?= (int)$p['id'] ?>" onchange="onCbChange()">
+                        <input type="checkbox" class="row-cb post-cb" value="<?= (int)$p['id'] ?>" data-act-change="onCbChange">
                     </td>
                     <td><?= (int)$p['id'] ?></td>
                     <td>
@@ -398,7 +398,7 @@ $now_local = (new DateTime('now', $local_tz))->format('Y-m-d H:i:s');
                                 </button>
                             </form>
                             <form method="post" action="/admin_posts.php" style="margin:0"
-                                  onsubmit="return pkConfirmForm(this, 'Delete this post?', {okLabel:'Delete', danger:true})">
+                                  data-confirm="Delete this post?" data-confirm-ok="Delete" data-confirm-danger="1"">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                                 <input type="hidden" name="action" value="delete">
                                 <input type="hidden" name="id" value="<?= (int)$p['id'] ?>">
@@ -420,7 +420,7 @@ $now_local = (new DateTime('now', $local_tz))->format('Y-m-d H:i:s');
     <div class="modal">
         <div class="modal-header">
             <h2 id="modalTitle">New Post</h2>
-            <button class="modal-close" onclick="closeModal()">&#x2715;</button>
+            <button class="modal-close" data-act="closeModal">&#x2715;</button>
         </div>
         <form method="post" action="/admin_posts.php" id="postForm">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
@@ -463,7 +463,7 @@ $now_local = (new DateTime('now', $local_tz))->format('Y-m-d H:i:s');
             </div>
             <div style="display:flex;gap:.75rem;margin-top:1rem">
                 <button type="submit" class="btn btn-primary" style="flex:1" id="submitBtn">Publish</button>
-                <button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>
+                <button type="button" class="btn btn-outline" data-act="closeModal">Cancel</button>
             </div>
         </form>
     </div>

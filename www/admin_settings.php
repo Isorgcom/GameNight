@@ -1498,7 +1498,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                                    placeholder="#0f172a" maxlength="7" style="flex:1"
                                    oninput="syncPicker('nav_bg_picker',this.value);updatePreview()">
                             <button type="button" class="btn btn-outline btn-sm"
-                                    onclick="resetColor('nav_bg_color','nav_bg_picker','#0f172a')">Default</button>
+                                    data-act="resetColor" data-a1="nav_bg_color" data-a2="nav_bg_picker" data-a3="#0f172a">Default</button>
                         </div>
                     </div>
                     <div class="form-group">
@@ -1513,7 +1513,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                                    placeholder="#ffffff" maxlength="7" style="flex:1"
                                    oninput="syncPicker('nav_text_picker',this.value);updatePreview()">
                             <button type="button" class="btn btn-outline btn-sm"
-                                    onclick="resetColor('nav_text_color','nav_text_picker','#ffffff')">Default</button>
+                                    data-act="resetColor" data-a1="nav_text_color" data-a2="nav_text_picker" data-a3="#ffffff">Default</button>
                         </div>
                     </div>
                     <div class="form-group">
@@ -1528,7 +1528,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                                    placeholder="#2563eb" maxlength="7" style="flex:1"
                                    oninput="syncPicker('accent_picker',this.value);updatePreview()">
                             <button type="button" class="btn btn-outline btn-sm"
-                                    onclick="resetColor('accent_color','accent_picker','#2563eb')">Default</button>
+                                    data-act="resetColor" data-a1="accent_color" data-a2="accent_picker" data-a3="#2563eb">Default</button>
                         </div>
                         <p class="hint">Used for buttons, active links, and highlights across the site.</p>
                     </div>
@@ -1654,7 +1654,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                     View Notification Log (<?= $smsLogCount ?>)
                 </a>
                 <form method="post" action="/admin_settings.php"
-                      onsubmit="return pkConfirmForm(this, 'Clear all log entries? This cannot be undone.', {danger:true})">
+                      data-confirm="Clear all log entries? This cannot be undone." data-confirm-danger="1"">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                     <input type="hidden" name="action" value="clear_logs">
                     <input type="hidden" name="tab" value="logs">
@@ -1736,7 +1736,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 <span style="color:#94a3b8;font-size:.75rem">Click any cell to edit &bull; Changes save automatically</span>
                 <a href="/admin_settings.php?action=export_users" class="btn btn-outline btn-sm" style="padding:.4rem .85rem;font-size:.82rem">&#8681; Export CSV</a>
                 <button class="btn btn-outline btn-sm" onclick="document.getElementById('ugImportWrap').style.display=document.getElementById('ugImportWrap').style.display==='none'?'flex':'none'" style="padding:.4rem .85rem;font-size:.82rem">&#8679; Import CSV</button>
-                <button class="btn btn-primary btn-sm" onclick="openUserModal()" style="padding:.4rem .85rem;font-size:.82rem">+ New User</button>
+                <button class="btn btn-primary btn-sm" data-act="openUserModal" style="padding:.4rem .85rem;font-size:.82rem">+ New User</button>
             </div>
 
             <div id="ugImportWrap" style="display:none;align-items:center;gap:.75rem;flex-wrap:wrap;padding:.75rem 1rem;border-bottom:1px solid #e2e8f0;background:#f8fafc">
@@ -1759,7 +1759,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
             <div id="ugBulkBar">
                 <span class="bulk-label"><span id="ugBulkCount">0</span> selected</span>
                 <form id="ugBulkDeleteForm" method="post" action="/admin_settings.php"
-                      onsubmit="return pkConfirmForm(this, 'Delete selected users? This cannot be undone.', {okLabel:'Delete', danger:true})">
+                      data-confirm="Delete selected users? This cannot be undone." data-confirm-ok="Delete" data-confirm-danger="1"">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                     <input type="hidden" name="action" value="bulk_delete">
                     <input type="hidden" name="tab" value="users">
@@ -1775,7 +1775,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                     </select>
                     <button type="submit" class="btn btn-sm btn-outline">Apply</button>
                 </form>
-                <button class="btn btn-sm btn-outline" onclick="ugClearSelection()">Clear</button>
+                <button class="btn btn-sm btn-outline" data-act="ugClearSelection">Clear</button>
             </div>
 
             <?php
@@ -2332,7 +2332,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
             <?php else: ?>
             <div style="margin-bottom:.75rem">
                 <input type="search" id="adminLgSearch" placeholder="Search by name, description, or owner&hellip;" autocomplete="off"
-                       oninput="filterAdminLeagues(this.value)"
+                       data-act-input="filterAdminLeagues" data-input-a1="@value"
                        style="width:100%;padding:.5rem .75rem;border:1.5px solid #cbd5e1;border-radius:6px;font:inherit">
             </div>
             <div style="overflow-x:auto">
@@ -2570,7 +2570,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                         <label for="sms_provider">Provider</label>
                         <select id="sms_provider" name="sms_provider"
                                 style="width:100%;padding:.5rem .75rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.95rem;background:#fff"
-                                onchange="toggleSmsFields()">
+                                data-act-change="toggleSmsFields">
                             <?php foreach ($sms_providers as $key => $prov): ?>
                             <option value="<?= $key ?>"<?= $sms_provider === $key ? ' selected' : '' ?>><?= htmlspecialchars($prov['label']) ?></option>
                             <?php endforeach; ?>
@@ -2813,10 +2813,10 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                         </div>
                     </div>
                     <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-                        <button type="button" id="wahaStartBtn" class="btn btn-primary" onclick="wahaStart()" style="display:none">Start Session</button>
-                        <button type="button" id="wahaStopBtn" class="btn btn-outline" onclick="wahaStop()" style="display:none;color:#dc2626;border-color:#fca5a5">Disconnect</button>
-                        <button type="button" class="btn btn-outline" onclick="wahaCheckStatus()">Refresh Status</button>
-                        <button type="button" class="btn btn-outline" onclick="wahaReset()" style="color:#dc2626;border-color:#fca5a5">Reset &amp; re-link</button>
+                        <button type="button" id="wahaStartBtn" class="btn btn-primary" data-act="wahaStart" style="display:none">Start Session</button>
+                        <button type="button" id="wahaStopBtn" class="btn btn-outline" data-act="wahaStop" style="display:none;color:#dc2626;border-color:#fca5a5">Disconnect</button>
+                        <button type="button" class="btn btn-outline" data-act="wahaCheckStatus">Refresh Status</button>
+                        <button type="button" class="btn btn-outline" data-act="wahaReset" style="color:#dc2626;border-color:#fca5a5">Reset &amp; re-link</button>
                     </div>
                 </div>
             </div>
@@ -3011,11 +3011,11 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
 </div>
 
 <!-- ── New User Modal ── -->
-<div class="modal-overlay" id="newUserModal" onclick="overlayClick(event)">
+<div class="modal-overlay" id="newUserModal" data-act="overlayClick" data-a1="@event">
     <div class="modal">
         <div class="modal-header">
             <h2>New User</h2>
-            <button class="modal-close" onclick="closeUserModal()" title="Close">&#x2715;</button>
+            <button class="modal-close" data-act="closeUserModal" title="Close">&#x2715;</button>
         </div>
         <form method="post" action="/admin_settings.php">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
@@ -3050,7 +3050,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
             </div>
             <div style="display:flex;gap:.75rem;margin-top:1.5rem">
                 <button type="submit" class="btn btn-primary" style="flex:1">Create User</button>
-                <button type="button" class="btn btn-outline" onclick="closeUserModal()">Cancel</button>
+                <button type="button" class="btn btn-outline" data-act="closeUserModal">Cancel</button>
             </div>
         </form>
     </div>
@@ -3209,7 +3209,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 <h3 style="margin-top:0;color:#dc2626">Restore from Backup</h3>
                 <p style="font-size:.85rem;color:#64748b;margin-bottom:1rem">Upload a previously downloaded <code>.db</code> backup file. This will <strong>replace all current data</strong>.</p>
                 <form method="post" action="/admin_settings.php?tab=backup" enctype="multipart/form-data"
-                      onsubmit="return pkConfirmForm(this, 'This will REPLACE ALL current data with the backup. The current database will be saved as a safety copy. Continue?', {okLabel:'Restore', danger:true})">
+                      data-confirm="This will REPLACE ALL current data with the backup. The current database will be saved as a safety copy. Continue?" data-confirm-ok="Restore" data-confirm-danger="1"">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                     <input type="hidden" name="action" value="backup_restore">
                     <input type="hidden" name="tab" value="backup">

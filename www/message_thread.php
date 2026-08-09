@@ -142,17 +142,17 @@ $lastId = $messages ? (int)end($messages)['id'] : 0;
         <a href="/messages.php" class="btn btn-outline" style="font-size:.8rem;padding:.3rem .6rem">&laquo; Messages</a>
         <h1><?= htmlspecialchars($title) ?></h1>
         <?php if ($addable): ?>
-        <button class="btn btn-outline" type="button" style="font-size:.8rem;padding:.3rem .6rem" onclick="document.getElementById('dtAdd').classList.toggle('open')">Add people</button>
+        <button class="btn btn-outline" type="button" style="font-size:.8rem;padding:.3rem .6rem" data-toggle-class="dtAdd:open">Add people</button>
         <?php endif; ?>
         <?php if ($isEventChat): ?>
             <a class="btn btn-outline" style="font-size:.8rem;padding:.3rem .6rem;text-decoration:none" href="/event.php?id=<?= (int)$conv['event_id'] ?>">View event</a>
             <?php if (!empty($myPart['manual_add'])): ?>
-            <button class="btn btn-outline" type="button" style="font-size:.8rem;padding:.3rem .6rem;color:#dc2626;border-color:#fecaca" onclick="leaveGroup()">Leave chat</button>
+            <button class="btn btn-outline" type="button" style="font-size:.8rem;padding:.3rem .6rem;color:#dc2626;border-color:#fecaca" data-act="leaveGroup">Leave chat</button>
             <?php endif; ?>
         <?php elseif ($isGroup): ?>
-            <button class="btn btn-outline" type="button" style="font-size:.8rem;padding:.3rem .6rem;color:#dc2626;border-color:#fecaca" onclick="leaveGroup()">Leave group</button>
+            <button class="btn btn-outline" type="button" style="font-size:.8rem;padding:.3rem .6rem;color:#dc2626;border-color:#fecaca" data-act="leaveGroup">Leave group</button>
         <?php elseif ($conv && $messages): ?>
-            <button class="btn btn-outline" type="button" style="font-size:.8rem;padding:.3rem .6rem" onclick="clearConvo()">Delete conversation</button>
+            <button class="btn btn-outline" type="button" style="font-size:.8rem;padding:.3rem .6rem" data-act="clearConvo">Delete conversation</button>
         <?php endif; ?>
     </div>
     <?php if ($isGroup): ?>
@@ -166,7 +166,7 @@ $lastId = $messages ? (int)end($messages)['id'] : 0;
             <option value="<?= (int)$aid ?>"><?= htmlspecialchars($aname) ?></option>
             <?php endforeach; ?>
         </select>
-        <button class="btn" type="button" onclick="addMember(this)">Add</button>
+        <button class="btn" type="button" data-act="addMember" data-a1="@self">Add</button>
         <?php if ($isEventChat): ?>
         <span style="flex-basis:100%;font-size:.72rem;color:#7c3aed">Adds them to this chat only — it does not invite them to the event.</span>
         <?php elseif (!$isGroup): ?>
@@ -189,7 +189,7 @@ $lastId = $messages ? (int)end($messages)['id'] : 0;
 
     <div class="dt-form">
         <textarea id="dtBody" maxlength="4000" placeholder="Write a message&hellip;"></textarea>
-        <button class="btn" type="button" id="dtSend" onclick="sendMsg(this)">Send</button>
+        <button class="btn" type="button" id="dtSend" data-act="sendMsg" data-a1="@self">Send</button>
     </div>
 </div>
 <?php require __DIR__ . '/_footer.php'; ?>

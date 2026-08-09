@@ -73,7 +73,7 @@ $utc_tz    = new DateTimeZone('UTC');
             <div class="sp-shot-hint">JPEG/PNG/GIF/WebP, up to 8 MB.</div>
             <img id="spShotPreview" alt="Screenshot preview">
         </div>
-        <button class="btn btn-primary" type="button" id="spSubmit" onclick="createTicket(this)">Submit ticket</button>
+        <button class="btn btn-primary" type="button" id="spSubmit" data-act="createTicket" data-a1="@self">Submit ticket</button>
     </div>
 
     <h2 style="font-size:1rem;font-weight:800;color:#1e293b;margin:0 0 .6rem">My tickets</h2>
