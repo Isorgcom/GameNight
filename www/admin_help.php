@@ -105,7 +105,7 @@ $tips = $tipsStmt->fetchAll();
 
     <div class="hlp-field" style="max-width:420px">
         <label for="screenSel">Screen</label>
-        <select id="screenSel" class="hlp-screen-sel" onchange="location.href='/admin_help.php?screen='+encodeURIComponent(this.value)">
+        <select id="screenSel" class="hlp-screen-sel" data-act-change="goHelpScreen" data-change-a1="@value">
             <?php foreach ($screens as $key => $label): ?>
             <option value="<?= htmlspecialchars($key) ?>"<?= $key === $screen ? ' selected' : '' ?>>
                 <?= htmlspecialchars($label) ?> (<?= (int)($counts[$key] ?? 0) ?>)
@@ -123,7 +123,7 @@ $tips = $tipsStmt->fetchAll();
         <!-- Editor -->
         <div class="hlp-card">
             <h2 id="formHeading">Add a tip</h2>
-            <form id="tipForm" onsubmit="return false">
+            <form id="tipForm" data-act-submit="cancelSubmit">
                 <input type="hidden" id="tipId" value="">
                 <div class="hlp-field">
                     <label for="tipTitle">Title <span style="font-weight:400;color:#94a3b8">(optional)</span></label>
@@ -321,6 +321,10 @@ function showPreview() {
 }
 
 renderList();
+</script>
+<script nonce="<?= csp_nonce() ?>">
+function goHelpScreen(v) { location.href = '/admin_help.php?screen=' + encodeURIComponent(v); }
+function cancelSubmit()  { return false; }
 </script>
 </body>
 </html>

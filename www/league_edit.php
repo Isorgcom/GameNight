@@ -62,7 +62,7 @@ $vals = $league ?: [
     <div class="le-card">
         <h1><?= $isEdit ? 'Edit' : 'Create' ?> League</h1>
         <div class="le-err" id="err"></div>
-        <form id="f" onsubmit="return submitForm(event)">
+        <form id="f" data-act-submit="submitForm" data-submit-a1="@event">
             <div class="le-row">
                 <label>Name
                     <input type="text" name="name" required maxlength="120" value="<?= htmlspecialchars($vals['name']) ?>">

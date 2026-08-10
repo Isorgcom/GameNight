@@ -140,7 +140,7 @@ function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): strin
         </a>
         <div style="display:flex;align-items:center;gap:.5rem;font-size:.8rem;color:#64748b">
             <label>Past:
-                <select onchange="window.location='/my_events.php?past_days='+this.value" style="padding:.2rem .4rem;border:1px solid #e2e8f0;border-radius:5px;font-size:.8rem;background:#fff">
+                <select data-act-change="goMyEventsPastDays" data-change-a1="@value" style="padding:.2rem .4rem;border:1px solid #e2e8f0;border-radius:5px;font-size:.8rem;background:#fff">
                     <?php foreach ([7=>'7d',14=>'14d',30=>'30d',60=>'60d',90=>'90d',180=>'6mo',365=>'1yr'] as $v=>$l): ?>
                     <option value="<?= $v ?>"<?= $past_days === $v ? ' selected' : '' ?>><?= $l ?></option>
                     <?php endforeach; ?>
@@ -284,5 +284,8 @@ details:not([open]) .me-hint-hide { display: none; }
 </style>
 
 <?php require __DIR__ . '/_footer.php'; ?>
+<script nonce="<?= csp_nonce() ?>">
+function goMyEventsPastDays(v) { window.location = '/my_events.php?past_days=' + v; }
+</script>
 </body>
 </html>

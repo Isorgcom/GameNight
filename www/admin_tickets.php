@@ -71,7 +71,7 @@ $utc_tz    = new DateTimeZone('UTC');
             try { $when = (new DateTime((string)$t['updated_at'], $utc_tz))->setTimezone($viewer_tz)->format('M j, g:i A'); }
             catch (Throwable $e) { $when = ''; }
         ?>
-        <tr onclick="location.href='/support_ticket.php?id=<?= (int)$t['id'] ?>'">
+        <tr data-href="/support_ticket.php?id=<?= (int)$t['id'] ?>">
             <td><?= (int)$t['id'] ?></td>
             <td><span class="sp-chip <?= $t['status'] === 'open' ? 'sp-open' : 'sp-resolved' ?>"><?= htmlspecialchars($t['status']) ?></span></td>
             <td><?= htmlspecialchars($t['owner_name']) ?></td>

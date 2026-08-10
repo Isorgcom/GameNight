@@ -207,7 +207,7 @@ unset($_SESSION['flash']);
                             <?php if (!empty($log['raw_response'])): ?>
                                 <button type="button"
                                         data-raw="<?= htmlspecialchars($log['raw_response'], ENT_QUOTES) ?>"
-                                        onclick="var b=this;pkCopy(this.dataset.raw).then(function(ok){ b.textContent=ok?'Copied!':'Copy failed'; setTimeout(function(){ b.textContent='Copy'; },1500); });"
+                                        data-act="copySmsRaw" data-a1="@self"
                                         class="btn btn-outline btn-sm">Copy</button>
                             <?php else: ?>
                                 <span style="color:#94a3b8">&mdash;</span>
@@ -235,5 +235,13 @@ unset($_SESSION['flash']);
 </div>
 
 <?php include __DIR__ . '/_footer.php'; ?>
+<script nonce="<?= csp_nonce() ?>">
+function copySmsRaw(btn) {
+    pkCopy(btn.dataset.raw).then(function (ok) {
+        btn.textContent = ok ? 'Copied!' : 'Copy failed';
+        setTimeout(function () { btn.textContent = 'Raw'; }, 1500);
+    });
+}
+</script>
 </body>
 </html>

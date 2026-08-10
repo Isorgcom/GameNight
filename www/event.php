@@ -252,7 +252,7 @@ if ($token === '' && $page_eid > 0) {
                 <div class="ev-more-panel" id="evMorePanel">
                     <a href="/event_edit.php?copy=<?= $page_eid ?>">Duplicate event</a>
                     <a href="/event_polls.php?event_id=<?= $page_eid ?>">Polls</a>
-                    <a href="javascript:void(0)" onclick="evpCopyLink(this);toggleEvMore()">&#128279; Copy link</a>
+                    <a href="javascript:void(0)" data-act="copyEventLinkAndClose" data-a1="@self">&#128279; Copy link</a>
                     <?php if ($isAdmin): ?>
                     <a href="/walkin_display.php?event_id=<?= $page_eid ?>" target="_blank" rel="noopener">&#x1F4F1; Walk-up QR</a>
                     <?php endif; ?>
@@ -575,6 +575,12 @@ function evpCopyLink(btn) {
         else pkAlert(url, { title: 'Event link — copy it from here' });
     });
 }
+
+// Was onclick="evpCopyLink(this);toggleEvMore()". Defined here, beside the
+// function it calls, rather than in a trailing <script>: event.php has several
+// </body> blocks and the trailing one belongs to a render branch that a normal
+// event view never reaches, so the helper was undefined and the control dead.
+function copyEventLinkAndClose(el) { evpCopyLink(el); toggleEvMore(); }
 async function deleteComment(id) {
     if (!(await pkConfirm('Delete this comment?'))) return;
     var fd = new FormData();

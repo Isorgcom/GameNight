@@ -716,11 +716,11 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                             <input type="color" id="nav_bg_picker"
                                    value="<?= htmlspecialchars(get_setting('nav_bg_color','') ?: '#0f172a') ?>"
                                    style="width:40px;height:38px;padding:2px;border:1.5px solid #e2e8f0;border-radius:7px;cursor:pointer;flex-shrink:0"
-                                   oninput="syncText('nav_bg_color',this.value);updatePreview()">
+                                   data-act-input="syncTextPreview" data-input-a1="nav_bg_color" data-input-a2="@value">
                             <input type="text" name="nav_bg_color" id="nav_bg_color"
                                    value="<?= htmlspecialchars(get_setting('nav_bg_color','')) ?>"
                                    placeholder="#0f172a" maxlength="7" style="flex:1"
-                                   oninput="syncPicker('nav_bg_picker',this.value);updatePreview()">
+                                   data-act-input="syncPickerPreview" data-input-a1="nav_bg_picker" data-input-a2="@value">
                             <button type="button" class="btn btn-outline btn-sm"
                                     data-act="resetColor" data-a1="nav_bg_color" data-a2="nav_bg_picker" data-a3="#0f172a">Default</button>
                         </div>
@@ -731,11 +731,11 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                             <input type="color" id="nav_text_picker"
                                    value="<?= htmlspecialchars(get_setting('nav_text_color','') ?: '#ffffff') ?>"
                                    style="width:40px;height:38px;padding:2px;border:1.5px solid #e2e8f0;border-radius:7px;cursor:pointer;flex-shrink:0"
-                                   oninput="syncText('nav_text_color',this.value);updatePreview()">
+                                   data-act-input="syncTextPreview" data-input-a1="nav_text_color" data-input-a2="@value">
                             <input type="text" name="nav_text_color" id="nav_text_color"
                                    value="<?= htmlspecialchars(get_setting('nav_text_color','')) ?>"
                                    placeholder="#ffffff" maxlength="7" style="flex:1"
-                                   oninput="syncPicker('nav_text_picker',this.value);updatePreview()">
+                                   data-act-input="syncPickerPreview" data-input-a1="nav_text_picker" data-input-a2="@value">
                             <button type="button" class="btn btn-outline btn-sm"
                                     data-act="resetColor" data-a1="nav_text_color" data-a2="nav_text_picker" data-a3="#ffffff">Default</button>
                         </div>
@@ -746,11 +746,11 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                             <input type="color" id="accent_picker"
                                    value="<?= htmlspecialchars(get_setting('accent_color','') ?: '#2563eb') ?>"
                                    style="width:40px;height:38px;padding:2px;border:1.5px solid #e2e8f0;border-radius:7px;cursor:pointer;flex-shrink:0"
-                                   oninput="syncText('accent_color',this.value);updatePreview()">
+                                   data-act-input="syncTextPreview" data-input-a1="accent_color" data-input-a2="@value">
                             <input type="text" name="accent_color" id="accent_color"
                                    value="<?= htmlspecialchars(get_setting('accent_color','')) ?>"
                                    placeholder="#2563eb" maxlength="7" style="flex:1"
-                                   oninput="syncPicker('accent_picker',this.value);updatePreview()">
+                                   data-act-input="syncPickerPreview" data-input-a1="accent_picker" data-input-a2="@value">
                             <button type="button" class="btn btn-outline btn-sm"
                                     data-act="resetColor" data-a1="accent_color" data-a2="accent_picker" data-a3="#2563eb">Default</button>
                         </div>
@@ -776,7 +776,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                     <input type="hidden" name="tab" value="appearance">
                     <button type="submit" class="btn btn-outline"
                             style="color:#ef4444;border-color:#fca5a5;font-size:.82rem"
-                            onclick="return pkConfirmForm(this.form, 'Remove the icon?', {okLabel:'Remove', danger:true})">&#x2715; Remove Icon</button>
+                            data-confirm="Remove the icon?" data-confirm-ok="Remove" data-confirm-danger="1">&#x2715; Remove Icon</button>
                 </form>
                 <?php endif; ?>
                 <form method="post" action="/admin_settings.php" enctype="multipart/form-data">
@@ -810,7 +810,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                     <input type="hidden" name="tab" value="appearance">
                     <button type="submit" class="btn btn-outline"
                             style="color:#ef4444;border-color:#fca5a5;font-size:.82rem"
-                            onclick="return pkConfirmForm(this.form, 'Remove the header banner?', {okLabel:'Remove', danger:true})">&#x2715; Remove Header Banner</button>
+                            data-confirm="Remove the header banner?" data-confirm-ok="Remove" data-confirm-danger="1">&#x2715; Remove Header Banner</button>
                 </form>
                 <?php endif; ?>
                 <form method="post" action="/admin_settings.php" style="margin-bottom:1rem">
@@ -988,7 +988,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                                    class="btn-icon" title="Edit">&#9881;</a>
                                 <?php if ((int)$u['id'] !== (int)$current['id']): ?>
                                 <form method="post" action="/admin_settings.php"
-                                      onsubmit="return pkConfirmForm(this, 'Delete ' + <?= htmlspecialchars(json_encode($u['username']), ENT_QUOTES) ?> + '?', {okLabel:'Delete', danger:true})">
+                                      data-confirm="<?= htmlspecialchars('Delete ' . $u['username'] . '?', ENT_QUOTES) ?>" data-confirm-ok="Delete" data-confirm-danger="1">
                                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="tab" value="users">
@@ -1095,7 +1095,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                         <input type="hidden" name="tab" value="email">
                         <div class="form-group">
                             <label>To</label>
-                            <select name="compose_to" class="form-select" onchange="document.getElementById('customToWrap').style.display=this.value==='custom'?'':'none'">
+                            <select name="compose_to" class="form-select" data-act-change="toggleCustomTo" data-change-a1="@value">
                                 <option value="all">All users (with email)</option>
                                 <?php foreach ($users as $u): if (!$u['email']) continue; ?>
                                     <option value="<?= (int)$u['id'] ?>"><?= htmlspecialchars($u['username']) ?> &lt;<?= htmlspecialchars($u['email']) ?>&gt;</option>
@@ -1232,6 +1232,31 @@ function updatePreview() {
     if (top)      top.style.background = /^#[0-9a-fA-F]{6}$/.test(bg)   ? bg   : '#0f172a';
     if (brand)    brand.style.color    = /^#[0-9a-fA-F]{6}$/.test(text) ? text : '#ffffff';
     if (accentEl) accentEl.style.color = /^#[0-9a-fA-F]{6}$/.test(acc)  ? acc  : '#2563eb';
+}
+</script>
+<script nonce="<?= csp_nonce() ?>">
+// Named replacements for former inline expressions (CSP step 2, SECURITY.md).
+function syncTextPreview(id, val)   { syncText(id, val);   updatePreview(); }
+function syncPickerPreview(id, val) { syncPicker(id, val); updatePreview(); }
+function setHeaderHeightLabel(val)  { var l = document.getElementById('hh_label'); if (l) l.textContent = val + 'px'; }
+function toggleUgImport() {
+    var w = document.getElementById('ugImportWrap');
+    if (w) w.style.display = (w.style.display === 'none' || !w.style.display) ? '' : 'none';
+}
+function toggleCustomTo(val) {
+    var w = document.getElementById('customToWrap');
+    if (w) w.style.display = (val === 'custom') ? '' : 'none';
+}
+function copyWebhookUrl(btn) {
+    pkCopy(document.getElementById('webhook-url-field').value).then(function (ok) {
+        btn.textContent = ok ? 'Copied!' : 'Copy failed';
+        setTimeout(function () { btn.textContent = 'Copy'; }, 1500);
+    });
+}
+function generateCronToken() {
+    var el = document.getElementById('cronTokenInput');
+    if (el) el.value = Array.from(crypto.getRandomValues(new Uint8Array(20)))
+        .map(function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
 }
 </script>
 </body>

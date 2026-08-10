@@ -452,7 +452,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                     </button>
                     <div class="rem-dd-panel go-panel" id="eGuestOptsPanel">
                         <label class="go-row" id="eWaitlistLabel" style="display:none">
-                            <input type="checkbox" name="waitlist_enabled" id="eWaitlistEnabled" value="1" onchange="updateCapacityLine();updateGuestOptsBadge()">
+                            <input type="checkbox" name="waitlist_enabled" id="eWaitlistEnabled" value="1" data-act-change="capacityChanged">
                             <span><strong>Waitlist</strong><small>When the event is full, extra guests queue up and get promoted automatically</small></span>
                         </label>
                         <label class="go-row">
@@ -465,15 +465,15 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                         </label>
                         <label class="go-row" id="eMaxGuestsLabel" style="display:none">
                             <span><strong>Max guests</strong><small>Blank = unlimited; with Waitlist on, extras queue up</small></span>
-                            <input type="number" name="max_guests" id="eMaxGuests" min="1" max="999" placeholder="&#8734;" style="width:58px;padding:.22rem .35rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.82rem" oninput="togglePokerFields();updateGuestOptsBadge()">
+                            <input type="number" name="max_guests" id="eMaxGuests" min="1" max="999" placeholder="&#8734;" style="width:58px;padding:.22rem .35rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.82rem" data-act-input="pokerFieldsChanged">
                         </label>
                     </div>
                 </div>
                 <span class="edit-desc-toggle" id="eDescToggle" data-act="toggleDesc">+ Description</span>
                 <div style="flex:1"></div>
-                <button type="submit" class="btn btn-primary" id="eSubmitBtn" onclick="document.getElementById('eSendAfterSave').value=''"><?= $event ? 'Save Changes' : 'Add Event' ?></button>
+                <button type="submit" class="btn btn-primary" id="eSubmitBtn" data-set-value="eSendAfterSave:"><?= $event ? 'Save Changes' : 'Add Event' ?></button>
                 <?php if (get_setting('notifications_enabled', '0') === '1'): ?>
-                <button type="submit" class="btn btn-primary" id="eSubmitSendBtn" style="background:#16a34a;border-color:#16a34a" onclick="document.getElementById('eSendAfterSave').value='1'" title="Save the event and send invitations now">Save &amp; Send Invites</button>
+                <button type="submit" class="btn btn-primary" id="eSubmitSendBtn" style="background:#16a34a;border-color:#16a34a" data-set-value="eSendAfterSave:1" title="Save the event and send invitations now">Save &amp; Send Invites</button>
                 <?php endif; ?>
                 <a href="<?= htmlspecialchars($cancelUrl) ?>" class="btn btn-outline" style="text-decoration:none">Cancel</a>
             </div>
@@ -574,9 +574,9 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
             <!-- Mobile action bar: sticky at the bottom, after the invite picker
                  (the toolbar buttons above are hidden on small screens) -->
             <div class="edit-actions-mobile">
-                <button type="submit" class="btn btn-primary" onclick="document.getElementById('eSendAfterSave').value=''"><?= $event ? 'Save Changes' : 'Add Event' ?></button>
+                <button type="submit" class="btn btn-primary" data-set-value="eSendAfterSave:"><?= $event ? 'Save Changes' : 'Add Event' ?></button>
                 <?php if (get_setting('notifications_enabled', '0') === '1'): ?>
-                <button type="submit" class="btn" style="background:#16a34a;border-color:#16a34a;color:#fff" onclick="document.getElementById('eSendAfterSave').value='1'" title="Save the event and send invitations now">Save &amp; Send</button>
+                <button type="submit" class="btn" style="background:#16a34a;border-color:#16a34a;color:#fff" data-set-value="eSendAfterSave:1" title="Save the event and send invitations now">Save &amp; Send</button>
                 <?php endif; ?>
                 <a href="<?= htmlspecialchars($cancelUrl) ?>" class="btn btn-outline" style="text-decoration:none">Cancel</a>
             </div>
@@ -917,7 +917,7 @@ function addBlankInviteRow() {
     li.innerHTML = '<div class="custom-row-inner">' +
         '<input type="text" class="cr-name"    placeholder="Name *" data-act-input="updateDividerLine">' +
         '<input type="text" class="cr-contact" placeholder="Email or phone" autocomplete="off">' +
-        '<button type="button" class="cr-remove" onclick="this.closest(\'li\').remove();updateDividerLine()">&times;</button>' +
+        '<button type="button" class="cr-remove" data-remove-closest="li\" data-then="updateDividerLine">&times;</button>' +
         '</div>';
     ul.appendChild(li);
     // Divider first, focus last — anything that reshuffles the list would steal
@@ -1470,6 +1470,10 @@ function regenWalkinFromEdit() {
     refreshUserList();
     document.getElementById('eTitle').focus();
 })();
+</script>
+<script nonce="<?= csp_nonce() ?>">
+function capacityChanged()   { updateCapacityLine(); updateGuestOptsBadge(); }
+function pokerFieldsChanged(){ togglePokerFields();  updateGuestOptsBadge(); }
 </script>
 </body>
 </html>

@@ -768,6 +768,10 @@ $session = $sessStmt->fetch();
 
 <script nonce="<?= csp_nonce() ?>">
 var CSRF = <?= json_encode($csrf, JSON_HEX_TAG) ?>;
+// This page installs its own delegated dispatcher below. Tell the shared
+// pk-dispatch.js (loaded from _footer.php) to stand down, or every control
+// fires twice — a rebuy would add 2 and a buy-in would toggle on then off.
+window.PK_DISPATCH_LOCAL = 1;
 
 // ── Declarative handler dispatch (CSP step 2, see SECURITY.md) ────────────
 // Inline on* attributes cannot be authorised by a nonce, so controls carry a

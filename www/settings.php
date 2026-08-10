@@ -551,7 +551,7 @@ $site_name = get_setting('site_name', 'Game Night');
     <div class="card" style="max-width:540px;margin-top:1.5rem;border-color:#fca5a5">
         <h2 style="color:#dc2626">Delete Account</h2>
         <p class="subtitle" style="color:#64748b">Permanently delete your account and all associated data. This cannot be undone.</p>
-        <form method="post" action="/settings.php" onsubmit="return document.getElementById('confirm_delete').value.trim().toUpperCase() === 'DELETE'">
+        <form method="post" action="/settings.php" data-act-submit="confirmDeleteTyped">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
             <input type="hidden" name="action" value="delete_account">
             <div class="form-group">
@@ -574,5 +574,10 @@ $site_name = get_setting('site_name', 'Game Night');
 <?php require __DIR__ . '/_footer.php'; ?>
 <script src="/_phone_input.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/_phone_input.js') ?: 0)) ?>"></script>
 <script nonce="<?= csp_nonce() ?>">initPhoneAutoFormat();</script>
+<script nonce="<?= csp_nonce() ?>">
+function confirmDeleteTyped() {
+    return document.getElementById('confirm_delete').value.trim().toUpperCase() === 'DELETE';
+}
+</script>
 </body>
 </html>
