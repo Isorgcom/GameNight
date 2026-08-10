@@ -845,6 +845,12 @@ var _emEditor = null;
 function _emEnsureEditor() {
     if (_emEditor || typeof Jodit === 'undefined') return;
     _emEditor = Jodit.make('#emBody', {
+        // Jodit pulls js-beautify and ACE from cdnjs on load. script-src is 'self',
+        // so both are refused and the features never worked here — this just stops
+        // two dead cross-origin requests and the console noise on every page with an
+        // editor. Source view still opens, as a plain textarea without highlighting.
+        beautifyHTML: false,
+        sourceEditor: 'area',
         height: 280, toolbarAdaptive: false,
         buttons: ['bold','italic','underline','|','ul','ol','|','link','|','paragraph','align','|','undo','redo'],
         uploader: { insertImageAsBase64URI: true },
