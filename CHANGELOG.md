@@ -4,6 +4,11 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2080] - 2026-08-10
+
+### Fixed
+- **The rich-text editor stopped making two blocked cross-origin requests on every page that carries one.** Jodit fetches `js-beautify` and ACE from cdnjs when it initialises, not on demand, and `script-src 'self'` has refused both since long before the CSP work — so the source-view highlighting and HTML beautifying were never actually functioning here, they were just failing noisily. `beautifyHTML: false` and `sourceEditor: 'area'` are now set on all four editors (`admin_posts.php`, `calendar.php`, `event.php`, `league.php`), which stops the requests and the console errors. Source view still opens, as a plain textarea without syntax highlighting. Hosting both libraries locally would restore those features and remains an option; disabling them was chosen because the app has run without them for the life of the CSP and neither is load-bearing.
+
 ## [v0.2079] - 2026-08-10
 
 ### Security
