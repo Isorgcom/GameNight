@@ -4,6 +4,12 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2084] - 2026-08-10
+
+### Fixed
+- **Edit did nothing on Manage Posts, and there was no way to view a post.** Clicking Edit navigated to `/admin_posts.php?edit=N` and left the page looking inert. The cause was a load-order race introduced when Jodit moved to a local `defer`red script: `editor` is created inside a `DOMContentLoaded` listener, but the `?edit=N` deep link called `openModal()` inline at parse time, so `editor` was still `null`. `openModal()` threw on `editor.value` and aborted three lines before `postModal.classList.add('open')` — no modal, and the only symptom was one console error nobody was looking at. The auto-open call now runs in its own `DOMContentLoaded` listener; listeners fire in registration order and the editor init registers first, so the editor is guaranteed to exist. Checked the other three pages that load Jodit deferred: `calendar.php` and `league.php` have no parse-time call, and `event.php` builds its editor lazily in `_emEnsureEditor()`, so none share the defect.
+- **Added a View action to Manage Posts.** The actions column offered only Edit, Pin and Delete, so there was no route from the admin table to the post itself. Each row now links to the post's feed anchor (`/#post-<id>`). Hidden posts get a greyed, non-clickable placeholder with an explanatory tooltip instead of a dead link, because `posts_feed_sql_for_user()` filters `p.hidden = 0` unconditionally — a hidden post is absent from the feed for everyone, admins included. Both states verified against fixtures.
+
 ## [v0.2083] - 2026-08-10
 
 ### Fixed
