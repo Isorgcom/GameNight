@@ -4,7 +4,7 @@ Working notes for this codebase: the checks to run before shipping, and the one
 known hardening gap that has not been closed yet. Kept in the repo so neither
 gets lost between sessions.
 
-Last reviewed: 2026-08-09 (v0.2077).
+Last reviewed: 2026-08-10 (v0.2078).
 
 ---
 
@@ -30,6 +30,18 @@ context where the pattern is wrong.
 
 Related trap: never write the PHP closing tag inside a `//` comment. It ends PHP
 mode and reintroduces the same class of fatal.
+
+### 1b. Re-run the browser suites for the pages AFFECTED
+
+If a change touches a shared file — `_footer.php`, `_nav.php`, `auth.php`,
+`db.php`, anything under `www/*.js` — the blast radius is every page that
+includes it, not the file you edited. Run the full set in `~/qa-headless`, not
+just the suite for the page you were working on.
+
+This is not hypothetical: v0.2077 added `pk-dispatch.js` to `_footer.php` and
+shipped, which made every control in the check-in console fire twice for a whole
+release. The suite that detects it (`checkin_args.js`, reporting `calls: 2`) was
+not run, because `checkin.php` had not been edited.
 
 ### 2. Known-bad escaping patterns
 
@@ -90,7 +102,7 @@ It is load-bearing. As of 2026-08-09:
 
 | | Count |
 |---|---|
-| Inline `on*` handler attributes | 68 (was 401; `_nav.php`/`_post_card.php` v0.2073, `checkin.php` v0.2075, `timer.php` v0.2076, 24 more files v0.2077) |
+| Inline `on*` handler attributes | **0** (was 401; converted across v0.2073-v0.2078) |
 | Inline `<script>` blocks | 64, all nonced as of v0.2072 |
 | External `.js` files | 6 |
 
@@ -132,8 +144,8 @@ which is exactly the pattern that has to move to event delegation.
    **What this buys:** an injected `<script>` element is now refused by the
    browser. **What it does not:** an injected `on*` attribute still runs, since
    `script-src-attr` still allows them. That is what step 2 closes.
-2. **Convert handlers file by file**, smallest first, to settle the delegation
-   pattern before touching `checkin.php` (165) and `timer.php` (154).
+2. ~~**Convert handlers file by file.**~~ **DONE as of v0.2078** — the tree is at
+   zero. The pattern below is kept because any new markup must follow it.
    **Started in v0.2073:** `_nav.php` (7) and `_post_card.php` (9) are at zero.
    The established pattern:
    - Tag the control with a `data-*` attribute carrying whatever the old handler
@@ -192,14 +204,32 @@ which is exactly the pattern that has to move to event delegation.
      carrying a handler, convert, snapshot again, and diff on (element, event).
      That is what proves nothing was dropped; a passing dispatch sweep only
      proves that what remains works.
+   - **A change to a shared partial changes every page that includes it, so run
+     the suites for the pages AFFECTED, not the files EDITED.** v0.2077 added
+     `pk-dispatch.js` to `_footer.php` and shipped; `checkin.php` includes that
+     footer and already had its own dispatcher, so every control in the check-in
+     console fired twice for a full release. Toggles are where this is fatal and
+     silent: tapping a player card ran `classList.toggle('open')` twice so it
+     opened and shut again, and ticking buy-in set it on then off. The dispatch
+     sweep did detect it (`calls: 2` on 289 of 294 controls) — it simply was not
+     run, because `checkin.php` had not been edited. The user found it on a phone
+     before the suite did. If a change touches `_footer.php`, `_nav.php`,
+     `auth.php`, `db.php` or any file under `www/*.js`, re-run everything.
+   - **One dispatcher per page.** `checkin.php` and `timer.php` carry their own
+     and set `window.PK_DISPATCH_LOCAL = 1`; `pk-dispatch.js` returns early when
+     it sees that flag. Do not add a second dispatcher to a page without the
+     same guard.
    - When testing a conversion, make sure the fixture actually exists. A check
      that skips because no post card rendered will report a pass for work it
      never verified.
    - Verify with the **old** asset forced back in (Playwright `page.route()` can
      serve the previous file) to prove the cache-buster is what fixes it, rather
      than assuming.
-3. **Drop `'unsafe-inline'`** only once the count reaches zero, after running
-   `Content-Security-Policy-Report-Only` for a while to catch stragglers.
+3. **Drop `script-src-attr 'unsafe-inline'`.** Now unblocked: the count reached
+   zero in v0.2078. Run `Content-Security-Policy-Report-Only` with the tighter
+   value for a while first to catch anything that re-introduces an inline
+   handler, then switch it live. At that point CSP finally blocks an injected
+   `on*` attribute, which is the half of the XSS surface still open.
 
 Until then, the sweeps above are the compensating control. They are the
 difference between catching a regression in two seconds and catching it in a
