@@ -1887,7 +1887,7 @@ function render_seo_meta(string $title, string $description, string $path = ''):
     $img    = get_setting('header_banner_path', '');
     if ($img === '') $img = get_setting('banner_path', '');
     $imgAbs = $img !== '' ? $site . $img : '';
-    $e = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES);
+    $e = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE);
     echo "\n    <meta name=\"description\" content=\"" . $e($description) . "\">";
     echo "\n    <link rel=\"canonical\" href=\"" . $e($url) . "\">";
     echo "\n    <meta property=\"og:type\" content=\"website\">";

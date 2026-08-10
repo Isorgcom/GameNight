@@ -4506,7 +4506,6 @@ function renderPresetCard(preset) {
     }
     function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
     var ev = el.event_name || {}, bl = el.blinds || {}, ck = el.clock || {};
-    var keyJson = JSON.stringify(preset.key);
 
     var card = document.createElement('div');
     card.className = 'preset-card';
@@ -4522,8 +4521,8 @@ function renderPresetCard(preset) {
         '<div class="preset-foot">' +
             '<span class="preset-name" title="' + esc(preset.name) + '">' + esc(preset.name) + '</span>' +
             '<span style="display:flex;gap:.3rem;flex:0 0 auto">' +
-                '<button data-act="loadPresetTheme" data-a1="' + esc(keyJson) + '">Load</button>' +
-                (IS_ADMIN ? '<button data-act="deletePresetTheme" data-a1="' + esc(keyJson) + '" title="Delete preset file">&times;</button>' : '') +
+                '<button data-act="loadPresetTheme" data-a1="' + esc(preset.key) + '">Load</button>' +
+                (IS_ADMIN ? '<button data-act="deletePresetTheme" data-a1="' + esc(preset.key) + '" title="Delete preset file">&times;</button>' : '') +
             '</span>' +
         '</div>';
     return card;

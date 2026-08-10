@@ -398,7 +398,7 @@ $now_local = (new DateTime('now', $local_tz))->format('Y-m-d H:i:s');
                                 </button>
                             </form>
                             <form method="post" action="/admin_posts.php" style="margin:0"
-                                  data-confirm="Delete this post?" data-confirm-ok="Delete" data-confirm-danger="1"">
+                                  data-confirm="Delete this post?" data-confirm-ok="Delete" data-confirm-danger="1">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                                 <input type="hidden" name="action" value="delete">
                                 <input type="hidden" name="id" value="<?= (int)$p['id'] ?>">

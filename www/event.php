@@ -257,7 +257,7 @@ if ($token === '' && $page_eid > 0) {
                     <a href="/walkin_display.php?event_id=<?= $page_eid ?>" target="_blank" rel="noopener">&#x1F4F1; Walk-up QR</a>
                     <?php endif; ?>
                     <form method="post" action="/calendar.php" style="margin:0;border-top:1px solid #f1f5f9"
-                          data-confirm="Delete this event?" data-confirm-ok="Delete" data-confirm-danger="1"">
+                          data-confirm="Delete this event?" data-confirm-ok="Delete" data-confirm-danger="1">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="id" value="<?= $page_eid ?>">

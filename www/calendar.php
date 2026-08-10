@@ -1786,7 +1786,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
             <button type="button" class="btn btn-outline" title="Create a new event prefilled from this one (same details and invite list, new date, no RSVPs)" data-act="goCurrentEventCopy">Duplicate</button>
             <?php if ($isAdmin): ?><button type="button" class="btn btn-outline" title="Walk-up QR code" data-act="openWalkinQR" style="font-size:1rem;padding:.38rem .65rem">&#x1F4F1; QR</button><?php endif; ?>
             <form method="post" action="/calendar.php" style="margin:0"
-                  data-confirm="Delete this event?" data-confirm-ok="Delete" data-confirm-danger="1"">
+                  data-confirm="Delete this event?" data-confirm-ok="Delete" data-confirm-danger="1">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <input type="hidden" name="action" value="delete">
                 <input type="hidden" name="id" id="vDeleteId">

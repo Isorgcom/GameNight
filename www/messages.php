@@ -193,7 +193,7 @@ setInterval(pollList, 5000);
 function startDmWithSelected() {
     var v = document.getElementById('dmNewUser').value;
     if (!v) { pkAlert('Pick a person first.'); return; }
-    location.href = '/message_thread.php?with=' + encodeURIComponent(v);
+    location.href = '/message_thread.php?user=' + encodeURIComponent(v);
 }
 </script>
 </body>

@@ -871,7 +871,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                 All user activity &mdash; <?= number_format($log_total) ?> total entries.
             </p>
             <form method="post" action="/admin_settings.php"
-                  data-confirm="Clear all log entries? This cannot be undone." data-confirm-danger="1"">
+                  data-confirm="Clear all log entries? This cannot be undone." data-confirm-danger="1">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <input type="hidden" name="action" value="clear_logs">
                 <input type="hidden" name="tab" value="logs">
@@ -945,7 +945,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
         <div id="bulkBar">
             <span class="bulk-label"><span id="bulkCount">0</span> selected</span>
             <form id="bulkForm" method="post" action="/admin_settings.php"
-                  data-confirm="Delete selected users? This cannot be undone." data-confirm-ok="Delete" data-confirm-danger="1"">
+                  data-confirm="Delete selected users? This cannot be undone." data-confirm-ok="Delete" data-confirm-danger="1">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <input type="hidden" name="action" value="bulk_delete">
                 <input type="hidden" name="tab" value="users">
@@ -988,7 +988,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                                    class="btn-icon" title="Edit">&#9881;</a>
                                 <?php if ((int)$u['id'] !== (int)$current['id']): ?>
                                 <form method="post" action="/admin_settings.php"
-                                      data-confirm="<?= htmlspecialchars('Delete ' . $u['username'] . '?', ENT_QUOTES) ?>" data-confirm-ok="Delete" data-confirm-danger="1">
+                                      data-confirm="<?= htmlspecialchars('Delete ' . $u['username'] . '?', ENT_QUOTES | ENT_SUBSTITUTE) ?>" data-confirm-ok="Delete" data-confirm-danger="1">
                                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="tab" value="users">

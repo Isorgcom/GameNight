@@ -291,7 +291,7 @@ $site_name = get_setting('site_name', 'Game Night');
                         <button type="button" class="btn btn-outline" style="font-size:.82rem" data-click-file="stAvatarFile">Upload photo</button>
                         <input type="file" id="stAvatarFile" accept="image/*" style="display:none">
                         <?php if (!empty($current['avatar_path'])): ?>
-                        <form method="post" action="/settings.php" style="margin:0" data-confirm="Remove your profile photo?" data-confirm-ok="Remove" data-confirm-danger="1"">
+                        <form method="post" action="/settings.php" style="margin:0" data-confirm="Remove your profile photo?" data-confirm-ok="Remove" data-confirm-danger="1">
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                             <input type="hidden" name="action" value="remove_avatar">
                             <button type="submit" class="btn btn-outline" style="font-size:.82rem;color:#dc2626;border-color:#fecaca">Remove</button>

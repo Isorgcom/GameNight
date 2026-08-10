@@ -1654,7 +1654,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                     View Notification Log (<?= $smsLogCount ?>)
                 </a>
                 <form method="post" action="/admin_settings.php"
-                      data-confirm="Clear all log entries? This cannot be undone." data-confirm-danger="1"">
+                      data-confirm="Clear all log entries? This cannot be undone." data-confirm-danger="1">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                     <input type="hidden" name="action" value="clear_logs">
                     <input type="hidden" name="tab" value="logs">
@@ -1759,7 +1759,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
             <div id="ugBulkBar">
                 <span class="bulk-label"><span id="ugBulkCount">0</span> selected</span>
                 <form id="ugBulkDeleteForm" method="post" action="/admin_settings.php"
-                      data-confirm="Delete selected users? This cannot be undone." data-confirm-ok="Delete" data-confirm-danger="1"">
+                      data-confirm="Delete selected users? This cannot be undone." data-confirm-ok="Delete" data-confirm-danger="1">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                     <input type="hidden" name="action" value="bulk_delete">
                     <input type="hidden" name="tab" value="users">
@@ -1871,7 +1871,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                         <td class="ug-act-cell">
                             <?php if (!$isSelf): ?>
                             <form method="post" action="/admin_settings.php"
-                                  data-confirm="<?= htmlspecialchars('Delete ' . $u['username'] . '? This cannot be undone.', ENT_QUOTES) ?>" data-confirm-ok="Delete" data-confirm-danger="1">
+                                  data-confirm="<?= htmlspecialchars('Delete ' . $u['username'] . '? This cannot be undone.', ENT_QUOTES | ENT_SUBSTITUTE) ?>" data-confirm-ok="Delete" data-confirm-danger="1">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                                 <input type="hidden" name="action" value="delete">
                                 <input type="hidden" name="tab" value="users">
@@ -2244,7 +2244,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
 
                         <td class="ev-del-cell">
                             <form method="post" action="/admin_settings.php"
-                                  data-confirm="<?= htmlspecialchars('Delete event "' . $ev['title'] . '"? This cannot be undone.', ENT_QUOTES) ?>" data-confirm-ok="Delete" data-confirm-danger="1">
+                                  data-confirm="<?= htmlspecialchars('Delete event "' . $ev['title'] . '"? This cannot be undone.', ENT_QUOTES | ENT_SUBSTITUTE) ?>" data-confirm-ok="Delete" data-confirm-danger="1">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                                 <input type="hidden" name="action" value="delete_event">
                                 <input type="hidden" name="tab" value="events">
@@ -3204,7 +3204,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 <h3 style="margin-top:0;color:#dc2626">Restore from Backup</h3>
                 <p style="font-size:.85rem;color:#64748b;margin-bottom:1rem">Upload a previously downloaded <code>.db</code> backup file. This will <strong>replace all current data</strong>.</p>
                 <form method="post" action="/admin_settings.php?tab=backup" enctype="multipart/form-data"
-                      data-confirm="This will REPLACE ALL current data with the backup. The current database will be saved as a safety copy. Continue?" data-confirm-ok="Restore" data-confirm-danger="1"">
+                      data-confirm="This will REPLACE ALL current data with the backup. The current database will be saved as a safety copy. Continue?" data-confirm-ok="Restore" data-confirm-danger="1">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                     <input type="hidden" name="action" value="backup_restore">
                     <input type="hidden" name="tab" value="backup">

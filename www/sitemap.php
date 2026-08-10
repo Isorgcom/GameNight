@@ -26,7 +26,7 @@ echo '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
 echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
 foreach ($pages as [$path, $priority, $freq]) {
     $loc = $site . '/' . ltrim($path, '/');
-    echo '  <url><loc>' . htmlspecialchars($loc, ENT_QUOTES) . '</loc>'
+    echo '  <url><loc>' . htmlspecialchars($loc, ENT_QUOTES | ENT_SUBSTITUTE) . '</loc>'
        . '<changefreq>' . $freq . '</changefreq>'
        . '<priority>' . $priority . '</priority></url>' . "\n";
 }
@@ -39,7 +39,7 @@ try {
          ORDER BY slug"
     )->fetchAll();
     foreach ($pub as $r) {
-        echo '  <url><loc>' . htmlspecialchars($site . '/league/' . $r['slug'], ENT_QUOTES) . '</loc>'
+        echo '  <url><loc>' . htmlspecialchars($site . '/league/' . $r['slug'], ENT_QUOTES | ENT_SUBSTITUTE) . '</loc>'
            . '<changefreq>weekly</changefreq><priority>0.6</priority></url>' . "\n";
     }
 } catch (Exception $e) {}

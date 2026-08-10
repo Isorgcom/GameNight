@@ -60,9 +60,9 @@ $_accent        = get_setting('accent_color', '');
 <?php if ($_nav_bg || $_nav_text || $_accent || $_header_banner || $_banner): ?>
 <style>
 .nav-collapse-banner{max-height:38px;width:auto}
-<?php if ($_accent): ?>:root{--accent:<?= htmlspecialchars($_accent,ENT_QUOTES) ?>;--accent-h:<?= htmlspecialchars($_accent,ENT_QUOTES) ?>;}<?php endif; ?>
-<?php if ($_nav_bg): ?>nav{background:<?= htmlspecialchars($_nav_bg,ENT_QUOTES) ?> !important;}<?php endif; ?>
-<?php if ($_nav_text): ?>nav .brand,nav .brand:hover{color:<?= htmlspecialchars($_nav_text,ENT_QUOTES) ?> !important;}<?php endif; ?>
+<?php if ($_accent): ?>:root{--accent:<?= htmlspecialchars($_accent, ENT_QUOTES | ENT_SUBSTITUTE) ?>;--accent-h:<?= htmlspecialchars($_accent, ENT_QUOTES | ENT_SUBSTITUTE) ?>;}<?php endif; ?>
+<?php if ($_nav_bg): ?>nav{background:<?= htmlspecialchars($_nav_bg, ENT_QUOTES | ENT_SUBSTITUTE) ?> !important;}<?php endif; ?>
+<?php if ($_nav_text): ?>nav .brand,nav .brand:hover{color:<?= htmlspecialchars($_nav_text, ENT_QUOTES | ENT_SUBSTITUTE) ?> !important;}<?php endif; ?>
 <?php if ($_header_banner && !$_is_mobile): ?>
 .nav-top{height:<?= $_header_banner_height ?>px !important;align-items:flex-start !important;padding-top:8px !important;}
 <?php endif; ?>
@@ -125,7 +125,7 @@ $_accent        = get_setting('accent_color', '');
                         <a href="/admin_posts.php" class="nav-mobile-link<?= $_active === 'posts' ? ' active' : '' ?>">Posts</a>
                         <a href="/admin_settings.php" class="nav-mobile-link<?= $_active === 'site-settings' ? ' active' : '' ?>">Site Settings<?php if ($_show_update_dot): ?> <span class="nav-update-dot" title="Update available: v<?= htmlspecialchars(get_setting('latest_version')) ?>"></span><?php endif; ?></a>
                         <?php endif; ?>
-                        <a href="<?= htmlspecialchars($_timer_href, ENT_QUOTES) ?>" class="nav-mobile-link">Tournament Timer</a>
+                        <a href="<?= htmlspecialchars($_timer_href, ENT_QUOTES | ENT_SUBSTITUTE) ?>" class="nav-mobile-link">Tournament Timer</a>
                         <div class="nav-mobile-divider"></div>
                         <div class="nav-help-group<?= $_active === 'help' || $_active === 'support' ? ' open' : '' ?>">
                             <button type="button" class="nav-help-toggle" data-nav="help">Help <span class="nav-help-caret" aria-hidden="true">&#9656;</span></button>
@@ -191,7 +191,7 @@ $_accent        = get_setting('accent_color', '');
 (function(){
     var l = document.querySelector('link[rel~="icon"]');
     if (!l) { l = document.createElement('link'); l.rel = 'icon'; document.head.appendChild(l); }
-    l.href = '<?= htmlspecialchars($_banner, ENT_QUOTES) ?>?v=<?= $_banner_v ?>';
+    l.href = '<?= htmlspecialchars($_banner, ENT_QUOTES | ENT_SUBSTITUTE) ?>?v=<?= $_banner_v ?>';
 })();
 </script>
 <?php endif; ?>
