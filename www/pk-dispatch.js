@@ -110,9 +110,17 @@
     document.addEventListener('click', function (e) {
         if (!(e.target instanceof Element)) return;
 
-        // data-href: a plain navigation that used to be location.href='...'
-        var nav = e.target.closest('[data-href]');
-        if (nav) { e.preventDefault(); window.location.href = nav.getAttribute('data-href'); return; }
+        // data-href: a plain navigation that used to be location.href='...'.
+        // Honours data-stop as a boundary exactly like data-act above: a row can
+        // be a link while a control inside it does something else. Without this,
+        // the Message button inside a contacts row navigated to the row's href.
+        var nav = e.target.closest('[data-href], [data-stop]');
+        if (nav && !nav.hasAttribute('data-stop')) {
+            e.preventDefault();
+            window.location.href = nav.getAttribute('data-href');
+            return;
+        }
+        if (nav) return;
 
         // data-toggle-class="targetId:className" (className defaults to "open")
         var tog = e.target.closest('[data-toggle-class]');

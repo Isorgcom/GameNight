@@ -841,7 +841,7 @@ function ordinal($n) {
                                 <?php elseif ($isOwner): ?>
                                     <button class="mg-iconbtn" title="Transfer ownership" data-act="act" data-a1="transfer_ownership" data-a2="<?= (int)$targetUid ?>" data-a3="Transfer ownership to this member? You will be demoted to member.">&#9812;</button>
                                 <?php endif; ?>
-                                <button class="mg-iconbtn mg-iconbtn-danger" title="Remove" data-act="removeMember" data-a1="<?= (int)$memId ?>" data-a2="<?= htmlspecialchars($isPending ? 'Remove this pending contact?' : 'Remove this member from the league?', ENT_QUOTES) ?>">&times;</button>
+                                <button class="mg-iconbtn mg-iconbtn-danger" title="Remove" data-act="removeMember" data-a1="<?= (int)$memId ?>" data-a2="<?= htmlspecialchars($isPending ? 'Remove this pending contact?' : 'Remove this member from the league?', ENT_QUOTES | ENT_SUBSTITUTE) ?>">&times;</button>
                             </div>
                         <?php endif; ?>
                     </td>
@@ -1026,7 +1026,7 @@ function ordinal($n) {
                         <strong style="min-width:0"><?= htmlspecialchars($s['name']) ?></strong>
                         <span style="color:#94a3b8"><?= htmlspecialchars($s['start_date']) ?> &rarr; <?= htmlspecialchars($s['end_date']) ?></span>
                         <form method="post" action="/league.php?id=<?= $league_id ?>" style="margin:0 0 0 auto"
-                              data-confirm="Delete this season? Standings history is unaffected — only the saved date window is removed." data-confirm-ok="Delete" data-confirm-danger="1"">
+                              data-confirm="Delete this season? Standings history is unaffected — only the saved date window is removed." data-confirm-ok="Delete" data-confirm-danger="1">
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                             <input type="hidden" name="action" value="season_delete">
                             <input type="hidden" name="season_id" value="<?= (int)$s['id'] ?>">
@@ -1215,7 +1215,7 @@ function ordinal($n) {
                         <?php endif; ?>
                         <?php if ($canPost): ?>
                         <form method="post" action="/league_posts_dl.php" style="margin:0"
-                              data-confirm="Unset this post as the league rules? It will reappear in the main feed."">
+                              data-confirm="Unset this post as the league rules? It will reappear in the main feed.">
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                             <input type="hidden" name="action" value="clear_rules">
                             <input type="hidden" name="post_id" value="<?= (int)$rulesPost['id'] ?>">
@@ -1381,7 +1381,7 @@ function ordinal($n) {
                 <?php $__pbtn = 'font-size:.72rem;padding:.25rem .7rem;min-width:72px;text-align:center;line-height:1.2;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center'; ?>
                 <div style="margin-left:auto;display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
                     <a href="?id=<?= $league_id ?>&tab=posts&edit=<?= (int)$lp['id'] ?>" class="lg-btn lg-btn-ghost" style="<?= $__pbtn ?>">Edit</a>
-                    <form method="post" action="/league_posts_dl.php" style="margin:0" data-confirm="Delete this post?" data-confirm-ok="Delete" data-confirm-danger="1"">
+                    <form method="post" action="/league_posts_dl.php" style="margin:0" data-confirm="Delete this post?" data-confirm-ok="Delete" data-confirm-danger="1">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="post_id" value="<?= (int)$lp['id'] ?>">
@@ -1390,7 +1390,7 @@ function ordinal($n) {
                     </form>
                     <?php if ($canPost): ?>
                     <form method="post" action="/league_posts_dl.php" style="margin:0"
-                          data-confirm="<?= htmlspecialchars($rulesPost ? 'This will replace the current league rules post. Continue?' : 'Mark this post as the league rules? It will be moved out of the main feed and accessible via the League Rules button.', ENT_QUOTES) ?>">
+                          data-confirm="<?= htmlspecialchars($rulesPost ? 'This will replace the current league rules post. Continue?' : 'Mark this post as the league rules? It will be moved out of the main feed and accessible via the League Rules button.', ENT_QUOTES | ENT_SUBSTITUTE) ?>">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                         <input type="hidden" name="action" value="set_rules">
                         <input type="hidden" name="post_id" value="<?= (int)$lp['id'] ?>">
@@ -1569,7 +1569,7 @@ function ordinal($n) {
                         <td style="padding:.55rem .6rem;border-bottom:1px solid #f1f5f9"><?= htmlspecialchars($ak_fmt($k['created_at'])) ?></td>
                         <td style="padding:.55rem .6rem;border-bottom:1px solid #f1f5f9"><?= htmlspecialchars($ak_fmt($k['last_used_at'])) ?></td>
                         <td style="padding:.55rem .6rem;border-bottom:1px solid #f1f5f9;text-align:right">
-                            <form method="post" action="/league_api_keys_dl.php" style="margin:0;display:inline" data-confirm="Delete this API key permanently? Consumers using it will start getting 401 immediately. This cannot be undone." data-confirm-ok="Delete" data-confirm-danger="1"">
+                            <form method="post" action="/league_api_keys_dl.php" style="margin:0;display:inline" data-confirm="Delete this API key permanently? Consumers using it will start getting 401 immediately. This cannot be undone." data-confirm-ok="Delete" data-confirm-danger="1">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                                 <input type="hidden" name="action" value="revoke">
                                 <input type="hidden" name="key_id" value="<?= (int)$k['id'] ?>">

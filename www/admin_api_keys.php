@@ -121,7 +121,7 @@ function api_keys_admin_fmt(?string $utc_dt, DateTimeZone $local_tz): string {
                     <td><?= htmlspecialchars(api_keys_admin_fmt($k['created_at'], $local_tz)) ?></td>
                     <td><?= htmlspecialchars(api_keys_admin_fmt($k['last_used_at'], $local_tz)) ?></td>
                     <td style="text-align:right">
-                        <form method="post" style="margin:0;display:inline" data-confirm="Delete this API key permanently? Consumers using it will start getting 401 immediately. This cannot be undone." data-confirm-ok="Delete" data-confirm-danger="1"">
+                        <form method="post" style="margin:0;display:inline" data-confirm="Delete this API key permanently? Consumers using it will start getting 401 immediately. This cannot be undone." data-confirm-ok="Delete" data-confirm-danger="1">
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                             <input type="hidden" name="action" value="revoke">
                             <input type="hidden" name="id" value="<?= (int)$k['id'] ?>">

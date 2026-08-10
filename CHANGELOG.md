@@ -4,6 +4,15 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2082] - 2026-08-10
+
+### Fixed
+- **Cleaned up the defects the inline-handler conversion left behind.** Converting 401 inline `on*` attributes to declarative `data-act` markup across v0.2074-0.2079 broke a handful of controls in ways that were invisible to a lint pass, and the second security review surfaced them. `index.php` kept its own document-level `submit` listener for `data-confirm` while also receiving the shared `pk-dispatch.js`, so deleting a post or comment raised two stacked confirm dialogs — the same double-dispatch class that v0.2078 fixed for `checkin.php`; the duplicate listener is gone and the shared dispatcher owns the behaviour. The Start button on `messages.php` navigated to `message_thread.php?with=` while that page reads `?user=`. `data-href` in `pk-dispatch.js` ignored `data-stop`, so the Message button inside a contacts row navigated to the row's edit page instead; it now honours the boundary exactly as `data-act` does. `event_polls.php` had a PHP tag HTML-escaped into a confirm message and a JS concatenation emitted literally into the + Option button, `leagues.php` passed a `json_encode()` result into an attribute so the modal showed quoted text, and `timer.php` handed `loadPresetTheme`/`deletePresetTheme` a JSON-quoted preset key. Sixteen attributes across ten files carried a stray duplicated closing quote such as `data-confirm-danger="1""`.
+- **A confirmation dialog could silently disappear on invalid UTF-8.** The converted `data-confirm` attributes build their text with `htmlspecialchars(..., ENT_QUOTES)`, which returns an empty string when the input contains an invalid UTF-8 byte — so an event or username carrying one produced an empty `data-confirm` and the delete confirmation just did not appear. All such call sites now pass `ENT_QUOTES | ENT_SUBSTITUTE`. This is a client-side guard only; the underlying POST remains CSRF-protected and server-authorised either way.
+
+### Infrastructure
+- **The double-dispatch sweep now covers the generic behaviours and checks its own coverage.** `double_dispatch_sweep.js` only counted named `data-act*` functions, which is why it passed a release with the `index.php` double-confirm in it — `data-confirm` names no function, so there was nothing to count. It now stubs `pkConfirmForm()` and asserts exactly one call per `data-confirm` form and button, and flags any `data-*` attribute still containing an unresolved `<?= ?>` or a stray JS concatenation. Separately, the sweep had been running as a non-admin the whole time, so every admin page returned 403 and reported zero controls; it now fails loudly if the admin pages are unreachable and prints the promote/demote commands. Real coverage went from 262 to 558 controls.
+
 ## [v0.2081] - 2026-08-10
 
 ### Security

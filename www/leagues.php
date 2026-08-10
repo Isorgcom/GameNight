@@ -139,7 +139,7 @@ $csrf = csrf_token();
                 <?php elseif ($l['approval_mode'] === 'auto'): ?>
                     <button class="lg-btn" data-act="joinLeague" data-a1="<?= (int)$l['id'] ?>">Join</button>
                 <?php else: ?>
-                    <button class="lg-btn" data-act="openRequestModal" data-a1="<?= (int)$l['id'] ?>" data-a2="<?= htmlspecialchars(json_encode($l['name']), ENT_QUOTES) ?>">Request to Join</button>
+                    <button class="lg-btn" data-act="openRequestModal" data-a1="<?= (int)$l['id'] ?>" data-a2="<?= htmlspecialchars($l['name'], ENT_QUOTES | ENT_SUBSTITUTE) ?>">Request to Join</button>
                 <?php endif; ?>
             </div>
         <?php endforeach; ?>

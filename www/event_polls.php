@@ -211,7 +211,7 @@ $backUrl   = '/calendar.php?m=' . urlencode(substr($event['start_date'], 0, 7)) 
             <div style="display:flex;gap:.5rem;margin-top:.5rem">
                 <button type="button" class="pl-btn" data-act="addQuestion">+ Add question</button>
                 <div style="flex:1"></div>
-                <button type="submit" class="pl-btn primary" data-confirm="Send this poll to &lt;?= count($audienceNow) ?> Yes/Maybe guest(s) now?">Create &amp; Send</button>
+                <button type="submit" class="pl-btn primary" data-confirm="Send this poll to <?= count($audienceNow) ?> Yes/Maybe guest(s) now?">Create &amp; Send</button>
             </div>
             <p class="pl-meta" style="margin:.6rem 0 0">Questions can't be edited once anyone has voted &mdash; close the poll and make a new one instead.</p>
         </form>
@@ -266,7 +266,7 @@ $backUrl   = '/calendar.php?m=' . urlencode(substr($event['start_date'], 0, 7)) 
                 <input type="hidden" name="poll_id" value="<?= (int)$p['id'] ?>">
                 <button type="submit" class="pl-btn" title="Sends only to Yes/Maybe guests who haven't received this poll yet">Send to new respondents</button>
             </form>
-            <form method="post" action="/event_polls.php" style="margin:0" data-confirm="Close this poll? Nobody will be able to vote anymore."">
+            <form method="post" action="/event_polls.php" style="margin:0" data-confirm="Close this poll? Nobody will be able to vote anymore.">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <input type="hidden" name="action" value="close">
                 <input type="hidden" name="event_id" value="<?= $eventId ?>">
@@ -310,7 +310,7 @@ function addQuestion() {
         '<button type="button" class="pl-btn danger" data-remove-closest=".pl-q\" title="Remove question">&times;</button>' +
         '</div>' +
         '<div class="pl-opts"></div>' +
-        '<button type="button" class="pl-btn" style="margin-top:.4rem" data-act="addOption" data-a1="@self" data-a2=" + i + ">+ Option</button>';
+        '<button type="button" class="pl-btn" style="margin-top:.4rem" data-act="addOption" data-a1="@self" data-a2="' + i + '">+ Option</button>';
     wrap.appendChild(div);
     addOption(div.querySelector('button:last-child'), i);
     addOption(div.querySelector('button:last-child'), i);

@@ -821,16 +821,10 @@ document.addEventListener('submit', function (e) {
         if (prepareBulkDelete(parseInt(f.dataset.post, 10), f) === false) e.preventDefault();
         return;
     }
-    // Generic confirm-before-submit, replacing onsubmit="return pkConfirmForm(...)".
-    // pkConfirmForm() resolves the dialog and then calls formEl.submit(), which
-    // does NOT fire the submit event again, so this cannot recurse.
-    if (f.dataset && f.dataset.confirm) {
-        e.preventDefault();
-        pkConfirmForm(f, f.dataset.confirm, {
-            okLabel: f.dataset.confirmOk || 'OK',
-            danger:  f.dataset.confirmDanger === '1'
-        });
-    }
+    // data-confirm is handled by the shared pk-dispatch.js, which every page
+    // gets from _footer.php. Handling it here as well fired two stacked confirm
+    // dialogs on delete-post and delete-comment — the same double-dispatch class
+    // that v0.2078 fixed for checkin.php.
 });
 
 function toggleComments(postId) {
