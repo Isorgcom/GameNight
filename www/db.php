@@ -1567,14 +1567,27 @@ JSON;
     // column instead. NULL means "not a known account", which grants nothing.
     try { $pdo->exec("ALTER TABLE event_invites ADD COLUMN user_id INTEGER"); } catch (Exception $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_event_invites_user ON event_invites(user_id)"); } catch (Exception $e) {}
-    // One-time backfill from the existing username match. This only records the
-    // access people already had; it grants nothing new. Rows that match no
-    // account stay NULL and stop conferring anything, which is the fix.
+    // ONE-SHOT backfill, guarded by a site_setting flag exactly like the api_keys
+    // prune above. This ran unguarded in v0.2070-v0.2080 and db_init() executes on
+    // every request, so it kept re-materialising the username->account link that
+    // was just removed from can_manage_event() and event_visibility_sql(): an
+    // attacker who registered a name matching an unlinked invite had their id
+    // written into that row on their very next page load, inheriting its
+    // visibility and, on a co-host row, full host control. The read path was
+    // fixed and a writer was left recreating the hole.
+    //
+    // It must stay one-shot. Linking is the HOST's decision, made when they add
+    // someone who already has an account (see the INSERT sites, which now all
+    // resolve user_id at write time). It must never happen later because a
+    // stranger claimed the name.
     try {
-        $pdo->exec("UPDATE event_invites
-                       SET user_id = (SELECT u.id FROM users u
-                                       WHERE LOWER(u.username) = LOWER(event_invites.username))
-                     WHERE user_id IS NULL");
+        if (get_setting('event_invites_user_id_backfilled', '') !== '1') {
+            $pdo->exec("UPDATE event_invites
+                           SET user_id = (SELECT u.id FROM users u
+                                           WHERE LOWER(u.username) = LOWER(event_invites.username))
+                         WHERE user_id IS NULL");
+            set_setting('event_invites_user_id_backfilled', '1');
+        }
     } catch (Exception $e) {}
 
     // ─── Public league landing pages (/league/<slug>) ───────────────────
@@ -2458,6 +2471,27 @@ function normalize_phone(string $phone): string {
 // Resolve a typed username to the registered user's chosen case, so invitee
 // names render the way the user spelled their own name when they registered.
 // Falls back to the trimmed input for ad-hoc invitees who never registered.
+/**
+ * Resolve an invite's owning account AT WRITE TIME.
+ *
+ * event_invites.user_id is what confers event visibility and co-host authority
+ * (see can_manage_event() and event_visibility_sql()). Linking must therefore
+ * happen when the host adds the invite — that is the host's decision about a
+ * person who already has an account. It must NEVER happen later, because then
+ * anyone who registers a matching username inherits the invite. A backfill that
+ * ran on every request did exactly that between v0.2070 and v0.2080.
+ *
+ * Returns null when no account matches, and a null user_id grants nothing.
+ */
+function resolve_invite_user_id(PDO $db, ?string $username): ?int {
+    $username = trim((string)$username);
+    if ($username === '') return null;
+    $st = $db->prepare('SELECT id FROM users WHERE LOWER(username) = LOWER(?) LIMIT 1');
+    $st->execute([$username]);
+    $id = $st->fetchColumn();
+    return $id !== false ? (int)$id : null;
+}
+
 function canonical_username(string $typed): string {
     $typed = trim($typed);
     if ($typed === '') return '';

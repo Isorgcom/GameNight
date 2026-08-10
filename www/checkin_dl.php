@@ -1152,8 +1152,8 @@ if ($action === 'add_walkin') {
     $eiChk = $db->prepare('SELECT id FROM event_invites WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL');
     $eiChk->execute([$s['event_id'], $name]);
     if (!$eiChk->fetch()) {
-        $db->prepare("INSERT INTO event_invites (event_id, username, email, rsvp, approval_status) VALUES (?, ?, ?, 'yes', 'approved')")
-           ->execute([$s['event_id'], $existingUser['username'] ?? trim($name), $existingUser['email'] ?? null]);
+        $db->prepare("INSERT INTO event_invites (event_id, username, user_id, email, rsvp, approval_status) VALUES (?, ?, ?, ?, 'yes', 'approved')")
+           ->execute([$s['event_id'], $existingUser['username'] ?? trim($name), $user_id, $existingUser['email'] ?? null]);
     } else {
         // If they were pending/denied, approve them since the host is adding them manually.
         $db->prepare("UPDATE event_invites SET rsvp = 'yes', approval_status = 'approved' WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL")

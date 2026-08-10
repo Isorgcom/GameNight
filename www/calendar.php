@@ -309,8 +309,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $baseStmt->execute([$eid, $target_username]);
                     $baseRow = $baseStmt->fetch();
                     $baseApproval = $on_behalf ? 'approved' : ($baseRow['approval_status'] ?? 'approved');
-                    $db->prepare('INSERT INTO event_invites (event_id, username, phone, email, rsvp, rsvp_token, occurrence_date, approval_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-                       ->execute([$eid, canonical_username($target_username), $baseRow['phone'] ?? null, $baseRow['email'] ?? null, $rsvp, bin2hex(random_bytes(16)), $occDate, $baseApproval]);
+                    $db->prepare('INSERT INTO event_invites (event_id, username, user_id, phone, email, rsvp, rsvp_token, occurrence_date, approval_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                       ->execute([$eid, canonical_username($target_username), $baseRow['user_id'] ?? resolve_invite_user_id($db, $target_username), $baseRow['phone'] ?? null, $baseRow['email'] ?? null, $rsvp, bin2hex(random_bytes(16)), $occDate, $baseApproval]);
                 }
             } else {
                 // Base RSVP (non-recurring or updating all-occurrence default)
@@ -374,8 +374,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$existing_signup) {
                 // Self-signup: approval gate fires if the event has requires_approval=1.
                 $approval = invite_approval_status($eid, 'self');
-                $db->prepare('INSERT INTO event_invites (event_id, username, phone, email, rsvp, rsvp_token, approval_status) VALUES (?, ?, ?, ?, NULL, ?, ?)')
-                   ->execute([$eid, $current['username'], $udata['phone'] ?? null, $udata['email'] ?? null, bin2hex(random_bytes(16)), $approval]);
+                $db->prepare('INSERT INTO event_invites (event_id, username, user_id, phone, email, rsvp, rsvp_token, approval_status) VALUES (?, ?, ?, ?, ?, NULL, ?, ?)')
+                   ->execute([$eid, $current['username'], (int)$current['id'], $udata['phone'] ?? null, $udata['email'] ?? null, bin2hex(random_bytes(16)), $approval]);
                 db_log_activity($current['id'], "signed up for event id: $eid" . ($approval === 'pending' ? ' (pending approval)' : ''));
                 if ($approval === 'pending') {
                     $signup_pending = true;

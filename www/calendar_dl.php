@@ -179,8 +179,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $base_stmt2->execute([$eid, $current['username']]);
                     $base_row2 = $base_stmt2->fetch() ?: [];
                     $base_approval2 = $base_row2['approval_status'] ?? 'approved';
-                    $db->prepare('INSERT INTO event_invites (event_id, username, phone, email, rsvp, occurrence_date, approval_status) VALUES (?, ?, ?, ?, ?, ?, ?)')
-                       ->execute([$eid, $current['username'], $base_row2['phone'] ?? null, $base_row2['email'] ?? null, $rsvp, $occ_date, $base_approval2]);
+                    $db->prepare('INSERT INTO event_invites (event_id, username, user_id, phone, email, rsvp, occurrence_date, approval_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+                       ->execute([$eid, $current['username'], (int)$current['id'], $base_row2['phone'] ?? null, $base_row2['email'] ?? null, $rsvp, $occ_date, $base_approval2]);
                 }
             } else {
                 // Non-recurring: update base row
@@ -233,8 +233,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$existing_signup) {
                 // Self-signup: approval gate fires if the event has requires_approval=1.
                 $approval = invite_approval_status($eid, 'self');
-                $db->prepare('INSERT INTO event_invites (event_id, username, phone, email, rsvp, approval_status) VALUES (?, ?, ?, ?, NULL, ?)')
-                   ->execute([$eid, $current['username'], $udata['phone'] ?? null, $udata['email'] ?? null, $approval]);
+                $db->prepare('INSERT INTO event_invites (event_id, username, user_id, phone, email, rsvp, approval_status) VALUES (?, ?, ?, ?, ?, NULL, ?)')
+                   ->execute([$eid, $current['username'], (int)$current['id'], $udata['phone'] ?? null, $udata['email'] ?? null, $approval]);
                 db_log_activity($current['id'], "signed up for event id: $eid" . ($approval === 'pending' ? ' (pending approval)' : ''));
                 if ($approval === 'pending') {
                     $signup_pending = true;
