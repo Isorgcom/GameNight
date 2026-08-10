@@ -4,6 +4,11 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2081] - 2026-08-10
+
+### Security
+- **The event-authorization fix from v0.2070 was being undone on every request.** That release moved event visibility and co-host authority off the free-text `event_invites.username` and onto a new `user_id` column, and added a backfill to populate it from the existing username match. The backfill was written as one-time but was not guarded, and `db_init()` runs on **every** request, so it kept re-materialising the very link that had just been removed from `can_manage_event()` and `event_visibility_sql()`. An attacker who registered a username matching an unlinked invite had their account id written into that row on their next page load, inheriting the invite's private-event visibility and, on a co-host row, full host control. Verified end to end before and after the fix. The backfill is now one-shot behind a `site_settings` flag, matching the `api_keys` prune pattern already in `db_init()`. Because it was load-bearing — several insert paths never populated `user_id` at all and relied on it — all eight `INSERT INTO event_invites` sites now resolve the link at write time via a new `resolve_invite_user_id()` helper, or use the acting user's id for self-signup. That is the correct semantics: linking is the host's decision about someone who already has an account, never something a stranger can trigger later by claiming a name. Production audit at the time of the fix: 178 unlinked invite rows, 62 with claimable usernames, **zero co-host**, so the reachable impact was private-event disclosure rather than host takeover; and of the 25 links the unguarded backfill had created retroactively, all were ordinary invitees registering hours after their invite, with no sign of exploitation.
+
 ## [v0.2080] - 2026-08-10
 
 ### Fixed

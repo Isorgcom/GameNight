@@ -689,9 +689,9 @@ function pk_ticket_ensure_invite($db, int $target_event_id, ?int $user_id, strin
             $s->execute([$source_event_id, $display_name]);
             if ($sr = $s->fetch()) { $phone = $sr['phone'] ?: null; $email = $sr['email'] ?: null; }
         }
-        $db->prepare("INSERT INTO event_invites (event_id, username, phone, email, rsvp, event_role, approval_status)
-                      VALUES (?, ?, ?, ?, 'yes', 'invitee', 'approved')")
-           ->execute([$target_event_id, $username, $phone, $email]);
+        $db->prepare("INSERT INTO event_invites (event_id, username, user_id, phone, email, rsvp, event_role, approval_status)
+                      VALUES (?, ?, ?, ?, ?, 'yes', 'invitee', 'approved')")
+           ->execute([$target_event_id, $username, resolve_invite_user_id($db, $username), $phone, $email]);
     } catch (Exception $e) { /* invite is best-effort; the ticket itself is the record */ }
 }
 

@@ -154,8 +154,8 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     // host sees a pending row and can approve or deny. For brand-new walk-in users
                     // (the main `else` block far below) we still honor the event's requires_approval
                     // setting because those identifiers don't belong to anyone yet.
-                    $db->prepare("INSERT INTO event_invites (event_id, username, email, rsvp, approval_status) VALUES (?, ?, ?, ?, 'pending')")
-                       ->execute([$event_id, $username, $email]);
+                    $db->prepare("INSERT INTO event_invites (event_id, username, user_id, email, rsvp, approval_status) VALUES (?, ?, ?, ?, ?, 'pending')")
+                       ->execute([$event_id, $username, resolve_invite_user_id($db, $username), $email]);
                     $effective_approval = 'pending';
                     $is_new_pending = true;
                 }
@@ -243,8 +243,8 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     // Invite to event. Walk-in is a 'self' signup — approval gate fires if requires_approval=1.
                     $new_walkin_approval = invite_approval_status($event_id, 'self');
-                    $db->prepare('INSERT INTO event_invites (event_id, username, email, phone, rsvp, approval_status) VALUES (?, ?, ?, ?, ?, ?)')
-                       ->execute([$event_id, $final_username, $has_email ? $email : null, $has_phone ? $phone_normalized : null, 'yes', $new_walkin_approval]);
+                    $db->prepare('INSERT INTO event_invites (event_id, username, user_id, email, phone, rsvp, approval_status) VALUES (?, ?, ?, ?, ?, ?, ?)')
+                       ->execute([$event_id, $final_username, $new_id, $has_email ? $email : null, $has_phone ? $phone_normalized : null, 'yes', $new_walkin_approval]);
 
                     auto_add_to_league($db, $event_id, $new_id);
                     db_log_anon_activity("walkin_new_user: $final_username for event $event_id" . ($new_walkin_approval === 'pending' ? ' (waiting list)' : ''));
