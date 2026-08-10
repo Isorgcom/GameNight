@@ -4,6 +4,15 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2083] - 2026-08-10
+
+### Fixed
+- **Every event chip on the calendar navigated to `/event.php?id=undefined`.** The handler conversion tagged the month-grid and week all-day chips with `data-act="viewEvent" data-a1="<?= htmlspecialchars(json_encode($ev)) ?>"`, following the escaping rule documented at the time. That rule was written for attributes carrying JS source, where `json_encode()` correctly produces a literal. `pk-dispatch.js` reads a `data-a*` value and passes it through as a **string** with no parse step, so `viewEvent(ev)` received JSON text and `ev.id` was `undefined`. Both call sites in `calendar.php` now pass the two scalars the handler actually uses (`data-a1` the integer id, `data-a2` the start date) and `viewEvent(id, date)` takes them directly. Verified in both the month and week views against real fixtures. The 146-line `viewEventLegacy()` beside it was removed: it had been unreachable since `event.php` replaced the in-page modal, and it was the only writer of `currentEvent`, which was therefore already permanently `null` — the removal is behaviour-neutral and recoverable from the v0.2082 tree.
+
+### Infrastructure
+- **Added a static pre-push check for conversion defects in declarative markup.** Retyping 401 inline handlers as `data-*` attributes produced a class of defect that neither `php -l` nor a rendered page can see: a stray duplicated closing quote, a PHP tag that got HTML-escaped, a JS concatenation emitted verbatim into markup, and an object passed where the dispatcher delivers a string. One `grep` catches all four. Measured against the tree as it shipped before v0.2082 it prints 20 hits across 11 files — the entire markup half of that batch — and nothing on a clean tree. It is now sweep 3 in `SECURITY.md`, alongside a warning to anchor any ad-hoc handler grep with `[[:space:]]`, since a bare `on[a-z]+=` matches `action=` and `position=` and reported 130 handlers on a tree that has zero.
+- **Corrected the documentation that caused the calendar bug, and the parts that had gone stale.** `CLAUDE.md` and `SECURITY.md` both gave `htmlspecialchars(json_encode($v), ENT_QUOTES)` as *the* correct attribute form; that is now split into attribute-as-code (historical, none remain) and attribute-as-data (current), with the `ENT_SUBSTITUTE` requirement stated. `SECURITY.md` also still claimed `checkin.php` had 165 inline handlers, that removing `script-src-attr 'unsafe-inline'` would break the application, and that injected `on*` attributes still execute — all untrue since v0.2079, and directly contradicted by that section's own `CLOSED` heading. The double-dispatch sweep's admin-session requirement and its `data-confirm` counting are documented alongside it.
+
 ## [v0.2082] - 2026-08-10
 
 ### Fixed
