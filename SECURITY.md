@@ -43,6 +43,27 @@ shipped, which made every control in the check-in console fire twice for a whole
 release. The suite that detects it (`checkin_args.js`, reporting `calls: 2`) was
 not run, because `checkin.php` had not been edited.
 
+### 1c. Double-dispatch sweep
+
+```bash
+cd ~/qa-headless && node double_dispatch_sweep.js
+```
+
+Walks 37 pages and, for **every** `data-act*` control and generic behaviour,
+fires one event and asserts the handler ran **exactly once**. It catches the
+v0.2078 class of bug: two dispatchers on a page, a duplicated listener, or a
+script included twice. It also flags a control whose named function does not
+resolve, i.e. a dead control.
+
+A control that fires twice is silent on anything idempotent and fatal on
+anything that toggles, which is why it survived a whole release before a user hit
+it on a phone. Run this after any change to a shared partial or to
+`pk-dispatch.js`.
+
+Note `checkin.php` legitimately loads the shared script *and* sets
+`window.PK_DISPATCH_LOCAL`; the flag makes the shared one return early, and the
+sweep reports it as standing down rather than as a fault.
+
 ### 2. Known-bad escaping patterns
 
 ```bash
