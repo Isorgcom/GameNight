@@ -4,6 +4,11 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2079] - 2026-08-10
+
+### Security
+- **CSP now blocks injected script outright, closing the gap the v0.2070 review opened with.** `script-src` and `script-src-elem` carry the per-request nonce and `script-src-attr` is `'none'`, so an injected `<script>` is refused because it cannot carry the nonce, and an injected `on*` attribute is refused because attribute handlers are disallowed. Until now the policy allowed `'unsafe-inline'`, which meant the browser could not tell the app's own inline code from an attacker's and every XSS finding in that review would have executed unimpeded. The nonce is carried on `script-src` as well as `script-src-elem` deliberately: browsers without CSP3 granularity fall back to `script-src`, and a nonce there makes `'unsafe-inline'` ignored, so they get the same guarantee rather than none. This was only possible because all 401 inline handlers became delegated listeners over v0.2073-v0.2078. Pre-flight before switching: a DOM scan across 36 pages found zero `on*` attributes in rendered markup, including JS-built, and zero unnonced inline `<script>` blocks. After switching: an injected handler and an injected nonce-less script are both confirmed blocked, every nonced inline block still runs, and 431 controls across 37 pages still fire exactly once. Anything added from here must use the `data-act*` pattern in `SECURITY.md`, because an inline handler will now simply not fire.
+
 ## [v0.2078] - 2026-08-10
 
 ### Fixed
