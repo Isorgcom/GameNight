@@ -1609,12 +1609,12 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
                         </span>
                         <?php if ($isAdmin || ($canCreateEvents && (int)$ev['created_by'] === (int)$current['id']) || in_array((int)$ev['id'], $managedEventIds, true)): ?>
                         <button class="ev-edit-btn" title="Edit event"
-                                onclick="event.stopPropagation();location.href='/event_edit.php?id=<?= (int)$ev['id'] ?>&<?= htmlspecialchars($editorCtx) ?>'">&#9998;</button>
+                                data-act="stopAndGo" data-a1="@event" data-a2="/event_edit.php?id=<?= (int)$ev['id'] ?>&<?= htmlspecialchars($editorCtx) ?>">&#9998;</button>
                         <?php endif; ?>
                     </div>
                 <?php endforeach; ?>
                 <?php if ($canCreateEvents): ?>
-                    <button class="cal-add-btn" onclick="event.stopPropagation();location.href='/event_edit.php?date=<?= $dateStr ?>&<?= htmlspecialchars($editorCtx) ?>'" title="Add event">&#43;</button>
+                    <button class="cal-add-btn" data-act="stopAndGo" data-a1="@event" data-a2="/event_edit.php?date=<?= $dateStr ?>&<?= htmlspecialchars($editorCtx) ?>" title="Add event">&#43;</button>
                 <?php endif; ?>
             </div>
         <?php endfor; ?>
@@ -1681,7 +1681,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
                     </span>
                     <?php if ($isAdmin || ($canCreateEvents && (int)$ev['created_by'] === (int)$current['id']) || in_array((int)$ev['id'], $managedEventIds, true)): ?>
                     <button class="ev-edit-btn" title="Edit event"
-                                onclick="event.stopPropagation();location.href='/event_edit.php?id=<?= (int)$ev['id'] ?>&<?= htmlspecialchars($editorCtx) ?>'">&#9998;</button>
+                                data-act="stopAndGo" data-a1="@event" data-a2="/event_edit.php?id=<?= (int)$ev['id'] ?>&<?= htmlspecialchars($editorCtx) ?>">&#9998;</button>
                     <?php endif; ?>
                 </div>
                 <?php endforeach; ?>
@@ -1781,9 +1781,9 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
         <?php if ($canEditEvents): ?>
         <div class="ev-view-actions" id="vEventActions" style="display:none">
             <a id="vManageGameBtn" href="#" class="btn" style="background:#059669;color:#fff;text-decoration:none">Manage Game</a>
-            <button type="button" class="btn btn-outline" title="Poll your Yes/Maybe guests" onclick="if(currentEvent)location.href='/event_polls.php?event_id='+currentEvent.id">Polls</button>
-            <button type="button" class="btn btn-primary" onclick="if(currentEvent)location.href='/event_edit.php?id='+currentEvent.id+'&'+EDITOR_CTX">Edit</button>
-            <button type="button" class="btn btn-outline" title="Create a new event prefilled from this one (same details and invite list, new date, no RSVPs)" onclick="if(currentEvent)location.href='/event_edit.php?copy='+currentEvent.id+'&'+EDITOR_CTX">Duplicate</button>
+            <button type="button" class="btn btn-outline" title="Poll your Yes/Maybe guests" data-act="goCurrentEventPolls">Polls</button>
+            <button type="button" class="btn btn-primary" data-act="goCurrentEventEdit">Edit</button>
+            <button type="button" class="btn btn-outline" title="Create a new event prefilled from this one (same details and invite list, new date, no RSVPs)" data-act="goCurrentEventCopy">Duplicate</button>
             <?php if ($isAdmin): ?><button type="button" class="btn btn-outline" title="Walk-up QR code" data-act="openWalkinQR" style="font-size:1rem;padding:.38rem .65rem">&#x1F4F1; QR</button><?php endif; ?>
             <form method="post" action="/calendar.php" style="margin:0"
                   data-confirm="Delete this event?" data-confirm-ok="Delete" data-confirm-danger="1"">
@@ -1811,7 +1811,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
             <div class="bulk-bar" id="vBulkBar" style="display:none">
                 <span class="bulk-count" id="vBulkCount">0 selected</span>
                 <form method="post" action="/comment.php" style="margin:0;display:contents"
-                      onsubmit="return prepareCalBulkDelete(this)">
+                      data-act-submit="prepareCalBulkDelete" data-submit-a1="@self">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                     <input type="hidden" name="action" value="bulk_delete">
                     <input type="hidden" name="comment_ids" id="vBulkIds" value="">
@@ -3299,5 +3299,12 @@ function sendEventMessage() {
 </script>
 <?php endif; ?>
 
+<script nonce="<?= csp_nonce() ?>">
+// Named replacements for former inline expressions (CSP step 2, SECURITY.md).
+function stopAndGo(ev, url) { ev.stopPropagation(); window.location.href = url; }
+function goCurrentEventPolls() { if (currentEvent) location.href = '/event_polls.php?event_id=' + currentEvent.id; }
+function goCurrentEventEdit()  { if (currentEvent) location.href = '/event_edit.php?id=' + currentEvent.id + '&' + EDITOR_CTX; }
+function goCurrentEventCopy()  { if (currentEvent) location.href = '/event_edit.php?copy=' + currentEvent.id + '&' + EDITOR_CTX; }
+</script>
 </body>
 </html>

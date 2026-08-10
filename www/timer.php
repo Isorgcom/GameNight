@@ -1981,6 +1981,10 @@ var REMOTE_KEY = <?= json_encode($remote_key) ?>;
 // Admin-configured extra stream hosts (must mirror the CSP frame-src allowlist in auth.php).
 var EXTRA_STREAM_HOSTS = <?= json_encode(stream_allowed_hosts()) ?>;
 var CSRF = <?= json_encode($csrf) ?>;
+// This page installs its own delegated dispatcher below. Tell the shared
+// pk-dispatch.js (loaded from _footer.php) to stand down, or every control
+// fires twice — a rebuy would add 2 and a buy-in would toggle on then off.
+window.PK_DISPATCH_LOCAL = 1;
 
 // ── Declarative handler dispatch (CSP step 2, see SECURITY.md) ────────────
 // Same idiom as checkin.php. Inline on* attributes cannot be authorised by a

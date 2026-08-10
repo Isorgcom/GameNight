@@ -4,6 +4,14 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2078] - 2026-08-10
+
+### Fixed
+- **Every control in the check-in console fired twice, so nothing that toggles appeared to work.** v0.2077 added the shared `www/pk-dispatch.js` to `_footer.php`, and `checkin.php` both includes that footer and installs its own delegated dispatcher, so each `data-act*` control was dispatched by both. The damage was invisible on anything idempotent and total on anything that toggles: tapping a player card ran `classList.toggle('open')` twice so it opened and shut again and never expanded, and ticking buy-in set it on and then straight back off. Reported from an iPhone against the live site. `checkin.php` and `timer.php` now declare `window.PK_DISPATCH_LOCAL = 1` and the shared dispatcher returns early when it sees it. `timer.php` has no footer so it was never double-dispatching, but it is flagged for the same reason. Caught by the existing dispatch sweep reporting `calls: 2` on 289 of 294 controls, which is the check that exists precisely because a mis-wired control is silent.
+
+### Security
+- **The last 68 inline event handlers are gone; the tree is at zero.** `admin_settings.php` (15), `league.php` (11), `admin_settings_dl.php` (8), `calendar.php` (7) and thirteen other files converted, completing step 2 of the CSP work in `SECURITY.md`. These were the bespoke cases: multi-statement bodies, PHP-interpolated confirmation messages and DOM mutations, each replaced by a named helper defined beside the function it calls. New shared behaviours cover the repeated shapes: `data-set-value="inputId:value"`, `data-remove-closest="selector"` with an optional `data-then`, and `data-confirm` on a button that submits the form it belongs to. One `onmouseover`/`onmouseout` pair became a CSS `:hover` rule, where it belonged all along. Verified with a before/after snapshot of every interactive element across 19 pages: none lost interactivity, and every new helper resolves on the page that uses it. With the count at zero, `script-src-attr 'unsafe-inline'` can now be dropped, which is the remaining step.
+
 ## [v0.2077] - 2026-08-09
 
 ### Security

@@ -360,7 +360,7 @@ $autoJoin = $user && $myRole === null && !$pending && ($_GET['join'] ?? '') === 
         <span>&#128101; <?= $memberCount ?> member<?= $memberCount !== 1 ? 's' : '' ?></span>
         <span><?= $league['approval_mode'] === 'auto' ? '&#9989; Open to join' : '&#128274; Join by approval' ?></span>
         <span>&#128197; <a href="#" id="lp-cal-toggle" role="button" aria-expanded="false" aria-controls="lp-cal"
-                          onclick="return lpToggleCal()" style="color:#2563eb;text-decoration:none">Subscribe to calendar <span id="lp-cal-caret">&#9662;</span></a></span>
+                          data-act="lpToggleCal" style="color:#2563eb;text-decoration:none">Subscribe to calendar <span id="lp-cal-caret">&#9662;</span></a></span>
     </div>
 
     <div class="lp-cal" id="lp-cal" hidden>

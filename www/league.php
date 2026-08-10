@@ -554,6 +554,11 @@ function ordinal($n) {
         .mg-iconbtn-danger { color: #dc2626; border-color: #fecaca; }
         .mg-iconbtn-danger:hover { background: #fee2e2; }
     </style>
+<style>
+/* Was onmouseover/onmouseout setting inline styles; a hover belongs in CSS, and
+   inline handlers cannot be authorised by a CSP nonce. */
+.lg-danger-hover:hover { background: #fee2e2 !important; border-color: #dc2626 !important; }
+</style>
 </head>
 <body>
 
@@ -568,7 +573,7 @@ function ordinal($n) {
             <p style="margin:.5rem 0 .35rem;font-size:.85rem;color:#475569">Copy this token now and store it in the consumer's config. You will not be able to see it again.</p>
             <div id="newApiKeyBox" style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.85rem;background:#fff;border:1.5px dashed #16a34a;border-radius:6px;padding:.6rem .8rem;word-break:break-all"><?= htmlspecialchars($_flash['plaintext']) ?></div>
             <button type="button" class="lg-btn" style="margin-top:.6rem;font-size:.78rem;padding:.35rem .8rem"
-                    onclick="var b=this;pkCopy(document.getElementById('newApiKeyBox').textContent).then(function(ok){b.textContent=ok?'Copied':'Copy failed';setTimeout(function(){b.textContent='Copy key';},1500);})">Copy key</button>
+                    data-act="copyApiKeyBox" data-a1="@self">Copy key</button>
         </div>
         <?php else:
             $_fcls  = $_flash['type'] === 'success' ? 'background:#dcfce7;color:#14532d;border:1px solid #86efac'
@@ -609,9 +614,7 @@ function ordinal($n) {
                 &middot; <a class="lg-btn lg-btn-rules" href="?id=<?= $league_id ?>&tab=rules" style="padding:.25rem .7rem;font-size:.75rem;background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:6px;text-decoration:none;font-weight:600">&#128220; League Rules</a>
             <?php endif; ?>
             <?php if ($myRole !== null && $myRole !== 'owner'): ?>
-                <button class="lg-btn" style="margin-left:.6rem;padding:.3rem .8rem;font-size:.78rem;font-weight:600;background:#fff;color:#dc2626;border:1.5px solid #fca5a5;border-radius:6px;cursor:pointer" data-act="leaveLeague"
-                        onmouseover="this.style.background='#fee2e2';this.style.borderColor='#dc2626'"
-                        onmouseout="this.style.background='#fff';this.style.borderColor='#fca5a5'">&#10060; Leave league</button>
+                <button class="lg-btn lg-danger-hover" style="margin-left:.6rem;padding:.3rem .8rem;font-size:.78rem;font-weight:600;background:#fff;color:#dc2626;border:1.5px solid #fca5a5;border-radius:6px;cursor:pointer" data-act="leaveLeague">&#10060; Leave league</button>
             <?php endif; ?>
         </div>
     </div>
@@ -670,11 +673,11 @@ function ordinal($n) {
             <strong style="font-size:.9rem">Bulk</strong>
             <a class="lg-btn lg-btn-ghost" href="/league.php?id=<?= $league_id ?>&action=export_members">&#8681; Export CSV</a>
             <button class="lg-btn lg-btn-ghost" type="button"
-                    onclick="var w=document.getElementById('lgImportWrap'); w.style.display = w.style.display==='none' ? 'flex' : 'none'">
+                    data-act="toggleLgWrap" data-a1="lgImportWrap" data-a2="flex">
                 &#8679; Import CSV
             </button>
             <button class="lg-btn lg-btn-ghost" type="button"
-                    onclick="var w=document.getElementById('lgContactsWrap'); w.style.display = w.style.display==='none' ? 'block' : 'none'">
+                    data-act="toggleLgWrap" data-a1="lgContactsWrap" data-a2="block">
                 &#128101; Import from Contacts
             </button>
             <span style="color:#94a3b8;font-size:.78rem;margin-left:auto">CSV columns: <code>name, email, phone</code></span>
@@ -836,9 +839,9 @@ function ordinal($n) {
                                 <?php if ($isPending): ?>
                                     <button class="mg-iconbtn" title="Resend invite" data-act="resendInvite" data-a1="<?= $memId ?>">&#9993;</button>
                                 <?php elseif ($isOwner): ?>
-                                    <button class="mg-iconbtn" title="Transfer ownership" onclick="act('transfer_ownership', <?= $targetUid ?>, 'Transfer ownership to this member? You will be demoted to member.')">&#9812;</button>
+                                    <button class="mg-iconbtn" title="Transfer ownership" data-act="act" data-a1="transfer_ownership" data-a2="<?= (int)$targetUid ?>" data-a3="Transfer ownership to this member? You will be demoted to member.">&#9812;</button>
                                 <?php endif; ?>
-                                <button class="mg-iconbtn mg-iconbtn-danger" title="Remove" onclick="removeMember(<?= $memId ?>, <?= htmlspecialchars(json_encode($isPending ? 'Remove this pending contact?' : 'Remove this member from the league?'), ENT_QUOTES) ?>)">&times;</button>
+                                <button class="mg-iconbtn mg-iconbtn-danger" title="Remove" data-act="removeMember" data-a1="<?= (int)$memId ?>" data-a2="<?= htmlspecialchars($isPending ? 'Remove this pending contact?' : 'Remove this member from the league?', ENT_QUOTES) ?>">&times;</button>
                             </div>
                         <?php endif; ?>
                     </td>
@@ -884,7 +887,7 @@ function ordinal($n) {
                     <span>Past &mdash; <?= count($leaguePast) ?></span>
                     <span style="margin-left:auto;font-weight:400;text-transform:none;letter-spacing:0;color:#64748b">
                         Past:
-                        <select onchange="window.location='?id=<?= $league_id ?>&tab=events&past_days='+this.value"
+                        <select data-act-change="goEventsPastDays" data-change-a1="<?= (int)$league_id ?>" data-change-a2="@value"
                                 style="padding:.2rem .4rem;border:1px solid #e2e8f0;border-radius:5px;font-size:.8rem;background:#fff">
                             <?php foreach ([7=>'7d',14=>'14d',30=>'30d',60=>'60d',90=>'90d',180=>'6mo',365=>'1yr'] as $v=>$l): ?>
                                 <option value="<?= $v ?>"<?= $lg_past_days === $v ? ' selected' : '' ?>><?= $l ?></option>
@@ -1381,7 +1384,7 @@ function ordinal($n) {
                     </form>
                     <?php if ($canPost): ?>
                     <form method="post" action="/league_posts_dl.php" style="margin:0"
-                          onsubmit="return pkConfirmForm(this, <?= $rulesPost ? "'This will replace the current league rules post. Continue?'" : "'Mark this post as the league rules? It will be moved out of the main feed and accessible via the League Rules button.'" ?>);">
+                          data-confirm="<?= htmlspecialchars($rulesPost ? 'This will replace the current league rules post. Continue?' : 'Mark this post as the league rules? It will be moved out of the main feed and accessible via the League Rules button.', ENT_QUOTES) ?>">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                         <input type="hidden" name="action" value="set_rules">
                         <input type="hidden" name="post_id" value="<?= (int)$lp['id'] ?>">
@@ -1399,7 +1402,7 @@ function ordinal($n) {
                     </form>
                     <?php else: ?>
                     <button type="button" class="lg-btn lg-btn-ghost" style="<?= $__pbtn ?>;color:#166534"
-                            onclick="document.getElementById('share-panel-<?= (int)$lp['id'] ?>').style.display = (document.getElementById('share-panel-<?= (int)$lp['id'] ?>').style.display === 'none' ? '' : 'none')">
+                            data-act="toggleSharePanel" data-a1="<?= (int)$lp['id'] ?>">
                         Share link
                     </button>
                     <?php endif; ?>
@@ -1419,7 +1422,7 @@ function ordinal($n) {
                            data-select-all-on-focus="1"
                            style="flex:1;min-width:200px;font-family:monospace;font-size:.78rem;padding:.35rem .5rem;border:1px solid #cbd5e1;border-radius:5px;background:#fff">
                     <button type="button" class="lg-btn lg-btn-ghost" style="font-size:.72rem;padding:.25rem .7rem"
-                            onclick="var b=this;pkCopy(document.getElementById('share-url-<?= (int)$lp['id'] ?>').value).then(function(ok){b.textContent=ok?'Copied':'Copy failed';setTimeout(function(){b.textContent='Copy';},1500);})">Copy</button>
+                            data-act="copySharePanelUrl" data-a1="@self" data-a2="<?= (int)$lp['id'] ?>">Copy</button>
                     <form method="post" action="/league_posts_dl.php" style="margin:0"
                           data-confirm="Generate a new link? The current link will stop working.";">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
@@ -2105,5 +2108,31 @@ function escapeHtml(s) {
 <?php require __DIR__ . '/_footer.php'; ?>
 <script src="/_phone_input.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/_phone_input.js') ?: 0)) ?>"></script>
 <script nonce="<?= csp_nonce() ?>">initPhoneAutoFormat();</script>
+<script nonce="<?= csp_nonce() ?>">
+// Named replacements for former inline expressions (CSP step 2, SECURITY.md).
+function copyApiKeyBox(btn) {
+    pkCopy(document.getElementById('newApiKeyBox').textContent).then(function (ok) {
+        btn.textContent = ok ? 'Copied!' : 'Copy failed';
+        setTimeout(function () { btn.textContent = 'Copy'; }, 1500);
+    });
+}
+function copySharePanelUrl(btn, id) {
+    pkCopy(document.getElementById('share-url-' + id).value).then(function (ok) {
+        btn.textContent = ok ? 'Copied!' : 'Copy failed';
+        setTimeout(function () { btn.textContent = 'Copy'; }, 1500);
+    });
+}
+function toggleSharePanel(id) {
+    var el = document.getElementById('share-panel-' + id);
+    if (el) el.style.display = (el.style.display === 'none' || !el.style.display) ? '' : 'none';
+}
+function toggleLgWrap(id, shown) {
+    var w = document.getElementById(id);
+    if (w) w.style.display = (w.style.display === 'none' || !w.style.display) ? shown : 'none';
+}
+function goEventsPastDays(leagueId, days) {
+    window.location = '?id=' + leagueId + '&tab=events&past_days=' + days;
+}
+</script>
 </body>
 </html>

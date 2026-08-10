@@ -99,7 +99,7 @@ $utc_tz    = new DateTimeZone('UTC');
             <option value="<?= (int)$eid ?>"><?= htmlspecialchars($ename) ?></option>
             <?php endforeach; ?>
         </select>
-        <button class="btn" type="button" onclick="var v=document.getElementById('dmNewUser').value; if(!v){pkAlert('Pick a person first.');return;} location.href='/message_thread.php?user='+v;">Start</button>
+        <button class="btn" type="button" data-act="startDmWithSelected">Start</button>
         <button class="btn btn-outline" type="button" data-toggle-class="dmGroupCard:open">New group</button>
     </div>
 
@@ -188,6 +188,13 @@ function pollList() {
 }
 pollList();
 setInterval(pollList, 5000);
+</script>
+<script nonce="<?= csp_nonce() ?>">
+function startDmWithSelected() {
+    var v = document.getElementById('dmNewUser').value;
+    if (!v) { pkAlert('Pick a person first.'); return; }
+    location.href = '/message_thread.php?with=' + encodeURIComponent(v);
+}
 </script>
 </body>
 </html>

@@ -1492,11 +1492,11 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                             <input type="color" id="nav_bg_picker"
                                    value="<?= htmlspecialchars(get_setting('nav_bg_color','') ?: '#0f172a') ?>"
                                    style="width:40px;height:38px;padding:2px;border:1.5px solid #e2e8f0;border-radius:7px;cursor:pointer;flex-shrink:0"
-                                   oninput="syncText('nav_bg_color',this.value);updatePreview()">
+                                   data-act-input="syncTextPreview" data-input-a1="nav_bg_color" data-input-a2="@value">
                             <input type="text" name="nav_bg_color" id="nav_bg_color"
                                    value="<?= htmlspecialchars(get_setting('nav_bg_color','')) ?>"
                                    placeholder="#0f172a" maxlength="7" style="flex:1"
-                                   oninput="syncPicker('nav_bg_picker',this.value);updatePreview()">
+                                   data-act-input="syncPickerPreview" data-input-a1="nav_bg_picker" data-input-a2="@value">
                             <button type="button" class="btn btn-outline btn-sm"
                                     data-act="resetColor" data-a1="nav_bg_color" data-a2="nav_bg_picker" data-a3="#0f172a">Default</button>
                         </div>
@@ -1507,11 +1507,11 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                             <input type="color" id="nav_text_picker"
                                    value="<?= htmlspecialchars(get_setting('nav_text_color','') ?: '#ffffff') ?>"
                                    style="width:40px;height:38px;padding:2px;border:1.5px solid #e2e8f0;border-radius:7px;cursor:pointer;flex-shrink:0"
-                                   oninput="syncText('nav_text_color',this.value);updatePreview()">
+                                   data-act-input="syncTextPreview" data-input-a1="nav_text_color" data-input-a2="@value">
                             <input type="text" name="nav_text_color" id="nav_text_color"
                                    value="<?= htmlspecialchars(get_setting('nav_text_color','')) ?>"
                                    placeholder="#ffffff" maxlength="7" style="flex:1"
-                                   oninput="syncPicker('nav_text_picker',this.value);updatePreview()">
+                                   data-act-input="syncPickerPreview" data-input-a1="nav_text_picker" data-input-a2="@value">
                             <button type="button" class="btn btn-outline btn-sm"
                                     data-act="resetColor" data-a1="nav_text_color" data-a2="nav_text_picker" data-a3="#ffffff">Default</button>
                         </div>
@@ -1522,11 +1522,11 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                             <input type="color" id="accent_picker"
                                    value="<?= htmlspecialchars(get_setting('accent_color','') ?: '#2563eb') ?>"
                                    style="width:40px;height:38px;padding:2px;border:1.5px solid #e2e8f0;border-radius:7px;cursor:pointer;flex-shrink:0"
-                                   oninput="syncText('accent_color',this.value);updatePreview()">
+                                   data-act-input="syncTextPreview" data-input-a1="accent_color" data-input-a2="@value">
                             <input type="text" name="accent_color" id="accent_color"
                                    value="<?= htmlspecialchars(get_setting('accent_color','')) ?>"
                                    placeholder="#2563eb" maxlength="7" style="flex:1"
-                                   oninput="syncPicker('accent_picker',this.value);updatePreview()">
+                                   data-act-input="syncPickerPreview" data-input-a1="accent_picker" data-input-a2="@value">
                             <button type="button" class="btn btn-outline btn-sm"
                                     data-act="resetColor" data-a1="accent_color" data-a2="accent_picker" data-a3="#2563eb">Default</button>
                         </div>
@@ -1552,7 +1552,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                     <input type="hidden" name="tab" value="appearance">
                     <button type="submit" class="btn btn-outline"
                             style="color:#ef4444;border-color:#fca5a5;font-size:.82rem"
-                            onclick="return pkConfirmForm(this.form, 'Remove the banner?', {okLabel:'Remove', danger:true})">&#x2715; Remove Banner</button>
+                            data-confirm="Remove the banner?" data-confirm-ok="Remove" data-confirm-danger="1">&#x2715; Remove Banner</button>
                 </form>
                 <?php endif; ?>
                 <form method="post" action="/admin_settings.php" enctype="multipart/form-data">
@@ -1589,7 +1589,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                         <input type="hidden" name="tab" value="appearance">
                         <button type="submit" class="btn btn-outline"
                                 style="color:#ef4444;border-color:#fca5a5;font-size:.82rem"
-                                onclick="return pkConfirmForm(this.form, 'Remove the header banner?', {okLabel:'Remove', danger:true})">&#x2715; Remove Header Banner</button>
+                                data-confirm="Remove the header banner?" data-confirm-ok="Remove" data-confirm-danger="1">&#x2715; Remove Header Banner</button>
                     </form>
                     <?php endif; ?>
                     <form method="post" action="/admin_settings.php" enctype="multipart/form-data">
@@ -1615,7 +1615,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                             <input type="range" name="header_banner_height" id="hh_slider"
                                    min="20" max="200" value="<?= (int)get_setting('header_banner_height','140') ?>"
                                    style="width:100%;margin:.5rem 0"
-                                   oninput="document.getElementById('hh_label').textContent=this.value+'px'">
+                                   data-act-input="setHeaderHeightLabel" data-input-a1="@value">
                             <p class="hint">Controls the nav bar height when a header banner is displayed (20–200 px, default 46).</p>
                         </div>
                         <button type="submit" class="btn btn-primary" style="width:100%">Save Height</button>
@@ -1735,7 +1735,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 </span>
                 <span style="color:#94a3b8;font-size:.75rem">Click any cell to edit &bull; Changes save automatically</span>
                 <a href="/admin_settings.php?action=export_users" class="btn btn-outline btn-sm" style="padding:.4rem .85rem;font-size:.82rem">&#8681; Export CSV</a>
-                <button class="btn btn-outline btn-sm" onclick="document.getElementById('ugImportWrap').style.display=document.getElementById('ugImportWrap').style.display==='none'?'flex':'none'" style="padding:.4rem .85rem;font-size:.82rem">&#8679; Import CSV</button>
+                <button class="btn btn-outline btn-sm" data-act="toggleUgImport" style="padding:.4rem .85rem;font-size:.82rem">&#8679; Import CSV</button>
                 <button class="btn btn-primary btn-sm" data-act="openUserModal" style="padding:.4rem .85rem;font-size:.82rem">+ New User</button>
             </div>
 
@@ -1871,7 +1871,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                         <td class="ug-act-cell">
                             <?php if (!$isSelf): ?>
                             <form method="post" action="/admin_settings.php"
-                                  onsubmit="return pkConfirmForm(this, 'Delete ' + <?= htmlspecialchars(json_encode($u['username']), ENT_QUOTES) ?> + '? This cannot be undone.', {okLabel:'Delete', danger:true})">
+                                  data-confirm="<?= htmlspecialchars('Delete ' . $u['username'] . '? This cannot be undone.', ENT_QUOTES) ?>" data-confirm-ok="Delete" data-confirm-danger="1">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                                 <input type="hidden" name="action" value="delete">
                                 <input type="hidden" name="tab" value="users">
@@ -2244,7 +2244,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
 
                         <td class="ev-del-cell">
                             <form method="post" action="/admin_settings.php"
-                                  onsubmit="return pkConfirmForm(this, 'Delete event ' + <?= htmlspecialchars(json_encode('"' . $ev['title'] . '"'), ENT_QUOTES) ?> + '? This cannot be undone.', {okLabel:'Delete', danger:true})">
+                                  data-confirm="<?= htmlspecialchars('Delete event "' . $ev['title'] . '"? This cannot be undone.', ENT_QUOTES) ?>" data-confirm-ok="Delete" data-confirm-danger="1">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                                 <input type="hidden" name="action" value="delete_event">
                                 <input type="hidden" name="tab" value="events">
@@ -2520,7 +2520,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                     <input type="hidden" name="tab" value="email">
                     <div class="form-group">
                         <label>To</label>
-                        <select name="compose_to" class="form-select" onchange="document.getElementById('customToWrap').style.display=this.value==='custom'?'':'none'">
+                        <select name="compose_to" class="form-select" data-act-change="toggleCustomTo" data-change-a1="@value">
                             <option value="all">All users (with email)</option>
                             <?php foreach ($users as $u): if (!$u['email']) continue; ?>
                                 <option value="<?= (int)$u['id'] ?>"><?= htmlspecialchars($u['username']) ?> &lt;<?= htmlspecialchars($u['email']) ?>&gt;</option>
@@ -2725,12 +2725,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
             <div style="display:flex;gap:.5rem;align-items:center">
                 <input type="text" id="webhook-url-field" readonly value="<?= htmlspecialchars($webhook_url) ?>"
                        style="flex:1;font-family:monospace;font-size:.85rem;background:#f1f5f9;border:1.5px solid #e2e8f0;border-radius:7px;padding:.5rem .75rem;color:#1e293b;cursor:text">
-                <button type="button" onclick="
-                    pkCopy(document.getElementById('webhook-url-field').value).then(function(){
-                        var b = this; b.textContent = 'Copied!';
-                        setTimeout(function(){ b.textContent = 'Copy'; }, 1500);
-                    }.bind(this));
-                " style="white-space:nowrap" class="btn btn-outline btn-sm">Copy</button>
+                <button type="button" data-act="copyWebhookUrl" data-a1="@self" style="white-space:nowrap" class="btn btn-outline btn-sm">Copy</button>
             </div>
             <p style="font-size:.78rem;color:#94a3b8;margin-top:.6rem">
                 <strong>Telnyx:</strong> Messaging &rsaquo; Messaging Profiles &rsaquo; your profile &rsaquo; Inbound Settings &rsaquo; Webhook URL<br>
@@ -3131,7 +3126,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                                    placeholder="Click Generate to create one"
                                    autocomplete="off" style="flex:1;font-family:monospace">
                             <button type="button" class="btn btn-outline" style="white-space:nowrap"
-                                    onclick="document.getElementById('cronTokenInput').value = Array.from(crypto.getRandomValues(new Uint8Array(20))).map(b=>b.toString(16).padStart(2,'0')).join('')">
+                                    data-act="generateCronToken">
                                 Generate
                             </button>
                         </div>
@@ -3272,5 +3267,30 @@ function updatePreview() {
 </script>
 <script src="/_phone_input.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/_phone_input.js') ?: 0)) ?>"></script>
 <script nonce="<?= csp_nonce() ?>">initPhoneAutoFormat();</script>
+<script nonce="<?= csp_nonce() ?>">
+// Named replacements for former inline expressions (CSP step 2, SECURITY.md).
+function syncTextPreview(id, val)   { syncText(id, val);   updatePreview(); }
+function syncPickerPreview(id, val) { syncPicker(id, val); updatePreview(); }
+function setHeaderHeightLabel(val)  { var l = document.getElementById('hh_label'); if (l) l.textContent = val + 'px'; }
+function toggleUgImport() {
+    var w = document.getElementById('ugImportWrap');
+    if (w) w.style.display = (w.style.display === 'none' || !w.style.display) ? '' : 'none';
+}
+function toggleCustomTo(val) {
+    var w = document.getElementById('customToWrap');
+    if (w) w.style.display = (val === 'custom') ? '' : 'none';
+}
+function copyWebhookUrl(btn) {
+    pkCopy(document.getElementById('webhook-url-field').value).then(function (ok) {
+        btn.textContent = ok ? 'Copied!' : 'Copy failed';
+        setTimeout(function () { btn.textContent = 'Copy'; }, 1500);
+    });
+}
+function generateCronToken() {
+    var el = document.getElementById('cronTokenInput');
+    if (el) el.value = Array.from(crypto.getRandomValues(new Uint8Array(20)))
+        .map(function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+}
+</script>
 </body>
 </html>

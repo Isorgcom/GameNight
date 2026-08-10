@@ -31,6 +31,11 @@
 (function () {
     'use strict';
 
+    // checkin.php and timer.php carry their own copy of this logic, added before
+    // this file existed. Both are also reachable with _footer.php, so without
+    // this guard every one of their controls would dispatch twice.
+    if (window.PK_DISPATCH_LOCAL) return;
+
     var EVENTS = ['change', 'input', 'keydown', 'keyup', 'submit',
                   'dragstart', 'dragover', 'drop', 'dragend', 'mousedown'];
 
@@ -127,6 +132,46 @@
         }
     }, true);
 
+    // data-confirm on a BUTTON (not the form): confirm, then submit the form it
+    // belongs to. Was onclick="return pkConfirmForm(this.form, '…', {…})".
+    document.addEventListener('click', function (e) {
+        if (!(e.target instanceof Element)) return;
+        var btn = e.target.closest('button[data-confirm], input[type=submit][data-confirm]');
+        if (!btn) return;
+        var form = btn.form || btn.closest('form');
+        if (!form) return;
+        e.preventDefault();
+        if (typeof window.pkConfirmForm === 'function') {
+            window.pkConfirmForm(form, btn.dataset.confirm, {
+                okLabel: btn.dataset.confirmOk || 'OK',
+                danger:  btn.dataset.confirmDanger === '1'
+            });
+        }
+    }, true);
+
+    // data-remove-closest="selector": was onclick="this.closest('x').remove()".
+    // data-then names an optional function to call afterwards.
+    document.addEventListener('click', function (e) {
+        if (!(e.target instanceof Element)) return;
+        var t = e.target.closest('[data-remove-closest]');
+        if (!t) return;
+        var victim = t.closest(t.getAttribute('data-remove-closest'));
+        if (victim) victim.remove();
+        var then = t.getAttribute('data-then');
+        if (then && typeof window[then] === 'function') window[then]();
+    }, true);
+
+    // data-set-value="inputId:value": was onclick="document.getElementById(...).value='x'"
+    document.addEventListener('click', function (e) {
+        if (!(e.target instanceof Element)) return;
+        var t = e.target.closest('[data-set-value]');
+        if (!t) return;
+        var spec = t.getAttribute('data-set-value');
+        var i = spec.indexOf(':');
+        var el = document.getElementById(spec.slice(0, i));
+        if (el) el.value = spec.slice(i + 1);
+    }, true);
+
     // data-select-all-on-focus: was onclick="this.select()"
     document.addEventListener('focus', function (e) {
         if (e.target instanceof Element && e.target.hasAttribute('data-select-all-on-focus')
@@ -144,7 +189,11 @@
         document.addEventListener(evt, function (e) {
             if (!(e.target instanceof Element)) return;
             var t = e.target.closest('[data-act-' + evt + ']');
-            if (t) dispatch(t.getAttribute('data-act-' + evt), t, e, evt + '-');
+            if (!t) return;
+            var r = dispatch(t.getAttribute('data-act-' + evt), t, e, evt + '-');
+            // `onsubmit="return fn()"` cancelled the submit when fn returned
+            // false. Reproduce that; other events had no such contract.
+            if (evt === 'submit' && r === false) e.preventDefault();
         }, true);
     });
 })();

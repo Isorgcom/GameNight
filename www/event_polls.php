@@ -211,7 +211,7 @@ $backUrl   = '/calendar.php?m=' . urlencode(substr($event['start_date'], 0, 7)) 
             <div style="display:flex;gap:.5rem;margin-top:.5rem">
                 <button type="button" class="pl-btn" data-act="addQuestion">+ Add question</button>
                 <div style="flex:1"></div>
-                <button type="submit" class="pl-btn primary" onclick="return pkConfirmForm(this.form, 'Send this poll to <?= count($audienceNow) ?> Yes/Maybe guest(s) now?')">Create &amp; Send</button>
+                <button type="submit" class="pl-btn primary" data-confirm="Send this poll to &lt;?= count($audienceNow) ?> Yes/Maybe guest(s) now?">Create &amp; Send</button>
             </div>
             <p class="pl-meta" style="margin:.6rem 0 0">Questions can't be edited once anyone has voted &mdash; close the poll and make a new one instead.</p>
         </form>
@@ -283,7 +283,7 @@ $backUrl   = '/calendar.php?m=' . urlencode(substr($event['start_date'], 0, 7)) 
             </form>
             <?php endif; ?>
             <form method="post" action="/event_polls.php" style="margin:0;margin-left:auto"
-                  onsubmit="return pkConfirmForm(this, 'Permanently delete this poll and all its votes? Recipients\' links will stop working. This cannot be undone.', {okLabel:'Delete', danger:true})">
+                  data-confirm="Permanently delete this poll and all its votes? Recipients\' links will stop working. This cannot be undone." data-confirm-ok="Delete" data-confirm-danger="1">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <input type="hidden" name="action" value="delete">
                 <input type="hidden" name="event_id" value="<?= $eventId ?>">
@@ -307,7 +307,7 @@ function addQuestion() {
     div.innerHTML =
         '<div style="display:flex;gap:.4rem;align-items:center">' +
         '<input type="text" name="question[' + i + ']" placeholder="Question ' + (i + 1) + '" maxlength="200" style="flex:1;padding:.45rem .6rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.9rem">' +
-        '<button type="button" class="pl-btn danger" onclick="this.closest(\'.pl-q\').remove()" title="Remove question">&times;</button>' +
+        '<button type="button" class="pl-btn danger" data-remove-closest=".pl-q\" title="Remove question">&times;</button>' +
         '</div>' +
         '<div class="pl-opts"></div>' +
         '<button type="button" class="pl-btn" style="margin-top:.4rem" data-act="addOption" data-a1="@self" data-a2=" + i + ">+ Option</button>';
@@ -321,7 +321,7 @@ function addOption(btn, qi) {
     row.className = 'pl-opt-row';
     row.innerHTML =
         '<input type="text" name="options[' + qi + '][]" placeholder="Option" maxlength="80" style="padding:.4rem .55rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.85rem">' +
-        '<button type="button" class="pl-btn" onclick="this.closest(\'.pl-opt-row\').remove()" title="Remove option">&times;</button>';
+        '<button type="button" class="pl-btn" data-remove-closest=".pl-opt-row\" title="Remove option">&times;</button>';
     opts.appendChild(row);
 }
 addQuestion(); // start with one empty question

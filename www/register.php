@@ -206,7 +206,7 @@ $site_name = get_setting('site_name', 'Game Night');
             <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
         <?php endif; ?>
 
-        <form method="post" action="/register.php" novalidate onsubmit="return validateRegister()">
+        <form method="post" action="/register.php" novalidate data-act-submit="validateRegister">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
             <?php if ($redirect !== ''): ?>
             <input type="hidden" name="redirect" value="<?= htmlspecialchars($redirect) ?>">
