@@ -379,6 +379,13 @@ $now_local = (new DateTime('now', $local_tz))->format('Y-m-d H:i:s');
                     <td></td>
                     <td>
                         <div class="action-btns">
+                            <?php if (!$p['hidden']): ?>
+                                <a href="/#post-<?= (int)$p['id'] ?>"
+                                   class="btn-sm-text">View</a>
+                            <?php else: ?>
+                                <span class="btn-sm-text muted" style="cursor:default"
+                                      title="Hidden posts are excluded from the feed, so there is nothing to view">View</span>
+                            <?php endif; ?>
                             <a href="/admin_posts.php?edit=<?= (int)$p['id'] ?>"
                                class="btn-sm-text">Edit</a>
                             <form method="post" action="/admin_posts.php" style="margin:0">
@@ -664,6 +671,12 @@ async function bulkDelete() {
 }
 
 <?php if ($edit_post): ?>
+// jodit.min.js is deferred, so `editor` is not created until DOMContentLoaded
+// (see the init block above). Calling openModal() at parse time therefore threw
+// on `editor.value` and aborted before the modal was shown, so ?edit=N left the
+// page looking inert. Listeners run in registration order and the init block
+// registered first, so by the time this fires the editor exists.
+document.addEventListener('DOMContentLoaded', function () {
 openModal(
     <?= (int)$edit_post['id'] ?>,
     <?= json_encode($edit_post['title']) ?>,
@@ -672,6 +685,7 @@ openModal(
     <?= (int)$edit_post['pinned'] ?>,
     <?= (int)($edit_post['league_id'] ?? 0) ?>
 );
+});
 <?php endif; ?>
 </script>
 
