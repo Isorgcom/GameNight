@@ -22,21 +22,27 @@ try {
 // Per-request nonce for inline <script> blocks. See SECURITY.md.
 // Why three script directives instead of one:
 //   script-src       fallback for browsers without CSP3 granularity (Firefox).
-//                    Keeps 'unsafe-inline' so behaviour there is unchanged.
+//                    Carries the nonce, so 'unsafe-inline' is ignored there too
+//                    and inline handlers are refused, same as everywhere else.
 //   script-src-elem  script ELEMENTS must carry this nonce. Adding a nonce makes
 //                    a browser ignore 'unsafe-inline', so an injected <script> is
 //                    refused — which is the point.
-//   script-src-attr  event handler ATTRIBUTES stay allowed for now. They cannot
-//                    be nonced (there is no syntax for it), so until the ~579
-//                    inline on* handlers become addEventListener they need their
-//                    own directive or every button on the site stops working.
+//   script-src-attr  'none'. Event handler attributes cannot be nonced (there is
+//                    no syntax for it), so the only way to allow them is
+//                    'unsafe-inline' — which is what made CSP useless against
+//                    XSS. All 401 of them became delegated listeners over
+//                    v0.2073-v0.2078, so this can now be shut.
 if (!defined('CSP_NONCE')) define('CSP_NONCE', base64_encode(random_bytes(16)));
 
 $_csp = implode('; ', [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline'",
+    // The tree has no inline on* handlers left (v0.2078), so the browser can now
+    // refuse them outright. Carrying the nonce on script-src as well is what
+    // protects browsers with no CSP3 granularity: a nonce makes 'unsafe-inline'
+    // ignored there too, so they get the same guarantee rather than none.
+    "script-src 'self' 'nonce-" . CSP_NONCE . "'",
     "script-src-elem 'self' 'nonce-" . CSP_NONCE . "'",
-    "script-src-attr 'unsafe-inline'",
+    "script-src-attr 'none'",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https://*.ytimg.com https://*.twitch.tv https://*.jtvnw.net",
     "object-src 'none'",

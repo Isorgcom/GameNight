@@ -4,7 +4,7 @@ Working notes for this codebase: the checks to run before shipping, and the one
 known hardening gap that has not been closed yet. Kept in the repo so neither
 gets lost between sessions.
 
-Last reviewed: 2026-08-10 (v0.2078).
+Last reviewed: 2026-08-10 (v0.2079).
 
 ---
 
@@ -99,13 +99,26 @@ exists.
 
 ---
 
-## Known gap: CSP allows `script-src 'unsafe-inline'`
+## CLOSED: CSP no longer allows inline script (v0.2079)
 
-`auth.php` sets:
+`auth.php` now sets:
 
 ```
-script-src 'self' 'unsafe-inline'
+script-src       'self' 'nonce-<per-request>'
+script-src-elem  'self' 'nonce-<per-request>'
+script-src-attr  'none'
 ```
+
+An injected `<script>` is refused because it cannot carry the nonce, and an
+injected `on*` attribute is refused because attribute handlers are disallowed
+outright. **CSP is now a real second line of defence against XSS**, which it was
+not for any of the findings in the v0.2070 review.
+
+The nonce is carried on `script-src` as well as `script-src-elem` deliberately:
+browsers without CSP3 granularity fall back to `script-src`, and a nonce there
+makes `'unsafe-inline'` ignored, so they get the same guarantee rather than none.
+
+### How it used to read, and why it took six releases
 
 `'self'` stops an attacker loading script from another origin. `'unsafe-inline'`
 additionally permits script written inside the HTML, covering both `<script>`
@@ -246,11 +259,17 @@ which is exactly the pattern that has to move to event delegation.
    - Verify with the **old** asset forced back in (Playwright `page.route()` can
      serve the previous file) to prove the cache-buster is what fixes it, rather
      than assuming.
-3. **Drop `script-src-attr 'unsafe-inline'`.** Now unblocked: the count reached
-   zero in v0.2078. Run `Content-Security-Policy-Report-Only` with the tighter
-   value for a while first to catch anything that re-introduces an inline
-   handler, then switch it live. At that point CSP finally blocks an injected
-   `on*` attribute, which is the half of the XSS surface still open.
+3. ~~**Drop `script-src-attr 'unsafe-inline'`.**~~ **DONE in v0.2079.** Verified
+   before switching: a DOM scan across 36 pages found zero `on*` attributes in
+   rendered markup (including JS-built) and zero unnonced inline `<script>`
+   blocks. After switching, an injected `on*` handler and an injected
+   nonce-less `<script>` are both confirmed blocked, while every nonced inline
+   block still runs.
+
+**Anything added from here must follow the conversion pattern below**, because
+an inline handler will now simply not fire. `pk-dispatch.js` logs
+`[pk-dispatch] no handler named X` when a name does not resolve, and the sweeps
+in the pre-push section catch the rest.
 
 Until then, the sweeps above are the compensating control. They are the
 difference between catching a regression in two seconds and catching it in a
