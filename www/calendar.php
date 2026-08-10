@@ -1598,7 +1598,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
                     ?>
                     <div class="cal-event"
                          style="background:<?= htmlspecialchars($ev['color']) ?>"
-                         data-act="viewEvent" data-a1="<?= htmlspecialchars(json_encode($ev)) ?>"
+                         data-act="viewEvent" data-a1="<?= (int)$ev['id'] ?>" data-a2="<?= htmlspecialchars($ev['start_date'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE) ?>"
                          title="<?= htmlspecialchars($_lgName ? $_lgName . ' — ' . $ev['title'] : $ev['title']) ?>">
                         <span class="ev-label">
                             <?php if ($ev['start_time'] && $ev['start_date'] === $dateStr): ?>
@@ -1674,7 +1674,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
                 <div class="week-allday-chip"
                      style="background:<?= htmlspecialchars($ev['color']) ?>"
                      title="<?= htmlspecialchars($_lgName ? $_lgName . ' — ' . $ev['title'] : $ev['title']) ?>"
-                     data-act="viewEvent" data-a1="<?= htmlspecialchars(json_encode($ev)) ?>">
+                     data-act="viewEvent" data-a1="<?= (int)$ev['id'] ?>" data-a2="<?= htmlspecialchars($ev['start_date'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE) ?>">
                     <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">
                         <?php if ($_lgTag !== ''): ?><span class="ev-league-tag" title="<?= htmlspecialchars($_lgName) ?>"><?= htmlspecialchars($_lgTag) ?></span><?php endif; ?>
                         <?= htmlspecialchars($ev['title']) ?>
@@ -1894,155 +1894,16 @@ const EDITOR_CTX = <?= json_encode($editorCtx, JSON_HEX_TAG) ?>; // return-conte
 // Popup retired: every event click now lands on the canonical event page,
 // which has full parity (manager panel, messages, comments, live roster).
 // The legacy modal code below is kept but unreachable.
-function viewEvent(ev) {
-    location.href = '/event.php?id=' + ev.id + (ev.start_date ? '&date=' + encodeURIComponent(ev.start_date) : '');
+// Takes the two scalars it needs, NOT the event object. data-a* attributes are
+// read back as plain strings, so a json_encode()d object arrived here as text
+// and `ev.id` was undefined — every chip navigated to /event.php?id=undefined.
+function viewEvent(id, date) {
+    location.href = '/event.php?id=' + id + (date ? '&date=' + encodeURIComponent(date) : '');
 }
-function viewEventLegacy(ev) {
-    currentEvent = ev;
-    document.getElementById('vTitle').textContent = ev.title;
-    var lbadge = document.getElementById('vLeagueBadge');
-    if (ev.league_id && LEAGUE_NAMES[ev.league_id]) {
-        lbadge.textContent = LEAGUE_NAMES[ev.league_id];
-        lbadge.style.display = '';
-    } else {
-        lbadge.style.display = 'none';
-    }
-
-    let meta = ev.start_date;
-    if (ev.end_date && ev.end_date !== ev.start_date) meta += ' \u2013 ' + ev.end_date;
-    if (ev.start_time) {
-        meta += '  \u00b7  ' + (ev.start_time_display || fmt12(ev.start_time));
-        if (ev.end_time) meta += ' \u2013 ' + (ev.end_time_display || fmt12(ev.end_time));
-    }
-    // Seat count for poker events; plain "N going" (with optional cap) otherwise
-    var ps = ev ? (eventPoker[ev.id] || null) : null;
-    var invList = eventInvites[ev.id] || [];
-    var yesCount = invList.filter(function(i) { return i.rsvp === 'yes' && i.approval_status === 'approved'; }).length;
-    if (ps) {
-        var cap = (parseInt(ps.seats_per_table,10) || 8) * (parseInt(ps.num_tables,10) || 1);
-        meta += '  \u00b7  ' + yesCount + '/' + cap + ' seats filled';
-    } else {
-        var mg = parseInt(ev.max_guests, 10) || 0;
-        meta += '  \u00b7  ' + yesCount + (mg > 0 ? '/' + mg : '') + ' going';
-    }
-    document.getElementById('vMeta').textContent = meta;
-
-    // Location + maps link
-    var vLoc = document.getElementById('vLocation');
-    if (vLoc) {
-        if (ev.location) {
-            vLoc.innerHTML = '&#128205; ' + escHtml(ev.location)
-                + ' <a href="https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(ev.location)
-                + '" target="_blank" rel="noopener" style="font-size:.8rem">Open in Maps</a>';
-            vLoc.style.display = '';
-        } else {
-            vLoc.style.display = 'none';
-        }
-    }
-
-    // Add-to-calendar links (ics.php handles tz conversion server-side)
-    var vCal = document.getElementById('vAddCal');
-    if (vCal) {
-        vCal.innerHTML = '&#128197; <a href="/ics.php?id=' + ev.id + '">Add to calendar</a>'
-            + ' &middot; <a href="/ics.php?id=' + ev.id + '&google=1" target="_blank" rel="noopener">Google</a>';
-    }
-
-    // Waitlist notice for the current user
-    var vWaitlistEl = document.getElementById('vWaitlistNotice');
-    if (vWaitlistEl) vWaitlistEl.style.display = 'none';
-    if (ps && CURRENT_USERNAME) {
-        var allInvSorted = (eventInvites[ev.id] || []).slice().sort(function(a,b) { return (a.sort_order||999)-(b.sort_order||999); });
-        var myInv = allInvSorted.find(function(i) { return i.username.toLowerCase() === CURRENT_USERNAME.toLowerCase(); });
-        if (myInv && myInv.approval_status === 'waitlisted') {
-            var wlPos = 0;
-            allInvSorted.forEach(function(i,idx) {
-                if (i.approval_status === 'waitlisted' && i.username.toLowerCase() === CURRENT_USERNAME.toLowerCase()) {
-                    wlPos = idx + 1;
-                }
-            });
-            if (vWaitlistEl) {
-                var cap2 = (parseInt(ps.seats_per_table,10)||8) * (parseInt(ps.num_tables,10)||1);
-                vWaitlistEl.textContent = 'You are on the waitlist (position #' + (wlPos - cap2) + '). You\'ll be notified if a seat opens.';
-                vWaitlistEl.style.display = '';
-            }
-        }
-    }
-
-    document.getElementById('vDesc').textContent = ev.description || '';
-
-    const occDate  = null;
-    const invites  = getEffectiveInvites(ev.id, occDate);
-    const myInvite = CURRENT_USERNAME ? invites.find(inv => inv.username.toLowerCase() === CURRENT_USERNAME.toLowerCase()) : undefined;
-    const isInvited = myInvite !== undefined;
-
-    // My RSVP form (shown only when current user is in the invite list)
-    const vRsvpWrap = document.getElementById('vRsvpWrap');
-    if (vRsvpWrap) {
-        if (isInvited) {
-            document.getElementById('vRsvpEventId').value  = ev.id;
-            document.getElementById('vRsvpOccDate').value  = occDate || '';
-            document.getElementById('vRsvpSelect').value   = myInvite.rsvp || '';
-            updateRsvpStatusBadge(myInvite.rsvp || '');
-            vRsvpWrap.style.display = '';
-        } else {
-            vRsvpWrap.style.display = 'none';
-        }
-    }
-    // Sign up button (shown only when NOT yet in the invite list)
-    const vSignupWrap = document.getElementById('vSignupWrap');
-    if (vSignupWrap) {
-        vSignupWrap.style.display = isInvited ? 'none' : '';
-        document.getElementById('vSignupBtn').dataset.eid = ev.id;
-    }
-    // Leave button (shown when invited and not the event creator)
-    const vLeaveWrap = document.getElementById('vLeaveWrap');
-    if (vLeaveWrap) {
-        const isCreator = CURRENT_USER_ID && ev.created_by == CURRENT_USER_ID;
-        vLeaveWrap.style.display = (isInvited && !isCreator) ? '' : 'none';
-        document.getElementById('vLeaveBtn').dataset.eid = ev.id;
-    }
-    const _evRedir = '/calendar.php?m=' + ev.start_date.substring(0,7) + '&open=' + ev.id + '&date=' + ev.start_date;
-    const vLoginBtn = document.getElementById('vLoginBtn');
-    if (vLoginBtn) vLoginBtn.href = '/login.php?redirect=' + encodeURIComponent(_evRedir);
-    const vSignupLink = document.getElementById('vSignupLink');
-    if (vSignupLink) vSignupLink.href = '/register.php?redirect=' + encodeURIComponent(_evRedir);
-    window._calCanManage = IS_ADMIN || (CURRENT_USER_ID && ev.created_by == CURRENT_USER_ID) || MANAGED_EVENT_IDS.includes(ev.id);
-    renderInvitesPanel(ev.id);
-    <?php if ($canEditEvents): ?>
-    // Show edit/delete actions only for admins, event owner, or managers
-    const canManageThis = window._calCanManage;
-    const actionsDiv = document.getElementById('vEventActions');
-    if (actionsDiv) actionsDiv.style.display = canManageThis ? '' : 'none';
-    if (canManageThis) {
-        const delId = document.getElementById('vDeleteId');
-        if (delId) delId.value = ev.id;
-        const mgBtn = document.getElementById('vManageGameBtn');
-        if (mgBtn) {
-            if (parseInt(ev.is_poker)) {
-                mgBtn.href = '/checkin.php?event_id=' + ev.id;
-                mgBtn.style.display = 'inline-block';
-            } else {
-                mgBtn.style.display = 'none';
-            }
-        }
-    }
-    <?php endif; ?>
-
-    // Populate comments
-    <?php if ($current): ?>
-    document.getElementById('vCommentEventId').value  = ev.id;
-    document.getElementById('vCommentRedirect').value = CAL_REDIR;
-    <?php endif; ?>
-    renderCommentsPanel(ev.id);
-
-    const sb = document.getElementById('vScrollBody');
-    if (sb) sb.scrollTop = 0;
-    document.getElementById('viewModal').classList.add('open');
-    // Start polling AFTER the modal is marked open — pollRsvps() bails (and
-    // stops the poll) when the modal is closed, so starting earlier turns the
-    // "immediate first poll" into a no-op and delays fresh data by a full tick.
-    startRsvpPoll(ev.id);
-}
+// The legacy modal implementation lived here until v0.2083; it had been
+// unreachable since event.php took over, and its only remaining effect was to
+// make the dead code look maintained. Recover it from the v0.2082 tree if the
+// in-page modal is ever wanted back.
 function showSavedBar(msg) {
     const bar = document.getElementById('vSavedBar');
     bar.textContent = msg || 'Saved';

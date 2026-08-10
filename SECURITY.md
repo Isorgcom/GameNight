@@ -1,18 +1,19 @@
 # Security Notes
 
-Working notes for this codebase: the checks to run before shipping, and the one
-known hardening gap that has not been closed yet. Kept in the repo so neither
-gets lost between sessions.
+Working notes for this codebase: the checks to run before shipping, and the
+history of the CSP gap that is now closed — kept because the reasoning is what
+stops it being reopened, and because the conversion that closed it is still the
+main source of regressions.
 
-Last reviewed: 2026-08-10 (v0.2079).
+Last reviewed: 2026-08-10 (v0.2083).
 
 ---
 
 ## Pre-push sweeps
 
-Run both before any push that touches more than one PHP file, and again against
+Run these before any push that touches more than one PHP file, and again against
 the production container after a deploy. Each takes about two seconds. There is
-no `php` binary on the build host, so they run inside a container.
+no `php` binary on the build host, so anything invoking it runs in a container.
 
 ### 1. Parse errors, every page
 
@@ -64,6 +65,24 @@ Note `checkin.php` legitimately loads the shared script *and* sets
 `window.PK_DISPATCH_LOCAL`; the flag makes the shared one return early, and the
 sweep reports it as standing down rather than as a fault.
 
+**It needs an admin session, and it says so.** For its first several releases the
+sweep ran as a plain user, so every admin page returned 403 and reported zero
+controls — 296 of 558 controls silently unchecked, including five files that
+later turned out to be broken. It now probes `admin_settings.php` first and fails
+loudly if it is unreachable. Promote the dev test user, run, then put it back:
+
+```bash
+docker exec gamenight-dev php -r '(new PDO("sqlite:/var/db/app.db"))->exec("UPDATE users SET role=\"admin\" WHERE id=269");'
+cd ~/qa-headless && node double_dispatch_sweep.js
+docker exec gamenight-dev php -r '(new PDO("sqlite:/var/db/app.db"))->exec("UPDATE users SET role=\"user\" WHERE id=269");'
+```
+
+The generic behaviours need watching differently from `data-act*`: `data-confirm`
+names no function, so there is nothing to count. The sweep stubs
+`pkConfirmForm()` and asserts exactly one call per `data-confirm` form and
+button. Without that it passed a release in which every delete on the home feed
+raised **two** stacked dialogs.
+
 ### 2. Known-bad escaping patterns
 
 ```bash
@@ -87,15 +106,74 @@ All three shipped to production and were fixed in v0.2070 and v0.2071. The first
 two also caused a visible functional bug: the admin delete confirmation silently
 did nothing for any event whose title contained an apostrophe.
 
-**Correct forms:**
+**Correct forms — and note that "attribute context" is now two different things:**
 
-- PHP, attribute context: `htmlspecialchars(json_encode($v), ENT_QUOTES)`
-- JS in `timer.php`, attribute context: `escAttr($v)`
-- JS, text context: `escHtml($v)`
+| Context | Correct form |
+|---|---|
+| PHP, attribute holding **JS source** (`onclick="fn(…)"`) | `htmlspecialchars(json_encode($v), ENT_QUOTES \| ENT_SUBSTITUTE)` — **historical only, no such attributes remain** |
+| PHP, attribute holding **data** (`data-a1`, `data-confirm`, `title`) | `htmlspecialchars($v, ENT_QUOTES \| ENT_SUBSTITUTE)`, or a cast such as `(int)$id` |
+| JS in `timer.php`, attribute context | `escAttr($v)` |
+| JS, text context | `escHtml($v)` |
+
+**The `json_encode` rule is a trap now.** It was correct while attributes carried
+JS source: `onclick="viewEvent(<?= json_encode($ev) ?>)"` needed a JS literal,
+and the encoder produced one. After the handler conversion, `data-a*` attributes
+carry *data* — `pk-dispatch.js` reads the attribute and passes the **string**
+through, with no parse step. A `json_encode()`d object therefore arrives at the
+handler as text.
+
+This is not hypothetical. `calendar.php` followed the documented rule:
+
+```php
+data-act="viewEvent" data-a1="<?= htmlspecialchars(json_encode($ev)) ?>"
+```
+
+`viewEvent(ev)` read `ev.id` off a string, so **every event chip in the month
+view navigated to `/event.php?id=undefined`** until v0.2083. Pass the scalars the
+handler actually needs (`data-a1="<?= (int)$ev['id'] ?>"`), never an object.
 
 `escHtml()` escapes `<`, `>` and `&` but **not quotes**, so it is safe for text
 nodes and unsafe for attributes. That distinction is the whole reason `escAttr()`
 exists.
+
+**Always pair `ENT_QUOTES` with `ENT_SUBSTITUTE`.** On its own, `ENT_QUOTES`
+makes `htmlspecialchars()` return an **empty string** when the input contains an
+invalid UTF-8 byte. An event title carrying one produced an empty `data-confirm`,
+so the delete confirmation silently did not appear (fixed across 8 files in
+v0.2082). `html_entity_decode()` is unaffected and correctly does not use it.
+
+### 3. Conversion defects in declarative markup
+
+```bash
+grep -rnE 'data-[a-z0-9-]+="[^"]*""|data-[a-z0-9-]+="[^"]*&lt;\?=|data-[a-z0-9-]+="[^"]*" \+ |data-[a-z0-9-]+="<\?= *htmlspecialchars\(json_encode' www/ --include=*.php
+```
+
+Prints nothing on a clean tree. Every hit is a real defect. Converting an inline
+handler means retyping an attribute by hand, and the four ways that goes wrong
+are all invisible to `php -l` and to a browser — the page renders, the control
+just misbehaves.
+
+| Pattern | What it means |
+|---|---|
+| `data-x="…""` | a stray duplicated closing quote; everything after it is parsed as a further attribute |
+| `data-x="…&lt;?=` | a PHP tag that got HTML-escaped during conversion, so the literal `<?= … ?>` shows in the dialog |
+| `data-x="…" + ` | a JS concatenation emitted inside a single-quoted JS string, so `' + i + '` lands in the markup verbatim |
+| `data-x="<?= htmlspecialchars(json_encode(` | an object passed where the dispatcher will deliver a string (see the escaping table above) |
+
+Measured, not assumed: against the tree as it shipped **before** v0.2082 this
+prints **20 hits across 11 files** — the entire markup half of that batch, four
+of its nine findings. On the fixed tree it prints nothing. It runs in well under
+a second and needs no container and no browser, so there is no reason to skip it.
+
+It does not catch the other five (a duplicated listener, a wrong query
+parameter, a missing `data-stop` check, a JSON-quoted key, a missing
+`ENT_SUBSTITUTE`) — those need sweep 1c or a browser. Use both.
+
+**Word-boundary warning.** If you write an ad-hoc grep for handlers, anchor it.
+`on[a-z]+="` matches `action=`, `position=` and `direction=`, and reported 130
+inline handlers on a tree that has zero. Use `[[:space:]]on[a-z]+="` and discard
+comment lines. A check that cries wolf gets ignored, which is worse than not
+having it.
 
 ---
 
@@ -118,7 +196,7 @@ The nonce is carried on `script-src` as well as `script-src-elem` deliberately:
 browsers without CSP3 granularity fall back to `script-src`, and a nonce there
 makes `'unsafe-inline'` ignored, so they get the same guarantee rather than none.
 
-### How it used to read, and why it took six releases
+### How it used to read, and why that was no protection at all
 
 `'self'` stops an attacker loading script from another origin. `'unsafe-inline'`
 additionally permits script written inside the HTML, covering both `<script>`
@@ -126,22 +204,32 @@ blocks and `onclick="…"` attributes. Because the browser cannot distinguish th
 injected one, **the CSP originally provided no XSS mitigation at all** — every
 XSS issue found in the v0.2070 review would have executed without friction.
 
-As of v0.2072 that is partly closed: injected `<script>` elements are blocked by
-the nonce (see step 1 below). Injected `on*` attributes still execute, so the
-gap is narrowed, not shut.
+v0.2072 closed half of it (injected `<script>` elements are refused by the
+nonce) and v0.2079 closed the rest (`script-src-attr 'none'`, once the tree
+reached zero inline handlers). The paragraphs below describe the intermediate
+states because the reasoning is what keeps the fix from being undone, not
+because any of it is still live.
 
-### Why it is still there
+### Why it took six releases to remove
 
-It is load-bearing. As of 2026-08-09:
+`'unsafe-inline'` was load-bearing until the very end. The tree today:
 
 | | Count |
 |---|---|
 | Inline `on*` handler attributes | **0** (was 401; converted across v0.2073-v0.2078) |
 | Inline `<script>` blocks | 64, all nonced as of v0.2072 |
-| External `.js` files | 6 |
+| External `.js` files | 7 (`pk-dispatch.js` added in v0.2077) |
 
-`checkin.php` has 165 inline handlers and `timer.php` 154. Removing the directive
-today breaks the application completely.
+At the start `checkin.php` alone had 165 inline handlers and `timer.php` 157, so
+dropping the directive on day one would have broken the application completely.
+That is why the path below was split into three independently shippable steps
+rather than one flag change.
+
+Verify the count with the anchored pattern, not a bare one:
+
+```bash
+grep -rEh '[[:space:]]on[a-z]+="' www/*.php www/*.js | grep -vE '^\s*(//|\*)'
+```
 
 ### Why a nonce is only half a fix
 
@@ -154,7 +242,10 @@ Note the trap: adding a nonce to `script-src` makes a browser **ignore
 naively that breaks every button on the site. The split is what makes step 1
 shippable on its own:
 
-| Directive | Purpose |
+The intermediate split that made step 1 shippable on its own — **superseded by
+the policy at the top of this section, kept to explain the sequencing**:
+
+| Directive (v0.2072-v0.2078, no longer in use) | Purpose |
 |---|---|
 | `script-src 'self' 'unsafe-inline'` | fallback for browsers without CSP3 granularity (Firefox); behaviour there is unchanged |
 | `script-src-elem 'self' 'nonce-…'` | script **elements** must carry the nonce, so an injected `<script>` is refused |
@@ -271,9 +362,11 @@ an inline handler will now simply not fire. `pk-dispatch.js` logs
 `[pk-dispatch] no handler named X` when a name does not resolve, and the sweeps
 in the pre-push section catch the rest.
 
-Until then, the sweeps above are the compensating control. They are the
-difference between catching a regression in two seconds and catching it in a
-security review months later.
+The sweeps above are no longer a compensating control for an open gap — the gap
+is shut. What they now protect is the *conversion*: 401 hand-edited attributes
+produced nine defects that a parse check could not see, four of them still live
+weeks later. They are the difference between catching that in two seconds and
+catching it in a security review months later.
 
 ---
 
