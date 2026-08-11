@@ -4,6 +4,11 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2085] - 2026-08-11
+
+### Infrastructure
+- **Split `timer.php` into a page, a stylesheet and a script.** The file had grown to 6,418 lines holding roughly 1,190 of CSS and 4,280 of JavaScript across 214 functions, which made every timer change a large-diff, hard-to-review edit and is the main reason the previous layout-engine attempt was shelved rather than landed. The CSS block contained no PHP at all and moved verbatim to `www/timer.css`. The JavaScript contained PHP in only 25 places, all of them values rather than logic, so the `§7.1 Config from PHP` block stays in the page as a nonced inline script exporting the same globals (`IS_REMOTE`, `LEVELS`, `POOL`, `TIMER`, `SOUNDS` and so on) and the remaining 4,279 lines moved to `www/timer.js`. Two deep uses of the acting user's id now read a new `CURRENT_USER_ID` global instead of interpolating PHP mid-function. `timer.php` is 955 lines. Both assets carry the standard `?v=APP_VERSION.filemtime` cache-buster, and being external they are covered by `script-src 'self'` and need no nonce. Load order is unchanged: `timer.js` is not deferred and sits exactly where the inline block did, after the markup, so the DOM is parsed and the vendor scripts have run before it executes. `window.PK_DISPATCH_LOCAL` now gets set slightly earlier, in the config block, which is strictly safer. Verified by capturing the computed geometry and key styles of every visible element (position, size, font size, colour, display, position, z-index, background) across three viewports and both the standalone and event-linked timer, before and after: **135 element measurements, zero differences**. Suites: `timer_args` 954 control dispatches, `blinds_fit` 48, `clock_doubletap` 10, `timer_gestures` 10, `helpers_defined` 10, the double-dispatch sweep 557 controls and `csp_nonce` 29, all passing. This is step 1 of the timer redesign and deliberately changes nothing a user can see.
+
 ## [v0.2084] - 2026-08-10
 
 ### Fixed

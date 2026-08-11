@@ -1,0 +1,1189 @@
+/* Timer styles. Extracted verbatim from the <style> block in timer.php
+ * (v0.2085). The theme's own CSS is emitted by PHP into <style id="themeStyle">
+ * BEFORE this file is linked, so rules here still win on equal specificity,
+ * exactly as they did when this was the inline block below it. */
+        html {
+            height: 100%;
+            background: var(--timer-bg);   /* iPad: keeps overscroll/safe-area gutters from showing white */
+            overscroll-behavior: none;
+        }
+        body { overscroll-behavior: none; }
+        :root {
+            --timer-bg: #0f172a;
+            --timer-event-color: #fff;
+            --timer-stat-color: #94a3b8;
+            --timer-stat-strong: #e2e8f0;
+            --timer-level-color: #94a3b8;
+            --timer-blinds-color: #fff;
+            --timer-ante-color: #f59e0b;
+            --timer-clock-green: #22c55e;
+            --timer-clock-yellow: #fbbf24;
+            --timer-clock-red: #ef4444;
+            --timer-paused-color: #fbbf24;
+            --timer-next-color: #94a3b8;
+            --timer-avgstack-color: #94a3b8;
+            --timer-payouts-color: #94a3b8;
+            --timer-tray-bg: rgba(15, 23, 42, 0.88);
+            --timer-tray-border: rgba(71, 85, 105, 0.4);
+            --timer-tray-button-bg: #1e293b;
+            --timer-tray-button-color: #e2e8f0;
+            --timer-accent: #2563eb;
+            --timer-event-scale: 1;
+            --timer-level-scale: 1;
+            --timer-blinds-scale: 1;
+            /* Shrink-to-fit factor written by fitBlinds(), separate from the
+               theme's scale so auto-fitting never overwrites what the theme set.
+               The two multiply. */
+            --timer-blinds-fit: 1;
+            /* Vertical shrink-to-fit for the whole display stack, written by
+               fitDisplayHeight(). Multiplies with every per-element scale and
+               horizontal fit. Separate from those because it answers a different
+               question: not "is this line too wide" but "does the whole column
+               fit the height this browser actually gave us". */
+            --timer-vfit: 1;
+            --timer-clock-scale: 1;
+            --timer-next-scale: 1;
+            --timer-next-fit: 1;
+            --timer-paused-scale: 1;
+            --timer-paused-fit: 1;
+        }
+        .timer-body {
+            background: var(--timer-bg);
+            color: #e2e8f0;
+            margin: 0;
+            height: 100dvh;
+            height: 100vh; /* fallback */
+            display: flex;
+            flex-direction: column;
+            font-family: system-ui, -apple-system, sans-serif;
+            overflow: hidden;
+        }
+        @supports (height: 100dvh) {
+            .timer-body { height: 100dvh; }
+        }
+        .timer-body nav, .timer-body .nav-top, .timer-body .nav-links { display: none; }
+        .timer-body footer { display: none; }
+
+        .timer-container {
+            flex: 1 1 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 0.5rem 1rem;
+            /* viewport-fit=cover is set, so on an iPhone the layout runs under the
+               home indicator and, in landscape, under the notch. Only the tray
+               honoured the insets, which left the bottom-most line (Next) sitting
+               in the home-indicator strip. max() keeps the desktop padding where
+               there are no insets to honour. */
+            padding-left: max(1rem, env(safe-area-inset-left));
+            padding-right: max(1rem, env(safe-area-inset-right));
+            padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+            position: relative;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        /* ── Info bar ── */
+        .timer-info-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2rem;
+            width: 100%;
+            max-width: 1200px;
+            padding: 0.5rem 1rem;
+            flex-wrap: wrap;
+            flex-shrink: 0;
+        }
+        .timer-info-bar > span, .timer-info-bar > a {
+            font-size: clamp(0.85rem, 2vw, 1.2rem);
+            opacity: 0.85;
+        }
+        .timer-event-name {
+            /* Truncated, not shrunk. A 54-character tournament name scaled to
+               fit a 358px phone bar lands near 10px and stops being readable,
+               and this is identity rather than something you read at a glance.
+               min-width:0 is required for a flex item to shrink below its
+               content width at all; without it the ellipsis never engages. */
+            min-width: 0;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-weight: 700;
+            font-size: calc(clamp(1rem, 2.5vw, 1.5rem) * var(--timer-event-scale)) !important;
+            opacity: 1 !important;
+            color: var(--timer-event-color);
+        }
+        .timer-stat { color: var(--timer-stat-color); }
+        .timer-stat b { color: var(--timer-stat-strong); font-size: 110%; }
+
+        /* ── Main display ── */
+        .timer-display {
+            text-align: center;
+            flex: 1 1 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            min-height: 0;
+            overflow: hidden;
+        }
+        .timer-level-label {
+            font-size: calc((calc(clamp(0.9rem, 3vw, 2.5rem) * var(--timer-level-scale))) * var(--timer-vfit));
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--timer-level-color);
+        }
+        .timer-blinds {
+            font-size: calc((calc(clamp(2rem, 10vw, 10rem) * var(--timer-blinds-scale) * var(--timer-blinds-fit))) * var(--timer-vfit));
+            font-weight: 800;
+            color: var(--timer-blinds-color);
+            line-height: 1.1;
+            font-variant-numeric: tabular-nums;
+            /* Never wrap: a deep level like 20,000 / 40,000 / 5,000 broke onto a
+               second line and shoved the clock down the screen. fitBlinds()
+               shrinks the text to fit instead. nowrap is also what makes the
+               measurement possible — wrapped text reports no overflow. */
+            white-space: nowrap;
+        }
+        .timer-blinds > span, .timer-next > span, .timer-paused-label > span { display: inline-block; white-space: nowrap; }
+        .timer-ante {
+            font-size: calc((clamp(1rem, 2.5vw, 2.2rem)) * var(--timer-vfit));
+            color: var(--timer-ante-color);
+            font-weight: 700;
+        }
+        .timer-clock {
+            font-size: calc((calc(min(25vw, 35vh) * var(--timer-clock-scale))) * var(--timer-vfit));
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            line-height: 1;
+            margin: 0;
+            transition: color 0.3s;
+            /* Double-tap here starts and pauses. manipulation stops the browser
+               claiming the gesture for double-tap-to-zoom, and suppressing
+               selection stops the digits flashing highlighted on a double-click. */
+            touch-action: manipulation;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        /* A theme can position these anywhere, and they routinely end up over the
+           clock — PAUSED sits across it by default. They are read-only text, so
+           they must not swallow the clock's double-tap. The layout editor is the
+           one place they are interactive, where they have to be draggable. */
+        .timer-level-label,
+        .timer-blinds,
+        .timer-ante,
+        .timer-paused-label,
+        .timer-next { pointer-events: none; }
+        body.layout-edit .timer-level-label,
+        body.layout-edit .timer-blinds,
+        body.layout-edit .timer-ante,
+        body.layout-edit .timer-paused-label,
+        body.layout-edit .timer-next { pointer-events: auto; }
+
+        .timer-green { color: var(--timer-clock-green); }
+        .timer-yellow { color: var(--timer-clock-yellow); }
+        .timer-red { color: var(--timer-clock-red); animation: pulse 1s ease-in-out infinite; }
+        /* Radial clock variants: container becomes a square SVG host sized off the same font-size rule. */
+        .timer-clock[data-variant="radial-ring"],
+        .timer-clock[data-variant="radial-checks"] {
+            width: 1.6em;
+            height: 1.6em;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+        .timer-clock[data-variant="radial-ring"] svg,
+        .timer-clock[data-variant="radial-checks"] svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+            overflow: visible;
+        }
+        .timer-clock[data-variant="radial-ring"] .clock-num,
+        .timer-clock[data-variant="radial-checks"] .clock-num {
+            font-size: calc((9.5px) * var(--timer-vfit));
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            fill: currentColor;
+        }
+        .timer-clock[data-variant="radial-ring"] circle.clock-ring-fg,
+        .timer-clock[data-variant="radial-checks"] g.clock-check-fg path {
+            transition: stroke-dashoffset 0.5s linear;
+        }
+        .timer-paused-label {
+            font-size: calc((calc(clamp(0.8rem, 2vw, 1.8rem) * var(--timer-paused-scale) * var(--timer-paused-fit))) * var(--timer-vfit));
+            color: var(--timer-paused-color);
+            font-weight: 600;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            min-height: 1.5em;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .timer-next {
+            white-space: nowrap;
+            font-size: calc((calc(clamp(1.3rem, 3.5vw, 2.5rem) * var(--timer-next-scale) * var(--timer-next-fit))) * var(--timer-vfit));
+            color: var(--timer-next-color);
+            font-weight: 600;
+        }
+
+        /* ── Controls ── */
+        .timer-primary-controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.4rem 0;
+            width: 100%;
+            max-width: 900px;
+            flex: 0 0 auto;
+        }
+        /* ── Floating glass toolbar (all screens) ── */
+        .timer-tray {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%) translateY(0);
+            width: auto;
+            max-width: 95vw;
+            z-index: 50;
+            background: var(--timer-tray-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 14px 14px 0 0;
+            padding: 0.4rem 0.75rem;
+            border: 1px solid var(--timer-tray-border);
+            border-bottom: none;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+        .timer-tray.tray-hidden {
+            transform: translateX(-50%) translateY(100%);
+            opacity: 0;
+            pointer-events: none;
+        }
+        .timer-tray-grid {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.25rem;
+            flex-wrap: wrap;
+            padding: 0;
+        }
+        .timer-tray-sep {
+            width: 1px;
+            height: 1.5rem;
+            background: rgba(148, 163, 184, 0.3);
+            margin: 0 0.15rem;
+            flex-shrink: 0;
+        }
+        @media (min-width: 769px) {
+            .timer-tray { padding: 0.5rem 1rem; }
+            .timer-tray-grid { flex-wrap: nowrap; }
+        }
+        @media (max-width: 768px) {
+            .timer-tray { padding: 0.35rem 0.5rem; padding-bottom: max(0.35rem, env(safe-area-inset-bottom)); }
+            .timer-tray-grid { gap: 0.2rem; }
+            .timer-tray-grid button { padding: 0.3rem 0.45rem !important; font-size: 0.9rem !important; min-width: 2.2rem; }
+            .tray-label { font-size: 0.48rem !important; }
+            .timer-tray-grid .btn-play { background: #16a34a !important; border-color: #16a34a !important; color: #fff !important; padding: 0.3rem 0.7rem !important; }
+            .timer-tray-grid .btn-play.is-running { background: #dc2626 !important; border-color: #dc2626 !important; }
+        }
+        .timer-primary-controls button,
+        .timer-tray-grid button,
+        .timer-controls button {
+            background: var(--timer-tray-button-bg);
+            color: var(--timer-tray-button-color);
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 0.6rem 1.2rem;
+            font-size: clamp(0.8rem, 1.5vw, 1rem);
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s;
+            white-space: nowrap;
+        }
+        .tray-label {
+            display: none;
+        }
+        @media (min-width: 769px) {
+            .timer-tray-grid button {
+                padding: 0.35rem 0.6rem;
+                font-size: 1rem;
+                border-radius: 10px;
+                min-width: 2.8rem;
+                text-align: center;
+                border-color: rgba(71, 85, 105, 0.5);
+                display: inline-flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 0.1rem;
+                line-height: 1;
+            }
+            .tray-label {
+                display: block;
+                font-size: 0.55rem;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+                color: #94a3b8;
+            }
+            .timer-tray-grid button:hover {
+                background: #334155;
+                border-color: #64748b;
+            }
+            .timer-tray-grid button:hover .tray-label { color: #e2e8f0; }
+            .timer-tray-grid button.btn-danger { color: #ef4444; }
+        }
+        .timer-controls button:hover {
+            background: #334155;
+            border-color: #475569;
+        }
+        .timer-controls button.btn-play {
+            background: #16a34a;
+            border-color: #16a34a;
+            color: #fff;
+            font-weight: 700;
+            padding: 0.6rem 2rem;
+        }
+        .timer-controls button.btn-play:hover { background: #15803d; }
+        .timer-controls button.btn-play.is-running {
+            background: #dc2626;
+            border-color: #dc2626;
+        }
+        .timer-controls button.btn-play.is-running:hover { background: #b91c1c; }
+        .timer-min-group, .timer-reset-group {
+            display: inline-flex;
+            align-items: center;
+            gap: 0;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .timer-min-group button, .timer-reset-group button {
+            border: none !important;
+            border-radius: 0 !important;
+            padding: 0.6rem 0.7rem;
+        }
+        .timer-min-group button:first-child { border-right: 1px solid #334155 !important; }
+        .timer-min-group button:last-child { border-left: 1px solid #334155 !important; }
+        .timer-reset-group button:first-child { border-right: 1px solid #334155 !important; }
+        @media (min-width: 769px) {
+            .timer-reset-group {
+                display: inline-flex;
+                border: none;
+                gap: 0.25rem;
+            }
+            .timer-reset-group button {
+                border: 1px solid rgba(71, 85, 105, 0.5) !important;
+                border-radius: 10px !important;
+                padding: 0.35rem 0.6rem !important;
+                min-width: 2.8rem;
+            }
+        }
+        .timer-min-label {
+            padding: 0 0.5rem;
+            color: #94a3b8;
+            font-size: clamp(0.75rem, 1.3vw, 0.9rem);
+            font-weight: 600;
+            user-select: none;
+        }
+
+        /* ── "Link this timer to an event" banner (standalone mode) ── */
+        .timer-link-banner {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 300;
+            display: flex; flex-wrap: wrap; gap: .5rem .75rem;
+            align-items: center; justify-content: center;
+            background: #78350f; color: #fde68a;
+            padding: .5rem .9rem; font-size: .85rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,.4);
+        }
+        .timer-link-banner .tlb-text { font-weight: 600; }
+        .timer-link-banner .tlb-controls { display: flex; gap: .4rem; align-items: center; }
+        .timer-link-banner .tlb-select {
+            padding: .3rem .5rem; border-radius: 5px; border: 1px solid #b45309;
+            background: #fffbeb; color: #0f172a; font-size: .85rem; max-width: 60vw;
+        }
+        .timer-link-banner .tlb-btn {
+            padding: .3rem .8rem; border-radius: 5px; border: none;
+            background: #f59e0b; color: #0f172a; font-weight: 700; cursor: pointer; font-size: .85rem;
+        }
+        .timer-link-banner .tlb-btn:hover { background: #fbbf24; }
+        body.display-mode .timer-link-banner { display: none; }
+
+        /* ── Back link ── */
+        .timer-back {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            color: #64748b;
+            text-decoration: none;
+            font-size: 0.95rem;
+            z-index: 10;
+        }
+        .timer-back:hover { color: #e2e8f0; }
+
+        /* ── Payout display ── */
+        .timer-payouts {
+            position: absolute;
+            top: 3rem;
+            right: 0.75rem;
+            background: rgba(30,41,59,0.85);
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 0.5rem 0.75rem;
+            font-size: clamp(0.7rem, 1.2vw, 0.9rem);
+            line-height: 1.6;
+            color: var(--timer-payouts-color);
+            z-index: 10;
+        }
+        .timer-payouts-title {
+            font-weight: 700;
+            color: #e2e8f0;
+            margin-bottom: 0.2rem;
+            font-size: clamp(0.75rem, 1.3vw, 0.95rem);
+        }
+        .timer-payouts .payout-row b {
+            color: #e2e8f0;
+        }
+        @media (max-width: 500px) {
+            .timer-payouts { font-size: 0.65rem; padding: 0.35rem 0.5rem; }
+        }
+
+        /* Average stack display (left side, top-aligned with payouts) */
+        .timer-avgstack {
+            position: absolute;
+            top: 3rem;
+            left: 0.75rem;
+            background: rgba(30,41,59,0.85);
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 0.5rem 0.75rem;
+            font-size: clamp(0.7rem, 1.2vw, 0.9rem);
+            line-height: 1.6;
+            color: var(--timer-avgstack-color);
+            z-index: 10;
+        }
+        .timer-avgstack-title {
+            font-weight: 700;
+            color: #e2e8f0;
+            margin-bottom: 0.2rem;
+            font-size: clamp(0.75rem, 1.3vw, 0.95rem);
+        }
+        .timer-avgstack b { color: #e2e8f0; }
+        @media (max-width: 500px) {
+            .timer-avgstack { font-size: 0.65rem; padding: 0.35rem 0.5rem; }
+        }
+
+        /* ── QR code ── */
+        .timer-qr {
+            position: absolute;
+            bottom: 1rem;
+            right: 1rem;
+            background: #fff;
+            padding: 6px;
+            border-radius: 8px;
+            z-index: 10;
+        }
+        .timer-qr canvas { display: block; }
+
+        /* ── Levels panel ── */
+        .timer-levels-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 200;
+        }
+        .timer-levels-overlay.open { display: flex; align-items: center; justify-content: center; }
+        .timer-levels-panel {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 1.5rem;
+            width: 90%;
+            max-width: 700px;
+            max-height: 80vh;
+            overflow-y: auto;
+            color: #e2e8f0;
+        }
+        .timer-levels-panel h3 { margin: 0 0 1rem; font-size: 1.3rem; }
+        /* #levelsOverlay turns the panel into a flex column: a static header that
+           never scrolls, plus a single scrolling region (.timer-levels-scroll)
+           below it. This makes it impossible for level rows to scroll under the
+           header. Scoped so the other overlays sharing .timer-levels-panel are
+           untouched. */
+        #levelsOverlay .timer-levels-panel {
+            display: flex;
+            flex-direction: column;
+            padding: 0;
+            overflow: hidden; /* scrolling now belongs to .timer-levels-scroll */
+        }
+        /* Fixed editor header — holds the title, action buttons, AND preset menu.
+           It sits outside the scroll region so the blind structure scrolls beneath
+           nothing. */
+        .timer-editor-head {
+            flex: 0 0 auto;
+            background: #1e293b;
+            padding: 1.25rem 1.5rem 0.7rem 1.5rem; /* top clears the absolute × button */
+            border-bottom: 1px solid #334155;
+        }
+        .timer-editor-titlebar {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            padding-right: 2.25rem; /* clear the × close button */
+        }
+        .timer-editor-titlebar h3 { margin: 0 0.35rem 0 0; font-size: 1.1rem; }
+        .timer-editor-titlebar button {
+            background: #334155;
+            color: #e2e8f0;
+            border: 1px solid #475569;
+            border-radius: 6px;
+            padding: 0.4rem 0.7rem;
+            cursor: pointer;
+            font-size: 0.8rem;
+            white-space: nowrap;
+        }
+        .timer-editor-titlebar button:hover { background: #475569; }
+        .timer-editor-titlebar .btn-save {
+            background: var(--timer-accent);
+            border-color: var(--timer-accent);
+            color: #fff;
+        }
+        .timer-editor-titlebar .btn-save:hover { filter: brightness(0.9); }
+        .timer-editor-titlebar .btn-close-panel {
+            background: #64748b;
+            border-color: #64748b;
+            color: #fff;
+        }
+        .timer-editor-titlebar .btn-save.has-unsaved { box-shadow: 0 0 0 2px rgba(255,255,255,0.45); }
+        /* Preset menu now lives inside the sticky header — trim its outer margin. */
+        .timer-editor-head .timer-preset-bar { margin: 0.55rem 0 0; }
+        .timer-preset-bar {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .timer-preset-bar select, .timer-preset-bar input {
+            background: #0f172a;
+            color: #e2e8f0;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 0.4rem 0.6rem;
+            font-size: 0.9rem;
+        }
+        .timer-preset-bar button {
+            background: #334155;
+            color: #e2e8f0;
+            border: 1px solid #475569;
+            border-radius: 6px;
+            padding: 0.4rem 0.8rem;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+        .timer-preset-bar button:hover { background: #475569; }
+        /* Preset theme gallery (built-in .gnt.json presets). */
+        .preset-gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 0.9rem;
+            margin: 0.25rem 0 1rem;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+        .preset-card {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .preset-card .preset-mock { position: relative; aspect-ratio: 16 / 9; overflow: hidden; }
+        .preset-card .preset-foot {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.4rem;
+            padding: 0.5rem 0.6rem;
+        }
+        .preset-card .preset-name {
+            font-size: 0.85rem;
+            color: #e2e8f0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .preset-card .preset-foot button {
+            background: #334155;
+            color: #e2e8f0;
+            border: 1px solid #475569;
+            border-radius: 6px;
+            padding: 0.25rem 0.6rem;
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+        .preset-card .preset-foot button:hover { background: #475569; }
+        /* The only scrolling region in #levelsOverlay. Re-supplies the horizontal +
+           bottom padding the panel lost when it went to padding:0. */
+        .timer-levels-scroll {
+            flex: 1 1 auto;
+            min-height: 0;   /* let the flex item shrink so IT scrolls (not the panel) */
+            overflow-y: auto;
+            padding: 0 1.5rem 1.5rem; /* no top padding: the sticky th pins flush under the header */
+        }
+        .timer-levels-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        .timer-levels-table th {
+            text-align: left;
+            padding: 0.4rem;
+            color: #94a3b8;
+            font-weight: 600;
+            position: sticky;
+            top: 0; /* pins to the top of .timer-levels-scroll */
+            z-index: 4;
+            background: #1e293b;
+            box-shadow: inset 0 -1px 0 #334155; /* underline survives sticky + border-collapse */
+        }
+        .timer-levels-table td {
+            padding: 0.35rem 0.4rem;
+            border-bottom: 1px solid #1e293b;
+        }
+        .timer-levels-table tr.is-break td { color: #fbbf24; font-style: italic; }
+        .timer-levels-table tr.current-level td { background: rgba(34,197,94,0.15); }
+        .timer-levels-table td { transition: background-color 0.45s ease; }
+        .timer-levels-table tr.lvl-moved td { background: rgba(96,165,250,0.30); }
+        .timer-levels-table tr.lvl-dragging td { opacity: 0.35; }
+        .timer-levels-table input[type="number"] {
+            background: #0f172a;
+            color: #e2e8f0;
+            border: 1px solid #334155;
+            border-radius: 4px;
+            padding: 0.25rem 0.4rem;
+            width: 70px;
+            font-size: 0.85rem;
+        }
+        .timer-levels-table .lvl-actions { white-space: nowrap; }
+        .timer-levels-table .lvl-actions button {
+            background: none;
+            border: none;
+            color: #ef4444;
+            cursor: pointer;
+            font-size: 1.1rem;
+            padding: 0.2rem;
+        }
+        .timer-levels-table .lvl-actions button.lvl-move {
+            font-size: 0.95rem;
+            line-height: 1;
+            padding: 0.3rem 0.25rem;
+        }
+        .timer-levels-table .lvl-actions button:disabled { opacity: 0.25; cursor: default; }
+        .timer-level-btns button.btn-save.has-unsaved {
+            box-shadow: 0 0 0 2px rgba(255,255,255,0.45);
+        }
+        .timer-level-btns {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+            flex-wrap: wrap;
+        }
+        .timer-level-btns button {
+            background: #334155;
+            color: #e2e8f0;
+            border: 1px solid #475569;
+            border-radius: 6px;
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        .timer-level-btns button:hover { background: #475569; }
+        .timer-level-btns button.btn-save {
+            background: var(--timer-accent);
+            border-color: var(--timer-accent);
+            color: #fff;
+        }
+        .timer-level-btns button.btn-save:hover { filter: brightness(0.9); }
+        .timer-level-btns button.btn-close-panel {
+            background: #64748b;
+            border-color: #64748b;
+            color: #fff;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 900px) {
+            .timer-info-bar { gap: 0.5rem; padding: 0.25rem 0.5rem; }
+            .timer-primary-controls, .timer-tray-grid {
+                gap: 0.3rem;
+            }
+            .timer-primary-controls button, .timer-tray-grid button, .timer-controls button {
+                padding: 0.4rem 0.6rem;
+                font-size: 0.75rem;
+                border-radius: 6px;
+            }
+            .timer-primary-controls button.btn-play, .timer-controls button.btn-play {
+                padding: 0.4rem 1rem;
+            }
+            .timer-blinds { font-size: calc((calc(clamp(2rem, 9vw, 6rem) * var(--timer-blinds-scale) * var(--timer-blinds-fit))) * var(--timer-vfit)); }
+            .timer-clock { font-size: calc((calc(min(22vw, 30vh) * var(--timer-clock-scale))) * var(--timer-vfit)); }
+            .timer-level-label { font-size: calc((calc(clamp(0.9rem, 2.5vw, 1.5rem) * var(--timer-level-scale))) * var(--timer-vfit)); }
+        }
+        @media (max-width: 500px) {
+            .timer-primary-controls button, .timer-tray-grid button, .timer-controls button {
+                padding: 0.35rem 0.5rem;
+                font-size: 0.7rem;
+            }
+            .timer-primary-controls button.btn-play, .timer-controls button.btn-play {
+                padding: 0.35rem 0.8rem;
+            }
+            .timer-qr { display: none; }
+        }
+        /* Landscape phones: shrink everything to fit */
+        @media (max-height: 500px) {
+            .timer-container { padding: 0.25rem 0.5rem;
+                /* Restated: the shorthand above resets the base rule's insets,
+                   and this block is exactly the iPhone-landscape case where the
+                   home indicator and notch eat into the layout. */
+                padding-left: max(0.5rem, env(safe-area-inset-left));
+                padding-right: max(0.5rem, env(safe-area-inset-right));
+                padding-bottom: max(0.25rem, env(safe-area-inset-bottom)); }
+            .timer-info-bar { padding: 0.15rem 0.5rem; gap: 1rem; }
+            .timer-info-bar > span { font-size: 0.8rem; }
+            .timer-level-label { font-size: calc((calc(1rem * var(--timer-level-scale))) * var(--timer-vfit)); }
+            .timer-blinds { font-size: calc((calc(clamp(1.5rem, 6vw, 3rem) * var(--timer-blinds-scale) * var(--timer-blinds-fit))) * var(--timer-vfit)); }
+            .timer-ante { font-size: calc((0.85rem) * var(--timer-vfit)); }
+            .timer-clock { font-size: calc((calc(min(20vw, 25vh) * var(--timer-clock-scale))) * var(--timer-vfit)); }
+            .timer-paused-label { font-size: calc((calc(0.9rem * var(--timer-paused-fit))) * var(--timer-vfit)); min-height: 1.2em; }
+            .timer-next { font-size: calc((calc(1.1rem * var(--timer-next-scale) * var(--timer-next-fit))) * var(--timer-vfit)); }
+            .timer-primary-controls, .timer-tray-grid { padding: 0.2rem 0; gap: 0.25rem; }
+            .timer-primary-controls button, .timer-tray-grid button, .timer-controls button { padding: 0.3rem 0.5rem; font-size: 0.7rem; }
+            .timer-primary-controls button.btn-play, .timer-controls button.btn-play { padding: 0.3rem 0.8rem; }
+        }
+
+        /* Player management panel */
+        .player-panel-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:200}
+        .player-panel{position:fixed;top:0;right:-320px;width:300px;max-width:85vw;height:100%;background:#1e293b;z-index:201;transition:right .25s ease;display:flex;flex-direction:column}
+        .player-panel.open{right:0}
+        /* Attention "peek": shortly after load the panel edge bounces out twice so
+           hosts discover the slide-out. Class is added once by JS and removed on
+           animationend; suppressed for reduced-motion users. */
+        @keyframes pp-peek{0%{right:-320px}14%{right:-244px}28%{right:-320px}42%{right:-252px}56%{right:-320px}70%{right:-264px}84%{right:-320px}100%{right:-320px}}
+        .player-panel.pp-peek{animation:pp-peek 2.2s cubic-bezier(.36,.07,.19,.97)}
+        @keyframes pp-nudge{0%,100%{transform:translateX(0)}15%,45%,75%{transform:translateX(-5px)}30%,60%,90%{transform:translateX(5px)}}
+        .pp-nudge{animation:pp-nudge 2.2s ease-in-out}
+        @media (prefers-reduced-motion: reduce){
+            .player-panel.pp-peek,.pp-nudge{animation:none}
+        }
+        .player-panel-header{display:flex;justify-content:space-between;align-items:center;padding:.75rem 1rem;border-bottom:1px solid #334155;color:#f1f5f9;font-weight:700;font-size:.95rem;flex-shrink:0}
+        .player-panel-body{flex:1;overflow-y:auto;padding:.5rem}
+        .pp-card{background:#0f172a;border:1px solid #334155;border-radius:6px;padding:.5rem .65rem;margin-bottom:.4rem}
+        .pp-card.elim{opacity:.4}
+        .pp-name{font-weight:600;font-size:.85rem;color:#f1f5f9}
+        .pp-status{font-size:.7rem;font-weight:600;margin-left:.4rem}
+        .pp-actions{display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.35rem}
+        .pp-actions button{padding:.25rem .5rem;border-radius:4px;font-size:.7rem;font-weight:600;cursor:pointer;border:1px solid #475569;background:#1e293b;color:#94a3b8}
+        .pp-actions button:active{background:#334155}
+        .pp-actions .pp-elim{color:#ef4444;border-color:#7f1d1d}
+        .pp-actions .pp-undo{color:#fbbf24;border-color:#78350f}
+        .pp-counter{display:inline-flex;align-items:center;gap:0;border:1px solid #475569;border-radius:4px;overflow:hidden}
+        .pp-counter button{width:22px;height:22px;border:none;background:#334155;color:#f1f5f9;cursor:pointer;font-weight:700;font-size:.8rem;display:flex;align-items:center;justify-content:center}
+        .pp-counter button:active{background:#475569}
+        .pp-counter span{min-width:18px;text-align:center;font-weight:600;font-size:.75rem;color:#f1f5f9;padding:0 2px}
+        /* ── Swipe hint indicators ── */
+        .swipe-hint-bottom, .swipe-hint-right {
+            position: fixed;
+            z-index: 40;
+            pointer-events: none;
+            opacity: 0.4;
+            transition: opacity 0.3s;
+        }
+        .swipe-hint-bottom {
+            bottom: 4px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 36px;
+            height: 4px;
+            background: #475569;
+            border-radius: 3px;
+        }
+        .swipe-hint-right {
+            right: 3px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 4px;
+            height: 36px;
+            background: #475569;
+            border-radius: 3px;
+        }
+        @media (pointer: fine) {
+            .swipe-hint-bottom, .swipe-hint-right { display: none; }
+        }
+        body.display-mode .swipe-hint-bottom,
+        body.display-mode .swipe-hint-right { display: none; }
+
+        /* ── TV Display Mode ── */
+        body.display-mode .timer-tray,
+        body.display-mode .timer-tray-handle,
+        body.display-mode .timer-back,
+        body.display-mode .timer-qr,
+        body.display-mode .player-panel,
+        body.display-mode .player-panel-overlay { display: none !important; }
+
+        body.display-mode .timer-container { padding: 1rem 2rem;
+            padding-left: max(2rem, env(safe-area-inset-left));
+            padding-right: max(2rem, env(safe-area-inset-right));
+            padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+        body.display-mode .timer-level-label { font-size: calc((calc(clamp(2rem, 4vw, 4rem) * var(--timer-level-scale))) * var(--timer-vfit)); }
+        body.display-mode .timer-blinds { font-size: calc((calc(clamp(3rem, 12vw, 12rem) * var(--timer-blinds-scale) * var(--timer-blinds-fit))) * var(--timer-vfit)); }
+        body.display-mode .timer-clock { font-size: calc((calc(min(30vw, 45vh) * var(--timer-clock-scale))) * var(--timer-vfit)); }
+        body.display-mode .timer-next { font-size: calc((calc(clamp(1.8rem, 4vw, 4rem) * var(--timer-next-scale) * var(--timer-next-fit))) * var(--timer-vfit)); }
+        body.display-mode .timer-ante { font-size: calc((clamp(1.5rem, 3vw, 3rem)) * var(--timer-vfit)); }
+        body.display-mode .timer-paused-label { font-size: calc((calc(clamp(2rem, 4vw, 3.5rem) * var(--timer-paused-fit))) * var(--timer-vfit)); }
+        body.display-mode .timer-info-bar { font-size: clamp(1.2rem, 2.5vw, 2.2rem); padding: 0.75rem 2rem; gap: 2rem; }
+
+        /* ── Free-form layout editing ── */
+        /* Elements with an explicit theme position get pulled out of flow and pinned to the
+           viewport. --pos-x/--pos-y are percentages of viewport width/height; the element's
+           CENTER lands on that point (so the chosen anchor matches what the user sees while dragging). */
+        .timer-positioned {
+            position: fixed;
+            left: var(--pos-x, 50%);
+            top:  var(--pos-y, 50%);
+            right: auto;
+            bottom: auto;
+            transform: translate(-50%, -50%);
+            margin: 0;
+            z-index: 20;
+            white-space: nowrap;
+        }
+        /* QR keeps its current size unless theme overrides; transform stacks translate+scale. */
+        #qrWrap.timer-positioned {
+            transform: translate(-50%, -50%) scale(var(--timer-qr-scale, 1));
+            transform-origin: center;
+        }
+        /* Themable image: defaults centered and constrained, scaled via transform. */
+        .timer-image {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            max-width: 40vmin;
+            max-height: 40vmin;
+            object-fit: contain;
+            z-index: 5;
+            user-select: none;
+            pointer-events: auto;
+        }
+        #themeImage.timer-positioned {
+            transform: translate(-50%, -50%) scale(var(--timer-image-scale, 1));
+            transform-origin: center;
+            z-index: 4;  /* sit behind the text layer (z 20); above page bg */
+        }
+        /* Generic per-element scale for free-positioned widgets that don't have
+           a custom #id.timer-positioned rule of their own. Element-scoped --el-scale
+           is set by applyTheme based on theme.elements[key].scale. ID-specific rules
+           (qr, image, streaming, etc.) override via higher specificity. */
+        .timer-positioned[data-has-scale] {
+            transform: translate(-50%, -50%) scale(var(--el-scale, 1));
+            transform-origin: center;
+        }
+        /* Streaming video iframe (positioned + resized like themeImage). */
+        .timer-stream {
+            width: 30vw;
+            aspect-ratio: 16 / 9;
+            pointer-events: auto;
+            background: #000;
+            /* Positioning + transform are owned by #streamingWrap.timer-positioned below
+               (higher specificity than the generic .timer-positioned rule). */
+        }
+        .timer-stream iframe { width: 100%; height: 100%; border: 0; display: block; }
+        /* Empty placeholder shown in edit mode when no URL is set yet. */
+        .timer-stream.is-empty {
+            background: repeating-linear-gradient(45deg,#1e293b,#1e293b 10px,#0f172a 10px,#0f172a 20px);
+            display: flex; align-items: center; justify-content: center;
+            color: #cbd5e1; font-size: .8rem; text-align: center; padding: .5rem;
+        }
+        /* In edit mode, let clicks reach the wrapper instead of the iframe so the user
+           can drag/select the panel. The iframe stays interactive in normal mode. */
+        body.layout-edit .timer-stream iframe { pointer-events: none; }
+        #streamingWrap.timer-positioned {
+            position: fixed;
+            left: var(--pos-x, 75%);
+            top:  var(--pos-y, 25%);
+            transform: translate(-50%, -50%) scale(var(--timer-stream-scale, 1));
+            transform-origin: center;
+            z-index: 4;
+        }
+        /* Info bar wraps when extra panels overflow narrow screens. */
+        .timer-info-bar { flex-wrap: wrap; }
+        /* Color variables for the three new info-bar stats. */
+        #rebuysWrap       { color: var(--timer-rebuys-color, #94a3b8); }
+        #chipsInPlayWrap  { color: var(--timer-chips-color, #94a3b8); }
+        #nextBreakWrap    { color: var(--timer-nextbreak-color, #94a3b8); }
+        #endsAtWrap       { color: var(--timer-endsat-color, #94a3b8); }
+        /* Center guides shown only in layout-edit mode. Subtle by default; brighten when
+           an element snaps to them mid-drag. */
+        .center-guide-v, .center-guide-h {
+            position: fixed;
+            background: rgba(251, 191, 36, 0.18);
+            pointer-events: none;
+            z-index: 5;
+            display: none;
+        }
+        body.layout-edit .center-guide-v,
+        body.layout-edit .center-guide-h { display: block; }
+        .center-guide-v { top: 0; bottom: 0; left: 50%; width: 1px; }
+        .center-guide-h { left: 0; right: 0; top: 50%; height: 1px; }
+        .center-guide-v.is-snapping,
+        .center-guide-h.is-snapping {
+            background: rgba(251, 191, 36, 0.95);
+            box-shadow: 0 0 8px rgba(251, 191, 36, 0.6);
+        }
+        /* Smart-alignment guides — shown when the dragging element snaps to another
+           element's center axis. Positioned dynamically by makeDragStart. */
+        .align-guide-v, .align-guide-h {
+            position: fixed;
+            background: rgba(56, 189, 248, 0.95);
+            box-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+            pointer-events: none;
+            z-index: 6;
+            display: none;
+        }
+        .align-guide-v { top: 0; bottom: 0; width: 1px; }
+        .align-guide-h { left: 0; right: 0; height: 1px; }
+        .align-guide-v.is-snapping,
+        .align-guide-h.is-snapping { display: block; }
+        /* On-screen reminder about the Shift modifier (edit mode only). */
+        .snap-hint {
+            position: fixed;
+            bottom: 0.6rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 23, 42, 0.85);
+            color: #cbd5e1;
+            border: 1px solid #334155;
+            border-radius: 999px;
+            padding: 0.25rem 0.7rem;
+            font-size: 0.72rem;
+            letter-spacing: 0.02em;
+            z-index: 998;
+            display: none;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        body.layout-edit .snap-hint { display: inline-block; }
+        body.layout-edit { user-select: none; -webkit-user-select: none; }
+        body.layout-edit .timer-positioned,
+        body.layout-edit .layout-draggable {
+            outline: 2px dashed #fbbf24;
+            outline-offset: 4px;
+            cursor: grab;
+        }
+        body.layout-edit .timer-positioned:active,
+        body.layout-edit .layout-draggable:active { cursor: grabbing; }
+        body.layout-edit .timer-tray,
+        body.layout-edit .timer-back { display: none !important; }
+        .layout-edit-pill {
+            position: fixed;
+            top: 25%;
+            left: 25%;
+            transform: translate(-50%, -50%);
+            z-index: 999;
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid #475569;
+            border-radius: 999px;
+            padding: 0.35rem 0.65rem;
+            display: none;
+            gap: 0.4rem;
+            align-items: center;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+        }
+        body.layout-edit .layout-edit-pill { display: inline-flex; }
+        .layout-edit-pill button {
+            background: #1e293b;
+            color: #e2e8f0;
+            border: 1px solid #475569;
+            border-radius: 999px;
+            padding: 0.35rem 0.75rem;
+            font-size: 0.85rem;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .layout-edit-pill button:hover { background: #334155; }
+        .layout-edit-pill button.btn-done { background: #2563eb; border-color: #2563eb; color: #fff; }
+        .layout-edit-pill button#snapToggleBtn.snap-on  { background: #2563eb; border-color: #2563eb; color: #fff; }
+        .layout-edit-pill button#snapToggleBtn.snap-off { background: #1e293b; border-color: #64748b; color: #94a3b8; }
+        .layout-edit-pill button.btn-danger { color: #ef4444; }
+        .layout-edit-pill .pill-handle {
+            cursor: grab;
+            color: #64748b;
+            padding: 0.25rem 0.4rem;
+            font-size: 1rem;
+            user-select: none;
+            line-height: 1;
+        }
+        .layout-edit-pill .pill-handle:active { cursor: grabbing; }
+        .layout-edit-pill .pill-sep { width: 1px; align-self: stretch; background: #334155; margin: 0 0.15rem; }
+
+        /* Per-element eye icon overlay (visible when in edit mode) */
+        .layout-eye {
+            position: absolute;
+            top: -1.4rem;
+            left: -0.2rem;
+            background: rgba(15, 23, 42, 0.95);
+            color: #fbbf24;
+            border: 1px solid #fbbf24;
+            border-radius: 999px;
+            width: 1.5rem;
+            height: 1.5rem;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 0.75rem;
+            line-height: 1;
+            z-index: 25;
+            user-select: none;
+            transition: transform 0.1s;
+        }
+        .layout-eye:hover { transform: scale(1.25); }
+        .layout-eye.is-hidden { color: #64748b; border-color: #64748b; }
+        body.layout-edit .timer-positioned .layout-eye { display: inline-flex; }
+        /* Selected element gets a different (solid blue) outline. */
+        body.layout-edit .timer-positioned.is-selected {
+            outline: 3px solid #2563eb;
+            outline-offset: 4px;
+        }
+
+        /* Inspector panel — properties for the currently selected element */
+        .layout-inspector {
+            position: fixed;
+            top: 4.5rem;
+            right: 1rem;
+            z-index: 998;
+            width: 260px;
+            background: rgba(15, 23, 42, 0.97);
+            border: 1px solid #475569;
+            border-radius: 12px;
+            color: #e2e8f0;
+            display: none;
+            flex-direction: column;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        body.layout-edit .layout-inspector.is-open { display: flex; }
+        .layout-inspector-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.5rem 0.75rem;
+            background: #1e293b;
+            border-bottom: 1px solid #334155;
+            border-radius: 12px 12px 0 0;
+            cursor: grab;
+            user-select: none;
+        }
+        .layout-inspector-header:active { cursor: grabbing; }
+        .layout-inspector-header h4 { margin: 0; font-size: 0.9rem; color: #fff; font-weight: 600; }
+        .layout-inspector-close {
+            background: none; border: none; color: #94a3b8; font-size: 1.2rem; cursor: pointer; padding: 0 0.25rem; line-height: 1;
+        }
+        .layout-inspector-body {
+            padding: 0.75rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+            font-size: 0.85rem;
+        }
+        .layout-inspector-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+        .layout-inspector-row label { color: #cbd5e1; }
+        .layout-inspector-row input[type="color"] { width: 2rem; height: 2rem; padding: 0; border: 1px solid #334155; background: transparent; cursor: pointer; border-radius: 6px; }
+        .layout-inspector-row .ins-btn {
+            background: #334155; color: #e2e8f0; border: 1px solid #475569; border-radius: 6px;
+            padding: 0.2rem 0.55rem; cursor: pointer; font-size: 0.85rem;
+        }
+        .layout-inspector-row .ins-btn:hover { background: #475569; }
+        .layout-inspector-row .ins-btn.is-active { background: #2563eb; border-color: #2563eb; color: #fff; }
+        .layout-inspector-row .ins-scale { min-width: 3rem; text-align: center; color: #94a3b8; font-size: 0.8rem; }
+
+        /* Objects panel — left-edge floating list of every theme element (mirror of inspector). */
+        .layout-objects-panel {
+            position: fixed;
+            top: 4.5rem;
+            left: 1rem;
+            z-index: 998;
+            width: 220px;
+            background: rgba(15, 23, 42, 0.97);
+            border: 1px solid #475569;
+            border-radius: 12px;
+            color: #e2e8f0;
+            display: none;
+            flex-direction: column;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        body.layout-edit .layout-objects-panel.is-open { display: flex; }
+        .layout-objects-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.5rem 0.75rem;
+            background: #1e293b;
+            border-bottom: 1px solid #334155;
+            border-radius: 12px 12px 0 0;
+            cursor: grab;
+            user-select: none;
+        }
+        .layout-objects-header:active { cursor: grabbing; }
+        .layout-objects-header h4 { margin: 0; font-size: 0.9rem; color: #fff; font-weight: 600; }
+        .layout-objects-body { padding: 0.4rem; max-height: 70vh; overflow-y: auto; }
+        .layout-object-row {
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+            padding: 0.3rem 0.45rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .layout-object-row:hover { background: #1e293b; }
+        .layout-object-row.is-selected { background: #1e3a8a; }
+        .layout-object-row .obj-eye {
+            background: none;
+            border: none;
+            color: #fbbf24;
+            cursor: pointer;
+            padding: 0;
+            width: 1.2rem;
+            font-size: 0.95rem;
+            line-height: 1;
+        }
+        .layout-object-row .obj-eye.is-hidden { color: #64748b; }
+        .layout-object-row .obj-label { flex: 1; color: #e2e8f0; }
+        .layout-object-row.is-hidden .obj-label { color: #64748b; font-style: italic; }
+        /* Layer reorder controls: grip (pointer-drag) + ▲/▼ (touch-reliable fallback). */
+        .layout-object-row .obj-grip {
+            color: #64748b; cursor: grab; user-select: none; touch-action: none;
+            font-size: 0.95rem; line-height: 1; padding: 0 0.1rem; width: 1rem; text-align: center;
+        }
+        .layout-object-row .obj-grip:active { cursor: grabbing; }
+        .layout-object-row .obj-move {
+            display: inline-flex; gap: 0.1rem;
+        }
+        .layout-object-row .obj-move button {
+            background: none; border: none; color: #94a3b8; cursor: pointer;
+            padding: 0 0.15rem; font-size: 0.8rem; line-height: 1;
+        }
+        .layout-object-row .obj-move button:hover:not(:disabled) { color: #e2e8f0; }
+        .layout-object-row .obj-move button:disabled { color: #475569; cursor: default; }
+        .layout-object-row.is-dragging {
+            background: #1e3a8a; box-shadow: 0 4px 14px rgba(0,0,0,0.5); opacity: 0.95;
+        }
+        body.layout-edit .timer-positioned[data-ghost-selected="1"] { opacity: 0.45; }
