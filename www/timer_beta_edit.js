@@ -541,6 +541,18 @@ document.querySelectorAll('.tbe-chip').forEach(function (b) {
         document.querySelectorAll('.tbe-chip').forEach(function (x) { x.classList.remove('active'); });
         b.classList.add('active');
         PV.setState(STATES[b.getAttribute('data-state')]);
+        // Release the pinned screen so the preview shows the REAL screen the
+        // conditions would pick for this state — the whole point of the chips is
+        // to verify "Main when running / Paused when paused" actually switches.
+        // Then follow the preview: edit whichever screen is now showing.
+        PV.forceScreen(null);
+        var idx = PV.activeScreenIndex();
+        if (idx >= 0 && idx < LAYOUT.screens.length && idx !== editScreenIndex) {
+            editScreenIndex = idx; selPath = null;
+            renderScreensBar(); renderTree(); renderInspector();
+        } else {
+            renderScreensBar();   // refresh the "(showing)" hint even if unchanged
+        }
     });
 });
 
