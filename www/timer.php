@@ -141,7 +141,31 @@ if (isset($_GET['view']) && $_GET['view'] === 'remote' && !empty($_GET['key'])) 
     if ($event_id) {
         // Event-linked timer requires login
         if (!$current) { header('Location: /login.php?redirect=' . urlencode($_SERVER['REQUEST_URI'])); exit; }
-        verify_event_access($db, $event_id, $current, $isAdmin);
+        // NOT verify_event_access(): that helper answers with JSON and a 403,
+        // which is right for the *_dl.php endpoints it was written for and wrong
+        // for a page. Opening someone else's game printed a bare
+        // {"ok":false,"error":"Access denied"} in the browser. Same authority,
+        // same 403, readable answer.
+        $t = $db->prepare('SELECT title FROM events WHERE id = ?');
+        $t->execute([$event_id]);
+        $eventTitle = $t->fetchColumn();
+        // verify_event_access() 404s a missing event before checking rights;
+        // keep that contract rather than reporting someone else's deleted game
+        // as a permissions problem.
+        if ($eventTitle === false) {
+            http_response_code(404);
+            $eventTitle = '';
+            $denyReason = 'missing';
+            require __DIR__ . '/_event_denied.php';
+            exit;
+        }
+        if (!check_event_access($db, $event_id, $current, $isAdmin)) {
+            $eventTitle = (string)$eventTitle;
+            $denyReason = 'no_rights';
+            http_response_code(403);
+            require __DIR__ . '/_event_denied.php';
+            exit;
+        }
 
         $ev = $db->prepare('SELECT * FROM events WHERE id = ?');
         $ev->execute([$event_id]);
