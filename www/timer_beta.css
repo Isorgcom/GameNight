@@ -1,0 +1,94 @@
+/* Timer BETA — page chrome and cell primitives. Layout geometry itself comes
+ * from the JSON tree in timer_beta.js; this file only styles the pieces. */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body { height: 100%; overflow: hidden; }
+body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #000;
+    color: #fff;
+    -webkit-font-smoothing: antialiased;
+}
+
+#tbRoot { position: fixed; inset: 0; display: flex; }
+.tb-top { flex: 1; display: flex; min-width: 0; min-height: 0; }
+
+.tb-row, .tb-col { display: flex; min-width: 0; min-height: 0; }
+.tb-row { flex-direction: row; }
+.tb-col { flex-direction: column; }
+/* Children are content-sized unless the layout gives them a weight —
+ * applyBox() sets flex-grow/basis for weighted nodes. Content-sized cells can
+ * still shrink (min-height 0 above), and .tb-cell clips what cannot fit. */
+.tb-row > *, .tb-col > * { flex: 0 1 auto; }
+
+.tb-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    line-height: 1.25;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+.tb-cell-inner { max-width: 100%; white-space: pre-wrap; }
+.tb-fit .tb-cell-inner { white-space: nowrap; line-height: 1; }
+
+/* Clock state colours; the layout's own colour applies until a state does. */
+.tb-warn   { color: #fbbf24 !important; }
+.tb-crit   { color: #ef4444 !important; }
+.tb-paused { opacity: 0.55; animation: tbPulse 2.2s ease-in-out infinite; }
+@keyframes tbPulse { 50% { opacity: 0.3; } }
+@media (prefers-reduced-motion: reduce) { .tb-paused { animation: none; } }
+
+/* ── Corner bar: badge, layout picker, escape hatch ── */
+#tbBar {
+    position: fixed;
+    top: max(8px, env(safe-area-inset-top));
+    right: max(10px, env(safe-area-inset-right));
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    opacity: 0.35;
+    transition: opacity 0.25s;
+}
+#tbBar:hover, #tbBar:focus-within { opacity: 1; }
+.tb-badge {
+    background: #f59e0b;
+    color: #451a03;
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    border-radius: 5px;
+    padding: 3px 7px;
+}
+.tb-sample {
+    color: #cbd5e1;
+    font-size: 0.7rem;
+    background: rgba(15, 23, 42, 0.6);
+    border-radius: 5px;
+    padding: 3px 7px;
+}
+#tbBar select {
+    background: rgba(15, 23, 42, 0.85);
+    color: #e2e8f0;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-size: 0.8rem;
+    min-height: 32px;
+}
+#tbBar a {
+    color: #93c5fd;
+    font-size: 0.8rem;
+    text-decoration: none;
+    background: rgba(15, 23, 42, 0.6);
+    border-radius: 6px;
+    padding: 5px 9px;
+}
+@media (pointer: coarse) {
+    #tbBar { opacity: 0.6; }
+    #tbBar select, #tbBar a { min-height: 44px; padding: 8px 12px; }
+}
