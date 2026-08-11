@@ -337,7 +337,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
 <?php endif; ?>
 
 <!-- Wake lock status (auto-hides) -->
-<div id="wakeBanner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#fbbf24;text-align:center;padding:6px;font-size:0.8rem;z-index:999;border-top:1px solid #334155;transition:opacity 0.5s;pointer-events:none">
+<div id="wakeBanner">
     Tap anywhere to keep screen on
 </div>
 

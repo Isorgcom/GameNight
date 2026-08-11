@@ -286,6 +286,44 @@
             .timer-tray { padding: 0.5rem 1rem; }
             .timer-tray-grid { flex-wrap: nowrap; }
         }
+        /* ── Touch sizing ──────────────────────────────────────────────────
+           A tablet is a touch device that is WIDER than the phone breakpoint, so
+           the width query below never matched it and it got desktop-sized
+           controls: btnPlay measured 52x40 on a 1080x810 iPad, under the 44px
+           target every touch guideline asks for. Ask about the POINTER instead
+           of the width, which is the actual question. Scoped to >=769px so the
+           phone layout above is untouched — 13 controls at 44px do not fit on a
+           390px screen and would wrap to three rows there. */
+        @media (pointer: coarse) and (min-width: 769px) {
+            .timer-tray-grid button {
+                min-height: 44px;
+                min-width: 44px;
+                padding: 0.4rem 0.7rem;
+            }
+            .timer-tray-grid .timer-tray-sep { height: 2rem; }
+            .tray-label { font-size: 0.55rem; }
+        }
+
+        /* The wake-lock hint is fixed at z-index 999 and used to sit at bottom:0,
+           painting over the bottom 33px of the 57px tray and hiding every button
+           label. --tray-h is measured by syncTrayHeight() rather than assumed,
+           because the tray wraps to a second row on narrow screens. */
+        #wakeBanner {
+            position: fixed;
+            bottom: calc(var(--tray-h, 56px) + 8px);
+            left: 0;
+            right: 0;
+            background: #1e293b;
+            color: #fbbf24;
+            text-align: center;
+            padding: 6px;
+            font-size: 0.8rem;
+            z-index: 999;
+            border-top: 1px solid #334155;
+            transition: opacity 0.5s;
+            pointer-events: none;
+        }
+
         @media (max-width: 768px) {
             .timer-tray { padding: 0.35rem 0.5rem; padding-bottom: max(0.35rem, env(safe-area-inset-bottom)); }
             .timer-tray-grid { gap: 0.2rem; }

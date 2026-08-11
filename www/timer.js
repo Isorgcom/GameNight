@@ -147,6 +147,11 @@ function fitBlinds() {
 // The available width changes without the text changing: window resize, entering
 // or leaving fullscreen, and phone rotation all need a re-fit.
 window.addEventListener('resize', fitBlinds);
+window.addEventListener('resize', function () { syncTrayHeight(); clampPositioned(); });
+window.addEventListener('orientationchange', function () {
+    // Safari reports the old innerWidth/innerHeight during the event itself.
+    setTimeout(function () { syncTrayHeight(); clampPositioned(); }, 120);
+});
 document.addEventListener('fullscreenchange', fitBlinds);
 // iOS reports the new viewport late on rotation, and visualViewport fires when
 // Safari's chrome collapses or expands — which is exactly what changed the
@@ -2015,6 +2020,52 @@ function muteStreamForAlarm(durationMs) {
 }
 
 // Map element key → list of CSS custom properties it controls.
+// ─── Viewport clamping for theme-positioned elements ──────────────────────
+// A theme stores a single point per element (x%, y%) and anchors the element's
+// CENTRE there, with no knowledge of how wide that element renders. Change the
+// aspect ratio and text sized off the viewport height spills past an edge that
+// the stored percentage never accounted for: on a 1080x810 tablet the QR block
+// hung 10px below and 6px right of the screen. Until step 3 replaces points
+// with boxes, keep the rendered result on-screen without touching stored data.
+//
+// #themeImage and #streamingWrap are excluded on purpose: those are the
+// decorative layers, and bleeding off an edge is a legitimate look for them.
+var CLAMP_EXEMPT = { themeImage: 1, streamingWrap: 1 };
+
+function clampPositioned() {
+    // Dragging in the layout editor must feel free, and the editor writes the
+    // value the user chose; clamping there would fight the pointer.
+    if (document.body.classList.contains('layout-edit')) return;
+    var vw = window.innerWidth, vh = window.innerHeight, pad = 4;
+    document.querySelectorAll('.timer-positioned').forEach(function (node) {
+        if (CLAMP_EXEMPT[node.id]) return;
+        var ax = parseFloat(node.dataset.posAx), ay = parseFloat(node.dataset.posAy);
+        if (isNaN(ax) || isNaN(ay)) return;
+        node.style.setProperty('--pos-x', ax + '%');
+        node.style.setProperty('--pos-y', ay + '%');
+        var r = node.getBoundingClientRect();
+        if (!r.width || !r.height) return;
+        var hw = r.width / 2, hh = r.height / 2;
+        var cx = ax / 100 * vw, cy = ay / 100 * vh;
+        // An element wider than the viewport cannot satisfy both edges; centre it
+        // rather than jamming it against one side.
+        var nx = (hw * 2 + pad * 2 > vw) ? vw / 2 : Math.min(Math.max(cx, hw + pad), vw - hw - pad);
+        var ny = (hh * 2 + pad * 2 > vh) ? vh / 2 : Math.min(Math.max(cy, hh + pad), vh - hh - pad);
+        if (Math.abs(nx - cx) > 0.5) node.style.setProperty('--pos-x', (nx / vw * 100) + '%');
+        if (Math.abs(ny - cy) > 0.5) node.style.setProperty('--pos-y', (ny / vh * 100) + '%');
+    });
+}
+
+// The wake-lock hint used to be pinned to bottom:0 at z-index 999, painting over
+// the bottom 33px of the 57px control tray and hiding every button label. It sits
+// above the tray now, and the tray's height is measured rather than assumed
+// because the tray wraps to a second row on narrow screens.
+function syncTrayHeight() {
+    var tray = document.querySelector('.timer-tray');
+    document.documentElement.style.setProperty('--tray-h',
+        (tray && tray.offsetHeight ? tray.offsetHeight : 56) + 'px');
+}
+
 function applyTheme(props) {
     if (!props) return;
     // The server-rendered #themeStyle inlines CSS with `display: none !important` for any
@@ -2227,10 +2278,17 @@ function applyTheme(props) {
         var pos = (pe && pe.pos && typeof pe.pos.x === 'number' && typeof pe.pos.y === 'number') ? pe.pos : null;
         if (pos) {
             node2.classList.add('timer-positioned');
+            // Keep the AUTHORED value on the node. clampPositioned() re-derives the
+            // rendered position from this every time, so its own correction never
+            // becomes the input to the next correction.
+            node2.dataset.posAx = pos.x;
+            node2.dataset.posAy = pos.y;
             node2.style.setProperty('--pos-x', pos.x + '%');
             node2.style.setProperty('--pos-y', pos.y + '%');
         } else {
             node2.classList.remove('timer-positioned');
+            delete node2.dataset.posAx;
+            delete node2.dataset.posAy;
             node2.style.removeProperty('--pos-x');
             node2.style.removeProperty('--pos-y');
         }
@@ -2246,6 +2304,10 @@ function applyTheme(props) {
     // Variant / thickness changes from the inspector mutate the theme but don't change
     // the next tick's text — force a clock re-render so visual feedback is instant.
     if (typeof renderClock === 'function') renderClock();
+
+    // Positions above are authored values; keep the rendered result on-screen.
+    // After a frame, so the elements have their final measured size.
+    requestAnimationFrame(function () { syncTrayHeight(); clampPositioned(); });
 }
 
 // Build a deep-cloned theme payload from the current in-memory state. With the modal
