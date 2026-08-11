@@ -21,6 +21,15 @@
 .tbe-main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 1rem; align-items: start; }
 @media (max-width: 980px) { .tbe-main { grid-template-columns: 1fr; } }
 
+/* The preview sticks in view while the controls scroll, so a change made low
+ * in the inspector is visible without scrolling back up to the preview. */
+.tbe-preview-pane { position: sticky; top: .5rem; align-self: start; z-index: 1; }
+@media (max-width: 980px) {
+    /* Stacked: pin the preview to the top with a backing so controls scroll
+       underneath it rather than the preview vanishing above the fold. */
+    .tbe-preview-pane { top: 0; background: var(--tbe-page-bg, #f8fafc); padding-bottom: .4rem; }
+}
+
 /* The preview keeps a 16:9 stage; the iframe treats it as its viewport, so
  * vh-based cell sizes preview true to a TV. */
 .tbe-preview-frame { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 10px; overflow: hidden; border: 1.5px solid #e2e8f0; }
