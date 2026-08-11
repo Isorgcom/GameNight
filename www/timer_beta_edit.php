@@ -65,6 +65,7 @@ $csrf = csrf_token();
                         <button id="tbeUndo" class="tbe-mini" title="Undo (Ctrl+Z)">&#8630;</button>
                     </span>
                 </div>
+                <div id="tbeScreens" class="tbe-screens"></div>
                 <div id="tbeTree" class="tbe-tree"></div>
                 <div class="tbe-addbar">
                     <button id="tbeAddCell" class="tbe-mini">+ Cell</button>

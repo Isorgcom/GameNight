@@ -375,24 +375,53 @@ function buildNode(node, path) {
     return el;
 }
 
-var CURRENT_LAYOUT = null;   // the object currently rendered
+var CURRENT_LAYOUT = null;   // normalized {screens:[...]}
+var activeScreen = -1;       // index currently built into the DOM
+var forceScreen = null;      // editor pins a screen; null = auto by condition
+var _building = false;       // guards against updateAll re-entrancy while building
 
-function renderLayoutObj(layout) {
-    CURRENT_LAYOUT = layout;
+// A layout is either single-screen ({bg, root}) or multi-screen
+// ({screens:[{name, when, bg, root}]}). Normalize to the screens form so the
+// renderer only deals with one shape. TD's "screen sets": scanned in order,
+// first whose condition matches wins; a screen with no `when` is the default.
+function normalizeScreens(layout) {
+    if (layout && Array.isArray(layout.screens) && layout.screens.length) return layout;
+    return { screens: [{ name: 'Main', bg: layout ? layout.bg : null, root: layout ? layout.root : { col: [] } }] };
+}
+
+function pickScreen() {
+    var scr = CURRENT_LAYOUT.screens;
+    if (forceScreen !== null && scr[forceScreen]) return forceScreen;
+    for (var i = 0; i < scr.length; i++) {
+        if (scr[i].when === undefined || scr[i].when === null || matchCond(scr[i].when)) return i;
+    }
+    return scr.length - 1;
+}
+
+function buildScreen(idx) {
+    _building = true;
+    activeScreen = idx;
+    var screen = CURRENT_LAYOUT.screens[idx] || { root: { col: [] } };
     fitCells = []; clockCells = []; allCells = [];
     root.textContent = '';
     root.style.background = '';
-    if (layout.bg) {
-        root.style.background = layout.bg.gradient
-            ? 'linear-gradient(160deg, ' + layout.bg.gradient[0] + ', ' + layout.bg.gradient[1] + ')'
-            : (layout.bg.color || '#000');
+    if (screen.bg) {
+        root.style.background = screen.bg.gradient
+            ? 'linear-gradient(160deg, ' + screen.bg.gradient[0] + ', ' + screen.bg.gradient[1] + ')'
+            : (screen.bg.color || '#000');
     }
-    var top = buildNode(layout.root, []);
+    var top = buildNode(screen.root || { col: [] }, []);
     top.classList.add('tb-top');
-    if (layout.root.pad) top.style.padding = layout.root.pad;
+    if (screen.root && screen.root.pad) top.style.padding = screen.root.pad;
     root.appendChild(top);
+    _building = false;
     updateAll();
     requestAnimationFrame(fitAll);
+}
+
+function renderLayoutObj(layout) {
+    CURRENT_LAYOUT = normalizeScreens(layout);
+    buildScreen(pickScreen());
 }
 
 function renderLayout(key) {
@@ -429,6 +458,12 @@ function resolveCell(rec) {
 }
 
 function updateAll() {
+    // State may have moved us to a different screen (e.g. onto the break
+    // screen). Rebuild for it, unless we're mid-build ourselves.
+    if (!_building && CURRENT_LAYOUT && pickScreen() !== activeScreen) {
+        buildScreen(pickScreen());
+        return;
+    }
     for (var a = 0; a < allCells.length; a++) {
         var rec = allCells[a];
 
@@ -564,6 +599,10 @@ if (window.TB_EMBED) {
         setLayout: function (layoutObj) { renderLayoutObj(layoutObj); },
         setState:  function (partial) { Object.assign(S, partial); refreshDerived(); updateAll(); },
         refresh:   function () { updateAll(); requestAnimationFrame(fitAll); },
+        // Editor pins the screen it is editing so the preview shows it
+        // regardless of the sample state; null returns to auto-by-condition.
+        forceScreen: function (i) { forceScreen = (i === null || i === undefined) ? null : i; if (CURRENT_LAYOUT) buildScreen(pickScreen()); },
+        activeScreenIndex: function () { return activeScreen; },
         select:    function (pathStr) {
             document.querySelectorAll('.tb-selected').forEach(function (n) { n.classList.remove('tb-selected'); });
             if (pathStr === null || pathStr === undefined) return;

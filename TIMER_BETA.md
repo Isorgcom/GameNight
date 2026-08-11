@@ -93,8 +93,14 @@ timestamp in get_state).
   same condition model. Editor has a condition builder (state + round + ante +
   rebuys) and a variants panel; sanitizer validates both (12 variants max, only
   emphasis props). matchCond()/resolveCell() re-evaluate every tick.
-  STILL TODO in C: screen sets with cycling (break screen), global property
-  sets, import/export.
+  Break screens (screen sets): a layout is now `{screens:[{name,when,bg,root}]}`
+  (single-screen `{bg,root}` still accepted and normalized). The renderer picks
+  the first screen whose condition matches — a break screen (`when:'on_break'`)
+  ordered before a catch-all Main auto-swaps in on break, live. Editor has
+  screen tabs, add/rename/delete, a per-screen condition, and forces the preview
+  to the screen being edited (`TBPreview.forceScreen`). Sanitizer validates
+  screens (max 6). STILL TODO in C: cycling multiple screens per condition,
+  global property sets, import/export.
 - **D:** promotion decision (controls on the beta page, or fold the engine
   into timer.php as v2 themes). User's call after living with it.
 

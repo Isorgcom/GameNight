@@ -19,6 +19,18 @@ var layoutId = null;           // DB id when editing a saved layout
 var editable = true;           // false = loaded someone else's; save forces copy
 var selPath = null;            // "0.2.1" or '' for root, null for nothing
 var undoStack = [];
+var editScreenIndex = 0;       // which screen the tree/inspector edit
+
+// Normalize a loaded layout to the multi-screen form so the editor always
+// edits screens[]. A single-screen {bg,root} becomes one "Main" screen.
+function normalizeLayout() {
+    if (!LAYOUT) return;
+    if (!Array.isArray(LAYOUT.screens) || !LAYOUT.screens.length) {
+        LAYOUT = { v: LAYOUT.v || 1, screens: [{ name: 'Main', bg: LAYOUT.bg || null, root: LAYOUT.root || { col: [] } }] };
+    }
+    if (editScreenIndex >= LAYOUT.screens.length) editScreenIndex = 0;
+}
+function curScreen() { return LAYOUT.screens[editScreenIndex]; }
 
 var TOKENS = ['eventName','level','clock','gameName','nextGameName','smallBlind','bigBlind','ante',
     'blinds','nextBlinds','players','entries','rebuys','pot','chipCount','avgStack',
@@ -27,9 +39,9 @@ var TOKENS = ['eventName','level','clock','gameName','nextGameName','smallBlind'
 /* ── Tree access helpers ─────────────────────────────────────────────── */
 
 function nodeAt(path) {
-    if (path === '' || path === null) return { row: null, col: null, wrap: { col: [LAYOUT.root] }, isRoot: true, node: LAYOUT.root };
+    if (path === '' || path === null) return { row: null, col: null, wrap: { col: [curScreen().root] }, isRoot: true, node: curScreen().root };
     var parts = path.split('.').map(Number);
-    var n = LAYOUT.root;
+    var n = curScreen().root;
     for (var i = 0; i < parts.length; i++) n = (n.row || n.col)[parts[i]];
     return { node: n, isRoot: false };
 }
@@ -37,7 +49,7 @@ function parentOf(path) {
     if (!path) return null;
     var parts = path.split('.').map(Number);
     var idx = parts.pop();
-    var p = parts.length ? nodeAt(parts.join('.')).node : LAYOUT.root;
+    var p = parts.length ? nodeAt(parts.join('.')).node : curScreen().root;
     return { parent: p, list: p.row || p.col, index: idx };
 }
 function kindOf(n) { return n.cell ? 'cell' : (n.row ? 'row' : 'col'); }
@@ -51,6 +63,94 @@ function refresh(keepSel) {
     PV.setLayout(LAYOUT);
     renderTree();
     if (keepSel && selPath !== null) PV.select(selPath);
+}
+
+/* ── Screens (break screen, pre-game screen, …) ──────────────────────── */
+
+var screensEl = document.getElementById('tbeScreens');
+
+function selectScreen(i) {
+    editScreenIndex = i;
+    selPath = null;
+    if (PV) PV.forceScreen(i);   // pin the preview to the screen being edited
+    renderScreensBar();
+    renderTree();
+    renderInspector();
+}
+
+function renderScreensBar() {
+    screensEl.textContent = '';
+    var tabs = document.createElement('div');
+    tabs.className = 'tbe-screen-tabs';
+    LAYOUT.screens.forEach(function (scr, i) {
+        var btn = document.createElement('button');
+        btn.className = 'tbe-screen-tab' + (i === editScreenIndex ? ' active' : '');
+        btn.textContent = scr.name || ('Screen ' + (i + 1));
+        btn.addEventListener('click', function () { selectScreen(i); });
+        tabs.appendChild(btn);
+    });
+    var add = document.createElement('button');
+    add.className = 'tbe-screen-add'; add.textContent = '+ Screen';
+    add.addEventListener('click', addScreen);
+    tabs.appendChild(add);
+    screensEl.appendChild(tabs);
+
+    // Management row for the active screen: name, show-when, delete.
+    var scr = curScreen();
+    var mgmt = document.createElement('div');
+    mgmt.className = 'tbe-screen-mgmt';
+    var nm = document.createElement('input');
+    nm.type = 'text'; nm.value = scr.name || ''; nm.placeholder = 'Screen name'; nm.maxLength = 40;
+    nm.addEventListener('change', function () { pushUndo(); scr.name = nm.value.trim() || 'Screen'; renderScreensBar(); });
+    mgmt.appendChild(nm);
+
+    var del = document.createElement('button');
+    del.className = 'tbe-mini tbe-mini-danger'; del.textContent = 'Delete screen';
+    del.disabled = LAYOUT.screens.length <= 1;
+    del.addEventListener('click', function () {
+        if (LAYOUT.screens.length <= 1) return;
+        pushUndo();
+        LAYOUT.screens.splice(editScreenIndex, 1);
+        editScreenIndex = 0;
+        refresh(); selectScreen(0);
+    });
+    mgmt.appendChild(del);
+    screensEl.appendChild(mgmt);
+
+    var condWrap = document.createElement('div');
+    condWrap.className = 'tbe-screen-cond';
+    var lbl = document.createElement('span');
+    lbl.textContent = 'Show this screen when:';
+    condWrap.appendChild(lbl);
+    condWrap.appendChild(condEditor(scr.when, function (c) { pushUndo(); setOrDelete(scr, 'when', c); refresh(true); }));
+    var note = document.createElement('div');
+    note.className = 'tbe-screen-note';
+    note.textContent = 'Screens are checked top to bottom; the first match shows. Put specific ones (Break) before a catch-all Main.';
+    condWrap.appendChild(note);
+    screensEl.appendChild(condWrap);
+}
+
+function addScreen() {
+    pushUndo();
+    var base = curScreen();
+    var fresh = {
+        name: 'Break',
+        when: 'on_break',
+        bg: base.bg ? JSON.parse(JSON.stringify(base.bg)) : { color: '#000' },
+        root: { col: [
+            { cell: { text: 'ON BREAK', fit: true, bold: true, color: '#fbbf24' }, weight: 3 },
+            { cell: { text: 'Back in <nextBreak>', size: 3.5, color: '#e2e8f0' }, weight: 1 }
+        ] }
+    };
+    LAYOUT.screens.push(fresh);
+    // A conditional screen must sit before any catch-all (a screen with no
+    // `when`), or the catch-all would always win. Keep unconditional ones last.
+    LAYOUT.screens.sort(function (a, b) {
+        var au = (a.when === undefined || a.when === null), bu = (b.when === undefined || b.when === null);
+        return au === bu ? 0 : (au ? 1 : -1);
+    });
+    refresh();
+    selectScreen(LAYOUT.screens.indexOf(fresh));
 }
 
 /* ── Structure tree ──────────────────────────────────────────────────── */
@@ -67,9 +167,9 @@ function renderTree() {
     var rootRow = document.createElement('div');
     rootRow.className = 'tbe-node' + (selPath === '' ? ' selected' : '');
     rootRow.setAttribute('data-tpath', '');
-    rootRow.textContent = 'Screen (' + kindOf(LAYOUT.root) + ')';
+    rootRow.textContent = 'Screen (' + kindOf(curScreen().root) + ')';
     treeEl.appendChild(rootRow);
-    walk(LAYOUT.root, [], 1);
+    walk(curScreen().root, [], 1);
 
     function walk(node, path, depth) {
         var kids = node.row || node.col;
@@ -275,18 +375,19 @@ function renderInspector() {
 
     if (selPath === '') {
         inspTitle.textContent = 'Screen background';
-        LAYOUT.bg = LAYOUT.bg || {};
-        var g = LAYOUT.bg.gradient;
-        insp.appendChild(field('Solid colour', colorInput(LAYOUT.bg.color, function (v) { setOrDelete(LAYOUT.bg, 'color', v); })));
+        var scr = curScreen();
+        scr.bg = scr.bg || {};
+        var g = scr.bg.gradient;
+        insp.appendChild(field('Solid colour', colorInput(scr.bg.color, function (v) { setOrDelete(scr.bg, 'color', v); })));
         insp.appendChild(field('Gradient from', colorInput(g ? g[0] : '', function (v) {
-            LAYOUT.bg.gradient = [v, (LAYOUT.bg.gradient || ['#000', '#000'])[1]];
+            scr.bg.gradient = [v, (scr.bg.gradient || ['#000', '#000'])[1]];
         })));
         insp.appendChild(field('Gradient to', colorInput(g ? g[1] : '', function (v) {
-            LAYOUT.bg.gradient = [(LAYOUT.bg.gradient || ['#000', '#000'])[0], v];
+            scr.bg.gradient = [(scr.bg.gradient || ['#000', '#000'])[0], v];
         })));
         var clr = document.createElement('button');
         clr.className = 'tbe-mini'; clr.textContent = 'Remove gradient';
-        clr.addEventListener('click', function () { pushUndo(); delete LAYOUT.bg.gradient; refresh(true); renderInspector(); });
+        clr.addEventListener('click', function () { pushUndo(); delete scr.bg.gradient; refresh(true); renderInspector(); });
         insp.appendChild(clr);
         return;
     }
@@ -356,8 +457,8 @@ function renderInspector() {
 function insertNode(newNode) {
     pushUndo();
     if (selPath === null || selPath === '') {
-        (LAYOUT.root.row || LAYOUT.root.col).push(newNode);
-        selPath = '' + ((LAYOUT.root.row || LAYOUT.root.col).length - 1);
+        (curScreen().root.row || curScreen().root.col).push(newNode);
+        selPath = '' + ((curScreen().root.row || curScreen().root.col).length - 1);
     } else {
         var n = nodeAt(selPath).node;
         if (n.row || n.col) {
@@ -421,9 +522,10 @@ document.addEventListener('keydown', function (e) {
 function doUndo() {
     if (!undoStack.length) return;
     LAYOUT = JSON.parse(undoStack.pop());
+    normalizeLayout();
     selPath = null;
     refresh();
-    renderInspector();
+    selectScreen(Math.min(editScreenIndex, LAYOUT.screens.length - 1));
 }
 
 /* ── Preview state chips ─────────────────────────────────────────────── */
@@ -485,8 +587,9 @@ loadSel.addEventListener('change', function () {
         delete LAYOUT.name;
         layoutId = null; editable = true;
         nameInput.value = PV.builtins[k].name + ' (mine)';
-        undoStack = []; selPath = null;
-        refresh(); renderInspector();
+        undoStack = []; selPath = null; editScreenIndex = 0;
+        normalizeLayout();
+        refresh(); selectScreen(0);
     } else {
         fetch('/timer_beta_dl.php?action=get_layout&id=' + v.slice(3))
             .then(function (r) { return r.json(); })
@@ -496,8 +599,9 @@ loadSel.addEventListener('change', function () {
                 layoutId = j.editable ? j.id : null;
                 editable = j.editable;
                 nameInput.value = j.name + (j.editable ? '' : ' (copy)');
-                undoStack = []; selPath = null;
-                refresh(); renderInspector();
+                undoStack = []; selPath = null; editScreenIndex = 0;
+                normalizeLayout();
+                refresh(); selectScreen(0);
             }).catch(function () {});
     }
     loadSel.value = '';
@@ -555,7 +659,10 @@ function boot() {
     LAYOUT = JSON.parse(JSON.stringify(PV.builtins.td_classic));
     delete LAYOUT.name;
     nameInput.value = 'My layout';
+    editScreenIndex = 0;
+    normalizeLayout();
     refresh();
+    selectScreen(0);
     populateLoadList();
 }
 frame.addEventListener('load', boot);

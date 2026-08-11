@@ -127,20 +127,53 @@ function pk_lo_node($node, int $depth, int &$count, array &$err): ?array {
     return $out;
 }
 
+function pk_lo_bg($bg): ?array {
+    if (!is_array($bg)) return null;
+    $out = [];
+    if (isset($bg['color'])) { $v = pk_lo_style_str($bg['color']); if ($v !== null) $out['color'] = $v; }
+    if (isset($bg['gradient']) && is_array($bg['gradient']) && count($bg['gradient']) === 2) {
+        $a = pk_lo_style_str($bg['gradient'][0]); $b = pk_lo_style_str($bg['gradient'][1]);
+        if ($a !== null && $b !== null) $out['gradient'] = [$a, $b];
+    }
+    return $out ?: null;
+}
+
+// One screen: name, optional display condition, background, and root tree.
+function pk_lo_screen($scr, array &$err): ?array {
+    if (!is_array($scr) || !isset($scr['root'])) { $err[] = 'screen needs a root'; return null; }
+    $count = 0;
+    $root = pk_lo_node($scr['root'], 0, $count, $err);
+    if ($root === null) return null;
+    $out = ['root' => $root];
+    if (isset($scr['name']) && is_string($scr['name'])) $out['name'] = mb_substr(trim($scr['name']), 0, 40);
+    $w = pk_lo_cond($scr['when'] ?? null);
+    if ($w !== null) $out['when'] = $w;
+    $bg = pk_lo_bg($scr['bg'] ?? null);
+    if ($bg !== null) $out['bg'] = $bg;
+    return $out;
+}
+
 function pk_layout_sanitize($doc, array &$err): ?array {
     if (is_string($doc)) $doc = json_decode($doc, true);
     if (!is_array($doc)) { $err[] = 'not a JSON object'; return null; }
-    if (strlen(json_encode($doc)) > 65536) { $err[] = 'layout too large'; return null; }
+    if (strlen(json_encode($doc)) > 131072) { $err[] = 'layout too large'; return null; }
     $out = ['v' => 1];
-    if (isset($doc['bg']) && is_array($doc['bg'])) {
-        $bg = [];
-        if (isset($doc['bg']['color'])) { $v = pk_lo_style_str($doc['bg']['color']); if ($v !== null) $bg['color'] = $v; }
-        if (isset($doc['bg']['gradient']) && is_array($doc['bg']['gradient']) && count($doc['bg']['gradient']) === 2) {
-            $a = pk_lo_style_str($doc['bg']['gradient'][0]); $b = pk_lo_style_str($doc['bg']['gradient'][1]);
-            if ($a !== null && $b !== null) $bg['gradient'] = [$a, $b];
+
+    // Multi-screen form (break screens etc.) or single-screen shorthand.
+    if (isset($doc['screens']) && is_array($doc['screens'])) {
+        $screens = [];
+        foreach (array_slice($doc['screens'], 0, 6) as $scr) {
+            $s = pk_lo_screen($scr, $err);
+            if ($s === null) return null;
+            $screens[] = $s;
         }
-        if ($bg) $out['bg'] = $bg;
+        if (!$screens) { $err[] = 'no valid screens'; return null; }
+        $out['screens'] = $screens;
+        return $out;
     }
+
+    $bg = pk_lo_bg($doc['bg'] ?? null);
+    if ($bg !== null) $out['bg'] = $bg;
     if (!isset($doc['root'])) { $err[] = 'missing root'; return null; }
     $count = 0;
     $root = pk_lo_node($doc['root'], 0, $count, $err);
