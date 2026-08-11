@@ -9,7 +9,7 @@ header('Referrer-Policy: strict-origin-when-cross-origin');
 header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
 // CSP: allow inline scripts/styles (required by Jodit editor), block everything else external.
 // frame-src allows the tournament-timer streaming panel to embed video (YouTube/Twitch/Prime).
-$_frame_src = "frame-src https://www.youtube.com https://www.youtube-nocookie.com "
+$_frame_src = "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com "
     . "https://player.twitch.tv https://www.twitch.tv "
     . "https://player.vimeo.com "
     . "https://player.kick.com https://kick.com "
@@ -53,6 +53,7 @@ $_csp = implode('; ', [
     "media-src 'self' https: data:",
 ]);
 header("Content-Security-Policy: {$_csp}");
+if (!defined('CSP_POLICY')) define('CSP_POLICY', $_csp);
 unset($_csp, $_frame_src);
 // HSTS: enforce HTTPS for 1 year (only sent when already on HTTPS)
 if ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https')) {
@@ -61,6 +62,18 @@ if ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HT
 
 // ── Mobile detection (available to all pages) ────────────────────────────────
 $_is_mobile = (bool) preg_match('/Mobile|Android|iPhone|iPad|iPod|CriOS|FxiOS/i', $_SERVER['HTTP_USER_AGENT'] ?? '');
+
+/**
+ * Opt this response into being framed by our own pages. The default is
+ * frame-ancestors 'none' + X-Frame-Options DENY sitewide; the Timer BETA
+ * layout editor embeds the BETA display page (?embed=1) as its live preview,
+ * which needs exactly same-origin framing and nothing wider. Call it before
+ * any output. Do not loosen this to '*' or a host list.
+ */
+function csp_allow_same_origin_framing(): void {
+    header('X-Frame-Options: SAMEORIGIN');
+    header('Content-Security-Policy: ' . str_replace("frame-ancestors 'none'", "frame-ancestors 'self'", CSP_POLICY));
+}
 
 /**
  * Nonce for an inline script block: <script nonce="<?= csp_nonce() ?>">.

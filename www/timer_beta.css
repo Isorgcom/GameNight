@@ -92,3 +92,7 @@ body {
     #tbBar { opacity: 0.6; }
     #tbBar select, #tbBar a { min-height: 44px; padding: 8px 12px; }
 }
+
+/* ── Editor selection (embed mode only) ── */
+.tb-selected { outline: 2px dashed #f59e0b; outline-offset: -2px; }
+.tb-cell.tb-selected { background-clip: padding-box; }

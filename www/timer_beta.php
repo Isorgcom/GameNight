@@ -27,6 +27,10 @@ $site_name = get_setting('site_name', 'Game Night');
 $event_id = (int)($_GET['event_id'] ?? 0);
 $session_id = 0;
 $event_title = '';
+// Embed mode: the layout editor loads this page in an iframe and drives the
+// renderer through window.TBPreview. Sample state, no polling, no corner bar.
+$is_embed = isset($_GET['embed']) && $_GET['embed'] === '1';
+if ($is_embed) { $event_id = 0; csp_allow_same_origin_framing(); }
 
 if ($event_id) {
     $t = $db->prepare('SELECT title FROM events WHERE id = ?');
@@ -60,6 +64,7 @@ if ($event_id) {
 
 <div id="tbRoot" aria-live="off"></div>
 
+<?php if (!$is_embed): ?>
 <div id="tbBar">
     <span class="tb-badge">BETA</span>
     <select id="tbLayoutSelect" title="Layout"></select>
@@ -69,10 +74,12 @@ if ($event_id) {
         <span class="tb-sample" title="No game linked — showing sample data">sample</span>
     <?php endif; ?>
 </div>
+<?php endif; ?>
 
 <script nonce="<?= csp_nonce() ?>">
 var TB_SESSION_ID  = <?= json_encode($session_id ?: null) ?>;
 var TB_EVENT_TITLE = <?= json_encode($event_title) ?>;
+var TB_EMBED       = <?= json_encode($is_embed) ?>;
 </script>
 <script src="/timer_beta.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/timer_beta.js') ?: 0)) ?>"></script>
 </body>

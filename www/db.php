@@ -787,6 +787,20 @@ function db_init(PDO $pdo): void {
     // Timer themes (visual customization of the timer screen). Scope mirrors blind_presets:
     // personal / league / global / default. Properties stored as a JSON blob so the schema
     // can evolve (new themable props) without ALTERs.
+    // Timer BETA layouts: a layout is a JSON tree of rows/columns/cells (see
+    // TIMER_BETA.md). Same scoping columns as timer_themes; `layout` is the
+    // sanitized JSON document (pk_layout_sanitize() in timer_beta_dl.php).
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS timer_layouts (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        name        TEXT NOT NULL,
+        created_by  INTEGER NOT NULL DEFAULT 0,
+        is_global   INTEGER NOT NULL DEFAULT 0,
+        league_id   INTEGER,
+        layout      TEXT NOT NULL DEFAULT '{}',
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    )"); } catch (Exception $e) {}
+
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS timer_themes (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         name        TEXT NOT NULL,

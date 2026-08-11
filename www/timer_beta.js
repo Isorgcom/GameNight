@@ -295,35 +295,46 @@ function buildCell(spec) {
     return el;
 }
 
-function buildNode(node) {
+function buildNode(node, path) {
+    var el;
     if (node.cell) {
-        var c = buildCell(node.cell);
-        applyBox(c, node);
-        return c;
+        el = buildCell(node.cell);
+        applyBox(el, node);
+    } else {
+        var kids = node.row || node.col || [];
+        el = document.createElement('div');
+        el.className = node.row ? 'tb-row' : 'tb-col';
+        applyBox(el, node);
+        for (var i = 0; i < kids.length; i++) el.appendChild(buildNode(kids[i], path.concat(i)));
     }
-    var kids = node.row || node.col || [];
-    var el = document.createElement('div');
-    el.className = node.row ? 'tb-row' : 'tb-col';
-    applyBox(el, node);
-    for (var i = 0; i < kids.length; i++) el.appendChild(buildNode(kids[i]));
+    // The node's address in the layout tree ("2.0.1"): the editor selects,
+    // highlights and edits through these.
+    el.setAttribute('data-path', path.join('.'));
     return el;
 }
 
-function renderLayout(key) {
-    var layout = LAYOUTS[key] || LAYOUTS.td_classic;
+var CURRENT_LAYOUT = null;   // the object currently rendered
+
+function renderLayoutObj(layout) {
+    CURRENT_LAYOUT = layout;
     fitCells = []; tokSpans = []; whenCells = []; clockCells = []; allCells = [];
     root.textContent = '';
+    root.style.background = '';
     if (layout.bg) {
         root.style.background = layout.bg.gradient
             ? 'linear-gradient(160deg, ' + layout.bg.gradient[0] + ', ' + layout.bg.gradient[1] + ')'
             : (layout.bg.color || '#000');
     }
-    var top = buildNode(layout.root);
+    var top = buildNode(layout.root, []);
     top.classList.add('tb-top');
     if (layout.root.pad) top.style.padding = layout.root.pad;
     root.appendChild(top);
     updateAll();
     requestAnimationFrame(fitAll);
+}
+
+function renderLayout(key) {
+    renderLayoutObj(LAYOUTS[key] || LAYOUTS.td_classic);
 }
 
 /* ── Update loop ──────────────────────────────────────────────────────── */
@@ -442,31 +453,90 @@ function tick() {
     updateAll();
 }
 
-/* ── Layout picker ────────────────────────────────────────────────────── */
+/* ── Embed mode: the editor drives this page inside an iframe ─────────── */
+
+if (window.TB_EMBED) {
+    window.TBPreview = {
+        builtins:  LAYOUTS,
+        setLayout: function (layoutObj) { renderLayoutObj(layoutObj); },
+        setState:  function (partial) { Object.assign(S, partial); refreshDerived(); updateAll(); },
+        refresh:   function () { updateAll(); requestAnimationFrame(fitAll); },
+        select:    function (pathStr) {
+            document.querySelectorAll('.tb-selected').forEach(function (n) { n.classList.remove('tb-selected'); });
+            if (pathStr === null || pathStr === undefined) return;
+            var el = document.querySelector('[data-path="' + pathStr + '"]');
+            if (el) el.classList.add('tb-selected');
+        },
+        onSelect: null
+    };
+    document.addEventListener('click', function (e) {
+        var el = e.target.closest ? e.target.closest('[data-path]') : null;
+        if (!el || !window.TBPreview.onSelect) return;
+        e.preventDefault();
+        window.TBPreview.onSelect(el.getAttribute('data-path'));
+    }, true);
+    window.addEventListener('resize', function () { requestAnimationFrame(fitAll); });
+    refreshDerived();
+    renderLayout('td_classic');
+    setInterval(tick, 500);
+} else {
+
+/* ── Layout picker (display mode) ─────────────────────────────────────── */
 
 var sel = document.getElementById('tbLayoutSelect');
 var saved = null;
 try { saved = localStorage.getItem('tb_layout'); } catch (e) {}
 var params = new URLSearchParams(location.search);
 var pick = params.get('layout') || saved;
-if (!LAYOUTS[pick]) pick = 'td_classic';
 
 Object.keys(LAYOUTS).forEach(function (k) {
     var o = document.createElement('option');
     o.value = k; o.textContent = LAYOUTS[k].name;
-    if (k === pick) o.selected = true;
     sel.appendChild(o);
 });
+
+// Saved layouts load after the built-ins; the picker groups them.
+fetch('/timer_beta_dl.php?action=get_layouts')
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+        if (!j || !j.ok || !j.layouts.length) return;
+        var grp = document.createElement('optgroup');
+        grp.label = 'Saved';
+        j.layouts.forEach(function (L) {
+            var o = document.createElement('option');
+            o.value = 'id:' + L.id;
+            o.textContent = L.name + (L.is_global ? ' (site)' : (L.league_name ? ' (' + L.league_name + ')' : ''));
+            grp.appendChild(o);
+        });
+        sel.appendChild(grp);
+        if (/^id:\d+$/.test(pick || '')) { sel.value = pick; if (sel.value === pick) applyPick(pick); }
+    })
+    .catch(function () {});
+
+function applyPick(v) {
+    if (/^id:\d+$/.test(v)) {
+        fetch('/timer_beta_dl.php?action=get_layout&id=' + v.slice(3))
+            .then(function (r) { return r.json(); })
+            .then(function (j) { if (j && j.ok && j.layout && j.layout.root) renderLayoutObj(j.layout); })
+            .catch(function () {});
+    } else {
+        renderLayout(v);
+    }
+}
+
+if (!/^id:\d+$/.test(pick || '') && !LAYOUTS[pick]) pick = 'td_classic';
+if (LAYOUTS[pick]) sel.value = pick;
 sel.addEventListener('change', function () {
     try { localStorage.setItem('tb_layout', sel.value); } catch (e) {}
-    renderLayout(sel.value);
+    applyPick(sel.value);
 });
 
 window.addEventListener('resize', function () { requestAnimationFrame(fitAll); });
 
 refreshDerived();
-renderLayout(pick);
+applyPick(LAYOUTS[pick] ? pick : 'td_classic');
 poll();
 setInterval(tick, 500);
 setInterval(poll, 2000);
+}
 })();

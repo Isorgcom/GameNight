@@ -71,13 +71,19 @@ timestamp in get_state).
 - **A (done):** renderer + four built-ins (td_classic, black_green,
   minimalist, two_column) authored from TD's screenshots/.tlo structure, no TD
   assets. Sample mode without an event; live mode polls get_state every 2s.
-- **B:** editor page (full page, house style): live preview = the real
-  renderer, click-to-select, tree panel + inspector, token picker with sample
-  values, save/duplicate. Storage: new `timer_layouts` table mirroring
-  timer_themes' scope columns (own/league/global), server-side
-  `pk_layout_sanitize()` (whitelist node/style keys, clamp numbers, colour
-  regex, depth/node caps), CRUD in a new `timer_beta_dl.php` so timer_dl.php
-  stays untouched.
+- **B (done):** editor page `timer_beta_edit.php` (full page, house style).
+  Live preview is the real display page in a same-origin iframe
+  (`timer_beta.php?embed=1`) driven through `window.TBPreview`; click any part
+  to select it. Structure tree + inspector on the right; add cell/row/column,
+  duplicate, reorder, remove; token picker; per-state preview chips
+  (running/paused/break/over); undo. Storage: `timer_layouts` table (own/
+  league/global scope like timer_themes), server-side `pk_layout_sanitize()`
+  in `timer_beta_dl.php` (whitelists node types, style keys and enums; clamps
+  numbers; colour/style strings reject url()/expression()/js; depth cap 8,
+  node cap 200, 64KB doc cap; cell TEXT permissive because the renderer only
+  assigns it via textContent). Framing: `csp_allow_same_origin_framing()` in
+  auth.php flips X-Frame-Options to SAMEORIGIN and frame-ancestors to 'self'
+  for the embed page ONLY; the rest of the site stays DENY/'none'.
 - **C:** property-set conditions, screen sets with cycling (break screen),
   global property sets, import/export.
 - **D:** promotion decision (controls on the beta page, or fold the engine
