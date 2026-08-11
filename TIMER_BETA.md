@@ -84,8 +84,17 @@ timestamp in get_state).
   assigns it via textContent). Framing: `csp_allow_same_origin_framing()` in
   auth.php flips X-Frame-Options to SAMEORIGIN and frame-ancestors to 'self'
   for the embed page ONLY; the rest of the site stays DENY/'none'.
-- **C:** property-set conditions, screen sets with cycling (break screen),
-  global property sets, import/export.
+- **C (partly done — conditions):** cells now carry conditional **variants**
+  `[{ when, text?, color?, bg?, bold?, opacity? }]` — first matching variant's
+  emphasis merges over the base (TD's per-cell property sets, scoped to
+  emphasis so a variant can never reflow the layout). Conditions are a WHEN key
+  string OR an object of AND'd clauses `{state, hasAnte, hasRebuys, round}`;
+  `round` takes ">3"/"even"/"all"/etc. The cell `when` visibility gate uses the
+  same condition model. Editor has a condition builder (state + round + ante +
+  rebuys) and a variants panel; sanitizer validates both (12 variants max, only
+  emphasis props). matchCond()/resolveCell() re-evaluate every tick.
+  STILL TODO in C: screen sets with cycling (break screen), global property
+  sets, import/export.
 - **D:** promotion decision (controls on the beta page, or fold the engine
   into timer.php as v2 themes). User's call after living with it.
 

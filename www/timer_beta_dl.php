@@ -48,6 +48,18 @@ function pk_lo_num($v, float $min, float $max): ?float {
     return max($min, min($max, (float)$v));
 }
 
+function pk_lo_cond($c) {
+    if ($c === null || $c === '' || $c === 'always') return null;
+    $states = ['always','running','paused','on_break','pre_game','has_ante','has_rebuys','game_over'];
+    if (is_string($c)) return in_array($c, $states, true) ? $c : null;
+    if (!is_array($c)) return null;
+    $out = [];
+    if (isset($c['state']) && in_array($c['state'], $states, true)) $out['state'] = $c['state'];
+    foreach (['hasAnte', 'hasRebuys'] as $b) if (isset($c[$b]) && is_bool($c[$b])) $out[$b] = $c[$b];
+    if (isset($c['round']) && is_string($c['round']) && preg_match('/^(all|even|odd|(<=|>=|<|>|=|!=)?\d{1,3})$/', $c['round'])) $out['round'] = $c['round'];
+    return $out ?: null;
+}
+
 function pk_lo_cell($cell, array &$err): ?array {
     if (!is_array($cell)) { $err[] = 'cell must be an object'; return null; }
     $out = [];
@@ -60,8 +72,24 @@ function pk_lo_cell($cell, array &$err): ?array {
     foreach (['color', 'bg', 'border'] as $k) if (isset($cell[$k])) { $v = pk_lo_style_str($cell[$k]); if ($v !== null) $out[$k] = $v; }
     foreach (['pad', 'spacing'] as $k) if (isset($cell[$k])) { $v = pk_lo_style_str($cell[$k], 32); if ($v !== null) $out[$k] = $v; }
     if (isset($cell['align']) && in_array($cell['align'], ['left', 'center', 'right'], true)) $out['align'] = $cell['align'];
-    if (isset($cell['when']) && in_array($cell['when'], ['always', 'running', 'paused', 'on_break', 'has_ante', 'has_rebuys', 'game_over'], true)) $out['when'] = $cell['when'];
+    if (isset($cell['when'])) { $w = pk_lo_cond($cell['when']); if ($w !== null) $out['when'] = $w; }
     if (isset($cell['opacity'])) { $n = pk_lo_num($cell['opacity'], 0, 1); if ($n !== null) $out['opacity'] = $n; }
+    if (isset($cell['variants']) && is_array($cell['variants'])) {
+        $vs = [];
+        foreach (array_slice($cell['variants'], 0, 12) as $v) {
+            if (!is_array($v)) continue;
+            $vo = [];
+            $vc = pk_lo_cond($v['when'] ?? null);
+            if ($vc !== null) $vo['when'] = $vc;
+            // Only the emphasis props may vary; a variant can never reflow layout.
+            if (isset($v['text']) && is_string($v['text']) && strlen($v['text']) <= 2000) $vo['text'] = preg_replace('/[^\P{C}\n]/u', '', $v['text']);
+            foreach (['color', 'bg'] as $k) if (isset($v[$k])) { $cv = pk_lo_style_str($v[$k]); if ($cv !== null) $vo[$k] = $cv; }
+            if (!empty($v['bold'])) $vo['bold'] = true;
+            if (isset($v['opacity'])) { $n = pk_lo_num($v['opacity'], 0, 1); if ($n !== null) $vo['opacity'] = $n; }
+            if ($vo) $vs[] = $vo;
+        }
+        if ($vs) $out['variants'] = $vs;
+    }
     return $out;
 }
 

@@ -9,7 +9,16 @@
  *                 fit         true = fill the box instead (clock cells)
  *                 color/bg/bold/pad/align/weight/border/opacity/spacing
  *                 clockColors true = colour tracks warn/critical thresholds
- *                 when        always|running|paused|on_break|has_ante|has_rebuys|game_over
+ *                 when        visibility gate: a WHEN key or a condition object
+ *                             {state,hasAnte,hasRebuys,round}; false = cell hidden
+ *                 variants    [{ when, text?, color?, bg?, bold?, opacity? }] —
+ *                             conditional emphasis, first match wins over base
+ *                             (TD's per-cell property sets). Structural props
+ *                             (size/align/weight) stay base-only.
+ *
+ * A condition (in `when` or a variant) is a WHEN key string, or an object whose
+ * clauses AND together: state (running|paused|on_break|pre_game|game_over),
+ * hasAnte, hasRebuys, round (">3","even","all",…).
  *
  * The tree renders to nested flexbox, so nothing can overlap or leave the
  * screen — the property the absolutely-positioned theme model could not give.
@@ -45,7 +54,10 @@ var LAYOUTS = {
                     { cell: { text: 'Total Pot\n<pot>',    size: 2.4, color: '#fff' } }
                 ], weight: 1, gap: '0.3vh', pad: '1vh 0.5vw', justify: 'center' },
                 { col: [
-                    { cell: { text: '<clock>', fit: true, bold: true, color: '#fff', clockColors: true }, weight: 5 },
+                    { cell: { text: '<clock>', fit: true, bold: true, color: '#fff', clockColors: true, variants: [
+                        { when: 'game_over', text: 'GAME OVER', color: '#ef4444' },
+                        { when: 'on_break',  color: '#fbbf24' }
+                    ] }, weight: 5 },
                     { cell: { text: '<gameName>', size: 3.0, color: '#dbeafe' }, weight: 1 },
                     { cell: { text: 'Blinds\n<blinds>', size: 4.2, bold: true, color: '#fff' }, weight: 2 },
                     { cell: { text: 'Ante: <ante>', size: 2.6, color: '#dbeafe', when: 'has_ante' }, weight: 1 }
@@ -222,23 +234,53 @@ var TOKENS = {
     prizeList:    function () { return S.prizes.length ? 'Prizes\n' + S.prizes.join('\n') : ''; }
 };
 
+// State predicates. `always` is the implicit default; the rest map a tournament
+// state to a boolean, mirroring TD's condition clauses.
 var WHEN = {
     always:     function () { return true; },
-    running:    function () { return S.running; },
-    paused:     function () { return !S.running; },
+    running:    function () { return S.running && !S.isBreak && !S.gameOver; },
+    paused:     function () { return !S.running && !S.gameOver; },
     on_break:   function () { return S.isBreak; },
+    pre_game:   function () { return S.level <= 1 && !S.running && !S.gameOver; },
     has_ante:   function () { return (S.ante | 0) > 0; },
     has_rebuys: function () { return (S.rebuys | 0) > 0; },
     game_over:  function () { return S.gameOver; }
 };
 
+// Numeric comparison for a round clause: ">3", "<=5", "=1", "even", "odd", "all".
+function roundMatches(spec) {
+    if (!spec || spec === 'all') return true;
+    if (spec === 'even') return (S.level % 2) === 0;
+    if (spec === 'odd')  return (S.level % 2) === 1;
+    var m = String(spec).match(/^(<=|>=|<|>|=|!=)?\s*(\d+)$/);
+    if (!m) return true;
+    var op = m[1] || '=', n = parseInt(m[2], 10), v = S.level;
+    switch (op) {
+        case '<':  return v < n;   case '<=': return v <= n;
+        case '>':  return v > n;   case '>=': return v >= n;
+        case '!=': return v !== n; default:   return v === n;
+    }
+}
+
+// A condition is a WHEN key (string shorthand) or an object of clauses that AND
+// together: { state, hasAnte, hasRebuys, round }. Empty / missing = always.
+function matchCond(cond) {
+    if (cond === undefined || cond === null || cond === '' || cond === 'always') return true;
+    if (typeof cond === 'string') return WHEN[cond] ? WHEN[cond]() : true;
+    if (cond.state && WHEN[cond.state] && !WHEN[cond.state]()) return false;
+    if (cond.hasAnte === true  && (S.ante | 0) <= 0) return false;
+    if (cond.hasAnte === false && (S.ante | 0) >  0) return false;
+    if (cond.hasRebuys === true  && (S.rebuys | 0) <= 0) return false;
+    if (cond.hasRebuys === false && (S.rebuys | 0) >  0) return false;
+    if (cond.round && !roundMatches(cond.round)) return false;
+    return true;
+}
+
 /* ── Renderer: JSON tree → nested flexbox ─────────────────────────────── */
 
 var root = document.getElementById('tbRoot');
-var allCells = [];   // every cell; empties hide themselves (bg bands too)
-var fitCells = [];   // { el, inner, lastText }
-var tokSpans = [];   // { el, name }
-var whenCells = [];  // { el, cond }
+var allCells = [];   // { el, inner, spec, variants, tokSpans, lastText, lastVariant, isFit }
+var fitCells = [];   // subset of allCells with fit:true
 var clockCells = []; // cells whose colour tracks warn/critical
 
 function applyBox(el, node) {
@@ -250,17 +292,12 @@ function applyBox(el, node) {
     if (node.justify) el.style.justifyContent = node.justify;
 }
 
-function buildCell(spec) {
-    var el = document.createElement('div');
-    el.className = 'tb-cell';
-    var inner = document.createElement('div');
-    inner.className = 'tb-cell-inner';
-    el.appendChild(inner);
-
-    var lines = String(spec.text || '').split('\n');
+// Build the token/text spans for one line of cell content into `inner`,
+// appending any {el,name} token spans it creates to `tokList`.
+function buildInner(inner, text, tokList) {
+    var lines = String(text || '').split('\n');
     for (var li = 0; li < lines.length; li++) {
         if (li > 0) inner.appendChild(document.createElement('br'));
-        // Split "Blinds: <blinds>" into literal and token segments.
         var parts = lines[li].split(/(<[a-zA-Z]+>)/);
         for (var pi = 0; pi < parts.length; pi++) {
             var p = parts[pi];
@@ -270,28 +307,53 @@ function buildCell(spec) {
                 var span = document.createElement('span');
                 span.setAttribute('data-tok', m[1]);
                 inner.appendChild(span);
-                tokSpans.push({ el: span, name: m[1] });
+                tokList.push({ el: span, name: m[1] });
             } else {
-                // Unknown tokens render visibly rather than vanishing — the
-                // editor will rely on this to flag typos.
+                // Unknown tokens render visibly (⟨name⟩) rather than vanishing —
+                // the editor relies on this to flag typos.
                 inner.appendChild(document.createTextNode(m ? '⟨' + m[1] + '⟩' : p));
             }
         }
     }
+}
 
-    if (spec.fit) { el.classList.add('tb-fit'); fitCells.push({ el: el, inner: inner, lastText: '' }); }
+// Only these props may differ between a cell's base and its conditional
+// variants; structural props (size/align/weight) stay base-only so a variant
+// can never reflow the layout, only re-emphasise it.
+var VARIANT_PROPS = ['text', 'color', 'bg', 'bold', 'opacity'];
+
+// Apply the emphasis props of `spec` to the element, clearing any the spec
+// omits so a variant switching off leaves no residue.
+function applyEmphasis(el, spec) {
+    el.style.color = spec.color || '';
+    el.style.background = spec.bg || '';
+    el.style.fontWeight = spec.bold ? '700' : '';
+    el.style.opacity = spec.opacity !== undefined ? String(spec.opacity) : '';
+}
+
+function buildCell(spec) {
+    var el = document.createElement('div');
+    el.className = 'tb-cell';
+    var inner = document.createElement('div');
+    inner.className = 'tb-cell-inner';
+    el.appendChild(inner);
+
+    // Structural / base-only styling, set once.
+    if (spec.fit) el.classList.add('tb-fit');
     else el.style.fontSize = (spec.size || 2.4) + 'vh';
-    if (spec.bold) el.style.fontWeight = '700';
-    if (spec.color) el.style.color = spec.color;
-    if (spec.bg) el.style.background = spec.bg;
     if (spec.pad) el.style.padding = spec.pad;
-    if (spec.opacity !== undefined) el.style.opacity = String(spec.opacity);
     if (spec.spacing) el.style.letterSpacing = spec.spacing;
     if (spec.align === 'left')  { el.style.justifyContent = 'flex-start'; el.style.textAlign = 'left'; }
     if (spec.align === 'right') { el.style.justifyContent = 'flex-end';   el.style.textAlign = 'right'; }
-    if (spec.when && WHEN[spec.when]) whenCells.push({ el: el, cond: WHEN[spec.when] });
     if (spec.clockColors) clockCells.push(el);
-    allCells.push({ el: el, inner: inner });
+
+    var rec = {
+        el: el, inner: inner, spec: spec,
+        variants: Array.isArray(spec.variants) ? spec.variants : [],
+        tokSpans: [], lastText: null, lastVariant: -2, isFit: !!spec.fit
+    };
+    allCells.push(rec);
+    if (spec.fit) fitCells.push(rec);
     return el;
 }
 
@@ -317,7 +379,7 @@ var CURRENT_LAYOUT = null;   // the object currently rendered
 
 function renderLayoutObj(layout) {
     CURRENT_LAYOUT = layout;
-    fitCells = []; tokSpans = []; whenCells = []; clockCells = []; allCells = [];
+    fitCells = []; clockCells = []; allCells = [];
     root.textContent = '';
     root.style.background = '';
     if (layout.bg) {
@@ -339,34 +401,74 @@ function renderLayout(key) {
 
 /* ── Update loop ──────────────────────────────────────────────────────── */
 
-function updateAll() {
-    for (var i = 0; i < tokSpans.length; i++) {
-        var t = tokSpans[i], v = TOKENS[t.name]();
-        // prizeList is the one multiline token; rebuild its cell's line breaks.
-        if (v.indexOf('\n') !== -1) {
-            if (t.el.getAttribute('data-multi') !== v) {
-                t.el.setAttribute('data-multi', v);
-                t.el.textContent = '';
-                var ls = v.split('\n');
-                for (var j = 0; j < ls.length; j++) {
-                    if (j > 0) t.el.appendChild(document.createElement('br'));
-                    t.el.appendChild(document.createTextNode(ls[j]));
-                }
+// Refresh one token span in place; multiline tokens (prizeList) rebuild breaks.
+function paintTokSpan(t) {
+    var v = TOKENS[t.name]();
+    if (v.indexOf('\n') !== -1) {
+        if (t.el.getAttribute('data-multi') !== v) {
+            t.el.setAttribute('data-multi', v);
+            t.el.textContent = '';
+            var ls = v.split('\n');
+            for (var j = 0; j < ls.length; j++) {
+                if (j > 0) t.el.appendChild(document.createElement('br'));
+                t.el.appendChild(document.createTextNode(ls[j]));
             }
-        } else if (t.el.textContent !== v) {
-            t.el.textContent = v;
         }
+    } else if (t.el.textContent !== v) {
+        t.el.textContent = v;
     }
-    for (var w = 0; w < whenCells.length; w++) {
-        whenCells[w].el.style.display = whenCells[w].cond() ? '' : 'none';
+}
+
+// The active spec for a cell right now: its base, with the first matching
+// variant's emphasis props merged over it. Variant index -1 means base only.
+function resolveCell(rec) {
+    for (var i = 0; i < rec.variants.length; i++) {
+        if (matchCond(rec.variants[i].when)) return i;
     }
-    // A cell whose tokens all resolved to nothing hides entirely, so an empty
-    // prize bar or buy-in line doesn't paint a bare background band.
+    return -1;
+}
+
+function updateAll() {
     for (var a = 0; a < allCells.length; a++) {
-        var ac = allCells[a];
-        if (ac.el.style.display === 'none') continue;   // 'when' already hid it
-        ac.el.style.display = ac.inner.textContent.trim() === '' ? 'none' : '';
+        var rec = allCells[a];
+
+        // A cell's `when` gates visibility outright (TD's "no matching property
+        // set → not displayed"). Hidden cells skip all further work.
+        if (rec.spec.when !== undefined && !matchCond(rec.spec.when)) {
+            rec.el.style.display = 'none';
+            continue;
+        }
+
+        // Pick the active variant; only touch the DOM when it changed.
+        var vi = rec.variants.length ? resolveCell(rec) : -1;
+        var active = vi >= 0 ? rec.variants[vi] : rec.spec;
+        if (vi !== rec.lastVariant) {
+            rec.lastVariant = vi;
+            // Emphasis: variant value if the variant sets it, else base value.
+            var eff = {};
+            for (var k = 0; k < VARIANT_PROPS.length; k++) {
+                var key = VARIANT_PROPS[k];
+                eff[key] = (vi >= 0 && active[key] !== undefined) ? active[key] : rec.spec[key];
+            }
+            applyEmphasis(rec.el, eff);
+            // Text is a variant prop too, so rebuild the inner when it changes.
+            var newText = (vi >= 0 && active.text !== undefined) ? active.text : rec.spec.text;
+            if (newText !== rec.lastText) {
+                rec.lastText = newText;
+                rec.inner.textContent = '';
+                rec.tokSpans = [];
+                buildInner(rec.inner, newText, rec.tokSpans);
+            }
+        }
+
+        // Live token values.
+        for (var t = 0; t < rec.tokSpans.length; t++) paintTokSpan(rec.tokSpans[t]);
+
+        // A cell whose content resolved to nothing hides entirely, so an empty
+        // prize bar or buy-in line paints no bare background band.
+        rec.el.style.display = rec.inner.textContent.trim() === '' ? 'none' : '';
     }
+
     var rem = liveRemaining();
     for (var c = 0; c < clockCells.length; c++) {
         var el = clockCells[c];
@@ -374,10 +476,11 @@ function updateAll() {
         el.classList.toggle('tb-warn', rem > 30 && rem <= S.warnSecs);
         el.classList.toggle('tb-paused', !S.running && !S.sample);
     }
-    // Re-fit only the fit cells whose text actually changed shape.
+
+    // Re-fit only the fit cells whose rendered text actually changed shape.
     for (var f = 0; f < fitCells.length; f++) {
         var fc = fitCells[f], txt = fc.inner.textContent;
-        if (txt !== fc.lastText) { fc.lastText = txt; fitCell(fc); }
+        if (txt !== fc.fitLastText) { fc.fitLastText = txt; fitCell(fc); }
     }
 }
 

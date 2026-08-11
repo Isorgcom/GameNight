@@ -64,3 +64,11 @@
     .tbe-mini, .tbe-chip { min-height: 44px; }
     .tbe-node { padding: .55rem .6rem; }
 }
+
+/* ── Conditions + variants ── */
+.tbe-cond { display: grid; grid-template-columns: 1fr 1fr; gap: .3rem; }
+.tbe-cond select, .tbe-cond input { padding: .35rem .45rem; border: 1.5px solid #cbd5e1; border-radius: 6px; font-size: .78rem; width: 100%; box-sizing: border-box; }
+.tbe-variants { border-top: 1.5px solid #e2e8f0; margin-top: .3rem; padding-top: .6rem; display: flex; flex-direction: column; gap: .5rem; }
+.tbe-variants-head { font-weight: 700; font-size: .78rem; color: #475569; }
+.tbe-variant { border: 1.5px solid #e2e8f0; border-radius: 8px; padding: .5rem; background: #f8fafc; display: flex; flex-direction: column; gap: .4rem; }
+.tbe-variant-top { display: flex; align-items: center; justify-content: space-between; font-size: .76rem; font-weight: 600; color: #475569; }

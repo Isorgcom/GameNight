@@ -23,7 +23,6 @@ var undoStack = [];
 var TOKENS = ['eventName','level','clock','gameName','nextGameName','smallBlind','bigBlind','ante',
     'blinds','nextBlinds','players','entries','rebuys','pot','chipCount','avgStack',
     'currentTime','elapsedTime','nextBreak','prizes','prizeList'];
-var WHENS = ['always','running','paused','on_break','has_ante','has_rebuys','game_over'];
 
 /* ── Tree access helpers ─────────────────────────────────────────────── */
 
@@ -170,6 +169,99 @@ function setOrDelete(obj, key, val) {
     else obj[key] = val;
 }
 
+/* A condition builder: state + round + ante/rebuys clauses that AND together.
+ * Emits a WHEN string when only a state is set (shorthand), an object when more
+ * than one clause is set, or undefined when nothing constrains it. */
+var STATE_OPTS = ['', 'running', 'paused', 'on_break', 'pre_game', 'game_over'];
+var STATE_LBLS = ['Any state', 'Running', 'Paused', 'On break', 'Pre-game', 'Game over'];
+
+function condEditor(cond, onchange) {
+    var m = {};
+    if (typeof cond === 'string') { if (cond && cond !== 'always') m.state = cond; }
+    else if (cond && typeof cond === 'object') m = JSON.parse(JSON.stringify(cond));
+
+    var wrap = document.createElement('div');
+    wrap.className = 'tbe-cond';
+
+    function emit() {
+        var keys = Object.keys(m).filter(function (k) { return m[k] !== undefined && m[k] !== ''; });
+        if (!keys.length) { onchange(undefined); return; }
+        if (keys.length === 1 && m.state) { onchange(m.state); return; }   // shorthand
+        onchange(JSON.parse(JSON.stringify(m)));
+    }
+
+    var st = document.createElement('select');
+    STATE_OPTS.forEach(function (o, i) { var op = document.createElement('option'); op.value = o; op.textContent = STATE_LBLS[i]; st.appendChild(op); });
+    st.value = m.state || '';
+    st.addEventListener('change', function () { if (st.value) m.state = st.value; else delete m.state; emit(); });
+    wrap.appendChild(st);
+
+    var rnd = document.createElement('input');
+    rnd.type = 'text'; rnd.placeholder = 'Round e.g. >3, even, all'; rnd.value = m.round || '';
+    rnd.addEventListener('change', function () { var v = rnd.value.trim(); if (v) m.round = v; else delete m.round; emit(); });
+    wrap.appendChild(rnd);
+
+    [['hasAnte', 'Ante'], ['hasRebuys', 'Rebuys']].forEach(function (pair) {
+        var s = document.createElement('select');
+        [['', 'Any ' + pair[1].toLowerCase()], ['yes', 'Has ' + pair[1].toLowerCase()], ['no', 'No ' + pair[1].toLowerCase()]]
+            .forEach(function (o) { var op = document.createElement('option'); op.value = o[0]; op.textContent = o[1]; s.appendChild(op); });
+        s.value = m[pair[0]] === true ? 'yes' : (m[pair[0]] === false ? 'no' : '');
+        s.addEventListener('change', function () {
+            if (s.value === 'yes') m[pair[0]] = true; else if (s.value === 'no') m[pair[0]] = false; else delete m[pair[0]];
+            emit();
+        });
+        wrap.appendChild(s);
+    });
+    return wrap;
+}
+
+/* Conditional variants: alternate emphasis (text/colour/etc.) shown when a
+ * condition matches. First matching variant wins over the base — TD's per-cell
+ * property sets, scoped to emphasis so a variant can never reflow the layout. */
+function renderVariants(cell) {
+    if (!Array.isArray(cell.variants)) cell.variants = [];
+    var box = document.createElement('div');
+    box.className = 'tbe-variants';
+    var head = document.createElement('div');
+    head.className = 'tbe-variants-head';
+    head.textContent = 'Variants (' + cell.variants.length + ')';
+    box.appendChild(head);
+
+    cell.variants.forEach(function (v, ix) {
+        var card = document.createElement('div');
+        card.className = 'tbe-variant';
+        var top = document.createElement('div');
+        top.className = 'tbe-variant-top';
+        var lbl = document.createElement('span');
+        lbl.textContent = 'When';
+        var rm = document.createElement('button');
+        rm.className = 'tbe-mini tbe-mini-danger'; rm.textContent = 'Remove';
+        rm.addEventListener('click', function () { pushUndo(); cell.variants.splice(ix, 1); refresh(true); renderInspector(); });
+        top.appendChild(lbl); top.appendChild(rm);
+        card.appendChild(top);
+        card.appendChild(condEditor(v.when, function (c) { pushUndo(); setOrDelete(v, 'when', c); refresh(true); }));
+
+        var ta = document.createElement('textarea');
+        ta.rows = 2; ta.placeholder = 'Text override (blank = keep base text)'; ta.value = v.text || '';
+        ta.addEventListener('change', function () { pushUndo(); setOrDelete(v, 'text', ta.value); refresh(true); });
+        card.appendChild(field('Text', ta));
+        card.appendChild(field('Colour', colorInput(v.color, function (c) { setOrDelete(v, 'color', c); })));
+        card.appendChild(field('Background', colorInput(v.bg, function (c) { setOrDelete(v, 'bg', c); })));
+        card.appendChild(field('Bold', boolInput(v.bold, function (c) { setOrDelete(v, 'bold', c); })));
+        box.appendChild(card);
+    });
+
+    var add = document.createElement('button');
+    add.className = 'tbe-mini'; add.textContent = '+ Add variant';
+    add.addEventListener('click', function () {
+        pushUndo();
+        cell.variants.push({ when: 'paused', color: '#ef4444' });
+        refresh(true); renderInspector();
+    });
+    box.appendChild(add);
+    insp.appendChild(box);
+}
+
 function renderInspector() {
     insp.textContent = '';
     if (selPath === null) {
@@ -241,9 +333,10 @@ function renderInspector() {
         insp.appendChild(field('Background', colorInput(cell.bg, function (v) { setOrDelete(cell, 'bg', v); })));
         insp.appendChild(field('Align', selInput(cell.align || 'center', ['center', 'left', 'right'], function (v) { setOrDelete(cell, 'align', v === 'center' ? undefined : v); })));
         insp.appendChild(field('Padding', textInput(cell.pad, function (v) { setOrDelete(cell, 'pad', v); }, 'e.g. 0.6vh 1vw')));
-        insp.appendChild(field('Show when', selInput(cell.when || 'always', WHENS, function (v) { setOrDelete(cell, 'when', v === 'always' ? undefined : v); })));
+        insp.appendChild(field('Show when', condEditor(cell.when, function (v) { pushUndo(); setOrDelete(cell, 'when', v); refresh(true); })));
         insp.appendChild(field('Clock colours (warn/critical)', boolInput(cell.clockColors, function (v) { setOrDelete(cell, 'clockColors', v); })));
         insp.appendChild(field('Weight (share of space)', numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
+        renderVariants(cell);
     } else {
         inspTitle.textContent = kind === 'row' ? 'Row' : 'Column';
         insp.appendChild(field('Weight (share of space)', numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
