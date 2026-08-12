@@ -4,6 +4,15 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2087] - 2026-08-12
+
+### Changed
+- **Uploads are namespaced by feature instead of one flat folder.** Every image used to land in a single `/uploads/` directory as an anonymous `bin2hex().ext` file, mixing avatars, post images, and ticket screenshots with no way to tell them apart, attribute them, or clean them up. `upload.php` now takes a whitelisted `feature` parameter (`avatars`, `posts`, `tickets`) — never free-form, so it cannot traverse — that routes uploads into `/uploads/<feature>/` and names them owner-keyed as `u<id>_<random>.ext`, so a file's purpose and owner are visible from its path. A request with no (or an unknown) feature keeps the historical flat `/uploads/<hash>` behaviour, so anything that does not opt in is unchanged. The avatar (`settings.php`), post-image (`admin_posts.php`, `league.php`), and ticket-screenshot (`support.php`, `support_ticket.php`) callers were repointed to their folders; the site banner keeps its own separate fixed-name handler.
+
+### Security
+- **Uploads now require a real, decodable image.** `upload.php` adds a `getimagesize()` check on top of the existing byte-level MIME sniff, so a file that merely reports an image MIME but does not decode as one is rejected.
+- **Fixed three path validators that were pinned to the old flat upload shape.** `set_avatar` (settings.php), `clean_screenshot` (support_dl.php), and `avatar_html` rendering (db.php) each matched only `^/uploads/<32hex>.ext$` and would have silently rejected the new namespaced paths; they now accept both the legacy flat and the namespaced `/uploads/<feature>/u<id>_…` forms. `sanitize_html` already allowed relative image paths, so post images needed no change. Verified end to end on dev: avatar, post image, and ticket screenshot all upload, store, and render from their namespaced folders, with legacy flat paths still served.
+
 ## [v0.2086] - 2026-08-12
 
 ### Added
