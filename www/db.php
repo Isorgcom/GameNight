@@ -2443,7 +2443,7 @@ function avatar_hue(string $name): int {
 function avatar_html(string $username, ?string $avatarPath = null, int $size = 32, string $extraClass = ''): string {
     $cls = 'gn-avatar' . ($extraClass !== '' ? ' ' . $extraClass : '');
     $dim = 'width:' . $size . 'px;height:' . $size . 'px';
-    if ($avatarPath && preg_match('#^/uploads/[a-zA-Z0-9._-]+$#', $avatarPath)) {
+    if ($avatarPath && preg_match('#^/uploads/[a-zA-Z0-9._/-]+$#', $avatarPath)) {
         return '<img class="' . htmlspecialchars($cls) . '" src="' . htmlspecialchars($avatarPath)
              . '" alt="' . htmlspecialchars($username) . '" style="' . $dim . '">';
     }

@@ -61,6 +61,15 @@ if (!isset($exts[$mime])) {
     exit;
 }
 
+// Must actually decode as an image, not merely start with the right magic bytes
+// — rejects a crafted file that sniffs as an image type but is not a real one.
+if (@getimagesize($file['tmp_name']) === false) {
+    http_response_code(400);
+    header('Content-Type: application/json');
+    echo json_encode(['error' => 'That file is not a readable image.']);
+    exit;
+}
+
 // 8 MB limit
 if ($file['size'] > 8 * 1024 * 1024) {
     http_response_code(400);
@@ -84,12 +93,26 @@ if ($current['role'] !== 'admin') {
     }
 }
 
-$uploadDir = __DIR__ . '/uploads/';
-if (!is_dir($uploadDir)) {
-    mkdir($uploadDir, 0755, true);
+// Per-feature subfolder. Whitelisted (never free-form, so the param can't
+// traverse), so each feature's images live apart instead of one flat dump:
+// easier to reason about, sweep, and back up. An absent/unknown feature keeps
+// the historical flat /uploads/ for backward compatibility.
+$features = ['avatars', 'posts', 'tickets'];
+$feature = (isset($_POST['feature']) && in_array($_POST['feature'], $features, true)) ? $_POST['feature'] : '';
+$sub = $feature !== '' ? $feature . '/' : '';
+
+$uploadDir = __DIR__ . '/uploads/' . $sub;
+if (!is_dir($uploadDir) && !mkdir($uploadDir, 0755, true)) {
+    http_response_code(500);
+    header('Content-Type: application/json');
+    echo json_encode(['error' => 'Storage unavailable.']);
+    exit;
 }
 
-$name = bin2hex(random_bytes(16)) . '.' . $exts[$mime];
+// Owner-keyed name (u<id>_<random>) inside a namespaced folder, so provenance
+// is visible from the filename. The flat legacy path keeps its bare hash name.
+$rand = bin2hex(random_bytes(16));
+$name = ($feature !== '' ? 'u' . (int)$current['id'] . '_' : '') . $rand . '.' . $exts[$mime];
 $dest = $uploadDir . $name;
 
 if (!move_uploaded_file($file['tmp_name'], $dest)) {
@@ -99,7 +122,7 @@ if (!move_uploaded_file($file['tmp_name'], $dest)) {
     exit;
 }
 
-db_log_activity($current['id'], "uploaded image: $name");
+db_log_activity($current['id'], "uploaded image: $sub$name");
 
 header('Content-Type: application/json');
-echo json_encode(['url' => '/uploads/' . $name]);
+echo json_encode(['url' => '/uploads/' . $sub . $name]);
