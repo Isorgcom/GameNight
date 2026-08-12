@@ -73,6 +73,7 @@ var screensEl = document.getElementById('tbeScreens');
 function selectScreen(i) {
     editScreenIndex = i;
     selPath = null;
+    treeCollapsed = {};          // paths are per-screen; stale ones would fold the wrong nodes
     if (PV) PV.forceScreen(i);   // pin the preview to the screen being edited
     renderScreensBar();
     renderTree();
@@ -158,40 +159,61 @@ function addScreen() {
 
 var treeEl = document.getElementById('tbeTree');
 
+// Session-only UI state: which container paths are folded shut. Never saved
+// with the layout; reset when the edited screen changes (paths are per-screen).
+var treeCollapsed = {};
+
 function cellLabel(cell) {
     var t = String(cell.text || '').replace(/\n/g, ' ').trim();
     return t.length > 26 ? t.slice(0, 26) + '…' : (t || '(empty cell)');
 }
 
+// One tree row. Containers get a fold toggle; cells get a spacer so labels align.
+function treeRow(ps, label, isContainer, depth) {
+    var el = document.createElement('div');
+    el.className = 'tbe-node' + (selPath === ps ? ' selected' : '');
+    el.style.paddingLeft = (10 + depth * 16) + 'px';
+    el.setAttribute('data-tpath', ps);
+    var tog = document.createElement('span');
+    tog.className = 'tbe-node-tog';
+    if (isContainer) {
+        el.classList.add('tbe-node-container');
+        tog.setAttribute('data-tog', ps);
+        tog.textContent = treeCollapsed[ps] ? '▸' : '▾';
+        tog.title = treeCollapsed[ps] ? 'Expand' : 'Collapse';
+    }
+    el.appendChild(tog);
+    el.appendChild(document.createTextNode(label));
+    return el;
+}
+
 function renderTree() {
     treeEl.textContent = '';
-    var rootRow = document.createElement('div');
-    rootRow.className = 'tbe-node' + (selPath === '' ? ' selected' : '');
-    rootRow.setAttribute('data-tpath', '');
-    rootRow.textContent = 'Screen (' + kindOf(curScreen().root) + ')';
-    treeEl.appendChild(rootRow);
-    walk(curScreen().root, [], 1);
+    treeEl.appendChild(treeRow('', 'Screen (' + kindOf(curScreen().root) + ')', true, 0));
+    if (!treeCollapsed['']) walk(curScreen().root, [], 1);
 
     function walk(node, path, depth) {
         var kids = node.row || node.col;
         if (!kids) return;
         for (var i = 0; i < kids.length; i++) {
             var p = path.concat(i), ps = p.join('.');
-            var el = document.createElement('div');
-            el.className = 'tbe-node' + (selPath === ps ? ' selected' : '');
-            el.style.paddingLeft = (10 + depth * 16) + 'px';
-            el.setAttribute('data-tpath', ps);
             var k = kindOf(kids[i]);
-            el.textContent = k === 'cell' ? cellLabel(kids[i].cell)
-                           : (k === 'row' ? 'Row' : 'Column') + ' (' + (kids[i].row || kids[i].col).length + ')';
-            if (k !== 'cell') el.classList.add('tbe-node-container');
-            treeEl.appendChild(el);
-            walk(kids[i], p, depth + 1);
+            var label = k === 'cell' ? cellLabel(kids[i].cell)
+                      : (k === 'row' ? 'Row' : 'Column') + ' (' + (kids[i].row || kids[i].col).length + ')';
+            treeEl.appendChild(treeRow(ps, label, k !== 'cell', depth));
+            if (!treeCollapsed[ps]) walk(kids[i], p, depth + 1);
         }
     }
 }
 
 treeEl.addEventListener('click', function (e) {
+    var t = e.target.closest('[data-tog]');
+    if (t) {                       // fold toggle, not a selection
+        var tp = t.getAttribute('data-tog');
+        if (treeCollapsed[tp]) delete treeCollapsed[tp]; else treeCollapsed[tp] = true;
+        renderTree();
+        return;
+    }
     var n = e.target.closest('[data-tpath]');
     if (n) select(n.getAttribute('data-tpath'));
 });
@@ -200,6 +222,13 @@ treeEl.addEventListener('click', function (e) {
 
 function select(path) {
     selPath = path;
+    // Unfold every ancestor so the selection is always visible in the tree
+    // (a preview click can land on a node inside a collapsed container).
+    if (path) {
+        delete treeCollapsed[''];
+        var parts = path.split('.');
+        for (var i = 1; i < parts.length; i++) delete treeCollapsed[parts.slice(0, i).join('.')];
+    }
     PV.select(path === '' ? null : path);
     renderTree();
     renderInspector();

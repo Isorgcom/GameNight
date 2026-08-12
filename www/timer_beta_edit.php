@@ -26,7 +26,7 @@ $csrf = csrf_token();
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <link rel="stylesheet" href="/timer_beta_edit.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/timer_beta_edit.css') ?: 0)) ?>">
 </head>
-<body>
+<body class="tbe-body">
 <?php $nav_active = 'timer-beta'; $nav_user = $current; require __DIR__ . '/_nav.php'; ?>
 
 <div class="tbe-wrap">
@@ -47,8 +47,10 @@ $csrf = csrf_token();
 
     <div class="tbe-main">
         <div class="tbe-preview-pane">
-            <div class="tbe-preview-frame">
-                <iframe id="tbeFrame" src="/timer_beta.php?embed=1" title="Layout preview"></iframe>
+            <div class="tbe-preview-stage">
+                <div class="tbe-preview-frame">
+                    <iframe id="tbeFrame" src="/timer_beta.php?embed=1" title="Layout preview"></iframe>
+                </div>
             </div>
             <div class="tbe-statebar">
                 <span>Preview state:</span>
