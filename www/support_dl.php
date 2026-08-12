@@ -32,7 +32,8 @@ function clean_screenshot(?string $path): ?string {
     $path = trim((string)$path);
     if ($path === '') return null;
     // \z (not $) so a trailing newline can't sneak into the stored path.
-    if (!preg_match('#^/uploads/[a-f0-9]{32}\.(jpg|png|gif|webp)\z#', $path)) return null;
+    // Legacy flat path OR the namespaced tickets/u<id>_… that upload.php now returns.
+    if (!preg_match('#^/uploads/(tickets/u\d+_)?[a-f0-9]{32}\.(jpg|png|gif|webp)\z#', $path)) return null;
     return $path;
 }
 

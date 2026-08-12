@@ -526,6 +526,7 @@ editor = Jodit.make('#jodit-editor', {
         method: 'POST',
         prepareData: function (formData) {
             formData.append('csrf_token', csrfToken);
+            formData.append('feature', 'posts');
         },
         isSuccess: function (resp) { return !!resp.url; },
         getMsg:    function (resp) { return resp.error || 'Upload failed'; },
@@ -548,6 +549,7 @@ editor = Jodit.make('#jodit-editor', {
 async function uploadImageToEditor(file, ed) {
     const form = new FormData();
     form.append('csrf_token', csrfToken);
+    form.append('feature', 'posts');
     form.append('files[0]', file);
     try {
         const res  = await fetch('/upload.php', { method: 'POST', body: form });

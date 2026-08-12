@@ -1328,7 +1328,7 @@ function ordinal($n) {
                         url: '/upload.php',
                         headers: {},
                         format: 'json',
-                        prepareData: function(fd) { fd.append('csrf_token', '<?= htmlspecialchars(csrf_token()) ?>'); return fd; },
+                        prepareData: function(fd) { fd.append('csrf_token', '<?= htmlspecialchars(csrf_token()) ?>'); fd.append('feature', 'posts'); return fd; },
                         isSuccess: function(r){ return r && r.ok; },
                         process: function(r){ return { files: [r.url], baseurl: '' }; },
                         defaultHandlerSuccess: function(data){ var img = this.j.createInside.element('img'); img.setAttribute('src', data.files[0]); this.j.s.insertImage(img); }
