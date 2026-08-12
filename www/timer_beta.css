@@ -39,8 +39,8 @@ body {
    clock ticking 03:54 -> 03:53 physically changes width. That makes the text
    shuffle horizontally, and where a fit cell is limited by WIDTH rather than
    height it also makes fitCell() compute a different font size every second —
-   the clock visibly pumps. cast_receiver.php already pins tnum on its clock
-   for the same reason. */
+   the clock visibly pumps. timer.css already pins tnum on its clock for the
+   same reason. */
 .tb-cell-inner { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
 
 /* Keep-awake prompt. iOS will not start either mechanism without a real

@@ -302,8 +302,9 @@ which is exactly the pattern that has to move to event delegation.
 1. ~~**Add a per-request nonce** via the three-directive split above.~~ **Done in
    v0.2072.** `auth.php` mints a per-request `CSP_NONCE`; `csp_nonce()` stamps it
    on all 64 inline blocks across 33 files. External `<script src="/...">` needs
-   no nonce, it is covered by `'self'`. `cast_receiver.php` is excluded: it is
-   standalone, sends no CSP header, and must not call `csp_nonce()`.
+   no nonce, it is covered by `'self'`. A standalone page that sends no CSP
+   header of its own must not call `csp_nonce()`; `cast_receiver.php` was the
+   only one and has since been deleted as dead code.
    **What this buys:** an injected `<script>` element is now refused by the
    browser. **What it does not:** an injected `on*` attribute still runs, since
    `script-src-attr` still allows them. That is what step 2 closes.

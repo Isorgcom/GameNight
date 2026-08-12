@@ -118,8 +118,8 @@ still does. Belt and braces — the normalisation holds up even in a font with
 no tabular figures, and the existing 0.92 safety factor absorbs the couple of
 percent that digit widths can then vary by.
 
-`timer.css` and `cast_receiver.php` had both already pinned tnum on their
-clocks. The BETA renderer was the one that missed it.
+`timer.css` had already pinned tnum on its clock. The BETA renderer was the one
+that missed it.
 
 ## QR cell — a second screen
 

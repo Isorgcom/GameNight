@@ -176,7 +176,7 @@ if (S.sample) {
     S.prizes = ['1st: $525', '2nd: $315', '3rd: $210'];
 }
 
-/* Kept in step with fmtChips() in timer.js and cast_receiver.php: the literal
+/* Kept in step with fmtChips() in timer.js: the literal
  * amount, grouped, never 2K. The fraction-digit branch matters now that blinds
  * can be money — this version had no options, so a .50 blind rendered as "0.5".
  * Number() first because get_state hands these back as strings, and String's

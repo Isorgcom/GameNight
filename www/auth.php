@@ -78,8 +78,9 @@ function csp_allow_same_origin_framing(): void {
 /**
  * Nonce for an inline script block: <script nonce="<?= csp_nonce() ?>">.
  * Required by script-src-elem. External <script src="/..."> does not need one,
- * it is covered by 'self'. Pages that do not include auth.php (cast_receiver.php)
- * get no CSP header and must NOT call this.
+ * it is covered by 'self'. A page that does not include auth.php gets no CSP
+ * header and must NOT call this (there are none at present; cast_receiver.php
+ * was the last, deleted as dead code).
  */
 function csp_nonce(): string {
     return defined('CSP_NONCE') ? CSP_NONCE : '';
