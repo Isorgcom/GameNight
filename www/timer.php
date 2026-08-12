@@ -207,6 +207,13 @@ if (isset($_GET['view']) && $_GET['view'] === 'remote' && !empty($_GET['key'])) 
             $timer = $ts->fetch();
         }
 
+        // This game opted into the BETA layout display (Setup → Blinds switch).
+        // ?classic=1 is the escape hatch so the old timer stays reachable.
+        if (!empty($timer['use_beta']) && empty($_GET['classic'])) {
+            header('Location: /timer_beta.php?event_id=' . (int)$event_id);
+            exit;
+        }
+
         $pool = calc_pool($db, (int)$session['id']);
         $game_type = $session['game_type'] ?? null;
         $payouts = ($game_type === 'tournament') ? get_payouts($db, (int)$session['id']) : [];

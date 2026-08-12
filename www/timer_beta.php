@@ -51,6 +51,18 @@ if ($event_id) {
     $session_id = (int)($s->fetchColumn() ?: 0);
     $event_title = (string)$event_title;
 }
+// The event's chosen layout (event_display.php stores it on the timer row).
+// Injected so the first paint uses it; get_state carries it thereafter so the
+// display follows a change without a reload.
+$event_layout_id = null;
+$event_layout_key = null;
+if ($session_id) {
+    $lq = $db->prepare('SELECT layout_id, layout_builtin FROM timer_state WHERE session_id = ?');
+    $lq->execute([$session_id]);
+    $lrow = $lq->fetch();
+    $event_layout_id = (int)($lrow['layout_id'] ?? 0) ?: null;
+    $event_layout_key = ($lrow['layout_builtin'] ?? null) ?: null;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -69,7 +81,7 @@ if ($event_id) {
     <span class="tb-badge">BETA</span>
     <select id="tbLayoutSelect" title="Layout"></select>
     <?php if ($session_id): ?>
-        <a href="/timer.php?event_id=<?= (int)$event_id ?>" title="Open the current timer">Timer</a>
+        <a href="/timer.php?event_id=<?= (int)$event_id ?>&amp;classic=1" title="Open the classic timer">Timer</a>
     <?php else: ?>
         <span class="tb-sample" title="No game linked — showing sample data">sample</span>
     <?php endif; ?>
@@ -99,6 +111,8 @@ if ($event_id) {
 var TB_SESSION_ID  = <?= json_encode($session_id ?: null) ?>;
 var TB_EVENT_TITLE = <?= json_encode($event_title) ?>;
 var TB_EMBED       = <?= json_encode($is_embed) ?>;
+var TB_EVENT_LAYOUT_ID = <?= json_encode($event_layout_id) ?>;
+var TB_EVENT_LAYOUT_KEY = <?= json_encode($event_layout_key) ?>;
 </script>
 <script src="/timer_beta.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/timer_beta.js') ?: 0)) ?>"></script>
 </body>

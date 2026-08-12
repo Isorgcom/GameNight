@@ -99,6 +99,52 @@ timestamp in get_state).
   renderer only assigns it via textContent.
 - `timer_layouts` table — own/league/global scope like `timer_themes`.
 
+## Per-event pages (tournaments only)
+
+`event_blinds.php?event_id=N` and `event_display.php?event_id=N` — standalone
+pages gated by `can_manage_event()`, swapped by the shared strip in
+`_event_setup_strip.php` (pk-seg house style; cross-page slide direction via
+sessionStorage in `event_setup.js`). Linked from the event page's More menu
+and the check-in toolbar (tournaments only).
+
+- **Blind editor**: level grid + generator + preset bar. `event_blinds.js` is
+  a mountable component (`pkBlindsEditor.mount(container, opts)`): the
+  standalone page auto-mounts it into `#esBlindsRoot`, and the check-in
+  console mounts the SAME component as a "Blinds" tab pane inside the Game
+  Setup editor (slides in like the other panes; unsaved grid edits survive
+  settings re-renders via `pkBlindsEditor._state`). Data via
+  `event_setup_dl.php`. Schedules are
+  **copy-on-write**: `save_blinds` writes a preset row owned by the session
+  (`blind_presets.session_id`), never a library preset. Loading a preset only
+  fills the grid; "Save to library" publishes through timer_dl's
+  `save_preset`. Session-local rows are excluded from `get_presets` /
+  `load_preset` / `delete_preset`, and the old timer's `update_levels` now
+  marks ITS copies session-local too (no more "Custom" library pollution).
+  Saving clamps `current_level` and refreshes the clock only pre-start.
+- **Use BETA timer switch** (its own Setup → Timer tab in the check-in
+  console, sliding in like the other panes; tournament only): stores
+  `timer_state.use_beta` via `set_beta`. When on, the check-in Timer button
+  points at `timer_beta.php?event_id=N` (retargeted live by
+  `toggleBetaTimer()`) and `timer.php?event_id=N` REDIRECTS to the BETA
+  display — `?classic=1` is the escape hatch, and the BETA corner-bar "Timer"
+  link carries it so the pages never bounce between each other. The tab also
+  links to the per-event layout page and a display preview.
+- **Timer Display**: the full layout editor (shared partial
+  `_timer_beta_editor.php`, also used by timer_beta_edit.php). Binding lives
+  IN the editor header: with event context (`ES_EVENT_ID`/`ES_LAYOUT_ID`/
+  `ES_CSRF` globals), timer_beta_edit.js grows a "Use for this event" toggle
+  on the loaded layout (stores `timer_state.layout_id` via `set_layout`;
+  click again to unbind) and marks the bound layout "• this event" in the
+  Load list. The editor is also embedded in check-in's Setup → Timer tab —
+  rendered ONCE outside the panes (`#ckDisplayHome`, revealed by
+  `syncDisplayHome()`) because pane re-renders rebuild innerHTML and moving
+  an iframe reloads it.
+  `timer_beta.php?event_id=N` first-paints the bound layout (server-injected
+  `TB_EVENT_LAYOUT_ID`) and follows changes live — `get_state` returns
+  `layout_id`, and the display refetches on change. Precedence: `?layout=`
+  URL param > event binding > localStorage > classic; a manual pick at the
+  display opts out of following until reload.
+
 ## Nav / reachability
 
 "Timer Layouts (BETA)" sits under "Tournament Timer" in the hamburger site
@@ -182,7 +228,8 @@ row too, not just the mobile hamburger.
 `beta_elements_check.js` (elements + picker), `beta_export_check.js`
 (export/import round-trip), `beta_images_check.js` (image upload + refs),
 `beta_imgport_check.js` (cross-install image embedding), `beta_cycling_check.js`
-(screen cycling), `beta_sharedstyles_check.js` (shared styles), `beta_shot.js`
+(screen cycling), `beta_sharedstyles_check.js` (shared styles),
+`beta_eventpages_check.js` (per-event blinds + display pages), `beta_shot.js`
 (screenshots). Run against dev; the dev test login is JamesTest.
 
 The break state in sample/preview mode derives from the LEVEL, not a flag:

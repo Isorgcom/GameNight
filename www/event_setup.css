@@ -1,0 +1,106 @@
+/* Per-event tournament setup pages (event_blinds.php / event_display.php):
+ * the shared header strip and the blind-level editor. The Timer Display page
+ * reuses the layout editor's own stylesheet for the editor itself. */
+
+.es-wrap { max-width: 1100px; margin: 0 auto; padding: 1rem; }
+.es-wrap.es-wide { max-width: 1500px; }
+/* On the Timer Display page the editor's viewport-locked shell is active;
+   the strip + binding bar keep natural height above the flexing editor. */
+body.tbe-body .es-wrap { flex: 0 0 auto; width: 100%; box-sizing: border-box; padding-bottom: 0; }
+
+/* ── Header strip ── */
+.es-head { display: flex; align-items: center; gap: .7rem; flex-wrap: wrap; margin-bottom: .9rem; }
+.es-back { font-size: 1.15rem; text-decoration: none; color: #475569; padding: .25rem .55rem; border: 1.5px solid #cbd5e1; border-radius: 8px; background: #fff; }
+.es-back:hover { background: #f8fafc; }
+.es-title { font-size: 1.2rem; font-weight: 800; color: #0f172a; margin: 0; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.es-head .pk-seg button { font-size: .82rem; padding: .42rem .95rem; }
+
+/* ── Cards ── */
+.es-card { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: .9rem; margin-bottom: 1rem; }
+.es-card-title { font-weight: 700; font-size: .9rem; color: #0f172a; margin: 0 0 .6rem; display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.es-note { font-size: .74rem; color: #94a3b8; line-height: 1.4; }
+
+/* ── Blind editor layout: status + controls rail, rounds table right ── */
+.es-blinds-flex { display: flex; gap: 1rem; align-items: flex-start; }
+.es-blinds-side { flex: 0 0 205px; display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+.es-blinds-side .es-card { margin-bottom: 0; }
+.es-blinds-main { flex: 1 1 auto; min-width: 0; overflow-x: auto; }
+@media (max-width: 800px) {
+    .es-blinds-flex { flex-direction: column; }
+    .es-blinds-side { flex: 1 1 auto; width: 100%; flex-direction: row; flex-wrap: wrap; }
+    .es-blinds-side .es-card { flex: 1 1 240px; }
+}
+
+.es-status { display: grid; grid-template-columns: auto auto; gap: .3rem .8rem; font-size: .82rem; }
+.es-status-k { color: #64748b; font-weight: 600; }
+.es-status-v { text-align: right; font-weight: 700; color: #0f172a; font-variant-numeric: tabular-nums; }
+
+.es-ctrls { display: flex; flex-direction: column; gap: .45rem; }
+.es-ctrls .es-divider { border-top: 1.5px solid #e2e8f0; margin: .3rem 0; }
+.es-ctrls select { width: 100%; padding: .38rem .45rem; border: 1.5px solid #cbd5e1; border-radius: 6px; font-size: .8rem; background: #fff; box-sizing: border-box; }
+.es-saverow { min-height: 1.1rem; }
+.es-toggle { display: flex; align-items: center; gap: .45rem; font-size: .84rem; font-weight: 600; color: #334155; cursor: pointer; }
+.es-toggle input { width: 17px; height: 17px; }
+
+/* ── Rounds table ── */
+/* Fixed layout: column widths must not depend on cell content, or the whole
+   grid re-lays itself the moment a row swaps its text for inputs. */
+.es-table { width: 100%; min-width: 660px; border-collapse: collapse; font-size: .86rem; table-layout: fixed; }
+.es-table th:nth-child(1) { width: 15%; }
+.es-table th:nth-child(2) { width: 13%; }
+.es-table th:nth-child(3) { width: 16%; }
+.es-table th:nth-child(4) { width: 16%; }
+.es-table th:nth-child(5) { width: 16%; }
+.es-table th:nth-child(6) { width: 24%; }
+.es-table th { text-align: left; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: #64748b; padding: .38rem .55rem; border-bottom: 1.5px solid #e2e8f0; }
+/* Fixed row height: a row must not change size when it flips between read
+   and edit mode, or the table below it jumps as inputs appear. */
+.es-table td { height: 2.5rem; padding: .1rem .55rem; border-bottom: 1px solid #f1f5f9; box-sizing: border-box; }
+.es-table tbody tr:not(.es-row-edit) { cursor: pointer; }
+.es-table tbody tr:not(.es-row-edit):hover td { background: #f8fafc; }
+.es-table input[type=number] { width: 100%; max-width: 7em; box-sizing: border-box; padding: .3rem .45rem; border: 1.5px solid #cbd5e1; border-radius: 6px; font-size: .85rem; }
+.es-table input[type=checkbox] { width: 17px; height: 17px; vertical-align: middle; }
+th.es-th-num, .es-cell-num { text-align: right; font-variant-numeric: tabular-nums; }
+/* Edit-mode inputs sit where the read-mode number sat: pinned right. */
+.es-cell-num input[type=number] { margin-left: auto; display: block; text-align: right; }
+.es-round-label { font-weight: 700; color: #0f172a; white-space: nowrap; }
+.es-start { color: #64748b; }
+.es-row-break td { background: #fffbeb; }
+.es-row-break .es-round-label { color: #92400e; }
+.es-row-current td { box-shadow: inset 3px 0 0 #2563eb; }
+.es-cur-arrow { margin-right: .35rem; color: #2563eb; }
+.es-row-edit td { background: #eff6ff; }
+.es-rowact { display: flex; gap: .3rem; justify-content: flex-end; align-items: center; white-space: nowrap; }
+
+/* ── Buttons (match .tbe-btn / .tbe-mini feel without importing that sheet) ── */
+.es-btn { padding: .48rem .85rem; border-radius: 8px; border: 1.5px solid #cbd5e1; background: #fff; color: #334155; font-size: .84rem; font-weight: 600; cursor: pointer; }
+.es-btn:hover { background: #f8fafc; }
+.es-btn-primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+.es-btn-primary:hover { background: #1d4ed8; }
+.es-mini { padding: .3rem .55rem; border-radius: 6px; border: 1.5px solid #cbd5e1; background: #fff; font-size: .76rem; cursor: pointer; color: #334155; min-height: 32px; }
+.es-mini:hover { background: #f1f5f9; }
+.es-mini-danger { color: #b91c1c; border-color: #fecaca; }
+
+.es-addbar { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .6rem; }
+.es-savebar { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; margin-top: .9rem; }
+.es-dirty { color: #f59e0b; font-size: 1.1rem; display: none; }
+.es-saved { color: #16a34a; font-size: .82rem; display: none; }
+
+/* ── Generator ── */
+.es-gen { display: none; border-top: 1.5px solid #e2e8f0; margin-top: .7rem; padding-top: .7rem; }
+.es-gen.open { display: block; }
+.es-gen-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .55rem; margin-bottom: .6rem; }
+.es-gen-grid label { display: flex; flex-direction: column; gap: .22rem; font-size: .74rem; font-weight: 600; color: #475569; }
+.es-gen-grid input { padding: .35rem .45rem; border: 1.5px solid #cbd5e1; border-radius: 6px; font-size: .84rem; }
+
+/* ── Timer Display page: binding bar above the editor ── */
+.es-displaybar { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.es-displaybar select { flex: 0 1 320px; min-width: 170px; padding: .4rem .5rem; border: 1.5px solid #cbd5e1; border-radius: 7px; font-size: .85rem; background: #fff; }
+
+@media (pointer: coarse) {
+    .es-mini, .es-btn { min-height: 44px; }
+    .es-table input[type=number] { min-height: 38px; }
+    /* Row height must still cover the bigger touch inputs in edit mode. */
+    .es-table td { height: 3rem; }
+    .es-table .es-rowact .es-mini { min-height: 34px; }
+}

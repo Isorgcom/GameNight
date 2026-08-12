@@ -1715,6 +1715,41 @@ if ($action === 'save_payout_structure') {
     }
     $game_config = $gc ? json_encode($gc) : null;
 
+    // Blind schedule + timer settings ride too, so a preset restores the WHOLE
+    // game night. The client sends the Blinds pane's grid when it has one
+    // (what-you-see-is-what-you-save); otherwise the session's saved schedule
+    // and timer flags are snapshotted server-side. NULL = legacy preset.
+    $blind_levels = null;
+    if (isset($_POST['blind_levels'])) {
+        $bl = pk_clean_blind_levels(json_decode((string)$_POST['blind_levels'], true));
+        if ($bl) $blind_levels = json_encode($bl);
+    }
+    $timer_config = null;
+    $snap_sid = (int)($_POST['session_id'] ?? 0);
+    if ($snap_sid) {
+        $sq = $db->prepare('SELECT event_id FROM poker_sessions WHERE id = ?');
+        $sq->execute([$snap_sid]);
+        $snap_eid = (int)($sq->fetchColumn() ?: 0);
+        if ($snap_eid && is_owner_or_manager($db, $snap_eid, $current, $isAdmin)) {
+            $tq = $db->prepare('SELECT preset_id, use_beta, layout_id, layout_builtin FROM timer_state WHERE session_id = ?');
+            $tq->execute([$snap_sid]);
+            $trow = $tq->fetch();
+            if ($trow) {
+                $timer_config = json_encode([
+                    'use_beta'  => (int)($trow['use_beta'] ?? 0),
+                    'layout_id' => (int)($trow['layout_id'] ?? 0) ?: null,
+                    'layout_builtin' => ($trow['layout_builtin'] ?? null) ?: null,
+                ]);
+                if ($blind_levels === null && (int)$trow['preset_id']) {
+                    $lq = $db->prepare('SELECT small_blind, big_blind, ante, duration_minutes, is_break FROM blind_preset_levels WHERE preset_id = ? ORDER BY level_number');
+                    $lq->execute([(int)$trow['preset_id']]);
+                    $bl = pk_clean_blind_levels($lq->fetchAll(PDO::FETCH_ASSOC));
+                    if ($bl) $blind_levels = json_encode($bl);
+                }
+            }
+        }
+    }
+
     $pointsArr  = $_POST['points'] ?? [];
     $ticketsArr = $_POST['tickets'] ?? [];
     $labelsArr  = $_POST['labels'] ?? [];
@@ -1729,14 +1764,14 @@ if ($action === 'save_payout_structure') {
             $rows[] = [$pl, $pct, $pts, $ticket, $label !== '' ? mb_substr($label, 0, 60) : null];
         }
     }
-    // An all-zero structure with no reward recipe and no game config is
-    // unsaveable — loading it later would be an empty no-op.
-    if (!$rows && $st_bounty === 0 && $st_bounty_pts === 0 && $st_jackpot === 0 && $game_config === null) {
+    // An all-zero structure with no reward recipe, game config, or blind
+    // schedule is unsaveable — loading it later would be an empty no-op.
+    if (!$rows && $st_bounty === 0 && $st_bounty_pts === 0 && $st_jackpot === 0 && $game_config === null && $blind_levels === null) {
         echo json_encode(['ok' => false, 'error' => 'Nothing to save — set at least one payout value, points, prize, bounty, or jackpot entry first.']); exit;
     }
 
-    $db->prepare('INSERT INTO payout_structures (name, created_by, is_global, league_id, bounty_amount, bounty_points, jackpot_amount, game_config) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-       ->execute([$name, (int)$current['id'], $is_global, $league_id, $st_bounty, $st_bounty_pts, $st_jackpot, $game_config]);
+    $db->prepare('INSERT INTO payout_structures (name, created_by, is_global, league_id, bounty_amount, bounty_points, jackpot_amount, game_config, blind_levels, timer_config) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+       ->execute([$name, (int)$current['id'], $is_global, $league_id, $st_bounty, $st_bounty_pts, $st_jackpot, $game_config, $blind_levels, $timer_config]);
     $sid = (int)$db->lastInsertId();
 
     $ins = $db->prepare('INSERT INTO payout_structure_places (structure_id, place, percentage, points, ticket_cents, prize_label) VALUES (?, ?, ?, ?, ?, ?)');
@@ -1821,6 +1856,32 @@ if ($action === 'load_payout_structure') {
            ->execute([$nb, $nbp, $nj, $session_id]);
     }
 
+    // Blind schedule rides with the preset: written copy-on-write as THIS
+    // session's own schedule, never a shared library preset. NULL = legacy.
+    if (!empty($struct['blind_levels'])) {
+        $bl = pk_clean_blind_levels(json_decode((string)$struct['blind_levels'], true));
+        if ($bl) pk_apply_event_blinds($db, $session_id, (int)$s['event_id'], $bl, (int)$current['id']);
+    }
+    // Timer settings (BETA switch + bound layout). The layout is re-checked
+    // against the LOADER's visibility — a preset can't smuggle someone a
+    // layout they can't see; an invisible one just doesn't bind.
+    if (!empty($struct['timer_config'])) {
+        $tc = json_decode((string)$struct['timer_config'], true) ?: [];
+        $trow = pk_ensure_timer_row($db, $session_id);
+        $lid = (int)($tc['layout_id'] ?? 0);
+        if ($lid) {
+            $lq = $db->prepare('SELECT id FROM timer_layouts WHERE id = ? AND (is_global = 1 OR created_by = ?
+                    OR league_id IN (SELECT league_id FROM league_members WHERE user_id = ?))');
+            $lq->execute([$lid, (int)$current['id'], (int)$current['id']]);
+            if (!$lq->fetch()) $lid = 0;
+        }
+        $lkey = (string)($tc['layout_builtin'] ?? '');
+        if (!in_array($lkey, ['classic', 'black_green', 'minimalist', 'two_column'], true)) $lkey = '';
+        if ($lid) $lkey = '';   // at most one binding
+        $db->prepare("UPDATE timer_state SET use_beta = ?, layout_id = ?, layout_builtin = ?, updated_at = datetime('now') WHERE id = ?")
+           ->execute([!empty($tc['use_beta']) ? 1 : 0, $lid ?: null, $lkey !== '' ? $lkey : null, (int)$trow['id']]);
+    }
+
     // Re-validate the split on the way in. Presets are stored rows that may
     // pre-date the save-side checks (or have been written before they existed),
     // and this path used to apply whatever it found without looking.
@@ -1856,11 +1917,17 @@ if ($action === 'load_payout_structure') {
     $sess2 = $db->prepare('SELECT * FROM poker_sessions WHERE id = ?');
     $sess2->execute([$session_id]);
 
+    // Current timer flags so the client can retarget the Timer button and
+    // refresh the Blinds pane without another round-trip.
+    $tq2 = $db->prepare('SELECT use_beta FROM timer_state WHERE session_id = ?');
+    $tq2->execute([$session_id]);
+
     echo json_encode([
         'ok'      => true,
         'session' => $sess2->fetch(),
         'payouts' => get_payouts($db, $session_id),
         'pool'    => calc_pool($db, $session_id),
+        'use_beta' => (int)($tq2->fetchColumn() ?: 0),
     ]);
     exit;
 }

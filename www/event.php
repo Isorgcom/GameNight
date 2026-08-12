@@ -93,9 +93,10 @@ if ($token === '' && $page_eid > 0) {
     }
 
     // Poker capacity for the meta line
-    $psq = $db->prepare('SELECT seats_per_table, num_tables FROM poker_sessions WHERE event_id = ?');
+    $psq = $db->prepare('SELECT seats_per_table, num_tables, game_type FROM poker_sessions WHERE event_id = ?');
     $psq->execute([$page_eid]);
     $psRow = $psq->fetch();
+    $isTournament = $psRow && (($psRow['game_type'] ?? '') === 'tournament');
 
     // Entry ticket the viewer holds for THIS event (won at a satellite game).
     $myTicket = null;
@@ -252,6 +253,9 @@ if ($token === '' && $page_eid > 0) {
                 <div class="ev-more-panel" id="evMorePanel">
                     <a href="/event_edit.php?copy=<?= $page_eid ?>">Duplicate event</a>
                     <a href="/event_polls.php?event_id=<?= $page_eid ?>">Polls</a>
+                    <?php if (!empty($isTournament)): ?>
+                    <a href="/event_blinds.php?event_id=<?= $page_eid ?>">&#9202; Blinds &amp; timer display</a>
+                    <?php endif; ?>
                     <a href="javascript:void(0)" data-act="copyEventLinkAndClose" data-a1="@self">&#128279; Copy link</a>
                     <?php if ($isAdmin): ?>
                     <a href="/walkin_display.php?event_id=<?= $page_eid ?>" target="_blank" rel="noopener">&#x1F4F1; Walk-up QR</a>

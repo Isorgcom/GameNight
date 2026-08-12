@@ -192,6 +192,89 @@ function intval_or_string($v) {
     return $v;
 }
 
+/* ── Event blind schedules (copy-on-write) ──────────────────────────────
+ * Shared by event_setup_dl.php (the blind editor) and checkin_dl.php (game
+ * presets carrying a schedule). A session edits only its OWN copy of a
+ * schedule (blind_presets.session_id = session), never a library preset. */
+
+// Sanitize a posted blind-levels array: whole numbers, sane ranges, level
+// numbers re-issued from row order. Returns [] when nothing valid remains.
+function pk_clean_blind_levels($levels): array {
+    if (!is_array($levels)) return [];
+    $clean = [];
+    $n = 0;
+    foreach (array_slice($levels, 0, 200) as $lv) {
+        if (!is_array($lv)) continue;
+        $n++;
+        $clean[] = [
+            'level_number'     => $n,
+            'small_blind'      => max(0, min(100000000, (int)($lv['small_blind'] ?? 0))),
+            'big_blind'        => max(0, min(100000000, (int)($lv['big_blind'] ?? 0))),
+            'ante'             => max(0, min(100000000, (int)($lv['ante'] ?? 0))),
+            'duration_minutes' => max(1, min(999, (int)($lv['duration_minutes'] ?? 15))),
+            'is_break'         => !empty($lv['is_break']) ? 1 : 0,
+        ];
+    }
+    return $clean;
+}
+
+// The timer row is created lazily; callers that need one get it here.
+function pk_ensure_timer_row(PDO $db, int $session_id): array {
+    $q = $db->prepare('SELECT * FROM timer_state WHERE session_id = ?');
+    $q->execute([$session_id]);
+    $timer = $q->fetch();
+    if ($timer) return $timer;
+    $remote_key = bin2hex(random_bytes(8));
+    $db->prepare("INSERT INTO timer_state (session_id, preset_id, current_level, time_remaining_seconds, is_running, remote_key, updated_at)
+                  VALUES (?, NULL, 1, 900, 0, ?, datetime('now'))")->execute([$session_id, $remote_key]);
+    $q->execute([$session_id]);
+    return $q->fetch();
+}
+
+// Write $clean (pk_clean_blind_levels output) as THIS session's own schedule.
+// Reuses the session-local copy when the timer already points at one, else
+// creates one and repoints. Keeps the running clock coherent: current_level
+// clamped to the new count, and a game that hasn't started picks up the new
+// first-level duration. Returns ['preset_id' => int, 'created_copy' => bool].
+function pk_apply_event_blinds(PDO $db, int $session_id, int $event_id, array $clean, int $user_id): array {
+    $timer = pk_ensure_timer_row($db, $session_id);
+
+    $preset_id = (int)($timer['preset_id'] ?? 0);
+    $is_local = false;
+    if ($preset_id) {
+        $pq = $db->prepare('SELECT session_id FROM blind_presets WHERE id = ?');
+        $pq->execute([$preset_id]);
+        $prow = $pq->fetch();
+        $is_local = $prow && (int)($prow['session_id'] ?? 0) === $session_id;
+    }
+    if (!$is_local) {
+        $eq = $db->prepare('SELECT title FROM events WHERE id = ?');
+        $eq->execute([$event_id]);
+        $name = mb_substr('Schedule — ' . (string)$eq->fetchColumn(), 0, 80);
+        $db->prepare('INSERT INTO blind_presets (name, created_by, session_id) VALUES (?, ?, ?)')
+           ->execute([$name, $user_id, $session_id]);
+        $preset_id = (int)$db->lastInsertId();
+    }
+
+    $db->prepare('DELETE FROM blind_preset_levels WHERE preset_id = ?')->execute([$preset_id]);
+    $ins = $db->prepare('INSERT INTO blind_preset_levels (preset_id, level_number, small_blind, big_blind, ante, duration_minutes, is_break) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    foreach ($clean as $lv) {
+        $ins->execute([$preset_id, $lv['level_number'], $lv['small_blind'], $lv['big_blind'], $lv['ante'], $lv['duration_minutes'], $lv['is_break']]);
+    }
+
+    $cur = max(1, min((int)$timer['current_level'], count($clean)));
+    $sets = "preset_id = ?, current_level = ?, updated_at = datetime('now')";
+    $args = [$preset_id, $cur];
+    if (!(int)$timer['is_running'] && (int)$timer['current_level'] === 1) {
+        $sets .= ', time_remaining_seconds = ?';
+        $args[] = $clean[0]['duration_minutes'] * 60;
+    }
+    $args[] = (int)$timer['id'];
+    $db->prepare("UPDATE timer_state SET $sets WHERE id = ?")->execute($args);
+
+    return ['preset_id' => $preset_id, 'created_copy' => !$is_local];
+}
+
 // Verify event ownership (owner, manager, admin, or league owner/manager).
 // Exits with 404/403 on failure. Thin wrapper around can_manage_event().
 function verify_event_access($db, $event_id, $current, $isAdmin) {

@@ -91,6 +91,23 @@ if ($isAdmin) {
 $sessStmt = $db->prepare('SELECT * FROM poker_sessions WHERE event_id = ?');
 $sessStmt->execute([$event_id]);
 $session = $sessStmt->fetch();
+
+// Timer flags for the Setup → Timer tab: whether the Timer button opens the
+// BETA layout display, and which layout this game's display is bound to.
+$use_beta_timer = 0;
+$event_layout_id = null;
+$event_layout_key = null;
+$is_tournament_session = $session && (($session['game_type'] ?? '') === 'tournament');
+if ($session) {
+    try {
+        $ubq = $db->prepare('SELECT use_beta, layout_id, layout_builtin FROM timer_state WHERE session_id = ?');
+        $ubq->execute([(int)$session['id']]);
+        $ubrow = $ubq->fetch();
+        $use_beta_timer = (int)($ubrow['use_beta'] ?? 0);
+        $event_layout_id = (int)($ubrow['layout_id'] ?? 0) ?: null;
+        $event_layout_key = ($ubrow['layout_builtin'] ?? null) ?: null;
+    } catch (Exception $e) {}
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -99,6 +116,11 @@ $session = $sessStmt->fetch();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Manage Game — <?= htmlspecialchars($event['title']) ?> — <?= htmlspecialchars($site_name) ?></title>
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
+    <link rel="stylesheet" href="/event_setup.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/event_setup.css') ?: 0)) ?>">
+    <script src="/event_blinds.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/event_blinds.js') ?: 0)) ?>" defer></script>
+    <?php if ($is_tournament_session): ?>
+    <link rel="stylesheet" href="/timer_beta_edit.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/timer_beta_edit.css') ?: 0)) ?>">
+    <?php endif; ?>
     <style>
     .pk-wrap{padding:0 1rem 2rem;max-width:100%}
     .pk-header{background:var(--dark,#0f172a);color:#fff;padding:.75rem 1.5rem;display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;position:sticky;top:0;z-index:50}
@@ -764,10 +786,28 @@ $session = $sessStmt->fetch();
     </div>
 </div>
 
+<?php if ($is_tournament_session): ?>
+<!-- Setup → Timer: the layout chooser + full layout editor, embedded. Rendered
+     ONCE out here (not inside a settings pane) because the editor's preview
+     iframe would reload on every pane re-render — panes are rebuilt via
+     innerHTML and moving an iframe in the DOM reloads it. syncDisplayHome()
+     reveals this block only while the Timer tab is active. -->
+<div id="ckDisplayHome" hidden>
+    <?php require __DIR__ . '/_timer_beta_editor.php'; ?>
+</div>
+<script nonce="<?= csp_nonce() ?>">
+var ES_CSRF = <?= json_encode($csrf) ?>;
+var ES_EVENT_ID = <?= (int)$event_id ?>;
+var ES_LAYOUT_ID = <?= json_encode($event_layout_id) ?>;
+var ES_LAYOUT_KEY = <?= json_encode($event_layout_key) ?>;
+</script>
+<?php endif; ?>
+
 <?php require __DIR__ . '/_footer.php'; ?>
 
 <script nonce="<?= csp_nonce() ?>">
 var CSRF = <?= json_encode($csrf, JSON_HEX_TAG) ?>;
+var USE_BETA_TIMER = <?= (int)$use_beta_timer ?>;
 // This page installs its own delegated dispatcher below. Tell the shared
 // pk-dispatch.js (loaded from _footer.php) to stand down, or every control
 // fires twice — a rebuy would add 2 and a buy-in would toggle on then off.
@@ -1142,7 +1182,7 @@ function renderDashboard() {
     // conditional Timer / Cash Box / Jackpot buttons come and go.
     h += '<button class="pk-btn-settings" title="How this screen works" aria-label="Help" data-act="openHelp">?<span class="pk-act-label"> Help</span></button>';
     if (isTourney()) {
-        h += '<a class="pk-btn-settings" href="/timer.php?event_id=' + <?= (int)$event['id'] ?> + '" style="text-decoration:none" title="Timer">&#9201;<span class="pk-act-label"> Timer</span></a>';
+        h += '<a class="pk-btn-settings" id="timerLink" href="' + (USE_BETA_TIMER ? '/timer_beta.php' : '/timer.php') + '?event_id=' + <?= (int)$event['id'] ?> + '" style="text-decoration:none" title="Timer">&#9201;<span class="pk-act-label"> Timer</span></a>';
     }
     h += '<a class="pk-btn-settings" href="/walkin_display.php?event_id=' + <?= (int)$event['id'] ?> + '" target="_blank" style="text-decoration:none" title="QR Registration">&#128241;<span class="pk-act-label"> QR</span></a>';
     if (isTourney()) {
@@ -1205,7 +1245,7 @@ function renderDashboard() {
     // hard to skim past — which is the whole point, since "Settings" read as
     // optional preferences when it holds the buy-in, chips, rebuys and the
     // whole payout structure. No dividers: the shape does the separating.
-    h += '<button class="pk-btn-setup' + (VIEW_MODE === 'settings' ? ' active' : '') + '" id="setupBtn" title="Buy-in, chips, rebuys, payouts and rewards" data-act="setViewMode" data-a1="settings">&#9881;<span class="pk-seg-label"> Setup</span></button>';
+    h += '<button class="pk-btn-setup' + (VIEW_MODE === 'settings' ? ' active' : '') + '" id="setupBtn" title="Buy-in, chips, rebuys, payouts, rewards and blinds" data-act="setViewMode" data-a1="settings">&#9881;<span class="pk-seg-label"> Setup</span></button>';
     // The strip holds VIEWS — things you look at. Six equal segments made Setup
     // read as a sixth view and it got lost, hence the button above. Labels
     // collapse to icons on phones, Setup's along with them.
@@ -2122,6 +2162,7 @@ function setSettingsTab(tab) {
         slideViewIn(document.querySelector('.pk-sv-pane[data-pane="' + tab + '"]'),
                     segTravelDirection('settingsSeg', 'data-tab', prev, tab));
     }
+    syncDisplayHome();
 }
 
 function markSettingsDirty() {
@@ -2156,6 +2197,77 @@ function refreshSettingsView() {
         updateBountyHint();
     }
     positionSegThumb('settingsSeg', false);   // the strip was just rebuilt
+    mountBlindsPane();
+    syncDisplayHome();
+}
+
+// Setup → Timer: which display the Timer button opens for this game.
+function renderTimerPane() {
+    var h = '<div class="pk-cfg-section" style="border-top:none;padding-top:0;margin-top:0">';
+    h += '<div class="pk-cfg-title">Tournament timer</div>';
+    h += '<label class="es-toggle" style="margin:.4rem 0"><input type="checkbox" id="ckUseBeta"' + (USE_BETA_TIMER ? ' checked' : '') + ' data-act-change="toggleBetaTimer"> Use BETA timer</label>';
+    h += '<p class="es-note" style="margin:.2rem 0 .8rem">When on, the Timer button (and any link to this game\'s timer) opens the new layout-engine display: custom layouts, multi-screen rotation, break screens. Switch off any time to go back to the classic timer.</p>';
+    h += '<p class="es-note">Pick which layout this game\'s display shows, and build or tweak layouts, right below.</p>';
+    h += '</div>';
+    return h;
+}
+
+// The layout chooser + editor (#ckDisplayHome) is rendered once outside the
+// settings panes (the preview iframe would reload on every pane re-render)
+// and shown only while Setup → Timer is active.
+function syncDisplayHome() {
+    var home = document.getElementById('ckDisplayHome');
+    if (!home) return;
+    var show = SETTINGS_OPEN && VIEW_MODE === 'settings' && SETTINGS_TAB === 'timer';
+    if (show === !home.hidden) return;
+    home.hidden = !show;
+    if (show) {
+        // Freshly revealed: the strip and preview were laid out at zero size.
+        slideViewIn(home, 1);
+        window.dispatchEvent(new Event('resize'));
+    }
+}
+
+function toggleBetaTimer() {
+    var cb = document.getElementById('ckUseBeta');
+    var on = cb && cb.checked ? 1 : 0;
+    var body = new URLSearchParams();
+    body.set('action', 'set_beta'); body.set('csrf_token', CSRF);
+    body.set('event_id', EVENT_ID); body.set('on', on);
+    fetch('/event_setup_dl.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: String(body) })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+            if (!j.ok) { if (cb) cb.checked = !on; (window.pkAlert || alert)(j.error || 'Could not switch'); return; }
+            USE_BETA_TIMER = on;
+            var a = document.getElementById('timerLink');
+            if (a) a.href = (on ? '/timer_beta.php' : '/timer.php') + '?event_id=' + EVENT_ID;
+        })
+        .catch(function () { if (cb) cb.checked = !on; (window.pkAlert || alert)('Network error'); });
+}
+
+// Setup → Blinds: the pane is a mounted component (event_blinds.js), shared
+// with the standalone event_blinds.php page. Re-renders wipe the pane's DOM,
+// so it remounts each time; unsaved grid edits survive on pkBlindsEditor._state.
+function mountBlindsPane() {
+    var box = document.getElementById('ckBlindsPane');
+    if (!box || isCash() || !window.pkBlindsEditor) return;
+    var m = function (d) {
+        pkBlindsEditor.mount(box, {
+            eventId: EVENT_ID, csrf: CSRF, reuseState: true,
+            levels: d.levels || [], currentLevel: d.current_level || 0,
+            isLocal: !!d.is_local, timerRunning: !!d.is_running,
+            useBeta: !!d.use_beta,
+            links: { display: '/event_display.php?event_id=' + EVENT_ID }
+        });
+    };
+    // Already mounted once this page-load: remount from kept state, no refetch.
+    if (pkBlindsEditor._state && pkBlindsEditor._state.eventId === EVENT_ID) { m({}); return; }
+    var body = new URLSearchParams();
+    body.set('action', 'get_blinds'); body.set('csrf_token', CSRF); body.set('event_id', EVENT_ID);
+    fetch('/event_setup_dl.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: String(body) })
+        .then(function (r) { return r.json(); })
+        .then(function (j) { if (j && j.ok) m(j); })
+        .catch(function () {});
 }
 
 function renderSettingsView() {
@@ -2179,6 +2291,10 @@ function renderSettingsView() {
     h += '<span class="pk-seg-thumb"></span>';
     h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'game' ? ' active' : '') + '" data-tab="game" data-act="setSettingsTab" data-a1="game">Game</button>';
     h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'payouts' ? ' active' : '') + (isCash() ? ' disabled' : '') + '" data-tab="payouts" ' + (isCash() ? 'disabled title="Cash games have no payout structure"' : 'data-act="setSettingsTab" data-a1="payouts"') + '>Payouts &amp; Rewards</button>';
+    if (!isCash()) {
+        h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'blinds' ? ' active' : '') + '" data-tab="blinds" data-act="setSettingsTab" data-a1="blinds">Blinds</button>';
+        h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'timer' ? ' active' : '') + '" data-tab="timer" data-act="setSettingsTab" data-a1="timer">Timer</button>';
+    }
     if (hasTickets && !isCash()) {
         h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'tickets' ? ' active' : '') + '" data-tab="tickets" data-act="setSettingsTab" data-a1="tickets">Tickets <span class="pk-sv-badge">' + TICKETS.outgoing.length + '</span></button>';
     }
@@ -2198,16 +2314,20 @@ function renderSettingsView() {
            + '<button class="pk-help-btn" style="padding:.15rem .5rem;font-size:.7rem" title="What game presets do" aria-label="Game preset help" data-act="showPresetHelp">?</button></div>';
         h += '<div class="pk-preset-bar">';
         h += '<select id="payoutStructureSelect" data-act-change="onPayoutStructureChange" style="flex:0 1 300px;min-width:160px;padding:.3rem .5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:4px;font-size:.85rem"></select>';
-        h += '<button data-act="loadPayoutStructure" title="Apply the selected preset to BOTH tabs: game setup, payout split, points, ticket prizes, prizes, bounty and jackpot entry">Load</button>';
+        h += '<button data-act="loadPayoutStructure" title="Apply the selected preset to this game: game setup, payout split, points, ticket prizes, prizes, bounty and jackpot entry, blind schedule and timer settings">Load</button>';
         h += '<button data-act="savePayoutStructureAs" title="Save everything in this editor (both tabs) as a named preset">Save As…</button>';
         h += '<button id="btnDelPayoutStructure" data-act="deletePayoutStructure" style="display:none;color:#ef4444" title="Delete selected preset">Delete</button>';
         h += '<button id="btnDefPayoutStructure" data-act="setDefaultPayoutStructure" style="display:none" title="Set as default (admin)">Set Default</button>';
         h += '</div>';
-        h += '<div style="font-size:.75rem;color:#94a3b8;margin-top:.3rem">A preset stores the whole editor — game setup (buy-in, chips, rebuys, tables) and payouts &amp; rewards. (The satellite target event stays per-game.)</div>';
+        h += '<div style="font-size:.75rem;color:#94a3b8;margin-top:.3rem">A preset stores the whole editor — game setup (buy-in, chips, rebuys, tables), payouts &amp; rewards, blind schedule and timer settings. (The satellite target event stays per-game.)</div>';
         h += '</div>';
     }
     h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'game' ? ' active' : '') + '" data-pane="game">' + renderGamePane() + '</div>';
     h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'payouts' ? ' active' : '') + '" data-pane="payouts">' + renderPayoutsPane() + '</div>';
+    // The blinds pane is a mounted component (event_blinds.js), not an HTML
+    // string — mountBlindsPane() fills this container after every render.
+    h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'blinds' ? ' active' : '') + '" data-pane="blinds"><div id="ckBlindsPane"><div class="pk-log-empty">Loading&hellip;</div></div></div>';
+    h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'timer' ? ' active' : '') + '" data-pane="timer">' + renderTimerPane() + '</div>';
     h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'tickets' ? ' active' : '') + '" data-pane="tickets">' + renderTicketsPanel() + '</div>';
     h += '</div>';
     h += '</div>';
@@ -2825,7 +2945,7 @@ function showPresetHelp() {
     pkAlert(
         '<div class="pk-help-content">'
         + '<h4>What a preset stores</h4>'
-        + '<p>A snapshot of everything in this editor, across both tabs: the Game tab (buy-in, rebuys, add-ons, chips, tables) and the Payouts &amp; Rewards tab (payout split, points, ticket prize values, prize labels, and the bounty and jackpot setup including baked-in vs. optional). The satellite target event is the one thing not stored; that stays per-game.</p>'
+        + '<p>A snapshot of everything in this editor: the Game tab (buy-in, rebuys, add-ons, chips, tables), the Payouts &amp; Rewards tab (payout split, points, ticket prize values, prize labels, and the bounty and jackpot setup including baked-in vs. optional), the Blinds tab (the full level schedule), and the Timer tab (the BETA timer switch and this game\'s display layout). The satellite target event is the one thing not stored; that stays per-game.</p>'
         + '<h4>Load</h4>'
         + '<p>Applies the selected preset to <b>this game</b> right away, replacing the current setup on both tabs. There is no separate save step after loading.</p>'
         + '<h4>Save As&#8230;</h4>'
@@ -2928,6 +3048,15 @@ function loadPayoutStructure() {
             POOL = j.pool || POOL;
             if (j.session) SESSION = j.session;  // recipe presets update bounty/jackpot too
             CURRENT_STRUCTURE_ID = parseInt(sid);
+            // The preset may have replaced the blind schedule and timer flags:
+            // drop the pane's cached grid (it refetches on remount) and
+            // retarget the Timer button to whatever the preset restored.
+            if (window.pkBlindsEditor) pkBlindsEditor._state = null;
+            if (j.use_beta !== undefined) {
+                USE_BETA_TIMER = j.use_beta ? 1 : 0;
+                var tl = document.getElementById('timerLink');
+                if (tl) tl.href = (USE_BETA_TIMER ? '/timer_beta.php' : '/timer.php') + '?event_id=' + EVENT_ID;
+            }
             // Capture an unsaved game-type choice BEFORE the redraw. Both
             // renderDashboard() and refreshSettingsView() rebuild the pane from
             // the SAVED session, so picking Tournament on a game still saved as
@@ -3023,6 +3152,13 @@ function confirmSaveStruct() {
     fd.append('gc_auto_assign_tables', (document.getElementById('cfg_auto_assign') || {}).checked ? 1 : 0);
     fd.append('gc_bounty_optional', svModeVal('cfg_bounty_mode', '0') === '1' ? 1 : 0);
     fd.append('gc_jackpot_optional', svModeVal('cfg_jackpot_mode', '1') === '1' ? 1 : 0);
+    // Blind schedule + timer settings ride too. The server snapshots them from
+    // this session (session_id); when the Blinds pane has a grid loaded, send
+    // it explicitly so unsaved edits are captured — what you see is what saves.
+    fd.append('session_id', SESSION.id);
+    if (window.pkBlindsEditor && pkBlindsEditor._state && pkBlindsEditor._state.eventId === EVENT_ID && pkBlindsEditor._state.levels.length) {
+        fd.append('blind_levels', JSON.stringify(pkBlindsEditor._state.levels));
+    }
     // Carry all four reward dimensions; the backend keeps rows where ANY is set.
     document.querySelectorAll('#payoutRows .row').forEach(function(row) {
         var pctEl = row.querySelector('.payout-pct');
@@ -3233,7 +3369,8 @@ function setViewMode(mode, force) {
     // these are brand-new elements, not ones that moved. Balance and Add Table
     // are rendered inside the filter bar, so they need no toggling here.
     if (filterApplies(mode)) positionSegThumb('filterSeg', false);
-    if (mode === 'settings') positionSegThumb('settingsSeg', false);
+    if (mode === 'settings') { positionSegThumb('settingsSeg', false); mountBlindsPane(); }
+    syncDisplayHome();
     if (mode === 'log') { renderLog(); fetchLog(); }
     else if (mode !== 'payouts') { updateBulkBar(); }
 }

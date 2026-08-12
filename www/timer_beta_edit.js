@@ -58,6 +58,9 @@ function kindOf(n) { return n.cell ? 'cell' : (n.row ? 'row' : 'col'); }
 function pushUndo() {
     undoStack.push(JSON.stringify(LAYOUT));
     if (undoStack.length > 50) undoStack.shift();
+    // Any edit means this is no longer the pristine built-in — the event
+    // binding button must stop offering to bind the built-in by key.
+    if (curBuiltin) { curBuiltin = null; updateEventBtn(); }
 }
 
 function refresh(keepSel) {
@@ -806,7 +809,8 @@ function populateLoadList() {
     bi.label = 'Built-in';
     Object.keys(PV.builtins).forEach(function (k) {
         var o = document.createElement('option');
-        o.value = 'builtin:' + k; o.textContent = PV.builtins[k].name;
+        o.value = 'builtin:' + k;
+        o.textContent = PV.builtins[k].name + (EV_ID && evLayoutKey === k ? ' • this event' : '');
         bi.appendChild(o);
     });
     loadSel.appendChild(bi);
@@ -819,11 +823,73 @@ function populateLoadList() {
             j.layouts.forEach(function (L) {
                 var o = document.createElement('option');
                 o.value = 'id:' + L.id;
-                o.textContent = L.name + (L.is_global ? ' (site)' : (L.league_name ? ' (' + L.league_name + ')' : ''));
+                o.textContent = L.name + (L.is_global ? ' (site)' : (L.league_name ? ' (' + L.league_name + ')' : ''))
+                              + (EV_ID && evLayoutId === L.id ? ' • this event' : '');
                 grp.appendChild(o);
             });
             loadSel.appendChild(grp);
+            updateEventBtn();
         }).catch(function () {});
+}
+
+/* ── Event binding (event context only) ─────────────────────────────────
+ * Opened for a specific game (check-in Setup → Timer, or event_display.php,
+ * which inject ES_EVENT_ID / ES_LAYOUT_ID / ES_CSRF), the header grows a
+ * "Use for this event" toggle: the LOADED layout becomes what that game's
+ * display shows (the live display follows within a poll). The bound layout
+ * is marked "• this event" in the Load list. Clicking again unbinds. */
+var EV_ID = (typeof window.ES_EVENT_ID !== 'undefined' && window.ES_EVENT_ID) ? (window.ES_EVENT_ID | 0) : null;
+var evLayoutId = (typeof window.ES_LAYOUT_ID !== 'undefined' && window.ES_LAYOUT_ID) ? (window.ES_LAYOUT_ID | 0) : null;
+var evLayoutKey = (typeof window.ES_LAYOUT_KEY !== 'undefined' && window.ES_LAYOUT_KEY) ? String(window.ES_LAYOUT_KEY) : null;
+var curBuiltin = null;   // built-in key currently loaded UNMODIFIED, else null
+var evBtn = null;
+if (EV_ID) {
+    evBtn = document.createElement('button');
+    evBtn.id = 'tbeUseForEvent';
+    evBtn.className = 'tbe-btn';
+    var controls = document.querySelector('.tbe-header-controls');
+    controls.insertBefore(evBtn, document.getElementById('tbeDelete'));
+    // The header's "Open display" link opens THIS game's display, not sample.
+    var od = controls.querySelector('a[href="/timer_beta.php"]');
+    if (od) od.href = '/timer_beta.php?event_id=' + EV_ID;
+    var bindEvent = function (toId, toKey) {   // neither = back to default
+        var body = new URLSearchParams();
+        body.set('action', 'set_layout');
+        body.set('csrf_token', window.ES_CSRF || TBE_CSRF);
+        body.set('event_id', EV_ID);
+        body.set('layout_id', toId || '0');
+        if (toKey) body.set('builtin', toKey);
+        fetch('/event_setup_dl.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: String(body) })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+                if (!j.ok) { (window.pkAlert || alert)(j.error || 'Could not update'); return; }
+                evLayoutId = toId || null;
+                evLayoutKey = toKey || null;
+                populateLoadList();   // re-annotate "• this event" + button state
+            })
+            .catch(function () { (window.pkAlert || alert)('Network error'); });
+    };
+    evBtn.addEventListener('click', function () {
+        if (curBuiltin) {
+            // A pristine built-in binds by KEY — no library copy is created.
+            bindEvent(0, evLayoutKey === curBuiltin ? null : curBuiltin);
+        } else if (layoutId) {
+            bindEvent(evLayoutId === layoutId ? 0 : layoutId, null);
+        } else {
+            // Custom, never-saved work: it has to become a saved layout to be
+            // referenced by the event, so save it (name box) and bind.
+            save(false, function () { bindEvent(layoutId, null); });
+        }
+    });
+}
+function updateEventBtn() {
+    if (!evBtn) return;
+    var bound = (!!layoutId && evLayoutId === layoutId) || (!!curBuiltin && evLayoutKey === curBuiltin);
+    evBtn.textContent = bound ? '✓ Event display' : 'Use for this event';
+    evBtn.title = bound
+        ? "This game's display shows this layout — click to go back to the default"
+        : "Make this game's display show this layout (a built-in binds as-is; custom work saves to your library first; the live display follows within seconds)";
+    evBtn.classList.toggle('tbe-btn-primary', bound);
 }
 
 loadSel.addEventListener('change', function () {
@@ -838,6 +904,8 @@ loadSel.addEventListener('change', function () {
         undoStack = []; selPath = null; editScreenIndex = 0;
         normalizeLayout();
         refresh(); selectScreen(0);
+        curBuiltin = k;
+        updateEventBtn();
     } else {
         fetch('/timer_beta_dl.php?action=get_layout&id=' + v.slice(3))
             .then(function (r) { return r.json(); })
@@ -850,12 +918,14 @@ loadSel.addEventListener('change', function () {
                 undoStack = []; selPath = null; editScreenIndex = 0;
                 normalizeLayout();
                 refresh(); selectScreen(0);
+                curBuiltin = null;
+                updateEventBtn();
             }).catch(function () {});
     }
     loadSel.value = '';
 });
 
-function save(asCopy) {
+function save(asCopy, onSaved) {
     var name = nameInput.value.trim();
     if (!name) { window.pkAlert ? pkAlert('Give the layout a name first.') : alert('Name required'); return; }
     var body = new URLSearchParams();
@@ -869,6 +939,7 @@ function save(asCopy) {
         .then(function (j) {
             if (!j.ok) { window.pkAlert ? pkAlert(j.error || 'Save failed') : alert(j.error); return; }
             layoutId = j.id; editable = true;
+            if (onSaved) onSaved();
             populateLoadList();
             var btn = document.getElementById('tbeSave');
             btn.textContent = 'Saved ✓';
@@ -1008,7 +1079,7 @@ importFile.addEventListener('change', function () {
             // Load it into the editor first (through the same renderer, which only
             // assigns text via textContent), then persist a NEW row via the
             // server-sanitized save path so it lands in the Load list.
-            LAYOUT = layout; layoutId = null; editable = true; editScreenIndex = 0;
+            LAYOUT = layout; layoutId = null; editable = true; editScreenIndex = 0; curBuiltin = null;
             normalizeLayout();
             nameInput.value = name.replace(/\s*\(imported\)\s*$/i, '') + ' (imported)';
             undoStack = []; selPath = null;
@@ -1066,6 +1137,7 @@ function boot() {
     PV.onSelect = function (path) { select(path); };
     LAYOUT = JSON.parse(JSON.stringify(PV.builtins.classic));
     delete LAYOUT.name;
+    curBuiltin = 'classic';   // fresh boot shows the pristine built-in
     nameInput.value = 'My layout';
     editScreenIndex = 0;
     normalizeLayout();

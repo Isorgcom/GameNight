@@ -8,7 +8,13 @@
 .tb-badge { background: #f59e0b; color: #451a03; font-size: .62rem; font-weight: 800; letter-spacing: .08em; border-radius: 5px; padding: 3px 7px; }
 .tbe-header-controls { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; }
 .tbe-header-controls input[type=text] { padding: .45rem .6rem; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: .875rem; min-width: 200px; }
-.tbe-header-controls select { padding: .45rem .5rem; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: .875rem; background: #fff; }
+/* Fixed width: a select sizes itself to its LONGEST option, and option text
+   changes as layouts are saved/bound ("• this event" moves around) — a
+   variable-width select made the whole header re-wrap mid-use. */
+.tbe-header-controls select { padding: .45rem .5rem; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: .875rem; background: #fff; width: 190px; }
+/* Same idea: the event-binding button swaps between two labels of different
+   width; reserve the wider one so the header never shifts on toggle. */
+#tbeUseForEvent { min-width: 11em; }
 
 .tbe-btn { padding: .5rem .9rem; border-radius: 8px; border: 1.5px solid #cbd5e1; background: #fff; color: #334155; font-size: .85rem; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-block; }
 .tbe-btn:hover { background: #f8fafc; }

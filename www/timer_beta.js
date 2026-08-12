@@ -652,12 +652,17 @@ function refreshDerived() {
     S.nante = nxt ? nxt.ante : null;
 }
 
+// Display-mode hook: set by the layout-picker section so a change to the
+// event's stored layout (event_display.php) is followed without a reload.
+var onEventLayout = null;
+
 function poll() {
     if (!TB_SESSION_ID) return;
     fetch('/timer_dl.php?action=get_state&session_id=' + TB_SESSION_ID)
         .then(function (r) { return r.json(); })
         .then(function (j) {
             if (!j || !j.ok) return;
+            if (typeof onEventLayout === 'function') onEventLayout(j.layout_id || null, j.layout_builtin || null);
             S.level = j.timer.current_level | 0;
             S.remaining = j.timer.time_remaining_seconds | 0;
             S.running = !!(j.timer.is_running | 0);
@@ -823,7 +828,41 @@ var sel = document.getElementById('tbLayoutSelect');
 var saved = null;
 try { saved = localStorage.getItem('tb_layout'); } catch (e) {}
 var params = new URLSearchParams(location.search);
-var pick = params.get('layout') || saved;
+// Priority: explicit ?layout= URL > the event's stored choice (a saved row
+// OR a built-in key) > this browser's remembered pick > classic.
+var eventLayoutId = (typeof TB_EVENT_LAYOUT_ID !== 'undefined' && TB_EVENT_LAYOUT_ID) ? (TB_EVENT_LAYOUT_ID | 0) : null;
+var eventLayoutKey = (typeof TB_EVENT_LAYOUT_KEY !== 'undefined' && TB_EVENT_LAYOUT_KEY) ? String(TB_EVENT_LAYOUT_KEY) : null;
+var urlOverride = !!params.get('layout');
+var manualOverride = false;   // picking at the TV opts out of following, until reload
+var pick = params.get('layout')
+        || (eventLayoutId ? 'id:' + eventLayoutId : null)
+        || (eventLayoutKey && LAYOUTS[eventLayoutKey] ? eventLayoutKey : null)
+        || saved;
+
+// Follow the event's binding live: when get_state reports a different
+// binding (row id or built-in key) than the one applied, swap. Overrides win.
+onEventLayout = function (lid, lkey) {
+    lid = lid ? (lid | 0) : null;
+    lkey = lkey ? String(lkey) : null;
+    if (urlOverride || manualOverride || (lid === eventLayoutId && lkey === eventLayoutKey)) return;
+    eventLayoutId = lid;
+    eventLayoutKey = lkey;
+    if (lid) {
+        fetch('/timer_beta_dl.php?action=get_layout&id=' + lid)
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+                if (j && j.ok && j.layout) {
+                    renderLayoutObj(j.layout);
+                    if (sel) sel.value = 'id:' + lid;
+                }
+            })
+            .catch(function () {});
+    } else if (lkey && LAYOUTS[lkey]) {
+        renderLayout(lkey);
+        if (sel) sel.value = lkey;
+    }
+    // binding cleared entirely: keep showing what's up
+};
 
 Object.keys(LAYOUTS).forEach(function (k) {
     var o = document.createElement('option');
@@ -853,7 +892,10 @@ function applyPick(v) {
     if (/^id:\d+$/.test(v)) {
         fetch('/timer_beta_dl.php?action=get_layout&id=' + v.slice(3))
             .then(function (r) { return r.json(); })
-            .then(function (j) { if (j && j.ok && j.layout && j.layout.root) renderLayoutObj(j.layout); })
+            // Accept both stored shapes: single-screen {root} and the
+            // normalized {screens:[…]} every editor save produces. The old
+            // .root-only guard silently ignored all multi-screen layouts.
+            .then(function (j) { if (j && j.ok && j.layout && (j.layout.root || j.layout.screens)) renderLayoutObj(j.layout); })
             .catch(function () {});
     } else {
         renderLayout(v);
@@ -863,6 +905,7 @@ function applyPick(v) {
 if (!/^id:\d+$/.test(pick || '') && !LAYOUTS[pick]) pick = 'classic';
 if (LAYOUTS[pick]) sel.value = pick;
 sel.addEventListener('change', function () {
+    manualOverride = true;   // a hands-on pick at the display wins over the event binding
     try { localStorage.setItem('tb_layout', sel.value); } catch (e) {}
     applyPick(sel.value);
 });

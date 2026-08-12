@@ -199,6 +199,8 @@ if ($action === 'get_state') {
         'session_status' => $session ? $session['status'] : '',
         'can_control' => $can_control,
         'csrf_token' => $current ? csrf_token() : null,
+        'layout_id' => (int)($timer['layout_id'] ?? 0) ?: null,
+        'layout_builtin' => ($timer['layout_builtin'] ?? null) ?: null,
         'sounds' => [
             'warning_seconds' => (int)($timer['warning_seconds'] ?? 60),
             'alarm_sound' => $timer['alarm_sound'] ?? null,
@@ -371,10 +373,11 @@ if ($action === 'get_presets') {
         'SELECT bp.id, bp.name, bp.is_default, bp.is_global, bp.created_by, bp.league_id, l.name AS league_name
          FROM blind_presets bp
          LEFT JOIN leagues l ON l.id = bp.league_id
-         WHERE bp.is_default = 1
+         WHERE bp.session_id IS NULL
+           AND (bp.is_default = 1
             OR bp.is_global  = 1
             OR bp.created_by = ?
-            OR bp.league_id IN (SELECT league_id FROM league_members WHERE user_id = ?)
+            OR bp.league_id IN (SELECT league_id FROM league_members WHERE user_id = ?))
          ORDER BY bp.is_default DESC, bp.is_global DESC, LOWER(bp.name)'
     );
     $stmt->execute([$current['id'], $current['id']]);
@@ -403,7 +406,7 @@ if ($action === 'load_preset') {
     $preset_id = (int)($_POST['preset_id'] ?? 0);
 
     // Scoped exactly like get_presets() above, for the same reason as load_theme.
-    $p = $db->prepare('SELECT id FROM blind_presets WHERE id = ? AND (is_default = 1
+    $p = $db->prepare('SELECT id FROM blind_presets WHERE id = ? AND session_id IS NULL AND (is_default = 1
                 OR is_global  = 1
                 OR created_by = ?
                 OR league_id IN (SELECT league_id FROM league_members WHERE user_id = ?))');
@@ -473,6 +476,9 @@ if ($action === 'delete_preset') {
     $p->execute([$preset_id]);
     $preset = $p->fetch();
     if (!$preset) { echo json_encode(['ok' => false, 'error' => 'Not found']); exit; }
+    // Session-local copies aren't library presets; they live and die with
+    // their game and are edited from the event's blind editor.
+    if (!empty($preset['session_id'])) { echo json_encode(['ok' => false, 'error' => 'Not found']); exit; }
     if ((int)$preset['is_default']) { echo json_encode(['ok' => false, 'error' => 'Cannot delete default']); exit; }
     // Global presets can only be deleted by admins.
     if ((int)($preset['is_global'] ?? 0) && !$isAdmin) { echo json_encode(['ok' => false, 'error' => 'Only admins can delete global presets']); exit; }
@@ -535,23 +541,19 @@ if ($action === 'update_levels') {
         }
 
         // Admin can edit anything. League owner/manager can edit their league's preset.
-        // Everyone else (including regular members of the league) gets a personal copy.
-        if ($is_protected && !$isAdmin) {
-            $db->prepare('INSERT INTO blind_presets (name, created_by) VALUES (?, ?)')->execute(['Custom', $current['id']]);
-            $preset_id = (int)$db->lastInsertId();
-            $db->prepare("UPDATE timer_state SET preset_id = ?, updated_at = datetime('now') WHERE id = ?")->execute([$preset_id, $timer['id']]);
-            $created_copy = true;
-        } elseif ($preset_league_id > 0 && !$isAdmin && !$can_edit_league) {
-            $db->prepare('INSERT INTO blind_presets (name, created_by) VALUES (?, ?)')->execute(['Custom', $current['id']]);
-            $preset_id = (int)$db->lastInsertId();
-            $db->prepare("UPDATE timer_state SET preset_id = ?, updated_at = datetime('now') WHERE id = ?")->execute([$preset_id, $timer['id']]);
-            $created_copy = true;
-        } elseif ((int)($presetRow['created_by'] ?? 0) !== (int)$current['id'] && !$isAdmin) {
-            // Someone else's personal preset. Falling through here did not just
-            // overwrite it — the code below DELETEs every level row and re-inserts,
-            // so it destroyed another user's saved blind structure. delete_preset
-            // already required ownership; this is the same rule applied to edits.
-            $db->prepare('INSERT INTO blind_presets (name, created_by) VALUES (?, ?)')->execute(['Custom', $current['id']]);
+        // Everyone else (including regular members of the league) gets a copy.
+        // Copies are session-local (session_id set): the edit belongs to THIS
+        // game, and the copy never appears in anyone's preset library.
+        $needs_copy = ($is_protected && !$isAdmin)
+            || ($preset_league_id > 0 && !$isAdmin && !$can_edit_league)
+            || ((int)($presetRow['created_by'] ?? 0) !== (int)$current['id'] && !$isAdmin);
+            // Someone else's personal preset also copies: falling through here
+            // did not just overwrite it — the code below DELETEs every level row
+            // and re-inserts, so it destroyed another user's saved structure.
+            // delete_preset already required ownership; same rule for edits.
+        if ($needs_copy) {
+            $db->prepare('INSERT INTO blind_presets (name, created_by, session_id) VALUES (?, ?, ?)')
+               ->execute(['Custom', $current['id'], (int)$timer['session_id'] ?: null]);
             $preset_id = (int)$db->lastInsertId();
             $db->prepare("UPDATE timer_state SET preset_id = ?, updated_at = datetime('now') WHERE id = ?")->execute([$preset_id, $timer['id']]);
             $created_copy = true;
