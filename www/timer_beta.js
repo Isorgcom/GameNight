@@ -20,6 +20,11 @@
  * clauses AND together: state (running|paused|on_break|pre_game|game_over),
  * hasAnte, hasRebuys, round (">3","even","all",…).
  *
+ * A screen may also carry `cycle` (seconds): when the first matching screen
+ * has one, the display rotates through every matching screen that also has
+ * one, each shown for its own duration. Screens without `cycle` keep the
+ * first-match-wins rule, so a Break screen ordered first still takes over.
+ *
  * The tree renders to nested flexbox, so nothing can overlap or leave the
  * screen — the property the absolutely-positioned theme model could not give.
  * Cell text is authored data: every string lands via textContent, elements become
@@ -433,13 +438,33 @@ function normalizeScreens(layout) {
     };
 }
 
+// Rotation state for `cycle` screens. Session-only; reset on layout load.
+var _cycScreen = -1;   // screen index the rotation is currently showing
+var _cycSince = 0;     // when it was entered (ms epoch)
+
 function pickScreen() {
     var scr = CURRENT_LAYOUT.screens;
     if (forceScreen !== null && scr[forceScreen]) return forceScreen;
+    var matching = [];
     for (var i = 0; i < scr.length; i++) {
-        if (scr[i].when === undefined || scr[i].when === null || matchCond(scr[i].when)) return i;
+        if (scr[i].when === undefined || scr[i].when === null || matchCond(scr[i].when)) matching.push(i);
     }
-    return scr.length - 1;
+    if (!matching.length) return scr.length - 1;
+    var first = matching[0];
+    // Cycling: only when the screen that WOULD win opts in. That keeps a
+    // no-cycle screen ordered first (Break) absolute: it interrupts any
+    // rotation for as long as its condition matches.
+    if (!(scr[first].cycle > 0)) { _cycScreen = -1; return first; }
+    var set = matching.filter(function (ix) { return scr[ix].cycle > 0; });
+    if (set.length < 2) { _cycScreen = -1; return first; }
+    var now = Date.now();
+    var pos = set.indexOf(_cycScreen);
+    if (pos === -1) { _cycScreen = set[0]; _cycSince = now; }           // (re)enter the rotation
+    else if (now - _cycSince >= scr[_cycScreen].cycle * 1000) {
+        _cycScreen = set[(pos + 1) % set.length];                       // dwell over → next
+        _cycSince = now;
+    }
+    return _cycScreen;
 }
 
 function buildScreen(idx) {
@@ -476,6 +501,7 @@ function buildScreen(idx) {
 
 function renderLayoutObj(layout) {
     CURRENT_LAYOUT = normalizeScreens(layout);
+    _cycScreen = -1;   // new layout, new screen indices — restart any rotation
     buildScreen(pickScreen());
 }
 

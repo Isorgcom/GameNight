@@ -43,6 +43,15 @@ current timer's point-anchor themes can do both and needed a runtime clamp
   the first whose condition matches shows, and a screen with no `when` is the
   default. A break screen (`when:'on_break'`) ordered before a catch-all Main
   auto-swaps in on break, live.
+- **Cycling**: a screen may carry `cycle` (whole seconds, 2–3600). When the
+  first *matching* screen has one, the display rotates through every matching
+  screen that also has one, each shown for its own dwell. A no-cycle screen
+  ordered first (Break) still wins outright, interrupting any rotation while
+  its condition matches; the rotation resumes when it stops matching. One
+  matching cycle screen alone never rotates. Rotation state lives in the
+  renderer (`pickScreen()`), is reset on layout load, and the editor preview
+  is exempt because it pins screens via `forceScreen`. Editor control:
+  "Rotate after (seconds)" in the screen management area.
 - **Conditions** (`when` on a cell or screen, or on a variant): a keyword
   string, or an object of clauses that AND together — `state`
   (running|paused|on_break|pre_game|game_over), `hasAnte`, `hasRebuys`, `round`
@@ -148,7 +157,10 @@ row too, not just the mobile hamburger.
   (never a broken ref); a ref with no embedded bytes (older export) is left
   alone for same-install round-trips. Import file cap raised 4MB → 64MB to
   make room for embedded images.
-- **Remaining:** cycling multiple screens per condition; shared named styles.
+- **Screen cycling (done):** per-screen `cycle` dwell rotates matching screens
+  (see Screens, conditions, variants above). Sanitizer clamps to whole
+  seconds in [2, 3600] so a hostile value can never strobe the display.
+- **Remaining:** shared named styles.
 
 ## Testing
 
@@ -156,8 +168,14 @@ row too, not just the mobile hamburger.
 `beta_variants_check.js` (variants), `beta_screens_check.js` (break screens),
 `beta_elements_check.js` (elements + picker), `beta_export_check.js`
 (export/import round-trip), `beta_images_check.js` (image upload + refs),
-`beta_imgport_check.js` (cross-install image embedding), `beta_shot.js`
+`beta_imgport_check.js` (cross-install image embedding), `beta_cycling_check.js`
+(screen cycling), `beta_shot.js`
 (screenshots). Run against dev; the dev test login is JamesTest.
+
+The break state in sample/preview mode derives from the LEVEL, not a flag:
+`setState({level:7})` (the sample schedule's break level) is how a script or
+the editor's chip enters break; setting `isBreak` directly gets overwritten
+by `refreshDerived()`.
 
 QA-script gotcha: Playwright's `setInputFiles` with the SAME file path twice
 does not re-fire the input's `change` event — use a distinct path per import.

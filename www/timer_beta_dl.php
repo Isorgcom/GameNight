@@ -160,6 +160,12 @@ function pk_lo_screen($scr, array &$err): ?array {
     if ($w !== null) $out['when'] = $w;
     $bg = pk_lo_bg($scr['bg'] ?? null);
     if ($bg !== null) $out['bg'] = $bg;
+    // Rotation dwell in whole seconds; floor of 2s so a bad value can never
+    // strobe the display, cap of 1h. Absent/invalid = screen doesn't rotate.
+    if (isset($scr['cycle']) && is_numeric($scr['cycle'])) {
+        $c = (int)round((float)$scr['cycle']);
+        if ($c >= 2 && $c <= 3600) $out['cycle'] = $c;
+    }
     return $out;
 }
 

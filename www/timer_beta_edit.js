@@ -129,6 +129,29 @@ function renderScreensBar() {
     note.className = 'tbe-screen-note';
     note.textContent = 'Screens are checked top to bottom; the first match shows. Put specific ones (Break) before a catch-all Main.';
     condWrap.appendChild(note);
+
+    // Rotation: dwell seconds; blank = this screen never rotates.
+    var cycRow = document.createElement('div');
+    cycRow.className = 'tbe-screen-cycle';
+    var cycLbl = document.createElement('span');
+    cycLbl.textContent = 'Rotate after (seconds):';
+    var cyc = document.createElement('input');
+    cyc.type = 'number'; cyc.min = 2; cyc.max = 3600; cyc.step = 1; cyc.placeholder = 'off';
+    cyc.value = scr.cycle === undefined ? '' : scr.cycle;
+    cyc.addEventListener('change', function () {
+        pushUndo();
+        var v = parseInt(cyc.value, 10);
+        setOrDelete(scr, 'cycle', (v >= 2 && v <= 3600) ? v : undefined);
+        cyc.value = scr.cycle === undefined ? '' : scr.cycle;
+        refresh(true);
+    });
+    cycRow.appendChild(cycLbl);
+    cycRow.appendChild(cyc);
+    var cycNote = document.createElement('div');
+    cycNote.className = 'tbe-screen-note';
+    cycNote.textContent = 'Give two or more screens a rotation time and the display cycles through the ones whose conditions match, each for its own time. A screen without one (Break) still takes over outright.';
+    condWrap.appendChild(cycRow);
+    condWrap.appendChild(cycNote);
     screensEl.appendChild(condWrap);
 }
 
