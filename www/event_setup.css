@@ -159,6 +159,12 @@ th.es-th-num, .es-cell-num { text-align: right; font-variant-numeric: tabular-nu
 .es-drop-above td { box-shadow: inset 0 2px 0 #2563eb; }
 .es-drop-below td { box-shadow: inset 0 -2px 0 #2563eb; }
 
+/* Empty grid: the row menu needs a row, so the way back in lives here. */
+.es-empty-row td { height: auto; border-bottom: none; }
+.es-empty { display: flex; flex-direction: column; align-items: center; gap: .6rem; padding: 1.6rem .8rem; text-align: center; }
+.es-empty-msg { font-size: .9rem; font-weight: 600; color: #64748b; }
+.es-empty-acts { display: flex; gap: .4rem; flex-wrap: wrap; justify-content: center; }
+
 /* ── Row context menu (body-level: the grid scrolls horizontally) ── */
 .es-menu { display: none; position: fixed; z-index: 4000; background: #fff; border: 1.5px solid #e2e8f0; border-radius: 9px; box-shadow: 0 10px 28px rgba(15, 23, 42, .18); padding: .3rem; min-width: 200px; }
 .es-menu-item { display: block; width: 100%; text-align: left; padding: .4rem .6rem; border: 0; background: none; font-size: .82rem; color: #334155; border-radius: 6px; cursor: pointer; }
@@ -202,6 +208,10 @@ th.es-th-num, .es-cell-num { text-align: right; font-variant-numeric: tabular-nu
     .es-table td { height: 3rem; }
     .es-table .es-rowact .es-mini { min-height: 34px; }
     .es-grid input[type=number] { border-color: #e2e8f0; background: #fff; }
+    /* Kill iOS's long-press callout over a cell so the row menu is what comes
+       up, matching a desktop right-click. Selection itself is suppressed in JS
+       for the length of the press only — see buildRow(). */
+    .es-grid input { -webkit-touch-callout: none; }
     .es-menu-item { padding: .6rem .7rem; font-size: .88rem; }
     .es-drag { font-size: 1.15rem; padding: .3rem .25rem; }
 }

@@ -128,7 +128,12 @@ and the check-in toolbar (tournaments only).
   Structure is edited through a right-click row menu (insert round/break
   above/below, duplicate, break toggle, move up/down/top/bottom, fill duration
   down, delete) which acts on the whole selection — click a row to select,
-  ctrl-click to add, shift-click for a range. Rows reorder by dragging the ⠿
+  ctrl-click to add, shift-click for a range. There are deliberately no
+  "+ Round" / "+ Break" buttons in the rail: the menu inserts relative to where
+  you are, which a rail button cannot do. The one case the menu cannot serve is
+  an empty grid — no row to right-click — so the table renders an empty state
+  offering the first round, a break, or the generator. Delete every row without
+  it and the editor is a dead end. Rows reorder by dragging the ⠿
   grip or with Alt+↑/↓; Enter walks down a column and Ctrl+D copies the cell
   above. Touch gets the same menu on long-press (HTML5 drag is mouse-only, so
   the menu's move items are the touch reorder path).
@@ -153,6 +158,39 @@ and the check-in toolbar (tournaments only).
   `lpGuard` swallows dismissals for 800ms after a long-press menu opens, since
   iOS replays the finger as mousedown/mouseup/click on the row — outside the
   menu — which would close it the instant it appeared.
+
+  Long-press works over a **cell** as well as the row label, because a desktop
+  right-click inside a cell already opens the row menu and the two platforms
+  disagreeing is a bug, not a platform convention. The field is made
+  unselectable only for the duration of the press and restored on
+  touchend/move/cancel: a blanket `user-select: none` on an input risks taking
+  the caret with it on older iOS. Cells also carry `inputmode="numeric"` and
+  `pattern="[0-9]*"` — every value here is a whole number, and `type="number"`
+  alone still yields a full keyboard on iPad — while keeping `type="number"`,
+  which the desktop min/max clamping and arrow-key stepping are built on. On a
+  coarse pointer, focusing a cell selects its contents so one tap replaces the
+  value instead of dropping a caret mid-number.
+
+  **Blinds are money, not just chips.** The classic timer has always stored
+  them as floats (`timer_dl` casts `(float)`, `timer.js` reads `parseFloat`), so
+  a .25/.50 home game works there; the grid's `(int)` casts were a regression
+  against that and silently turned 0.25 into 0 on every copy-on-write save.
+  Money cells now parse as floats rounded to 2dp, carry `step="any"` and
+  `inputmode="decimal"` (a *numeric* keypad has no decimal point, making .25
+  untypable on iOS), and the "big blind is still double" test uses a tolerance
+  because float equality never holds by luck. Duration stays whole minutes.
+  The generator's ladder extends two decades below 1 so a fractional structure
+  can be generated, but rungs **at or above 1 stay whole numbers** — those are
+  chips, and half a chip does not exist. That distinction is load-bearing:
+  rounding the whole ladder to 2dp turned the 37.5 rung into 37.50 instead of
+  38 and changed every generated tournament structure. `fmtChips()` in
+  `timer_beta.js` also had to gain the fraction-digit branch the classic timer
+  already had, or a .50 blind rendered as "0.5".
+
+  Note the emulated-iPad suite runs in **Chromium, not Safari**: it can prove
+  the gesture wiring and that the CSS ships, but `-webkit-touch-callout` is not
+  even exposed to `getComputedStyle` there. iOS-specific behaviour needs a
+  device to confirm.
 
   Undo/redo (buttons at the top of the Controls rail, Ctrl+Z / Ctrl+Shift+Z /
   Ctrl+Y) keeps 60 whole-schedule JSON snapshots on `S.undo` — the grid is

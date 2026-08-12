@@ -102,8 +102,9 @@ $csrf = csrf_token();
 var ES_CSRF = <?= json_encode($csrf) ?>;
 var ES_EVENT_ID = <?= (int)$event_id ?>;
 var ES_LEVELS = <?= json_encode(array_map(function ($l) {
-    return ['small_blind' => (int)$l['small_blind'], 'big_blind' => (int)$l['big_blind'],
-            'ante' => (int)$l['ante'], 'duration_minutes' => (int)$l['duration_minutes'],
+    // (float) for the money columns — see pk_clean_blind_levels().
+    return ['small_blind' => (float)$l['small_blind'], 'big_blind' => (float)$l['big_blind'],
+            'ante' => (float)$l['ante'], 'duration_minutes' => (int)$l['duration_minutes'],
             'is_break' => (int)$l['is_break']];
 }, $levels)) ?>;
 var ES_CURRENT_LEVEL = <?= (int)$current_level ?>;

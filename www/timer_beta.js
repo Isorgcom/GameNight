@@ -171,7 +171,19 @@ if (S.sample) {
     S.prizes = ['1st: $525', '2nd: $315', '3rd: $210'];
 }
 
-function fmtChips(n) { return (n === null || n === undefined || n === '') ? '-' : Number(n).toLocaleString('en-US'); }
+/* Kept in step with fmtChips() in timer.js and cast_receiver.php: the literal
+ * amount, grouped, never 2K. The fraction-digit branch matters now that blinds
+ * can be money — this version had no options, so a .50 blind rendered as "0.5".
+ * Number() first because get_state hands these back as strings, and String's
+ * own toLocaleString ignores the options object entirely. */
+function fmtChips(n) {
+    if (n === null || n === undefined || n === '') return '-';
+    var v = Number(n);
+    if (!isFinite(v)) return '-';
+    return (v % 1 === 0)
+        ? v.toLocaleString('en-US')
+        : v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 function fmtClock(sec) {
     sec = Math.max(0, Math.floor(sec));
     var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;

@@ -258,6 +258,39 @@ if ($action === 'list_payout_structures') {
     exit;
 }
 
+// ─── GET: preset_state ─────────────────────────────────────
+// Where this game's setup came from, and whether it still matches. Drives the
+// Setup editor's preset bar ("From: X • MODIFIED"). Drift is computed against
+// the preset as it exists NOW, not against a fingerprint taken at load time —
+// see pk_preset_is_modified().
+if ($action === 'preset_state') {
+    $session_id = (int)($_GET['session_id'] ?? $_POST['session_id'] ?? 0);
+    $sq = $db->prepare('SELECT ps.* FROM poker_sessions ps WHERE ps.id = ?');
+    $sq->execute([$session_id]);
+    $sess = $sq->fetch(PDO::FETCH_ASSOC);
+    if (!$sess) { echo json_encode(['ok' => false, 'error' => 'Session not found']); exit; }
+    if (!is_owner_or_manager($db, (int)$sess['event_id'], $current, $isAdmin)) {
+        http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Access denied']); exit;
+    }
+    $pid = (int)($sess['preset_structure_id'] ?? 0);
+    if (!$pid) { echo json_encode(['ok' => true, 'preset' => null]); exit; }
+
+    $pq = $db->prepare('SELECT * FROM payout_structures WHERE id = ?');
+    $pq->execute([$pid]);
+    $struct = $pq->fetch(PDO::FETCH_ASSOC);
+    // Preset deleted since: the game keeps its settings, it just has no origin
+    // to compare against any more.
+    if (!$struct) { echo json_encode(['ok' => true, 'preset' => null, 'dangling' => true]); exit; }
+
+    echo json_encode(['ok' => true, 'preset' => [
+        'id'         => (int)$struct['id'],
+        'name'       => (string)$struct['name'],
+        'modified'   => pk_preset_is_modified($db, $struct, $sess),
+        'can_update' => pk_preset_can_write($struct, $current, $isAdmin),
+    ]]);
+    exit;
+}
+
 // ─── GET: get_session_defaults ─────────────────────────────
 // Returns the caller's last-used poker session config. Accepts optional league_id.
 // Lookup: (user, league_id) -> (user, NULL) -> hardcoded defaults.
@@ -1668,7 +1701,11 @@ if ($action === 'save_payout_structure') {
     $is_global = !empty($_POST['is_global']) ? 1 : 0;
     $req_league_id = (int)($_POST['league_id'] ?? 0) ?: null;
 
-    if ($name === '' || !is_array($places) || count($places) === 0) {
+    // An update keeps the preset's existing name and scope, so it sends no
+    // name — requiring one here rejected every "Update preset" before the
+    // update branch below was ever reached.
+    $is_update = (int)($_POST['structure_id'] ?? 0) > 0;
+    if ((!$is_update && $name === '') || !is_array($places) || count($places) === 0) {
         echo json_encode(['ok' => false, 'error' => 'Name and at least one place required']); exit;
     }
     if ($is_global && !$isAdmin) {
@@ -1770,6 +1807,29 @@ if ($action === 'save_payout_structure') {
         echo json_encode(['ok' => false, 'error' => 'Nothing to save — set at least one payout value, points, prize, bounty, or jackpot entry first.']); exit;
     }
 
+    // structure_id present = "Update preset": write this editor back over the
+    // preset the game came from, instead of minting a near-duplicate. Name,
+    // scope and ownership stay as they were — this is an edit, not a re-save.
+    $update_id = (int)($_POST['structure_id'] ?? 0);
+    if ($update_id) {
+        $uq = $db->prepare('SELECT * FROM payout_structures WHERE id = ?');
+        $uq->execute([$update_id]);
+        $target = $uq->fetch(PDO::FETCH_ASSOC);
+        if (!$target) { echo json_encode(['ok' => false, 'error' => 'That preset no longer exists.']); exit; }
+        if (!pk_preset_can_write($target, $current, $isAdmin)) {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'You cannot change that preset — use Save As to make your own copy.']); exit;
+        }
+        $db->prepare('UPDATE payout_structures SET bounty_amount = ?, bounty_points = ?, jackpot_amount = ?, game_config = ?, blind_levels = ?, timer_config = ? WHERE id = ?')
+           ->execute([$st_bounty, $st_bounty_pts, $st_jackpot, $game_config, $blind_levels, $timer_config, $update_id]);
+        $db->prepare('DELETE FROM payout_structure_places WHERE structure_id = ?')->execute([$update_id]);
+        $ins = $db->prepare('INSERT INTO payout_structure_places (structure_id, place, percentage, points, ticket_cents, prize_label) VALUES (?, ?, ?, ?, ?, ?)');
+        foreach ($rows as $r) $ins->execute([$update_id, $r[0], $r[1], $r[2], $r[3], $r[4]]);
+        db_log_activity((int)$current['id'], "updated payout structure: " . $target['name'] . " (id=$update_id)");
+        echo json_encode(['ok' => true, 'structure_id' => $update_id, 'updated' => true, 'name' => $target['name']]);
+        exit;
+    }
+
     $db->prepare('INSERT INTO payout_structures (name, created_by, is_global, league_id, bounty_amount, bounty_points, jackpot_amount, game_config, blind_levels, timer_config) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
        ->execute([$name, (int)$current['id'], $is_global, $league_id, $st_bounty, $st_bounty_pts, $st_jackpot, $game_config, $blind_levels, $timer_config]);
     $sid = (int)$db->lastInsertId();
@@ -1777,6 +1837,12 @@ if ($action === 'save_payout_structure') {
     $ins = $db->prepare('INSERT INTO payout_structure_places (structure_id, place, percentage, points, ticket_cents, prize_label) VALUES (?, ?, ?, ?, ?, ?)');
     foreach ($rows as $r) {
         $ins->execute([$sid, $r[0], $r[1], $r[2], $r[3], $r[4]]);
+    }
+
+    // The game now came from the preset it just produced, so the Setup bar can
+    // say so instead of falling back to "not from a preset".
+    if ($snap_sid) {
+        $db->prepare('UPDATE poker_sessions SET preset_structure_id = ? WHERE id = ?')->execute([$sid, $snap_sid]);
     }
 
     db_log_activity((int)$current['id'], "saved payout structure: $name (id=$sid" . ($league_id ? ", league id=$league_id" : ($is_global ? ", global" : "")) . ")");
@@ -1907,7 +1973,9 @@ if ($action === 'load_payout_structure') {
     // Applying a preset IS setting the game up — a legacy preset carries no
     // game_config, so it can leave the buy-in untouched, and the host must not
     // keep being told the game is unconfigured after deliberately loading one.
-    $db->prepare('UPDATE poker_sessions SET setup_saved = 1 WHERE id = ?')->execute([$session_id]);
+    // …and remember WHICH preset, so the Setup bar can report drift from it.
+    $db->prepare('UPDATE poker_sessions SET setup_saved = 1, preset_structure_id = ? WHERE id = ?')
+       ->execute([$structure_id, $session_id]);
 
     db_log_activity((int)$current['id'], "loaded payout structure id=$structure_id into poker session id=$session_id");
 

@@ -12,11 +12,24 @@
  * fills the grid; "Save to library" publishes via timer_dl.php save_preset. */
 (function () {
 
-    /* Classic poker blind ladder: 1 / 1.5 / 2 / 3 / 4 / 6 / 8 per decade. */
+    /* Money to 2dp. Blinds are dollars in a home game (.25/.50), not just
+     * tournament chips, so every arithmetic result gets rounded here rather
+     * than trusting binary floats: 0.1 + 0.2 must not reach the database. */
+    function round2(v) { return Math.round((+v || 0) * 100) / 100; }
+
+    /* Classic poker blind ladder: 1 / 1.5 / 2 / 3 / 4 / 6 / 8 per decade.
+     * Starts two decades below 1 so a .25/.50 or .50/1 game is on the ladder
+     * as well — it used to bottom out at 25, which meant generating a
+     * fractional structure jumped straight to chip-sized numbers. */
     var LADDER = [];
-    for (var mag = 1; mag <= 1000000; mag *= 10) {
+    for (var mag = 0.01; mag <= 1000000; mag *= 10) {
         [1, 1.5, 2, 3, 4, 6, 8].forEach(function (b) {
-            var v = Math.round(b * mag * 25);
+            var raw = b * mag * 25;
+            // Whole numbers from 1 up: those rungs are CHIPS, and half a chip
+            // does not exist. Rounding only below 1 keeps the tournament part
+            // of the ladder byte-identical to what it was before the fractional
+            // rungs were added (37.5 must still be 38, not 37.50).
+            var v = raw >= 1 ? Math.round(raw) : round2(raw);
             if (LADDER.indexOf(v) === -1) LADDER.push(v);
         });
     }
@@ -24,7 +37,7 @@
     function ladderNext(v, factor) {
         var target = v * (factor || 1.5);
         for (var i = 0; i < LADDER.length; i++) if (LADDER[i] >= target - 0.001) return LADDER[i];
-        return Math.round(target);
+        return round2(target);
     }
     function ladderAt(v) {
         for (var i = 0; i < LADDER.length; i++) if (LADDER[i] >= v) return LADDER[i];
@@ -134,10 +147,12 @@
         undoRow.appendChild(undoBtn); undoRow.appendChild(redoBtn);
         ctrls.appendChild(undoRow);
         ctrls.appendChild(el('div', 'es-divider'));
-        var addLvl = el('button', 'es-mini', '+ Round'); addLvl.type='button'; addLvl.id='esAddLevel';
-        var addBrk = el('button', 'es-mini', '+ Break'); addBrk.type='button'; addBrk.id='esAddBreak';
+        // No "+ Round" / "+ Break" here: inserting is the row menu's job, and it
+        // places the new row WHERE YOU ARE rather than always at the end. The
+        // one case the menu cannot serve is an empty grid — nothing to
+        // right-click — which the table's empty state handles instead.
         var genTog = el('button', 'es-mini', 'Generator…'); genTog.type='button'; genTog.id='esGenToggle';
-        ctrls.appendChild(addLvl); ctrls.appendChild(addBrk); ctrls.appendChild(genTog);
+        ctrls.appendChild(genTog);
         ctrls.appendChild(el('div', 'es-divider'));
         var presetSel = el('select'); presetSel.id='esPresetSel';
         presetSel.appendChild(new Option('Choose a preset…', ''));
@@ -171,8 +186,8 @@
         var title = el('div', 'es-card-title', 'Rounds');
         var coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
         title.appendChild(el('span', 'es-note', coarse
-            ? 'Every cell is editable. Long-press a row for insert / move / delete.'
-            : 'Every cell is editable. Right-click a row for options, drag ⠿ to reorder.'));
+            ? 'Every cell is editable. Long-press a row to insert, move or delete.'
+            : 'Every cell is editable. Right-click a row to insert, move or delete; drag ⠿ to reorder.'));
         card.appendChild(title);
 
         var table = el('table', 'es-table es-grid');
@@ -191,13 +206,16 @@
         var grid = el('div', 'es-gen-grid');
         var G = {};
         [['levels', 'Levels', 15, 1, 100], ['minutes', 'Minutes per level', 20, 1, 240],
-         ['start', 'Starting small blind', 25, 1, 100000], ['factor', 'Increase factor', 1.5, 1.1, 3],
+         ['start', 'Starting small blind', 25, 0.01, 100000], ['factor', 'Increase factor', 1.5, 1.1, 3],
          ['anteFrom', 'Antes from level (0 = none)', 0, 0, 100], ['breakEvery', 'Break every N levels (0 = none)', 4, 0, 20],
          ['breakMin', 'Break minutes', 10, 1, 120]].forEach(function (f) {
             var lab = el('label', null, f[1]);
             var inp = el('input');
             inp.type = 'number'; inp.value = f[2]; inp.min = f[3]; inp.max = f[4];
             if (f[0] === 'factor') inp.step = '0.1';
+            // The starting blind is money: .25 must be typable and must not be
+            // rejected as an invalid step.
+            if (f[0] === 'start') { inp.step = 'any'; inp.inputMode = 'decimal'; }
             lab.appendChild(inp);
             grid.appendChild(lab);
             inp.id = 'esGen' + f[0].charAt(0).toUpperCase() + f[0].slice(1);
@@ -318,7 +336,7 @@
                 if (!S.levels[i].is_break) { ref = S.levels[i]; break; }
             }
             var sb = ref ? ladderNext(ref.small_blind || 25, 1.5) : 25;
-            return { small_blind: sb, big_blind: sb * 2, ante: ref ? +ref.ante : 0,
+            return { small_blind: sb, big_blind: round2(sb * 2), ante: ref ? +ref.ante : 0,
                      duration_minutes: ref ? +ref.duration_minutes : 20, is_break: 0 };
         }
 
@@ -359,6 +377,13 @@
             var td = el('td', cls);
             var inp = el('input');
             inp.type = 'number'; inp.min = min; inp.max = max;
+            // Durations are whole minutes; money is not. step="any" keeps the
+            // browser from rejecting 0.25 as an invalid step off 0, and
+            // inputmode asks iOS for the keypad WITH a decimal point (a
+            // "numeric" keypad has none, which would make .25 untypable).
+            var money = key !== 'duration_minutes';
+            inp.step = money ? 'any' : '1';
+            inp.inputMode = money ? 'decimal' : 'numeric';
             inp.dataset.col = key;
             if (lv.is_break && key !== 'duration_minutes') { inp.disabled = true; inp.value = ''; }
             else inp.value = lv[key];
@@ -366,9 +391,12 @@
             // but the input's own text is left alone until blur — rewriting it
             // mid-type would fight the caret.
             inp.addEventListener('input', function () {
-                var v = clamp(parseInt(inp.value, 10) || 0, min, max);
-                if (key === 'small_blind' && +lv.big_blind === +lv.small_blind * 2) {
-                    lv.big_blind = v * 2;
+                var raw = money ? parseFloat(inp.value) : parseInt(inp.value, 10);
+                var v = clamp(money ? round2(raw || 0) : (raw || 0), min, max);
+                // Float equality never holds by luck (0.1*2 !== 0.2 exactly),
+                // so the "big blind is still double" test needs a tolerance.
+                if (key === 'small_blind' && Math.abs(+lv.big_blind - +lv.small_blind * 2) < 0.005) {
+                    lv.big_blind = round2(v * 2);
                     var bb = td.parentNode.querySelector('input[data-col="big_blind"]');
                     if (bb && document.activeElement !== bb) bb.value = lv.big_blind;
                 }
@@ -383,6 +411,9 @@
             inp.addEventListener('focus', function () {
                 editBase = snapshot();
                 if (S.selRows.length < 2) setSel([i]);
+                // Touch: one tap should replace the value, not drop a caret
+                // mid-number that then needs backspacing out.
+                if (coarse) setTimeout(function () { try { inp.select(); } catch (_) {} }, 0);
             });
             td.appendChild(inp);
             return td;
@@ -435,19 +466,36 @@
                 openMenu(e.clientX, e.clientY, i);
             });
 
-            /* Touch has no right-click: long-press opens the same menu. */
-            var lp = null;
+            /* Touch has no right-click: long-press opens the same menu — and it
+             * does so over a CELL too, matching the desktop, where right-click
+             * anywhere on the row (inputs included) already opens it. Skipping
+             * inputs here is what made iPad and desktop disagree: a long press
+             * in a field raised iOS's Copy / Look Up bar instead of the menu.
+             *
+             * The field is made unselectable only for the DURATION of the press
+             * and restored the moment it ends, so tapping, typing and selecting
+             * in that field are untouched. A blanket user-select:none on an
+             * input risks taking the caret with it on older iOS. */
+            var lp = null, lpInput = null;
+            function endPress() {
+                clearTimeout(lp);
+                if (lpInput) { lpInput.style.webkitUserSelect = ''; lpInput = null; }
+            }
             tr.addEventListener('touchstart', function (e) {
-                if (e.target.tagName === 'INPUT') return;
                 var t = e.touches[0], x = t.clientX, y = t.clientY;
+                if (e.target && e.target.tagName === 'INPUT') {
+                    lpInput = e.target;
+                    lpInput.style.webkitUserSelect = 'none';
+                }
                 lp = setTimeout(function () {
                     if (S.selRows.indexOf(i) === -1) { setSel([i]); S.anchor = i; }
                     openMenu(x, y, i);
                     lpGuard = Date.now() + 800;
+                    endPress();
                 }, 550);
             }, { passive: true });
             ['touchend', 'touchmove', 'touchcancel'].forEach(function (ev) {
-                tr.addEventListener(ev, function () { clearTimeout(lp); }, { passive: true });
+                tr.addEventListener(ev, endPress, { passive: true });
             });
 
             /* Drag to reorder. Only the grip arms the row — a permanently
@@ -613,11 +661,43 @@
             });
         }
 
+        /* Deleting the last row leaves nothing to right-click, so the way back
+         * has to live in the table itself. */
+        function emptyRow() {
+            var tr = el('tr', 'es-empty-row');
+            var td = el('td');
+            td.colSpan = 6;
+            var box = el('div', 'es-empty');
+            box.appendChild(el('div', 'es-empty-msg', 'No rounds yet.'));
+            var acts = el('div', 'es-empty-acts');
+            [['Add the first round', false], ['Add a break', true]].forEach(function (a) {
+                var b = el('button', 'es-mini', a[0]);
+                b.type = 'button';
+                b.addEventListener('click', function () { insertAt(0, a[1]); });
+                acts.appendChild(b);
+            });
+            var gb = el('button', 'es-mini', 'Generate a schedule…');
+            gb.type = 'button';
+            gb.addEventListener('click', function () { if (!gen.classList.contains('open')) genTog.click(); });
+            acts.appendChild(gb);
+            box.appendChild(acts);
+            td.appendChild(box);
+            tr.appendChild(td);
+            return tr;
+        }
+
         /* Full rebuild — structural changes only (add / delete / move / break). */
         function render() {
             dirtyEl.style.display = S.dirty ? '' : 'none';
             tbody.textContent = '';
             rowEls = []; startEls = [];
+            if (!S.levels.length) {
+                tbody.appendChild(emptyRow());
+                setSel([]);
+                refreshDerived();
+                syncUndo();
+                return;
+            }
             var lvlNo = 0, brkNo = 0;
             S.levels.forEach(function (lv, i) {
                 var label = lv.is_break ? 'Break ' + (++brkNo) : 'Round ' + (++lvlNo);
@@ -633,13 +713,30 @@
         /* ── Wiring ── */
         undoBtn.addEventListener('click', doUndo);
         redoBtn.addEventListener('click', doRedo);
-        addLvl.addEventListener('click', function () { insertAt(S.levels.length, false); });
-        addBrk.addEventListener('click', function () { insertAt(S.levels.length, true); });
-        genTog.addEventListener('click', function () { gen.classList.toggle('open'); });
+        genTog.addEventListener('click', function () {
+            var open = gen.classList.toggle('open');
+            genTog.textContent = open ? 'Generator ▴' : 'Generator…';
+            if (!open) return;
+            // The panel opens BELOW the schedule, which is routinely 20 rows
+            // long — off-screen from the button that opened it, so the click
+            // read as doing nothing. Centre it rather than align to top: both
+            // the site nav and the check-in header are sticky and would cover
+            // a top-aligned panel.
+            var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            gen.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
+            // Land the caret in the first field, but never on touch: focusing
+            // there throws up the on-screen keyboard over the panel we just
+            // scrolled to. preventScroll so the focus does not fight the
+            // smooth scroll already running.
+            if (!coarse) {
+                try { G.levels.focus({ preventScroll: true }); G.levels.select(); }
+                catch (_) { /* older browsers: focus() takes no options */ }
+            }
+        });
         genGo.addEventListener('click', function () {
             var n = Math.max(1, Math.min(100, parseInt(G.levels.value, 10) || 15));
             var mins = Math.max(1, Math.min(240, parseInt(G.minutes.value, 10) || 20));
-            var sb = Math.max(1, parseInt(G.start.value, 10) || 25);
+            var sb = Math.max(0.01, round2(parseFloat(G.start.value) || 25));
             var factor = Math.max(1.1, Math.min(3, parseFloat(G.factor.value) || 1.5));
             var anteFrom = Math.max(0, parseInt(G.anteFrom.value, 10) || 0);
             var breakEvery = Math.max(0, parseInt(G.breakEvery.value, 10) || 0);
@@ -647,7 +744,7 @@
             var out = [];
             var cur = ladderAt(sb);
             for (var i = 1; i <= n; i++) {
-                out.push({ small_blind: cur, big_blind: cur * 2,
+                out.push({ small_blind: cur, big_blind: round2(cur * 2),
                            ante: (anteFrom > 0 && i >= anteFrom) ? cur : 0,
                            duration_minutes: mins, is_break: 0 });
                 if (breakEvery > 0 && i % breakEvery === 0 && i < n) {

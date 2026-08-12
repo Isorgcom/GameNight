@@ -208,9 +208,14 @@ function pk_clean_blind_levels($levels): array {
         $n++;
         $clean[] = [
             'level_number'     => $n,
-            'small_blind'      => max(0, min(100000000, (int)($lv['small_blind'] ?? 0))),
-            'big_blind'        => max(0, min(100000000, (int)($lv['big_blind'] ?? 0))),
-            'ante'             => max(0, min(100000000, (int)($lv['ante'] ?? 0))),
+            // Money, not chips: home games run .25/.50 blinds, and the classic
+            // timer has always stored these as floats (timer_dl casts (float),
+            // timer.js reads parseFloat). An (int) cast here silently turned
+            // 0.25 into 0 on every copy-on-write save. Two decimals, rounded,
+            // so float dust never reaches the database.
+            'small_blind'      => round(max(0, min(100000000, (float)($lv['small_blind'] ?? 0))), 2),
+            'big_blind'        => round(max(0, min(100000000, (float)($lv['big_blind'] ?? 0))), 2),
+            'ante'             => round(max(0, min(100000000, (float)($lv['ante'] ?? 0))), 2),
             'duration_minutes' => max(1, min(999, (int)($lv['duration_minutes'] ?? 15))),
             'is_break'         => !empty($lv['is_break']) ? 1 : 0,
         ];
@@ -986,4 +991,106 @@ function _pk_log_decorate(array $rows): array {
         $out[] = $r;
     }
     return $out;
+}
+
+/* ── Preset drift ────────────────────────────────────────────────────────────
+ * "This game came from preset X, and I have since changed it" is the question
+ * the check-in Setup bar answers. It is computed, never stored: a stored
+ * fingerprint taken at load time would go stale the moment the preset itself
+ * was edited, and would then report drift the host never caused.
+ *
+ * Only the sections the preset ACTUALLY STORES are compared. Presets predate
+ * several of these fields, so a legacy row carries no game_config, no blind
+ * schedule and no timer config — comparing those would mark every old preset
+ * permanently modified. Absent section in the preset means "not its business".
+ */
+
+function pk_preset_places(PDO $db, string $table, string $col, int $id): array {
+    $q = $db->prepare("SELECT place, percentage, points, ticket_cents, prize_label
+                       FROM $table WHERE $col = ? ORDER BY place");
+    $q->execute([$id]);
+    $out = [];
+    foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $out[] = [
+            (int)$r['place'],
+            round((float)$r['percentage'], 2),
+            (int)($r['points'] ?? 0),
+            (int)($r['ticket_cents'] ?? 0),
+            (string)($r['prize_label'] ?? ''),
+        ];
+    }
+    return $out;
+}
+
+/* The session's live blind schedule in the same shape a preset stores. */
+function pk_session_blind_levels(PDO $db, int $session_id): array {
+    $t = $db->prepare('SELECT preset_id FROM timer_state WHERE session_id = ?');
+    $t->execute([$session_id]);
+    $pid = (int)($t->fetchColumn() ?: 0);
+    if (!$pid) return [];
+    $l = $db->prepare('SELECT small_blind, big_blind, ante, duration_minutes, is_break
+                       FROM blind_preset_levels WHERE preset_id = ? ORDER BY level_number');
+    $l->execute([$pid]);
+    return pk_clean_blind_levels($l->fetchAll(PDO::FETCH_ASSOC));
+}
+
+/* True when the session no longer matches the preset it was set up from. */
+function pk_preset_is_modified(PDO $db, array $struct, array $sess): bool {
+    $session_id = (int)$sess['id'];
+
+    // 1. Payout / reward rows.
+    if (pk_preset_places($db, 'payout_structure_places', 'structure_id', (int)$struct['id'])
+        !== pk_preset_places($db, 'poker_payouts', 'session_id', $session_id)) return true;
+
+    // 2. Session-level reward recipe (bounty / jackpot).
+    $hasRecipe = $struct['bounty_amount'] !== null || $struct['bounty_points'] !== null
+              || $struct['jackpot_amount'] !== null;
+    if ($hasRecipe) {
+        if ((int)$struct['bounty_amount'] !== (int)$sess['bounty_amount']) return true;
+        if ((int)$struct['bounty_points'] !== (int)$sess['bounty_points']) return true;
+        // A jackpot is a league fund: load_payout_structure zeroes it for a
+        // non-league event, so a mismatch there is the loader's doing, not the
+        // host's. Compare only what could actually have been applied.
+        $ev = $db->prepare('SELECT league_id FROM events WHERE id = ?');
+        $ev->execute([(int)$sess['event_id']]);
+        $wantJp = (int)$ev->fetchColumn() ? (int)$struct['jackpot_amount'] : 0;
+        if ($wantJp !== (int)$sess['jackpot_amount']) return true;
+    }
+
+    // 3. Game tab, key by key — only the keys the preset captured.
+    if (!empty($struct['game_config'])) {
+        $gc = json_decode((string)$struct['game_config'], true) ?: [];
+        foreach ($gc as $k => $v) {
+            if (!array_key_exists($k, $sess)) continue;
+            if ((int)$v !== (int)$sess[$k]) return true;
+        }
+    }
+
+    // 4. Blind schedule.
+    if (!empty($struct['blind_levels'])) {
+        $want = pk_clean_blind_levels(json_decode((string)$struct['blind_levels'], true));
+        if ($want !== pk_session_blind_levels($db, $session_id)) return true;
+    }
+
+    // 5. Timer settings.
+    if (!empty($struct['timer_config'])) {
+        $tc = json_decode((string)$struct['timer_config'], true) ?: [];
+        $t  = $db->prepare('SELECT use_beta, layout_id, layout_builtin FROM timer_state WHERE session_id = ?');
+        $t->execute([$session_id]);
+        $row = $t->fetch(PDO::FETCH_ASSOC) ?: ['use_beta' => 0, 'layout_id' => null, 'layout_builtin' => null];
+        if ((int)!empty($tc['use_beta']) !== (int)($row['use_beta'] ?? 0)) return true;
+        if ((int)($tc['layout_id'] ?? 0) !== (int)($row['layout_id'] ?? 0)) return true;
+        if ((string)($tc['layout_builtin'] ?? '') !== (string)($row['layout_builtin'] ?? '')) return true;
+    }
+
+    return false;
+}
+
+/* Who may overwrite or delete a preset. Mirrors delete_payout_structure: the
+ * site default is admin-only, a global belongs to admins, everything else to
+ * whoever created it. */
+function pk_preset_can_write(array $struct, array $user, bool $isAdmin): bool {
+    if ((int)$struct['is_default']) return $isAdmin;
+    if ((int)$struct['is_global'])  return $isAdmin;
+    return $isAdmin || (int)$struct['created_by'] === (int)$user['id'];
 }

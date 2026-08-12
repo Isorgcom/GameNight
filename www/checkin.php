@@ -302,19 +302,25 @@ if ($session) {
        tab strip, scrolling body; all panes stay mounted). */
     /* Settings renders inside the content area like the other views, so the
        page keeps its header, stats row and toolbar. */
-    .pk-sv-inline{display:flex;flex-direction:column;background:var(--surface,#fff);border:1px solid var(--border,#e2e8f0);border-radius:8px;overflow:hidden}
-    .pk-sv-head{display:flex;justify-content:space-between;align-items:center;gap:.75rem;padding:.7rem 1.25rem;border-bottom:1.5px solid var(--border,#e2e8f0);flex-shrink:0}
-    .pk-sv-title{font-size:1rem;font-weight:700;color:#1e293b}
+    /* The editor is a LAYER over the console, not another card in it. White on
+       white with a 1px hairline read as more page content: the eye could not
+       tell where the console stopped and the editor began. Three cues now say
+       "panel": a dark chrome header (the same navy as the page header), real
+       elevation, and a gap above so it stops butting into the toolbar. */
+    .pk-sv-inline{display:flex;flex-direction:column;background:var(--surface,#fff);border:1.5px solid #cbd5e1;border-radius:12px;overflow:hidden;margin-top:.9rem;box-shadow:0 14px 34px rgba(15,23,42,.16),0 2px 6px rgba(15,23,42,.08)}
+    .pk-sv-head{display:flex;justify-content:space-between;align-items:center;gap:.75rem;padding:.75rem 1.25rem;background:var(--dark,#0f172a);flex-shrink:0}
+    .pk-sv-title{font-size:1rem;font-weight:700;color:#fff}
     .pk-sv-title #svDirty{color:#f59e0b;font-size:.8rem;vertical-align:middle}
     .pk-sv-title #svSaved{color:#16a34a;font-size:.8rem;font-weight:600;margin-left:.4rem}
     .pk-sv-save{padding:.45rem 1.4rem;background:var(--accent,#2563eb);color:#fff;border:none;border-radius:6px;font-weight:600;font-size:.85rem;cursor:pointer}
-    .pk-sv-close{padding:.45rem 1rem;background:transparent;color:#64748b;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-weight:600;font-size:.85rem;cursor:pointer}
+    .pk-sv-close{padding:.45rem 1rem;background:transparent;color:#cbd5e1;border:1.5px solid #475569;border-radius:6px;font-weight:600;font-size:.85rem;cursor:pointer}
+    .pk-sv-close:hover{background:#1e293b;color:#fff}
     /* Setup's tabs are the same segmented control as the toolbar sliders, thumb
        and all. They switch between panes exactly like the view strip switches
        between views, so an underlined-tab idiom here was a third way of saying
        the same thing. Buttons keep .pk-sv-tab so the gating code that enables
        and disables them by data-tab is unchanged. */
-    .pk-sv-tabs{display:flex;padding:.6rem 1.25rem;border-bottom:1.5px solid var(--border,#e2e8f0);flex-shrink:0}
+    .pk-sv-tabs{display:flex;padding:.6rem 1.25rem;background:#f1f5f9;border-bottom:1.5px solid var(--border,#e2e8f0);flex-shrink:0}
     .pk-sv-seg{max-width:100%;flex-wrap:wrap}
     .pk-sv-seg .pk-sv-tab{padding:.42rem .9rem;font-size:.82rem}
     /* Disabled (cash game has no payout structure) must not look selectable, and
@@ -352,7 +358,25 @@ if ($session) {
     /* Load / Save As / Delete / Set Default carried no class at all, so they
        rendered at the browser default size and stayed there on tablets, where
        every other control in this console grows to a 44px touch target. */
+    /* Provenance line: what this game was set up from, and whether it still
+       matches. Amber for MODIFIED because amber means "warning" house-wide. */
+    .pk-preset-from{display:flex;align-items:center;gap:.4rem;font-size:.8rem;margin:0 0 .4rem;min-height:1.2rem}
+    .pk-preset-lbl{color:#94a3b8;font-weight:600}
+    .pk-preset-name{color:#0f172a;font-weight:700}
+    .pk-preset-none{color:#94a3b8;font-style:italic}
+    .pk-preset-mod{background:#fffbeb;color:#92400e;border:1px solid #f59e0b;border-radius:999px;font-size:.66rem;font-weight:800;letter-spacing:.04em;padding:.05rem .45rem}
+    .pk-preset-update{border-color:#f59e0b !important;color:#92400e !important;background:#fffbeb !important}
+    .pk-preset-update:hover{background:#fef3c7 !important}
     .pk-preset-bar{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+    .pk-preset-more{position:relative}
+    .pk-preset-morebtn{padding:.4rem .6rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;background:#fff;font-size:.9rem;line-height:1;color:#64748b;cursor:pointer}
+    .pk-preset-morebtn:hover{background:#f1f5f9}
+    .pk-preset-menu{display:none;position:absolute;right:0;top:calc(100% + .3rem);z-index:60;background:#fff;border:1.5px solid #e2e8f0;border-radius:9px;box-shadow:0 10px 28px rgba(15,23,42,.18);padding:.3rem;min-width:180px}
+    .pk-preset-menu.open{display:block}
+    .pk-preset-menu button{display:block;width:100%;text-align:left;padding:.45rem .6rem;border:0;background:none;font-size:.82rem;color:#334155;border-radius:6px;cursor:pointer}
+    .pk-preset-menu button:hover{background:#f1f5f9}
+    .pk-preset-menu button.danger{color:#b91c1c}
+    .pk-preset-menu button.danger:hover{background:#fef2f2}
     .pk-preset-bar button{padding:.4rem .8rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;background:#fff;font-size:.8rem;font-weight:600;color:#334155;cursor:pointer}
     .pk-preset-bar button:hover{background:#f1f5f9}
     .pk-cfg-title{font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;margin:0 0 .5rem}
@@ -2146,6 +2170,7 @@ function openSettings(tab) {
     // re-render it into the freshly-built (empty) select.
     if (!PAYOUT_STRUCTURES.length) loadPayoutStructures();
     else renderPayoutStructureSelect();
+    refreshPresetState();
     if (isTourney()) {
         populateTicketTargetSelect();
         updateBountyHint();
@@ -2310,10 +2335,14 @@ function renderSettingsView() {
     h += '<span class="pk-seg-thumb"></span>';
     h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'game' ? ' active' : '') + '" data-tab="game" data-act="setSettingsTab" data-a1="game">Game</button>';
     h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'payouts' ? ' active' : '') + (isCash() ? ' disabled' : '') + '" data-tab="payouts" ' + (isCash() ? 'disabled title="Cash games have no payout structure"' : 'data-act="setSettingsTab" data-a1="payouts"') + '>Payouts &amp; Rewards</button>';
-    if (!isCash()) {
-        h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'blinds' ? ' active' : '') + '" data-tab="blinds" data-act="setSettingsTab" data-a1="blinds">Blinds</button>';
-        h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'timer' ? ' active' : '') + '" data-tab="timer" data-act="setSettingsTab" data-a1="timer">Timer</button>';
-    }
+    // Rendered for BOTH game types and shown or hidden live by
+    // previewGameType(). Building them only for a saved tournament is what made
+    // the strip lag the dropdown: switching to Cash left them standing, and
+    // switching to Tournament could not reveal them because they did not exist.
+    // (Their panes were always rendered — only these buttons were gated.)
+    var tourneyTabHidden = isCash() ? ' style="display:none"' : '';
+    h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'blinds' ? ' active' : '') + '" data-tab="blinds" data-act="setSettingsTab" data-a1="blinds"' + tourneyTabHidden + '>Blinds</button>';
+    h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'timer' ? ' active' : '') + '" data-tab="timer" data-act="setSettingsTab" data-a1="timer"' + tourneyTabHidden + '>Timer</button>';
     if (hasTickets && !isCash()) {
         h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'tickets' ? ' active' : '') + '" data-tab="tickets" data-act="setSettingsTab" data-a1="tickets">Tickets <span class="pk-sv-badge">' + TICKETS.outgoing.length + '</span></button>';
     }
@@ -2331,12 +2360,23 @@ function renderSettingsView() {
     {
         h += '<div class="pk-cfg-section" id="cfgPresetSection" style="border-top:none;padding-top:0;margin-top:0' + (isCash() ? ';display:none' : '') + '"><div class="pk-cfg-title" style="display:flex;align-items:center;gap:.45rem">Game Preset'
            + '<button class="pk-help-btn" style="padding:.15rem .5rem;font-size:.7rem" title="What game presets do" aria-label="Game preset help" data-act="showPresetHelp">?</button></div>';
+        // Provenance line: which preset this game was set up from, and whether
+        // it still matches. Filled by refreshPresetState() from the server —
+        // it must survive a reload, so it cannot live in a JS variable.
+        h += '<div class="pk-preset-from" id="presetFrom"></div>';
         h += '<div class="pk-preset-bar">';
         h += '<select id="payoutStructureSelect" data-act-change="onPayoutStructureChange" style="flex:0 1 300px;min-width:160px;padding:.3rem .5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:4px;font-size:.85rem"></select>';
         h += '<button data-act="loadPayoutStructure" title="Apply the selected preset to this game: game setup, payout split, points, ticket prizes, prizes, bounty and jackpot entry, blind schedule and timer settings">Load</button>';
-        h += '<button data-act="savePayoutStructureAs" title="Save everything in this editor (both tabs) as a named preset">Save As…</button>';
-        h += '<button id="btnDelPayoutStructure" data-act="deletePayoutStructure" style="display:none;color:#ef4444" title="Delete selected preset">Delete</button>';
-        h += '<button id="btnDefPayoutStructure" data-act="setDefaultPayoutStructure" style="display:none" title="Set as default (admin)">Set Default</button>';
+        h += '<button id="btnUpdPayoutStructure" class="pk-preset-update" data-act="updatePayoutStructure" style="display:none" title="Write this game\'s current setup back over the preset it came from">Update preset</button>';
+        h += '<button data-act="savePayoutStructureAs" title="Save everything in this editor (both tabs) as a NEW named preset">Save As…</button>';
+        // Destructive / admin actions live behind the ⋯ menu: they applied to
+        // whatever was selected in the dropdown, which reads as if they applied
+        // to the game, and they crowded the two buttons that matter.
+        h += '<div class="pk-preset-more"><button class="pk-preset-morebtn" data-act="togglePresetMenu" title="More preset actions" aria-label="More preset actions">&#8943;</button>';
+        h += '<div class="pk-preset-menu" id="presetMenu">';
+        h += '<button id="btnDefPayoutStructure" data-act="setDefaultPayoutStructure">Set as site default</button>';
+        h += '<button id="btnDelPayoutStructure" class="danger" data-act="deletePayoutStructure">Delete preset</button>';
+        h += '</div></div>';
         h += '</div>';
         h += '<div style="font-size:.75rem;color:#94a3b8;margin-top:.3rem">A preset stores the whole editor — game setup (buy-in, chips, rebuys, tables), payouts &amp; rewards, blind schedule and timer settings. (The satellite target event stays per-game.)</div>';
         h += '</div>';
@@ -2626,6 +2666,26 @@ function previewGameType(val) {
         tickTab.style.display = hide ? 'none' : '';
         if (hide && SETTINGS_TAB === 'tickets') setSettingsTab('game');
     }
+    // Blinds and Timer follow the dropdown immediately. They stay DISABLED
+    // until the game type has actually been saved, because event_setup_dl
+    // refuses any session that is not already a saved tournament — revealing
+    // them enabled would hand the host two panes that can only fail.
+    var savedTourney = !isCash();
+    ['blinds', 'timer'].forEach(function (name) {
+        var t = document.querySelector('.pk-sv-tab[data-tab="' + name + '"]');
+        if (!t) return;
+        t.style.display = hide ? 'none' : '';
+        var needsSave = !hide && !savedTourney;
+        t.classList.toggle('disabled', needsSave);
+        if (needsSave) {
+            t.setAttribute('disabled', 'disabled');
+            t.setAttribute('title', 'Save the game as a tournament first — the blind schedule and timer display need a saved tournament.');
+        } else {
+            t.removeAttribute('disabled');
+            t.removeAttribute('title');
+        }
+        if ((hide || needsSave) && SETTINGS_TAB === name) setSettingsTab('game');
+    });
     // Showing or hiding a segment changes the strip's widths, so the thumb has
     // to be re-measured even when the active tab itself did not change.
     positionSegThumb('settingsSeg', true);
@@ -3021,6 +3081,7 @@ function renderPayoutStructureSelect() {
     addGroup('My Structures', personal);
     if (CURRENT_STRUCTURE_ID) sel.value = String(CURRENT_STRUCTURE_ID);
     updatePayoutStructureButtons();
+    renderPresetState();
 }
 
 function updatePayoutStructureButtons() {
@@ -3048,6 +3109,70 @@ function onPayoutStructureChange() {
     updatePayoutStructureButtons();
 }
 
+// ── Preset provenance ────────────────────────────────────────────────────────
+// PRESET_STATE mirrors poker_sessions.preset_structure_id and is refreshed from
+// the server, never inferred locally: drift is a comparison against the preset
+// as it exists now, which only the server can make.
+var PRESET_STATE = null;
+
+function refreshPresetState() {
+    if (!SESSION || !SESSION.id) return;
+    fetch('/checkin_dl.php?action=preset_state&session_id=' + SESSION.id)
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+            if (!j || !j.ok) return;
+            PRESET_STATE = j.preset || null;
+            if (PRESET_STATE) CURRENT_STRUCTURE_ID = PRESET_STATE.id;
+            renderPresetState();
+        })
+        .catch(function() {});
+}
+
+function renderPresetState() {
+    var line = document.getElementById('presetFrom');
+    var upd  = document.getElementById('btnUpdPayoutStructure');
+    if (!line) return;
+    line.textContent = '';
+    if (!PRESET_STATE) {
+        // Said plainly rather than left blank: "no origin" is a real state, and
+        // it is the honest answer for a game whose setup was typed by hand.
+        line.appendChild(svEl('span', 'pk-preset-none', 'Not from a preset'));
+        if (upd) upd.style.display = 'none';
+        return;
+    }
+    line.appendChild(svEl('span', 'pk-preset-lbl', 'From:'));
+    line.appendChild(svEl('span', 'pk-preset-name', PRESET_STATE.name));
+    if (PRESET_STATE.modified) {
+        var tag = svEl('span', 'pk-preset-mod', 'MODIFIED');
+        tag.title = 'This game no longer matches the preset it was set up from.';
+        line.appendChild(tag);
+    }
+    // Update only when there is something to write AND the caller may write it.
+    if (upd) upd.style.display = (PRESET_STATE.modified && PRESET_STATE.can_update) ? '' : 'none';
+}
+
+function svEl(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+}
+
+function togglePresetMenu() {
+    var m = document.getElementById('presetMenu');
+    if (!m) return;
+    var open = m.classList.toggle('open');
+    if (!open) return;
+    // Reuse the existing eligibility rules for the items now inside the menu.
+    updatePayoutStructureButtons();
+    var close = function (e) {
+        if (m.contains(e.target)) return;
+        m.classList.remove('open');
+        document.removeEventListener('mousedown', close);
+    };
+    setTimeout(function () { document.addEventListener('mousedown', close); }, 0);
+}
+
 function loadPayoutStructure() {
     var sel = document.getElementById('payoutStructureSelect');
     if (!sel || !sel.value) { pkAlert('Pick a structure first.'); return; }
@@ -3067,6 +3192,7 @@ function loadPayoutStructure() {
             POOL = j.pool || POOL;
             if (j.session) SESSION = j.session;  // recipe presets update bounty/jackpot too
             CURRENT_STRUCTURE_ID = parseInt(sid);
+            refreshPresetState();
             // The preset may have replaced the blind schedule and timer flags:
             // drop the pane's cached grid (it refetches on remount) and
             // retarget the Timer button to whatever the preset restored.
@@ -3147,12 +3273,27 @@ function confirmSaveStruct() {
     var league_id = scopeVal.charAt(0) === 'l' ? parseInt(scopeVal.slice(1)) : 0;
     closeSaveStruct();
 
-    var fd = new FormData();
-    fd.append('csrf_token', CSRF);
-    fd.append('action', 'save_payout_structure');
+    var fd = buildPresetFormData();
     fd.append('name', name);
     if (is_global) fd.append('is_global', '1');
     if (league_id) fd.append('league_id', league_id);
+    fetch('/checkin_dl.php', { method: 'POST', body: fd })
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+            if (!j.ok) { pkAlert(j.error || 'Error'); return; }
+            CURRENT_STRUCTURE_ID = parseInt(j.structure_id);
+            loadPayoutStructures();
+            refreshPresetState();
+        });
+}
+
+// Everything a preset stores, gathered from the live editor. Shared by
+// "Save As…" (new row) and "Update preset" (overwrite the origin), so the two
+// can never drift into capturing different things.
+function buildPresetFormData() {
+    var fd = new FormData();
+    fd.append('csrf_token', CSRF);
+    fd.append('action', 'save_payout_structure');
     // Session-level reward recipe (bounty / jackpot entry) rides with the preset.
     fd.append('bounty_amount', Math.max(0, Math.round(parseFloat((document.getElementById('cfg_bounty') || {}).value || 0))) * 100);
     fd.append('bounty_points', parseInt((document.getElementById('cfg_bounty_points') || {}).value || 0));
@@ -3190,13 +3331,25 @@ function confirmSaveStruct() {
         fd.append('tickets[]', (row.querySelector('.payout-ticket') || {}).value || 0);
         fd.append('labels[]', (row.querySelector('.payout-label') || {}).value || '');
     });
+    return fd;
+}
+
+// Write the editor back over the preset this game came from. Only offered when
+// the bar says MODIFIED and the caller may write to that preset.
+async function updatePayoutStructure() {
+    if (!PRESET_STATE || !PRESET_STATE.id) return;
+    if (!(await pkConfirm('Update "' + PRESET_STATE.name + '" with this game\'s current setup?\n\nEvery future game loading this preset gets these settings. Games already set up from it are not touched.',
+                          { okLabel: 'Update preset' }))) return;
+    var fd = buildPresetFormData();
+    fd.append('structure_id', PRESET_STATE.id);
     fetch('/checkin_dl.php', { method: 'POST', body: fd })
         .then(function(r) { return r.json(); })
         .then(function(j) {
             if (!j.ok) { pkAlert(j.error || 'Error'); return; }
-            CURRENT_STRUCTURE_ID = parseInt(j.structure_id);
             loadPayoutStructures();
-        });
+            refreshPresetState();
+        })
+        .catch(function() { pkAlert('Request failed'); });
 }
 
 async function deletePayoutStructure() {
@@ -3213,6 +3366,7 @@ async function deletePayoutStructure() {
             if (!j.ok) { pkAlert(j.error || 'Error'); return; }
             if (parseInt(sel.value) === CURRENT_STRUCTURE_ID) CURRENT_STRUCTURE_ID = 0;
             loadPayoutStructures();
+            refreshPresetState();
         });
 }
 
@@ -4149,6 +4303,9 @@ function saveSettings() {
 function settingsSaved() {
     SETTINGS_DIRTY = false;
     SETTINGS_OPEN = false;
+    // A save is exactly what makes a game diverge from (or fall back in line
+    // with) the preset it came from, so recompute the provenance line.
+    refreshPresetState();
     VIEW_MODE = (VIEW_MODE_PREV && VIEW_MODE_PREV !== 'settings') ? VIEW_MODE_PREV : 'list';
     renderDashboard();
     pkProgressDone();
