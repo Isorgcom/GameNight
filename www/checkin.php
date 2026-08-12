@@ -377,6 +377,9 @@ if ($session) {
     .pk-preset-menu button:hover{background:#f1f5f9}
     .pk-preset-menu button.danger{color:#b91c1c}
     .pk-preset-menu button.danger:hover{background:#fef2f2}
+    .pk-preset-menu button:disabled{opacity:.45;cursor:default}
+    .pk-preset-menu button:disabled:hover{background:none}
+    .pk-preset-menu-hint{padding:.45rem .6rem;font-size:.78rem;color:#64748b;line-height:1.35;max-width:230px}
     .pk-preset-bar button{padding:.4rem .8rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;background:#fff;font-size:.8rem;font-weight:600;color:#334155;cursor:pointer}
     .pk-preset-bar button:hover{background:#f1f5f9}
     .pk-cfg-title{font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;margin:0 0 .5rem}
@@ -990,6 +993,9 @@ var ASSIGNABLE_LEAGUES = <?= json_encode(array_map(
 // offered a change — the server refuses it, so don't present it as possible.
 var CAN_MOVE_LEAGUE = <?= $_canMoveLeague ? 'true' : 'false' ?>;
 var IS_ADMIN = <?= $isAdmin ? 'true' : 'false' ?>;
+// Needed to tell "my preset" from "someone else's" without a round-trip; the
+// preset menu greys out what the server would refuse, and says why.
+var CURRENT_USER_ID = <?= (int)$current['id'] ?>;
 var SESSION = <?= $session ? json_encode($session, JSON_HEX_TAG) : 'null' ?>;
 var PAYOUT_STRUCTURES = [];
 var CURRENT_STRUCTURE_ID = 0;
@@ -2374,6 +2380,7 @@ function renderSettingsView() {
         // to the game, and they crowded the two buttons that matter.
         h += '<div class="pk-preset-more"><button class="pk-preset-morebtn" data-act="togglePresetMenu" title="More preset actions" aria-label="More preset actions">&#8943;</button>';
         h += '<div class="pk-preset-menu" id="presetMenu">';
+        h += '<div class="pk-preset-menu-hint" id="presetMenuHint" style="display:none"></div>';
         h += '<button id="btnDefPayoutStructure" data-act="setDefaultPayoutStructure">Set as site default</button>';
         h += '<button id="btnDelPayoutStructure" class="danger" data-act="deletePayoutStructure">Delete preset</button>';
         h += '</div></div>';
@@ -2410,11 +2417,17 @@ function renderGamePane() {
     // ── Game ──
     h += '<div class="pk-cfg-section"><div class="pk-cfg-title">Game</div>';
     h += '<div class="pk-settings-grid">';
-    // League first: jackpots are league funds and payout presets are scoped to a
-    // league, so hitting "this event must belong to a league" used to mean
-    // leaving Setup for the event editor and coming back. Saved with everything
-    // else by Save, and applied before the jackpot check server-side so a league
-    // and a jackpot can be set in one go.
+    // Game Type first: it decides what the rest of this editor even contains —
+    // picking Cash strips the Blinds, Timer and Payouts tabs. Buy-in next, so
+    // the two settings that define the game sit together; League last, since it
+    // rebinds the event rather than configuring it.
+    h += '<div><label>Game Type</label><select id="cfg_game_type" data-act-change="previewGameType" data-change-a1="@value"><option value="tournament"' + (isTourney()?' selected':'') + '>Tournament</option><option value="cash"' + (isCash()?' selected':'') + '>Cash Game</option></select></div>';
+    h += '<div><label>Buy-in</label><div class="pk-money-wrap"><input type="number" id="cfg_buyin" value="' + Math.round(parseInt(SESSION.buyin_amount)/100) + '" step="1" min="0" data-act-input="updateBountyHint"></div></div>';
+    // League is here rather than in the event editor because jackpots are league
+    // funds and payout presets are scoped to a league, so hitting "this event
+    // must belong to a league" used to mean leaving Setup and coming back.
+    // Saved with everything else by Save, and applied before the jackpot check
+    // server-side so a league and a jackpot can be set in one go.
     h += '<div><label>League ' + tip('Jackpot funds and saved payout presets belong to a league. Changing this moves the event.') + '</label>';
     if (CAN_MOVE_LEAGUE) {
         h += '<select id="cfg_league_id" data-act-change="markSettingsDirty">';
@@ -2434,8 +2447,6 @@ function renderGamePane() {
            + '<br><span style="font-size:.72rem">Only a league owner or manager can change this.</span></div>';
     }
     h += '</div>';
-    h += '<div><label>Game Type</label><select id="cfg_game_type" data-act-change="previewGameType" data-change-a1="@value"><option value="tournament"' + (isTourney()?' selected':'') + '>Tournament</option><option value="cash"' + (isCash()?' selected':'') + '>Cash Game</option></select></div>';
-    h += '<div><label>Buy-in</label><div class="pk-money-wrap"><input type="number" id="cfg_buyin" value="' + Math.round(parseInt(SESSION.buyin_amount)/100) + '" step="1" min="0" data-act-input="updateBountyHint"></div></div>';
     h += '</div></div>';
 
     // ── Chips, rebuys & add-ons (tournament only). Rebuys and Add-ons are
@@ -3084,25 +3095,60 @@ function renderPayoutStructureSelect() {
     renderPresetState();
 }
 
+// Both menu items act on the SELECTED preset, and for most people most of the
+// time neither applies — a non-admin looking at the site default can do
+// neither. Hiding them left the ⋯ opening a 12px empty box, which reads as a
+// broken control. Nothing is hidden now: an item the server would refuse is
+// shown disabled WITH THE REASON, and "no preset selected" gets a line saying
+// so, so the menu always answers the question it was opened to ask.
 function updatePayoutStructureButtons() {
     var sel = document.getElementById('payoutStructureSelect');
     var delBtn = document.getElementById('btnDelPayoutStructure');
     var defBtn = document.getElementById('btnDefPayoutStructure');
+    var hint   = document.getElementById('presetMenuHint');
     if (!sel) return;
+
+    function state(btn, allowed, reason) {
+        if (!btn) return;
+        btn.style.display = '';
+        btn.disabled = !allowed;
+        btn.classList.toggle('disabled', !allowed);
+        if (reason) btn.title = reason; else btn.removeAttribute('title');
+    }
+
     var opt = sel.options[sel.selectedIndex];
     if (!opt || !opt.value) {
-        if (delBtn) delBtn.style.display = 'none';
+        if (hint) {
+            hint.style.display = '';
+            hint.textContent = 'Choose a preset in the list first — these act on the selected preset.';
+        }
         if (defBtn) defBtn.style.display = 'none';
+        if (delBtn) delBtn.style.display = 'none';
         return;
     }
-    var isDef  = opt.dataset.isDefault === '1';
-    var isGlob = opt.dataset.isGlobal  === '1';
-    if (defBtn) defBtn.style.display = (IS_ADMIN && !isDef) ? '' : 'none';
-    if (delBtn) {
-        if (isDef) delBtn.style.display = 'none';
-        else if (isGlob) delBtn.style.display = IS_ADMIN ? '' : 'none';
-        else delBtn.style.display = '';
-    }
+    if (hint) hint.style.display = 'none';
+
+    var isDef    = opt.dataset.isDefault === '1';
+    var isGlob   = opt.dataset.isGlobal  === '1';
+    var leagueId = parseInt(opt.dataset.leagueId || 0) || 0;
+    var mine     = parseInt(opt.dataset.createdBy || 0) === CURRENT_USER_ID;
+    // ASSIGNABLE_LEAGUES is exactly the set this user owns or manages, which is
+    // the same test delete_payout_structure applies server-side.
+    var canLeague = IS_ADMIN || ASSIGNABLE_LEAGUES.some(function (l) { return l.id === leagueId; });
+
+    // Site default is admin-only for EVERY preset, so a non-admin gets no
+    // version of this action worth seeing — hide it rather than show a
+    // permanently dead row. Delete is different: it IS available to them on
+    // their own presets, so that one stays visible and explains itself.
+    if (!defBtn) { /* nothing to do */ }
+    else if (!IS_ADMIN) defBtn.style.display = 'none';
+    else state(defBtn, !isDef, isDef ? 'This is already the site default.' : '');
+
+    if (isDef)               state(delBtn, false, 'The site default cannot be deleted.');
+    else if (isGlob)         state(delBtn, IS_ADMIN, IS_ADMIN ? '' : 'Only site admins can delete a global preset.');
+    else if (leagueId)       state(delBtn, canLeague, canLeague ? '' : 'Only an owner or manager of that league can delete this preset.');
+    else if (!mine)          state(delBtn, IS_ADMIN, IS_ADMIN ? '' : 'This preset belongs to another user.');
+    else                     state(delBtn, true, '');
 }
 
 function onPayoutStructureChange() {
