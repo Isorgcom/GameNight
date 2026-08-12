@@ -521,6 +521,7 @@ function updateAll() {
         var el = clockCells[c];
         el.classList.toggle('tb-crit', rem <= 30);
         el.classList.toggle('tb-warn', rem > 30 && rem <= S.warnSecs);
+        el.classList.toggle('tb-paused', !S.running && !S.sample);
     }
 
     // Re-fit only the fit cells whose rendered text actually changed shape.
