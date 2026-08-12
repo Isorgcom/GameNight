@@ -22,7 +22,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($action === 'set_avatar') {
             // Path comes from upload.php (validated to its exact output shape).
             $path = trim($_POST['avatar_path'] ?? '');
-            if (preg_match('#^/uploads/[a-f0-9]{32}\.(jpg|png|gif|webp)\z#', $path)) {
+            // Legacy flat path OR the namespaced avatars/u<id>_… that upload.php now returns.
+            if (preg_match('#^/uploads/(avatars/u\d+_)?[a-f0-9]{32}\.(jpg|png|gif|webp)\z#', $path)) {
                 $db->prepare('UPDATE users SET avatar_path = ? WHERE id = ?')->execute([$path, $current['id']]);
                 db_log_activity($current['id'], 'set profile photo');
                 $flash = ['type' => 'success', 'msg' => 'Profile photo updated.'];
@@ -313,6 +314,7 @@ $site_name = get_setting('site_name', 'Game Night');
                 var fd = new FormData();
                 fd.append('csrf_token', <?= json_encode($token) ?>);
                 fd.append('image', f);
+                fd.append('feature', 'avatars');
                 var self = this;
                 fetch('/upload.php', { method: 'POST', body: fd, credentials: 'same-origin' })
                     .then(function (r) { return r.json(); })

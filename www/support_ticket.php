@@ -119,6 +119,7 @@ document.getElementById('stShot').addEventListener('change', function () {
     var fd = new FormData();
     fd.append('csrf_token', CSRF);
     fd.append('image', f);
+    fd.append('feature', 'tickets');
     var input = this;
     fetch('/upload.php', { method: 'POST', body: fd, credentials: 'same-origin' })
         .then(function (r) { return r.json(); })
