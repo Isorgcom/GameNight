@@ -649,6 +649,56 @@ function save(asCopy) {
 document.getElementById('tbeSave').addEventListener('click', function () { save(false); });
 document.getElementById('tbeSaveCopy').addEventListener('click', function () { save(true); });
 
+/* ── Export / Import ─────────────────────────────────────────────────────
+ * A layout exports as one self-contained JSON file — our own portable format,
+ * readable by any GameNight install. Import feeds it straight through the
+ * server-side sanitizer (save_layout), so the file is untrusted data, never
+ * code; it is only ever JSON.parse'd, never evaluated. */
+function slugify(s) {
+    return (String(s || 'layout').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'layout').slice(0, 60);
+}
+document.getElementById('tbeExport').addEventListener('click', function () {
+    var name = nameInput.value.trim() || 'Untitled layout';
+    var envelope = { gnTimerLayout: 1, name: name, layout: LAYOUT };
+    var blob = new Blob([JSON.stringify(envelope, null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = slugify(name) + '.gntimer.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+});
+
+var importFile = document.getElementById('tbeImportFile');
+document.getElementById('tbeImport').addEventListener('click', function () { importFile.value = ''; importFile.click(); });
+importFile.addEventListener('change', function () {
+    var file = importFile.files && importFile.files[0];
+    if (!file) return;
+    if (file.size > 4 * 1024 * 1024) { (window.pkAlert || alert)('That file is too large to be a layout.'); return; }
+    var reader = new FileReader();
+    reader.onload = function () {
+        var env;
+        try { env = JSON.parse(reader.result); }
+        catch (e) { (window.pkAlert || alert)('That file is not valid JSON.'); return; }
+        // Accept our envelope, or a bare layout object as a fallback.
+        var layout = (env && env.gnTimerLayout && env.layout) ? env.layout
+                   : (env && (env.screens || env.root)) ? env : null;
+        if (!layout) { (window.pkAlert || alert)("That doesn't look like a GameNight timer layout."); return; }
+        var name = (env && env.name) ? String(env.name).slice(0, 80) : (nameInput.value.trim() || 'Imported layout');
+
+        // Load it into the editor first (through the same renderer, which only
+        // assigns text via textContent), then persist a NEW row via the
+        // server-sanitized save path so it lands in the Load list.
+        LAYOUT = layout; layoutId = null; editable = true; editScreenIndex = 0;
+        normalizeLayout();
+        nameInput.value = name.replace(/\s*\(imported\)\s*$/i, '') + ' (imported)';
+        undoStack = []; selPath = null;
+        refresh(); selectScreen(0); renderInspector();
+        save(true);   // save as a new copy; server sanitizes and rejects anything invalid
+    };
+    reader.onerror = function () { (window.pkAlert || alert)('Could not read that file.'); };
+    reader.readAsText(file);
+});
+
 document.getElementById('tbeDelete').addEventListener('click', function () {
     if (!layoutId) { window.pkAlert ? pkAlert('This layout is not saved.') : alert('Not saved'); return; }
     var go = function () {

@@ -37,6 +37,9 @@ $csrf = csrf_token();
             <input type="text" id="tbeName" maxlength="80" placeholder="Layout name">
             <button id="tbeSave" class="tbe-btn tbe-btn-primary">Save</button>
             <button id="tbeSaveCopy" class="tbe-btn">Save as copy</button>
+            <button id="tbeExport" class="tbe-btn" title="Download this layout as a file">Export</button>
+            <button id="tbeImport" class="tbe-btn" title="Load a layout from a file">Import</button>
+            <input type="file" id="tbeImportFile" accept="application/json,.json" hidden>
             <button id="tbeDelete" class="tbe-btn tbe-btn-danger">Delete</button>
             <a class="tbe-btn tbe-btn-ghost" href="/timer_beta.php" target="_blank">Open display</a>
         </div>

@@ -109,8 +109,15 @@ row too, not just the mobile hamburger.
   button reflects the running state. It is solid when active and auto-hides
   completely after 3s of no pointer/touch/key activity (video-player style),
   reappearing on any interaction. The fold-into-main-timer decision remains.
-- **Remaining:** cycling multiple screens per condition; shared named styles;
-  import/export; background images per screen (uploads-scoped).
+- **Export/import (done):** a layout exports as one self-contained JSON file
+  (`{gnTimerLayout:1, name, layout}`, `.gntimer.json`) — our own portable
+  format, no TD format involved. Import JSON.parse's the file (never evals),
+  loads it into the editor, and persists via save_layout so the server
+  sanitizer is the trust boundary; a bare `{screens|root}` object is also
+  accepted. Hostile styles are stripped, non-layout files import nothing.
+- **Remaining:** custom elements (user-defined named text values); custom
+  images (background per screen / image cells, uploads-scoped, embedded on
+  export); cycling multiple screens per condition; shared named styles.
 
 ## Testing
 
