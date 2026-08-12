@@ -683,15 +683,18 @@ function togglePlay() { sendCommand('toggle_play'); }
 // Double-tap / double-click the clock to start or pause. The tray button stays
 // the primary control; this is for the host standing at the table with a tablet
 // propped up, where hitting a small button is the awkward part.
+// Control is armed when the user can control this timer and isn't in the layout
+// editor (where the clock is a draggable object). Shared by the clock
+// double-tap and the keyboard shortcuts; the server re-checks on every command.
+function timerControlArmed() {
+    return CAN_CONTROL && !document.body.classList.contains('layout-edit');
+}
+
 (function () {
     var clock = document.getElementById('timerClock');
     if (!clock) return;
 
-    function armed() {
-        // A viewer must never be able to control the game, and in the layout
-        // editor the clock is a draggable object rather than a button.
-        return CAN_CONTROL && !document.body.classList.contains('layout-edit');
-    }
+    function armed() { return timerControlArmed(); }
     function toggleFromClock(e) {
         if (!armed()) return;
         if (e && e.preventDefault) e.preventDefault();
@@ -4047,12 +4050,16 @@ if (tray) {
     }, { passive: true });
 }
 
-// Spacebar hotkey for start/stop (only when not typing in an input)
+// Keyboard control: Space start/stop, Left/Right previous/next level. Gated on
+// the same conditions as the clock double-tap (armed()): the user can control
+// this timer and isn't in layout-edit mode, and isn't typing in a field. The
+// server re-checks manage rights on every command regardless.
 document.addEventListener('keydown', function(e) {
-    if (e.code === 'Space' && !e.target.closest('input, textarea, select, [contenteditable]')) {
-        e.preventDefault();
-        togglePlay();
-    }
+    if (e.target.closest('input, textarea, select, [contenteditable]')) return;
+    if (!timerControlArmed()) return;
+    if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+    else if (e.code === 'ArrowRight') { e.preventDefault(); skipLevel(1); }
+    else if (e.code === 'ArrowLeft')  { e.preventDefault(); skipLevel(-1); }
 });
 
 // Open TV display mode in a new tab (for casting/TV browser)
