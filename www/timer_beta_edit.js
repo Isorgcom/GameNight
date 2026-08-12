@@ -67,6 +67,9 @@ function refresh(keepSel) {
     PV.setLayout(LAYOUT);
     renderTree();
     if (keepSel && selPath !== null) PV.select(selPath);
+    // Boxes have moved, so the drag handles have to be re-measured. After the
+    // frame paints, or every rect is the previous layout's.
+    if (typeof mountResizeHandles === 'function') requestAnimationFrame(mountResizeHandles);
 }
 
 /* ── Screens (break screen, pre-game screen, …) ──────────────────────── */
@@ -742,23 +745,22 @@ function insertNode(newNode) {
     select(selPath);
 }
 
-document.getElementById('tbeAddCell').addEventListener('click', function () {
-    insertNode({ cell: { text: 'New cell', size: 2.4, color: '#ffffff' } });
-});
-document.getElementById('tbeAddRow').addEventListener('click', function () {
-    insertNode({ row: [{ cell: { text: 'Left', size: 2.4, color: '#ffffff' } }, { cell: { text: 'Right', size: 2.4, color: '#ffffff' } }], weight: 1 });
-});
-document.getElementById('tbeAddCol').addEventListener('click', function () {
-    insertNode({ col: [{ cell: { text: 'Top', size: 2.4, color: '#ffffff' } }, { cell: { text: 'Bottom', size: 2.4, color: '#ffffff' } }], weight: 1 });
-});
-document.getElementById('tbeDup').addEventListener('click', function () {
+function newCellNode() { return { cell: { text: 'New cell', size: 2.4, color: '#ffffff' } }; }
+function newRowNode()  { return { row: [{ cell: { text: 'Left', size: 2.4, color: '#ffffff' } }, { cell: { text: 'Right', size: 2.4, color: '#ffffff' } }], weight: 1 }; }
+function newColNode()  { return { col: [{ cell: { text: 'Top', size: 2.4, color: '#ffffff' } }, { cell: { text: 'Bottom', size: 2.4, color: '#ffffff' } }], weight: 1 }; }
+document.getElementById('tbeAddCell').addEventListener('click', function () { insertNode(newCellNode()); });
+document.getElementById('tbeAddRow').addEventListener('click', function () { insertNode(newRowNode()); });
+document.getElementById('tbeAddCol').addEventListener('click', function () { insertNode(newColNode()); });
+// Named so the toolbar and the right-click menu drive the SAME operation —
+// two implementations of "duplicate" would drift.
+function dupNode() {
     if (!selPath) return;
     pushUndo();
     var p = parentOf(selPath);
     p.list.splice(p.index + 1, 0, JSON.parse(JSON.stringify(p.list[p.index])));
     refresh(); select(selPath);
-});
-document.getElementById('tbeRemove').addEventListener('click', function () {
+}
+function removeNode() {
     if (!selPath) return;
     pushUndo();
     var p = parentOf(selPath);
@@ -766,7 +768,9 @@ document.getElementById('tbeRemove').addEventListener('click', function () {
     selPath = null;
     refresh();
     renderInspector();
-});
+}
+document.getElementById('tbeDup').addEventListener('click', dupNode);
+document.getElementById('tbeRemove').addEventListener('click', removeNode);
 function move(delta) {
     if (!selPath) return;
     var p = parentOf(selPath);
@@ -781,12 +785,638 @@ function move(delta) {
 document.getElementById('tbeUp').addEventListener('click', function () { move(-1); });
 document.getElementById('tbeDown').addEventListener('click', function () { move(1); });
 
-document.getElementById('tbeUndo').addEventListener('click', doUndo);
-document.addEventListener('keydown', function (e) {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.target.closest('input, textarea, select')) {
-        e.preventDefault(); doUndo();
+/* ── Right-click menu: preview and structure tree ─────────────────────────
+ * Both surfaces show the same tree, so both get the same menu, and it acts on
+ * the node you POINTED AT rather than whatever happened to be selected — it
+ * selects first, then runs the ordinary operation, so the toolbar and the menu
+ * can never diverge. */
+var tbeMenu = null, tbeSub = null;
+function closeSubMenu() { if (tbeSub) tbeSub.style.display = 'none'; }
+function closeNodeMenu() { if (tbeMenu) tbeMenu.style.display = 'none'; closeSubMenu(); }
+
+/* Submenu panel. One element, rebuilt per open, anchored beside the row that
+ * spawned it and flipped to its left when there is no room on the right. */
+function openSubMenu(anchor, build) {
+    if (!tbeSub) {
+        tbeSub = document.createElement('div');
+        tbeSub.className = 'tbe-menu tbe-submenu';
+        document.body.appendChild(tbeSub);
     }
+    var sm = tbeSub;
+    sm.textContent = '';
+
+    function addRow(label, on, fn) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'tbe-menu-item' + (on ? ' tbe-menu-check on' : '');
+        b.textContent = label;
+        b.addEventListener('click', function () { closeNodeMenu(); fn(); });
+        sm.appendChild(b);
+    }
+    function addSwatches(list, current, pick) {
+        var row = document.createElement('div');
+        row.className = 'tbe-swatches';
+        list.forEach(function (c) {
+            var sw = document.createElement('button');
+            sw.type = 'button';
+            sw.className = 'tbe-swatch' + (current === c ? ' on' : '');
+            sw.style.background = c;
+            sw.title = c;
+            sw.addEventListener('click', function () { closeNodeMenu(); pick(c); });
+            row.appendChild(sw);
+        });
+        sm.appendChild(row);
+    }
+
+    build(sm, addRow, addSwatches);
+    sm.style.display = 'block';
+    sm.style.left = '0px'; sm.style.top = '0px';
+    var r = anchor.getBoundingClientRect();
+    var w = sm.offsetWidth, h = sm.offsetHeight;
+    var left = r.right + 2;
+    if (left + w > window.innerWidth - 6) left = Math.max(4, r.left - w - 2);
+    sm.style.left = left + 'px';
+    sm.style.top = Math.max(4, Math.min(r.top, window.innerHeight - h - 6)) + 'px';
+}
+function nodeMenuEl() {
+    if (tbeMenu) return tbeMenu;
+    tbeMenu = document.createElement('div');
+    tbeMenu.className = 'tbe-menu';
+    document.body.appendChild(tbeMenu);
+    // Dismissal lives at document level because the menu is body-level: it has
+    // to escape both the tree's scroll box and the preview iframe.
+    document.addEventListener('mousedown', function (e) {
+        if (tbeMenu.contains(e.target)) return;
+        if (tbeSub && tbeSub.contains(e.target)) return;   // the submenu is part of the menu
+        closeNodeMenu();
+    });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeNodeMenu(); });
+    window.addEventListener('resize', closeNodeMenu);
+    window.addEventListener('scroll', closeNodeMenu, true);
+    return tbeMenu;
+}
+
+/* The vocabulary below mirrors pk_layout_sanitize() exactly. Anything the
+ * sanitizer would drop must not be offered here — a menu that writes a value
+ * the server silently strips is worse than no menu. */
+var PALETTE = ['#ffffff', '#e2e8f0', '#94a3b8', '#0f172a', '#2563eb', '#60a5fa',
+               '#22c55e', '#f59e0b', '#ef4444', '#a855f7'];
+var PADS    = [['None', undefined], ['Small', '0.5vh 0.5vw'], ['Medium', '1vh 1vw'], ['Large', '2vh 2vw']];
+var GAPS    = [['None', undefined], ['Small', '0.5vh'], ['Medium', '1vh'], ['Large', '2vh']];
+var SPACING = [['None', undefined], ['Tight', '-0.02em'], ['Wide', '0.08em']];
+var OPACITY = [['100%', undefined], ['75%', 0.75], ['50%', 0.5], ['25%', 0.25]];
+var BORDERS = [['None', undefined], ['Thin', '1px solid rgba(255,255,255,0.35)'],
+               ['Medium', '2px solid rgba(255,255,255,0.55)'], ['Accent', '2px solid #2563eb']];
+var JUSTIFY = [['Start', 'flex-start'], ['Center', 'center'], ['End', 'flex-end'],
+               ['Space between', 'space-between'], ['Space around', 'space-around']];
+var ALIGNS  = [['Left', 'left'], ['Center', 'center'], ['Right', 'right']];
+
+function openNodeMenu(path, x, y) {
+    select(path);
+    var m = nodeMenuEl();
+    m.textContent = '';
+    closeSubMenu();
+    var isRoot = (path === '' || path === null);
+    var node = nodeAt(path).node;
+    var container = !!(node.row || node.col);
+    var cell = node.cell;
+
+    // Every property edit is one undo step and one re-render, so the menu can
+    // never leave the preview showing something the layout does not say.
+    function edit(fn) {
+        return function () { pushUndo(); fn(); refresh(true); renderInspector(); };
+    }
+
+    function item(label, fn, cls) {
+        if (label === null) {
+            var sep = document.createElement('div');
+            sep.className = 'tbe-menu-sep';
+            m.appendChild(sep);
+            return;
+        }
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'tbe-menu-item' + (cls ? ' ' + cls : '');
+        b.textContent = label;
+        b.addEventListener('mouseenter', closeSubMenu);
+        b.addEventListener('click', function () { closeNodeMenu(); fn(); });
+        m.appendChild(b);
+        return b;
+    }
+
+    // A checkable row: the tick IS the current value, so the menu doubles as a
+    // readout of what the node already has.
+    function toggle(label, on, fn) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'tbe-menu-item tbe-menu-check' + (on ? ' on' : '');
+        b.textContent = label;
+        b.addEventListener('mouseenter', closeSubMenu);
+        b.addEventListener('click', function () { closeNodeMenu(); fn(); });
+        m.appendChild(b);
+    }
+
+    // Submenu: choices open beside the parent row rather than making the menu
+    // twenty items long.
+    function sub(label, build) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'tbe-menu-item tbe-menu-sub';
+        b.textContent = label;
+        b.addEventListener('mouseenter', function () { openSubMenu(b, build); });
+        b.addEventListener('click', function (e) { e.stopPropagation(); openSubMenu(b, build); });
+        m.appendChild(b);
+    }
+
+    // Choice list for an enum-ish property; current value is ticked.
+    function choices(list, current, apply) {
+        return function (panel, addRow) {
+            list.forEach(function (opt) {
+                addRow(opt[0], opt[1] === current || (opt[1] === undefined && current === undefined),
+                       edit(function () { apply(opt[1]); }));
+            });
+        };
+    }
+
+    // Colour picker: swatches, a native picker for anything else, and a way
+    // back to "not set" (which is not the same as white).
+    function colourPanel(current, apply, clearLabel) {
+        return function (panel, addRow, addSwatches) {
+            addSwatches(PALETTE, current, function (c) { edit(function () { apply(c); })(); });
+            addRow('Custom…', false, function () {
+                var inp = document.createElement('input');
+                inp.type = 'color';
+                inp.value = /^#[0-9a-f]{6}$/i.test(current || '') ? current : '#ffffff';
+                inp.addEventListener('change', function () { edit(function () { apply(inp.value); })(); });
+                inp.click();
+            });
+            addRow(clearLabel || 'Default', current === undefined, edit(function () { apply(undefined); }));
+        };
+    }
+
+    // insertNode() puts a node INSIDE a container and AFTER a cell, so the
+    // labels say which will happen rather than making you find out.
+    var where = container ? ' inside' : ' after';
+    item('Add cell' + where,   function () { insertNode(newCellNode()); });
+    item('Add row' + where,    function () { insertNode(newRowNode()); });
+    item('Add column' + where, function () { insertNode(newColNode()); });
+
+    if (cell) {
+        item(null);
+        // A cell is text, an image, or a QR. The inspector hides the text
+        // fields for the other two because they do not apply; the menu mirrors
+        // that rather than offering settings with no effect.
+        if (cell.image) {
+            sub('Image fit', choices([['Contain', 'contain'], ['Cover', 'cover']],
+                cell.imageFit || 'contain',
+                function (v) { setOrDelete(cell, 'imageFit', v === 'contain' ? undefined : v); }));
+            item('Replace image…', function () {
+                uploadImage(function (url) { pushUndo(); cell.image = url; refresh(true); renderInspector(); });
+            });
+            item('Remove image (back to text)', edit(function () { delete cell.image; delete cell.imageFit; }));
+        } else if (cell.qr) {
+            item('Remove QR code (back to text)', edit(function () { delete cell.qr; }));
+        } else {
+            toggle('Bold', !!cell.bold, edit(function () { setOrDelete(cell, 'bold', cell.bold ? undefined : true); }));
+            toggle('Fit text to box', !!cell.fit, edit(function () { setOrDelete(cell, 'fit', cell.fit ? undefined : true); }));
+            toggle('Clock colours', !!cell.clockColors, edit(function () { setOrDelete(cell, 'clockColors', cell.clockColors ? undefined : true); }));
+            sub('Align', choices(ALIGNS, cell.align || 'center', function (v) {
+                setOrDelete(cell, 'align', v === 'center' ? undefined : v);
+            }));
+            sub('Text size', function (panel, addRow) {
+                var cur = typeof cell.size === 'number' ? cell.size : 2.4;
+                addRow('Bigger',  false, edit(function () { delete cell.fit; cell.size = Math.min(40, r2(cur * 1.25)); }));
+                addRow('Smaller', false, edit(function () { delete cell.fit; cell.size = Math.max(0.5, r2(cur / 1.25)); }));
+                addRow('Reset (2.4)', cur === 2.4, edit(function () { cell.size = 2.4; }));
+            });
+            sub('Colour',         colourPanel(cell.color, function (v) { setOrDelete(cell, 'color', v); }));
+            sub('Letter spacing', choices(SPACING, cell.spacing, function (v) { setOrDelete(cell, 'spacing', v); }));
+            var styleNames = Object.keys((LAYOUT && LAYOUT.styles) || {});
+            if (styleNames.length) {
+                sub('Shared style', function (panel, addRow) {
+                    addRow('None', !cell.style, edit(function () { setOrDelete(cell, 'style', undefined); }));
+                    styleNames.forEach(function (n) {
+                        addRow(n, cell.style === n, edit(function () { cell.style = n; }));
+                    });
+                });
+            }
+            item(null);
+            item('Use an image instead…', function () {
+                uploadImage(function (url) { pushUndo(); cell.image = url; refresh(true); renderInspector(); });
+            });
+            item('Use a QR code instead', edit(function () { cell.qr = 'display'; }));
+        }
+        // Box properties apply whatever the cell holds.
+        sub('Background', colourPanel(cell.bg, function (v) { setOrDelete(cell, 'bg', v); }, 'None'));
+        sub('Padding',    choices(PADS,    cell.pad,     function (v) { setOrDelete(cell, 'pad', v); }));
+        sub('Opacity',    choices(OPACITY, cell.opacity, function (v) { setOrDelete(cell, 'opacity', v); }));
+        sub('Border',     choices(BORDERS, cell.border,  function (v) { setOrDelete(cell, 'border', v); }));
+    }
+
+    // The SCREEN's background belongs to the screen, not to any node, so it is
+    // offered where you would look for it: right-clicking the screen itself.
+    if (isRoot) {
+        item(null);
+        sub('Screen background', function (panel, addRow, addSwatches) {
+            var bg = curScreen().bg || (curScreen().bg = {});
+            addSwatches(PALETTE, bg.color, function (c) {
+                edit(function () { (curScreen().bg || (curScreen().bg = {})).color = c; })();
+            });
+            addRow('Image…', false, function () {
+                uploadImage(function (url) {
+                    pushUndo();
+                    var b2 = curScreen().bg || (curScreen().bg = {});
+                    b2.image = url;
+                    refresh(true); renderInspector();
+                });
+            });
+            if (bg.image) {
+                addRow('Fit: Cover',   (bg.imageFit || 'cover') === 'cover',
+                    edit(function () { delete curScreen().bg.imageFit; }));
+                addRow('Fit: Contain', bg.imageFit === 'contain',
+                    edit(function () { curScreen().bg.imageFit = 'contain'; }));
+                addRow('Remove image', false,
+                    edit(function () { delete curScreen().bg.image; delete curScreen().bg.imageFit; }));
+            }
+        });
+    }
+
+    if (container) {
+        item(null);
+        sub('Justify', choices(JUSTIFY, node.justify, function (v) { setOrDelete(node, 'justify', v); }));
+        sub('Gap',     choices(GAPS,    node.gap,     function (v) { setOrDelete(node, 'gap', v); }));
+        sub('Padding', choices(PADS,    node.pad,     function (v) { setOrDelete(node, 'pad', v); }));
+        sub('Background', colourPanel(node.bg, function (v) { setOrDelete(node, 'bg', v); }, 'None'));
+        sub('Border',  choices(BORDERS, node.border,  function (v) { setOrDelete(node, 'border', v); }));
+    }
+
+    if (!isRoot) {
+        // Weight is the share of the parent, so it applies to cells and
+        // containers alike — the same number the resize handles write.
+        sub('Size in parent', function (panel, addRow) {
+            var w = typeof node.weight === 'number' ? node.weight : null;
+            addRow('More',  false, edit(function () { node.weight = r2(Math.min(50, (w === null ? 1 : w) + 0.5)); }));
+            addRow('Less',  false, edit(function () { node.weight = r2(Math.max(0, (w === null ? 1 : w) - 0.5)); }));
+            addRow('Content-sized', w === null, edit(function () { delete node.weight; }));
+        });
+    }
+
+    if (!isRoot) {
+        var p = parentOf(path);
+        item(null);
+        item('Duplicate', dupNode);
+        // Held by reference, not by index: this menu grew from seven rows to
+        // thirty and any positional lookup would silently disable the wrong one.
+        var upBtn = item('Move up',   function () { move(-1); });
+        var dnBtn = item('Move down', function () { move(1); });
+        if (p && p.index === 0) { upBtn.disabled = true; upBtn.title = 'Already first in its container.'; }
+        if (p && p.index === p.list.length - 1) { dnBtn.disabled = true; dnBtn.title = 'Already last in its container.'; }
+        item(null);
+        item('Delete', removeNode, 'tbe-menu-danger');
+    }
+
+    item(null);
+    var undoBtn = item('Undo last change', doUndo);
+    if (!undoStack.length) { undoBtn.disabled = true; undoBtn.title = 'Nothing to undo yet.'; }
+
+    // Show first so it can be measured, then keep it inside the viewport.
+    m.style.display = 'block';
+    m.style.left = '0px'; m.style.top = '0px';
+    m.style.left = Math.max(4, Math.min(x, window.innerWidth  - m.offsetWidth  - 6)) + 'px';
+    m.style.top  = Math.max(4, Math.min(y, window.innerHeight - m.offsetHeight - 6)) + 'px';
+}
+
+// Structure tree.
+document.getElementById('tbeTree').addEventListener('contextmenu', function (e) {
+    var row = e.target.closest ? e.target.closest('[data-tpath]') : null;
+    if (!row) return;
+    e.preventDefault();
+    openNodeMenu(row.getAttribute('data-tpath'), e.clientX, e.clientY);
 });
+
+/* ── Drag a boundary to resize ─────────────────────────────────────────────
+ * Handles live in an overlay INSIDE the iframe, so they sit exactly over the
+ * boundaries they control, but the layout data and the undo stack stay here —
+ * the renderer is the shipping display and must not learn about editing.
+ *
+ * The overlay is appended to the iframe's <body>, deliberately NOT to #tbRoot:
+ * buildScreen() clears #tbRoot on every re-render, which would take the handles
+ * with it.
+ *
+ * Only the two neighbours either side of a boundary are touched, and their
+ * combined weight is held constant, so dragging one boundary cannot disturb the
+ * rest of the container. */
+var MIN_PX = 8;
+var dragState = null;
+
+function overlayLayer() {
+    var doc = frame.contentDocument;
+    if (!doc || !doc.body) return null;
+    var layer = doc.getElementById('tbeOverlay');
+    if (layer) return layer;
+    var st = doc.createElement('style');
+    st.textContent =
+        '#tbeOverlay{position:fixed;inset:0;pointer-events:none;z-index:60}' +
+        '.tbe-h{position:fixed;pointer-events:auto;background:transparent;transition:background .12s}' +
+        '.tbe-h:hover,.tbe-h.on{background:rgba(59,130,246,.85)}' +
+        '.tbe-h-v{cursor:col-resize}.tbe-h-h{cursor:row-resize}';
+    doc.head.appendChild(st);
+    layer = doc.createElement('div');
+    layer.id = 'tbeOverlay';
+    doc.body.appendChild(layer);
+    return layer;
+}
+
+function kidsOf(el) {
+    return [].filter.call(el.children, function (k) {
+        return k.nodeType === 1 && k.hasAttribute('data-path');
+    });
+}
+
+// Rebuilt after every refresh: the boxes have moved, so the handles must.
+function mountResizeHandles() {
+    var doc = frame.contentDocument, layer = overlayLayer();
+    if (!doc || !layer) return;
+    layer.textContent = '';
+    [].forEach.call(doc.querySelectorAll('.tb-row, .tb-col'), function (c) {
+        var isRow = c.classList.contains('tb-row');
+        var kids = kidsOf(c);
+        for (var i = 0; i + 1 < kids.length; i++) {
+            var ra = kids[i].getBoundingClientRect(), rb = kids[i + 1].getBoundingClientRect();
+            // A zero-sized neighbour (a cell hidden by its condition) has no
+            // boundary worth grabbing.
+            if ((isRow ? ra.width : ra.height) < 2 || (isRow ? rb.width : rb.height) < 2) continue;
+            var h = doc.createElement('div');
+            h.className = 'tbe-h ' + (isRow ? 'tbe-h-v' : 'tbe-h-h');
+            if (isRow) {
+                h.style.left = ((ra.right + rb.left) / 2 - 3) + 'px';
+                h.style.top = ra.top + 'px';
+                h.style.width = '6px';
+                h.style.height = ra.height + 'px';
+            } else {
+                h.style.top = ((ra.bottom + rb.top) / 2 - 3) + 'px';
+                h.style.left = ra.left + 'px';
+                h.style.height = '6px';
+                h.style.width = ra.width + 'px';
+            }
+            h.setAttribute('data-a', kids[i].getAttribute('data-path'));
+            h.setAttribute('data-b', kids[i + 1].getAttribute('data-path'));
+            h.setAttribute('data-axis', isRow ? 'x' : 'y');
+            h.addEventListener('pointerdown', startResize);
+            layer.appendChild(h);
+        }
+    });
+}
+
+function num(v) { return typeof v === 'number' && isFinite(v) ? v : null; }
+function r2(v) { return Math.round(v * 100) / 100; }
+
+function startResize(e) {
+    if (e.button !== 0) return;
+    var doc = frame.contentDocument;
+    var h = e.currentTarget;
+    var pa = h.getAttribute('data-a'), pb = h.getAttribute('data-b');
+    var elA = doc.querySelector('[data-path="' + pa + '"]');
+    var elB = doc.querySelector('[data-path="' + pb + '"]');
+    if (!elA || !elB) return;
+    var horiz = h.getAttribute('data-axis') === 'x';
+    var ra = elA.getBoundingClientRect(), rb = elB.getBoundingClientRect();
+    var sizeA = horiz ? ra.width : ra.height;
+    var sizeB = horiz ? rb.width : rb.height;
+    var a = nodeAt(pa).node, b = nodeAt(pb).node;
+
+    // A neighbour with no weight is content-sized, so there is no ratio to
+    // adjust yet. Give both a weight matching what is ALREADY on screen, so the
+    // first pixel of the drag moves the boundary and nothing else.
+    var wA = num(a.weight), wB = num(b.weight);
+    if (wA === null || wB === null || wA + wB <= 0) {
+        var total0 = sizeA + sizeB || 1;
+        wA = r2(2 * sizeA / total0);
+        wB = r2(2 - wA);
+    }
+
+    pushUndo();   // one undo step for the whole drag, taken before it starts
+    dragState = {
+        a: a, b: b, elA: elA, elB: elB, horiz: horiz, handle: h,
+        start: horiz ? e.clientX : e.clientY,
+        sizeA: sizeA, total: sizeA + sizeB, totalW: wA + wB
+    };
+    h.classList.add('on');
+    h.setPointerCapture(e.pointerId);
+    h.addEventListener('pointermove', moveResize);
+    h.addEventListener('pointerup', endResize);
+    h.addEventListener('pointercancel', endResize);
+    e.preventDefault();
+}
+
+function moveResize(e) {
+    var d = dragState;
+    if (!d) return;
+    var delta = (d.horiz ? e.clientX : e.clientY) - d.start;
+    var newA = Math.max(MIN_PX, Math.min(d.total - MIN_PX, d.sizeA + delta));
+    var wA = r2(d.totalW * newA / d.total);
+    var wB = r2(d.totalW - wA);
+    d.a.weight = wA; d.b.weight = wB;
+    // Live feedback straight on the DOM. Re-rendering the whole tree on every
+    // pointermove would be both slower and jumpier.
+    d.elA.style.flexGrow = String(wA); d.elA.style.flexBasis = '0';
+    d.elB.style.flexGrow = String(wB); d.elB.style.flexBasis = '0';
+    var r = (d.horiz ? d.elA.getBoundingClientRect().right : d.elA.getBoundingClientRect().bottom);
+    if (d.horiz) d.handle.style.left = (r - 3) + 'px';
+    else d.handle.style.top = (r - 3) + 'px';
+}
+
+function endResize(e) {
+    var d = dragState;
+    if (!d) return;
+    dragState = null;
+    d.handle.classList.remove('on');
+    d.handle.removeEventListener('pointermove', moveResize);
+    d.handle.removeEventListener('pointerup', endResize);
+    d.handle.removeEventListener('pointercancel', endResize);
+    try { d.handle.releasePointerCapture(e.pointerId); } catch (_) {}
+    // Commit: re-render from LAYOUT so the weights are what the display would
+    // actually do, then re-measure the handles against the result.
+    refresh(true);
+    renderInspector();
+}
+
+/* ── Drag a box somewhere else ─────────────────────────────────────────────
+ * A press that MOVES becomes a drag; a press that does not is still a click,
+ * so selecting by clicking keeps working. The drop target is the deepest
+ * container under the pointer, and the index is decided by comparing the
+ * pointer against each child's midpoint ALONG THAT CONTAINER'S AXIS — a row
+ * inserts left/right, a column inserts above/below. */
+var moveState = null;
+var DRAG_SLOP = 5;
+
+function insertionLine() {
+    var doc = frame.contentDocument, layer = overlayLayer();
+    var ln = doc.getElementById('tbeDropLine');
+    if (!ln) {
+        ln = doc.createElement('div');
+        ln.id = 'tbeDropLine';
+        ln.style.cssText = 'position:fixed;background:#22c55e;box-shadow:0 0 6px rgba(34,197,94,.9);' +
+                           'pointer-events:none;z-index:70;display:none';
+        layer.appendChild(ln);
+    }
+    return ln;
+}
+
+function dropTargetAt(x, y) {
+    var doc = frame.contentDocument;
+    var el = doc.elementFromPoint(x, y);
+    if (!el) return null;
+    var cont = el.closest ? el.closest('.tb-row, .tb-col') : null;
+    if (!cont) return null;
+    var contPath = cont.getAttribute('data-path');
+    // Never into itself or its own descendants — that would detach the subtree.
+    var from = moveState && moveState.path;
+    if (from !== null && from !== undefined &&
+        (contPath === from || contPath.indexOf(from + '.') === 0)) return null;
+    var horiz = cont.classList.contains('tb-row');
+    var kids = kidsOf(cont);
+    var pos = horiz ? x : y;
+    var idx = kids.length;
+    for (var i = 0; i < kids.length; i++) {
+        var r = kids[i].getBoundingClientRect();
+        if (pos < (horiz ? (r.left + r.right) / 2 : (r.top + r.bottom) / 2)) { idx = i; break; }
+    }
+    return { contPath: contPath, cont: cont, index: idx, horiz: horiz, kids: kids };
+}
+
+function showDropLine(t) {
+    var ln = insertionLine();
+    if (!t) { ln.style.display = 'none'; return; }
+    var cr = t.cont.getBoundingClientRect();
+    var at;
+    if (t.index >= t.kids.length) {
+        var last = t.kids.length ? t.kids[t.kids.length - 1].getBoundingClientRect() : cr;
+        at = t.horiz ? last.right : last.bottom;
+    } else {
+        var r = t.kids[t.index].getBoundingClientRect();
+        at = t.horiz ? r.left : r.top;
+    }
+    ln.style.display = 'block';
+    if (t.horiz) {
+        ln.style.left = (at - 1.5) + 'px'; ln.style.top = cr.top + 'px';
+        ln.style.width = '3px'; ln.style.height = cr.height + 'px';
+    } else {
+        ln.style.top = (at - 1.5) + 'px'; ln.style.left = cr.left + 'px';
+        ln.style.height = '3px'; ln.style.width = cr.width + 'px';
+    }
+}
+
+/* Reparent in the layout data. Indices are resolved BEFORE the removal, and the
+ * target index is adjusted when the node came from earlier in the same list. */
+function moveNodeTo(fromPath, toContPath, toIndex) {
+    var fp = parentOf(fromPath);
+    if (!fp) return null;
+    var node = fp.list[fp.index];
+    var toParent = (toContPath === '') ? curScreen().root : nodeAt(toContPath).node;
+    var toList = toParent.row || toParent.col;
+    if (!toList) return null;
+    var sameList = (fp.list === toList);
+    fp.list.splice(fp.index, 1);
+    if (sameList && fp.index < toIndex) toIndex--;
+    toIndex = Math.max(0, Math.min(toIndex, toList.length));
+    toList.splice(toIndex, 0, node);
+    return (toContPath === '' ? '' : toContPath + '.') + toIndex;
+}
+
+function wirePreviewDrag() {
+    var doc = frame.contentDocument;
+    if (!doc || doc.__tbeDragWired) return;
+    doc.__tbeDragWired = true;
+
+    doc.addEventListener('pointerdown', function (e) {
+        if (e.button !== 0) return;
+        if (e.target.closest && e.target.closest('.tbe-h')) return;   // that is a resize
+        var el = e.target.closest ? e.target.closest('[data-path]') : null;
+        if (!el) return;
+        var path = el.getAttribute('data-path');
+        if (path === '') return;                                      // the root cannot move
+        moveState = { path: path, el: el, x: e.clientX, y: e.clientY, live: false, target: null };
+    }, true);
+
+    doc.addEventListener('pointermove', function (e) {
+        if (!moveState) return;
+        if (!moveState.live) {
+            if (Math.abs(e.clientX - moveState.x) < DRAG_SLOP &&
+                Math.abs(e.clientY - moveState.y) < DRAG_SLOP) return;
+            // Past the slop: this is a drag. Take the undo snapshot now, and
+            // hide the resize handles so elementFromPoint sees the layout.
+            moveState.live = true;
+            pushUndo();
+            moveState.el.style.opacity = '.4';
+            overlayLayer().querySelectorAll('.tbe-h').forEach(function (h) { h.style.display = 'none'; });
+            doc.body.style.cursor = 'grabbing';
+            // Dragging across text selects it otherwise, which both looks wrong
+            // and leaves a highlight behind when the drag ends.
+            doc.body.style.userSelect = 'none';
+            doc.body.style.webkitUserSelect = 'none';
+        }
+        moveState.target = dropTargetAt(e.clientX, e.clientY);
+        showDropLine(moveState.target);
+    }, true);
+
+    doc.addEventListener('pointerup', function () {
+        var m = moveState;
+        moveState = null;
+        if (!m) return;
+        showDropLine(null);
+        doc.body.style.cursor = '';
+        doc.body.style.userSelect = '';
+        doc.body.style.webkitUserSelect = '';
+        if (doc.getSelection) { try { doc.getSelection().removeAllRanges(); } catch (_) {} }
+        if (m.el) m.el.style.opacity = '';
+        if (!m.live) return;                       // a plain click: selection already handled it
+        if (!m.target) { refresh(true); return; }  // dropped nowhere useful; undo entry stays
+        var newPath = moveNodeTo(m.path, m.target.contPath, m.target.index);
+        refresh();
+        if (newPath !== null) select(newPath);
+    }, true);
+}
+
+// Preview. The listener goes on the IFRAME's document (same-origin, which
+// timer_beta.php opts into for embed mode), and the coordinates have to be
+// translated into this page's space — the menu is rendered here, so that the
+// iframe cannot clip it.
+function wirePreviewMenu() {
+    var doc = frame.contentDocument;
+    if (!doc || doc.__tbeMenuWired) return;
+    doc.__tbeMenuWired = true;
+    doc.addEventListener('contextmenu', function (e) {
+        var el = e.target.closest ? e.target.closest('[data-path]') : null;
+        e.preventDefault();
+        var r = frame.getBoundingClientRect();
+        openNodeMenu(el ? el.getAttribute('data-path') : '', r.left + e.clientX, r.top + e.clientY);
+    });
+}
+
+document.getElementById('tbeUndo').addEventListener('click', doUndo);
+
+/* Editor keyboard shortcuts. Attached to BOTH documents on purpose: clicking
+ * anywhere in the preview makes the parent's activeElement the <iframe>, so
+ * every subsequent keystroke is delivered to the iframe's document and a
+ * listener bound only to the parent never fires. Ctrl+Z was dead after any
+ * click, drag or resize in the preview — which is to say, after every edit it
+ * was most needed for. */
+function editorKeydown(e) {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    if ((e.key || '').toLowerCase() !== 'z') return;
+    if (e.target.closest && e.target.closest('input, textarea, select')) return;
+    e.preventDefault();
+    doUndo();
+}
+document.addEventListener('keydown', editorKeydown);
+
+function wirePreviewKeys() {
+    var doc = frame.contentDocument;
+    if (!doc || doc.__tbeKeysWired) return;
+    doc.__tbeKeysWired = true;
+    doc.addEventListener('keydown', editorKeydown);
+}
 function doUndo() {
     if (!undoStack.length) return;
     LAYOUT = JSON.parse(undoStack.pop());
@@ -1167,6 +1797,13 @@ function boot() {
     if (PV.elementNames) { var tn = PV.elementNames(); if (tn && tn.length) ELEMENTS = tn; }
     ELEMENT_BUILTINS = ELEMENTS.slice();
     PV.onSelect = function (path) { select(path); };
+    wirePreviewMenu();
+    wirePreviewDrag();
+    wirePreviewKeys();
+    requestAnimationFrame(mountResizeHandles);
+    // The preview is sized by the editor's own layout, so a window resize moves
+    // every boundary without any layout change at all.
+    window.addEventListener('resize', function () { requestAnimationFrame(mountResizeHandles); });
     LAYOUT = JSON.parse(JSON.stringify(PV.builtins.classic));
     delete LAYOUT.name;
     curBuiltin = 'classic';   // fresh boot shows the pristine built-in

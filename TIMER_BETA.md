@@ -121,6 +121,122 @@ percent that digit widths can then vary by.
 `timer.css` had already pinned tnum on its clock. The BETA renderer was the one
 that missed it.
 
+## Right-click menus in the editor
+
+Both surfaces that show the layout tree — the **preview** and the **structure
+tree** — carry the same node menu: add cell / row / column, duplicate, move up
+/ down, delete.
+
+Two properties are load-bearing:
+
+- **It acts on the node you POINTED AT, not the selection.** The handler
+  `select()`s first and then runs the ordinary operation, so the toolbar
+  buttons and the menu can never drift into two implementations of "duplicate".
+  `dupNode()` / `removeNode()` / `move()` and the `newCellNode()` family exist
+  for exactly that reason.
+- **The labels say where the node will land.** `insertNode()` puts a node
+  INSIDE a container but AFTER a cell, so the menu reads "Add cell inside" on a
+  row/column and "Add cell after" on a cell rather than making you find out.
+
+Moves that would fall off the end are disabled with the reason, and edits go
+through `pushUndo()` like any other, so Ctrl+Z takes them back. The menu also
+carries its own **Undo last change**, disabled when there is no history.
+
+Beyond structure it exposes the node's whole property set, so most editing
+never needs the inspector:
+
+| Text cell | Image / QR cell | Container | Screen (root) |
+|---|---|---|---|
+| Bold, Fit text to box, Clock colours | Image fit, Replace image… | Justify | Screen background |
+| Align, Text size, Colour, Letter spacing | Remove image / Remove QR | Gap, Padding | (colours + image + fit) |
+| Use an image instead… / Use a QR code instead | | Background, Border | |
+| Shared style (when the layout defines any) | | | |
+| Background, Padding, Opacity, Border | Background, Padding, Opacity, Border | | |
+| Size in parent | Size in parent | Size in parent | |
+
+A cell is text, an image or a QR, and **the menu offers only what applies to the
+mode it is in** — the inspector hides the text fields for an image, and a menu
+that offered them would be worse, since a menu implies the setting does
+something. Each mode has a way back to text. Box properties (background,
+padding, opacity, border) apply in every mode and are always offered.
+
+The **screen's** background belongs to the screen rather than to any node, so it
+is offered where you would look for it: on the screen's own right-click menu.
+
+**The vocabulary mirrors `pk_layout_sanitize()` exactly** — the same enums for
+`align` and `justify`, the same numeric ranges. A menu that writes a value the
+server silently strips is worse than no menu.
+
+Two details: a tick IS the current value, so the menu doubles as a readout of
+what the node already has; and submenus flip to the left of the parent row when
+there is no room on the right, which is the common case since the menu often
+opens near the right edge of the preview.
+
+Hold menu rows **by reference, never by index**. The disable-the-impossible-move
+logic originally used `btns[4]`/`btns[5]`, which was correct for a seven-row
+menu and silently wrong once it grew to thirty.
+
+The preview is an **iframe**, which is the only fiddly part. The `contextmenu`
+listener lives on `frame.contentDocument` (same-origin, which `timer_beta.php`
+opts into for embed mode) and is wired in `boot()` after the renderer exists;
+the menu itself renders in the PARENT so the iframe cannot clip it, which means
+the coordinates have to be translated by the frame's bounding rect. Dismissal
+handlers are document-level in the parent for the same reason.
+
+Note `closest('[data-path]')` returns the INNERMOST node under the pointer,
+which is what you want: the root's box covers the whole screen, so a click
+anywhere would otherwise select the root.
+
+## Direct manipulation in the preview
+
+Drag a boundary to resize; drag a box to move it. Both run inside the iframe
+while the layout data and the undo stack stay in the editor — the renderer is
+the shipping display and must not learn about editing.
+
+**Where the handles live.** An overlay is injected into the iframe's `<body>`,
+deliberately NOT into `#tbRoot`: `buildScreen()` empties `#tbRoot` on every
+re-render and would take the handles with it. Handles are re-measured after
+every `refresh()` (inside `requestAnimationFrame`, or the rects are the previous
+layout's) and on window resize, since the preview is sized by the editor's own
+layout.
+
+**Resize** adjusts only the two neighbours either side of the boundary and holds
+their combined weight constant, so dragging one boundary cannot disturb the rest
+of the container. A neighbour with no `weight` is content-sized and has no ratio
+to adjust yet, so both are first given weights matching what is already on
+screen — the first pixel of the drag then moves the boundary and nothing else.
+Feedback is applied straight to the DOM's `flex-grow` during the drag and
+committed to `LAYOUT` on release; re-rendering the whole tree per `pointermove`
+would be slower and jumpier. `pushUndo()` fires once, at drag start.
+
+**Move** starts only after the pointer travels `DRAG_SLOP` (5px), so a press
+that does not move is still a click and selection keeps working. The drop
+target is the deepest container under the pointer and the index comes from
+comparing the pointer against each child's midpoint **along that container's
+axis** — a row inserts left/right, a column above/below. Three things it has to
+get right:
+
+- Resize handles are hidden for the duration, or `elementFromPoint()` returns a
+  handle instead of the layout.
+- A container may not be dropped into itself or a descendant (`contPath ===
+  from || contPath.startsWith(from + '.')`), which would detach the subtree.
+- When a node moves within the same list from earlier to later, the target index
+  is decremented after the removal.
+
+`userSelect` is disabled on the iframe body during a move and the selection
+cleared afterwards; dragging across text otherwise highlights it and leaves the
+highlight behind.
+
+**Keyboard shortcuts must be bound to BOTH documents.** Clicking anywhere in
+the preview makes the parent's `document.activeElement` the `<iframe>`, so every
+subsequent keystroke is delivered to the iframe's document. `Ctrl+Z` was bound
+only to the parent, which meant it worked until you touched the preview and was
+dead from then on — after every edit it was most needed for. `editorKeydown` is
+now attached to the parent document and, in `wirePreviewKeys()`, to the iframe's.
+A headless test will NOT catch this by itself: synthetic drags on a resize
+handle call `preventDefault()`, which suppresses the focus change, so the
+regression test has to click the preview normally first.
+
 ## QR cell — a second screen
 
 `{ cell: { qr: 'display' } }` renders a QR another screen scans to join this
