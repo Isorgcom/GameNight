@@ -99,6 +99,100 @@ timestamp in get_state).
   renderer only assigns it via textContent.
 - `timer_layouts` table — own/league/global scope like `timer_themes`.
 
+## Numbers must not wobble
+
+Every numeric readout is `font-variant-numeric: tabular-nums` (`.tb-cell-inner`
+in `timer_beta.css`). Several system fonts — SF Pro on macOS and iOS most
+notably — default to PROPORTIONAL figures, so a clock ticking 03:54 → 03:53
+physically changes width. That shuffles the text horizontally, and on a fit
+cell whose limiting dimension is WIDTH rather than height it also makes
+`fitCell()` compute a different font size every second: the clock visibly
+pumps. It reproduces on Safari and not in headless Chromium, whose default
+font already has equal-width digits, so a passing local suite proves nothing
+here.
+
+`fitCell()` is additionally digit-blind about WHEN to re-fit: the cache key is
+the rendered text with every digit normalised to `0`, so a tick never
+re-measures while a real shape change (9:59 → 10:00, a break label appearing)
+still does. Belt and braces — the normalisation holds up even in a font with
+no tabular figures, and the existing 0.92 safety factor absorbs the couple of
+percent that digit widths can then vary by.
+
+`timer.css` and `cast_receiver.php` had both already pinned tnum on their
+clocks. The BETA renderer was the one that missed it.
+
+## Clock sync
+
+`get_state` is polled every 2s and the display interpolates between polls
+(`liveRemaining()` = last value minus wall-clock elapsed). Naively assigning
+the polled value each time made the countdown **non-monotonic**: it stepped
+backwards and forwards by a second or two, e.g. 1:18:30 → 1:18:27 → 1:18:29.
+Two causes, both unavoidable at the source:
+
+- `compute_live_state()` works in whole seconds (`time() - strtotime(...)`), so
+  its answer is quantised depending on where in the second the request lands.
+- The reply takes a variable few tens of milliseconds, and the client used to
+  credit the value to its ARRIVAL, folding the whole latency into the reading.
+
+### The anchor
+
+The fix is to stop sending the value and send the **deadline**. `get_state`
+returns `timer.ends_at_ms` (epoch ms) while running, `timer.remaining_ms` while
+paused — exactly one is non-null — plus a top-level `server_now_ms`. The
+display derives the countdown itself, so a poll returning the same anchor moves
+nothing. The stutter is not smoothed, it is impossible.
+
+`ends_at` is invariant between commands, which is the whole point:
+
+    ends_at = now + remaining
+            = now + (stored_remaining - (now - updated_at))
+            = updated_at + stored_remaining
+
+The request time cancels. **`compute_live_state()` must therefore read the
+clock exactly once** (`$now = time()`) — it used to call `time()` twice, and
+two screens polling either side of a second boundary latched deadlines a second
+apart and then held them forever. That defect was invisible to every
+single-screen test and was caught only by comparing three screens.
+
+No schema change and no command path was touched: `updated_at +
+time_remaining_seconds` already WAS an anchor, just a coarse one, so it is
+derived at read time. Storing epoch ms would remove the residual sub-second
+quantisation, but the quantisation is shared by every screen and so costs
+nothing in agreement.
+
+### Clock skew
+
+Deriving from `ends_at` on the screen's own clock would show a wrong time
+forever on any screen whose clock is off, and screens would disagree with each
+other — precisely what a shared anchor is meant to prevent. So each screen
+estimates its offset from `server_now_ms` (Cristian's algorithm):
+
+    rtt    = received - requested
+    offset = (server_now_ms + rtt/2) - received
+
+taking the **median of the three fastest** round trips — the least-uncertain
+samples, with a single unlucky asymmetric trip voted out. Use `Number()`, never
+`|0`: epoch ms is ~1.79e12 and a bitwise OR truncates to 32 bits, which turned
+the server's clock into near-zero and the countdown into a 496307-hour number.
+
+Residual skew between screens is the spread in their offset ESTIMATES, tens of
+milliseconds, so two screens show a different second only while their estimates
+straddle a boundary. That is the physical floor without a shared tick source;
+`beta_clocksync_check.js` asserts screens are never more than a second apart
+and usually identical, and samples on a non-harmonic interval because sampling
+at exactly 1000ms lands in the same phase every time and reports that sliver as
+either always or never.
+
+### Legacy path
+
+`applyTimerSync()` still carries the pre-anchor behaviour for a server that
+sends no anchor: resync only when the server disagrees by more than
+`RESYNC_TOLERANCE` (2.5s) or something structural changed — level, start/stop,
+pause, first poll — stamping the sample at the round-trip midpoint. Below the
+tolerance the two cannot meaningfully disagree; above it the difference is a
+real correction (someone adjusted the clock, or the tab was asleep) that must
+be obeyed. Both halves are asserted.
+
 ## Per-event pages (tournaments only)
 
 `event_blinds.php?event_id=N` and `event_display.php?event_id=N` — standalone

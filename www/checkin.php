@@ -2303,7 +2303,7 @@ function mountBlindsPane() {
     if (!box || isCash() || !window.pkBlindsEditor) return;
     var m = function (d) {
         pkBlindsEditor.mount(box, {
-            eventId: EVENT_ID, csrf: CSRF, reuseState: true,
+            eventId: EVENT_ID, csrf: CSRF, reuseState: true, embedded: true,
             levels: d.levels || [], currentLevel: d.current_level || 0,
             isLocal: !!d.is_local, timerRunning: !!d.is_running,
             useBeta: !!d.use_beta,
@@ -2331,7 +2331,7 @@ function renderSettingsView() {
     h += '<div class="pk-sv-head">';
     h += '<span class="pk-sv-title">&#9881; Game Setup <span id="svDirty" style="display:' + (SETTINGS_DIRTY ? '' : 'none') + '" title="Unsaved changes">&#9679;</span><span id="svSaved" style="display:none">Saved &#10003;</span></span>';
     h += '<div style="display:flex;gap:.5rem">';
-    h += '<button class="pk-sv-save" data-act="saveSettings">Save</button>';
+    h += '<button class="pk-sv-save" data-act="saveSettings">Save game</button>';
     h += '<button class="pk-sv-close" data-act="closeSettings">Close</button>';
     h += '</div></div>';
 
@@ -2373,8 +2373,8 @@ function renderSettingsView() {
         h += '<div class="pk-preset-bar">';
         h += '<select id="payoutStructureSelect" data-act-change="onPayoutStructureChange" style="flex:0 1 300px;min-width:160px;padding:.3rem .5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:4px;font-size:.85rem"></select>';
         h += '<button data-act="loadPayoutStructure" title="Apply the selected preset to this game: game setup, payout split, points, ticket prizes, prizes, bounty and jackpot entry, blind schedule and timer settings">Load</button>';
-        h += '<button id="btnUpdPayoutStructure" class="pk-preset-update" data-act="updatePayoutStructure" style="display:none" title="Write this game\'s current setup back over the preset it came from">Update preset</button>';
-        h += '<button data-act="savePayoutStructureAs" title="Save everything in this editor (both tabs) as a NEW named preset">Save As…</button>';
+        h += '<button id="btnUpdPayoutStructure" class="pk-preset-update" data-act="updatePayoutStructure">Save preset</button>';
+        h += '<button data-act="savePayoutStructureAs" title="Save everything in this editor as a NEW named preset">Save as…</button>';
         // Destructive / admin actions live behind the ⋯ menu: they applied to
         // whatever was selected in the dropdown, which reads as if they applied
         // to the game, and they crowded the two buttons that matter.
@@ -3183,7 +3183,7 @@ function renderPresetState() {
         // Said plainly rather than left blank: "no origin" is a real state, and
         // it is the honest answer for a game whose setup was typed by hand.
         line.appendChild(svEl('span', 'pk-preset-none', 'Not from a preset'));
-        if (upd) upd.style.display = 'none';
+        setPresetSaveState();
         return;
     }
     line.appendChild(svEl('span', 'pk-preset-lbl', 'From:'));
@@ -3193,8 +3193,23 @@ function renderPresetState() {
         tag.title = 'This game no longer matches the preset it was set up from.';
         line.appendChild(tag);
     }
-    // Update only when there is something to write AND the caller may write it.
-    if (upd) upd.style.display = (PRESET_STATE.modified && PRESET_STATE.can_update) ? '' : 'none';
+    setPresetSaveState();
+}
+
+/* "Save preset" writes this game back over the preset it came from. It stays
+ * VISIBLE at all times so the pair reads as Save / Save as…, and explains via
+ * its tooltip why it is unavailable — hiding it made the bar's shape change
+ * under the host every time they touched something. */
+function setPresetSaveState() {
+    var upd = document.getElementById('btnUpdPayoutStructure');
+    if (!upd) return;
+    var allowed = !!(PRESET_STATE && PRESET_STATE.modified && PRESET_STATE.can_update);
+    upd.disabled = !allowed;
+    upd.classList.toggle('disabled', !allowed);
+    upd.title = !PRESET_STATE ? 'This game was not set up from a preset — use Save as… to make one.'
+        : !PRESET_STATE.can_update ? 'You cannot change "' + PRESET_STATE.name + '" — use Save as… to make your own copy.'
+        : !PRESET_STATE.modified ? 'This game already matches "' + PRESET_STATE.name + '".'
+        : 'Write this game\'s setup back over "' + PRESET_STATE.name + '".';
 }
 
 function svEl(tag, cls, text) {
@@ -4329,16 +4344,38 @@ function saveSettings() {
                     if (!j2.ok) { pkProgressDone(); pkAlert(j2.error || 'Error saving payouts'); return; }
                     PAYOUTS = j2.payouts;
                     POOL = j2.pool;
-                    settingsSaved();
+                    saveBlindsWithSettings();
                 })
                 .catch(function() { pkProgressDone(); pkAlert('Request failed'); });
         } else {
-            settingsSaved();
+            saveBlindsWithSettings();
         }
     }, function(errJ) {
         // update_config failed: drop the overlay so the error is readable.
         pkProgressDone();
         pkAlert(errJ.error || 'Error');
+    });
+}
+
+// The Blinds pane is part of this editor, so "Save game" commits it too. It
+// used not to: a host could edit the schedule, press Save, be told "Saved ✓"
+// and lose every blind change, because the grid had its own separate button.
+// A blinds failure must not be swallowed — the rest of the save has already
+// landed, so say what did not.
+function saveBlindsWithSettings() {
+    var ed = window.pkBlindsEditor;
+    if (!ed || typeof ed.save !== 'function' || isCash()
+        || !ed._state || ed._state.eventId !== EVENT_ID || !ed._state.dirty) {
+        settingsSaved();
+        return;
+    }
+    ed.save().then(function (j) {
+        if (j && !j.ok) {
+            pkProgressDone();
+            pkAlert('The game was saved, but the blind schedule was not: ' + (j.error || 'unknown error'));
+            return;
+        }
+        settingsSaved();
     });
 }
 

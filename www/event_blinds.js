@@ -167,6 +167,10 @@
         var dirtyEl = el('span', 'es-dirty', '●'); dirtyEl.title = 'Unsaved changes';
         var savedEl = el('span', 'es-saved', 'Saved ✓');
         saveRow.appendChild(dirtyEl); saveRow.appendChild(savedEl);
+        // Embedded in the check-in Setup editor, this button is a second thing
+        // called "Save" competing with the one that owns the panel. The dirty
+        // dot stays — knowing there is unsaved work is still worth showing.
+        if (opts.embedded) saveBtn.style.display = 'none';
         ctrls.appendChild(saveBtn); ctrls.appendChild(saveRow);
         var note = el('div', 'es-note', S.isLocal
             ? 'This event has its own schedule (editing it affects only this game).'
@@ -813,15 +817,29 @@
             });
         });
 
-        saveBtn.addEventListener('click', function () {
-            if (!S.levels.length) { (window.pkAlert || alert)('Add at least one level.'); return; }
-            post('save_blinds', { levels: JSON.stringify(S.levels) }).then(function (j) {
-                if (!j.ok) { (window.pkAlert || alert)(j.error || 'Save failed'); return; }
+        /* Resolves {ok:true} or {ok:false,error}. Exposed as pkBlindsEditor.save()
+         * so the host page can commit the grid as part of ITS save: inside the
+         * check-in Setup editor there is one "Save game" button that owns the
+         * whole editor, and blinds silently not being part of it meant a host
+         * could edit the schedule, be told "Saved ✓", and lose the lot. */
+        function saveNow() {
+            if (!S.levels.length) return Promise.resolve({ ok: false, error: 'Add at least one level.' });
+            if (!S.dirty) return Promise.resolve({ ok: true, skipped: true });
+            return post('save_blinds', { levels: JSON.stringify(S.levels) }).then(function (j) {
+                if (!j.ok) return j;
                 setDirty(false);
                 if (!S.isLocal) { S.isLocal = true; note.textContent = 'This event has its own schedule (editing it affects only this game).'; }
+                return j;
+            }).catch(function () { return { ok: false, error: 'Network error' }; });
+        }
+        pkBlindsEditor.save = saveNow;
+
+        saveBtn.addEventListener('click', function () {
+            saveNow().then(function (j) {
+                if (!j.ok) { (window.pkAlert || alert)(j.error || 'Save failed'); return; }
                 savedEl.style.display = '';
                 setTimeout(function () { savedEl.style.display = 'none'; }, 2000);
-            }).catch(function () { (window.pkAlert || alert)('Network error'); });
+            });
         });
 
         /* Document-level wiring, torn down on the next mount. The menu is
@@ -864,7 +882,7 @@
         render();
     }
 
-    window.pkBlindsEditor = { mount: mount, _state: null, _teardown: null };
+    window.pkBlindsEditor = { mount: mount, save: null, _state: null, _teardown: null };
 
     /* Standalone page (event_blinds.php) auto-mount. */
     var root = document.getElementById('esBlindsRoot');

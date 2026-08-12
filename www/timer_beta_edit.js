@@ -943,7 +943,10 @@ function save(asCopy, onSaved) {
             populateLoadList();
             var btn = document.getElementById('tbeSave');
             btn.textContent = 'Saved ✓';
-            setTimeout(function () { btn.textContent = 'Save'; }, 1500);
+            // Restore the label the markup shipped with, not a hard-coded
+            // 'Save' — the button is "Save layout" now, and rewriting it to
+            // 'Save' after the first save undid the rename.
+            setTimeout(function () { btn.textContent = 'Save layout'; }, 1500);
         })
         .catch(function () { window.pkAlert ? pkAlert('Network error') : alert('Network error'); });
 }

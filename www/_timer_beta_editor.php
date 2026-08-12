@@ -14,8 +14,12 @@ $csrf = csrf_token();
         <div class="tbe-header-controls">
             <select id="tbeLoad" title="Load a layout"><option value="">Load&hellip;</option></select>
             <input type="text" id="tbeName" maxlength="80" placeholder="Layout name">
-            <button id="tbeSave" class="tbe-btn tbe-btn-primary">Save</button>
-            <button id="tbeSaveCopy" class="tbe-btn">Save as copy</button>
+            <?php /* "Save layout", not "Save": embedded in the check-in Setup
+                     editor this sits a few inches from the button that saves the
+                     GAME, and two unqualified Saves on one screen is a coin
+                     flip. Named the same standalone, where it is also true. */ ?>
+            <button id="tbeSave" class="tbe-btn tbe-btn-primary">Save layout</button>
+            <button id="tbeSaveCopy" class="tbe-btn">Save layout as copy</button>
             <button id="tbeExport" class="tbe-btn" title="Download this layout as a file">Export</button>
             <button id="tbeImport" class="tbe-btn" title="Load a layout from a file">Import</button>
             <input type="file" id="tbeImportFile" accept="application/json,.json" hidden>

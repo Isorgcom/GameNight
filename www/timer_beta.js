@@ -149,6 +149,11 @@ var S = {
     eventName: TB_EVENT_TITLE || 'Tournament Timer',
     level: 1, remaining: 900, running: false, isBreak: false, gameOver: false,
     fetchedAt: Date.now(),
+    synced: false,          // first poll always takes the server's word
+    // Exactly one of these is non-null once the server has answered: an epoch
+    // ms deadline while running, a frozen millisecond count while paused.
+    anchorEndsAt: null,
+    anchorRemainingMs: null,
     levels: [], sb: 0, bb: 0, ante: 0, nsb: null, nbb: null, nante: null, nextIsBreak: false,
     players: '-', entries: '-', rebuys: 0, pot: '-', chipCount: '-', avgStack: '-',
     stillNum: 0, totalNum: 0, chipsNum: 0,
@@ -190,7 +195,45 @@ function fmtClock(sec) {
     var p = function (x) { return String(x).padStart(2, '0'); };
     return h > 0 ? h + ':' + p(m) + ':' + p(s) : p(m) + ':' + p(s);
 }
+/* This screen's estimate of the server's clock, in ms to add to Date.now().
+ * Cristian's algorithm: the sample with the SMALLEST round trip is the most
+ * trustworthy, because the uncertainty in it is bounded by that trip. Averaging
+ * is worse — one slow response poisons the estimate for as long as it is in the
+ * window. */
+var clockSamples = [];      // {rtt, offset}, newest last, capped
+var CLOCK_SAMPLE_WINDOW = 8;
+
+function noteClockSample(serverNowMs, requestedAt, receivedAt) {
+    if (!serverNowMs) return;
+    var rtt = receivedAt - requestedAt;
+    // The server's answer was true roughly half a round trip before it landed.
+    var offset = (serverNowMs + rtt / 2) - receivedAt;
+    clockSamples.push({ rtt: rtt, offset: offset });
+    if (clockSamples.length > CLOCK_SAMPLE_WINDOW) clockSamples.shift();
+}
+/* Median of the three fastest round trips. A single best sample is still
+ * hostage to one lucky-but-asymmetric trip (the reply took longer than the
+ * request, or vice versa); the median of the three least-uncertain ones throws
+ * that out. It matters beyond accuracy: two screens agree on the displayed
+ * second only while their offset ESTIMATES agree, so shrinking the spread
+ * between screens is what keeps a video wall in step. */
+function clockOffset() {
+    if (!clockSamples.length) return 0;
+    var byRtt = clockSamples.slice().sort(function (a, b) { return a.rtt - b.rtt; });
+    var take = byRtt.slice(0, Math.min(3, byRtt.length))
+                    .map(function (x) { return x.offset; })
+                    .sort(function (a, b) { return a - b; });
+    return take[(take.length - 1) >> 1];
+}
+function serverNow() { return Date.now() + clockOffset(); }
+
+/* Seconds left. Derived from the ANCHOR when the server sent one: ends_at is a
+ * constant between commands, so every tick and every screen computes the same
+ * value and the display cannot stutter. The old interpolate-from-last-poll path
+ * is kept as a fallback for a server that does not send an anchor yet. */
 function liveRemaining() {
+    if (S.anchorEndsAt !== null) return (S.anchorEndsAt - serverNow()) / 1000;
+    if (S.anchorRemainingMs !== null) return S.anchorRemainingMs / 1000;
     return S.running ? S.remaining - (Date.now() - S.fetchedAt) / 1000 : S.remaining;
 }
 function findLevel(n) {
@@ -633,12 +676,20 @@ function updateAll() {
         el.classList.toggle('tb-paused', !S.running && !S.sample);
     }
 
-    // Re-fit only the fit cells whose rendered text actually changed shape.
+    // Re-fit only the fit cells whose rendered text actually changed SHAPE.
+    // Digits are interchangeable here: with tabular figures every digit is the
+    // same width, so 03:54 and 03:53 need identical sizes, and re-measuring
+    // between them can only introduce jitter (a font WITHOUT tabular figures
+    // measures a hair narrower or wider and the clock pumps once a second).
+    // Normalising digits away means a tick never re-fits; a real shape change
+    // — 9:59 to 10:00, or a break label appearing — still does.
     for (var f = 0; f < fitCells.length; f++) {
-        var fc = fitCells[f], txt = fc.inner.textContent;
-        if (txt !== fc.fitLastText) { fc.fitLastText = txt; fitCell(fc); }
+        var fc = fitCells[f], key = fitShape(fc.inner.textContent);
+        if (key !== fc.fitLastText) { fc.fitLastText = key; fitCell(fc); }
     }
 }
+
+function fitShape(t) { return String(t).replace(/[0-9]/g, '0'); }
 
 /* Fit-to-box: measure at a probe size, scale to the limiting dimension. */
 function fitCell(fc) {
@@ -668,17 +719,65 @@ function refreshDerived() {
 // event's stored layout (event_display.php) is followed without a reload.
 var onEventLayout = null;
 
+/* How far the server may disagree with the local countdown before we believe
+ * it. compute_live_state() answers in WHOLE seconds, computed at request time,
+ * and the reply takes a variable few tens of milliseconds to arrive — so
+ * snapping to it on every 2-second poll moved the countdown backwards and
+ * forwards by a second or two. The clock and "next break" stuttered
+ * (1:18:30 → 1:18:27 → 1:18:29) instead of counting down. Anything smaller
+ * than this is poll noise; anything larger is a real correction — someone
+ * adjusted the clock, or this tab was asleep. */
+var RESYNC_TOLERANCE = 2.5;
+
+function applyTimerSync(t, requestedAt) {
+    var lvl = t.current_level | 0;
+    var rem = t.time_remaining_seconds | 0;
+    var run = !!(t.is_running | 0);
+
+    // Anchor path: level and running state are discrete and safe to take
+    // verbatim; the countdown is derived, never assigned, so there is nothing
+    // for a poll to jog. RESYNC_TOLERANCE below exists only for the legacy
+    // path — with an anchor the stutter is not smoothed, it is impossible.
+    if (t.ends_at_ms || t.remaining_ms !== null && t.remaining_ms !== undefined) {
+        S.level = lvl;
+        S.running = run;
+        S.remaining = rem;                 // kept for anything still reading it
+        S.fetchedAt = Date.now();
+        S.synced = true;
+        S.anchorEndsAt = t.ends_at_ms ? +t.ends_at_ms : null;
+        S.anchorRemainingMs = (t.remaining_ms === null || t.remaining_ms === undefined) ? null : +t.remaining_ms;
+        return;
+    }
+    S.anchorEndsAt = null; S.anchorRemainingMs = null;
+    // Compare against the CURRENT local value before touching state.
+    var drift = Math.abs(rem - liveRemaining());
+    // A level change, a start/stop, or a paused clock is always authoritative;
+    // there is nothing to interpolate and the value genuinely moved.
+    var structural = !S.synced || lvl !== S.level || run !== S.running || !run;
+    if (!structural && drift <= RESYNC_TOLERANCE) return;
+    S.level = lvl;
+    S.remaining = rem;
+    S.running = run;
+    // Stamp the sample at the MIDPOINT of the round trip, not on arrival: the
+    // server's answer was true somewhere in the middle of it, so crediting it
+    // to the end builds the whole latency into the displayed time.
+    S.fetchedAt = requestedAt + (Date.now() - requestedAt) / 2;
+    S.synced = true;
+}
+
 function poll() {
     if (!TB_SESSION_ID) return;
+    var requestedAt = Date.now();
     fetch('/timer_dl.php?action=get_state&session_id=' + TB_SESSION_ID)
         .then(function (r) { return r.json(); })
         .then(function (j) {
             if (!j || !j.ok) return;
             if (typeof onEventLayout === 'function') onEventLayout(j.layout_id || null, j.layout_builtin || null);
-            S.level = j.timer.current_level | 0;
-            S.remaining = j.timer.time_remaining_seconds | 0;
-            S.running = !!(j.timer.is_running | 0);
-            S.fetchedAt = Date.now();
+            // Number(), never |0: epoch milliseconds is ~1.79e12 and a bitwise
+            // OR truncates to 32 bits, which turned the server's clock into
+            // near-zero and the countdown into a 496307-hour number.
+            noteClockSample(Number(j.server_now_ms) || 0, requestedAt, Date.now());
+            applyTimerSync(j.timer, requestedAt);
             S.levels = j.levels || [];
             S.warnSecs = (j.sounds && j.sounds.warning_seconds) || 60;
             if (j.event_title) S.eventName = j.event_title;
