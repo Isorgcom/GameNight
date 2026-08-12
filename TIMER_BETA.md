@@ -24,9 +24,13 @@ current timer's point-anchor themes can do both and needed a runtime clamp
 **Invariants, do not relax:**
 - Every authored string lands via `textContent`; elements become
   `<span data-el>`. Nothing user-authored is ever innerHTML'd.
-- Display-only until promotion is decided: state comes from
-  `timer_dl.php?action=get_state` and nothing else. No POST, no CSRF token on
-  the page.
+- State comes from `timer_dl.php?action=get_state`. The only writes are the
+  keyboard controls (Space start/stop, Left/Right skip level), which POST the
+  same `command` action the main timer uses, and only when `controlArmed()` —
+  a live event session, the viewer can control it, a CSRF token is in hand
+  (get_state returns both `can_control` and `csrf_token`), and NOT the editor
+  preview iframe. The server re-checks manage rights on every command. Sample
+  mode and embed mode never send anything.
 - Unknown elements render visibly as `⟨name⟩`, never vanish (editor relies on
   this to flag typos).
 - Empty cells hide themselves so background bands don't paint bare.
@@ -97,9 +101,11 @@ row too, not just the mobile hamburger.
   server-side sanitizer.
 - **C (done):** conditions — per-cell variants and multi-screen layouts with
   break-screen auto-swap.
+- **Promotion (started):** keyboard controls (Space/Left/Right) drive a live
+  event-linked display for users with rights. An on-screen control surface and
+  the fold-into-main-timer decision remain.
 - **Remaining:** cycling multiple screens per condition; shared named styles;
-  import/export; background images per screen (uploads-scoped); promotion (give
-  BETA a control surface, or fold the engine into the main timer as v2 themes).
+  import/export; background images per screen (uploads-scoped).
 
 ## Testing
 

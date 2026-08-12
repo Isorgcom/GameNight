@@ -589,10 +589,35 @@ function poll() {
                 }
                 if (label) S.prizes.push((ord[(pay[i].place | 0) - 1] || pay[i].place + 'th') + ': ' + label);
             }
+            // Control: whether this viewer may drive the timer, and the CSRF
+            // token to do it. The server re-checks manage rights on every
+            // command regardless, so these only decide what the client offers.
+            CAN_CONTROL = !!j.can_control;
+            if (j.csrf_token) CSRF = j.csrf_token;
             refreshDerived();
             updateAll();
         })
         .catch(function () { /* transient network errors: keep ticking on last state */ });
+}
+
+// Whether keyboard control is live: a real event session, the viewer can
+// control it, we have a CSRF token, and we are not the editor's preview iframe.
+var CAN_CONTROL = false;
+var CSRF = null;
+function controlArmed() {
+    return !window.TB_EMBED && !!TB_SESSION_ID && CAN_CONTROL && !!CSRF;
+}
+function sendCommand(cmd) {
+    if (!controlArmed()) return;
+    var body = new URLSearchParams();
+    body.set('action', 'command');
+    body.set('cmd', cmd);
+    body.set('session_id', String(TB_SESSION_ID));
+    body.set('csrf_token', CSRF);
+    fetch('/timer_dl.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: String(body) })
+        .then(function (r) { return r.json(); })
+        .then(function (j) { if (j && j.csrf_token) CSRF = j.csrf_token; poll(); })   // reflect the new state at once
+        .catch(function () {});
 }
 
 /* Sample mode loops its clock so the display always looks alive. */
@@ -694,6 +719,18 @@ sel.addEventListener('change', function () {
 });
 
 window.addEventListener('resize', function () { requestAnimationFrame(fitAll); });
+
+// Keyboard control on a live, event-linked display: Space start/stop, Left/Right
+// previous/next level. Only reaches the wire when controlArmed() (a session,
+// the viewer can control it, a CSRF token, not the editor preview); the server
+// re-checks manage rights on every command. Suppressed while typing.
+document.addEventListener('keydown', function (e) {
+    if (e.target.closest && e.target.closest('input, textarea, select, [contenteditable]')) return;
+    if (!controlArmed()) return;
+    if (e.code === 'Space') { e.preventDefault(); sendCommand('toggle_play'); }
+    else if (e.code === 'ArrowRight') { e.preventDefault(); sendCommand('skip_next'); }
+    else if (e.code === 'ArrowLeft')  { e.preventDefault(); sendCommand('skip_prev'); }
+});
 
 refreshDerived();
 applyPick(LAYOUTS[pick] ? pick : 'classic');
