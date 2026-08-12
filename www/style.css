@@ -286,6 +286,7 @@ tr:hover td { background: #f8fafc; }
     text-decoration: none;
 }
 .nav-dropdown a.active { color: #fff; font-weight: 600; }
+.nav-beta-tag { display: inline-block; margin-left: .35rem; padding: .05rem .35rem; border-radius: 4px; background: #f59e0b; color: #451a03; font-size: .58rem; font-weight: 800; letter-spacing: .06em; vertical-align: middle; }
 .nav-dropdown a.nav-dropdown-signout {
     border-top: 1px solid rgba(255,255,255,.1);
     margin-top: .25rem;

@@ -27,7 +27,7 @@ $csrf = csrf_token();
     <link rel="stylesheet" href="/timer_beta_edit.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/timer_beta_edit.css') ?: 0)) ?>">
 </head>
 <body>
-<?php $nav_active = ''; $nav_user = $current; require __DIR__ . '/_nav.php'; ?>
+<?php $nav_active = 'timer-beta'; $nav_user = $current; require __DIR__ . '/_nav.php'; ?>
 
 <div class="tbe-wrap">
     <div class="tbe-header">
