@@ -220,6 +220,49 @@ function pk_lo_may_modify(PDO $db, array $row, int $uid, bool $isAdmin): bool {
     return (int)$row['created_by'] === $uid;
 }
 
+/* ── Image lifecycle ────────────────────────────────────────────────────── */
+
+// Every /uploads/timer_layouts/... file a layout references (screen backgrounds
+// + image cells), as a set of basenames.
+function pk_lo_image_names($layout): array {
+    $names = [];
+    $scan = function ($node) use (&$scan, &$names) {
+        if (!is_array($node)) return;
+        foreach (['image'] as $k) {
+            if (isset($node[$k]) && is_string($node[$k]) && preg_match('#^/uploads/timer_layouts/([A-Za-z0-9._-]{1,120})$#', $node[$k], $m)) {
+                $names[$m[1]] = true;
+            }
+        }
+        if (isset($node['bg']) && is_array($node['bg'])) $scan($node['bg']);
+        if (isset($node['cell']) && is_array($node['cell'])) $scan($node['cell']);
+        foreach (['row', 'col', 'screens'] as $kids) {
+            if (isset($node[$kids]) && is_array($node[$kids])) foreach ($node[$kids] as $c) $scan($c);
+        }
+        if (isset($node['root'])) $scan($node['root']);
+    };
+    $scan(is_string($layout) ? json_decode($layout, true) : $layout);
+    return $names;
+}
+
+// Delete timer-layout image files that are no longer referenced by ANY layout
+// (excluding $exceptId, the row being updated/deleted). Only ever unlinks inside
+// /uploads/timer_layouts/, and only names that pass the strict pattern.
+function pk_lo_gc_images(PDO $db, array $candidateNames, int $exceptId): void {
+    if (!$candidateNames) return;
+    $rows = $db->prepare('SELECT layout FROM timer_layouts WHERE id != ?');
+    $rows->execute([$exceptId]);
+    $stillUsed = [];
+    foreach ($rows as $r) {
+        foreach (pk_lo_image_names($r['layout']) as $n => $_) $stillUsed[$n] = true;
+    }
+    foreach (array_keys($candidateNames) as $name) {
+        if (isset($stillUsed[$name])) continue;                 // another layout keeps it
+        if (!preg_match('/^[A-Za-z0-9._-]{1,120}$/', $name)) continue;   // paranoia
+        $path = __DIR__ . '/uploads/timer_layouts/' . $name;
+        if (is_file($path)) @unlink($path);
+    }
+}
+
 /* ── Actions ────────────────────────────────────────────────────────────── */
 
 if ($action === 'get_layouts') {
@@ -279,8 +322,12 @@ if ($action === 'save_layout') {
         if (!pk_lo_may_modify($db, $row, $uid, $isAdmin)) {
             http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Not yours to edit — use Save as copy']); exit;
         }
+        // Images the old version referenced but the new one no longer does are
+        // candidates for deletion (a replaced background, a removed image cell).
+        $removed = array_diff_key(pk_lo_image_names($row['layout']), pk_lo_image_names($clean));
         $db->prepare("UPDATE timer_layouts SET name = ?, layout = ?, is_global = ?, league_id = ?, updated_at = datetime('now') WHERE id = ?")
            ->execute([$name, json_encode($clean), $isAdmin ? $is_global : (int)$row['is_global'], $league_id, $id]);
+        pk_lo_gc_images($db, $removed, $id);
     } else {
         $db->prepare('INSERT INTO timer_layouts (name, created_by, is_global, league_id, layout) VALUES (?, ?, ?, ?, ?)')
            ->execute([$name, $uid, $is_global, $league_id, json_encode($clean)]);
@@ -300,7 +347,9 @@ if ($action === 'delete_layout') {
     if (!pk_lo_may_modify($db, $row, $uid, $isAdmin)) {
         http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Not yours to delete']); exit;
     }
+    $names = pk_lo_image_names($row['layout']);
     $db->prepare('DELETE FROM timer_layouts WHERE id = ?')->execute([$id]);
+    pk_lo_gc_images($db, $names, $id);   // free its images, unless another layout keeps them
     db_log_activity($uid, "deleted timer layout: {$row['name']} (#$id)");
     echo json_encode(['ok' => true]);
     exit;
@@ -333,7 +382,9 @@ if ($action === 'upload_image') {
     // sweepable, and scoped away from every other upload on the site.
     $dir = __DIR__ . '/uploads/timer_layouts/';
     if (!is_dir($dir) && !@mkdir($dir, 0755, true)) { http_response_code(500); echo json_encode(['ok' => false, 'error' => 'Storage unavailable.']); exit; }
-    $name = bin2hex(random_bytes(16)) . '.' . $exts[$mime];
+    // Owner-keyed name: u<id>_<random>.ext. The uploader's id is baked into the
+    // filename so a file's provenance is obvious and its owner is sweepable.
+    $name = 'u' . $uid . '_' . bin2hex(random_bytes(16)) . '.' . $exts[$mime];
     if (!move_uploaded_file($file['tmp_name'], $dir . $name)) { http_response_code(500); echo json_encode(['ok' => false, 'error' => 'Failed to save file.']); exit; }
     db_log_activity($uid, "uploaded image: timer_layouts/$name");
     echo json_encode(['ok' => true, 'url' => '/uploads/timer_layouts/' . $name]);
