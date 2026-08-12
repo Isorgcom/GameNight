@@ -32,7 +32,7 @@ function normalizeLayout() {
 }
 function curScreen() { return LAYOUT.screens[editScreenIndex]; }
 
-var TOKENS = ['eventName','level','levelOrBreak','clock','gameName','nextGameName','smallBlind','bigBlind','ante',
+var ELEMENTS = ['eventName','level','levelOrBreak','clock','gameName','nextGameName','smallBlind','bigBlind','ante',
     'blinds','nextBlinds','players','playersLeft','playersTotal','entries','rebuys','pot','chipCount','avgStack','avgStackBB',
     'currentTime','elapsedTime','nextBreak','prizes','prizeList','buyinLine'];
 
@@ -316,8 +316,8 @@ function condEditor(cond, onchange) {
 }
 
 /* Conditional variants: alternate emphasis (text/colour/etc.) shown when a
- * condition matches. First matching variant wins over the base — TD's per-cell
- * property sets, scoped to emphasis so a variant can never reflow the layout. */
+ * condition matches. First matching variant wins over the base — conditional
+ * per-cell styling, scoped to emphasis so a variant can never reflow the layout. */
 function renderVariants(cell) {
     if (!Array.isArray(cell.variants)) cell.variants = [];
     var box = document.createElement('div');
@@ -404,34 +404,34 @@ function renderInspector() {
         ta.addEventListener('change', function () { pushUndo(); cell.text = ta.value; refresh(true); });
         insp.appendChild(field('Text', ta));
 
-        var tokRow = document.createElement('div');
-        tokRow.className = 'tbe-tokrow';
-        var tokSel = document.createElement('select');
+        var elRow = document.createElement('div');
+        elRow.className = 'tbe-elrow';
+        var elSel = document.createElement('select');
         var opt0 = document.createElement('option');
-        opt0.value = ''; opt0.textContent = 'Insert token…';
-        tokSel.appendChild(opt0);
-        // Options show each token's LIVE value from the renderer ("<clock> —
+        opt0.value = ''; opt0.textContent = 'Insert element…';
+        elSel.appendChild(opt0);
+        // Options show each element's LIVE value from the renderer ("<clock> —
         // 12:31"), and the list itself comes from the renderer, so the picker
-        // can never offer a token the engine doesn't have.
-        var vals = (PV && PV.tokenValues) ? PV.tokenValues() : {};
-        TOKENS.forEach(function (t) {
+        // can never offer an element the engine doesn't have.
+        var vals = (PV && PV.elementValues) ? PV.elementValues() : {};
+        ELEMENTS.forEach(function (t) {
             var o = document.createElement('option');
             o.value = t;
             var v = vals[t];
             o.textContent = '<' + t + '>' + (v ? '  —  ' + v.replace(/\n/g, ' ').slice(0, 22) : '');
-            tokSel.appendChild(o);
+            elSel.appendChild(o);
         });
-        tokSel.addEventListener('change', function () {
-            if (!tokSel.value) return;
+        elSel.addEventListener('change', function () {
+            if (!elSel.value) return;
             pushUndo();
             var at = (typeof ta.selectionStart === 'number') ? ta.selectionStart : ta.value.length;
-            ta.value = ta.value.slice(0, at) + '<' + tokSel.value + '>' + ta.value.slice(at);
+            ta.value = ta.value.slice(0, at) + '<' + elSel.value + '>' + ta.value.slice(at);
             cell.text = ta.value;
-            tokSel.value = '';
+            elSel.value = '';
             refresh(true);
         });
-        tokRow.appendChild(tokSel);
-        insp.appendChild(tokRow);
+        elRow.appendChild(elSel);
+        insp.appendChild(elRow);
 
         insp.appendChild(field('Fit to box', boolInput(cell.fit, function (v) { setOrDelete(cell, 'fit', v); renderInspector(); })));
         if (!cell.fit) insp.appendChild(field('Size (% of screen height)', numInput(cell.size, 0.5, 40, 0.1, function (v) { setOrDelete(cell, 'size', v); })));
@@ -667,15 +667,15 @@ document.getElementById('tbeDelete').addEventListener('click', function () {
     else if (confirm('Delete layout?')) go();
 });
 
-/* ── Boot: wait for the iframe's renderer, then start from TD Classic ── */
+/* ── Boot: wait for the iframe's renderer, then start from Classic ── */
 
 function boot() {
     var w = frame.contentWindow;
     if (!w || !w.TBPreview) { setTimeout(boot, 60); return; }
     PV = w.TBPreview;
-    if (PV.tokenNames) { var tn = PV.tokenNames(); if (tn && tn.length) TOKENS = tn; }
+    if (PV.elementNames) { var tn = PV.elementNames(); if (tn && tn.length) ELEMENTS = tn; }
     PV.onSelect = function (path) { select(path); };
-    LAYOUT = JSON.parse(JSON.stringify(PV.builtins.td_classic));
+    LAYOUT = JSON.parse(JSON.stringify(PV.builtins.classic));
     delete LAYOUT.name;
     nameInput.value = 'My layout';
     editScreenIndex = 0;

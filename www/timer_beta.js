@@ -4,7 +4,7 @@
  * A layout is a JSON tree:
  *   node       := { row: [node…], …props } | { col: [node…], …props } | { cell: {…} }
  *   container  := weight (flex-grow), gap ("0.5vh"), pad, bg, align, border
- *   cell       := text        string; may contain <tokens> and newlines
+ *   cell       := text        string; may contain <elements> and newlines
  *                 size        font size as % of viewport height (scales anywhere)
  *                 fit         true = fill the box instead (clock cells)
  *                 color/bg/bold/pad/align/weight/border/opacity/spacing
@@ -13,7 +13,7 @@
  *                             {state,hasAnte,hasRebuys,round}; false = cell hidden
  *                 variants    [{ when, text?, color?, bg?, bold?, opacity? }] —
  *                             conditional emphasis, first match wins over base
- *                             (TD's per-cell property sets). Structural props
+ *                             (conditional per-cell styling). Structural props
  *                             (size/align/weight) stay base-only.
  *
  * A condition (in `when` or a variant) is a WHEN key string, or an object whose
@@ -22,13 +22,12 @@
  *
  * The tree renders to nested flexbox, so nothing can overlap or leave the
  * screen — the property the absolutely-positioned theme model could not give.
- * Cell text is authored data: every string lands via textContent, tokens become
- * <span data-tok>, and nothing is ever innerHTML'd. Keep it that way; the
+ * Cell text is authored data: every string lands via textContent, elements become
+ * <span data-el>, and nothing is ever innerHTML'd. Keep it that way; the
  * editor phase will feed user input straight through this path.
  *
- * The four built-ins are reimplementations of The Tournament Director's
- * shipped screens (Default 1920x1080, Black & Green, Minimalist, Two-Column),
- * authored from its screenshots and .tlo structure. No TD assets are used.
+ * Four built-in layouts ship as starting points: Classic (three-column),
+ * Black & Green (banded), Minimalist, and Two Column.
  */
 (function () {
 'use strict';
@@ -37,8 +36,8 @@
 
 var LAYOUTS = {
 
-    td_classic: {
-        name: 'TD Classic',
+    classic: {
+        name: 'Classic',
         bg: { color: '#1d4ed8', gradient: ['#1e40af', '#2563eb'] },
         root: { col: [
             { cell: { text: '<eventName>', size: 4.6, bold: true, color: '#1e3a8a', bg: '#f8fafc', pad: '0.6vh 1vw' } },
@@ -134,7 +133,7 @@ var LAYOUTS = {
     }
 };
 
-/* ── Live state, normalised for tokens ────────────────────────────────── */
+/* ── Live state, normalised for elements ────────────────────────────────── */
 
 var S = {
     eventName: TB_EVENT_TITLE || 'Tournament Timer',
@@ -201,9 +200,9 @@ function elapsedSecs() {
     return Math.max(0, secs);
 }
 
-/* ── Token registry — add a token, get it everywhere ──────────────────── */
+/* ── Element registry — add an element, get it everywhere ─────────────── */
 
-var TOKENS = {
+var ELEMENTS = {
     eventName:    function () { return S.eventName; },
     level:        function () { return S.isBreak ? 'Break' : String(S.level); },
     clock:        function () { return fmtClock(liveRemaining()); },
@@ -237,7 +236,7 @@ var TOKENS = {
     playersLeft:  function () { return String(S.stillNum); },
     playersTotal: function () { return String(S.totalNum); },
     // Average stack in big blinds — the poker-meaningful health number a
-    // TD-style display shows. Falls back to '-' before chips are counted.
+    // a poker display shows. Falls back to '-' before chips are counted.
     avgStackBB:   function () {
         if (S.chipsNum > 0 && S.stillNum > 0 && S.bb > 0) return Math.round((S.chipsNum / S.stillNum) / S.bb) + ' BB';
         return '-';
@@ -248,7 +247,7 @@ var TOKENS = {
 };
 
 // State predicates. `always` is the implicit default; the rest map a tournament
-// state to a boolean, mirroring TD's condition clauses.
+// state to a boolean; these are the condition clauses.
 var WHEN = {
     always:     function () { return true; },
     running:    function () { return S.running && !S.isBreak && !S.gameOver; },
@@ -292,7 +291,7 @@ function matchCond(cond) {
 /* ── Renderer: JSON tree → nested flexbox ─────────────────────────────── */
 
 var root = document.getElementById('tbRoot');
-var allCells = [];   // { el, inner, spec, variants, tokSpans, lastText, lastVariant, isFit }
+var allCells = [];   // { el, inner, spec, variants, elSpans, lastText, lastVariant, isFit }
 var fitCells = [];   // subset of allCells with fit:true
 var clockCells = []; // cells whose colour tracks warn/critical
 
@@ -305,9 +304,9 @@ function applyBox(el, node) {
     if (node.justify) el.style.justifyContent = node.justify;
 }
 
-// Build the token/text spans for one line of cell content into `inner`,
-// appending any {el,name} token spans it creates to `tokList`.
-function buildInner(inner, text, tokList) {
+// Build the element/text spans for one line of cell content into `inner`,
+// appending any {el,name} element spans it creates to `elList`.
+function buildInner(inner, text, elList) {
     var lines = String(text || '').split('\n');
     for (var li = 0; li < lines.length; li++) {
         if (li > 0) inner.appendChild(document.createElement('br'));
@@ -316,13 +315,13 @@ function buildInner(inner, text, tokList) {
             var p = parts[pi];
             if (!p) continue;
             var m = p.match(/^<([a-zA-Z]+)>$/);
-            if (m && TOKENS[m[1]]) {
+            if (m && ELEMENTS[m[1]]) {
                 var span = document.createElement('span');
-                span.setAttribute('data-tok', m[1]);
+                span.setAttribute('data-el', m[1]);
                 inner.appendChild(span);
-                tokList.push({ el: span, name: m[1] });
+                elList.push({ el: span, name: m[1] });
             } else {
-                // Unknown tokens render visibly (⟨name⟩) rather than vanishing —
+                // Unknown elements render visibly (⟨name⟩) rather than vanishing —
                 // the editor relies on this to flag typos.
                 inner.appendChild(document.createTextNode(m ? '⟨' + m[1] + '⟩' : p));
             }
@@ -363,7 +362,7 @@ function buildCell(spec) {
     var rec = {
         el: el, inner: inner, spec: spec,
         variants: Array.isArray(spec.variants) ? spec.variants : [],
-        tokSpans: [], lastText: null, lastVariant: -2, isFit: !!spec.fit
+        elSpans: [], lastText: null, lastVariant: -2, isFit: !!spec.fit
     };
     allCells.push(rec);
     if (spec.fit) fitCells.push(rec);
@@ -395,8 +394,8 @@ var _building = false;       // guards against updateAll re-entrancy while build
 
 // A layout is either single-screen ({bg, root}) or multi-screen
 // ({screens:[{name, when, bg, root}]}). Normalize to the screens form so the
-// renderer only deals with one shape. TD's "screen sets": scanned in order,
-// first whose condition matches wins; a screen with no `when` is the default.
+// renderer only deals with one shape. Screens are scanned in order; the first
+// whose condition matches wins, and a screen with no `when` is the default.
 function normalizeScreens(layout) {
     if (layout && Array.isArray(layout.screens) && layout.screens.length) return layout;
     return { screens: [{ name: 'Main', bg: layout ? layout.bg : null, root: layout ? layout.root : { col: [] } }] };
@@ -438,14 +437,14 @@ function renderLayoutObj(layout) {
 }
 
 function renderLayout(key) {
-    renderLayoutObj(LAYOUTS[key] || LAYOUTS.td_classic);
+    renderLayoutObj(LAYOUTS[key] || LAYOUTS.classic);
 }
 
 /* ── Update loop ──────────────────────────────────────────────────────── */
 
-// Refresh one token span in place; multiline tokens (prizeList) rebuild breaks.
-function paintTokSpan(t) {
-    var v = TOKENS[t.name]();
+// Refresh one element span in place; multiline ones (prizeList) rebuild breaks.
+function paintElSpan(t) {
+    var v = ELEMENTS[t.name]();
     if (v.indexOf('\n') !== -1) {
         if (t.el.getAttribute('data-multi') !== v) {
             t.el.setAttribute('data-multi', v);
@@ -480,8 +479,7 @@ function updateAll() {
     for (var a = 0; a < allCells.length; a++) {
         var rec = allCells[a];
 
-        // A cell's `when` gates visibility outright (TD's "no matching property
-        // set → not displayed"). Hidden cells skip all further work.
+        // A cell's `when` gates visibility outright (no matching style → hidden).
         if (rec.spec.when !== undefined && !matchCond(rec.spec.when)) {
             rec.el.style.display = 'none';
             continue;
@@ -504,13 +502,13 @@ function updateAll() {
             if (newText !== rec.lastText) {
                 rec.lastText = newText;
                 rec.inner.textContent = '';
-                rec.tokSpans = [];
-                buildInner(rec.inner, newText, rec.tokSpans);
+                rec.elSpans = [];
+                buildInner(rec.inner, newText, rec.elSpans);
             }
         }
 
-        // Live token values.
-        for (var t = 0; t < rec.tokSpans.length; t++) paintTokSpan(rec.tokSpans[t]);
+        // Live element values.
+        for (var t = 0; t < rec.elSpans.length; t++) paintElSpan(rec.elSpans[t]);
 
         // A cell whose content resolved to nothing hides entirely, so an empty
         // prize bar or buy-in line paints no bare background band.
@@ -617,12 +615,12 @@ if (window.TB_EMBED) {
         // regardless of the sample state; null returns to auto-by-condition.
         forceScreen: function (i) { forceScreen = (i === null || i === undefined) ? null : i; if (CURRENT_LAYOUT) buildScreen(pickScreen()); },
         activeScreenIndex: function () { return activeScreen; },
-        tokenNames: function () { return Object.keys(TOKENS); },
-        // Current value of every token, for the editor's picker (so it can show
+        elementNames: function () { return Object.keys(ELEMENTS); },
+        // Current value of every element, for the editor's picker (so it can show
         // "<clock> — 12:31" and never drift from the renderer's real list).
-        tokenValues: function () {
+        elementValues: function () {
             var out = {};
-            Object.keys(TOKENS).forEach(function (n) { try { out[n] = String(TOKENS[n]()); } catch (e) { out[n] = ''; } });
+            Object.keys(ELEMENTS).forEach(function (n) { try { out[n] = String(ELEMENTS[n]()); } catch (e) { out[n] = ''; } });
             return out;
         },
         select:    function (pathStr) {
@@ -641,7 +639,7 @@ if (window.TB_EMBED) {
     }, true);
     window.addEventListener('resize', function () { requestAnimationFrame(fitAll); });
     refreshDerived();
-    renderLayout('td_classic');
+    renderLayout('classic');
     setInterval(tick, 500);
 } else {
 
@@ -688,7 +686,7 @@ function applyPick(v) {
     }
 }
 
-if (!/^id:\d+$/.test(pick || '') && !LAYOUTS[pick]) pick = 'td_classic';
+if (!/^id:\d+$/.test(pick || '') && !LAYOUTS[pick]) pick = 'classic';
 if (LAYOUTS[pick]) sel.value = pick;
 sel.addEventListener('change', function () {
     try { localStorage.setItem('tb_layout', sel.value); } catch (e) {}
@@ -698,7 +696,7 @@ sel.addEventListener('change', function () {
 window.addEventListener('resize', function () { requestAnimationFrame(fitAll); });
 
 refreshDerived();
-applyPick(LAYOUTS[pick] ? pick : 'td_classic');
+applyPick(LAYOUTS[pick] ? pick : 'classic');
 poll();
 setInterval(tick, 500);
 setInterval(poll, 2000);

@@ -67,7 +67,7 @@
 .tbe-color { display: flex; gap: .35rem; align-items: center; }
 .tbe-color input[type=color] { width: 38px; height: 32px; padding: 2px; border: 1.5px solid #cbd5e1; border-radius: 7px; background: #fff; }
 .tbe-color input[type=text] { flex: 1; }
-.tbe-tokrow select { width: 100%; padding: .35rem .5rem; border: 1.5px solid #cbd5e1; border-radius: 7px; font-size: .8rem; background: #fff; }
+.tbe-elrow select { width: 100%; padding: .35rem .5rem; border: 1.5px solid #cbd5e1; border-radius: 7px; font-size: .8rem; background: #fff; }
 
 @media (pointer: coarse) {
     .tbe-mini, .tbe-chip { min-height: 44px; }

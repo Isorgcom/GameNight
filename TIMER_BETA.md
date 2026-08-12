@@ -1,117 +1,109 @@
-# Timer BETA — TD-style layout engine
+# Timer BETA — layout engine
 
-A rebuild of the tournament clock modelled on The Tournament Director's layout
-system, kept fully separate from the existing timer. Delete
-`timer_beta.{php,css,js}` and the feature is gone.
-
-Reference material: a copy of the TD 3.7 install at
-`/home/bryce/smb/Files/temp/TD/` (NOT in this repo, and its assets must never
-be). The definitive spec is `userguide.html` chapter 13 ("Layout Tab") in that
-folder; the site blocks remote fetches, the local copy is identical. The
-`.tlo` files in `templates/` are readable JS object literals of the built-in
-layouts; `lib/tokens.xml` is the machine-readable token list (145 tokens).
+A rebuild of the tournament clock as a configurable layout engine, kept fully
+separate from the existing timer. Delete `timer_beta.{php,css,js}`,
+`timer_beta_edit.{php,css,js}` and `timer_beta_dl.php` and the feature is gone.
 
 ## Model
 
-A **layout** is a JSON tree. Phase A schema (`timer_beta.js` header has the
-authoritative field list):
+A **layout** is a JSON tree. `timer_beta.js`'s header has the authoritative
+field list.
 
 - node := `{ row: [...] }` | `{ col: [...] }` | `{ cell: {...} }`
 - containers: `weight` (flex-grow; unweighted = content-sized), `gap`, `pad`,
   `bg`, `border`, `justify`
-- cells: `text` with `<tokens>` and newlines, `size` (vh units) or `fit: true`,
-  `color`, `bg`, `bold`, `pad`, `align`, `when`, `clockColors`
+- cells: `text` with `<elements>` and newlines, `size` (vh units) or
+  `fit: true`, `color`, `bg`, `bold`, `pad`, `align`, `when`, `clockColors`,
+  `variants`
 
 Rendering is nested flexbox, so overlap and off-screen are impossible by
 construction. That property is the whole reason this engine exists; the
 current timer's point-anchor themes can do both and needed a runtime clamp
-(v0.2085 branch).
+(shipped v0.2085).
 
 **Invariants, do not relax:**
-- Every authored string lands via `textContent`; tokens become
-  `<span data-tok>`. Nothing user-authored is ever innerHTML'd.
+- Every authored string lands via `textContent`; elements become
+  `<span data-el>`. Nothing user-authored is ever innerHTML'd.
 - Display-only until promotion is decided: state comes from
   `timer_dl.php?action=get_state` and nothing else. No POST, no CSRF token on
   the page.
-- Unknown tokens render visibly as `⟨name⟩`, never vanish (editor relies on
+- Unknown elements render visibly as `⟨name⟩`, never vanish (editor relies on
   this to flag typos).
 - Empty cells hide themselves so background bands don't paint bare.
-- TD allows user tokens whose values are raw HTML. **We never will.** Plain
-  text through the same textContent path only.
+- No HTML in element/user text. Plain text through the textContent path only.
 
-## TD concepts and how they map (userguide ch. 13)
+## Screens, conditions, variants
 
-| TD term | Meaning | Our status |
-|---|---|---|
-| Screen | tree of Rows/Columns of Cells | Phase A: one screen (`root`) |
-| Cell + Property Set | a cell holds MULTIPLE property sets, each with Conditions; TD continuously evaluates state and shows the best match, first match wins | Phase A has the degenerate `when:` enum; Phase B schema: `props: [{style…, when…}]` list with single-style shorthand kept |
-| Conditions | ANDed clauses; numeric ones accept < <= = >= > !=; Round accepts all/even/odd; "In Countdown" ordered before "Before Game" because first-match | Phase C |
-| Screen Set | screens cycling each for N seconds; the SET is chosen by conditions (break screens, pre-game countdown) | Phase C |
-| Toolbox / CellRef | cells are shared definitions; screens hold references | Phase B editor |
-| Global Property Set | named shared styles (CSS-class-alike) | Phase B/C |
-| Token attributes | `<chips size="30" columns="10" values="none">`, `<round offset="1">` | adopt when a token needs it |
-| User token overrides | user-defined tokens, plain text or HTML | plain text ONLY |
-| Banner Set | cycling images in a cell | maybe; uploads-scoped URLs only |
-| Auto-size screen | batch font-shrink until it fits, re-run per conditions | not needed: our `fit` is live per-cell |
-| Optimal Size + Scaling | layouts authored at a fixed resolution, scaled | not needed: vh-relative sizing |
+- **Screens**: a layout is `{screens:[{name,when,bg,root}]}` (a single-screen
+  `{bg,root}` is accepted and normalized). Screens are checked top to bottom;
+  the first whose condition matches shows, and a screen with no `when` is the
+  default. A break screen (`when:'on_break'`) ordered before a catch-all Main
+  auto-swaps in on break, live.
+- **Conditions** (`when` on a cell or screen, or on a variant): a keyword
+  string, or an object of clauses that AND together — `state`
+  (running|paused|on_break|pre_game|game_over), `hasAnte`, `hasRebuys`, `round`
+  (`">3"`, `"even"`, `"all"`, …).
+- **Variants**: a cell's `variants: [{when, text?, color?, bg?, bold?,
+  opacity?}]` give it conditional emphasis; the first matching variant merges
+  over the base. Scoped to emphasis so a variant can never reflow the layout.
+  Re-evaluated every tick.
 
-## Tokens (~27)
+## Elements (~27)
 
 eventName level levelOrBreak clock gameName nextGameName smallBlind bigBlind
 ante blinds nextBlinds players playersLeft playersTotal entries rebuys pot
 chipCount avgStack avgStackBB buyinLine currentTime elapsedTime nextBreak
 prizes prizeList
 
-avgStackBB is average stack in big blinds ("38 BB"); levelOrBreak is a single
-"Level 5"/"Break" label. The editor's token picker shows each token's LIVE
-value and sources its list from the renderer (TBPreview.tokenNames /
-tokenValues), so the two can't drift.
+`avgStackBB` is average stack in big blinds ("38 BB"); `levelOrBreak` is a
+single "Level 5"/"Break" label. The editor's element picker shows each
+element's LIVE value and sources its list from the renderer
+(`TBPreview.elementNames` / `elementValues`), so the two can't drift.
 
-Known gaps: `buyinLine` is sample-only (get_state doesn't return buy-in
+Known data gaps: `buyinLine` is sample-only (get_state doesn't return buy-in
 config); `gameName` is a fixed string (no per-level game field exists);
 `elapsedTime` is blind-schedule time, not wall time (no session start
 timestamp in get_state).
 
-## Phases
+## Files
 
-- **A (done):** renderer + four built-ins (td_classic, black_green,
-  minimalist, two_column) authored from TD's screenshots/.tlo structure, no TD
-  assets. Sample mode without an event; live mode polls get_state every 2s.
-- **B (done):** editor page `timer_beta_edit.php` (full page, house style).
-  Live preview is the real display page in a same-origin iframe
-  (`timer_beta.php?embed=1`) driven through `window.TBPreview`; click any part
-  to select it. Structure tree + inspector on the right; add cell/row/column,
-  duplicate, reorder, remove; token picker; per-state preview chips
-  (running/paused/break/over); undo. Storage: `timer_layouts` table (own/
-  league/global scope like timer_themes), server-side `pk_layout_sanitize()`
-  in `timer_beta_dl.php` (whitelists node types, style keys and enums; clamps
-  numbers; colour/style strings reject url()/expression()/js; depth cap 8,
-  node cap 200, 64KB doc cap; cell TEXT permissive because the renderer only
-  assigns it via textContent). Framing: `csp_allow_same_origin_framing()` in
-  auth.php flips X-Frame-Options to SAMEORIGIN and frame-ancestors to 'self'
-  for the embed page ONLY; the rest of the site stays DENY/'none'.
-- **C (partly done — conditions):** cells now carry conditional **variants**
-  `[{ when, text?, color?, bg?, bold?, opacity? }]` — first matching variant's
-  emphasis merges over the base (TD's per-cell property sets, scoped to
-  emphasis so a variant can never reflow the layout). Conditions are a WHEN key
-  string OR an object of AND'd clauses `{state, hasAnte, hasRebuys, round}`;
-  `round` takes ">3"/"even"/"all"/etc. The cell `when` visibility gate uses the
-  same condition model. Editor has a condition builder (state + round + ante +
-  rebuys) and a variants panel; sanitizer validates both (12 variants max, only
-  emphasis props). matchCond()/resolveCell() re-evaluate every tick.
-  Break screens (screen sets): a layout is now `{screens:[{name,when,bg,root}]}`
-  (single-screen `{bg,root}` still accepted and normalized). The renderer picks
-  the first screen whose condition matches — a break screen (`when:'on_break'`)
-  ordered before a catch-all Main auto-swaps in on break, live. Editor has
-  screen tabs, add/rename/delete, a per-screen condition, and forces the preview
-  to the screen being edited (`TBPreview.forceScreen`). Sanitizer validates
-  screens (max 6). STILL TODO in C: cycling multiple screens per condition,
-  global property sets, import/export.
-- **D:** promotion decision (controls on the beta page, or fold the engine
-  into timer.php as v2 themes). User's call after living with it.
+- `timer_beta.php` — display page. `?event_id=N` shows a live game (host
+  rights, same gate as timer.php); no event = sample data. `?embed=1` is the
+  editor's preview iframe (opts into same-origin framing via
+  `csp_allow_same_origin_framing()` in auth.php — that one page only).
+- `timer_beta.js` — the renderer + engine + four built-in layouts + embed API
+  (`window.TBPreview`).
+- `timer_beta_edit.php` / `.js` / `.css` — the layout editor. Live preview is
+  the real display page in the iframe; structure tree, inspector, element
+  picker, per-state preview chips, screen tabs, undo.
+- `timer_beta_dl.php` — layout CRUD. `pk_layout_sanitize()` is the trust
+  boundary: whitelists node types, style keys and enums; clamps numbers;
+  rejects `url()`/`expression()`/js in style strings; depth cap 8, node cap
+  200, 6 screens, 12 variants, 128KB doc. Cell TEXT is permissive because the
+  renderer only assigns it via textContent.
+- `timer_layouts` table — own/league/global scope like `timer_themes`.
+
+## Nav / reachability
+
+"Timer Layouts (BETA)" sits under "Tournament Timer" in the hamburger site
+menu (signed-in users). Reached via `/timer_beta_edit.php`. When BETA
+graduates to being *the* timer, promote it to the always-visible desktop nav
+row too, not just the mobile hamburger.
+
+## Roadmap
+
+- **A (done):** renderer + four built-ins. Sample mode + live polling.
+- **B (done):** editor — tree, inspector, element picker, save/duplicate/scope,
+  server-side sanitizer.
+- **C (done):** conditions — per-cell variants and multi-screen layouts with
+  break-screen auto-swap.
+- **Remaining:** cycling multiple screens per condition; shared named styles;
+  import/export; background images per screen (uploads-scoped); promotion (give
+  BETA a control surface, or fold the engine into the main timer as v2 themes).
 
 ## Testing
 
-`~/qa-headless/beta_check.js` (13 assertions: ticking, all four layouts
-zero-spill, persistence, live-mode data, 403/404, CSP) and `beta_shot.js`
-(screenshots). Run against dev as usual; the dev test login is JamesTest.
+`~/qa-headless/beta_check.js` (display), `beta_editor_check.js` (editor),
+`beta_variants_check.js` (variants), `beta_screens_check.js` (break screens),
+`beta_elements_check.js` (elements + picker), `beta_shot.js` (screenshots). Run
+against dev; the dev test login is JamesTest.

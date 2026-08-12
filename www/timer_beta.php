@@ -8,8 +8,8 @@
  * surface at all. Deleting timer_beta.{php,css,js} removes the feature.
  *
  * A layout here is a JSON tree of rows/columns/cells rendered into nested
- * flexbox (see timer_beta.js). Phase A ships four built-in layouts modelled
- * on The Tournament Director's shipped screens; the editor comes later.
+ * flexbox (see timer_beta.js). Four built-in layouts ship as starting points,
+ * and the editor (timer_beta_edit.php) builds custom ones.
  *
  * With ?event_id=N it shows that game's live state (host rights required,
  * same gate as timer.php). Without one it runs on sample data so layouts
