@@ -32,6 +32,7 @@ function normalizeLayout() {
 }
 function curScreen() { return LAYOUT.screens[editScreenIndex]; }
 
+var ELEMENT_BUILTINS = [];
 var ELEMENTS = ['eventName','level','levelOrBreak','clock','gameName','nextGameName','smallBlind','bigBlind','ante',
     'blinds','nextBlinds','players','playersLeft','playersTotal','entries','rebuys','pot','chipCount','avgStack','avgStackBB',
     'currentTime','elapsedTime','nextBreak','prizes','prizeList','buyinLine'];
@@ -362,6 +363,56 @@ function renderVariants(cell) {
     insp.appendChild(box);
 }
 
+/* Layout-level custom elements: user-defined <name> = plain-text values, shown
+ * when the Screen (layout root) is selected. They live on LAYOUT.customElements
+ * and so travel with save and export automatically. Plain text only. */
+function renderCustomElements() {
+    if (!LAYOUT.customElements || typeof LAYOUT.customElements !== 'object') LAYOUT.customElements = {};
+    var ce = LAYOUT.customElements;
+    var box = document.createElement('div');
+    box.className = 'tbe-variants';   // reuse the bordered-section styling
+    var head = document.createElement('div');
+    head.className = 'tbe-variants-head';
+    head.textContent = 'Custom elements';
+    box.appendChild(head);
+    var hint = document.createElement('div');
+    hint.className = 'tbe-screen-note';
+    hint.textContent = 'Define your own <name> values (e.g. sponsor). Use them in any cell\'s text. Plain text only.';
+    box.appendChild(hint);
+
+    Object.keys(ce).forEach(function (name) {
+        var row = document.createElement('div');
+        row.className = 'tbe-ce-row';
+        var tag = document.createElement('code');
+        tag.className = 'tbe-ce-name';
+        tag.textContent = '<' + name + '>';
+        var val = document.createElement('input');
+        val.type = 'text'; val.value = ce[name]; val.maxLength = 500; val.placeholder = 'value';
+        val.addEventListener('change', function () { pushUndo(); ce[name] = val.value; refresh(true); });
+        var rm = document.createElement('button');
+        rm.className = 'tbe-mini tbe-mini-danger'; rm.textContent = '×'; rm.title = 'Remove ' + name;
+        rm.addEventListener('click', function () { pushUndo(); delete ce[name]; refresh(true); renderInspector(); });
+        row.appendChild(tag); row.appendChild(val); row.appendChild(rm);
+        box.appendChild(row);
+    });
+
+    var add = document.createElement('div');
+    add.className = 'tbe-ce-add';
+    var nameIn = document.createElement('input');
+    nameIn.type = 'text'; nameIn.placeholder = 'name (letters/digits)'; nameIn.maxLength = 40;
+    var addBtn = document.createElement('button');
+    addBtn.className = 'tbe-mini'; addBtn.textContent = '+ Add';
+    addBtn.addEventListener('click', function () {
+        var nm = nameIn.value.trim();
+        if (!/^[a-zA-Z][a-zA-Z0-9]{0,39}$/.test(nm)) { (window.pkAlert || alert)('Name must start with a letter and contain only letters and digits.'); return; }
+        if (ELEMENT_BUILTINS.indexOf(nm) !== -1) { (window.pkAlert || alert)('"' + nm + '" is a built-in element name.'); return; }
+        pushUndo(); ce[nm] = ce[nm] || ''; refresh(true); renderInspector();
+    });
+    add.appendChild(nameIn); add.appendChild(addBtn);
+    box.appendChild(add);
+    insp.appendChild(box);
+}
+
 function renderInspector() {
     insp.textContent = '';
     if (selPath === null) {
@@ -389,6 +440,7 @@ function renderInspector() {
         clr.className = 'tbe-mini'; clr.textContent = 'Remove gradient';
         clr.addEventListener('click', function () { pushUndo(); delete scr.bg.gradient; refresh(true); renderInspector(); });
         insp.appendChild(clr);
+        renderCustomElements();
         return;
     }
 
@@ -724,6 +776,7 @@ function boot() {
     if (!w || !w.TBPreview) { setTimeout(boot, 60); return; }
     PV = w.TBPreview;
     if (PV.elementNames) { var tn = PV.elementNames(); if (tn && tn.length) ELEMENTS = tn; }
+    ELEMENT_BUILTINS = ELEMENTS.slice();
     PV.onSelect = function (path) { select(path); };
     LAYOUT = JSON.parse(JSON.stringify(PV.builtins.classic));
     delete LAYOUT.name;

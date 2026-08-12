@@ -94,3 +94,10 @@
 .tbe-screen-cond > span { font-size: .74rem; font-weight: 600; color: #475569; }
 .tbe-screen-note { font-size: .7rem; color: #94a3b8; line-height: 1.35; }
 @media (pointer: coarse) { .tbe-screen-tab, .tbe-screen-add { min-height: 40px; } }
+
+/* ── Custom elements ── */
+.tbe-ce-row { display: flex; align-items: center; gap: .35rem; }
+.tbe-ce-name { flex: 0 0 auto; font-size: .74rem; color: #1e3a8a; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 5px; padding: .15rem .35rem; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tbe-ce-row input { flex: 1; padding: .35rem .45rem; border: 1.5px solid #cbd5e1; border-radius: 6px; font-size: .8rem; min-width: 0; }
+.tbe-ce-add { display: flex; gap: .35rem; }
+.tbe-ce-add input { flex: 1; padding: .35rem .45rem; border: 1.5px solid #cbd5e1; border-radius: 6px; font-size: .8rem; min-width: 0; }

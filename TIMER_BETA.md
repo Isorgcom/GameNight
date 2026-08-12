@@ -59,6 +59,9 @@ ante blinds nextBlinds players playersLeft playersTotal entries rebuys pot
 chipCount avgStack avgStackBB buyinLine currentTime elapsedTime nextBreak
 prizes prizeList
 
+Element names match `[a-zA-Z][a-zA-Z0-9]*`. Plus any layout-defined custom
+elements (see roadmap).
+
 `avgStackBB` is average stack in big blinds ("38 BB"); `levelOrBreak` is a
 single "Level 5"/"Break" label. The editor's element picker shows each
 element's LIVE value and sources its list from the renderer
@@ -115,9 +118,14 @@ row too, not just the mobile hamburger.
   loads it into the editor, and persists via save_layout so the server
   sanitizer is the trust boundary; a bare `{screens|root}` object is also
   accepted. Hostile styles are stripped, non-layout files import nothing.
-- **Remaining:** custom elements (user-defined named text values); custom
-  images (background per screen / image cells, uploads-scoped, embedded on
-  export); cycling multiple screens per condition; shared named styles.
+- **Custom elements (done):** layout-level `customElements: {name: value}` map,
+  user-defined `<name>` = plain text (letters/digits names, values ≤500 chars,
+  ≤30 per layout, no HTML). Resolved after the built-ins (a built-in name always
+  wins), shown in the element picker, and travel with save/export. Edited from
+  the Custom elements panel under Screen background.
+- **Remaining:** custom images (background per screen / image cells,
+  uploads-scoped, embedded on export); cycling multiple screens per condition;
+  shared named styles.
 
 ## Testing
 

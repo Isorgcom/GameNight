@@ -306,16 +306,26 @@ function applyBox(el, node) {
 
 // Build the element/text spans for one line of cell content into `inner`,
 // appending any {el,name} element spans it creates to `elList`.
+// Layout-defined custom elements: a flat name→plain-text map applied to every
+// screen. Resolved after the built-ins, so a built-in name always wins.
+var customEls = {};
+function isKnownElement(name) { return !!ELEMENTS[name] || customEls.hasOwnProperty(name); }
+function elementValue(name) {
+    if (ELEMENTS[name]) return String(ELEMENTS[name]());
+    if (customEls.hasOwnProperty(name)) return String(customEls[name]);
+    return null;
+}
+
 function buildInner(inner, text, elList) {
     var lines = String(text || '').split('\n');
     for (var li = 0; li < lines.length; li++) {
         if (li > 0) inner.appendChild(document.createElement('br'));
-        var parts = lines[li].split(/(<[a-zA-Z]+>)/);
+        var parts = lines[li].split(/(<[a-zA-Z][a-zA-Z0-9]*>)/);
         for (var pi = 0; pi < parts.length; pi++) {
             var p = parts[pi];
             if (!p) continue;
-            var m = p.match(/^<([a-zA-Z]+)>$/);
-            if (m && ELEMENTS[m[1]]) {
+            var m = p.match(/^<([a-zA-Z][a-zA-Z0-9]*)>$/);
+            if (m && isKnownElement(m[1])) {
                 var span = document.createElement('span');
                 span.setAttribute('data-el', m[1]);
                 inner.appendChild(span);
@@ -398,7 +408,11 @@ var _building = false;       // guards against updateAll re-entrancy while build
 // whose condition matches wins, and a screen with no `when` is the default.
 function normalizeScreens(layout) {
     if (layout && Array.isArray(layout.screens) && layout.screens.length) return layout;
-    return { screens: [{ name: 'Main', bg: layout ? layout.bg : null, root: layout ? layout.root : { col: [] } }] };
+    // customElements is layout-level; carry it across the single-screen wrap.
+    return {
+        screens: [{ name: 'Main', bg: layout ? layout.bg : null, root: layout ? layout.root : { col: [] } }],
+        customElements: layout ? layout.customElements : undefined
+    };
 }
 
 function pickScreen() {
@@ -413,6 +427,8 @@ function pickScreen() {
 function buildScreen(idx) {
     _building = true;
     activeScreen = idx;
+    customEls = (CURRENT_LAYOUT && CURRENT_LAYOUT.customElements && typeof CURRENT_LAYOUT.customElements === 'object')
+        ? CURRENT_LAYOUT.customElements : {};
     var screen = CURRENT_LAYOUT.screens[idx] || { root: { col: [] } };
     fitCells = []; clockCells = []; allCells = [];
     root.textContent = '';
@@ -444,7 +460,8 @@ function renderLayout(key) {
 
 // Refresh one element span in place; multiline ones (prizeList) rebuild breaks.
 function paintElSpan(t) {
-    var v = ELEMENTS[t.name]();
+    var v = elementValue(t.name);
+    if (v === null) v = '⟨' + t.name + '⟩';
     if (v.indexOf('\n') !== -1) {
         if (t.el.getAttribute('data-multi') !== v) {
             t.el.setAttribute('data-multi', v);
@@ -691,12 +708,13 @@ if (window.TB_EMBED) {
         // regardless of the sample state; null returns to auto-by-condition.
         forceScreen: function (i) { forceScreen = (i === null || i === undefined) ? null : i; if (CURRENT_LAYOUT) buildScreen(pickScreen()); },
         activeScreenIndex: function () { return activeScreen; },
-        elementNames: function () { return Object.keys(ELEMENTS); },
+        elementNames: function () { return Object.keys(ELEMENTS).concat(Object.keys(customEls)); },
         // Current value of every element, for the editor's picker (so it can show
         // "<clock> — 12:31" and never drift from the renderer's real list).
         elementValues: function () {
             var out = {};
             Object.keys(ELEMENTS).forEach(function (n) { try { out[n] = String(ELEMENTS[n]()); } catch (e) { out[n] = ''; } });
+            Object.keys(customEls).forEach(function (n) { out[n] = String(customEls[n]); });
             return out;
         },
         select:    function (pathStr) {

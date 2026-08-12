@@ -159,6 +159,21 @@ function pk_layout_sanitize($doc, array &$err): ?array {
     if (strlen(json_encode($doc)) > 131072) { $err[] = 'layout too large'; return null; }
     $out = ['v' => 1];
 
+    // Layout-level custom elements: a name->plain-text map. Names are
+    // identifier-safe (so they can appear as <name> in cell text); values are
+    // plain text only (never HTML — the renderer assigns them via textContent).
+    if (isset($doc['customElements']) && is_array($doc['customElements'])) {
+        $ce = [];
+        $n = 0;
+        foreach ($doc['customElements'] as $k => $v) {
+            if (++$n > 30) break;
+            if (!is_string($k) || !preg_match('/^[a-zA-Z][a-zA-Z0-9]{0,39}$/', $k)) continue;
+            if (!is_string($v) || strlen($v) > 500) continue;
+            $ce[$k] = preg_replace('/[^\P{C}\n]/u', '', $v);
+        }
+        if ($ce) $out['customElements'] = $ce;
+    }
+
     // Multi-screen form (break screens etc.) or single-screen shorthand.
     if (isset($doc['screens']) && is_array($doc['screens'])) {
         $screens = [];
