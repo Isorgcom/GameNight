@@ -43,6 +43,12 @@ function pk_lo_style_str($v, int $max = 80): ?string {
     if (!preg_match('#^[\#a-zA-Z0-9(),.%/\s_-]+$#', $v)) return null;
     return $v;
 }
+// Image sources are restricted to same-origin upload paths — never external
+// URLs, data URIs or anything with a scheme — so a layout can't point the
+// display at another host. upload.php produces exactly this shape.
+function pk_lo_img($v): ?string {
+    return (is_string($v) && preg_match('#^/uploads/timer_layouts/[A-Za-z0-9._-]{1,120}$#', $v)) ? $v : null;
+}
 function pk_lo_num($v, float $min, float $max): ?float {
     if (!is_numeric($v)) return null;
     return max($min, min($max, (float)$v));
@@ -72,6 +78,8 @@ function pk_lo_cell($cell, array &$err): ?array {
     foreach (['color', 'bg', 'border'] as $k) if (isset($cell[$k])) { $v = pk_lo_style_str($cell[$k]); if ($v !== null) $out[$k] = $v; }
     foreach (['pad', 'spacing'] as $k) if (isset($cell[$k])) { $v = pk_lo_style_str($cell[$k], 32); if ($v !== null) $out[$k] = $v; }
     if (isset($cell['align']) && in_array($cell['align'], ['left', 'center', 'right'], true)) $out['align'] = $cell['align'];
+    if (isset($cell['image'])) { $im = pk_lo_img($cell['image']); if ($im !== null) { $out['image'] = $im;
+        if (isset($cell['imageFit']) && in_array($cell['imageFit'], ['contain', 'cover'], true)) $out['imageFit'] = $cell['imageFit']; } }
     if (isset($cell['when'])) { $w = pk_lo_cond($cell['when']); if ($w !== null) $out['when'] = $w; }
     if (isset($cell['opacity'])) { $n = pk_lo_num($cell['opacity'], 0, 1); if ($n !== null) $out['opacity'] = $n; }
     if (isset($cell['variants']) && is_array($cell['variants'])) {
@@ -135,6 +143,8 @@ function pk_lo_bg($bg): ?array {
         $a = pk_lo_style_str($bg['gradient'][0]); $b = pk_lo_style_str($bg['gradient'][1]);
         if ($a !== null && $b !== null) $out['gradient'] = [$a, $b];
     }
+    if (isset($bg['image'])) { $im = pk_lo_img($bg['image']); if ($im !== null) { $out['image'] = $im;
+        if (isset($bg['imageFit']) && in_array($bg['imageFit'], ['cover', 'contain'], true)) $out['imageFit'] = $bg['imageFit']; } }
     return $out ?: null;
 }
 
@@ -293,6 +303,40 @@ if ($action === 'delete_layout') {
     $db->prepare('DELETE FROM timer_layouts WHERE id = ?')->execute([$id]);
     db_log_activity($uid, "deleted timer layout: {$row['name']} (#$id)");
     echo json_encode(['ok' => true]);
+    exit;
+}
+
+if ($action === 'upload_image') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); echo json_encode(['ok' => false, 'error' => 'POST only']); exit; }
+    if (empty($_FILES['image']) || $_FILES['image']['error'] !== UPLOAD_ERR_OK) {
+        echo json_encode(['ok' => false, 'error' => 'No file uploaded.']); exit;
+    }
+    $file = $_FILES['image'];
+
+    // MIME from the actual bytes, not the browser.
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $exts = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp'];
+    $mime = $finfo->file($file['tmp_name']);
+    if (!isset($exts[$mime])) { echo json_encode(['ok' => false, 'error' => 'Only JPEG, PNG, GIF and WebP images are allowed.']); exit; }
+    if ($file['size'] > 8 * 1024 * 1024) { echo json_encode(['ok' => false, 'error' => 'File too large (max 8 MB).']); exit; }
+    // Must actually decode as an image (rejects a renamed non-image with a faked type).
+    if (@getimagesize($file['tmp_name']) === false) { echo json_encode(['ok' => false, 'error' => 'That file is not a readable image.']); exit; }
+
+    // Shared per-user daily cap (admins exempt), same counter as upload.php.
+    if (!$isAdmin) {
+        $capQ = $db->prepare("SELECT COUNT(*) FROM activity_log WHERE user_id = ? AND action LIKE 'uploaded image:%' AND created_at > datetime('now', '-1 day')");
+        $capQ->execute([$uid]);
+        if ((int)$capQ->fetchColumn() >= MAX_UPLOADS_PER_DAY) { http_response_code(429); echo json_encode(['ok' => false, 'error' => 'Daily upload limit reached — try again tomorrow.']); exit; }
+    }
+
+    // Timer-layout images get their own folder so they are identifiable,
+    // sweepable, and scoped away from every other upload on the site.
+    $dir = __DIR__ . '/uploads/timer_layouts/';
+    if (!is_dir($dir) && !@mkdir($dir, 0755, true)) { http_response_code(500); echo json_encode(['ok' => false, 'error' => 'Storage unavailable.']); exit; }
+    $name = bin2hex(random_bytes(16)) . '.' . $exts[$mime];
+    if (!move_uploaded_file($file['tmp_name'], $dir . $name)) { http_response_code(500); echo json_encode(['ok' => false, 'error' => 'Failed to save file.']); exit; }
+    db_log_activity($uid, "uploaded image: timer_layouts/$name");
+    echo json_encode(['ok' => true, 'url' => '/uploads/timer_layouts/' . $name]);
     exit;
 }
 

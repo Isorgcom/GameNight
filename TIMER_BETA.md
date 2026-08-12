@@ -123,9 +123,21 @@ row too, not just the mobile hamburger.
   ≤30 per layout, no HTML). Resolved after the built-ins (a built-in name always
   wins), shown in the element picker, and travel with save/export. Edited from
   the Custom elements panel under Screen background.
-- **Remaining:** custom images (background per screen / image cells,
-  uploads-scoped, embedded on export); cycling multiple screens per condition;
-  shared named styles.
+- **Custom images (done):** background image per screen (`bg.image` + `bg.imageFit`
+  cover/contain) and image cells (`cell.image` renders an `<img>`, `imageFit`
+  contain/cover). Uploaded via a self-contained `upload_image` action in timer_beta_dl.php
+  (byte-level MIME check + getimagesize decode, 8MB cap, shared per-user daily
+  limit, CSRF) that writes to `/uploads/timer_layouts/` — its own folder,
+  separate from every other upload, so BETA stays deletable and upload.php stays
+  single-purpose. Refs restricted by both client and server to
+  `/uploads/timer_layouts/[A-Za-z0-9._-]` paths —
+  external URLs, data URIs, `javascript:` and traversal all rejected. Images
+  render as real `<img>`/`background-image` (never innerHTML); CSP `img-src
+  'self'` already covers them. NOTE: images are referenced by URL, so an
+  exported layout's images resolve on THIS install; cross-install portability
+  (embedding images into the export) is a follow-up.
+- **Remaining:** cross-install image embedding on export; cycling multiple
+  screens per condition; shared named styles.
 
 ## Testing
 

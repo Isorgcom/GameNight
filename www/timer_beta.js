@@ -353,12 +353,30 @@ function applyEmphasis(el, spec) {
     el.style.opacity = spec.opacity !== undefined ? String(spec.opacity) : '';
 }
 
+// Only same-origin timer-layout upload paths are allowed as image sources;
+// anything else (external URL, another feature's upload, javascript:, …) is
+// dropped. The server sanitizer enforces the same rule.
+function safeImageSrc(v) {
+    return (typeof v === 'string' && /^\/uploads\/timer_layouts\/[A-Za-z0-9._-]{1,120}$/.test(v)) ? v : null;
+}
+
 function buildCell(spec) {
     var el = document.createElement('div');
     el.className = 'tb-cell';
     var inner = document.createElement('div');
     inner.className = 'tb-cell-inner';
     el.appendChild(inner);
+
+    // Image cell: an <img> filling the box. src is validated; never innerHTML.
+    var imgSrc = safeImageSrc(spec.image);
+    if (imgSrc) {
+        el.classList.add('tb-cell-img');
+        var img = document.createElement('img');
+        img.src = imgSrc;
+        img.alt = '';
+        img.className = 'tb-img' + (spec.imageFit === 'cover' ? ' tb-img-cover' : '');
+        inner.appendChild(img);
+    }
 
     // Structural / base-only styling, set once.
     if (spec.fit) el.classList.add('tb-fit');
@@ -370,7 +388,7 @@ function buildCell(spec) {
     if (spec.clockColors) clockCells.push(el);
 
     var rec = {
-        el: el, inner: inner, spec: spec,
+        el: el, inner: inner, spec: spec, isImage: !!imgSrc,
         variants: Array.isArray(spec.variants) ? spec.variants : [],
         elSpans: [], lastText: null, lastVariant: -2, isFit: !!spec.fit
     };
@@ -433,10 +451,19 @@ function buildScreen(idx) {
     fitCells = []; clockCells = []; allCells = [];
     root.textContent = '';
     root.style.background = '';
+    root.style.backgroundImage = '';
     if (screen.bg) {
         root.style.background = screen.bg.gradient
             ? 'linear-gradient(160deg, ' + screen.bg.gradient[0] + ', ' + screen.bg.gradient[1] + ')'
             : (screen.bg.color || '#000');
+        // Background image sits over the colour/gradient (validated same-origin).
+        var bgImg = safeImageSrc(screen.bg.image);
+        if (bgImg) {
+            root.style.backgroundImage = 'url("' + bgImg + '")';
+            root.style.backgroundSize = screen.bg.imageFit === 'contain' ? 'contain' : 'cover';
+            root.style.backgroundPosition = 'center';
+            root.style.backgroundRepeat = 'no-repeat';
+        }
     }
     var top = buildNode(screen.root || { col: [] }, []);
     top.classList.add('tb-top');
@@ -515,9 +542,10 @@ function updateAll() {
                 eff[key] = (vi >= 0 && active[key] !== undefined) ? active[key] : rec.spec[key];
             }
             applyEmphasis(rec.el, eff);
-            // Text is a variant prop too, so rebuild the inner when it changes.
+            // Text is a variant prop too, so rebuild the inner when it changes —
+            // but never for an image cell (that would wipe its <img>).
             var newText = (vi >= 0 && active.text !== undefined) ? active.text : rec.spec.text;
-            if (newText !== rec.lastText) {
+            if (!rec.isImage && newText !== rec.lastText) {
                 rec.lastText = newText;
                 rec.inner.textContent = '';
                 rec.elSpans = [];
@@ -529,8 +557,9 @@ function updateAll() {
         for (var t = 0; t < rec.elSpans.length; t++) paintElSpan(rec.elSpans[t]);
 
         // A cell whose content resolved to nothing hides entirely, so an empty
-        // prize bar or buy-in line paints no bare background band.
-        rec.el.style.display = rec.inner.textContent.trim() === '' ? 'none' : '';
+        // prize bar or buy-in line paints no bare background band. Image cells
+        // are exempt — they have no text content but should still show.
+        rec.el.style.display = (!rec.isImage && rec.inner.textContent.trim() === '') ? 'none' : '';
     }
 
     var rem = liveRemaining();

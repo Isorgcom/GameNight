@@ -34,6 +34,9 @@ body {
 }
 .tb-cell-inner { max-width: 100%; white-space: pre-wrap; }
 .tb-fit .tb-cell-inner { white-space: nowrap; line-height: 1; }
+.tb-cell-img .tb-cell-inner { max-width: 100%; max-height: 100%; height: 100%; width: 100%; display: flex; align-items: center; justify-content: center; }
+.tb-img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.tb-img-cover { width: 100%; height: 100%; object-fit: cover; }
 
 /* Clock state colours; the layout's own colour applies until a state does. */
 .tb-warn   { color: #fbbf24 !important; }

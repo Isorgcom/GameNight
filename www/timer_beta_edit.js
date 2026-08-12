@@ -265,6 +265,30 @@ function colorInput(value, onchange) {
     wrap.appendChild(c); wrap.appendChild(t);
     return wrap;
 }
+// Upload an image via timer_beta_dl.php's upload_image action (byte-level MIME
+// check + getimagesize, size cap, per-user daily limit). Stores under
+// /uploads/timer_layouts/ and calls back with that URL.
+function uploadImage(onUrl) {
+    var inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'image/png,image/jpeg,image/gif,image/webp';
+    inp.addEventListener('change', function () {
+        var f = inp.files && inp.files[0];
+        if (!f) return;
+        var fd = new FormData();
+        fd.append('action', 'upload_image');
+        fd.append('image', f);
+        fd.append('csrf_token', TBE_CSRF);
+        fetch('/timer_beta_dl.php', { method: 'POST', body: fd })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+                if (j && j.url) onUrl(j.url);
+                else (window.pkAlert || alert)(j && j.error ? j.error : 'Upload failed.');
+            })
+            .catch(function () { (window.pkAlert || alert)('Upload failed.'); });
+    });
+    inp.click();
+}
+
 function setOrDelete(obj, key, val) {
     if (val === undefined || val === '' || val === false) delete obj[key];
     else obj[key] = val;
@@ -440,6 +464,24 @@ function renderInspector() {
         clr.className = 'tbe-mini'; clr.textContent = 'Remove gradient';
         clr.addEventListener('click', function () { pushUndo(); delete scr.bg.gradient; refresh(true); renderInspector(); });
         insp.appendChild(clr);
+
+        // Background image (over the colour/gradient).
+        var bgImgWrap = document.createElement('div');
+        bgImgWrap.className = 'tbe-field';
+        var bgLbl = document.createElement('span'); bgLbl.textContent = 'Background image'; bgImgWrap.appendChild(bgLbl);
+        if (scr.bg.image) {
+            var th = document.createElement('img'); th.className = 'tbe-img-thumb'; th.src = scr.bg.image; bgImgWrap.appendChild(th);
+            bgImgWrap.appendChild(field('Fit', selInput(scr.bg.imageFit || 'cover', ['cover', 'contain'], function (v) { setOrDelete(scr.bg, 'imageFit', v === 'cover' ? undefined : v); })));
+            var rmBg = document.createElement('button'); rmBg.className = 'tbe-mini tbe-mini-danger'; rmBg.textContent = 'Remove image';
+            rmBg.addEventListener('click', function () { pushUndo(); delete scr.bg.image; delete scr.bg.imageFit; refresh(true); renderInspector(); });
+            bgImgWrap.appendChild(rmBg);
+        } else {
+            var upBg = document.createElement('button'); upBg.className = 'tbe-mini'; upBg.textContent = 'Upload image';
+            upBg.addEventListener('click', function () { uploadImage(function (url) { pushUndo(); scr.bg.image = url; refresh(true); renderInspector(); }); });
+            bgImgWrap.appendChild(upBg);
+        }
+        insp.appendChild(bgImgWrap);
+
         renderCustomElements();
         return;
     }
@@ -450,6 +492,27 @@ function renderInspector() {
     if (kind === 'cell') {
         inspTitle.textContent = 'Cell';
         var cell = node.cell;
+
+        // Image cell: an uploaded picture instead of text. When set, the text /
+        // element fields are hidden; removing the image returns it to a text cell.
+        if (cell.image) {
+            var imgWrap = document.createElement('div');
+            imgWrap.className = 'tbe-field';
+            var il = document.createElement('span'); il.textContent = 'Image'; imgWrap.appendChild(il);
+            var thumb = document.createElement('img'); thumb.className = 'tbe-img-thumb'; thumb.src = cell.image; imgWrap.appendChild(thumb);
+            insp.appendChild(imgWrap);
+            insp.appendChild(field('Fit', selInput(cell.imageFit || 'contain', ['contain', 'cover'], function (v) { setOrDelete(cell, 'imageFit', v === 'contain' ? undefined : v); })));
+            insp.appendChild(field('Weight (share of space)', numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
+            var rmImg = document.createElement('button'); rmImg.className = 'tbe-mini tbe-mini-danger'; rmImg.textContent = 'Remove image (back to text)';
+            rmImg.addEventListener('click', function () { pushUndo(); delete cell.image; delete cell.imageFit; refresh(true); renderInspector(); });
+            insp.appendChild(rmImg);
+            return;
+        }
+
+        var toImg = document.createElement('button');
+        toImg.className = 'tbe-mini'; toImg.textContent = 'Use an image instead';
+        toImg.addEventListener('click', function () { uploadImage(function (url) { pushUndo(); cell.image = url; refresh(true); renderInspector(); }); });
+        insp.appendChild(toImg);
 
         var ta = document.createElement('textarea');
         ta.rows = 3; ta.value = cell.text || '';
