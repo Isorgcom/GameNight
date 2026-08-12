@@ -142,6 +142,7 @@ var S = {
     fetchedAt: Date.now(),
     levels: [], sb: 0, bb: 0, ante: 0, nsb: null, nbb: null, nante: null, nextIsBreak: false,
     players: '-', entries: '-', rebuys: 0, pot: '-', chipCount: '-', avgStack: '-',
+    stillNum: 0, totalNum: 0, chipsNum: 0,
     prizes: [], warnSecs: 60,
     sample: !TB_SESSION_ID
 };
@@ -157,6 +158,7 @@ if (S.sample) {
     ];
     S.players = '12/18'; S.entries = 18; S.rebuys = 3; S.pot = '$1,050';
     S.chipCount = '67,500'; S.avgStack = '5,625';
+    S.stillNum = 12; S.totalNum = 18; S.chipsNum = 67500;
     S.prizes = ['1st: $525', '2nd: $315', '3rd: $210'];
 }
 
@@ -231,7 +233,18 @@ var TOKENS = {
     elapsedTime:  function () { return fmtClock(elapsedSecs()); },
     nextBreak:    function () { var s = nextBreakSecs(); return s === null ? '-' : (S.isBreak ? 'now' : fmtClock(s)); },
     prizes:       function () { return S.prizes.length ? S.prizes.join('    ') : ''; },
-    prizeList:    function () { return S.prizes.length ? 'Prizes\n' + S.prizes.join('\n') : ''; }
+    prizeList:    function () { return S.prizes.length ? 'Prizes\n' + S.prizes.join('\n') : ''; },
+    playersLeft:  function () { return String(S.stillNum); },
+    playersTotal: function () { return String(S.totalNum); },
+    // Average stack in big blinds — the poker-meaningful health number a
+    // TD-style display shows. Falls back to '-' before chips are counted.
+    avgStackBB:   function () {
+        if (S.chipsNum > 0 && S.stillNum > 0 && S.bb > 0) return Math.round((S.chipsNum / S.stillNum) / S.bb) + ' BB';
+        return '-';
+    },
+    // "Level 5" or "Break" — a single label that follows the break state, so a
+    // layout needs one cell instead of a level cell plus a break variant.
+    levelOrBreak: function () { return S.isBreak ? 'Break' : 'Level ' + S.level; }
 };
 
 // State predicates. `always` is the implicit default; the rest map a tournament
@@ -559,7 +572,8 @@ function poll() {
             S.gameOver = j.session_status === 'finished';
             var p = j.pool;
             if (p) {
-                S.players = (p.still_playing | 0) + '/' + (p.total_players | 0);
+                S.stillNum = p.still_playing | 0; S.totalNum = p.total_players | 0; S.chipsNum = p.chips_in_play | 0;
+                S.players = S.stillNum + '/' + S.totalNum;
                 S.entries = p.total_buyins | 0;
                 S.rebuys = p.total_rebuys | 0;
                 S.pot = '$' + ((p.pool_total | 0) / 100).toLocaleString('en-US');
@@ -603,6 +617,14 @@ if (window.TB_EMBED) {
         // regardless of the sample state; null returns to auto-by-condition.
         forceScreen: function (i) { forceScreen = (i === null || i === undefined) ? null : i; if (CURRENT_LAYOUT) buildScreen(pickScreen()); },
         activeScreenIndex: function () { return activeScreen; },
+        tokenNames: function () { return Object.keys(TOKENS); },
+        // Current value of every token, for the editor's picker (so it can show
+        // "<clock> — 12:31" and never drift from the renderer's real list).
+        tokenValues: function () {
+            var out = {};
+            Object.keys(TOKENS).forEach(function (n) { try { out[n] = String(TOKENS[n]()); } catch (e) { out[n] = ''; } });
+            return out;
+        },
         select:    function (pathStr) {
             document.querySelectorAll('.tb-selected').forEach(function (n) { n.classList.remove('tb-selected'); });
             if (pathStr === null || pathStr === undefined) return;

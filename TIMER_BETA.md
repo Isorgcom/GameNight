@@ -55,11 +55,17 @@ current timer's point-anchor themes can do both and needed a runtime clamp
 | Auto-size screen | batch font-shrink until it fits, re-run per conditions | not needed: our `fit` is live per-cell |
 | Optimal Size + Scaling | layouts authored at a fixed resolution, scaled | not needed: vh-relative sizing |
 
-## Tokens (Phase A registry, ~23)
+## Tokens (~27)
 
-eventName level clock gameName nextGameName smallBlind bigBlind ante blinds
-nextBlinds players entries rebuys pot chipCount avgStack buyinLine currentTime
-elapsedTime nextBreak prizes prizeList
+eventName level levelOrBreak clock gameName nextGameName smallBlind bigBlind
+ante blinds nextBlinds players playersLeft playersTotal entries rebuys pot
+chipCount avgStack avgStackBB buyinLine currentTime elapsedTime nextBreak
+prizes prizeList
+
+avgStackBB is average stack in big blinds ("38 BB"); levelOrBreak is a single
+"Level 5"/"Break" label. The editor's token picker shows each token's LIVE
+value and sources its list from the renderer (TBPreview.tokenNames /
+tokenValues), so the two can't drift.
 
 Known gaps: `buyinLine` is sample-only (get_state doesn't return buy-in
 config); `gameName` is a fixed string (no per-level game field exists);

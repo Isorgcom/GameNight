@@ -32,9 +32,9 @@ function normalizeLayout() {
 }
 function curScreen() { return LAYOUT.screens[editScreenIndex]; }
 
-var TOKENS = ['eventName','level','clock','gameName','nextGameName','smallBlind','bigBlind','ante',
-    'blinds','nextBlinds','players','entries','rebuys','pot','chipCount','avgStack',
-    'currentTime','elapsedTime','nextBreak','prizes','prizeList'];
+var TOKENS = ['eventName','level','levelOrBreak','clock','gameName','nextGameName','smallBlind','bigBlind','ante',
+    'blinds','nextBlinds','players','playersLeft','playersTotal','entries','rebuys','pot','chipCount','avgStack','avgStackBB',
+    'currentTime','elapsedTime','nextBreak','prizes','prizeList','buyinLine'];
 
 /* ── Tree access helpers ─────────────────────────────────────────────── */
 
@@ -410,15 +410,21 @@ function renderInspector() {
         var opt0 = document.createElement('option');
         opt0.value = ''; opt0.textContent = 'Insert token…';
         tokSel.appendChild(opt0);
+        // Options show each token's LIVE value from the renderer ("<clock> —
+        // 12:31"), and the list itself comes from the renderer, so the picker
+        // can never offer a token the engine doesn't have.
+        var vals = (PV && PV.tokenValues) ? PV.tokenValues() : {};
         TOKENS.forEach(function (t) {
             var o = document.createElement('option');
-            o.value = t; o.textContent = '<' + t + '>';
+            o.value = t;
+            var v = vals[t];
+            o.textContent = '<' + t + '>' + (v ? '  —  ' + v.replace(/\n/g, ' ').slice(0, 22) : '');
             tokSel.appendChild(o);
         });
         tokSel.addEventListener('change', function () {
             if (!tokSel.value) return;
             pushUndo();
-            var at = ta.selectionStart || ta.value.length;
+            var at = (typeof ta.selectionStart === 'number') ? ta.selectionStart : ta.value.length;
             ta.value = ta.value.slice(0, at) + '<' + tokSel.value + '>' + ta.value.slice(at);
             cell.text = ta.value;
             tokSel.value = '';
@@ -667,6 +673,7 @@ function boot() {
     var w = frame.contentWindow;
     if (!w || !w.TBPreview) { setTimeout(boot, 60); return; }
     PV = w.TBPreview;
+    if (PV.tokenNames) { var tn = PV.tokenNames(); if (tn && tn.length) TOKENS = tn; }
     PV.onSelect = function (path) { select(path); };
     LAYOUT = JSON.parse(JSON.stringify(PV.builtins.td_classic));
     delete LAYOUT.name;
