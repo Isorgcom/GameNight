@@ -106,7 +106,9 @@ row too, not just the mobile hamburger.
   undo, fullscreen) drive a live event-linked display for users with rights.
   The tray is server-rendered only on an event-linked non-embed page and
   revealed by syncControls() once get_state confirms can_control; the play
-  button reflects the running state. The fold-into-main-timer decision remains.
+  button reflects the running state. It is solid when active and auto-hides
+  completely after 3s of no pointer/touch/key activity (video-player style),
+  reappearing on any interaction. The fold-into-main-timer decision remains.
 - **Remaining:** cycling multiple screens per condition; shared named styles;
   import/export; background images per screen (uploads-scoped).
 

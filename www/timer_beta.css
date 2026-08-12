@@ -113,8 +113,18 @@ body {
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border: 1px solid rgba(148, 163, 184, 0.4);
+    opacity: 1;
+    transition: opacity .35s ease, transform .35s ease;
 }
 #tbControls[hidden] { display: none; }
+/* Idle: gone entirely (not a faint ghost), and not clickable. Any pointer move,
+   tap or key brings it back — video-player style. */
+#tbControls.tb-idle {
+    opacity: 0;
+    transform: translateX(-50%) translateY(12px);
+    pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) { #tbControls { transition: opacity .2s ease; } }
 #tbControls button {
     min-width: 44px;
     min-height: 44px;

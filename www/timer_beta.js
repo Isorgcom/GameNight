@@ -641,9 +641,29 @@ if (ctrls) {
         if (cmd) sendCommand(cmd);
     });
 }
+// Auto-hide: the tray is solid while active, then fades fully out after a few
+// seconds of no interaction. Any pointer move, tap or key brings it back.
+var idleTimer = null;
+function showControls() {
+    if (!ctrls || ctrls.hidden) return;
+    ctrls.classList.remove('tb-idle');
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(function () { if (ctrls) ctrls.classList.add('tb-idle'); }, 3000);
+}
+if (ctrls) {
+    ['mousemove', 'mousedown', 'touchstart', 'keydown'].forEach(function (ev) {
+        document.addEventListener(ev, showControls, { passive: true });
+    });
+}
+
 function syncControls() {
     if (!ctrls) return;
-    ctrls.hidden = !controlArmed();
+    var armed = controlArmed();
+    var wasHidden = ctrls.hidden;
+    ctrls.hidden = !armed;
+    // First time it becomes available, reveal it and start the idle countdown.
+    if (armed && wasHidden) showControls();
+    if (!armed && idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
     var play = document.getElementById('tbPlayBtn');
     if (play) {
         play.classList.toggle('is-running', S.running);
