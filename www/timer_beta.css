@@ -38,9 +38,6 @@ body {
 /* Clock state colours; the layout's own colour applies until a state does. */
 .tb-warn   { color: #fbbf24 !important; }
 .tb-crit   { color: #ef4444 !important; }
-.tb-paused { opacity: 0.55; animation: tbPulse 2.2s ease-in-out infinite; }
-@keyframes tbPulse { 50% { opacity: 0.3; } }
-@media (prefers-reduced-motion: reduce) { .tb-paused { animation: none; } }
 
 /* ── Corner bar: badge, layout picker, escape hatch ── */
 #tbBar {
