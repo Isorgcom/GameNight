@@ -4,6 +4,11 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2086] - 2026-08-12
+
+### Added
+- **Keyboard shortcuts to run the tournament timer.** The timer already toggled start/stop on the spacebar; it now also skips levels with the arrow keys: Right advances to the next level, Left steps back to the previous one. All three are gated by a new shared `timerControlArmed()` (which the clock double-tap now also uses): the shortcut fires only when the user can control this timer and is not in the layout editor, and never while typing in an input, textarea, select or contenteditable. The spacebar handler previously fired regardless of control state or edit mode; it now respects the same guard. The server re-checks manage rights on every command either way, so this only affects which keypresses reach the wire.
+
 ## [v0.2085] - 2026-08-11
 
 ### Fixed
