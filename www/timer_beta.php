@@ -76,6 +76,25 @@ if ($event_id) {
 </div>
 <?php endif; ?>
 
+<?php if ($session_id && !$is_embed): ?>
+<!-- Control tray: shown by timer_beta.js only once get_state confirms the
+     viewer can control this game. Every button posts the same `command` the
+     main timer uses; the server re-checks manage rights on each. -->
+<div id="tbControls" hidden>
+    <button type="button" data-cmd="skip_prev" title="Previous level (Left)" aria-label="Previous level">&#9198;</button>
+    <button type="button" id="tbPlayBtn" class="tb-ctrl-play" data-cmd="toggle_play" title="Start / stop (Space)" aria-label="Start or stop">&#9654;</button>
+    <button type="button" data-cmd="skip_next" title="Next level (Right)" aria-label="Next level">&#9197;</button>
+    <span class="tb-ctrl-sep"></span>
+    <button type="button" data-cmd="sub_time" title="Remove one minute" aria-label="Remove one minute">&#8722;1m</button>
+    <button type="button" data-cmd="add_time" title="Add one minute" aria-label="Add one minute">&#43;1m</button>
+    <span class="tb-ctrl-sep"></span>
+    <button type="button" data-cmd="reset_level" title="Reset this level" aria-label="Reset level">&#8635;</button>
+    <button type="button" data-cmd="undo" title="Undo last action" aria-label="Undo">&#8630;</button>
+    <span class="tb-ctrl-sep"></span>
+    <button type="button" data-act="fullscreen" title="Fullscreen" aria-label="Fullscreen">&#9974;</button>
+</div>
+<?php endif; ?>
+
 <script nonce="<?= csp_nonce() ?>">
 var TB_SESSION_ID  = <?= json_encode($session_id ?: null) ?>;
 var TB_EVENT_TITLE = <?= json_encode($event_title) ?>;

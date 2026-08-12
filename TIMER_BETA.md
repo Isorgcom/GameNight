@@ -101,9 +101,12 @@ row too, not just the mobile hamburger.
   server-side sanitizer.
 - **C (done):** conditions — per-cell variants and multi-screen layouts with
   break-screen auto-swap.
-- **Promotion (started):** keyboard controls (Space/Left/Right) drive a live
-  event-linked display for users with rights. An on-screen control surface and
-  the fold-into-main-timer decision remain.
+- **Promotion (started):** keyboard controls (Space/Left/Right) AND an
+  on-screen control tray (#tbControls: prev/play/next, -1m/+1m, reset-level,
+  undo, fullscreen) drive a live event-linked display for users with rights.
+  The tray is server-rendered only on an event-linked non-embed page and
+  revealed by syncControls() once get_state confirms can_control; the play
+  button reflects the running state. The fold-into-main-timer decision remains.
 - **Remaining:** cycling multiple screens per condition; shared named styles;
   import/export; background images per screen (uploads-scoped).
 

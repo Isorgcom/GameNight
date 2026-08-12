@@ -96,3 +96,47 @@ body {
 /* ── Editor selection (embed mode only) ── */
 .tb-selected { outline: 2px dashed #f59e0b; outline-offset: -2px; }
 .tb-cell.tb-selected { background-clip: padding-box; }
+
+/* ── Control tray (live event-linked display, hosts only) ── */
+#tbControls {
+    position: fixed;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    gap: .3rem;
+    padding: .4rem .6rem;
+    border-radius: 14px;
+    background: rgba(15, 23, 42, 0.72);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    opacity: 0.35;
+    transition: opacity .25s;
+}
+#tbControls[hidden] { display: none; }
+#tbControls:hover, #tbControls:focus-within { opacity: 1; }
+#tbControls button {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0 .55rem;
+    border: 1px solid #334155;
+    border-radius: 9px;
+    background: #1e293b;
+    color: #e2e8f0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .12s, border-color .12s;
+}
+#tbControls button:hover { background: #334155; }
+#tbControls button:active { background: #475569; }
+#tbControls .tb-ctrl-play { background: #16a34a; border-color: #16a34a; color: #fff; min-width: 56px; }
+#tbControls .tb-ctrl-play.is-running { background: #dc2626; border-color: #dc2626; }
+#tbControls .tb-ctrl-sep { width: 1px; height: 1.6rem; background: rgba(148, 163, 184, 0.3); margin: 0 .15rem; flex-shrink: 0; }
+@media (pointer: coarse) {
+    #tbControls { opacity: 0.6; }
+    #tbControls button { min-width: 48px; min-height: 48px; }
+}

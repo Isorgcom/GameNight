@@ -470,6 +470,7 @@ function resolveCell(rec) {
 }
 
 function updateAll() {
+    if (typeof syncControls === 'function') syncControls();
     // State may have moved us to a different screen (e.g. onto the break
     // screen). Rebuild for it, unless we're mid-build ourselves.
     if (!_building && CURRENT_LAYOUT && pickScreen() !== activeScreen) {
@@ -618,6 +619,36 @@ function sendCommand(cmd) {
         .then(function (r) { return r.json(); })
         .then(function (j) { if (j && j.csrf_token) CSRF = j.csrf_token; poll(); })   // reflect the new state at once
         .catch(function () {});
+}
+
+// On-screen control tray. It only exists in the DOM on an event-linked, non
+// -embed page; syncControls() (called from updateAll) reveals it once
+// get_state confirms the viewer can control, and keeps the play/stop button in
+// sync with the running state.
+var ctrls = document.getElementById('tbControls');
+if (ctrls) {
+    ctrls.addEventListener('click', function (e) {
+        var btn = e.target.closest('button');
+        if (!btn) return;
+        if (btn.getAttribute('data-act') === 'fullscreen') {
+            var fe = document.documentElement;
+            if (document.fullscreenElement) document.exitFullscreen();
+            else if (fe.requestFullscreen) fe.requestFullscreen();
+            else if (fe.webkitRequestFullscreen) fe.webkitRequestFullscreen();
+            return;
+        }
+        var cmd = btn.getAttribute('data-cmd');
+        if (cmd) sendCommand(cmd);
+    });
+}
+function syncControls() {
+    if (!ctrls) return;
+    ctrls.hidden = !controlArmed();
+    var play = document.getElementById('tbPlayBtn');
+    if (play) {
+        play.classList.toggle('is-running', S.running);
+        play.innerHTML = S.running ? '&#9208;' : '&#9654;';   // ⏸ / ▶
+    }
 }
 
 /* Sample mode loops its clock so the display always looks alive. */
