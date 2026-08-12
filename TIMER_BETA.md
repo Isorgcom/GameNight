@@ -160,7 +160,20 @@ row too, not just the mobile hamburger.
 - **Screen cycling (done):** per-screen `cycle` dwell rotates matching screens
   (see Screens, conditions, variants above). Sanitizer clamps to whole
   seconds in [2, 3600] so a hostile value can never strobe the display.
-- **Remaining:** shared named styles.
+- **Shared named styles (done):** layout-level `styles: {name: {visual
+  props}}` map; a cell opts in with `style:"name"` and inherits
+  size/fit/color/bg/bold/pad/align/opacity/spacing, with the cell's own props
+  winning. Text, `when`, variants and images never come from a shared style,
+  and variants still merge over the (shared-resolved) base. Names are
+  identifier-safe ≤32 chars, ≤20 per layout; `pk_lo_styles()` reuses the cell
+  prop validators so a style can't carry anything a cell couldn't, and
+  `pk_lo_prune_style_refs()` drops refs to undefined names on save. Renderer:
+  `withSharedStyle()` merges at build time in `buildNode()`; an unknown ref
+  is a harmless no-op client-side. Editor: "Shared styles" panel on the
+  Screen inspector (above Custom elements), "Shared style" dropdown on each
+  cell. Styles ride with save/export/import automatically.
+- **Remaining:** feature-complete — the promotion / fold-into-main-timer
+  decision is what's left.
 
 ## Testing
 
@@ -169,7 +182,7 @@ row too, not just the mobile hamburger.
 `beta_elements_check.js` (elements + picker), `beta_export_check.js`
 (export/import round-trip), `beta_images_check.js` (image upload + refs),
 `beta_imgport_check.js` (cross-install image embedding), `beta_cycling_check.js`
-(screen cycling), `beta_shot.js`
+(screen cycling), `beta_sharedstyles_check.js` (shared styles), `beta_shot.js`
 (screenshots). Run against dev; the dev test login is JamesTest.
 
 The break state in sample/preview mode derives from the LEVEL, not a flag:

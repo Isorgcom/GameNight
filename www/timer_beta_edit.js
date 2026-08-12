@@ -489,6 +489,62 @@ function renderCustomElements() {
     insp.appendChild(box);
 }
 
+/* Shared named styles: LAYOUT.styles is a name → visual-props map; cells opt
+ * in via a "Shared style" dropdown. Editing an entry here restyles every cell
+ * that references it, across all screens. */
+function renderSharedStyles() {
+    if (!LAYOUT.styles || typeof LAYOUT.styles !== 'object') LAYOUT.styles = {};
+    var st = LAYOUT.styles;
+    var box = document.createElement('div');
+    box.className = 'tbe-variants';
+    var head = document.createElement('div');
+    head.className = 'tbe-variants-head';
+    head.textContent = 'Shared styles';
+    box.appendChild(head);
+    var hint = document.createElement('div');
+    hint.className = 'tbe-screen-note';
+    hint.textContent = 'Named looks cells can share. Change one here and every cell using it updates, on every screen. A cell\'s own settings still win over its shared style.';
+    box.appendChild(hint);
+
+    Object.keys(st).forEach(function (name) {
+        var card = document.createElement('div');
+        card.className = 'tbe-variant';
+        var top = document.createElement('div');
+        top.className = 'tbe-variant-top';
+        var nm = document.createElement('code');
+        nm.className = 'tbe-ce-name';
+        nm.textContent = name;
+        var rm = document.createElement('button');
+        rm.className = 'tbe-mini tbe-mini-danger'; rm.textContent = '×'; rm.title = 'Remove ' + name;
+        rm.addEventListener('click', function () { pushUndo(); delete st[name]; refresh(true); renderInspector(); });
+        top.appendChild(nm); top.appendChild(rm);
+        card.appendChild(top);
+        var s = st[name];
+        card.appendChild(field('Size (% of screen height)', numInput(s.size, 0.5, 40, 0.1, function (v) { setOrDelete(s, 'size', v); })));
+        card.appendChild(field('Bold', boolInput(s.bold, function (v) { setOrDelete(s, 'bold', v); })));
+        card.appendChild(field('Colour', colorInput(s.color, function (v) { setOrDelete(s, 'color', v); })));
+        card.appendChild(field('Background', colorInput(s.bg, function (v) { setOrDelete(s, 'bg', v); })));
+        card.appendChild(field('Align', selInput(s.align || 'center', ['center', 'left', 'right'], function (v) { setOrDelete(s, 'align', v === 'center' ? undefined : v); })));
+        box.appendChild(card);
+    });
+
+    var add = document.createElement('div');
+    add.className = 'tbe-ce-add';
+    var nameIn = document.createElement('input');
+    nameIn.type = 'text'; nameIn.placeholder = 'name (letters/digits)'; nameIn.maxLength = 32;
+    var addBtn = document.createElement('button');
+    addBtn.className = 'tbe-mini'; addBtn.textContent = '+ Add';
+    addBtn.addEventListener('click', function () {
+        var nm = nameIn.value.trim();
+        if (!/^[a-zA-Z][a-zA-Z0-9]{0,31}$/.test(nm)) { (window.pkAlert || alert)('Name must start with a letter and contain only letters and digits.'); return; }
+        if (Object.keys(st).length >= 20 && !st[nm]) { (window.pkAlert || alert)('A layout can hold at most 20 shared styles.'); return; }
+        pushUndo(); st[nm] = st[nm] || {}; refresh(true); renderInspector();
+    });
+    add.appendChild(nameIn); add.appendChild(addBtn);
+    box.appendChild(add);
+    insp.appendChild(box);
+}
+
 function renderInspector() {
     insp.textContent = '';
     if (selPath === null) {
@@ -534,6 +590,7 @@ function renderInspector() {
         }
         insp.appendChild(bgImgWrap);
 
+        renderSharedStyles();
         renderCustomElements();
         return;
     }
@@ -600,6 +657,12 @@ function renderInspector() {
         elRow.appendChild(elSel);
         insp.appendChild(elRow);
 
+        var styleNames = Object.keys(LAYOUT.styles || {});
+        if (styleNames.length || cell.style) {
+            insp.appendChild(field('Shared style', selInput(cell.style || '', [''].concat(styleNames), function (v) {
+                setOrDelete(cell, 'style', v || undefined);
+            }, ['(none)'].concat(styleNames))));
+        }
         insp.appendChild(field('Fit to box', boolInput(cell.fit, function (v) { setOrDelete(cell, 'fit', v); renderInspector(); })));
         if (!cell.fit) insp.appendChild(field('Size (% of screen height)', numInput(cell.size, 0.5, 40, 0.1, function (v) { setOrDelete(cell, 'size', v); })));
         insp.appendChild(field('Bold', boolInput(cell.bold, function (v) { setOrDelete(cell, 'bold', v); })));

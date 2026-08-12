@@ -25,6 +25,11 @@
  * one, each shown for its own duration. Screens without `cycle` keep the
  * first-match-wins rule, so a Break screen ordered first still takes over.
  *
+ * A layout may carry `styles` — a name → {visual props} map. A cell opts in
+ * with style:"name" and inherits size/fit/color/bg/bold/pad/align/opacity/
+ * spacing from it; the cell's own props win over the shared ones. Text,
+ * when, variants and images never come from a shared style.
+ *
  * The tree renders to nested flexbox, so nothing can overlap or leave the
  * screen — the property the absolutely-positioned theme model could not give.
  * Cell text is authored data: every string lands via textContent, elements become
@@ -402,10 +407,27 @@ function buildCell(spec) {
     return el;
 }
 
+// Shared named styles: layout-level name → visual-prop map; cells opt in via
+// style:"name". Merge order: shared props under the cell's own (cell wins).
+// Only visual props transfer — text/when/variants/image stay per-cell.
+var sharedStyles = {};
+var SHARED_KEYS = ['size', 'fit', 'color', 'bg', 'bold', 'pad', 'align', 'opacity', 'spacing'];
+
+function withSharedStyle(spec) {
+    var st = (spec && typeof spec.style === 'string') ? sharedStyles[spec.style] : null;
+    if (!st || typeof st !== 'object') return spec;
+    var merged = {};
+    for (var i = 0; i < SHARED_KEYS.length; i++) {
+        if (st[SHARED_KEYS[i]] !== undefined) merged[SHARED_KEYS[i]] = st[SHARED_KEYS[i]];
+    }
+    for (var k in spec) if (Object.prototype.hasOwnProperty.call(spec, k)) merged[k] = spec[k];
+    return merged;
+}
+
 function buildNode(node, path) {
     var el;
     if (node.cell) {
-        el = buildCell(node.cell);
+        el = buildCell(withSharedStyle(node.cell));
         applyBox(el, node);
     } else {
         var kids = node.row || node.col || [];
@@ -431,10 +453,11 @@ var _building = false;       // guards against updateAll re-entrancy while build
 // whose condition matches wins, and a screen with no `when` is the default.
 function normalizeScreens(layout) {
     if (layout && Array.isArray(layout.screens) && layout.screens.length) return layout;
-    // customElements is layout-level; carry it across the single-screen wrap.
+    // customElements / styles are layout-level; carry them across the wrap.
     return {
         screens: [{ name: 'Main', bg: layout ? layout.bg : null, root: layout ? layout.root : { col: [] } }],
-        customElements: layout ? layout.customElements : undefined
+        customElements: layout ? layout.customElements : undefined,
+        styles: layout ? layout.styles : undefined
     };
 }
 
@@ -472,6 +495,8 @@ function buildScreen(idx) {
     activeScreen = idx;
     customEls = (CURRENT_LAYOUT && CURRENT_LAYOUT.customElements && typeof CURRENT_LAYOUT.customElements === 'object')
         ? CURRENT_LAYOUT.customElements : {};
+    sharedStyles = (CURRENT_LAYOUT && CURRENT_LAYOUT.styles && typeof CURRENT_LAYOUT.styles === 'object')
+        ? CURRENT_LAYOUT.styles : {};
     var screen = CURRENT_LAYOUT.screens[idx] || { root: { col: [] } };
     fitCells = []; clockCells = []; allCells = [];
     root.textContent = '';

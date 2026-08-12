@@ -78,6 +78,9 @@ function pk_lo_cell($cell, array &$err): ?array {
     foreach (['color', 'bg', 'border'] as $k) if (isset($cell[$k])) { $v = pk_lo_style_str($cell[$k]); if ($v !== null) $out[$k] = $v; }
     foreach (['pad', 'spacing'] as $k) if (isset($cell[$k])) { $v = pk_lo_style_str($cell[$k], 32); if ($v !== null) $out[$k] = $v; }
     if (isset($cell['align']) && in_array($cell['align'], ['left', 'center', 'right'], true)) $out['align'] = $cell['align'];
+    // Shared-style reference; refs to names the layout doesn't define are
+    // pruned by pk_layout_sanitize once the styles map is known.
+    if (isset($cell['style']) && is_string($cell['style']) && preg_match('/^[a-zA-Z][a-zA-Z0-9]{0,31}$/', $cell['style'])) $out['style'] = $cell['style'];
     if (isset($cell['image'])) { $im = pk_lo_img($cell['image']); if ($im !== null) { $out['image'] = $im;
         if (isset($cell['imageFit']) && in_array($cell['imageFit'], ['contain', 'cover'], true)) $out['imageFit'] = $cell['imageFit']; } }
     if (isset($cell['when'])) { $w = pk_lo_cond($cell['when']); if ($w !== null) $out['when'] = $w; }
@@ -169,11 +172,49 @@ function pk_lo_screen($scr, array &$err): ?array {
     return $out;
 }
 
+// Shared named styles: name → visual-prop map. Same validators as cell props,
+// so a style can never carry anything a cell couldn't. Visual props only.
+function pk_lo_styles($styles): array {
+    if (!is_array($styles)) return [];
+    $out = [];
+    $n = 0;
+    foreach ($styles as $name => $st) {
+        if (++$n > 20) break;
+        if (!is_string($name) || !preg_match('/^[a-zA-Z][a-zA-Z0-9]{0,31}$/', $name)) continue;
+        if (!is_array($st)) continue;
+        $s = [];
+        if (isset($st['size'])) { $v = pk_lo_num($st['size'], 0.5, 40); if ($v !== null) $s['size'] = $v; }
+        foreach (['fit', 'bold'] as $b) if (!empty($st[$b])) $s[$b] = true;
+        foreach (['color', 'bg'] as $k) if (isset($st[$k])) { $v = pk_lo_style_str($st[$k]); if ($v !== null) $s[$k] = $v; }
+        foreach (['pad', 'spacing'] as $k) if (isset($st[$k])) { $v = pk_lo_style_str($st[$k], 32); if ($v !== null) $s[$k] = $v; }
+        if (isset($st['align']) && in_array($st['align'], ['left', 'center', 'right'], true)) $s['align'] = $st['align'];
+        if (isset($st['opacity'])) { $v = pk_lo_num($st['opacity'], 0, 1); if ($v !== null) $s['opacity'] = $v; }
+        if ($s) $out[$name] = $s;
+    }
+    return $out;
+}
+
+// Drop style refs that point at names the (sanitized) styles map doesn't have,
+// so a stored layout never carries a dangling reference.
+function pk_lo_prune_style_refs(array &$node, array $valid): void {
+    if (isset($node['cell']) && is_array($node['cell']) && isset($node['cell']['style'])
+        && !isset($valid[$node['cell']['style']])) unset($node['cell']['style']);
+    foreach (['row', 'col'] as $kids) {
+        if (isset($node[$kids]) && is_array($node[$kids])) {
+            foreach ($node[$kids] as &$c) if (is_array($c)) pk_lo_prune_style_refs($c, $valid);
+            unset($c);
+        }
+    }
+}
+
 function pk_layout_sanitize($doc, array &$err): ?array {
     if (is_string($doc)) $doc = json_decode($doc, true);
     if (!is_array($doc)) { $err[] = 'not a JSON object'; return null; }
     if (strlen(json_encode($doc)) > 131072) { $err[] = 'layout too large'; return null; }
     $out = ['v' => 1];
+
+    $sharedStyles = pk_lo_styles($doc['styles'] ?? null);
+    if ($sharedStyles) $out['styles'] = $sharedStyles;
 
     // Layout-level custom elements: a name->plain-text map. Names are
     // identifier-safe (so they can appear as <name> in cell text); values are
@@ -199,6 +240,8 @@ function pk_layout_sanitize($doc, array &$err): ?array {
             $screens[] = $s;
         }
         if (!$screens) { $err[] = 'no valid screens'; return null; }
+        foreach ($screens as &$s) pk_lo_prune_style_refs($s['root'], $sharedStyles);
+        unset($s);
         $out['screens'] = $screens;
         return $out;
     }
@@ -209,6 +252,7 @@ function pk_layout_sanitize($doc, array &$err): ?array {
     $count = 0;
     $root = pk_lo_node($doc['root'], 0, $count, $err);
     if ($root === null) return null;
+    pk_lo_prune_style_refs($root, $sharedStyles);
     $out['root'] = $root;
     return $out;
 }
