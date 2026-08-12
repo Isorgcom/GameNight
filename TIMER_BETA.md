@@ -107,7 +107,7 @@ pages gated by `can_manage_event()`, swapped by the shared strip in
 sessionStorage in `event_setup.js`). Linked from the event page's More menu
 and the check-in toolbar (tournaments only).
 
-- **Blind editor**: level grid + generator + preset bar. `event_blinds.js` is
+- **Blind editor**: spreadsheet grid + generator + preset bar. `event_blinds.js` is
   a mountable component (`pkBlindsEditor.mount(container, opts)`): the
   standalone page auto-mounts it into `#esBlindsRoot`, and the check-in
   console mounts the SAME component as a "Blinds" tab pane inside the Game
@@ -121,6 +121,60 @@ and the check-in toolbar (tournaments only).
   `load_preset` / `delete_preset`, and the old timer's `update_levels` now
   marks ITS copies session-local too (no more "Custom" library pollution).
   Saving clamps `current_level` and refreshes the clock only pre-start.
+
+  The grid itself is always-live: every cell is an input, there is no
+  click-to-edit mode, and typing patches only the derived cells (start times,
+  the status card) so a full rebuild never steals focus mid-keystroke.
+  Structure is edited through a right-click row menu (insert round/break
+  above/below, duplicate, break toggle, move up/down/top/bottom, fill duration
+  down, delete) which acts on the whole selection — click a row to select,
+  ctrl-click to add, shift-click for a range. Rows reorder by dragging the ⠿
+  grip or with Alt+↑/↓; Enter walks down a column and Ctrl+D copies the cell
+  above. Touch gets the same menu on long-press (HTML5 drag is mouse-only, so
+  the menu's move items are the touch reorder path).
+
+  Cells size to their content, not to the column: a full-bleed `<input>` per
+  cell both looked mostly empty and forced the table to a 660px floor, which
+  is what pushed Start Time off a tablet's edge. Capping the inputs (6em, 4.5em
+  for Duration) dropped the floor to 540px, which is why the rail can still sit
+  beside the grid on a landscape tablet. Small Blind gets the widest numeric
+  column because its HEADER, not its values, is the longest string in the row.
+
+  Responsive behaviour keys off a **container query**, not the viewport:
+  `mount()` stamps `.es-blinds-root` on its target (`container-type:
+  inline-size`) and the rail stacks above the grid below 800 **container**
+  px. Viewport queries are wrong here because the check-in Setup pane shares
+  the screen with the payouts sidebar — an iPad in landscape is a 1180px
+  window holding an 882px editor, and a `@media (max-width: 1000px)` rule
+  never fired, so the rail stayed beside the grid and Start Time fell off the
+  right edge into an inner scrollbar. Two more touch-specific rules matter: rows carry `user-select: none` (inputs opt back
+  in), because iOS raises its Copy / Look Up callout on a long-press over
+  selectable text and `-webkit-touch-callout` alone does not stop it; and
+  `lpGuard` swallows dismissals for 800ms after a long-press menu opens, since
+  iOS replays the finger as mousedown/mouseup/click on the row — outside the
+  menu — which would close it the instant it appeared.
+
+  Undo/redo (buttons at the top of the Controls rail, Ctrl+Z / Ctrl+Shift+Z /
+  Ctrl+Y) keeps 60 whole-schedule JSON snapshots on `S.undo` — the grid is
+  small enough that per-field deltas would buy nothing. Typing is coalesced
+  per **cell visit**, not per keystroke: `focus` records `editBase`, and
+  `flushCell()` banks it only if the value actually changed, so one undo steps
+  back over "150" rather than three. Every structural op calls `pushUndo()`,
+  which flushes any pending cell edit first — otherwise the typing and the
+  operation collapse into a single step. Ctrl+Z is intercepted inside the grid
+  inputs on purpose: the model updates on every keystroke, so the browser's
+  native text undo would desync it. Outside the grid (the generator fields,
+  anything else on the check-in console) the native behaviour is left alone,
+  and the handler no-ops entirely when the editor isn't on screen.
+
+  Three things the implementation depends on: the row `mousedown` selection
+  handler must ignore `e.button !== 0`, or a right-click collapses a multi-row
+  selection before its own menu opens; only the grip sets `tr.draggable` (a
+  permanently draggable row makes text selection inside its inputs
+  impossible); and the context menu is a single body-level element shared by
+  all mounts, since the check-in console remounts the editor on every settings
+  re-render and a per-mount menu would leak a detached `<div>` each time
+  (`pkBlindsEditor._teardown` drops the previous mount's document listeners).
 - **Use BETA timer switch** (its own Setup → Timer tab in the check-in
   console, sliding in like the other panes; tournament only): stores
   `timer_state.use_beta` via `set_beta`. When on, the check-in Timer button
@@ -229,7 +283,9 @@ row too, not just the mobile hamburger.
 (export/import round-trip), `beta_images_check.js` (image upload + refs),
 `beta_imgport_check.js` (cross-install image embedding), `beta_cycling_check.js`
 (screen cycling), `beta_sharedstyles_check.js` (shared styles),
-`beta_eventpages_check.js` (per-event blinds + display pages), `beta_shot.js`
+`beta_eventpages_check.js` (per-event blinds + display pages),
+`beta_blindgrid_check.js` (grid cells, row menu, drag/keyboard reorder, undo),
+`beta_blindgrid_ipad_check.js` (tablet fit + long-press), `beta_shot.js`
 (screenshots). Run against dev; the dev test login is JamesTest.
 
 The break state in sample/preview mode derives from the LEVEL, not a flag:

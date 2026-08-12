@@ -123,7 +123,12 @@ if ($session) {
     <?php endif; ?>
     <style>
     .pk-wrap{padding:0 1rem 2rem;max-width:100%}
-    .pk-header{background:var(--dark,#0f172a);color:#fff;padding:.75rem 1.5rem;display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;position:sticky;top:0;z-index:50}
+    /* Sticks BELOW the site nav, which is also sticky at top:0 but with a
+       higher z-index — pinned at the same offset the nav simply painted over
+       this bar, hiding the event title and the Timer / QR / Finish controls
+       the moment the page scrolled. --pk-nav-h is measured live (the nav
+       collapses on narrow screens and grows when its links row opens). */
+    .pk-header{background:var(--dark,#0f172a);color:#fff;padding:.75rem 1.5rem;display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;position:sticky;top:var(--pk-nav-h,0px);z-index:50}
     .pk-header h1{font-size:1.15rem;margin:0;font-weight:600}
     .pk-header h1 a{color:#94a3b8;text-decoration:none;font-weight:400;font-size:.85rem}
     .pk-header h1 a:hover{color:#fff}
@@ -808,6 +813,20 @@ var ES_LAYOUT_KEY = <?= json_encode($event_layout_key) ?>;
 <script nonce="<?= csp_nonce() ?>">
 var CSRF = <?= json_encode($csrf, JSON_HEX_TAG) ?>;
 var USE_BETA_TIMER = <?= (int)$use_beta_timer ?>;
+
+// Keep --pk-nav-h in step with the sticky site nav so .pk-header parks under
+// it instead of behind it. Observed rather than hard-coded: the nav is 42px
+// collapsed, taller once its links row is open.
+(function () {
+    var nav = document.querySelector('nav');
+    if (!nav) return;
+    function sync() {
+        document.documentElement.style.setProperty('--pk-nav-h', Math.round(nav.getBoundingClientRect().height) + 'px');
+    }
+    sync();
+    if (window.ResizeObserver) new ResizeObserver(sync).observe(nav);
+    else window.addEventListener('resize', sync);
+})();
 // This page installs its own delegated dispatcher below. Tell the shared
 // pk-dispatch.js (loaded from _footer.php) to stand down, or every control
 // fires twice — a rebuy would add 2 and a buy-in would toggle on then off.

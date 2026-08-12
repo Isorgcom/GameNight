@@ -38,7 +38,38 @@
         return e;
     }
 
+    function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+    /* One body-level context menu shared by every mount — the editor is
+     * remounted whenever check-in re-renders its Setup panes, and a per-mount
+     * menu would leak a detached <div> onto <body> each time. */
+    var MENU = null;
+    var MENU_ACTIONS = null;
+    /* Set when a long-press opens the menu. iOS replays a touch as
+     * mousedown/mouseup/click once the finger lifts, and that synthetic
+     * mousedown lands on the row — i.e. outside the menu — closing it the
+     * instant it appeared. Ignore dismissals for a moment afterwards. */
+    var lpGuard = 0;
+
+    function menuEl() {
+        if (MENU) return MENU;
+        MENU = el('div', 'es-menu');
+        MENU.addEventListener('click', function (e) {
+            var b = e.target.closest('button[data-i]');
+            if (!b || !MENU_ACTIONS) return;
+            var fn = MENU_ACTIONS[+b.dataset.i];
+            closeMenu();
+            if (fn) fn();
+        });
+        document.body.appendChild(MENU);
+        return MENU;
+    }
+    function closeMenu() { if (MENU) MENU.style.display = 'none'; }
+
     function mount(container, opts) {
+        // Drop the previous mount's document-level listeners before wiring new
+        // ones, or every remount stacks another copy of each handler.
+        if (pkBlindsEditor._teardown) pkBlindsEditor._teardown();
         // Reuse in-memory state across remounts (checkin re-renders its panes);
         // a different event, or no prior state, starts fresh from opts.
         var S = (opts.reuseState && pkBlindsEditor._state && pkBlindsEditor._state.eventId === opts.eventId)
@@ -52,16 +83,25 @@
                 currentLevel: opts.currentLevel || 0,
                 isLocal: !!opts.isLocal,
                 timerRunning: !!opts.timerRunning,
+                selRows: [],
+                undo: [],
+                redo: [],
                 dirty: false
             };
+        if (!S.selRows) S.selRows = [];
+        if (!S.undo) { S.undo = []; S.redo = []; }
         pkBlindsEditor._state = S;
         var csrf = opts.csrf;
 
         container.textContent = '';
+        // Marks the query container the layout responds to. The check-in Setup
+        // pane is far narrower than the viewport (a whole payouts sidebar sits
+        // beside it), so viewport media queries describe the wrong box.
+        container.classList.add('es-blinds-root');
 
-        /* Layout: status + controls in a left rail, the rounds table on the
+        /* Layout: status + controls in a left rail, the rounds grid on the
          * right — the shape blind-structure tools have used forever, so hosts
-         * read the schedule first and edit second (click a row to edit it). */
+         * read the schedule as a whole and edit any cell in place. */
         var flex = el('div', 'es-blinds-flex');
         var side = el('div', 'es-blinds-side');
         var main = el('div', 'es-blinds-main');
@@ -86,6 +126,14 @@
         var ctrlCard = el('div', 'es-card');
         ctrlCard.appendChild(el('div', 'es-card-title', 'Controls'));
         var ctrls = el('div', 'es-ctrls');
+        var undoRow = el('div', 'es-undorow');
+        var undoBtn = el('button', 'es-mini', '↶ Undo'); undoBtn.type='button'; undoBtn.id='esUndo';
+        undoBtn.title = 'Undo the last change (Ctrl+Z)';
+        var redoBtn = el('button', 'es-mini', '↷ Redo'); redoBtn.type='button'; redoBtn.id='esRedo';
+        redoBtn.title = 'Redo (Ctrl+Shift+Z)';
+        undoRow.appendChild(undoBtn); undoRow.appendChild(redoBtn);
+        ctrls.appendChild(undoRow);
+        ctrls.appendChild(el('div', 'es-divider'));
         var addLvl = el('button', 'es-mini', '+ Round'); addLvl.type='button'; addLvl.id='esAddLevel';
         var addBrk = el('button', 'es-mini', '+ Break'); addBrk.type='button'; addBrk.id='esAddBreak';
         var genTog = el('button', 'es-mini', 'Generator…'); genTog.type='button'; genTog.id='esGenToggle';
@@ -118,13 +166,16 @@
         ctrlCard.appendChild(ctrls);
         side.appendChild(ctrlCard);
 
-        /* ── Rounds table ── */
+        /* ── Rounds grid ── */
         var card = el('div', 'es-card');
         var title = el('div', 'es-card-title', 'Rounds');
-        title.appendChild(el('span', 'es-note', 'Click a row to edit it.'));
+        var coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+        title.appendChild(el('span', 'es-note', coarse
+            ? 'Every cell is editable. Long-press a row for insert / move / delete.'
+            : 'Every cell is editable. Right-click a row for options, drag ⠿ to reorder.'));
         card.appendChild(title);
 
-        var table = el('table', 'es-table');
+        var table = el('table', 'es-table es-grid');
         var thead = el('thead'); var hr = el('tr');
         [['Level', ''], ['Duration', ''], ['Ante', 'es-th-num'], ['Small Blind', 'es-th-num'],
          ['Big Blind', 'es-th-num'], ['Start Time', 'es-th-num']].forEach(function (t) {
@@ -164,24 +215,9 @@
             if (d) savedEl.style.display = 'none';
         }
 
-        function fmtNum(n) { return (+n || 0).toLocaleString('en-US'); }
         function fmtClock(min) {
             var h = Math.floor(min / 60), m = min % 60;
             return h + ':' + (m < 10 ? '0' : '') + m;
-        }
-
-        function numCell(value, min, max, oninput, disabled, cls) {
-            var td = el('td', cls);
-            var inp = el('input');
-            inp.type = 'number'; inp.min = min; inp.max = max; inp.value = value;
-            if (disabled) inp.disabled = true;
-            inp.addEventListener('change', function () {
-                oninput(Math.max(min, Math.min(max, parseInt(inp.value, 10) || 0)));
-                setDirty(true);
-                render();
-            });
-            td.appendChild(inp);
-            return td;
         }
 
         function renderStatus() {
@@ -198,90 +234,407 @@
             STAT['On break'].textContent = fmtClock(brk);
         }
 
-        function render() {
-            dirtyEl.style.display = S.dirty ? '' : 'none';
-            renderStatus();
-            tbody.textContent = '';
-            var lvlNo = 0, brkNo = 0, startMin = 0;
-            S.levels.forEach(function (lv, i) {
-                var editing = S.sel === i;
-                var tr = el('tr', lv.is_break ? 'es-row-break' : null);
-                if (editing) tr.classList.add('es-row-edit');
-                var isCur = S.currentLevel > 0 && i === S.currentLevel - 1;
-                if (isCur) tr.classList.add('es-row-current');
+        /* ── Grid ──
+         * Every cell is a live input: there is no read mode to click into, so
+         * nothing about a row changes size when you start editing it. Row
+         * structure (insert / move / delete / break) goes through the
+         * right-click menu and the drag handle. */
+        var rowEls = [];      // <tr> per level, index-aligned with S.levels
+        var startEls = [];    // the Start Time <td> per row, patched in place
+        var dragIdx = null;   // indices being dragged, null when not dragging
+        var dropAt = null;    // insertion point (index in S.levels) under the cursor
 
-                var label;
-                if (lv.is_break) { brkNo++; label = 'Break ' + brkNo; }
-                else { lvlNo++; label = 'Round ' + lvlNo; }
-                var lc = el('td', 'es-round-label');
-                if (isCur) lc.appendChild(el('span', 'es-cur-arrow', '➜'));
-                lc.appendChild(document.createTextNode(label));
-                tr.appendChild(lc);
+        /* ── Undo / redo ──
+         * Whole-schedule snapshots: the grid is small and every operation
+         * (a keystroke, a drag of five rows, a generator run) is one JSON
+         * string, so there is nothing to gain from per-field deltas.
+         *
+         * Typing is coalesced per cell visit rather than per keystroke: the
+         * pre-edit snapshot is taken on focus and only banked once the cell
+         * actually changed, so one undo steps back over "150" instead of
+         * three. */
+        var UNDO_MAX = 60;
+        var editBase = null;
 
-                if (editing) {
-                    tr.appendChild(numCell(lv.duration_minutes, 1, 999, function (v) { lv.duration_minutes = v; }));
-                    tr.appendChild(numCell(lv.ante, 0, 100000000, function (v) { lv.ante = v; }, !!lv.is_break, 'es-cell-num'));
-                    tr.appendChild(numCell(lv.small_blind, 0, 100000000, function (v) { lv.small_blind = v; }, !!lv.is_break, 'es-cell-num'));
-                    tr.appendChild(numCell(lv.big_blind, 0, 100000000, function (v) { lv.big_blind = v; }, !!lv.is_break, 'es-cell-num'));
+        function snapshot() { return JSON.stringify(S.levels); }
 
-                    var act = el('td');
-                    var cluster = el('div', 'es-rowact');
-                    var cbLab = el('label', 'es-note', 'Break ');
-                    var cb = el('input');
-                    cb.type = 'checkbox'; cb.checked = !!lv.is_break;
-                    cb.addEventListener('change', function () {
-                        lv.is_break = cb.checked ? 1 : 0;
-                        if (lv.is_break) { lv.small_blind = 0; lv.big_blind = 0; lv.ante = 0; }
-                        setDirty(true); render();
-                    });
-                    cbLab.appendChild(cb);
-                    cluster.appendChild(cbLab);
-                    [['▲', -1], ['▼', 1]].forEach(function (m) {
-                        var b = el('button', 'es-mini', m[0]); b.type = 'button';
-                        b.title = m[1] < 0 ? 'Move up' : 'Move down';
-                        b.disabled = (i + m[1] < 0) || (i + m[1] >= S.levels.length);
-                        b.addEventListener('click', function () {
-                            S.levels.splice(i + m[1], 0, S.levels.splice(i, 1)[0]);
-                            S.sel = i + m[1];
-                            setDirty(true); render();
-                        });
-                        cluster.appendChild(b);
-                    });
-                    var rm = el('button', 'es-mini es-mini-danger', '×'); rm.type = 'button'; rm.title = 'Remove';
-                    rm.addEventListener('click', function () {
-                        S.levels.splice(i, 1); S.sel = null;
-                        setDirty(true); render();
-                    });
-                    cluster.appendChild(rm);
-                    act.appendChild(cluster);
-                    tr.appendChild(act);
-                } else {
-                    tr.appendChild(el('td', null, lv.duration_minutes + 'm'));
-                    tr.appendChild(el('td', 'es-cell-num', lv.is_break ? '' : (lv.ante ? fmtNum(lv.ante) : '—')));
-                    tr.appendChild(el('td', 'es-cell-num', lv.is_break ? '' : fmtNum(lv.small_blind)));
-                    tr.appendChild(el('td', 'es-cell-num', lv.is_break ? '' : fmtNum(lv.big_blind)));
-                    tr.appendChild(el('td', 'es-cell-num es-start', fmtClock(startMin)));
-                    tr.addEventListener('click', function () { S.sel = i; render(); });
-                }
+        function bank(js) {
+            if (S.undo.length && S.undo[S.undo.length - 1] === js) return;
+            S.undo.push(js);
+            if (S.undo.length > UNDO_MAX) S.undo.shift();
+            S.redo.length = 0;
+            syncUndo();
+        }
+        /* Bank a cell edit that is still in progress. Any structural change or
+         * an undo has to close it first, or the typing and the operation
+         * collapse into one step. */
+        function flushCell() {
+            var b = editBase;
+            editBase = null;
+            if (b && b !== snapshot()) bank(b);
+        }
+        function pushUndo() { flushCell(); bank(snapshot()); }
 
-                startMin += +lv.duration_minutes;
-                tbody.appendChild(tr);
+        function restore(js) {
+            S.levels = JSON.parse(js);
+            S.selRows = []; S.anchor = null; editBase = null;
+            setDirty(true); render();
+        }
+        function doUndo() {
+            flushCell();
+            if (!S.undo.length) return;
+            S.redo.push(snapshot());
+            restore(S.undo.pop());
+        }
+        function doRedo() {
+            flushCell();
+            if (!S.redo.length) return;
+            S.undo.push(snapshot());
+            restore(S.redo.pop());
+        }
+        function syncUndo() {
+            undoBtn.disabled = !S.undo.length;
+            redoBtn.disabled = !S.redo.length;
+        }
+
+        function selIdx() {
+            return S.selRows.slice().sort(function (a, b) { return a - b; });
+        }
+        function setSel(list) {
+            S.selRows = list.filter(function (v, i, a) {
+                return v >= 0 && v < S.levels.length && a.indexOf(v) === i;
+            });
+            rowEls.forEach(function (tr, i) {
+                tr.classList.toggle('es-row-sel', S.selRows.indexOf(i) !== -1);
             });
         }
 
+        /* A new round inherits from the nearest round ABOVE the insertion point,
+         * so inserting mid-ladder continues the ladder rather than restarting. */
+        function newLevel(at, isBreak) {
+            if (isBreak) return { small_blind: 0, big_blind: 0, ante: 0, duration_minutes: 10, is_break: 1 };
+            var ref = null;
+            for (var i = Math.min(at, S.levels.length) - 1; i >= 0; i--) {
+                if (!S.levels[i].is_break) { ref = S.levels[i]; break; }
+            }
+            var sb = ref ? ladderNext(ref.small_blind || 25, 1.5) : 25;
+            return { small_blind: sb, big_blind: sb * 2, ante: ref ? +ref.ante : 0,
+                     duration_minutes: ref ? +ref.duration_minutes : 20, is_break: 0 };
+        }
+
+        function focusCell(i, col) {
+            var tr = rowEls[i];
+            if (!tr) return;
+            var inp = tr.querySelector('input[data-col="' + col + '"]');
+            if (!inp || inp.disabled) inp = tr.querySelector('input:not([disabled])');
+            if (inp) { inp.focus(); inp.select(); }
+        }
+
+        function gridKey(e, inp, i, col) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                focusCell(i + (e.shiftKey ? -1 : 1), col);
+            } else if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+                // Alt+arrow reorders; plain arrows stay as the number stepper.
+                e.preventDefault();
+                var d = e.key === 'ArrowUp' ? -1 : 1;
+                if (i + d < 0 || i + d >= S.levels.length) return;
+                pushUndo();
+                moveRows([i], d < 0 ? i - 1 : i + 2);
+                setDirty(true); render();
+                focusCell(i + d, col);
+            } else if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) {
+                e.preventDefault();
+                if (i > 0 && !inp.disabled) {
+                    pushUndo();
+                    S.levels[i][col] = S.levels[i - 1][col];
+                    inp.value = S.levels[i][col];
+                    editBase = snapshot();   // the fill is banked; typing over it is a new step
+                    setDirty(true); refreshDerived();
+                }
+            }
+        }
+
+        function cellInput(lv, i, key, min, max, cls) {
+            var td = el('td', cls);
+            var inp = el('input');
+            inp.type = 'number'; inp.min = min; inp.max = max;
+            inp.dataset.col = key;
+            if (lv.is_break && key !== 'duration_minutes') { inp.disabled = true; inp.value = ''; }
+            else inp.value = lv[key];
+            // Model updates on every keystroke (so derived totals track live),
+            // but the input's own text is left alone until blur — rewriting it
+            // mid-type would fight the caret.
+            inp.addEventListener('input', function () {
+                var v = clamp(parseInt(inp.value, 10) || 0, min, max);
+                if (key === 'small_blind' && +lv.big_blind === +lv.small_blind * 2) {
+                    lv.big_blind = v * 2;
+                    var bb = td.parentNode.querySelector('input[data-col="big_blind"]');
+                    if (bb && document.activeElement !== bb) bb.value = lv.big_blind;
+                }
+                lv[key] = v;
+                setDirty(true); refreshDerived();
+            });
+            inp.addEventListener('change', function () {
+                if (!inp.disabled) inp.value = lv[key];
+                flushCell();
+            });
+            inp.addEventListener('keydown', function (e) { gridKey(e, inp, i, key); });
+            inp.addEventListener('focus', function () {
+                editBase = snapshot();
+                if (S.selRows.length < 2) setSel([i]);
+            });
+            td.appendChild(inp);
+            return td;
+        }
+
+        function buildRow(lv, i, label) {
+            var tr = el('tr', lv.is_break ? 'es-row-break' : null);
+            var isCur = S.currentLevel > 0 && i === S.currentLevel - 1;
+            if (isCur) tr.classList.add('es-row-current');
+
+            var lc = el('td', 'es-round-label');
+            var grip = el('span', 'es-drag', '⠿');
+            grip.title = 'Drag to reorder';
+            lc.appendChild(grip);
+            if (isCur) lc.appendChild(el('span', 'es-cur-arrow', '➜'));
+            lc.appendChild(el('span', 'es-lbl', label));
+            tr.appendChild(lc);
+
+            tr.appendChild(cellInput(lv, i, 'duration_minutes', 1, 999));
+            tr.appendChild(cellInput(lv, i, 'ante', 0, 100000000, 'es-cell-num'));
+            tr.appendChild(cellInput(lv, i, 'small_blind', 0, 100000000, 'es-cell-num'));
+            tr.appendChild(cellInput(lv, i, 'big_blind', 0, 100000000, 'es-cell-num'));
+            var st = el('td', 'es-cell-num es-start');
+            tr.appendChild(st);
+            startEls[i] = st;
+
+            /* Selection: click the row (not a cell) to select, ctrl to add,
+             * shift to extend from the last anchor. */
+            tr.addEventListener('mousedown', function (e) {
+                // Left button only: a right-click fires mousedown first, and
+                // resetting the selection here would collapse a multi-row
+                // selection the instant you tried to open its menu.
+                if (e.button !== 0 || e.target.tagName === 'INPUT') return;
+                if (e.shiftKey && S.anchor != null) {
+                    var a = Math.min(S.anchor, i), b = Math.max(S.anchor, i), r = [];
+                    for (var k = a; k <= b; k++) r.push(k);
+                    setSel(r);
+                } else if (e.ctrlKey || e.metaKey) {
+                    var cur = S.selRows.slice(), at = cur.indexOf(i);
+                    if (at === -1) cur.push(i); else cur.splice(at, 1);
+                    setSel(cur); S.anchor = i;
+                } else {
+                    setSel([i]); S.anchor = i;
+                }
+            });
+
+            tr.addEventListener('contextmenu', function (e) {
+                e.preventDefault();
+                if (S.selRows.indexOf(i) === -1) { setSel([i]); S.anchor = i; }
+                openMenu(e.clientX, e.clientY, i);
+            });
+
+            /* Touch has no right-click: long-press opens the same menu. */
+            var lp = null;
+            tr.addEventListener('touchstart', function (e) {
+                if (e.target.tagName === 'INPUT') return;
+                var t = e.touches[0], x = t.clientX, y = t.clientY;
+                lp = setTimeout(function () {
+                    if (S.selRows.indexOf(i) === -1) { setSel([i]); S.anchor = i; }
+                    openMenu(x, y, i);
+                    lpGuard = Date.now() + 800;
+                }, 550);
+            }, { passive: true });
+            ['touchend', 'touchmove', 'touchcancel'].forEach(function (ev) {
+                tr.addEventListener(ev, function () { clearTimeout(lp); }, { passive: true });
+            });
+
+            /* Drag to reorder. Only the grip arms the row — a permanently
+             * draggable <tr> makes text selection inside its inputs impossible. */
+            grip.addEventListener('mousedown', function () { tr.draggable = true; });
+            tr.addEventListener('dragstart', function (e) {
+                dragIdx = (S.selRows.indexOf(i) !== -1 && S.selRows.length > 1) ? selIdx() : [i];
+                if (dragIdx.length === 1) { setSel([i]); S.anchor = i; }
+                e.dataTransfer.effectAllowed = 'move';
+                try { e.dataTransfer.setData('text/plain', 'row'); } catch (_) {}
+                dragIdx.forEach(function (k) { if (rowEls[k]) rowEls[k].classList.add('es-dragging'); });
+            });
+            tr.addEventListener('dragover', function (e) {
+                if (!dragIdx) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                var r = tr.getBoundingClientRect();
+                var below = (e.clientY - r.top) > r.height / 2;
+                clearDropMarks();
+                tr.classList.add(below ? 'es-drop-below' : 'es-drop-above');
+                dropAt = i + (below ? 1 : 0);
+            });
+            tr.addEventListener('drop', function (e) {
+                if (!dragIdx) return;
+                e.preventDefault(); e.stopPropagation();
+                pushUndo();
+                moveRows(dragIdx, dropAt);
+                dragIdx = null;
+                setDirty(true); render();
+            });
+            tr.addEventListener('dragend', endDrag);
+
+            return tr;
+        }
+
+        function clearDropMarks() {
+            rowEls.forEach(function (t) { t.classList.remove('es-drop-above', 'es-drop-below'); });
+        }
+        function endDrag() {
+            dragIdx = null; dropAt = null;
+            clearDropMarks();
+            rowEls.forEach(function (t) { t.draggable = false; t.classList.remove('es-dragging'); });
+        }
+
+        /* Move rows to an insertion point expressed in the ORIGINAL indexing —
+         * anything being moved that sits above the target shifts it left. */
+        function moveRows(idxs, targetIdx) {
+            if (targetIdx == null) return;
+            var sorted = idxs.slice().sort(function (a, b) { return a - b; });
+            var moving = sorted.map(function (k) { return S.levels[k]; });
+            var before = sorted.filter(function (k) { return k < targetIdx; }).length;
+            var rest = S.levels.filter(function (_, k) { return sorted.indexOf(k) === -1; });
+            var at = clamp(targetIdx - before, 0, rest.length);
+            rest.splice.apply(rest, [at, 0].concat(moving));
+            S.levels = rest;
+            S.selRows = moving.map(function (m) { return S.levels.indexOf(m); });
+            S.anchor = S.selRows[0];
+        }
+
+        /* ── Row context menu ── */
+        function openMenu(x, y, i) {
+            var m = menuEl();
+            m.textContent = '';
+            MENU_ACTIONS = [];
+            var sel = selIdx();
+            var n = sel.length || 1;
+            var many = n > 1 ? n + ' rows' : 'row';
+            var allBreak = sel.every(function (k) { return !!S.levels[k].is_break; });
+
+            function item(label, fn, cls) {
+                if (label === null) { m.appendChild(el('div', 'es-menu-sep')); return; }
+                var b = el('button', 'es-menu-item' + (cls ? ' ' + cls : ''), label);
+                b.type = 'button';
+                b.dataset.i = MENU_ACTIONS.length;
+                MENU_ACTIONS.push(fn);
+                m.appendChild(b);
+            }
+
+            item('Insert round above', function () { insertAt(sel[0], false); });
+            item('Insert round below', function () { insertAt(sel[sel.length - 1] + 1, false); });
+            item('Insert break above', function () { insertAt(sel[0], true); });
+            item('Insert break below', function () { insertAt(sel[sel.length - 1] + 1, true); });
+            item(null);
+            item('Duplicate ' + many, function () {
+                pushUndo();
+                var copies = sel.map(function (k) {
+                    var c = {}; Object.keys(S.levels[k]).forEach(function (p) { c[p] = S.levels[k][p]; });
+                    return c;
+                });
+                S.levels.splice.apply(S.levels, [sel[sel.length - 1] + 1, 0].concat(copies));
+                setDirty(true); render();
+                setSel(copies.map(function (c) { return S.levels.indexOf(c); }));
+            });
+            item(allBreak ? 'Make ' + (n > 1 ? 'them rounds' : 'it a round') : 'Make ' + (n > 1 ? 'them breaks' : 'it a break'), function () {
+                pushUndo();
+                sel.forEach(function (k) {
+                    var lv = S.levels[k];
+                    if (allBreak) {
+                        lv.is_break = 0;
+                        var fresh = newLevel(k, false);
+                        if (!lv.small_blind) { lv.small_blind = fresh.small_blind; lv.big_blind = fresh.big_blind; }
+                    } else {
+                        lv.is_break = 1;
+                        lv.small_blind = 0; lv.big_blind = 0; lv.ante = 0;
+                    }
+                });
+                setDirty(true); render(); setSel(sel);
+            });
+            item(null);
+            item('Move up', function () {
+                if (sel[0] <= 0) return;
+                pushUndo();
+                moveRows(sel, sel[0] - 1); setDirty(true); render();
+            });
+            item('Move down', function () {
+                if (sel[sel.length - 1] >= S.levels.length - 1) return;
+                pushUndo();
+                moveRows(sel, sel[sel.length - 1] + 2); setDirty(true); render();
+            });
+            item('Move to top', function () { pushUndo(); moveRows(sel, 0); setDirty(true); render(); });
+            item('Move to bottom', function () { pushUndo(); moveRows(sel, S.levels.length); setDirty(true); render(); });
+            item(null);
+            item('Fill duration down', function () {
+                pushUndo();
+                var d = +S.levels[i].duration_minutes;
+                for (var k = i + 1; k < S.levels.length; k++) S.levels[k].duration_minutes = d;
+                setDirty(true); render();
+            });
+            item(null);
+            item('Delete ' + many, function () {
+                pushUndo();
+                S.levels = S.levels.filter(function (_, k) { return sel.indexOf(k) === -1; });
+                S.selRows = []; S.anchor = null;
+                setDirty(true); render();
+            }, 'es-menu-danger');
+
+            // Show first so it can be measured, then keep it inside the viewport.
+            m.style.display = 'block';
+            m.style.left = '0px'; m.style.top = '0px';
+            var w = m.offsetWidth, h = m.offsetHeight;
+            m.style.left = Math.max(4, Math.min(x, window.innerWidth - w - 6)) + 'px';
+            m.style.top = Math.max(4, Math.min(y, window.innerHeight - h - 6)) + 'px';
+        }
+
+        function insertAt(at, isBreak) {
+            at = clamp(at, 0, S.levels.length);
+            pushUndo();
+            S.levels.splice(at, 0, newLevel(at, isBreak));
+            setDirty(true); render();
+            setSel([at]); S.anchor = at;
+            focusCell(at, isBreak ? 'duration_minutes' : 'small_blind');
+        }
+
+        /* Cheap pass for values derived from the model but not owned by a cell
+         * the user is typing in — runs on every keystroke, so it never rebuilds
+         * a row (that would blow away focus). */
+        function refreshDerived() {
+            renderStatus();
+            var startMin = 0;
+            S.levels.forEach(function (lv, i) {
+                if (startEls[i]) startEls[i].textContent = fmtClock(startMin);
+                startMin += +lv.duration_minutes || 0;
+            });
+        }
+
+        /* Full rebuild — structural changes only (add / delete / move / break). */
+        function render() {
+            dirtyEl.style.display = S.dirty ? '' : 'none';
+            tbody.textContent = '';
+            rowEls = []; startEls = [];
+            var lvlNo = 0, brkNo = 0;
+            S.levels.forEach(function (lv, i) {
+                var label = lv.is_break ? 'Break ' + (++brkNo) : 'Round ' + (++lvlNo);
+                var tr = buildRow(lv, i, label);
+                rowEls.push(tr);
+                tbody.appendChild(tr);
+            });
+            setSel(S.selRows || []);
+            refreshDerived();
+            syncUndo();
+        }
+
         /* ── Wiring ── */
-        addLvl.addEventListener('click', function () {
-            var last = null;
-            for (var i = S.levels.length - 1; i >= 0; i--) if (!S.levels[i].is_break) { last = S.levels[i]; break; }
-            var sb = last ? ladderNext(last.small_blind || 25, 1.5) : 25;
-            S.levels.push({ small_blind: sb, big_blind: sb * 2, ante: last ? last.ante : 0,
-                            duration_minutes: last ? last.duration_minutes : 20, is_break: 0 });
-            setDirty(true); render();
-        });
-        addBrk.addEventListener('click', function () {
-            S.levels.push({ small_blind: 0, big_blind: 0, ante: 0, duration_minutes: 10, is_break: 1 });
-            setDirty(true); render();
-        });
+        undoBtn.addEventListener('click', doUndo);
+        redoBtn.addEventListener('click', doRedo);
+        addLvl.addEventListener('click', function () { insertAt(S.levels.length, false); });
+        addBrk.addEventListener('click', function () { insertAt(S.levels.length, true); });
         genTog.addEventListener('click', function () { gen.classList.toggle('open'); });
         genGo.addEventListener('click', function () {
             var n = Math.max(1, Math.min(100, parseInt(G.levels.value, 10) || 15));
@@ -302,6 +655,7 @@
                 }
                 cur = ladderNext(cur, factor);
             }
+            pushUndo();
             S.levels = out;
             setDirty(true); render();
         });
@@ -330,6 +684,7 @@
             if (!presetSel.value) return;
             post('get_preset_levels', { preset_id: presetSel.value }).then(function (j) {
                 if (!j.ok) { (window.pkAlert || alert)(j.error || 'Could not load preset'); return; }
+                pushUndo();
                 S.levels = j.levels.map(function (l) {
                     return { small_blind: +l.small_blind, big_blind: +l.big_blind, ante: +l.ante,
                              duration_minutes: +l.duration_minutes, is_break: +l.is_break };
@@ -372,10 +727,47 @@
             }).catch(function () { (window.pkAlert || alert)('Network error'); });
         });
 
+        /* Document-level wiring, torn down on the next mount. The menu is
+         * body-level so it escapes the table's overflow-x clip; that means the
+         * dismiss handlers have to live at document level too. */
+        var docs = [
+            [document, 'mousedown', function (e) {
+                if (Date.now() < lpGuard) return;
+                if (!MENU || !MENU.contains(e.target)) closeMenu();
+            }],
+            [document, 'keydown', function (e) {
+                if (e.key === 'Escape') closeMenu();
+                if (!(e.ctrlKey || e.metaKey)) return;
+                var k = (e.key || '').toLowerCase();
+                if (k !== 'z' && k !== 'y') return;
+                // Only when this editor is on screen, and never stealing a
+                // plain text field's native undo — the grid's own inputs are
+                // the exception, since their model updates as you type and
+                // native undo would desync it.
+                if (!container.offsetParent) return;
+                var t = e.target;
+                var inGrid = table.contains(t);
+                var typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+                if (!inGrid && typing) return;
+                if (t !== document.body && !container.contains(t)) return;
+                e.preventDefault();
+                if (k === 'y' || e.shiftKey) doRedo(); else doUndo();
+            }],
+            [document, 'mouseup', endDrag],
+            [window, 'scroll', closeMenu, true],
+            [window, 'resize', closeMenu]
+        ];
+        docs.forEach(function (d) { d[0].addEventListener(d[1], d[2], d[3] || false); });
+        pkBlindsEditor._teardown = function () {
+            docs.forEach(function (d) { d[0].removeEventListener(d[1], d[2], d[3] || false); });
+            closeMenu();
+            pkBlindsEditor._teardown = null;
+        };
+
         render();
     }
 
-    window.pkBlindsEditor = { mount: mount, _state: null };
+    window.pkBlindsEditor = { mount: mount, _state: null, _teardown: null };
 
     /* Standalone page (event_blinds.php) auto-mount. */
     var root = document.getElementById('esBlindsRoot');
