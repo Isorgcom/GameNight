@@ -76,6 +76,9 @@
 .tbe-chip { padding: .3rem .7rem; border-radius: 999px; border: 1.5px solid #cbd5e1; background: #fff; font-size: .78rem; cursor: pointer; color: #334155; }
 .tbe-chip.active { background: #2563eb; border-color: #2563eb; color: #fff; }
 .tbe-hint { margin-left: auto; color: #94a3b8; }
+/* Explanatory copy inside an inspector field (what a QR cell does, and why the
+   preview shows a placeholder rather than a scannable code). */
+.tbe-note { color: #64748b; font-size: .74rem; line-height: 1.45; margin-top: .2rem; }
 
 .tbe-side { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
 .tbe-panel { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; overflow: hidden; }

@@ -121,6 +121,72 @@ percent that digit widths can then vary by.
 `timer.css` and `cast_receiver.php` had both already pinned tnum on their
 clocks. The BETA renderer was the one that missed it.
 
+## QR cell — a second screen
+
+`{ cell: { qr: 'display' } }` renders a QR another screen scans to join this
+display. Requires `/vendor/qrcode.min.js`, which `timer_beta.php` loads; CSP
+already permits `data:` images.
+
+**`qr` is an ENUM naming a target, never a URL.** A layout is a shareable
+document, so an author-supplied payload would be a phishing primitive aimed at
+a wall of screens. The sanitizer whitelists the target; the RENDERER builds the
+URL from the session's own `remote_key`, so nothing typed into a layout ever
+reaches a scanner.
+
+The route is `timer_beta.php?key=<remote_key>`, mirroring what the classic
+timer has always done with `timer.php?view=remote&key=` — the key authorises
+**viewing**, and what the scanning device may DO is decided by who is logged in
+on it, not by the QR:
+
+- `get_state` computes `can_control` from the session, so a host scanning it
+  gets the controls and a stranger gets a viewer;
+- `resolve_timer_from_post()` re-checks `can_manage_event()` on every command,
+  so possessing the key never confers control. `beta_qr_check.js` fires a
+  `start` from a key-only device and asserts the 403.
+
+Both screens derive from the same anchor, so they count in step with no
+cross-screen messaging.
+
+**Editor**: the cell inspector offers "Use a QR code instead" beside "Use an
+image instead", and once converted shows what the code does plus "Remove QR
+(back to text)". There is deliberately **no URL field** — the target is an enum
+and the URL is the renderer's to build.
+
+Three implementation notes worth keeping:
+
+- A QR cell must set `isImage` on its record. The text pass writes
+  `inner.textContent`, which deletes child nodes — the `<img>` vanished on the
+  first tick, leaving a correctly-classed but empty cell. The same flag also
+  exempts it from the empty-cell auto-hide.
+- Sample and embed modes have no session and therefore no honest code; the cell
+  draws a dashed `QR` placeholder so the editor can still see its footprint,
+  rather than a stale or invented code.
+- That placeholder must also `display: none` the `<img>` and clear its `alt`. A
+  src-less image renders as a broken-image glyph plus its alt text, which filled
+  the editor preview with a white block.
+
+## Keeping the screen awake
+
+A tournament clock is watched, not touched, so the phone or tablet showing it
+dims and sleeps mid-level. `timer_beta.php` carries the same pair `timer.js`
+has always used, and for the same reason:
+
+- `navigator.wakeLock` — the real API, tried on load and again on first tap.
+- **NoSleep.js** (`/vendor/nosleep.min.js`, a hidden silent video) — because
+  iOS Safari has no Wake Lock API **over plain HTTP**, which is exactly how a
+  second screen opens from the QR code on a LAN. Without it the QR feature
+  works and then the screen goes dark.
+
+Both need a genuine user gesture on iOS, so both are attempted inside the first
+`click`/`touchend`; `#tbWakeBanner` says so and removes itself as soon as either
+takes. It never appears on a desktop (no touch support = nothing to prompt) and
+neither the banner nor the vendor script is emitted in embed mode — the editor
+preview is an iframe, not a screen anyone watches.
+
+`visibilitychange` re-requests the lock and calls `poll()` immediately: a hidden
+tab has throttled intervals, and with the anchor the returning screen shows the
+correct time at once rather than counting up from a stale value.
+
 ## Clock sync
 
 `get_state` is polled every 2s and the display interpolates between polls

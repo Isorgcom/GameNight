@@ -621,10 +621,39 @@ function renderInspector() {
             return;
         }
 
+        // QR cell: a code another screen scans to join this display. There is
+        // deliberately no URL field — the target is an enum and the renderer
+        // builds the link from the game's own key, so a layout you share can
+        // never send someone's scanner somewhere you chose. See SECURITY note
+        // in timer_beta_dl.php's sanitizer.
+        if (cell.qr) {
+            var qrWrap = document.createElement('div');
+            qrWrap.className = 'tbe-field';
+            var ql = document.createElement('span'); ql.textContent = 'QR code'; qrWrap.appendChild(ql);
+            var qn = document.createElement('div'); qn.className = 'tbe-note';
+            qn.textContent = 'Scanning it opens this timer on the scanning device, counting in step with this screen. '
+                           + 'Viewing needs no login; starting or pausing still needs host rights on that device. '
+                           + 'The preview shows a placeholder — a real code only exists once the layout is on a live game.';
+            qrWrap.appendChild(qn);
+            insp.appendChild(qrWrap);
+            insp.appendChild(field('Weight (share of space)', numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
+            var rmQr = document.createElement('button'); rmQr.className = 'tbe-mini tbe-mini-danger';
+            rmQr.textContent = 'Remove QR (back to text)';
+            rmQr.addEventListener('click', function () { pushUndo(); delete cell.qr; refresh(true); renderInspector(); });
+            insp.appendChild(rmQr);
+            return;
+        }
+
         var toImg = document.createElement('button');
         toImg.className = 'tbe-mini'; toImg.textContent = 'Use an image instead';
         toImg.addEventListener('click', function () { uploadImage(function (url) { pushUndo(); cell.image = url; refresh(true); renderInspector(); }); });
         insp.appendChild(toImg);
+
+        var toQr = document.createElement('button');
+        toQr.className = 'tbe-mini'; toQr.textContent = 'Use a QR code instead';
+        toQr.title = 'A code viewers scan to open this timer on their own screen';
+        toQr.addEventListener('click', function () { pushUndo(); cell.qr = 'display'; refresh(true); renderInspector(); });
+        insp.appendChild(toQr);
 
         var ta = document.createElement('textarea');
         ta.rows = 3; ta.value = cell.text || '';

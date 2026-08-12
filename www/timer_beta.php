@@ -20,8 +20,27 @@ require_once __DIR__ . '/_poker_helpers.php';
 
 $db = get_db();
 $current = current_user();
-if (!$current) { header('Location: /login.php?redirect=' . urlencode($_SERVER['REQUEST_URI'])); exit; }
-$isAdmin = $current['role'] === 'admin';
+$isAdmin = $current && $current['role'] === 'admin';
+
+// ─── Key mode: a second screen, opened by scanning the display's QR ─────────
+// Authorised by possessing the unguessable remote_key, exactly as
+// timer_dl.php's ?key path and timer.php's remote view already are. The key
+// buys VIEWING only: get_state computes can_control from the logged-in user,
+// and every command re-checks can_manage_event server-side (see
+// resolve_timer_from_post), so scanning while logged in as the host gives you
+// the controls and scanning as anyone else gives you a viewer.
+$remote_key = isset($_GET['key']) ? trim((string)$_GET['key']) : '';
+$key_timer = null;
+if ($remote_key !== '') {
+    $kq = $db->prepare('SELECT id, session_id FROM timer_state WHERE remote_key = ?');
+    $kq->execute([$remote_key]);
+    $key_timer = $kq->fetch();
+    if (!$key_timer) {
+        http_response_code(404);
+        exit('<!doctype html><meta charset="utf-8"><title>Invalid link</title><body style="background:#0f172a;color:#e2e8f0;font-family:sans-serif;text-align:center;padding-top:4rem"><h1>That timer link is not valid</h1><p>Ask the host to show the QR code again.</p></body>');
+    }
+}
+if (!$current && !$key_timer) { header('Location: /login.php?redirect=' . urlencode($_SERVER['REQUEST_URI'])); exit; }
 $site_name = get_setting('site_name', 'Game Night');
 
 $event_id = (int)($_GET['event_id'] ?? 0);
@@ -32,7 +51,15 @@ $event_title = '';
 $is_embed = isset($_GET['embed']) && $_GET['embed'] === '1';
 if ($is_embed) { $event_id = 0; csp_allow_same_origin_framing(); }
 
-if ($event_id) {
+// A key names the session directly; no event id and no event-access check.
+if ($key_timer) {
+    $session_id = (int)($key_timer['session_id'] ?? 0);
+    if ($session_id) {
+        $eq = $db->prepare('SELECT e.id, e.title FROM poker_sessions ps JOIN events e ON e.id = ps.event_id WHERE ps.id = ?');
+        $eq->execute([$session_id]);
+        if ($erow = $eq->fetch()) { $event_id = (int)$erow['id']; $event_title = (string)$erow['title']; }
+    }
+} elseif ($event_id) {
     $t = $db->prepare('SELECT title FROM events WHERE id = ?');
     $t->execute([$event_id]);
     $event_title = $t->fetchColumn();
@@ -51,6 +78,15 @@ if ($event_id) {
     $session_id = (int)($s->fetchColumn() ?: 0);
     $event_title = (string)$event_title;
 }
+// The remote_key a QR cell encodes so another screen can join. Same key the
+// classic timer's remote QR uses; it authorises viewing, never control.
+$cast_key = '';
+if ($session_id) {
+    $ck = $db->prepare('SELECT remote_key FROM timer_state WHERE session_id = ?');
+    $ck->execute([$session_id]);
+    $cast_key = (string)($ck->fetchColumn() ?: '');
+}
+
 // The event's chosen layout (event_display.php stores it on the timer row).
 // Injected so the first paint uses it; get_state carries it thereafter so the
 // display follows a change without a reload.
@@ -109,11 +145,26 @@ if ($session_id) {
 
 <script nonce="<?= csp_nonce() ?>">
 var TB_SESSION_ID  = <?= json_encode($session_id ?: null) ?>;
+// The key this screen was opened with (if any), and the one a QR cell should
+// encode. Read from the timer row rather than echoed back from the URL, so a
+// screen opened by event_id can still show a QR — and so nothing user-supplied
+// is ever reflected into the page.
+var TB_KEY      = <?= json_encode($remote_key !== '' ? $remote_key : null) ?>;
+var TB_CAST_KEY = <?= json_encode($cast_key ?: null) ?>;
 var TB_EVENT_TITLE = <?= json_encode($event_title) ?>;
 var TB_EMBED       = <?= json_encode($is_embed) ?>;
 var TB_EVENT_LAYOUT_ID = <?= json_encode($event_layout_id) ?>;
 var TB_EVENT_LAYOUT_KEY = <?= json_encode($event_layout_key) ?>;
 </script>
+<?php if (!$is_embed): ?>
+<?php /* Keep-awake, same pair the classic timer uses: navigator.wakeLock where
+         it exists, and NoSleep.js (a hidden silent video) for iPhone Safari,
+         which has no Wake Lock API over plain HTTP at all. Skipped in embed
+         mode — the editor preview is an iframe, not a screen anyone watches. */ ?>
+<div id="tbWakeBanner">Tap anywhere to keep this screen awake</div>
+<script src="/vendor/nosleep.min.js"></script>
+<?php endif; ?>
+<script src="/vendor/qrcode.min.js"></script>
 <script src="/timer_beta.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/timer_beta.js') ?: 0)) ?>"></script>
 </body>
 </html>

@@ -83,6 +83,12 @@ function pk_lo_cell($cell, array &$err): ?array {
     if (isset($cell['style']) && is_string($cell['style']) && preg_match('/^[a-zA-Z][a-zA-Z0-9]{0,31}$/', $cell['style'])) $out['style'] = $cell['style'];
     if (isset($cell['image'])) { $im = pk_lo_img($cell['image']); if ($im !== null) { $out['image'] = $im;
         if (isset($cell['imageFit']) && in_array($cell['imageFit'], ['contain', 'cover'], true)) $out['imageFit'] = $cell['imageFit']; } }
+    // QR target. An ENUM, never a URL: a layout is a shareable document, so
+    // letting the author supply the payload would turn any shared layout into a
+    // phishing primitive aimed at a wall of screens. The renderer resolves the
+    // target against the session's own remote_key; nothing from this file
+    // reaches the scanner.
+    if (isset($cell['qr']) && in_array($cell['qr'], ['display'], true)) $out['qr'] = $cell['qr'];
     if (isset($cell['when'])) { $w = pk_lo_cond($cell['when']); if ($w !== null) $out['when'] = $w; }
     if (isset($cell['opacity'])) { $n = pk_lo_num($cell['opacity'], 0, 1); if ($n !== null) $out['opacity'] = $n; }
     if (isset($cell['variants']) && is_array($cell['variants'])) {

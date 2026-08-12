@@ -358,6 +358,7 @@ function matchCond(cond) {
 var root = document.getElementById('tbRoot');
 var allCells = [];   // { el, inner, spec, variants, elSpans, lastText, lastVariant, isFit }
 var fitCells = [];   // subset of allCells with fit:true
+var qrCells  = [];   // cells rendering a QR code
 var clockCells = []; // cells whose colour tracks warn/critical
 
 function applyBox(el, node) {
@@ -443,6 +444,22 @@ function buildCell(spec) {
         inner.appendChild(img);
     }
 
+    // QR cell: a code another screen scans to join this display.
+    //
+    // The URL is built HERE from the session's own remote_key — never from
+    // anything the layout author typed. A layout is a shareable document, so an
+    // author-supplied QR payload would be a phishing primitive aimed at a wall
+    // of screens: what people scan has to be decided by the app, not the file.
+    // `qr` therefore names a target from a whitelist; it carries no content.
+    if (spec.qr) {
+        el.classList.add('tb-cell-qr');
+        var qimg = document.createElement('img');
+        qimg.className = 'tb-qr';
+        qimg.alt = 'QR code to open this timer on another screen';
+        inner.appendChild(qimg);
+        qrCells.push({ el: el, img: qimg, target: spec.qr, drawn: null });
+    }
+
     // Structural / base-only styling, set once.
     if (spec.fit) el.classList.add('tb-fit');
     else el.style.fontSize = (spec.size || 2.4) + 'vh';
@@ -453,7 +470,7 @@ function buildCell(spec) {
     if (spec.clockColors) clockCells.push(el);
 
     var rec = {
-        el: el, inner: inner, spec: spec, isImage: !!imgSrc,
+        el: el, inner: inner, spec: spec, isImage: !!imgSrc || !!spec.qr,
         variants: Array.isArray(spec.variants) ? spec.variants : [],
         elSpans: [], lastText: null, lastVariant: -2, isFit: !!spec.fit
     };
@@ -553,7 +570,7 @@ function buildScreen(idx) {
     sharedStyles = (CURRENT_LAYOUT && CURRENT_LAYOUT.styles && typeof CURRENT_LAYOUT.styles === 'object')
         ? CURRENT_LAYOUT.styles : {};
     var screen = CURRENT_LAYOUT.screens[idx] || { root: { col: [] } };
-    fitCells = []; clockCells = []; allCells = [];
+    fitCells = []; clockCells = []; allCells = []; qrCells = [];
     root.textContent = '';
     root.style.background = '';
     root.style.backgroundImage = '';
@@ -577,6 +594,7 @@ function buildScreen(idx) {
     _building = false;
     updateAll();
     requestAnimationFrame(fitAll);
+    drawQrCells();
 }
 
 function renderLayoutObj(layout) {
@@ -703,6 +721,55 @@ function fitCell(fc) {
 }
 function fitAll() { for (var i = 0; i < fitCells.length; i++) fitCell(fitCells[i]); }
 
+/* ── QR cells ─────────────────────────────────────────────────────────────
+ * Targets are resolved here, from app state, so a layout can never choose what
+ * a scanner is sent to. 'display' opens this timer read-only on the scanning
+ * device; whether that device can also CONTROL is decided by who is logged in
+ * on it — get_state returns can_control from the session, and every command
+ * re-checks manage rights server-side. The key buys a view, nothing more. */
+function qrTargetUrl(target) {
+    var key = (typeof TB_CAST_KEY !== 'undefined' && TB_CAST_KEY) ? TB_CAST_KEY : null;
+    if (!key) return null;
+    if (target === 'display') return location.origin + '/timer_beta.php?key=' + encodeURIComponent(key);
+    return null;
+}
+
+function drawQrCells() {
+    if (!qrCells.length) return;
+    for (var i = 0; i < qrCells.length; i++) {
+        var q = qrCells[i];
+        var url = qrTargetUrl(q.target);
+        // Sample and embed modes have no session, so there is no honest code to
+        // show. Draw a placeholder rather than a stale or fabricated one — the
+        // editor still needs to see the cell's size and position.
+        if (!url || typeof qrcode === 'undefined') {
+            if (q.drawn !== '__placeholder__') {
+                q.drawn = '__placeholder__';
+                q.img.removeAttribute('src');
+                // Drop the alt too: a src-less <img> renders its alt text, and
+                // the cell is already labelled by the dashed placeholder.
+                q.img.alt = '';
+                q.el.classList.add('tb-qr-empty');
+            }
+            continue;
+        }
+        if (q.drawn === url) continue;
+        q.drawn = url;
+        q.img.alt = 'QR code to open this timer on another screen';
+        q.el.classList.remove('tb-qr-empty');
+        try {
+            var qr = qrcode(0, 'M');
+            qr.addData(url);
+            qr.make();
+            // The library's own image output: a hand-rolled canvas draw rendered
+            // as a solid black square in some browsers (see timer.js).
+            q.img.src = qr.createDataURL(8, 2);
+        } catch (e) {
+            q.drawn = null;
+        }
+    }
+}
+
 function refreshDerived() {
     var cur = findLevel(S.level), nxt = findLevel(S.level + 1);
     S.isBreak = !!(cur && (cur.is_break | 0));
@@ -766,9 +833,15 @@ function applyTimerSync(t, requestedAt) {
 }
 
 function poll() {
-    if (!TB_SESSION_ID) return;
+    // A screen opened by QR has no event access, so it must poll by key — the
+    // same authorisation it used to open the page.
+    var byKey = (typeof TB_KEY !== 'undefined' && TB_KEY);
+    if (!TB_SESSION_ID && !byKey) return;
     var requestedAt = Date.now();
-    fetch('/timer_dl.php?action=get_state&session_id=' + TB_SESSION_ID)
+    var url = byKey
+        ? '/timer_dl.php?action=get_state&key=' + encodeURIComponent(TB_KEY)
+        : '/timer_dl.php?action=get_state&session_id=' + TB_SESSION_ID;
+    fetch(url)
         .then(function (r) { return r.json(); })
         .then(function (j) {
             if (!j || !j.ok) return;
@@ -1033,6 +1106,60 @@ document.addEventListener('keydown', function (e) {
     if (e.code === 'Space') { e.preventDefault(); sendCommand('toggle_play'); }
     else if (e.code === 'ArrowRight') { e.preventDefault(); sendCommand('skip_next'); }
     else if (e.code === 'ArrowLeft')  { e.preventDefault(); sendCommand('skip_prev'); }
+});
+
+/* ── Keep the screen awake ────────────────────────────────────────────────
+ * A tournament clock is watched, not touched, so the phone or tablet showing it
+ * dims and sleeps mid-level. Both mechanisms, exactly as timer.js does it:
+ *
+ *   navigator.wakeLock  — the real API, but absent on iOS Safari over plain
+ *                         HTTP, which is precisely how a LAN second screen is
+ *                         opened from a QR code.
+ *   NoSleep.js          — a hidden silent video; the only thing that works
+ *                         there. Needs a genuine user gesture to start.
+ *
+ * So: try the API on load, and try BOTH again inside the first tap. The banner
+ * says so, and removes itself the moment either one takes. */
+var wakeLock = null, wakeHeld = false, noSleep = null, noSleepOn = false;
+var wakeBanner = document.getElementById('tbWakeBanner');
+try { if (typeof NoSleep !== 'undefined') noSleep = new NoSleep(); } catch (e) {}
+
+function hideWakeBanner() {
+    if (!wakeBanner) return;
+    wakeBanner.style.opacity = '0';
+    setTimeout(function () { if (wakeBanner) wakeBanner.remove(); wakeBanner = null; }, 600);
+}
+function requestWakeLock() {
+    if (!('wakeLock' in navigator) || wakeHeld) return;
+    try {
+        navigator.wakeLock.request('screen').then(function (wl) {
+            wakeLock = wl; wakeHeld = true; hideWakeBanner();
+            wl.addEventListener('release', function () { wakeLock = null; wakeHeld = false; });
+        }).catch(function () {});
+    } catch (e) {}
+}
+function acquireWakeFromGesture() {
+    requestWakeLock();                       // the gesture is captured at call time
+    if (!noSleep || noSleepOn) return;
+    var p;
+    try { p = noSleep.enable(); } catch (e) { return; }
+    if (p && typeof p.then === 'function') {
+        p.then(function () { noSleepOn = true; hideWakeBanner(); }).catch(function () {});
+    } else {
+        noSleepOn = true; hideWakeBanner();  // older builds resolve synchronously
+    }
+}
+// Nothing to prompt on a desktop: it does not sleep out from under a viewer,
+// and a banner asking for a tap would just be noise on a projector feed.
+if (!('ontouchstart' in window) && !navigator.maxTouchPoints) hideWakeBanner();
+requestWakeLock();
+document.addEventListener('click', acquireWakeFromGesture, true);
+document.addEventListener('touchend', acquireWakeFromGesture, true);
+document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible') return;
+    wakeHeld = false;
+    requestWakeLock();     // NoSleep needs a fresh gesture, so it is not restarted here
+    poll();                // and resync at once — a hidden tab has throttled intervals
 });
 
 refreshDerived();
