@@ -133,15 +133,32 @@ row too, not just the mobile hamburger.
   `/uploads/timer_layouts/[A-Za-z0-9._-]` paths —
   external URLs, data URIs, `javascript:` and traversal all rejected. Images
   render as real `<img>`/`background-image` (never innerHTML); CSP `img-src
-  'self'` already covers them. NOTE: images are referenced by URL, so an
-  exported layout's images resolve on THIS install; cross-install portability
-  (embedding images into the export) is a follow-up.
-- **Remaining:** cross-install image embedding on export; cycling multiple
-  screens per condition; shared named styles.
+  'self'` already covers them.
+- **Cross-install image embedding (done):** export fetches each referenced
+  `/uploads/timer_layouts/` file and embeds it as a base64 data URI in an
+  `images` map beside the layout (`{gnTimerLayout:1, name, layout, images}`),
+  so the file carries its own images to another install. Import decodes each
+  entry (client-side shape check: `data:image/png|jpeg|gif|webp;base64` only,
+  ≤8MB, ≤20 images) and re-uploads the bytes through the same `upload_image`
+  action — byte-level MIME check, getimagesize, size and daily caps all
+  re-applied server-side — then rewrites the layout's refs to the fresh local
+  URLs. A data URI never lands in the layout document itself, so
+  `pk_layout_sanitize`'s local-path-only rule is unchanged and remains the
+  trust boundary. An embedded image that fails to upload has its ref dropped
+  (never a broken ref); a ref with no embedded bytes (older export) is left
+  alone for same-install round-trips. Import file cap raised 4MB → 64MB to
+  make room for embedded images.
+- **Remaining:** cycling multiple screens per condition; shared named styles.
 
 ## Testing
 
 `~/qa-headless/beta_check.js` (display), `beta_editor_check.js` (editor),
 `beta_variants_check.js` (variants), `beta_screens_check.js` (break screens),
-`beta_elements_check.js` (elements + picker), `beta_shot.js` (screenshots). Run
-against dev; the dev test login is JamesTest.
+`beta_elements_check.js` (elements + picker), `beta_export_check.js`
+(export/import round-trip), `beta_images_check.js` (image upload + refs),
+`beta_imgport_check.js` (cross-install image embedding), `beta_shot.js`
+(screenshots). Run against dev; the dev test login is JamesTest.
+
+QA-script gotcha: Playwright's `setInputFiles` with the SAME file path twice
+does not re-fire the input's `change` event — use a distinct path per import.
+(The real UI is unaffected: the Import button clears `input.value` first.)

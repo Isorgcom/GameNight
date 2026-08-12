@@ -768,27 +768,114 @@ document.getElementById('tbeSaveCopy').addEventListener('click', function () { s
  * A layout exports as one self-contained JSON file — our own portable format,
  * readable by any GameNight install. Import feeds it straight through the
  * server-side sanitizer (save_layout), so the file is untrusted data, never
- * code; it is only ever JSON.parse'd, never evaluated. */
+ * code; it is only ever JSON.parse'd, never evaluated.
+ *
+ * Images: the layout references /uploads/timer_layouts/ URLs, which only exist
+ * on THIS install. Export therefore embeds each referenced image as a base64
+ * data URI in an `images` map alongside the layout; import re-uploads those
+ * bytes through the normal upload_image action (byte-level MIME check,
+ * getimagesize, size cap, daily cap all re-applied server-side) and rewrites
+ * the refs to the fresh local URLs. A data URI never lands in the layout
+ * itself, so the saved document is untouched by any of this. */
+var IMG_REF_RE = /^\/uploads\/timer_layouts\/[A-Za-z0-9._-]{1,120}$/;
+
+// Visit every node that can carry an `image` ref (screen bg + image cells),
+// mirroring pk_lo_image_names() in timer_beta_dl.php.
+function walkImageRefs(layout, fn) {
+    (function scan(node) {
+        if (!node || typeof node !== 'object') return;
+        if (typeof node.image === 'string' && IMG_REF_RE.test(node.image)) fn(node);
+        if (node.bg && typeof node.bg === 'object') scan(node.bg);
+        if (node.cell && typeof node.cell === 'object') scan(node.cell);
+        ['row', 'col', 'screens'].forEach(function (k) {
+            if (Array.isArray(node[k])) node[k].forEach(scan);
+        });
+        if (node.root) scan(node.root);
+    })(layout);
+}
+
 function slugify(s) {
     return (String(s || 'layout').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'layout').slice(0, 60);
 }
 document.getElementById('tbeExport').addEventListener('click', function () {
     var name = nameInput.value.trim() || 'Untitled layout';
-    var envelope = { gnTimerLayout: 1, name: name, layout: LAYOUT };
-    var blob = new Blob([JSON.stringify(envelope, null, 2)], { type: 'application/json' });
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url; a.download = slugify(name) + '.gntimer.json';
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    var refs = {};
+    walkImageRefs(LAYOUT, function (node) { refs[node.image] = true; });
+    // Fetch each referenced image (same-origin) and embed it as a data URI so
+    // the file carries its own images to another install. A ref that fails to
+    // fetch (file deleted) is simply not embedded; the export still completes.
+    Promise.all(Object.keys(refs).map(function (u) {
+        return fetch(u)
+            .then(function (r) { if (!r.ok) throw 0; return r.blob(); })
+            .then(function (b) {
+                return new Promise(function (res) {
+                    var fr = new FileReader();
+                    fr.onload = function () { res([u, fr.result]); };
+                    fr.onerror = function () { res(null); };
+                    fr.readAsDataURL(b);
+                });
+            })
+            .catch(function () { return null; });
+    })).then(function (pairs) {
+        var images = {};
+        var count = 0;
+        pairs.forEach(function (p) { if (p) { images[p[0]] = p[1]; count++; } });
+        var envelope = { gnTimerLayout: 1, name: name, layout: LAYOUT };
+        if (count) envelope.images = images;
+        var blob = new Blob([JSON.stringify(envelope, null, 2)], { type: 'application/json' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url; a.download = slugify(name) + '.gntimer.json';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    });
 });
+
+// data:image/...;base64 → Blob, or null if it isn't a well-formed image data
+// URI. The server re-checks the actual bytes on upload; this is only the
+// client-side gate that keeps obvious junk from being POSTed at all.
+function dataUriToBlob(uri) {
+    var m = /^data:(image\/(?:png|jpeg|gif|webp));base64,([A-Za-z0-9+/=]+)$/.exec(String(uri || ''));
+    if (!m) return null;
+    try {
+        var bin = atob(m[2]);
+        if (bin.length > 8 * 1024 * 1024) return null;   // matches the server cap
+        var buf = new Uint8Array(bin.length);
+        for (var i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+        return new Blob([buf], { type: m[1] });
+    } catch (e) { return null; }
+}
+
+// Upload the embedded images one at a time through the normal upload path.
+// Calls done(map, failed): map is oldRef → new local URL for the successes.
+function uploadEmbeddedImages(images, done) {
+    var keys = Object.keys(images).filter(function (k) { return IMG_REF_RE.test(k); }).slice(0, 20);
+    var map = {}, failed = 0;
+    (function next(i) {
+        if (i >= keys.length) { done(map, failed); return; }
+        var blob = dataUriToBlob(images[keys[i]]);
+        if (!blob) { failed++; next(i + 1); return; }
+        var fd = new FormData();
+        fd.append('action', 'upload_image');
+        fd.append('image', blob, 'imported');
+        fd.append('csrf_token', TBE_CSRF);
+        fetch('/timer_beta_dl.php', { method: 'POST', body: fd })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+                if (j && j.url) map[keys[i]] = j.url; else failed++;
+                next(i + 1);
+            })
+            .catch(function () { failed++; next(i + 1); });
+    })(0);
+}
 
 var importFile = document.getElementById('tbeImportFile');
 document.getElementById('tbeImport').addEventListener('click', function () { importFile.value = ''; importFile.click(); });
 importFile.addEventListener('change', function () {
     var file = importFile.files && importFile.files[0];
     if (!file) return;
-    if (file.size > 4 * 1024 * 1024) { (window.pkAlert || alert)('That file is too large to be a layout.'); return; }
+    // Embedded images make these files big; 8MB/image server cap × up to 20.
+    if (file.size > 64 * 1024 * 1024) { (window.pkAlert || alert)('That file is too large to be a layout.'); return; }
     var reader = new FileReader();
     reader.onload = function () {
         var env;
@@ -799,16 +886,37 @@ importFile.addEventListener('change', function () {
                    : (env && (env.screens || env.root)) ? env : null;
         if (!layout) { (window.pkAlert || alert)("That doesn't look like a GameNight timer layout."); return; }
         var name = (env && env.name) ? String(env.name).slice(0, 80) : (nameInput.value.trim() || 'Imported layout');
+        var embedded = (env && env.gnTimerLayout && env.images && typeof env.images === 'object' && !Array.isArray(env.images))
+                     ? env.images : null;
 
-        // Load it into the editor first (through the same renderer, which only
-        // assigns text via textContent), then persist a NEW row via the
-        // server-sanitized save path so it lands in the Load list.
-        LAYOUT = layout; layoutId = null; editable = true; editScreenIndex = 0;
-        normalizeLayout();
-        nameInput.value = name.replace(/\s*\(imported\)\s*$/i, '') + ' (imported)';
-        undoStack = []; selPath = null;
-        refresh(); selectScreen(0); renderInspector();
-        save(true);   // save as a new copy; server sanitizes and rejects anything invalid
+        function finish() {
+            // Load it into the editor first (through the same renderer, which only
+            // assigns text via textContent), then persist a NEW row via the
+            // server-sanitized save path so it lands in the Load list.
+            LAYOUT = layout; layoutId = null; editable = true; editScreenIndex = 0;
+            normalizeLayout();
+            nameInput.value = name.replace(/\s*\(imported\)\s*$/i, '') + ' (imported)';
+            undoStack = []; selPath = null;
+            refresh(); selectScreen(0); renderInspector();
+            save(true);   // save as a new copy; server sanitizes and rejects anything invalid
+        }
+
+        if (!embedded) { finish(); return; }
+        // Re-upload the embedded images to THIS install, then point the layout's
+        // refs at the new local URLs. A ref whose bytes were embedded but failed
+        // to upload is dropped (it would just be a broken image here); a ref with
+        // no embedded bytes at all (older export) is left as-is for same-install
+        // round-trips.
+        uploadEmbeddedImages(embedded, function (map, failed) {
+            walkImageRefs(layout, function (node) {
+                if (map[node.image]) { node.image = map[node.image]; return; }
+                if (Object.prototype.hasOwnProperty.call(embedded, node.image)) {
+                    delete node.image; delete node.imageFit;
+                }
+            });
+            finish();
+            if (failed) (window.pkAlert || alert)(failed + ' embedded image' + (failed > 1 ? 's' : '') + " couldn't be imported (the rest of the layout is fine).");
+        });
     };
     reader.onerror = function () { (window.pkAlert || alert)('Could not read that file.'); };
     reader.readAsText(file);
