@@ -1598,7 +1598,10 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
                     ?>
                     <div class="cal-event"
                          style="background:<?= htmlspecialchars($ev['color']) ?>"
-                         data-act="viewEvent" data-a1="<?= (int)$ev['id'] ?>" data-a2="<?= htmlspecialchars($ev['start_date'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE) ?>"
+                         <?php /* $dateStr, not $ev['start_date']: a multi-day event appears in
+                                  every cell it spans, and the event page uses ?date= to decide
+                                  which day its "back to calendar" link returns to. */ ?>
+                         data-act="viewEvent" data-a1="<?= (int)$ev['id'] ?>" data-a2="<?= htmlspecialchars($dateStr, ENT_QUOTES | ENT_SUBSTITUTE) ?>"
                          title="<?= htmlspecialchars($_lgName ? $_lgName . ' — ' . $ev['title'] : $ev['title']) ?>">
                         <span class="ev-label">
                             <?php if ($ev['start_time'] && $ev['start_date'] === $dateStr): ?>
@@ -1674,7 +1677,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
                 <div class="week-allday-chip"
                      style="background:<?= htmlspecialchars($ev['color']) ?>"
                      title="<?= htmlspecialchars($_lgName ? $_lgName . ' — ' . $ev['title'] : $ev['title']) ?>"
-                     data-act="viewEvent" data-a1="<?= (int)$ev['id'] ?>" data-a2="<?= htmlspecialchars($ev['start_date'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE) ?>">
+                     data-act="viewEvent" data-a1="<?= (int)$ev['id'] ?>" data-a2="<?= htmlspecialchars($wkDs2, ENT_QUOTES | ENT_SUBSTITUTE) ?>">
                     <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">
                         <?php if ($_lgTag !== ''): ?><span class="ev-league-tag" title="<?= htmlspecialchars($_lgName) ?>"><?= htmlspecialchars($_lgTag) ?></span><?php endif; ?>
                         <?= htmlspecialchars($ev['title']) ?>
@@ -2774,7 +2777,7 @@ function fmt12(t) {
 <?php if ($__autoEdit): ?>
 location.href = '/event_edit.php?id=<?= (int)$autoOpenEvent['id'] ?>&' + EDITOR_CTX;
 <?php else: ?>
-viewEvent(<?= json_encode($autoOpenEvent, JSON_HEX_TAG) ?>);
+viewEvent(<?= (int)$autoOpenEvent['id'] ?>, <?= json_encode((string)($autoOpenDate ?? ''), JSON_HEX_TAG) ?>);
 <?php endif; ?>
 <?php endif; ?>
 
@@ -2857,7 +2860,8 @@ function layoutTimedEvents(events) {
 }
 
 function renderDayCol(col, date) {
-    const allDayEvs   = (WK_BY_DATE[date] || []).filter(e => !e.start_time);
+    // All-day events are NOT drawn here — they live in the server-rendered
+    // .week-allday-row above the scrolling grid. This column is timed only.
     const timedEvs    = (WK_BY_DATE[date] || []).filter(e =>  e.start_time);
     const totalPx     = (GRID_END - GRID_START) * HOUR_PX;
 
@@ -2904,7 +2908,11 @@ function renderDayCol(col, date) {
             'width:calc(' + widthPct + '% - 3px)',
         ].join(';');
         chip.title = (ev.league_name ? ev.league_name + ' \u2014 ' : '') + ev.title;
-        chip.addEventListener('click', () => viewEvent(ev));
+        // Scalars, not the event object: viewEvent() concatenates its first
+        // argument into the URL, so passing `ev` produced
+        // /event.php?id=[object Object]. `date` is the column's occurrence
+        // date, which is what a recurring event needs.
+        chip.addEventListener('click', () => viewEvent(ev.id, date));
 
         const timeStr = (ev.start_time_display || fmt12(ev.start_time)) + (ev.end_time ? '\u2013' + (ev.end_time_display || fmt12(ev.end_time)) : '');
         let _lgTag = '';
