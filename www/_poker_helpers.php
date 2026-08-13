@@ -1083,6 +1083,20 @@ function pk_preset_is_modified(PDO $db, array $struct, array $sess): bool {
         if ((string)($tc['layout_builtin'] ?? '') !== (string)($row['layout_builtin'] ?? '')) return true;
     }
 
+    // 6. Chip set. It rides on its OWN column rather than inside game_config, so
+    // the key-by-key pass above cannot see it: leaving it out meant changing
+    // only the chips left the bar reading "unchanged" and the Save preset
+    // button disabled, with nowhere for the edit to go.
+    //
+    // Compared UNCONDITIONALLY, unlike the sections above. They skip a field the
+    // preset never captured, because a null there means "written before this
+    // existed" and should not force a permanent diff. Chips are the opposite
+    // case: every preset that predates the feature has a null, and adding chips
+    // to one is precisely what a host wants to do — guarding on it left the
+    // button disabled for every preset anyone actually owns. Two empty sets
+    // still clean to the same thing, so this cannot invent a difference.
+    if (pk_clean_chip_set($struct['chip_set'] ?? null) !== pk_clean_chip_set($sess['chip_set'] ?? null)) return true;
+
     return false;
 }
 
@@ -1093,4 +1107,42 @@ function pk_preset_can_write(array $struct, array $user, bool $isAdmin): bool {
     if ((int)$struct['is_default']) return $isAdmin;
     if ((int)$struct['is_global'])  return $isAdmin;
     return $isAdmin || (int)$struct['created_by'] === (int)$user['id'];
+}
+
+/* ── Chip set ────────────────────────────────────────────────────────────────
+ * Denominations paired with a colour, shown on the timer as a legend so players
+ * can see what each colour is worth — the thing everyone asks at colour-up.
+ * Stored as JSON on the session (and on a preset, so it travels).
+ */
+function pk_clean_chip_set($chips): array {
+    if (is_string($chips)) $chips = json_decode($chips, true);
+    if (!is_array($chips)) return [];
+    $out = [];
+    foreach (array_slice($chips, 0, 12) as $c) {
+        if (!is_array($c)) continue;
+        // Values are money OR chips depending on the game, so the same
+        // two-decimal rule the blind schedule uses applies here.
+        $v = round(max(0, min(100000000, (float)($c['v'] ?? 0))), 2);
+        $col = strtolower(trim((string)($c['c'] ?? '')));
+        if (!preg_match('/^#[0-9a-f]{6}$/', $col)) $col = '#ffffff';
+        if ($v <= 0) continue;
+        $chip = ['v' => $v, 'c' => $col];
+        // A photo of the real chip, for a legend that matches what is on the
+        // table. Restricted to our own upload folder — never an external URL, a
+        // data URI or anything with a scheme, so a chip set can never point a
+        // display at another host. The colour is kept either way: it is what
+        // shows if the file is later deleted.
+        $img = (string)($c['img'] ?? '');
+        if (preg_match('#^/uploads/timer_layouts/[A-Za-z0-9._-]{1,120}$#', $img)) $chip['img'] = $img;
+        $out[] = $chip;
+    }
+    // Ascending by value: a legend that jumps around is harder to read than no
+    // legend at all, and every physical chip tray is ordered this way.
+    usort($out, function ($a, $b) { return $a['v'] <=> $b['v']; });
+    return $out;
+}
+
+function pk_chip_set_json($chips): ?string {
+    $clean = pk_clean_chip_set($chips);
+    return $clean ? json_encode($clean) : null;
 }

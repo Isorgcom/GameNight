@@ -709,6 +709,12 @@ function db_init(PDO $pdo): void {
         $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN setup_saved INTEGER NOT NULL DEFAULT 0");
         $pdo->exec("UPDATE poker_sessions SET setup_saved = 1");
     } catch (Exception $e) {}
+    // The house chip set: denominations paired with a colour, as JSON
+    // [{"v":25,"c":"#ffffff"}, …]. Per session rather than global because a
+    // deep-stack night and a turbo genuinely use different chips, and it rides
+    // with a game preset so a recurring game does not re-enter it every week.
+    try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN chip_set TEXT"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE payout_structures ADD COLUMN chip_set TEXT"); } catch (Exception $e) {}
     // Which preset this game was set up from. Nullable and deliberately NOT a
     // foreign key: the preset may be deleted later, and the game keeps running
     // on the settings it copied. The check-in Setup bar reads it to answer

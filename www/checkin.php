@@ -380,6 +380,21 @@ if ($session) {
     .pk-preset-menu button:disabled{opacity:.45;cursor:default}
     .pk-preset-menu button:disabled:hover{background:none}
     .pk-preset-menu-hint{padding:.45rem .6rem;font-size:.78rem;color:#64748b;line-height:1.35;max-width:230px}
+    /* Chip set editor: a colour and a value per row, kept narrow so it sits
+       beside the other Game fields rather than pushing them down. */
+    .pk-chipset{margin-top:.9rem}
+    .pk-chip-rows{display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.5rem}
+    .pk-chip-row{display:flex;align-items:center;gap:.25rem;border:1.5px solid var(--border,#e2e8f0);border-radius:8px;padding:.2rem .3rem;background:#fff}
+    .pk-chip-colour{width:30px;height:30px;padding:0;border:1px solid #cbd5e1;border-radius:50%;background:none;cursor:pointer}
+    .pk-chip-val{width:78px;padding:.3rem .35rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:.85rem;text-align:right}
+    .pk-chip-none{font-size:.78rem;color:#94a3b8;font-style:italic}
+    /* Chip image: the button IS the preview, so a set with photos reads as the
+       tray it represents rather than as a list of filenames. */
+    .pk-chip-img{width:30px;height:30px;padding:0;border:1px dashed #cbd5e1;border-radius:50%;background:#f8fafc no-repeat center/cover;
+                 cursor:pointer;font-size:.62rem;color:#94a3b8;line-height:1;display:flex;align-items:center;justify-content:center}
+    .pk-chip-img.has-img{border-style:solid;border-color:#94a3b8;color:transparent}
+    .pk-chip-img:hover{border-color:#2563eb}
+    .pk-chip-actions{display:flex;gap:.4rem;flex-wrap:wrap}
     .pk-preset-bar button{padding:.4rem .8rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;background:#fff;font-size:.8rem;font-weight:600;color:#334155;cursor:pointer}
     .pk-preset-bar button:hover{background:#f1f5f9}
     .pk-cfg-title{font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;margin:0 0 .5rem}
@@ -2177,6 +2192,8 @@ function openSettings(tab) {
     if (!PAYOUT_STRUCTURES.length) loadPayoutStructures();
     else renderPayoutStructureSelect();
     refreshPresetState();
+    loadChipSet();
+    renderChipRows();
     if (isTourney()) {
         populateTicketTargetSelect();
         updateBountyHint();
@@ -2242,6 +2259,10 @@ function refreshSettingsView() {
         previewGameType(pendingType);
     }
     renderPayoutStructureSelect();
+    // The panes were just rebuilt from HTML, so the chip editor is an empty
+    // container again. Redrawn from CHIP_SET rather than reloaded from the
+    // session, so an edit the host has not saved yet survives the refresh.
+    renderChipRows();
     if (isTourney()) {
         populateTicketTargetSelect();
         updateBountyHint();
@@ -2258,6 +2279,22 @@ function renderTimerPane() {
     h += '<label class="es-toggle" style="margin:.4rem 0"><input type="checkbox" id="ckUseBeta"' + (USE_BETA_TIMER ? ' checked' : '') + ' data-act-change="toggleBetaTimer"> Use BETA timer</label>';
     h += '<p class="es-note" style="margin:.2rem 0 .8rem">When on, the Timer button (and any link to this game\'s timer) opens the new layout-engine display: custom layouts, multi-screen rotation, break screens. Switch off any time to go back to the classic timer.</p>';
     h += '<p class="es-note">Pick which layout this game\'s display shows, and build or tweak layouts, right below.</p>';
+    h += '</div>';
+
+    // Chip set: denominations and their colours, drawn on the timer as a legend
+    // so players can see what each colour is worth at colour-up. It lives here
+    // rather than on the Game tab because it is a thing the DISPLAY shows, and
+    // it was being looked for next to the layout it appears on. Values only —
+    // the layout decides WHERE the legend goes, never what is in it.
+    h += '<div class="pk-cfg-section"><div class="pk-cfg-title">Chip set</div>';
+    h += '<p class="es-note" style="margin:.2rem 0 .6rem">Drawn on the display as coloured discs with their values, wherever the layout puts its chip legend. Leave it empty and no legend is shown.</p>';
+    h += '<div class="pk-chipset" id="cfgChipSet">';
+    h += '<div class="pk-chip-rows" id="chipRows"></div>';
+    h += '<div class="pk-chip-actions">';
+    h += '<button type="button" class="es-mini" data-act="addChipRow">+ Chip</button>';
+    h += '<button type="button" class="es-mini" data-act="fillStandardChips" title="25 / 100 / 500 / 1,000 / 5,000 in the usual colours">Standard set</button>';
+    h += '<button type="button" class="es-mini" data-act="clearChipSet">Clear</button>';
+    h += '</div></div>';
     h += '</div>';
     return h;
 }
@@ -2701,6 +2738,137 @@ function previewGameType(val) {
     // to be re-measured even when the active tab itself did not change.
     positionSegThumb('settingsSeg', true);
 }
+
+// ── Chip set editor ─────────────────────────────────────────────────────────
+// Held here rather than read back off the DOM at save time so a row can be
+// added, removed and reordered without the values shifting under it.
+var CHIP_SET = [];
+// Casino-standard denominations and the colours that go with them, which is
+// what most home sets ship as.
+var STANDARD_CHIPS = [
+    { v: 25,   c: '#ffffff' }, { v: 100,  c: '#ef4444' }, { v: 500,  c: '#22c55e' },
+    { v: 1000, c: '#2563eb' }, { v: 5000, c: '#0f172a' }
+];
+var CHIP_COLOURS = ['#ffffff', '#ef4444', '#22c55e', '#2563eb', '#0f172a',
+                    '#f59e0b', '#a855f7', '#ec4899', '#94a3b8', '#7c2d12'];
+
+function loadChipSet() {
+    var raw = SESSION && SESSION.chip_set;
+    try { CHIP_SET = raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : []; }
+    catch (e) { CHIP_SET = []; }
+    if (!Array.isArray(CHIP_SET)) CHIP_SET = [];
+}
+
+function renderChipRows() {
+    var box = document.getElementById('chipRows');
+    if (!box) return;
+    box.textContent = '';
+    if (!CHIP_SET.length) {
+        var none = document.createElement('div');
+        none.className = 'pk-chip-none';
+        none.textContent = 'No chip set — the timer will not show a legend.';
+        box.appendChild(none);
+        return;
+    }
+    CHIP_SET.forEach(function (chip, i) {
+        var row = document.createElement('div');
+        row.className = 'pk-chip-row';
+
+        var sw = document.createElement('input');
+        sw.type = 'color'; sw.value = chip.c || '#ffffff'; sw.className = 'pk-chip-colour';
+        sw.title = 'Chip colour';
+        sw.addEventListener('change', function () { CHIP_SET[i].c = sw.value; markSettingsDirty(); });
+        row.appendChild(sw);
+
+        // Image: a photo of the real chip. Doubles as its own preview, and sits
+        // beside the colour rather than replacing it — the colour is what shows
+        // if the file is ever deleted.
+        var img = document.createElement('button');
+        img.type = 'button'; img.className = 'pk-chip-img' + (chip.img ? ' has-img' : '');
+        img.textContent = chip.img ? '' : 'IMG';
+        img.title = chip.img ? 'Change this chip\'s image' : 'Use a photo of the real chip';
+        if (chip.img) img.style.backgroundImage = 'url("' + chip.img + '")';
+        img.addEventListener('click', function () { pickChipImage(i); });
+        row.appendChild(img);
+
+        if (chip.img) {
+            var clr = document.createElement('button');
+            clr.type = 'button'; clr.className = 'es-mini'; clr.textContent = '⌫';
+            clr.title = 'Drop the image and go back to the colour';
+            clr.addEventListener('click', function () {
+                delete CHIP_SET[i].img; renderChipRows(); markSettingsDirty();
+            });
+            row.appendChild(clr);
+        }
+
+        var val = document.createElement('input');
+        val.type = 'number'; val.min = '0'; val.step = 'any'; val.inputMode = 'decimal';
+        val.value = chip.v; val.className = 'pk-chip-val';
+        val.addEventListener('input', function () { CHIP_SET[i].v = parseFloat(val.value) || 0; markSettingsDirty(); });
+        row.appendChild(val);
+
+        var rm = document.createElement('button');
+        rm.type = 'button'; rm.className = 'es-mini es-mini-danger'; rm.textContent = '×';
+        rm.title = 'Remove this chip';
+        rm.addEventListener('click', function () { CHIP_SET.splice(i, 1); renderChipRows(); markSettingsDirty(); });
+        row.appendChild(rm);
+
+        box.appendChild(row);
+    });
+}
+
+// One hidden input reused by every row: a picker per chip would put a dozen
+// file inputs in the DOM for a control only one of which can be open at a time.
+// No accept filter, deliberately — iOS greys out anything it has no registered
+// type for, and the server checks the bytes rather than the name anyway.
+var _chipImgInput = null, _chipImgFor = -1;
+function pickChipImage(i) {
+    if (!_chipImgInput) {
+        _chipImgInput = document.createElement('input');
+        _chipImgInput.type = 'file';
+        _chipImgInput.hidden = true;
+        _chipImgInput.addEventListener('change', uploadChipImage);
+        document.body.appendChild(_chipImgInput);
+    }
+    _chipImgFor = i;
+    _chipImgInput.value = '';
+    _chipImgInput.click();
+}
+
+function uploadChipImage() {
+    var file = _chipImgInput.files && _chipImgInput.files[0];
+    var i = _chipImgFor;
+    if (!file || !CHIP_SET[i]) return;
+    if (file.size > 8 * 1024 * 1024) { pkAlert('That image is too large (max 8 MB).'); return; }
+    var fd = new FormData();
+    fd.append('action', 'upload_image');
+    fd.append('csrf_token', CSRF);
+    fd.append('image', file);
+    // Shares the timer-layout image folder and its daily cap: same kind of file,
+    // same sweepable place, one validated path prefix instead of two.
+    fetch('/timer_beta_dl.php', { method: 'POST', body: fd })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+            if (!j || !j.url) { pkAlert((j && j.error) || 'Could not upload that image.'); return; }
+            CHIP_SET[i].img = j.url;
+            renderChipRows();
+            markSettingsDirty();
+        })
+        .catch(function () { pkAlert('Upload failed.'); });
+}
+
+function addChipRow() {
+    // Next unused colour, and roughly the next denomination up, so adding a
+    // chip is one click rather than two fields.
+    var used = CHIP_SET.map(function (c) { return c.c; });
+    var col = CHIP_COLOURS.filter(function (c) { return used.indexOf(c) === -1; })[0] || '#ffffff';
+    var last = CHIP_SET.length ? CHIP_SET[CHIP_SET.length - 1].v : 0;
+    CHIP_SET.push({ v: last ? last * 5 : 25, c: col });
+    renderChipRows();
+    markSettingsDirty();
+}
+function fillStandardChips() { CHIP_SET = STANDARD_CHIPS.map(function (c) { return { v: c.v, c: c.c }; }); renderChipRows(); markSettingsDirty(); }
+function clearChipSet() { CHIP_SET = []; renderChipRows(); markSettingsDirty(); }
 
 // ─── Reward feature toggles (progressive disclosure) ──────
 // Turning a feature ON reveals its fields/columns; turning it OFF clears the
@@ -3258,6 +3426,7 @@ function loadPayoutStructure() {
             // drop the pane's cached grid (it refetches on remount) and
             // retarget the Timer button to whatever the preset restored.
             if (window.pkBlindsEditor) pkBlindsEditor._state = null;
+            if (j.session) { loadChipSet(); renderChipRows(); }
             if (j.use_beta !== undefined) {
                 USE_BETA_TIMER = j.use_beta ? 1 : 0;
                 var tl = document.getElementById('timerLink');
@@ -3380,6 +3549,9 @@ function buildPresetFormData() {
     if (window.pkBlindsEditor && pkBlindsEditor._state && pkBlindsEditor._state.eventId === EVENT_ID && pkBlindsEditor._state.levels.length) {
         fd.append('blind_levels', JSON.stringify(pkBlindsEditor._state.levels));
     }
+    // What-you-see-is-what-you-save, like the blind grid above: the editor's
+    // current chip set, not the last one written to the session.
+    fd.append('chip_set', JSON.stringify(CHIP_SET.filter(function (c) { return (+c.v || 0) > 0; })));
     // Carry all four reward dimensions; the backend keeps rows where ANY is set.
     document.querySelectorAll('#payoutRows .row').forEach(function(row) {
         var pctEl = row.querySelector('.payout-pct');
@@ -4288,6 +4460,8 @@ function saveSettings() {
         data.jackpot_amount = Math.max(0, Math.round(parseFloat((document.getElementById('cfg_jackpot') || {}).value || 0))) * 100;
         data.bounty_optional = svModeVal('cfg_bounty_mode', '0') === '1' ? 1 : 0;
         data.jackpot_optional = svModeVal('cfg_jackpot_mode', '1') === '1' ? 1 : 0;
+        // Sent as JSON, and only for a tournament — a cash game has no legend.
+        data.chip_set = JSON.stringify(CHIP_SET.filter(function (c) { return (+c.v || 0) > 0; }));
     } else {
         data.rebuy_amount = data.buyin_amount;
         data.addon_amount = 0;

@@ -10,6 +10,7 @@ A **layout** is a JSON tree. `timer_beta.js`'s header has the authoritative
 field list.
 
 - node := `{ row: [...] }` | `{ col: [...] }` | `{ cell: {...} }`
+- layout: `aspect` (optional) locks the shape the layout was authored at
 - containers: `weight` (flex-grow; unweighted = content-sized), `gap`, `pad`,
   `bg`, `border`, `justify`
 - cells: `text` with `<elements>` and newlines, `size` (vh units) or
@@ -66,7 +67,7 @@ current timer's point-anchor themes can do both and needed a runtime clamp
 eventName level levelOrBreak clock gameName nextGameName smallBlind bigBlind
 ante blinds nextBlinds players playersLeft playersTotal entries rebuys pot
 chipCount avgStack avgStackBB buyinLine currentTime elapsedTime nextBreak
-prizes prizeList
+prizes prizeList prizesStacked
 
 Element names match `[a-zA-Z][a-zA-Z0-9]*`. Plus any layout-defined custom
 elements (see roadmap).
@@ -187,6 +188,32 @@ Note `closest('[data-path]')` returns the INNERMOST node under the pointer,
 which is what you want: the root's box covers the whole screen, so a click
 anywhere would otherwise select the root.
 
+## Aspect lock
+
+**A layout drawn around background artwork has to keep the shape it was drawn at.** Its artwork is
+drawn for those proportions: buttons, panels and a logo in particular places.
+Let the screen fill and the picture is cropped to cover while the text spreads
+over the whole viewport, so the two drift apart the moment the ratio differs.
+On a 21:9 monitor a 16:10 design loses a third of its height and nothing sits
+in the button drawn for it.
+
+`layout.aspect` makes `#tbRoot` a stage of exactly that ratio, centred, with the
+rest of the screen black. The stage is a full `100vh` tall and as wide as the
+ratio asks, so every `vh` inside still means what the author meant; when that is
+wider than the window the whole stage is scaled down by a transform rather than
+re-measured, so text, artwork and spacing shrink together and stay in register.
+`Screen shape` in the screen's right-click menu sets or clears it.
+
+`imageFit: 'stretch'` is the other way out: it distorts the picture, but the
+picture then covers exactly the area the layout does, so anything drawn into it
+stays put on a screen the design was never made for.
+
+**Panel colours.** A layout can carry background artwork that already draws its
+panels while its cells also set a background colour of their own. Painting them
+buries the art; dropping them loses panels a layout with no artwork needs. The
+screen's right-click menu → **Panel colours** switches the whole layout between
+the two, and remembers the colours for the session so it flips back.
+
 ## Direct manipulation in the preview
 
 Drag a boundary to resize; drag a box to move it. Both run inside the iframe
@@ -236,6 +263,49 @@ now attached to the parent document and, in `wirePreviewKeys()`, to the iframe's
 A headless test will NOT catch this by itself: synthetic drags on a resize
 handle call `preventDefault()`, which suppresses the focus change, so the
 regression test has to click the preview normally first.
+
+## Chip legend
+
+`{ cell: { chips: true } }` renders the game's chip denominations as coloured
+discs with their values — the thing everyone asks at colour-up.
+
+**The layout says WHERE, the game says WHAT.** `chips` is a flag, not content:
+denominations live on `poker_sessions.chip_set` (JSON `[{"v":25,"c":"#ffffff"},…]`),
+are edited in check-in Setup → **Timer**, beside the layout chooser rather
+than on the Game tab (it is a thing the display shows, so that is where it gets
+looked for), ride along with a game preset
+(`payout_structures.chip_set`), and reach the display through `get_state`'s
+`chips`. A layout file can never carry the values, for the same reason the QR
+target is an enum.
+
+A chip may also carry `img`, a photo of the real thing, so the legend matches
+what is on the table. The colour is kept alongside it rather than replaced: it is
+what the legend falls back to if the file is ever deleted, so the display
+degrades to what it always looked like instead of a row of empty rings. Images
+go through the timer-layout upload folder and its daily cap (same kind of file,
+one sweepable place, one validated path prefix), and BOTH ends check the path:
+`pk_clean_chip_set()` drops anything outside `/uploads/timer_layouts/`, and
+`safeImageSrc()` refuses to draw it. An external URL, a data URI or anything with
+a scheme is never stored and never rendered.
+
+`pk_clean_chip_set()` validates: at most 12 chips, values to 2dp (money as well
+as chips), colours as `#rrggbb`, and **sorted ascending** — a legend that jumps
+around is harder to read than none, and every physical chip tray is ordered that
+way.
+
+Three things worth remembering:
+
+- **Draw on the update path, not just on build.** A host can change the set
+  mid-game; keyed on the set's contents, `drawChipCells()` returns immediately
+  when nothing moved.
+- **Only one place hides empty cells.** A chips cell draws nodes rather than
+  text, so `updateAll()`'s auto-hide had to learn about it (`!inner.firstChild`)
+  — the text test calls it empty always and the `isImage` exemption calls it
+  full always. Setting `display` in the draw function as well meant whichever
+  ran last won, and the cell never hid.
+- **Discs can be sized apart from the text.** `chipSize` (vh) overrides the
+  default `1.15em`, for a legend whose numbers should stay at body size while
+  the discs fill the band they sit in.
 
 ## QR cell — a second screen
 
@@ -536,8 +606,9 @@ row too, not just the mobile hamburger.
   completely after 3s of no pointer/touch/key activity (video-player style),
   reappearing on any interaction. The fold-into-main-timer decision remains.
 - **Export/import (done):** a layout exports as one self-contained JSON file
-  (`{gnTimerLayout:1, name, layout}`, `.gntimer.json`) — our own portable
-  format, no TD format involved. Import JSON.parse's the file (never evals),
+  (`{gnTimerLayout:1, name, layout}`, `.gntimer.json`), with any referenced
+  images embedded as data URIs and re-uploaded on the way in. Import
+  JSON.parse's the file (never evals),
   loads it into the editor, and persists via save_layout so the server
   sanitizer is the trust boundary; a bare `{screens|root}` object is also
   accepted. Hostile styles are stripped, non-layout files import nothing.

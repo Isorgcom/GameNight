@@ -174,6 +174,8 @@ if (S.sample) {
     S.chipCount = '67,500'; S.avgStack = '5,625';
     S.stillNum = 12; S.totalNum = 18; S.chipsNum = 67500;
     S.prizes = ['1st: $525', '2nd: $315', '3rd: $210'];
+    S.chips = [{ v: 25, c: '#ffffff' }, { v: 100, c: '#ef4444' }, { v: 500, c: '#22c55e' },
+               { v: 1000, c: '#2563eb' }, { v: 5000, c: '#0f172a' }];
 }
 
 /* Kept in step with fmtChips() in timer.js: the literal
@@ -298,6 +300,9 @@ var ELEMENTS = {
     nextBreak:    function () { var s = nextBreakSecs(); return s === null ? '-' : (S.isBreak ? 'now' : fmtClock(s)); },
     prizes:       function () { return S.prizes.length ? S.prizes.join('    ') : ''; },
     prizeList:    function () { return S.prizes.length ? 'Prizes\n' + S.prizes.join('\n') : ''; },
+    // Same places, one per line, WITHOUT a heading — for a cell that already
+    // writes its own label above them. prizeList would print a second "Prizes".
+    prizesStacked: function () { return S.prizes.join('\n'); },
     playersLeft:  function () { return String(S.stillNum); },
     playersTotal: function () { return String(S.totalNum); },
     // Average stack in big blinds — the poker-meaningful health number a
@@ -356,9 +361,32 @@ function matchCond(cond) {
 /* ── Renderer: JSON tree → nested flexbox ─────────────────────────────── */
 
 var root = document.getElementById('tbRoot');
+
+/* A layout may lock the shape it was authored at. Without this the background
+   art is cropped to fill the screen while the text spreads over the whole of
+   it, so on anything but the design's own ratio the two drift apart — on a
+   21:9 monitor a 16:10 design loses a third of its height and nothing lands in
+   the buttons drawn for it. */
+function applyAspect() {
+    var a = CURRENT_LAYOUT && +CURRENT_LAYOUT.aspect;
+    if (!a || !isFinite(a) || a < 0.4 || a > 4) {
+        root.classList.remove('tb-aspect');
+        document.body.classList.remove('tb-letterbox');
+        root.style.removeProperty('--tb-aspect');
+        root.style.removeProperty('--tb-scale');
+        return;
+    }
+    root.classList.add('tb-aspect');
+    document.body.classList.add('tb-letterbox');
+    root.style.setProperty('--tb-aspect', a);
+    var wantW = window.innerHeight * a;
+    root.style.setProperty('--tb-scale', wantW > window.innerWidth ? (window.innerWidth / wantW) : 1);
+}
+window.addEventListener('resize', function () { requestAnimationFrame(applyAspect); });
 var allCells = [];   // { el, inner, spec, variants, elSpans, lastText, lastVariant, isFit }
 var fitCells = [];   // subset of allCells with fit:true
 var qrCells  = [];   // cells rendering a QR code
+var chipCells = [];  // cells rendering the chip legend
 var clockCells = []; // cells whose colour tracks warn/critical
 
 function applyBox(el, node) {
@@ -444,6 +472,15 @@ function buildCell(spec) {
         inner.appendChild(img);
     }
 
+    // Chip legend: the denominations in play, each as a coloured disc with its
+    // value — the thing everyone asks at colour-up. A cell type rather than a
+    // text element because it is DOM (coloured discs), not a string; the values
+    // themselves still land via textContent.
+    if (spec.chips) {
+        el.classList.add('tb-cell-chips');
+        chipCells.push({ el: el, inner: inner, drawn: null });
+    }
+
     // QR cell: a code another screen scans to join this display.
     //
     // The URL is built HERE from the session's own remote_key — never from
@@ -464,13 +501,14 @@ function buildCell(spec) {
     if (spec.fit) el.classList.add('tb-fit');
     else el.style.fontSize = (spec.size || 2.4) + 'vh';
     if (spec.pad) el.style.padding = spec.pad;
+    if (spec.chipSize) el.style.setProperty('--tb-chip-disc', spec.chipSize + 'vh');
     if (spec.spacing) el.style.letterSpacing = spec.spacing;
     if (spec.align === 'left')  { el.style.justifyContent = 'flex-start'; el.style.textAlign = 'left'; }
     if (spec.align === 'right') { el.style.justifyContent = 'flex-end';   el.style.textAlign = 'right'; }
     if (spec.clockColors) clockCells.push(el);
 
     var rec = {
-        el: el, inner: inner, spec: spec, isImage: !!imgSrc || !!spec.qr,
+        el: el, inner: inner, spec: spec, isImage: !!imgSrc || !!spec.qr || !!spec.chips,
         variants: Array.isArray(spec.variants) ? spec.variants : [],
         elSpans: [], lastText: null, lastVariant: -2, isFit: !!spec.fit
     };
@@ -570,7 +608,7 @@ function buildScreen(idx) {
     sharedStyles = (CURRENT_LAYOUT && CURRENT_LAYOUT.styles && typeof CURRENT_LAYOUT.styles === 'object')
         ? CURRENT_LAYOUT.styles : {};
     var screen = CURRENT_LAYOUT.screens[idx] || { root: { col: [] } };
-    fitCells = []; clockCells = []; allCells = []; qrCells = [];
+    fitCells = []; clockCells = []; allCells = []; qrCells = []; chipCells = [];
     root.textContent = '';
     root.style.background = '';
     root.style.backgroundImage = '';
@@ -582,11 +620,13 @@ function buildScreen(idx) {
         var bgImg = safeImageSrc(screen.bg.image);
         if (bgImg) {
             root.style.backgroundImage = 'url("' + bgImg + '")';
-            root.style.backgroundSize = screen.bg.imageFit === 'contain' ? 'contain' : 'cover';
+            root.style.backgroundSize = screen.bg.imageFit === 'contain' ? 'contain'
+                                      : screen.bg.imageFit === 'stretch' ? '100% 100%' : 'cover';
             root.style.backgroundPosition = 'center';
             root.style.backgroundRepeat = 'no-repeat';
         }
     }
+    applyAspect();
     var top = buildNode(screen.root || { col: [] }, []);
     top.classList.add('tb-top');
     if (screen.root && screen.root.pad) top.style.padding = screen.root.pad;
@@ -595,6 +635,7 @@ function buildScreen(idx) {
     updateAll();
     requestAnimationFrame(fitAll);
     drawQrCells();
+    drawChipCells();
 }
 
 function renderLayoutObj(layout) {
@@ -639,6 +680,10 @@ function resolveCell(rec) {
 
 function updateAll() {
     if (typeof syncControls === 'function') syncControls();
+    // The chip set can change mid-game (a host edits it in Setup), so the
+    // legend belongs on the update path, not only on build. It is keyed on the
+    // set's contents and returns immediately when nothing moved.
+    drawChipCells();
     // State may have moved us to a different screen (e.g. onto the break
     // screen). Rebuild for it, unless we're mid-build ourselves.
     if (!_building && CURRENT_LAYOUT && pickScreen() !== activeScreen) {
@@ -683,7 +728,13 @@ function updateAll() {
         // A cell whose content resolved to nothing hides entirely, so an empty
         // prize bar or buy-in line paints no bare background band. Image cells
         // are exempt — they have no text content but should still show.
-        rec.el.style.display = (!rec.isImage && rec.inner.textContent.trim() === '') ? 'none' : '';
+        // Auto-hide an empty cell. A chip legend is "empty" when the game has
+        // no chip set — it draws nodes rather than text, so the text test would
+        // call it empty always, and the isImage exemption would call it full
+        // always. Deciding it here keeps ONE place that hides empty cells.
+        var blank = rec.spec && rec.spec.chips ? !rec.inner.firstChild
+                  : (!rec.isImage && rec.inner.textContent.trim() === '');
+        rec.el.style.display = blank ? 'none' : '';
     }
 
     var rem = liveRemaining();
@@ -732,6 +783,44 @@ function qrTargetUrl(target) {
     if (!key) return null;
     if (target === 'display') return location.origin + '/timer_beta.php?key=' + encodeURIComponent(key);
     return null;
+}
+
+/* Redrawn only when the set actually changes — this runs on every tick. */
+function drawChipCells() {
+    if (!chipCells.length) return;
+    var key = JSON.stringify(S.chips || []);
+    for (var i = 0; i < chipCells.length; i++) {
+        var c = chipCells[i];
+        if (c.drawn === key) continue;
+        c.drawn = key;
+        c.inner.textContent = '';
+        var list = S.chips || [];
+        // Visibility is not decided here: updateAll() owns hiding empty cells,
+        // and two places writing style.display means whichever runs last wins.
+        for (var j = 0; j < list.length; j++) {
+            var wrap = document.createElement('span');
+            wrap.className = 'tb-chip';
+            var disc = document.createElement('span');
+            disc.className = 'tb-chip-disc';
+            disc.style.background = list[j].c;
+            // A photo of the real chip, drawn over the colour rather than
+            // instead of it: if the file is ever deleted the legend degrades to
+            // the colour it always had, instead of a row of empty rings.
+            var cimg = safeImageSrc(list[j].img);
+            if (cimg) {
+                disc.style.backgroundImage = 'url("' + cimg + '")';
+                disc.style.backgroundSize = 'cover';
+                disc.style.backgroundPosition = 'center';
+                disc.classList.add('tb-chip-photo');
+            }
+            var val = document.createElement('span');
+            val.className = 'tb-chip-val';
+            val.textContent = fmtChips(list[j].v);
+            wrap.appendChild(disc);
+            wrap.appendChild(val);
+            c.inner.appendChild(wrap);
+        }
+    }
 }
 
 function drawQrCells() {
@@ -852,6 +941,7 @@ function poll() {
             noteClockSample(Number(j.server_now_ms) || 0, requestedAt, Date.now());
             applyTimerSync(j.timer, requestedAt);
             S.levels = j.levels || [];
+            S.chips = Array.isArray(j.chips) ? j.chips : [];
             S.warnSecs = (j.sounds && j.sounds.warning_seconds) || 60;
             if (j.event_title) S.eventName = j.event_title;
             S.gameOver = j.session_status === 'finished';

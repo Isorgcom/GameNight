@@ -74,6 +74,8 @@ function pk_lo_cell($cell, array &$err): ?array {
     // Strip control characters except newline; the renderer splits on \n.
     $out['text'] = preg_replace('/[^\P{C}\n]/u', '', $text);
     if (isset($cell['size'])) { $n = pk_lo_num($cell['size'], 0.5, 40); if ($n !== null) $out['size'] = $n; }
+    // Chip-legend disc size, stated apart from the text size.
+    if (isset($cell['chipSize'])) { $n = pk_lo_num($cell['chipSize'], 0.5, 30); if ($n !== null) $out['chipSize'] = $n; }
     foreach (['fit', 'bold', 'clockColors'] as $b) if (!empty($cell[$b])) $out[$b] = true;
     foreach (['color', 'bg', 'border'] as $k) if (isset($cell[$k])) { $v = pk_lo_style_str($cell[$k]); if ($v !== null) $out[$k] = $v; }
     foreach (['pad', 'spacing'] as $k) if (isset($cell[$k])) { $v = pk_lo_style_str($cell[$k], 32); if ($v !== null) $out[$k] = $v; }
@@ -89,6 +91,9 @@ function pk_lo_cell($cell, array &$err): ?array {
     // target against the session's own remote_key; nothing from this file
     // reaches the scanner.
     if (isset($cell['qr']) && in_array($cell['qr'], ['display'], true)) $out['qr'] = $cell['qr'];
+    // Chip legend. A flag, not content: the denominations come from the game,
+    // never from the layout file.
+    if (!empty($cell['chips'])) $out['chips'] = true;
     if (isset($cell['when'])) { $w = pk_lo_cond($cell['when']); if ($w !== null) $out['when'] = $w; }
     if (isset($cell['opacity'])) { $n = pk_lo_num($cell['opacity'], 0, 1); if ($n !== null) $out['opacity'] = $n; }
     if (isset($cell['variants']) && is_array($cell['variants'])) {
@@ -153,7 +158,7 @@ function pk_lo_bg($bg): ?array {
         if ($a !== null && $b !== null) $out['gradient'] = [$a, $b];
     }
     if (isset($bg['image'])) { $im = pk_lo_img($bg['image']); if ($im !== null) { $out['image'] = $im;
-        if (isset($bg['imageFit']) && in_array($bg['imageFit'], ['cover', 'contain'], true)) $out['imageFit'] = $bg['imageFit']; } }
+        if (isset($bg['imageFit']) && in_array($bg['imageFit'], ['cover', 'contain', 'stretch'], true)) $out['imageFit'] = $bg['imageFit']; } }
     return $out ?: null;
 }
 
@@ -221,6 +226,12 @@ function pk_layout_sanitize($doc, array &$err): ?array {
 
     $sharedStyles = pk_lo_styles($doc['styles'] ?? null);
     if ($sharedStyles) $out['styles'] = $sharedStyles;
+
+    // A layout drawn around background artwork has to keep the shape it was
+    // drawn at, or the picture and the text can never agree: the picture gets
+    // cropped to fill the screen while the text spreads across all of it.
+    // Locking the ratio letterboxes both together instead.
+    if (isset($doc['aspect'])) { $n = pk_lo_num($doc['aspect'], 0.4, 4.0); if ($n !== null) $out['aspect'] = $n; }
 
     // Layout-level custom elements: a name->plain-text map. Names are
     // identifier-safe (so they can appear as <name> in cell text); values are

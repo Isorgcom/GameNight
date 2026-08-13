@@ -12,6 +12,16 @@ body {
 }
 
 #tbRoot { position: fixed; inset: 0; display: flex; }
+
+/* Aspect lock. The stage is a full 100vh tall and as wide as the ratio asks,
+   so every vh inside it still means what the layout author meant; when that is
+   wider than the window the whole stage scales down as one piece. A transform
+   is used rather than smaller units so text, artwork and spacing shrink
+   together and stay in register. */
+#tbRoot.tb-aspect { inset: auto; top: 50%; left: 50%;
+                    height: 100vh; width: calc(100vh * var(--tb-aspect, 1.6));
+                    transform: translate(-50%, -50%) scale(var(--tb-scale, 1)); }
+body.tb-letterbox { background: #000; }
 .tb-top { flex: 1; display: flex; min-width: 0; min-height: 0; }
 
 .tb-row, .tb-col { display: flex; min-width: 0; min-height: 0; }
@@ -52,6 +62,25 @@ body {
     text-align: center; padding: 6px; font-size: .8rem;
     transition: opacity .5s;
 }
+
+/* Chip legend: coloured discs with their value, laid out along the cell. Wraps
+   rather than overflowing, since a deep-stack set can run to eight chips. */
+.tb-cell-chips .tb-cell-inner { display: flex; flex-wrap: wrap; align-items: center;
+                                justify-content: center; gap: 0.6em 1.1em; width: 100%; }
+.tb-chip { display: inline-flex; align-items: center; gap: 0.35em; white-space: nowrap; }
+/* Sized in em so a legend scales with its cell by default, but overridable:
+   a source layout may state the disc size independently of the text size, and
+   tying the two together blows the numbers up to match the discs. */
+.tb-chip-disc { width: var(--tb-chip-disc, 1.15em); height: var(--tb-chip-disc, 1.15em);
+                border-radius: 50%; flex: 0 0 auto;
+                /* A ring, so a white chip reads against a light background and a
+                   black one against a dark background — both happen. */
+                box-shadow: 0 0 0 0.12em rgba(255,255,255,.75), inset 0 0 0 0.1em rgba(0,0,0,.35); }
+.tb-chip-val { font-variant-numeric: tabular-nums; }
+/* A photographed chip brings its own edge, so the heavy inner ring that makes a
+   flat colour read as a disc just muddies it. Keep the outer ring for contrast
+   against the background. */
+.tb-chip-disc.tb-chip-photo { box-shadow: 0 0 0 0.1em rgba(255,255,255,.75); }
 
 /* QR cell: square, fits the box, pixel-crisp. A QR scaled with smoothing loses
    module edges and stops scanning at a distance, which is the only distance a

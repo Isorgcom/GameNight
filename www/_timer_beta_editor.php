@@ -21,8 +21,15 @@ $csrf = csrf_token();
             <button id="tbeSave" class="tbe-btn tbe-btn-primary">Save layout</button>
             <button id="tbeSaveCopy" class="tbe-btn">Save layout as copy</button>
             <button id="tbeExport" class="tbe-btn" title="Download this layout as a file">Export</button>
-            <button id="tbeImport" class="tbe-btn" title="Load a layout from a file">Import</button>
-            <input type="file" id="tbeImportFile" accept="application/json,.json" hidden>
+            <button id="tbeImport" class="tbe-btn" title="Load a layout from a .gntimer.json file exported from here or another install">Import</button>
+            <?php /* No accept filter ON PURPOSE. iOS greys out any extension it has
+                     no registered type for, and a double extension like
+                     `.gntimer.json` is exactly the kind it gets wrong, so the file
+                     could be browsed to but never selected on an iPhone or iPad.
+                     The format is checked from the file's CONTENTS anyway (see
+                     importFile's handler), so the filter bought nothing and cost
+                     the feature on touch devices. */ ?>
+            <input type="file" id="tbeImportFile" hidden>
             <button id="tbeDelete" class="tbe-btn tbe-btn-danger">Delete</button>
             <a class="tbe-btn tbe-btn-ghost" href="/timer_beta.php" target="_blank">Open display</a>
         </div>

@@ -583,6 +583,14 @@ if ($action === 'update_config') {
         $session_id,
     ]);
 
+    // Chip set. Written only when the request actually carries the field: an
+    // older client (or any caller that predates this) must not silently erase
+    // a set someone entered.
+    if (array_key_exists('chip_set', $_POST)) {
+        $db->prepare('UPDATE poker_sessions SET chip_set = ? WHERE id = ?')
+           ->execute([pk_chip_set_json($_POST['chip_set']), $session_id]);
+    }
+
     // Bounty changes move the net pool, so re-derive winnings immediately.
     pk_apply_tournament_payouts($db, $session_id);
 
@@ -1705,9 +1713,13 @@ if ($action === 'save_payout_structure') {
     // name — requiring one here rejected every "Update preset" before the
     // update branch below was ever reached.
     $is_update = (int)($_POST['structure_id'] ?? 0) > 0;
-    if ((!$is_update && $name === '') || !is_array($places) || count($places) === 0) {
-        echo json_encode(['ok' => false, 'error' => 'Name and at least one place required']); exit;
+    if (!$is_update && $name === '') {
+        echo json_encode(['ok' => false, 'error' => 'Name required']); exit;
     }
+    // A preset is the whole editor, not just a payout split. Whether it holds
+    // anything is decided once, further down, on the PARSED values — a raw
+    // field being present says nothing about it carrying a value.
+    if (!is_array($places)) $places = [];
     if ($is_global && !$isAdmin) {
         echo json_encode(['ok' => false, 'error' => 'Only admins can save global structures']); exit;
     }
@@ -1787,6 +1799,17 @@ if ($action === 'save_payout_structure') {
         }
     }
 
+    // Chip set rides with the preset: the client sends the editor's current set,
+    // otherwise it is snapshotted from the session being saved.
+    $chip_set = null;
+    if (isset($_POST['chip_set'])) {
+        $chip_set = pk_chip_set_json($_POST['chip_set']);
+    } elseif ($snap_sid) {
+        $cq = $db->prepare('SELECT chip_set FROM poker_sessions WHERE id = ?');
+        $cq->execute([$snap_sid]);
+        $chip_set = pk_chip_set_json($cq->fetchColumn() ?: '');
+    }
+
     $pointsArr  = $_POST['points'] ?? [];
     $ticketsArr = $_POST['tickets'] ?? [];
     $labelsArr  = $_POST['labels'] ?? [];
@@ -1801,10 +1824,15 @@ if ($action === 'save_payout_structure') {
             $rows[] = [$pl, $pct, $pts, $ticket, $label !== '' ? mb_substr($label, 0, 60) : null];
         }
     }
-    // An all-zero structure with no reward recipe, game config, or blind
-    // schedule is unsaveable — loading it later would be an empty no-op.
-    if (!$rows && $st_bounty === 0 && $st_bounty_pts === 0 && $st_jackpot === 0 && $game_config === null && $blind_levels === null) {
-        echo json_encode(['ok' => false, 'error' => 'Nothing to save — set at least one payout value, points, prize, bounty, or jackpot entry first.']); exit;
+    // An all-zero structure that carries nothing else is unsaveable — loading it
+    // later would be an empty no-op. The chip set and timer settings count as
+    // content like everything else: leaving them out rejected a preset save that
+    // only changed the chips, which is exactly what a host does when adding a
+    // chip set to a preset made before chip sets existed.
+    if (!$rows && $st_bounty === 0 && $st_bounty_pts === 0 && $st_jackpot === 0
+        && $game_config === null && $blind_levels === null
+        && $chip_set === null && $timer_config === null) {
+        echo json_encode(['ok' => false, 'error' => 'Nothing to save — set a payout value, points, a prize, a bounty or jackpot entry, a blind schedule or a chip set first.']); exit;
     }
 
     // structure_id present = "Update preset": write this editor back over the
@@ -1820,8 +1848,8 @@ if ($action === 'save_payout_structure') {
             http_response_code(403);
             echo json_encode(['ok' => false, 'error' => 'You cannot change that preset — use Save As to make your own copy.']); exit;
         }
-        $db->prepare('UPDATE payout_structures SET bounty_amount = ?, bounty_points = ?, jackpot_amount = ?, game_config = ?, blind_levels = ?, timer_config = ? WHERE id = ?')
-           ->execute([$st_bounty, $st_bounty_pts, $st_jackpot, $game_config, $blind_levels, $timer_config, $update_id]);
+        $db->prepare('UPDATE payout_structures SET bounty_amount = ?, bounty_points = ?, jackpot_amount = ?, game_config = ?, blind_levels = ?, timer_config = ?, chip_set = ? WHERE id = ?')
+           ->execute([$st_bounty, $st_bounty_pts, $st_jackpot, $game_config, $blind_levels, $timer_config, $chip_set, $update_id]);
         $db->prepare('DELETE FROM payout_structure_places WHERE structure_id = ?')->execute([$update_id]);
         $ins = $db->prepare('INSERT INTO payout_structure_places (structure_id, place, percentage, points, ticket_cents, prize_label) VALUES (?, ?, ?, ?, ?, ?)');
         foreach ($rows as $r) $ins->execute([$update_id, $r[0], $r[1], $r[2], $r[3], $r[4]]);
@@ -1830,8 +1858,8 @@ if ($action === 'save_payout_structure') {
         exit;
     }
 
-    $db->prepare('INSERT INTO payout_structures (name, created_by, is_global, league_id, bounty_amount, bounty_points, jackpot_amount, game_config, blind_levels, timer_config) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-       ->execute([$name, (int)$current['id'], $is_global, $league_id, $st_bounty, $st_bounty_pts, $st_jackpot, $game_config, $blind_levels, $timer_config]);
+    $db->prepare('INSERT INTO payout_structures (name, created_by, is_global, league_id, bounty_amount, bounty_points, jackpot_amount, game_config, blind_levels, timer_config, chip_set) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+       ->execute([$name, (int)$current['id'], $is_global, $league_id, $st_bounty, $st_bounty_pts, $st_jackpot, $game_config, $blind_levels, $timer_config, $chip_set]);
     $sid = (int)$db->lastInsertId();
 
     $ins = $db->prepare('INSERT INTO payout_structure_places (structure_id, place, percentage, points, ticket_cents, prize_label) VALUES (?, ?, ?, ?, ?, ?)');
@@ -1968,6 +1996,13 @@ if ($action === 'load_payout_structure') {
     foreach ($rows as $r) {
         $ins->execute([$session_id, (int)$r['place'], (float)$r['percentage'],
                        (int)($r['points'] ?? 0), (int)($r['ticket_cents'] ?? 0), $r['prize_label'] ?: null]);
+    }
+
+    // Chip set travels with the preset. NULL means the preset predates chip
+    // sets, which must leave the game's own set alone rather than clearing it.
+    if (!empty($struct['chip_set'])) {
+        $db->prepare('UPDATE poker_sessions SET chip_set = ? WHERE id = ?')
+           ->execute([pk_chip_set_json($struct['chip_set']), $session_id]);
     }
 
     // Applying a preset IS setting the game up — a legacy preset carries no

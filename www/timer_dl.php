@@ -212,6 +212,13 @@ if ($action === 'get_state') {
         }
     }
 
+    $chip_set = [];
+    if ($session_id > 0) {
+        $cq = $db->prepare('SELECT chip_set FROM poker_sessions WHERE id = ?');
+        $cq->execute([$session_id]);
+        $chip_set = pk_clean_chip_set($cq->fetchColumn() ?: '');
+    }
+
     $themeProps = timer_resolve_theme($db, (int)($timer['theme_id'] ?? 0) ?: null);
 
     echo json_encode([
@@ -224,6 +231,10 @@ if ($action === 'get_state') {
         // anchor is supposed to prevent.
         'server_now_ms' => (int) round(microtime(true) * 1000),
         'levels' => $levels,
+        // Chip denominations with their colours, for the <chips> legend. Empty
+        // when the game has none, so the display hides the cell rather than
+        // drawing an empty box.
+        'chips' => $chip_set,
         'pool' => $pool,
         'payouts' => $payouts,
         'game_type' => $game_type,

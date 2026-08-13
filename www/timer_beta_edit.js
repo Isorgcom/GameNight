@@ -26,7 +26,9 @@ var editScreenIndex = 0;       // which screen the tree/inspector edit
 function normalizeLayout() {
     if (!LAYOUT) return;
     if (!Array.isArray(LAYOUT.screens) || !LAYOUT.screens.length) {
-        LAYOUT = { v: LAYOUT.v || 1, screens: [{ name: 'Main', bg: LAYOUT.bg || null, root: LAYOUT.root || { col: [] } }] };
+        LAYOUT = { v: LAYOUT.v || 1, aspect: LAYOUT.aspect,
+                   screens: [{ name: 'Main', bg: LAYOUT.bg || null, root: LAYOUT.root || { col: [] } }] };
+        if (!LAYOUT.aspect) delete LAYOUT.aspect;
     }
     if (editScreenIndex >= LAYOUT.screens.length) editScreenIndex = 0;
 }
@@ -35,7 +37,7 @@ function curScreen() { return LAYOUT.screens[editScreenIndex]; }
 var ELEMENT_BUILTINS = [];
 var ELEMENTS = ['eventName','level','levelOrBreak','clock','gameName','nextGameName','smallBlind','bigBlind','ante',
     'blinds','nextBlinds','players','playersLeft','playersTotal','entries','rebuys','pot','chipCount','avgStack','avgStackBB',
-    'currentTime','elapsedTime','nextBreak','prizes','prizeList','buyinLine'];
+    'currentTime','elapsedTime','nextBreak','prizes','prizeList','prizesStacked','buyinLine'];
 
 /* ── Tree access helpers ─────────────────────────────────────────────── */
 
@@ -629,6 +631,24 @@ function renderInspector() {
         // builds the link from the game's own key, so a layout you share can
         // never send someone's scanner somewhere you chose. See SECURITY note
         // in timer_beta_dl.php's sanitizer.
+        if (cell.chips) {
+            var chWrap = document.createElement('div');
+            chWrap.className = 'tbe-field';
+            var chl = document.createElement('span'); chl.textContent = 'Chip legend'; chWrap.appendChild(chl);
+            var chn = document.createElement('div'); chn.className = 'tbe-note';
+            chn.textContent = 'Shows this game\'s chip denominations and their colours. Set them in '
+                            + 'the check-in Setup editor, under Game — the layout only says WHERE to '
+                            + 'show them. The preview uses sample chips.';
+            chWrap.appendChild(chn);
+            insp.appendChild(chWrap);
+            insp.appendChild(field('Weight (share of space)', numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
+            var rmCh = document.createElement('button'); rmCh.className = 'tbe-mini tbe-mini-danger';
+            rmCh.textContent = 'Remove chip legend (back to text)';
+            rmCh.addEventListener('click', function () { pushUndo(); delete cell.chips; refresh(true); renderInspector(); });
+            insp.appendChild(rmCh);
+            return;
+        }
+
         if (cell.qr) {
             var qrWrap = document.createElement('div');
             qrWrap.className = 'tbe-field';
@@ -657,6 +677,12 @@ function renderInspector() {
         toQr.title = 'A code viewers scan to open this timer on their own screen';
         toQr.addEventListener('click', function () { pushUndo(); cell.qr = 'display'; refresh(true); renderInspector(); });
         insp.appendChild(toQr);
+
+        var toChips = document.createElement('button');
+        toChips.className = 'tbe-mini'; toChips.textContent = 'Use a chip legend instead';
+        toChips.title = "This game's chip denominations and colours";
+        toChips.addEventListener('click', function () { pushUndo(); cell.chips = true; refresh(true); renderInspector(); });
+        insp.appendChild(toChips);
 
         var ta = document.createElement('textarea');
         ta.rows = 3; ta.value = cell.text || '';
@@ -976,6 +1002,8 @@ function openNodeMenu(path, x, y) {
             item('Remove image (back to text)', edit(function () { delete cell.image; delete cell.imageFit; }));
         } else if (cell.qr) {
             item('Remove QR code (back to text)', edit(function () { delete cell.qr; }));
+        } else if (cell.chips) {
+            item('Remove chip legend (back to text)', edit(function () { delete cell.chips; }));
         } else {
             toggle('Bold', !!cell.bold, edit(function () { setOrDelete(cell, 'bold', cell.bold ? undefined : true); }));
             toggle('Fit text to box', !!cell.fit, edit(function () { setOrDelete(cell, 'fit', cell.fit ? undefined : true); }));
@@ -1005,6 +1033,7 @@ function openNodeMenu(path, x, y) {
                 uploadImage(function (url) { pushUndo(); cell.image = url; refresh(true); renderInspector(); });
             });
             item('Use a QR code instead', edit(function () { cell.qr = 'display'; }));
+            item('Use a chip legend instead', edit(function () { cell.chips = true; }));
         }
         // Box properties apply whatever the cell holds.
         sub('Background', colourPanel(cell.bg, function (v) { setOrDelete(cell, 'bg', v); }, 'None'));
@@ -1035,9 +1064,32 @@ function openNodeMenu(path, x, y) {
                     edit(function () { delete curScreen().bg.imageFit; }));
                 addRow('Fit: Contain', bg.imageFit === 'contain',
                     edit(function () { curScreen().bg.imageFit = 'contain'; }));
+                // Distorts the picture, but the picture then covers exactly the
+                // area the layout does, so anything drawn into it stays put on
+                // a screen the design was not made for.
+                addRow('Fit: Stretch', bg.imageFit === 'stretch',
+                    edit(function () { curScreen().bg.imageFit = 'stretch'; }));
                 addRow('Remove image', false,
                     edit(function () { delete curScreen().bg.image; delete curScreen().bg.imageFit; }));
             }
+        });
+        // A design drawn for one shape has to keep it. Whole-layout, like the
+        // panel colours below: a screen that letterboxed while its neighbour
+        // filled would jump on every rotation.
+        sub('Screen shape', function (panel, addRow) {
+            var cur = +LAYOUT.aspect || 0;
+            function pick(v) { return edit(function () { if (v) LAYOUT.aspect = v; else delete LAYOUT.aspect; })(); }
+            addRow('Fill the screen', !cur, function () { pick(0); });
+            addRow('Keep 16:10', cur === 1.6, function () { pick(1.6); });
+            addRow('Keep 16:9', cur === 1.78, function () { pick(1.78); });
+            addRow('Keep 4:3',  cur === 1.33, function () { pick(1.33); });
+        });
+        // Applies to the whole layout, not this screen: it is one look, and
+        // half-and-half is never what anyone wants.
+        sub('Panel colours', function (panel, addRow) {
+            var on = panelColoursOn();
+            addRow('Keep the painted panels', on, function () { setPanelColours(true); });
+            addRow('Let the artwork show through', !on, function () { setPanelColours(false); });
         });
     }
 
@@ -1718,6 +1770,53 @@ function uploadEmbeddedImages(images, done) {
 }
 
 var importFile = document.getElementById('tbeImportFile');
+/* ── Panel colours vs background artwork ───────────────────────────────────
+ * A layout can paint a solid panel behind a cell AND sit that cell on artwork
+ * that already draws that panel. Honouring the colour buries the art; dropping
+ * it loses panels a layout with no artwork needs. Which is wanted is a matter
+ * of looking at the result, so it is a switch rather than a rule. The stash
+ * lives for the session; Undo is the general safety net. */
+var panelStash = {};
+
+// Every box that can carry a background: shared styles, cells, and containers.
+// The SCREEN's own background is deliberately not in here — that is the
+// artwork itself, and this must never be able to switch it off.
+function eachPaintedBox(fn) {
+    var st = LAYOUT.styles || {};
+    Object.keys(st).forEach(function (k) { fn(st[k], 'style:' + k); });
+    (LAYOUT.screens || []).forEach(function (s, i) {
+        (function walk(n, p) {
+            if (!n || typeof n !== 'object') return;
+            fn(n.cell ? n.cell : n, p);
+            var list = n.row || n.col;
+            if (list) list.forEach(function (c, j) { walk(c, p + '.' + j); });
+        })(s.root, 's' + i);
+    });
+}
+
+function panelColoursOn() {
+    var any = false;
+    eachPaintedBox(function (b) { if (b && b.bg) any = true; });
+    return any;
+}
+
+function screenHasArt() {
+    return (LAYOUT.screens || []).some(function (s) { return s.bg && s.bg.image; });
+}
+
+function setPanelColours(on, quiet) {
+    if (!quiet) pushUndo();
+    eachPaintedBox(function (box, key) {
+        if (!box) return;
+        if (on) { if (box.bg == null && panelStash[key] != null) box.bg = panelStash[key]; }
+        else if (box.bg) { panelStash[key] = box.bg; delete box.bg; }
+    });
+    // quiet is for the import itself: it has already pushed its own undo step,
+    // and a second one would make Ctrl+Z put the panels back instead of
+    // undoing the import.
+    if (!quiet) { refresh(true); renderInspector(); }
+}
+
 document.getElementById('tbeImport').addEventListener('click', function () { importFile.value = ''; importFile.click(); });
 importFile.addEventListener('change', function () {
     var file = importFile.files && importFile.files[0];
@@ -1725,10 +1824,28 @@ importFile.addEventListener('change', function () {
     // Embedded images make these files big; 8MB/image server cap × up to 20.
     if (file.size > 64 * 1024 * 1024) { (window.pkAlert || alert)('That file is too large to be a layout.'); return; }
     var reader = new FileReader();
+    // Read as bytes and decode explicitly: a file that came back off a phone or
+    // out of a mail client can carry a BOM, and reading it as text would leave
+    // that byte at the front of the JSON where JSON.parse trips over it.
     reader.onload = function () {
+        var text = new TextDecoder('utf-8').decode(new Uint8Array(reader.result)).replace(/^\uFEFF/, '');
+        onText(text);
+    };
+    reader.onerror = function () { (window.pkAlert || alert)('Could not read that file.'); };
+    reader.readAsArrayBuffer(file);
+
+    function onText(text) {
+        // Checked from the CONTENTS, never the name: iOS hands files over from
+        // iCloud and Files with names we cannot rely on, and the picker
+        // deliberately has no accept filter so the file is selectable there at
+        // all.
         var env;
-        try { env = JSON.parse(reader.result); }
-        catch (e) { (window.pkAlert || alert)('That file is not valid JSON.'); return; }
+        try { env = JSON.parse(text); }
+        catch (e) {
+            (window.pkAlert || alert)("That is not a GameNight layout file. Export one from this " +
+                "editor (or another install) and it saves as .gntimer.json.");
+            return;
+        }
         // Accept our envelope, or a bare layout object as a fallback.
         var layout = (env && env.gnTimerLayout && env.layout) ? env.layout
                    : (env && (env.screens || env.root)) ? env : null;
@@ -1765,9 +1882,7 @@ importFile.addEventListener('change', function () {
             finish();
             if (failed) (window.pkAlert || alert)(failed + ' embedded image' + (failed > 1 ? 's' : '') + " couldn't be imported (the rest of the layout is fine).");
         });
-    };
-    reader.onerror = function () { (window.pkAlert || alert)('Could not read that file.'); };
-    reader.readAsText(file);
+    }
 });
 
 document.getElementById('tbeDelete').addEventListener('click', function () {
