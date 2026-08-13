@@ -4,6 +4,25 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2088] - 2026-08-13
+
+### Fixed
+
+- **Week view: clicking an event opened `event.php?id=[object Object]`.** v0.2083
+  fixed this for the calendar chips the server renders as markup, but the week
+  view builds its timed chips in JavaScript, and those still handed the whole
+  event object to `viewEvent()`, which concatenates its first argument straight
+  into the URL. The same mistake sat in the auto-open path that runs when the
+  calendar is asked to open an event directly. Both now pass the id and the
+  occurrence date as scalars (`www/calendar.php`, `renderDayCol()` and the
+  `$__autoEdit` branch). Month cells and week all-day chips also carried the
+  event's `start_date` rather than the date of the cell they were drawn in, so a
+  multi-day or recurring event sent you back to the wrong day; they now use the
+  cell's own date. Removes a dead `allDayEvs` read in `renderDayCol()` too: all-day
+  events are drawn in the server-rendered row above the grid, not in the column.
+
+---
+
 ## [v0.2087] - 2026-08-12
 
 ### Changed
