@@ -1118,6 +1118,15 @@ if ($action === 'uneliminate_player') {
 
     $db->prepare('UPDATE poker_players SET eliminated = 0, finish_position = NULL, eliminated_by = NULL WHERE id = ?')->execute([$player_id]);
 
+    // Give them a seat back. Eliminating deliberately frees the seat
+    // (table/seat go NULL so rebalancing works), which meant an undone
+    // elimination returned a player to the game with NO seat — invisible on
+    // the timer's seat map, and unlisted at any table in the Table view.
+    // auto_assign_table() is a no-op when the session seats manually, and at a
+    // final table the freed seat is usually the only opening, so they land
+    // back where they were.
+    auto_assign_table($db, (int)$session['id'], $player_id);
+
     // If this puts more than one player back in, undo any auto-crowned winner and
     // reopen the game (it's no longer over). Reopening voids issued tickets and
     // is blocked once one was redeemed at its target.

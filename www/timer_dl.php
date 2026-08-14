@@ -221,6 +221,27 @@ if ($action === 'get_state') {
         $chip_set = pk_clean_chip_set($cq->fetchColumn() ?: '');
     }
 
+    $players = [];
+    if ($session_id > 0 && $game_type === 'tournament') {
+        // The exact "still in" predicate calc_pool uses. Walk-ins have
+        // user_id NULL, so the join leaves their avatar null and the display
+        // falls back to initials.
+        $pq = $db->prepare('SELECT pp.display_name, pp.table_number, pp.seat_number, u.avatar_path
+                            FROM poker_players pp LEFT JOIN users u ON u.id = pp.user_id
+                            WHERE pp.session_id = ? AND pp.removed = 0 AND pp.bought_in = 1 AND pp.eliminated = 0
+                            ORDER BY pp.table_number, pp.seat_number LIMIT 30');
+        $pq->execute([$session_id]);
+        foreach ($pq->fetchAll(PDO::FETCH_ASSOC) as $pr) {
+            $av = (string)($pr['avatar_path'] ?? '');
+            $players[] = [
+                'name'   => (string)$pr['display_name'],
+                'table'  => (int)$pr['table_number'],
+                'seat'   => (int)$pr['seat_number'],
+                'avatar' => preg_match('#^/uploads/avatars/[A-Za-z0-9._/-]{1,160}$#', $av) ? $av : null,
+            ];
+        }
+    }
+
     $themeProps = timer_resolve_theme($db, (int)($timer['theme_id'] ?? 0) ?: null);
 
     echo json_encode([
@@ -242,6 +263,13 @@ if ($action === 'get_state') {
         // when the game has none, so the display hides the cell rather than
         // drawing an empty box.
         'chips' => $chip_set,
+        // Still-in players with their seats, for the <seats> final-table cell.
+        // This DELIBERATELY widens the ?key channel: a wall display exists to
+        // show who is at which seat, so possession of the key now buys names
+        // and avatars of players still IN the game — and nothing else. Only
+        // still-in rows (never eliminated players, notes, payouts or contact
+        // data), avatar paths only from our own avatars folder, capped.
+        'players' => $players,
         // Setup figures the display can show but cannot derive: the fees, the
         // chips each buy-in grants, the table plan and when the game starts.
         // Named explicitly rather than handing the whole session row to every

@@ -790,6 +790,34 @@ function renderInspector() {
             return;
         }
 
+        if (cell.seats) {
+            var stWrap = document.createElement('div');
+            stWrap.className = 'tbe-field';
+            var stl = document.createElement('span'); stl.textContent = 'Seat map'; stWrap.appendChild(stl);
+            var stn = document.createElement('div'); stn.className = 'tbe-note';
+            stn.textContent = 'Every remaining player at their assigned seat — avatar, name, seat '
+                            + 'number. Pair it with a screen condition like playersLeft <= 10 for a '
+                            + 'final-table view. The preview shows sample players.';
+            stWrap.appendChild(stn);
+            insp.appendChild(stWrap);
+            var tno = document.createElement('input');
+            tno.type = 'number'; tno.min = '1'; tno.max = '50'; tno.placeholder = 'auto (busiest table)';
+            tno.value = cell.table !== undefined ? cell.table : '';
+            tno.addEventListener('change', function () {
+                pushUndo();
+                var v = parseInt(tno.value, 10);
+                if (isFinite(v) && v > 0) cell.table = v; else delete cell.table;
+                refresh(true);
+            });
+            insp.appendChild(field('Table number (blank = auto)', tno));
+            insp.appendChild(field('Weight (share of space)', numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
+            var rmSt = document.createElement('button'); rmSt.className = 'tbe-mini tbe-mini-danger';
+            rmSt.textContent = 'Remove seat map (back to text)';
+            rmSt.addEventListener('click', function () { pushUndo(); delete cell.seats; delete cell.table; refresh(true); renderInspector(); });
+            insp.appendChild(rmSt);
+            return;
+        }
+
         if (cell.qr) {
             var qrWrap = document.createElement('div');
             qrWrap.className = 'tbe-field';
@@ -824,6 +852,12 @@ function renderInspector() {
         toChips.title = "This game's chip denominations and colours";
         toChips.addEventListener('click', function () { pushUndo(); cell.chips = true; refresh(true); renderInspector(); });
         insp.appendChild(toChips);
+
+        var toSeats = document.createElement('button');
+        toSeats.className = 'tbe-mini'; toSeats.textContent = 'Use a seat map instead';
+        toSeats.title = 'The final table: every remaining player at their assigned seat';
+        toSeats.addEventListener('click', function () { pushUndo(); cell.seats = true; refresh(true); renderInspector(); });
+        insp.appendChild(toSeats);
 
         var ta = document.createElement('textarea');
         ta.rows = 3; ta.value = cell.text || '';
@@ -1146,6 +1180,8 @@ function openNodeMenu(path, x, y) {
             item('Remove QR code (back to text)', edit(function () { delete cell.qr; }));
         } else if (cell.chips) {
             item('Remove chip legend (back to text)', edit(function () { delete cell.chips; }));
+        } else if (cell.seats) {
+            item('Remove seat map (back to text)', edit(function () { delete cell.seats; delete cell.table; }));
         } else {
             toggle('Bold', !!cell.bold, edit(function () { setOrDelete(cell, 'bold', cell.bold ? undefined : true); }));
             toggle('Fit text to box', !!cell.fit, edit(function () { setOrDelete(cell, 'fit', cell.fit ? undefined : true); }));
@@ -1176,6 +1212,7 @@ function openNodeMenu(path, x, y) {
             });
             item('Use a QR code instead', edit(function () { cell.qr = 'display'; }));
             item('Use a chip legend instead', edit(function () { cell.chips = true; }));
+            item('Use a seat map instead', edit(function () { cell.seats = true; }));
         }
         // Box properties apply whatever the cell holds.
         sub('Background', colourPanel(cell.bg, function (v) { setOrDelete(cell, 'bg', v); }, 'None'));

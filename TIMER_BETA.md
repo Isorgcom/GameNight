@@ -446,6 +446,31 @@ Three things worth remembering:
   default `1.15em`, for a legend whose numbers should stay at body size while
   the discs fill the band they sit in.
 
+## Seat map — the final table
+
+`{ cell: { seats: true, table?: N } }` draws every still-in player at their
+assigned seat around an ellipse: avatar (photo when they have one, initials on
+the same hue the rest of the site computes — avatarHue matches avatar_hue() in
+db.php byte for byte), name, seat badge; empty seats stay as dim rings so the
+table reads short-handed. Pair with `when: 'playersLeft <= 10 and playersLeft
+> 1'` and the display flips to it BY ITSELF when the field shrinks (the lower
+bound keeps pre-game's 0 from matching). PCF ships the screen.
+
+The data contract: `get_state` sends `players` — still-in only (`removed=0 AND
+bought_in=1 AND eliminated=0`, calc_pool's exact predicate), name + table +
+seat + avatar path, capped at 30. **This deliberately widens the `?key`
+channel**: a wall display exists to show who is at which seat, so the key now
+buys still-in names and avatars — and nothing else. Avatar paths are checked
+at BOTH ends against `/uploads/avatars/` only.
+
+Rules that came from the data model: `table` pins a table, default is the
+busiest (at an actual final table, THE table). Seat numbers may exceed
+seats_per_table (pick_random_seat over-sits a full table) — the ellipse
+stretches. Two players on one seat (no DB constraint) both render, nudged —
+the display must never lose a player. No per-player chip stacks: there is no
+such column anywhere; stacks are a future feature needing schema plus a host
+entry UI.
+
 ## QR cell — a second screen
 
 **The editor preview draws a real, scannable sample code.** Sample and embed

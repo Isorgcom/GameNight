@@ -204,6 +204,11 @@ function pk_lo_cell($cell, array &$err): ?array {
     // Chip legend. A flag, not content: the denominations come from the game,
     // never from the layout file.
     if (!empty($cell['chips'])) $out['chips'] = true;
+    // Final-table seat map. `table` pins one table; absent = the busiest.
+    if (!empty($cell['seats'])) {
+        $out['seats'] = true;
+        if (isset($cell['table'])) { $tn = pk_lo_num($cell['table'], 1, 50); if ($tn !== null) $out['table'] = (int)$tn; }
+    }
     if (isset($cell['when'])) { $w = pk_lo_cond($cell['when']); if ($w !== null) $out['when'] = $w; }
     // Per-element styling: a map of element name -> {color, bold, scale}, so
     // one element inside a cell's line can differ from the rest. Names are
