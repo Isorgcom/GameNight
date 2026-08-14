@@ -174,6 +174,8 @@ var TB_SESSION_ID  = <?= json_encode($session_id ?: null) ?>;
 // screen opened by event_id can still show a QR — and so nothing user-supplied
 // is ever reflected into the page.
 var TB_KEY      = <?= json_encode($remote_key !== '' ? $remote_key : null) ?>;
+// The build stamp this page booted with; get_state carries the current one.
+var TB_ASSET_V  = <?= (int) (@filemtime(__DIR__ . '/timer_beta.js') ?: 0) ?>;
 var TB_CAST_KEY = <?= json_encode($cast_key ?: null) ?>;
 var TB_EVENT_TITLE = <?= json_encode($event_title) ?>;
 var TB_EMBED       = <?= json_encode($is_embed) ?>;

@@ -232,6 +232,11 @@ if ($action === 'get_state') {
         // would disagree with each other, which is exactly what a shared
         // anchor is supposed to prevent.
         'server_now_ms' => (int) round(microtime(true) * 1000),
+        // The display JS's current build stamp. A timer display sits open for
+        // hours polling DATA but never re-fetches CODE, so a fix never reaches
+        // an already-open screen; the client compares this against the stamp
+        // it booted with and reloads itself when they differ.
+        'asset_v' => (int) (@filemtime(__DIR__ . '/timer_beta.js') ?: 0),
         'levels' => $levels,
         // Chip denominations with their colours, for the <chips> legend. Empty
         // when the game has none, so the display hides the cell rather than

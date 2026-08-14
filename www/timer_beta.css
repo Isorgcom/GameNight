@@ -104,8 +104,13 @@ body.tb-letterbox { background: #000; }
    module edges and stops scanning at a distance, which is the only distance a
    wall display is ever read from. */
 .tb-cell-qr .tb-cell-inner { display: flex; align-items: center; justify-content: center; height: 100%; width: 100%; }
+/* The code carries its OWN plate: white backing, rounded corners, drop shadow.
+   A plate painted into background artwork can never align with the live image
+   past pixel rounding, and a zoomed screen makes every misplaced pixel loud —
+   so artwork must NOT paint a backing behind a QR cell; this is it. */
 .tb-qr { max-width: 100%; max-height: 100%; aspect-ratio: 1 / 1; object-fit: contain;
-         image-rendering: pixelated; background: #fff; padding: 0.4vh; border-radius: 2px; }
+         image-rendering: pixelated; background: #fff; padding: 0.7vh; border-radius: 1.2vh;
+         box-shadow: 0 0.8vh 2vh rgba(0,0,0,.5); }
 /* No session, no honest code. Hide the <img> entirely: a src-less image renders
    as a broken-image glyph plus its alt text, which filled the cell with a white
    block in the editor preview. Only the dashed footprint should show. */

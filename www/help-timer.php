@@ -69,6 +69,7 @@ $nav_active  = 'help';
             <li><strong>iPad / iPhone:</strong> Safari cannot go fullscreen on its own. Tap <strong>Share &rarr; Add to Home Screen</strong>; opening the timer from that icon fills the screen, and the icon remembers this game.</li>
             <li><strong>Staying awake:</strong> a phone or tablet showing the timer is kept awake automatically. If the device needs a tap first, a banner says so; tap anywhere once.</li>
             <li><strong>Controls:</strong> if you can manage the game, a control tray appears (start/stop, level skip, add or remove a minute). Anyone else sees a clean display with no controls.</li>
+            <li><strong>Stays current:</strong> a display left open on a TV updates itself. When a new version of the site ships, every open timer screen notices within a few seconds and reloads on its own; you never need to walk over and refresh it.</li>
         </ul>
     </div>
 
@@ -86,6 +87,7 @@ $nav_active  = 'help';
             <li><strong>Drag in the preview:</strong> drag a boundary between boxes to resize them, drag a box to move it. One Ctrl+Z undoes a whole drag.</li>
         </ul>
         <p>A layout is rows and columns of cells. A cell's share of space is its <strong>weight</strong>; a cell with no weight hugs its content. Sizes are a share of the screen, so a layout built on a laptop fills a projector.</p>
+        <div class="hint"><strong>Text never escapes its box.</strong> A cell's size is a maximum, not a promise: when a value outgrows the box you sized it in (blinds double every round, and by round 19 that cell holds <code>2,000,000 / 4,000,000</code>), the text wraps or shrinks inside the box, then returns to full size when values shorten. You size cells for the values you can see; the engine handles the ones you can't.</div>
     </div>
 
     <div class="help-step">
@@ -100,6 +102,13 @@ $nav_active  = 'help';
             <tr><th>Room</th><td><code>tables seats</code></td></tr>
         </table>
         <div class="hint">Capitalisation never matters, and Tournament Director's names work as aliases (<code>&lt;round&gt;</code>, <code>&lt;timer&gt;</code>, <code>&lt;averagestack&gt;</code>, <code>&lt;totalpot&gt;</code>&hellip;), so a layout written from TD muscle memory just works. A name the timer doesn't know shows as &#10216;name&#10217; on screen instead of vanishing, so typos stay visible.</div>
+        <p><strong>Styling one element apart from its line:</strong> select the cell and open <strong>Element styles</strong> in the inspector. It offers the elements present in that cell's text; pick one, and give it its own colour, bold, or a size relative to the line (0.7 means 70% of the surrounding text). The classic use, an ante that only shows on ante rounds and stands out when it does:</p>
+        <ul>
+            <li>Cell <strong>Text</strong>: <code>&lt;smallBlind&gt; / &lt;bigBlind&gt;</code></li>
+            <li>Add a <strong>variant</strong> with condition <code>hasAnte</code> and text <code>&lt;smallBlind&gt; / &lt;bigBlind&gt; / &lt;ante&gt;</code></li>
+            <li><strong>Element styles</strong> &rarr; <code>&lt;ante&gt;</code> &rarr; orange, bold, size 0.7</li>
+        </ul>
+        <p>No ante, plain blinds; ante rounds get the long form with just the ante highlighted. Element styles follow the element through variants, and they scale with the line if a long value makes the whole cell shrink.</p>
         <p>You can also define your own fixed-text elements per layout (sponsor name, house rules line) under the editor's custom elements.</p>
     </div>
 
@@ -124,13 +133,14 @@ $nav_active  = 'help';
     </div>
 
     <div class="help-step">
-        <h2><span class="step-num">9</span> Background artwork</h2>
-        <p>Right-click a screen for its background: a colour, or an image (a poster, a league branding board). Three settings keep artwork honest on screens it wasn't drawn for:</p>
+        <h2><span class="step-num">9</span> Artwork: on the screen, or on the box</h2>
+        <p>There are two places a picture can live, and choosing right saves a lot of nudging:</p>
         <ul>
-            <li><strong>Screen shape</strong> locks the layout to the shape the artwork was drawn at (16:10, 16:9, 4:3). On a wider screen it letterboxes instead of cropping, so text stays inside the boxes painted for it.</li>
-            <li><strong>Fit: Stretch</strong> is the no-bars alternative: the picture distorts to cover exactly the layout's area.</li>
-            <li><strong>Panel colours</strong> switches the whole layout between painting its cell backgrounds and letting the artwork show through.</li>
+            <li><strong>On a box (preferred for plates and panels):</strong> right-click any cell or container &rarr; <strong>Box image</strong>. The picture becomes that box's own background and moves, resizes and reflows <em>with</em> it, so a value can never drift off its plate, on any screen shape. Default fit is Stretch, because plate art is drawn for the box it decorates; Cover and Contain are there too. The PCF built-in is made this way: the felt is the screen, every glossy plate rides its own box.</li>
+            <li><strong>On the screen:</strong> right-click the screen &rarr; <strong>Screen background</strong> for the backdrop itself, a colour or a full-screen picture (felt, a poster, league branding).</li>
         </ul>
+        <div class="hint"><strong>Don't paint buttons into a full-screen picture.</strong> A screen image with plates drawn into it forces the layout to land cells on pixels it can't see, and they drift the moment the screen shape changes. Give each plate to its box instead. (The QR code needs no plate at all; it brings its own white backing.)</div>
+        <p>For a full-screen design that must keep its exact proportions anyway, the old tools remain: <strong>Screen shape</strong> locks the layout to the shape the artwork was drawn at and letterboxes elsewhere; <strong>Fit: Stretch</strong> distorts the picture to cover the layout's area instead of cropping; <strong>Panel colours</strong> switches the whole layout between painting its cell backgrounds and letting artwork show through.</p>
     </div>
 
     <div class="help-step">

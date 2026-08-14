@@ -205,6 +205,25 @@ function pk_lo_cell($cell, array &$err): ?array {
     // never from the layout file.
     if (!empty($cell['chips'])) $out['chips'] = true;
     if (isset($cell['when'])) { $w = pk_lo_cond($cell['when']); if ($w !== null) $out['when'] = $w; }
+    // Per-element styling: a map of element name -> {color, bold, scale}, so
+    // one element inside a cell's line can differ from the rest. Names are
+    // identifier-shaped; values ride the same rules as every other style.
+    if (isset($cell['elStyles']) && is_array($cell['elStyles'])) {
+        $es = []; $n = 0;
+        foreach ($cell['elStyles'] as $k => $v) {
+            if (++$n > 10) break;
+            if (!is_string($k) || !preg_match('/^[a-zA-Z][a-zA-Z0-9]{0,39}$/', $k) || !is_array($v)) continue;
+            $e = [];
+            if (isset($v['color'])) { $c = pk_lo_style_str($v['color'], 40); if ($c !== null) $e['color'] = $c; }
+            if (isset($v['bold']) && is_bool($v['bold'])) $e['bold'] = $v['bold'];
+            if (isset($v['scale'])) { $sc = pk_lo_num($v['scale'], 0.2, 4); if ($sc !== null) $e['scale'] = $sc; }
+            if ($e) $es[$k] = $e;
+        }
+        if ($es) $out['elStyles'] = $es;
+    }
+    // The box's own background image: plate art that moves with the box.
+    if (isset($cell['bgImage'])) { $v = pk_lo_img($cell['bgImage']); if ($v !== null) $out['bgImage'] = $v; }
+    if (isset($cell['bgImageFit']) && in_array($cell['bgImageFit'], ['stretch', 'cover', 'contain'], true)) $out['bgImageFit'] = $cell['bgImageFit'];
     if (isset($cell['opacity'])) { $n = pk_lo_num($cell['opacity'], 0, 1); if ($n !== null) $out['opacity'] = $n; }
     if (isset($cell['variants']) && is_array($cell['variants'])) {
         $vs = [];
@@ -250,6 +269,8 @@ function pk_lo_node($node, int $depth, int &$count, array &$err): ?array {
         $out[$kind] = $kids;
         if (isset($node['gap'])) { $v = pk_lo_style_str($node['gap'], 32); if ($v !== null) $out['gap'] = $v; }
         if (isset($node['justify']) && in_array($node['justify'], ['flex-start', 'center', 'flex-end', 'space-between', 'space-around'], true)) $out['justify'] = $node['justify'];
+        if (isset($node['bgImage'])) { $v = pk_lo_img($node['bgImage']); if ($v !== null) $out['bgImage'] = $v; }
+        if (isset($node['bgImageFit']) && in_array($node['bgImageFit'], ['stretch', 'cover', 'contain'], true)) $out['bgImageFit'] = $node['bgImageFit'];
     }
     // Shared box props (both containers and cell nodes carry these).
     if (isset($node['weight'])) { $n = pk_lo_num($node['weight'], 0, 50); if ($n !== null) $out['weight'] = $n; }

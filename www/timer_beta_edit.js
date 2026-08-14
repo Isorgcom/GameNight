@@ -507,6 +507,87 @@ function renderVariants(cell) {
     insp.appendChild(box);
 }
 
+/* Per-element styling: one element inside the cell's line styled apart from
+ * the rest — "<ante> bold and orange in the blinds line". Offers only the
+ * elements actually present in the cell's text (base + variants): a style for
+ * an element that never renders is a setting that does nothing. */
+function renderElStyles(cell) {
+    var names = [], seen = {};
+    [cell.text || ''].concat((cell.variants || []).map(function (v) { return v.text || ''; }))
+        .join('\n').replace(/<([a-zA-Z][a-zA-Z0-9]*)>/g, function (m, n) {
+            var lc = n.toLowerCase();
+            if (!seen[lc]) { seen[lc] = true; names.push(n); }
+            return m;
+        });
+    var have = cell.elStyles && Object.keys(cell.elStyles).length;
+    if (!names.length && !have) return;
+
+    var box = document.createElement('div');
+    box.className = 'tbe-variants';
+    var head = document.createElement('div');
+    head.className = 'tbe-variants-head';
+    head.textContent = 'Element styles (' + (have ? Object.keys(cell.elStyles).length : 0) + ')';
+    box.appendChild(head);
+
+    Object.keys(cell.elStyles || {}).forEach(function (k) {
+        var st = cell.elStyles[k];
+        var card = document.createElement('div');
+        card.className = 'tbe-variant';
+        var top = document.createElement('div');
+        top.className = 'tbe-variant-top';
+        var lbl = document.createElement('span');
+        lbl.textContent = '<' + k + '>';
+        var rm = document.createElement('button');
+        rm.className = 'tbe-mini tbe-mini-danger'; rm.textContent = 'Remove';
+        rm.addEventListener('click', function () {
+            pushUndo();
+            delete cell.elStyles[k];
+            if (!Object.keys(cell.elStyles).length) delete cell.elStyles;
+            refresh(true); renderInspector();
+        });
+        top.appendChild(lbl); top.appendChild(rm);
+        card.appendChild(top);
+        card.appendChild(field('Colour', colorInput(st.color, function (c) { setOrDelete(st, 'color', c); })));
+        card.appendChild(field('Bold', boolInput(st.bold, function (c) { setOrDelete(st, 'bold', c || undefined); })));
+        var sc = document.createElement('input');
+        sc.type = 'number'; sc.step = '0.1'; sc.min = '0.2'; sc.max = '4';
+        sc.placeholder = '1 = same size'; sc.value = st.scale !== undefined ? st.scale : '';
+        sc.addEventListener('change', function () {
+            pushUndo();
+            var v = parseFloat(sc.value);
+            if (isFinite(v) && v > 0) st.scale = v; else delete st.scale;
+            refresh(true);
+        });
+        card.appendChild(field('Size (x the line)', sc));
+        box.appendChild(card);
+    });
+
+    var unstyled = names.filter(function (n) {
+        return !Object.keys(cell.elStyles || {}).some(function (k) { return k.toLowerCase() === n.toLowerCase(); });
+    });
+    if (unstyled.length) {
+        var row = document.createElement('div');
+        row.style.display = 'flex'; row.style.gap = '.3rem'; row.style.alignItems = 'center';
+        var sel = document.createElement('select');
+        unstyled.forEach(function (n) {
+            var o = document.createElement('option');
+            o.value = n; o.textContent = '<' + n + '>';
+            sel.appendChild(o);
+        });
+        var add = document.createElement('button');
+        add.className = 'tbe-mini'; add.textContent = '+ Style element';
+        add.addEventListener('click', function () {
+            pushUndo();
+            if (!cell.elStyles) cell.elStyles = {};
+            cell.elStyles[sel.value] = {};
+            refresh(true); renderInspector();
+        });
+        row.appendChild(sel); row.appendChild(add);
+        box.appendChild(row);
+    }
+    insp.appendChild(box);
+}
+
 /* Layout-level custom elements: user-defined <name> = plain-text values, shown
  * when the Screen (layout root) is selected. They live on LAYOUT.customElements
  * and so travel with save and export automatically. Plain text only. */
@@ -794,6 +875,7 @@ function renderInspector() {
         insp.appendChild(field('Show when', condEditor(cell.when, function (v) { pushUndo(); setOrDelete(cell, 'when', v); refresh(true); })));
         insp.appendChild(field('Clock colours (warn/critical)', boolInput(cell.clockColors, function (v) { setOrDelete(cell, 'clockColors', v); })));
         insp.appendChild(field('Weight (share of space)', numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
+        renderElStyles(cell);
         renderVariants(cell);
     } else {
         inspTitle.textContent = kind === 'row' ? 'Row' : 'Column';
@@ -1097,9 +1179,36 @@ function openNodeMenu(path, x, y) {
         }
         // Box properties apply whatever the cell holds.
         sub('Background', colourPanel(cell.bg, function (v) { setOrDelete(cell, 'bg', v); }, 'None'));
+        sub('Box image', boxImagePanel(cell));
         sub('Padding',    choices(PADS,    cell.pad,     function (v) { setOrDelete(cell, 'pad', v); }));
         sub('Opacity',    choices(OPACITY, cell.opacity, function (v) { setOrDelete(cell, 'opacity', v); }));
         sub('Border',     choices(BORDERS, cell.border,  function (v) { setOrDelete(cell, 'border', v); }));
+    }
+
+    // A box's OWN background image: plate art that moves and resizes with the
+    // box, so a value can never misalign with the artwork behind it. Offered on
+    // cells and containers alike; default fit is Stretch because plate art is
+    // drawn for the box it decorates.
+    function boxImagePanel(target) {
+        return function (panel, addRow) {
+            addRow(target.bgImage ? 'Change image…' : 'Image…', false, function () {
+                uploadImage(function (url) {
+                    pushUndo();
+                    target.bgImage = url;
+                    refresh(true); renderInspector();
+                });
+            });
+            if (target.bgImage) {
+                addRow('Fit: Stretch', (target.bgImageFit || 'stretch') === 'stretch',
+                    edit(function () { delete target.bgImageFit; }));
+                addRow('Fit: Cover', target.bgImageFit === 'cover',
+                    edit(function () { target.bgImageFit = 'cover'; }));
+                addRow('Fit: Contain', target.bgImageFit === 'contain',
+                    edit(function () { target.bgImageFit = 'contain'; }));
+                addRow('Remove image', false,
+                    edit(function () { delete target.bgImage; delete target.bgImageFit; }));
+            }
+        };
     }
 
     // The SCREEN's background belongs to the screen, not to any node, so it is
@@ -1159,6 +1268,7 @@ function openNodeMenu(path, x, y) {
         sub('Gap',     choices(GAPS,    node.gap,     function (v) { setOrDelete(node, 'gap', v); }));
         sub('Padding', choices(PADS,    node.pad,     function (v) { setOrDelete(node, 'pad', v); }));
         sub('Background', colourPanel(node.bg, function (v) { setOrDelete(node, 'bg', v); }, 'None'));
+        sub('Box image', boxImagePanel(node));
         sub('Border',  choices(BORDERS, node.border,  function (v) { setOrDelete(node, 'border', v); }));
     }
 
@@ -1746,7 +1856,11 @@ var IMG_REF_RE = /^\/uploads\/timer_layouts\/[A-Za-z0-9._-]{1,120}$/;
 function walkImageRefs(layout, fn) {
     (function scan(node) {
         if (!node || typeof node !== 'object') return;
-        if (typeof node.image === 'string' && IMG_REF_RE.test(node.image)) fn(node);
+        // The walker hands back the KEY too: a node can carry content `image`
+        // and box `bgImage` at once, and a callback that assumes .image would
+        // silently skip the plates.
+        if (typeof node.image === 'string' && IMG_REF_RE.test(node.image)) fn(node, 'image');
+        if (typeof node.bgImage === 'string' && IMG_REF_RE.test(node.bgImage)) fn(node, 'bgImage');
         if (node.bg && typeof node.bg === 'object') scan(node.bg);
         if (node.cell && typeof node.cell === 'object') scan(node.cell);
         ['row', 'col', 'screens'].forEach(function (k) {
@@ -1762,7 +1876,7 @@ function slugify(s) {
 document.getElementById('tbeExport').addEventListener('click', function () {
     var name = nameInput.value.trim() || 'Untitled layout';
     var refs = {};
-    walkImageRefs(LAYOUT, function (node) { refs[node.image] = true; });
+    walkImageRefs(LAYOUT, function (node, key) { refs[node[key]] = true; });
     // Fetch each referenced image (same-origin) and embed it as a data URI so
     // the file carries its own images to another install. A ref that fails to
     // fetch (file deleted) is simply not embedded; the export still completes.
@@ -1936,10 +2050,11 @@ importFile.addEventListener('change', function () {
         // no embedded bytes at all (older export) is left as-is for same-install
         // round-trips.
         uploadEmbeddedImages(embedded, function (map, failed) {
-            walkImageRefs(layout, function (node) {
-                if (map[node.image]) { node.image = map[node.image]; return; }
-                if (Object.prototype.hasOwnProperty.call(embedded, node.image)) {
-                    delete node.image; delete node.imageFit;
+            walkImageRefs(layout, function (node, key) {
+                if (map[node[key]]) { node[key] = map[node[key]]; return; }
+                if (Object.prototype.hasOwnProperty.call(embedded, node[key])) {
+                    delete node[key];
+                    delete node[key === 'bgImage' ? 'bgImageFit' : 'imageFit'];
                 }
             });
             finish();
