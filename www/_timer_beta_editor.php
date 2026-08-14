@@ -32,6 +32,7 @@ $csrf = csrf_token();
             <input type="file" id="tbeImportFile" hidden>
             <button id="tbeDelete" class="tbe-btn tbe-btn-danger">Delete</button>
             <a class="tbe-btn tbe-btn-ghost" href="/timer_beta.php" target="_blank">Open display</a>
+            <a class="tbe-btn tbe-btn-ghost" href="/help-timer.php" target="_blank" title="Elements, conditions, artwork, casting — the whole guide">Help</a>
         </div>
     </div>
 

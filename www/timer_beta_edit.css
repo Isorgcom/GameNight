@@ -144,6 +144,14 @@
 /* ── Conditions + variants ── */
 .tbe-cond { display: grid; grid-template-columns: 1fr 1fr; gap: .3rem; }
 .tbe-cond select, .tbe-cond input { padding: .35rem .45rem; border: 1.5px solid #cbd5e1; border-radius: 6px; font-size: .78rem; width: 100%; box-sizing: border-box; }
+/* Expression row spans the grid: it is the primary path, the widgets below are
+   the legacy clauses. Validation reads under the input, names under that. */
+.tbe-cond-expr { grid-column: 1 / -1; }
+.tbe-cond-expr input { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.tbe-cond-msg { font-size: .72rem; min-height: .9rem; margin-top: .15rem; }
+.tbe-cond-msg.ok { color: #16a34a; }
+.tbe-cond-msg.bad { color: #dc2626; }
+.tbe-cond-hint { font-size: .68rem; color: #94a3b8; line-height: 1.5; margin-top: .15rem; }
 .tbe-variants { border-top: 1.5px solid #e2e8f0; margin-top: .3rem; padding-top: .6rem; display: flex; flex-direction: column; gap: .5rem; }
 .tbe-variants-head { font-weight: 700; font-size: .78rem; color: #475569; }
 .tbe-variant { border: 1.5px solid #e2e8f0; border-radius: 8px; padding: .5rem; background: #f8fafc; display: flex; flex-direction: column; gap: .4rem; }

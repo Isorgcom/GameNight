@@ -22,11 +22,35 @@ require_once __DIR__ . '/_poker_helpers.php';
 header('Content-Type: application/json');
 $db = get_db();
 $current = current_user();
+$action = $_POST['action'] ?? $_GET['action'] ?? '';
+
+/* ── Read a display's own layout by remote key ──────────────────────────────
+ * A screen opened by scanning the QR code has to render the layout that game
+ * is bound to, and it had two ways to fail: the endpoint refused it outright
+ * with no login, and even signed in, get_layout below only returns layouts the
+ * CALLER owns (or a global, or one of their league's). A player who scanned it
+ * is neither, so both an anonymous screen and a signed-in guest fell back to a
+ * built-in and showed the wrong display.
+ *
+ * The key already authorises viewing that timer, and this returns only the
+ * layout that timer is currently showing — it cannot be pointed at any other
+ * row, and it answers with the layout alone: no owner, no scope, no editable
+ * flag, nothing that would let a viewer act on it. */
+if ($action === 'get_layout' && ($rk = trim((string)($_GET['key'] ?? ''))) !== '') {
+    $q = $db->prepare('SELECT tl.id, tl.name, tl.layout
+                       FROM timer_state ts JOIN timer_layouts tl ON tl.id = ts.layout_id
+                       WHERE ts.remote_key = ?');
+    $q->execute([$rk]);
+    $row = $q->fetch();
+    if (!$row) { echo json_encode(['ok' => false, 'error' => 'Not found']); exit; }
+    echo json_encode(['ok' => true, 'id' => (int)$row['id'], 'name' => $row['name'],
+                      'layout' => json_decode($row['layout'], true)]);
+    exit;
+}
+
 if (!$current) { http_response_code(401); echo json_encode(['ok' => false, 'error' => 'Not authenticated']); exit; }
 $isAdmin = $current['role'] === 'admin';
 $uid = (int)$current['id'];
-
-$action = $_POST['action'] ?? $_GET['action'] ?? '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
     http_response_code(403); echo json_encode(['ok' => false, 'error' => 'CSRF token invalid']); exit;
@@ -47,17 +71,103 @@ function pk_lo_style_str($v, int $max = 80): ?string {
 // URLs, data URIs or anything with a scheme — so a layout can't point the
 // display at another host. upload.php produces exactly this shape.
 function pk_lo_img($v): ?string {
-    return (is_string($v) && preg_match('#^/uploads/timer_layouts/[A-Za-z0-9._-]{1,120}$#', $v)) ? $v : null;
+    // Uploads, or the repo's own timer artwork under /img/timer_beta/ — that
+    // second prefix exists so "Save as copy" of an artwork built-in (PCF)
+    // keeps its backgrounds instead of the sanitizer stripping them. Nothing
+    // user-writable lives there; both prefixes are same-origin, closed lists.
+    if (!is_string($v)) return null;
+    if (preg_match('#^/uploads/timer_layouts/[A-Za-z0-9._-]{1,120}$#', $v)) return $v;
+    if (preg_match('#^/img/timer_beta/[a-z0-9._-]{1,80}$#', $v)) return $v;
+    return null;
 }
 function pk_lo_num($v, float $min, float $max): ?float {
     if (!is_numeric($v)) return null;
     return max($min, min($max, (float)$v));
 }
 
+/* Validates a condition expression against the SAME grammar the renderer
+ * compiles ("bigBlind > 10000 and not onBreak"). The string is stored verbatim
+ * once it parses; it is never evaluated here. Identifiers are whitelisted, so
+ * nothing outside the renderer's value registry can be smuggled into a layout
+ * — a name the display would refuse is refused at save, where the author can
+ * still see the error. */
+function pk_lo_cond_expr(string $src): bool {
+    if ($src === '' || strlen($src) > 200) return false;
+    $names = ['round','level','smallblind','bigblind','ante','playersleft','playerstotal',
+              'entries','buyins','rebuys','addons','eliminated','chipcount','avgstack',
+              'prizepool','tables','seats','minutesleft',
+              'running','paused','onbreak','pregame','gameover','hasante','hasrebuys',
+              'mobile','tablet','desktop','pc',
+              'true','false','and','or','not'];
+    if (!preg_match_all('/\s*(<=|>=|==|!=|<>|&&|\|\||[<>=!()]|\d+(?:\.\d+)?|[a-zA-Z][a-zA-Z0-9]*)\s*/A',
+                        $src, $m) || implode('', array_map('trim', $m[0])) !== preg_replace('/\s+/', '', $src)) {
+        return false;   // something un-tokenizable in there
+    }
+    $toks = array_map('trim', $m[0]);
+    $pos = 0; $depth = 0; $n = count($toks);
+    $isName = function ($t) use ($names) {
+        return preg_match('/^[a-zA-Z]/', $t) && in_array(strtolower($t), $names, true);
+    };
+    $peek = function () use (&$pos, $toks, $n) { return $pos < $n ? $toks[$pos] : null; };
+    $operand = function () use (&$operand, &$orExpr, &$pos, &$depth, $peek, $isName) {
+        $t = $peek();
+        if ($t === null) return false;
+        if ($t === '(') {
+            $pos++; if (++$depth > 10) return false;
+            if (!$orExpr()) return false;
+            if ($peek() !== ')') return false;
+            $pos++; $depth--;
+            return true;
+        }
+        if (preg_match('/^\d/', $t)) { $pos++; return true; }
+        if (preg_match('/^[a-zA-Z]/', $t) && !in_array(strtolower($t), ['and','or','not'], true)) {
+            if (!$isName($t)) return false;
+            $pos++; return true;
+        }
+        return false;
+    };
+    $cmp = function () use (&$pos, $peek, $operand) {
+        if (!$operand()) return false;
+        $t = $peek();
+        if ($t !== null && in_array($t, ['<','<=','>','>=','=','==','!=','<>'], true)) {
+            $pos++;
+            return $operand();
+        }
+        return true;
+    };
+    $notExpr = function () use (&$notExpr, &$pos, $peek, $cmp) {
+        $t = $peek();
+        if ($t !== null && ($t === '!' || strtolower($t) === 'not')) { $pos++; return $notExpr(); }
+        return $cmp();
+    };
+    $andExpr = function () use (&$pos, $peek, $notExpr) {
+        if (!$notExpr()) return false;
+        while (($t = $peek()) !== null && ($t === '&&' || strtolower($t) === 'and')) {
+            $pos++;
+            if (!$notExpr()) return false;
+        }
+        return true;
+    };
+    $orExpr = function () use (&$pos, $peek, $andExpr) {
+        if (!$andExpr()) return false;
+        while (($t = $peek()) !== null && ($t === '||' || strtolower($t) === 'or')) {
+            $pos++;
+            if (!$andExpr()) return false;
+        }
+        return true;
+    };
+    return $orExpr() && $pos === $n && $depth === 0;
+}
+
 function pk_lo_cond($c) {
     if ($c === null || $c === '' || $c === 'always') return null;
     $states = ['always','running','paused','on_break','pre_game','has_ante','has_rebuys','game_over'];
-    if (is_string($c)) return in_array($c, $states, true) ? $c : null;
+    if (is_string($c)) {
+        if (in_array($c, $states, true)) return $c;
+        // Not a state name: an expression, kept verbatim when it parses.
+        $t = trim($c);
+        return pk_lo_cond_expr($t) ? $t : null;
+    }
     if (!is_array($c)) return null;
     $out = [];
     if (isset($c['state']) && in_array($c['state'], $states, true)) $out['state'] = $c['state'];

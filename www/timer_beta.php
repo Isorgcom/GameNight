@@ -105,6 +105,15 @@ if ($session_id) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <?php /* iOS has no element fullscreen — Safari implements it for video and
+             nothing else — so the only way to a chrome-free display on an iPad
+             is Add to Home Screen, which needs these to launch standalone. The
+             saved icon keeps the URL it was added from, key and all, so a
+             dedicated display device reopens THIS timer straight into it. */ ?>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Timer">
     <title>Timer BETA &mdash; <?= htmlspecialchars($site_name) ?></title>
     <link rel="stylesheet" href="/timer_beta.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/timer_beta.css') ?: 0)) ?>">
 </head>
@@ -112,7 +121,11 @@ if ($session_id) {
 
 <div id="tbRoot" aria-live="off"></div>
 
-<?php if (!$is_embed): ?>
+<?php /* Not on a scanned screen: the layout picker fetches a list the viewer
+         has no rights to (it 401s), and a display someone cast to a TV should
+         not be offering a stranger a dropdown or a link to the classic timer.
+         It shows what the host chose, and nothing else. */ ?>
+<?php if (!$is_embed && $remote_key === ''): ?>
 <div id="tbBar">
     <span class="tb-badge">BETA</span>
     <select id="tbLayoutSelect" title="Layout"></select>
@@ -122,6 +135,17 @@ if ($session_id) {
         <span class="tb-sample" title="No game linked — showing sample data">sample</span>
     <?php endif; ?>
 </div>
+<?php endif; ?>
+
+<?php if (!$is_embed): ?>
+<!-- Fullscreen, for EVERY viewer. The tray's copy of this only appears once
+     get_state confirms control rights, so a screen opened by scanning the QR
+     code — which is the whole point of the QR cell, and is usually a device
+     with no rights at all — had no way to go fullscreen. Auto-hides like the
+     tray, and removes itself entirely when there is no browser chrome to
+     escape (already fullscreen, or launched from the home screen). -->
+<button type="button" id="tbFsBtn" data-act="fullscreen" title="Fullscreen" aria-label="Fullscreen">&#9974;</button>
+<div id="tbFsHint" hidden></div>
 <?php endif; ?>
 
 <?php if ($session_id && !$is_embed): ?>

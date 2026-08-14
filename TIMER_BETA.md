@@ -39,6 +39,65 @@ current timer's point-anchor themes can do both and needed a runtime clamp
 
 ## Screens, conditions, variants
 
+### Condition expressions
+
+A `when` may be a string expression anywhere a condition goes (screen, cell,
+variant): `bigBlind > 10000`, `playersLeft <= 9 and not onBreak`,
+`(round >= 6 or entries > 20) and running`. Grammar (recursive descent in
+`timer_beta.js`, mirrored as a pure validator in `timer_beta_dl.php` — parsed,
+never eval'd):
+
+```
+expr    := or
+or      := and (("or"|"||") and)*
+and     := not (("and"|"&&") not)*
+not     := ("not"|"!") not | cmp
+cmp     := operand (("<"|"<="|">"|">="|"="|"=="|"!="|"<>") operand)?
+operand := number | identifier | "(" expr ")"
+```
+
+**The registry is the foundation.** `COND_VALUES` maps lowercase names to
+functions returning the RAW number from `S` (never a formatted string — a
+`"10,000"` compares as text). Adding a comparable = one line there + the name
+in `pk_lo_cond_expr()`'s whitelist + `COND_NAMES` for the hint line. Grammar,
+editor validation and the help page all read the registry.
+
+Numbers: round/level, smallBlind, bigBlind, ante, playersLeft, playersTotal,
+entries, buyIns, rebuys, addOns, eliminated, chipCount, avgStack, prizePool
+(dollars), tables, seats, minutesLeft. Booleans (riding the WHEN predicates):
+running, paused, onBreak, preGame, gameOver, hasAnte, hasRebuys.
+
+Device class: mobile, tablet, desktop (`pc` resolves as a spoken alias but
+stays out of the hint line). Per DEVICE, not per game — with casting, every
+scanner runs the same layout on a different class of screen, so a layout can
+hide its chip legend on phones or draw the QR cell only on the TV. The signal
+is the primary pointer (`pointer: coarse`), NOT touch — a touch laptop has a
+fine primary pointer and calls itself a PC, which is what its user would say.
+Phone/tablet split at a 600px smaller-viewport-side, which rotation cannot
+change.
+
+Rules that keep it honest:
+
+- **Identifiers are case-insensitive** — same decision as element lookup.
+- **A parse error or unknown name makes the condition FALSE, never silently
+  true.** The old clause matcher ignored clauses it did not know, which is how
+  a mistyped clause "worked" by matching everything. A failed compile is
+  cached as failed; the string will not get righter.
+- **State DERIVES from the schedule.** `refreshDerived()` recomputes sb/bb/
+  ante/isBreak from `S.levels` at `S.level` — tests (and TBPreview drivers)
+  must set `levels`, not sb/bb directly, or the assertion runs against a state
+  the display can never be in.
+- The editor validates through `TBPreview.validateCondition()` — the
+  renderer's own parser — so the tick the author sees and the truth the
+  display computes can never disagree. `TBPreview.conditionNames()` feeds the
+  hint line.
+- The PHP validator caps length (200) and paren depth (10), whitelists every
+  token, and stores the string verbatim only when it parses; a bad expression
+  is stripped at save where the author can still see it, not stored to fail
+  silently later.
+
+### States, clauses, screens (the original layer)
+
 - **Screens**: a layout is `{screens:[{name,when,bg,root}]}` (a single-screen
   `{bg,root}` is accepted and normalized). Screens are checked top to bottom;
   the first whose condition matches shows, and a screen with no `when` is the
@@ -62,15 +121,39 @@ current timer's point-anchor themes can do both and needed a runtime clamp
   over the base. Scoped to emphasis so a variant can never reflow the layout.
   Re-evaluated every tick.
 
-## Elements (~27)
+## Elements (~47)
 
-eventName level levelOrBreak clock gameName nextGameName smallBlind bigBlind
-ante blinds nextBlinds players playersLeft playersTotal entries rebuys pot
-chipCount avgStack avgStackBB buyinLine currentTime elapsedTime nextBreak
-prizes prizeList prizesStacked
+**Game:** eventName gameName nextGameName level levelOrBreak clock elapsedTime
+currentTime startTime nextBreak roundsToBreak roundsTotal
+
+**Blinds:** smallBlind bigBlind ante blinds nextBlinds nextSmallBlind
+nextBigBlind nextAnte
+
+**Players:** players playersLeft playersTotal entries buyIns rebuys addOns
+eliminated cashedOut
+
+**Chips:** chipCount avgStack avgStackBB startChips addOnChips
+
+**Money:** pot prizePool bountyPool jackpotPool buyInFee rebuyFee addOnFee
+buyinLine prizes prizeList prizesStacked
+
+**Room:** tables seats
 
 Element names match `[a-zA-Z][a-zA-Z0-9]*`. Plus any layout-defined custom
 elements (see roadmap).
+
+**Lookup is case-insensitive, and Tournament Director's spellings are accepted
+as aliases** (`<SmallBlind>`, `<round>`, `<timer>`, `<averagestack>`,
+`<buyinchips>`, `<totalpot>`, `<roundbeforenextbreak>`, `<title>`, …). Someone
+who knows TD types what they already know instead of hunting through the picker,
+and a name that renders as ⟨smallblind⟩ over nothing but capitalisation is a bad
+afternoon. Aliases resolve to our own elements rather than duplicating them, and
+are deliberately kept OUT of the picker: one canonical name to choose from, many
+accepted. `ELEMENT_ALIASES` and `rebuildElementIndex()` in `timer_beta.js`.
+
+The setup figures (fees, chips per buy-in, table plan, start time) ride in
+`get_state`'s `game` block, named explicitly rather than handing the whole
+session row to every screen — a display is public to anyone with the key.
 
 `avgStackBB` is average stack in big blinds ("38 BB"); `levelOrBreak` is a
 single "Level 5"/"Break" label. The editor's element picker shows each
@@ -81,6 +164,27 @@ Known data gaps: `buyinLine` is sample-only (get_state doesn't return buy-in
 config); `gameName` is a fixed string (no per-level game field exists);
 `elapsedTime` is blind-schedule time, not wall time (no session start
 timestamp in get_state).
+
+## Built-in layouts
+
+classic, black_green, minimalist, two_column — pure CSS — and **pcf**, the
+first ARTWORK built-in: two painted backgrounds shipped as repo files under
+`www/img/timer_beta/`. That location is why `safeImageSrc()` (renderer) and
+`pk_lo_img()` (sanitizer) both allow `/img/timer_beta/` alongside
+`/uploads/timer_layouts/`: without the server half, "Save as copy" of an
+artwork built-in would strip its backgrounds. Nothing user-writable lives under
+either prefix's static half. A new built-in also needs its key in
+`event_setup_dl.php`'s `set_layout` whitelist or games cannot bind it.
+
+PCF was generated, not hand-tuned: an art-board builder renders the CSS art at
+1280x800 and emits the layout tree from the same geometry constants, so the
+cells land in the painted boxes by construction. Regenerate there rather than
+nudging weights in the JS. Two engine lessons it bakes in: a layout SPACER must
+hold something invisible (a dot at opacity 0) because the engine hides
+empty-text cells; and its QR shows on EVERY device — the white backing plate is
+painted into the artwork, so gating the code by device would leave phones an
+empty white square. A layout may only gate a QR by device when nothing in its
+artwork promises one.
 
 ## Files
 
@@ -309,6 +413,17 @@ Three things worth remembering:
 
 ## QR cell — a second screen
 
+**The editor preview draws a real, scannable sample code.** Sample and embed
+modes have no session, so there is no honest timer link to encode — but the
+dashed stub that used to stand in read as a broken cell (and on a multi-screen
+layout the editor used to open on the Break screen, where the QR does not even
+exist; every load path now opens on the catch-all via `mainScreenIndex()`).
+The sample encodes `https://youtu.be/dQw4w9WgXcQ` — deliberately absurd, so a
+screenshot of the editor can never pass for a live link, and anyone who scans
+the preview has been rickrolled, which is its own documentation. The dashed
+placeholder remains only for the one case with truly nothing to draw: the QR
+library failing to load.
+
 `{ cell: { qr: 'display' } }` renders a QR another screen scans to join this
 display. Requires `/vendor/qrcode.min.js`, which `timer_beta.php` loads; CSP
 already permits `data:` images.
@@ -350,6 +465,52 @@ Three implementation notes worth keeping:
 - That placeholder must also `display: none` the `<img>` and clear its `alt`. A
   src-less image renders as a broken-image glyph plus its alt text, which filled
   the editor preview with a white block.
+
+## What a scanned screen may read
+
+A screen opened with `?key=` must render **the layout the host chose**, and it
+had two ways to fall back to a built-in instead. `timer_beta_dl.php` refused an
+anonymous caller outright, and `get_layout` only returns layouts the CALLER owns
+(or a global, or one of their leagues') — so a guest who scanned it, signed in or
+not, was never going to be handed the host's private layout.
+
+`get_layout` therefore accepts a `key` **before** the auth gate. It ignores the
+requested id and answers with the layout that key's timer is currently bound to,
+carrying the layout alone: no owner, no scope, no `editable` flag. The key
+already authorises viewing that timer, and this is what that timer is showing, so
+it exposes nothing further. It cannot be pointed at another row.
+
+Two smaller things fell out of the same bug:
+
+- **The first paint must not depend on the picker.** A saved layout used to be
+  applied inside the `get_layouts` callback, so the render only happened once the
+  dropdown's list arrived. A scanned screen has no dropdown and gets a 401 for
+  the list, so nothing ever applied. `applyPick(pick)` now runs at boot and the
+  callback only reflects the choice in the control.
+- **The corner bar is not rendered for a key screen at all.** A display cast to
+  a TV should not offer a stranger a layout dropdown or a link to the classic
+  timer, and everything behind it 401s for them anyway. Guard every use of the
+  picker: it is legitimately absent, and populating a control that is not there
+  threw on the first `appendChild` and took the whole display down with it.
+
+## Fullscreen on a scanned screen
+
+**The button belongs to the viewer, not the controller.** The control tray only
+appears once `get_state` says this viewer can drive the game, and the screen most
+likely to want fullscreen is the one someone just scanned the QR code onto, which
+usually cannot. `#tbFsBtn` is rendered for every non-embed viewer and fades with
+the tray, so it is there when it is needed and invisible the rest of the time.
+
+**iOS has no element Fullscreen API.** Safari implements it for `<video>` and
+nothing else, iPad included, so `requestFullscreen()` is simply absent. That is
+feature-detected, never sniffed. Where it is missing the button says what does
+work instead: **Share → Add to Home Screen**, which needs
+`apple-mobile-web-app-capable` (plus the status-bar style) on the page to launch
+chrome-free. The saved icon keeps the URL it was added from, key and all, so a
+dedicated display device reopens that same game straight into a full screen.
+
+`navigator.standalone` / `display-mode: standalone` removes the button
+altogether: there is no browser chrome left to escape.
 
 ## Keeping the screen awake
 

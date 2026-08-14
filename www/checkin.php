@@ -2278,7 +2278,8 @@ function renderTimerPane() {
     h += '<div class="pk-cfg-title">Tournament timer</div>';
     h += '<label class="es-toggle" style="margin:.4rem 0"><input type="checkbox" id="ckUseBeta"' + (USE_BETA_TIMER ? ' checked' : '') + ' data-act-change="toggleBetaTimer"> Use BETA timer</label>';
     h += '<p class="es-note" style="margin:.2rem 0 .8rem">When on, the Timer button (and any link to this game\'s timer) opens the new layout-engine display: custom layouts, multi-screen rotation, break screens. Switch off any time to go back to the classic timer.</p>';
-    h += '<p class="es-note">Pick which layout this game\'s display shows, and build or tweak layouts, right below.</p>';
+    h += '<p class="es-note">Pick which layout this game\'s display shows, and build or tweak layouts, right below. ' +
+         '<a href="/help-timer.php" target="_blank">Timer guide</a> covers layouts, casting and conditions.</p>';
     h += '</div>';
 
     // Chip set: denominations and their colours, drawn on the timer as a legend

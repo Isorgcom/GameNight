@@ -34,10 +34,26 @@ function normalizeLayout() {
 }
 function curScreen() { return LAYOUT.screens[editScreenIndex]; }
 
+// Open on the CATCH-ALL screen, not screen 0. Conditional screens (Break) sort
+// first so the engine tests them before the default — which put every
+// multi-screen layout's editor session on the break screen, where cells that
+// only exist on Main (the QR, the chips bar) simply are not there to see.
+function mainScreenIndex() {
+    for (var i = 0; i < (LAYOUT.screens || []).length; i++) {
+        if (!LAYOUT.screens[i].when) return i;
+    }
+    return 0;
+}
+
 var ELEMENT_BUILTINS = [];
+// Fallback only: replaced at boot by PV.elementNames(), which is the renderer's
+// own list. Kept in step so the picker is never empty on a slow frame.
 var ELEMENTS = ['eventName','level','levelOrBreak','clock','gameName','nextGameName','smallBlind','bigBlind','ante',
-    'blinds','nextBlinds','players','playersLeft','playersTotal','entries','rebuys','pot','chipCount','avgStack','avgStackBB',
-    'currentTime','elapsedTime','nextBreak','prizes','prizeList','prizesStacked','buyinLine'];
+    'blinds','nextBlinds','nextSmallBlind','nextBigBlind','nextAnte','players','playersLeft','playersTotal','entries',
+    'rebuys','buyIns','addOns','eliminated','cashedOut','pot','prizePool','bountyPool','jackpotPool',
+    'buyInFee','rebuyFee','addOnFee','startChips','addOnChips','tables','seats','startTime',
+    'chipCount','avgStack','avgStackBB','currentTime','elapsedTime','nextBreak','roundsToBreak','roundsTotal',
+    'prizes','prizeList','prizesStacked','buyinLine'];
 
 /* ── Tree access helpers ─────────────────────────────────────────────── */
 
@@ -360,20 +376,64 @@ function setOrDelete(obj, key, val) {
 var STATE_OPTS = ['', 'running', 'paused', 'on_break', 'pre_game', 'game_over'];
 var STATE_LBLS = ['Any state', 'Running', 'Paused', 'On break', 'Pre-game', 'Game over'];
 
+// State names are the string shorthand; any OTHER string in a `when` is an
+// expression ("bigBlind > 10000 and not onBreak").
+var COND_STATES = ['always', 'running', 'paused', 'on_break', 'pre_game', 'has_ante', 'has_rebuys', 'game_over'];
+
 function condEditor(cond, onchange) {
-    var m = {};
-    if (typeof cond === 'string') { if (cond && cond !== 'always') m.state = cond; }
+    var m = {}, expr = '';
+    if (typeof cond === 'string') {
+        if (COND_STATES.indexOf(cond) !== -1) { if (cond !== 'always') m.state = cond; }
+        else if (cond) expr = cond;
+    }
     else if (cond && typeof cond === 'object') m = JSON.parse(JSON.stringify(cond));
 
     var wrap = document.createElement('div');
     wrap.className = 'tbe-cond';
 
     function emit() {
+        // An expression wins outright: it can say everything the widgets can
+        // and more, and half-expression half-clauses would be two conditions
+        // pretending to be one.
+        if (expr.trim() !== '') { onchange(expr.trim()); return; }
         var keys = Object.keys(m).filter(function (k) { return m[k] !== undefined && m[k] !== ''; });
         if (!keys.length) { onchange(undefined); return; }
         if (keys.length === 1 && m.state) { onchange(m.state); return; }   // shorthand
         onchange(JSON.parse(JSON.stringify(m)));
     }
+
+    // ── Expression row: the primary path ──
+    var exRow = document.createElement('div');
+    exRow.className = 'tbe-cond-expr';
+    var ex = document.createElement('input');
+    ex.type = 'text';
+    ex.placeholder = 'Expression, e.g. bigBlind > 10000 and not onBreak';
+    ex.value = expr;
+    var exMsg = document.createElement('div');
+    exMsg.className = 'tbe-cond-msg';
+    function validate() {
+        var v = ex.value.trim();
+        if (v === '') { exMsg.textContent = ''; exMsg.className = 'tbe-cond-msg'; return true; }
+        // The renderer's own parser judges it, so the tick here and the truth
+        // on the display can never disagree.
+        var res = (PV && PV.validateCondition) ? PV.validateCondition(v) : { ok: true };
+        exMsg.textContent = res.ok ? '✓ valid' : res.error;
+        exMsg.className = 'tbe-cond-msg ' + (res.ok ? 'ok' : 'bad');
+        return res.ok;
+    }
+    ex.addEventListener('input', validate);
+    ex.addEventListener('change', function () {
+        expr = ex.value;
+        if (validate()) emit();
+    });
+    exRow.appendChild(ex);
+    exRow.appendChild(exMsg);
+    var hint = document.createElement('div');
+    hint.className = 'tbe-cond-hint';
+    hint.textContent = 'Compare: ' + ((PV && PV.conditionNames) ? PV.conditionNames().join(', ') : '');
+    exRow.appendChild(hint);
+    wrap.appendChild(exRow);
+    validate();
 
     var st = document.createElement('select');
     STATE_OPTS.forEach(function (o, i) { var op = document.createElement('option'); op.value = o; op.textContent = STATE_LBLS[i]; st.appendChild(op); });
@@ -1612,9 +1672,10 @@ loadSel.addEventListener('change', function () {
         delete LAYOUT.name;
         layoutId = null; editable = true;
         nameInput.value = PV.builtins[k].name + ' (mine)';
-        undoStack = []; selPath = null; editScreenIndex = 0;
+        undoStack = []; selPath = null;
         normalizeLayout();
-        refresh(); selectScreen(0);
+        editScreenIndex = mainScreenIndex();
+        refresh(); selectScreen(editScreenIndex);
         curBuiltin = k;
         updateEventBtn();
     } else {
@@ -1626,9 +1687,10 @@ loadSel.addEventListener('change', function () {
                 layoutId = j.editable ? j.id : null;
                 editable = j.editable;
                 nameInput.value = j.name + (j.editable ? '' : ' (copy)');
-                undoStack = []; selPath = null; editScreenIndex = 0;
+                undoStack = []; selPath = null;
                 normalizeLayout();
-                refresh(); selectScreen(0);
+                editScreenIndex = mainScreenIndex();
+                refresh(); selectScreen(editScreenIndex);
                 curBuiltin = null;
                 updateEventBtn();
             }).catch(function () {});
@@ -1858,11 +1920,12 @@ importFile.addEventListener('change', function () {
             // Load it into the editor first (through the same renderer, which only
             // assigns text via textContent), then persist a NEW row via the
             // server-sanitized save path so it lands in the Load list.
-            LAYOUT = layout; layoutId = null; editable = true; editScreenIndex = 0; curBuiltin = null;
+            LAYOUT = layout; layoutId = null; editable = true; curBuiltin = null;
             normalizeLayout();
+            editScreenIndex = mainScreenIndex();
             nameInput.value = name.replace(/\s*\(imported\)\s*$/i, '') + ' (imported)';
             undoStack = []; selPath = null;
-            refresh(); selectScreen(0); renderInspector();
+            refresh(); selectScreen(editScreenIndex); renderInspector();
             save(true);   // save as a new copy; server sanitizes and rejects anything invalid
         }
 

@@ -133,6 +133,7 @@ $_accent        = get_setting('accent_color', '');
                             <div class="nav-help-sub">
                                 <a href="/help-hosts.php">Host Guide</a>
                                 <a href="/help-guests.php">Guest Guide</a>
+                                <a href="/help-timer.php">Timer Guide</a>
                                 <a href="/support.php"<?= $_active === 'support' ? ' class="active"' : '' ?>>Support</a>
                             </div>
                         </div>
@@ -151,6 +152,7 @@ $_accent        = get_setting('accent_color', '');
                             <div class="nav-help-sub">
                                 <a href="/help-hosts.php">Host Guide</a>
                                 <a href="/help-guests.php">Guest Guide</a>
+                                <a href="/help-timer.php">Timer Guide</a>
                             </div>
                         </div>
                         <div class="nav-mobile-divider"></div>

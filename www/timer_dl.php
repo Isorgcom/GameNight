@@ -161,7 +161,9 @@ if ($action === 'get_state') {
     $game_type = null;
 
     if ($session_id > 0) {
-        $sess = $db->prepare('SELECT ps.*, e.title as event_title, e.id as event_id FROM poker_sessions ps JOIN events e ON ps.event_id = e.id WHERE ps.id = ?');
+        $sess = $db->prepare('SELECT ps.*, e.title as event_title, e.id as event_id,
+                                     e.start_date as ev_date, e.start_time as ev_time
+                              FROM poker_sessions ps JOIN events e ON ps.event_id = e.id WHERE ps.id = ?');
         $sess->execute([$session_id]);
         $session = $sess->fetch();
         $pool = calc_pool($db, $session_id);
@@ -235,6 +237,21 @@ if ($action === 'get_state') {
         // when the game has none, so the display hides the cell rather than
         // drawing an empty box.
         'chips' => $chip_set,
+        // Setup figures the display can show but cannot derive: the fees, the
+        // chips each buy-in grants, the table plan and when the game starts.
+        // Named explicitly rather than handing the whole session row to every
+        // screen — a display is public to anyone with the key.
+        'game' => $session ? [
+            'buyin'       => (int)($session['buyin_amount'] ?? 0),
+            'rebuy'       => (int)($session['rebuy_amount'] ?? 0),
+            'addon'       => (int)($session['addon_amount'] ?? 0),
+            'start_chips' => (int)($session['starting_chips'] ?? 0),
+            'addon_chips' => (int)($session['addon_chips'] ?? 0),
+            'tables'      => (int)($session['num_tables'] ?? 0),
+            'seats'       => (int)($session['seats_per_table'] ?? 0),
+            'start_date'  => $session['ev_date'] ?? null,
+            'start_time'  => $session['ev_time'] ?? null,
+        ] : null,
         'pool' => $pool,
         'payouts' => $payouts,
         'game_type' => $game_type,
