@@ -458,6 +458,67 @@ burning the daily upload cap. Nobody is shown another user's uploads: a
 guessed URL would serve (static files), but the picker does not browse other
 people's libraries for them.
 
+## Triggers — sounds, takeovers, flashes, announcements
+
+`layout.triggers` (up to 20) fire when their condition BECOMES true — edge,
+not state. Each display arms a trigger only after its first evaluation, so a
+screen that joins late never fires for a condition that has been true for an
+hour; it fires on false→true, re-arms on true→false, and honours `cooldown`
+(min seconds between fires, clamped 0..3600) and `once` (never again until
+the layout reloads).
+
+```json
+{ "when": "levelChange",
+  "do": [ { "sound": "preset:chime" },
+          { "takeover": "Alert", "seconds": 8 },
+          { "flash": "screen" },
+          { "announce": "Blinds up: <blinds>" } ],
+  "cooldown": 30, "once": true }
+```
+
+- **`when`** is the same condition language as everywhere else. Two values
+  exist mostly for triggers: `secondsLeft` (`secondsLeft <= 60 and running`
+  is the one-minute warning, re-arming naturally at each level) and
+  `levelChange` / `levelup` (true for exactly one update tick when the level
+  number moves, either direction — snapshotted once per tick in
+  `condTickUpdate()`, never computed on read, because variants evaluate a
+  condition many times per paint).
+- **`sound`** is `preset:<key>` (Web Audio synth from `TB_PRESETS` — buzzer,
+  chime, casino, horn, countdown, double, descending, five3s, tick, pulse,
+  chirp, gentle; zero files, travel everywhere) or an uploaded file
+  `/uploads/timer_sounds/u<uid>_<hash>.<ext>` vetted by `safeSoundSrc()`.
+- **`takeover`** forces a named screen for 1..120 s then releases back to
+  `pickScreen()`. One timeout, latest wins — takeovers never stack. The
+  sanitizer verifies the name against the layout's actual screens at save.
+- **`flash`** pulses `#tbRoot` with the `.tb-flash` amber inset (clears after
+  ~1.8 s by timer, because reduced-motion never fires `animationend`).
+- **`announce`** speaks via `speechSynthesis`, with `<elements>` resolved at
+  fire time; silently skipped where unsupported.
+
+**Audio policy:** host/event displays sound by default; a `?key=` scanned
+display is someone's phone and starts MUTED. The speaker button (corner bar,
+same idle-fade as fullscreen) toggles per display, persisted in
+`localStorage.tb_sound_on`. TTS obeys the same toggle.
+
+**Engine invariants** (`evalTriggers()` in `timer_beta.js`): re-entrancy
+guarded — a takeover rebuilds the screen, whose `updateAll()` would land back
+in the loop before `wasTrue` is written and fire the same trigger forever;
+a throwing action must not strand the guard flag. `resetTriggers()` runs on
+every layout swap and cancels any pending takeover.
+
+**Sounds are first-class media** like images: `upload_sound` (finfo-sniffed
+mp3/m4a/wav/ogg/webm/aac, 5 MB, `u<uid>_` provenance names, own
+`uploads/timer_sounds/` dir, shared daily cap), `list_sounds` library picker
+with ▶ preview, export embeds audio data URIs, import re-uploads and remaps
+(a sound whose bytes fail to import falls back to `preset:chime` rather than
+silently losing the action), and lifecycle GC sweeps unreferenced files at
+layout update/delete (`pk_lo_sound_names` / `pk_lo_gc_sounds`) — classic's
+`alarm_*` files leak forever; these don't. Do NOT copy classic's
+`update_sounds` (stores raw, unvalidated) or its flat upload path.
+
+The PCF builtin ships three: `levelChange` → chime; `secondsLeft <= 60 and
+running` → tick + flash; final table → casino + flash (once).
+
 ## Seat map — the final table
 
 `{ cell: { seats: true, table?: N } }` draws every still-in player at their
@@ -914,7 +975,9 @@ row too, not just the mobile hamburger.
 (screen cycling), `beta_sharedstyles_check.js` (shared styles),
 `beta_eventpages_check.js` (per-event blinds + display pages),
 `beta_blindgrid_check.js` (grid cells, row menu, drag/keyboard reorder, undo),
-`beta_blindgrid_ipad_check.js` (tablet fit + long-press), `beta_shot.js`
+`beta_blindgrid_ipad_check.js` (tablet fit + long-press),
+`beta_triggers_check.js` (edge semantics, cooldown/once, takeover, flash,
+announce, audio policy, sanitizer round trip, sound upload), `beta_shot.js`
 (screenshots). Run against dev; the dev test login is JamesTest.
 
 The break state in sample/preview mode derives from the LEVEL, not a flag:

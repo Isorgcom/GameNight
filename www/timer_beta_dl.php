@@ -95,7 +95,7 @@ function pk_lo_cond_expr(string $src): bool {
     if ($src === '' || strlen($src) > 200) return false;
     $names = ['round','level','smallblind','bigblind','ante','playersleft','playerstotal',
               'entries','buyins','rebuys','addons','eliminated','chipcount','avgstack',
-              'prizepool','tables','seats','minutesleft',
+              'prizepool','tables','seats','minutesleft','secondsleft','levelchange','levelup',
               'running','paused','onbreak','pregame','gameover','hasante','hasrebuys',
               'mobile','tablet','desktop','pc',
               'true','false','and','or','not'];
@@ -354,6 +354,53 @@ function pk_lo_prune_style_refs(array &$node, array $valid): void {
     }
 }
 
+
+/* One trigger: {when, do:[actions], cooldown?, once?}. Actions whitelisted by
+ * key; unknown keys are stripped rather than stored to fail on a display. */
+function pk_lo_trigger($t, array $screenNames): ?array {
+    if (!is_array($t)) return null;
+    $w = pk_lo_cond($t['when'] ?? null);
+    if ($w === null) return null;            // a trigger with no condition never fires
+    $acts = [];
+    foreach (array_slice((array)($t['do'] ?? []), 0, 5) as $a) {
+        if (!is_array($a)) continue;
+        $act = [];
+        if (isset($a['sound']) && is_string($a['sound'])) {
+            $v = $a['sound'];
+            $presets = ['buzzer','chime','casino','horn','countdown','double','descending','five3s','tick','pulse','chirp','gentle'];
+            if (preg_match('/^preset:([a-z0-9]+)$/', $v, $m) && in_array($m[1], $presets, true)) $act['sound'] = $v;
+            elseif (preg_match('#^/uploads/timer_sounds/[A-Za-z0-9._-]{1,160}$#', $v)) $act['sound'] = $v;
+        }
+        if (isset($a['takeover']) && is_string($a['takeover']) && in_array($a['takeover'], $screenNames, true)) {
+            $act['takeover'] = $a['takeover'];
+            $secs = pk_lo_num($a['seconds'] ?? 8, 1, 120);
+            $act['seconds'] = (int)($secs ?? 8);
+        }
+        if (!empty($a['flash'])) $act['flash'] = 'screen';
+        if (isset($a['announce']) && is_string($a['announce']) && $a['announce'] !== '') {
+            $act['announce'] = mb_substr(preg_replace('/[^\P{C}\n]/u', '', $a['announce']), 0, 200);
+        }
+        if ($act) $acts[] = $act;
+    }
+    if (!$acts) return null;                 // all-stripped trigger is nothing
+    $outT = ['when' => $w, 'do' => $acts];
+    $cd = pk_lo_num($t['cooldown'] ?? null, 0, 3600);
+    if ($cd !== null && $cd > 0) $outT['cooldown'] = (int)$cd;
+    if (!empty($t['once'])) $outT['once'] = true;
+    return $outT;
+}
+
+function pk_lo_apply_triggers(array &$out, array $rawTriggers): void {
+    if (!$rawTriggers) return;
+    $names = array_map(function ($s) { return $s['name'] ?? ''; }, $out['screens'] ?? []);
+    $ts = [];
+    foreach ($rawTriggers as $t) {
+        $c = pk_lo_trigger($t, $names);
+        if ($c !== null) $ts[] = $c;
+    }
+    if ($ts) $out['triggers'] = $ts;
+}
+
 function pk_layout_sanitize($doc, array &$err): ?array {
     if (is_string($doc)) $doc = json_decode($doc, true);
     if (!is_array($doc)) { $err[] = 'not a JSON object'; return null; }
@@ -368,6 +415,13 @@ function pk_layout_sanitize($doc, array &$err): ?array {
     // cropped to fill the screen while the text spreads across all of it.
     // Locking the ratio letterboxes both together instead.
     if (isset($doc['aspect'])) { $n = pk_lo_num($doc['aspect'], 0.4, 4.0); if ($n !== null) $out['aspect'] = $n; }
+
+    // Triggers: fire actions when a condition BECOMES true. Same `when`
+    // grammar as everything else; actions whitelisted by key; sounds may only
+    // be a known preset or our own sound uploads; a takeover must name a
+    // screen this layout actually has (validated after screens are built,
+    // below). Classic's update_sounds stores raw values — not copied here.
+    $rawTriggers = (isset($doc['triggers']) && is_array($doc['triggers'])) ? array_slice($doc['triggers'], 0, 20) : [];
 
     // Layout-level custom elements: a name->plain-text map. Names are
     // identifier-safe (so they can appear as <name> in cell text); values are
@@ -396,6 +450,7 @@ function pk_layout_sanitize($doc, array &$err): ?array {
         foreach ($screens as &$s) pk_lo_prune_style_refs($s['root'], $sharedStyles);
         unset($s);
         $out['screens'] = $screens;
+        pk_lo_apply_triggers($out, $rawTriggers);
         return $out;
     }
 
@@ -407,6 +462,9 @@ function pk_layout_sanitize($doc, array &$err): ?array {
     if ($root === null) return null;
     pk_lo_prune_style_refs($root, $sharedStyles);
     $out['root'] = $root;
+    $out['screens'] = $out['screens'] ?? [];   // shorthand: no named screens for takeovers
+    pk_lo_apply_triggers($out, $rawTriggers);
+    unset($out['screens']);
     return $out;
 }
 
@@ -431,7 +489,7 @@ function pk_lo_image_names($layout): array {
     $names = [];
     $scan = function ($node) use (&$scan, &$names) {
         if (!is_array($node)) return;
-        foreach (['image'] as $k) {
+        foreach (['image', 'bgImage'] as $k) {
             if (isset($node[$k]) && is_string($node[$k]) && preg_match('#^/uploads/timer_layouts/([A-Za-z0-9._-]{1,120})$#', $node[$k], $m)) {
                 $names[$m[1]] = true;
             }
@@ -445,6 +503,36 @@ function pk_lo_image_names($layout): array {
     };
     $scan(is_string($layout) ? json_decode($layout, true) : $layout);
     return $names;
+}
+
+// Every /uploads/timer_sounds/... file a layout's triggers reference.
+function pk_lo_sound_names($layout): array {
+    $doc = is_string($layout) ? json_decode($layout, true) : $layout;
+    $names = [];
+    foreach (($doc['triggers'] ?? []) as $t) {
+        foreach (($t['do'] ?? []) as $a) {
+            if (isset($a['sound']) && is_string($a['sound'])
+                && preg_match('#^/uploads/timer_sounds/([A-Za-z0-9._-]{1,160})$#', $a['sound'], $m)) {
+                $names[$m[1]] = true;
+            }
+        }
+    }
+    return $names;
+}
+
+function pk_lo_gc_sounds(PDO $db, array $candidateNames, int $exceptId): void {
+    if (!$candidateNames) return;
+    $rows = $db->prepare('SELECT layout FROM timer_layouts WHERE id != ?');
+    $rows->execute([$exceptId]);
+    $stillUsed = [];
+    foreach ($rows as $r) {
+        foreach (pk_lo_sound_names($r['layout']) as $n => $_) $stillUsed[$n] = true;
+    }
+    foreach ($candidateNames as $n => $_) {
+        if (isset($stillUsed[$n])) continue;
+        if (!preg_match('/^[A-Za-z0-9._-]{1,160}$/', $n)) continue;
+        @unlink(__DIR__ . '/uploads/timer_sounds/' . $n);
+    }
 }
 
 // Delete timer-layout image files that are no longer referenced by ANY layout
@@ -504,6 +592,54 @@ if ($action === 'get_layout') {
 // timer art (/img/timer_beta). Nobody is shown another user's uploads: the
 // URL would work if guessed (static files), but the picker does not browse
 // other people's libraries for them.
+// ─── POST: upload_sound ────────────────────────────────────
+// Trigger audio. Deliberately NOT the classic timer's upload path: that one
+// drops unvalidated files flat in /uploads with no cap and no GC. This one
+// mirrors upload_image — byte-sniffed MIME, provenance filename, its own
+// folder so lifecycle GC can sweep it, and the shared per-user daily cap.
+if ($action === 'upload_sound') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); echo json_encode(['ok' => false, 'error' => 'POST only']); exit; }
+    if (empty($_FILES['sound']) || $_FILES['sound']['error'] !== UPLOAD_ERR_OK) {
+        echo json_encode(['ok' => false, 'error' => 'No file uploaded.']); exit;
+    }
+    $file = $_FILES['sound'];
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $exts = ['audio/mpeg' => 'mp3', 'audio/mp4' => 'm4a', 'audio/x-m4a' => 'm4a',
+             'audio/wav' => 'wav', 'audio/x-wav' => 'wav', 'audio/ogg' => 'ogg',
+             'audio/webm' => 'webm', 'audio/aac' => 'aac'];
+    $mime = $finfo->file($file['tmp_name']);
+    if (!isset($exts[$mime])) { echo json_encode(['ok' => false, 'error' => 'Only MP3, M4A, WAV, OGG, WebM and AAC audio is allowed.']); exit; }
+    if ($file['size'] > 5 * 1024 * 1024) { echo json_encode(['ok' => false, 'error' => 'File too large (max 5 MB).']); exit; }
+    if (!$isAdmin) {
+        $capQ = $db->prepare("SELECT COUNT(*) FROM activity_log WHERE user_id = ? AND action LIKE 'uploaded image:%' AND created_at > datetime('now', '-1 day')");
+        $capQ->execute([$uid]);
+        if ((int)$capQ->fetchColumn() >= MAX_UPLOADS_PER_DAY) { http_response_code(429); echo json_encode(['ok' => false, 'error' => 'Daily upload limit reached — try again tomorrow.']); exit; }
+    }
+    $dir = __DIR__ . '/uploads/timer_sounds/';
+    if (!is_dir($dir) && !@mkdir($dir, 0755, true)) { http_response_code(500); echo json_encode(['ok' => false, 'error' => 'Storage unavailable.']); exit; }
+    $name = 'u' . $uid . '_' . bin2hex(random_bytes(16)) . '.' . $exts[$mime];
+    if (!move_uploaded_file($file['tmp_name'], $dir . $name)) { http_response_code(500); echo json_encode(['ok' => false, 'error' => 'Failed to save file.']); exit; }
+    db_log_activity($uid, 'uploaded image: timer sound ' . $name);   // same counter the cap reads
+    echo json_encode(['ok' => true, 'url' => '/uploads/timer_sounds/' . $name]);
+    exit;
+}
+
+// ─── GET: list_sounds ──────────────────────────────────────
+// The user's own uploaded sounds; presets are client-side and cost nothing.
+if ($action === 'list_sounds') {
+    $out = [];
+    $dir = __DIR__ . '/uploads/timer_sounds';
+    if (is_dir($dir)) {
+        foreach (scandir($dir) as $f) {
+            if (!preg_match('/^u' . $uid . '_[a-f0-9]+\.(mp3|m4a|wav|ogg|webm|aac)$/i', $f)) continue;
+            $out[] = ['url' => '/uploads/timer_sounds/' . $f, 'ts' => (int)@filemtime("$dir/$f")];
+        }
+    }
+    usort($out, function ($a, $b) { return $b['ts'] <=> $a['ts']; });
+    echo json_encode(['ok' => true, 'sounds' => array_slice($out, 0, 60)]);
+    exit;
+}
+
 if ($action === 'list_images') {
     $out = [];
     $dir = __DIR__ . '/uploads/timer_layouts';
@@ -561,9 +697,11 @@ if ($action === 'save_layout') {
         // Images the old version referenced but the new one no longer does are
         // candidates for deletion (a replaced background, a removed image cell).
         $removed = array_diff_key(pk_lo_image_names($row['layout']), pk_lo_image_names($clean));
+        $removedSnd = array_diff_key(pk_lo_sound_names($row['layout']), pk_lo_sound_names($clean));
         $db->prepare("UPDATE timer_layouts SET name = ?, layout = ?, is_global = ?, league_id = ?, updated_at = datetime('now') WHERE id = ?")
            ->execute([$name, json_encode($clean), $isAdmin ? $is_global : (int)$row['is_global'], $league_id, $id]);
         pk_lo_gc_images($db, $removed, $id);
+        pk_lo_gc_sounds($db, $removedSnd, $id);
     } else {
         $db->prepare('INSERT INTO timer_layouts (name, created_by, is_global, league_id, layout) VALUES (?, ?, ?, ?, ?)')
            ->execute([$name, $uid, $is_global, $league_id, json_encode($clean)]);
@@ -586,6 +724,7 @@ if ($action === 'delete_layout') {
     $names = pk_lo_image_names($row['layout']);
     $db->prepare('DELETE FROM timer_layouts WHERE id = ?')->execute([$id]);
     pk_lo_gc_images($db, $names, $id);   // free its images, unless another layout keeps them
+    pk_lo_gc_sounds($db, pk_lo_sound_names($row['layout']), $id);
     db_log_activity($uid, "deleted timer layout: {$row['name']} (#$id)");
     echo json_encode(['ok' => true]);
     exit;

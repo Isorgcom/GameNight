@@ -107,7 +107,10 @@ var STRUCTURE_DESC = [
     ["Element styles", "One element styled apart from its line — <ante> bold and orange while the blinds stay white."],
     ["Box image", "The box's own background picture: plate art that moves and resizes WITH the box."],
     ["Shared style", "A named bundle of colour/size/bold that many cells reference; change it once, every user follows."],
-    ["Screen background", "The backdrop: a colour or full-screen picture. Screen shape locks its proportions; Panel colours toggles painted boxes vs artwork."]
+    ["Screen background", "The backdrop: a colour or full-screen picture. Screen shape locks its proportions; Panel colours toggles painted boxes vs artwork."],
+    ["Copy / Cut / Paste", "Right-click any box (or Ctrl+C / X / V with one selected). The clipboard survives screen switches and layout loads, so a cell can move between designs."],
+    ["Triggers", "Actions that fire ONCE each time a condition BECOMES true: play a sound, show a screen for a few seconds, flash, or speak a line. levelChange and secondsLeft <= 60 and running are the classic ones."],
+    ["Trigger sounds", "preset: tones are built in and travel everywhere. Uploaded sounds live in your library, embed in exports, and re-upload on import. QR-scanned screens start muted; the speaker button turns each screen on."]
 ];
 
 /* ── Tree access helpers ─────────────────────────────────────────────── */
@@ -139,6 +142,7 @@ function pushUndo() {
 function refresh(keepSel) {
     PV.setLayout(LAYOUT);
     renderTree();
+    renderTriggers();
     if (keepSel && selPath !== null) PV.select(selPath);
     // Boxes have moved, so the drag handles have to be re-measured. After the
     // frame paints, or every rect is the previous layout's.
@@ -549,9 +553,35 @@ function condEditor(cond, onchange) {
     });
     exRow.appendChild(ex);
     exRow.appendChild(exMsg);
-    var hint = document.createElement('div');
-    hint.className = 'tbe-cond-hint';
-    hint.textContent = 'Compare: ' + ((PV && PV.conditionNames) ? PV.conditionNames().join(', ') : '');
+    // The value reference: one click turns the name blob into a described
+    // list, so "what can I compare?" is answered where the question happens.
+    var hint = document.createElement('button');
+    hint.type = 'button';
+    hint.className = 'tbe-cond-hint tbe-cond-hint-btn';
+    var condList = null;
+    function setHintLabel() {
+        hint.textContent = (condList ? '\u25be' : '\u25b8') + ' Values you can use';
+    }
+    setHintLabel();
+    hint.addEventListener('click', function () {
+        if (condList) { condList.remove(); condList = null; setHintLabel(); return; }
+        condList = document.createElement('div');
+        condList.className = 'tbe-cond-list';
+        ((PV && PV.conditionNames) ? PV.conditionNames() : Object.keys(COND_DESC)).forEach(function (n) {
+            var row = document.createElement('div');
+            var nm = document.createElement('code'); nm.textContent = n;
+            var ds = document.createElement('span'); ds.textContent = COND_DESC[n] || '';
+            row.appendChild(nm); row.appendChild(ds);
+            row.addEventListener('click', function () {
+                // Clicking a value drops it into the expression at the cursor end.
+                ex.value = (ex.value + ' ' + n).trim();
+                ex.focus(); validate();
+            });
+            condList.appendChild(row);
+        });
+        exRow.appendChild(condList);
+        setHintLabel();
+    });
     exRow.appendChild(hint);
     wrap.appendChild(exRow);
     validate();
@@ -707,6 +737,400 @@ function renderElStyles(cell) {
         box.appendChild(row);
     }
     insp.appendChild(box);
+}
+
+/* ── Triggers: when a condition BECOMES true, do things ───────────────────
+ * Layout-level, like custom elements: they travel with the design. Each card
+ * is when-expression + action rows + cooldown/once + Test (runs the actions in
+ * the preview immediately — the fastest way to audition a sound). */
+var TBE_PRESET_SOUNDS = ['buzzer','chime','casino','horn','countdown','double','descending','five3s','tick','pulse','chirp','gentle'];
+
+// The viewport-tall shell subtracts the site nav's REAL height — measured
+// live, because the banner image lands after load and grows the nav.
+(function () {
+    var nav = document.getElementById('mainNav');
+    if (!nav) return;
+    function navH() {
+        document.documentElement.style.setProperty('--tbe-nav-h', nav.offsetHeight + 'px');
+    }
+    navH();
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(navH).observe(nav);
+    else { window.addEventListener('resize', navH); window.addEventListener('load', navH); }
+})();
+
+var triggersPane = document.getElementById('tbeTriggers');
+// Open by default: the preview column scrolls, so the panel costs the preview
+// nothing — it just continues below the fold. The toggle stays for tucking it
+// away.
+var triggersOpen = true;
+// Per-card fold state, keyed by index. Existing triggers start COLLAPSED to a
+// one-line summary; only a freshly added trigger opens itself for editing.
+var openTriggers = {};
+
+// What each comparable value MEANS — the names come live from the renderer
+// (PV.conditionNames), so a name added there without a line here still shows,
+// just undescribed. Rendered by condEditor's "Values you can use" list.
+var COND_DESC = {
+    round:        'Current round (level) number',
+    smallBlind:   'Current small blind',
+    bigBlind:     'Current big blind',
+    ante:         'Current ante (0 when none)',
+    playersLeft:  'Players still in the game',
+    playersTotal: 'Everyone who bought in',
+    entries:      'Total entries, including re-entries',
+    buyIns:       'Number of buy-ins',
+    rebuys:       'Number of rebuys',
+    addOns:       'Number of add-ons',
+    eliminated:   'Players knocked out so far',
+    chipCount:    'Total chips in play',
+    avgStack:     'Average stack (chips / players left)',
+    prizePool:    'Prize pool in dollars',
+    tables:       'Tables in play',
+    seats:        'Seats per table',
+    minutesLeft:  'Whole minutes left in this round',
+    secondsLeft:  'Seconds left in this round',
+    levelChange:  'True for an instant when the round number changes — the classic trigger',
+    running:      'Clock is running',
+    paused:       'Clock is paused',
+    onBreak:      'Schedule is on a break',
+    preGame:      'Game has not started yet',
+    gameOver:     'Game is over',
+    hasAnte:      'This round has an ante',
+    hasRebuys:    'Rebuys are enabled',
+    mobile:       'Viewing screen is a phone',
+    tablet:       'Viewing screen is a tablet',
+    desktop:      'Viewing screen is a PC / TV'
+};
+
+// Ready-made triggers: the list of things people actually hook. Each inserts
+// a working trigger (deep-copied) and opens it for tweaking — the fastest way
+// to see what triggers CAN do without writing an expression first.
+var TRIGGER_TEMPLATES = [
+    ['Level change', 'Chime when a new round begins', { when: 'levelChange', 'do': [{ sound: 'preset:chime' }] }],
+    ['One-minute warning', 'Tick + flash in the last 60 seconds of a round', { when: 'secondsLeft <= 60 and running', 'do': [{ sound: 'preset:tick' }, { flash: 'screen' }] }],
+    ['Announce the blinds', 'Speaks "Blinds up" with the new numbers each round', { when: 'levelChange', 'do': [{ announce: 'Blinds up: <blinds>' }] }],
+    ['Break starts', 'Horn when the schedule reaches a break', { when: 'on_break', 'do': [{ sound: 'preset:horn' }] }],
+    ['Final table', 'Fanfare + flash when 10 or fewer remain (once)', { when: 'playersLeft <= 10 and playersLeft > 1', 'do': [{ sound: 'preset:casino' }, { flash: 'screen' }], once: true }],
+    ['Heads-up', 'Buzzer when two players are left (once)', { when: 'playersLeft == 2 and running', 'do': [{ sound: 'preset:buzzer' }], once: true }],
+    ['Game over', 'Fanfare when a winner stands (once)', { when: 'gameOver', 'do': [{ sound: 'preset:casino' }], once: true }],
+    ['Blank trigger', 'Start from scratch', { when: 'on_break', 'do': [{ sound: 'preset:chime' }] }]
+];
+var addMenuOpen = false;
+
+// One line that says what a trigger does: its condition plus a compact action
+// list — "levelChange — chime" reads as a name without needing one stored.
+function triggerLabel(tg) {
+    var when = (typeof tg.when === 'string') ? tg.when : 'custom condition';
+    var acts = (Array.isArray(tg['do']) ? tg['do'] : []).map(function (a) {
+        if (!a || typeof a !== 'object') return null;
+        if (a.sound !== undefined) {
+            return a.sound.indexOf('preset:') === 0 ? a.sound.slice(7) : a.sound.split('/').pop();
+        }
+        if (a.takeover !== undefined) return 'show "' + a.takeover + '"';
+        if (a.flash !== undefined) return 'flash';
+        if (a.announce !== undefined) return 'speak';
+        return null;
+    }).filter(Boolean);
+    return when + (acts.length ? ' — ' + acts.join(', ') : '');
+}
+
+function renderTriggers() {
+    if (!triggersPane) return;
+    triggersPane.textContent = '';
+    if (!Array.isArray(LAYOUT.triggers)) LAYOUT.triggers = [];
+    var box = document.createElement('div');
+    box.className = 'tbe-variants';
+    var head = document.createElement('button');
+    head.type = 'button';
+    head.className = 'tbe-variants-head tbe-triggers-toggle';
+    head.textContent = (triggersOpen ? '\u25be ' : '\u25b8 ') + 'Triggers (' + LAYOUT.triggers.length + ')';
+    head.addEventListener('click', function () {
+        triggersOpen = !triggersOpen;
+        renderTriggers();
+    });
+    box.appendChild(head);
+    if (!triggersOpen) {
+        if (!LAYOUT.triggers.length) delete LAYOUT.triggers;
+        triggersPane.appendChild(box);
+        return;
+    }
+    var note = document.createElement('div');
+    note.className = 'tbe-note';
+    note.textContent = 'Fire ONCE each time the condition becomes true — a sound, a screen '
+                     + 'takeover, a flash, a spoken line. Screens opened from the QR start muted.';
+    box.appendChild(note);
+
+    LAYOUT.triggers.forEach(function (tg, ix) {
+        if (!Array.isArray(tg['do'])) tg['do'] = [];
+        var card = document.createElement('div');
+        card.className = 'tbe-variant';
+
+        if (!openTriggers[ix]) {
+            // Collapsed: the whole card is one clickable summary line.
+            var row = document.createElement('button');
+            row.type = 'button';
+            row.className = 'tbe-trigger-row';
+            row.textContent = '▸ ' + triggerLabel(tg);
+            row.title = 'Click to edit this trigger';
+            row.addEventListener('click', function () {
+                openTriggers[ix] = true;
+                renderTriggers();
+            });
+            card.appendChild(row);
+            box.appendChild(card);
+            return;
+        }
+
+        var top = document.createElement('div');
+        top.className = 'tbe-variant-top';
+        var lbl = document.createElement('button');
+        lbl.type = 'button';
+        lbl.className = 'tbe-trigger-row tbe-trigger-row-open';
+        lbl.textContent = '▾ ' + triggerLabel(tg);
+        lbl.title = 'Collapse';
+        lbl.addEventListener('click', function () {
+            delete openTriggers[ix];
+            renderTriggers();
+        });
+        var test = document.createElement('button');
+        test.className = 'tbe-mini'; test.textContent = '\u25b6 Test';
+        test.title = 'Run this trigger\'s actions in the preview right now';
+        test.addEventListener('click', function () {
+            var w = frame.contentWindow;
+            if (w && w.TBPreview && w.TBPreview.runActions) w.TBPreview.runActions(tg['do']);
+        });
+        var rm = document.createElement('button');
+        rm.className = 'tbe-mini tbe-mini-danger'; rm.textContent = 'Remove';
+        rm.addEventListener('click', function () {
+            pushUndo(); LAYOUT.triggers.splice(ix, 1);
+            if (!LAYOUT.triggers.length) delete LAYOUT.triggers;
+            openTriggers = {};   // indexes shifted; stale fold state would open the wrong card
+            refresh(true); renderInspector();
+        });
+        top.appendChild(lbl); top.appendChild(test); top.appendChild(rm);
+        card.appendChild(top);
+        card.appendChild(condEditor(tg.when, function (c) { pushUndo(); tg.when = c || 'always'; refresh(true); }));
+
+        tg['do'].forEach(function (act, ai) {
+            card.appendChild(triggerActionRow(tg, act, ai));
+        });
+        var addAct = document.createElement('button');
+        addAct.className = 'tbe-mini'; addAct.textContent = '+ Action';
+        addAct.addEventListener('click', function () {
+            pushUndo(); tg['do'].push({ sound: 'preset:chime' });
+            refresh(true); renderInspector();
+        });
+        card.appendChild(addAct);
+
+        var optsRow = document.createElement('div');
+        optsRow.style.display = 'flex'; optsRow.style.gap = '.6rem'; optsRow.style.alignItems = 'center'; optsRow.style.marginTop = '.35rem';
+        var cd = document.createElement('input');
+        cd.type = 'number'; cd.min = '0'; cd.max = '3600'; cd.placeholder = 'cooldown s';
+        cd.style.width = '6.5rem';
+        cd.value = tg.cooldown !== undefined ? tg.cooldown : '';
+        cd.title = 'Minimum seconds between fires';
+        cd.addEventListener('change', function () {
+            pushUndo();
+            var v = parseInt(cd.value, 10);
+            if (isFinite(v) && v > 0) tg.cooldown = v; else delete tg.cooldown;
+            refresh(true);
+        });
+        var onceL = document.createElement('label');
+        var onceC = document.createElement('input');
+        onceC.type = 'checkbox'; onceC.checked = !!tg.once;
+        onceC.addEventListener('change', function () {
+            pushUndo();
+            if (onceC.checked) tg.once = true; else delete tg.once;
+            refresh(true);
+        });
+        onceL.appendChild(onceC); onceL.appendChild(document.createTextNode(' once per game'));
+        optsRow.appendChild(cd); optsRow.appendChild(onceL);
+        card.appendChild(optsRow);
+        box.appendChild(card);
+    });
+
+    var add = document.createElement('button');
+    add.className = 'tbe-mini'; add.textContent = addMenuOpen ? '\u00d7 Cancel' : '+ Add trigger';
+    add.addEventListener('click', function () {
+        addMenuOpen = !addMenuOpen;
+        renderTriggers();
+    });
+    box.appendChild(add);
+    if (addMenuOpen) {
+        var menu = document.createElement('div');
+        menu.className = 'tbe-trigger-menu';
+        TRIGGER_TEMPLATES.forEach(function (t) {
+            var it = document.createElement('button');
+            it.type = 'button';
+            it.className = 'tbe-trigger-menu-item';
+            var nm = document.createElement('strong'); nm.textContent = t[0];
+            var ds = document.createElement('span'); ds.textContent = t[1];
+            it.appendChild(nm); it.appendChild(ds);
+            it.addEventListener('click', function () {
+                pushUndo();
+                if (!Array.isArray(LAYOUT.triggers)) LAYOUT.triggers = [];
+                LAYOUT.triggers.push(JSON.parse(JSON.stringify(t[2])));
+                openTriggers[LAYOUT.triggers.length - 1] = true;
+                addMenuOpen = false;
+                refresh(true); renderInspector();
+            });
+            menu.appendChild(it);
+        });
+        box.appendChild(menu);
+    }
+    if (!LAYOUT.triggers.length) delete LAYOUT.triggers;
+    triggersPane.appendChild(box);
+}
+
+function triggerActionRow(tg, act, ai) {
+    var row = document.createElement('div');
+    row.className = 'tbe-trigact';
+    var type = act.sound !== undefined ? 'sound' : act.takeover !== undefined ? 'takeover'
+             : act.flash !== undefined ? 'flash' : 'announce';
+    var sel = document.createElement('select');
+    [['sound', 'Play sound'], ['takeover', 'Show screen'], ['flash', 'Flash'], ['announce', 'Announce (speak)']]
+        .forEach(function (o) {
+            var op = document.createElement('option');
+            op.value = o[0]; op.textContent = o[1];
+            sel.appendChild(op);
+        });
+    sel.value = type;
+    sel.addEventListener('change', function () {
+        pushUndo();
+        var fresh = sel.value === 'sound' ? { sound: 'preset:chime' }
+                  : sel.value === 'takeover' ? { takeover: (LAYOUT.screens[0] || {}).name || 'Main', seconds: 8 }
+                  : sel.value === 'flash' ? { flash: 'screen' }
+                  : { announce: 'Blinds up: <blinds>' };
+        tg['do'][ai] = fresh;
+        refresh(true); renderInspector();
+    });
+    row.appendChild(sel);
+
+    if (type === 'sound') {
+        var snd = document.createElement('select');
+        TBE_PRESET_SOUNDS.forEach(function (k) {
+            var op = document.createElement('option');
+            op.value = 'preset:' + k; op.textContent = k;
+            snd.appendChild(op);
+        });
+        var upOpt = document.createElement('option');
+        upOpt.value = '__mine__'; upOpt.textContent = 'my uploads\u2026';
+        snd.appendChild(upOpt);
+        if (/^\/uploads\/timer_sounds\//.test(act.sound)) {
+            var cur = document.createElement('option');
+            cur.value = act.sound; cur.textContent = act.sound.split('/').pop();
+            snd.appendChild(cur);
+        }
+        snd.value = act.sound;
+        snd.addEventListener('change', function () {
+            if (snd.value === '__mine__') { pickSound(function (url) { pushUndo(); act.sound = url; refresh(true); renderInspector(); }); snd.value = act.sound; return; }
+            pushUndo(); act.sound = snd.value; refresh(true);
+        });
+        row.appendChild(snd);
+    } else if (type === 'takeover') {
+        var scr = document.createElement('select');
+        (LAYOUT.screens || []).forEach(function (sc) {
+            var op = document.createElement('option');
+            op.value = sc.name; op.textContent = sc.name;
+            scr.appendChild(op);
+        });
+        scr.value = act.takeover;
+        scr.addEventListener('change', function () { pushUndo(); act.takeover = scr.value; refresh(true); });
+        row.appendChild(scr);
+        var secs = document.createElement('input');
+        secs.type = 'number'; secs.min = '1'; secs.max = '120'; secs.style.width = '4.5rem';
+        secs.value = act.seconds || 8;
+        secs.title = 'Seconds before returning';
+        secs.addEventListener('change', function () { pushUndo(); act.seconds = Math.max(1, Math.min(120, parseInt(secs.value, 10) || 8)); refresh(true); });
+        row.appendChild(secs);
+    } else if (type === 'announce') {
+        var txt = document.createElement('input');
+        txt.type = 'text'; txt.placeholder = 'Blinds up: <blinds>';
+        txt.value = act.announce || '';
+        txt.style.flex = '1';
+        txt.addEventListener('change', function () { pushUndo(); act.announce = txt.value; refresh(true); });
+        row.appendChild(txt);
+    }
+    var del = document.createElement('button');
+    del.className = 'tbe-mini tbe-mini-danger'; del.textContent = '\u00d7';
+    del.title = 'Remove this action';
+    del.addEventListener('click', function () {
+        pushUndo(); tg['do'].splice(ai, 1);
+        refresh(true); renderInspector();
+    });
+    row.appendChild(del);
+    return row;
+}
+
+// The sound library: own uploads with a preview, upload as the last resort —
+// the image picker's shape.
+function pickSound(onUrl) {
+    fetch('/timer_beta_dl.php?action=list_sounds')
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+            var snds = (j && j.ok && Array.isArray(j.sounds)) ? j.sounds : [];
+            if (!snds.length) { uploadSoundFile(onUrl); return; }
+            var wrap = document.createElement('div');
+            wrap.className = 'tbe-imgpick';
+            var panel = document.createElement('div');
+            panel.className = 'tbe-imgpick-panel';
+            var head = document.createElement('div');
+            head.className = 'tbe-imgpick-head';
+            var title = document.createElement('span'); title.textContent = 'Pick a sound';
+            var up = document.createElement('button');
+            up.className = 'tbe-mini'; up.textContent = 'Upload new\u2026';
+            up.addEventListener('click', function () { wrap.remove(); uploadSoundFile(onUrl); });
+            var x = document.createElement('button');
+            x.className = 'tbe-mini'; x.textContent = '\u00d7';
+            x.addEventListener('click', function () { wrap.remove(); });
+            head.appendChild(title); head.appendChild(up); head.appendChild(x);
+            panel.appendChild(head);
+            var listEl = document.createElement('div');
+            listEl.className = 'tbe-sndlist';
+            snds.forEach(function (sn) {
+                var rowEl = document.createElement('div');
+                rowEl.className = 'tbe-sndrow';
+                var play = document.createElement('button');
+                play.className = 'tbe-mini'; play.textContent = '\u25b6';
+                play.addEventListener('click', function () {
+                    try { new Audio(sn.url).play().catch(function () {}); } catch (e) {}
+                });
+                var nm = document.createElement('span');
+                nm.textContent = sn.url.split('/').pop();
+                nm.style.flex = '1';
+                var useB = document.createElement('button');
+                useB.className = 'tbe-mini'; useB.textContent = 'Use';
+                useB.addEventListener('click', function () { wrap.remove(); onUrl(sn.url); });
+                rowEl.appendChild(play); rowEl.appendChild(nm); rowEl.appendChild(useB);
+                listEl.appendChild(rowEl);
+            });
+            panel.appendChild(listEl);
+            wrap.appendChild(panel);
+            wrap.addEventListener('click', function (e) { if (e.target === wrap) wrap.remove(); });
+            document.body.appendChild(wrap);
+        })
+        .catch(function () { uploadSoundFile(onUrl); });
+}
+
+function uploadSoundFile(onUrl) {
+    var inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'audio/*';
+    inp.addEventListener('change', function () {
+        var f = inp.files && inp.files[0];
+        if (!f) return;
+        var fd = new FormData();
+        fd.append('action', 'upload_sound');
+        fd.append('sound', f);
+        fd.append('csrf_token', TBE_CSRF);
+        fetch('/timer_beta_dl.php', { method: 'POST', body: fd })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+                if (j && j.url) onUrl(j.url);
+                else (window.pkAlert || alert)(j && j.error ? j.error : 'Upload failed.');
+            })
+            .catch(function () { (window.pkAlert || alert)('Upload failed.'); });
+    });
+    inp.click();
 }
 
 /* Layout-level custom elements: user-defined <name> = plain-text values, shown
@@ -1084,6 +1508,26 @@ function dupNode() {
     p.list.splice(p.index + 1, 0, JSON.parse(JSON.stringify(p.list[p.index])));
     refresh(); select(selPath);
 }
+// Node clipboard: a JSON snapshot, so it survives screen switches and layout
+// loads — copy a cell from one layout, load another, paste it there.
+var nodeClipboard = null;
+function copyNode() {
+    if (selPath === null || selPath === '') return;
+    nodeClipboard = JSON.stringify(nodeAt(selPath).node);
+}
+function cutNode() {
+    if (selPath === null || selPath === '') return;
+    nodeClipboard = JSON.stringify(nodeAt(selPath).node);
+    removeNode();
+}
+function pasteNode() {
+    if (!nodeClipboard) return;
+    // insertNode's placement rules are exactly paste's: into a selected
+    // container, after a selected cell, onto the root when nothing is picked.
+    insertNode(JSON.parse(nodeClipboard));
+    renderInspector();
+}
+
 function removeNode() {
     if (!selPath) return;
     pushUndo();
@@ -1446,6 +1890,8 @@ function openNodeMenu(path, x, y) {
         var p = parentOf(path);
         item(null);
         item('Duplicate', dupNode);
+        item('Copy', copyNode);
+        item('Cut', cutNode);
         // Held by reference, not by index: this menu grew from seven rows to
         // thirty and any positional lookup would silently disable the wrong one.
         var upBtn = item('Move up',   function () { move(-1); });
@@ -1455,6 +1901,11 @@ function openNodeMenu(path, x, y) {
         item(null);
         item('Delete', removeNode, 'tbe-menu-danger');
     }
+
+    // Paste is offered everywhere, root included — that is how a copied cell
+    // lands on an empty screen.
+    var pasteBtn = item('Paste', pasteNode);
+    if (!nodeClipboard) { pasteBtn.disabled = true; pasteBtn.title = 'Nothing copied yet — Copy or Cut a box first.'; }
 
     item(null);
     var undoBtn = item('Undo last change', doUndo);
@@ -1785,10 +2236,23 @@ document.getElementById('tbeUndo').addEventListener('click', doUndo);
  * was most needed for. */
 function editorKeydown(e) {
     if (!(e.ctrlKey || e.metaKey)) return;
-    if ((e.key || '').toLowerCase() !== 'z') return;
+    var k = (e.key || '').toLowerCase();
     if (e.target.closest && e.target.closest('input, textarea, select')) return;
-    e.preventDefault();
-    doUndo();
+    if (k === 'z') { e.preventDefault(); doUndo(); return; }
+    if (k === 'c' || k === 'x') {
+        // A real text selection keeps the browser's own copy.
+        var sel = e.view && e.view.getSelection ? String(e.view.getSelection()) : '';
+        if (sel) return;
+        if (selPath === null || selPath === '') return;
+        e.preventDefault();
+        if (k === 'c') copyNode(); else cutNode();
+        return;
+    }
+    if (k === 'v') {
+        if (!nodeClipboard) return;
+        e.preventDefault();
+        pasteNode();
+    }
 }
 document.addEventListener('keydown', editorKeydown);
 
@@ -2029,6 +2493,18 @@ function walkImageRefs(layout, fn) {
     })(layout);
 }
 
+// Trigger sounds get the same passport: refs walked, bytes embedded on
+// export, re-uploaded on import. Only upload refs — preset: sounds are code.
+var SND_REF_RE = /^\/uploads\/timer_sounds\/[A-Za-z0-9._-]{1,160}$/;
+
+function walkSoundRefs(layout, fn) {
+    (Array.isArray(layout.triggers) ? layout.triggers : []).forEach(function (tg) {
+        (Array.isArray(tg['do']) ? tg['do'] : []).forEach(function (act) {
+            if (act && typeof act.sound === 'string' && SND_REF_RE.test(act.sound)) fn(act);
+        });
+    });
+}
+
 function slugify(s) {
     return (String(s || 'layout').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'layout').slice(0, 60);
 }
@@ -2036,6 +2512,8 @@ document.getElementById('tbeExport').addEventListener('click', function () {
     var name = nameInput.value.trim() || 'Untitled layout';
     var refs = {};
     walkImageRefs(LAYOUT, function (node, key) { refs[node[key]] = true; });
+    var sndRefs = {};
+    walkSoundRefs(LAYOUT, function (act) { sndRefs[act.sound] = true; });
     // Fetch each referenced image (same-origin) and embed it as a data URI so
     // the file carries its own images to another install. A ref that fails to
     // fetch (file deleted) is simply not embedded; the export still completes.
@@ -2052,11 +2530,30 @@ document.getElementById('tbeExport').addEventListener('click', function () {
             })
             .catch(function () { return null; });
     })).then(function (pairs) {
+        return Promise.all(Object.keys(sndRefs).map(function (u) {
+            return fetch(u)
+                .then(function (r) { if (!r.ok) throw 0; return r.blob(); })
+                .then(function (b) {
+                    return new Promise(function (res) {
+                        var fr = new FileReader();
+                        fr.onload = function () { res([u, fr.result]); };
+                        fr.onerror = function () { res(null); };
+                        fr.readAsDataURL(b);
+                    });
+                })
+                .catch(function () { return null; });
+        })).then(function (sndPairs) { return [pairs, sndPairs]; });
+    }).then(function (both) {
+        var pairs = both[0], sndPairs = both[1];
         var images = {};
         var count = 0;
         pairs.forEach(function (p) { if (p) { images[p[0]] = p[1]; count++; } });
+        var sounds = {};
+        var sndCount = 0;
+        sndPairs.forEach(function (p) { if (p) { sounds[p[0]] = p[1]; sndCount++; } });
         var envelope = { gnTimerLayout: 1, name: name, layout: LAYOUT };
         if (count) envelope.images = images;
+        if (sndCount) envelope.sounds = sounds;
         var blob = new Blob([JSON.stringify(envelope, null, 2)], { type: 'application/json' });
         var url = URL.createObjectURL(blob);
         var a = document.createElement('a');
@@ -2093,6 +2590,41 @@ function uploadEmbeddedImages(images, done) {
         var fd = new FormData();
         fd.append('action', 'upload_image');
         fd.append('image', blob, 'imported');
+        fd.append('csrf_token', TBE_CSRF);
+        fetch('/timer_beta_dl.php', { method: 'POST', body: fd })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+                if (j && j.url) map[keys[i]] = j.url; else failed++;
+                next(i + 1);
+            })
+            .catch(function () { failed++; next(i + 1); });
+    })(0);
+}
+
+// data:audio/...;base64 → Blob. The server re-sniffs the bytes; this only
+// keeps obvious junk off the wire (same contract as dataUriToBlob).
+function dataUriToAudioBlob(uri) {
+    var m = /^data:(audio\/(?:mpeg|mp4|x-m4a|wav|x-wav|ogg|webm|aac));base64,([A-Za-z0-9+/=]+)$/.exec(String(uri || ''));
+    if (!m) return null;
+    try {
+        var bin = atob(m[2]);
+        if (bin.length > 5 * 1024 * 1024) return null;   // matches the server cap
+        var buf = new Uint8Array(bin.length);
+        for (var i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+        return new Blob([buf], { type: m[1] });
+    } catch (e) { return null; }
+}
+
+function uploadEmbeddedSounds(sounds, done) {
+    var keys = Object.keys(sounds).filter(function (k) { return SND_REF_RE.test(k); }).slice(0, 10);
+    var map = {}, failed = 0;
+    (function next(i) {
+        if (i >= keys.length) { done(map, failed); return; }
+        var blob = dataUriToAudioBlob(sounds[keys[i]]);
+        if (!blob) { failed++; next(i + 1); return; }
+        var fd = new FormData();
+        fd.append('action', 'upload_sound');
+        fd.append('sound', blob, 'imported');
         fd.append('csrf_token', TBE_CSRF);
         fetch('/timer_beta_dl.php', { method: 'POST', body: fd })
             .then(function (r) { return r.json(); })
@@ -2188,6 +2720,8 @@ importFile.addEventListener('change', function () {
         var name = (env && env.name) ? String(env.name).slice(0, 80) : (nameInput.value.trim() || 'Imported layout');
         var embedded = (env && env.gnTimerLayout && env.images && typeof env.images === 'object' && !Array.isArray(env.images))
                      ? env.images : null;
+        var embeddedSnd = (env && env.gnTimerLayout && env.sounds && typeof env.sounds === 'object' && !Array.isArray(env.sounds))
+                        ? env.sounds : null;
 
         function finish() {
             // Load it into the editor first (through the same renderer, which only
@@ -2202,7 +2736,24 @@ importFile.addEventListener('change', function () {
             save(true);   // save as a new copy; server sanitizes and rejects anything invalid
         }
 
-        if (!embedded) { finish(); return; }
+        // Sounds first (few and small), then images, then load. A sound whose
+        // bytes fail to import falls back to a preset so the trigger still
+        // does SOMETHING rather than silently losing its action.
+        function importSounds(then) {
+            if (!embeddedSnd) { then(0); return; }
+            uploadEmbeddedSounds(embeddedSnd, function (map, failed) {
+                walkSoundRefs(layout, function (act) {
+                    if (map[act.sound]) { act.sound = map[act.sound]; return; }
+                    if (Object.prototype.hasOwnProperty.call(embeddedSnd, act.sound)) act.sound = 'preset:chime';
+                });
+                then(failed);
+            });
+        }
+
+        if (!embedded) { importSounds(function (sndFailed) {
+            finish();
+            if (sndFailed) (window.pkAlert || alert)(sndFailed + ' embedded sound' + (sndFailed > 1 ? 's' : '') + " couldn't be imported (replaced with a preset chime).");
+        }); return; }
         // Re-upload the embedded images to THIS install, then point the layout's
         // refs at the new local URLs. A ref whose bytes were embedded but failed
         // to upload is dropped (it would just be a broken image here); a ref with
@@ -2216,8 +2767,13 @@ importFile.addEventListener('change', function () {
                     delete node[key === 'bgImage' ? 'bgImageFit' : 'imageFit'];
                 }
             });
-            finish();
-            if (failed) (window.pkAlert || alert)(failed + ' embedded image' + (failed > 1 ? 's' : '') + " couldn't be imported (the rest of the layout is fine).");
+            importSounds(function (sndFailed) {
+                finish();
+                var probs = [];
+                if (failed) probs.push(failed + ' embedded image' + (failed > 1 ? 's' : ''));
+                if (sndFailed) probs.push(sndFailed + ' embedded sound' + (sndFailed > 1 ? 's' : ''));
+                if (probs.length) (window.pkAlert || alert)(probs.join(' and ') + " couldn't be imported (the rest of the layout is fine).");
+            });
         });
     }
 });

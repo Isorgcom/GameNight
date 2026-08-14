@@ -145,6 +145,10 @@ if ($session_id) {
      tray, and removes itself entirely when there is no browser chrome to
      escape (already fullscreen, or launched from the home screen). -->
 <button type="button" id="tbFsBtn" data-act="fullscreen" title="Fullscreen" aria-label="Fullscreen">&#9974;</button>
+<?php /* Speaker toggle: trigger sounds and announcements obey it. A key-opened
+         screen is someone's phone and starts muted; the choice persists per
+         display. Fades with the tray like the fullscreen button. */ ?>
+<button type="button" id="tbSndBtn" title="Sounds on/off" aria-label="Sounds on or off">&#128266;</button>
 <div id="tbFsHint" hidden></div>
 <?php endif; ?>
 

@@ -34,19 +34,34 @@
  * sticky preview — locking the viewport there would fight the on-screen
  * keyboard and pinch-zoom. */
 @media (min-width: 981px) {
-    body.tbe-body { height: 100vh; height: 100dvh; overflow: hidden; display: flex; flex-direction: column; }
+    /* The shell (nav + toolbar + editor) fills exactly one viewport; the
+       footer sits UNDER it in normal flow, reached by a page scroll like any
+       other page. --tbe-nav-h is kept live by a ResizeObserver in
+       timer_beta_edit.js — the nav's height moves when the banner loads. */
+    body.tbe-body { min-height: 100dvh; display: flex; flex-direction: column; }
     body.tbe-body > nav, body.tbe-body > footer { flex: 0 0 auto; }
-    body.tbe-body .tbe-wrap { flex: 1 1 auto; min-height: 0; width: 100%; box-sizing: border-box; display: flex; flex-direction: column; }
-    body.tbe-body .tbe-header { flex: 0 0 auto; }
+    body.tbe-body .tbe-wrap { flex: 0 0 auto; height: calc(100dvh - var(--tbe-nav-h, 240px)); min-height: 30rem; width: 100%; box-sizing: border-box; display: flex; flex-direction: column; }
+    /* The toolbar (title, Load/Save/Export…) anchors to the top of the
+       viewport once the page scrolls the nav away — the editor's controls
+       stay reachable from anywhere on the page. */
+    body.tbe-body .tbe-header { flex: 0 0 auto; position: sticky; top: 0; z-index: 40;
+                                background: #f8fafc; box-shadow: 0 6px 12px -8px rgba(15,23,42,.25); }
     /* One row pinned to the container height — with auto rows the row would
        size to content, and the size-contained stage contributes none. */
     body.tbe-body .tbe-main { flex: 1 1 auto; min-height: 0; align-items: stretch; grid-template-rows: minmax(0, 1fr); }
     body.tbe-body .tbe-preview-pane { position: static; align-self: stretch; min-height: 0; display: flex; flex-direction: column; }
     body.tbe-body .tbe-statebar { flex: 0 0 auto; }
+    /* The COLUMN scrolls, not the trigger list: the stage keeps a real
+       minimum height, so opening the triggers never crushes the preview —
+       the panel simply continues below the fold and you scroll down to it. */
+    body.tbe-body .tbe-preview-pane { overflow-y: auto; }
+    body.tbe-body .tbe-triggers-pane { flex: 0 0 auto; }
     /* The stage is whatever height is left after the statebar; the frame fits
        the largest 16:9 box inside it (container units, so no guessed chrome
        heights) and centers. In short windows it shrinks instead of clipping. */
-    body.tbe-body .tbe-preview-stage { flex: 1 1 auto; min-height: 0; container-type: size; }
+    /* Never taller than the column minus the state bar, or the bar itself
+       falls below the fold on shorter windows. */
+    body.tbe-body .tbe-preview-stage { flex: 1 0 auto; min-height: min(58vh, calc(100% - 3.2rem)); container-type: size; }
     body.tbe-body .tbe-preview-frame {
         width: min(100%, calc(100cqh * 16 / 9));
         height: min(100cqh, calc(100cqw * 9 / 16));
@@ -73,6 +88,23 @@
 .tbe-preview-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
 
 .tbe-statebar { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; margin-top: .55rem; font-size: .82rem; color: #475569; }
+.tbe-triggers-pane { margin-top: .6rem; }
+.tbe-triggers-toggle { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 0; cursor: pointer; font: inherit; font-weight: 600; color: #475569; }
+.tbe-trigger-row { display: block; width: 100%; text-align: left; background: none; border: 0; padding: .1rem 0; cursor: pointer; font: inherit; font-size: .82rem; font-weight: 600; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tbe-trigger-row-open { width: auto; flex: 1 1 auto; min-width: 0; margin-right: .5rem; }
+.tbe-trigger-menu { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: .45rem; margin-top: .5rem; }
+.tbe-trigger-menu-item { display: flex; flex-direction: column; gap: .15rem; text-align: left; cursor: pointer;
+    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: .5rem; padding: .5rem .65rem; font: inherit; }
+.tbe-trigger-menu-item:hover { border-color: #93c5fd; background: #eff6ff; }
+.tbe-trigger-menu-item strong { font-size: .82rem; color: #0f172a; }
+.tbe-trigger-menu-item span { font-size: .74rem; color: #64748b; }
+.tbe-cond-hint-btn { display: block; background: none; border: 0; padding: 0; cursor: pointer; font: inherit; text-align: left; }
+.tbe-cond-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr)); gap: .1rem .9rem; margin-top: .35rem;
+    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: .5rem; padding: .5rem .65rem; }
+.tbe-cond-list > div { display: flex; align-items: baseline; gap: .5rem; font-size: .74rem; color: #64748b; cursor: pointer; padding: .1rem .2rem; border-radius: .25rem; }
+.tbe-cond-list > div:hover { background: #eff6ff; }
+.tbe-cond-list code { color: #0f172a; font-weight: 600; white-space: nowrap; }
+.tbe-triggers-pane .tbe-variants { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: .7rem .8rem; }
 .tbe-chip { padding: .3rem .7rem; border-radius: 999px; border: 1.5px solid #cbd5e1; background: #fff; font-size: .78rem; cursor: pointer; color: #334155; }
 .tbe-chip.active { background: #2563eb; border-color: #2563eb; color: #fff; }
 .tbe-hint { margin-left: auto; color: #94a3b8; }
@@ -216,3 +248,10 @@
                     cursor: pointer; overflow: hidden; aspect-ratio: 16/10; }
 .tbe-imgpick-item:hover { border-color: var(--accent, #2563eb); }
 .tbe-imgpick-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* Trigger action rows + the sound library list (image-picker family) */
+.tbe-trigact { display: flex; align-items: center; gap: .4rem; margin-top: .35rem; }
+.tbe-trigact select, .tbe-trigact input { font-size: .78rem; }
+.tbe-sndlist { overflow-y: auto; padding: .5rem .75rem .75rem; display: flex; flex-direction: column; gap: .35rem; }
+.tbe-sndrow { display: flex; align-items: center; gap: .5rem; font-size: .8rem;
+    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: .4rem; padding: .35rem .5rem; }

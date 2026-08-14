@@ -20,6 +20,7 @@ $help_sections = [
     ['conditions',    'Conditions'],
     ['variants',      'Variants'],
     ['artwork',       'Artwork: screen or box'],
+    ['triggers',      'Sounds & triggers'],
     ['sharing',       'Sharing layouts'],
 ];
 ?>
@@ -254,9 +255,33 @@ $help_sections = [
         <p>For a full-screen design that must keep its exact proportions anyway, the old tools remain: <strong>Screen shape</strong> locks the layout to the shape the artwork was drawn at and letterboxes elsewhere; <strong>Fit: Stretch</strong> distorts the picture to cover the layout's area instead of cropping; <strong>Panel colours</strong> switches the whole layout between painting its cell backgrounds and letting artwork show through.</p>
     </div>
 
+    <div class="help-step" id="triggers">
+        <h2><span class="step-num">10</span> Sounds &amp; triggers</h2>
+        <p>A <strong>trigger</strong> makes something happen the moment a condition <em>becomes</em> true: play a sound, flash the screen, speak a line, or take over the display with another screen for a few seconds. The <strong>Triggers</strong> bar sits right under the preview, next to the preview-state toggles &mdash; click it to fold the panel open. <strong>+ Add trigger</strong> offers a list of ready-made triggers (level-change chime, one-minute warning, final-table fanfare&hellip;) to pick and tweak, or start from a blank one.</p>
+        <p>Each trigger is a condition plus a list of actions:</p>
+        <ul>
+            <li><strong>Play sound</strong> &mdash; a dozen built-in tones (chime, horn, tick, casino&hellip;) that work everywhere, or upload your own MP3/WAV. Uploaded sounds live in your library and travel inside exports like images do.</li>
+            <li><strong>Show screen</strong> &mdash; jump to a named screen for 1&ndash;120 seconds, then return. Good for a "BLINDS UP" splash or a final-table fanfare page.</li>
+            <li><strong>Flash</strong> &mdash; a short amber pulse around the whole display.</li>
+            <li><strong>Announce</strong> &mdash; the display speaks the line out loud, with elements filled in: <code>Blinds up: &lt;blinds&gt;</code> says the actual numbers.</li>
+        </ul>
+        <p>The conditions you'll reach for most:</p>
+        <ul>
+            <li><code>levelChange</code> &mdash; true for an instant whenever the round number moves. The classic "new level" chime.</li>
+            <li><code>secondsLeft &lt;= 60 and running</code> &mdash; the one-minute warning. It naturally re-arms each level.</li>
+            <li><code>playersLeft &lt;= 10 and playersLeft &gt; 1</code> &mdash; final table reached. Pair it with <strong>once</strong> so it fires a single time.</li>
+        </ul>
+        <figure class="help-shot">
+            <img src="/img/help/timer-triggers.png" alt="The Triggers panel in the layout editor: a levelChange trigger playing a chime, with Test and Remove buttons" loading="lazy">
+            <figcaption>The Triggers panel on the PCF built-in: <code>levelChange</code> plays a chime. The green tick means the condition parses; ▶ Test runs the actions right now.</figcaption>
+        </figure>
+        <p>Triggers fire on the <em>change</em>, never on the state: a screen that joins mid-game stays quiet about things that were already true, and a condition must go false and come true again before its trigger fires twice. <strong>Cooldown</strong> sets a minimum quiet time between fires; <strong>once per game</strong> means exactly that. The <strong>&#9654; Test</strong> button on each trigger runs its actions in the preview immediately &mdash; the quickest way to audition a sound.</p>
+        <div class="hint"><strong>Who hears what:</strong> the main display sounds by default, but a screen someone opened by scanning the QR code is their phone &mdash; it starts muted. Every display gets a speaker button in the corner (next to fullscreen) to switch sounds on or off; the choice sticks per device. The PCF built-in ships with a level-change chime, a one-minute warning and a final-table fanfare, so the fastest way to hear triggers is to load PCF and press ▶ Test.</div>
+    </div>
+
     <div class="help-step" id="sharing">
-        <h2><span class="step-num">10</span> Sharing layouts</h2>
-        <p><strong>Export</strong> downloads a layout as a single <code>.gntimer.json</code> file with every image embedded, so it carries its own artwork. <strong>Import</strong> reads one back in, re-uploads the images here, and saves it as a new layout in your list. That's the way to move a design between installs or share it with another host.</p>
+        <h2><span class="step-num">11</span> Sharing layouts</h2>
+        <p><strong>Export</strong> downloads a layout as a single <code>.gntimer.json</code> file with every image <em>and sound</em> embedded, so it carries its own artwork and audio. <strong>Import</strong> reads one back in, re-uploads the media here, and saves it as a new layout in your list. That's the way to move a design between installs or share it with another host.</p>
     </div>
 
     <div class="help-cta" style="text-align:center;padding:2.5rem 1rem;background:#f8fafc;border-radius:8px;margin-top:2rem">

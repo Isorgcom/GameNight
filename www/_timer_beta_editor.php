@@ -51,6 +51,7 @@ $csrf = csrf_token();
                 <button data-state="over" class="tbe-chip">Game over</button>
                 <span class="tbe-hint">Click any part of the preview to select it.</span>
             </div>
+            <div id="tbeTriggers" class="tbe-triggers-pane"></div>
         </div>
 
         <div class="tbe-side">
