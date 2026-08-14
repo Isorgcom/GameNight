@@ -498,6 +498,39 @@ if ($action === 'get_layout') {
     exit;
 }
 
+// ─── GET: list_images ──────────────────────────────────────
+// The images this user can already point a layout at: their OWN uploads
+// (filenames carry the uploader's id — u<id>_<hash>) plus the app's shipped
+// timer art (/img/timer_beta). Nobody is shown another user's uploads: the
+// URL would work if guessed (static files), but the picker does not browse
+// other people's libraries for them.
+if ($action === 'list_images') {
+    $out = [];
+    $dir = __DIR__ . '/uploads/timer_layouts';
+    if (is_dir($dir)) {
+        foreach (scandir($dir) as $f) {
+            if (!preg_match('/^u' . $uid . '_[a-f0-9]+\.(jpg|jpeg|png|gif|webp)$/i', $f)) continue;
+            $out[] = ['url' => '/uploads/timer_layouts/' . $f, 'mine' => true,
+                      'ts' => (int)@filemtime("$dir/$f")];
+        }
+    }
+    $shipped = __DIR__ . '/img/timer_beta';
+    if (is_dir($shipped)) {
+        foreach (scandir($shipped) as $f) {
+            if (!preg_match('/\.(jpg|jpeg|png|gif|webp)$/i', $f)) continue;
+            $out[] = ['url' => '/img/timer_beta/' . $f, 'mine' => false,
+                      'ts' => (int)@filemtime("$shipped/$f")];
+        }
+    }
+    // Newest of the user's own first; shipped art after.
+    usort($out, function ($a, $b) {
+        if ($a['mine'] !== $b['mine']) return $a['mine'] ? -1 : 1;
+        return $b['ts'] <=> $a['ts'];
+    });
+    echo json_encode(['ok' => true, 'images' => array_slice($out, 0, 120)]);
+    exit;
+}
+
 if ($action === 'save_layout') {
     $name = trim((string)($_POST['name'] ?? ''));
     if ($name === '' || mb_strlen($name) > 80) { echo json_encode(['ok' => false, 'error' => 'Name required (max 80 chars)']); exit; }

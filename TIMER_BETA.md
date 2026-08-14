@@ -446,6 +446,18 @@ Three things worth remembering:
   default `1.15em`, for a legend whose numbers should stay at body size while
   the discs fill the band they sit in.
 
+## The image library
+
+Every image pick in the editor (screen backgrounds, box images, image cells)
+funnels through one `uploadImage()` chokepoint, which now opens a LIBRARY
+first: the user's own uploads (filenames carry the uploader's id, so the
+`list_images` endpoint lists only `u<uid>_*`), then the shipped `/img/
+timer_beta` art — PCF's felt and plates are deliberately reusable. Upload is
+the explicit last resort; re-uploading identical artwork for every layout was
+burning the daily upload cap. Nobody is shown another user's uploads: a
+guessed URL would serve (static files), but the picker does not browse other
+people's libraries for them.
+
 ## Seat map — the final table
 
 `{ cell: { seats: true, table?: N } }` draws every still-in player at their

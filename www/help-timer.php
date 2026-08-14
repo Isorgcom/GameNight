@@ -244,6 +244,7 @@ $help_sections = [
         <ul>
             <li><strong>On a box (preferred for plates and panels):</strong> right-click any cell or container &rarr; <strong>Box image</strong>. The picture becomes that box's own background and moves, resizes and reflows <em>with</em> it, so a value can never drift off its plate, on any screen shape. Default fit is Stretch, because plate art is drawn for the box it decorates; Cover and Contain are there too. The PCF built-in is made this way: the felt is the screen, every glossy plate rides its own box.</li>
             <li><strong>On the screen:</strong> right-click the screen &rarr; <strong>Screen background</strong> for the backdrop itself, a colour or a full-screen picture (felt, a poster, league branding).</li>
+            <li><strong>Picking an image opens your library first</strong> &mdash; everything you've already uploaded plus the built-in artwork (the PCF felt and plates are all reusable). Uploading a new file is the button in the corner, and re-using an existing image costs nothing against the daily upload allowance.</li>
         </ul>
         <figure class="help-shot">
             <img src="/img/help/timer-pcf-wide.jpg" alt="The same PCF layout filling an ultrawide screen, every plate stretched with its box" loading="lazy">

@@ -182,3 +182,37 @@
 
 /* ── Image controls ── */
 .tbe-img-thumb { max-width: 100%; max-height: 120px; border: 1.5px solid #cbd5e1; border-radius: 8px; background: repeating-conic-gradient(#e2e8f0 0% 25%, #fff 0% 50%) 50% / 16px 16px; object-fit: contain; display: block; }
+
+/* ── The "?" reference popover ── */
+.tbe-helppop { position: fixed; z-index: 300; width: min(30rem, 92vw);
+               background: #fff; border: 1.5px solid #cbd5e1; border-radius: 10px;
+               box-shadow: 0 18px 50px rgba(15,23,42,.3); }
+.tbe-helppop-head { display: flex; justify-content: space-between; align-items: center;
+                    padding: .55rem .8rem; font-weight: 700; font-size: .85rem;
+                    background: #f8fafc; border-bottom: 1.5px solid #e2e8f0;
+                    border-radius: 10px 10px 0 0; }
+.tbe-helppop-body { max-height: min(34rem, 70vh); overflow-y: auto; padding: .4rem .8rem .8rem; }
+.tbe-helppop-sec { font-size: .72rem; font-weight: 700; text-transform: uppercase;
+                   letter-spacing: .05em; color: #64748b; margin: .8rem 0 .3rem; }
+.tbe-helppop-row { display: grid; grid-template-columns: 9.5rem 1fr; gap: .6rem;
+                   padding: .22rem 0; font-size: .8rem; border-bottom: 1px solid #f1f5f9; }
+.tbe-helppop-term { font-weight: 600; color: #0f172a; }
+.tbe-helppop-term.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 500; }
+.tbe-helppop-desc { color: #475569; line-height: 1.4; }
+
+/* ── Image picker: the library first, upload as the explicit last resort ── */
+.tbe-imgpick { position: fixed; inset: 0; z-index: 320; background: rgba(15,23,42,.55);
+               display: flex; align-items: center; justify-content: center; }
+.tbe-imgpick-panel { width: min(46rem, 94vw); max-height: 82vh; display: flex; flex-direction: column;
+                     background: #fff; border-radius: 12px; box-shadow: 0 24px 70px rgba(0,0,0,.45); }
+.tbe-imgpick-head { display: flex; align-items: center; gap: .6rem; padding: .7rem 1rem;
+                    font-weight: 700; border-bottom: 1.5px solid #e2e8f0; }
+.tbe-imgpick-head span { margin-right: auto; }
+.tbe-imgpick-grid { overflow-y: auto; padding: .8rem 1rem 1rem;
+                    display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: .7rem; }
+.tbe-imgpick-sec { grid-column: 1 / -1; font-size: .72rem; font-weight: 700; text-transform: uppercase;
+                   letter-spacing: .05em; color: #64748b; margin-top: .3rem; }
+.tbe-imgpick-item { border: 2px solid #e2e8f0; border-radius: 8px; padding: 0; background: repeating-conic-gradient(#f1f5f9 0 25%, #fff 0 50%) 0 0/16px 16px;
+                    cursor: pointer; overflow: hidden; aspect-ratio: 16/10; }
+.tbe-imgpick-item:hover { border-color: var(--accent, #2563eb); }
+.tbe-imgpick-item img { width: 100%; height: 100%; object-fit: cover; display: block; }

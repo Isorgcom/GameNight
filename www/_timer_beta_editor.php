@@ -58,6 +58,7 @@ $csrf = csrf_token();
                 <div class="tbe-panel-head">
                     <span>Structure</span>
                     <span class="tbe-panel-actions">
+                        <button id="tbeHelpBtn" class="tbe-mini" title="What everything in a layout means">?</button>
                         <button id="tbeUndo" class="tbe-mini" title="Undo (Ctrl+Z)">&#8630;</button>
                     </span>
                 </div>

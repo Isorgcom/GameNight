@@ -105,10 +105,24 @@ body.tb-letterbox { background: #000; }
    capCell's font shrink like everything else. */
 .tb-cell-seats .tb-cell-inner { width: 100%; height: 100%; display: flex; }
 .tb-seatmap { position: relative; width: 100%; height: 100%; }
-.tb-seatmap-felt { position: absolute; left: 11%; top: 15%; right: 11%; bottom: 15%;
-                   border-radius: 50%; background: rgba(255,255,255,.05);
-                   border: 0.4vh solid rgba(255,255,255,.28);
-                   box-shadow: inset 0 0 6vh rgba(0,0,0,.45); }
+/* The table: a RACETRACK, like every real seating chart — leather rail around
+   green felt with a betting line. border-radius past half the height turns a
+   rectangle into the stadium silhouette; the layers are plain nested divs so
+   the whole thing scales with its cell and costs no artwork. */
+.tb-seatmap-rail { position: absolute; left: 13%; top: 19%; right: 13%; bottom: 19%;
+                   border-radius: 999px;
+                   background: linear-gradient(180deg, #7a5230 0%, #4a3018 45%, #2e1d0e 100%);
+                   box-shadow: 0 1.4vh 3.5vh rgba(0,0,0,.6), inset 0 0.3vh 0.6vh rgba(255,255,255,.25); }
+.tb-seatmap-felt { position: absolute; left: 2.2%; top: 9%; right: 2.2%; bottom: 9%;
+                   border-radius: 999px;
+                   background: radial-gradient(ellipse at 50% 35%, #2f8f5b 0%, #1f6f43 55%, #14532d 100%);
+                   box-shadow: inset 0 0.8vh 3vh rgba(0,0,0,.5); }
+.tb-seatmap-line { position: absolute; left: 7%; top: 16%; right: 7%; bottom: 16%;
+                   border-radius: 999px; border: 0.28vh solid rgba(255,255,255,.28); }
+.tb-seatmap-centre { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%);
+                     text-align: center; font-weight: 800; letter-spacing: .35em;
+                     font-size: 1.1em; color: rgba(255,255,255,.22);
+                     text-shadow: 0 1px 2px rgba(0,0,0,.4); pointer-events: none; }
 .tb-seat { position: absolute; transform: translate(-50%, -50%); text-align: center; z-index: 2; }
 .tb-seat-disc { width: 3.2em; height: 3.2em; border-radius: 50%; margin: 0 auto;
                 display: flex; align-items: center; justify-content: center; overflow: hidden;

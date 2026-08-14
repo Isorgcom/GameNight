@@ -1278,9 +1278,21 @@ function drawSeatCells() {
 
         var wrap = document.createElement('div');
         wrap.className = 'tb-seatmap';
+        // The table itself: rail (leather edge), felt, betting line — layered
+        // stadium shapes, the racetrack silhouette of a real seating chart.
+        var rail = document.createElement('div');
+        rail.className = 'tb-seatmap-rail';
         var felt = document.createElement('div');
         felt.className = 'tb-seatmap-felt';
-        wrap.appendChild(felt);
+        var line = document.createElement('div');
+        line.className = 'tb-seatmap-line';
+        felt.appendChild(line);
+        var centre = document.createElement('div');
+        centre.className = 'tb-seatmap-centre';
+        centre.textContent = 'TABLE ' + tableNo;
+        felt.appendChild(centre);
+        rail.appendChild(felt);
+        wrap.appendChild(rail);
 
         var bySeat = {};
         for (var p2 = 0; p2 < seated.length; p2++) {
@@ -1288,11 +1300,40 @@ function drawSeatCells() {
             (bySeat[sn] = bySeat[sn] || []).push(seated[p2]);
         }
 
+        // Walk the stadium's perimeter by distance, so seats space evenly
+        // along straights and arcs alike. Working in the wrap's 100x100
+        // percent space; the CSS margins leave that ring for the seats.
+        var SX = 40, SY = 36;          // half-extents of the seat ring
+        var SS = 16;                    // half-length of each straight rail
+        var AX = SX - SS;               // arc horizontal radius
+        var arcLen = Math.PI * Math.sqrt((AX * AX + SY * SY) / 2);   // ~half-ellipse
+        var per = 4 * SS + 2 * arcLen; // two straights + two arc ends
+        function stadiumPoint(d) {
+            d = ((d % per) + per) % per;
+            // Segment 1: bottom straight, centre -> left (clockwise for the viewer).
+            if (d < SS) return { x: 50 - d, y: 50 + SY };
+            d -= SS;
+            // Segment 2: left arc, bottom -> top.
+            if (d < arcLen) {
+                var t1 = Math.PI / 2 + Math.PI * (d / arcLen);
+                return { x: 50 - SS + AX * Math.cos(t1), y: 50 + SY * Math.sin(t1) };
+            }
+            d -= arcLen;
+            // Segment 3: top straight, left -> right.
+            if (d < 2 * SS) return { x: 50 - SS + d, y: 50 - SY };
+            d -= 2 * SS;
+            // Segment 4: right arc, top -> bottom.
+            if (d < arcLen) {
+                var t2 = -Math.PI / 2 + Math.PI * (d / arcLen);
+                return { x: 50 + SS + AX * Math.cos(t2), y: 50 + SY * Math.sin(t2) };
+            }
+            // Segment 5: bottom straight, right -> centre.
+            d -= arcLen;
+            return { x: 50 + SS - d, y: 50 + SY };
+        }
         for (var seat = 1; seat <= nSeats; seat++) {
-            // Seat 1 bottom-centre, clockwise around the ellipse.
-            var ang = Math.PI / 2 + (seat - 1) * (2 * Math.PI / nSeats);
-            var cx = 50 + 42 * Math.cos(ang);
-            var cy = 50 + 38 * Math.sin(ang);
+            var pt = stadiumPoint((seat - 1) * per / nSeats);
+            var cx = pt.x, cy = pt.y;
             var here = bySeat[seat] || [null];
             for (var d = 0; d < here.length; d++) {
                 var pl = here[d];

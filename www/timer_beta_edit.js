@@ -55,6 +55,61 @@ var ELEMENTS = ['eventName','level','levelOrBreak','clock','gameName','nextGameN
     'chipCount','avgStack','avgStackBB','currentTime','elapsedTime','nextBreak','roundsToBreak','roundsTotal',
     'prizes','prizeList','prizesStacked','buyinLine'];
 
+/* ── What everything means ─────────────────────────────────────────────────
+ * One map, three uses: the "?" reference panel, tooltips in the element
+ * picker, and tooltips on tree nodes. An element missing here still works —
+ * it just shows without a blurb — so adding an element does not REQUIRE
+ * documentation, it only rewards it. */
+var ELEMENT_DESC = {
+    eventName: "The event's title",
+    gameName: "The game being played (No Limit Texas Hold 'Em)",
+    nextGameName: 'What the next round is, or "Break"',
+    level: "Current round number",
+    levelOrBreak: '"Level 5", or "Break" during one — one cell for both',
+    clock: "The countdown for this round",
+    elapsedTime: "How long the game has been running",
+    currentTime: "Wall-clock time",
+    startTime: "When the event is scheduled to start",
+    nextBreak: "Time until the next break",
+    roundsToBreak: 'ROUNDS until the next break (nextBreak answers "how long")',
+    roundsTotal: "How many rounds the schedule holds, breaks excluded",
+    smallBlind: "Current small blind", bigBlind: "Current big blind", ante: 'Current ante, "-" when none',
+    blinds: 'Small / big as one line ("75 / 150")',
+    nextBlinds: "The next level's blinds, ante included when it has one",
+    nextSmallBlind: "Next level's small blind alone", nextBigBlind: "Next level's big blind alone",
+    nextAnte: "Next level's ante alone",
+    players: 'Still in / total, as "12/18"',
+    playersLeft: "How many are still in", playersTotal: "How many played",
+    entries: "Buy-ins including rebuys", buyIns: "First buy-ins only",
+    rebuys: "Rebuys taken", addOns: "Add-ons taken",
+    eliminated: "Players knocked out", cashedOut: "Players who cashed out",
+    pot: "The prize pool, as money", prizePool: "Same figure as pot, named the way a screen labels it",
+    bountyPool: "Bounty money collected", jackpotPool: "Jackpot entries collected",
+    buyInFee: "What a buy-in costs", rebuyFee: "What a rebuy costs", addOnFee: "What an add-on costs",
+    buyinLine: "The buy-in and rebuy prices as one line",
+    prizes: 'Payouts on one line ("1st: $525  2nd: ...")',
+    prizeList: 'Payouts stacked, with a "Prizes" heading',
+    prizesStacked: "Payouts stacked, NO heading — for a cell that writes its own",
+    chipCount: "Total chips in play", avgStack: "Average stack",
+    avgStackBB: "Average stack in big blinds — the health number",
+    startChips: "Chips a buy-in gets", addOnChips: "Chips an add-on gets",
+    tables: "Tables in the room", seats: "Seats per table"
+};
+
+var STRUCTURE_DESC = [
+    ["Screen", "One full display. A layout can hold several; conditions decide which one shows (Break screens go before the catch-all Main)."],
+    ["Row / Column", "Boxes that split space. A row lays children side by side, a column stacks them. Drag borders in the preview to resize, drag boxes to move."],
+    ["Cell", "One box of content: text with live <elements> in it, an image, a QR code, a chip legend, or the final-table seat map."],
+    ["Weight", "A box's share of its parent's space. No weight = hug the content. The number the resize handles write."],
+    ["Size", "Text size as % of screen height — a MAXIMUM: values that outgrow the box wrap or shrink inside it, never spill."],
+    ["Show when", "A condition that hides the box until it matches: a state (on break), or an expression like bigBlind > 10000."],
+    ["Variants", "Alternate look or text for one cell behind a condition. First match wins; no match shows the base."],
+    ["Element styles", "One element styled apart from its line — <ante> bold and orange while the blinds stay white."],
+    ["Box image", "The box's own background picture: plate art that moves and resizes WITH the box."],
+    ["Shared style", "A named bundle of colour/size/bold that many cells reference; change it once, every user follows."],
+    ["Screen background", "The backdrop: a colour or full-screen picture. Screen shape locks its proportions; Panel colours toggles painted boxes vs artwork."]
+];
+
 /* ── Tree access helpers ─────────────────────────────────────────────── */
 
 function nodeAt(path) {
@@ -344,7 +399,24 @@ function colorInput(value, onchange) {
 // Upload an image via timer_beta_dl.php's upload_image action (byte-level MIME
 // check + getimagesize, size cap, per-user daily limit). Stores under
 // /uploads/timer_layouts/ and calls back with that URL.
+/* Every image pick in the editor comes through here (screen backgrounds, box
+ * images, image cells), so the library-first behaviour lands everywhere at
+ * once: a grid of what already exists — this user's uploads, then the app's
+ * shipped timer art — with uploading as the explicit LAST resort. Re-using a
+ * file costs nothing and counts against no quota; re-uploading the same
+ * artwork for every layout burned through the daily upload cap. */
 function uploadImage(onUrl) {
+    fetch('/timer_beta_dl.php?action=list_images')
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+            var imgs = (j && j.ok && Array.isArray(j.images)) ? j.images : [];
+            if (!imgs.length) { pickNewImage(onUrl); return; }   // empty library: straight to upload
+            openImagePicker(imgs, onUrl);
+        })
+        .catch(function () { pickNewImage(onUrl); });
+}
+
+function pickNewImage(onUrl) {
     var inp = document.createElement('input');
     inp.type = 'file'; inp.accept = 'image/png,image/jpeg,image/gif,image/webp';
     inp.addEventListener('change', function () {
@@ -363,6 +435,55 @@ function uploadImage(onUrl) {
             .catch(function () { (window.pkAlert || alert)('Upload failed.'); });
     });
     inp.click();
+}
+
+function openImagePicker(imgs, onUrl) {
+    var old = document.querySelector('.tbe-imgpick');
+    if (old) old.remove();
+    var wrap = document.createElement('div');
+    wrap.className = 'tbe-imgpick';
+    var panel = document.createElement('div');
+    panel.className = 'tbe-imgpick-panel';
+    var head = document.createElement('div');
+    head.className = 'tbe-imgpick-head';
+    var title = document.createElement('span');
+    title.textContent = 'Pick an image';
+    var up = document.createElement('button');
+    up.className = 'tbe-mini'; up.textContent = 'Upload new\u2026';
+    up.addEventListener('click', function () { wrap.remove(); pickNewImage(onUrl); });
+    var x = document.createElement('button');
+    x.className = 'tbe-mini'; x.textContent = '\u00d7';
+    x.addEventListener('click', function () { wrap.remove(); });
+    head.appendChild(title); head.appendChild(up); head.appendChild(x);
+    panel.appendChild(head);
+
+    var grid = document.createElement('div');
+    grid.className = 'tbe-imgpick-grid';
+    var lastMine = null;
+    imgs.forEach(function (im) {
+        if (lastMine !== im.mine) {
+            lastMine = im.mine;
+            var lab = document.createElement('div');
+            lab.className = 'tbe-imgpick-sec';
+            lab.textContent = im.mine ? 'Your uploads' : 'Built-in artwork';
+            grid.appendChild(lab);
+        }
+        var cellBtn = document.createElement('button');
+        cellBtn.type = 'button';
+        cellBtn.className = 'tbe-imgpick-item';
+        cellBtn.title = im.url.split('/').pop();
+        var img = document.createElement('img');
+        img.src = im.url;
+        img.loading = 'lazy';
+        img.alt = '';
+        cellBtn.appendChild(img);
+        cellBtn.addEventListener('click', function () { wrap.remove(); onUrl(im.url); });
+        grid.appendChild(cellBtn);
+    });
+    panel.appendChild(grid);
+    wrap.appendChild(panel);
+    wrap.addEventListener('click', function (e) { if (e.target === wrap) wrap.remove(); });
+    document.body.appendChild(wrap);
 }
 
 function setOrDelete(obj, key, val) {
@@ -879,6 +1000,7 @@ function renderInspector() {
             o.value = t;
             var v = vals[t];
             o.textContent = '<' + t + '>' + (v ? '  —  ' + v.replace(/\n/g, ' ').slice(0, 22) : '');
+            if (ELEMENT_DESC[t]) o.title = ELEMENT_DESC[t];
             elSel.appendChild(o);
         });
         elSel.addEventListener('change', function () {
@@ -2117,6 +2239,84 @@ document.getElementById('tbeDelete').addEventListener('click', function () {
     if (window.pkConfirm) pkConfirm('Delete "' + nameInput.value + '"?', { danger: true }).then(function (yes) { if (yes) go(); });
     else if (confirm('Delete layout?')) go();
 });
+
+/* ── The "?" reference panel ─────────────────────────────────────────── */
+(function () {
+    var btn = document.getElementById('tbeHelpBtn');
+    if (!btn) return;
+    var pop = null;
+    function close() { if (pop) { pop.remove(); pop = null; } }
+    btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (pop) { close(); return; }
+        pop = document.createElement('div');
+        pop.className = 'tbe-helppop';
+        var head = document.createElement('div');
+        head.className = 'tbe-helppop-head';
+        var ht = document.createElement('span');
+        ht.textContent = 'What everything means';
+        var hx = document.createElement('button');
+        hx.className = 'tbe-mini'; hx.textContent = '\u00d7';
+        hx.addEventListener('click', close);
+        head.appendChild(ht); head.appendChild(hx);
+        pop.appendChild(head);
+        var body = document.createElement('div');
+        body.className = 'tbe-helppop-body';
+
+        function section(title) {
+            var h = document.createElement('div');
+            h.className = 'tbe-helppop-sec';
+            h.textContent = title;
+            body.appendChild(h);
+        }
+        function row(term, desc, mono) {
+            var r = document.createElement('div');
+            r.className = 'tbe-helppop-row';
+            var t = document.createElement('span');
+            t.className = 'tbe-helppop-term' + (mono ? ' mono' : '');
+            t.textContent = term;
+            var d = document.createElement('span');
+            d.className = 'tbe-helppop-desc';
+            d.textContent = desc;
+            r.appendChild(t); r.appendChild(d);
+            body.appendChild(r);
+        }
+        section('The structure');
+        STRUCTURE_DESC.forEach(function (x) { row(x[0], x[1]); });
+        section('Elements — live values you can put in any cell\'s text');
+        // The renderer's list, so a new element appears here the day it ships;
+        // described when the map knows it, shown regardless.
+        var names = (PV && PV.elementNames) ? PV.elementNames() : Object.keys(ELEMENT_DESC);
+        names.forEach(function (n) {
+            row('<' + n + '>', ELEMENT_DESC[n] || (customElsOf()[n] !== undefined ? 'Custom element defined by this layout' : ''), true);
+        });
+        section('More');
+        row('Full guide', 'The Timer Guide covers all of this with screenshots — the Help button up top.');
+        pop.appendChild(body);
+        document.body.appendChild(pop);
+        // Park it under the button, inside the viewport.
+        var r = btn.getBoundingClientRect();
+        pop.style.top = (r.bottom + 6) + 'px';
+        pop.style.right = Math.max(8, window.innerWidth - r.right - 8) + 'px';
+        setTimeout(function () {
+            document.addEventListener('click', function onDoc(ev) {
+                if (pop && !pop.contains(ev.target)) { close(); document.removeEventListener('click', onDoc); }
+            });
+            // Clicks inside the preview IFRAME never bubble to this document;
+            // without this, clicking the preview left the panel hanging open.
+            try {
+                var fdoc = document.getElementById('tbeFrame').contentDocument;
+                fdoc.addEventListener('mousedown', function onF() {
+                    close(); fdoc.removeEventListener('mousedown', onF);
+                });
+            } catch (e) {}
+        }, 0);
+    });
+    window.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+})();
+function customElsOf() {
+    return (LAYOUT && LAYOUT.customElements && typeof LAYOUT.customElements === 'object') ? LAYOUT.customElements : {};
+}
 
 /* ── Boot: wait for the iframe's renderer, then start from Classic ── */
 
