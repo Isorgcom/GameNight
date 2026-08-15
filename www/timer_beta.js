@@ -44,6 +44,13 @@
 
 /* ── Built-in layouts ─────────────────────────────────────────────────── */
 
+/* What a display shows when nothing has chosen for it: no ?layout=, no layout
+ * bound to the game, and nothing remembered on this device. Named once so the
+ * three fallback sites cannot drift apart. Changing it only affects displays
+ * that never made a choice — a bound game and a device that has picked before
+ * both keep what they have. */
+var DEFAULT_LAYOUT = 'showcase';
+
 var LAYOUTS = {
 
     classic: {
@@ -2257,6 +2264,10 @@ if (window.TB_EMBED) {
     }, true);
     window.addEventListener('resize', scheduleRefit);
     refreshDerived();
+    // Seed the editor's preview from a trigger-free built-in, NOT the display
+    // default: this paint is a placeholder the editor replaces within a frame,
+    // and arming a default layout's triggers (Showcase has four) only to throw
+    // them away is noise — including audible noise in the preview.
     renderLayout('classic');
     setInterval(tick, 500);
 } else {
@@ -2359,7 +2370,7 @@ function applyPick(v) {
     }
 }
 
-if (!/^id:\d+$/.test(pick || '') && !LAYOUTS[pick]) pick = 'classic';
+if (!/^id:\d+$/.test(pick || '') && !LAYOUTS[pick]) pick = DEFAULT_LAYOUT;
 // First paint, independent of the picker: a saved layout is fetched by id (with
 // the cast key when there is one), a built-in is rendered outright.
 applyPick(pick);
@@ -2442,7 +2453,7 @@ document.addEventListener('visibilitychange', function () {
 });
 
 refreshDerived();
-applyPick(LAYOUTS[pick] ? pick : 'classic');
+applyPick(LAYOUTS[pick] ? pick : DEFAULT_LAYOUT);
 poll();
 setInterval(tick, 500);
 setInterval(poll, 2000);

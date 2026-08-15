@@ -4,6 +4,36 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2093] - 2026-08-15
+
+### Changed
+
+- **Showcase is the default layout for a display that has never chosen one.**
+  A timer opened with no `?layout=`, no layout bound to its game, and nothing
+  remembered on that device used to fall back to Classic; it now shows
+  "Showcase (feature tour)", which demonstrates what the engine can do rather
+  than the plainest board it ships with. Nothing that has made a choice is
+  touched: a game with a bound layout keeps it, and a device that has picked
+  before keeps that. The key is now a single `DEFAULT_LAYOUT` constant in
+  `www/timer_beta.js`, where two fallback sites used to name it separately.
+  Scoped to displays on purpose: the editor's blank canvas still opens on
+  Classic, a plain thing to build ON rather than a finished design carrying
+  three screens and four triggers, and the editor preview's throwaway first
+  paint still seeds from Classic so a default layout's triggers are never armed
+  only to be discarded.
+
+### Fixed
+
+- **The layout editor opened on the wrong screen with a multi-screen default.**
+  Boot selected screen index 0, but conditional screens sort FIRST in the array
+  so that a catch-all cannot win the evaluation scan ahead of them — meaning
+  index 0 is a conditional screen, and the editor opened on Showcase's Phone
+  view instead of Main. It never showed before because Classic has a single
+  screen. Boot now uses `mainScreenIndex()`, which the load path has always
+  used (`www/timer_beta_edit.js`).
+
+---
+
 ## [v0.2092] - 2026-08-15
 
 ### Added

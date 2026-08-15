@@ -3066,15 +3066,24 @@ function boot() {
     // Event context boots on the layout THIS game's display shows — the point
     // of editing here is tweaking that layout, not `classic`. A binding by
     // built-in key loads synchronously; a saved layout follows by fetch.
-    var bootKey = (EV_ID && !evLayoutId && evLayoutKey && PV.builtins[evLayoutKey]) ? evLayoutKey : 'classic';
+    // A blank start opens on Classic: a plain canvas to build ON, deliberately
+    // not the display default (Showcase), which is a finished design carrying
+    // three screens and four triggers. An event bound to a built-in opens on
+    // that one instead and keeps its name.
+    var fromBinding = !!(EV_ID && !evLayoutId && evLayoutKey && PV.builtins[evLayoutKey]);
+    var bootKey = fromBinding ? evLayoutKey : 'classic';
     LAYOUT = JSON.parse(JSON.stringify(PV.builtins[bootKey]));
     delete LAYOUT.name;
     curBuiltin = bootKey;   // fresh boot shows a pristine built-in
-    nameInput.value = bootKey === 'classic' ? 'My layout' : PV.builtins[bootKey].name + ' (mine)';
-    editScreenIndex = 0;
+    nameInput.value = fromBinding ? PV.builtins[bootKey].name + ' (mine)' : 'My layout';
     normalizeLayout();
+    // Open on the catch-all, not screen 0. Conditional screens sort FIRST in
+    // the array, so with a multi-screen default (Showcase leads with Phone)
+    // index 0 is a conditional screen and the editor opened on it. The load
+    // path has always used mainScreenIndex(); boot now agrees with it.
+    editScreenIndex = mainScreenIndex();
     refresh();
-    selectScreen(0);
+    selectScreen(editScreenIndex);
     updateGlobalBtn();
     populateLoadList();
     if (EV_ID && evLayoutId) {
