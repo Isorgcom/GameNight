@@ -196,8 +196,11 @@
 
         var table = el('table', 'es-table es-grid');
         var thead = el('thead'); var hr = el('tr');
-        [['Level', ''], ['Duration', ''], ['Ante', 'es-th-num'], ['Small Blind', 'es-th-num'],
-         ['Big Blind', 'es-th-num'], ['Start Time', 'es-th-num']].forEach(function (t) {
+        // Small, big, ante — the order they are said at the table and printed on
+        // every structure sheet. Ante sat first here, which read as the wrong
+        // ladder at a glance.
+        [['Level', ''], ['Duration', ''], ['Small Blind', 'es-th-num'], ['Big Blind', 'es-th-num'],
+         ['Ante', 'es-th-num'], ['Start Time', 'es-th-num']].forEach(function (t) {
             hr.appendChild(el('th', t[1] || null, t[0]));
         });
         thead.appendChild(hr); table.appendChild(thead);
@@ -340,7 +343,10 @@
                 if (!S.levels[i].is_break) { ref = S.levels[i]; break; }
             }
             var sb = ref ? ladderNext(ref.small_blind || 25, 1.5) : 25;
-            return { small_blind: sb, big_blind: round2(sb * 2), ante: ref ? +ref.ante : 0,
+            // Inherit WHETHER the level antes, but not the previous level's
+            // amount: a copied ante would sit a rung below its own big blind.
+            return { small_blind: sb, big_blind: round2(sb * 2),
+                     ante: (ref && +ref.ante > 0) ? round2(sb * 2) : 0,
                      duration_minutes: ref ? +ref.duration_minutes : 20, is_break: 0 };
         }
 
@@ -437,9 +443,9 @@
             tr.appendChild(lc);
 
             tr.appendChild(cellInput(lv, i, 'duration_minutes', 1, 999));
-            tr.appendChild(cellInput(lv, i, 'ante', 0, 100000000, 'es-cell-num'));
             tr.appendChild(cellInput(lv, i, 'small_blind', 0, 100000000, 'es-cell-num'));
             tr.appendChild(cellInput(lv, i, 'big_blind', 0, 100000000, 'es-cell-num'));
+            tr.appendChild(cellInput(lv, i, 'ante', 0, 100000000, 'es-cell-num'));
             var st = el('td', 'es-cell-num es-start');
             tr.appendChild(st);
             startEls[i] = st;
@@ -748,8 +754,11 @@
             var out = [];
             var cur = ladderAt(sb);
             for (var i = 1; i <= n; i++) {
+                // Big-blind ante: the ante matches the big blind, which is how
+                // tournaments run it now. It used to be generated equal to the
+                // SMALL blind, i.e. half of what every structure sheet says.
                 out.push({ small_blind: cur, big_blind: round2(cur * 2),
-                           ante: (anteFrom > 0 && i >= anteFrom) ? cur : 0,
+                           ante: (anteFrom > 0 && i >= anteFrom) ? round2(cur * 2) : 0,
                            duration_minutes: mins, is_break: 0 });
                 if (breakEvery > 0 && i % breakEvery === 0 && i < n) {
                     out.push({ small_blind: 0, big_blind: 0, ante: 0, duration_minutes: breakMin, is_break: 1 });

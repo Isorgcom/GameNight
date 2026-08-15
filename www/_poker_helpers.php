@@ -1109,6 +1109,24 @@ function pk_preset_can_write(array $struct, array $user, bool $isAdmin): bool {
     return $isAdmin || (int)$struct['created_by'] === (int)$user['id'];
 }
 
+/* ── Timer BETA built-in layouts ─────────────────────────────────────────────
+ * The keys of LAYOUTS in www/timer_beta.js. A game can bind one of these by
+ * KEY (no library copy is made), so the server has to know which keys are real.
+ *
+ * MIRROR OF THE JS, and the reason this is a function rather than two inline
+ * arrays: the list lived inline in event_setup_dl.php and checkin_dl.php, both
+ * were missed when `showcase` was added, and binding the new layout to a game
+ * answered "unknown builtin layout". Adding a built-in means editing LAYOUTS in
+ * timer_beta.js AND this list; there is no way to derive one from the other
+ * across the language boundary, so keep them adjacent in the same commit.
+ */
+function pk_timer_builtin_keys(): array {
+    return ['classic', 'black_green', 'minimalist', 'two_column', 'showcase', 'pcf'];
+}
+function pk_is_timer_builtin(string $key): bool {
+    return in_array($key, pk_timer_builtin_keys(), true);
+}
+
 /* ── Chip set ────────────────────────────────────────────────────────────────
  * Denominations paired with a colour, shown on the timer as a legend so players
  * can see what each colour is worth — the thing everyone asks at colour-up.

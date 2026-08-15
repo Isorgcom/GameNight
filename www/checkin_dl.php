@@ -1979,7 +1979,7 @@ if ($action === 'load_payout_structure') {
             if (!$lq->fetch()) $lid = 0;
         }
         $lkey = (string)($tc['layout_builtin'] ?? '');
-        if (!in_array($lkey, ['classic', 'black_green', 'minimalist', 'two_column', 'pcf'], true)) $lkey = '';
+        if (!pk_is_timer_builtin($lkey)) $lkey = '';
         if ($lid) $lkey = '';   // at most one binding
         $db->prepare("UPDATE timer_state SET use_beta = ?, layout_id = ?, layout_builtin = ?, updated_at = datetime('now') WHERE id = ?")
            ->execute([!empty($tc['use_beta']) ? 1 : 0, $lid ?: null, $lkey !== '' ? $lkey : null, (int)$trow['id']]);

@@ -201,6 +201,136 @@ if (S.sample) {
                { v: 1000, c: '#2563eb' }, { v: 5000, c: '#0f172a' }];
 }
 
+/* Showcase: the feature tour, and the layout to copy when starting a design.
+ * Three screens demonstrate the engine's three switching ideas at once — a
+ * catch-all Main, a state-conditioned Break that takes over on its own, and a
+ * device-conditioned Phone view for whoever scans the QR. Along the way it uses
+ * a share QR, per-cell conditions (the ante line only exists in an ante round),
+ * a paused-clock variant, and a one-minute warning before the blinds move.
+ *
+ * The Phone screen is listed FIRST on purpose: screens are scanned in order and
+ * the first match wins, so a phone keeps its simple view even during a break,
+ * and the break is announced there by a conditional cell instead. Deliberately
+ * no chip legend and no seat map: both render nothing until a host has entered
+ * a chip set or seated players, and a showcase that looks broken on a fresh
+ * install is worse than one that shows less. */
+LAYOUTS.showcase = {
+    name: 'Showcase (feature tour)',
+    screens: [
+        {
+            name: 'Phone',
+            when: 'mobile',
+            bg: { color: '#0b1220', gradient: ['#0b1220', '#111827'] },
+            root: { col: [
+                // No weights anywhere, and the column centres itself. A weight
+                // is flex-grow: weight the cells and they stretch, each
+                // centring its text inside a tall box, which reads as dead
+                // bands rather than bigger type. Sized cells plus `justify:
+                // center` keep the stack together in the middle of the phone.
+                // Sizes are % of viewport height and deliberately large; a
+                // cell that outgrows its width is capped down automatically.
+                { cell: { text: 'ON BREAK', size: 5, bold: true, color: '#fbbf24', when: 'on_break' } },
+                { cell: { text: '<clock>', size: 16, bold: true, color: '#f8fafc', clockColors: true,
+                          variants: [{ when: 'paused', color: '#f87171' }] } },
+                { cell: { text: '<blinds.now>', size: 8, bold: true, color: '#fbbf24' } },
+                { cell: { text: 'Ante <blinds.ante>', size: 4, color: '#94a3b8', when: 'hasAnte' } },
+                { cell: { text: 'Next: <blinds.next>', size: 4, color: '#f8fafc' } },
+                { cell: { text: 'Round <round.num>  ·  <players.left> of <players.total> left',
+                          size: 3, color: '#94a3b8' } }
+            ], pad: '3vh 4vw', gap: '2vh', justify: 'center' }
+        },
+        {
+            name: 'Break',
+            when: 'on_break',
+            bg: { color: '#0b1220', gradient: ['#0b1220', '#111827'] },
+            root: { col: [
+                { cell: { text: 'ON BREAK', size: 7, bold: true, color: '#fbbf24' }, weight: 2 },
+                { cell: { text: '<clock>', fit: true, bold: true, color: '#34d399' }, weight: 4 },
+                { cell: { text: 'Back with <blinds.next>', size: 3.2, color: '#f8fafc' }, weight: 1 },
+                { row: [
+                    { cell: { text: '·', size: 2, opacity: 0 }, weight: 1 },
+                    { col: [
+                        { cell: { text: '', size: 2, qr: 'display' }, weight: 3 },
+                        { cell: { text: 'Scan to watch on your phone', size: 1.8, color: '#94a3b8' }, weight: 0.7 }
+                    ], weight: 1.1, gap: '0.3vh' },
+                    { cell: { text: '·', size: 2, opacity: 0 }, weight: 1 }
+                ], weight: 3.4, gap: '1vw' },
+                { cell: { text: '<event.name>', size: 2.2, color: '#94a3b8' }, weight: 0.8 }
+            ], pad: '2vh 1.6vw', gap: '1vh' }
+        },
+        {
+            name: 'Main',
+            bg: { color: '#0b1220', gradient: ['#0b1220', '#111827'] },
+            root: { col: [
+                { row: [
+                    { col: [
+                        { cell: { text: '<event.name>', size: 3, bold: true, color: '#f8fafc', align: 'left' }, weight: 1 },
+                        { cell: { text: '<game.name>', size: 2.1, color: '#94a3b8', align: 'left' }, weight: 0.8 },
+                        { cell: { text: 'Round <round.num> of <round.total>', size: 2.1, color: '#94a3b8', align: 'left' }, weight: 0.8 }
+                    ], weight: 2.6, gap: '0.4vh', justify: 'center' },
+                    { cell: { text: '<clock>', fit: true, bold: true, color: '#f8fafc', clockColors: true,
+                              variants: [
+                                  { when: 'paused',    color: '#f87171' },
+                                  { when: 'game_over', text: 'GAME OVER', color: '#ef4444' }
+                              ] }, weight: 5 },
+                    { col: [
+                        { cell: { text: '', size: 2, qr: 'display' }, weight: 3 },
+                        { cell: { text: 'Scan to watch', size: 1.7, color: '#94a3b8' }, weight: 0.8 }
+                    ], weight: 2, gap: '0.3vh' }
+                ], weight: 28, gap: '1vw' },
+                // Blinds over next level, not beside it: stacked, the current
+                // blinds get the full width of the board and the next level
+                // reads as a footnote to them instead of a rival panel.
+                { col: [
+                    { col: [
+                        { cell: { text: 'BLINDS', size: 2.4, bold: true, color: '#fbbf24' }, weight: 0.8 },
+                        { cell: { text: '<blinds.now>', size: 13, bold: true, color: '#f8fafc' }, weight: 3.4 },
+                        { cell: { text: 'Ante <blinds.ante>', size: 3, color: '#fcd34d', when: 'hasAnte' }, weight: 0.8 }
+                    ], weight: 3, bg: 'rgba(251,191,36,0.12)', border: '3px solid rgba(251,191,36,0.65)',
+                       pad: '1.2vh 1vw', gap: '0.2vh' },
+                    { row: [
+                        { col: [
+                            { cell: { text: 'NEXT LEVEL', size: 1.9, bold: true, color: '#94a3b8' }, weight: 0.8 },
+                            { cell: { text: '<blinds.next>', size: 4, bold: true, color: '#f8fafc' }, weight: 1 }
+                        ], weight: 1, gap: '0.2vh' },
+                        { col: [
+                            { cell: { text: 'NEXT BREAK', size: 1.9, bold: true, color: '#94a3b8' }, weight: 0.8 },
+                            { cell: { text: '<time.nextBreak>', size: 4, bold: true, color: '#f8fafc' }, weight: 1 }
+                        ], weight: 1, gap: '0.2vh' }
+                    ], weight: 1.15, bg: 'rgba(255,255,255,0.05)', border: '2px solid rgba(148,163,184,0.35)',
+                       pad: '0.9vh 1vw', gap: '1vw' }
+                ], weight: 46, gap: '1vh' },
+                { row: [
+                    { col: [
+                        { cell: { text: 'PLAYERS', size: 1.9, bold: true, color: '#94a3b8' }, weight: 0.8 },
+                        { cell: { text: '<players.left> of <players.total>', size: 3.1, bold: true, color: '#f8fafc' }, weight: 1 }
+                    ], weight: 1, gap: '0.2vh' },
+                    { col: [
+                        { cell: { text: 'AVG STACK', size: 1.9, bold: true, color: '#94a3b8' }, weight: 0.8 },
+                        { cell: { text: '<chips.avg>  (<chips.avgBB>)', size: 3.1, bold: true, color: '#f8fafc' }, weight: 1 }
+                    ], weight: 1, gap: '0.2vh' },
+                    { col: [
+                        { cell: { text: 'ENTRIES', size: 1.9, bold: true, color: '#94a3b8' }, weight: 0.8 },
+                        { cell: { text: '<players.entries>', size: 3.1, bold: true, color: '#f8fafc' }, weight: 1 }
+                    ], weight: 1, gap: '0.2vh' },
+                    { col: [
+                        { cell: { text: 'PRIZE POOL', size: 1.9, bold: true, color: '#94a3b8' }, weight: 0.8 },
+                        { cell: { text: '<money.pot>', size: 3.1, bold: true, color: '#34d399' }, weight: 1 }
+                    ], weight: 1, gap: '0.2vh' }
+                ], weight: 22, gap: '0.8vw', bg: 'rgba(255,255,255,0.04)', pad: '1vh 1vw' },
+                { cell: { text: '<prizes.line>', size: 2, color: '#94a3b8' }, weight: 8 }
+            ], pad: '2vh 1.6vw', gap: '1.2vh' }
+        }
+    ],
+    triggers: [
+        // The ask: one minute of warning before the blinds move.
+        { when: 'clock.seconds <= 60 and running', do: [{ sound: 'preset:countdown' }, { flash: 'screen' }] },
+        { when: 'levelChange', do: [{ sound: 'preset:chime' }, { announce: 'Blinds are now <blinds.now>' }] },
+        { when: 'onBreak',  do: [{ sound: 'preset:gentle' }] },
+        { when: 'gameOver', do: [{ sound: 'preset:casino' }], once: true }
+    ]
+};
+
 /* PCF, cut the per-box way: the felt is the only full-screen image; every
  * plate is its own transparent PNG carried by its box (bgImage), so plates
  * move, resize and reflow WITH their boxes — no aspect lock, no registration,

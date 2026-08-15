@@ -117,7 +117,7 @@ if ($action === 'set_layout') {
     $layout_id = (int)($_POST['layout_id'] ?? 0);
     // Built-ins aren't library rows; binding one stores its key instead.
     $builtin = trim((string)($_POST['builtin'] ?? ''));
-    if ($builtin !== '' && !in_array($builtin, ['classic', 'black_green', 'minimalist', 'two_column', 'pcf'], true)) {
+    if ($builtin !== '' && !pk_is_timer_builtin($builtin)) {
         echo json_encode(['ok' => false, 'error' => 'Unknown built-in layout']); exit;
     }
     if ($builtin !== '') $layout_id = 0;

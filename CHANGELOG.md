@@ -4,6 +4,56 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2092] - 2026-08-15
+
+### Added
+
+- **A Showcase layout that demonstrates what the timer engine can do.** New
+  built-in "Showcase (feature tour)" in `www/timer_beta.js`, meant as both a
+  ready-to-use board and the layout to copy when starting a design. It carries
+  three screens that exercise the engine's three switching ideas at once: a
+  catch-all **Main** (event and game name, big clock, share QR, a prominent
+  blinds panel over a next level / next break strip, then players, average
+  stack, entries and prize pool), a **Break** screen that takes over on its own,
+  and a **Phone** screen for whoever scans the code. Along the way it uses a
+  share QR, per-cell conditions (the ante lines exist only in an ante round), a
+  paused-clock variant, and four triggers, including the one-minute warning
+  before the blinds move. The Phone screen is listed first on purpose: screens
+  are scanned in order and the first match wins, so a phone keeps its simple
+  view during a break and the break is announced there by a conditional cell.
+  No chip legend and no seat map, since both render nothing until a host has
+  entered a chip set or seated players. The fallback for a display that has
+  never chosen a layout is still Classic.
+
+### Fixed
+
+- **Binding a newly added built-in layout to a game answered "unknown builtin
+  layout".** The list of valid built-in keys was hardcoded separately in
+  `event_setup_dl.php` and `checkin_dl.php`, apart from `LAYOUTS` in
+  `timer_beta.js`, and both copies were missed when Showcase was added. There is
+  now one list, `pk_timer_builtin_keys()` in `_poker_helpers.php`, which both
+  endpoints already include and now call. Adding a built-in still means editing
+  the JavaScript and that list together, which the comment there says plainly.
+
+- **The blind editor listed Ante before the blinds.** The Rounds grid ran Level,
+  Duration, Ante, Small Blind, Big Blind, so the ladder read wrong at a glance.
+  It is now Small Blind, Big Blind, Ante, matching the classic timer's own grid
+  and every printed structure sheet (`www/event_blinds.js`). Cells are addressed
+  by `data-col` rather than position, so nothing else moved with them.
+
+- **The generator produced antes at half their intended size.** It set the ante
+  equal to the *small* blind; a big-blind ante, which is how tournaments run it
+  now, equals the big blind. Generating with antes from level 3 now yields
+  75/150 ante 150 rather than ante 75. Inserting a round had the same flaw from
+  the other direction: it copied the previous round's ante verbatim while
+  computing fresh blinds, leaving the new row an ante a rung below its own big
+  blind, so it now inherits only *whether* the level antes. Existing saved
+  schedules are left exactly as they are: two live presets carry the old
+  pattern, both privately owned, and half-a-big-blind is a legitimate structure
+  that cannot be told apart from the old output with certainty.
+
+---
+
 ## [v0.2091] - 2026-08-15
 
 ### Infrastructure
