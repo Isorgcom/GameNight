@@ -258,6 +258,39 @@ if ($action === 'list_payout_structures') {
     exit;
 }
 
+// ─── GET: preset_state ─────────────────────────────────────
+// Where this game's setup came from, and whether it still matches. Drives the
+// Setup editor's preset bar ("From: X • MODIFIED"). Drift is computed against
+// the preset as it exists NOW, not against a fingerprint taken at load time —
+// see pk_preset_is_modified().
+if ($action === 'preset_state') {
+    $session_id = (int)($_GET['session_id'] ?? $_POST['session_id'] ?? 0);
+    $sq = $db->prepare('SELECT ps.* FROM poker_sessions ps WHERE ps.id = ?');
+    $sq->execute([$session_id]);
+    $sess = $sq->fetch(PDO::FETCH_ASSOC);
+    if (!$sess) { echo json_encode(['ok' => false, 'error' => 'Session not found']); exit; }
+    if (!is_owner_or_manager($db, (int)$sess['event_id'], $current, $isAdmin)) {
+        http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Access denied']); exit;
+    }
+    $pid = (int)($sess['preset_structure_id'] ?? 0);
+    if (!$pid) { echo json_encode(['ok' => true, 'preset' => null]); exit; }
+
+    $pq = $db->prepare('SELECT * FROM payout_structures WHERE id = ?');
+    $pq->execute([$pid]);
+    $struct = $pq->fetch(PDO::FETCH_ASSOC);
+    // Preset deleted since: the game keeps its settings, it just has no origin
+    // to compare against any more.
+    if (!$struct) { echo json_encode(['ok' => true, 'preset' => null, 'dangling' => true]); exit; }
+
+    echo json_encode(['ok' => true, 'preset' => [
+        'id'         => (int)$struct['id'],
+        'name'       => (string)$struct['name'],
+        'modified'   => pk_preset_is_modified($db, $struct, $sess),
+        'can_update' => pk_preset_can_write($struct, $current, $isAdmin),
+    ]]);
+    exit;
+}
+
 // ─── GET: get_session_defaults ─────────────────────────────
 // Returns the caller's last-used poker session config. Accepts optional league_id.
 // Lookup: (user, league_id) -> (user, NULL) -> hardcoded defaults.
@@ -549,6 +582,14 @@ if ($action === 'update_config') {
         $jp_opt,
         $session_id,
     ]);
+
+    // Chip set. Written only when the request actually carries the field: an
+    // older client (or any caller that predates this) must not silently erase
+    // a set someone entered.
+    if (array_key_exists('chip_set', $_POST)) {
+        $db->prepare('UPDATE poker_sessions SET chip_set = ? WHERE id = ?')
+           ->execute([pk_chip_set_json($_POST['chip_set']), $session_id]);
+    }
 
     // Bounty changes move the net pool, so re-derive winnings immediately.
     pk_apply_tournament_payouts($db, $session_id);
@@ -1076,6 +1117,15 @@ if ($action === 'uneliminate_player') {
     $brow = $before->fetch();
 
     $db->prepare('UPDATE poker_players SET eliminated = 0, finish_position = NULL, eliminated_by = NULL WHERE id = ?')->execute([$player_id]);
+
+    // Give them a seat back. Eliminating deliberately frees the seat
+    // (table/seat go NULL so rebalancing works), which meant an undone
+    // elimination returned a player to the game with NO seat — invisible on
+    // the timer's seat map, and unlisted at any table in the Table view.
+    // auto_assign_table() is a no-op when the session seats manually, and at a
+    // final table the freed seat is usually the only opening, so they land
+    // back where they were.
+    auto_assign_table($db, (int)$session['id'], $player_id);
 
     // If this puts more than one player back in, undo any auto-crowned winner and
     // reopen the game (it's no longer over). Reopening voids issued tickets and
@@ -1668,9 +1718,17 @@ if ($action === 'save_payout_structure') {
     $is_global = !empty($_POST['is_global']) ? 1 : 0;
     $req_league_id = (int)($_POST['league_id'] ?? 0) ?: null;
 
-    if ($name === '' || !is_array($places) || count($places) === 0) {
-        echo json_encode(['ok' => false, 'error' => 'Name and at least one place required']); exit;
+    // An update keeps the preset's existing name and scope, so it sends no
+    // name — requiring one here rejected every "Update preset" before the
+    // update branch below was ever reached.
+    $is_update = (int)($_POST['structure_id'] ?? 0) > 0;
+    if (!$is_update && $name === '') {
+        echo json_encode(['ok' => false, 'error' => 'Name required']); exit;
     }
+    // A preset is the whole editor, not just a payout split. Whether it holds
+    // anything is decided once, further down, on the PARSED values — a raw
+    // field being present says nothing about it carrying a value.
+    if (!is_array($places)) $places = [];
     if ($is_global && !$isAdmin) {
         echo json_encode(['ok' => false, 'error' => 'Only admins can save global structures']); exit;
     }
@@ -1715,6 +1773,52 @@ if ($action === 'save_payout_structure') {
     }
     $game_config = $gc ? json_encode($gc) : null;
 
+    // Blind schedule + timer settings ride too, so a preset restores the WHOLE
+    // game night. The client sends the Blinds pane's grid when it has one
+    // (what-you-see-is-what-you-save); otherwise the session's saved schedule
+    // and timer flags are snapshotted server-side. NULL = legacy preset.
+    $blind_levels = null;
+    if (isset($_POST['blind_levels'])) {
+        $bl = pk_clean_blind_levels(json_decode((string)$_POST['blind_levels'], true));
+        if ($bl) $blind_levels = json_encode($bl);
+    }
+    $timer_config = null;
+    $snap_sid = (int)($_POST['session_id'] ?? 0);
+    if ($snap_sid) {
+        $sq = $db->prepare('SELECT event_id FROM poker_sessions WHERE id = ?');
+        $sq->execute([$snap_sid]);
+        $snap_eid = (int)($sq->fetchColumn() ?: 0);
+        if ($snap_eid && is_owner_or_manager($db, $snap_eid, $current, $isAdmin)) {
+            $tq = $db->prepare('SELECT preset_id, use_beta, layout_id, layout_builtin FROM timer_state WHERE session_id = ?');
+            $tq->execute([$snap_sid]);
+            $trow = $tq->fetch();
+            if ($trow) {
+                $timer_config = json_encode([
+                    'use_beta'  => (int)($trow['use_beta'] ?? 0),
+                    'layout_id' => (int)($trow['layout_id'] ?? 0) ?: null,
+                    'layout_builtin' => ($trow['layout_builtin'] ?? null) ?: null,
+                ]);
+                if ($blind_levels === null && (int)$trow['preset_id']) {
+                    $lq = $db->prepare('SELECT small_blind, big_blind, ante, duration_minutes, is_break FROM blind_preset_levels WHERE preset_id = ? ORDER BY level_number');
+                    $lq->execute([(int)$trow['preset_id']]);
+                    $bl = pk_clean_blind_levels($lq->fetchAll(PDO::FETCH_ASSOC));
+                    if ($bl) $blind_levels = json_encode($bl);
+                }
+            }
+        }
+    }
+
+    // Chip set rides with the preset: the client sends the editor's current set,
+    // otherwise it is snapshotted from the session being saved.
+    $chip_set = null;
+    if (isset($_POST['chip_set'])) {
+        $chip_set = pk_chip_set_json($_POST['chip_set']);
+    } elseif ($snap_sid) {
+        $cq = $db->prepare('SELECT chip_set FROM poker_sessions WHERE id = ?');
+        $cq->execute([$snap_sid]);
+        $chip_set = pk_chip_set_json($cq->fetchColumn() ?: '');
+    }
+
     $pointsArr  = $_POST['points'] ?? [];
     $ticketsArr = $_POST['tickets'] ?? [];
     $labelsArr  = $_POST['labels'] ?? [];
@@ -1729,19 +1833,53 @@ if ($action === 'save_payout_structure') {
             $rows[] = [$pl, $pct, $pts, $ticket, $label !== '' ? mb_substr($label, 0, 60) : null];
         }
     }
-    // An all-zero structure with no reward recipe and no game config is
-    // unsaveable — loading it later would be an empty no-op.
-    if (!$rows && $st_bounty === 0 && $st_bounty_pts === 0 && $st_jackpot === 0 && $game_config === null) {
-        echo json_encode(['ok' => false, 'error' => 'Nothing to save — set at least one payout value, points, prize, bounty, or jackpot entry first.']); exit;
+    // An all-zero structure that carries nothing else is unsaveable — loading it
+    // later would be an empty no-op. The chip set and timer settings count as
+    // content like everything else: leaving them out rejected a preset save that
+    // only changed the chips, which is exactly what a host does when adding a
+    // chip set to a preset made before chip sets existed.
+    if (!$rows && $st_bounty === 0 && $st_bounty_pts === 0 && $st_jackpot === 0
+        && $game_config === null && $blind_levels === null
+        && $chip_set === null && $timer_config === null) {
+        echo json_encode(['ok' => false, 'error' => 'Nothing to save — set a payout value, points, a prize, a bounty or jackpot entry, a blind schedule or a chip set first.']); exit;
     }
 
-    $db->prepare('INSERT INTO payout_structures (name, created_by, is_global, league_id, bounty_amount, bounty_points, jackpot_amount, game_config) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-       ->execute([$name, (int)$current['id'], $is_global, $league_id, $st_bounty, $st_bounty_pts, $st_jackpot, $game_config]);
+    // structure_id present = "Update preset": write this editor back over the
+    // preset the game came from, instead of minting a near-duplicate. Name,
+    // scope and ownership stay as they were — this is an edit, not a re-save.
+    $update_id = (int)($_POST['structure_id'] ?? 0);
+    if ($update_id) {
+        $uq = $db->prepare('SELECT * FROM payout_structures WHERE id = ?');
+        $uq->execute([$update_id]);
+        $target = $uq->fetch(PDO::FETCH_ASSOC);
+        if (!$target) { echo json_encode(['ok' => false, 'error' => 'That preset no longer exists.']); exit; }
+        if (!pk_preset_can_write($target, $current, $isAdmin)) {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'You cannot change that preset — use Save As to make your own copy.']); exit;
+        }
+        $db->prepare('UPDATE payout_structures SET bounty_amount = ?, bounty_points = ?, jackpot_amount = ?, game_config = ?, blind_levels = ?, timer_config = ?, chip_set = ? WHERE id = ?')
+           ->execute([$st_bounty, $st_bounty_pts, $st_jackpot, $game_config, $blind_levels, $timer_config, $chip_set, $update_id]);
+        $db->prepare('DELETE FROM payout_structure_places WHERE structure_id = ?')->execute([$update_id]);
+        $ins = $db->prepare('INSERT INTO payout_structure_places (structure_id, place, percentage, points, ticket_cents, prize_label) VALUES (?, ?, ?, ?, ?, ?)');
+        foreach ($rows as $r) $ins->execute([$update_id, $r[0], $r[1], $r[2], $r[3], $r[4]]);
+        db_log_activity((int)$current['id'], "updated payout structure: " . $target['name'] . " (id=$update_id)");
+        echo json_encode(['ok' => true, 'structure_id' => $update_id, 'updated' => true, 'name' => $target['name']]);
+        exit;
+    }
+
+    $db->prepare('INSERT INTO payout_structures (name, created_by, is_global, league_id, bounty_amount, bounty_points, jackpot_amount, game_config, blind_levels, timer_config, chip_set) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+       ->execute([$name, (int)$current['id'], $is_global, $league_id, $st_bounty, $st_bounty_pts, $st_jackpot, $game_config, $blind_levels, $timer_config, $chip_set]);
     $sid = (int)$db->lastInsertId();
 
     $ins = $db->prepare('INSERT INTO payout_structure_places (structure_id, place, percentage, points, ticket_cents, prize_label) VALUES (?, ?, ?, ?, ?, ?)');
     foreach ($rows as $r) {
         $ins->execute([$sid, $r[0], $r[1], $r[2], $r[3], $r[4]]);
+    }
+
+    // The game now came from the preset it just produced, so the Setup bar can
+    // say so instead of falling back to "not from a preset".
+    if ($snap_sid) {
+        $db->prepare('UPDATE poker_sessions SET preset_structure_id = ? WHERE id = ?')->execute([$sid, $snap_sid]);
     }
 
     db_log_activity((int)$current['id'], "saved payout structure: $name (id=$sid" . ($league_id ? ", league id=$league_id" : ($is_global ? ", global" : "")) . ")");
@@ -1821,6 +1959,32 @@ if ($action === 'load_payout_structure') {
            ->execute([$nb, $nbp, $nj, $session_id]);
     }
 
+    // Blind schedule rides with the preset: written copy-on-write as THIS
+    // session's own schedule, never a shared library preset. NULL = legacy.
+    if (!empty($struct['blind_levels'])) {
+        $bl = pk_clean_blind_levels(json_decode((string)$struct['blind_levels'], true));
+        if ($bl) pk_apply_event_blinds($db, $session_id, (int)$s['event_id'], $bl, (int)$current['id']);
+    }
+    // Timer settings (BETA switch + bound layout). The layout is re-checked
+    // against the LOADER's visibility — a preset can't smuggle someone a
+    // layout they can't see; an invisible one just doesn't bind.
+    if (!empty($struct['timer_config'])) {
+        $tc = json_decode((string)$struct['timer_config'], true) ?: [];
+        $trow = pk_ensure_timer_row($db, $session_id);
+        $lid = (int)($tc['layout_id'] ?? 0);
+        if ($lid) {
+            $lq = $db->prepare('SELECT id FROM timer_layouts WHERE id = ? AND (is_global = 1 OR created_by = ?
+                    OR league_id IN (SELECT league_id FROM league_members WHERE user_id = ?))');
+            $lq->execute([$lid, (int)$current['id'], (int)$current['id']]);
+            if (!$lq->fetch()) $lid = 0;
+        }
+        $lkey = (string)($tc['layout_builtin'] ?? '');
+        if (!in_array($lkey, ['classic', 'black_green', 'minimalist', 'two_column', 'pcf'], true)) $lkey = '';
+        if ($lid) $lkey = '';   // at most one binding
+        $db->prepare("UPDATE timer_state SET use_beta = ?, layout_id = ?, layout_builtin = ?, updated_at = datetime('now') WHERE id = ?")
+           ->execute([!empty($tc['use_beta']) ? 1 : 0, $lid ?: null, $lkey !== '' ? $lkey : null, (int)$trow['id']]);
+    }
+
     // Re-validate the split on the way in. Presets are stored rows that may
     // pre-date the save-side checks (or have been written before they existed),
     // and this path used to apply whatever it found without looking.
@@ -1843,10 +2007,19 @@ if ($action === 'load_payout_structure') {
                        (int)($r['points'] ?? 0), (int)($r['ticket_cents'] ?? 0), $r['prize_label'] ?: null]);
     }
 
+    // Chip set travels with the preset. NULL means the preset predates chip
+    // sets, which must leave the game's own set alone rather than clearing it.
+    if (!empty($struct['chip_set'])) {
+        $db->prepare('UPDATE poker_sessions SET chip_set = ? WHERE id = ?')
+           ->execute([pk_chip_set_json($struct['chip_set']), $session_id]);
+    }
+
     // Applying a preset IS setting the game up — a legacy preset carries no
     // game_config, so it can leave the buy-in untouched, and the host must not
     // keep being told the game is unconfigured after deliberately loading one.
-    $db->prepare('UPDATE poker_sessions SET setup_saved = 1 WHERE id = ?')->execute([$session_id]);
+    // …and remember WHICH preset, so the Setup bar can report drift from it.
+    $db->prepare('UPDATE poker_sessions SET setup_saved = 1, preset_structure_id = ? WHERE id = ?')
+       ->execute([$structure_id, $session_id]);
 
     db_log_activity((int)$current['id'], "loaded payout structure id=$structure_id into poker session id=$session_id");
 
@@ -1856,11 +2029,17 @@ if ($action === 'load_payout_structure') {
     $sess2 = $db->prepare('SELECT * FROM poker_sessions WHERE id = ?');
     $sess2->execute([$session_id]);
 
+    // Current timer flags so the client can retarget the Timer button and
+    // refresh the Blinds pane without another round-trip.
+    $tq2 = $db->prepare('SELECT use_beta FROM timer_state WHERE session_id = ?');
+    $tq2->execute([$session_id]);
+
     echo json_encode([
         'ok'      => true,
         'session' => $sess2->fetch(),
         'payouts' => get_payouts($db, $session_id),
         'pool'    => calc_pool($db, $session_id),
+        'use_beta' => (int)($tq2->fetchColumn() ?: 0),
     ]);
     exit;
 }

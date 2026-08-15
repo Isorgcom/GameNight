@@ -572,6 +572,10 @@ function db_init(PDO $pdo): void {
     // Personal vs global preset visibility (admin can create global presets visible to all users)
     try { $pdo->exec("ALTER TABLE blind_presets ADD COLUMN is_global INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE blind_presets ADD COLUMN league_id INTEGER"); } catch (Exception $e) {}
+    // Copy-on-write event schedules: session_id NULL = library preset, non-NULL
+    // = a private copy owned by that poker session (event_blinds.php). Local
+    // copies never appear in library listings and die with their session.
+    try { $pdo->exec("ALTER TABLE blind_presets ADD COLUMN session_id INTEGER"); } catch (Exception $e) {}
 
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS blind_preset_levels (
         id               INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -705,6 +709,19 @@ function db_init(PDO $pdo): void {
         $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN setup_saved INTEGER NOT NULL DEFAULT 0");
         $pdo->exec("UPDATE poker_sessions SET setup_saved = 1");
     } catch (Exception $e) {}
+    // The house chip set: denominations paired with a colour, as JSON
+    // [{"v":25,"c":"#ffffff"}, …]. Per session rather than global because a
+    // deep-stack night and a turbo genuinely use different chips, and it rides
+    // with a game preset so a recurring game does not re-enter it every week.
+    try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN chip_set TEXT"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE payout_structures ADD COLUMN chip_set TEXT"); } catch (Exception $e) {}
+    // Which preset this game was set up from. Nullable and deliberately NOT a
+    // foreign key: the preset may be deleted later, and the game keeps running
+    // on the settings it copied. The check-in Setup bar reads it to answer
+    // "where did this game's setup come from, and have I changed it since?" —
+    // before this, that state lived only in a JS variable and was forgotten on
+    // every reload, so the bar always claimed "Custom (unsaved)".
+    try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN preset_structure_id INTEGER"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN bounty_in INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     // Rebuy re-entry support: when an eliminated player rebuys back in, the
     // knockout is BANKED on the eliminator (they physically collected the
@@ -783,10 +800,37 @@ function db_init(PDO $pdo): void {
     try { $pdo->exec("ALTER TABLE timer_state ADD COLUMN start_sound TEXT"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE timer_state ADD COLUMN warning_sound TEXT"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE timer_state ADD COLUMN theme_id INTEGER"); } catch (Exception $e) {}
+    // Which Timer BETA layout this game's display shows (event_display.php):
+    // a saved timer_layouts row (layout_id) OR a built-in key (layout_builtin,
+    // e.g. 'classic') — built-ins aren't rows, so binding one stores its key
+    // instead of forcing a pointless library copy. At most one is set.
+    try { $pdo->exec("ALTER TABLE timer_state ADD COLUMN layout_id INTEGER"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE timer_state ADD COLUMN layout_builtin TEXT"); } catch (Exception $e) {}
+    // Opt-in: this game's Timer button opens the BETA layout display instead
+    // of the classic timer (switch lives in Setup → Blinds).
+    try { $pdo->exec("ALTER TABLE timer_state ADD COLUMN use_beta INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    // Game presets also carry the blind schedule + timer settings, so loading
+    // one restores the ENTIRE setup: JSON blobs, NULL = legacy preset.
+    try { $pdo->exec("ALTER TABLE payout_structures ADD COLUMN blind_levels TEXT"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE payout_structures ADD COLUMN timer_config TEXT"); } catch (Exception $e) {}
 
     // Timer themes (visual customization of the timer screen). Scope mirrors blind_presets:
     // personal / league / global / default. Properties stored as a JSON blob so the schema
     // can evolve (new themable props) without ALTERs.
+    // Timer BETA layouts: a layout is a JSON tree of rows/columns/cells (see
+    // TIMER_BETA.md). Same scoping columns as timer_themes; `layout` is the
+    // sanitized JSON document (pk_layout_sanitize() in timer_beta_dl.php).
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS timer_layouts (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        name        TEXT NOT NULL,
+        created_by  INTEGER NOT NULL DEFAULT 0,
+        is_global   INTEGER NOT NULL DEFAULT 0,
+        league_id   INTEGER,
+        layout      TEXT NOT NULL DEFAULT '{}',
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    )"); } catch (Exception $e) {}
+
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS timer_themes (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         name        TEXT NOT NULL,

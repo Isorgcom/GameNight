@@ -192,6 +192,94 @@ function intval_or_string($v) {
     return $v;
 }
 
+/* ── Event blind schedules (copy-on-write) ──────────────────────────────
+ * Shared by event_setup_dl.php (the blind editor) and checkin_dl.php (game
+ * presets carrying a schedule). A session edits only its OWN copy of a
+ * schedule (blind_presets.session_id = session), never a library preset. */
+
+// Sanitize a posted blind-levels array: whole numbers, sane ranges, level
+// numbers re-issued from row order. Returns [] when nothing valid remains.
+function pk_clean_blind_levels($levels): array {
+    if (!is_array($levels)) return [];
+    $clean = [];
+    $n = 0;
+    foreach (array_slice($levels, 0, 200) as $lv) {
+        if (!is_array($lv)) continue;
+        $n++;
+        $clean[] = [
+            'level_number'     => $n,
+            // Money, not chips: home games run .25/.50 blinds, and the classic
+            // timer has always stored these as floats (timer_dl casts (float),
+            // timer.js reads parseFloat). An (int) cast here silently turned
+            // 0.25 into 0 on every copy-on-write save. Two decimals, rounded,
+            // so float dust never reaches the database.
+            'small_blind'      => round(max(0, min(100000000, (float)($lv['small_blind'] ?? 0))), 2),
+            'big_blind'        => round(max(0, min(100000000, (float)($lv['big_blind'] ?? 0))), 2),
+            'ante'             => round(max(0, min(100000000, (float)($lv['ante'] ?? 0))), 2),
+            'duration_minutes' => max(1, min(999, (int)($lv['duration_minutes'] ?? 15))),
+            'is_break'         => !empty($lv['is_break']) ? 1 : 0,
+        ];
+    }
+    return $clean;
+}
+
+// The timer row is created lazily; callers that need one get it here.
+function pk_ensure_timer_row(PDO $db, int $session_id): array {
+    $q = $db->prepare('SELECT * FROM timer_state WHERE session_id = ?');
+    $q->execute([$session_id]);
+    $timer = $q->fetch();
+    if ($timer) return $timer;
+    $remote_key = bin2hex(random_bytes(8));
+    $db->prepare("INSERT INTO timer_state (session_id, preset_id, current_level, time_remaining_seconds, is_running, remote_key, updated_at)
+                  VALUES (?, NULL, 1, 900, 0, ?, datetime('now'))")->execute([$session_id, $remote_key]);
+    $q->execute([$session_id]);
+    return $q->fetch();
+}
+
+// Write $clean (pk_clean_blind_levels output) as THIS session's own schedule.
+// Reuses the session-local copy when the timer already points at one, else
+// creates one and repoints. Keeps the running clock coherent: current_level
+// clamped to the new count, and a game that hasn't started picks up the new
+// first-level duration. Returns ['preset_id' => int, 'created_copy' => bool].
+function pk_apply_event_blinds(PDO $db, int $session_id, int $event_id, array $clean, int $user_id): array {
+    $timer = pk_ensure_timer_row($db, $session_id);
+
+    $preset_id = (int)($timer['preset_id'] ?? 0);
+    $is_local = false;
+    if ($preset_id) {
+        $pq = $db->prepare('SELECT session_id FROM blind_presets WHERE id = ?');
+        $pq->execute([$preset_id]);
+        $prow = $pq->fetch();
+        $is_local = $prow && (int)($prow['session_id'] ?? 0) === $session_id;
+    }
+    if (!$is_local) {
+        $eq = $db->prepare('SELECT title FROM events WHERE id = ?');
+        $eq->execute([$event_id]);
+        $name = mb_substr('Schedule — ' . (string)$eq->fetchColumn(), 0, 80);
+        $db->prepare('INSERT INTO blind_presets (name, created_by, session_id) VALUES (?, ?, ?)')
+           ->execute([$name, $user_id, $session_id]);
+        $preset_id = (int)$db->lastInsertId();
+    }
+
+    $db->prepare('DELETE FROM blind_preset_levels WHERE preset_id = ?')->execute([$preset_id]);
+    $ins = $db->prepare('INSERT INTO blind_preset_levels (preset_id, level_number, small_blind, big_blind, ante, duration_minutes, is_break) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    foreach ($clean as $lv) {
+        $ins->execute([$preset_id, $lv['level_number'], $lv['small_blind'], $lv['big_blind'], $lv['ante'], $lv['duration_minutes'], $lv['is_break']]);
+    }
+
+    $cur = max(1, min((int)$timer['current_level'], count($clean)));
+    $sets = "preset_id = ?, current_level = ?, updated_at = datetime('now')";
+    $args = [$preset_id, $cur];
+    if (!(int)$timer['is_running'] && (int)$timer['current_level'] === 1) {
+        $sets .= ', time_remaining_seconds = ?';
+        $args[] = $clean[0]['duration_minutes'] * 60;
+    }
+    $args[] = (int)$timer['id'];
+    $db->prepare("UPDATE timer_state SET $sets WHERE id = ?")->execute($args);
+
+    return ['preset_id' => $preset_id, 'created_copy' => !$is_local];
+}
+
 // Verify event ownership (owner, manager, admin, or league owner/manager).
 // Exits with 404/403 on failure. Thin wrapper around can_manage_event().
 function verify_event_access($db, $event_id, $current, $isAdmin) {
@@ -903,4 +991,158 @@ function _pk_log_decorate(array $rows): array {
         $out[] = $r;
     }
     return $out;
+}
+
+/* ── Preset drift ────────────────────────────────────────────────────────────
+ * "This game came from preset X, and I have since changed it" is the question
+ * the check-in Setup bar answers. It is computed, never stored: a stored
+ * fingerprint taken at load time would go stale the moment the preset itself
+ * was edited, and would then report drift the host never caused.
+ *
+ * Only the sections the preset ACTUALLY STORES are compared. Presets predate
+ * several of these fields, so a legacy row carries no game_config, no blind
+ * schedule and no timer config — comparing those would mark every old preset
+ * permanently modified. Absent section in the preset means "not its business".
+ */
+
+function pk_preset_places(PDO $db, string $table, string $col, int $id): array {
+    $q = $db->prepare("SELECT place, percentage, points, ticket_cents, prize_label
+                       FROM $table WHERE $col = ? ORDER BY place");
+    $q->execute([$id]);
+    $out = [];
+    foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $out[] = [
+            (int)$r['place'],
+            round((float)$r['percentage'], 2),
+            (int)($r['points'] ?? 0),
+            (int)($r['ticket_cents'] ?? 0),
+            (string)($r['prize_label'] ?? ''),
+        ];
+    }
+    return $out;
+}
+
+/* The session's live blind schedule in the same shape a preset stores. */
+function pk_session_blind_levels(PDO $db, int $session_id): array {
+    $t = $db->prepare('SELECT preset_id FROM timer_state WHERE session_id = ?');
+    $t->execute([$session_id]);
+    $pid = (int)($t->fetchColumn() ?: 0);
+    if (!$pid) return [];
+    $l = $db->prepare('SELECT small_blind, big_blind, ante, duration_minutes, is_break
+                       FROM blind_preset_levels WHERE preset_id = ? ORDER BY level_number');
+    $l->execute([$pid]);
+    return pk_clean_blind_levels($l->fetchAll(PDO::FETCH_ASSOC));
+}
+
+/* True when the session no longer matches the preset it was set up from. */
+function pk_preset_is_modified(PDO $db, array $struct, array $sess): bool {
+    $session_id = (int)$sess['id'];
+
+    // 1. Payout / reward rows.
+    if (pk_preset_places($db, 'payout_structure_places', 'structure_id', (int)$struct['id'])
+        !== pk_preset_places($db, 'poker_payouts', 'session_id', $session_id)) return true;
+
+    // 2. Session-level reward recipe (bounty / jackpot).
+    $hasRecipe = $struct['bounty_amount'] !== null || $struct['bounty_points'] !== null
+              || $struct['jackpot_amount'] !== null;
+    if ($hasRecipe) {
+        if ((int)$struct['bounty_amount'] !== (int)$sess['bounty_amount']) return true;
+        if ((int)$struct['bounty_points'] !== (int)$sess['bounty_points']) return true;
+        // A jackpot is a league fund: load_payout_structure zeroes it for a
+        // non-league event, so a mismatch there is the loader's doing, not the
+        // host's. Compare only what could actually have been applied.
+        $ev = $db->prepare('SELECT league_id FROM events WHERE id = ?');
+        $ev->execute([(int)$sess['event_id']]);
+        $wantJp = (int)$ev->fetchColumn() ? (int)$struct['jackpot_amount'] : 0;
+        if ($wantJp !== (int)$sess['jackpot_amount']) return true;
+    }
+
+    // 3. Game tab, key by key — only the keys the preset captured.
+    if (!empty($struct['game_config'])) {
+        $gc = json_decode((string)$struct['game_config'], true) ?: [];
+        foreach ($gc as $k => $v) {
+            if (!array_key_exists($k, $sess)) continue;
+            if ((int)$v !== (int)$sess[$k]) return true;
+        }
+    }
+
+    // 4. Blind schedule.
+    if (!empty($struct['blind_levels'])) {
+        $want = pk_clean_blind_levels(json_decode((string)$struct['blind_levels'], true));
+        if ($want !== pk_session_blind_levels($db, $session_id)) return true;
+    }
+
+    // 5. Timer settings.
+    if (!empty($struct['timer_config'])) {
+        $tc = json_decode((string)$struct['timer_config'], true) ?: [];
+        $t  = $db->prepare('SELECT use_beta, layout_id, layout_builtin FROM timer_state WHERE session_id = ?');
+        $t->execute([$session_id]);
+        $row = $t->fetch(PDO::FETCH_ASSOC) ?: ['use_beta' => 0, 'layout_id' => null, 'layout_builtin' => null];
+        if ((int)!empty($tc['use_beta']) !== (int)($row['use_beta'] ?? 0)) return true;
+        if ((int)($tc['layout_id'] ?? 0) !== (int)($row['layout_id'] ?? 0)) return true;
+        if ((string)($tc['layout_builtin'] ?? '') !== (string)($row['layout_builtin'] ?? '')) return true;
+    }
+
+    // 6. Chip set. It rides on its OWN column rather than inside game_config, so
+    // the key-by-key pass above cannot see it: leaving it out meant changing
+    // only the chips left the bar reading "unchanged" and the Save preset
+    // button disabled, with nowhere for the edit to go.
+    //
+    // Compared UNCONDITIONALLY, unlike the sections above. They skip a field the
+    // preset never captured, because a null there means "written before this
+    // existed" and should not force a permanent diff. Chips are the opposite
+    // case: every preset that predates the feature has a null, and adding chips
+    // to one is precisely what a host wants to do — guarding on it left the
+    // button disabled for every preset anyone actually owns. Two empty sets
+    // still clean to the same thing, so this cannot invent a difference.
+    if (pk_clean_chip_set($struct['chip_set'] ?? null) !== pk_clean_chip_set($sess['chip_set'] ?? null)) return true;
+
+    return false;
+}
+
+/* Who may overwrite or delete a preset. Mirrors delete_payout_structure: the
+ * site default is admin-only, a global belongs to admins, everything else to
+ * whoever created it. */
+function pk_preset_can_write(array $struct, array $user, bool $isAdmin): bool {
+    if ((int)$struct['is_default']) return $isAdmin;
+    if ((int)$struct['is_global'])  return $isAdmin;
+    return $isAdmin || (int)$struct['created_by'] === (int)$user['id'];
+}
+
+/* ── Chip set ────────────────────────────────────────────────────────────────
+ * Denominations paired with a colour, shown on the timer as a legend so players
+ * can see what each colour is worth — the thing everyone asks at colour-up.
+ * Stored as JSON on the session (and on a preset, so it travels).
+ */
+function pk_clean_chip_set($chips): array {
+    if (is_string($chips)) $chips = json_decode($chips, true);
+    if (!is_array($chips)) return [];
+    $out = [];
+    foreach (array_slice($chips, 0, 12) as $c) {
+        if (!is_array($c)) continue;
+        // Values are money OR chips depending on the game, so the same
+        // two-decimal rule the blind schedule uses applies here.
+        $v = round(max(0, min(100000000, (float)($c['v'] ?? 0))), 2);
+        $col = strtolower(trim((string)($c['c'] ?? '')));
+        if (!preg_match('/^#[0-9a-f]{6}$/', $col)) $col = '#ffffff';
+        if ($v <= 0) continue;
+        $chip = ['v' => $v, 'c' => $col];
+        // A photo of the real chip, for a legend that matches what is on the
+        // table. Restricted to our own upload folder — never an external URL, a
+        // data URI or anything with a scheme, so a chip set can never point a
+        // display at another host. The colour is kept either way: it is what
+        // shows if the file is later deleted.
+        $img = (string)($c['img'] ?? '');
+        if (preg_match('#^/uploads/timer_layouts/[A-Za-z0-9._-]{1,120}$#', $img)) $chip['img'] = $img;
+        $out[] = $chip;
+    }
+    // Ascending by value: a legend that jumps around is harder to read than no
+    // legend at all, and every physical chip tray is ordered this way.
+    usort($out, function ($a, $b) { return $a['v'] <=> $b['v']; });
+    return $out;
+}
+
+function pk_chip_set_json($chips): ?string {
+    $clean = pk_clean_chip_set($chips);
+    return $clean ? json_encode($clean) : null;
 }

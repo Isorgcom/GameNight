@@ -91,6 +91,23 @@ if ($isAdmin) {
 $sessStmt = $db->prepare('SELECT * FROM poker_sessions WHERE event_id = ?');
 $sessStmt->execute([$event_id]);
 $session = $sessStmt->fetch();
+
+// Timer flags for the Setup → Timer tab: whether the Timer button opens the
+// BETA layout display, and which layout this game's display is bound to.
+$use_beta_timer = 0;
+$event_layout_id = null;
+$event_layout_key = null;
+$is_tournament_session = $session && (($session['game_type'] ?? '') === 'tournament');
+if ($session) {
+    try {
+        $ubq = $db->prepare('SELECT use_beta, layout_id, layout_builtin FROM timer_state WHERE session_id = ?');
+        $ubq->execute([(int)$session['id']]);
+        $ubrow = $ubq->fetch();
+        $use_beta_timer = (int)($ubrow['use_beta'] ?? 0);
+        $event_layout_id = (int)($ubrow['layout_id'] ?? 0) ?: null;
+        $event_layout_key = ($ubrow['layout_builtin'] ?? null) ?: null;
+    } catch (Exception $e) {}
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -99,9 +116,19 @@ $session = $sessStmt->fetch();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Manage Game — <?= htmlspecialchars($event['title']) ?> — <?= htmlspecialchars($site_name) ?></title>
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
+    <link rel="stylesheet" href="/event_setup.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/event_setup.css') ?: 0)) ?>">
+    <script src="/event_blinds.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/event_blinds.js') ?: 0)) ?>" defer></script>
+    <?php if ($is_tournament_session): ?>
+    <link rel="stylesheet" href="/timer_beta_edit.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/timer_beta_edit.css') ?: 0)) ?>">
+    <?php endif; ?>
     <style>
     .pk-wrap{padding:0 1rem 2rem;max-width:100%}
-    .pk-header{background:var(--dark,#0f172a);color:#fff;padding:.75rem 1.5rem;display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;position:sticky;top:0;z-index:50}
+    /* Sticks BELOW the site nav, which is also sticky at top:0 but with a
+       higher z-index — pinned at the same offset the nav simply painted over
+       this bar, hiding the event title and the Timer / QR / Finish controls
+       the moment the page scrolled. --pk-nav-h is measured live (the nav
+       collapses on narrow screens and grows when its links row opens). */
+    .pk-header{background:var(--dark,#0f172a);color:#fff;padding:.75rem 1.5rem;display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;position:sticky;top:var(--pk-nav-h,0px);z-index:50}
     .pk-header h1{font-size:1.15rem;margin:0;font-weight:600}
     .pk-header h1 a{color:#94a3b8;text-decoration:none;font-weight:400;font-size:.85rem}
     .pk-header h1 a:hover{color:#fff}
@@ -275,19 +302,25 @@ $session = $sessStmt->fetch();
        tab strip, scrolling body; all panes stay mounted). */
     /* Settings renders inside the content area like the other views, so the
        page keeps its header, stats row and toolbar. */
-    .pk-sv-inline{display:flex;flex-direction:column;background:var(--surface,#fff);border:1px solid var(--border,#e2e8f0);border-radius:8px;overflow:hidden}
-    .pk-sv-head{display:flex;justify-content:space-between;align-items:center;gap:.75rem;padding:.7rem 1.25rem;border-bottom:1.5px solid var(--border,#e2e8f0);flex-shrink:0}
-    .pk-sv-title{font-size:1rem;font-weight:700;color:#1e293b}
+    /* The editor is a LAYER over the console, not another card in it. White on
+       white with a 1px hairline read as more page content: the eye could not
+       tell where the console stopped and the editor began. Three cues now say
+       "panel": a dark chrome header (the same navy as the page header), real
+       elevation, and a gap above so it stops butting into the toolbar. */
+    .pk-sv-inline{display:flex;flex-direction:column;background:var(--surface,#fff);border:1.5px solid #cbd5e1;border-radius:12px;overflow:hidden;margin-top:.9rem;box-shadow:0 14px 34px rgba(15,23,42,.16),0 2px 6px rgba(15,23,42,.08)}
+    .pk-sv-head{display:flex;justify-content:space-between;align-items:center;gap:.75rem;padding:.75rem 1.25rem;background:var(--dark,#0f172a);flex-shrink:0}
+    .pk-sv-title{font-size:1rem;font-weight:700;color:#fff}
     .pk-sv-title #svDirty{color:#f59e0b;font-size:.8rem;vertical-align:middle}
     .pk-sv-title #svSaved{color:#16a34a;font-size:.8rem;font-weight:600;margin-left:.4rem}
     .pk-sv-save{padding:.45rem 1.4rem;background:var(--accent,#2563eb);color:#fff;border:none;border-radius:6px;font-weight:600;font-size:.85rem;cursor:pointer}
-    .pk-sv-close{padding:.45rem 1rem;background:transparent;color:#64748b;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-weight:600;font-size:.85rem;cursor:pointer}
+    .pk-sv-close{padding:.45rem 1rem;background:transparent;color:#cbd5e1;border:1.5px solid #475569;border-radius:6px;font-weight:600;font-size:.85rem;cursor:pointer}
+    .pk-sv-close:hover{background:#1e293b;color:#fff}
     /* Setup's tabs are the same segmented control as the toolbar sliders, thumb
        and all. They switch between panes exactly like the view strip switches
        between views, so an underlined-tab idiom here was a third way of saying
        the same thing. Buttons keep .pk-sv-tab so the gating code that enables
        and disables them by data-tab is unchanged. */
-    .pk-sv-tabs{display:flex;padding:.6rem 1.25rem;border-bottom:1.5px solid var(--border,#e2e8f0);flex-shrink:0}
+    .pk-sv-tabs{display:flex;padding:.6rem 1.25rem;background:#f1f5f9;border-bottom:1.5px solid var(--border,#e2e8f0);flex-shrink:0}
     .pk-sv-seg{max-width:100%;flex-wrap:wrap}
     .pk-sv-seg .pk-sv-tab{padding:.42rem .9rem;font-size:.82rem}
     /* Disabled (cash game has no payout structure) must not look selectable, and
@@ -325,7 +358,43 @@ $session = $sessStmt->fetch();
     /* Load / Save As / Delete / Set Default carried no class at all, so they
        rendered at the browser default size and stayed there on tablets, where
        every other control in this console grows to a 44px touch target. */
+    /* Provenance line: what this game was set up from, and whether it still
+       matches. Amber for MODIFIED because amber means "warning" house-wide. */
+    .pk-preset-from{display:flex;align-items:center;gap:.4rem;font-size:.8rem;margin:0 0 .4rem;min-height:1.2rem}
+    .pk-preset-lbl{color:#94a3b8;font-weight:600}
+    .pk-preset-name{color:#0f172a;font-weight:700}
+    .pk-preset-none{color:#94a3b8;font-style:italic}
+    .pk-preset-mod{background:#fffbeb;color:#92400e;border:1px solid #f59e0b;border-radius:999px;font-size:.66rem;font-weight:800;letter-spacing:.04em;padding:.05rem .45rem}
+    .pk-preset-update{border-color:#f59e0b !important;color:#92400e !important;background:#fffbeb !important}
+    .pk-preset-update:hover{background:#fef3c7 !important}
     .pk-preset-bar{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+    .pk-preset-more{position:relative}
+    .pk-preset-morebtn{padding:.4rem .6rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;background:#fff;font-size:.9rem;line-height:1;color:#64748b;cursor:pointer}
+    .pk-preset-morebtn:hover{background:#f1f5f9}
+    .pk-preset-menu{display:none;position:absolute;right:0;top:calc(100% + .3rem);z-index:60;background:#fff;border:1.5px solid #e2e8f0;border-radius:9px;box-shadow:0 10px 28px rgba(15,23,42,.18);padding:.3rem;min-width:180px}
+    .pk-preset-menu.open{display:block}
+    .pk-preset-menu button{display:block;width:100%;text-align:left;padding:.45rem .6rem;border:0;background:none;font-size:.82rem;color:#334155;border-radius:6px;cursor:pointer}
+    .pk-preset-menu button:hover{background:#f1f5f9}
+    .pk-preset-menu button.danger{color:#b91c1c}
+    .pk-preset-menu button.danger:hover{background:#fef2f2}
+    .pk-preset-menu button:disabled{opacity:.45;cursor:default}
+    .pk-preset-menu button:disabled:hover{background:none}
+    .pk-preset-menu-hint{padding:.45rem .6rem;font-size:.78rem;color:#64748b;line-height:1.35;max-width:230px}
+    /* Chip set editor: a colour and a value per row, kept narrow so it sits
+       beside the other Game fields rather than pushing them down. */
+    .pk-chipset{margin-top:.9rem}
+    .pk-chip-rows{display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.5rem}
+    .pk-chip-row{display:flex;align-items:center;gap:.25rem;border:1.5px solid var(--border,#e2e8f0);border-radius:8px;padding:.2rem .3rem;background:#fff}
+    .pk-chip-colour{width:30px;height:30px;padding:0;border:1px solid #cbd5e1;border-radius:50%;background:none;cursor:pointer}
+    .pk-chip-val{width:78px;padding:.3rem .35rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:.85rem;text-align:right}
+    .pk-chip-none{font-size:.78rem;color:#94a3b8;font-style:italic}
+    /* Chip image: the button IS the preview, so a set with photos reads as the
+       tray it represents rather than as a list of filenames. */
+    .pk-chip-img{width:30px;height:30px;padding:0;border:1px dashed #cbd5e1;border-radius:50%;background:#f8fafc no-repeat center/cover;
+                 cursor:pointer;font-size:.62rem;color:#94a3b8;line-height:1;display:flex;align-items:center;justify-content:center}
+    .pk-chip-img.has-img{border-style:solid;border-color:#94a3b8;color:transparent}
+    .pk-chip-img:hover{border-color:#2563eb}
+    .pk-chip-actions{display:flex;gap:.4rem;flex-wrap:wrap}
     .pk-preset-bar button{padding:.4rem .8rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;background:#fff;font-size:.8rem;font-weight:600;color:#334155;cursor:pointer}
     .pk-preset-bar button:hover{background:#f1f5f9}
     .pk-cfg-title{font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;margin:0 0 .5rem}
@@ -764,10 +833,42 @@ $session = $sessStmt->fetch();
     </div>
 </div>
 
+<?php if ($is_tournament_session): ?>
+<!-- Setup → Timer: the layout chooser + full layout editor, embedded. Rendered
+     ONCE out here (not inside a settings pane) because the editor's preview
+     iframe would reload on every pane re-render — panes are rebuilt via
+     innerHTML and moving an iframe in the DOM reloads it. syncDisplayHome()
+     reveals this block only while the Timer tab is active. -->
+<div id="ckDisplayHome" hidden>
+    <?php require __DIR__ . '/_timer_beta_editor.php'; ?>
+</div>
+<script nonce="<?= csp_nonce() ?>">
+var ES_CSRF = <?= json_encode($csrf) ?>;
+var ES_EVENT_ID = <?= (int)$event_id ?>;
+var ES_LAYOUT_ID = <?= json_encode($event_layout_id) ?>;
+var ES_LAYOUT_KEY = <?= json_encode($event_layout_key) ?>;
+</script>
+<?php endif; ?>
+
 <?php require __DIR__ . '/_footer.php'; ?>
 
 <script nonce="<?= csp_nonce() ?>">
 var CSRF = <?= json_encode($csrf, JSON_HEX_TAG) ?>;
+var USE_BETA_TIMER = <?= (int)$use_beta_timer ?>;
+
+// Keep --pk-nav-h in step with the sticky site nav so .pk-header parks under
+// it instead of behind it. Observed rather than hard-coded: the nav is 42px
+// collapsed, taller once its links row is open.
+(function () {
+    var nav = document.querySelector('nav');
+    if (!nav) return;
+    function sync() {
+        document.documentElement.style.setProperty('--pk-nav-h', Math.round(nav.getBoundingClientRect().height) + 'px');
+    }
+    sync();
+    if (window.ResizeObserver) new ResizeObserver(sync).observe(nav);
+    else window.addEventListener('resize', sync);
+})();
 // This page installs its own delegated dispatcher below. Tell the shared
 // pk-dispatch.js (loaded from _footer.php) to stand down, or every control
 // fires twice — a rebuy would add 2 and a buy-in would toggle on then off.
@@ -907,6 +1008,9 @@ var ASSIGNABLE_LEAGUES = <?= json_encode(array_map(
 // offered a change — the server refuses it, so don't present it as possible.
 var CAN_MOVE_LEAGUE = <?= $_canMoveLeague ? 'true' : 'false' ?>;
 var IS_ADMIN = <?= $isAdmin ? 'true' : 'false' ?>;
+// Needed to tell "my preset" from "someone else's" without a round-trip; the
+// preset menu greys out what the server would refuse, and says why.
+var CURRENT_USER_ID = <?= (int)$current['id'] ?>;
 var SESSION = <?= $session ? json_encode($session, JSON_HEX_TAG) : 'null' ?>;
 var PAYOUT_STRUCTURES = [];
 var CURRENT_STRUCTURE_ID = 0;
@@ -1142,7 +1246,7 @@ function renderDashboard() {
     // conditional Timer / Cash Box / Jackpot buttons come and go.
     h += '<button class="pk-btn-settings" title="How this screen works" aria-label="Help" data-act="openHelp">?<span class="pk-act-label"> Help</span></button>';
     if (isTourney()) {
-        h += '<a class="pk-btn-settings" href="/timer.php?event_id=' + <?= (int)$event['id'] ?> + '" style="text-decoration:none" title="Timer">&#9201;<span class="pk-act-label"> Timer</span></a>';
+        h += '<a class="pk-btn-settings" id="timerLink" href="' + (USE_BETA_TIMER ? '/timer_beta.php' : '/timer.php') + '?event_id=' + <?= (int)$event['id'] ?> + '" style="text-decoration:none" title="Timer">&#9201;<span class="pk-act-label"> Timer</span></a>';
     }
     h += '<a class="pk-btn-settings" href="/walkin_display.php?event_id=' + <?= (int)$event['id'] ?> + '" target="_blank" style="text-decoration:none" title="QR Registration">&#128241;<span class="pk-act-label"> QR</span></a>';
     if (isTourney()) {
@@ -1205,7 +1309,7 @@ function renderDashboard() {
     // hard to skim past — which is the whole point, since "Settings" read as
     // optional preferences when it holds the buy-in, chips, rebuys and the
     // whole payout structure. No dividers: the shape does the separating.
-    h += '<button class="pk-btn-setup' + (VIEW_MODE === 'settings' ? ' active' : '') + '" id="setupBtn" title="Buy-in, chips, rebuys, payouts and rewards" data-act="setViewMode" data-a1="settings">&#9881;<span class="pk-seg-label"> Setup</span></button>';
+    h += '<button class="pk-btn-setup' + (VIEW_MODE === 'settings' ? ' active' : '') + '" id="setupBtn" title="Buy-in, chips, rebuys, payouts, rewards and blinds" data-act="setViewMode" data-a1="settings">&#9881;<span class="pk-seg-label"> Setup</span></button>';
     // The strip holds VIEWS — things you look at. Six equal segments made Setup
     // read as a sixth view and it got lost, hence the button above. Labels
     // collapse to icons on phones, Setup's along with them.
@@ -2087,6 +2191,9 @@ function openSettings(tab) {
     // re-render it into the freshly-built (empty) select.
     if (!PAYOUT_STRUCTURES.length) loadPayoutStructures();
     else renderPayoutStructureSelect();
+    refreshPresetState();
+    loadChipSet();
+    renderChipRows();
     if (isTourney()) {
         populateTicketTargetSelect();
         updateBountyHint();
@@ -2122,6 +2229,7 @@ function setSettingsTab(tab) {
         slideViewIn(document.querySelector('.pk-sv-pane[data-pane="' + tab + '"]'),
                     segTravelDirection('settingsSeg', 'data-tab', prev, tab));
     }
+    syncDisplayHome();
 }
 
 function markSettingsDirty() {
@@ -2151,11 +2259,103 @@ function refreshSettingsView() {
         previewGameType(pendingType);
     }
     renderPayoutStructureSelect();
+    // The panes were just rebuilt from HTML, so the chip editor is an empty
+    // container again. Redrawn from CHIP_SET rather than reloaded from the
+    // session, so an edit the host has not saved yet survives the refresh.
+    renderChipRows();
     if (isTourney()) {
         populateTicketTargetSelect();
         updateBountyHint();
     }
     positionSegThumb('settingsSeg', false);   // the strip was just rebuilt
+    mountBlindsPane();
+    syncDisplayHome();
+}
+
+// Setup → Timer: which display the Timer button opens for this game.
+function renderTimerPane() {
+    var h = '<div class="pk-cfg-section" style="border-top:none;padding-top:0;margin-top:0">';
+    h += '<div class="pk-cfg-title">Tournament timer</div>';
+    h += '<label class="es-toggle" style="margin:.4rem 0"><input type="checkbox" id="ckUseBeta"' + (USE_BETA_TIMER ? ' checked' : '') + ' data-act-change="toggleBetaTimer"> Use BETA timer</label>';
+    h += '<p class="es-note" style="margin:.2rem 0 .8rem">When on, the Timer button (and any link to this game\'s timer) opens the new layout-engine display: custom layouts, multi-screen rotation, break screens. Switch off any time to go back to the classic timer.</p>';
+    h += '<p class="es-note">Pick which layout this game\'s display shows, and build or tweak layouts, right below. ' +
+         '<a href="/help-timer.php" target="_blank">Timer guide</a> covers layouts, casting and conditions.</p>';
+    h += '</div>';
+
+    // Chip set: denominations and their colours, drawn on the timer as a legend
+    // so players can see what each colour is worth at colour-up. It lives here
+    // rather than on the Game tab because it is a thing the DISPLAY shows, and
+    // it was being looked for next to the layout it appears on. Values only —
+    // the layout decides WHERE the legend goes, never what is in it.
+    h += '<div class="pk-cfg-section"><div class="pk-cfg-title">Chip set</div>';
+    h += '<p class="es-note" style="margin:.2rem 0 .6rem">Drawn on the display as coloured discs with their values, wherever the layout puts its chip legend. Leave it empty and no legend is shown.</p>';
+    h += '<div class="pk-chipset" id="cfgChipSet">';
+    h += '<div class="pk-chip-rows" id="chipRows"></div>';
+    h += '<div class="pk-chip-actions">';
+    h += '<button type="button" class="es-mini" data-act="addChipRow">+ Chip</button>';
+    h += '<button type="button" class="es-mini" data-act="fillStandardChips" title="25 / 100 / 500 / 1,000 / 5,000 in the usual colours">Standard set</button>';
+    h += '<button type="button" class="es-mini" data-act="clearChipSet">Clear</button>';
+    h += '</div></div>';
+    h += '</div>';
+    return h;
+}
+
+// The layout chooser + editor (#ckDisplayHome) is rendered once outside the
+// settings panes (the preview iframe would reload on every pane re-render)
+// and shown only while Setup → Timer is active.
+function syncDisplayHome() {
+    var home = document.getElementById('ckDisplayHome');
+    if (!home) return;
+    var show = SETTINGS_OPEN && VIEW_MODE === 'settings' && SETTINGS_TAB === 'timer';
+    if (show === !home.hidden) return;
+    home.hidden = !show;
+    if (show) {
+        // Freshly revealed: the strip and preview were laid out at zero size.
+        slideViewIn(home, 1);
+        window.dispatchEvent(new Event('resize'));
+    }
+}
+
+function toggleBetaTimer() {
+    var cb = document.getElementById('ckUseBeta');
+    var on = cb && cb.checked ? 1 : 0;
+    var body = new URLSearchParams();
+    body.set('action', 'set_beta'); body.set('csrf_token', CSRF);
+    body.set('event_id', EVENT_ID); body.set('on', on);
+    fetch('/event_setup_dl.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: String(body) })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+            if (!j.ok) { if (cb) cb.checked = !on; (window.pkAlert || alert)(j.error || 'Could not switch'); return; }
+            USE_BETA_TIMER = on;
+            var a = document.getElementById('timerLink');
+            if (a) a.href = (on ? '/timer_beta.php' : '/timer.php') + '?event_id=' + EVENT_ID;
+        })
+        .catch(function () { if (cb) cb.checked = !on; (window.pkAlert || alert)('Network error'); });
+}
+
+// Setup → Blinds: the pane is a mounted component (event_blinds.js), shared
+// with the standalone event_blinds.php page. Re-renders wipe the pane's DOM,
+// so it remounts each time; unsaved grid edits survive on pkBlindsEditor._state.
+function mountBlindsPane() {
+    var box = document.getElementById('ckBlindsPane');
+    if (!box || isCash() || !window.pkBlindsEditor) return;
+    var m = function (d) {
+        pkBlindsEditor.mount(box, {
+            eventId: EVENT_ID, csrf: CSRF, reuseState: true, embedded: true,
+            levels: d.levels || [], currentLevel: d.current_level || 0,
+            isLocal: !!d.is_local, timerRunning: !!d.is_running,
+            useBeta: !!d.use_beta,
+            links: { display: '/event_display.php?event_id=' + EVENT_ID }
+        });
+    };
+    // Already mounted once this page-load: remount from kept state, no refetch.
+    if (pkBlindsEditor._state && pkBlindsEditor._state.eventId === EVENT_ID) { m({}); return; }
+    var body = new URLSearchParams();
+    body.set('action', 'get_blinds'); body.set('csrf_token', CSRF); body.set('event_id', EVENT_ID);
+    fetch('/event_setup_dl.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: String(body) })
+        .then(function (r) { return r.json(); })
+        .then(function (j) { if (j && j.ok) m(j); })
+        .catch(function () {});
 }
 
 function renderSettingsView() {
@@ -2169,7 +2369,7 @@ function renderSettingsView() {
     h += '<div class="pk-sv-head">';
     h += '<span class="pk-sv-title">&#9881; Game Setup <span id="svDirty" style="display:' + (SETTINGS_DIRTY ? '' : 'none') + '" title="Unsaved changes">&#9679;</span><span id="svSaved" style="display:none">Saved &#10003;</span></span>';
     h += '<div style="display:flex;gap:.5rem">';
-    h += '<button class="pk-sv-save" data-act="saveSettings">Save</button>';
+    h += '<button class="pk-sv-save" data-act="saveSettings">Save game</button>';
     h += '<button class="pk-sv-close" data-act="closeSettings">Close</button>';
     h += '</div></div>';
 
@@ -2179,6 +2379,14 @@ function renderSettingsView() {
     h += '<span class="pk-seg-thumb"></span>';
     h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'game' ? ' active' : '') + '" data-tab="game" data-act="setSettingsTab" data-a1="game">Game</button>';
     h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'payouts' ? ' active' : '') + (isCash() ? ' disabled' : '') + '" data-tab="payouts" ' + (isCash() ? 'disabled title="Cash games have no payout structure"' : 'data-act="setSettingsTab" data-a1="payouts"') + '>Payouts &amp; Rewards</button>';
+    // Rendered for BOTH game types and shown or hidden live by
+    // previewGameType(). Building them only for a saved tournament is what made
+    // the strip lag the dropdown: switching to Cash left them standing, and
+    // switching to Tournament could not reveal them because they did not exist.
+    // (Their panes were always rendered — only these buttons were gated.)
+    var tourneyTabHidden = isCash() ? ' style="display:none"' : '';
+    h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'blinds' ? ' active' : '') + '" data-tab="blinds" data-act="setSettingsTab" data-a1="blinds"' + tourneyTabHidden + '>Blinds</button>';
+    h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'timer' ? ' active' : '') + '" data-tab="timer" data-act="setSettingsTab" data-a1="timer"' + tourneyTabHidden + '>Timer</button>';
     if (hasTickets && !isCash()) {
         h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'tickets' ? ' active' : '') + '" data-tab="tickets" data-act="setSettingsTab" data-a1="tickets">Tickets <span class="pk-sv-badge">' + TICKETS.outgoing.length + '</span></button>';
     }
@@ -2196,18 +2404,34 @@ function renderSettingsView() {
     {
         h += '<div class="pk-cfg-section" id="cfgPresetSection" style="border-top:none;padding-top:0;margin-top:0' + (isCash() ? ';display:none' : '') + '"><div class="pk-cfg-title" style="display:flex;align-items:center;gap:.45rem">Game Preset'
            + '<button class="pk-help-btn" style="padding:.15rem .5rem;font-size:.7rem" title="What game presets do" aria-label="Game preset help" data-act="showPresetHelp">?</button></div>';
+        // Provenance line: which preset this game was set up from, and whether
+        // it still matches. Filled by refreshPresetState() from the server —
+        // it must survive a reload, so it cannot live in a JS variable.
+        h += '<div class="pk-preset-from" id="presetFrom"></div>';
         h += '<div class="pk-preset-bar">';
         h += '<select id="payoutStructureSelect" data-act-change="onPayoutStructureChange" style="flex:0 1 300px;min-width:160px;padding:.3rem .5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:4px;font-size:.85rem"></select>';
-        h += '<button data-act="loadPayoutStructure" title="Apply the selected preset to BOTH tabs: game setup, payout split, points, ticket prizes, prizes, bounty and jackpot entry">Load</button>';
-        h += '<button data-act="savePayoutStructureAs" title="Save everything in this editor (both tabs) as a named preset">Save As…</button>';
-        h += '<button id="btnDelPayoutStructure" data-act="deletePayoutStructure" style="display:none;color:#ef4444" title="Delete selected preset">Delete</button>';
-        h += '<button id="btnDefPayoutStructure" data-act="setDefaultPayoutStructure" style="display:none" title="Set as default (admin)">Set Default</button>';
+        h += '<button data-act="loadPayoutStructure" title="Apply the selected preset to this game: game setup, payout split, points, ticket prizes, prizes, bounty and jackpot entry, blind schedule and timer settings">Load</button>';
+        h += '<button id="btnUpdPayoutStructure" class="pk-preset-update" data-act="updatePayoutStructure">Save preset</button>';
+        h += '<button data-act="savePayoutStructureAs" title="Save everything in this editor as a NEW named preset">Save as…</button>';
+        // Destructive / admin actions live behind the ⋯ menu: they applied to
+        // whatever was selected in the dropdown, which reads as if they applied
+        // to the game, and they crowded the two buttons that matter.
+        h += '<div class="pk-preset-more"><button class="pk-preset-morebtn" data-act="togglePresetMenu" title="More preset actions" aria-label="More preset actions">&#8943;</button>';
+        h += '<div class="pk-preset-menu" id="presetMenu">';
+        h += '<div class="pk-preset-menu-hint" id="presetMenuHint" style="display:none"></div>';
+        h += '<button id="btnDefPayoutStructure" data-act="setDefaultPayoutStructure">Set as site default</button>';
+        h += '<button id="btnDelPayoutStructure" class="danger" data-act="deletePayoutStructure">Delete preset</button>';
+        h += '</div></div>';
         h += '</div>';
-        h += '<div style="font-size:.75rem;color:#94a3b8;margin-top:.3rem">A preset stores the whole editor — game setup (buy-in, chips, rebuys, tables) and payouts &amp; rewards. (The satellite target event stays per-game.)</div>';
+        h += '<div style="font-size:.75rem;color:#94a3b8;margin-top:.3rem">A preset stores the whole editor — game setup (buy-in, chips, rebuys, tables), payouts &amp; rewards, blind schedule and timer settings. (The satellite target event stays per-game.)</div>';
         h += '</div>';
     }
     h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'game' ? ' active' : '') + '" data-pane="game">' + renderGamePane() + '</div>';
     h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'payouts' ? ' active' : '') + '" data-pane="payouts">' + renderPayoutsPane() + '</div>';
+    // The blinds pane is a mounted component (event_blinds.js), not an HTML
+    // string — mountBlindsPane() fills this container after every render.
+    h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'blinds' ? ' active' : '') + '" data-pane="blinds"><div id="ckBlindsPane"><div class="pk-log-empty">Loading&hellip;</div></div></div>';
+    h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'timer' ? ' active' : '') + '" data-pane="timer">' + renderTimerPane() + '</div>';
     h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'tickets' ? ' active' : '') + '" data-pane="tickets">' + renderTicketsPanel() + '</div>';
     h += '</div>';
     h += '</div>';
@@ -2231,11 +2455,17 @@ function renderGamePane() {
     // ── Game ──
     h += '<div class="pk-cfg-section"><div class="pk-cfg-title">Game</div>';
     h += '<div class="pk-settings-grid">';
-    // League first: jackpots are league funds and payout presets are scoped to a
-    // league, so hitting "this event must belong to a league" used to mean
-    // leaving Setup for the event editor and coming back. Saved with everything
-    // else by Save, and applied before the jackpot check server-side so a league
-    // and a jackpot can be set in one go.
+    // Game Type first: it decides what the rest of this editor even contains —
+    // picking Cash strips the Blinds, Timer and Payouts tabs. Buy-in next, so
+    // the two settings that define the game sit together; League last, since it
+    // rebinds the event rather than configuring it.
+    h += '<div><label>Game Type</label><select id="cfg_game_type" data-act-change="previewGameType" data-change-a1="@value"><option value="tournament"' + (isTourney()?' selected':'') + '>Tournament</option><option value="cash"' + (isCash()?' selected':'') + '>Cash Game</option></select></div>';
+    h += '<div><label>Buy-in</label><div class="pk-money-wrap"><input type="number" id="cfg_buyin" value="' + Math.round(parseInt(SESSION.buyin_amount)/100) + '" step="1" min="0" data-act-input="updateBountyHint"></div></div>';
+    // League is here rather than in the event editor because jackpots are league
+    // funds and payout presets are scoped to a league, so hitting "this event
+    // must belong to a league" used to mean leaving Setup and coming back.
+    // Saved with everything else by Save, and applied before the jackpot check
+    // server-side so a league and a jackpot can be set in one go.
     h += '<div><label>League ' + tip('Jackpot funds and saved payout presets belong to a league. Changing this moves the event.') + '</label>';
     if (CAN_MOVE_LEAGUE) {
         h += '<select id="cfg_league_id" data-act-change="markSettingsDirty">';
@@ -2255,8 +2485,6 @@ function renderGamePane() {
            + '<br><span style="font-size:.72rem">Only a league owner or manager can change this.</span></div>';
     }
     h += '</div>';
-    h += '<div><label>Game Type</label><select id="cfg_game_type" data-act-change="previewGameType" data-change-a1="@value"><option value="tournament"' + (isTourney()?' selected':'') + '>Tournament</option><option value="cash"' + (isCash()?' selected':'') + '>Cash Game</option></select></div>';
-    h += '<div><label>Buy-in</label><div class="pk-money-wrap"><input type="number" id="cfg_buyin" value="' + Math.round(parseInt(SESSION.buyin_amount)/100) + '" step="1" min="0" data-act-input="updateBountyHint"></div></div>';
     h += '</div></div>';
 
     // ── Chips, rebuys & add-ons (tournament only). Rebuys and Add-ons are
@@ -2487,10 +2715,161 @@ function previewGameType(val) {
         tickTab.style.display = hide ? 'none' : '';
         if (hide && SETTINGS_TAB === 'tickets') setSettingsTab('game');
     }
+    // Blinds and Timer follow the dropdown immediately. They stay DISABLED
+    // until the game type has actually been saved, because event_setup_dl
+    // refuses any session that is not already a saved tournament — revealing
+    // them enabled would hand the host two panes that can only fail.
+    var savedTourney = !isCash();
+    ['blinds', 'timer'].forEach(function (name) {
+        var t = document.querySelector('.pk-sv-tab[data-tab="' + name + '"]');
+        if (!t) return;
+        t.style.display = hide ? 'none' : '';
+        var needsSave = !hide && !savedTourney;
+        t.classList.toggle('disabled', needsSave);
+        if (needsSave) {
+            t.setAttribute('disabled', 'disabled');
+            t.setAttribute('title', 'Save the game as a tournament first — the blind schedule and timer display need a saved tournament.');
+        } else {
+            t.removeAttribute('disabled');
+            t.removeAttribute('title');
+        }
+        if ((hide || needsSave) && SETTINGS_TAB === name) setSettingsTab('game');
+    });
     // Showing or hiding a segment changes the strip's widths, so the thumb has
     // to be re-measured even when the active tab itself did not change.
     positionSegThumb('settingsSeg', true);
 }
+
+// ── Chip set editor ─────────────────────────────────────────────────────────
+// Held here rather than read back off the DOM at save time so a row can be
+// added, removed and reordered without the values shifting under it.
+var CHIP_SET = [];
+// Casino-standard denominations and the colours that go with them, which is
+// what most home sets ship as.
+var STANDARD_CHIPS = [
+    { v: 25,   c: '#ffffff' }, { v: 100,  c: '#ef4444' }, { v: 500,  c: '#22c55e' },
+    { v: 1000, c: '#2563eb' }, { v: 5000, c: '#0f172a' }
+];
+var CHIP_COLOURS = ['#ffffff', '#ef4444', '#22c55e', '#2563eb', '#0f172a',
+                    '#f59e0b', '#a855f7', '#ec4899', '#94a3b8', '#7c2d12'];
+
+function loadChipSet() {
+    var raw = SESSION && SESSION.chip_set;
+    try { CHIP_SET = raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : []; }
+    catch (e) { CHIP_SET = []; }
+    if (!Array.isArray(CHIP_SET)) CHIP_SET = [];
+}
+
+function renderChipRows() {
+    var box = document.getElementById('chipRows');
+    if (!box) return;
+    box.textContent = '';
+    if (!CHIP_SET.length) {
+        var none = document.createElement('div');
+        none.className = 'pk-chip-none';
+        none.textContent = 'No chip set — the timer will not show a legend.';
+        box.appendChild(none);
+        return;
+    }
+    CHIP_SET.forEach(function (chip, i) {
+        var row = document.createElement('div');
+        row.className = 'pk-chip-row';
+
+        var sw = document.createElement('input');
+        sw.type = 'color'; sw.value = chip.c || '#ffffff'; sw.className = 'pk-chip-colour';
+        sw.title = 'Chip colour';
+        sw.addEventListener('change', function () { CHIP_SET[i].c = sw.value; markSettingsDirty(); });
+        row.appendChild(sw);
+
+        // Image: a photo of the real chip. Doubles as its own preview, and sits
+        // beside the colour rather than replacing it — the colour is what shows
+        // if the file is ever deleted.
+        var img = document.createElement('button');
+        img.type = 'button'; img.className = 'pk-chip-img' + (chip.img ? ' has-img' : '');
+        img.textContent = chip.img ? '' : 'IMG';
+        img.title = chip.img ? 'Change this chip\'s image' : 'Use a photo of the real chip';
+        if (chip.img) img.style.backgroundImage = 'url("' + chip.img + '")';
+        img.addEventListener('click', function () { pickChipImage(i); });
+        row.appendChild(img);
+
+        if (chip.img) {
+            var clr = document.createElement('button');
+            clr.type = 'button'; clr.className = 'es-mini'; clr.textContent = '⌫';
+            clr.title = 'Drop the image and go back to the colour';
+            clr.addEventListener('click', function () {
+                delete CHIP_SET[i].img; renderChipRows(); markSettingsDirty();
+            });
+            row.appendChild(clr);
+        }
+
+        var val = document.createElement('input');
+        val.type = 'number'; val.min = '0'; val.step = 'any'; val.inputMode = 'decimal';
+        val.value = chip.v; val.className = 'pk-chip-val';
+        val.addEventListener('input', function () { CHIP_SET[i].v = parseFloat(val.value) || 0; markSettingsDirty(); });
+        row.appendChild(val);
+
+        var rm = document.createElement('button');
+        rm.type = 'button'; rm.className = 'es-mini es-mini-danger'; rm.textContent = '×';
+        rm.title = 'Remove this chip';
+        rm.addEventListener('click', function () { CHIP_SET.splice(i, 1); renderChipRows(); markSettingsDirty(); });
+        row.appendChild(rm);
+
+        box.appendChild(row);
+    });
+}
+
+// One hidden input reused by every row: a picker per chip would put a dozen
+// file inputs in the DOM for a control only one of which can be open at a time.
+// No accept filter, deliberately — iOS greys out anything it has no registered
+// type for, and the server checks the bytes rather than the name anyway.
+var _chipImgInput = null, _chipImgFor = -1;
+function pickChipImage(i) {
+    if (!_chipImgInput) {
+        _chipImgInput = document.createElement('input');
+        _chipImgInput.type = 'file';
+        _chipImgInput.hidden = true;
+        _chipImgInput.addEventListener('change', uploadChipImage);
+        document.body.appendChild(_chipImgInput);
+    }
+    _chipImgFor = i;
+    _chipImgInput.value = '';
+    _chipImgInput.click();
+}
+
+function uploadChipImage() {
+    var file = _chipImgInput.files && _chipImgInput.files[0];
+    var i = _chipImgFor;
+    if (!file || !CHIP_SET[i]) return;
+    if (file.size > 8 * 1024 * 1024) { pkAlert('That image is too large (max 8 MB).'); return; }
+    var fd = new FormData();
+    fd.append('action', 'upload_image');
+    fd.append('csrf_token', CSRF);
+    fd.append('image', file);
+    // Shares the timer-layout image folder and its daily cap: same kind of file,
+    // same sweepable place, one validated path prefix instead of two.
+    fetch('/timer_beta_dl.php', { method: 'POST', body: fd })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+            if (!j || !j.url) { pkAlert((j && j.error) || 'Could not upload that image.'); return; }
+            CHIP_SET[i].img = j.url;
+            renderChipRows();
+            markSettingsDirty();
+        })
+        .catch(function () { pkAlert('Upload failed.'); });
+}
+
+function addChipRow() {
+    // Next unused colour, and roughly the next denomination up, so adding a
+    // chip is one click rather than two fields.
+    var used = CHIP_SET.map(function (c) { return c.c; });
+    var col = CHIP_COLOURS.filter(function (c) { return used.indexOf(c) === -1; })[0] || '#ffffff';
+    var last = CHIP_SET.length ? CHIP_SET[CHIP_SET.length - 1].v : 0;
+    CHIP_SET.push({ v: last ? last * 5 : 25, c: col });
+    renderChipRows();
+    markSettingsDirty();
+}
+function fillStandardChips() { CHIP_SET = STANDARD_CHIPS.map(function (c) { return { v: c.v, c: c.c }; }); renderChipRows(); markSettingsDirty(); }
+function clearChipSet() { CHIP_SET = []; renderChipRows(); markSettingsDirty(); }
 
 // ─── Reward feature toggles (progressive disclosure) ──────
 // Turning a feature ON reveals its fields/columns; turning it OFF clears the
@@ -2825,7 +3204,7 @@ function showPresetHelp() {
     pkAlert(
         '<div class="pk-help-content">'
         + '<h4>What a preset stores</h4>'
-        + '<p>A snapshot of everything in this editor, across both tabs: the Game tab (buy-in, rebuys, add-ons, chips, tables) and the Payouts &amp; Rewards tab (payout split, points, ticket prize values, prize labels, and the bounty and jackpot setup including baked-in vs. optional). The satellite target event is the one thing not stored; that stays per-game.</p>'
+        + '<p>A snapshot of everything in this editor: the Game tab (buy-in, rebuys, add-ons, chips, tables), the Payouts &amp; Rewards tab (payout split, points, ticket prize values, prize labels, and the bounty and jackpot setup including baked-in vs. optional), the Blinds tab (the full level schedule), and the Timer tab (the BETA timer switch and this game\'s display layout). The satellite target event is the one thing not stored; that stays per-game.</p>'
         + '<h4>Load</h4>'
         + '<p>Applies the selected preset to <b>this game</b> right away, replacing the current setup on both tabs. There is no separate save step after loading.</p>'
         + '<h4>Save As&#8230;</h4>'
@@ -2882,31 +3261,146 @@ function renderPayoutStructureSelect() {
     addGroup('My Structures', personal);
     if (CURRENT_STRUCTURE_ID) sel.value = String(CURRENT_STRUCTURE_ID);
     updatePayoutStructureButtons();
+    renderPresetState();
 }
 
+// Both menu items act on the SELECTED preset, and for most people most of the
+// time neither applies — a non-admin looking at the site default can do
+// neither. Hiding them left the ⋯ opening a 12px empty box, which reads as a
+// broken control. Nothing is hidden now: an item the server would refuse is
+// shown disabled WITH THE REASON, and "no preset selected" gets a line saying
+// so, so the menu always answers the question it was opened to ask.
 function updatePayoutStructureButtons() {
     var sel = document.getElementById('payoutStructureSelect');
     var delBtn = document.getElementById('btnDelPayoutStructure');
     var defBtn = document.getElementById('btnDefPayoutStructure');
+    var hint   = document.getElementById('presetMenuHint');
     if (!sel) return;
+
+    function state(btn, allowed, reason) {
+        if (!btn) return;
+        btn.style.display = '';
+        btn.disabled = !allowed;
+        btn.classList.toggle('disabled', !allowed);
+        if (reason) btn.title = reason; else btn.removeAttribute('title');
+    }
+
     var opt = sel.options[sel.selectedIndex];
     if (!opt || !opt.value) {
-        if (delBtn) delBtn.style.display = 'none';
+        if (hint) {
+            hint.style.display = '';
+            hint.textContent = 'Choose a preset in the list first — these act on the selected preset.';
+        }
         if (defBtn) defBtn.style.display = 'none';
+        if (delBtn) delBtn.style.display = 'none';
         return;
     }
-    var isDef  = opt.dataset.isDefault === '1';
-    var isGlob = opt.dataset.isGlobal  === '1';
-    if (defBtn) defBtn.style.display = (IS_ADMIN && !isDef) ? '' : 'none';
-    if (delBtn) {
-        if (isDef) delBtn.style.display = 'none';
-        else if (isGlob) delBtn.style.display = IS_ADMIN ? '' : 'none';
-        else delBtn.style.display = '';
-    }
+    if (hint) hint.style.display = 'none';
+
+    var isDef    = opt.dataset.isDefault === '1';
+    var isGlob   = opt.dataset.isGlobal  === '1';
+    var leagueId = parseInt(opt.dataset.leagueId || 0) || 0;
+    var mine     = parseInt(opt.dataset.createdBy || 0) === CURRENT_USER_ID;
+    // ASSIGNABLE_LEAGUES is exactly the set this user owns or manages, which is
+    // the same test delete_payout_structure applies server-side.
+    var canLeague = IS_ADMIN || ASSIGNABLE_LEAGUES.some(function (l) { return l.id === leagueId; });
+
+    // Site default is admin-only for EVERY preset, so a non-admin gets no
+    // version of this action worth seeing — hide it rather than show a
+    // permanently dead row. Delete is different: it IS available to them on
+    // their own presets, so that one stays visible and explains itself.
+    if (!defBtn) { /* nothing to do */ }
+    else if (!IS_ADMIN) defBtn.style.display = 'none';
+    else state(defBtn, !isDef, isDef ? 'This is already the site default.' : '');
+
+    if (isDef)               state(delBtn, false, 'The site default cannot be deleted.');
+    else if (isGlob)         state(delBtn, IS_ADMIN, IS_ADMIN ? '' : 'Only site admins can delete a global preset.');
+    else if (leagueId)       state(delBtn, canLeague, canLeague ? '' : 'Only an owner or manager of that league can delete this preset.');
+    else if (!mine)          state(delBtn, IS_ADMIN, IS_ADMIN ? '' : 'This preset belongs to another user.');
+    else                     state(delBtn, true, '');
 }
 
 function onPayoutStructureChange() {
     updatePayoutStructureButtons();
+}
+
+// ── Preset provenance ────────────────────────────────────────────────────────
+// PRESET_STATE mirrors poker_sessions.preset_structure_id and is refreshed from
+// the server, never inferred locally: drift is a comparison against the preset
+// as it exists now, which only the server can make.
+var PRESET_STATE = null;
+
+function refreshPresetState() {
+    if (!SESSION || !SESSION.id) return;
+    fetch('/checkin_dl.php?action=preset_state&session_id=' + SESSION.id)
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+            if (!j || !j.ok) return;
+            PRESET_STATE = j.preset || null;
+            if (PRESET_STATE) CURRENT_STRUCTURE_ID = PRESET_STATE.id;
+            renderPresetState();
+        })
+        .catch(function() {});
+}
+
+function renderPresetState() {
+    var line = document.getElementById('presetFrom');
+    var upd  = document.getElementById('btnUpdPayoutStructure');
+    if (!line) return;
+    line.textContent = '';
+    if (!PRESET_STATE) {
+        // Said plainly rather than left blank: "no origin" is a real state, and
+        // it is the honest answer for a game whose setup was typed by hand.
+        line.appendChild(svEl('span', 'pk-preset-none', 'Not from a preset'));
+        setPresetSaveState();
+        return;
+    }
+    line.appendChild(svEl('span', 'pk-preset-lbl', 'From:'));
+    line.appendChild(svEl('span', 'pk-preset-name', PRESET_STATE.name));
+    if (PRESET_STATE.modified) {
+        var tag = svEl('span', 'pk-preset-mod', 'MODIFIED');
+        tag.title = 'This game no longer matches the preset it was set up from.';
+        line.appendChild(tag);
+    }
+    setPresetSaveState();
+}
+
+/* "Save preset" writes this game back over the preset it came from. It stays
+ * VISIBLE at all times so the pair reads as Save / Save as…, and explains via
+ * its tooltip why it is unavailable — hiding it made the bar's shape change
+ * under the host every time they touched something. */
+function setPresetSaveState() {
+    var upd = document.getElementById('btnUpdPayoutStructure');
+    if (!upd) return;
+    var allowed = !!(PRESET_STATE && PRESET_STATE.modified && PRESET_STATE.can_update);
+    upd.disabled = !allowed;
+    upd.classList.toggle('disabled', !allowed);
+    upd.title = !PRESET_STATE ? 'This game was not set up from a preset — use Save as… to make one.'
+        : !PRESET_STATE.can_update ? 'You cannot change "' + PRESET_STATE.name + '" — use Save as… to make your own copy.'
+        : !PRESET_STATE.modified ? 'This game already matches "' + PRESET_STATE.name + '".'
+        : 'Write this game\'s setup back over "' + PRESET_STATE.name + '".';
+}
+
+function svEl(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+}
+
+function togglePresetMenu() {
+    var m = document.getElementById('presetMenu');
+    if (!m) return;
+    var open = m.classList.toggle('open');
+    if (!open) return;
+    // Reuse the existing eligibility rules for the items now inside the menu.
+    updatePayoutStructureButtons();
+    var close = function (e) {
+        if (m.contains(e.target)) return;
+        m.classList.remove('open');
+        document.removeEventListener('mousedown', close);
+    };
+    setTimeout(function () { document.addEventListener('mousedown', close); }, 0);
 }
 
 function loadPayoutStructure() {
@@ -2928,6 +3422,17 @@ function loadPayoutStructure() {
             POOL = j.pool || POOL;
             if (j.session) SESSION = j.session;  // recipe presets update bounty/jackpot too
             CURRENT_STRUCTURE_ID = parseInt(sid);
+            refreshPresetState();
+            // The preset may have replaced the blind schedule and timer flags:
+            // drop the pane's cached grid (it refetches on remount) and
+            // retarget the Timer button to whatever the preset restored.
+            if (window.pkBlindsEditor) pkBlindsEditor._state = null;
+            if (j.session) { loadChipSet(); renderChipRows(); }
+            if (j.use_beta !== undefined) {
+                USE_BETA_TIMER = j.use_beta ? 1 : 0;
+                var tl = document.getElementById('timerLink');
+                if (tl) tl.href = (USE_BETA_TIMER ? '/timer_beta.php' : '/timer.php') + '?event_id=' + EVENT_ID;
+            }
             // Capture an unsaved game-type choice BEFORE the redraw. Both
             // renderDashboard() and refreshSettingsView() rebuild the pane from
             // the SAVED session, so picking Tournament on a game still saved as
@@ -2999,12 +3504,27 @@ function confirmSaveStruct() {
     var league_id = scopeVal.charAt(0) === 'l' ? parseInt(scopeVal.slice(1)) : 0;
     closeSaveStruct();
 
-    var fd = new FormData();
-    fd.append('csrf_token', CSRF);
-    fd.append('action', 'save_payout_structure');
+    var fd = buildPresetFormData();
     fd.append('name', name);
     if (is_global) fd.append('is_global', '1');
     if (league_id) fd.append('league_id', league_id);
+    fetch('/checkin_dl.php', { method: 'POST', body: fd })
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+            if (!j.ok) { pkAlert(j.error || 'Error'); return; }
+            CURRENT_STRUCTURE_ID = parseInt(j.structure_id);
+            loadPayoutStructures();
+            refreshPresetState();
+        });
+}
+
+// Everything a preset stores, gathered from the live editor. Shared by
+// "Save As…" (new row) and "Update preset" (overwrite the origin), so the two
+// can never drift into capturing different things.
+function buildPresetFormData() {
+    var fd = new FormData();
+    fd.append('csrf_token', CSRF);
+    fd.append('action', 'save_payout_structure');
     // Session-level reward recipe (bounty / jackpot entry) rides with the preset.
     fd.append('bounty_amount', Math.max(0, Math.round(parseFloat((document.getElementById('cfg_bounty') || {}).value || 0))) * 100);
     fd.append('bounty_points', parseInt((document.getElementById('cfg_bounty_points') || {}).value || 0));
@@ -3023,6 +3543,16 @@ function confirmSaveStruct() {
     fd.append('gc_auto_assign_tables', (document.getElementById('cfg_auto_assign') || {}).checked ? 1 : 0);
     fd.append('gc_bounty_optional', svModeVal('cfg_bounty_mode', '0') === '1' ? 1 : 0);
     fd.append('gc_jackpot_optional', svModeVal('cfg_jackpot_mode', '1') === '1' ? 1 : 0);
+    // Blind schedule + timer settings ride too. The server snapshots them from
+    // this session (session_id); when the Blinds pane has a grid loaded, send
+    // it explicitly so unsaved edits are captured — what you see is what saves.
+    fd.append('session_id', SESSION.id);
+    if (window.pkBlindsEditor && pkBlindsEditor._state && pkBlindsEditor._state.eventId === EVENT_ID && pkBlindsEditor._state.levels.length) {
+        fd.append('blind_levels', JSON.stringify(pkBlindsEditor._state.levels));
+    }
+    // What-you-see-is-what-you-save, like the blind grid above: the editor's
+    // current chip set, not the last one written to the session.
+    fd.append('chip_set', JSON.stringify(CHIP_SET.filter(function (c) { return (+c.v || 0) > 0; })));
     // Carry all four reward dimensions; the backend keeps rows where ANY is set.
     document.querySelectorAll('#payoutRows .row').forEach(function(row) {
         var pctEl = row.querySelector('.payout-pct');
@@ -3035,13 +3565,25 @@ function confirmSaveStruct() {
         fd.append('tickets[]', (row.querySelector('.payout-ticket') || {}).value || 0);
         fd.append('labels[]', (row.querySelector('.payout-label') || {}).value || '');
     });
+    return fd;
+}
+
+// Write the editor back over the preset this game came from. Only offered when
+// the bar says MODIFIED and the caller may write to that preset.
+async function updatePayoutStructure() {
+    if (!PRESET_STATE || !PRESET_STATE.id) return;
+    if (!(await pkConfirm('Update "' + PRESET_STATE.name + '" with this game\'s current setup?\n\nEvery future game loading this preset gets these settings. Games already set up from it are not touched.',
+                          { okLabel: 'Update preset' }))) return;
+    var fd = buildPresetFormData();
+    fd.append('structure_id', PRESET_STATE.id);
     fetch('/checkin_dl.php', { method: 'POST', body: fd })
         .then(function(r) { return r.json(); })
         .then(function(j) {
             if (!j.ok) { pkAlert(j.error || 'Error'); return; }
-            CURRENT_STRUCTURE_ID = parseInt(j.structure_id);
             loadPayoutStructures();
-        });
+            refreshPresetState();
+        })
+        .catch(function() { pkAlert('Request failed'); });
 }
 
 async function deletePayoutStructure() {
@@ -3058,6 +3600,7 @@ async function deletePayoutStructure() {
             if (!j.ok) { pkAlert(j.error || 'Error'); return; }
             if (parseInt(sel.value) === CURRENT_STRUCTURE_ID) CURRENT_STRUCTURE_ID = 0;
             loadPayoutStructures();
+            refreshPresetState();
         });
 }
 
@@ -3233,7 +3776,8 @@ function setViewMode(mode, force) {
     // these are brand-new elements, not ones that moved. Balance and Add Table
     // are rendered inside the filter bar, so they need no toggling here.
     if (filterApplies(mode)) positionSegThumb('filterSeg', false);
-    if (mode === 'settings') positionSegThumb('settingsSeg', false);
+    if (mode === 'settings') { positionSegThumb('settingsSeg', false); mountBlindsPane(); }
+    syncDisplayHome();
     if (mode === 'log') { renderLog(); fetchLog(); }
     else if (mode !== 'payouts') { updateBulkBar(); }
 }
@@ -3917,6 +4461,8 @@ function saveSettings() {
         data.jackpot_amount = Math.max(0, Math.round(parseFloat((document.getElementById('cfg_jackpot') || {}).value || 0))) * 100;
         data.bounty_optional = svModeVal('cfg_bounty_mode', '0') === '1' ? 1 : 0;
         data.jackpot_optional = svModeVal('cfg_jackpot_mode', '1') === '1' ? 1 : 0;
+        // Sent as JSON, and only for a tournament — a cash game has no legend.
+        data.chip_set = JSON.stringify(CHIP_SET.filter(function (c) { return (+c.v || 0) > 0; }));
     } else {
         data.rebuy_amount = data.buyin_amount;
         data.addon_amount = 0;
@@ -3973,16 +4519,38 @@ function saveSettings() {
                     if (!j2.ok) { pkProgressDone(); pkAlert(j2.error || 'Error saving payouts'); return; }
                     PAYOUTS = j2.payouts;
                     POOL = j2.pool;
-                    settingsSaved();
+                    saveBlindsWithSettings();
                 })
                 .catch(function() { pkProgressDone(); pkAlert('Request failed'); });
         } else {
-            settingsSaved();
+            saveBlindsWithSettings();
         }
     }, function(errJ) {
         // update_config failed: drop the overlay so the error is readable.
         pkProgressDone();
         pkAlert(errJ.error || 'Error');
+    });
+}
+
+// The Blinds pane is part of this editor, so "Save game" commits it too. It
+// used not to: a host could edit the schedule, press Save, be told "Saved ✓"
+// and lose every blind change, because the grid had its own separate button.
+// A blinds failure must not be swallowed — the rest of the save has already
+// landed, so say what did not.
+function saveBlindsWithSettings() {
+    var ed = window.pkBlindsEditor;
+    if (!ed || typeof ed.save !== 'function' || isCash()
+        || !ed._state || ed._state.eventId !== EVENT_ID || !ed._state.dirty) {
+        settingsSaved();
+        return;
+    }
+    ed.save().then(function (j) {
+        if (j && !j.ok) {
+            pkProgressDone();
+            pkAlert('The game was saved, but the blind schedule was not: ' + (j.error || 'unknown error'));
+            return;
+        }
+        settingsSaved();
     });
 }
 
@@ -3993,6 +4561,9 @@ function saveSettings() {
 function settingsSaved() {
     SETTINGS_DIRTY = false;
     SETTINGS_OPEN = false;
+    // A save is exactly what makes a game diverge from (or fall back in line
+    // with) the preset it came from, so recompute the provenance line.
+    refreshPresetState();
     VIEW_MODE = (VIEW_MODE_PREV && VIEW_MODE_PREV !== 'settings') ? VIEW_MODE_PREV : 'list';
     renderDashboard();
     pkProgressDone();

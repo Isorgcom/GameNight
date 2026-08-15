@@ -1,0 +1,303 @@
+/* Timer BETA — page chrome and cell primitives. Layout geometry itself comes
+ * from the JSON tree in timer_beta.js; this file only styles the pieces. */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body { height: 100%; overflow: hidden; }
+body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #000;
+    color: #fff;
+    -webkit-font-smoothing: antialiased;
+}
+
+#tbRoot { position: fixed; inset: 0; display: flex; }
+
+/* Aspect lock. The stage is a full 100vh tall and as wide as the ratio asks,
+   so every vh inside it still means what the layout author meant; when that is
+   wider than the window the whole stage scales down as one piece. A transform
+   is used rather than smaller units so text, artwork and spacing shrink
+   together and stay in register. */
+#tbRoot.tb-aspect { inset: auto; top: 50%; left: 50%;
+                    height: 100vh; width: calc(100vh * var(--tb-aspect, 1.6));
+                    transform: translate(-50%, -50%) scale(var(--tb-scale, 1)); }
+body.tb-letterbox { background: #000; }
+.tb-top { flex: 1; display: flex; min-width: 0; min-height: 0; }
+
+.tb-row, .tb-col { display: flex; min-width: 0; min-height: 0; }
+.tb-row { flex-direction: row; }
+.tb-col { flex-direction: column; }
+/* Children are content-sized unless the layout gives them a weight —
+ * applyBox() sets flex-grow/basis for weighted nodes. Content-sized cells can
+ * still shrink (min-height 0 above), and .tb-cell clips what cannot fit. */
+.tb-row > *, .tb-col > * { flex: 0 1 auto; }
+
+.tb-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    line-height: 1.25;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+.tb-cell-inner { max-width: 100%; white-space: pre-wrap; }
+.tb-fit .tb-cell-inner { white-space: nowrap; line-height: 1; }
+/* Tabular figures everywhere numbers are shown. Proportional digits are the
+   default in several system fonts (SF Pro on macOS/iOS most notably), so a
+   clock ticking 03:54 -> 03:53 physically changes width. That makes the text
+   shuffle horizontally, and where a fit cell is limited by WIDTH rather than
+   height it also makes fitCell() compute a different font size every second —
+   the clock visibly pumps. timer.css already pins tnum on its clock for the
+   same reason. */
+.tb-cell-inner { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+
+/* Keep-awake prompt. iOS will not start either mechanism without a real
+   gesture, so the viewer has to be told once; it removes itself the moment a
+   lock is held, and never appears on a desktop. */
+/* Fullscreen button, for any viewer. Deliberately dim and out of the way: a
+   display is something people look at from across a room, and a bright control
+   in the corner reads as part of the layout. Fades out with the tray. */
+#tbFsBtn { position: fixed; right: max(1rem, env(safe-area-inset-right)); bottom: max(1rem, env(safe-area-inset-bottom));
+           z-index: 40; width: 44px; height: 44px; border-radius: 50%; border: 0;
+           background: rgba(15,23,42,.55); color: #e2e8f0; font-size: 1.1rem; line-height: 1;
+           cursor: pointer; opacity: .5; transition: opacity .3s; -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+#tbFsBtn:hover { opacity: 1; }
+#tbFsBtn.tb-idle { opacity: 0; pointer-events: none; }
+#tbSndBtn { position: fixed; right: max(1rem, env(safe-area-inset-right)); bottom: calc(max(1rem, env(safe-area-inset-bottom)) + 56px);
+            z-index: 40; width: 44px; height: 44px; border-radius: 50%; border: 0;
+            background: rgba(15,23,42,.55); color: #e2e8f0; font-size: 1.05rem; line-height: 1;
+            cursor: pointer; opacity: .5; transition: opacity .3s; -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+#tbSndBtn:hover { opacity: 1; }
+#tbSndBtn.tb-idle { opacity: 0; pointer-events: none; }
+#tbSndBtn.tb-snd-off { color: #64748b; }
+
+/* Trigger flash: one bright pulse around the whole display. Reduced motion is
+   handled by the global animation:none rule, so the class simply expires. */
+.tb-flash { animation: tbFlash 1.6s ease-out 1; }
+@keyframes tbFlash {
+    0%   { box-shadow: inset 0 0 0 0 rgba(245,158,11,0); }
+    15%  { box-shadow: inset 0 0 0 1.2vh rgba(245,158,11,.85); }
+    100% { box-shadow: inset 0 0 0 0 rgba(245,158,11,0); }
+}
+
+#tbSndBanner { position: fixed; left: 50%; bottom: max(4.5rem, env(safe-area-inset-bottom)); transform: translateX(-50%);
+               z-index: 41; padding: .7rem 1.1rem; border-radius: 10px;
+               background: rgba(15,23,42,.92); color: #fbbf24; font: 600 .95rem/1.4 system-ui, sans-serif;
+               box-shadow: 0 8px 30px rgba(0,0,0,.45); }
+
+/* The iOS answer, shown only where the API does not exist. Plain instructions
+   beat a button that silently does nothing. */
+#tbFsHint { position: fixed; left: 50%; bottom: max(4.5rem, env(safe-area-inset-bottom)); transform: translateX(-50%);
+            z-index: 41; max-width: min(30rem, 88vw); padding: .8rem 1rem; border-radius: 10px;
+            background: rgba(15,23,42,.92); color: #e2e8f0; font: 500 .95rem/1.45 system-ui, sans-serif;
+            text-align: center; box-shadow: 0 8px 30px rgba(0,0,0,.45); }
+#tbFsHint b { color: #fff; }
+
+#tbWakeBanner {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 999;
+    background: #1e293b; color: #fbbf24; border-top: 1px solid #334155;
+    text-align: center; padding: 6px; font-size: .8rem;
+    transition: opacity .5s;
+}
+
+/* Chip legend: coloured discs with their value, laid out along the cell. Wraps
+   rather than overflowing, since a deep-stack set can run to eight chips. */
+.tb-cell-chips .tb-cell-inner { display: flex; flex-wrap: wrap; align-items: center;
+                                justify-content: center; gap: 0.6em 1.1em; width: 100%; }
+.tb-chip { display: inline-flex; align-items: center; gap: 0.35em; white-space: nowrap; }
+/* Sized in em so a legend scales with its cell by default, but overridable:
+   a source layout may state the disc size independently of the text size, and
+   tying the two together blows the numbers up to match the discs. */
+.tb-chip-disc { width: var(--tb-chip-disc, 1.15em); height: var(--tb-chip-disc, 1.15em);
+                border-radius: 50%; flex: 0 0 auto;
+                /* A ring, so a white chip reads against a light background and a
+                   black one against a dark background — both happen. */
+                box-shadow: 0 0 0 0.12em rgba(255,255,255,.75), inset 0 0 0 0.1em rgba(0,0,0,.35); }
+.tb-chip-val { font-variant-numeric: tabular-nums; }
+/* A photographed chip brings its own edge, so the heavy inner ring that makes a
+   flat colour read as a disc just muddies it. Keep the outer ring for contrast
+   against the background. */
+.tb-chip-disc.tb-chip-photo { box-shadow: 0 0 0 0.1em rgba(255,255,255,.75); }
+
+/* Final-table seat map: an ellipse of seats on a subtle felt. Sizes are all
+   relative to the CELL (percent + em), so the map scales with its box and with
+   capCell's font shrink like everything else. */
+.tb-cell-seats .tb-cell-inner { width: 100%; height: 100%; display: flex; }
+.tb-seatmap { position: relative; width: 100%; height: 100%; }
+/* The table: a RACETRACK, like every real seating chart — leather rail around
+   green felt with a betting line. border-radius past half the height turns a
+   rectangle into the stadium silhouette; the layers are plain nested divs so
+   the whole thing scales with its cell and costs no artwork. */
+.tb-seatmap-rail { position: absolute; left: 13%; top: 19%; right: 13%; bottom: 19%;
+                   border-radius: 999px;
+                   background: linear-gradient(180deg, #7a5230 0%, #4a3018 45%, #2e1d0e 100%);
+                   box-shadow: 0 1.4vh 3.5vh rgba(0,0,0,.6), inset 0 0.3vh 0.6vh rgba(255,255,255,.25); }
+.tb-seatmap-felt { position: absolute; left: 2.2%; top: 9%; right: 2.2%; bottom: 9%;
+                   border-radius: 999px;
+                   background: radial-gradient(ellipse at 50% 35%, #2f8f5b 0%, #1f6f43 55%, #14532d 100%);
+                   box-shadow: inset 0 0.8vh 3vh rgba(0,0,0,.5); }
+.tb-seatmap-line { position: absolute; left: 7%; top: 16%; right: 7%; bottom: 16%;
+                   border-radius: 999px; border: 0.28vh solid rgba(255,255,255,.28); }
+.tb-seatmap-centre { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%);
+                     text-align: center; font-weight: 800; letter-spacing: .35em;
+                     font-size: 1.1em; color: rgba(255,255,255,.22);
+                     text-shadow: 0 1px 2px rgba(0,0,0,.4); pointer-events: none; }
+.tb-seat { position: absolute; transform: translate(-50%, -50%); text-align: center; z-index: 2; }
+.tb-seat-disc { width: 3.2em; height: 3.2em; border-radius: 50%; margin: 0 auto;
+                display: flex; align-items: center; justify-content: center; overflow: hidden;
+                font-weight: 700; font-size: 1em; color: #fff;
+                background: rgba(255,255,255,.10);
+                box-shadow: 0 0 0 0.14em rgba(255,255,255,.75), 0 0.4vh 1.2vh rgba(0,0,0,.5); }
+.tb-seat-disc img { width: 100%; height: 100%; object-fit: cover; }
+.tb-seat-name { font-size: 0.85em; font-weight: 700; margin-top: 0.25em;
+                max-width: 7em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+                text-shadow: 0 1px 3px rgba(0,0,0,.8); }
+.tb-seat-num { position: absolute; top: -0.4em; right: -0.4em; min-width: 1.4em; height: 1.4em;
+               border-radius: 50%; background: rgba(15,23,42,.9); color: #e2e8f0;
+               font-size: 0.62em; font-weight: 700; display: flex; align-items: center;
+               justify-content: center; box-shadow: 0 0 0 1px rgba(255,255,255,.4); }
+.tb-seat-tray { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%);
+                display: flex; gap: 0.6em; align-items: center; white-space: nowrap;
+                font-size: 0.85em; z-index: 3; }
+.tb-seat-tray-label { color: rgba(255,255,255,.55); font-weight: 700; }
+.tb-seat-tray-name { background: rgba(15,23,42,.85); border: 1px solid rgba(255,255,255,.35);
+                     border-radius: 999px; padding: 0.15em 0.7em; font-weight: 700; }
+.tb-seat-empty .tb-seat-disc { background: none; color: rgba(255,255,255,.35);
+                               box-shadow: inset 0 0 0 0.12em rgba(255,255,255,.25); font-size: 0.8em; }
+
+/* QR cell: square, fits the box, pixel-crisp. A QR scaled with smoothing loses
+   module edges and stops scanning at a distance, which is the only distance a
+   wall display is ever read from. */
+.tb-cell-qr .tb-cell-inner { display: flex; align-items: center; justify-content: center; height: 100%; width: 100%; }
+/* The code carries its OWN plate: white backing, rounded corners, drop shadow.
+   A plate painted into background artwork can never align with the live image
+   past pixel rounding, and a zoomed screen makes every misplaced pixel loud —
+   so artwork must NOT paint a backing behind a QR cell; this is it. */
+.tb-qr { max-width: 100%; max-height: 100%; aspect-ratio: 1 / 1; object-fit: contain;
+         image-rendering: pixelated; background: #fff; padding: 0.7vh; border-radius: 1.2vh;
+         box-shadow: 0 0.8vh 2vh rgba(0,0,0,.5); }
+/* No session, no honest code. Hide the <img> entirely: a src-less image renders
+   as a broken-image glyph plus its alt text, which filled the cell with a white
+   block in the editor preview. Only the dashed footprint should show. */
+.tb-cell-qr.tb-qr-empty .tb-qr { display: none; }
+.tb-cell-qr.tb-qr-empty .tb-cell-inner::after {
+    content: 'QR'; font-size: 1.6vh; letter-spacing: .1em; color: #64748b;
+    border: 1px dashed currentColor; border-radius: 4px; padding: 1.2vh 1.6vh;
+}
+.tb-cell-img .tb-cell-inner { max-width: 100%; max-height: 100%; height: 100%; width: 100%; display: flex; align-items: center; justify-content: center; }
+.tb-img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.tb-img-cover { width: 100%; height: 100%; object-fit: cover; }
+
+/* Clock state colours; the layout's own colour applies until a state does. */
+.tb-warn   { color: #fbbf24 !important; }
+.tb-crit   { color: #ef4444 !important; }
+.tb-paused { opacity: 0.55; animation: tbPulse 2.2s ease-in-out infinite; }
+@keyframes tbPulse { 50% { opacity: 0.3; } }
+@media (prefers-reduced-motion: reduce) { .tb-paused { animation: none; } }
+
+/* ── Corner bar: badge, layout picker, escape hatch ── */
+#tbBar {
+    position: fixed;
+    top: max(8px, env(safe-area-inset-top));
+    right: max(10px, env(safe-area-inset-right));
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    opacity: 0.35;
+    transition: opacity 0.25s;
+}
+#tbBar:hover, #tbBar:focus-within { opacity: 1; }
+.tb-badge {
+    background: #f59e0b;
+    color: #451a03;
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    border-radius: 5px;
+    padding: 3px 7px;
+}
+.tb-sample {
+    color: #cbd5e1;
+    font-size: 0.7rem;
+    background: rgba(15, 23, 42, 0.6);
+    border-radius: 5px;
+    padding: 3px 7px;
+}
+#tbBar select {
+    background: rgba(15, 23, 42, 0.85);
+    color: #e2e8f0;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-size: 0.8rem;
+    min-height: 32px;
+}
+#tbBar a {
+    color: #93c5fd;
+    font-size: 0.8rem;
+    text-decoration: none;
+    background: rgba(15, 23, 42, 0.6);
+    border-radius: 6px;
+    padding: 5px 9px;
+}
+@media (pointer: coarse) {
+    #tbBar { opacity: 0.6; }
+    #tbBar select, #tbBar a { min-height: 44px; padding: 8px 12px; }
+}
+
+/* ── Editor selection (embed mode only) ── */
+.tb-selected { outline: 2px dashed #f59e0b; outline-offset: -2px; }
+.tb-cell.tb-selected { background-clip: padding-box; }
+
+/* ── Control tray (live event-linked display, hosts only) ── */
+#tbControls {
+    position: fixed;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    gap: .3rem;
+    padding: .4rem .6rem;
+    border-radius: 14px;
+    background: rgba(15, 23, 42, 0.72);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(148, 163, 184, 0.4);
+    opacity: 1;
+    transition: opacity .35s ease, transform .35s ease;
+}
+#tbControls[hidden] { display: none; }
+/* Idle: gone entirely (not a faint ghost), and not clickable. Any pointer move,
+   tap or key brings it back — video-player style. */
+#tbControls.tb-idle {
+    opacity: 0;
+    transform: translateX(-50%) translateY(12px);
+    pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) { #tbControls { transition: opacity .2s ease; } }
+#tbControls button {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0 .55rem;
+    border: 1px solid #334155;
+    border-radius: 9px;
+    background: #1e293b;
+    color: #e2e8f0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .12s, border-color .12s;
+}
+#tbControls button:hover { background: #334155; }
+#tbControls button:active { background: #475569; }
+#tbControls .tb-ctrl-play { background: #16a34a; border-color: #16a34a; color: #fff; min-width: 56px; }
+#tbControls .tb-ctrl-play.is-running { background: #dc2626; border-color: #dc2626; }
+#tbControls .tb-ctrl-sep { width: 1px; height: 1.6rem; background: rgba(148, 163, 184, 0.3); margin: 0 .15rem; flex-shrink: 0; }
+@media (pointer: coarse) {
+    #tbControls button { min-width: 48px; min-height: 48px; }
+}

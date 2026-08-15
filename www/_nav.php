@@ -126,12 +126,14 @@ $_accent        = get_setting('accent_color', '');
                         <a href="/admin_settings.php" class="nav-mobile-link<?= $_active === 'site-settings' ? ' active' : '' ?>">Site Settings<?php if ($_show_update_dot): ?> <span class="nav-update-dot" title="Update available: v<?= htmlspecialchars(get_setting('latest_version')) ?>"></span><?php endif; ?></a>
                         <?php endif; ?>
                         <a href="<?= htmlspecialchars($_timer_href, ENT_QUOTES | ENT_SUBSTITUTE) ?>" class="nav-mobile-link">Tournament Timer</a>
+                        <a href="/timer_beta_edit.php" class="nav-mobile-link<?= $_active === 'timer-beta' ? ' active' : '' ?>">Timer Layouts <span class="nav-beta-tag">BETA</span></a>
                         <div class="nav-mobile-divider"></div>
                         <div class="nav-help-group<?= $_active === 'help' || $_active === 'support' ? ' open' : '' ?>">
                             <button type="button" class="nav-help-toggle" data-nav="help">Help <span class="nav-help-caret" aria-hidden="true">&#9656;</span></button>
                             <div class="nav-help-sub">
                                 <a href="/help-hosts.php">Host Guide</a>
                                 <a href="/help-guests.php">Guest Guide</a>
+                                <a href="/help-timer.php">Timer Guide</a>
                                 <a href="/support.php"<?= $_active === 'support' ? ' class="active"' : '' ?>>Support</a>
                             </div>
                         </div>
@@ -150,6 +152,7 @@ $_accent        = get_setting('accent_color', '');
                             <div class="nav-help-sub">
                                 <a href="/help-hosts.php">Host Guide</a>
                                 <a href="/help-guests.php">Guest Guide</a>
+                                <a href="/help-timer.php">Timer Guide</a>
                             </div>
                         </div>
                         <div class="nav-mobile-divider"></div>

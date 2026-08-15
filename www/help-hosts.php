@@ -1,6 +1,11 @@
 <?php
 require_once __DIR__ . '/auth.php';
 
+// Without this the nav partial sees a GUEST even when someone is signed in
+// ($user is only set inside require_login, which a public page never calls) —
+// and with landing-page mode on, a guest gets no nav at all.
+$current = current_user();
+
 $site_name   = get_setting('site_name', 'Game Night');
 $nav_active  = 'help';
 $allow_reg   = get_setting('allow_registration', '1') === '1';

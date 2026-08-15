@@ -15,9 +15,15 @@ function compute_live_state($db, $timer) {
     $running = (int)$timer['is_running'];
     $session_id = (int)$timer['session_id'];
 
+    // ONE reading of the clock for the whole request. Two calls to time() can
+    // straddle a second boundary, and the anchor below is derived from it: two
+    // screens polling either side of that boundary latched deadlines a full
+    // second apart and then held them, so they disagreed forever.
+    $now = time();
+
     if ($running && $timer['updated_at']) {
         // updated_at is stored as UTC via SQLite datetime('now') — force UTC parsing
-        $elapsed = time() - strtotime($timer['updated_at'] . ' UTC');
+        $elapsed = $now - strtotime($timer['updated_at'] . ' UTC');
         $remaining -= $elapsed;
 
         // Auto-advance levels if time ran out
@@ -48,10 +54,30 @@ function compute_live_state($db, $timer) {
         }
     }
 
+    // ── Anchor ────────────────────────────────────────────────────────────
+    // The countdown expressed as a CONSTANT, so a display can derive the time
+    // itself instead of being told it again every poll. Being told is what made
+    // the clock stutter: this function answers in whole seconds computed at
+    // request time, so consecutive polls disagree by up to a second and the
+    // display jumped backwards and forwards.
+    //
+    // ends_at is invariant between commands, which is the whole point:
+    //   ends_at = time() + remaining
+    //           = time() + (stored_remaining - (time() - updated_at))
+    //           = updated_at + stored_remaining
+    // The request time cancels out, so every poll — and every SCREEN — derives
+    // the same instant. Auto-advance above rewrites the row and is therefore
+    // picked up here automatically, since $remaining is already re-based.
+    $ends_at_ms = ($running && $remaining > 0) ? ($now + $remaining) * 1000 : null;
+
     return [
         'current_level' => $level,
         'time_remaining_seconds' => max(0, $remaining),
         'is_running' => $running,
+        // Running: count down to ends_at_ms. Paused: remaining_ms is the truth
+        // and nothing moves. Exactly one of the two is ever non-null.
+        'ends_at_ms'   => $ends_at_ms,
+        'remaining_ms' => $running ? null : max(0, $remaining) * 1000,
     ];
 }
 
@@ -135,7 +161,9 @@ if ($action === 'get_state') {
     $game_type = null;
 
     if ($session_id > 0) {
-        $sess = $db->prepare('SELECT ps.*, e.title as event_title, e.id as event_id FROM poker_sessions ps JOIN events e ON ps.event_id = e.id WHERE ps.id = ?');
+        $sess = $db->prepare('SELECT ps.*, e.title as event_title, e.id as event_id,
+                                     e.start_date as ev_date, e.start_time as ev_time
+                              FROM poker_sessions ps JOIN events e ON ps.event_id = e.id WHERE ps.id = ?');
         $sess->execute([$session_id]);
         $session = $sess->fetch();
         $pool = calc_pool($db, $session_id);
@@ -186,12 +214,94 @@ if ($action === 'get_state') {
         }
     }
 
+    $chip_set = [];
+    if ($session_id > 0) {
+        $cq = $db->prepare('SELECT chip_set FROM poker_sessions WHERE id = ?');
+        $cq->execute([$session_id]);
+        $chip_set = pk_clean_chip_set($cq->fetchColumn() ?: '');
+    }
+
+    $players = [];
+    if ($session_id > 0 && $game_type === 'tournament') {
+        // The exact "still in" predicate calc_pool uses. Walk-ins have
+        // user_id NULL, so the join leaves their avatar null and the display
+        // falls back to initials.
+        $pq = $db->prepare('SELECT pp.display_name, pp.table_number, pp.seat_number, u.avatar_path
+                            FROM poker_players pp LEFT JOIN users u ON u.id = pp.user_id
+                            WHERE pp.session_id = ? AND pp.removed = 0 AND pp.bought_in = 1 AND pp.eliminated = 0
+                            ORDER BY pp.table_number, pp.seat_number LIMIT 30');
+        $pq->execute([$session_id]);
+        foreach ($pq->fetchAll(PDO::FETCH_ASSOC) as $pr) {
+            $av = (string)($pr['avatar_path'] ?? '');
+            $players[] = [
+                'name'   => (string)$pr['display_name'],
+                'table'  => (int)$pr['table_number'],
+                'seat'   => (int)$pr['seat_number'],
+                'avatar' => preg_match('#^/uploads/avatars/[A-Za-z0-9._/-]{1,160}$#', $av) ? $av : null,
+            ];
+        }
+    }
+
+    // Most recent knockout: lowest finish_position among the eliminated
+    // (places count down as players bust, so the last one out holds the
+    // smallest number). Feeds the <lastEliminated> element and the
+    // playerEliminated trigger edge.
+    $lastElim = null;
+    if ($session_id > 0 && $game_type === 'tournament') {
+        $lq = $db->prepare('SELECT display_name, finish_position FROM poker_players
+                            WHERE session_id = ? AND removed = 0 AND eliminated = 1
+                            ORDER BY (finish_position IS NULL), finish_position ASC LIMIT 1');
+        $lq->execute([$session_id]);
+        if ($lr = $lq->fetch(PDO::FETCH_ASSOC)) {
+            $lastElim = ['name' => (string)$lr['display_name'],
+                         'place' => $lr['finish_position'] !== null ? (int)$lr['finish_position'] : null];
+        }
+    }
+
     $themeProps = timer_resolve_theme($db, (int)($timer['theme_id'] ?? 0) ?: null);
 
     echo json_encode([
         'ok' => true,
         'timer' => $live,
+        // The server's own clock, so a display can work out how far its clock
+        // is from this one. Without it, deriving from ends_at_ms would show a
+        // wrong time forever on any screen whose clock is off — and screens
+        // would disagree with each other, which is exactly what a shared
+        // anchor is supposed to prevent.
+        'server_now_ms' => (int) round(microtime(true) * 1000),
+        // The display JS's current build stamp. A timer display sits open for
+        // hours polling DATA but never re-fetches CODE, so a fix never reaches
+        // an already-open screen; the client compares this against the stamp
+        // it booted with and reloads itself when they differ.
+        'asset_v' => (int) (@filemtime(__DIR__ . '/timer_beta.js') ?: 0),
         'levels' => $levels,
+        // Chip denominations with their colours, for the <chips> legend. Empty
+        // when the game has none, so the display hides the cell rather than
+        // drawing an empty box.
+        'chips' => $chip_set,
+        // Still-in players with their seats, for the <seats> final-table cell.
+        // This DELIBERATELY widens the ?key channel: a wall display exists to
+        // show who is at which seat, so possession of the key now buys names
+        // and avatars of players still IN the game — and nothing else. Only
+        // still-in rows (never eliminated players, notes, payouts or contact
+        // data), avatar paths only from our own avatars folder, capped.
+        'players' => $players,
+        'last_eliminated' => $lastElim,
+        // Setup figures the display can show but cannot derive: the fees, the
+        // chips each buy-in grants, the table plan and when the game starts.
+        // Named explicitly rather than handing the whole session row to every
+        // screen — a display is public to anyone with the key.
+        'game' => $session ? [
+            'buyin'       => (int)($session['buyin_amount'] ?? 0),
+            'rebuy'       => (int)($session['rebuy_amount'] ?? 0),
+            'addon'       => (int)($session['addon_amount'] ?? 0),
+            'start_chips' => (int)($session['starting_chips'] ?? 0),
+            'addon_chips' => (int)($session['addon_chips'] ?? 0),
+            'tables'      => (int)($session['num_tables'] ?? 0),
+            'seats'       => (int)($session['seats_per_table'] ?? 0),
+            'start_date'  => $session['ev_date'] ?? null,
+            'start_time'  => $session['ev_time'] ?? null,
+        ] : null,
         'pool' => $pool,
         'payouts' => $payouts,
         'game_type' => $game_type,
@@ -199,6 +309,8 @@ if ($action === 'get_state') {
         'session_status' => $session ? $session['status'] : '',
         'can_control' => $can_control,
         'csrf_token' => $current ? csrf_token() : null,
+        'layout_id' => (int)($timer['layout_id'] ?? 0) ?: null,
+        'layout_builtin' => ($timer['layout_builtin'] ?? null) ?: null,
         'sounds' => [
             'warning_seconds' => (int)($timer['warning_seconds'] ?? 60),
             'alarm_sound' => $timer['alarm_sound'] ?? null,
@@ -371,10 +483,11 @@ if ($action === 'get_presets') {
         'SELECT bp.id, bp.name, bp.is_default, bp.is_global, bp.created_by, bp.league_id, l.name AS league_name
          FROM blind_presets bp
          LEFT JOIN leagues l ON l.id = bp.league_id
-         WHERE bp.is_default = 1
+         WHERE bp.session_id IS NULL
+           AND (bp.is_default = 1
             OR bp.is_global  = 1
             OR bp.created_by = ?
-            OR bp.league_id IN (SELECT league_id FROM league_members WHERE user_id = ?)
+            OR bp.league_id IN (SELECT league_id FROM league_members WHERE user_id = ?))
          ORDER BY bp.is_default DESC, bp.is_global DESC, LOWER(bp.name)'
     );
     $stmt->execute([$current['id'], $current['id']]);
@@ -403,7 +516,7 @@ if ($action === 'load_preset') {
     $preset_id = (int)($_POST['preset_id'] ?? 0);
 
     // Scoped exactly like get_presets() above, for the same reason as load_theme.
-    $p = $db->prepare('SELECT id FROM blind_presets WHERE id = ? AND (is_default = 1
+    $p = $db->prepare('SELECT id FROM blind_presets WHERE id = ? AND session_id IS NULL AND (is_default = 1
                 OR is_global  = 1
                 OR created_by = ?
                 OR league_id IN (SELECT league_id FROM league_members WHERE user_id = ?))');
@@ -473,6 +586,9 @@ if ($action === 'delete_preset') {
     $p->execute([$preset_id]);
     $preset = $p->fetch();
     if (!$preset) { echo json_encode(['ok' => false, 'error' => 'Not found']); exit; }
+    // Session-local copies aren't library presets; they live and die with
+    // their game and are edited from the event's blind editor.
+    if (!empty($preset['session_id'])) { echo json_encode(['ok' => false, 'error' => 'Not found']); exit; }
     if ((int)$preset['is_default']) { echo json_encode(['ok' => false, 'error' => 'Cannot delete default']); exit; }
     // Global presets can only be deleted by admins.
     if ((int)($preset['is_global'] ?? 0) && !$isAdmin) { echo json_encode(['ok' => false, 'error' => 'Only admins can delete global presets']); exit; }
@@ -535,23 +651,19 @@ if ($action === 'update_levels') {
         }
 
         // Admin can edit anything. League owner/manager can edit their league's preset.
-        // Everyone else (including regular members of the league) gets a personal copy.
-        if ($is_protected && !$isAdmin) {
-            $db->prepare('INSERT INTO blind_presets (name, created_by) VALUES (?, ?)')->execute(['Custom', $current['id']]);
-            $preset_id = (int)$db->lastInsertId();
-            $db->prepare("UPDATE timer_state SET preset_id = ?, updated_at = datetime('now') WHERE id = ?")->execute([$preset_id, $timer['id']]);
-            $created_copy = true;
-        } elseif ($preset_league_id > 0 && !$isAdmin && !$can_edit_league) {
-            $db->prepare('INSERT INTO blind_presets (name, created_by) VALUES (?, ?)')->execute(['Custom', $current['id']]);
-            $preset_id = (int)$db->lastInsertId();
-            $db->prepare("UPDATE timer_state SET preset_id = ?, updated_at = datetime('now') WHERE id = ?")->execute([$preset_id, $timer['id']]);
-            $created_copy = true;
-        } elseif ((int)($presetRow['created_by'] ?? 0) !== (int)$current['id'] && !$isAdmin) {
-            // Someone else's personal preset. Falling through here did not just
-            // overwrite it — the code below DELETEs every level row and re-inserts,
-            // so it destroyed another user's saved blind structure. delete_preset
-            // already required ownership; this is the same rule applied to edits.
-            $db->prepare('INSERT INTO blind_presets (name, created_by) VALUES (?, ?)')->execute(['Custom', $current['id']]);
+        // Everyone else (including regular members of the league) gets a copy.
+        // Copies are session-local (session_id set): the edit belongs to THIS
+        // game, and the copy never appears in anyone's preset library.
+        $needs_copy = ($is_protected && !$isAdmin)
+            || ($preset_league_id > 0 && !$isAdmin && !$can_edit_league)
+            || ((int)($presetRow['created_by'] ?? 0) !== (int)$current['id'] && !$isAdmin);
+            // Someone else's personal preset also copies: falling through here
+            // did not just overwrite it — the code below DELETEs every level row
+            // and re-inserts, so it destroyed another user's saved structure.
+            // delete_preset already required ownership; same rule for edits.
+        if ($needs_copy) {
+            $db->prepare('INSERT INTO blind_presets (name, created_by, session_id) VALUES (?, ?, ?)')
+               ->execute(['Custom', $current['id'], (int)$timer['session_id'] ?: null]);
             $preset_id = (int)$db->lastInsertId();
             $db->prepare("UPDATE timer_state SET preset_id = ?, updated_at = datetime('now') WHERE id = ?")->execute([$preset_id, $timer['id']]);
             $created_copy = true;

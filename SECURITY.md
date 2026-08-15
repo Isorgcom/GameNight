@@ -32,6 +32,44 @@ context where the pattern is wrong.
 Related trap: never write the PHP closing tag inside a `//` comment. It ends PHP
 mode and reintroduces the same class of fatal.
 
+### 1a. Parse errors in PHP-GENERATED JavaScript
+
+```bash
+cd ~/qa-headless && node inline_js_sweep.js
+```
+
+Sweep 1 cannot see this. Most of the JavaScript in this app is emitted from
+inside `.php` files — `checkin.php` alone renders about 3,500 lines of it — and
+`php -l` is perfectly happy with PHP that prints broken JS. The failure is total
+rather than local: one `SyntaxError` discards the entire `<script>` block, so
+every function it declared is undefined and the whole console goes dead. There
+is no partial degradation and no error on screen; the page simply renders and
+nothing works.
+
+The sweep fetches each rendered page, extracts every inline `<script>` (skipping
+`src=` tags, which are real files a plain `node --check` already covers) and
+parse-checks each one, so it reads exactly what the browser is asked to parse.
+It walks 22 pages, logged out for the two that are reachable that way. **Add a
+page to its `PAGES` list whenever a new one starts generating JS** — a page that
+is not listed is not checked, and the sweep will still report all-clear.
+
+It exists because an edit inserted a statement between an `if` and its `else`:
+
+```js
+if (!PAYOUT_STRUCTURES.length) loadPayoutStructures();
+refreshPresetState();          // ← inserted here
+else renderPayoutStructureSelect();
+```
+
+`php -l` passed. The file looked right in a diff. The check-in console was
+completely non-functional, and the first symptom was an unrelated test failing
+on `SESSION is not defined` — the global was never declared because the block
+containing it never parsed.
+
+Any insertion into generated JS deserves this sweep: the surrounding lines you
+are editing may be PHP-interpolated, brace-matched across a `<?php ?>` boundary,
+or (as above) one half of a control-flow statement that a diff does not show you.
+
 ### 1b. Re-run the browser suites for the pages AFFECTED
 
 If a change touches a shared file — `_footer.php`, `_nav.php`, `auth.php`,
@@ -264,8 +302,9 @@ which is exactly the pattern that has to move to event delegation.
 1. ~~**Add a per-request nonce** via the three-directive split above.~~ **Done in
    v0.2072.** `auth.php` mints a per-request `CSP_NONCE`; `csp_nonce()` stamps it
    on all 64 inline blocks across 33 files. External `<script src="/...">` needs
-   no nonce, it is covered by `'self'`. `cast_receiver.php` is excluded: it is
-   standalone, sends no CSP header, and must not call `csp_nonce()`.
+   no nonce, it is covered by `'self'`. A standalone page that sends no CSP
+   header of its own must not call `csp_nonce()`; `cast_receiver.php` was the
+   only one and has since been deleted as dead code.
    **What this buys:** an injected `<script>` element is now refused by the
    browser. **What it does not:** an injected `on*` attribute still runs, since
    `script-src-attr` still allows them. That is what step 2 closes.
