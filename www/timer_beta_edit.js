@@ -83,6 +83,8 @@ var ELEMENT_DESC = {
     entries: "Buy-ins including rebuys", buyIns: "First buy-ins only",
     rebuys: "Rebuys taken", addOns: "Add-ons taken",
     eliminated: "Players knocked out", cashedOut: "Players who cashed out",
+    lastEliminated: "Name of the most recent player knocked out",
+    lastEliminatedPlace: "Their finishing place (13th, 12th, \u2026)",
     pot: "The prize pool, as money", prizePool: "Same figure as pot, named the way a screen labels it",
     bountyPool: "Bounty money collected", jackpotPool: "Jackpot entries collected",
     buyInFee: "What a buy-in costs", rebuyFee: "What a rebuy costs", addOnFee: "What an add-on costs",
@@ -95,6 +97,35 @@ var ELEMENT_DESC = {
     startChips: "Chips a buy-in gets", addOnChips: "Chips an add-on gets",
     tables: "Tables in the room", seats: "Seats per table"
 };
+// The namespaced spellings share the flat descriptions — one map (mirrors
+// ELEMENT_NS in timer_beta.js), so both spellings tooltip identically.
+(function () {
+    var ns = {
+        'event.name': 'eventName',
+        'game.name': 'gameName', 'game.next': 'nextGameName',
+        'round.num': 'level', 'round.orBreak': 'levelOrBreak',
+        'round.total': 'roundsTotal', 'round.toBreak': 'roundsToBreak',
+        'time.now': 'currentTime', 'time.elapsed': 'elapsedTime',
+        'time.nextBreak': 'nextBreak', 'time.start': 'startTime',
+        'blinds.small': 'smallBlind', 'blinds.big': 'bigBlind', 'blinds.ante': 'ante',
+        'blinds.now': 'blinds', 'blinds.next': 'nextBlinds',
+        'blinds.nextSmall': 'nextSmallBlind', 'blinds.nextBig': 'nextBigBlind', 'blinds.nextAnte': 'nextAnte',
+        'players.line': 'players', 'players.left': 'playersLeft', 'players.total': 'playersTotal',
+        'players.entries': 'entries', 'players.buyIns': 'buyIns', 'players.rebuys': 'rebuys',
+        'players.addOns': 'addOns', 'players.out': 'eliminated', 'players.cashed': 'cashedOut',
+        'players.lastOut': 'lastEliminated', 'players.lastOutPlace': 'lastEliminatedPlace',
+        'chips.total': 'chipCount', 'chips.avg': 'avgStack', 'chips.avgBB': 'avgStackBB',
+        'chips.start': 'startChips', 'chips.addOn': 'addOnChips',
+        'money.pot': 'prizePool', 'money.bounty': 'bountyPool', 'money.jackpot': 'jackpotPool',
+        'money.buyIn': 'buyInFee', 'money.rebuy': 'rebuyFee', 'money.addOn': 'addOnFee',
+        'money.line': 'buyinLine',
+        'prizes.line': 'prizes', 'prizes.list': 'prizeList', 'prizes.stacked': 'prizesStacked',
+        'table.count': 'tables', 'table.seats': 'seats'
+    };
+    Object.keys(ns).forEach(function (d) {
+        if (ELEMENT_DESC[ns[d]]) ELEMENT_DESC[d] = ELEMENT_DESC[ns[d]];
+    });
+})();
 
 var STRUCTURE_DESC = [
     ["Screen", "One full display. A layout can hold several; conditions decide which one shows (Break screens go before the catch-all Main)."],
@@ -102,7 +133,7 @@ var STRUCTURE_DESC = [
     ["Cell", "One box of content: text with live <elements> in it, an image, a QR code, a chip legend, or the final-table seat map."],
     ["Weight", "A box's share of its parent's space. No weight = hug the content. The number the resize handles write."],
     ["Size", "Text size as % of screen height — a MAXIMUM: values that outgrow the box wrap or shrink inside it, never spill."],
-    ["Show when", "A condition that hides the box until it matches: a state (on break), or an expression like bigBlind > 10000."],
+    ["Show when", "A condition that hides the box until it matches: a state (on break), or an expression like blinds.big > 10000."],
     ["Variants", "Alternate look or text for one cell behind a condition. First match wins; no match shows the base."],
     ["Element styles", "One element styled apart from its line — <ante> bold and orange while the blinds stay white."],
     ["Box image", "The box's own background picture: plate art that moves and resizes WITH the box."],
@@ -167,7 +198,18 @@ function renderScreensBar() {
     screensEl.textContent = '';
     var tabs = document.createElement('div');
     tabs.className = 'tbe-screen-tabs';
+    // Display order ≠ storage order: the catch-all (usually Main) leads the
+    // strip because it is the layout's home screen, even though it must sit
+    // LAST in the array so conditional screens can win the evaluation scan.
+    var order = [];
     LAYOUT.screens.forEach(function (scr, i) {
+        if (scr.when === undefined || scr.when === null) order.push(i);
+    });
+    LAYOUT.screens.forEach(function (scr, i) {
+        if (!(scr.when === undefined || scr.when === null)) order.push(i);
+    });
+    order.forEach(function (i) {
+        var scr = LAYOUT.screens[i];
         var btn = document.createElement('button');
         btn.className = 'tbe-screen-tab' + (i === editScreenIndex ? ' active' : '');
         btn.textContent = scr.name || ('Screen ' + (i + 1));
@@ -175,10 +217,28 @@ function renderScreensBar() {
         tabs.appendChild(btn);
     });
     var add = document.createElement('button');
-    add.className = 'tbe-screen-add'; add.textContent = '+ Screen';
-    add.addEventListener('click', addScreen);
+    add.className = 'tbe-screen-add'; add.textContent = screenMenuOpen ? '× Cancel' : '+ Screen';
+    add.addEventListener('click', function () { screenMenuOpen = !screenMenuOpen; renderScreensBar(); });
     tabs.appendChild(add);
     screensEl.appendChild(tabs);
+
+    // "+ Screen" opens a template gallery (the trigger gallery's idiom) —
+    // a new screen used to be hard-coded as a Break screen.
+    if (screenMenuOpen) {
+        var menu = document.createElement('div');
+        menu.className = 'tbe-trigger-menu';
+        SCREEN_TEMPLATES.forEach(function (t) {
+            var it = document.createElement('button');
+            it.type = 'button';
+            it.className = 'tbe-trigger-menu-item';
+            var nm = document.createElement('strong'); nm.textContent = t[0];
+            var ds = document.createElement('span'); ds.textContent = t[1];
+            it.appendChild(nm); it.appendChild(ds);
+            it.addEventListener('click', function () { screenMenuOpen = false; addScreen(t[2]); });
+            menu.appendChild(it);
+        });
+        screensEl.appendChild(menu);
+    }
 
     // Management row for the active screen: name, show-when, delete.
     var scr = curScreen();
@@ -210,7 +270,7 @@ function renderScreensBar() {
     condWrap.appendChild(condEditor(scr.when, function (c) { pushUndo(); setOrDelete(scr, 'when', c); refresh(true); }));
     var note = document.createElement('div');
     note.className = 'tbe-screen-note';
-    note.textContent = 'Screens are checked top to bottom; the first match shows. Put specific ones (Break) before a catch-all Main.';
+    note.textContent = 'Conditional screens are checked in order and the first match shows; the default screen (no condition) shows when nothing matches.';
     condWrap.appendChild(note);
 
     // Rotation: dwell seconds; blank = this screen never rotates.
@@ -238,18 +298,48 @@ function renderScreensBar() {
     screensEl.appendChild(condWrap);
 }
 
-function addScreen() {
-    pushUndo();
-    var base = curScreen();
-    var fresh = {
-        name: 'Break',
-        when: 'on_break',
-        bg: base.bg ? JSON.parse(JSON.stringify(base.bg)) : { color: '#000' },
+var screenMenuOpen = false;
+
+// [label, description, factory(bg) → screen]. Every template inherits the
+// current screen's background so a themed layout stays themed.
+var SCREEN_TEMPLATES = [
+    ['Break', 'Takes over during breaks', function (bg) { return {
+        name: 'Break', when: 'on_break', bg: bg,
         root: { col: [
             { cell: { text: 'ON BREAK', fit: true, bold: true, color: '#fbbf24' }, weight: 3 },
-            { cell: { text: 'Back in <nextBreak>', size: 3.5, color: '#e2e8f0' }, weight: 1 }
-        ] }
-    };
+            { cell: { text: 'Back in <time.nextBreak>', size: 3.5, color: '#e2e8f0' }, weight: 1 }
+        ] } }; }],
+    ['Final table', 'Seat map once 10 or fewer remain', function (bg) { return {
+        name: 'Final Table', when: 'players.left <= 10 and players.left > 1', bg: bg,
+        root: { col: [
+            { cell: { text: 'FINAL TABLE', fit: true, bold: true, color: '#fbbf24' }, weight: 1 },
+            { cell: { text: '', size: 2.6, color: '#e2e8f0', seats: true }, weight: 4 },
+            { cell: { text: '<blinds.now>', size: 3.2, color: '#e2e8f0', bold: true }, weight: 0.8 }
+        ] } }; }],
+    ['Phone', 'A simple stacked view for phones that scan the QR', function (bg) { return {
+        name: 'Phone', when: 'mobile', bg: bg,
+        root: { col: [
+            { cell: { text: '<clock>', fit: true, bold: true, color: '#ffffff' }, weight: 3 },
+            { cell: { text: '<blinds.now>', size: 5, color: '#e2e8f0', bold: true }, weight: 1.2 },
+            { cell: { text: 'Round <round.num>  ·  <players.left> of <players.total> left', size: 2.8, color: '#94a3b8' }, weight: 0.8 },
+            { cell: { text: '<game.name>', size: 2.4, color: '#94a3b8' }, weight: 0.6 }
+        ] } }; }],
+    ['Game over', 'The wrap-up once a winner stands', function (bg) { return {
+        name: 'Game Over', when: 'game_over', bg: bg,
+        root: { col: [
+            { cell: { text: 'GAME OVER', fit: true, bold: true, color: '#ef4444' }, weight: 2 },
+            { cell: { text: '<event.name>', size: 4, color: '#e2e8f0', bold: true }, weight: 1 },
+            { cell: { text: '<prizes.line>', size: 3, color: '#94a3b8' }, weight: 1 }
+        ] } }; }],
+    ['Blank', 'Empty — give it a condition, or the catch-all stays in front of it', function (bg) { return {
+        name: 'Screen', bg: bg,
+        root: { col: [ { cell: { text: 'New screen', size: 4, color: '#e2e8f0' }, weight: 1 } ] } }; }]
+];
+
+function addScreen(make) {
+    pushUndo();
+    var base = curScreen();
+    var fresh = make(base.bg ? JSON.parse(JSON.stringify(base.bg)) : { color: '#000' });
     LAYOUT.screens.push(fresh);
     // A conditional screen must sit before any catch-all (a screen with no
     // `when`), or the catch-all would always win. Keep unconditional ones last.
@@ -420,6 +510,7 @@ function uploadImage(onUrl) {
         .catch(function () { pickNewImage(onUrl); });
 }
 
+
 function pickNewImage(onUrl) {
     var inp = document.createElement('input');
     inp.type = 'file'; inp.accept = 'image/png,image/jpeg,image/gif,image/webp';
@@ -502,7 +593,7 @@ var STATE_OPTS = ['', 'running', 'paused', 'on_break', 'pre_game', 'game_over'];
 var STATE_LBLS = ['Any state', 'Running', 'Paused', 'On break', 'Pre-game', 'Game over'];
 
 // State names are the string shorthand; any OTHER string in a `when` is an
-// expression ("bigBlind > 10000 and not onBreak").
+// expression ("blinds.big > 10000 and not onBreak").
 var COND_STATES = ['always', 'running', 'paused', 'on_break', 'pre_game', 'has_ante', 'has_rebuys', 'game_over'];
 
 function condEditor(cond, onchange) {
@@ -532,7 +623,7 @@ function condEditor(cond, onchange) {
     exRow.className = 'tbe-cond-expr';
     var ex = document.createElement('input');
     ex.type = 'text';
-    ex.placeholder = 'Expression, e.g. bigBlind > 10000 and not onBreak';
+    ex.placeholder = 'Expression, e.g. blinds.big > 10000 and not onBreak';
     ex.value = expr;
     var exMsg = document.createElement('div');
     exMsg.className = 'tbe-cond-msg';
@@ -771,35 +862,36 @@ var openTriggers = {};
 // (PV.conditionNames), so a name added there without a line here still shows,
 // just undescribed. Rendered by condEditor's "Values you can use" list.
 var COND_DESC = {
-    round:        'Current round (level) number',
-    smallBlind:   'Current small blind',
-    bigBlind:     'Current big blind',
-    ante:         'Current ante (0 when none)',
-    playersLeft:  'Players still in the game',
-    playersTotal: 'Everyone who bought in',
-    entries:      'Total entries, including re-entries',
-    buyIns:       'Number of buy-ins',
-    rebuys:       'Number of rebuys',
-    addOns:       'Number of add-ons',
-    eliminated:   'Players knocked out so far',
-    chipCount:    'Total chips in play',
-    avgStack:     'Average stack (chips / players left)',
-    prizePool:    'Prize pool in dollars',
-    tables:       'Tables in play',
-    seats:        'Seats per table',
-    minutesLeft:  'Whole minutes left in this round',
-    secondsLeft:  'Seconds left in this round',
-    levelChange:  'True for an instant when the round number changes — the classic trigger',
-    running:      'Clock is running',
-    paused:       'Clock is paused',
-    onBreak:      'Schedule is on a break',
-    preGame:      'Game has not started yet',
-    gameOver:     'Game is over',
-    hasAnte:      'This round has an ante',
-    hasRebuys:    'Rebuys are enabled',
-    mobile:       'Viewing screen is a phone',
-    tablet:       'Viewing screen is a tablet',
-    desktop:      'Viewing screen is a PC / TV'
+    round:              'Current round (level) number',
+    'blinds.small':     'Current small blind',
+    'blinds.big':       'Current big blind',
+    'blinds.ante':      'Current ante (0 when none)',
+    'players.left':     'Players still in the game',
+    'players.total':    'Everyone who bought in',
+    'players.entries':  'Total entries, including re-entries',
+    'players.buyIns':   'Number of buy-ins',
+    'players.rebuys':   'Number of rebuys',
+    'players.addOns':   'Number of add-ons',
+    'players.out':      'Players knocked out so far',
+    'chips.total':      'Total chips in play',
+    'chips.avg':        'Average stack (chips / players left)',
+    'money.pot':        'Prize pool in dollars',
+    'table.count':      'Tables in play',
+    'table.seats':      'Seats per table',
+    'clock.minutes':    'Whole minutes left in this round',
+    'clock.seconds':    'Seconds left in this round',
+    levelChange:        'True for an instant when the round number changes — the classic trigger',
+    playerEliminated:   'True for an instant when a player is knocked out (an undo stays silent)',
+    running:            'Clock is running',
+    paused:             'Clock is paused',
+    onBreak:            'Schedule is on a break',
+    preGame:            'Game has not started yet',
+    gameOver:           'Game is over',
+    hasAnte:            'This round has an ante',
+    hasRebuys:          'Rebuys are enabled',
+    mobile:             'Viewing screen is a phone',
+    tablet:             'Viewing screen is a tablet',
+    desktop:            'Viewing screen is a PC / TV'
 };
 
 // Ready-made triggers: the list of things people actually hook. Each inserts
@@ -807,12 +899,13 @@ var COND_DESC = {
 // to see what triggers CAN do without writing an expression first.
 var TRIGGER_TEMPLATES = [
     ['Level change', 'Chime when a new round begins', { when: 'levelChange', 'do': [{ sound: 'preset:chime' }] }],
-    ['One-minute warning', 'Tick + flash in the last 60 seconds of a round', { when: 'secondsLeft <= 60 and running', 'do': [{ sound: 'preset:tick' }, { flash: 'screen' }] }],
-    ['Announce the blinds', 'Speaks "Blinds up" with the new numbers each round', { when: 'levelChange', 'do': [{ announce: 'Blinds up: <blinds>' }] }],
+    ['One-minute warning', 'Tick + flash in the last 60 seconds of a round', { when: 'clock.seconds <= 60 and running', 'do': [{ sound: 'preset:tick' }, { flash: 'screen' }] }],
+    ['Announce the blinds', 'Speaks "Blinds up" with the new numbers each round', { when: 'levelChange', 'do': [{ announce: 'Blinds up: <blinds.now>' }] }],
     ['Break starts', 'Horn when the schedule reaches a break', { when: 'on_break', 'do': [{ sound: 'preset:horn' }] }],
-    ['Final table', 'Fanfare + flash when 10 or fewer remain (once)', { when: 'playersLeft <= 10 and playersLeft > 1', 'do': [{ sound: 'preset:casino' }, { flash: 'screen' }], once: true }],
-    ['Heads-up', 'Buzzer when two players are left (once)', { when: 'playersLeft == 2 and running', 'do': [{ sound: 'preset:buzzer' }], once: true }],
+    ['Final table', 'Fanfare + flash when 10 or fewer remain (once)', { when: 'players.left <= 10 and players.left > 1', 'do': [{ sound: 'preset:casino' }, { flash: 'screen' }], once: true }],
+    ['Heads-up', 'Buzzer when two players are left (once)', { when: 'players.left == 2 and running', 'do': [{ sound: 'preset:buzzer' }], once: true }],
     ['Game over', 'Fanfare when a winner stands (once)', { when: 'gameOver', 'do': [{ sound: 'preset:casino' }], once: true }],
+    ['Player eliminated', 'Announces who was knocked out, by name', { when: 'playerEliminated', 'do': [{ sound: 'preset:descending' }, { announce: '<players.lastOut> has been eliminated' }] }],
     ['Blank trigger', 'Start from scratch', { when: 'on_break', 'do': [{ sound: 'preset:chime' }] }]
 ];
 var addMenuOpen = false;
@@ -1000,7 +1093,7 @@ function triggerActionRow(tg, act, ai) {
         var fresh = sel.value === 'sound' ? { sound: 'preset:chime' }
                   : sel.value === 'takeover' ? { takeover: (LAYOUT.screens[0] || {}).name || 'Main', seconds: 8 }
                   : sel.value === 'flash' ? { flash: 'screen' }
-                  : { announce: 'Blinds up: <blinds>' };
+                  : { announce: 'Blinds up: <blinds.now>' };
         tg['do'][ai] = fresh;
         refresh(true); renderInspector();
     });
@@ -1045,7 +1138,7 @@ function triggerActionRow(tg, act, ai) {
         row.appendChild(secs);
     } else if (type === 'announce') {
         var txt = document.createElement('input');
-        txt.type = 'text'; txt.placeholder = 'Blinds up: <blinds>';
+        txt.type = 'text'; txt.placeholder = 'Blinds up: <blinds.now>';
         txt.value = act.announce || '';
         txt.style.flex = '1';
         txt.addEventListener('change', function () { pushUndo(); act.announce = txt.value; refresh(true); });
@@ -1306,6 +1399,7 @@ function renderInspector() {
             insp.appendChild(imgWrap);
             insp.appendChild(field('Fit', selInput(cell.imageFit || 'contain', ['contain', 'cover'], function (v) { setOrDelete(cell, 'imageFit', v === 'contain' ? undefined : v); })));
             insp.appendChild(field('Weight (share of space)', numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
+            insp.appendChild(field('Show when', condEditor(cell.when, function (v) { pushUndo(); setOrDelete(cell, 'when', v); refresh(true); })));
             var rmImg = document.createElement('button'); rmImg.className = 'tbe-mini tbe-mini-danger'; rmImg.textContent = 'Remove image (back to text)';
             rmImg.addEventListener('click', function () { pushUndo(); delete cell.image; delete cell.imageFit; refresh(true); renderInspector(); });
             insp.appendChild(rmImg);
@@ -1328,6 +1422,7 @@ function renderInspector() {
             chWrap.appendChild(chn);
             insp.appendChild(chWrap);
             insp.appendChild(field('Weight (share of space)', numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
+            insp.appendChild(field('Show when', condEditor(cell.when, function (v) { pushUndo(); setOrDelete(cell, 'when', v); refresh(true); })));
             var rmCh = document.createElement('button'); rmCh.className = 'tbe-mini tbe-mini-danger';
             rmCh.textContent = 'Remove chip legend (back to text)';
             rmCh.addEventListener('click', function () { pushUndo(); delete cell.chips; refresh(true); renderInspector(); });
@@ -1356,6 +1451,7 @@ function renderInspector() {
             });
             insp.appendChild(field('Table number (blank = auto)', tno));
             insp.appendChild(field('Weight (share of space)', numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
+            insp.appendChild(field('Show when', condEditor(cell.when, function (v) { pushUndo(); setOrDelete(cell, 'when', v); refresh(true); })));
             var rmSt = document.createElement('button'); rmSt.className = 'tbe-mini tbe-mini-danger';
             rmSt.textContent = 'Remove seat map (back to text)';
             rmSt.addEventListener('click', function () { pushUndo(); delete cell.seats; delete cell.table; refresh(true); renderInspector(); });
@@ -1374,6 +1470,7 @@ function renderInspector() {
             qrWrap.appendChild(qn);
             insp.appendChild(qrWrap);
             insp.appendChild(field('Weight (share of space)', numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
+            insp.appendChild(field('Show when', condEditor(cell.when, function (v) { pushUndo(); setOrDelete(cell, 'when', v); refresh(true); })));
             var rmQr = document.createElement('button'); rmQr.className = 'tbe-mini tbe-mini-danger';
             rmQr.textContent = 'Remove QR (back to text)';
             rmQr.addEventListener('click', function () { pushUndo(); delete cell.qr; refresh(true); renderInspector(); });
@@ -1463,6 +1560,7 @@ function renderInspector() {
         insp.appendChild(field('Gap', textInput(node.gap, function (v) { setOrDelete(node, 'gap', v); }, 'e.g. 0.5vh')));
         insp.appendChild(field('Padding', textInput(node.pad, function (v) { setOrDelete(node, 'pad', v); }, 'e.g. 1vh 1vw')));
         insp.appendChild(field('Background', colorInput(node.bg, function (v) { setOrDelete(node, 'bg', v); })));
+        insp.appendChild(field('Show when', condEditor(node.when, function (v) { pushUndo(); setOrDelete(node, 'when', v); refresh(true); })));
         insp.appendChild(field('Justify', selInput(node.justify || 'flex-start',
             ['flex-start', 'center', 'flex-end', 'space-between', 'space-around'],
             function (v) { setOrDelete(node, 'justify', v === 'flex-start' ? undefined : v); },
@@ -2299,6 +2397,40 @@ document.querySelectorAll('.tbe-chip').forEach(function (b) {
     });
 });
 
+/* ── Preview device toggle (TV/Desktop · Tablet · Phone) ─────────────────
+ * Forces the preview's device conditions and reshapes the frame, so device-
+ * conditioned cells, columns and whole screens can be auditioned from a PC.
+ * Like the state chips, it releases the pinned screen and follows whichever
+ * screen the conditions now pick — a screen with `when: mobile` shows the
+ * moment Phone is selected. */
+var devSeg = document.getElementById('tbeDevSeg');
+if (devSeg) {
+    devSeg.addEventListener('click', function (e) {
+        var btn = e.target && e.target.closest ? e.target.closest('button[data-dev]') : null;
+        if (!btn || btn.classList.contains('active')) return;
+        devSeg.querySelectorAll('button').forEach(function (x) { x.classList.remove('active'); });
+        btn.classList.add('active');
+        if (typeof positionSegThumb === 'function') positionSegThumb('tbeDevSeg', true);
+        var d = btn.getAttribute('data-dev');
+        var fr = document.querySelector('.tbe-preview-frame');
+        fr.classList.toggle('tbe-frame-tablet', d === 'tablet');
+        fr.classList.toggle('tbe-frame-mobile', d === 'mobile');
+        if (PV && PV.device) {
+            PV.device(d);
+            PV.forceScreen(null);
+            var idx = PV.activeScreenIndex();
+            if (idx >= 0 && idx < LAYOUT.screens.length && idx !== editScreenIndex) {
+                editScreenIndex = idx; selPath = null;
+                renderScreensBar(); renderTree(); renderInspector();
+            } else {
+                renderScreensBar();
+            }
+        }
+        requestAnimationFrame(mountResizeHandles);
+    });
+    if (typeof positionSegThumb === 'function') requestAnimationFrame(function () { positionSegThumb('tbeDevSeg', false); });
+}
+
 /* ── Load / save / delete ────────────────────────────────────────────── */
 
 var loadSel = document.getElementById('tbeLoad');
@@ -2842,7 +2974,8 @@ document.getElementById('tbeDelete').addEventListener('click', function () {
         section('Elements — live values you can put in any cell\'s text');
         // The renderer's list, so a new element appears here the day it ships;
         // described when the map knows it, shown regardless.
-        var names = (PV && PV.elementNames) ? PV.elementNames() : Object.keys(ELEMENT_DESC);
+        var names = (PV && PV.elementNamesNS) ? PV.elementNamesNS()
+                  : (PV && PV.elementNames) ? PV.elementNames() : Object.keys(ELEMENT_DESC);
         names.forEach(function (n) {
             row('<' + n + '>', ELEMENT_DESC[n] || (customElsOf()[n] !== undefined ? 'Custom element defined by this layout' : ''), true);
         });
@@ -2880,7 +3013,8 @@ function boot() {
     var w = frame.contentWindow;
     if (!w || !w.TBPreview) { setTimeout(boot, 60); return; }
     PV = w.TBPreview;
-    if (PV.elementNames) { var tn = PV.elementNames(); if (tn && tn.length) ELEMENTS = tn; }
+    if (PV.elementNamesNS) { var tn = PV.elementNamesNS(); if (tn && tn.length) ELEMENTS = tn; }
+    else if (PV.elementNames) { var tn2 = PV.elementNames(); if (tn2 && tn2.length) ELEMENTS = tn2; }
     ELEMENT_BUILTINS = ELEMENTS.slice();
     PV.onSelect = function (path) { select(path); };
     wirePreviewMenu();
@@ -2890,15 +3024,36 @@ function boot() {
     // The preview is sized by the editor's own layout, so a window resize moves
     // every boundary without any layout change at all.
     window.addEventListener('resize', function () { requestAnimationFrame(mountResizeHandles); });
-    LAYOUT = JSON.parse(JSON.stringify(PV.builtins.classic));
+    // Event context boots on the layout THIS game's display shows — the point
+    // of editing here is tweaking that layout, not `classic`. A binding by
+    // built-in key loads synchronously; a saved layout follows by fetch.
+    var bootKey = (EV_ID && !evLayoutId && evLayoutKey && PV.builtins[evLayoutKey]) ? evLayoutKey : 'classic';
+    LAYOUT = JSON.parse(JSON.stringify(PV.builtins[bootKey]));
     delete LAYOUT.name;
-    curBuiltin = 'classic';   // fresh boot shows the pristine built-in
-    nameInput.value = 'My layout';
+    curBuiltin = bootKey;   // fresh boot shows a pristine built-in
+    nameInput.value = bootKey === 'classic' ? 'My layout' : PV.builtins[bootKey].name + ' (mine)';
     editScreenIndex = 0;
     normalizeLayout();
     refresh();
     selectScreen(0);
     populateLoadList();
+    if (EV_ID && evLayoutId) {
+        fetch('/timer_beta_dl.php?action=get_layout&id=' + evLayoutId)
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+                if (!j || !j.ok) return;
+                LAYOUT = j.layout;
+                layoutId = j.editable ? j.id : null;
+                editable = j.editable;
+                nameInput.value = j.name + (j.editable ? '' : ' (copy)');
+                undoStack = []; selPath = null;
+                normalizeLayout();
+                editScreenIndex = mainScreenIndex();
+                refresh(); selectScreen(editScreenIndex);
+                curBuiltin = null;
+                updateEventBtn();
+            }).catch(function () {});
+    }
 }
 frame.addEventListener('load', boot);
 if (frame.contentWindow && frame.contentWindow.TBPreview) boot();

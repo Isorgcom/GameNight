@@ -242,6 +242,22 @@ if ($action === 'get_state') {
         }
     }
 
+    // Most recent knockout: lowest finish_position among the eliminated
+    // (places count down as players bust, so the last one out holds the
+    // smallest number). Feeds the <lastEliminated> element and the
+    // playerEliminated trigger edge.
+    $lastElim = null;
+    if ($session_id > 0 && $game_type === 'tournament') {
+        $lq = $db->prepare('SELECT display_name, finish_position FROM poker_players
+                            WHERE session_id = ? AND removed = 0 AND eliminated = 1
+                            ORDER BY (finish_position IS NULL), finish_position ASC LIMIT 1');
+        $lq->execute([$session_id]);
+        if ($lr = $lq->fetch(PDO::FETCH_ASSOC)) {
+            $lastElim = ['name' => (string)$lr['display_name'],
+                         'place' => $lr['finish_position'] !== null ? (int)$lr['finish_position'] : null];
+        }
+    }
+
     $themeProps = timer_resolve_theme($db, (int)($timer['theme_id'] ?? 0) ?: null);
 
     echo json_encode([
@@ -270,6 +286,7 @@ if ($action === 'get_state') {
         // still-in rows (never eliminated players, notes, payouts or contact
         // data), avatar paths only from our own avatars folder, capped.
         'players' => $players,
+        'last_eliminated' => $lastElim,
         // Setup figures the display can show but cannot derive: the fees, the
         // chips each buy-in grants, the table plan and when the game starts.
         // Named explicitly rather than handing the whole session row to every

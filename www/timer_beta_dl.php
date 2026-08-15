@@ -95,11 +95,17 @@ function pk_lo_cond_expr(string $src): bool {
     if ($src === '' || strlen($src) > 200) return false;
     $names = ['round','level','smallblind','bigblind','ante','playersleft','playerstotal',
               'entries','buyins','rebuys','addons','eliminated','chipcount','avgstack',
-              'prizepool','tables','seats','minutesleft','secondsleft','levelchange','levelup',
+              'prizepool','tables','seats','minutesleft','secondsleft','levelchange','levelup','playereliminated','playerout',
               'running','paused','onbreak','pregame','gameover','hasante','hasrebuys',
               'mobile','tablet','desktop','pc',
+              // namespaced spellings (mirror of the COND_VALUES ns block)
+              'blinds.small','blinds.big','blinds.ante',
+              'players.left','players.total','players.entries','players.buyins',
+              'players.rebuys','players.addons','players.out',
+              'chips.total','chips.avg','money.pot','table.count','table.seats',
+              'clock.minutes','clock.seconds',
               'true','false','and','or','not'];
-    if (!preg_match_all('/\s*(<=|>=|==|!=|<>|&&|\|\||[<>=!()]|\d+(?:\.\d+)?|[a-zA-Z][a-zA-Z0-9]*)\s*/A',
+    if (!preg_match_all('/\s*(<=|>=|==|!=|<>|&&|\|\||[<>=!()]|\d+(?:\.\d+)?|[a-zA-Z][a-zA-Z0-9.]*)\s*/A',
                         $src, $m) || implode('', array_map('trim', $m[0])) !== preg_replace('/\s+/', '', $src)) {
         return false;   // something un-tokenizable in there
     }
@@ -217,7 +223,7 @@ function pk_lo_cell($cell, array &$err): ?array {
         $es = []; $n = 0;
         foreach ($cell['elStyles'] as $k => $v) {
             if (++$n > 10) break;
-            if (!is_string($k) || !preg_match('/^[a-zA-Z][a-zA-Z0-9]{0,39}$/', $k) || !is_array($v)) continue;
+            if (!is_string($k) || !preg_match('/^[a-zA-Z][a-zA-Z0-9.]{0,39}$/', $k) || !is_array($v)) continue;
             $e = [];
             if (isset($v['color'])) { $c = pk_lo_style_str($v['color'], 40); if ($c !== null) $e['color'] = $c; }
             if (isset($v['bold']) && is_bool($v['bold'])) $e['bold'] = $v['bold'];
@@ -276,6 +282,9 @@ function pk_lo_node($node, int $depth, int &$count, array &$err): ?array {
         if (isset($node['justify']) && in_array($node['justify'], ['flex-start', 'center', 'flex-end', 'space-between', 'space-around'], true)) $out['justify'] = $node['justify'];
         if (isset($node['bgImage'])) { $v = pk_lo_img($node['bgImage']); if ($v !== null) $out['bgImage'] = $v; }
         if (isset($node['bgImageFit']) && in_array($node['bgImageFit'], ['stretch', 'cover', 'contain'], true)) $out['bgImageFit'] = $node['bgImageFit'];
+        // A container's `when` hides the whole row/column (cells keep theirs
+        // inside the cell spec, handled by pk_lo_cell).
+        if (isset($node['when'])) { $w = pk_lo_cond($node['when']); if ($w !== null) $out['when'] = $w; }
     }
     // Shared box props (both containers and cell nodes carry these).
     if (isset($node['weight'])) { $n = pk_lo_num($node['weight'], 0, 50); if ($n !== null) $out['weight'] = $n; }

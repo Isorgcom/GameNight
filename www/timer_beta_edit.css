@@ -41,10 +41,11 @@
     body.tbe-body { min-height: 100dvh; display: flex; flex-direction: column; }
     body.tbe-body > nav, body.tbe-body > footer { flex: 0 0 auto; }
     body.tbe-body .tbe-wrap { flex: 0 0 auto; height: calc(100dvh - var(--tbe-nav-h, 240px)); min-height: 30rem; width: 100%; box-sizing: border-box; display: flex; flex-direction: column; }
-    /* The toolbar (title, Load/Save/Export…) anchors to the top of the
-       viewport once the page scrolls the nav away — the editor's controls
-       stay reachable from anywhere on the page. */
-    body.tbe-body .tbe-header { flex: 0 0 auto; position: sticky; top: 0; z-index: 40;
+    /* The toolbar (title, Load/Save/Export…) anchors just below the site nav,
+       which is itself sticky (z-index 100) and never scrolls away — top: 0
+       here would slide the toolbar up UNDER the nav on any page scroll. The
+       live nav height is already measured into --tbe-nav-h. */
+    body.tbe-body .tbe-header { flex: 0 0 auto; position: sticky; top: var(--tbe-nav-h, 0px); z-index: 40;
                                 background: #f8fafc; box-shadow: 0 6px 12px -8px rgba(15,23,42,.25); }
     /* One row pinned to the container height — with auto rows the row would
        size to content, and the size-contained stage contributes none. */
@@ -61,7 +62,9 @@
        heights) and centers. In short windows it shrinks instead of clipping. */
     /* Never taller than the column minus the state bar, or the bar itself
        falls below the fold on shorter windows. */
-    body.tbe-body .tbe-preview-stage { flex: 1 0 auto; min-height: min(58vh, calc(100% - 3.2rem)); container-type: size; }
+    /* Grid so a width-bound frame centers vertically instead of leaving all
+       the stage's spare height as a gap above the state bar. */
+    body.tbe-body .tbe-preview-stage { flex: 1 0 auto; min-height: min(58vh, calc(100% - 3.2rem)); container-type: size; display: grid; align-items: center; }
     body.tbe-body .tbe-preview-frame {
         width: min(100%, calc(100cqh * 16 / 9));
         height: min(100cqh, calc(100cqw * 9 / 16));
@@ -71,6 +74,31 @@
     /* Panels must keep their natural height and overflow into the scroll —
        as flex children they would otherwise shrink and clip their content. */
     body.tbe-body .tbe-side .tbe-panel { flex-shrink: 0; }
+}
+
+/* ── Three-pane workbench (wide desktop) ─────────────────────────────────
+ * Structure and Inspector become sibling columns, so selecting a cell shows
+ * its settings immediately beside the tree instead of below its scroll box,
+ * and the preview gives up the width the third column needs. The width cap
+ * comes off so big monitors get the room back. Below 1281px the two panels
+ * fall back to the stacked right-hand column. */
+@media (min-width: 1281px) {
+    .tbe-wrap { max-width: none; }
+    .tbe-main { grid-template-columns: minmax(0, 1fr) 300px 340px; }
+    /* The wrapper dissolves; the two panels become grid items themselves.
+       (.tbe-main .tbe-side: outranks the base .tbe-side display:flex, which
+       sits later in this file.) */
+    .tbe-main .tbe-side { display: contents; }
+    /* In the viewport-locked shell each pane manages its own scroll: the
+       tree grows to fill the Structure pane (its 300px cap comes off), the
+       inspector body scrolls under its pinned head. */
+    body.tbe-body .tbe-panel-structure, body.tbe-body .tbe-panel-inspector { display: flex; flex-direction: column; min-height: 0; }
+    body.tbe-body .tbe-panel-structure > .tbe-panel-head,
+    body.tbe-body .tbe-panel-structure > .tbe-screens,
+    body.tbe-body .tbe-panel-structure > .tbe-addbar,
+    body.tbe-body .tbe-panel-inspector > .tbe-panel-head { flex: 0 0 auto; }
+    body.tbe-body .tbe-panel-structure .tbe-tree { flex: 1 1 auto; max-height: none; min-height: 0; }
+    body.tbe-body .tbe-panel-inspector .tbe-inspector { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 }
 
 /* The preview sticks in view while the controls scroll, so a change made low
@@ -86,6 +114,25 @@
  * vh-based cell sizes preview true to a TV. */
 .tbe-preview-frame { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 10px; overflow: hidden; border: 1.5px solid #e2e8f0; }
 .tbe-preview-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+
+/* Device preview shapes (the Desktop/Tablet/Phone toggle): the frame becomes
+ * the target device's viewport, so vh/vw sizing and device conditions preview
+ * true. Tablet is 4:3 landscape, phone a portrait 9:19.5. */
+.tbe-preview-frame.tbe-frame-tablet { aspect-ratio: 4 / 3; width: min(100%, calc(78vh * 4 / 3)); margin-inline: auto; }
+.tbe-preview-frame.tbe-frame-mobile { aspect-ratio: 9 / 19.5; width: min(100%, calc(72vh * 9 / 19.5)); margin-inline: auto; }
+/* Inside the viewport-locked shell the frame is sized by container units —
+ * same formulas as the 16:9 base, at each device's ratio. */
+@media (min-width: 981px) {
+    body.tbe-body .tbe-preview-frame.tbe-frame-tablet {
+        width: min(100%, calc(100cqh * 4 / 3));
+        height: min(100cqh, calc(100cqw * 3 / 4));
+    }
+    body.tbe-body .tbe-preview-frame.tbe-frame-mobile {
+        width: min(100%, calc(100cqh * 9 / 19.5));
+        height: min(100cqh, calc(100cqw * 19.5 / 9));
+    }
+}
+.tbe-devseg { margin-left: .4rem; }
 
 .tbe-statebar { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; margin-top: .55rem; font-size: .82rem; color: #475569; }
 .tbe-triggers-pane { margin-top: .6rem; }
@@ -255,3 +302,4 @@
 .tbe-sndlist { overflow-y: auto; padding: .5rem .75rem .75rem; display: flex; flex-direction: column; gap: .35rem; }
 .tbe-sndrow { display: flex; align-items: center; gap: .5rem; font-size: .8rem;
     background: #f8fafc; border: 1px solid #e2e8f0; border-radius: .4rem; padding: .35rem .5rem; }
+

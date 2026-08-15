@@ -49,13 +49,19 @@ $csrf = csrf_token();
                 <button data-state="paused" class="tbe-chip">Paused</button>
                 <button data-state="break" class="tbe-chip">On break</button>
                 <button data-state="over" class="tbe-chip">Game over</button>
+                <div class="pk-seg tbe-devseg" id="tbeDevSeg" title="Preview as a TV, a tablet or a phone — device conditions follow along">
+                    <span class="pk-seg-thumb"></span>
+                    <button type="button" data-dev="desktop" class="active">TV / PC</button>
+                    <button type="button" data-dev="tablet">Tablet</button>
+                    <button type="button" data-dev="mobile">Phone</button>
+                </div>
                 <span class="tbe-hint">Click any part of the preview to select it.</span>
             </div>
             <div id="tbeTriggers" class="tbe-triggers-pane"></div>
         </div>
 
         <div class="tbe-side">
-            <div class="tbe-panel">
+            <div class="tbe-panel tbe-panel-structure">
                 <div class="tbe-panel-head">
                     <span>Structure</span>
                     <span class="tbe-panel-actions">
@@ -75,7 +81,7 @@ $csrf = csrf_token();
                     <button id="tbeRemove"  class="tbe-mini tbe-mini-danger">Remove</button>
                 </div>
             </div>
-            <div class="tbe-panel">
+            <div class="tbe-panel tbe-panel-inspector">
                 <div class="tbe-panel-head"><span id="tbeInspTitle">Inspector</span></div>
                 <div id="tbeInspector" class="tbe-inspector">
                     <p class="tbe-empty">Select something in the preview or the structure tree.</p>

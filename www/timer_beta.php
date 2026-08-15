@@ -121,19 +121,16 @@ if ($session_id) {
 
 <div id="tbRoot" aria-live="off"></div>
 
-<?php /* Not on a scanned screen: the layout picker fetches a list the viewer
-         has no rights to (it 401s), and a display someone cast to a TV should
-         not be offering a stranger a dropdown or a link to the classic timer.
-         It shows what the host chose, and nothing else. */ ?>
-<?php if (!$is_embed && $remote_key === ''): ?>
+<?php /* Sample/library mode only. A scanned screen never gets the bar (the
+         picker fetches a list the viewer has no rights to, and a cast display
+         should not offer a stranger a dropdown), and a LIVE game doesn't
+         either: the layout is chosen in the game's Setup, and the running
+         board is a clean TV face — no picker, no BETA badge, no chrome. */ ?>
+<?php if (!$is_embed && $remote_key === '' && !$session_id): ?>
 <div id="tbBar">
     <span class="tb-badge">BETA</span>
     <select id="tbLayoutSelect" title="Layout"></select>
-    <?php if ($session_id): ?>
-        <a href="/timer.php?event_id=<?= (int)$event_id ?>&amp;classic=1" title="Open the classic timer">Timer</a>
-    <?php else: ?>
-        <span class="tb-sample" title="No game linked — showing sample data">sample</span>
-    <?php endif; ?>
+    <span class="tb-sample" title="No game linked — showing sample data">sample</span>
 </div>
 <?php endif; ?>
 

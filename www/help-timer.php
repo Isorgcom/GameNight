@@ -176,21 +176,24 @@ $help_sections = [
 
     <div class="help-step" id="elements">
         <h2><span class="step-num">6</span> Elements: live values in text</h2>
-        <p>Type <code>&lt;clock&gt;</code> in a cell and the display keeps it live. Any cell can mix plain text and elements: <code>Round &lt;level&gt; of &lt;roundsTotal&gt;</code>. The editor's element picker lists them all with their current value. The families:</p>
+        <p>Type <code>&lt;clock&gt;</code> in a cell and the display keeps it live. Any cell can mix plain text and elements: <code>Round &lt;round.num&gt; of &lt;round.total&gt;</code>. Names are grouped by subject with a dot, so related ones sort and read together. The editor's element picker lists them all with their current value. The families:</p>
         <table class="help-table">
-            <tr><th>Game</th><td><code>eventName gameName level levelOrBreak clock elapsedTime currentTime startTime nextBreak roundsToBreak roundsTotal</code></td></tr>
-            <tr><th>Blinds</th><td><code>smallBlind bigBlind ante blinds nextBlinds nextSmallBlind nextBigBlind nextAnte</code></td></tr>
-            <tr><th>Players</th><td><code>players playersLeft playersTotal entries buyIns rebuys addOns eliminated cashedOut</code></td></tr>
-            <tr><th>Chips</th><td><code>chipCount avgStack avgStackBB startChips addOnChips</code></td></tr>
-            <tr><th>Money</th><td><code>pot prizePool bountyPool jackpotPool buyInFee rebuyFee addOnFee buyinLine prizes prizeList prizesStacked</code></td></tr>
-            <tr><th>Room</th><td><code>tables seats</code></td></tr>
+            <tr><th>Event / game</th><td><code>event.name &middot; game.name &middot; game.next</code></td></tr>
+            <tr><th>Round</th><td><code>round.num &middot; round.orBreak &middot; round.total &middot; round.toBreak</code></td></tr>
+            <tr><th>Time</th><td><code>clock &middot; time.now &middot; time.elapsed &middot; time.nextBreak &middot; time.start</code></td></tr>
+            <tr><th>Blinds</th><td><code>blinds.small &middot; blinds.big &middot; blinds.ante &middot; blinds.now &middot; blinds.next &middot; blinds.nextSmall &middot; blinds.nextBig &middot; blinds.nextAnte</code></td></tr>
+            <tr><th>Players</th><td><code>players.line &middot; players.left &middot; players.total &middot; players.entries &middot; players.buyIns &middot; players.rebuys &middot; players.addOns &middot; players.out &middot; players.cashed &middot; players.lastOut &middot; players.lastOutPlace</code></td></tr>
+            <tr><th>Chips</th><td><code>chips.total &middot; chips.avg &middot; chips.avgBB &middot; chips.start &middot; chips.addOn</code></td></tr>
+            <tr><th>Money</th><td><code>money.pot &middot; money.bounty &middot; money.jackpot &middot; money.buyIn &middot; money.rebuy &middot; money.addOn &middot; money.line</code></td></tr>
+            <tr><th>Prizes</th><td><code>prizes.line &middot; prizes.list &middot; prizes.stacked</code></td></tr>
+            <tr><th>Room</th><td><code>table.count &middot; table.seats</code></td></tr>
         </table>
-        <div class="hint">Capitalisation never matters, and Tournament Director's names work as aliases (<code>&lt;round&gt;</code>, <code>&lt;timer&gt;</code>, <code>&lt;averagestack&gt;</code>, <code>&lt;totalpot&gt;</code>&hellip;), so a layout written from TD muscle memory just works. A name the timer doesn't know shows as &#10216;name&#10217; on screen instead of vanishing, so typos stay visible.</div>
+        <div class="hint">Capitalisation never matters. A name the timer doesn't know shows as &#10216;name&#10217; on screen instead of vanishing, so typos stay visible.</div>
         <p><strong>Styling one element apart from its line:</strong> select the cell and open <strong>Element styles</strong> in the inspector. It offers the elements present in that cell's text; pick one, and give it its own colour, bold, or a size relative to the line (0.7 means 70% of the surrounding text). The classic use, an ante that only shows on ante rounds and stands out when it does:</p>
         <ul>
-            <li>Cell <strong>Text</strong>: <code>&lt;smallBlind&gt; / &lt;bigBlind&gt;</code></li>
-            <li>Add a <strong>variant</strong> with condition <code>hasAnte</code> and text <code>&lt;smallBlind&gt; / &lt;bigBlind&gt; / &lt;ante&gt;</code></li>
-            <li><strong>Element styles</strong> &rarr; <code>&lt;ante&gt;</code> &rarr; orange, bold, size 0.7</li>
+            <li>Cell <strong>Text</strong>: <code>&lt;blinds.small&gt; / &lt;blinds.big&gt;</code></li>
+            <li>Add a <strong>variant</strong> with condition <code>hasAnte</code> and text <code>&lt;blinds.small&gt; / &lt;blinds.big&gt; / &lt;blinds.ante&gt;</code></li>
+            <li><strong>Element styles</strong> &rarr; <code>&lt;blinds.ante&gt;</code> &rarr; orange, bold, size 0.7</li>
         </ul>
         <div class="shot-pair">
             <figure class="help-shot">
@@ -204,7 +207,7 @@ $help_sections = [
         </div>
         <figure class="help-shot shot-narrow">
             <img src="/img/help/timer-elstyles.png" alt="The Element styles panel in the inspector: ante entry with colour, bold and size fields" loading="lazy">
-            <figcaption>The <strong>Element styles</strong> panel that produced it: <code>&lt;ante&gt;</code> with a colour, bold, and size 0.7.</figcaption>
+            <figcaption>The <strong>Element styles</strong> panel that produced it: <code>&lt;blinds.ante&gt;</code> with a colour, bold, and size 0.7.</figcaption>
         </figure>
         <p>No ante, plain blinds; ante rounds get the long form with just the ante highlighted. Element styles follow the element through variants, and they scale with the line if a long value makes the whole cell shrink.</p>
         <p>You can also define your own fixed-text elements per layout (sponsor name, house rules line) under the editor's custom elements.</p>
@@ -215,14 +218,14 @@ $help_sections = [
         <p>Screens and cells can carry a <strong>condition</strong>. The simplest is a state: show this screen <em>on break</em>, show this cell <em>when the game is over</em>. Conditional screens are checked top to bottom and the first match wins, which is how a break screen takes over during breaks.</p>
         <p>For anything beyond states, write an <strong>expression</strong>:</p>
         <table class="help-table">
-            <tr><td><code>bigBlind &gt; 10000</code></td><td>once the big blind passes 10,000</td></tr>
-            <tr><td><code>playersLeft &lt;= 9 and not onBreak</code></td><td>final table, but not during a break</td></tr>
+            <tr><td><code>blinds.big &gt; 10000</code></td><td>once the big blind passes 10,000</td></tr>
+            <tr><td><code>players.left &lt;= 9 and not onBreak</code></td><td>final table, but not during a break</td></tr>
             <tr><td><code>(round &gt;= 6 or entries &gt; 20) and running</code></td><td>grouping with parentheses</td></tr>
             <tr><td><code>minutesLeft &lt; 5</code></td><td>the last five minutes of a level</td></tr>
         </table>
-        <p>Comparisons are <code>&lt; &lt;= &gt; &gt;= = !=</code>, joined with <code>and</code>, <code>or</code>, <code>not</code>. The values you can test: <code>round smallBlind bigBlind ante playersLeft playersTotal entries buyIns rebuys addOns eliminated chipCount avgStack prizePool tables seats minutesLeft</code>, and the true/false states <code>running paused onBreak preGame gameOver hasAnte hasRebuys</code>.</p>
+        <p>Comparisons are <code>&lt; &lt;= &gt; &gt;= = !=</code>, joined with <code>and</code>, <code>or</code>, <code>not</code>. The values you can test: <code>round &middot; blinds.small &middot; blinds.big &middot; blinds.ante &middot; players.left &middot; players.total &middot; players.entries &middot; players.buyIns &middot; players.rebuys &middot; players.addOns &middot; players.out &middot; chips.total &middot; chips.avg &middot; money.pot &middot; table.count &middot; table.seats &middot; clock.minutes &middot; clock.seconds</code>, and the true/false states <code>running paused onBreak preGame gameOver hasAnte hasRebuys</code>.</p>
         <p>Three more tell you <em>what kind of screen is watching</em>: <code>mobile</code>, <code>tablet</code>, <code>desktop</code>. With QR casting the same layout runs on every scanned device at once, so a cell with <code>when: desktop</code> puts the QR code on the TV only, and <code>not mobile</code> hides a dense stats block on phones. A phone stays a phone when rotated, and a touch-screen laptop counts as a desktop.</p>
-        <p><strong>The final table, automatically:</strong> add a screen with the condition <code>playersLeft &lt;= 10 and playersLeft &gt; 1</code> and put a <strong>seat map</strong> cell on it (right-click a cell &rarr; <em>Use a seat map instead</em>). The seat map draws every remaining player at their assigned seat &mdash; their avatar or initials, name, and seat number &mdash; using the table and seat assignments from check-in. The moment the field drops to ten, every screen switches to it by itself; the PCF built-in ships with this screen ready-made.</p>
+        <p><strong>The final table, automatically:</strong> add a screen with the condition <code>players.left &lt;= 10 and players.left &gt; 1</code> and put a <strong>seat map</strong> cell on it (right-click a cell &rarr; <em>Use a seat map instead</em>). The seat map draws every remaining player at their assigned seat &mdash; their avatar or initials, name, and seat number &mdash; using the table and seat assignments from check-in. The moment the field drops to ten, every screen switches to it by itself; the PCF built-in ships with this screen ready-made.</p>
         <figure class="help-shot">
             <img src="/img/help/timer-finaltable.jpg" alt="The PCF Final Table screen: nine players around an oval table, each at their seat with an initials disc and name" loading="lazy">
             <figcaption>PCF's built-in Final Table screen. Players with a profile photo get it; everyone else gets their initials on their own colour.</figcaption>
@@ -263,13 +266,14 @@ $help_sections = [
             <li><strong>Play sound</strong> &mdash; a dozen built-in tones (chime, horn, tick, casino&hellip;) that work everywhere, or upload your own MP3/WAV. Uploaded sounds live in your library and travel inside exports like images do.</li>
             <li><strong>Show screen</strong> &mdash; jump to a named screen for 1&ndash;120 seconds, then return. Good for a "BLINDS UP" splash or a final-table fanfare page.</li>
             <li><strong>Flash</strong> &mdash; a short amber pulse around the whole display.</li>
-            <li><strong>Announce</strong> &mdash; the display speaks the line out loud, with elements filled in: <code>Blinds up: &lt;blinds&gt;</code> says the actual numbers.</li>
+            <li><strong>Announce</strong> &mdash; the display speaks the line out loud, with elements filled in: <code>Blinds up: &lt;blinds.now&gt;</code> says the actual numbers.</li>
         </ul>
         <p>The conditions you'll reach for most:</p>
         <ul>
             <li><code>levelChange</code> &mdash; true for an instant whenever the round number moves. The classic "new level" chime.</li>
-            <li><code>secondsLeft &lt;= 60 and running</code> &mdash; the one-minute warning. It naturally re-arms each level.</li>
-            <li><code>playersLeft &lt;= 10 and playersLeft &gt; 1</code> &mdash; final table reached. Pair it with <strong>once</strong> so it fires a single time.</li>
+            <li><code>clock.seconds &lt;= 60 and running</code> &mdash; the one-minute warning. It naturally re-arms each level.</li>
+            <li><code>players.left &lt;= 10 and players.left &gt; 1</code> &mdash; final table reached. Pair it with <strong>once</strong> so it fires a single time.</li>
+            <li><code>playerEliminated</code> &mdash; someone was just knocked out (undoing an elimination stays silent). Pair it with the <code>&lt;players.lastOut&gt;</code> element: announce <code>&lt;players.lastOut&gt; has been eliminated</code> and the display speaks the actual name. <code>&lt;players.lastOutPlace&gt;</code> adds their finishing place.</li>
         </ul>
         <figure class="help-shot">
             <img src="/img/help/timer-triggers.png" alt="The Triggers panel in the layout editor: a levelChange trigger playing a chime, with Test and Remove buttons" loading="lazy">

@@ -155,24 +155,19 @@ elements (see roadmap).
 
 **Per-element styling** (`cell.elStyles`): a map of element name to
 `{color, bold, scale}`, so one element inside a cell's line renders apart from
-the rest — the canonical case is `<ante>` bold and orange inside the blinds
-line. Every element is already its own span; the style lands at span-build, so
-a variant swapping the text keeps it. Keys match the element the author MEANT:
-case-insensitive and through the TD aliases, like element lookup itself.
+the rest — the canonical case is `<blinds.ante>` bold and orange inside the
+blinds line. Every element is already its own span; the style lands at
+span-build, so a variant swapping the text keeps it. Keys match the element
+the author MEANT: case-insensitive, like element lookup itself.
 `scale` is an em multiplier, deliberately relative — capCell() shrinks an
 overflowing line by font-size, and a styled element must shrink WITH its line.
 Editor: select a cell, "Element styles" in the inspector, offered only for
 elements present in the cell's text. Sanitizer caps at 10 entries per cell,
 identifier keys, style-string colours.
 
-**Lookup is case-insensitive, and Tournament Director's spellings are accepted
-as aliases** (`<SmallBlind>`, `<round>`, `<timer>`, `<averagestack>`,
-`<buyinchips>`, `<totalpot>`, `<roundbeforenextbreak>`, `<title>`, …). Someone
-who knows TD types what they already know instead of hunting through the picker,
-and a name that renders as ⟨smallblind⟩ over nothing but capitalisation is a bad
-afternoon. Aliases resolve to our own elements rather than duplicating them, and
-are deliberately kept OUT of the picker: one canonical name to choose from, many
-accepted. `ELEMENT_ALIASES` and `rebuildElementIndex()` in `timer_beta.js`.
+**Lookup is case-insensitive** — a name that renders as ⟨blinds.small⟩ over
+nothing but capitalisation is a bad afternoon. `rebuildElementIndex()` in
+`timer_beta.js`.
 
 The setup figures (fees, chips per buy-in, table plan, start time) ride in
 `get_state`'s `game` block, named explicitly rather than handing the whole
@@ -458,6 +453,20 @@ burning the daily upload cap. Nobody is shown another user's uploads: a
 guessed URL would serve (static files), but the picker does not browse other
 people's libraries for them.
 
+## Namespaced names
+
+The vocabulary is dotted and grouped so related names sort together:
+`blinds.small`, `blinds.big`, `blinds.next`, `players.left`,
+`players.lastOut`, `money.pot`, `clock.seconds`, `table.count`… One map each
+side — `ELEMENT_NS` (elements) and the ns block after `COND_VALUES`
+(conditions) in `timer_beta.js`, mirrored in `pk_lo_cond_expr`'s whitelist —
+defines dotted → registry key; the flat registry keys are internal
+implementation names, and everything user-facing presents only the dotted
+set. `<clock>` stays
+undotted. States, events and device classes stay flat (`running`,
+`levelChange`, `playerEliminated`, `mobile`). Element tokens, the expression
+lexer (JS + PHP) and elStyles keys all accept dots.
+
 ## Triggers — sounds, takeovers, flashes, announcements
 
 `layout.triggers` (up to 20) fire when their condition BECOMES true — edge,
@@ -476,13 +485,19 @@ the layout reloads).
   "cooldown": 30, "once": true }
 ```
 
-- **`when`** is the same condition language as everywhere else. Two values
+- **`when`** is the same condition language as everywhere else. Three values
   exist mostly for triggers: `secondsLeft` (`secondsLeft <= 60 and running`
-  is the one-minute warning, re-arming naturally at each level) and
+  is the one-minute warning, re-arming naturally at each level),
   `levelChange` / `levelup` (true for exactly one update tick when the level
   number moves, either direction — snapshotted once per tick in
   `condTickUpdate()`, never computed on read, because variants evaluate a
-  condition many times per paint).
+  condition many times per paint), and `playerEliminated` / `playerOut`
+  (one-tick edge when the eliminated COUNT goes UP — an elimination undo
+  moves it down and stays silent). Pair the latter with the
+  `<lastEliminated>` / `<lastEliminatedPlace>` elements (most recent
+  knockout's name and ordinal place, from `last_eliminated` in `get_state`:
+  lowest `finish_position` among the eliminated): announce
+  "`<lastEliminated> has been eliminated`" speaks the actual name.
 - **`sound`** is `preset:<key>` (Web Audio synth from `TB_PRESETS` — buzzer,
   chime, casino, horn, countdown, double, descending, five3s, tick, pulse,
   chirp, gentle; zero files, travel everywhere) or an uploaded file
