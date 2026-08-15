@@ -2518,6 +2518,37 @@ if (EV_ID) {
         }
     });
 }
+/* ── Site-wide layouts (admins only) ─────────────────────────────────────
+ * A site layout appears in every host's Load list, marked "(site)". Only an
+ * admin may set the flag; the server enforces that independently, and it now
+ * PRESERVES the flag on a save that doesn't mention it, so a layout can never
+ * be demoted by an ordinary edit. The toggle is a pending value: it ships with
+ * the next Save, so "make this site-wide" is one deliberate action. */
+var isGlobal = false;
+var globalBtn = null;
+if (window.TBE_IS_ADMIN) {
+    globalBtn = document.createElement('button');
+    globalBtn.id = 'tbeGlobal';
+    globalBtn.className = 'tbe-btn';
+    document.querySelector('.tbe-header-controls')
+        .insertBefore(globalBtn, document.getElementById('tbeExport'));
+    globalBtn.addEventListener('click', function () {
+        isGlobal = !isGlobal;
+        updateGlobalBtn();
+        // Already a saved layout: apply immediately rather than leaving the
+        // button lying about a state the library doesn't have yet.
+        if (layoutId && editable) save(false);
+    });
+}
+function updateGlobalBtn() {
+    if (!globalBtn) return;
+    globalBtn.textContent = isGlobal ? '✓ Site layout' : 'Site layout';
+    globalBtn.title = isGlobal
+        ? 'Every host sees this layout in their Load list. Click to make it yours alone.'
+        : 'Share this layout with every host on the site (admins only). It saves with the next Save.';
+    globalBtn.classList.toggle('tbe-btn-primary', isGlobal);
+}
+
 function updateEventBtn() {
     if (!evBtn) return;
     var bound = (!!layoutId && evLayoutId === layoutId) || (!!curBuiltin && evLayoutKey === curBuiltin);
@@ -2542,6 +2573,7 @@ loadSel.addEventListener('change', function () {
         editScreenIndex = mainScreenIndex();
         refresh(); selectScreen(editScreenIndex);
         curBuiltin = k;
+        isGlobal = false; updateGlobalBtn();   // a fresh copy starts personal
         updateEventBtn();
     } else {
         fetch('/timer_beta_dl.php?action=get_layout&id=' + v.slice(3))
@@ -2557,6 +2589,9 @@ loadSel.addEventListener('change', function () {
                 editScreenIndex = mainScreenIndex();
                 refresh(); selectScreen(editScreenIndex);
                 curBuiltin = null;
+                // A layout you may not edit becomes a personal copy on save, so
+                // it must not carry the site flag into that copy.
+                isGlobal = !!j.is_global && !!j.editable; updateGlobalBtn();
                 updateEventBtn();
             }).catch(function () {});
     }
@@ -2571,6 +2606,9 @@ function save(asCopy, onSaved) {
     body.set('csrf_token', TBE_CSRF);
     body.set('name', name);
     body.set('layout', JSON.stringify(LAYOUT));
+    // Only an admin sends this at all; a save with no is_global leaves the
+    // stored scope untouched (see save_layout in timer_beta_dl.php).
+    if (window.TBE_IS_ADMIN) body.set('is_global', isGlobal ? '1' : '0');
     if (!asCopy && layoutId) body.set('id', layoutId);
     fetch('/timer_beta_dl.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: String(body) })
         .then(function (r) { return r.json(); })
@@ -2860,6 +2898,7 @@ importFile.addEventListener('change', function () {
             // assigns text via textContent), then persist a NEW row via the
             // server-sanitized save path so it lands in the Load list.
             LAYOUT = layout; layoutId = null; editable = true; curBuiltin = null;
+            isGlobal = false; updateGlobalBtn();   // an import lands in your own library
             normalizeLayout();
             editScreenIndex = mainScreenIndex();
             nameInput.value = name.replace(/\s*\(imported\)\s*$/i, '') + ' (imported)';
@@ -3036,6 +3075,7 @@ function boot() {
     normalizeLayout();
     refresh();
     selectScreen(0);
+    updateGlobalBtn();
     populateLoadList();
     if (EV_ID && evLayoutId) {
         fetch('/timer_beta_dl.php?action=get_layout&id=' + evLayoutId)
@@ -3051,6 +3091,9 @@ function boot() {
                 editScreenIndex = mainScreenIndex();
                 refresh(); selectScreen(editScreenIndex);
                 curBuiltin = null;
+                // A layout you may not edit becomes a personal copy on save, so
+                // it must not carry the site flag into that copy.
+                isGlobal = !!j.is_global && !!j.editable; updateGlobalBtn();
                 updateEventBtn();
             }).catch(function () {});
     }

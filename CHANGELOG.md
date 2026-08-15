@@ -4,6 +4,34 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2090] - 2026-08-15
+
+### Added
+
+- **Admins can create and edit site-wide timer layouts from the editor.** The
+  server has always allowed it (`pk_lo_may_modify()` returns true for admins, and
+  `save_layout` accepts `is_global` from them), and `_timer_beta_editor.php` has
+  always injected `TBE_IS_ADMIN`, but no control was ever attached to it, so the
+  capability was unreachable. Admins now get a **Site layout** button in the
+  editor toolbar that shows the loaded layout's real scope, toggles it, and
+  applies immediately on an already-saved layout. A site layout appears in every
+  host's Load list marked "(site)". Non-admins do not see the button, and the
+  server independently ignores an `is_global` they try to force.
+
+### Fixed
+
+- **An ordinary save silently stripped a layout's scope.** The editor sends only
+  name, layout and id, but `save_layout` read a missing `is_global` /
+  `league_id` as zero and wrote that back, so saving a site-wide layout demoted
+  it to a personal one and saving a league layout detached it from its league.
+  The league case is the damaging one: with `league_id` cleared,
+  `pk_lo_may_modify()` falls back to the creator, so the league's other owners
+  and managers quietly lose the ability to edit it. Both fields are now preserved
+  on update unless the request explicitly carries them, so a client that knows
+  nothing about scope can no longer strip it (`www/timer_beta_dl.php`).
+
+---
+
 ## [v0.2089] - 2026-08-15
 
 ### Added

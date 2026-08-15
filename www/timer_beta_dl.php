@@ -684,9 +684,16 @@ if ($action === 'save_layout') {
     $clean = pk_layout_sanitize($_POST['layout'] ?? '', $err);
     if ($clean === null) { echo json_encode(['ok' => false, 'error' => 'Invalid layout: ' . implode('; ', array_slice($err, 0, 3))]); exit; }
 
+    // Scope (site-wide / league) is PRESERVED on update unless the request
+    // explicitly carries the field. Reading it as "absent means 0" silently
+    // demoted a site layout to a personal one, and detached a league layout
+    // from its league, on every ordinary save — the editor sends only name,
+    // layout and id.
+    $hasGlobal = array_key_exists('is_global', $_POST);
+    $hasLeague = array_key_exists('league_id', $_POST);
     $is_global = $isAdmin ? (int)!empty($_POST['is_global']) : 0;
     $league_id = (int)($_POST['league_id'] ?? 0) ?: null;
-    if ($league_id !== null && !$isAdmin) {
+    if ($hasLeague && $league_id !== null && !$isAdmin) {
         $q = $db->prepare('SELECT role FROM league_members WHERE league_id = ? AND user_id = ?');
         $q->execute([$league_id, $uid]);
         if (!in_array($q->fetchColumn() ?: '', ['owner', 'manager'], true)) {
@@ -707,8 +714,10 @@ if ($action === 'save_layout') {
         // candidates for deletion (a replaced background, a removed image cell).
         $removed = array_diff_key(pk_lo_image_names($row['layout']), pk_lo_image_names($clean));
         $removedSnd = array_diff_key(pk_lo_sound_names($row['layout']), pk_lo_sound_names($clean));
+        $keepGlobal = ($isAdmin && $hasGlobal) ? $is_global : (int)$row['is_global'];
+        $keepLeague = $hasLeague ? $league_id : (($row['league_id'] ?? null) !== null ? (int)$row['league_id'] : null);
         $db->prepare("UPDATE timer_layouts SET name = ?, layout = ?, is_global = ?, league_id = ?, updated_at = datetime('now') WHERE id = ?")
-           ->execute([$name, json_encode($clean), $isAdmin ? $is_global : (int)$row['is_global'], $league_id, $id]);
+           ->execute([$name, json_encode($clean), $keepGlobal, $keepLeague, $id]);
         pk_lo_gc_images($db, $removed, $id);
         pk_lo_gc_sounds($db, $removedSnd, $id);
     } else {
