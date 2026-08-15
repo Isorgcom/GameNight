@@ -4,6 +4,136 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2089] - 2026-08-15
+
+### Added
+
+- **Timer BETA: the tournament display is now a layout engine, not a fixed
+  screen.** The classic timer paints one hard-coded arrangement, so every league
+  that wanted its own board was out of luck. A layout is now a JSON tree of rows,
+  columns and cells stored in the new `timer_layouts` table, with a full visual
+  editor at `/timer_beta_edit.php` (`www/timer_beta.{php,css,js}`,
+  `www/timer_beta_edit.{php,css,js}`, `www/timer_beta_dl.php`,
+  `www/_timer_beta_editor.php`). Cells hold live `<element>` placeholders, an
+  uploaded image, a QR code, a chip legend or the final-table seat map; a layout
+  carries multiple screens, each with a condition deciding when it takes over.
+  The display page stays strictly read-only: it polls `get_state` and never
+  posts, all authored text is written with `textContent`, and every style string
+  passes a server-side allowlist. The design doc is `TIMER_BETA.md` in the repo
+  root and the user-facing guide is the new `www/help-timer.php`. The classic
+  timer is untouched and still the default; a game opts in by binding a layout.
+
+- **Conditions, screens and per-cell variants.** A screen or a cell can carry an
+  expression (`players.left <= 10 and running`, `blinds.big > 10000`), evaluated
+  live on the viewing device. Screens are scanned in order and the first match
+  shows, with the unconditioned catch-all last, so a Break or Final Table screen
+  takes over on its own. A cell can also declare variants that only restyle it
+  (the clock turning red when paused) rather than hiding it. Two or more screens
+  can share a rotation (`cycle` dwell seconds) and the display cycles through
+  whichever currently match. Expressions are validated through the renderer's own
+  parser, so what the author sees in the editor and what the display computes can
+  never disagree, and the same grammar is re-validated server-side on save.
+
+- **Device classes, so one layout serves the TV and the phones that scan it.**
+  `mobile`, `tablet` and `desktop` are conditions like any other, resolved per
+  viewing device rather than per layout, which matters because the QR code means
+  a wall display and a pocket phone run the same design. Cells, rows, columns and
+  whole screens can each be gated on them: hiding a container releases its space
+  and the siblings absorb it. The editor gained a TV / Tablet / Phone preview
+  toggle that reshapes the preview frame and forces those conditions
+  (`TBPreview.device`), so a phone-only screen can be built and checked from a
+  desktop.
+
+- **Triggers: sounds, takeovers, flashes and spoken lines.** A trigger fires once
+  each time its condition becomes true (edge-fired, with optional cooldown or
+  once-only), and can play a sound, flash the screen, switch to another screen
+  for a few seconds, or speak a line through the browser. Sounds are first-class
+  media: twelve built-in presets synthesised in the browser plus uploads of your
+  own (`upload_sound`, stored under `uploads/timer_sounds/`), and exports embed
+  the audio so a layout carries its sounds to another install. Screens opened by
+  scanning the QR code start muted on purpose, since a room full of phones
+  chiming on every level change is nobody's idea of a good night; a speaker
+  button toggles it per device.
+
+- **The final-table seat map.** A cell can render the remaining players at their
+  assigned seats around a racetrack table, with avatars, names and seat numbers,
+  auto-picking the busiest table or pinned to a specific one. Paired with a
+  `players.left <= 10` screen condition it gives a real final-table view.
+  Eliminations feed it: `timer_dl.php`'s `get_state` now reports
+  `last_eliminated`, which drives a `playerEliminated` trigger and the
+  `players.lastOut` / `players.lastOutPlace` elements, so the board can announce
+  who just busted and in what place. An undo of an elimination stays silent.
+
+- **Per-event Blind and Display setup pages.** Blind schedules and the display
+  binding used to live inside the check-in console; they are now their own pages
+  (`www/event_blinds.{php,js}`, `www/event_display.php`, swapped through
+  `www/_event_setup_strip.php`) with a spreadsheet-style blind grid, undo/redo,
+  fractional blinds, preset provenance and tablet sizing. The Display page
+  embeds the layout editor directly and binds the result to that game.
+
+### Changed
+
+- **The element and condition vocabulary is namespaced.** Names were a flat pile
+  (`smallBlind`, `bigBlind`, `blinds`, `playersLeft`) that could not be sorted or
+  scanned, so everything moved to dotted families: `blinds.small`, `blinds.big`,
+  `blinds.ante`, `players.left`, `players.entries`, `chips.avg`, `money.pot`,
+  `clock.seconds` and so on. The pickers now group by family, the help page and
+  design doc were rewritten against the new names, and the three help screenshots
+  were retaken. The old flat spellings survive only as internal engine keys, and
+  the Tournament Director alias layer that predated them is gone entirely.
+
+- **The layout editor is a three-pane workbench.** Above 1280px the preview,
+  Structure tree and Inspector each get their own column and their own scroll, so
+  selecting a cell shows its settings beside the tree instead of below its scroll
+  box. The toolbar pins under the site nav rather than sliding beneath it, the
+  page width cap is lifted on wide monitors, and the default screen leads the tab
+  strip even though the stored evaluation order still keeps the catch-all last.
+  "+ Screen" opens a template gallery (Break, Final table, Phone, Game over,
+  Blank) instead of always creating a Break screen, and the editor embedded in an
+  event's Display settings boots on the layout that event is actually using.
+
+- **A live game's display shows nothing but the game.** The corner bar carrying
+  the BETA badge, the layout picker and the classic-timer link now renders only
+  in sample mode. On a real game the layout comes from the game's Setup, so a
+  board cast to a TV no longer offers a passer-by a dropdown.
+
+### Fixed
+
+- **Text no longer walks out of its box after a phone rotation.** iOS settles the
+  viewport, and every `vh`-based font size with it, some hundreds of milliseconds
+  *after* the resize event fires, so the engine's single next-frame re-fit
+  measured stale geometry and kept the landscape sizing in portrait. The fit pass
+  now reruns as the flip settles (next frame, 180ms, 500ms, plus
+  `orientationchange`), and any capped cell still overflowing its box re-caps on
+  the next engine tick. That second half matters because the previous re-fit only
+  triggered when the text changed *shape*, which a ticking clock never does.
+
+- **Declared text sizes are a maximum, not a promise.** A sized cell whose
+  content outgrew its box (blinds at 2,000,000 / 4,000,000 by round 19) used to
+  paint straight over the artwork; the inner element now shrinks to fit and grows
+  back when the text shortens.
+
+### Security
+
+- **The layout document is treated as hostile input end to end.**
+  `pk_layout_sanitize()` in `www/timer_beta_dl.php` rebuilds every saved layout
+  from scratch against an allowlist rather than filtering the submitted one:
+  style strings reject `url(`, `expression`, `javascript`, `@import`, quotes,
+  semicolons and braces; image and sound references must match a closed
+  same-origin path with no separator in the name; condition expressions must
+  re-tokenise to exactly the submitted source under a whitelisted identifier set;
+  trigger actions are whitelisted by key. QR targets are resolved by the renderer
+  from the game's own key and are never author-controlled, so a shared layout
+  cannot aim someone's scanner anywhere.
+- **`SECURITY.md` documents six pre-push sweeps** (PHP parse errors, parse errors
+  in PHP-*generated* JavaScript, browser suites, the double-dispatch sweep,
+  known-bad escaping, and the declarative-markup check), each of which caught a
+  real shipped defect. `cast_receiver.php` was deleted: it never worked, nothing
+  could launch it, and it was live attack surface for a feature that did not
+  exist.
+
+---
+
 ## [v0.2088] - 2026-08-13
 
 ### Fixed
