@@ -244,6 +244,71 @@ $pruned += $db->exec("DELETE FROM short_links WHERE created_at < datetime('now',
 // rows use negative sentinel session_ids and must be preserved.
 $pruned += $db->exec("DELETE FROM timer_state WHERE session_id > 0 AND session_id NOT IN (SELECT id FROM poker_sessions)");
 
+// ── 4b. Sweep orphaned Timer BETA uploads ────────────────────────────────────
+// A timer image or sound only becomes "referenced" when the layout using it is
+// SAVED. Upload one and abandon it (swap a background before saving, replace a
+// sound with another) and it is invisible to the delete-time GC in
+// timer_beta_dl.php, which only sweeps names the deleted layout referenced. Left
+// alone those files sit on disk forever.
+//
+// This unlinks real files, so it is deliberately conservative:
+//   - References are matched by BASENAME against the raw stored text. Slashes
+//     are escaped inside the layout JSON (`\/uploads\/…`), so path matching
+//     silently matches nothing; the 16-random-byte basename does not have that
+//     problem and cannot collide.
+//   - EVERY column that can hold one of these paths is consulted, not just
+//     timer_layouts: chip photos live in the same folder but are referenced from
+//     poker_sessions.chip_set / payout_structures.chip_set (see
+//     pk_clean_chip_set()). A new column storing one of these paths MUST be
+//     added here or its files will be swept 24h later.
+//   - activity_log is deliberately NOT a reference: it records the upload, it
+//     does not use the file.
+//   - Files newer than 24h are never touched, so an upload belonging to an edit
+//     in progress is safe.
+//   - Any DB error aborts the whole sweep before a single unlink: an empty
+//     reference set from a failed query must never read as "delete everything".
+$swept = 0;
+try {
+    $refs = '';
+    $sources = [
+        ['timer_layouts',     'layout'],
+        ['poker_sessions',    'chip_set'],
+        ['payout_structures', 'chip_set'],
+    ];
+    foreach ($sources as [$tbl, $col]) {
+        try {
+            foreach ($db->query("SELECT \"$col\" FROM \"$tbl\" WHERE \"$col\" IS NOT NULL") as $r) {
+                $refs .= (string)$r[$col] . "\n";
+            }
+        } catch (Exception $e) {
+            // A missing table/column is fine (older installs); a real failure is
+            // not — bail rather than sweep against an incomplete reference set.
+            if (stripos($e->getMessage(), 'no such') === false) throw $e;
+        }
+    }
+    $cutoff = time() - 86400;
+    foreach (['timer_layouts', 'timer_sounds'] as $sub) {
+        $dir = __DIR__ . '/uploads/' . $sub;
+        if (!is_dir($dir)) continue;
+        foreach ((array)scandir($dir) as $f) {
+            if ($f === '.' || $f === '..') continue;
+            // Never anything that could be a path, and never a dotfile.
+            if (!preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$/', $f)) continue;
+            $path = $dir . '/' . $f;
+            if (!is_file($path) || is_link($path)) continue;
+            if (filemtime($path) > $cutoff) continue;   // too new to judge
+            if (strpos($refs, $f) !== false) continue;  // referenced somewhere
+            if (@unlink($path)) {
+                $swept++;
+                error_log("cron: swept orphaned timer upload $sub/$f");
+            }
+        }
+    }
+} catch (\Throwable $e) {
+    error_log('cron timer upload sweep failed (no files removed this run): ' . $e->getMessage());
+}
+if ($swept > 0) echo "Swept $swept orphaned timer upload(s).\n";
+
 // Weekly VACUUM so deleted pages actually return to the OS. SQLite VACUUM rewrites
 // the whole file, so we gate it to once per week via a site_settings timestamp.
 try {

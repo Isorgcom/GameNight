@@ -4,6 +4,35 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2091] - 2026-08-15
+
+### Infrastructure
+
+- **Cron now sweeps abandoned timer uploads.** A timer image or sound only counts
+  as referenced once the layout using it is *saved*, so a file uploaded and then
+  abandoned (a background swapped before saving, a sound replaced by another) was
+  invisible to the delete-time GC in `timer_beta_dl.php`, which only sweeps names
+  the deleted layout referenced. Those files sat on disk forever. A new section
+  in `www/cron.php` removes anything in `uploads/timer_layouts/` or
+  `uploads/timer_sounds/` that is older than 24 hours and referenced nowhere.
+
+  Because it unlinks real files it is deliberately conservative, and two details
+  are load-bearing. **Chip photos live in the same folder but are referenced from
+  `poker_sessions.chip_set` and `payout_structures.chip_set`** (see
+  `pk_clean_chip_set()`), not from `timer_layouts`, so a layouts-only reference
+  set would have deleted every host's chip images; all three columns are
+  consulted, and a new column holding one of these paths must be added there.
+  **Matching is by basename**, because `json_encode()` escapes the slashes inside
+  a stored layout (`\/uploads\/…`) and full-path matching therefore matches
+  nothing. `activity_log` is not treated as a reference: it records an upload, it
+  does not use the file. Files under 24 hours old are never touched so an edit in
+  progress is safe, only the two folders are scanned with a basename pattern that
+  cannot express a path, symlinks are skipped, and any database error aborts the
+  run before a single unlink so a failed query can never read as "nothing is
+  referenced, delete everything".
+
+---
+
 ## [v0.2090] - 2026-08-15
 
 ### Added
