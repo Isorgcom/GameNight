@@ -4,6 +4,27 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2097] - 2026-08-16
+
+### Added
+
+- **The Padding field explains itself, and the preview shows it.** Padding is
+  the least self-explanatory field in the layout editor: CSS shorthand, vh/vw
+  units, and its main use here — keeping text clear of areas painted into a
+  box's artwork (a label tab, a mascot) — is not guessable. The field (on
+  cells and on rows/columns) now carries a tooltip spelling out the one/two/
+  four-value forms, the units, and that classic use. While the field has
+  focus, the preview overlays the box's padding as green bands with a dashed
+  outline around the content area, devtools-style, re-applying the typed
+  value tentatively on every keystroke so the bands move as you type. Leaving
+  the field removes the overlay and restores the box's committed padding, so
+  an abandoned edit leaves nothing behind. The "?" reference popover gained a
+  matching Padding row (`www/timer_beta_edit.js`). Prompted by the Griff's
+  points-bar overlap: the padding needed to clear a baked-in label, and there
+  was nothing telling anyone that, or showing where the padding actually sat.
+
+---
+
 ## [v0.2096] - 2026-08-16
 
 ### Fixed

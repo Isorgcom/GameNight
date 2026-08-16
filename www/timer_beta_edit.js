@@ -133,6 +133,7 @@ var STRUCTURE_DESC = [
     ["Cell", "One box of content: text with live <elements> in it, an image, a QR code, a chip legend, or the final-table seat map."],
     ["Weight", "A box's share of its parent's space. No weight = hug the content. The number the resize handles write."],
     ["Size", "Text size as % of screen height — a MAXIMUM: values that outgrow the box wrap or shrink inside it, never spill."],
+    ["Padding", "Inside space between a box's edge and its content, CSS-style: one value = all sides, two = vertical horizontal, four = top right bottom left. Units vh/vw scale with the screen. Use it to keep text clear of parts painted into the box's artwork — while the field has focus, the preview shows the padding as green bands."],
     ["Show when", "A condition that hides the box until it matches: a state (on break), or an expression like blinds.big > 10000."],
     ["Variants", "Alternate look or text for one cell behind a condition. First match wins; no match shows the base."],
     ["Element styles", "One element styled apart from its line — <ante> bold and orange while the blinds stay white."],
@@ -448,6 +449,83 @@ function textInput(value, oninput, placeholder) {
     i.addEventListener('change', function () { pushUndo(); oninput(i.value.trim()); refresh(true); });
     return i;
 }
+/* ── Padding: tooltip + live preview overlay ──────────────────────────────
+ * Padding is the least self-explanatory field in the inspector (CSS shorthand,
+ * vh/vw units, and its main use here is clearing areas painted into a box's
+ * artwork — a label tab, a mascot). So the field carries a real explanation,
+ * and while it has focus the preview shows the padding as green bands with a
+ * dashed outline around the content box, devtools-style, updating live as the
+ * value is typed. */
+var PAD_TIP = 'Inside space between the box’s edge and its content, CSS-style:\n'
+            + '• one value = all sides\n'
+            + '• two values = top/bottom  left/right\n'
+            + '• four values = top  right  bottom  left\n'
+            + 'Units: vh = % of screen height, vw = % of screen width, so it scales with the display.\n'
+            + 'Classic use: keeping text clear of parts painted into the box’s artwork — a label tab, a logo, a mascot.';
+
+var padOverlayEl = null;
+function hidePadOverlay() {
+    if (padOverlayEl && padOverlayEl.parentNode) padOverlayEl.parentNode.removeChild(padOverlayEl);
+    padOverlayEl = null;
+}
+function updatePadOverlay() {
+    var doc = frame.contentWindow && frame.contentWindow.document;
+    var el = (doc && selPath !== null && selPath !== '') ? doc.querySelector('[data-path="' + selPath + '"]') : null;
+    if (!el) { hidePadOverlay(); return; }
+    if (!padOverlayEl || padOverlayEl.ownerDocument !== doc || !padOverlayEl.parentNode) {
+        hidePadOverlay();
+        padOverlayEl = doc.createElement('div');
+        padOverlayEl.style.cssText = 'position:fixed;z-index:9999;pointer-events:none;';
+        for (var i = 0; i < 5; i++) {
+            var band = doc.createElement('div');
+            band.style.cssText = 'position:absolute;'
+                + (i < 4 ? 'background:rgba(147,196,125,0.5);' : 'border:1px dashed rgba(255,255,255,0.9);box-sizing:border-box;');
+            padOverlayEl.appendChild(band);
+        }
+        doc.body.appendChild(padOverlayEl);
+    }
+    var r = el.getBoundingClientRect();
+    var cs = frame.contentWindow.getComputedStyle(el);
+    var pt = parseFloat(cs.paddingTop) || 0, pr = parseFloat(cs.paddingRight) || 0,
+        pb = parseFloat(cs.paddingBottom) || 0, pl = parseFloat(cs.paddingLeft) || 0;
+    padOverlayEl.style.left = r.left + 'px';  padOverlayEl.style.top = r.top + 'px';
+    padOverlayEl.style.width = r.width + 'px'; padOverlayEl.style.height = r.height + 'px';
+    var k = padOverlayEl.children, innerH = Math.max(0, r.height - pt - pb);
+    k[0].style.left = '0'; k[0].style.top = '0'; k[0].style.width = '100%'; k[0].style.height = pt + 'px';
+    k[1].style.left = '0'; k[1].style.bottom = '0'; k[1].style.width = '100%'; k[1].style.height = pb + 'px';
+    k[2].style.left = '0'; k[2].style.top = pt + 'px'; k[2].style.width = pl + 'px'; k[2].style.height = innerH + 'px';
+    k[3].style.right = '0'; k[3].style.top = pt + 'px'; k[3].style.width = pr + 'px'; k[3].style.height = innerH + 'px';
+    k[4].style.left = pl + 'px'; k[4].style.top = pt + 'px';
+    k[4].style.width = Math.max(0, r.width - pl - pr) + 'px'; k[4].style.height = innerH + 'px';
+}
+window.addEventListener('resize', function () { if (padOverlayEl) requestAnimationFrame(updatePadOverlay); });
+
+// The Padding field itself: tooltip on label and input, overlay while focused,
+// the typed value applied tentatively so the bands move as you type. On blur
+// the box's committed padding is restored (the change event handles a real
+// edit; this only unwinds an abandoned one).
+function padField(obj) {
+    var i = textInput(obj.pad, function (v) { setOrDelete(obj, 'pad', v); }, 'e.g. 0.6vh 1vw');
+    i.title = PAD_TIP;
+    i.addEventListener('focus', function () { requestAnimationFrame(updatePadOverlay); });
+    i.addEventListener('input', function () {
+        var doc = frame.contentWindow && frame.contentWindow.document;
+        var el = (doc && selPath !== null && selPath !== '') ? doc.querySelector('[data-path="' + selPath + '"]') : null;
+        if (!el) return;
+        el.style.padding = i.value.trim();
+        requestAnimationFrame(updatePadOverlay);
+    });
+    i.addEventListener('blur', function () {
+        var doc = frame.contentWindow && frame.contentWindow.document;
+        var el = (doc && selPath !== null && selPath !== '') ? doc.querySelector('[data-path="' + selPath + '"]') : null;
+        if (el) el.style.padding = obj.pad || '';
+        hidePadOverlay();
+    });
+    var row = field('Padding', i);
+    row.title = PAD_TIP;
+    return row;
+}
+
 function numInput(value, min, max, step, onchange) {
     var i = document.createElement('input');
     i.type = 'number'; i.min = min; i.max = max; i.step = step;
@@ -1549,7 +1627,7 @@ function renderInspector() {
         insp.appendChild(field('Background', colorInput(cell.bg, function (v) { setOrDelete(cell, 'bg', v); })));
         insp.appendChild(field('Border', textInput(cell.border, function (v) { setOrDelete(cell, 'border', v); }, 'e.g. 3px solid #d4af37')));
         insp.appendChild(field('Align', selInput(cell.align || 'center', ['center', 'left', 'right'], function (v) { setOrDelete(cell, 'align', v === 'center' ? undefined : v); })));
-        insp.appendChild(field('Padding', textInput(cell.pad, function (v) { setOrDelete(cell, 'pad', v); }, 'e.g. 0.6vh 1vw')));
+        insp.appendChild(padField(cell));
         insp.appendChild(field('Show when', condEditor(cell.when, function (v) { pushUndo(); setOrDelete(cell, 'when', v); refresh(true); })));
         insp.appendChild(field('Clock colours (warn/critical)', boolInput(cell.clockColors, function (v) { setOrDelete(cell, 'clockColors', v); })));
         insp.appendChild(field('Weight (share of space)', numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
@@ -1559,7 +1637,7 @@ function renderInspector() {
         inspTitle.textContent = kind === 'row' ? 'Row' : 'Column';
         insp.appendChild(field('Weight (share of space)', numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
         insp.appendChild(field('Gap', textInput(node.gap, function (v) { setOrDelete(node, 'gap', v); }, 'e.g. 0.5vh')));
-        insp.appendChild(field('Padding', textInput(node.pad, function (v) { setOrDelete(node, 'pad', v); }, 'e.g. 1vh 1vw')));
+        insp.appendChild(padField(node));
         insp.appendChild(field('Background', colorInput(node.bg, function (v) { setOrDelete(node, 'bg', v); })));
         insp.appendChild(field('Border', textInput(node.border, function (v) { setOrDelete(node, 'border', v); }, 'e.g. 2px solid rgba(212,175,55,0.6)')));
         insp.appendChild(field('Show when', condEditor(node.when, function (v) { pushUndo(); setOrDelete(node, 'when', v); refresh(true); })));
