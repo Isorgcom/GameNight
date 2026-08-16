@@ -2035,13 +2035,21 @@ function poll() {
             S.lastElimPlace = (j.last_eliminated && j.last_eliminated.place) ? (j.last_eliminated.place | 0) : 0;
             S.prizes = [];
             var pay = j.payouts || [], poolCents = p ? (p.pool_total | 0) : 0;
-            var ord = ['1st', '2nd', '3rd'];
             for (var i = 0; i < pay.length; i++) {
-                var label = pay[i].prize_label;
-                if (!label && poolCents && Number(pay[i].percentage) > 0) {
-                    label = '$' + Math.round(poolCents * Number(pay[i].percentage) / 100 / 100).toLocaleString('en-US');
+                // A place's reward is whatever the structure grants — a cut of
+                // a real pool, points, an entry ticket, a named prize, or
+                // several at once (Payout 2.0). The dollar amount is one part
+                // among equals, not the gatekeeper it used to be: a free
+                // points league has no pool, and its prize elements rendered
+                // BLANK on a live game because nothing else was consulted.
+                var parts = [];
+                if (poolCents && Number(pay[i].percentage) > 0) {
+                    parts.push('$' + Math.round(poolCents * Number(pay[i].percentage) / 100 / 100).toLocaleString('en-US'));
                 }
-                if (label) S.prizes.push((ord[(pay[i].place | 0) - 1] || pay[i].place + 'th') + ': ' + label);
+                if ((pay[i].points | 0) > 0) parts.push((pay[i].points | 0) + ' pts');
+                if ((pay[i].ticket_cents | 0) > 0) parts.push('🎟 $' + ((pay[i].ticket_cents | 0) / 100).toLocaleString('en-US'));
+                if (pay[i].prize_label) parts.push(String(pay[i].prize_label));
+                if (parts.length) S.prizes.push(ordinal(pay[i].place | 0) + ': ' + parts.join(' · '));
             }
             // Control: whether this viewer may drive the timer, and the CSRF
             // token to do it. The server re-checks manage rights on every

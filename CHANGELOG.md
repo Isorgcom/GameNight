@@ -4,6 +4,26 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2096] - 2026-08-16
+
+### Fixed
+
+- **A points league's prize elements rendered blank on a live game.** The Timer
+  BETA engine built each place's prize line from exactly two sources: the
+  `prize_label` field, or a dollar amount computed as a percentage of the money
+  pool. A free points league has no pool, and its points live in
+  `poker_payouts.points`, which the engine never read — so every place produced
+  an empty label, `<prizes.line>` came out empty, and the auto-hide dropped the
+  prize bar entirely. Each place is now composed from every reward type Payout
+  2.0 can grant, joined when a place carries several: the pool cut (when a real
+  pool exists), points as "100 pts", entry tickets as "🎟 $25", and the prize
+  label ("1st: 100 pts · Bar tab"). The dollar amount is one part among equals
+  rather than the gatekeeper. Places also use the shared ordinal helper, so
+  21st no longer renders as "21th" (`www/timer_beta.js`). Verified against a
+  live session with a points-only structure, not just the sample preview.
+
+---
+
 ## [v0.2095] - 2026-08-16
 
 ### Fixed
