@@ -28,7 +28,11 @@ if (!defined('MAX_DM_NEW_CONVERSATIONS_PER_DAY'))         define('MAX_DM_NEW_CON
 if (!defined('MAX_DM_GROUP_MEMBERS'))                     define('MAX_DM_GROUP_MEMBERS', 20);
 if (!defined('MAX_TICKETS_PER_DAY'))                      define('MAX_TICKETS_PER_DAY', 5);
 if (!defined('MAX_TICKET_REPLIES_PER_HOUR'))              define('MAX_TICKET_REPLIES_PER_HOUR', 20);
-if (!defined('MAX_UPLOADS_PER_DAY'))                      define('MAX_UPLOADS_PER_DAY', 20);
+// 100, not the original 20: a timer-layout import re-uploads every embedded
+// image and burns one slot each — an artwork-heavy layout carries ~10, so 20
+// let two imports exhaust a user's whole day (admins are exempt either way).
+// Overridable per-install from config.php like every constant here.
+if (!defined('MAX_UPLOADS_PER_DAY'))                      define('MAX_UPLOADS_PER_DAY', 100);
 
 if (!defined('APP_SECRET')) {
     $secretFile = dirname(DB_PATH) . '/.app_secret';

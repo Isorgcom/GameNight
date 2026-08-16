@@ -2832,9 +2832,12 @@ function dataUriToBlob(uri) {
 // Calls done(map, failed): map is oldRef → new local URL for the successes.
 function uploadEmbeddedImages(images, done) {
     var keys = Object.keys(images).filter(function (k) { return IMG_REF_RE.test(k); }).slice(0, 20);
-    var map = {}, failed = 0;
+    // `reason` carries the SERVER'S first error string through to the alert.
+    // Swallowing it made "1 embedded image couldn't be imported" the entire
+    // diagnosis when the real answer was "Daily upload limit reached".
+    var map = {}, failed = 0, reason = '';
     (function next(i) {
-        if (i >= keys.length) { done(map, failed); return; }
+        if (i >= keys.length) { done(map, failed, reason); return; }
         var blob = dataUriToBlob(images[keys[i]]);
         if (!blob) { failed++; next(i + 1); return; }
         var fd = new FormData();
@@ -2844,7 +2847,8 @@ function uploadEmbeddedImages(images, done) {
         fetch('/timer_beta_dl.php', { method: 'POST', body: fd })
             .then(function (r) { return r.json(); })
             .then(function (j) {
-                if (j && j.url) map[keys[i]] = j.url; else failed++;
+                if (j && j.url) map[keys[i]] = j.url;
+                else { failed++; if (!reason && j && j.error) reason = String(j.error); }
                 next(i + 1);
             })
             .catch(function () { failed++; next(i + 1); });
@@ -2867,9 +2871,9 @@ function dataUriToAudioBlob(uri) {
 
 function uploadEmbeddedSounds(sounds, done) {
     var keys = Object.keys(sounds).filter(function (k) { return SND_REF_RE.test(k); }).slice(0, 10);
-    var map = {}, failed = 0;
+    var map = {}, failed = 0, reason = '';
     (function next(i) {
-        if (i >= keys.length) { done(map, failed); return; }
+        if (i >= keys.length) { done(map, failed, reason); return; }
         var blob = dataUriToAudioBlob(sounds[keys[i]]);
         if (!blob) { failed++; next(i + 1); return; }
         var fd = new FormData();
@@ -2879,7 +2883,8 @@ function uploadEmbeddedSounds(sounds, done) {
         fetch('/timer_beta_dl.php', { method: 'POST', body: fd })
             .then(function (r) { return r.json(); })
             .then(function (j) {
-                if (j && j.url) map[keys[i]] = j.url; else failed++;
+                if (j && j.url) map[keys[i]] = j.url;
+                else { failed++; if (!reason && j && j.error) reason = String(j.error); }
                 next(i + 1);
             })
             .catch(function () { failed++; next(i + 1); });
@@ -2991,26 +2996,27 @@ importFile.addEventListener('change', function () {
         // bytes fail to import falls back to a preset so the trigger still
         // does SOMETHING rather than silently losing its action.
         function importSounds(then) {
-            if (!embeddedSnd) { then(0); return; }
-            uploadEmbeddedSounds(embeddedSnd, function (map, failed) {
+            if (!embeddedSnd) { then(0, ''); return; }
+            uploadEmbeddedSounds(embeddedSnd, function (map, failed, reason) {
                 walkSoundRefs(layout, function (act) {
                     if (map[act.sound]) { act.sound = map[act.sound]; return; }
                     if (Object.prototype.hasOwnProperty.call(embeddedSnd, act.sound)) act.sound = 'preset:chime';
                 });
-                then(failed);
+                then(failed, reason);
             });
         }
 
-        if (!embedded) { importSounds(function (sndFailed) {
+        if (!embedded) { importSounds(function (sndFailed, sndReason) {
             finish();
-            if (sndFailed) (window.pkAlert || alert)(sndFailed + ' embedded sound' + (sndFailed > 1 ? 's' : '') + " couldn't be imported (replaced with a preset chime).");
+            if (sndFailed) (window.pkAlert || alert)(sndFailed + ' embedded sound' + (sndFailed > 1 ? 's' : '') + " couldn't be imported (replaced with a preset chime)."
+                + (sndReason ? '\n\nThe server said: ' + sndReason : ''));
         }); return; }
         // Re-upload the embedded images to THIS install, then point the layout's
         // refs at the new local URLs. A ref whose bytes were embedded but failed
         // to upload is dropped (it would just be a broken image here); a ref with
         // no embedded bytes at all (older export) is left as-is for same-install
         // round-trips.
-        uploadEmbeddedImages(embedded, function (map, failed) {
+        uploadEmbeddedImages(embedded, function (map, failed, imgReason) {
             walkImageRefs(layout, function (node, key) {
                 if (map[node[key]]) { node[key] = map[node[key]]; return; }
                 if (Object.prototype.hasOwnProperty.call(embedded, node[key])) {
@@ -3018,12 +3024,14 @@ importFile.addEventListener('change', function () {
                     delete node[key === 'bgImage' ? 'bgImageFit' : 'imageFit'];
                 }
             });
-            importSounds(function (sndFailed) {
+            importSounds(function (sndFailed, sndReason) {
                 finish();
                 var probs = [];
                 if (failed) probs.push(failed + ' embedded image' + (failed > 1 ? 's' : ''));
                 if (sndFailed) probs.push(sndFailed + ' embedded sound' + (sndFailed > 1 ? 's' : ''));
-                if (probs.length) (window.pkAlert || alert)(probs.join(' and ') + " couldn't be imported (the rest of the layout is fine).");
+                var reason = imgReason || sndReason;
+                if (probs.length) (window.pkAlert || alert)(probs.join(' and ') + " couldn't be imported (the rest of the layout is fine)."
+                    + (reason ? '\n\nThe server said: ' + reason : ''));
             });
         });
     }

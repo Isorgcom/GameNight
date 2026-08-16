@@ -4,6 +4,31 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2099] - 2026-08-16
+
+### Changed
+
+- **The daily upload allowance is 100, up from 20.** A timer-layout import
+  re-uploads every embedded image and burns one slot each — an artwork-heavy
+  layout carries around ten, so 20 let two imports exhaust a user's whole day,
+  and the second one failed with a blank "1 embedded image couldn't be
+  imported". The constant keeps its `!defined()` guard, so an install can
+  still set its own value in `config.php`; admins remain exempt. The
+  surrounding safeguards are unchanged: byte-sniffed MIME, must decode as a
+  real image, 8MB per file, and cron sweeps orphans after 24 hours
+  (`www/db.php`).
+
+### Fixed
+
+- **Import failures now say why.** When an embedded image or sound failed to
+  re-upload during a layout import, the alert reported only a count — the
+  server's actual reason ("Daily upload limit reached — try again tomorrow")
+  was received and thrown away, which turned a self-explanatory situation
+  into a mystery. Both re-upload paths now carry the server's first error
+  string into the message (`www/timer_beta_edit.js`).
+
+---
+
 ## [v0.2098] - 2026-08-16
 
 ### Changed
