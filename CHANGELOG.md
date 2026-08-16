@@ -4,6 +4,24 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2094] - 2026-08-16
+
+### Changed
+
+- **The PCF layout's bottom bar shows the payouts instead of the chip legend.**
+  The built-in "PCF Poker Chip Forum" board ended with a chip-denomination
+  legend; that bar now carries `<prizes.line>` ("1st: $525  2nd: $315  3rd:
+  $210"). The artwork had to change with it: the old plate has the word
+  "Chips:" baked into its pixels, so the cell was repointed at
+  `pcf2-bar-plain.png`, the identical bar without the label, and its left
+  padding dropped from 11vw to a symmetric 3vw since that gap existed only to
+  clear the painted word. A game with no payout structure renders the cell
+  empty, and the engine's auto-hide drops the bar rather than showing a blank
+  plate. Only the built-in is affected; a saved copy someone made of it keeps
+  whatever it already had.
+
+---
+
 ## [v0.2093] - 2026-08-15
 
 ### Changed
