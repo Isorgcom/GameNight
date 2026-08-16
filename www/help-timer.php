@@ -172,6 +172,11 @@ $help_sections = [
         </ul>
         <p>A layout is rows and columns of cells. A cell's share of space is its <strong>weight</strong>; a cell with no weight hugs its content. Sizes are a share of the screen, so a layout built on a laptop fills a projector.</p>
         <div class="hint"><strong>Text never escapes its box.</strong> A cell's size is a maximum, not a promise: when a value outgrows the box you sized it in (blinds double every round, and by round 19 that cell holds <code>2,000,000 / 4,000,000</code>), the text wraps or shrinks inside the box, then returns to full size when values shorten. You size cells for the values you can see; the engine handles the ones you can't.</div>
+        <p><strong>Padding</strong> is a box's inside margin: the gap between its edge and its own content, written CSS-style in the Inspector &mdash; one value for all sides, two for top/bottom &amp; left/right, four for top&nbsp;right&nbsp;bottom&nbsp;left. Use <code>vh</code> (% of screen height) and <code>vw</code> (% of screen width) so the gap scales with the display. While the Padding field has focus, the preview marks the padding as <strong>green bands</strong> with a dashed line around the space the content actually gets, and the bands follow every keystroke, so you can watch the room appear before you commit. Hovering the field shows the same reference as a tooltip.</p>
+        <figure class="help-shot">
+            <img src="/img/help/timer-padding.png" alt="The Blinds plate with its padding shown as green bands and a dashed outline around the content area" loading="lazy">
+            <figcaption>Focus the Padding field and the preview shows where the padding sits. This plate pads its top so the value stays clear of the painted <em>Blinds</em> tab &mdash; the most common reason to pad at all.</figcaption>
+        </figure>
     </div>
 
     <div class="help-step" id="elements">
@@ -246,7 +251,7 @@ $help_sections = [
         <h2><span class="step-num">9</span> Artwork: on the screen, or on the box</h2>
         <p>There are two places a picture can live, and choosing right saves a lot of nudging:</p>
         <ul>
-            <li><strong>On a box (preferred for plates and panels):</strong> right-click any cell or container &rarr; <strong>Box image</strong>. The picture becomes that box's own background and moves, resizes and reflows <em>with</em> it, so a value can never drift off its plate, on any screen shape. Default fit is Stretch, because plate art is drawn for the box it decorates; Cover and Contain are there too. The PCF built-in is made this way: the felt is the screen, every glossy plate rides its own box.</li>
+            <li><strong>On a box (preferred for plates and panels):</strong> right-click any cell or container &rarr; <strong>Box image</strong>. The picture becomes that box's own background and moves, resizes and reflows <em>with</em> it, so a value can never drift off its plate, on any screen shape. Default fit is Stretch, because plate art is drawn for the box it decorates; Cover and Contain are there too. The PCF built-in is made this way: the felt is the screen, every glossy plate rides its own box. Art with a label or a mascot painted into it pairs with <strong>Padding</strong> (<a href="#building">Building a layout</a>): pad that side so the text starts clear of the painted part, and focus the Padding field to see exactly where the clearance sits.</li>
             <li><strong>On the screen:</strong> right-click the screen &rarr; <strong>Screen background</strong> for the backdrop itself, a colour or a full-screen picture (felt, a poster, league branding).</li>
             <li><strong>Picking an image opens your library first</strong> &mdash; everything you've already uploaded plus the built-in artwork (the PCF felt and plates are all reusable). Uploading a new file is the button in the corner, and re-using an existing image costs nothing against the daily upload allowance.</li>
         </ul>

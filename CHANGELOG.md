@@ -4,6 +4,20 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2098] - 2026-08-16
+
+### Changed
+
+- **The Timer Guide documents Padding and its preview overlay.** "Building a
+  layout" gains a paragraph on what padding is (the CSS shorthand forms, the
+  vh/vw units and why they scale with the display) and on the green-bands
+  overlay v0.2097 added, with a new screenshot of the PCF Blinds plate showing
+  the padding clearing its painted tab — the most common reason to pad at all.
+  The Artwork section cross-references it where baked-in labels come up
+  (`www/help-timer.php`, `www/img/help/timer-padding.png`).
+
+---
+
 ## [v0.2097] - 2026-08-16
 
 ### Added
