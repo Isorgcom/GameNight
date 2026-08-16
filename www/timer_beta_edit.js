@@ -1547,6 +1547,7 @@ function renderInspector() {
         insp.appendChild(field('Bold', boolInput(cell.bold, function (v) { setOrDelete(cell, 'bold', v); })));
         insp.appendChild(field('Colour', colorInput(cell.color, function (v) { setOrDelete(cell, 'color', v); })));
         insp.appendChild(field('Background', colorInput(cell.bg, function (v) { setOrDelete(cell, 'bg', v); })));
+        insp.appendChild(field('Border', textInput(cell.border, function (v) { setOrDelete(cell, 'border', v); }, 'e.g. 3px solid #d4af37')));
         insp.appendChild(field('Align', selInput(cell.align || 'center', ['center', 'left', 'right'], function (v) { setOrDelete(cell, 'align', v === 'center' ? undefined : v); })));
         insp.appendChild(field('Padding', textInput(cell.pad, function (v) { setOrDelete(cell, 'pad', v); }, 'e.g. 0.6vh 1vw')));
         insp.appendChild(field('Show when', condEditor(cell.when, function (v) { pushUndo(); setOrDelete(cell, 'when', v); refresh(true); })));
@@ -1560,6 +1561,7 @@ function renderInspector() {
         insp.appendChild(field('Gap', textInput(node.gap, function (v) { setOrDelete(node, 'gap', v); }, 'e.g. 0.5vh')));
         insp.appendChild(field('Padding', textInput(node.pad, function (v) { setOrDelete(node, 'pad', v); }, 'e.g. 1vh 1vw')));
         insp.appendChild(field('Background', colorInput(node.bg, function (v) { setOrDelete(node, 'bg', v); })));
+        insp.appendChild(field('Border', textInput(node.border, function (v) { setOrDelete(node, 'border', v); }, 'e.g. 2px solid rgba(212,175,55,0.6)')));
         insp.appendChild(field('Show when', condEditor(node.when, function (v) { pushUndo(); setOrDelete(node, 'when', v); refresh(true); })));
         insp.appendChild(field('Justify', selInput(node.justify || 'flex-start',
             ['flex-start', 'center', 'flex-end', 'space-between', 'space-around'],

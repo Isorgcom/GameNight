@@ -4,6 +4,30 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2095] - 2026-08-16
+
+### Fixed
+
+- **A border set on a cell never rendered.** The engine painted a `border` on a
+  row or column (`applyBox`) and painted a cell's `bg` every tick
+  (`applyEmphasis`), but a `border` stored inside a cell spec was painted by
+  nothing — even though the server sanitizer has always preserved it. It only
+  worked when an author happened to put the border on the node wrapper instead,
+  which is exactly the kind of accident that made one box in a design show its
+  frame while its siblings stayed flat. `buildCell` now applies `spec.border`,
+  static on purpose: border is not a variant property, so the per-tick emphasis
+  painter never touches it. Layouts that already carry cell borders (they were
+  stored all along) simply start showing them (`www/timer_beta.js`).
+
+### Added
+
+- **A Border field in the editor.** The property was sanitizer-legal but
+  unreachable: neither the cell Inspector nor the row/column Inspector offered
+  it, so the only way to get a border was hand-editing JSON. Both Inspectors now
+  carry a Border text field next to Background (`www/timer_beta_edit.js`).
+
+---
+
 ## [v0.2094] - 2026-08-16
 
 ### Changed

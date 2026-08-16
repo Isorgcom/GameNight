@@ -1295,6 +1295,11 @@ function buildCell(spec) {
     if (spec.fit) el.classList.add('tb-fit');
     else el.style.fontSize = (spec.size || 2.4) + 'vh';
     if (spec.pad) el.style.padding = spec.pad;
+    // Cell-level border. Static on purpose (border is not a VARIANT_PROP, so
+    // applyEmphasis never clears it). The sanitizer has always preserved
+    // `border` on cells, but nothing painted it — a cell border only rendered
+    // when the author happened to put it on the node wrapper instead.
+    if (spec.border) el.style.border = spec.border;
     applyBoxImage(el, spec);
     // As a RATIO of the cell's font, not a fixed vh: capCell() shrinks
     // overflowing text by font-size, and discs pinned in vh would ignore the
