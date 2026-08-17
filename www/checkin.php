@@ -4598,19 +4598,30 @@ function saveBlindsWithSettings() {
     });
 }
 
-// Post-save: close the editor and rebuild the dashboard — Save means done.
-// Order matters now that Settings is a view: clear the open flag and return to
-// the previous view FIRST, so renderDashboard() paints that view rather than
-// re-rendering the editor we are leaving.
+// Post-save: STAY in the editor. Saving is a checkpoint, not an exit — setting
+// a game up is several passes over several tabs, and being thrown back to the
+// player list after each one meant re-opening Setup and re-finding the tab.
+// The editor is left standing (and clean), so the confirmation has to be
+// visible: the button says so for a moment. Closing Setup re-renders the view
+// behind it, so nothing stale survives the trip out.
 function settingsSaved() {
     SETTINGS_DIRTY = false;
-    SETTINGS_OPEN = false;
     // A save is exactly what makes a game diverge from (or fall back in line
     // with) the preset it came from, so recompute the provenance line.
     refreshPresetState();
-    VIEW_MODE = (VIEW_MODE_PREV && VIEW_MODE_PREV !== 'settings') ? VIEW_MODE_PREV : 'list';
-    renderDashboard();
+    // Game type may have changed with this save, which decides whether the
+    // tournament-only tabs are live — they gate on the SAVED session.
+    previewGameType(document.getElementById('cfg_game_type')
+                    ? document.getElementById('cfg_game_type').value
+                    : (SESSION.game_type || 'tournament'));
     pkProgressDone();
+    var btn = document.querySelector('.pk-sv-save');
+    if (btn && !btn._flashing) {
+        btn._flashing = true;
+        var was = btn.textContent;
+        btn.textContent = 'Saved ✓';
+        setTimeout(function () { btn.textContent = was; btn._flashing = false; }, 1600);
+    }
 }
 
 function openNotes(pid) {

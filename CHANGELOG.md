@@ -4,6 +4,25 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2101] - 2026-08-17
+
+### Changed
+
+- **"Save game" no longer closes the Setup editor.** Saving is a checkpoint,
+  not an exit: setting a game up is several passes across Game, Payouts,
+  Blinds, Timer and Chip set, and being returned to the player list after each
+  save meant reopening Setup and finding the tab again. The editor now stays
+  put on the same tab, and since it is left standing the confirmation has to be
+  visible — the Save button reads "Saved ✓" for a moment. Two things keep the
+  standing editor truthful: the saved session is re-read so the preset
+  provenance line recomputes, and the tournament-only tabs re-evaluate their
+  gating, so a save that changes the game from cash to tournament brings Blinds
+  and Timer to life immediately instead of on the next reopen. Leaving is
+  unchanged: the view behind is rebuilt on exit, and a genuinely unsaved edit
+  still prompts before discarding (`www/checkin.php`).
+
+---
+
 ## [v0.2100] - 2026-08-17
 
 ### Added
