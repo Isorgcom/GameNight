@@ -2523,9 +2523,11 @@ function populateLoadList() {
     while (loadSel.children.length > 1) loadSel.removeChild(loadSel.lastChild);
     var bi = document.createElement('optgroup');
     bi.label = 'Built-in';
+    evBoundName = null;
     Object.keys(PV.builtins).forEach(function (k) {
         var o = document.createElement('option');
         o.value = 'builtin:' + k;
+        if (EV_ID && evLayoutKey === k) evBoundName = PV.builtins[k].name;
         o.textContent = PV.builtins[k].name + (EV_ID && evLayoutKey === k ? ' • this event' : '');
         bi.appendChild(o);
     });
@@ -2539,6 +2541,7 @@ function populateLoadList() {
             j.layouts.forEach(function (L) {
                 var o = document.createElement('option');
                 o.value = 'id:' + L.id;
+                if (EV_ID && evLayoutId === L.id) evBoundName = L.name;
                 o.textContent = L.name + (L.is_global ? ' (site)' : (L.league_name ? ' (' + L.league_name + ')' : ''))
                               + (EV_ID && evLayoutId === L.id ? ' • this event' : '');
                 grp.appendChild(o);
@@ -2555,18 +2558,54 @@ function populateLoadList() {
  * display shows (the live display follows within a poll). The bound layout
  * is marked "• this event" in the Load list. Clicking again unbinds. */
 var EV_ID = (typeof window.ES_EVENT_ID !== 'undefined' && window.ES_EVENT_ID) ? (window.ES_EVENT_ID | 0) : null;
+var EV_NAME = (typeof window.ES_EVENT_NAME !== 'undefined' && window.ES_EVENT_NAME) ? String(window.ES_EVENT_NAME) : '';
 var evLayoutId = (typeof window.ES_LAYOUT_ID !== 'undefined' && window.ES_LAYOUT_ID) ? (window.ES_LAYOUT_ID | 0) : null;
 var evLayoutKey = (typeof window.ES_LAYOUT_KEY !== 'undefined' && window.ES_LAYOUT_KEY) ? String(window.ES_LAYOUT_KEY) : null;
 var curBuiltin = null;   // built-in key currently loaded UNMODIFIED, else null
-var evBtn = null;
+var evBtn = null, evStatus = null, evBoundName = null, evToggle = null, evNote = null;
 if (EV_ID) {
-    evBtn = document.createElement('button');
-    evBtn.id = 'tbeUseForEvent';
-    evBtn.className = 'tbe-btn';
-    var controls = document.querySelector('.tbe-header-controls');
-    controls.insertBefore(evBtn, document.getElementById('tbeDelete'));
+    // The binding bar: one question about the layout on screen — use it for
+    // THIS game, yes or no — in its own row of the (sticky) header. It began
+    // as a button wedged between Import and Delete, filed among the file
+    // operations, which is not where anyone looks for "put this on the TV".
+    var evBar = document.createElement('div');
+    evBar.className = 'tbe-eventbar';
+
+    var evLabel = document.createElement('label');
+    evLabel.className = 'tbe-eventbar-q';
+    evLabel.setAttribute('for', 'tbeUseForEvent');
+    evStatus = document.createElement('span');
+    evStatus.className = 'tbe-eventbar-status';
+    evLabel.appendChild(evStatus);
+
+    // Checkbox styled as a switch, with its state spelled out: a bare switch
+    // leaves "which way is on?" to the reader.
+    var evSwitch = document.createElement('span');
+    evSwitch.className = 'tbe-switch';
+    evToggle = document.createElement('input');
+    evToggle.type = 'checkbox';
+    evToggle.id = 'tbeUseForEvent';
+    var evTrack = document.createElement('span');
+    evTrack.className = 'tbe-switch-track';
+    var evWord = document.createElement('span');
+    evWord.className = 'tbe-switch-word';
+    evSwitch.appendChild(evToggle);
+    evSwitch.appendChild(evTrack);
+    evSwitch.appendChild(evWord);
+    evLabel.appendChild(evSwitch);
+
+    // Only shown when a DIFFERENT layout is on the display, so turning this
+    // one on is visibly a replacement rather than a first choice.
+    evNote = document.createElement('span');
+    evNote.className = 'tbe-eventbar-note';
+
+    evBar.appendChild(evLabel);
+    evBar.appendChild(evNote);
+    document.querySelector('.tbe-header').appendChild(evBar);
+    evBtn = evToggle;   // the rest of the file speaks to this as "the control"
+    evBtn._word = evWord;
     // The header's "Open display" link opens THIS game's display, not sample.
-    var od = controls.querySelector('a[href="/timer_beta.php"]');
+    var od = document.querySelector('.tbe-header-controls a[href="/timer_beta.php"]');
     if (od) od.href = '/timer_beta.php?event_id=' + EV_ID;
     var bindEvent = function (toId, toKey) {   // neither = back to default
         var body = new URLSearchParams();
@@ -2585,15 +2624,19 @@ if (EV_ID) {
             })
             .catch(function () { (window.pkAlert || alert)('Network error'); });
     };
-    evBtn.addEventListener('click', function () {
+    // The switch IS the action: on = this layout drives the game's display,
+    // off = back to the default. Reads its own new state rather than toggling
+    // whatever was bound before, so it can never bind a layout while showing
+    // "No".
+    evToggle.addEventListener('change', function () {
+        if (!evToggle.checked) { bindEvent(0, null); return; }
         if (curBuiltin) {
-            // A pristine built-in binds by KEY — no library copy is created.
-            bindEvent(0, evLayoutKey === curBuiltin ? null : curBuiltin);
+            bindEvent(0, curBuiltin);          // built-in binds by key, no copy
         } else if (layoutId) {
-            bindEvent(evLayoutId === layoutId ? 0 : layoutId, null);
+            bindEvent(layoutId, null);
         } else {
-            // Custom, never-saved work: it has to become a saved layout to be
-            // referenced by the event, so save it (name box) and bind.
+            // Custom, never-saved work has to become a saved layout before an
+            // event can reference it.
             save(false, function () { bindEvent(layoutId, null); });
         }
     });
@@ -2632,11 +2675,28 @@ function updateGlobalBtn() {
 function updateEventBtn() {
     if (!evBtn) return;
     var bound = (!!layoutId && evLayoutId === layoutId) || (!!curBuiltin && evLayoutKey === curBuiltin);
-    evBtn.textContent = bound ? '✓ Event display' : 'Use for this event';
-    evBtn.title = bound
-        ? "This game's display shows this layout — click to go back to the default"
-        : "Make this game's display show this layout (a built-in binds as-is; custom work saves to your library first; the live display follows within seconds)";
-    evBtn.classList.toggle('tbe-btn-primary', bound);
+    var anyBound = !!(evLayoutId || evLayoutKey);
+    // The question, with the game named so it is obvious WHICH game this
+    // changes — the editor is embedded in two different pages.
+    if (evStatus) {
+        evStatus.textContent = '';
+        evStatus.appendChild(document.createTextNode('Use this layout for '));
+        var val = document.createElement('strong');
+        val.textContent = EV_NAME || 'this event';
+        evStatus.appendChild(val);
+    }
+    evToggle.checked = bound;
+    if (evBtn._word) evBtn._word.textContent = bound ? 'Yes' : 'No';
+    evToggle.title = bound
+        ? "This game's display is showing the layout below — switch off to go back to the default"
+        : "Switch on to show the layout below on this game's display (custom work is saved to your library first; the live display follows within seconds)";
+    // Another layout is on the display: say which, so turning this on reads as
+    // a replacement.
+    if (evNote) {
+        evNote.textContent = (anyBound && !bound)
+            ? 'Currently showing: ' + (evBoundName || 'another saved layout')
+            : '';
+    }
 }
 
 loadSel.addEventListener('change', function () {
@@ -3154,16 +3214,24 @@ function boot() {
     // Event context boots on the layout THIS game's display shows — the point
     // of editing here is tweaking that layout, not `classic`. A binding by
     // built-in key loads synchronously; a saved layout follows by fetch.
-    // A blank start opens on Classic: a plain canvas to build ON, deliberately
-    // not the display default (Showcase), which is a finished design carrying
-    // three screens and four triggers. An event bound to a built-in opens on
-    // that one instead and keeps its name.
+    // What to open on, in priority order:
+    //   1. the built-in this game is bound to;
+    //   2. IN EVENT CONTEXT with nothing bound, the engine's default layout —
+    //      because that is what this game's display is actually showing, and
+    //      the binding bar right above says so. Opening on Classic there made
+    //      the editor contradict the bar and the TV;
+    //   3. the standalone library editor: Classic, a plain canvas to build ON
+    //      rather than a finished design with screens and triggers.
     var fromBinding = !!(EV_ID && !evLayoutId && evLayoutKey && PV.builtins[evLayoutKey]);
-    var bootKey = fromBinding ? evLayoutKey : 'classic';
+    var unbound = !!(EV_ID && !evLayoutId && !evLayoutKey);
+    var bootKey = fromBinding ? evLayoutKey
+                : (unbound && PV.defaultKey && PV.builtins[PV.defaultKey]) ? PV.defaultKey
+                : 'classic';
     LAYOUT = JSON.parse(JSON.stringify(PV.builtins[bootKey]));
     delete LAYOUT.name;
     curBuiltin = bootKey;   // fresh boot shows a pristine built-in
-    nameInput.value = fromBinding ? PV.builtins[bootKey].name + ' (mine)' : 'My layout';
+    nameInput.value = (!fromBinding && !unbound) ? 'My layout'
+                                                 : PV.builtins[bootKey].name + ' (mine)';
     normalizeLayout();
     // Open on the catch-all, not screen 0. Conditional screens sort FIRST in
     // the array, so with a multi-screen default (Showcase leads with Phone)

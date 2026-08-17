@@ -3,7 +3,11 @@
 
 .tbe-wrap { max-width: 1500px; margin: 0 auto; padding: 1rem; }
 
-.tbe-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .6rem; margin-bottom: .8rem; }
+/* Two rows BY DESIGN: title line, controls line. This used to be one
+ * space-between row with wrap, so ordinary screens got two lines by accident
+ * while ultrawides got a single line with the controls flung to the far right
+ * — same page, two different toolbars. Stacked, every width reads the same. */
+.tbe-header { display: flex; flex-direction: column; align-items: flex-start; gap: .5rem; margin-bottom: .8rem; }
 .tbe-header h1 { font-size: 1.25rem; font-weight: 800; color: #0f172a; margin: 0; display: flex; align-items: center; gap: .5rem; }
 .tb-badge { background: #f59e0b; color: #451a03; font-size: .62rem; font-weight: 800; letter-spacing: .08em; border-radius: 5px; padding: 3px 7px; }
 .tbe-header-controls { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; }
@@ -12,9 +16,36 @@
    changes as layouts are saved/bound ("• this event" moves around) — a
    variable-width select made the whole header re-wrap mid-use. */
 .tbe-header-controls select { padding: .45rem .5rem; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: .875rem; background: #fff; width: 190px; }
-/* Same idea: the event-binding button swaps between two labels of different
-   width; reserve the wider one so the header never shifts on toggle. */
-#tbeUseForEvent { min-width: 11em; }
+/* Event-binding bar (event context only): a full-width information strip in
+ * the header — blue means information, per the house rule. It asks one
+ * question about the layout on screen, and answers it with a yes/no switch. */
+.tbe-eventbar { display: flex; align-items: center; justify-content: space-between; gap: .8rem; flex-wrap: wrap;
+                width: 100%; box-sizing: border-box; padding: .45rem .8rem;
+                background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 8px;
+                font-size: .85rem; color: #1e3a8a; }
+.tbe-eventbar-q { display: inline-flex; align-items: center; gap: .6rem; cursor: pointer; }
+.tbe-eventbar-status strong { color: #1e3a8a; }
+.tbe-eventbar-note { color: #475569; font-size: .78rem; }
+
+/* Checkbox as a switch. The native input stays in the DOM (keyboard focus,
+   form semantics, the label's `for`) and is drawn by the track beside it. */
+.tbe-switch { display: inline-flex; align-items: center; gap: .4rem; }
+.tbe-switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.tbe-switch-track { position: relative; width: 38px; height: 22px; border-radius: 999px;
+                    background: #cbd5e1; transition: background .18s cubic-bezier(.4,0,.2,1); flex: 0 0 auto; }
+.tbe-switch-track::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px;
+                           border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(15,23,42,.35);
+                           transition: transform .18s cubic-bezier(.4,0,.2,1); }
+.tbe-switch input:checked + .tbe-switch-track { background: #2563eb; }
+.tbe-switch input:checked + .tbe-switch-track::after { transform: translateX(16px); }
+.tbe-switch input:focus-visible + .tbe-switch-track { outline: 2px solid #2563eb; outline-offset: 2px; }
+.tbe-switch-word { font-weight: 700; min-width: 2.2em; }
+@media (prefers-reduced-motion: reduce) {
+    .tbe-switch-track, .tbe-switch-track::after { transition: none; }
+}
+@media (pointer: coarse) { .tbe-switch-track { width: 46px; height: 26px; }
+    .tbe-switch-track::after { width: 20px; height: 20px; }
+    .tbe-switch input:checked + .tbe-switch-track::after { transform: translateX(20px); } }
 
 .tbe-btn { padding: .5rem .9rem; border-radius: 8px; border: 1.5px solid #cbd5e1; background: #fff; color: #334155; font-size: .85rem; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-block; }
 .tbe-btn:hover { background: #f8fafc; }

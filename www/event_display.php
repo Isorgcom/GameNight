@@ -80,6 +80,7 @@ $csrf = csrf_token();
 <script nonce="<?= csp_nonce() ?>">
 var ES_CSRF = <?= json_encode($csrf) ?>;
 var ES_EVENT_ID = <?= (int)$event_id ?>;
+var ES_EVENT_NAME = <?= json_encode($event_title) ?>;
 var ES_LAYOUT_ID = <?= json_encode($layout_id) ?>;
 var ES_LAYOUT_KEY = <?= json_encode($layout_key) ?>;
 </script>

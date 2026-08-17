@@ -223,15 +223,28 @@ function pk_clean_blind_levels($levels): array {
     return $clean;
 }
 
+// The acting user's Timer BETA preference, as a creation DEFAULT: 1 only when
+// they opted in (Settings, or the check-in console's one-time ask). NULL
+// (never asked), 0, an unknown id and guests all mean classic. Only consulted
+// when a timer row is born — a game's own Setup switch owns the value after.
+function pk_user_beta_pref(PDO $db, $user_id): int {
+    if (!$user_id) return 0;
+    $q = $db->prepare('SELECT beta_timer FROM users WHERE id = ?');
+    $q->execute([(int)$user_id]);
+    return (int)$q->fetchColumn() === 1 ? 1 : 0;
+}
+
 // The timer row is created lazily; callers that need one get it here.
-function pk_ensure_timer_row(PDO $db, int $session_id): array {
+// $use_beta seeds the display choice for a brand-new row only (pass the
+// creator's pk_user_beta_pref); an existing row is returned untouched.
+function pk_ensure_timer_row(PDO $db, int $session_id, int $use_beta = 0): array {
     $q = $db->prepare('SELECT * FROM timer_state WHERE session_id = ?');
     $q->execute([$session_id]);
     $timer = $q->fetch();
     if ($timer) return $timer;
     $remote_key = bin2hex(random_bytes(8));
-    $db->prepare("INSERT INTO timer_state (session_id, preset_id, current_level, time_remaining_seconds, is_running, remote_key, updated_at)
-                  VALUES (?, NULL, 1, 900, 0, ?, datetime('now'))")->execute([$session_id, $remote_key]);
+    $db->prepare("INSERT INTO timer_state (session_id, preset_id, current_level, time_remaining_seconds, is_running, remote_key, use_beta, updated_at)
+                  VALUES (?, NULL, 1, 900, 0, ?, ?, datetime('now'))")->execute([$session_id, $remote_key, $use_beta ? 1 : 0]);
     $q->execute([$session_id]);
     return $q->fetch();
 }
@@ -242,7 +255,7 @@ function pk_ensure_timer_row(PDO $db, int $session_id): array {
 // clamped to the new count, and a game that hasn't started picks up the new
 // first-level duration. Returns ['preset_id' => int, 'created_copy' => bool].
 function pk_apply_event_blinds(PDO $db, int $session_id, int $event_id, array $clean, int $user_id): array {
-    $timer = pk_ensure_timer_row($db, $session_id);
+    $timer = pk_ensure_timer_row($db, $session_id, pk_user_beta_pref($db, $user_id));
 
     $preset_id = (int)($timer['preset_id'] ?? 0);
     $is_local = false;

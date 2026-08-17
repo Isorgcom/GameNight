@@ -74,9 +74,26 @@ if ($action === 'get_blinds') {
 
 // Switch this game's Timer button between the classic timer and the BETA
 // layout display. timer.php honours it with a redirect (?classic=1 escapes).
+// One-time Timer BETA ask from the check-in console. Stores the user's answer
+// either way (so it is never asked again), and on yes flips THIS game's
+// display too, so the choice takes effect right where it was made. Future
+// games follow the stored preference when their timer row is created.
+if ($action === 'beta_timer_pref') {
+    $val = (int)($_POST['value'] ?? 0) === 1 ? 1 : 0;
+    $db->prepare('UPDATE users SET beta_timer = ? WHERE id = ?')->execute([$val, (int)$current['id']]);
+    if ($val === 1) {
+        if (!$timer) $timer = pk_ensure_timer_row($db, $session_id, 1);
+        $db->prepare("UPDATE timer_state SET use_beta = 1, updated_at = datetime('now') WHERE id = ?")
+           ->execute([(int)$timer['id']]);
+    }
+    db_log_activity($current['id'], 'answered BETA timer opt-in: ' . ($val ? 'yes' : 'no'));
+    echo json_encode(['ok' => true, 'beta_timer' => $val]);
+    exit;
+}
+
 if ($action === 'set_beta') {
     $on = !empty($_POST['on']) ? 1 : 0;
-    if (!$timer) $timer = pk_ensure_timer_row($db, $session_id);
+    if (!$timer) $timer = pk_ensure_timer_row($db, $session_id, $on);
     $db->prepare("UPDATE timer_state SET use_beta = ?, updated_at = datetime('now') WHERE id = ?")
        ->execute([$on, (int)$timer['id']]);
     db_log_activity($current['id'], "set BETA timer " . ($on ? 'on' : 'off') . ": event #$event_id");
@@ -128,7 +145,7 @@ if ($action === 'set_layout') {
         $q->execute([$layout_id, (int)$current['id'], (int)$current['id']]);
         if (!$q->fetch()) { echo json_encode(['ok' => false, 'error' => 'Layout not found']); exit; }
     }
-    if (!$timer) $timer = pk_ensure_timer_row($db, $session_id);
+    if (!$timer) $timer = pk_ensure_timer_row($db, $session_id, pk_user_beta_pref($db, (int)$current['id']));
     $db->prepare("UPDATE timer_state SET layout_id = ?, layout_builtin = ?, updated_at = datetime('now') WHERE id = ?")
        ->execute([$layout_id ?: null, $builtin !== '' ? $builtin : null, (int)$timer['id']]);
     db_log_activity($current['id'], "set event timer layout: event #$event_id → " . ($builtin !== '' ? $builtin : ($layout_id ?: 'none')));

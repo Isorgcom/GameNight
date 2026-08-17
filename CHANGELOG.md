@@ -4,6 +4,74 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2100] - 2026-08-17
+
+### Added
+
+- **A per-user opt-in to the new timer, with a one-time ask.** Settings gains a
+  "Tournament timer" choice (Classic or New timer layouts), stored as
+  `users.beta_timer` — a deliberately nullable column where NULL means "never
+  answered". The first time a host opens the check-in console for a tournament
+  they are asked once, and the answer is stored either way so it never asks
+  again. Saying yes switches that game immediately and opts them in globally:
+  the preference seeds `use_beta` wherever a timer row is *created*, so future
+  games start on the new display while each game's own Setup switch still wins
+  afterwards and already-configured games are untouched. All five timer-row
+  creation paths now pass the acting host's preference (`pk_ensure_timer_row()`
+  gained a parameter; `pk_user_beta_pref()` is the lookup). The ask fires on
+  games already using the new timer too, with copy that asks about making it
+  the default rather than switching this game. `current_user()` had to select
+  the new column, or the "never answered" state could never be seen.
+
+- **Chip set is its own tab in the game Setup editor.** It was appended to the
+  bottom of the Timer pane, below the entire layout editor, which made it
+  effectively unreachable. It now sits next to Timer as a peer of Blinds. It
+  follows the game-type dropdown like Blinds and Timer (hidden for cash) but
+  is deliberately *not* gated on a saved tournament the way those two are:
+  they need one because `event_setup_dl` refuses anything else, while the chip
+  set rides along in the ordinary settings save (`www/checkin.php`).
+
+### Changed
+
+- **The event-binding control is a named yes/no switch, not a buried button.**
+  Binding a layout to a game used to be a button wedged between Import and
+  Delete, dressed exactly like Export and filed among the file operations —
+  which is not where anyone looks for "put this on the TV". The editor header
+  now carries an information bar asking one question about the layout on
+  screen: **Use this layout for _\<event name\>_**, answered by a yes/no switch
+  (a real checkbox behind a styled track, so keyboard focus, the focus ring and
+  the label association all survive; reduced motion and coarse pointers are
+  handled). When a different layout is bound, a quiet note names it, so
+  switching on reads as a replacement. The event name is newly injected by both
+  pages that embed the editor, so it names the right game in either.
+
+- **The editor toolbar is two rows by design.** It was one `space-between` row
+  with wrap, so ordinary screens got two lines by accident while ultrawides got
+  a single line with the controls flung to the far right — the same page
+  presenting two different toolbars. Title on one line, controls beneath, at
+  every width.
+
+- **"Showcase (feature tour)" is now "Default Layout", and leads the list.**
+  It is what an unconfigured display shows, so it reads better as the default
+  and sorts first in both the display picker and the editor's Load menu (the
+  pickers iterate insertion order). Its internal key stays `showcase`: that is
+  what `timer_state.layout_builtin` stores, and renaming it would orphan every
+  existing binding.
+
+### Fixed
+
+- **The editor opened on Classic for a game whose display shows the Default
+  Layout.** v0.2093 scoped the new default to displays only and left the
+  editor's blank canvas on Classic. Defensible for the standalone library
+  editor, but wrong inside an event, where the editor is showing *that game's
+  display* and the binding bar directly above it says so — the canvas
+  contradicted both the bar and the TV. In event context with nothing bound the
+  editor now opens on the engine's default layout; a game bound to a built-in
+  still opens on that one; the standalone library editor still starts on
+  Classic (`www/timer_beta_edit.js`, `TBPreview.defaultKey`).
+
+---
+
 ## [v0.2099] - 2026-08-16
 
 ### Changed

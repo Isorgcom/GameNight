@@ -845,6 +845,7 @@ if ($session) {
 <script nonce="<?= csp_nonce() ?>">
 var ES_CSRF = <?= json_encode($csrf) ?>;
 var ES_EVENT_ID = <?= (int)$event_id ?>;
+var ES_EVENT_NAME = <?= json_encode((string)$event['title']) ?>;
 var ES_LAYOUT_ID = <?= json_encode($event_layout_id) ?>;
 var ES_LAYOUT_KEY = <?= json_encode($event_layout_key) ?>;
 </script>
@@ -855,6 +856,34 @@ var ES_LAYOUT_KEY = <?= json_encode($event_layout_key) ?>;
 <script nonce="<?= csp_nonce() ?>">
 var CSRF = <?= json_encode($csrf, JSON_HEX_TAG) ?>;
 var USE_BETA_TIMER = <?= (int)$use_beta_timer ?>;
+<?php /* One-time BETA-timer ask: any tournament game, while the user has
+         never answered (users.beta_timer IS NULL). The copy adapts — a game
+         already on the BETA display asks about making it the DEFAULT, since
+         "switch this game" would be incoherent there. Any answer is stored;
+         it is never asked twice. */ ?>
+var BETA_TIMER_ASK = <?= ($is_tournament_session
+                          && array_key_exists('beta_timer', $current) && $current['beta_timer'] === null) ? 1 : 0 ?>;
+if (BETA_TIMER_ASK) {
+    window.addEventListener('load', function () {
+        if (!window.pkConfirm) return;
+        var msg = USE_BETA_TIMER
+            ? 'This game already uses the new tournament timer with designable layouts.\n\nMake it your default? New games you set up will use the new timer automatically. Any game can still switch back in Setup, and you can change your mind any time in Settings.'
+            : 'GameNight has a new tournament timer with designable layouts: custom screens, phone views for players who scan the QR code, sounds, and more.\n\nSwitch your games to the new timer? This game switches now, new games follow automatically, and any game can switch back in Setup. You can change your mind any time in Settings.';
+        pkConfirm(msg, { title: 'Try the new timer layouts?',
+                         okLabel: USE_BETA_TIMER ? 'Make it my default' : 'Use the new timer',
+                         cancelLabel: 'Keep classic' })
+        .then(function (yes) {
+            var body = new URLSearchParams();
+            body.set('action', 'beta_timer_pref'); body.set('csrf_token', CSRF);
+            body.set('event_id', EVENT_ID); body.set('value', yes ? '1' : '0');
+            fetch('/event_setup_dl.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: String(body) })
+                .then(function (r) { return r.json(); })
+                // Reload only when the answer changed what this page shows.
+                .then(function (j) { if (j && j.ok && yes && !USE_BETA_TIMER) location.reload(); })
+                .catch(function () {});
+        });
+    });
+}
 
 // Keep --pk-nav-h in step with the sticky site nav so .pk-header parks under
 // it instead of behind it. Observed rather than hard-coded: the nav is 42px
@@ -2282,12 +2311,17 @@ function renderTimerPane() {
          '<a href="/help-timer.php" target="_blank">Timer guide</a> covers layouts, casting and conditions.</p>';
     h += '</div>';
 
-    // Chip set: denominations and their colours, drawn on the timer as a legend
-    // so players can see what each colour is worth at colour-up. It lives here
-    // rather than on the Game tab because it is a thing the DISPLAY shows, and
-    // it was being looked for next to the layout it appears on. Values only —
-    // the layout decides WHERE the legend goes, never what is in it.
-    h += '<div class="pk-cfg-section"><div class="pk-cfg-title">Chip set</div>';
+    return h;
+}
+
+// Chip set: denominations and their colours, drawn on the display as a legend
+// so players can see what each colour is worth at colour-up. Its OWN tab next
+// to Timer — it rode along at the bottom of the Timer pane, below the layout
+// editor, where it was effectively unreachable. Values only; the layout
+// decides WHERE the legend goes, never what is in it.
+function renderChipsPane() {
+    var h = '<div class="pk-cfg-section" style="border-top:none;padding-top:0;margin-top:0">';
+    h += '<div class="pk-cfg-title">Chip set</div>';
     h += '<p class="es-note" style="margin:.2rem 0 .6rem">Drawn on the display as coloured discs with their values, wherever the layout puts its chip legend. Leave it empty and no legend is shown.</p>';
     h += '<div class="pk-chipset" id="cfgChipSet">';
     h += '<div class="pk-chip-rows" id="chipRows"></div>';
@@ -2387,6 +2421,7 @@ function renderSettingsView() {
     var tourneyTabHidden = isCash() ? ' style="display:none"' : '';
     h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'blinds' ? ' active' : '') + '" data-tab="blinds" data-act="setSettingsTab" data-a1="blinds"' + tourneyTabHidden + '>Blinds</button>';
     h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'timer' ? ' active' : '') + '" data-tab="timer" data-act="setSettingsTab" data-a1="timer"' + tourneyTabHidden + '>Timer</button>';
+    h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'chips' ? ' active' : '') + '" data-tab="chips" data-act="setSettingsTab" data-a1="chips"' + tourneyTabHidden + '>Chip set</button>';
     if (hasTickets && !isCash()) {
         h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'tickets' ? ' active' : '') + '" data-tab="tickets" data-act="setSettingsTab" data-a1="tickets">Tickets <span class="pk-sv-badge">' + TICKETS.outgoing.length + '</span></button>';
     }
@@ -2432,6 +2467,7 @@ function renderSettingsView() {
     // string — mountBlindsPane() fills this container after every render.
     h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'blinds' ? ' active' : '') + '" data-pane="blinds"><div id="ckBlindsPane"><div class="pk-log-empty">Loading&hellip;</div></div></div>';
     h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'timer' ? ' active' : '') + '" data-pane="timer">' + renderTimerPane() + '</div>';
+    h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'chips' ? ' active' : '') + '" data-pane="chips">' + renderChipsPane() + '</div>';
     h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'tickets' ? ' active' : '') + '" data-pane="tickets">' + renderTicketsPanel() + '</div>';
     h += '</div>';
     h += '</div>';
@@ -2735,6 +2771,14 @@ function previewGameType(val) {
         }
         if ((hide || needsSave) && SETTINGS_TAB === name) setSettingsTab('game');
     });
+    // Chip set follows the dropdown too, but is never gated on a SAVED
+    // tournament: it rides along in the normal settings save (chip_set), not
+    // event_setup_dl, so it works before the game type has been committed.
+    var chipTab = document.querySelector('.pk-sv-tab[data-tab="chips"]');
+    if (chipTab) {
+        chipTab.style.display = hide ? 'none' : '';
+        if (hide && SETTINGS_TAB === 'chips') setSettingsTab('game');
+    }
     // Showing or hiding a segment changes the strip's widths, so the thumb has
     // to be re-measured even when the active tab itself did not change.
     positionSegThumb('settingsSeg', true);

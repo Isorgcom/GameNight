@@ -470,8 +470,8 @@ if ($action === 'init_timer') {
     }
 
     $remote_key = bin2hex(random_bytes(8));
-    $db->prepare("INSERT INTO timer_state (session_id, preset_id, current_level, time_remaining_seconds, is_running, remote_key, updated_at) VALUES (?, ?, 1, ?, 0, ?, datetime('now'))")
-        ->execute([$session_id, $preset_id, $duration, $remote_key]);
+    $db->prepare("INSERT INTO timer_state (session_id, preset_id, current_level, time_remaining_seconds, is_running, remote_key, use_beta, updated_at) VALUES (?, ?, 1, ?, 0, ?, ?, datetime('now'))")
+        ->execute([$session_id, $preset_id, $duration, $remote_key, pk_user_beta_pref($db, (int)$current['id'])]);
 
     echo json_encode(['ok' => true, 'remote_key' => $remote_key]);
     exit;

@@ -936,6 +936,11 @@ JSON;
     // Whether the user has dismissed (or acted on) the "enable two-factor" dashboard
     // banner. 0 = still show the nudge (any MFA-less user); set to 1 on dismiss or enable.
     try { $pdo->exec("ALTER TABLE users ADD COLUMN mfa_offer_dismissed INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    // Timer BETA opt-in. Deliberately nullable: NULL = never answered (the
+    // check-in console asks ONCE), 1 = new games default to the BETA layout
+    // display, 0 = classic. Applied at timer-row creation, so a game's own
+    // Setup switch always wins afterwards.
+    try { $pdo->exec("ALTER TABLE users ADD COLUMN beta_timer INTEGER"); } catch (Exception $e) {}
     // Highest TOTP time-step this user has already authenticated with. Used to
     // reject reuse of a still-valid code within its window (one-time use per step).
     try { $pdo->exec("ALTER TABLE users ADD COLUMN mfa_totp_last_step INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}

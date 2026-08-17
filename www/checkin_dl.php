@@ -1970,7 +1970,7 @@ if ($action === 'load_payout_structure') {
     // layout they can't see; an invisible one just doesn't bind.
     if (!empty($struct['timer_config'])) {
         $tc = json_decode((string)$struct['timer_config'], true) ?: [];
-        $trow = pk_ensure_timer_row($db, $session_id);
+        $trow = pk_ensure_timer_row($db, $session_id, pk_user_beta_pref($db, (int)$current['id']));
         $lid = (int)($tc['layout_id'] ?? 0);
         if ($lid) {
             $lq = $db->prepare('SELECT id FROM timer_layouts WHERE id = ? AND (is_global = 1 OR created_by = ?

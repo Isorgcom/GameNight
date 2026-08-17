@@ -71,8 +71,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $oldPhone->execute([$current['id']]);
                         $phoneChanged = ($oldPhone->fetchColumn() ?? '') !== ($phone ?: null);
 
-                        $db->prepare('UPDATE users SET username = ?, email = ?, phone = ?, preferred_contact = ?, my_events_past_days = ?, timezone = ?, phone_verified = CASE WHEN ? THEN 0 ELSE phone_verified END WHERE id = ?')
-                           ->execute([$username, $email, $phone ?: null, $pref_contact, $past_days, $timezone !== '' ? $timezone : null, $phoneChanged ? 1 : 0, $current['id']]);
+                        // Saving the profile answers the one-time BETA-timer
+                        // ask too (the select always posts a value), which is
+                        // fine: the setting has been seen.
+                        $beta_timer = (int)($_POST['beta_timer'] ?? 0) === 1 ? 1 : 0;
+                        $db->prepare('UPDATE users SET username = ?, email = ?, phone = ?, preferred_contact = ?, my_events_past_days = ?, timezone = ?, beta_timer = ?, phone_verified = CASE WHEN ? THEN 0 ELSE phone_verified END WHERE id = ?')
+                           ->execute([$username, $email, $phone ?: null, $pref_contact, $past_days, $timezone !== '' ? $timezone : null, $beta_timer, $phoneChanged ? 1 : 0, $current['id']]);
                         db_log_activity($current['id'], 'updated profile');
                         $flash = ['type' => 'success', 'msg' => 'Profile updated.'];
                     } catch (PDOException $e) {
@@ -229,7 +233,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Reload fresh user data after possible username change
-$me = $db->prepare('SELECT username, email, phone, preferred_contact, my_events_past_days, my_events_future_days, phone_verified, role, created_at, last_login, timezone, mfa_enabled, mfa_method, notify_prefs FROM users WHERE id = ?');
+$me = $db->prepare('SELECT username, email, phone, preferred_contact, my_events_past_days, my_events_future_days, phone_verified, role, created_at, last_login, timezone, mfa_enabled, mfa_method, notify_prefs, beta_timer FROM users WHERE id = ?');
 $me->execute([$current['id']]);
 $me = $me->fetch();
 
@@ -402,6 +406,14 @@ $site_name = get_setting('site_name', 'Game Night');
                         <?php endforeach; ?>
                     </select>
                     <p class="hint">Event times and the footer clock will display in this timezone. Notifications sent to you will also use it.</p>
+                </div>
+                <div class="form-group">
+                    <label for="beta_timer">Tournament timer</label>
+                    <select id="beta_timer" name="beta_timer" style="width:100%;padding:.5rem .75rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.95rem;background:#fff">
+                        <option value="0">Classic timer</option>
+                        <option value="1"<?= (int)($me['beta_timer'] ?? 0) === 1 ? ' selected' : '' ?>>New timer layouts (BETA)</option>
+                    </select>
+                    <p class="hint">New games you set up will use this timer display. Each game can still switch in its Setup, and this doesn't change games you've already configured.</p>
                 </div>
                 <button type="submit" class="btn btn-primary" style="width:100%">Save Profile</button>
             </form>
