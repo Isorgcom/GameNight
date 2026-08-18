@@ -139,13 +139,29 @@ $allow_reg   = get_setting('allow_registration', '1') === '1';
         </ul>
         <p>Click <strong>Create Session &amp; Import Players</strong> &mdash; this pulls in everyone who RSVP'd Yes. On the check-in dashboard you can add walk-ins with the name field and <strong>+ Add</strong>, filter by <strong>All / RSVP Yes / Playing / Out</strong>, and let <strong>Balance</strong> auto-assign tables and seats. The <strong>QR</strong> button opens a registration screen players can scan to sign themselves in.</p>
         <img class="help-shot" src="/img/help/checkin-start.png" alt="Check-in dashboard after starting a session">
-        <p>When you're ready to play, click the <strong>Timer</strong> button to launch the tournament clock. It loads your default blind structure automatically. To customize blinds, click <strong>Levels</strong> to open the <strong>Blind Structure</strong> editor (columns <strong>#, SB, BB, Ante, Min, Type</strong>) where you can <strong>+ Add Level</strong>, <strong>+ Add Break</strong>, then <strong>Save Changes</strong> &mdash; or <strong>Load</strong> / <strong>Save As</strong> / <strong>Set Default</strong> / <strong>Export</strong> / <strong>Import</strong> a preset.</p>
+        <p>When you're ready to play, click the <strong>Timer</strong> button to launch the tournament clock. It loads your default blind structure automatically. Everything about the game &mdash; blinds included &mdash; is edited in <strong>Setup</strong>, which is the next step.</p>
         <img class="help-shot" src="/img/help/blind-structure.png" alt="Blind Structure editor with levels and breaks">
         <p>Run the clock with <strong>Start</strong> / <strong>Pause</strong>, step levels with <strong>Next</strong> and <strong>Prev</strong>, nudge the clock with <strong>&minus;Min</strong> / <strong>+Min</strong>, and use <strong>Reset Level</strong> or <strong>Reset Timer</strong> if needed. <strong>TV</strong> opens a big-screen view for a projector, and <strong>Players</strong> lets you mark eliminations and rebuys as the night goes on.</p>
         <img class="help-shot" src="/img/help/timer-running.png" alt="Tournament timer running with blinds and clock">
         <p>That's it. After the event, results lock in and stats update automatically.</p>
         <div class="hint"><strong>Payouts aren't loaded by default.</strong> No payout structure is set up automatically, so the <strong>Payouts</strong> card starts empty. If you want payout tracking (who finishes in the money, and for how much), set up a split first &mdash; use <strong>Edit in Settings</strong> on the Payouts card, or the <strong>Payout</strong> button on the check-in dashboard.</div>
         <div class="hint">If you turned on <strong>Approval</strong> for the event, players who register by scanning the QR code land in <strong>pending approval</strong> until you wave them in from the check-in dashboard.</div>
+    </div>
+
+    <div class="help-step">
+        <h2><span class="step-num">8</span> Set the game up</h2>
+        <p>Everything that defines the game lives behind the <strong>Setup</strong> button on the check-in dashboard. It opens an editor with a tab per topic:</p>
+        <ul>
+            <li><strong>Game</strong> &mdash; game type, buy-in, rebuys and add-ons, starting chips, tables and seats, and which league the event belongs to.</li>
+            <li><strong>Payouts &amp; Rewards</strong> &mdash; the payout split, plus points, entry-ticket values, prize labels, bounties and jackpots.</li>
+            <li><strong>Blinds</strong> &mdash; the level schedule as an editable grid (<strong>Level, Duration, Small Blind, Big Blind, Ante, Start Time</strong>), with breaks, undo/redo, and a generator that builds a ladder for you.</li>
+            <li><strong>Timer</strong> &mdash; whether this game uses the classic timer or the new layout display, and which layout its display shows.</li>
+            <li><strong>Chip set</strong> &mdash; the denominations and colours drawn on the display as a legend, so players can see what each colour is worth at colour-up.</li>
+        </ul>
+        <p>Blinds, Timer and Chip set apply to tournaments, so they're hidden for a cash game. Blinds and Timer also stay locked until the game has actually been saved as a tournament.</p>
+        <img class="help-shot" src="/img/help/setup-editor.png" alt="The game Setup editor showing its Game, Payouts &amp; Rewards, Blinds, Timer and Chip set tabs">
+        <p><strong>Save game</strong> commits the whole editor at once &mdash; every tab, including the blind schedule &mdash; and leaves you exactly where you were, on the same tab, with the button confirming <em>Saved &#10003;</em> for a moment. Setting a game up usually takes a few passes, so saving is a checkpoint rather than an exit. Use <strong>Close</strong> (or Escape) when you're done; if anything is still unsaved you'll be asked before it's discarded.</p>
+        <div class="hint"><strong>Presets save the whole editor.</strong> The <strong>Game preset</strong> bar at the top stores game setup, payouts and rewards, the blind schedule and the timer settings as one reusable recipe &mdash; so next week's game is one <strong>Load</strong> away. The line above it always tells you whether this game came from a preset and whether it has drifted from it.</div>
     </div>
 
     <div class="help-cta">

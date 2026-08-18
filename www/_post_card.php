@@ -74,6 +74,21 @@ $redir = '/' . ($monthFilter ? '?month=' . urlencode($monthFilter) : '') . '#pos
                 <input type="checkbox" class="sel-all" data-pc="sel-all" data-post="<?= (int)$post['id'] ?>"> Select all
             </label>
             <?php endif; ?>
+            <?php /* The labelled twin of the kebab's Hide. The menu had the only
+                     copy, and an unlabelled ··· in a corner is not somewhere
+                     people look for "stop showing me this". Same buttons, same
+                     handlers — the class is what the delegated listener binds. */ ?>
+            <?php if ($user): ?>
+            <span class="post-card-actions" data-pc="stop">
+                <?php if ($__p_showHidden): ?>
+                    <button type="button" class="post-inline-act post-unhide-btn" data-post-id="<?= (int)$post['id'] ?>"
+                            title="Show this post in your feed again">&#128065; Unhide</button>
+                <?php else: ?>
+                    <button type="button" class="post-inline-act post-hide-btn" data-post-id="<?= (int)$post['id'] ?>"
+                            title="Hide this post from your feed (only for you)">&#128065; Hide</button>
+                <?php endif; ?>
+            </span>
+            <?php endif; ?>
         </div>
         <div class="comments-body" id="cmts-body-<?= (int)$post['id'] ?>" style="display:none">
             <?php if ($isAdmin && count($comments) > 0): ?>

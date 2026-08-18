@@ -4,6 +4,45 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2102] - 2026-08-18
+
+### Changed
+
+- **Hiding a post from your feed is now findable.** The feature already existed
+  and worked end to end — the `user_post_hidden` table, the endpoint, the feed
+  filter and the "Show hidden posts" view — but its only control was an
+  unlabelled grey `···` in the corner of a card, with a transparent background
+  and border on white. Nobody looks there for "stop showing me this", so it
+  read as missing. Each card now carries a labelled **👁 Hide** button at the
+  right end of its action row, opposite the comments count (**👁 Unhide** in
+  the hidden view), and the kebab is styled as an actual button — background,
+  border, hover and focus ring — while keeping Edit and Delete. Both controls
+  share the same handlers and endpoint; nothing about the data model changed.
+  The new button is marked `data-pc="stop"` so pressing it doesn't also expand
+  the comments thread it sits in (`www/_post_card.php`, `www/index.php`).
+
+- **The Host Guide documents the Setup editor, which it had never covered.**
+  The guide still described the pre-Setup flow, telling hosts to click a
+  "Levels" button for blinds. A new step 8 walks the editor and each tab (Game,
+  Payouts & Rewards, Blinds, Timer, Chip set), notes that the tournament-only
+  tabs hide for cash and that Blinds and Timer stay locked until the game is
+  saved as a tournament, and explains that **Save game** commits every tab at
+  once — blind schedule included — and now leaves you on the same tab with a
+  "Saved ✓" confirmation, with Close or Escape as the way out. A screenshot and
+  a note about presets storing the whole editor round it out
+  (`www/help-hosts.php`, `www/img/help/setup-editor.png`).
+
+- **The Timer Guide covers the opt-in and the binding switch.** It now explains
+  the one-time "which timer?" question and the Settings default (asked once,
+  remembered, applies to new games while each game's own switch still wins),
+  describes binding a layout with the **Use this layout for _your event_**
+  yes/no switch including the note that names an already-bound layout, states
+  that a game with nothing chosen shows Default Layout — which is also what the
+  editor opens on, so editing matches the TV — and points at the chip set's own
+  tab (`www/help-timer.php`).
+
+---
+
 ## [v0.2101] - 2026-08-17
 
 ### Changed

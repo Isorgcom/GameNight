@@ -354,12 +354,15 @@ $tlMonths = $tlStmt->fetchAll();
 
         /* ── Per-post kebab menu (Hide / Edit / Delete) ── */
         .post-menu-wrap { position: relative; margin-left: auto; }
+        /* Reads as a button at rest, not only on hover: it was a ghost grey ···
+           on a white card, which is nowhere anyone looks for an action. */
         .post-menu {
-            background: transparent; border: 1px solid transparent; border-radius: 5px;
-            color: #94a3b8; cursor: pointer; font-size: 1.15rem; line-height: 1;
-            padding: .05rem .45rem; font-family: inherit;
+            background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;
+            color: #475569; cursor: pointer; font-size: 1.15rem; line-height: 1;
+            padding: .1rem .5rem; font-family: inherit;
         }
-        .post-menu:hover { background: #f1f5f9; color: #475569; }
+        .post-menu:hover { background: #e2e8f0; color: #0f172a; border-color: #cbd5e1; }
+        .post-menu:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
         .post-menu-dropdown {
             display: none; position: absolute; right: 0; top: 100%; margin-top: .25rem;
             background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
@@ -410,7 +413,17 @@ $tlMonths = $tlStmt->fetchAll();
         .comments-heading {
             cursor: pointer;
             user-select: none;
+            display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
         }
+        /* Pushed to the right end of the card's action row. */
+        .post-card-actions { margin-left: auto; display: inline-flex; gap: .4rem; }
+        .post-inline-act {
+            background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;
+            color: #475569; cursor: pointer; font-size: .78rem; font-weight: 600;
+            padding: .22rem .6rem; font-family: inherit; line-height: 1.3;
+        }
+        .post-inline-act:hover { background: #e2e8f0; color: #0f172a; border-color: #cbd5e1; }
+        .post-inline-act:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
         .comments-heading:hover .cmts-toggle-label { color: #2563eb; }
         .cmts-toggle-label {
             display: flex;

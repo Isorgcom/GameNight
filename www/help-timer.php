@@ -134,16 +134,18 @@ $help_sections = [
 <div class="help-step" id="two-timers">
         <h2><span class="step-num">1</span> Two timers, one switch</h2>
         <p>Every game has the <strong>classic timer</strong>, and a newer <strong>BETA timer</strong> with custom layouts, break screens and multi-screen casting. Switch per game in check-in under <strong>Setup &rarr; Timer &rarr; Use BETA timer</strong>. The Timer button then opens whichever one is on, and you can switch back any time.</p>
+        <p>You can also make the new timer your default. The first time you open a tournament's check-in console you'll be asked once which timer you'd like; whichever you answer is remembered, and it's never asked again. After that, <strong>new games you set up start on the timer you chose</strong>, while each game's own switch still wins and games you've already configured are left alone. Change your mind any time under <strong>Settings &rarr; Tournament timer</strong>.</p>
     </div>
 
     <div class="help-step" id="choose-layout">
         <h2><span class="step-num">2</span> Choose what the display shows</h2>
-        <p>On the same Setup &rarr; Timer pane, pick the <strong>layout</strong> this game's display uses: one of the built-ins, or any layout you have saved. The display follows your choice live, so you can change it mid-game and every connected screen updates without a reload.</p>
+        <p>On the same Setup &rarr; Timer pane, pick the <strong>layout</strong> this game's display uses: one of the built-ins, or any layout you have saved. Load a layout in the editor and the bar above it asks the only question that matters &mdash; <strong>Use this layout for <em>your event</em></strong> &mdash; with a yes/no switch. Flip it on and that layout drives the game's display; flip it off and the display goes back to the default. When some other layout is already on the display, the bar names it, so switching on reads as a replacement rather than a first choice. The display follows your choice live, so you can change it mid-game and every connected screen updates without a reload.</p>
+        <p>A game with nothing chosen shows <strong>Default Layout</strong>, the built-in feature tour &mdash; which is also what the editor opens on for that game, so what you see while editing is what the TV is showing.</p>
         <figure class="help-shot">
             <img src="/img/help/timer-pcf.jpg" alt="The PCF Poker Chip Forum built-in layout: dark felt, glossy plates, clock, blinds, stats panel and chip legend" loading="lazy">
             <figcaption>The <strong>PCF Poker Chip Forum</strong> built-in &mdash; every example in this guide is drawn from it.</figcaption>
         </figure>
-        <p>The <strong>chip set</strong> lives here too: the denominations in play with their colours, drawn on the display as a legend wherever the layout puts one. It rides along with a game preset, so a recurring game keeps its chips. Each chip can also carry a photo of the real thing instead of a flat colour.</p>
+        <p>The <strong>chip set</strong> has its own tab next to Timer: the denominations in play with their colours, drawn on the display as a legend wherever the layout puts one. It rides along with a game preset, so a recurring game keeps its chips. Each chip can also carry a photo of the real thing instead of a flat colour.</p>
     </div>
 
     <div class="help-step" id="running">
