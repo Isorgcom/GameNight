@@ -1,6 +1,33 @@
 <style>
 /* Landing visuals — inline to dodge the un-versioned style.css cache */
-.lp-shot { display:block; max-width:900px; width:100%; margin:2.75rem auto 0; border-radius:12px; border:1px solid rgba(255,255,255,.14); box-shadow:0 18px 50px rgba(0,0,0,.45); }
+/* Hero gallery: a scroll-snap carousel of timer layouts, one shot per
+   slide. Each figure is the full strip width and snaps to center, so a
+   swipe or chevron click always lands on exactly one image — no
+   half-visible neighbours. The strip scrolls inside its own box — the
+   page never scrolls sideways. Touch swipes; the chevron buttons drive
+   it for mouse users (lpGalNav below, via pk-dispatch). */
+.lp-gallery-wrap { position:relative; max-width:1100px; margin:2.25rem auto 0; }
+.lp-gallery { display:flex; gap:14px; overflow-x:auto;
+  scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch;
+  padding:0 0 .6rem; }
+.lp-gallery figure { flex:0 0 100%; scroll-snap-align:center; scroll-snap-stop:always;
+  margin:0; display:flex; flex-direction:column; align-items:center; }
+.lp-gal-btn { position:absolute; top:50%; transform:translateY(-50%); z-index:2;
+  width:42px; height:42px; border-radius:50%; border:1px solid rgba(255,255,255,.3);
+  background:rgba(15,23,42,.72); color:#e2e8f0; font-size:1.1rem; line-height:1;
+  cursor:pointer; transition:background .15s, border-color .15s; }
+.lp-gal-btn:hover { background:rgba(37,99,235,.85); border-color:rgba(255,255,255,.5); }
+.lp-gal-prev { left:.5rem; }
+.lp-gal-next { right:.5rem; }
+/* Fixed 320px box so landscape TV shots and portrait phone shots keep
+   the strip the same height; contain letterboxes instead of distorting
+   when max-width clamps a wide shot on a narrow screen. */
+.lp-gallery img { height:320px; width:auto; max-width:100%; object-fit:contain; display:block;
+  border-radius:10px; border:1px solid rgba(255,255,255,.14);
+  box-shadow:0 10px 30px rgba(0,0,0,.35); }
+.lp-gallery figcaption { font-size:.75rem; color:#94a3b8; margin-top:.35rem; text-align:center; }
+.lp-gallery-hint { color:#94a3b8; font-size:.85rem; margin:.6rem auto 0; max-width:700px; }
+@media (max-width:640px) { .lp-gallery img { height:210px; } .lp-gallery { gap:10px; } }
 .lp-section-head { text-align:center; padding:3rem 1.5rem .5rem; }
 .lp-section-head h2 { font-size:1.6rem; margin-bottom:.5rem; }
 .lp-section-head p { color:#64748b; }
@@ -22,8 +49,163 @@
         <?php endif; ?>
         <a href="/login.php" class="btn btn-outline" style="padding:.65rem 2rem;font-size:1rem">Sign In</a>
     </div>
-    <img class="lp-shot" src="/img/help/timer-running.png" alt="GameNight tournament timer showing the current blind level and a large countdown clock" loading="lazy">
+    <?php /* Six app-in-action screenshots (shot on dev against a seeded
+             dummy event), then six themed timer layouts from the layout
+             engine, TV and phone views of each. Assets are repo-local:
+             CSP img-src is 'self', so the blog originals could not be
+             hotlinked. */ ?>
+    <div class="lp-gallery-wrap">
+    <button type="button" class="lp-gal-btn lp-gal-prev" data-act="lpGalNav" data-a1="-1" aria-label="Previous screenshot">&#10094;</button>
+    <button type="button" class="lp-gal-btn lp-gal-next" data-act="lpGalNav" data-a1="1" aria-label="Next screenshot">&#10095;</button>
+    <div class="lp-gallery" aria-label="App screenshots and timer layout examples">
+        <figure>
+            <img src="/img/landing/action-event-form.jpg" alt="The event editor with a poker night filled out and guests invited">
+            <figcaption>Schedule a game in seconds</figcaption>
+        </figure>
+        <figure>
+            <img src="/img/landing/action-event-page.jpg" alt="An event page showing RSVP buttons and the guest list" loading="lazy">
+            <figcaption>Event page &mdash; RSVPs at a glance</figcaption>
+        </figure>
+        <figure>
+            <img src="/img/landing/action-calendar.jpg" alt="A month calendar with several scheduled game nights" loading="lazy">
+            <figcaption>Your group&rsquo;s calendar</figcaption>
+        </figure>
+        <figure>
+            <img src="/img/landing/action-checkin-list.jpg" alt="The tournament check-in console with players, buy-ins, and the live prize pool" loading="lazy">
+            <figcaption>Tournament check-in console</figcaption>
+        </figure>
+        <figure>
+            <img src="/img/landing/action-checkin-tables.jpg" alt="The table view showing seat assignments across two tables" loading="lazy">
+            <figcaption>Table draw &amp; seating</figcaption>
+        </figure>
+        <figure>
+            <img src="/img/landing/action-setup-payouts.jpg" alt="The game setup editor on the payouts and rewards tab" loading="lazy">
+            <figcaption>Payouts &amp; rewards setup</figcaption>
+        </figure>
+        <figure>
+            <img src="/img/landing/neon-nights-main-desktop.jpg" alt="Neon Nights timer layout on a TV" loading="lazy">
+            <figcaption>Neon Nights</figcaption>
+        </figure>
+        <figure>
+            <img src="/img/landing/neon-nights-main-phone.jpg" alt="Neon Nights layout on a phone" loading="lazy">
+            <figcaption>Neon Nights — on a phone</figcaption>
+        </figure>
+        <figure>
+            <img src="/img/landing/neon-nights-break-desktop.jpg" alt="Neon Nights break screen on a TV" loading="lazy">
+            <figcaption>Neon Nights — break screen</figcaption>
+        </figure>
+        <figure>
+            <img src="/img/landing/neon-nights-break-phone.jpg" alt="Neon Nights break screen on a phone" loading="lazy">
+            <figcaption>Neon Nights — break, on a phone</figcaption>
+        </figure>
+        <figure>
+            <img src="/img/landing/dusty-trail-saloon-main-desktop.jpg" alt="Dusty Trail Saloon timer layout on a TV" loading="lazy">
+            <figcaption>Dusty Trail Saloon</figcaption>
+        </figure>
+        <figure>
+            <img src="/img/landing/dusty-trail-saloon-main-phone.jpg" alt="Dusty Trail Saloon layout on a phone" loading="lazy">
+            <figcaption>Dusty Trail Saloon — on a phone</figcaption>
+        </figure>
+        <figure>
+            <img src="/img/landing/dusty-trail-saloon-break-desktop.jpg" alt="Dusty Trail Saloon break screen on a TV" loading="lazy">
+            <figcaption>Dusty Trail Saloon — break screen</figcaption>
+        </figure>
+        <figure>
+            <img src="/img/landing/dusty-trail-saloon-break-phone.jpg" alt="Dusty Trail Saloon break screen on a phone" loading="lazy">
+            <figcaption>Dusty Trail Saloon — break, on a phone</figcaption>
+        </figure>
+        <figure>
+            <img src="/img/landing/zen-minimal-main-desktop.jpg" alt="Zen Minimal timer layout on a TV" loading="lazy">
+            <figcaption>Zen Minimal</figcaption>
+        </figure>
+        <figure>
+            <img src="/img/landing/zen-minimal-main-phone.jpg" alt="Zen Minimal layout on a phone" loading="lazy">
+            <figcaption>Zen Minimal — on a phone</figcaption>
+        </figure>
+        <figure>
+            <img src="/img/landing/zen-minimal-break-desktop.jpg" alt="Zen Minimal break screen on a TV" loading="lazy">
+            <figcaption>Zen Minimal — break screen</figcaption>
+        </figure>
+        <figure>
+            <img src="/img/landing/zen-minimal-break-phone.jpg" alt="Zen Minimal break screen on a phone" loading="lazy">
+            <figcaption>Zen Minimal — break, on a phone</figcaption>
+        </figure>
+        <figure>
+            <img src="/img/landing/emerald-high-roller-main-desktop.jpg" alt="Emerald High Roller timer layout on a TV" loading="lazy">
+            <figcaption>Emerald High Roller</figcaption>
+        </figure>
+        <figure>
+            <img src="/img/landing/emerald-high-roller-main-phone.jpg" alt="Emerald High Roller layout on a phone" loading="lazy">
+            <figcaption>Emerald High Roller — on a phone</figcaption>
+        </figure>
+        <figure>
+            <img src="/img/landing/emerald-high-roller-break-desktop.jpg" alt="Emerald High Roller break screen on a TV" loading="lazy">
+            <figcaption>Emerald High Roller — break screen</figcaption>
+        </figure>
+        <figure>
+            <img src="/img/landing/emerald-high-roller-break-phone.jpg" alt="Emerald High Roller break screen on a phone" loading="lazy">
+            <figcaption>Emerald High Roller — break, on a phone</figcaption>
+        </figure>
+        <figure>
+            <img src="/img/landing/pixel-arcade-main-desktop.jpg" alt="Pixel Arcade timer layout on a TV" loading="lazy">
+            <figcaption>Pixel Arcade</figcaption>
+        </figure>
+        <figure>
+            <img src="/img/landing/pixel-arcade-main-phone.jpg" alt="Pixel Arcade layout on a phone" loading="lazy">
+            <figcaption>Pixel Arcade — on a phone</figcaption>
+        </figure>
+        <figure>
+            <img src="/img/landing/pixel-arcade-break-desktop.jpg" alt="Pixel Arcade break screen on a TV" loading="lazy">
+            <figcaption>Pixel Arcade — break screen</figcaption>
+        </figure>
+        <figure>
+            <img src="/img/landing/pixel-arcade-break-phone.jpg" alt="Pixel Arcade break screen on a phone" loading="lazy">
+            <figcaption>Pixel Arcade — break, on a phone</figcaption>
+        </figure>
+        <figure>
+            <img src="/img/landing/snowman-griffs-main-desktop.jpg" alt="Snowman Poker League timer layout on a TV" loading="lazy">
+            <figcaption>Snowman Poker League</figcaption>
+        </figure>
+        <figure>
+            <img src="/img/landing/snowman-griffs-main-phone.jpg" alt="Snowman Poker League layout on a phone" loading="lazy">
+            <figcaption>Snowman Poker League — dedicated phone screen</figcaption>
+        </figure>
+        <figure>
+            <img src="/img/landing/snowman-griffs-break-desktop.jpg" alt="Snowman Poker League break screen on a TV" loading="lazy">
+            <figcaption>Snowman Poker League — break screen</figcaption>
+        </figure>
+        <figure>
+            <img src="/img/landing/snowman-griffs-break-phone.jpg" alt="Snowman Poker League break screen on a phone" loading="lazy">
+            <figcaption>Snowman Poker League — phone screen on break</figcaption>
+        </figure>
+    </div>
+    </div>
+    <p class="lp-gallery-hint">Real screens from the app &mdash; scheduling, RSVPs, check-in, seating and payouts &mdash; plus six ready-made tournament timer layouts in TV and phone views. Build your own in the layout editor.</p>
 </div>
+
+<script nonce="<?= csp_nonce() ?>">
+// Chevron nav for the hero gallery: find the shot nearest the strip's
+// center, step to its neighbour, and scroll it to center (snap settles it).
+// Dispatched by pk-dispatch.js via data-act, so no inline handlers.
+window.lpGalNav = function (dir) {
+    var g = document.querySelector('.lp-gallery');
+    if (!g) return;
+    var figs = g.querySelectorAll('figure');
+    if (!figs.length) return;
+    var mid = g.scrollLeft + g.clientWidth / 2;
+    var best = 0, bestD = Infinity;
+    for (var i = 0; i < figs.length; i++) {
+        var c = figs[i].offsetLeft + figs[i].offsetWidth / 2;
+        var d = Math.abs(c - mid);
+        if (d < bestD) { bestD = d; best = i; }
+    }
+    var t = Math.max(0, Math.min(figs.length - 1, best + dir));
+    var f = figs[t];
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    g.scrollTo({ left: f.offsetLeft + f.offsetWidth / 2 - g.clientWidth / 2,
+                 behavior: reduce ? 'auto' : 'smooth' });
+};
+</script>
 
 <div class="lp-section-head">
     <h2>Everything you need to run game night</h2>

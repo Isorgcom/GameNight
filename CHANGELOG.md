@@ -4,7 +4,24 @@ All notable changes to GameNight are documented here.
 
 ---
 
-## [v0.2103] - 2026-08-18
+## [v0.2104] - 2026-08-18
+
+### Added
+
+- **The landing page hero gains a screenshot carousel: six real app screens,
+  then all six timer layouts in TV and phone views.** The strip is a
+  scroll-snap carousel showing exactly one image per slide — each `figure`
+  is the full strip width (`flex:0 0 100%`) with `scroll-snap-align:center`
+  and `scroll-snap-stop:always`, so a swipe, trackpad fling, or chevron click
+  always settles centered on one shot; the chevron buttons (`lpGalNav`, via
+  `pk-dispatch`) make it navigable with a mouse. Images keep a fixed
+  320px/210px height with `object-fit:contain` so wide TV shots letterbox
+  instead of distorting on narrow screens. The opening six slides show the
+  app in action — event editor, event page with RSVPs, month calendar,
+  check-in console, table draw, and the payouts editor — shot headlessly on
+  dev against a seeded dummy tournament; the remaining 24 are the themed
+  timer layouts. All assets are repo-local because CSP `img-src` is `'self'`
+  (`www/_landing.php`, `www/img/landing/*.jpg`).
 
 ### Changed
 
