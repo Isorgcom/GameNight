@@ -676,6 +676,29 @@ if ($session) {
      re-renders and the 10s poll can never clobber an open editor. -->
 <div id="settingsRoot"></div>
 
+<?php /* One-time Timer BETA ask. Three answers, which is one more than
+         pkConfirm offers, so it uses this page's own modal pattern: yes and
+         "keep classic" are final and stored; "Not now" is not an answer at
+         all — it leaves the account unanswered and only quietens the ask in
+         this browser for a while. */ ?>
+<div class="pk-modal-overlay" id="betaTimerModal">
+    <div class="pk-modal">
+        <h3>&#9201; There's a new tournament timer</h3>
+        <p id="betaBannerMsg" style="font-size:.9rem;color:#475569;line-height:1.5;margin:.4rem 0 0">
+            Designable layouts, break screens, phone views for players who scan the QR code, and sounds.
+            Switch this game over and use it for new games too?
+        </p>
+        <p style="font-size:.8rem;color:#94a3b8;line-height:1.45;margin:.6rem 0 0">
+            Any game can still switch back in Setup, and you can change your mind any time in Settings.
+        </p>
+        <div class="pk-modal-actions">
+            <button type="button" data-act="betaTimerLater">Not now</button>
+            <button type="button" data-act="betaTimerAnswer" data-a1="0">Keep classic</button>
+            <button type="button" class="pk-save pk-beta-yes" data-act="betaTimerAnswer" data-a1="1">Use the new timer</button>
+        </div>
+    </div>
+</div>
+
 <!-- Notes modal -->
 <div class="pk-modal-overlay" id="notesModal">
     <div class="pk-modal">
@@ -863,26 +886,51 @@ var USE_BETA_TIMER = <?= (int)$use_beta_timer ?>;
          it is never asked twice. */ ?>
 var BETA_TIMER_ASK = <?= ($is_tournament_session
                           && array_key_exists('beta_timer', $current) && $current['beta_timer'] === null) ? 1 : 0 ?>;
-if (BETA_TIMER_ASK) {
+// "Not now" is remembered per browser rather than as an answer: the host has
+// not chosen, so the server keeps them in the unanswered state and the banner
+// simply stops pestering for a while. Any real answer clears the key.
+var BETA_LATER_KEY = 'beta_timer_later';
+var BETA_LATER_DAYS = 30;
+function betaAskedRecently() {
+    try {
+        var t = parseInt(localStorage.getItem(BETA_LATER_KEY) || '0', 10);
+        return t && (Date.now() - t) < BETA_LATER_DAYS * 86400000;
+    } catch (e) { return false; }
+}
+if (BETA_TIMER_ASK && !betaAskedRecently()) {
     window.addEventListener('load', function () {
-        if (!window.pkConfirm) return;
-        var msg = USE_BETA_TIMER
-            ? 'This game already uses the new tournament timer with designable layouts.\n\nMake it your default? New games you set up will use the new timer automatically. Any game can still switch back in Setup, and you can change your mind any time in Settings.'
-            : 'GameNight has a new tournament timer with designable layouts: custom screens, phone views for players who scan the QR code, sounds, and more.\n\nSwitch your games to the new timer? This game switches now, new games follow automatically, and any game can switch back in Setup. You can change your mind any time in Settings.';
-        pkConfirm(msg, { title: 'Try the new timer layouts?',
-                         okLabel: USE_BETA_TIMER ? 'Make it my default' : 'Use the new timer',
-                         cancelLabel: 'Keep classic' })
-        .then(function (yes) {
-            var body = new URLSearchParams();
-            body.set('action', 'beta_timer_pref'); body.set('csrf_token', CSRF);
-            body.set('event_id', EVENT_ID); body.set('value', yes ? '1' : '0');
-            fetch('/event_setup_dl.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: String(body) })
-                .then(function (r) { return r.json(); })
-                // Reload only when the answer changed what this page shows.
-                .then(function (j) { if (j && j.ok && yes && !USE_BETA_TIMER) location.reload(); })
-                .catch(function () {});
-        });
+        var el = document.getElementById('betaTimerModal');
+        if (!el) return;
+        // A game already on the new timer is being asked about the DEFAULT,
+        // not about switching, so the copy has to say something different.
+        if (USE_BETA_TIMER) {
+            var m = document.getElementById('betaBannerMsg');
+            if (m) m.textContent = 'This game already uses it. Make it your default so new games start there too?';
+            var yes = el.querySelector('.pk-beta-yes');
+            if (yes) yes.textContent = 'Make it my default';
+        }
+        el.classList.add('open');
     });
+}
+// Both answers are final: stored server-side, never asked again.
+function betaTimerAnswer(value) {
+    var yes = String(value) === '1';
+    var el = document.getElementById('betaTimerModal');
+    if (el) el.classList.remove('open');
+    try { localStorage.removeItem(BETA_LATER_KEY); } catch (e) {}
+    var body = new URLSearchParams();
+    body.set('action', 'beta_timer_pref'); body.set('csrf_token', CSRF);
+    body.set('event_id', EVENT_ID); body.set('value', yes ? '1' : '0');
+    fetch('/event_setup_dl.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: String(body) })
+        .then(function (r) { return r.json(); })
+        // Reload only when the answer changed what this page shows.
+        .then(function (j) { if (j && j.ok && yes && !USE_BETA_TIMER) location.reload(); })
+        .catch(function () {});
+}
+function betaTimerLater() {
+    var el = document.getElementById('betaTimerModal');
+    if (el) el.classList.remove('open');
+    try { localStorage.setItem(BETA_LATER_KEY, String(Date.now())); } catch (e) {}
 }
 
 // Keep --pk-nav-h in step with the sticky site nav so .pk-header parks under

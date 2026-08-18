@@ -4,6 +4,37 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2103] - 2026-08-18
+
+### Changed
+
+- **The timer opt-in ask gains a third answer: "Not now".** It was a two-button
+  confirm, so closing it meant answering it. The ask is now a popup with three
+  choices, using the check-in console's own modal pattern rather than
+  `pkConfirm` (which offers only two): **Use the new timer** and **Keep
+  classic** are final and stored server-side, while **Not now** is deliberately
+  *not* an answer — the account stays unanswered and the popup simply goes
+  quiet in that browser for 30 days, via a `localStorage` timestamp that any
+  real answer clears. Copy still adapts for a game already on the new timer
+  ("Make it my default"). Three hosts answered the previous version; their
+  answers stand and they are not asked again (`www/checkin.php`).
+
+- **The README describes the application as it is today.** It was last revised
+  on 21 June, roughly 45 releases ago, and had drifted from stale into
+  misleading: no mention of the designable timer displays, the Game Setup
+  editor, per-event blind schedules, multi-reward payouts (points, entry
+  tickets, prize labels, bounties, jackpots), direct messages and event chat,
+  support tickets, or the in-app guides. Those are now in the feature list, the
+  security line says the CSP is closed rather than merely present, and SMS
+  mentions host/guest conversations. The maintainer release flow stopped at
+  "commit and push"; it now covers the pre-push checks, the version bump and
+  changelog riding in the same commit, branch-and-PR for feature work, tagging
+  the release, and that production needs only a `git pull` because `www/` is
+  bind-mounted. Install, SMS, Leagues, API and troubleshooting were already
+  accurate and are unchanged.
+
+---
+
 ## [v0.2102] - 2026-08-18
 
 ### Changed

@@ -11,22 +11,28 @@ A self-hosted PHP web application for organizing game night events with full pok
 - **Posts** — rich-text announcements with comment support
 - **Event polls** — managers create multi-question polls sent to guests who RSVP'd Yes or Maybe; guests vote via tokenized email/SMS/WhatsApp links and results stay anonymous (counts only)
 - **Poker tournament & cash game management** — full check-in dashboard for both formats: buy-ins, rebuys, add-ons, eliminations and prize-pool tracking for tournaments; cash-in/cash-out with money-in-play and on-table tracking for cash games; plus a per-session activity log recording every buy-in, cash-out, add, rebuy, and elimination with who did it and when
+- **Game Setup editor** — one place per game for buy-in and chip rules, payouts and rewards, the blind schedule, the timer display and the chip set, saved together and reusable as a named game preset
 - **Table management** — auto-assign players to tables, table view with move/balance controls, break up tables, seats-per-table limits, button/blind protection during rebalancing
 - **Tournament timer** — full-screen blind level timer with remote viewer (QR code), remote control for managers, customizable blind structures with presets, configurable sounds, wake lock for mobile devices, and Chromecast cast-to-TV
-- **Payout calculator** — ICM (Malmuth-Harville), Standard, and Chip Chop split methods for end-of-tournament deal making
-- **Prize payout display** — live payout structure on the timer screen, updates dynamically as the pool changes
-- **Walk-up QR registration** — iPad/tablet display page with QR code for walk-up player registration, shows table assignment on success
+- **Designable timer displays (Timer BETA)** — build the board itself instead of taking the one that ships: a layout is a tree of rows, columns and cells holding live `<element>` values, images, a share QR or the final-table seat map. Layouts carry several screens chosen by condition (a break screen, a final table, a phone view for whoever scans the QR), per-cell variants, and edge-fired triggers that play a sound, flash, take over the screen or speak a line. Built in a visual editor with a live preview, shareable as a file that carries its own artwork and sounds. Hosts opt in per game or set it as their default
+- **Blind schedules** — per-event editor with a spreadsheet-style grid, undo/redo, breaks, big-blind antes and a ladder generator, saved to a personal or league preset library
+- **Multi-reward payouts** — a place can pay cash, league points, an entry ticket to another event, or a named prize, in any combination; plus per-knockout bounties and league jackpot funds
 - **Player stats & leaderboard** — per-player lifetime stats (games, wins, win rate, best/avg finish, weighted score) and a leaderboard across all users, filterable by date range (presets or custom from/to)
+- **Payout calculator** — ICM (Malmuth-Harville), Standard, and Chip Chop split methods for end-of-tournament deal making
+- **Walk-up QR registration** — iPad/tablet display page with QR code for walk-up player registration, shows table assignment on success
+- **Direct messages & event chat** — one-to-one and group messages between members, plus a chat thread on each event
+- **Support tickets** — members raise tickets with screenshots; admins triage and reply in-app
+- **In-app guides** — Host, Guest and Timer guides covering setup, running a night, and building a display
 - **Contacts** — personal address book for non-registered invitees, auto-imported from event invites, with CSV import/export
 - **REST API** — league-scoped read/write JSON API (v1) authenticated with API keys, exposing league info, members, events, and posts (see [Leagues](#leagues) below)
 - **Admin panel** — manage users (with account settings like email verification, password reset, notification preferences), posts, events, leagues, and all site settings, plus a live site-activity snapshot
 - **Email** — transactional mail via SMTP (SendGrid or any provider)
-- **SMS** — multi-provider notifications with two-way RSVP (see [SMS](#sms) below)
+- **SMS** — multi-provider notifications with two-way RSVP and host↔guest conversations (see [SMS](#sms) below)
 - **WhatsApp** — event notifications via Meta WhatsApp Cloud API with two-way RSVP
 - **Queued notifications** — event notifications dispatched via email/SMS with a fast background drain and provider rate-limit protection
 - **One-click RSVP** — invitees can RSVP directly from email links without logging in
 - **Branding** — custom banner/header images, nav colors, site name
-- **Security** — CSRF protection, optional two-factor authentication, rate limiting, credential encryption at rest, secure session cookies, CSP headers, HSTS
+- **Security** — CSRF protection, optional two-factor authentication, rate limiting, credential encryption at rest, secure session cookies, and a closed Content Security Policy (per-request nonce, no inline handlers), HSTS
 - **SQLite** — zero-config database, stored outside the web root
 
 ## Stack
@@ -36,7 +42,7 @@ A self-hosted PHP web application for organizing game night events with full pok
 - [PHPMailer](https://github.com/PHPMailer/PHPMailer)
 - [Jodit](https://xdsoft.net/jodit/) / [Quill](https://quilljs.com/) rich-text editors
 - [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) — QR codes for remote timer/registration
-- Vanilla JS — no frontend framework dependencies
+- Vanilla JS — no frontend framework dependencies; the timer display engine renders layouts client-side from JSON
 
 ## Docker Install (recommended)
 
@@ -131,8 +137,10 @@ Local edits go through a staging container before they reach `main` or the live 
 1. Edit in the primary local clone (`~/Claude/GameNight`).
 2. Mirror each touched file to the dev clone (`~/Claude/GameNight-dev`), which runs the `gamenight-dev` container at <http://localhost:8080>. Mirror per-file — never bulk-rsync — so dev's local experiments, downloaded `vendor/`, `phpadmin/`, `config/config.php`, and `db/` stay untouched.
 3. Verify the change at <http://localhost:8080>. PHP/static edits update live via the bind-mount; if a rebuild is needed, run `docker compose up -d --build` inside `GameNight-dev`.
-4. Only after the dev verification passes: commit and `git push` from the primary clone.
-5. SSH to the production server and run the `git pull` / rebuild block above.
+4. Run the pre-push checks (see `SECURITY.md`): a PHP parse sweep over `www/`, the same for JavaScript generated by PHP, the browser suites for anything touched, the double-dispatch sweep, the known-bad escaping grep, and the declarative-markup check.
+5. Only after the dev verification passes: bump `www/version.php`, add the matching `CHANGELOG.md` entry in the same commit, and `git push`. Small fixes go straight to `main`; feature work goes on a `GameNight-<Topic>` branch and lands through a squash-merged pull request.
+6. Tag the release on `main` (`git tag -a v0.2102 <sha> -m "…"`, then push the tag) so "what was running when this broke?" always has an answer.
+7. SSH to the production server and `git pull` (no rebuild needed for PHP or static changes — `www/` is bind-mounted). Never copy files from a Windows checkout; CRLF line endings will break them.
 
 ### Troubleshooting
 
