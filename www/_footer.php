@@ -85,6 +85,22 @@ if ($_hb_user && empty($_hb_user['timezone'])) {
      no CSP nonce; cache-busted because it carries behaviour, not just styling. -->
 <script src="/pk-dispatch.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-dispatch.js') ?: 0)) ?>" defer></script>
 <script src="/avatar.js?v=<?= htmlspecialchars(APP_VERSION) ?>" defer></script>
+<script nonce="<?= csp_nonce() ?>">
+// PWA manifest + service worker for Web Push. The manifest link is injected
+// here rather than into every page's <head>; iOS reads it from the live DOM
+// at add-to-home-screen time, so this is sufficient. Registering sw.js on
+// every load is what propagates sw.js updates to already-subscribed devices.
+(function () {
+    if (!document.querySelector('link[rel="manifest"]')) {
+        var l = document.createElement('link');
+        l.rel = 'manifest'; l.href = '/manifest.php';
+        document.head.appendChild(l);
+    }
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch(function () {});
+    }
+})();
+</script>
 <?php if ($_hb_user): /* Live badge updater + chime: polls unread counts and
     updates the nav bell / Messages badges in place. Plays a short two-note
     chime when the total rises (browsers allow audio only after the user has

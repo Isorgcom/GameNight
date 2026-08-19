@@ -340,6 +340,14 @@ function dm_notify(PDO $db, array $conv, array $sender, string $body): void {
         if ($existing) {
             $db->prepare('UPDATE user_notifications SET created_at = CURRENT_TIMESTAMP WHERE id = ?')
                ->execute([(int)$existing['id']]);
+            // Inbox row is deduped, but each message still pushes — the SW's
+            // per-link tag collapses them into one visible notification.
+            try {
+                require_once __DIR__ . '/webpush.php';
+                webpush_notify_user($db, $rid,
+                    ($isGroup ? 'New message in ' . dm_conversation_title($db, $conv, $rid) : 'New message from ' . $sender['username']) . ' on ' . $site_name,
+                    ($isGroup ? $sender['username'] . ': ' : '') . mb_substr(trim($body), 0, 120), $link);
+            } catch (Throwable $e) { /* best-effort */ }
             continue;
         }
         $subject = $isGroup
@@ -351,6 +359,11 @@ function dm_notify(PDO $db, array $conv, array $sender, string $body): void {
                           VALUES (?, NULL, 'dm', ?, ?, ?)")
                ->execute([$rid, $subject, $snippet, $link]);
         } catch (Throwable $e) { /* inbox is best-effort */ }
+        // Browser push rides the inbox write (see notify_user_direct).
+        try {
+            require_once __DIR__ . '/webpush.php';
+            webpush_notify_user($db, $rid, $subject, $snippet, $link);
+        } catch (Throwable $e) { /* best-effort */ }
     }
 }
 

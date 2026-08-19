@@ -473,6 +473,19 @@ $site_name = get_setting('site_name', 'Game Night');
             </form>
         </div>
 
+        <!-- Browser (Web Push) notifications -->
+        <div class="card" style="max-width:100%">
+            <h2>Browser Notifications</h2>
+            <p class="subtitle">Get notifications on this device even when the site isn't open. Each device you enable gets its own subscription.</p>
+            <p id="pushStatus" style="font-size:.85rem;color:#64748b;margin-bottom:.8rem">Checking this browser&hellip;</p>
+            <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+                <button type="button" class="btn btn-primary" id="pushEnableBtn" data-act="pushEnable" style="display:none">Enable on this device</button>
+                <button type="button" class="btn btn-outline" id="pushDisableBtn" data-act="pushDisable" style="display:none">Disable on this device</button>
+                <button type="button" class="btn btn-outline" id="pushTestBtn" data-act="pushTest" style="display:none">Send test notification</button>
+            </div>
+            <p style="font-size:.75rem;color:#94a3b8;margin-top:.7rem">iPhone/iPad: add this site to your Home Screen first (Share &rarr; Add to Home Screen), then enable from the installed app.</p>
+        </div>
+
         <!-- Change password -->
         <div class="card" style="max-width:100%">
             <h2>Change Password</h2>
@@ -592,6 +605,115 @@ $site_name = get_setting('site_name', 'Game Night');
 function confirmDeleteTyped() {
     return document.getElementById('confirm_delete').value.trim().toUpperCase() === 'DELETE';
 }
+</script>
+<script nonce="<?= csp_nonce() ?>">
+// ── Browser (Web Push) notifications card ───────────────────────────────────
+// Buttons dispatch via data-act (pk-dispatch); no inline handlers (CSP).
+(function () {
+    var CSRF = <?= json_encode(csrf_token()) ?>;
+    var statusEl  = document.getElementById('pushStatus');
+    var enableBtn = document.getElementById('pushEnableBtn');
+    var disableBtn= document.getElementById('pushDisableBtn');
+    var testBtn   = document.getElementById('pushTestBtn');
+    var supported = ('serviceWorker' in navigator) && ('PushManager' in window) && ('Notification' in window);
+
+    function api(action, extra) {
+        var fd = new FormData();
+        fd.append('csrf_token', CSRF);
+        fd.append('action', action);
+        Object.keys(extra || {}).forEach(function (k) { fd.append(k, extra[k]); });
+        return fetch('/push_dl.php', { method: 'POST', body: fd, credentials: 'same-origin' })
+            .then(function (r) { return r.json(); });
+    }
+
+    function b64ToU8(s) {
+        var pad = '='.repeat((4 - s.length % 4) % 4);
+        var raw = atob((s + pad).replace(/-/g, '+').replace(/_/g, '/'));
+        var a = new Uint8Array(raw.length);
+        for (var i = 0; i < raw.length; i++) a[i] = raw.charCodeAt(i);
+        return a;
+    }
+
+    function deviceLabel() {
+        var ua = navigator.userAgent;
+        var os = /Android/.test(ua) ? 'Android' : /iPhone|iPad/.test(ua) ? 'iOS'
+               : /Windows/.test(ua) ? 'Windows' : /Mac/.test(ua) ? 'Mac' : /Linux/.test(ua) ? 'Linux' : 'Device';
+        var br = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox'
+               : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Browser';
+        return os + ' ' + br;
+    }
+
+    function refresh() {
+        if (!supported) {
+            statusEl.textContent = 'This browser does not support push notifications.'
+                + (/iPhone|iPad/.test(navigator.userAgent) ? ' On iPhone/iPad, add the site to your Home Screen first.' : '');
+            return;
+        }
+        Promise.all([
+            navigator.serviceWorker.ready.then(function (reg) { return reg.pushManager.getSubscription(); }),
+            api('status')
+        ]).then(function (res) {
+            var sub = res[0], st = res[1];
+            var devices = (st && st.ok) ? st.devices : 0;
+            var here = !!sub;
+            statusEl.textContent = (here ? 'Enabled on this device.' : 'Not enabled on this device.')
+                + ' ' + devices + ' device' + (devices === 1 ? '' : 's') + ' enabled on your account.';
+            enableBtn.style.display  = here ? 'none' : '';
+            disableBtn.style.display = here ? '' : 'none';
+            testBtn.style.display    = devices > 0 ? '' : 'none';
+            if (Notification.permission === 'denied') {
+                statusEl.textContent = 'Notifications are blocked for this site in your browser settings.';
+                enableBtn.style.display = 'none';
+            }
+        }).catch(function () { statusEl.textContent = 'Could not check notification status.'; });
+    }
+
+    window.pushEnable = function () {
+        enableBtn.disabled = true;
+        api('status').then(function (st) {
+            if (!st.ok) throw new Error(st.error || 'status failed');
+            return Notification.requestPermission().then(function (perm) {
+                if (perm !== 'granted') throw new Error('Permission not granted');
+                return navigator.serviceWorker.ready;
+            }).then(function (reg) {
+                return reg.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: b64ToU8(st.pubkey)
+                });
+            });
+        }).then(function (sub) {
+            var j = sub.toJSON();
+            return api('subscribe', {
+                endpoint: sub.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, label: deviceLabel()
+            });
+        }).then(function (r) {
+            if (!r.ok) throw new Error(r.error || 'save failed');
+        }).catch(function (e) {
+            pkAlert('Could not enable notifications: ' + e.message);
+        }).finally(function () { enableBtn.disabled = false; refresh(); });
+    };
+
+    window.pushDisable = function () {
+        disableBtn.disabled = true;
+        navigator.serviceWorker.ready.then(function (reg) { return reg.pushManager.getSubscription(); })
+            .then(function (sub) {
+                if (!sub) return null;
+                var ep = sub.endpoint;
+                return sub.unsubscribe().then(function () { return api('unsubscribe', { endpoint: ep }); });
+            })
+            .catch(function () {})
+            .finally(function () { disableBtn.disabled = false; refresh(); });
+    };
+
+    window.pushTest = function () {
+        testBtn.disabled = true;
+        api('test').then(function (r) {
+            if (!r.ok) pkAlert(r.error || 'Test failed');
+        }).finally(function () { testBtn.disabled = false; });
+    };
+
+    refresh();
+})();
 </script>
 </body>
 </html>

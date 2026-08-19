@@ -432,6 +432,12 @@ function notify_user_direct(
                       VALUES (?, NULL, ?, ?, ?, ?)')
            ->execute([$user_id, $notify_type, $subject, mb_substr($inbox_body, 0, 500), $link]);
     } catch (Throwable $e) { /* inbox is best-effort */ }
+    // Browser push rides the inbox write: opted-in devices get everything the
+    // inbox gets. Best-effort — a push failure never blocks delivery.
+    try {
+        require_once __DIR__ . '/webpush.php';
+        webpush_notify_user($db, $user_id, $subject, $inbox_body, $link);
+    } catch (Throwable $e) { /* best-effort */ }
 
     if (get_setting('notifications_enabled', '0') !== '1') return;
     $stmt = $db->prepare('SELECT username, email, phone, preferred_contact, notify_prefs FROM users WHERE id = ?');
@@ -995,6 +1001,11 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
             $db->prepare('INSERT INTO user_notifications (user_id, event_id, notify_type, subject, body, link) VALUES (?, ?, ?, ?, ?, ?)')
                ->execute([(int)$user['id'], $event_id, $type, $subject, mb_substr($smsBody, 0, 500), '/event.php?id=' . $event_id]);
         } catch (Throwable $e) { /* inbox is best-effort; never block delivery */ }
+        // Browser push rides the inbox write (see notify_user_direct).
+        try {
+            require_once __DIR__ . '/webpush.php';
+            webpush_notify_user($db, (int)$user['id'], $subject, $smsBody, '/event.php?id=' . $event_id);
+        } catch (Throwable $e) { /* best-effort */ }
     }
 
     // Mark as sent IMMEDIATELY after send_notification returns, regardless of per-channel

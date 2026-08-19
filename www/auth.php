@@ -46,6 +46,9 @@ $_csp = implode('; ', [
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https://*.ytimg.com https://*.twitch.tv https://*.jtvnw.net",
     "object-src 'none'",
+    // Service worker for Web Push (sw.js). Workers don't fall back to
+    // script-src in all browsers, so declare explicitly.
+    "worker-src 'self'",
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
