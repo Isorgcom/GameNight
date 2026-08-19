@@ -832,6 +832,12 @@ function db_init(PDO $pdo): void {
     // field. This column is set ONLY where a real RSVP happens: sync_invitees()
     // reading event_invites.rsvp, and update_rsvp when a host sets yes by hand.
     try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN rsvp_early INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    // Added at the door by the host (add_walkin), as opposed to arriving from
+    // the invite list. add_walkin writes an event_invites row with rsvp='yes'
+    // so the roster and the RSVP-Yes filter agree — which means sync_invitees
+    // would otherwise read that back as a genuine RSVP and grant rsvp_early to
+    // every walk-in, handing them an "RSVP'd early" bonus they never earned.
+    try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN walkin INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
 
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS timer_state (
         id                     INTEGER PRIMARY KEY AUTOINCREMENT,

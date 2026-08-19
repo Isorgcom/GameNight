@@ -488,7 +488,11 @@ function sync_invitees($db, $session_id, $event_id) {
     // later flips to no simply has their invite row change; the flag records
     // that they did RSVP yes at some point, which is what the bonus rewards.
     $pIns = $db->prepare('INSERT INTO poker_players (session_id, user_id, display_name, rsvp, rsvp_early) VALUES (?, ?, ?, ?, ?)');
-    $pUpd = $db->prepare('UPDATE poker_players SET rsvp = ?, rsvp_early = MAX(rsvp_early, ?) WHERE session_id = ? AND LOWER(display_name) = LOWER(?)');
+    // The CASE is what stops the flag leaking: add_walkin writes rsvp='yes' onto
+    // the invite row, so without it every walk-in reads back as having RSVPd.
+    $pUpd = $db->prepare('UPDATE poker_players SET rsvp = ?,
+                              rsvp_early = MAX(rsvp_early, CASE WHEN walkin = 1 THEN 0 ELSE ? END)
+                          WHERE session_id = ? AND LOWER(display_name) = LOWER(?)');
 
     // Also prepare a statement to un-remove players who re-RSVP (e.g., were removed then RSVPed again)
     $pUnremove = $db->prepare('UPDATE poker_players SET removed = 0, rsvp = ? WHERE session_id = ? AND LOWER(display_name) = LOWER(?) AND removed = 1');

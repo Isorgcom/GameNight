@@ -1279,7 +1279,7 @@ if ($action === 'add_walkin') {
     } else {
         // Use the correct-case username if it's an existing user account
         $displayName = $existingUser ? $existingUser['username'] ?? $name : $name;
-        $db->prepare('INSERT INTO poker_players (session_id, user_id, display_name, checked_in) VALUES (?, ?, ?, 1)')->execute([$session_id, $user_id, $displayName]);
+        $db->prepare('INSERT INTO poker_players (session_id, user_id, display_name, checked_in, walkin) VALUES (?, ?, ?, 1, 1)')->execute([$session_id, $user_id, $displayName]);
         $newId = (int)$db->lastInsertId();
         auto_assign_table($db, $session_id, $newId);
     }
@@ -1288,6 +1288,11 @@ if ($action === 'add_walkin') {
     // the event_invites row set above. Without this the RSVP column read blank
     // and the RSVP-Yes filter excluded a player the host had just marked yes,
     // until the next get_session ran sync_invitees and quietly corrected it.
+    // walkin = 1 marks where this player came from. It is deliberately NOT set
+    // on the re-add branch above (an invitee the host re-adds keeps whatever
+    // they earned); only a row this action created is a true walk-in, and the
+    // insert above stamps it. rsvp_early is untouched here: a walk-in has not
+    // RSVPd, whatever the invite row now says.
     $db->prepare("UPDATE poker_players SET rsvp = 'yes' WHERE id = ?")->execute([$newId]);
 
     if ($user_id) auto_add_to_league($db, (int)$s['event_id'], (int)$user_id);
@@ -1879,10 +1884,14 @@ if ($action === 'save_payout_structure') {
     // Bonus definitions ride the preset like the chip set: from the POST when
     // the client sent them, otherwise from the session so an "Update preset"
     // that didn't touch them preserves what is there.
+    // $snap_sid, not $session_id: this action snapshots FROM a session it is
+    // given, and is also callable without one (the preset list page).
     if (isset($_POST['bonuses'])) {
         $bonuses = pk_bonuses_json($_POST['bonuses']);
+    } elseif ($snap_sid > 0) {
+        $bonuses = pk_bonuses_json(get_bonuses($db, $snap_sid));
     } else {
-        $bonuses = pk_bonuses_json(get_bonuses($db, $session_id));
+        $bonuses = null;
     }
 
     $pointsArr  = $_POST['points'] ?? [];

@@ -3631,7 +3631,17 @@ function loadPayoutStructure() {
             if (!j.ok) { pkAlert(j.error || 'Error'); return; }
             PAYOUTS = j.payouts;
             POOL = j.pool || POOL;
+            if (j.bonuses) BONUS_DEFS = j.bonuses;
+            if (j.players) PLAYERS = j.players;
             if (j.session) SESSION = j.session;  // recipe presets update bounty/jackpot too
+            // A definition players already hold survives a preset that lacks it —
+            // say so, or the extra rows read as the preset being wrong.
+            if (j.bonus_kept && j.bonus_kept.length) {
+                pkAlert('Kept ' + j.bonus_kept.length + ' chip bonus'
+                        + (j.bonus_kept.length === 1 ? '' : 'es')
+                        + ' that players already hold: ' + escHtml(j.bonus_kept.join(', ')) + '.',
+                        { title: 'Bonuses in play were kept' });
+            }
             CURRENT_STRUCTURE_ID = parseInt(sid);
             refreshPresetState();
             // The preset may have replaced the blind schedule and timer flags:
@@ -3639,6 +3649,7 @@ function loadPayoutStructure() {
             // retarget the Timer button to whatever the preset restored.
             if (window.pkBlindsEditor) pkBlindsEditor._state = null;
             if (j.session) { loadChipSet(); renderChipRows(); }
+            renderBonusRows();
             if (j.use_beta !== undefined) {
                 USE_BETA_TIMER = j.use_beta ? 1 : 0;
                 var tl = document.getElementById('timerLink');
@@ -3764,6 +3775,9 @@ function buildPresetFormData() {
     // What-you-see-is-what-you-save, like the blind grid above: the editor's
     // current chip set, not the last one written to the session.
     fd.append('chip_set', JSON.stringify(CHIP_SET.filter(function (c) { return (+c.v || 0) > 0; })));
+    // Chip bonus definitions ride the preset the same way, and from the editor
+    // rather than the session for the same reason.
+    fd.append('bonuses', JSON.stringify(BONUS_DEFS));
     // Carry all four reward dimensions; the backend keeps rows where ANY is set.
     document.querySelectorAll('#payoutRows .row').forEach(function(row) {
         var pctEl = row.querySelector('.payout-pct');
