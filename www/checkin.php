@@ -385,6 +385,10 @@ if ($session) {
     .pk-chipset{margin-top:.9rem}
     .pk-chip-rows{display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.5rem}
     .pk-chip-row{display:flex;align-items:center;gap:.25rem;border:1.5px solid var(--border,#e2e8f0);border-radius:8px;padding:.2rem .3rem;background:#fff}
+    .pk-bonus-row{display:flex;align-items:center;gap:.35rem;border:1.5px solid var(--border,#e2e8f0);border-radius:8px;padding:.25rem .35rem;background:#fff;margin-bottom:.3rem;flex-wrap:wrap}
+    .pk-bonus-label{flex:2;min-width:120px;padding:.25rem .4rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:.82rem}
+    .pk-bonus-chips{flex:1;min-width:70px;max-width:110px;padding:.25rem .4rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:.82rem}
+    .pk-bonus-auto{display:flex;align-items:center;gap:.25rem;font-size:.72rem;color:#64748b;white-space:nowrap;cursor:pointer}
     .pk-chip-colour{width:30px;height:30px;padding:0;border:1px solid #cbd5e1;border-radius:50%;background:none;cursor:pointer}
     .pk-chip-val{width:78px;padding:.3rem .35rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:.85rem;text-align:right}
     .pk-chip-none{font-size:.78rem;color:#94a3b8;font-style:italic}
@@ -1093,6 +1097,9 @@ var PAYOUT_STRUCTURES = [];
 var CURRENT_STRUCTURE_ID = 0;
 var PLAYERS = [];
 var PAYOUTS = [];
+// Chip bonus definitions for this game: [{id, label, chips, auto_rsvp}]. Chips
+// only — a bonus never touches money, the pool or points.
+var BONUS_DEFS = [];
 var POOL = {};
 var FILTER = 'all';
 var VIEW_MODE = 'list';
@@ -1207,6 +1214,7 @@ function loadSession() {
                 SESSION = j.session;
                 PLAYERS = j.players;
                 PAYOUTS = j.payouts;
+                BONUS_DEFS = j.bonuses || [];
                 POOL = j.pool;
                 LOG = j.log || [];
                 TICKETS = j.tickets || { incoming: [], outgoing: [] };
@@ -1289,6 +1297,7 @@ function initSession() {
         SESSION = j.session;
         PLAYERS = j.players;
         PAYOUTS = j.payouts;
+        BONUS_DEFS = j.bonuses || [];
         POOL = j.pool;
         renderDashboard();
         loadSession();
@@ -2234,13 +2243,14 @@ function bountyJackpotHtml() {
 
 // Which opt-in reward features are visible in the settings UI. Derived from the
 // session/structure on load (a feature with data is on) and flipped by chips.
-var REWARDS_UI = { bounty: false, pts: false, ticket: false, label: false, jackpot: false };
+var REWARDS_UI = { bounty: false, pts: false, ticket: false, label: false, jackpot: false, bonus: false };
 function initRewardsUI() {
     REWARDS_UI.bounty  = (parseInt(SESSION.bounty_amount) > 0 || parseInt(SESSION.bounty_points) > 0);
     REWARDS_UI.pts     = PAYOUTS.some(function(p) { return parseInt(p.points) > 0; });
     REWARDS_UI.ticket  = parseInt(SESSION.ticket_target_event_id) > 0 || PAYOUTS.some(function(p) { return parseInt(p.ticket_cents) > 0; });
     REWARDS_UI.label   = PAYOUTS.some(function(p) { return !!p.prize_label; });
     REWARDS_UI.jackpot = parseInt(SESSION.jackpot_amount) > 0;
+    REWARDS_UI.bonus   = BONUS_DEFS.length > 0;
 }
 
 // ─── Full-screen Game Settings editor ─────────────────────
@@ -2271,6 +2281,7 @@ function openSettings(tab) {
     refreshPresetState();
     loadChipSet();
     renderChipRows();
+    renderBonusRows();
     if (isTourney()) {
         populateTicketTargetSelect();
         updateBountyHint();
@@ -2340,6 +2351,7 @@ function refreshSettingsView() {
     // container again. Redrawn from CHIP_SET rather than reloaded from the
     // session, so an edit the host has not saved yet survives the refresh.
     renderChipRows();
+    renderBonusRows();
     if (isTourney()) {
         populateTicketTargetSelect();
         updateBountyHint();
@@ -2613,6 +2625,7 @@ function renderPayoutsPane() {
     h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.pts ? ' on' : '') + '" id="chip_pts" data-act="toggleReward" data-a1="pts">🏆 League points</button>';
     h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.ticket ? ' on' : '') + '" id="chip_ticket" data-act="toggleReward" data-a1="ticket">🎟 Satellite seat</button>';
     h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.label ? ' on' : '') + '" id="chip_label" data-act="toggleReward" data-a1="label">🎁 Prizes</button>';
+    h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.bonus ? ' on' : '') + '" id="chip_bonus" data-act="toggleReward" data-a1="bonus">🪙 Chip bonuses</button>';
     if (EVENT_LEAGUE_ID) {
         h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.jackpot ? ' on' : '') + '" id="chip_jackpot" data-act="toggleReward" data-a1="jackpot">💎 Jackpots</button>';
     } else {
@@ -2650,6 +2663,12 @@ function renderPayoutsPane() {
     h += '<div><label>Collected as</label><select id="cfg_jackpot_mode"><option value="0"' + (!parseInt(SESSION.jackpot_optional) ? ' selected' : '') + '>Baked into buy-in (everyone)</option><option value="1"' + (parseInt(SESSION.jackpot_optional) ? ' selected' : '') + '>Optional add-on (per player)</option></select></div>';
     h += '</div>';
     h += '<div style="font-size:.78rem;color:#64748b;margin-top:.35rem"><b>Optional</b>: tick the 💎 box next to each player who\'s in (on top of the buy-in). <b>Baked in</b>: every buy-in contributes and the amount is withheld from the prize pool. Entries feed the league\'s progressive jackpot at finish; pays out on a bad beat or royal flush. Current fund: 💎 <b>' + formatMoney(JACKPOTS.balance) + '</b>. Record a hit from the 💎 button on the game screen.</div>';
+    h += '</div>';
+    // Chip bonuses: extra starting chips for anything the host wants to reward.
+    h += '<div class="pk-reward-body' + (REWARDS_UI.bonus ? ' on' : '') + '" id="rewardBody_bonus">';
+    h += '<div id="bonusRows"></div>';
+    h += '<div style="display:flex;gap:.5rem;margin-top:.3rem;flex-wrap:wrap"><button type="button" data-act="addBonusRow">+ Add bonus</button></div>';
+    h += '<div style="font-size:.78rem;color:#64748b;margin-top:.35rem">Extra chips, handed out for whatever you like — RSVP\'d early, won a bracket elsewhere, wore the gear, booked the trip. <b>Chips only</b>: bonuses never change the prize pool or points. Tick <b>auto</b> and everyone who RSVP\'d yes gets it the moment they buy in; everyone else you award with the 🪙 button on their row. Awarded once per player, not per re-entry.</div>';
     h += '</div>';
     h += '</div>';
 
@@ -2910,6 +2929,67 @@ function renderChipRows() {
     });
 }
 
+// ─── Chip bonus definitions (Setup → Payouts & Rewards) ───
+// Built as real DOM with attached listeners, exactly like renderChipRows above:
+// a label is free text, and hand-rolling it into an HTML string is how quote
+// bugs get in. Redrawn from BONUS_DEFS rather than reloaded from the session,
+// so an edit the host has not saved yet survives a pane refresh.
+function renderBonusRows() {
+    var box = document.getElementById('bonusRows');
+    if (!box) return;
+    box.textContent = '';
+    if (!BONUS_DEFS.length) {
+        var none = document.createElement('div');
+        none.style.cssText = 'font-size:.78rem;color:#94a3b8;padding:.2rem 0';
+        none.textContent = 'No bonuses yet — add one below.';
+        box.appendChild(none);
+        return;
+    }
+    BONUS_DEFS.forEach(function (b, i) {
+        var row = document.createElement('div');
+        row.className = 'pk-bonus-row';
+
+        var lbl = document.createElement('input');
+        lbl.type = 'text'; lbl.maxLength = 60; lbl.placeholder = 'what it is for…';
+        lbl.value = b.label || ''; lbl.className = 'pk-bonus-label';
+        lbl.addEventListener('input', function () { BONUS_DEFS[i].label = lbl.value; markSettingsDirty(); });
+        row.appendChild(lbl);
+
+        var chips = document.createElement('input');
+        chips.type = 'number'; chips.min = '0'; chips.step = '1'; chips.inputMode = 'numeric';
+        chips.value = parseInt(b.chips) || 0; chips.className = 'pk-bonus-chips';
+        chips.title = 'Extra chips this bonus is worth';
+        chips.addEventListener('input', function () { BONUS_DEFS[i].chips = parseInt(chips.value) || 0; markSettingsDirty(); });
+        row.appendChild(chips);
+
+        var autoWrap = document.createElement('label');
+        autoWrap.className = 'pk-bonus-auto';
+        autoWrap.title = 'Award automatically when someone who RSVPd yes buys in. A walk-in added at the door has not RSVPd, so they do not get it. Changing an RSVP after the buy-in neither adds nor removes it.';
+        var auto = document.createElement('input');
+        auto.type = 'checkbox'; auto.checked = !!parseInt(b.auto_rsvp);
+        auto.addEventListener('change', function () { BONUS_DEFS[i].auto_rsvp = auto.checked ? 1 : 0; markSettingsDirty(); });
+        autoWrap.appendChild(auto);
+        autoWrap.appendChild(document.createTextNode(' auto on RSVP'));
+        row.appendChild(autoWrap);
+
+        var rm = document.createElement('button');
+        rm.type = 'button'; rm.className = 'es-mini es-mini-danger'; rm.textContent = '×';
+        rm.title = 'Remove this bonus';
+        rm.addEventListener('click', function () { BONUS_DEFS.splice(i, 1); renderBonusRows(); markSettingsDirty(); });
+        row.appendChild(rm);
+
+        box.appendChild(row);
+    });
+}
+
+function addBonusRow() {
+    BONUS_DEFS.push({ id: 0, label: '', chips: 0, auto_rsvp: 0 });
+    renderBonusRows();
+    markSettingsDirty();
+    var inputs = document.querySelectorAll('#bonusRows .pk-bonus-label');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+}
+
 // One hidden input reused by every row: a picker per chip would put a dozen
 // file inputs in the DOM for a control only one of which can be open at a time.
 // No accept filter, deliberately — iOS greys out anything it has no registered
@@ -2991,9 +3071,17 @@ function toggleReward(key) {
             document.querySelectorAll('#payoutRows .payout-ticket').forEach(function(i) { i.value = 0; });
         }
         if (key === 'label') document.querySelectorAll('#payoutRows .payout-label').forEach(function(i) { i.value = ''; });
+        // Emptying the list is what "off" means; the save then deletes the
+        // definitions server-side (and asks first if players hold any).
+        if (key === 'bonus') { BONUS_DEFS = []; renderBonusRows(); }
     } else {
         if (key === 'ticket') populateTicketTargetSelect();
         if (key === 'bounty') updateBountyHint();
+        // Seed a blank row so switching it on never shows an empty box.
+        if (key === 'bonus') {
+            if (!BONUS_DEFS.length) BONUS_DEFS.push({ id: 0, label: '', chips: 0, auto_rsvp: 0 });
+            renderBonusRows();
+        }
     }
 }
 
@@ -4555,6 +4643,10 @@ function saveSettings() {
         data.jackpot_optional = svModeVal('cfg_jackpot_mode', '1') === '1' ? 1 : 0;
         // Sent as JSON, and only for a tournament — a cash game has no legend.
         data.chip_set = JSON.stringify(CHIP_SET.filter(function (c) { return (+c.v || 0) > 0; }));
+        // Same deal for chip bonuses: a cash game has no chip count to add to.
+        // Unlabelled rows are dropped server-side, so a blank seeded row is
+        // simply not a bonus rather than an error.
+        data.bonuses = JSON.stringify(BONUS_DEFS);
     } else {
         data.rebuy_amount = data.buyin_amount;
         data.addon_amount = 0;
@@ -4564,7 +4656,27 @@ function saveSettings() {
         data.max_rebuys = 0;
         data.addon_allowed = 0;
     }
-    postAction('update_config', data, function(j) {
+    // The server refuses to delete a bonus definition players already hold; it
+    // answers with bonus_confirm instead of ok. Ask, then re-post with the force
+    // flag. Anything else is a normal error.
+    postAction('update_config', data, onConfigSaved, function (j) {
+        if (!j.bonus_confirm) { pkProgressDone(); pkAlert(j.error || 'Error'); return; }
+        var lines = j.bonus_confirm.map(function (b) {
+            return '“' + b.label + '” — held by ' + b.holders + ' player' + (b.holders === 1 ? '' : 's');
+        }).join('\n');
+        pkProgressDone();
+        pkConfirm('Removing these bonuses takes their chips out of the game:\n\n' + lines
+                  + '\n\nRemove them anyway?').then(function (yes) {
+            if (!yes) return;
+            pkProgress('Saving settings…', 'Saving the game configuration and payout structure.');
+            data.bonus_force = 1;
+            postAction('update_config', data, onConfigSaved, function (j2) {
+                pkProgressDone(); pkAlert(j2.error || 'Error');
+            });
+        });
+    });
+
+    function onConfigSaved(j) {
         SESSION = j.session;
         POOL = j.pool;
         PAYOUTS = j.payouts || PAYOUTS;
@@ -4617,11 +4729,7 @@ function saveSettings() {
         } else {
             saveBlindsWithSettings();
         }
-    }, function(errJ) {
-        // update_config failed: drop the overlay so the error is readable.
-        pkProgressDone();
-        pkAlert(errJ.error || 'Error');
-    });
+    }
 }
 
 // The Blinds pane is part of this editor, so "Save game" commits it too. It
