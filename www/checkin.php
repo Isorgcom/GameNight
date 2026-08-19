@@ -389,6 +389,11 @@ if ($session) {
     .pk-bonus-label{flex:2;min-width:120px;padding:.25rem .4rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:.82rem}
     .pk-bonus-chips{flex:1;min-width:70px;max-width:110px;padding:.25rem .4rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:.82rem}
     .pk-bonus-auto{display:flex;align-items:center;gap:.25rem;font-size:.72rem;color:#64748b;white-space:nowrap;cursor:pointer}
+    .pk-bonus-pick{display:flex;align-items:center;gap:.5rem;padding:.45rem .3rem;border-bottom:1px solid #f1f5f9;cursor:pointer}
+    .pk-bonus-pick:last-child{border-bottom:none}
+    .pk-bonus-pick-label{flex:1;min-width:0;font-size:.88rem;color:#1e293b}
+    .pk-bonus-pick-chips{font-weight:700;font-size:.8rem;color:#a16207;white-space:nowrap}
+    .pk-bonus-pick-some{font-size:.7rem;color:#94a3b8;white-space:nowrap}
     .pk-chip-colour{width:30px;height:30px;padding:0;border:1px solid #cbd5e1;border-radius:50%;background:none;cursor:pointer}
     .pk-chip-val{width:78px;padding:.3rem .35rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:.85rem;text-align:right}
     .pk-chip-none{font-size:.78rem;color:#94a3b8;font-style:italic}
@@ -571,6 +576,8 @@ if ($session) {
     .pk-log-tag.t-jackpot{background:#ede9fe;color:#5b21b6}
     .pk-log-tag.t-ticket_issue,.pk-log-tag.t-ticket_redeem{background:#fef3c7;color:#92400e}
     .pk-log-tag.t-ticket_void{background:#f1f5f9;color:#64748b}
+    .pk-log-tag.t-bonus_award,.pk-log-tag.t-bonus_edit{background:#fef3c7;color:#a16207}
+    .pk-log-tag.t-bonus_revoke,.pk-log-tag.t-bonus_delete{background:#f1f5f9;color:#64748b}
     /* Cleared rows: same treatment as the ledger, via a class so the row can
        still carry an actions block that is NOT struck through. */
     .pk-log-row.voided{opacity:.55}
@@ -704,6 +711,19 @@ if ($session) {
 </div>
 
 <!-- Notes modal -->
+<!-- Chip bonus award dialog. One dialog serves both the per-row button and the
+     bulk bar: with a selection it shows a tri-state box per bonus (indeterminate
+     when only some of the selection holds it). -->
+<div class="pk-modal-overlay" id="bonusModal" data-act-self="closeBonusModal">
+    <div class="pk-modal">
+        <h3 id="bonusModalTitle">Chip bonuses</h3>
+        <div id="bonusModalList"></div>
+        <div class="pk-modal-actions">
+            <button data-act="closeBonusModal">Done</button>
+        </div>
+    </div>
+</div>
+
 <div class="pk-modal-overlay" id="notesModal">
     <div class="pk-modal">
         <h3>Player Notes</h3>
@@ -1166,6 +1186,8 @@ function rewardChips(p) {
     if (r && r.prize_label) h += ' <span style="color:#475569;font-weight:600;font-size:.72rem" title="Prize">' + escHtml(r.prize_label) + '</span>';
     var kos = parseInt(p.bounties_won) || 0;
     if (kos > 0) h += ' <span style="color:#0e7490;font-weight:700;font-size:.72rem" title="Bounties collected' + (parseInt(p.bounty_cash) > 0 ? ' — ' + formatMoney(parseInt(p.bounty_cash)) : '') + '">🎯 x' + kos + '</span>';
+    var bc = parseInt(p.bonus_chips) || 0;
+    if (bc > 0) h += ' <span style="color:#a16207;font-weight:700;font-size:.72rem" title="' + escHtml(bonusNamesFor(p)) + '">🪙 +' + bc.toLocaleString() + '</span>';
     return h;
 }
 
@@ -1179,6 +1201,8 @@ function rewardText(p) {
     if (r && r.prize_label) parts.push(escHtml(r.prize_label));
     var kos = parseInt(p.bounties_won) || 0;
     if (kos > 0) parts.push('🎯 x' + kos);
+    var bc = parseInt(p.bonus_chips) || 0;
+    if (bc > 0) parts.push('🪙 +' + bc.toLocaleString());
     return parts.length ? ' · ' + parts.join(' · ') : '';
 }
 
@@ -1488,6 +1512,7 @@ function renderViewContent() {
         h += '<button data-act="bulkAction" data-a1="eliminate_player">Eliminate</button>';
     }
     h += '<button title="Approve the selected pending self-signups / walk-ins onto the roster" data-act="bulkAction" data-a1="approve_player">Approve</button>';
+    if (isTourney()) h += '<button title="Award or take back a chip bonus for the selected players" data-act="bulkBonus">🪙 Bonus</button>';
     h += '<button class="danger" data-act="bulkRemoveConfirm">Remove</button>';
     h += '<button data-act="clearSelection">Clear</button>';
     h += '</div>';
@@ -1782,6 +1807,9 @@ function renderPlayerRows() {
                     }
                 }
             }
+            if (isTourney() && BONUS_DEFS.length) {
+                h += '<button class="pk-act-btn" title="Chip bonuses" data-act="openBonusModal" data-a1="' + p.id + '">🪙</button>';
+            }
             h += '<button class="pk-act-btn" data-act="openNotes" data-a1="' + p.id + '">Notes</button>';
             h += '<button class="pk-act-btn danger" data-act="removePlayerConfirm" data-a1="' + p.id + '">Remove</button>';
         }
@@ -1926,6 +1954,9 @@ function renderMobileCards() {
                 // Keep Undo Elim for any player eliminated before that rule.
                 if (isElim) h += '<button data-act="uneliminate" data-a1="' + p.id + '">Undo Elim</button>';
             }
+        }
+        if (isTourney() && BONUS_DEFS.length) {
+            h += '<button data-act="openBonusModal" data-a1="' + p.id + '">🪙 Bonuses</button>';
         }
         h += '<button data-act="openNotes" data-a1="' + p.id + '">Notes</button>';
         h += '<button class="danger" data-act="removePlayerConfirm" data-a1="' + p.id + '">Remove</button>';
@@ -4780,6 +4811,123 @@ function settingsSaved() {
     }
 }
 
+// ─── Chip bonuses: awarding on the game screen ───────────
+// BONUS_TARGETS is the set of player ids the open dialog acts on: one id from a
+// row button, the whole selection from the bulk bar.
+var BONUS_TARGETS = [];
+
+// Which bonuses a player holds, as a readable list for the badge tooltip.
+function bonusIdsFor(p) {
+    return String(p.bonus_ids || '').split(',').filter(Boolean).map(function (x) { return parseInt(x); });
+}
+function bonusNamesFor(p) {
+    var held = bonusIdsFor(p);
+    var names = BONUS_DEFS.filter(function (b) { return held.indexOf(parseInt(b.id)) !== -1; })
+                          .map(function (b) { return b.label + ' (+' + (parseInt(b.chips) || 0).toLocaleString() + ')'; });
+    return names.length ? names.join(', ') : 'Chip bonuses';
+}
+
+function openBonusModal(pid) {
+    BONUS_TARGETS = [parseInt(pid)];
+    var p = PLAYERS.find(function (x) { return parseInt(x.id) === parseInt(pid); });
+    document.getElementById('bonusModalTitle').textContent = 'Chip bonuses — ' + (p ? p.display_name : '');
+    _openBonusModal();
+}
+
+function bulkBonus() {
+    var sel = Array.from(document.querySelectorAll('.pk-player-cb:checked')).map(function (cb) { return parseInt(cb.value); });
+    if (!sel.length) return;
+    BONUS_TARGETS = sel;
+    document.getElementById('bonusModalTitle').textContent = 'Chip bonuses — ' + sel.length + ' players';
+    _openBonusModal();
+}
+
+function _openBonusModal() {
+    if (!BONUS_DEFS.length) {
+        pkAlert('No chip bonuses are set up for this game yet. Add them in Setup → Payouts &amp; Rewards.');
+        return;
+    }
+    renderBonusModalList();
+    document.getElementById('bonusModal').classList.add('open');
+}
+
+function closeBonusModal() {
+    document.getElementById('bonusModal').classList.remove('open');
+    BONUS_TARGETS = [];
+}
+
+// Rebuilt from PLAYERS after every award so the tri-state reflects the server.
+// Real DOM, like the definition editor: a label is free text.
+function renderBonusModalList() {
+    var box = document.getElementById('bonusModalList');
+    if (!box) return;
+    box.textContent = '';
+    var targets = PLAYERS.filter(function (p) { return BONUS_TARGETS.indexOf(parseInt(p.id)) !== -1; });
+    BONUS_DEFS.forEach(function (b) {
+        var bid = parseInt(b.id);
+        var holding = targets.filter(function (p) { return bonusIdsFor(p).indexOf(bid) !== -1; }).length;
+
+        var row = document.createElement('label');
+        row.className = 'pk-bonus-pick';
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = holding > 0 && holding === targets.length;
+        // Some-but-not-all: ticking it awards to the rest rather than toggling
+        // the whole selection off, which is what a host means by tapping it.
+        cb.indeterminate = holding > 0 && holding < targets.length;
+        cb.addEventListener('change', function () { bonusModalToggle(bid, cb.checked); });
+        row.appendChild(cb);
+
+        var txt = document.createElement('span');
+        txt.className = 'pk-bonus-pick-label';
+        txt.textContent = b.label;
+        row.appendChild(txt);
+
+        var chips = document.createElement('span');
+        chips.className = 'pk-bonus-pick-chips';
+        chips.textContent = '+' + (parseInt(b.chips) || 0).toLocaleString();
+        row.appendChild(chips);
+
+        if (targets.length > 1 && holding > 0 && holding < targets.length) {
+            var some = document.createElement('span');
+            some.className = 'pk-bonus-pick-some';
+            some.textContent = holding + ' of ' + targets.length;
+            row.appendChild(some);
+        }
+        box.appendChild(row);
+    });
+}
+
+function bonusModalToggle(bonusId, on) {
+    var ids = BONUS_TARGETS.slice();
+    if (!ids.length) return;
+    var done = function (j) {
+        PLAYERS = j.players || PLAYERS;
+        POOL = j.pool || POOL;
+        refreshUI();
+        renderBonusModalList();   // re-read the tri-state from the server's answer
+    };
+    if (ids.length === 1) {
+        postAction('award_bonus', { player_id: ids[0], bonus_id: bonusId, on: on ? 1 : 0 }, done);
+    } else {
+        var fd = new FormData();
+        fd.append('csrf_token', CSRF);
+        fd.append('action', 'award_bonus_bulk');
+        fd.append('session_id', SESSION.id);
+        fd.append('bonus_id', bonusId);
+        fd.append('on', on ? 1 : 0);
+        ids.forEach(function (id) { fd.append('player_ids[]', id); });
+        fetch('/checkin_dl.php', { method: 'POST', body: fd })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+                if (!j.ok) { pkAlert(j.error || 'Error'); return; }
+                done(j);
+                refreshLogIfOpen();
+            })
+            .catch(function () { pkAlert('Request failed'); });
+    }
+}
+
 function openNotes(pid) {
     notesPlayerId = pid;
     var p = PLAYERS.find(function(x) { return parseInt(x.id) === pid; });
@@ -4981,7 +5129,9 @@ function logTagLabel(t) {
               cashin:'Cash In', cashout:'Cash Out', add:'Add', approve:'Approve',
               eliminate:'Out', uneliminate:'Back In', remove:'Remove', void:'Cleared', edit:'Edited',
               bounty:'Bounty', jackpot:'Jackpot',
-              ticket_issue:'Ticket', ticket_redeem:'Ticket In', ticket_void:'Ticket Void' };
+              ticket_issue:'Ticket', ticket_redeem:'Ticket In', ticket_void:'Ticket Void',
+              bonus_award:'Bonus', bonus_revoke:'Bonus Off', bonus_edit:'Bonus Edit',
+              bonus_delete:'Bonus Gone' };
     return m[t] || t;
 }
 
