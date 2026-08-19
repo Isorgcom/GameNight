@@ -78,6 +78,9 @@ if ($_hb_user && empty($_hb_user['timezone'])) {
          must see these functions already defined. Tiny, and already at the end
          of the body, so blocking is a non-issue. */ ?>
 <script src="/pk-seg.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-seg.js') ?: 0)) ?>"></script>
+<?php /* Web Push helpers. No defer: the opt-in prompt script below and
+         settings.php's card script both call into it synchronously. */ ?>
+<script src="/push.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/push.js') ?: 0)) ?>"></script>
 <?php /* filemtime cache-buster: pk-dialogs.js changes must reach browsers even
          between version bumps (a stale copy silently breaks pk* callers). */ ?>
 <script src="/pk-dialogs.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-dialogs.js') ?: 0)) ?>" defer></script>
@@ -179,6 +182,62 @@ if ($_hb_user && empty($_hb_user['timezone'])) {
     }
     setInterval(poll, 15000);
     poll();
+})();
+</script>
+<?php endif; ?>
+<?php if ($_hb_user && empty($_hb_user['push_prompt_dismissed'])): /* Browser-
+    notifications opt-in ask, same three-answer pattern as the timer opt-in:
+    "Turn on" runs the permission+subscribe flow, "Not now" snoozes 30 days
+    in this browser (localStorage), "No thanks" is permanent (server flag).
+    Only shown when push is supported, permission isn't denied, and this
+    device has no subscription yet. */ ?>
+<div id="pushPromptCard" style="display:none;position:fixed;right:1rem;bottom:1rem;z-index:250;max-width:330px;background:#fff;border:1.5px solid #bfdbfe;border-left:4px solid #2563eb;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:.85rem 1rem">
+    <div id="pushPromptBody">
+        <div style="font-weight:700;font-size:.9rem;color:#1e293b;margin-bottom:.25rem">&#128276; Get notified about your games?</div>
+        <div style="font-size:.8rem;color:#64748b;margin-bottom:.7rem">Invites, reminders, RSVPs and messages as notifications on this device, even when the site is closed.</div>
+        <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+            <button type="button" class="btn btn-primary" style="padding:.4rem .9rem;font-size:.8rem" data-act="pushPromptEnable">Turn on</button>
+            <button type="button" class="btn btn-outline" style="padding:.4rem .9rem;font-size:.8rem" data-act="pushPromptLater">Not now</button>
+            <button type="button" style="background:none;border:none;cursor:pointer;font-size:.75rem;color:#94a3b8;text-decoration:underline;padding:.4rem .2rem" data-act="pushPromptNever">No thanks</button>
+        </div>
+    </div>
+</div>
+<script nonce="<?= csp_nonce() ?>">
+(function () {
+    var CSRF = <?= json_encode(csrf_token()) ?>;
+    var card = document.getElementById('pushPromptCard');
+    if (!card || !window.gnPush || !gnPush.supported()) return;
+    if (Notification.permission === 'denied') return;
+    var snooze = parseInt(localStorage.getItem('gn_push_snooze') || '0', 10);
+    if (snooze && Date.now() < snooze) return;
+
+    gnPush.getSubscription().then(function (sub) {
+        if (!sub) card.style.display = '';
+    }).catch(function () {});
+
+    function hide() { card.style.display = 'none'; }
+
+    window.pushPromptEnable = function () {
+        gnPush.enable(CSRF).then(function () {
+            document.getElementById('pushPromptBody').innerHTML =
+                '<div style="font-weight:700;font-size:.9rem;color:#166534">&#10003; Notifications on</div>'
+                + '<div style="font-size:.8rem;color:#64748b">Manage devices any time in My Settings.</div>';
+            setTimeout(hide, 4000);
+        }).catch(function (e) {
+            hide();
+            if (e && e.message !== 'Permission not granted') {
+                pkAlert('Could not enable notifications: ' + e.message);
+            }
+        });
+    };
+    window.pushPromptLater = function () {
+        localStorage.setItem('gn_push_snooze', String(Date.now() + 30 * 86400000));
+        hide();
+    };
+    window.pushPromptNever = function () {
+        gnPush.api(CSRF, 'dismiss_prompt', {});
+        hide();
+    };
 })();
 </script>
 <?php endif; ?>

@@ -609,50 +609,22 @@ function confirmDeleteTyped() {
 <script nonce="<?= csp_nonce() ?>">
 // ── Browser (Web Push) notifications card ───────────────────────────────────
 // Buttons dispatch via data-act (pk-dispatch); no inline handlers (CSP).
+// Shared plumbing (permission/subscribe flow, API calls) lives in push.js,
+// loaded without defer by _footer.php above.
 (function () {
     var CSRF = <?= json_encode(csrf_token()) ?>;
     var statusEl  = document.getElementById('pushStatus');
     var enableBtn = document.getElementById('pushEnableBtn');
     var disableBtn= document.getElementById('pushDisableBtn');
     var testBtn   = document.getElementById('pushTestBtn');
-    var supported = ('serviceWorker' in navigator) && ('PushManager' in window) && ('Notification' in window);
-
-    function api(action, extra) {
-        var fd = new FormData();
-        fd.append('csrf_token', CSRF);
-        fd.append('action', action);
-        Object.keys(extra || {}).forEach(function (k) { fd.append(k, extra[k]); });
-        return fetch('/push_dl.php', { method: 'POST', body: fd, credentials: 'same-origin' })
-            .then(function (r) { return r.json(); });
-    }
-
-    function b64ToU8(s) {
-        var pad = '='.repeat((4 - s.length % 4) % 4);
-        var raw = atob((s + pad).replace(/-/g, '+').replace(/_/g, '/'));
-        var a = new Uint8Array(raw.length);
-        for (var i = 0; i < raw.length; i++) a[i] = raw.charCodeAt(i);
-        return a;
-    }
-
-    function deviceLabel() {
-        var ua = navigator.userAgent;
-        var os = /Android/.test(ua) ? 'Android' : /iPhone|iPad/.test(ua) ? 'iOS'
-               : /Windows/.test(ua) ? 'Windows' : /Mac/.test(ua) ? 'Mac' : /Linux/.test(ua) ? 'Linux' : 'Device';
-        var br = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox'
-               : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Browser';
-        return os + ' ' + br;
-    }
 
     function refresh() {
-        if (!supported) {
+        if (!gnPush.supported()) {
             statusEl.textContent = 'This browser does not support push notifications.'
                 + (/iPhone|iPad/.test(navigator.userAgent) ? ' On iPhone/iPad, add the site to your Home Screen first.' : '');
             return;
         }
-        Promise.all([
-            navigator.serviceWorker.ready.then(function (reg) { return reg.pushManager.getSubscription(); }),
-            api('status')
-        ]).then(function (res) {
+        Promise.all([gnPush.getSubscription(), gnPush.api(CSRF, 'status')]).then(function (res) {
             var sub = res[0], st = res[1];
             var devices = (st && st.ok) ? st.devices : 0;
             var here = !!sub;
@@ -670,44 +642,21 @@ function confirmDeleteTyped() {
 
     window.pushEnable = function () {
         enableBtn.disabled = true;
-        api('status').then(function (st) {
-            if (!st.ok) throw new Error(st.error || 'status failed');
-            return Notification.requestPermission().then(function (perm) {
-                if (perm !== 'granted') throw new Error('Permission not granted');
-                return navigator.serviceWorker.ready;
-            }).then(function (reg) {
-                return reg.pushManager.subscribe({
-                    userVisibleOnly: true,
-                    applicationServerKey: b64ToU8(st.pubkey)
-                });
-            });
-        }).then(function (sub) {
-            var j = sub.toJSON();
-            return api('subscribe', {
-                endpoint: sub.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, label: deviceLabel()
-            });
-        }).then(function (r) {
-            if (!r.ok) throw new Error(r.error || 'save failed');
-        }).catch(function (e) {
+        gnPush.enable(CSRF).catch(function (e) {
             pkAlert('Could not enable notifications: ' + e.message);
         }).finally(function () { enableBtn.disabled = false; refresh(); });
     };
 
     window.pushDisable = function () {
         disableBtn.disabled = true;
-        navigator.serviceWorker.ready.then(function (reg) { return reg.pushManager.getSubscription(); })
-            .then(function (sub) {
-                if (!sub) return null;
-                var ep = sub.endpoint;
-                return sub.unsubscribe().then(function () { return api('unsubscribe', { endpoint: ep }); });
-            })
+        gnPush.disable(CSRF)
             .catch(function () {})
             .finally(function () { disableBtn.disabled = false; refresh(); });
     };
 
     window.pushTest = function () {
         testBtn.disabled = true;
-        api('test').then(function (r) {
+        gnPush.api(CSRF, 'test').then(function (r) {
             if (!r.ok) pkAlert(r.error || 'Test failed');
         }).finally(function () { testBtn.disabled = false; });
     };

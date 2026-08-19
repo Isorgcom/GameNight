@@ -78,6 +78,14 @@ switch ($action) {
         break;
     }
 
+    case 'dismiss_prompt': {
+        // "No thanks" on the footer opt-in card: permanent, server-side.
+        // Enabling later from settings still works; this only stops the ask.
+        $db->prepare('UPDATE users SET push_prompt_dismissed = 1 WHERE id = ?')->execute([$uid]);
+        echo json_encode(['ok' => true]);
+        break;
+    }
+
     default:
         echo json_encode(['ok' => false, 'error' => 'Unknown action']);
 }

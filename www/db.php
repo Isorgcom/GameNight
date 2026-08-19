@@ -1217,6 +1217,10 @@ JSON;
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )"); } catch (Exception $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_push_subs_user ON push_subscriptions(user_id)"); } catch (Exception $e) {}
+    // "No thanks" on the browser-notifications opt-in prompt (footer card).
+    // Same pattern as mfa_offer_dismissed: server-side and permanent; the
+    // prompt's "Not now" is a 30-day localStorage snooze instead.
+    try { $pdo->exec("ALTER TABLE users ADD COLUMN push_prompt_dismissed INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     // Per-category outbound notification preferences (JSON; absent key = enabled).
     try { $pdo->exec("ALTER TABLE users ADD COLUMN notify_prefs TEXT"); } catch (Exception $e) {}
     // Profile photo path ('/uploads/<name>'); NULL = show a colored initial.
