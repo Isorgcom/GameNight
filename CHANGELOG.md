@@ -4,7 +4,21 @@ All notable changes to GameNight are documented here.
 
 ---
 
-## [v0.2104] - 2026-08-18
+## [v0.2105] - 2026-08-19
+
+### Changed
+
+- **Timer Layouts and Help join the horizontal menu bar.** Both already
+  existed in the hamburger menu, but the primary desktop navigation never
+  surfaced them. The bar now shows a **Timer Layouts** link (with the BETA
+  tag, logged-in users only, active-state on `timer-beta` pages) after
+  Calendar, and a **Help &#9662;** drop-down at the end mirroring the
+  hamburger's group — Host Guide, Guest Guide, Timer Guide, plus Support for
+  logged-in users. The drop-down reuses the existing `data-nav="dropdown"`
+  delegation in `nav.js` (open/close and outside-click handling come for
+  free); the button is styled to match the bar's links and its menu opens
+  left-aligned under the button, since the shared `.nav-dropdown` is
+  right-aligned for the avatar/hamburger corner (`www/_nav.php`).
 
 ### Added
 

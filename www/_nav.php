@@ -182,11 +182,27 @@ $_accent        = get_setting('accent_color', '');
         <?php if (get_setting('show_calendar', '1') === '1'): ?>
         <a href="/calendar.php"<?= $_active === 'calendar' ? ' class="active"' : '' ?>>Calendar</a>
         <?php endif; ?>
+        <?php if ($_nu): ?>
+        <a href="/timer_beta_edit.php"<?= $_active === 'timer-beta' ? ' class="active"' : '' ?>>Timer Layouts <span class="nav-beta-tag">BETA</span></a>
+        <?php endif; ?>
         <?php /* My Events / Contacts / Messages now live in the account (avatar) menu */ ?>
         <?php if ($_nu && $_nu['role'] === 'admin'): ?>
             <a href="/admin_posts.php"<?= $_active === 'posts' ? ' class="active"' : '' ?>>Posts</a>
             <a href="/admin_settings.php"<?= $_active === 'site-settings' ? ' class="active"' : '' ?>>Site Settings<?php if ($_show_update_dot): ?> <span class="nav-update-dot" title="Update available: v<?= htmlspecialchars(get_setting('latest_version')) ?>"></span><?php endif; ?></a>
         <?php endif; ?>
+        <!-- Same Help group as the hamburger, as a drop-down off the bar.
+             Guides are public; Support needs an account. -->
+        <div class="nav-dropdown-wrap">
+            <button type="button" class="nav-links-help-btn<?= $_active === 'help' || $_active === 'support' ? ' active' : '' ?>" data-nav="dropdown">Help <span class="nav-links-help-caret" aria-hidden="true">&#9662;</span></button>
+            <div class="nav-dropdown nav-links-help-dd">
+                <a href="/help-hosts.php">Host Guide</a>
+                <a href="/help-guests.php">Guest Guide</a>
+                <a href="/help-timer.php">Timer Guide</a>
+                <?php if ($_nu): ?>
+                <a href="/support.php"<?= $_active === 'support' ? ' class="active"' : '' ?>>Support</a>
+                <?php endif; ?>
+            </div>
+        </div>
     </div>
 </nav>
 <?php if ($_banner): ?>
@@ -227,6 +243,15 @@ nav.nav-collapsed .nav-top{justify-content:space-between}
 .nav-account-dropdown .nav-account-head{display:flex;align-items:center;gap:.55rem;padding:.7rem 1rem;border-bottom:1px solid rgba(255,255,255,.12);margin-bottom:.25rem}
 .nav-account-name{font-weight:700;font-size:.9rem;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nav-menu-count{background:#dc2626;color:#fff;font-size:.65rem;font-weight:700;border-radius:999px;padding:.05rem .35rem;margin-left:.35rem;vertical-align:middle}
+/* Help drop-down in the horizontal links bar: button styled to match the
+   bar's links, and its menu opens left-aligned under the button (the shared
+   .nav-dropdown is right-aligned for the avatar/hamburger corner). */
+.nav-links .nav-dropdown-wrap{display:flex;align-items:stretch}
+.nav-links-help-btn{background:none;border:none;cursor:pointer;font:inherit;color:#94a3b8;font-size:.875rem;padding:0 1rem;display:flex;align-items:center;gap:.35rem;border-bottom:2px solid transparent;transition:background .12s,color .12s}
+.nav-links-help-btn:hover{color:#fff;background:rgba(255,255,255,.06)}
+.nav-links-help-btn.active{color:#fff;border-bottom-color:#2563eb;font-weight:600}
+.nav-links-help-caret{font-size:.6rem}
+.nav-links .nav-links-help-dd{left:0;right:auto}
 </style>
 <script nonce="<?= csp_nonce() ?>">
 function toggleNavCollapse(){
