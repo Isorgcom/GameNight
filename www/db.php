@@ -1201,6 +1201,26 @@ JSON;
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )"); } catch (Exception $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_user_notif ON user_notifications(user_id, is_read, id)"); } catch (Exception $e) {}
+    // Web Push subscriptions: one row per browser/device a user enabled
+    // notifications on. endpoint is the push-service URL (unique per browser);
+    // p256dh/auth are the client keys for RFC 8291 payload encryption. Rows
+    // are pruned when the push service answers 404/410 (subscription revoked).
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id     INTEGER NOT NULL,
+        endpoint    TEXT    NOT NULL UNIQUE,
+        p256dh      TEXT    NOT NULL,
+        auth        TEXT    NOT NULL,
+        label       TEXT,
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_used   DATETIME,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_push_subs_user ON push_subscriptions(user_id)"); } catch (Exception $e) {}
+    // "No thanks" on the browser-notifications opt-in prompt (footer card).
+    // Same pattern as mfa_offer_dismissed: server-side and permanent; the
+    // prompt's "Not now" is a 30-day localStorage snooze instead.
+    try { $pdo->exec("ALTER TABLE users ADD COLUMN push_prompt_dismissed INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     // Per-category outbound notification preferences (JSON; absent key = enabled).
     try { $pdo->exec("ALTER TABLE users ADD COLUMN notify_prefs TEXT"); } catch (Exception $e) {}
     // Profile photo path ('/uploads/<name>'); NULL = show a colored initial.

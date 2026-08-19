@@ -46,6 +46,9 @@ $_csp = implode('; ', [
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https://*.ytimg.com https://*.twitch.tv https://*.jtvnw.net",
     "object-src 'none'",
+    // Service worker for Web Push (sw.js). Workers don't fall back to
+    // script-src in all browsers, so declare explicitly.
+    "worker-src 'self'",
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
@@ -216,7 +219,7 @@ function current_user(): ?array {
     }
     if ($id === null) return null;
 
-    $stmt = get_db()->prepare('SELECT id, username, email, role, last_login, must_change_password, my_events_past_days, my_events_future_days, timezone, last_poker_default, mfa_enabled, mfa_method, mfa_offer_dismissed, avatar_path, beta_timer FROM users WHERE id = ?');
+    $stmt = get_db()->prepare('SELECT id, username, email, role, last_login, must_change_password, my_events_past_days, my_events_future_days, timezone, last_poker_default, mfa_enabled, mfa_method, mfa_offer_dismissed, avatar_path, beta_timer, push_prompt_dismissed FROM users WHERE id = ?');
     $stmt->execute([$id]);
     $row = $stmt->fetch() ?: null;
     // Personal timezone overrides the site default (which was set in get_db()).

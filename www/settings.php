@@ -473,6 +473,19 @@ $site_name = get_setting('site_name', 'Game Night');
             </form>
         </div>
 
+        <!-- Browser (Web Push) notifications -->
+        <div class="card" style="max-width:100%">
+            <h2>Browser Notifications</h2>
+            <p class="subtitle">Get notifications on this device even when the site isn't open. Each device you enable gets its own subscription.</p>
+            <p id="pushStatus" style="font-size:.85rem;color:#64748b;margin-bottom:.8rem">Checking this browser&hellip;</p>
+            <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+                <button type="button" class="btn btn-primary" id="pushEnableBtn" data-act="pushEnable" style="display:none">Enable on this device</button>
+                <button type="button" class="btn btn-outline" id="pushDisableBtn" data-act="pushDisable" style="display:none">Disable on this device</button>
+                <button type="button" class="btn btn-outline" id="pushTestBtn" data-act="pushTest" style="display:none">Send test notification</button>
+            </div>
+            <p style="font-size:.75rem;color:#94a3b8;margin-top:.7rem">iPhone/iPad: add this site to your Home Screen first (Share &rarr; Add to Home Screen), then enable from the installed app.</p>
+        </div>
+
         <!-- Change password -->
         <div class="card" style="max-width:100%">
             <h2>Change Password</h2>
@@ -592,6 +605,64 @@ $site_name = get_setting('site_name', 'Game Night');
 function confirmDeleteTyped() {
     return document.getElementById('confirm_delete').value.trim().toUpperCase() === 'DELETE';
 }
+</script>
+<script nonce="<?= csp_nonce() ?>">
+// ── Browser (Web Push) notifications card ───────────────────────────────────
+// Buttons dispatch via data-act (pk-dispatch); no inline handlers (CSP).
+// Shared plumbing (permission/subscribe flow, API calls) lives in push.js,
+// loaded without defer by _footer.php above.
+(function () {
+    var CSRF = <?= json_encode(csrf_token()) ?>;
+    var statusEl  = document.getElementById('pushStatus');
+    var enableBtn = document.getElementById('pushEnableBtn');
+    var disableBtn= document.getElementById('pushDisableBtn');
+    var testBtn   = document.getElementById('pushTestBtn');
+
+    function refresh() {
+        if (!gnPush.supported()) {
+            statusEl.textContent = 'This browser does not support push notifications.'
+                + (/iPhone|iPad/.test(navigator.userAgent) ? ' On iPhone/iPad, add the site to your Home Screen first.' : '');
+            return;
+        }
+        Promise.all([gnPush.getSubscription(), gnPush.api(CSRF, 'status')]).then(function (res) {
+            var sub = res[0], st = res[1];
+            var devices = (st && st.ok) ? st.devices : 0;
+            var here = !!sub;
+            statusEl.textContent = (here ? 'Enabled on this device.' : 'Not enabled on this device.')
+                + ' ' + devices + ' device' + (devices === 1 ? '' : 's') + ' enabled on your account.';
+            enableBtn.style.display  = here ? 'none' : '';
+            disableBtn.style.display = here ? '' : 'none';
+            testBtn.style.display    = devices > 0 ? '' : 'none';
+            if (Notification.permission === 'denied') {
+                statusEl.textContent = 'Notifications are blocked for this site in your browser settings.';
+                enableBtn.style.display = 'none';
+            }
+        }).catch(function () { statusEl.textContent = 'Could not check notification status.'; });
+    }
+
+    window.pushEnable = function () {
+        enableBtn.disabled = true;
+        gnPush.enable(CSRF).catch(function (e) {
+            pkAlert('Could not enable notifications: ' + e.message);
+        }).finally(function () { enableBtn.disabled = false; refresh(); });
+    };
+
+    window.pushDisable = function () {
+        disableBtn.disabled = true;
+        gnPush.disable(CSRF)
+            .catch(function () {})
+            .finally(function () { disableBtn.disabled = false; refresh(); });
+    };
+
+    window.pushTest = function () {
+        testBtn.disabled = true;
+        gnPush.api(CSRF, 'test').then(function (r) {
+            if (!r.ok) pkAlert(r.error || 'Test failed');
+        }).finally(function () { testBtn.disabled = false; });
+    };
+
+    refresh();
+})();
 </script>
 </body>
 </html>

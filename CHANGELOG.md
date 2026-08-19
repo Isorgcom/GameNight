@@ -4,7 +4,42 @@ All notable changes to GameNight are documented here.
 
 ---
 
-## [v0.2105] - 2026-08-19
+## [v0.2106] - 2026-08-19
+
+### Added
+
+- **Browser push notifications.** Everything that lands in the in-app inbox
+  (invites, reminders, RSVP replies, comments, cancellations, host messages,
+  DMs) can now also arrive as an OS notification, even with the site closed.
+  The sender (`www/webpush.php`) is self-contained PHP on OpenSSL primitives,
+  no composer: VAPID keys (RFC 8292, generated once into `site_settings`),
+  ES256 JWTs, and aes128gcm payload encryption (RFC 8291). Subscriptions live
+  in the new `push_subscriptions` table, one row per browser/device, pruned
+  automatically when the push service answers 404/410. The service worker
+  (`www/sw.js`) shows the notification and focuses or opens the target page on
+  click; repeated pushes for the same link collapse into one. A PWA manifest
+  (`www/manifest.php` + generated icons) covers Android installs and is the
+  prerequisite for iPhone push (home-screen install required by Safari). Push
+  fan-out rides the three `user_notifications` insert sites and is try/catch'd
+  throughout — a push failure can never block email/SMS delivery.
+- **Users are asked, not defaulted.** A dismissible card (footer, bottom-right)
+  offers browser notifications with the same three-answer pattern as the timer
+  opt-in: **Turn on** runs the permission+subscribe flow in place, **Not now**
+  snoozes the ask for 30 days in that browser (`localStorage`), **No thanks**
+  is permanent and server-side (`users.push_prompt_dismissed`, the
+  `mfa_offer_dismissed` pattern). The card only appears where enabling could
+  succeed: push supported, permission not denied, device not already
+  subscribed. A "Browser Notifications" card in My Settings
+  (enable/disable per device, device count, send-test button) manages it
+  after the fact, driven by the new `www/push_dl.php` endpoint and shared
+  client plumbing in `www/push.js`.
+
+### Security
+
+- CSP gains `worker-src 'self'` for the service worker; no other policy
+  changes. The opt-in card dispatches through `data-act` like every other
+  control — the double-dispatch sweep now also asserts its three handlers
+  exist on every page that renders the footer.
 
 ### Changed
 
