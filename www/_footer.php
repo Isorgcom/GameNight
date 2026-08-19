@@ -206,17 +206,12 @@ if ($_hb_user && empty($_hb_user['timezone'])) {
 (function () {
     var CSRF = <?= json_encode(csrf_token()) ?>;
     var card = document.getElementById('pushPromptCard');
-    if (!card || !window.gnPush || !gnPush.supported()) return;
-    if (Notification.permission === 'denied') return;
-    var snooze = parseInt(localStorage.getItem('gn_push_snooze') || '0', 10);
-    if (snooze && Date.now() < snooze) return;
+    function hide() { if (card) card.style.display = 'none'; }
 
-    gnPush.getSubscription().then(function (sub) {
-        if (!sub) card.style.display = '';
-    }).catch(function () {});
-
-    function hide() { card.style.display = 'none'; }
-
+    // Handlers are defined UNCONDITIONALLY: the data-act buttons exist in the
+    // markup even when the guards below keep the card hidden, and a data-act
+    // control naming a missing function is exactly what the double-dispatch
+    // sweep flags (and it is right to).
     window.pushPromptEnable = function () {
         gnPush.enable(CSRF).then(function () {
             document.getElementById('pushPromptBody').innerHTML =
@@ -238,6 +233,15 @@ if ($_hb_user && empty($_hb_user['timezone'])) {
         gnPush.api(CSRF, 'dismiss_prompt', {});
         hide();
     };
+
+    // Show-logic guards: only surface the ask where enabling could succeed.
+    if (!card || !window.gnPush || !gnPush.supported()) return;
+    if (Notification.permission === 'denied') return;
+    var snooze = parseInt(localStorage.getItem('gn_push_snooze') || '0', 10);
+    if (snooze && Date.now() < snooze) return;
+    gnPush.getSubscription().then(function (sub) {
+        if (!sub) card.style.display = '';
+    }).catch(function () {});
 })();
 </script>
 <?php endif; ?>
