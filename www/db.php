@@ -782,6 +782,57 @@ function db_init(PDO $pdo): void {
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_pet_target ON poker_entry_tickets(target_event_id, status)"); } catch (Exception $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_pet_source ON poker_entry_tickets(source_session_id)"); } catch (Exception $e) {}
 
+    // ── Chip bonuses ────────────────────────────────────────────────────────
+    // Per-session bonus definitions: a label and a chip amount a host hands out
+    // for whatever they like (RSVP'd early, won a bracket elsewhere, wore the
+    // gear, booked the Vegas trip). CHIPS ONLY — a bonus never touches money or
+    // the prize pool, which is why it lives here and not on poker_payouts.
+    // Session-scoped and cascaded like poker_payouts: the reusable copy lives
+    // on a preset (payout_structures.bonuses), not in this table.
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS poker_bonuses (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id  INTEGER NOT NULL,
+        label       TEXT    NOT NULL,
+        chips       INTEGER NOT NULL DEFAULT 0,
+        auto_rsvp   INTEGER NOT NULL DEFAULT 0,
+        sort_order  INTEGER NOT NULL DEFAULT 0,
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (session_id) REFERENCES poker_sessions(id) ON DELETE CASCADE
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_pb_session ON poker_bonuses(session_id, sort_order, id)"); } catch (Exception $e) {}
+
+    // Who holds which bonus. UNIQUE(player_id, bonus_id) is the duplicate guard:
+    // awarding is INSERT OR IGNORE, so a double-tap or a re-run of the bulk
+    // action cannot stack the same bonus twice. `auto` records provenance —
+    // undoing a buy-in reverses only what the buy-in itself awarded, never a
+    // bonus the host handed out by hand.
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS poker_player_bonuses (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        player_id   INTEGER NOT NULL,
+        bonus_id    INTEGER NOT NULL,
+        auto        INTEGER NOT NULL DEFAULT 0,
+        awarded_by  INTEGER,
+        awarded_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(player_id, bonus_id),
+        FOREIGN KEY (player_id) REFERENCES poker_players(id) ON DELETE CASCADE,
+        FOREIGN KEY (bonus_id)  REFERENCES poker_bonuses(id)  ON DELETE CASCADE
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ppb_player ON poker_player_bonuses(player_id)"); } catch (Exception $e) {}
+
+    // Bonus definitions ride a game preset, same as chip_set — its own column
+    // rather than inside game_config, because the key-by-key game_config diff
+    // cannot see a JSON blob.
+    try { $pdo->exec("ALTER TABLE payout_structures ADD COLUMN bonuses TEXT"); } catch (Exception $e) {}
+
+    // Did this player actually RSVP yes, as opposed to being *marked* yes?
+    // poker_players.rsvp cannot answer that: toggle_buyin forces it to 'yes'
+    // when the host takes someone's money, and add_walkin sets it on every
+    // walk-in (deliberately — it keeps fresh players visible under the RSVP-Yes
+    // filter). An auto-award keyed on rsvp would therefore fire for the whole
+    // field. This column is set ONLY where a real RSVP happens: sync_invitees()
+    // reading event_invites.rsvp, and update_rsvp when a host sets yes by hand.
+    try { $pdo->exec("ALTER TABLE poker_players ADD COLUMN rsvp_early INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS timer_state (
         id                     INTEGER PRIMARY KEY AUTOINCREMENT,
         session_id             INTEGER NOT NULL UNIQUE,

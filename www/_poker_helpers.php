@@ -374,6 +374,7 @@ function calc_pool($db, $session_id) {
     $jackpot_baked_withheld = 0;
     $ticket_withheld        = 0;
     $ticket_in              = 0;
+    $bonus_chips            = 0;   // tournament-only; a cash game has no chip count
     if ($s['game_type'] === 'cash') {
         $pool_total = (int)$r['total_cash_in'];
         $buyin_total = $pool_total;
@@ -405,6 +406,23 @@ function calc_pool($db, $session_id) {
                                 FROM poker_entry_tickets WHERE redeemed_session_id = ? AND status = 'redeemed'");
             $ti->execute([(int)$s['buyin_amount'], (int)$s['buyin_amount'], $session_id]);
             $ticket_in = (int)$ti->fetchColumn();
+        } catch (Exception $e) { /* pre-migration DB */ }
+
+        // Chip bonuses in play. Counted only for players who are still in the
+        // game's chip count — bought in and not removed. Removing a player
+        // therefore drops their bonus chips with no junction cleanup, and
+        // un-removing them (sync_invitees / add_walkin both do) brings the
+        // chips back. Eliminated players still count, exactly as their starting
+        // stack does: those chips are on the table, in someone else's hands.
+        try {
+            $bq = $db->prepare('SELECT COALESCE(SUM(b.chips), 0)
+                                FROM poker_player_bonuses pb
+                                JOIN poker_bonuses b ON b.id = pb.bonus_id
+                                JOIN poker_players p ON p.id = pb.player_id
+                                WHERE b.session_id = ? AND p.session_id = ?
+                                  AND p.removed = 0 AND p.bought_in = 1');
+            $bq->execute([$session_id, $session_id]);
+            $bonus_chips = (int)$bq->fetchColumn();
         } catch (Exception $e) { /* pre-migration DB */ }
 
         $pool_total = $pool_gross - $bounty_withheld - $jackpot_baked_withheld - $ticket_withheld + $ticket_in;
@@ -442,9 +460,11 @@ function calc_pool($db, $session_id) {
         'total_cash_in'  => (int)$r['total_cash_in'],
         'starting_chips' => (int)($s['starting_chips'] ?? 0),
         'addon_chips'    => (int)($s['addon_chips'] ?? 0),
+        'bonus_chips'    => $bonus_chips,
         'chips_in_play'  => ($s['game_type'] === 'tournament')
             ? ((int)$r['total_buyins'] + (int)$r['total_rebuys']) * (int)($s['starting_chips'] ?? 0)
               + (int)$r['total_addons'] * (int)($s['addon_chips'] ?? 0)
+              + $bonus_chips
             : 0,
     ];
 }
@@ -461,8 +481,14 @@ function sync_invitees($db, $session_id, $event_id) {
     $invites = $db->prepare("SELECT ei.username, ei.rsvp, u.id as user_id FROM event_invites ei LEFT JOIN users u ON LOWER(ei.username) = LOWER(u.username) WHERE ei.event_id = ? AND ei.approval_status IN ('approved', 'pending') GROUP BY LOWER(ei.username)");
     $invites->execute([$event_id]);
 
-    $pIns = $db->prepare('INSERT INTO poker_players (session_id, user_id, display_name, rsvp) VALUES (?, ?, ?, ?)');
-    $pUpd = $db->prepare('UPDATE poker_players SET rsvp = ? WHERE session_id = ? AND LOWER(display_name) = LOWER(?)');
+    // rsvp_early rides every write here because THIS is a real RSVP: it comes
+    // from event_invites, not from a host taking someone's money at the door.
+    // It is what an auto-award bonus keys on — see the column comment in db.php.
+    // Once earned it is never cleared here: someone who committed in advance and
+    // later flips to no simply has their invite row change; the flag records
+    // that they did RSVP yes at some point, which is what the bonus rewards.
+    $pIns = $db->prepare('INSERT INTO poker_players (session_id, user_id, display_name, rsvp, rsvp_early) VALUES (?, ?, ?, ?, ?)');
+    $pUpd = $db->prepare('UPDATE poker_players SET rsvp = ?, rsvp_early = MAX(rsvp_early, ?) WHERE session_id = ? AND LOWER(display_name) = LOWER(?)');
 
     // Also prepare a statement to un-remove players who re-RSVP (e.g., were removed then RSVPed again)
     $pUnremove = $db->prepare('UPDATE poker_players SET removed = 0, rsvp = ? WHERE session_id = ? AND LOWER(display_name) = LOWER(?) AND removed = 1');
@@ -470,10 +496,11 @@ function sync_invitees($db, $session_id, $event_id) {
     $invitedNames = [];
     foreach ($invites->fetchAll() as $inv) {
         $invitedNames[] = strtolower($inv['username']);
+        $early = ($inv['rsvp'] === 'yes') ? 1 : 0;
         if (!in_array(strtolower($inv['username']), $existingNames)) {
-            $pIns->execute([$session_id, $inv['user_id'], $inv['username'], $inv['rsvp']]);
+            $pIns->execute([$session_id, $inv['user_id'], $inv['username'], $inv['rsvp'], $early]);
         } else {
-            $pUpd->execute([$inv['rsvp'], $session_id, $inv['username']]);
+            $pUpd->execute([$inv['rsvp'], $early, $session_id, $inv['username']]);
             // If a removed player RSVPs again, bring them back
             if ($inv['rsvp'] === 'yes') {
                 $pUnremove->execute([$inv['rsvp'], $session_id, $inv['username']]);
@@ -495,7 +522,15 @@ function sync_invitees($db, $session_id, $event_id) {
 
 // Get all players for a session (excludes removed players), with approval_status from event_invites
 function get_players($db, $session_id) {
-    $stmt = $db->prepare("SELECT pp.*, COALESCE(ei.approval_status, 'approved') as approval_status
+    // bonus_chips / bonus_ids ride the roster query so the console can paint the
+    // badge without a second round-trip, and so every render path (desktop rows,
+    // mobile cards, the award dialog) reads one source.
+    $stmt = $db->prepare("SELECT pp.*, COALESCE(ei.approval_status, 'approved') as approval_status,
+            COALESCE((SELECT SUM(b.chips) FROM poker_player_bonuses pb
+                      JOIN poker_bonuses b ON b.id = pb.bonus_id
+                      WHERE pb.player_id = pp.id), 0) AS bonus_chips,
+            (SELECT GROUP_CONCAT(pb.bonus_id) FROM poker_player_bonuses pb
+             WHERE pb.player_id = pp.id) AS bonus_ids
         FROM poker_players pp
         LEFT JOIN poker_sessions ps ON ps.id = pp.session_id
         LEFT JOIN event_invites ei ON ei.event_id = ps.event_id AND LOWER(ei.username) = LOWER(pp.display_name) AND ei.occurrence_date IS NULL
@@ -1110,6 +1145,14 @@ function pk_preset_is_modified(PDO $db, array $struct, array $sess): bool {
     // still clean to the same thing, so this cannot invent a difference.
     if (pk_clean_chip_set($struct['chip_set'] ?? null) !== pk_clean_chip_set($sess['chip_set'] ?? null)) return true;
 
+    // 7. Bonus definitions. Its own column for the same reason as the chip set,
+    // and compared unconditionally for the same reason too. Fingerprinted rather
+    // than compared raw: ids and sort_order are session bookkeeping, not preset
+    // content, so a definition that round-tripped through a preset gets a new id
+    // and must still read as identical.
+    if (pk_bonus_fingerprint(pk_clean_bonuses($struct['bonuses'] ?? null))
+        !== pk_bonus_fingerprint(get_bonuses($db, $session_id))) return true;
+
     return false;
 }
 
@@ -1176,4 +1219,197 @@ function pk_clean_chip_set($chips): array {
 function pk_chip_set_json($chips): ?string {
     $clean = pk_clean_chip_set($chips);
     return $clean ? json_encode($clean) : null;
+}
+
+// ── Chip bonuses ────────────────────────────────────────────────────────────
+// A bonus is a label plus a chip amount. It adds chips to the game and NOTHING
+// else: no money, no prize pool, no points. Everything below is deliberately
+// chips-only, and calc_pool() is the single place the total is computed.
+
+// Normalise a client-supplied bonus list (JSON string or array). Shape mirrors
+// pk_clean_chip_set(): trust nothing, cap everything, renumber sort_order.
+function pk_clean_bonuses($rows): array {
+    if (is_string($rows)) $rows = json_decode($rows, true);
+    if (!is_array($rows)) return [];
+    $out = [];
+    foreach (array_slice($rows, 0, 20) as $r) {
+        if (!is_array($r)) continue;
+        $label = trim((string)($r['label'] ?? ''));
+        if ($label === '') continue;                 // an unlabelled bonus is a blank row
+        $out[] = [
+            // An id is MATCHED against this session's own rows on save, never
+            // trusted as authority — see pk_save_bonuses().
+            'id'         => max(0, (int)($r['id'] ?? 0)),
+            'label'      => mb_substr($label, 0, 60),
+            'chips'      => max(0, min(100000000, (int)($r['chips'] ?? 0))),
+            'auto_rsvp'  => !empty($r['auto_rsvp']) ? 1 : 0,
+            // Renumbered off the OUTPUT, not the input index: dropping a blank
+            // row must not leave a hole in the ordering.
+            'sort_order' => count($out),
+        ];
+    }
+    return $out;
+}
+
+function pk_bonuses_json($rows): ?string {
+    $clean = pk_clean_bonuses($rows);
+    return $clean ? json_encode($clean) : null;
+}
+
+function get_bonuses($db, int $session_id): array {
+    try {
+        $stmt = $db->prepare('SELECT id, label, chips, auto_rsvp, sort_order
+                              FROM poker_bonuses WHERE session_id = ? ORDER BY sort_order, id');
+        $stmt->execute([$session_id]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) { return []; }   // pre-migration DB
+}
+
+// Comparable shape for preset-drift detection: content only, no session ids and
+// no sort_order (order is content, but it is carried by array position).
+function pk_bonus_fingerprint(array $rows): array {
+    $out = [];
+    foreach ($rows as $r) {
+        $out[] = [(string)($r['label'] ?? ''), (int)($r['chips'] ?? 0), (int)($r['auto_rsvp'] ?? 0)];
+    }
+    return $out;
+}
+
+// Award one bonus to one player. Returns true only when a row was actually
+// written, so a re-run of the bulk action neither stacks chips nor spams the
+// log. NOTE: poker_session_log.amount is CENTS and renders through
+// formatMoney() — chips must go in the detail text or the ledger reads "+$5.00".
+function pk_award_bonus($db, int $session_id, int $player_id, int $bonus_id,
+                        ?int $actor_id, bool $auto, string $player_name, array $bonus): bool {
+    $stmt = $db->prepare('INSERT OR IGNORE INTO poker_player_bonuses (player_id, bonus_id, auto, awarded_by)
+                          VALUES (?, ?, ?, ?)');
+    $stmt->execute([$player_id, $bonus_id, $auto ? 1 : 0, $actor_id]);
+    if ($stmt->rowCount() < 1) return false;         // already held — nothing happened
+    pk_log($db, $session_id, $actor_id, 'bonus_award', $player_id, $player_name, null,
+        '+' . number_format((int)($bonus['chips'] ?? 0)) . ' chips — ' . (string)($bonus['label'] ?? 'bonus')
+        . ($auto ? ' (auto, RSVP yes)' : ''));
+    return true;
+}
+
+function pk_revoke_bonus($db, int $session_id, int $player_id, int $bonus_id,
+                         ?int $actor_id, string $player_name, array $bonus, string $why = ''): bool {
+    $stmt = $db->prepare('DELETE FROM poker_player_bonuses WHERE player_id = ? AND bonus_id = ?');
+    $stmt->execute([$player_id, $bonus_id]);
+    if ($stmt->rowCount() < 1) return false;
+    pk_log($db, $session_id, $actor_id, 'bonus_revoke', $player_id, $player_name, null,
+        '-' . number_format((int)($bonus['chips'] ?? 0)) . ' chips — ' . (string)($bonus['label'] ?? 'bonus')
+        . ($why !== '' ? ' (' . $why . ')' : ''));
+    return true;
+}
+
+// How many players hold each of this session's bonuses: [bonus_id => count].
+// Used to refuse a silent delete of something players already hold.
+function pk_bonus_holder_counts($db, int $session_id): array {
+    try {
+        $stmt = $db->prepare('SELECT b.id, COUNT(pb.id) AS n
+                              FROM poker_bonuses b
+                              LEFT JOIN poker_player_bonuses pb ON pb.bonus_id = b.id
+                              WHERE b.session_id = ? GROUP BY b.id');
+        $stmt->execute([$session_id]);
+        $out = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) $out[(int)$r['id']] = (int)$r['n'];
+        return $out;
+    } catch (Exception $e) { return []; }
+}
+
+/**
+ * Replace a session's bonus definitions with $rows (already cleaned).
+ *
+ * Deleting a definition someone HOLDS is refused unless $force, because the
+ * junction cascade would silently strip chips a player has been playing with —
+ * the same instinct as refusing to move a league when jackpot money is staked.
+ * Returns ['ok' => true, 'deleted' => n] or ['ok' => false, 'confirm' => [...]].
+ *
+ * Editing a chip amount is deliberately RETROACTIVE: the junction stores only
+ * the pair, so every holder re-values. Fixing a typo is the common case, and a
+ * denormalised copy would make it unfixable without revoking player by player.
+ */
+function pk_save_bonuses($db, int $session_id, array $rows, ?int $actor_id, bool $force = false): array {
+    $existing = [];
+    foreach (get_bonuses($db, $session_id) as $r) $existing[(int)$r['id']] = $r;
+    $holders = pk_bonus_holder_counts($db, $session_id);
+
+    // Ids the client sent back that really belong to THIS session; anything else
+    // (a stale id, or one borrowed from another game) becomes a fresh insert.
+    $keep = [];
+    foreach ($rows as $r) {
+        if ($r['id'] > 0 && isset($existing[$r['id']])) $keep[$r['id']] = true;
+    }
+
+    $doomed = [];
+    foreach ($existing as $id => $r) {
+        if (!isset($keep[$id])) $doomed[$id] = $r;
+    }
+    if (!$force) {
+        $held = [];
+        foreach ($doomed as $id => $r) {
+            if (($holders[$id] ?? 0) > 0) $held[] = ['label' => $r['label'], 'holders' => $holders[$id]];
+        }
+        if ($held) return ['ok' => false, 'confirm' => $held];
+    }
+
+    foreach ($doomed as $id => $r) {
+        $db->prepare('DELETE FROM poker_bonuses WHERE id = ? AND session_id = ?')->execute([$id, $session_id]);
+        if (($holders[$id] ?? 0) > 0) {
+            pk_log($db, $session_id, $actor_id, 'bonus_delete', null, null, null,
+                'Deleted bonus "' . $r['label'] . '" held by ' . $holders[$id] . ' player'
+                . ($holders[$id] === 1 ? '' : 's') . ' — their chips are gone from the count');
+        }
+    }
+
+    foreach ($rows as $r) {
+        if ($r['id'] > 0 && isset($existing[$r['id']])) {
+            $old = $existing[$r['id']];
+            $db->prepare('UPDATE poker_bonuses SET label = ?, chips = ?, auto_rsvp = ?, sort_order = ?
+                          WHERE id = ? AND session_id = ?')
+               ->execute([$r['label'], $r['chips'], $r['auto_rsvp'], $r['sort_order'], $r['id'], $session_id]);
+            // Only a chip change moves the count, and only then is a log line
+            // worth writing — it is what explains the jump on the timer.
+            if ((int)$old['chips'] !== $r['chips'] && ($holders[$r['id']] ?? 0) > 0) {
+                pk_log($db, $session_id, $actor_id, 'bonus_edit', null, null, null,
+                    '"' . $r['label'] . '" ' . number_format((int)$old['chips']) . ' → '
+                    . number_format($r['chips']) . ' chips, applied to ' . $holders[$r['id']] . ' holder'
+                    . ($holders[$r['id']] === 1 ? '' : 's'));
+            }
+        } else {
+            $db->prepare('INSERT INTO poker_bonuses (session_id, label, chips, auto_rsvp, sort_order)
+                          VALUES (?, ?, ?, ?, ?)')
+               ->execute([$session_id, $r['label'], $r['chips'], $r['auto_rsvp'], $r['sort_order']]);
+        }
+    }
+    return ['ok' => true, 'deleted' => count($doomed)];
+}
+
+/**
+ * Apply a preset's stored bonus definitions to a session.
+ *
+ * A definition players already hold is KEPT even when the preset does not carry
+ * it: loading a preset mid-game must never strip chips off the table. Those
+ * survivors are appended after the preset's own rows and reported back so the
+ * caller can say why.
+ */
+function pk_load_bonuses($db, int $session_id, $presetRows, ?int $actor_id): array {
+    $rows    = pk_clean_bonuses($presetRows);
+    $holders = pk_bonus_holder_counts($db, $session_id);
+    $kept    = [];
+    $wanted  = [];
+    foreach ($rows as $r) $wanted[mb_strtolower($r['label'])] = true;
+    foreach (get_bonuses($db, $session_id) as $r) {
+        if (($holders[(int)$r['id']] ?? 0) > 0 && !isset($wanted[mb_strtolower($r['label'])])) {
+            $kept[] = ['id' => (int)$r['id'], 'label' => $r['label'], 'chips' => (int)$r['chips'],
+                       'auto_rsvp' => (int)$r['auto_rsvp'], 'sort_order' => count($rows) + count($kept)];
+        }
+    }
+    pk_save_bonuses($db, $session_id, array_merge($rows, $kept), $actor_id, true);
+    if ($kept) {
+        pk_log($db, $session_id, $actor_id, 'bonus_edit', null, null, null,
+            'Preset loaded; kept ' . count($kept) . ' bonus definition'
+            . (count($kept) === 1 ? '' : 's') . ' still held by players');
+    }
+    return ['kept' => array_column($kept, 'label')];
 }

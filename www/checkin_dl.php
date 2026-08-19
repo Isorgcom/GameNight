@@ -60,6 +60,7 @@ if ($action === 'get_session') {
         'session'  => $session,
         'players'  => get_players($db, $session['id']),
         'payouts'  => get_payouts($db, $session['id']),
+        'bonuses'  => get_bonuses($db, (int)$session['id']),
         'pool'     => calc_pool($db, $session['id']),
         'log'      => get_session_log($db, (int)$session['id']),
         'tickets'  => ['incoming' => $tin->fetchAll(), 'outgoing' => $tout->fetchAll()],
@@ -456,6 +457,7 @@ if ($action === 'init_session') {
         'session' => $sess->fetch(),
         'players' => get_players($db, $session_id),
         'payouts' => get_payouts($db, $session_id),
+        'bonuses' => get_bonuses($db, $session_id),
         'pool'    => calc_pool($db, $session_id),
     ]);
     exit;
@@ -591,6 +593,21 @@ if ($action === 'update_config') {
            ->execute([pk_chip_set_json($_POST['chip_set']), $session_id]);
     }
 
+    // Chip bonus definitions, same conditional-write rule as the chip set.
+    // Deleting one that players already hold is refused and reported back so
+    // the client can confirm; bonus_force=1 is that confirmation. The refusal
+    // happens BEFORE anything else in this action has a chance to matter to it —
+    // the session row is already written, which is fine: the definitions are the
+    // only thing being held back, and re-posting with the flag completes it.
+    if (array_key_exists('bonuses', $_POST)) {
+        $bres = pk_save_bonuses($db, $session_id, pk_clean_bonuses($_POST['bonuses']),
+                                (int)$current['id'], !empty($_POST['bonus_force']));
+        if (empty($bres['ok'])) {
+            echo json_encode(['ok' => false, 'bonus_confirm' => $bres['confirm']]);
+            exit;
+        }
+    }
+
     // Bounty changes move the net pool, so re-derive winnings immediately.
     pk_apply_tournament_payouts($db, $session_id);
 
@@ -698,10 +715,14 @@ if ($action === 'toggle_buyin') {
     if (!$session) { echo json_encode(['ok' => false, 'error' => 'Player not found']); exit; }
     verify_event_access($db, $session['event_id'], $current, $isAdmin);
 
-    $plName = $db->prepare('SELECT display_name FROM poker_players WHERE id = ?');
+    // rsvp_early is read HERE, before the correction block below sets rsvp='yes'
+    // for anyone the host takes money from. Auto-award keys on the flag, which
+    // only a genuine RSVP sets, so buying someone in cannot make them eligible.
+    $plName = $db->prepare('SELECT display_name, rsvp_early FROM poker_players WHERE id = ?');
     $plName->execute([$player_id]);
     $plRow = $plName->fetch();
     $pname = $plRow['display_name'] ?? '';
+    $rsvped_early = !empty($plRow['rsvp_early']);
 
     // Atomic toggle
     $db->beginTransaction();
@@ -736,6 +757,21 @@ if ($action === 'toggle_buyin') {
         auto_assign_table($db, $session['id'], $player_id);
         $amt = (int)$session['buyin_amount'];
         pk_log($db, (int)$session['id'], (int)$current['id'], 'buyin', $player_id, $pname, $amt, 'Bought in — ' . pk_money($amt));
+
+        // Auto-award every bonus flagged auto_rsvp, on this 0→1 transition only.
+        // Eligibility is the rsvp_early snapshot taken above, never poker_players
+        // .rsvp — that column is set by the buy-in itself and by add_walkin, so
+        // reading it here would hand the bonus to the entire field.
+        if ($rsvped_early) {
+            try {
+                $abq = $db->prepare('SELECT id, label, chips FROM poker_bonuses WHERE session_id = ? AND auto_rsvp = 1 ORDER BY sort_order, id');
+                $abq->execute([(int)$session['id']]);
+                foreach ($abq->fetchAll(PDO::FETCH_ASSOC) as $b) {
+                    pk_award_bonus($db, (int)$session['id'], $player_id, (int)$b['id'],
+                                   (int)$current['id'], true, $pname, $b);
+                }
+            } catch (Exception $e) { /* pre-migration DB */ }
+        }
 
         // Optional entry-ticket redemption: the host confirmed applying a won
         // seat. The buyin ledger row above still records the full buy-in (pool
@@ -812,6 +848,20 @@ if ($action === 'toggle_buyin') {
                        -(int)$t['value_cents'], 'Entry ticket un-applied (buy-in reversed) — ' . pk_money((int)$t['value_cents']));
             }
         } catch (Exception $e) { /* pre-migration DB */ }
+
+        // Reverse only what the buy-in itself awarded (auto = 1). A bonus the
+        // host handed out by hand is theirs to take back by hand — undoing a
+        // mis-tapped buy-in must not quietly strip it.
+        try {
+            $rb = $db->prepare('SELECT pb.bonus_id, b.label, b.chips
+                                FROM poker_player_bonuses pb JOIN poker_bonuses b ON b.id = pb.bonus_id
+                                WHERE pb.player_id = ? AND pb.auto = 1');
+            $rb->execute([$player_id]);
+            foreach ($rb->fetchAll(PDO::FETCH_ASSOC) as $b) {
+                pk_revoke_bonus($db, (int)$session['id'], $player_id, (int)$b['bonus_id'],
+                                (int)$current['id'], $pname, $b, 'buy-in reversed');
+            }
+        } catch (Exception $e) { /* pre-migration DB */ }
     }
 
     $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
@@ -819,6 +869,10 @@ if ($action === 'toggle_buyin') {
     echo json_encode([
         'ok'     => true,
         'player' => $p->fetch(),
+        // The bare player row above has no bonus_chips column, so the badge
+        // would paint stale after an auto-award. Ship the roster too, as
+        // add_walkin already does for the same class of bug.
+        'players' => get_players($db, $session['id']),
         'pool'   => calc_pool($db, $session['id']),
     ]);
     exit;
@@ -1446,8 +1500,11 @@ if ($action === 'update_rsvp') {
     if (!$session) { echo json_encode(['ok' => false, 'error' => 'Player not found']); exit; }
     verify_event_access($db, $session['event_id'], $current, $isAdmin);
 
-    // Update poker_players rsvp
-    $db->prepare('UPDATE poker_players SET rsvp = ? WHERE id = ?')->execute([$rsvp, $player_id]);
+    // Update poker_players rsvp. A host setting 'yes' by hand is a genuine RSVP,
+    // so it also earns rsvp_early (auto-award eligibility). MAX() keeps it once
+    // earned: flipping away later doesn't erase that they had committed.
+    $db->prepare('UPDATE poker_players SET rsvp = ?, rsvp_early = MAX(rsvp_early, ?) WHERE id = ?')
+       ->execute([$rsvp, $rsvp === 'yes' ? 1 : 0, $player_id]);
 
     // Also update event_invites to keep in sync. Host action implicitly approves any pending row.
     $pl = $db->prepare('SELECT display_name FROM poker_players WHERE id = ?');
@@ -1819,6 +1876,15 @@ if ($action === 'save_payout_structure') {
         $chip_set = pk_chip_set_json($cq->fetchColumn() ?: '');
     }
 
+    // Bonus definitions ride the preset like the chip set: from the POST when
+    // the client sent them, otherwise from the session so an "Update preset"
+    // that didn't touch them preserves what is there.
+    if (isset($_POST['bonuses'])) {
+        $bonuses = pk_bonuses_json($_POST['bonuses']);
+    } else {
+        $bonuses = pk_bonuses_json(get_bonuses($db, $session_id));
+    }
+
     $pointsArr  = $_POST['points'] ?? [];
     $ticketsArr = $_POST['tickets'] ?? [];
     $labelsArr  = $_POST['labels'] ?? [];
@@ -1840,8 +1906,8 @@ if ($action === 'save_payout_structure') {
     // chip set to a preset made before chip sets existed.
     if (!$rows && $st_bounty === 0 && $st_bounty_pts === 0 && $st_jackpot === 0
         && $game_config === null && $blind_levels === null
-        && $chip_set === null && $timer_config === null) {
-        echo json_encode(['ok' => false, 'error' => 'Nothing to save — set a payout value, points, a prize, a bounty or jackpot entry, a blind schedule or a chip set first.']); exit;
+        && $chip_set === null && $timer_config === null && $bonuses === null) {
+        echo json_encode(['ok' => false, 'error' => 'Nothing to save — set a payout value, points, a prize, a bounty or jackpot entry, a blind schedule, a chip set or a chip bonus first.']); exit;
     }
 
     // structure_id present = "Update preset": write this editor back over the
@@ -1857,8 +1923,8 @@ if ($action === 'save_payout_structure') {
             http_response_code(403);
             echo json_encode(['ok' => false, 'error' => 'You cannot change that preset — use Save As to make your own copy.']); exit;
         }
-        $db->prepare('UPDATE payout_structures SET bounty_amount = ?, bounty_points = ?, jackpot_amount = ?, game_config = ?, blind_levels = ?, timer_config = ?, chip_set = ? WHERE id = ?')
-           ->execute([$st_bounty, $st_bounty_pts, $st_jackpot, $game_config, $blind_levels, $timer_config, $chip_set, $update_id]);
+        $db->prepare('UPDATE payout_structures SET bounty_amount = ?, bounty_points = ?, jackpot_amount = ?, game_config = ?, blind_levels = ?, timer_config = ?, chip_set = ?, bonuses = ? WHERE id = ?')
+           ->execute([$st_bounty, $st_bounty_pts, $st_jackpot, $game_config, $blind_levels, $timer_config, $chip_set, $bonuses, $update_id]);
         $db->prepare('DELETE FROM payout_structure_places WHERE structure_id = ?')->execute([$update_id]);
         $ins = $db->prepare('INSERT INTO payout_structure_places (structure_id, place, percentage, points, ticket_cents, prize_label) VALUES (?, ?, ?, ?, ?, ?)');
         foreach ($rows as $r) $ins->execute([$update_id, $r[0], $r[1], $r[2], $r[3], $r[4]]);
@@ -1867,8 +1933,8 @@ if ($action === 'save_payout_structure') {
         exit;
     }
 
-    $db->prepare('INSERT INTO payout_structures (name, created_by, is_global, league_id, bounty_amount, bounty_points, jackpot_amount, game_config, blind_levels, timer_config, chip_set) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-       ->execute([$name, (int)$current['id'], $is_global, $league_id, $st_bounty, $st_bounty_pts, $st_jackpot, $game_config, $blind_levels, $timer_config, $chip_set]);
+    $db->prepare('INSERT INTO payout_structures (name, created_by, is_global, league_id, bounty_amount, bounty_points, jackpot_amount, game_config, blind_levels, timer_config, chip_set, bonuses) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+       ->execute([$name, (int)$current['id'], $is_global, $league_id, $st_bounty, $st_bounty_pts, $st_jackpot, $game_config, $blind_levels, $timer_config, $chip_set, $bonuses]);
     $sid = (int)$db->lastInsertId();
 
     $ins = $db->prepare('INSERT INTO payout_structure_places (structure_id, place, percentage, points, ticket_cents, prize_label) VALUES (?, ?, ?, ?, ?, ?)');
@@ -2014,6 +2080,16 @@ if ($action === 'load_payout_structure') {
            ->execute([pk_chip_set_json($struct['chip_set']), $session_id]);
     }
 
+    // Bonus definitions, same legacy rule as the chip set: a preset that predates
+    // them leaves the game's own definitions alone. pk_load_bonuses() keeps any
+    // definition players already hold even when the preset lacks it — loading a
+    // preset mid-game must never strip chips off the table.
+    $bonus_kept = [];
+    if (!empty($struct['bonuses'])) {
+        $bl = pk_load_bonuses($db, $session_id, $struct['bonuses'], (int)$current['id']);
+        $bonus_kept = $bl['kept'] ?? [];
+    }
+
     // Applying a preset IS setting the game up — a legacy preset carries no
     // game_config, so it can leave the buy-in untouched, and the host must not
     // keep being told the game is unconfigured after deliberately loading one.
@@ -2038,6 +2114,9 @@ if ($action === 'load_payout_structure') {
         'ok'      => true,
         'session' => $sess2->fetch(),
         'payouts' => get_payouts($db, $session_id),
+        'bonuses' => get_bonuses($db, $session_id),
+        'bonus_kept' => $bonus_kept,
+        'players' => get_players($db, $session_id),
         'pool'    => calc_pool($db, $session_id),
         'use_beta' => (int)($tq2->fetchColumn() ?: 0),
     ]);
@@ -2197,6 +2276,84 @@ if ($action === 'toggle_bounty') {
     $pl = $db->prepare('SELECT * FROM poker_players WHERE id = ?');
     $pl->execute([$player_id]);
     echo json_encode(['ok' => true, 'player' => $pl->fetch(), 'pool' => calc_pool($db, (int)$session['id'])]);
+    exit;
+}
+
+// ─── POST: award_bonus ─────────────────────────────────────
+// Grant or revoke one chip bonus for one player. CHIPS ONLY — nothing here
+// touches money, the prize pool or points.
+if ($action === 'award_bonus') {
+    $player_id = (int)($_POST['player_id'] ?? 0);
+    $bonus_id  = (int)($_POST['bonus_id'] ?? 0);
+    $on        = !empty($_POST['on']);
+    $session = get_session_from_player($db, $player_id);
+    if (!$session) { echo json_encode(['ok' => false, 'error' => 'Player not found']); exit; }
+    verify_event_access($db, $session['event_id'], $current, $isAdmin);
+
+    // The bonus must belong to THIS game: a client-supplied id is never
+    // authority for which session it acts on.
+    $bq = $db->prepare('SELECT id, label, chips FROM poker_bonuses WHERE id = ? AND session_id = ?');
+    $bq->execute([$bonus_id, (int)$session['id']]);
+    $bonus = $bq->fetch(PDO::FETCH_ASSOC);
+    if (!$bonus) { echo json_encode(['ok' => false, 'error' => 'Bonus not found for this game']); exit; }
+
+    $p = $db->prepare('SELECT display_name FROM poker_players WHERE id = ?');
+    $p->execute([$player_id]);
+    $pname = (string)($p->fetchColumn() ?: '');
+
+    if ($on) {
+        pk_award_bonus($db, (int)$session['id'], $player_id, $bonus_id, (int)$current['id'], false, $pname, $bonus);
+    } else {
+        pk_revoke_bonus($db, (int)$session['id'], $player_id, $bonus_id, (int)$current['id'], $pname, $bonus);
+    }
+
+    echo json_encode([
+        'ok'      => true,
+        'players' => get_players($db, (int)$session['id']),
+        'pool'    => calc_pool($db, (int)$session['id']),
+    ]);
+    exit;
+}
+
+// ─── POST: award_bonus_bulk ────────────────────────────────
+// Same, over a selection. `changed` counts only players the call actually moved,
+// so re-running it reports 0 rather than claiming work it did not do.
+if ($action === 'award_bonus_bulk') {
+    $session_id = (int)($_POST['session_id'] ?? 0);
+    $bonus_id   = (int)($_POST['bonus_id'] ?? 0);
+    $on         = !empty($_POST['on']);
+    $ids        = array_values(array_filter(array_map('intval', (array)($_POST['player_ids'] ?? [])), fn($v) => $v > 0));
+    $sess = $db->prepare('SELECT ps.*, e.created_by FROM poker_sessions ps JOIN events e ON ps.event_id = e.id WHERE ps.id = ?');
+    $sess->execute([$session_id]);
+    $s = $sess->fetch();
+    if (!$s) { echo json_encode(['ok' => false, 'error' => 'Session not found']); exit; }
+    verify_event_access($db, $s['event_id'], $current, $isAdmin);
+
+    $bq = $db->prepare('SELECT id, label, chips FROM poker_bonuses WHERE id = ? AND session_id = ?');
+    $bq->execute([$bonus_id, $session_id]);
+    $bonus = $bq->fetch(PDO::FETCH_ASSOC);
+    if (!$bonus) { echo json_encode(['ok' => false, 'error' => 'Bonus not found for this game']); exit; }
+
+    $changed = 0;
+    foreach ($ids as $pid) {
+        // Each id is re-checked against this session — a selection cannot reach
+        // into another game's roster.
+        $p = $db->prepare('SELECT display_name FROM poker_players WHERE id = ? AND session_id = ?');
+        $p->execute([$pid, $session_id]);
+        $pname = $p->fetchColumn();
+        if ($pname === false) continue;
+        $did = $on
+            ? pk_award_bonus($db, $session_id, $pid, $bonus_id, (int)$current['id'], false, (string)$pname, $bonus)
+            : pk_revoke_bonus($db, $session_id, $pid, $bonus_id, (int)$current['id'], (string)$pname, $bonus);
+        if ($did) $changed++;
+    }
+
+    echo json_encode([
+        'ok'      => true,
+        'changed' => $changed,
+        'players' => get_players($db, $session_id),
+        'pool'    => calc_pool($db, $session_id),
+    ]);
     exit;
 }
 
