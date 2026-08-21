@@ -1324,6 +1324,7 @@ function renderDashboard() {
     h += '<button class="pk-btn-settings" title="How this screen works" aria-label="Help" data-act="openHelp">?<span class="pk-act-label"> Help</span></button>';
     if (isTourney()) {
         h += '<a class="pk-btn-settings" id="timerLink" href="' + (USE_BETA_TIMER ? '/timer_beta.php' : '/timer.php') + '?event_id=' + <?= (int)$event['id'] ?> + '" style="text-decoration:none" title="Timer">&#9201;<span class="pk-act-label"> Timer</span></a>';
+        h += '<a class="pk-btn-settings" href="/table_manager.php?event_id=' + <?= (int)$event['id'] ?> + '" style="text-decoration:none" title="Table Manager: phone-first table console">&#128242;<span class="pk-act-label"> Table Mgr</span></a>';
     }
     h += '<a class="pk-btn-settings" href="/walkin_display.php?event_id=' + <?= (int)$event['id'] ?> + '" target="_blank" style="text-decoration:none" title="QR Registration">&#128241;<span class="pk-act-label"> QR</span></a>';
     if (isTourney()) {
