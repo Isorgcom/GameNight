@@ -4,7 +4,44 @@ All notable changes to GameNight are documented here.
 
 ---
 
-## [v0.2106] - 2026-08-19
+## [v0.2107] - 2026-08-21
+
+### Added
+
+- **Table Manager: a phone-first tournament director console**
+  (`/table_manager.php`, linked as 📲 Table Mgr from the check-in header and
+  event.php's host row). The manager at a live table sees the clock, blinds
+  and next blinds in a sticky header — with play/pause, level skip, ±1 minute
+  and undo behind a tap — and runs the whole roster one-thumbed: Buy In / KO /
+  Re-enter as state-matched row primaries (a knockout is two taps, with a
+  10-second Undo snackbar that also reverses a mistaken heads-up KO that
+  auto-finished the game), a bottom action sheet for rebuys, add-ons,
+  bounty/jackpot entry, table moves, notes, the money ledger and removal, a
+  permanent amber strip for pending walk-in approvals with arrival toast and
+  chirp, a Seats view grouped by table with one-tap rebalance, and entry-ticket
+  redemption honoured at buy-in. The page is a 20 KB standalone (no nav, no
+  footer — its own Add-to-Home-Screen identity, "Table Mgr"), built entirely
+  with DOM nodes and `textContent` (no HTML-string rendering), driven by two
+  polls: `timer_dl.php get_state` every 3 s (drift-free `ends_at_ms` anchor
+  clock, ported from Timer BETA) and `checkin_dl.php get_session&slim=1` every
+  10 s. Zero new mutation endpoints — every action rides the existing
+  CSRF-gated `checkin_dl.php`/`timer_dl.php` actions, `can_manage_event()`
+  gates the page. Design doc: `TABLE_MANAGER.md`.
+
+### Changed
+
+- **The console's overnight-decay failure is designed out of the new page.**
+  `checkin.php` embeds its CSRF token once at render, so a console left open
+  past the session GC goes silently read-only. Table Manager refreshes its
+  token from every poll and retries a 403 write exactly once after a forced
+  refresh; it also holds a screen wake lock (NoSleep fallback for iPhone over
+  HTTP), stops polling while hidden and resyncs on return, shows an amber
+  "Reconnecting…" / red "Session expired" strip instead of swallowing fetch
+  errors, and reloads itself when a new build ships. To support this,
+  `checkin_dl.php get_session` gains three additive fields — `csrf_token` and
+  `asset_v` on every response, and a `slim=1` flag that drops the 200-row log
+  (31.7 KB → 8 KB measured). `checkin.php` never sends the flag and is
+  untouched by all three.
 
 ### Added
 
