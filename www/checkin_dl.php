@@ -61,10 +61,21 @@ if ($action === 'get_session') {
         'players'  => get_players($db, $session['id']),
         'payouts'  => get_payouts($db, $session['id']),
         'pool'     => calc_pool($db, $session['id']),
-        'log'      => get_session_log($db, (int)$session['id']),
+        // slim=1 (gameday.php's roster poll) drops the log — it is ~80% of
+        // this payload and Game Day never renders it. checkin.php never sends
+        // the flag, so the console is untouched.
+        'log'      => empty($_GET['slim']) ? get_session_log($db, (int)$session['id']) : [],
         'tickets'  => ['incoming' => $tin->fetchAll(), 'outgoing' => $tout->fetchAll()],
         'jackpots' => ['league_id' => $league_id, 'balance' => pk_jackpot_balance($db, $league_id),
                        'contributed' => pk_jackpot_contributed($db, (int)$session['id'])],
+        // A fresh token per poll, the timer_dl.php:get_state pattern: a page
+        // left open past the session GC re-establishes via the remember cookie
+        // with a NEW token, and a client that never refreshes goes silently
+        // read-only (this is checkin.php's overnight failure). Same-origin,
+        // login- and verify_event_access-gated GET; CORS blocks foreign reads.
+        'csrf_token' => csrf_token(),
+        // Long-open displays reload themselves when a new build ships.
+        'asset_v'    => (int)(@filemtime(__DIR__ . '/gameday.js') ?: 0),
     ]);
     exit;
 }
