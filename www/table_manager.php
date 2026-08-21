@@ -1,6 +1,6 @@
 <?php
 /**
- * Game Day — phone-first tournament director console.
+ * Table Manager — phone-first tournament director console.
  *
  * The check-in console squeezed through a CSS breakpoint is not a phone tool:
  * eliminate hides behind an expand, there is no timer control at all, no wake
@@ -10,7 +10,7 @@
  * one-thumb roster (Buy In / KO / Re-enter as state-matched primaries), a
  * bottom action sheet for everything else, and a liveness layer that refreshes
  * its CSRF token from every timer poll (timer_dl.php's pattern) so it never
- * decays. Design doc: GAMEDAY.md.
+ * decays. Design doc: TABLE_MANAGER.md.
  *
  * Deliberately standalone: no _nav.php (the header IS the chrome) and no
  * _footer.php — the footer injects the site manifest (start_url '/', which
@@ -76,9 +76,9 @@ $title     = (string)$event['title'];
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Game Day">
+    <meta name="apple-mobile-web-app-title" content="Table Mgr">
     <meta name="theme-color" content="#0f172a">
-    <title>Game Day &ndash; <?= htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE) ?></title>
+    <title>Table Manager &ndash; <?= htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE) ?></title>
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
     /* Phone-first. The desktop gets the same single column, centered. */
@@ -321,13 +321,13 @@ window.GD = {
     status:    <?= json_encode((string)$session['status']) ?>,
     csrf:      <?= json_encode($csrf) ?>,
     hasTimer:  <?= $has_timer ? 'true' : 'false' ?>,
-    assetV:    <?= (int)(@filemtime(__DIR__ . '/gameday.js') ?: 0) ?>
+    assetV:    <?= (int)(@filemtime(__DIR__ . '/table_manager.js') ?: 0) ?>
 };
 </script>
 <script src="/pk-seg.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-seg.js') ?: 0)) ?>" defer></script>
 <script src="/pk-dialogs.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-dialogs.js') ?: 0)) ?>" defer></script>
 <script src="/pk-dispatch.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-dispatch.js') ?: 0)) ?>" defer></script>
 <script src="/vendor/nosleep.min.js" defer></script>
-<script src="/gameday.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/gameday.js') ?: 0)) ?>" defer></script>
+<script src="/table_manager.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/table_manager.js') ?: 0)) ?>" defer></script>
 </body>
 </html>

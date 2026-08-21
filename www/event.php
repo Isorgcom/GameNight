@@ -247,7 +247,7 @@ if ($token === '' && $page_eid > 0) {
             <a class="btn btn-primary" style="text-decoration:none" href="/event_edit.php?id=<?= $page_eid ?>">Edit</a>
             <?php if ((int)$ev['is_poker'] === 1): ?>
             <a class="btn" style="background:#059669;color:#fff;text-decoration:none" href="/checkin.php?event_id=<?= $page_eid ?>">Manage Game</a>
-            <a class="btn" style="background:#0f172a;color:#fff;text-decoration:none" href="/gameday.php?event_id=<?= $page_eid ?>" title="Phone-first table console">&#127918; Game Day</a>
+            <a class="btn" style="background:#0f172a;color:#fff;text-decoration:none" href="/table_manager.php?event_id=<?= $page_eid ?>" title="Phone-first table console">&#128242; Table Manager</a>
             <?php endif; ?>
             <div class="ev-more-dd" id="evMoreDD">
                 <button type="button" class="btn btn-outline" data-act="toggleEvMore" data-a1="@event">More <span style="font-size:.7rem">&#9662;</span></button>

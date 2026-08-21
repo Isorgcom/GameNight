@@ -1,5 +1,10 @@
 
-# Game Day — phone-first tournament director console
+# Table Manager — phone-first tournament director console
+
+> Shipped as **Table Manager** (`/table_manager.php` + `table_manager.js`);
+> this design doc predates the rename and says "Game Day"/`gameday.php`
+> throughout — read those as the shipped names. JS internals keep the short
+> `gd` prefix.
 
 **Branch:** `GameNight-MobileGameManager` (off `main` @ `ffb7b01`, v0.2106)
 **New page:** `/gameday.php?event_id=N`

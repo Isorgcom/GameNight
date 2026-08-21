@@ -61,7 +61,7 @@ if ($action === 'get_session') {
         'players'  => get_players($db, $session['id']),
         'payouts'  => get_payouts($db, $session['id']),
         'pool'     => calc_pool($db, $session['id']),
-        // slim=1 (gameday.php's roster poll) drops the log — it is ~80% of
+        // slim=1 (table_manager.php's roster poll) drops the log — it is ~80% of
         // this payload and Game Day never renders it. checkin.php never sends
         // the flag, so the console is untouched.
         'log'      => empty($_GET['slim']) ? get_session_log($db, (int)$session['id']) : [],
@@ -75,7 +75,7 @@ if ($action === 'get_session') {
         // login- and verify_event_access-gated GET; CORS blocks foreign reads.
         'csrf_token' => csrf_token(),
         // Long-open displays reload themselves when a new build ships.
-        'asset_v'    => (int)(@filemtime(__DIR__ . '/gameday.js') ?: 0),
+        'asset_v'    => (int)(@filemtime(__DIR__ . '/table_manager.js') ?: 0),
     ]);
     exit;
 }

@@ -1,7 +1,7 @@
 /**
- * Game Day — behaviour for gameday.php (phone-first tournament director).
+ * Table Manager — behaviour for table_manager.php (phone-first tournament director).
  *
- * Architecture (see GAMEDAY.md):
+ * Architecture (see TABLE_MANAGER.md):
  *  - Two pollers: clock  = timer_dl.php get_state   every 3s  (anchors, levels,
  *    pool, payouts, can_control, and a FRESH CSRF TOKEN every response);
  *    roster = checkin_dl.php get_session&slim=1     every 10s (players, config).
@@ -26,7 +26,7 @@
 
 /* ── State ─────────────────────────────────────────────────────────────── */
 
-var GD = window.GD;                    // server-injected config (gameday.php)
+var GD = window.GD;                    // server-injected config (table_manager.php)
 var SESSION = null;                    // session config row (roster poll)
 var PLAYERS = [];                      // roster (roster poll / action merges)
 var PAYOUTS = [];                      // payout ladder rows
