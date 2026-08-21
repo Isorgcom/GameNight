@@ -52,6 +52,12 @@ var WALKIN_SEEN = null;                // Set of pending ids; null until first d
 
 var el = function (id) { return document.getElementById(id); };
 
+// CSS cannot downgrade an explicit behavior:'smooth' — honour the OS setting.
+function gdScrollBehavior() {
+    return (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+        ? 'auto' : 'smooth';
+}
+
 /* ── Formatting helpers ────────────────────────────────────────────────── */
 
 // The page's ONE escaping helper, used ONLY for pk* dialog message strings
@@ -162,19 +168,27 @@ function applyTimerSync(t, requestedAt) {
 function gdNoteFail() { renderNet(); }
 
 function pollClock() {
-    if (clockInFlight || !GD.hasTimer) { renderHeader(); return; }
+    if (clockInFlight) return;
     clockInFlight = true;
     var requestedAt = Date.now();
-    fetch('/timer_dl.php?action=get_state&session_id=' + GD.sessionId, { credentials: 'same-origin' })
+    // Polls even when GD.hasTimer is false: the host may set the timer up from
+    // another device mid-game, and a frozen flag would leave this page blind
+    // to it forever. The error response on a timer-less session is ~60 bytes.
+    var ac = ('AbortController' in window) ? new AbortController() : null;
+    var kill = ac ? setTimeout(function () { ac.abort(); }, 10000) : null;
+    fetch('/timer_dl.php?action=get_state&session_id=' + GD.sessionId,
+          ac ? { credentials: 'same-origin', signal: ac.signal } : { credentials: 'same-origin' })
         .then(function (r) { return r.json(); })
         .then(function (j) {
             clockInFlight = false;
+            if (kill) clearTimeout(kill);
             if (!j || !j.ok) {
-                // A vanished timer row or revoked access: count as failure so
-                // the banner can speak, but never throw.
-                gdNoteFail();
+                // No timer row yet (or it vanished): the roster half still
+                // works; note the miss only when a timer was expected.
+                if (GD.hasTimer) gdNoteFail(); else renderHeader();
                 return;
             }
+            if (!GD.hasTimer) { GD.hasTimer = true; renderHeader(); }
             noteClockSample(j.server_now_ms, requestedAt, Date.now());
             applyTimerSync(j.timer || {}, requestedAt);
             LEVELS = j.levels || [];
@@ -190,18 +204,26 @@ function pollClock() {
             lastClockOkAt = Date.now();
             renderHeader(); renderNet();
         })
-        .catch(function () { clockInFlight = false; gdNoteFail(); });
+        .catch(function () { clockInFlight = false; if (kill) clearTimeout(kill); gdNoteFail(); });
 }
 
+// A forced resync while a poll is in flight must not be dropped — the
+// in-flight response may predate the mutation that asked for the resync.
+var rosterAgain = false;
 function pollRoster() {
-    if (rosterInFlight) return;
+    if (rosterInFlight) { rosterAgain = true; return; }
     rosterInFlight = true;
+    var ac = ('AbortController' in window) ? new AbortController() : null;
+    var kill = ac ? setTimeout(function () { ac.abort(); }, 10000) : null;
     // slim=1 drops the 200-row log from the payload (79% of it); a server
     // without the flag simply ignores it.
-    fetch('/checkin_dl.php?action=get_session&event_id=' + GD.eventId + '&slim=1', { credentials: 'same-origin' })
+    fetch('/checkin_dl.php?action=get_session&event_id=' + GD.eventId + '&slim=1',
+          ac ? { credentials: 'same-origin', signal: ac.signal } : { credentials: 'same-origin' })
         .then(function (r) { return r.json(); })
         .then(function (j) {
             rosterInFlight = false;
+            if (kill) clearTimeout(kill);
+            if (rosterAgain) { rosterAgain = false; pollRoster(); return; }
             if (!j || !j.ok || !j.session) { gdNoteFail(); return; }
             SESSION = j.session;
             PAYOUTS = j.payouts || PAYOUTS;
@@ -220,8 +242,11 @@ function pollRoster() {
             PLAYERS = j.players || [];
             lastRosterOkAt = Date.now();
             renderPending(); renderRoster(); renderHeader(); renderNet();
+            if (SHEET_PID !== null) renderSheet();   // an open sheet tracks the world
         })
-        .catch(function () { rosterInFlight = false; gdNoteFail(); });
+        .catch(function () { rosterInFlight = false; if (kill) clearTimeout(kill);
+                             if (rosterAgain) { rosterAgain = false; pollRoster(); return; }
+                             gdNoteFail(); });
 }
 
 // setTimeout self-rescheduling: a slow response can never stack requests.
@@ -254,7 +279,14 @@ function gdPost(url, fields, retried) {
         if (r.status === 403 && !retried) {
             return new Promise(function (resolve) {
                 var requestedAt = Date.now();
-                fetch('/timer_dl.php?action=get_state&session_id=' + GD.sessionId, { credentials: 'same-origin' })
+                // Refresh from whichever channel can actually answer: a
+                // timer-less session gets {ok:false} from get_state before the
+                // token line, which would make this retry a guaranteed replay
+                // of the same stale token.
+                var refreshUrl = GD.hasTimer
+                    ? '/timer_dl.php?action=get_state&session_id=' + GD.sessionId
+                    : '/checkin_dl.php?action=get_session&event_id=' + GD.eventId + '&slim=1';
+                fetch(refreshUrl, { credentials: 'same-origin' })
                     .then(function (rr) { return rr.json(); })
                     .then(function (j) {
                         if (j && j.csrf_token) GD.csrf = j.csrf_token;
@@ -506,7 +538,7 @@ function walkinToast(msg) {
         + 'box-shadow:0 6px 24px rgba(0,0,0,.3);cursor:pointer;max-width:90vw';
     t.onclick = function () {
         t.remove();
-        window.scrollTo({ top: 0, behavior: 'smooth' });   // the strip lives at the top
+        window.scrollTo({ top: 0, behavior: gdScrollBehavior() });   // the strip lives at the top
     };
     document.body.appendChild(t);
     setTimeout(function () { t.remove(); }, 8000);
@@ -744,9 +776,11 @@ function renderSeats(view) {
     view.textContent = '';
     view.dataset.mode = 'seats';
 
+    var q = SEARCH.toLowerCase();
     var live = PLAYERS.filter(function (p) {
         return parseInt(p.bought_in) && !parseInt(p.eliminated) && !parseInt(p.removed)
-            && (p.approval_status || 'approved') !== 'pending';
+            && (p.approval_status || 'approved') !== 'pending'
+            && (!q || String(p.display_name || '').toLowerCase().indexOf(q) !== -1);
     });
 
     if ((parseInt(SESSION && SESSION.num_tables) || 1) > 1 || live.some(function (p) { return !p.table_number; })) {
@@ -786,10 +820,15 @@ function renderSeats(view) {
             num.textContent = p.seat_number ? String(p.seat_number) : '—';
             var nm = document.createElement('span');
             nm.className = 'gd-seat-name'; nm.textContent = p.display_name;
-            var mv = document.createElement('button');
-            mv.type = 'button'; mv.className = 'gd-move-chip'; mv.textContent = 'Move';
-            mv.dataset.act = 'gdMoveTable'; mv.dataset.a1 = String(parseInt(p.id));
-            row.appendChild(num); row.appendChild(nm); row.appendChild(mv);
+            row.appendChild(num); row.appendChild(nm);
+            // A single-table game has nowhere to move anyone: the picker would
+            // be an empty select whose OK silently does nothing.
+            if ((parseInt(SESSION && SESSION.num_tables) || 1) > 1) {
+                var mv = document.createElement('button');
+                mv.type = 'button'; mv.className = 'gd-move-chip'; mv.textContent = 'Move';
+                mv.dataset.act = 'gdMoveTable'; mv.dataset.a1 = String(parseInt(p.id));
+                row.appendChild(mv);
+            }
             card.appendChild(row);
         });
         view.appendChild(card);
@@ -839,6 +878,7 @@ window.gdMoveTable = function (pid) {
         if (!ok || !target) return;
         gdAction('move_player_table', { player_id: pid, new_table: target }).then(function (j) {
             if (j.players) takePlayers(j.players); else mergePlayer(j.player);
+            if (SHEET_PID !== null) renderSheet();
         }).catch(gdErr);
     });
 };
@@ -886,16 +926,23 @@ window.gdBuyIn = function (pid) {
     var ticket = null;
     if (!parseInt(p.bought_in) && TICKETS.incoming && TICKETS.incoming.length) {
         ticket = TICKETS.incoming.find(function (t) {
-            if (t.user_id && p.user_id) return parseInt(t.user_id) === parseInt(p.user_id);
+            // Mirror checkin_dl's rule exactly: an owned ticket matches by
+            // user id ONLY. Offering it to a same-named account-less walk-in
+            // would confirm a redemption the server then ignores — recording a
+            // cash buy-in nobody paid while the ticket stays live.
+            if (t.user_id) return p.user_id && parseInt(t.user_id) === parseInt(p.user_id);
             return String(t.display_name || '').toLowerCase() === String(p.display_name || '').toLowerCase();
         }) || null;
     }
     var doPost = function (ticketId) {
-        var fields = { player_id: pid };
+        // set=1 = the server's idempotent "ensure bought in" mode: a double-tap
+        // must never land as buy-in + un-buy. gdUndoBuyin is the deliberate
+        // toggle-off path and stays a bare toggle.
+        var fields = { player_id: pid, set: 1 };
         if (ticketId) fields.ticket_id = ticketId;
         gdAction('toggle_buyin', fields).then(function (j) {
-            if (ticketId) { pollRoster(); }          // tickets + log changed
-            else { mergePlayer(j.player); takePool(j.pool); }
+            mergePlayer(j.player); takePool(j.pool);
+            if (ticketId) pollRoster();              // tickets + log changed too
         }).catch(gdErr);
     };
     if (ticket) {
@@ -1223,9 +1270,12 @@ window.gdAddWalkin = function () {
         if (!name) return;
         gdAction('add_walkin', { session_id: GD.sessionId, name: name }).then(function (j) {
             takePlayers(j.players); takePool(j.pool);
+            // A fresh walk-in is not bought in, so 3 of the 4 views hide them —
+            // an add that shows nothing reads as a failure and gets retried.
             var els = rowEls.get(parseInt(j.player_id));
+            if (!els) { gdSetView('all'); els = rowEls.get(parseInt(j.player_id)); }
             if (els) {
-                els.root.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                els.root.scrollIntoView({ block: 'center', behavior: gdScrollBehavior() });
                 els.root.classList.remove('gd-flash');
                 void els.root.offsetWidth;           // restart the animation
                 els.root.classList.add('gd-flash');
@@ -1248,6 +1298,9 @@ document.querySelectorAll('#gdViewSeg button').forEach(function (b) {
 });
 renderLifecycle();
 initWakeLock();
+// Baseline the freshness clocks at boot: without this, a page whose very
+// first poll never succeeds has base=0 and the stale banner can never speak.
+lastClockOkAt = Date.now(); lastRosterOkAt = Date.now();
 pollClock();
 pollRoster();
 scheduleClock();

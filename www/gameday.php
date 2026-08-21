@@ -100,7 +100,7 @@ $title     = (string)$event['title'];
     .gd-stats { font-size:.74rem; color:#94a3b8; margin-top:.3rem; display:flex; gap:.8rem; flex-wrap:wrap; }
     .gd-stats b { color:#e2e8f0; font-weight:700; }
     .gd-title-line { font-size:.68rem; color:#64748b; display:flex; gap:.5rem; align-items:center; margin-bottom:.15rem; }
-    .gd-title-line .gd-back { color:#94a3b8; text-decoration:none; font-size:.9rem; padding:.1rem .3rem; margin-left:-.3rem; }
+    .gd-title-line .gd-back { color:#94a3b8; text-decoration:none; font-size:1rem; padding:.55rem .7rem; margin:-.55rem 0 -.55rem -.7rem; }
     .gd-title-line span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
 
     /* Timer command row: hidden until a header tap. 52px targets. */
@@ -121,24 +121,23 @@ $title     = (string)$event['title'];
     .gd-setup { background:#fffbeb; color:#92400e; border-bottom:1.5px solid #f59e0b; justify-content:space-between; }
     .gd-winner { background:#dcfce7; color:#166534; border-bottom:1.5px solid #16a34a; font-weight:700; }
     .gd-strip .gd-strip-btn { border:none; border-radius:8px; padding:.45rem .9rem; font-weight:700;
-        background:#d97706; color:#fff; cursor:pointer; min-height:40px; }
+        background:#d97706; color:#fff; cursor:pointer; min-height:44px; }
 
     /* Pending walk-ins: always visible, never behind a filter. */
     .gd-pending { background:#fffbeb; border-bottom:1.5px solid #f59e0b; padding:.3rem .9rem .45rem; }
     .gd-pending-title { font-size:.68rem; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:#92400e; margin:.2rem 0; }
     .gd-pending-row { display:flex; align-items:center; gap:.5rem; padding:.25rem 0; }
     .gd-pending-row .gd-pname { flex:1; min-width:0; font-weight:600; color:#1e293b; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .gd-pending-row button { border:none; border-radius:8px; min-height:40px; padding:0 .85rem; font-weight:700; cursor:pointer; }
+    .gd-pending-row button { border:none; border-radius:8px; min-height:44px; padding:0 .85rem; font-weight:700; cursor:pointer; }
     .gd-pending-row .gd-ok { background:#16a34a; color:#fff; }
     .gd-pending-row .gd-no { background:#fff; color:#991b1b; border:1.5px solid #fca5a5; }
 
     /* ── Search + view switcher ── */
-    .gd-toolbar { padding:.6rem .9rem .5rem; display:flex; flex-direction:column; gap:.5rem;
-        position:sticky; top:0; z-index:0; }
+    .gd-toolbar { padding:.6rem .9rem .5rem; display:flex; flex-direction:column; gap:.5rem; }
     .gd-search { width:100%; box-sizing:border-box; padding:.55rem .8rem; font-size:1rem;
         border:1.5px solid #e2e8f0; border-radius:10px; background:#fff; }
     #gdViewSeg { width:100%; }
-    #gdViewSeg button { flex:1; }
+    #gdViewSeg button { flex:1; min-height:44px; }
 
     /* ── Roster rows ── */
     #gdView { padding:0 .9rem; overflow:hidden; }
@@ -181,7 +180,7 @@ $title     = (string)$event['title'];
     .gd-seat-name { flex:1; min-width:0; font-size:.9rem; font-weight:600; color:#1e293b;
         overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .gd-move-chip { border:1.5px solid #cbd5e1; background:#fff; color:#334155; border-radius:8px;
-        min-height:38px; padding:0 .7rem; font-weight:700; font-size:.75rem; cursor:pointer; }
+        min-height:44px; padding:0 .8rem; font-weight:700; font-size:.75rem; cursor:pointer; }
     .gd-rebalance { width:100%; border:none; border-radius:10px; min-height:46px; font-weight:800;
         background:#0f172a; color:#fff; cursor:pointer; margin:.1rem 0 .8rem; }
 
@@ -226,14 +225,14 @@ $title     = (string)$event['title'];
 
     /* ── Snackbar (post-KO undo) ── */
     .gd-snack { position:fixed; left:50%; transform:translate(-50%, 200%); bottom:calc(66px + env(safe-area-inset-bottom));
-        z-index:80; background:#1e293b; color:#e2e8f0; border-radius:12px; padding:.6rem .5rem .6rem .95rem;
+        z-index:95; background:#1e293b; color:#e2e8f0; border-radius:12px; padding:.6rem .5rem .6rem .95rem;
         display:flex; align-items:center; gap:.7rem; box-shadow:0 8px 24px rgba(0,0,0,.35);
         transition:transform .25s cubic-bezier(.4,0,.2,1), visibility .25s; visibility:hidden;
         max-width:min(92vw, 480px); white-space:nowrap; }
     .gd-snack.open { transform:translate(-50%, 0); visibility:visible; }
     .gd-snack .gd-snack-txt { overflow:hidden; text-overflow:ellipsis; font-size:.88rem; }
     .gd-snack button { border:none; background:#2563eb; color:#fff; border-radius:8px;
-        min-height:40px; padding:0 1rem; font-weight:800; cursor:pointer; flex-shrink:0; }
+        min-height:44px; padding:0 1rem; font-weight:800; cursor:pointer; flex-shrink:0; }
 
     /* Wake-lock nudge (touch devices without the API, e.g. iOS over HTTP) */
     .gd-wake { position:fixed; left:50%; transform:translateX(-50%); top:30%; z-index:70;
