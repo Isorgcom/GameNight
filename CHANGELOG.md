@@ -4,6 +4,32 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2108] - 2026-08-22
+
+### Fixed
+
+- **The Timer Layouts page now opens on the Default Layout, without a flash of
+  Classic on the way in.** The standalone layout editor (the hamburger menu's
+  Timer Layouts, `timer_beta_edit.php`) deliberately booted on Classic as a
+  plain canvas, even though `timer_beta.js` documents the Default Layout as
+  "the layout to copy when starting a design" and it is what an unconfigured
+  display actually shows. `boot()` in `timer_beta_edit.js` now opens on
+  `PV.defaultKey` whenever no event binding decides otherwise (Classic remains
+  only as a fallback if that key ever goes missing), and the name box seeds as
+  "Default Layout (mine)" to match the other boot paths. Fixing that exposed a
+  second cosmetic bug: the embedded preview (`timer_beta.php?embed=1`) painted
+  `renderLayout('classic')` as a placeholder before the editor's first
+  `setLayout()` push. That seed was invisible while both sides agreed on
+  Classic, but became a brief wrong-design flash once they stopped agreeing.
+  Embed mode now paints nothing until the editor pushes the real layout; the
+  update loop tolerates the layoutless window because every consumer of
+  `CURRENT_LAYOUT` guards on it and the cell arrays start empty. Event-context
+  editing on `event_display.php` is unchanged. Verified headless against dev
+  with a new `beta_defaultboot_check.js` (boots on the Default Layout's
+  catch-all screen; the embed page stays blank and error-free with no editor
+  attached; the plain display page still seeds itself) plus the existing
+  `beta_editor_check.js` suite, 9/9 on both.
+
 ## [v0.2107] - 2026-08-21
 
 ### Added

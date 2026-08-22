@@ -2292,11 +2292,15 @@ if (window.TB_EMBED) {
     }, true);
     window.addEventListener('resize', scheduleRefit);
     refreshDerived();
-    // Seed the editor's preview from a trigger-free built-in, NOT the display
-    // default: this paint is a placeholder the editor replaces within a frame,
-    // and arming a default layout's triggers (Showcase has four) only to throw
-    // them away is noise — including audible noise in the preview.
-    renderLayout('classic');
+    // No seed paint. The editor pushes the real layout via setLayout as soon
+    // as it boots, and anything painted here shows through as a flash of the
+    // wrong design during the handoff (Classic did, once the editor stopped
+    // booting on Classic itself). An empty root over the black page background
+    // reads as loading instead. The update loop tolerates the layoutless
+    // window: every consumer of CURRENT_LAYOUT guards on it, and the cell
+    // arrays start empty. Seeding a trigger-free built-in is not an option
+    // either, since any visible seed that differs from what the editor loads
+    // brings the flash right back.
     setInterval(tick, 500);
 } else {
 

@@ -3216,22 +3216,20 @@ function boot() {
     // built-in key loads synchronously; a saved layout follows by fetch.
     // What to open on, in priority order:
     //   1. the built-in this game is bound to;
-    //   2. IN EVENT CONTEXT with nothing bound, the engine's default layout —
-    //      because that is what this game's display is actually showing, and
-    //      the binding bar right above says so. Opening on Classic there made
-    //      the editor contradict the bar and the TV;
-    //   3. the standalone library editor: Classic, a plain canvas to build ON
-    //      rather than a finished design with screens and triggers.
+    //   2. otherwise the engine's default layout. In event context with
+    //      nothing bound it is what this game's display is actually showing
+    //      (the binding bar right above says so); in the standalone library
+    //      editor it is what an unconfigured TV shows. Opening the library
+    //      on Classic instead made the menu page contradict every display;
+    //   3. Classic, only if the default key is ever missing.
     var fromBinding = !!(EV_ID && !evLayoutId && evLayoutKey && PV.builtins[evLayoutKey]);
-    var unbound = !!(EV_ID && !evLayoutId && !evLayoutKey);
     var bootKey = fromBinding ? evLayoutKey
-                : (unbound && PV.defaultKey && PV.builtins[PV.defaultKey]) ? PV.defaultKey
+                : (PV.defaultKey && PV.builtins[PV.defaultKey]) ? PV.defaultKey
                 : 'classic';
     LAYOUT = JSON.parse(JSON.stringify(PV.builtins[bootKey]));
     delete LAYOUT.name;
     curBuiltin = bootKey;   // fresh boot shows a pristine built-in
-    nameInput.value = (!fromBinding && !unbound) ? 'My layout'
-                                                 : PV.builtins[bootKey].name + ' (mine)';
+    nameInput.value = PV.builtins[bootKey].name + ' (mine)';
     normalizeLayout();
     // Open on the catch-all, not screen 0. Conditional screens sort FIRST in
     // the array, so with a multi-screen default (Showcase leads with Phone)
