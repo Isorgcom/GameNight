@@ -4,6 +4,37 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2109] - 2026-08-22
+
+### Added
+
+- **Timer BETA: font options on text cells and shared styles, with ten bundled
+  display faces.** Every text cell gains a **Font** setting, offered in the
+  Inspector, the preview right-click menu, and on shared-styles cards (a shared
+  style can give a whole design its typeface in one place). Eight choices are
+  web-safe system stacks (Serif, Monospace, Condensed, Wide, Heavy, Impact,
+  Script, Comic); ten more ship with the site as latin woff2 subsets in
+  `www/fonts/` (~187 KB, all SIL OFL, credits in `www/fonts/LICENSE.md`):
+  Bebas Neue, Oswald, Anton and Orbitron for scoreboard/poster work, **Digital
+  clock** (DSEG7, a true 7-segment face for `<clock>` and blinds cells), the
+  casino serifs Cinzel and Playfair Display, plus Rye, Monoton and Lobster.
+  `fonts.css` declares them with `font-display: swap` and every key carries a
+  same-shape fallback stack, so a display never blocks on a font. Self-hosted
+  on purpose: the closed CSP's `default-src 'self'` already covers same-origin
+  fonts, so no policy change and no third-party request from any screen. A
+  layout stores a whitelisted **key**, never a raw `font-family` string - the
+  same contract as image paths and QR targets - enforced server-side by
+  `PK_LO_FONTS` in `timer_beta_dl.php` on cells and shared styles alike, and
+  the editor's picker reads the engine's own list via `TBPreview.fonts` so it
+  can never offer a face the renderer won't paint. Fonts are base-only like
+  size and align, so a conditional variant can never swap faces and reflow the
+  layout mid-game. The picker previews each option in its own face (the editor
+  pages load `fonts.css` too), and `help-timer.php` documents the feature.
+  Operator note: QA gained `beta_font_check.js` (picker, preview application,
+  woff2 activation, sanitizer round-trip), and `beta_ctxmenu_check.js` was
+  repaired - it had been aiming at hardcoded tree indexes from the Classic-boot
+  era and now finds a real text cell dynamically.
+
 ## [v0.2108] - 2026-08-22
 
 ### Fixed
