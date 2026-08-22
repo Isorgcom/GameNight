@@ -58,6 +58,9 @@ $csrf = csrf_token();
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <link rel="stylesheet" href="/event_setup.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/event_setup.css') ?: 0)) ?>">
     <link rel="stylesheet" href="/timer_beta_edit.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/timer_beta_edit.css') ?: 0)) ?>">
+    <?php /* The Font picker's options preview in their own face, so the
+             EDITOR page needs the bundled fonts too, not just the iframe. */ ?>
+    <link rel="stylesheet" href="/fonts.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/fonts.css') ?: 0)) ?>">
 </head>
 <body class="<?= $is_tournament ? 'tbe-body' : '' ?>">
 <?php $nav_user = $current; require __DIR__ . '/_nav.php'; ?>

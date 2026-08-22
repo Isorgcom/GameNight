@@ -1229,6 +1229,39 @@ function buildInner(inner, text, elList, elStyles) {
 // can never reflow the layout, only re-emphasise it.
 var VARIANT_PROPS = ['text', 'color', 'bg', 'bold', 'opacity'];
 
+// Named fonts: key → CSS stack. A layout carries the KEY, never a raw
+// font-family string — the same rule as image paths and QR targets: a layout
+// is a shareable document, so it names looks this engine defines rather than
+// carrying CSS of its own (the server sanitizer enforces the same list).
+// Two tiers, one contract. The first eight are system faces every device
+// already has; the rest are BUNDLED woff2 files (www/fonts/ via fonts.css,
+// same-origin so the closed CSP covers them). Either way each stack ends in
+// faces of the same SHAPE, so text painted before a webfont arrives — or on
+// a device that never gets it — still reads as the intended kind of letter.
+var FONTS = {
+    serif:     "Georgia, 'Times New Roman', serif",
+    mono:      "Consolas, Menlo, 'Courier New', monospace",
+    condensed: "'Arial Narrow', 'Helvetica Condensed', sans-serif-condensed, sans-serif",
+    wide:      "Verdana, Geneva, Tahoma, sans-serif",
+    heavy:     "'Arial Black', 'Segoe UI Black', sans-serif",
+    impact:    "Impact, Haettenschweiler, 'Arial Black', sans-serif",
+    script:    "'Segoe Script', 'Brush Script MT', cursive",
+    comic:     "'Comic Sans MS', 'Chalkboard SE', 'Comic Neue', cursive",
+    // Bundled (fonts.css) — display faces picked for a tournament wall:
+    // condensed scoreboard caps, a heavy poster face, a 7-segment clock,
+    // luxury casino serifs, a saloon western, a neon sign, a brush script.
+    bebas:     "'Bebas Neue', 'Arial Narrow', sans-serif",
+    oswald:    "Oswald, 'Arial Narrow', sans-serif",
+    anton:     "Anton, 'Arial Black', sans-serif",
+    orbitron:  "Orbitron, 'Segoe UI', sans-serif",
+    digital:   "'DSEG7', Consolas, monospace",
+    cinzel:    "Cinzel, Georgia, serif",
+    playfair:  "'Playfair Display', Georgia, serif",
+    rye:       "Rye, Georgia, serif",
+    monoton:   "Monoton, 'Arial Black', sans-serif",
+    lobster:   "Lobster, 'Segoe Script', cursive"
+};
+
 // Apply the emphasis props of `spec` to the element, clearing any the spec
 // omits so a variant switching off leaves no residue.
 function applyEmphasis(el, spec) {
@@ -1319,6 +1352,9 @@ function buildCell(spec) {
     // dutifully got smaller beside them.
     if (spec.chipSize) el.style.setProperty('--tb-chip-disc', (spec.chipSize / (spec.size || 2.4)).toFixed(3) + 'em');
     if (spec.spacing) el.style.letterSpacing = spec.spacing;
+    // Base-only like size/align: a font swap changes metrics, so it must not
+    // arrive via a variant and reflow the layout mid-game.
+    if (spec.font && FONTS[spec.font]) el.style.fontFamily = FONTS[spec.font];
     if (spec.align === 'left')  { el.style.justifyContent = 'flex-start'; el.style.textAlign = 'left'; }
     if (spec.align === 'right') { el.style.justifyContent = 'flex-end';   el.style.textAlign = 'right'; }
     if (spec.clockColors) clockCells.push(el);
@@ -1337,7 +1373,7 @@ function buildCell(spec) {
 // style:"name". Merge order: shared props under the cell's own (cell wins).
 // Only visual props transfer — text/when/variants/image stay per-cell.
 var sharedStyles = {};
-var SHARED_KEYS = ['size', 'fit', 'color', 'bg', 'bold', 'pad', 'align', 'opacity', 'spacing'];
+var SHARED_KEYS = ['size', 'fit', 'color', 'bg', 'bold', 'pad', 'align', 'opacity', 'spacing', 'font'];
 
 function withSharedStyle(spec) {
     var st = (spec && typeof spec.style === 'string') ? sharedStyles[spec.style] : null;
@@ -2220,6 +2256,9 @@ if (window.TB_EMBED) {
         // Which built-in an unconfigured display shows, so the editor can
         // mirror it instead of guessing.
         defaultKey: DEFAULT_LAYOUT,
+        // The named-font whitelist, so the editor's picker can never offer a
+        // face this engine won't paint (same pattern as elementNames).
+        fonts: FONTS,
         setLayout: function (layoutObj) { renderLayoutObj(layoutObj); },
         setState:  function (partial) { Object.assign(S, partial); refreshDerived(); updateAll(); },
         refresh:   function () { updateAll(); requestAnimationFrame(fitAll); },

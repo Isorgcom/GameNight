@@ -1,0 +1,21 @@
+/* Bundled display fonts for Timer BETA layouts (see www/fonts/LICENSE.md).
+ * Self-hosted so every screen — TV, tablet, phone, a guest's browser — renders
+ * the same face with no external requests (CSP default-src 'self' covers them).
+ * font-display: swap — the timer must never wait on a font: text paints in the
+ * fallback stack (declared per-key in timer_beta.js FONTS) and upgrades.
+ *
+ * Weight note: single static instances on purpose. Oswald/Orbitron/Cinzel/
+ * Playfair ship their 500–600 cut because 400 reads thin from across a room;
+ * declared as normal weight so a cell's Bold still adds emphasis (the browser
+ * synthesises it). DSEG7 is a 7-segment clock face: digits and a handful of
+ * letters only — meant for <clock>/<blinds> cells, not sentences. */
+@font-face { font-family: 'Bebas Neue';       src: url('/fonts/bebas-neue.woff2') format('woff2');       font-display: swap; }
+@font-face { font-family: 'Oswald';           src: url('/fonts/oswald.woff2') format('woff2');           font-display: swap; }
+@font-face { font-family: 'Anton';            src: url('/fonts/anton.woff2') format('woff2');            font-display: swap; }
+@font-face { font-family: 'Orbitron';         src: url('/fonts/orbitron.woff2') format('woff2');         font-display: swap; }
+@font-face { font-family: 'DSEG7';            src: url('/fonts/dseg7.woff2') format('woff2');            font-display: swap; }
+@font-face { font-family: 'Cinzel';           src: url('/fonts/cinzel.woff2') format('woff2');           font-display: swap; }
+@font-face { font-family: 'Playfair Display'; src: url('/fonts/playfair-display.woff2') format('woff2'); font-display: swap; }
+@font-face { font-family: 'Rye';              src: url('/fonts/rye.woff2') format('woff2');              font-display: swap; }
+@font-face { font-family: 'Monoton';          src: url('/fonts/monoton.woff2') format('woff2');          font-display: swap; }
+@font-face { font-family: 'Lobster';          src: url('/fonts/lobster.woff2') format('woff2');          font-display: swap; }

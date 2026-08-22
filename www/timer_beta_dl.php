@@ -58,6 +58,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
 
 /* ── Sanitizer ──────────────────────────────────────────────────────────── */
 
+// Named-font whitelist — the KEYS of FONTS in timer_beta.js, kept in lock-step.
+// A layout stores the key; the renderer maps it to a CSS stack. Never accept a
+// raw font-family string here: it lands in element.style and a free string is
+// exactly the class of value pk_lo_style_str exists to fence.
+const PK_LO_FONTS = ['serif', 'mono', 'condensed', 'wide', 'heavy', 'impact', 'script', 'comic',
+                     'bebas', 'oswald', 'anton', 'orbitron', 'digital', 'cinzel', 'playfair', 'rye', 'monoton', 'lobster'];
+
 // Colour / gradient / border values land in element.style.*; allow hex, rgb()/
 // hsl(), linear-gradient() and keywords, refuse anything that could smuggle a
 // request or break out: url(), expression(), semicolons, angle brackets.
@@ -196,6 +203,7 @@ function pk_lo_cell($cell, array &$err): ?array {
     foreach (['color', 'bg', 'border'] as $k) if (isset($cell[$k])) { $v = pk_lo_style_str($cell[$k]); if ($v !== null) $out[$k] = $v; }
     foreach (['pad', 'spacing'] as $k) if (isset($cell[$k])) { $v = pk_lo_style_str($cell[$k], 32); if ($v !== null) $out[$k] = $v; }
     if (isset($cell['align']) && in_array($cell['align'], ['left', 'center', 'right'], true)) $out['align'] = $cell['align'];
+    if (isset($cell['font']) && in_array($cell['font'], PK_LO_FONTS, true)) $out['font'] = $cell['font'];
     // Shared-style reference; refs to names the layout doesn't define are
     // pruned by pk_layout_sanitize once the styles map is known.
     if (isset($cell['style']) && is_string($cell['style']) && preg_match('/^[a-zA-Z][a-zA-Z0-9]{0,31}$/', $cell['style'])) $out['style'] = $cell['style'];
@@ -344,6 +352,7 @@ function pk_lo_styles($styles): array {
         foreach (['color', 'bg'] as $k) if (isset($st[$k])) { $v = pk_lo_style_str($st[$k]); if ($v !== null) $s[$k] = $v; }
         foreach (['pad', 'spacing'] as $k) if (isset($st[$k])) { $v = pk_lo_style_str($st[$k], 32); if ($v !== null) $s[$k] = $v; }
         if (isset($st['align']) && in_array($st['align'], ['left', 'center', 'right'], true)) $s['align'] = $st['align'];
+        if (isset($st['font']) && in_array($st['font'], PK_LO_FONTS, true)) $s['font'] = $st['font'];
         if (isset($st['opacity'])) { $v = pk_lo_num($st['opacity'], 0, 1); if ($v !== null) $s['opacity'] = $v; }
         if ($s) $out[$name] = $s;
     }

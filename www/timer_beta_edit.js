@@ -554,6 +554,35 @@ function selInput(value, options, onchange, labels) {
     s.addEventListener('change', function () { pushUndo(); onchange(s.value); refresh(true); });
     return s;
 }
+// Labels for the renderer's named fonts (PV.fonts). The keys come from the
+// engine so the picker can never offer a face it won't paint; only the labels
+// live here.
+var FONT_LABELS = { serif: 'Serif', mono: 'Monospace', condensed: 'Condensed', wide: 'Wide',
+                    heavy: 'Heavy', impact: 'Impact', script: 'Script', comic: 'Comic',
+                    bebas: 'Bebas Neue', oswald: 'Oswald', anton: 'Anton', orbitron: 'Orbitron',
+                    digital: 'Digital clock', cinzel: 'Cinzel', playfair: 'Playfair', rye: 'Rye',
+                    monoton: 'Monoton', lobster: 'Lobster' };
+
+// Font picker: empty value = the page's default face. Each option renders in
+// its own stack, so the dropdown IS the preview.
+function fontInput(value, onchange) {
+    var s = document.createElement('select');
+    var d = document.createElement('option');
+    d.value = ''; d.textContent = 'Default';
+    s.appendChild(d);
+    var fonts = (PV && PV.fonts) || {};
+    Object.keys(fonts).forEach(function (k) {
+        var op = document.createElement('option');
+        op.value = k;
+        op.textContent = FONT_LABELS[k] || k;
+        op.style.fontFamily = fonts[k];
+        s.appendChild(op);
+    });
+    s.value = (value && fonts[value]) ? value : '';
+    s.addEventListener('change', function () { pushUndo(); onchange(s.value); refresh(true); });
+    return s;
+}
+
 function colorInput(value, onchange) {
     var wrap = document.createElement('span');
     wrap.className = 'tbe-color';
@@ -1387,6 +1416,7 @@ function renderSharedStyles() {
         var s = st[name];
         card.appendChild(field('Size (% of screen height)', numInput(s.size, 0.5, 40, 0.1, function (v) { setOrDelete(s, 'size', v); })));
         card.appendChild(field('Bold', boolInput(s.bold, function (v) { setOrDelete(s, 'bold', v); })));
+        card.appendChild(field('Font', fontInput(s.font, function (v) { setOrDelete(s, 'font', v || undefined); })));
         card.appendChild(field('Colour', colorInput(s.color, function (v) { setOrDelete(s, 'color', v); })));
         card.appendChild(field('Background', colorInput(s.bg, function (v) { setOrDelete(s, 'bg', v); })));
         card.appendChild(field('Align', selInput(s.align || 'center', ['center', 'left', 'right'], function (v) { setOrDelete(s, 'align', v === 'center' ? undefined : v); })));
@@ -1623,6 +1653,7 @@ function renderInspector() {
         insp.appendChild(field('Fit to box', boolInput(cell.fit, function (v) { setOrDelete(cell, 'fit', v); renderInspector(); })));
         if (!cell.fit) insp.appendChild(field('Size (% of screen height)', numInput(cell.size, 0.5, 40, 0.1, function (v) { setOrDelete(cell, 'size', v); })));
         insp.appendChild(field('Bold', boolInput(cell.bold, function (v) { setOrDelete(cell, 'bold', v); })));
+        insp.appendChild(field('Font', fontInput(cell.font, function (v) { setOrDelete(cell, 'font', v || undefined); })));
         insp.appendChild(field('Colour', colorInput(cell.color, function (v) { setOrDelete(cell, 'color', v); })));
         insp.appendChild(field('Background', colorInput(cell.bg, function (v) { setOrDelete(cell, 'bg', v); })));
         insp.appendChild(field('Border', textInput(cell.border, function (v) { setOrDelete(cell, 'border', v); }, 'e.g. 3px solid #d4af37')));
@@ -1941,6 +1972,11 @@ function openNodeMenu(path, x, y) {
             });
             sub('Colour',         colourPanel(cell.color, function (v) { setOrDelete(cell, 'color', v); }));
             sub('Letter spacing', choices(SPACING, cell.spacing, function (v) { setOrDelete(cell, 'spacing', v); }));
+            sub('Font', choices(
+                [['Default', undefined]].concat(Object.keys((PV && PV.fonts) || {}).map(function (k) {
+                    return [FONT_LABELS[k] || k, k];
+                })),
+                cell.font, function (v) { setOrDelete(cell, 'font', v); }));
             var styleNames = Object.keys((LAYOUT && LAYOUT.styles) || {});
             if (styleNames.length) {
                 sub('Shared style', function (panel, addRow) {
