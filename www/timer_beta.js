@@ -1229,6 +1229,24 @@ function buildInner(inner, text, elList, elStyles) {
 // can never reflow the layout, only re-emphasise it.
 var VARIANT_PROPS = ['text', 'color', 'bg', 'bold', 'opacity'];
 
+// Named fonts: key → CSS stack. A layout carries the KEY, never a raw
+// font-family string — the same rule as image paths and QR targets: a layout
+// is a shareable document, so it names looks this engine defines rather than
+// carrying CSS of its own (the server sanitizer enforces the same list).
+// Web-safe stacks only — a TV, tablet or phone renders these with no webfont
+// download, and every stack ends in a generic family so a device missing the
+// named face degrades to the right SHAPE of letter, not to a default serif.
+var FONTS = {
+    serif:     "Georgia, 'Times New Roman', serif",
+    mono:      "Consolas, Menlo, 'Courier New', monospace",
+    condensed: "'Arial Narrow', 'Helvetica Condensed', sans-serif-condensed, sans-serif",
+    wide:      "Verdana, Geneva, Tahoma, sans-serif",
+    heavy:     "'Arial Black', 'Segoe UI Black', sans-serif",
+    impact:    "Impact, Haettenschweiler, 'Arial Black', sans-serif",
+    script:    "'Segoe Script', 'Brush Script MT', cursive",
+    comic:     "'Comic Sans MS', 'Chalkboard SE', 'Comic Neue', cursive"
+};
+
 // Apply the emphasis props of `spec` to the element, clearing any the spec
 // omits so a variant switching off leaves no residue.
 function applyEmphasis(el, spec) {
@@ -1319,6 +1337,9 @@ function buildCell(spec) {
     // dutifully got smaller beside them.
     if (spec.chipSize) el.style.setProperty('--tb-chip-disc', (spec.chipSize / (spec.size || 2.4)).toFixed(3) + 'em');
     if (spec.spacing) el.style.letterSpacing = spec.spacing;
+    // Base-only like size/align: a font swap changes metrics, so it must not
+    // arrive via a variant and reflow the layout mid-game.
+    if (spec.font && FONTS[spec.font]) el.style.fontFamily = FONTS[spec.font];
     if (spec.align === 'left')  { el.style.justifyContent = 'flex-start'; el.style.textAlign = 'left'; }
     if (spec.align === 'right') { el.style.justifyContent = 'flex-end';   el.style.textAlign = 'right'; }
     if (spec.clockColors) clockCells.push(el);
@@ -1337,7 +1358,7 @@ function buildCell(spec) {
 // style:"name". Merge order: shared props under the cell's own (cell wins).
 // Only visual props transfer — text/when/variants/image stay per-cell.
 var sharedStyles = {};
-var SHARED_KEYS = ['size', 'fit', 'color', 'bg', 'bold', 'pad', 'align', 'opacity', 'spacing'];
+var SHARED_KEYS = ['size', 'fit', 'color', 'bg', 'bold', 'pad', 'align', 'opacity', 'spacing', 'font'];
 
 function withSharedStyle(spec) {
     var st = (spec && typeof spec.style === 'string') ? sharedStyles[spec.style] : null;
@@ -2220,6 +2241,9 @@ if (window.TB_EMBED) {
         // Which built-in an unconfigured display shows, so the editor can
         // mirror it instead of guessing.
         defaultKey: DEFAULT_LAYOUT,
+        // The named-font whitelist, so the editor's picker can never offer a
+        // face this engine won't paint (same pattern as elementNames).
+        fonts: FONTS,
         setLayout: function (layoutObj) { renderLayoutObj(layoutObj); },
         setState:  function (partial) { Object.assign(S, partial); refreshDerived(); updateAll(); },
         refresh:   function () { updateAll(); requestAnimationFrame(fitAll); },
