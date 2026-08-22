@@ -62,7 +62,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
 // A layout stores the key; the renderer maps it to a CSS stack. Never accept a
 // raw font-family string here: it lands in element.style and a free string is
 // exactly the class of value pk_lo_style_str exists to fence.
-const PK_LO_FONTS = ['serif', 'mono', 'condensed', 'wide', 'heavy', 'impact', 'script', 'comic'];
+const PK_LO_FONTS = ['serif', 'mono', 'condensed', 'wide', 'heavy', 'impact', 'script', 'comic',
+                     'bebas', 'oswald', 'anton', 'orbitron', 'digital', 'cinzel', 'playfair', 'rye', 'monoton', 'lobster'];
 
 // Colour / gradient / border values land in element.style.*; allow hex, rgb()/
 // hsl(), linear-gradient() and keywords, refuse anything that could smuggle a

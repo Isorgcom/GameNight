@@ -1233,9 +1233,11 @@ var VARIANT_PROPS = ['text', 'color', 'bg', 'bold', 'opacity'];
 // font-family string — the same rule as image paths and QR targets: a layout
 // is a shareable document, so it names looks this engine defines rather than
 // carrying CSS of its own (the server sanitizer enforces the same list).
-// Web-safe stacks only — a TV, tablet or phone renders these with no webfont
-// download, and every stack ends in a generic family so a device missing the
-// named face degrades to the right SHAPE of letter, not to a default serif.
+// Two tiers, one contract. The first eight are system faces every device
+// already has; the rest are BUNDLED woff2 files (www/fonts/ via fonts.css,
+// same-origin so the closed CSP covers them). Either way each stack ends in
+// faces of the same SHAPE, so text painted before a webfont arrives — or on
+// a device that never gets it — still reads as the intended kind of letter.
 var FONTS = {
     serif:     "Georgia, 'Times New Roman', serif",
     mono:      "Consolas, Menlo, 'Courier New', monospace",
@@ -1244,7 +1246,20 @@ var FONTS = {
     heavy:     "'Arial Black', 'Segoe UI Black', sans-serif",
     impact:    "Impact, Haettenschweiler, 'Arial Black', sans-serif",
     script:    "'Segoe Script', 'Brush Script MT', cursive",
-    comic:     "'Comic Sans MS', 'Chalkboard SE', 'Comic Neue', cursive"
+    comic:     "'Comic Sans MS', 'Chalkboard SE', 'Comic Neue', cursive",
+    // Bundled (fonts.css) — display faces picked for a tournament wall:
+    // condensed scoreboard caps, a heavy poster face, a 7-segment clock,
+    // luxury casino serifs, a saloon western, a neon sign, a brush script.
+    bebas:     "'Bebas Neue', 'Arial Narrow', sans-serif",
+    oswald:    "Oswald, 'Arial Narrow', sans-serif",
+    anton:     "Anton, 'Arial Black', sans-serif",
+    orbitron:  "Orbitron, 'Segoe UI', sans-serif",
+    digital:   "'DSEG7', Consolas, monospace",
+    cinzel:    "Cinzel, Georgia, serif",
+    playfair:  "'Playfair Display', Georgia, serif",
+    rye:       "Rye, Georgia, serif",
+    monoton:   "Monoton, 'Arial Black', sans-serif",
+    lobster:   "Lobster, 'Segoe Script', cursive"
 };
 
 // Apply the emphasis props of `spec` to the element, clearing any the spec

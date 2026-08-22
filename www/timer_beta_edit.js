@@ -558,7 +558,10 @@ function selInput(value, options, onchange, labels) {
 // engine so the picker can never offer a face it won't paint; only the labels
 // live here.
 var FONT_LABELS = { serif: 'Serif', mono: 'Monospace', condensed: 'Condensed', wide: 'Wide',
-                    heavy: 'Heavy', impact: 'Impact', script: 'Script', comic: 'Comic' };
+                    heavy: 'Heavy', impact: 'Impact', script: 'Script', comic: 'Comic',
+                    bebas: 'Bebas Neue', oswald: 'Oswald', anton: 'Anton', orbitron: 'Orbitron',
+                    digital: 'Digital clock', cinzel: 'Cinzel', playfair: 'Playfair', rye: 'Rye',
+                    monoton: 'Monoton', lobster: 'Lobster' };
 
 // Font picker: empty value = the page's default face. Each option renders in
 // its own stack, so the dropdown IS the preview.
