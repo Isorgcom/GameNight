@@ -4,6 +4,34 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2110] - 2026-08-25
+
+### Fixed
+
+- **The site icon no longer sends Safari through a scheme-downgrading redirect
+  chain.** `.htaccess` routed `/favicon.ico` to `/favicon.php` with `R=302`, an
+  *external* redirect. Apache runs behind Nginx Proxy Manager on plain HTTP, so
+  mod_rewrite built that `Location:` as an absolute `http://` URL — every page
+  load walked `https -> http -> https -> /uploads/banner.png`, three hops and a
+  downgrade, on a site that sends HSTS telling clients never to speak `http` to
+  it. Apple's networking daemon retried the chain on a backoff loop: the access
+  log shows bursts of 20-48 plain-HTTP `/favicon.php` requests from a single
+  client in one or two seconds, 101 of 110 of them from iOS 26.6, after which
+  the affected device stopped reaching the site at all. One member's sessions
+  ended in exactly that burst on three separate days (Aug 14, 20 and 24) and he
+  could not load the home page afterwards.
+
+  The rewrite is now internal (`[L]`), so the request never leaves HTTPS, and
+  `favicon.php` reads the icon out of `uploads/` and streams it instead of
+  redirecting to it — the path is confined to the uploads directory with a
+  `realpath()` prefix check, non-image types are forced to
+  `application/octet-stream`, and a `banner_path` pointing at a missing file
+  still falls back to the old relative redirect. `/favicon.ico` is now a single
+  `200 image/png` with zero redirects, down from two redirects and a scheme
+  downgrade.
+
+---
+
 ## [v0.2109] - 2026-08-22
 
 ### Added
