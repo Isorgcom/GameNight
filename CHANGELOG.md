@@ -4,6 +4,85 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2113] - 2026-08-26
+
+### Added
+
+- **A Timer BETA video cell can now play a live stream directly, with no
+  approval from an admin.** Paste any https URL ending in `.m3u8` (HLS, what a
+  restreamer publishes) or `.mp4` into a video cell and it plays in a real
+  `<video>` element rather than an embed iframe. This is the path for IPTV, a
+  ball game, or anything a host restreams from their own hardware. Deliberately
+  not gated: `pk_lo_stream_url()` accepts a direct media URL from any https
+  host, because the existing allow-list only ever needed to govern *framing*,
+  and a host choosing the source for their own game should not be a support
+  request. Nothing is given away by that, since the URL only becomes a `<video>`
+  src and CSP `media-src` already permitted any https origin. The allow-list in
+  Settings still governs iframe embeds, where framing an arbitrary site is a
+  genuine hazard.
+
+- **hls.js, vendored, so HLS works outside Safari.** Safari and iOS play
+  `.m3u8` natively; every other browser needs Media Source Extensions.
+  `docker-entrypoint.sh` fetches hls.js 1.5.17 into `vendor/` alongside Jodit
+  and the rest, so it is served from our own origin and satisfies
+  `script-src 'self'` with no CSP exception. It loads on `timer_beta.php`
+  without `defer`, for the same reason `pk-seg.js` does: `buildCell()` calls
+  `attachHls()` the moment the layout fetch resolves, and a deferred library
+  loses that race intermittently. Playback is tuned for live
+  (`liveSyncDurationCount: 3`, `maxLiveSyncPlaybackRate: 1.5`) so a display sits
+  near the live edge and catches up by playing slightly fast rather than
+  drifting further behind all evening. Fatal errors recover through hls.js's own
+  `startLoad()` and `recoverMediaError()`, because a display runs unattended for
+  hours and a network blip must not end the night.
+
+- **Host guide step 9, "Put a video on the display."** Covers the single
+  requirement (a public https URL ending in `.m3u8` or `.mp4`), the two
+  realistic ways to get one (a source that already provides it, or a restreamer
+  behind Cloudflare Tunnel or Tailscale Funnel), why `http` and LAN addresses
+  can never work, and the fact that every viewer pulls from wherever the stream
+  lives, so one TV beats a dozen phones.
+
+### Security
+
+- **`connect-src` now exists in the CSP.** Without the directive the policy fell
+  back to `default-src 'self'`, which would have broken HLS everywhere except
+  Safari: a native `<video>` fetches segments under `media-src`, but hls.js
+  pulls them over XHR, which is `connect-src`. Chrome and Firefox would have
+  refused every segment while Safari played fine, a split that reads as a
+  browser bug rather than a policy. Set to `'self' https:` rather than a host
+  list so hosts need no approval, which concedes little in practice:
+  `media-src` was already `'https:'`, so a page able to exfiltrate over
+  `connect-src` could equally have used a media URL. The real protections here,
+  the `script-src` nonce and `script-src-attr 'none'`, are untouched.
+
+### Fixed
+
+- **The layout editor now says what is actually wrong with a rejected link.**
+  "Not a recognised streaming link" was equally true of an `http://` URL, a
+  missing `.m3u8`, a LAN address and a typo, and it sent hosts to an admin for
+  something they could fix themselves. A new `diagnose()` in
+  `timer_beta_edit.js` names the real problem in each case. The editor was also
+  validating with `normalizeStreamUrl()` alone, which only knows embed
+  providers, so it would have shown a red box on a perfectly good `.m3u8` that
+  the server saved happily; `mediaStreamUrl()` is now exposed through
+  `TBPreview` and the editor checks both routes.
+
+- **The level alarm can mute a real media element.** `tbStreamMute()` only knew
+  how to `postMessage` a YouTube or Vimeo iframe, so a `<video>` cell would have
+  kept playing over the alarm. It now mutes the element directly, remembering
+  the prior state so the alarm's unmute cannot switch on audio a host had
+  deliberately muted.
+
+### Infrastructure
+
+- **Deploying this needs a container restart, not just a `git pull`.** `www/` is
+  a bind mount and `docker-entrypoint.sh` only runs at container start, so a
+  pull alone will not fetch `vendor/hls.min.js`. Without it HLS silently fails
+  in Chrome and Firefox while working in Safari. Use
+  `docker compose down && docker compose up -d --build`.
+
+---
+
 ## [v0.2112] - 2026-08-26
 
 ### Fixed

@@ -1465,7 +1465,13 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                        Use <code>*.example.com</code> to allow all subdomains (handy when a stream redirects through an
                        auth proxy on a sibling subdomain). Only <code>https</code> embeds work, and the host must permit
                        being framed. Leave blank to allow only the built-in providers.</p>
+                    <p class="hint"><strong>This list is only for embeds.</strong> A <em>direct</em> video URL
+                       ending in <code>.m3u8</code> (HLS, what a restreamer publishes) or <code>.mp4</code> needs
+                       no entry here and no approval from you: hosts paste their own stream into a layout and it
+                       plays. Only pages that must be put in an <code>&lt;iframe&gt;</code> need listing, because
+                       framing an arbitrary site is a real hazard and a direct video source is not.</p>
                 </div>
+
 
                 <button type="submit" class="btn btn-primary" style="width:100%;margin-top:.25rem">
                     Save

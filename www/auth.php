@@ -19,6 +19,21 @@ $_frame_src = "frame-src 'self' https://www.youtube.com https://www.youtube-noco
 try {
     foreach (stream_allowed_hosts() as $_h) { $_frame_src .= ' https://' . $_h; }
 } catch (\Throwable $e) { /* keep the built-in frame-src */ }
+// connect-src must cover HLS. Without the directive the policy falls back to
+// default-src 'self', which silently breaks HLS everywhere except Safari: a
+// native <video> fetches .m3u8 segments under media-src, but hls.js pulls them
+// over XHR, which is connect-src. Chrome and Firefox refuse every segment while
+// Safari plays fine — a split that reads as a browser bug.
+//
+// 'https:' rather than a host list ON PURPOSE. A host picks the stream for
+// their own game and must not need an admin to approve the URL first, and an
+// allowlist here would make every new source a support ticket. This gives up
+// less than it looks: media-src is already 'https:', so a page that could
+// exfiltrate over connect-src could equally do it through a media URL. The
+// real protections are script-src's nonce and script-src-attr 'none'.
+// frame-src stays a closed list, because FRAMING an arbitrary origin is a
+// different and genuinely dangerous thing.
+$_connect_src = "connect-src 'self' https:";
 // Per-request nonce for inline <script> blocks. See SECURITY.md.
 // Why three script directives instead of one:
 //   script-src       fallback for browsers without CSP3 granularity (Firefox).
@@ -53,11 +68,12 @@ $_csp = implode('; ', [
     "form-action 'self'",
     "frame-ancestors 'none'",
     $_frame_src,
+    $_connect_src,
     "media-src 'self' https: data:",
 ]);
 header("Content-Security-Policy: {$_csp}");
 if (!defined('CSP_POLICY')) define('CSP_POLICY', $_csp);
-unset($_csp, $_frame_src);
+unset($_csp, $_frame_src, $_connect_src);
 // HSTS: enforce HTTPS for 1 year (only sent when already on HTTPS)
 if ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https')) {
     header('Strict-Transport-Security: max-age=31536000; includeSubDomains');

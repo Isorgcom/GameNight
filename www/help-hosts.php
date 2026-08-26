@@ -164,6 +164,20 @@ $allow_reg   = get_setting('allow_registration', '1') === '1';
         <div class="hint"><strong>Presets save the whole editor.</strong> The <strong>Game preset</strong> bar at the top stores game setup, payouts and rewards, the blind schedule and the timer settings as one reusable recipe &mdash; so next week's game is one <strong>Load</strong> away. The line above it always tells you whether this game came from a preset and whether it has drifted from it.</div>
     </div>
 
+    <div class="help-step">
+        <h2><span class="step-num">9</span> Put a video on the display <em style="font-weight:400;color:#94a3b8;font-size:1rem">(optional)</em></h2>
+        <p>A layout cell can hold video &mdash; the ball game, a stream, a movie &mdash; alongside the clock and blinds. In the layout editor, pick a cell, choose <strong>Use a video stream instead</strong>, and paste a link. YouTube, Twitch, Vimeo and Kick work as-is.</p>
+        <p>For anything else, GameNight needs one thing: <strong>a public https address ending in <code>.m3u8</code> or <code>.mp4</code></strong>. No approval, no admin, no allow-list &mdash; paste it and it plays. <code>.m3u8</code> is the format live streams use; <code>.mp4</code> is a plain file.</p>
+        <p>How you get that address depends on your source:</p>
+        <ul>
+            <li><strong>It already gives you one.</strong> Most IPTV subscriptions hand you an https <code>.m3u8</code>. Paste it. Nothing to set up, and this covers most people.</li>
+            <li><strong>It doesn't.</strong> A security camera, a raw TV feed or an RTMP stream can't play in a browser and has to be repackaged. Run a restreamer (datarhei Restreamer is the ready-made one) and put <strong>Cloudflare Tunnel</strong> or <strong>Tailscale Funnel</strong> in front of it &mdash; both hand you a public https address for free, with no port forwarding and no certificates to manage.</li>
+        </ul>
+        <div class="hint"><strong>It has to be https, and it has to be public.</strong> This site runs over https, and browsers refuse to load video over a plain <code>http</code> connection, so an http link can never play no matter how good the stream is. An address like <code>http://192.168.1.50:8080</code> fails twice over: it's not https, and it means nothing on anyone else's phone. If a link is rejected, the editor tells you exactly which of these went wrong.</div>
+        <div class="hint"><strong>Everyone watching pulls from wherever the stream lives.</strong> If that's a box in your house, every screen showing it is using your upload at once. One TV in the room is comfortable; a dozen phones is not. Consider putting the video on the big screen and letting people use the QR code for the clock.</div>
+        <p>For a live stream, set your restreamer to <strong>2-second segments</strong>. That puts the display about six to ten seconds behind live instead of half a minute. If the source is already H.264, copy it rather than re-encoding &mdash; re-encoding a live feed adds delay and CPU load for nothing.</p>
+    </div>
+
     <div class="help-cta">
         <p>Ready to host your first game night?</p>
         <div class="cta-group">

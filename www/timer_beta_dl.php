@@ -106,8 +106,20 @@ function pk_lo_stream_url($v): ?string {
     if (!is_string($v)) return null;
     $v = trim($v);
     if ($v === '' || strlen($v) > 500) return null;
+    // A DIRECT media URL — .m3u8 from a restreamer, or a plain file — is
+    // accepted from any https host, with no allowlist and no admin approval.
+    // A host chooses the source for their own game; making that a support
+    // ticket is not a security boundary, it is a queue. This is not the loose
+    // half of the rule either: the URL only ever becomes a <video> src, which
+    // CSP media-src already permits from any https origin. The allowlist below
+    // still governs IFRAME embeds, where framing an arbitrary origin is a real
+    // hazard and the closed list earns its keep.
     $p = parse_url($v);
     if (!$p || !in_array(strtolower($p['scheme'] ?? ''), ['http', 'https'], true)) return null;
+    $path = strtolower((string)($p['path'] ?? ''));
+    if (strtolower($p['scheme']) === 'https' && preg_match('/\.(m3u8|mp4|m4v|webm)$/', $path)) {
+        return $v;
+    }
     $h = strtolower($p['host'] ?? '');
     if ($h === '') return null;
     $bare = preg_replace('/^www\./', '', $h);

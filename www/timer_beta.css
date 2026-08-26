@@ -194,6 +194,10 @@ body.tb-letterbox { background: #000; }
    weight ARE the video's size, same rule as every other cell. */
 .tb-cell-video .tb-cell-inner { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
 .tb-video { width: 100%; height: 100%; border: 0; background: #000; }
+/* A <video> fills the same box as an embed iframe, but it has real
+   intrinsic dimensions, so without this it stretches to the cell's aspect
+   instead of letterboxing inside it. */
+video.tb-video { object-fit: contain; }
 /* No URL (or an unrecognised one): the dashed footprint, same idea as the
    QR placeholder — the editor must see where the cell sits, never a blank. */
 .tb-cell-video.tb-video-empty .tb-cell-inner::after {
