@@ -361,6 +361,7 @@ var treeEl = document.getElementById('tbeTree');
 var treeCollapsed = {};
 
 function cellLabel(cell) {
+    if (cell.video !== undefined) return '(video stream)';
     var t = String(cell.text || '').replace(/\n/g, ' ').trim();
     return t.length > 26 ? t.slice(0, 26) + '…' : (t || '(empty cell)');
 }
@@ -1586,6 +1587,47 @@ function renderInspector() {
             return;
         }
 
+        // Streaming video cell: a pasted YouTube / Twitch / Vimeo / Kick link
+        // rendered as an embed filling the box. The raw URL is stored; the
+        // display builds the embed through the renderer's normalizeStreamUrl
+        // (validated here through the same function, so the tick the author
+        // sees and what a display loads can never disagree), and the save-side
+        // sanitizer drops unrecognised hosts.
+        if (cell.video !== undefined) {
+            var vWrap = document.createElement('div');
+            vWrap.className = 'tbe-field';
+            var vl = document.createElement('span'); vl.textContent = 'Video stream'; vWrap.appendChild(vl);
+            var vn = document.createElement('div'); vn.className = 'tbe-note';
+            vn.textContent = 'Paste a YouTube, Twitch, Vimeo or Kick link. The video fills this cell — '
+                           + 'give the box more weight for a bigger picture. YouTube and Vimeo mute '
+                           + 'themselves while alarm sounds play.';
+            vWrap.appendChild(vn);
+            insp.appendChild(vWrap);
+            var vu = document.createElement('input');
+            vu.type = 'text'; vu.placeholder = 'https://www.youtube.com/watch?v=…';
+            vu.value = cell.video || '';
+            var vErr = document.createElement('div'); vErr.className = 'tbe-note';
+            var vCheck = function () {
+                var raw = vu.value.trim();
+                var ok = raw !== '' && PV && PV.normalizeStreamUrl && PV.normalizeStreamUrl(raw) !== '';
+                vu.style.borderColor = (raw === '' || ok) ? '' : '#ef4444';
+                vErr.textContent = raw === '' ? 'No link yet — the cell shows a placeholder until one is pasted.'
+                                 : ok ? '' : 'Not a recognised streaming link — the display will show a placeholder and Save will drop it.';
+            };
+            vu.addEventListener('input', vCheck);
+            vu.addEventListener('change', function () { pushUndo(); cell.video = vu.value.trim(); refresh(true); vCheck(); });
+            vCheck();
+            insp.appendChild(field('Stream URL', vu));
+            insp.appendChild(vErr);
+            insp.appendChild(field('Weight (share of space)', numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
+            insp.appendChild(field('Show when', condEditor(cell.when, function (v) { pushUndo(); setOrDelete(cell, 'when', v); refresh(true); })));
+            var rmV = document.createElement('button'); rmV.className = 'tbe-mini tbe-mini-danger';
+            rmV.textContent = 'Remove video (back to text)';
+            rmV.addEventListener('click', function () { pushUndo(); delete cell.video; refresh(true); renderInspector(); });
+            insp.appendChild(rmV);
+            return;
+        }
+
         var toImg = document.createElement('button');
         toImg.className = 'tbe-mini'; toImg.textContent = 'Use an image instead';
         toImg.addEventListener('click', function () { uploadImage(function (url) { pushUndo(); cell.image = url; refresh(true); renderInspector(); }); });
@@ -1608,6 +1650,12 @@ function renderInspector() {
         toSeats.title = 'The final table: every remaining player at their assigned seat';
         toSeats.addEventListener('click', function () { pushUndo(); cell.seats = true; refresh(true); renderInspector(); });
         insp.appendChild(toSeats);
+
+        var toVid = document.createElement('button');
+        toVid.className = 'tbe-mini'; toVid.textContent = 'Use a video stream instead';
+        toVid.title = 'Embed a YouTube / Twitch / Vimeo / Kick video in this cell';
+        toVid.addEventListener('click', function () { pushUndo(); cell.video = ''; refresh(true); renderInspector(); });
+        insp.appendChild(toVid);
 
         var ta = document.createElement('textarea');
         ta.rows = 3; ta.value = cell.text || '';
@@ -1957,6 +2005,8 @@ function openNodeMenu(path, x, y) {
             item('Remove chip legend (back to text)', edit(function () { delete cell.chips; }));
         } else if (cell.seats) {
             item('Remove seat map (back to text)', edit(function () { delete cell.seats; delete cell.table; }));
+        } else if (cell.video !== undefined) {
+            item('Remove video (back to text)', edit(function () { delete cell.video; }));
         } else {
             toggle('Bold', !!cell.bold, edit(function () { setOrDelete(cell, 'bold', cell.bold ? undefined : true); }));
             toggle('Fit text to box', !!cell.fit, edit(function () { setOrDelete(cell, 'fit', cell.fit ? undefined : true); }));
@@ -1993,6 +2043,7 @@ function openNodeMenu(path, x, y) {
             item('Use a QR code instead', edit(function () { cell.qr = 'display'; }));
             item('Use a chip legend instead', edit(function () { cell.chips = true; }));
             item('Use a seat map instead', edit(function () { cell.seats = true; }));
+            item('Use a video stream instead', edit(function () { cell.video = ''; }));
         }
         // Box properties apply whatever the cell holds.
         sub('Background', colourPanel(cell.bg, function (v) { setOrDelete(cell, 'bg', v); }, 'None'));

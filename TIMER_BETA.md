@@ -614,6 +614,57 @@ Three implementation notes worth keeping:
   src-less image renders as a broken-image glyph plus its alt text, which filled
   the editor preview with a white block.
 
+## Video cell — the classic timer's stream panel, as a cell
+
+`{ cell: { video: '<pasted URL>' } }` renders a streaming embed filling the
+box — the classic timer's "stream a video" option carried over. The layout
+stores the **raw pasted URL**; the renderer builds the actual embed through
+`normalizeStreamUrl()` (ported verbatim from `timer.js`, so both timers accept
+the same links): YouTube in every spelling (watch / youtu.be / embed / live /
+shorts / tv.), Twitch channels (`parent=` is filled from `location.hostname`,
+so the same layout works on localhost and prod), Vimeo, Kick, a best-effort
+Prime pass-through, plus the admin-allowlisted hosts from Settings → General
+(injected as `TB_STREAM_HOSTS`).
+
+Unlike the QR target (an enum), a video URL is author content in a shareable
+document. Three fences keep that safe, and each would hold alone:
+
+- `pk_lo_stream_url()` in the sanitizer drops any URL whose host isn't on the
+  recognised list at save;
+- the renderer's `normalizeStreamUrl()` returns `''` for unknown hosts at
+  paint, and the iframe only ever loads its output — an unrecognised URL draws
+  the dashed `▶ video` placeholder (same idea as `tb-qr-empty`), never an
+  embed;
+- the global CSP `frame-src` (auth.php) lists the same hosts, so the browser
+  refuses anything that somehow slipped both.
+
+Keep the three lists in step: `normalizeStreamUrl` (timer_beta.js),
+`pk_lo_stream_url` (timer_beta_dl.php), and the CSP frame-src + admin extras
+(auth.php / `stream_allowed_hosts()`).
+
+Implementation notes, all inherited from the QR cell's lessons:
+
+- A video cell sets `isImage` on its record — the text pass would otherwise
+  wipe the iframe on the first tick, and the empty-cell auto-hide would hide
+  it. `capCell()` skips it for the same reason.
+- The iframe gets `pointer-events: none` in embed mode only, so a click in the
+  editor preview selects the cell instead of vanishing into the player.
+  On a live display the player keeps its controls.
+- Trigger sounds duck the stream: `tbPlaySound()` calls
+  `tbMuteStreamForAlarm(5000)`, which postMessages mute/unmute to YouTube and
+  Vimeo embeds (the only hosts with a message API — Twitch/Kick/Prime keep
+  playing, same as the classic timer). It honours the classic timer's
+  `gn.muteStreamDuringAlarms` localStorage toggle, default on, so a device's
+  choice there carries over here.
+
+**Editor**: "Use a video stream instead" beside the other conversions sets
+`video: ''` — the cell shows the placeholder until a link is pasted into the
+inspector's Stream URL field, which validates through
+`TBPreview.normalizeStreamUrl` (the renderer's own function, same contract as
+`validateCondition`) and warns in red when a link won't survive Save. An empty
+or unrecognised URL is dropped by the sanitizer on Save and the cell reverts
+to text.
+
 ## What a scanned screen may read
 
 A screen opened with `?key=` must render **the layout the host chose**, and it
