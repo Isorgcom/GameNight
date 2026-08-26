@@ -1349,6 +1349,19 @@ function safeImageSrc(v) {
          || /^\/img\/timer_beta\/[a-z0-9._-]{1,80}$/.test(v)) ? v : null;
 }
 
+// A media URL the SERVER resolved (Plex). There is no closed list to check it
+// against — the host comes from admin settings — so this enforces the scheme
+// only, which is what keeps a javascript: or data: source out of a <video>.
+// CSP media-src is the browser-enforced copy. The server never sends this key
+// to anyone but the layout's owner, so its presence is itself the permission.
+function safeMediaSrc(v) {
+    if (typeof v !== 'string' || !v) return null;
+    try {
+        var u = new URL(v, location.href);
+        return (u.protocol === 'https:' || u.protocol === 'http:') ? v : null;
+    } catch (e) { return null; }
+}
+
 // A direct media URL: HLS (.m3u8) or a plain file, from ANY https host. These
 // get a <video>, not an iframe — an iframe would download the file or show bare
 // browser chrome. No allowlist on purpose: a host picks the source for their own
@@ -1539,11 +1552,11 @@ function buildCell(spec) {
     // an unrecognised host draws the dashed placeholder instead of an embed
     // (CSP frame-src would refuse it anyway — belt and braces). The src is an
     // attribute assignment, never innerHTML.
-    if ('video' in spec) {
+    if ('video' in spec || 'videoMedia' in spec) {
         el.classList.add('tb-cell-video');
-        // A direct media URL (HLS or a file) becomes a real player; anything
-        // else is a provider embed and goes in an iframe below.
-        var mSrc = mediaStreamUrl(spec.video);
+        // A media URL the server resolved from a Plex ref. Only the layout's
+        // owner is sent one, so every other screen falls through to the stub.
+        var mSrc = safeMediaSrc(spec.videoMedia) || mediaStreamUrl(spec.video);
         var vSrc = mSrc ? '' : normalizeStreamUrl(spec.video);
         if (mSrc) {
             var vid = document.createElement('video');
@@ -1604,7 +1617,7 @@ function buildCell(spec) {
     if (spec.clockColors) clockCells.push(el);
 
     var rec = {
-        el: el, inner: inner, spec: spec, isImage: !!imgSrc || !!spec.qr || !!spec.chips || !!spec.seats || ('video' in spec),
+        el: el, inner: inner, spec: spec, isImage: !!imgSrc || !!spec.qr || !!spec.chips || !!spec.seats || ('video' in spec) || ('videoMedia' in spec),
         variants: Array.isArray(spec.variants) ? spec.variants : [],
         elSpans: [], lastText: null, lastVariant: -2, isFit: !!spec.fit
     };
@@ -2556,9 +2569,9 @@ if (window.TB_EMBED) {
         // renderer's own normalizer (same reason as validateCondition — the
         // tick the author sees and what the display loads can never disagree).
         normalizeStreamUrl: function (raw) { return normalizeStreamUrl(raw); },
-        // Exposed for the editor's paste check: without it the editor would
-        // judge direct media URLs by the embed rules and call a perfectly good
-        // .m3u8 unrecognised while the server accepted it.
+        // Exposed for the editor's paste check. Without it the editor would
+        // still be judging direct media URLs by the embed rules and calling a
+        // perfectly good .m3u8 unrecognised, while the server accepted it.
         mediaStreamUrl: function (raw) { return mediaStreamUrl(raw); },
         conditionNames: function () { return COND_NAMES.slice(); },
         // Trigger "Test" button: run an action list right now, ignoring

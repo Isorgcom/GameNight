@@ -199,6 +199,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Extra hosts the timer streaming panel may embed. Store raw; it is
                 // strictly re-validated on read by stream_allowed_hosts() before use.
                 set_setting('stream_allowed_hosts', trim($_POST['stream_allowed_hosts'] ?? ''));
+                // Plex Media Server (Timer BETA video cell). The token is write-only
+                // from this form: submitted blank it keeps whatever is stored, so the
+                // value never has to be echoed back into the page to be edited.
+                set_setting('plex_url', trim($_POST['plex_url'] ?? ''));
+                if (!empty($_POST['plex_token_clear'])) {
+                    set_setting('plex_token', '');
+                } elseif (trim($_POST['plex_token'] ?? '') !== '') {
+                    set_setting('plex_token', trim($_POST['plex_token'] ?? ''));
+                }
                 db_log_activity($current['id'], 'updated site settings');
                 $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Settings saved.'];
             }
@@ -1472,6 +1481,26 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                        framing an arbitrary site is a real hazard and a direct video source is not.</p>
                 </div>
 
+                <div class="form-group">
+                    <label for="plex_url">Plex server URL</label>
+                    <input type="text" name="plex_url" id="plex_url"
+                           value="<?= htmlspecialchars(get_setting('plex_url', ''), ENT_QUOTES | ENT_SUBSTITUTE) ?>"
+                           placeholder="https://plex.example.com">
+                    <p class="hint">Base URL of your Plex Media Server, reachable over HTTPS. Lets a Timer BETA video
+                       cell play from your own library: paste a Plex link into the cell and the layout stores only the
+                       item reference.</p>
+                </div>
+                <div class="form-group">
+                    <label for="plex_token">Plex token</label>
+                    <input type="password" name="plex_token" id="plex_token" autocomplete="new-password"
+                           placeholder="<?= get_setting('plex_token', '') !== '' ? 'Saved. Leave blank to keep it.' : 'X-Plex-Token' ?>">
+                    <p class="hint">Opens your entire library, so it is never written into a layout and never sent to
+                       anyone but the layout's owner: a screen opened with the display QR code gets the cell with no
+                       video rather than the token. Leave blank to keep the stored value.<?php if (get_setting('plex_token', '') !== ''): ?>
+                       <label style="display:inline-flex;align-items:center;gap:.35rem;margin-top:.35rem">
+                           <input type="checkbox" name="plex_token_clear" value="1"> Remove the stored token
+                       </label><?php endif; ?></p>
+                </div>
 
                 <button type="submit" class="btn btn-primary" style="width:100%;margin-top:.25rem">
                     Save
