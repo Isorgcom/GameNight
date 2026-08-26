@@ -204,6 +204,15 @@ body.tb-letterbox { background: #000; }
 /* Clock state colours; the layout's own colour applies until a state does. */
 .tb-warn   { color: #fbbf24 !important; }
 .tb-crit   { color: #ef4444 !important; }
+
+/* No-blind-schedule banner: amber = warning (house rule), shown only to a
+   viewer who can control the game. Fixed over the layout, never part of it. */
+#tbNoBlinds {
+    position: fixed; left: 50%; bottom: 2.5vh; transform: translateX(-50%);
+    background: #fffbeb; color: #92400e; border: 1px solid #f59e0b;
+    border-radius: 8px; padding: 1vh 1.6vw; font-size: 1.9vh; font-weight: 600;
+    z-index: 60; box-shadow: 0 0.6vh 2vh rgba(0,0,0,.45); max-width: 90vw; text-align: center;
+}
 .tb-paused { opacity: 0.55; animation: tbPulse 2.2s ease-in-out infinite; }
 @keyframes tbPulse { 50% { opacity: 0.3; } }
 @media (prefers-reduced-motion: reduce) { .tb-paused { animation: none; } }
