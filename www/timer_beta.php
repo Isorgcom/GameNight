@@ -196,6 +196,12 @@ var TB_EVENT_LAYOUT_KEY = <?= json_encode($event_layout_key) ?>;
 <script src="/vendor/nosleep.min.js"></script>
 <?php endif; ?>
 <script src="/vendor/qrcode.min.js"></script>
+<!-- hls.js before the renderer and WITHOUT defer, for the same reason pk-seg.js
+     is: buildCell() calls attachHls() as soon as the layout fetch resolves, and
+     a deferred library would be a race it loses intermittently. Vendored, so
+     this is script-src 'self'. Absent (download failed) the renderer falls back
+     to a native src, which still plays on Safari and iOS. -->
+<script src="/vendor/hls.min.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/hls.min.js') ?: 0)) ?>"></script>
 <script src="/timer_beta.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/timer_beta.js') ?: 0)) ?>"></script>
 </body>
 </html>

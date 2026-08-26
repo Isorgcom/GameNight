@@ -704,6 +704,21 @@ var STREAM_UNMUTE_TIMER = null;
 function tbStreamMute(on) {
     videoFrames.forEach(function (frame) {
         if (!frame.isConnected || !frame.src) return;
+        if (frame.tagName === 'VIDEO') {
+            // A real media element: mute it directly, no postMessage involved.
+            // Remember what it was first, so the alarm's unmute can never
+            // switch on audio the host had deliberately muted.
+            if (on) {
+                if (frame.dataset.preAlarmMuted === undefined) {
+                    frame.dataset.preAlarmMuted = frame.muted ? '1' : '0';
+                }
+                frame.muted = true;
+            } else {
+                if (frame.dataset.preAlarmMuted === '0') frame.muted = false;
+                delete frame.dataset.preAlarmMuted;
+            }
+            return;
+        }
         try {
             var host = new URL(frame.src).hostname;
             if (/youtube/.test(host)) {
@@ -1334,6 +1349,53 @@ function safeImageSrc(v) {
          || /^\/img\/timer_beta\/[a-z0-9._-]{1,80}$/.test(v)) ? v : null;
 }
 
+// A direct media URL: HLS (.m3u8) or a plain file, from ANY https host. These
+// get a <video>, not an iframe — an iframe would download the file or show bare
+// browser chrome. No allowlist on purpose: a host picks the source for their own
+// game without waiting on an admin. Nothing is given away by that, because the
+// URL only becomes a <video> src and CSP media-src already allows any https
+// origin. Tested against the PATHNAME, not the whole URL, so a provider link
+// that merely mentions .mp4 in a query string still takes the embed path.
+function mediaStreamUrl(raw) {
+    if (!raw) return '';
+    var u;
+    try { u = new URL(String(raw).trim()); } catch (e) { return ''; }
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return '';
+    if (!/\.(m3u8|mp4|m4v|webm)$/i.test(u.pathname)) return '';
+    u.protocol = 'https:';   // never mixed content on an https page
+    return u.toString();
+}
+
+var hlsPlayers = []; // live hls.js instances — destroyed on every re-render
+
+// Point a <video> at a source, bringing hls.js in for .m3u8 where the browser
+// has no native HLS. Safari (and iOS in general) plays HLS directly, so it
+// never loads the library. Tuned to sit ~3 segments off the live edge and to
+// catch up by playing slightly fast rather than drifting further behind.
+function attachHls(vid, src) {
+    if (!/\.m3u8(\?|$)/i.test(src)) { vid.src = src; return; }
+    if (vid.canPlayType('application/vnd.apple.mpegurl')) { vid.src = src; return; }
+    if (!window.Hls || !window.Hls.isSupported()) { vid.src = src; return; }
+    var h = new window.Hls({
+        lowLatencyMode: true,
+        backBufferLength: 30,
+        liveSyncDurationCount: 3,
+        maxLiveSyncPlaybackRate: 1.5
+    });
+    // A display runs unattended for hours, so a blip must not end the night.
+    // These are hls.js's own documented recoveries; only an unrecoverable
+    // error tears the instance down.
+    h.on(window.Hls.Events.ERROR, function (evt, data) {
+        if (!data || !data.fatal) return;
+        if (data.type === window.Hls.ErrorTypes.NETWORK_ERROR) { h.startLoad(); }
+        else if (data.type === window.Hls.ErrorTypes.MEDIA_ERROR) { h.recoverMediaError(); }
+        else { try { h.destroy(); } catch (e) {} }
+    });
+    h.loadSource(src);
+    h.attachMedia(vid);
+    hlsPlayers.push(h);
+}
+
 // Normalize a user-pasted streaming URL into a safe embed URL — the classic
 // timer's normalizeStreamUrl, ported verbatim so the two timers accept the
 // same links. Returns '' for anything unrecognised so the iframe stays blank
@@ -1479,8 +1541,26 @@ function buildCell(spec) {
     // attribute assignment, never innerHTML.
     if ('video' in spec) {
         el.classList.add('tb-cell-video');
-        var vSrc = normalizeStreamUrl(spec.video);
-        if (vSrc) {
+        // A direct media URL (HLS or a file) becomes a real player; anything
+        // else is a provider embed and goes in an iframe below.
+        var mSrc = mediaStreamUrl(spec.video);
+        var vSrc = mSrc ? '' : normalizeStreamUrl(spec.video);
+        if (mSrc) {
+            var vid = document.createElement('video');
+            vid.className = 'tb-video';
+            attachHls(vid, mSrc);
+            vid.autoplay = true;
+            // Autoplay is only granted to a muted element, and the level alarm
+            // needs the audio channel regardless. `controls` is how the host
+            // unmutes it on the TV; the iframe path gets that from the
+            // provider's own player.
+            vid.muted = true;
+            vid.controls = true;
+            vid.setAttribute('playsinline', '');
+            if (window.TB_EMBED) vid.style.pointerEvents = 'none';
+            inner.appendChild(vid);
+            videoFrames.push(vid);
+        } else if (vSrc) {
             var ifr = document.createElement('iframe');
             ifr.className = 'tb-video';
             ifr.src = vSrc;
@@ -1629,6 +1709,8 @@ function buildScreen(idx) {
         ? CURRENT_LAYOUT.styles : {};
     rebuildElementIndex();
     var screen = CURRENT_LAYOUT.screens[idx] || { root: { col: [] } };
+    hlsPlayers.forEach(function (h) { try { h.destroy(); } catch (e) {} });
+    hlsPlayers = [];
     fitCells = []; clockCells = []; allCells = []; whenBoxes = []; qrCells = []; chipCells = []; seatCells = []; videoFrames = [];
     root.textContent = '';
     root.style.background = '';
@@ -2474,6 +2556,10 @@ if (window.TB_EMBED) {
         // renderer's own normalizer (same reason as validateCondition — the
         // tick the author sees and what the display loads can never disagree).
         normalizeStreamUrl: function (raw) { return normalizeStreamUrl(raw); },
+        // Exposed for the editor's paste check: without it the editor would
+        // judge direct media URLs by the embed rules and call a perfectly good
+        // .m3u8 unrecognised while the server accepted it.
+        mediaStreamUrl: function (raw) { return mediaStreamUrl(raw); },
         conditionNames: function () { return COND_NAMES.slice(); },
         // Trigger "Test" button: run an action list right now, ignoring
         // when/cooldown/once — auditioning, not simulating.

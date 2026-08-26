@@ -1598,24 +1598,62 @@ function renderInspector() {
             vWrap.className = 'tbe-field';
             var vl = document.createElement('span'); vl.textContent = 'Video stream'; vWrap.appendChild(vl);
             var vn = document.createElement('div'); vn.className = 'tbe-note';
-            vn.textContent = 'Paste a YouTube, Twitch, Vimeo or Kick link. The video fills this cell — '
-                           + 'give the box more weight for a bigger picture. YouTube and Vimeo mute '
-                           + 'themselves while alarm sounds play.';
+            vn.textContent = 'Paste a YouTube, Twitch, Vimeo or Kick link, or any direct https '
+                           + '.m3u8 / .mp4 URL — that is how a restream (IPTV, a live game) gets here. '
+                           + 'A direct video URL needs no approval from an admin, and everyone watching the '
+                           + 'display sees it. The video fills this cell — give the box more weight for a '
+                           + 'bigger picture. Streams mute themselves while alarm sounds play.';
             vWrap.appendChild(vn);
             insp.appendChild(vWrap);
             var vu = document.createElement('input');
-            vu.type = 'text'; vu.placeholder = 'https://www.youtube.com/watch?v=…';
+            vu.type = 'text'; vu.placeholder = 'https://…  (YouTube link, or a .m3u8 restream)';
             vu.value = cell.video || '';
             var vErr = document.createElement('div'); vErr.className = 'tbe-note';
-            var vCheck = function () {
+            var localOk = function (raw) {
+                if (raw === '' || !PV) return false;
+                // Both routes the renderer has: a provider embed, or a direct
+                // media URL. Judging only by the embed rules would reject a
+                // perfectly good .m3u8 that the server happily saves.
+                return (PV.normalizeStreamUrl && PV.normalizeStreamUrl(raw) !== '')
+                    || (PV.mediaStreamUrl && PV.mediaStreamUrl(raw) !== '');
+            };
+            // Say what is actually wrong. "Not a recognised streaming link" is
+            // true of an http:// URL, a missing .m3u8 and a typo alike, and it
+            // sends the host to an admin for a problem they could fix in five
+            // seconds — the exact support load this feature is meant to avoid.
+            var diagnose = function (raw) {
+                var u;
+                try { u = new URL(raw); } catch (e) {
+                    return 'That does not look like a full URL. It needs to start with https://';
+                }
+                if (u.protocol === 'http:') {
+                    return 'Use https, not http. This page is served over https and browsers refuse to '
+                         + 'load video over a plain connection, so an http link can never play.';
+                }
+                if (u.protocol !== 'https:') return 'Only https links work here.';
+                if (/^(192\.168\.|10\.|127\.|172\.(1[6-9]|2[0-9]|3[01])\.)/.test(u.hostname)
+                    || u.hostname === 'localhost') {
+                    return 'That is a local network address, so it only means something on your own '
+                         + 'machine. The stream needs a public address other devices can reach.';
+                }
+                if (!/\.(m3u8|mp4|m4v|webm)$/i.test(u.pathname)) {
+                    return 'For a live stream the URL needs to end in .m3u8 (what a restreamer publishes), '
+                         + 'or .mp4 for a file. This one ends in "' + (u.pathname.split('/').pop() || '/')
+                         + '", which is a web page rather than a video.';
+                }
+                return 'That host did not work out. Check the link opens on its own in a browser tab.';
+            };
+            var vCheck = function (msg) {
                 var raw = vu.value.trim();
-                var ok = raw !== '' && PV && PV.normalizeStreamUrl && PV.normalizeStreamUrl(raw) !== '';
-                vu.style.borderColor = (raw === '' || ok) ? '' : '#ef4444';
+                if (msg !== undefined) { vu.style.borderColor = ''; vErr.textContent = msg; return; }
+                vu.style.borderColor = (raw === '' || localOk(raw)) ? '' : '#ef4444';
                 vErr.textContent = raw === '' ? 'No link yet — the cell shows a placeholder until one is pasted.'
-                                 : ok ? '' : 'Not a recognised streaming link — the display will show a placeholder and Save will drop it.';
+                                 : localOk(raw) ? '' : diagnose(raw);
             };
             vu.addEventListener('input', vCheck);
-            vu.addEventListener('change', function () { pushUndo(); cell.video = vu.value.trim(); refresh(true); vCheck(); });
+            vu.addEventListener('change', function () {
+                pushUndo(); cell.video = vu.value.trim(); refresh(true); vCheck();
+            });
             vCheck();
             insp.appendChild(field('Stream URL', vu));
             insp.appendChild(vErr);
@@ -1653,7 +1691,7 @@ function renderInspector() {
 
         var toVid = document.createElement('button');
         toVid.className = 'tbe-mini'; toVid.textContent = 'Use a video stream instead';
-        toVid.title = 'Embed a YouTube / Twitch / Vimeo / Kick video in this cell';
+        toVid.title = 'Embed a YouTube / Twitch / Vimeo / Kick video, or play a direct stream, in this cell';
         toVid.addEventListener('click', function () { pushUndo(); cell.video = ''; refresh(true); renderInspector(); });
         insp.appendChild(toVid);
 

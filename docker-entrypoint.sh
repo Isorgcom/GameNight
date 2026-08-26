@@ -39,6 +39,15 @@ if [ ! -f "$VENDOR/nosleep.min.js" ]; then
     curl -fsSL https://cdn.jsdelivr.net/npm/nosleep.js@0.12.0/dist/NoSleep.min.js -o "$VENDOR/nosleep.min.js"
 fi
 
+# HLS playback for the Timer BETA video cell. Safari plays .m3u8 natively;
+# every other browser needs MSE, which this provides. Vendored rather than
+# CDN-loaded on purpose: served from our own origin it satisfies
+# script-src 'self' and needs no CSP exception.
+if [ ! -f "$VENDOR/hls.min.js" ]; then
+    echo "[entrypoint] Downloading hls.js 1.5.17..."
+    curl -fsSL https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js -o "$VENDOR/hls.min.js"
+fi
+
 # Self-hosted Google Fonts for the tournament timer theme system.
 # Downloaded from fonts.bunny.net (privacy-friendly Google Fonts mirror).
 if [ ! -f "$VENDOR/fonts/fonts.css" ]; then
