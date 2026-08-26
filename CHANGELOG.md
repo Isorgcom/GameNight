@@ -4,6 +4,45 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2114] - 2026-08-26
+
+### Fixed
+
+- **A video cell no longer restarts, and no longer loses its sound, every time
+  the display changes screens.** `buildScreen()` wipes the tree and rebuilds it
+  on every screen change (cycling, a break screen, a trigger takeover), which
+  meant a brand new `<video>`, a brand new hls.js and a brand new manifest fetch
+  each time. On a cycling layout that reads as the stream reloading itself every
+  few minutes, and any unmute the host had done went with the discarded element.
+  Media elements are now cached by source and re-parented into the rebuilt tree
+  rather than recreated; `sweepVideoCache()` runs after the tree exists and
+  disposes only the players the new screen genuinely dropped, resuming any that
+  were paused by being detached.
+
+- **A stream starts with sound.** The `<video>` was hard-coded `muted` on the
+  theory that autoplay demands it. Autoplay with sound is in fact granted once
+  the page has user activation, which a display that has been clicked always
+  has, so `tbTryPlay()` now asks for sound first and falls back to muted only if
+  the browser actually refuses. The host's choice is remembered per device in
+  `gn.tbStreamMuted`, mirroring the existing `gn.muteStreamDuringAlarms`
+  convention, so it survives both a screen rebuild and a page reload.
+
+- **The level alarm no longer trains the display to stay silent.**
+  `tbMuteStreamForAlarm()` set `STREAM_MUTED_BY_ALARM` *after* calling
+  `tbStreamMute(true)`. Muting a real media element fires `volumechange`, so the
+  new preference listener saw the flag still clear and recorded the alarm's own
+  ducking as "the host wants this muted" — one level change and every later load
+  would have started silent. The flag is now set before the call.
+
+  Verified in a browser this time, not just structurally:
+  `qa-headless/hls_persist_check.js` drives Chromium against a live HLS stream
+  and asserts the stream actually plays, that the same element survives two
+  rebuilds, that playback and unmute survive with it, and that a stored unmute
+  is honoured on reload. Confirmed to fail on v0.2113 with exactly the three
+  symptoms above before passing on this build.
+
+---
+
 ## [v0.2113] - 2026-08-26
 
 ### Added
