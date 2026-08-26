@@ -4,6 +4,42 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2111] - 2026-08-26
+
+### Added
+
+- **Timer BETA: video stream cell — the classic timer's stream option, carried
+  over as a layout cell.** A cell may now hold `video: '<pasted URL>'` and
+  renders a streaming embed filling its flex box; in the editor, "Use a video
+  stream instead" sits beside the image / QR / chip-legend / seat-map
+  conversions (inspector and right-click menu both), with a Stream URL field
+  that validates through the renderer's own `normalizeStreamUrl` — ported
+  verbatim from `timer.js`, so both timers accept exactly the same links:
+  YouTube in every spelling (watch, youtu.be, embed, live, shorts, tv.),
+  Twitch channels (`parent=` filled from `location.hostname`, so one layout
+  works on dev and prod), Vimeo, Kick, a best-effort Prime pass-through, and
+  the admin "Allowed video stream hosts" setting (injected as
+  `TB_STREAM_HOSTS`). A link that will not survive Save warns in red as it is
+  typed.
+
+  Unlike the QR target (an enum), a video URL is author content in a shareable
+  document, so three fences guard it and each would hold alone:
+  `pk_lo_stream_url()` drops unrecognised hosts at save, the renderer only
+  ever loads `normalizeStreamUrl()`'s output (unknown hosts draw a dashed
+  `▶ video` placeholder, never an iframe), and the global CSP `frame-src`
+  lists the same hosts as the browser-enforced third copy. Video cells ride
+  the `isImage` flag so the text pass, empty-cell auto-hide and `capCell()`
+  leave the iframe alone, and the iframe is `pointer-events: none` in embed
+  mode only, so an editor-preview click selects the cell instead of vanishing
+  into the player. Trigger sounds duck the stream: `tbPlaySound()` postMessages
+  mute/unmute to YouTube and Vimeo embeds for a 5s window, honouring the
+  classic timer's `gn.muteStreamDuringAlarms` toggle so a device's choice
+  there carries over. Verified by a 12-point Playwright check
+  (`qa-headless/video_cell_check.js`): normalized-embed render, raw URL never
+  reaching the DOM, placeholder, conversion flow and save-side dropping.
+
+---
+
 ## [v0.2110] - 2026-08-25
 
 ### Fixed
