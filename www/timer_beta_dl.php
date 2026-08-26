@@ -91,6 +91,39 @@ function pk_lo_num($v, float $min, float $max): ?float {
     if (!is_numeric($v)) return null;
     return max($min, min($max, (float)$v));
 }
+/**
+ * A cell's streaming-video URL. The RAW pasted URL is stored, but only when it
+ * belongs to a recognised streaming service (or an admin-allowlisted host) —
+ * the same acceptance rule as `normalizeStreamUrl()` in timer_beta.js, which
+ * builds the actual embed URL at render time. Mirror the two lists; a URL that
+ * passes here but not there renders as the dashed placeholder, never as an
+ * arbitrary iframe. Unknown hosts return null so the sanitizer drops the key:
+ * a layout is a shareable document, and unlike the QR target (an enum) a video
+ * URL is author content — this host gate plus the global CSP frame-src is what
+ * keeps a shared layout from embedding an attacker's page on a wall of screens.
+ */
+function pk_lo_stream_url($v): ?string {
+    if (!is_string($v)) return null;
+    $v = trim($v);
+    if ($v === '' || strlen($v) > 500) return null;
+    $p = parse_url($v);
+    if (!$p || !in_array(strtolower($p['scheme'] ?? ''), ['http', 'https'], true)) return null;
+    $h = strtolower($p['host'] ?? '');
+    if ($h === '') return null;
+    $bare = preg_replace('/^www\./', '', $h);
+    $known = ['youtube.com', 'm.youtube.com', 'music.youtube.com', 'tv.youtube.com',
+              'youtu.be', 'youtube-nocookie.com',
+              'twitch.tv', 'player.twitch.tv',
+              'vimeo.com', 'player.vimeo.com',
+              'kick.com', 'player.kick.com',
+              'primevideo.com', 'amazon.com'];
+    if (in_array($bare, $known, true) || str_ends_with($h, '.amazon.com')) return $v;
+    foreach (stream_allowed_hosts() as $pat) {
+        $hit = (strpos($pat, '*.') === 0) ? str_ends_with($h, substr($pat, 1)) : ($h === $pat);
+        if ($hit) return $v;
+    }
+    return null;
+}
 
 /* Validates a condition expression against the SAME grammar the renderer
  * compiles ("bigBlind > 10000 and not onBreak"). The string is stored verbatim
@@ -215,6 +248,9 @@ function pk_lo_cell($cell, array &$err): ?array {
     // target against the session's own remote_key; nothing from this file
     // reaches the scanner.
     if (isset($cell['qr']) && in_array($cell['qr'], ['display'], true)) $out['qr'] = $cell['qr'];
+    // Streaming video: the raw URL, kept only for recognised services (the
+    // renderer normalizes it into the actual embed URL — see pk_lo_stream_url).
+    if (isset($cell['video'])) { $v = pk_lo_stream_url($cell['video']); if ($v !== null) $out['video'] = $v; }
     // Chip legend. A flag, not content: the denominations come from the game,
     // never from the layout file.
     if (!empty($cell['chips'])) $out['chips'] = true;

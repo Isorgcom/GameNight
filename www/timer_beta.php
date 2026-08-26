@@ -182,6 +182,9 @@ var TB_CAST_KEY = <?= json_encode($cast_key ?: null) ?>;
 var TB_EVENT_TITLE = <?= json_encode($event_title) ?>;
 var TB_EMBED       = <?= json_encode($is_embed) ?>;
 var TB_EVENT_LAYOUT_ID = <?= json_encode($event_layout_id) ?>;
+// Admin-configured extra stream hosts for video cells (mirrors the CSP
+// frame-src allowlist built in auth.php, same as the classic timer's page).
+var TB_STREAM_HOSTS = <?= json_encode(stream_allowed_hosts()) ?>;
 var TB_EVENT_LAYOUT_KEY = <?= json_encode($event_layout_key) ?>;
 </script>
 <?php if (!$is_embed): ?>

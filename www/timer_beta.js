@@ -689,10 +689,55 @@ var soundHook = null;   // QA observation point — set via TBPreview, embed onl
 // Editor preview only: pretend to be this device class ('mobile'/'tablet'/
 // 'desktop', null = honest detection). Set via TBPreview.device().
 var deviceOverride = null;
+/* ── Stream mute during trigger sounds ────────────────────────────────────
+ * Ported from the classic timer (§7.15.1): postMessage mute/unmute to
+ * YouTube / Vimeo embeds so a streaming cell doesn't drown out an alarm.
+ * Other hosts (Twitch, Kick, Prime) expose no message API — they simply
+ * keep playing, same as the classic timer. Honours the same localStorage
+ * toggle ('gn.muteStreamDuringAlarms', default ON) so a device's choice on
+ * the classic timer carries over here. */
+var STREAM_MUTED_BY_ALARM = false;
+var STREAM_UNMUTE_TIMER = null;
+function tbStreamMute(on) {
+    videoFrames.forEach(function (frame) {
+        if (!frame.isConnected || !frame.src) return;
+        try {
+            var host = new URL(frame.src).hostname;
+            if (/youtube/.test(host)) {
+                frame.contentWindow.postMessage(JSON.stringify({
+                    event: 'command', func: on ? 'mute' : 'unMute', args: []
+                }), '*');
+            } else if (/vimeo/.test(host)) {
+                frame.contentWindow.postMessage(JSON.stringify({
+                    method: 'setMuted', value: !!on
+                }), '*');
+            }
+        } catch (e) {}
+    });
+}
+function tbMuteStreamForAlarm(durationMs) {
+    if (!videoFrames.length) return;
+    try {
+        if (localStorage.getItem('gn.muteStreamDuringAlarms') === 'false') return;
+    } catch (e) {}
+    tbStreamMute(true);
+    STREAM_MUTED_BY_ALARM = true;
+    if (STREAM_UNMUTE_TIMER) clearTimeout(STREAM_UNMUTE_TIMER);
+    STREAM_UNMUTE_TIMER = setTimeout(function () {
+        if (STREAM_MUTED_BY_ALARM) { tbStreamMute(false); STREAM_MUTED_BY_ALARM = false; }
+        STREAM_UNMUTE_TIMER = null;
+    }, durationMs);
+}
+
 function tbPlaySound(val) {
     if (!soundOn) return;
     if (typeof val !== 'string') return;
     if (soundHook) { soundHook(val); return; }   // heard, not played
+    // Duck any streaming cells while the sound plays. Presets run ~1-2s and
+    // uploaded sounds are capped short; a flat 5s window (sound + padding)
+    // matches the classic timer's per-alarm windows without tracking each
+    // sound's real length. Reentrant — an overlapping sound extends the mute.
+    tbMuteStreamForAlarm(5000);
     if (val.indexOf('preset:') === 0) {
         var segs = TB_PRESETS[val.slice(7)];
         if (!segs) return;
@@ -1126,6 +1171,7 @@ var qrCells  = [];   // cells rendering a QR code
 var chipCells = [];  // cells rendering the chip legend
 var seatCells = [];  // cells rendering the final-table seat map
 var clockCells = []; // cells whose colour tracks warn/critical
+var videoFrames = []; // live streaming <iframe>s — the alarm mute walks these
 
 function applyBox(el, node) {
     if (node.weight !== undefined) { el.style.flexGrow = String(node.weight); el.style.flexBasis = '0'; }
@@ -1285,6 +1331,92 @@ function safeImageSrc(v) {
          || /^\/img\/timer_beta\/[a-z0-9._-]{1,80}$/.test(v)) ? v : null;
 }
 
+// Normalize a user-pasted streaming URL into a safe embed URL — the classic
+// timer's normalizeStreamUrl, ported verbatim so the two timers accept the
+// same links. Returns '' for anything unrecognised so the iframe stays blank
+// (dashed placeholder) rather than loading an arbitrary cross-origin page.
+// The server sanitizer (pk_lo_stream_url) enforces the same host list on
+// save; the global CSP frame-src is the third, browser-enforced copy. Twitch
+// needs a parent= matching the embedding hostname — sourced from
+// location.hostname so it works in dev (localhost) and prod without settings.
+function normalizeStreamUrl(raw) {
+    if (!raw) return '';
+    raw = String(raw).trim();
+    var u;
+    try { u = new URL(raw); } catch (e) { return ''; }
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return '';
+    var h = u.hostname.replace(/^www\./, '').toLowerCase();
+    // YouTube — full watch URL, short youtu.be, embed/, live/, shorts/.
+    // `?enablejsapi=1` lets this page postMessage mute/unmute commands —
+    // used by the alarm-mute feature.
+    var YT = 'https://www.youtube-nocookie.com/embed/';
+    var YT_PARAMS = '?enablejsapi=1';
+    if (h === 'youtube.com' || h === 'm.youtube.com' || h === 'music.youtube.com') {
+        var v = u.searchParams.get('v');
+        if (v) return YT + encodeURIComponent(v) + YT_PARAMS;
+        var m = u.pathname.match(/^\/(?:embed|live|shorts)\/([\w-]{6,})/);
+        if (m) return YT + m[1] + YT_PARAMS;
+    }
+    if (h === 'youtu.be') {
+        var id = u.pathname.replace(/^\//, '').split('/')[0];
+        if (id) return YT + encodeURIComponent(id) + YT_PARAMS;
+    }
+    // YouTube TV — try the /watch/<id> as a regular embed; live/subscription
+    // content won't play inside the iframe, but shared VOD will.
+    if (h === 'tv.youtube.com') {
+        var mtv = u.pathname.match(/^\/watch\/([\w-]{6,})/);
+        if (mtv) return YT + mtv[1] + YT_PARAMS;
+    }
+    if (h === 'youtube-nocookie.com') {
+        if (raw.indexOf('enablejsapi=') === -1) {
+            return raw + (raw.indexOf('?') === -1 ? '?' : '&') + 'enablejsapi=1';
+        }
+        return raw;
+    }
+    // Twitch — first path segment is the channel name.
+    if (h === 'twitch.tv') {
+        var ch = u.pathname.replace(/^\//, '').split('/')[0];
+        if (ch) return 'https://player.twitch.tv/?channel=' + encodeURIComponent(ch)
+            + '&parent=' + encodeURIComponent(location.hostname || 'localhost');
+    }
+    if (h === 'player.twitch.tv') {
+        u.searchParams.set('parent', location.hostname || 'localhost');
+        return u.toString();
+    }
+    // Vimeo — extract the numeric video ID and use player.vimeo.com.
+    if (h === 'vimeo.com') {
+        var vparts = u.pathname.split('/').filter(Boolean);
+        for (var vi = vparts.length - 1; vi >= 0; vi--) {
+            if (/^\d{5,}$/.test(vparts[vi])) {
+                return 'https://player.vimeo.com/video/' + vparts[vi];
+            }
+        }
+    }
+    if (h === 'player.vimeo.com') return raw;
+    // Kick — channel URL; embed lives at player.kick.com/<channel>.
+    if (h === 'kick.com') {
+        var kch = u.pathname.replace(/^\//, '').split('/')[0];
+        if (kch) return 'https://player.kick.com/' + encodeURIComponent(kch);
+    }
+    if (h === 'player.kick.com') return raw;
+    // Prime Video — best-effort pass-through; Amazon usually refuses framing.
+    if (h === 'primevideo.com' || h === 'amazon.com' || h.endsWith('.amazon.com')) {
+        return raw;
+    }
+    // Admin-allowlisted custom hosts (Settings → General). Forced to https —
+    // an http embed would be mixed-content blocked. Must stay in sync with
+    // the CSP frame-src built in auth.php.
+    var rawHost = u.hostname.toLowerCase();
+    var extra = window.TB_STREAM_HOSTS || [];
+    for (var ei = 0; ei < extra.length; ei++) {
+        var pat = String(extra[ei]).toLowerCase();
+        var hit = (pat.indexOf('*.') === 0) ? rawHost.endsWith(pat.slice(1)) : (rawHost === pat);
+        if (hit) { u.protocol = 'https:'; return u.toString(); }
+    }
+    // Unknown host — render nothing (safer than allowing arbitrary embeds).
+    return '';
+}
+
 function buildCell(spec) {
     var el = document.createElement('div');
     el.className = 'tb-cell';
@@ -1336,6 +1468,35 @@ function buildCell(spec) {
         qrCells.push({ el: el, img: qimg, target: spec.qr, drawn: null });
     }
 
+    // Streaming video cell: an <iframe> filling the box — the classic timer's
+    // stream panel as a layout cell. The layout stores the RAW pasted URL;
+    // the iframe only ever loads what normalizeStreamUrl() built from it, so
+    // an unrecognised host draws the dashed placeholder instead of an embed
+    // (CSP frame-src would refuse it anyway — belt and braces). The src is an
+    // attribute assignment, never innerHTML.
+    if ('video' in spec) {
+        el.classList.add('tb-cell-video');
+        var vSrc = normalizeStreamUrl(spec.video);
+        if (vSrc) {
+            var ifr = document.createElement('iframe');
+            ifr.className = 'tb-video';
+            ifr.src = vSrc;
+            ifr.setAttribute('frameborder', '0');
+            ifr.setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture; fullscreen');
+            ifr.setAttribute('allowfullscreen', '');
+            // In the editor preview the iframe must not swallow the click
+            // that selects its cell (direct manipulation) — and nobody
+            // operates the video from inside the editor anyway.
+            if (window.TB_EMBED) ifr.style.pointerEvents = 'none';
+            inner.appendChild(ifr);
+            videoFrames.push(ifr);
+        } else {
+            // No/unrecognised URL: a visible stub, same idea as tb-qr-empty —
+            // the editor needs to see the cell's footprint, never a blank.
+            el.classList.add('tb-video-empty');
+        }
+    }
+
     // Structural / base-only styling, set once.
     if (spec.fit) el.classList.add('tb-fit');
     else el.style.fontSize = (spec.size || 2.4) + 'vh';
@@ -1360,7 +1521,7 @@ function buildCell(spec) {
     if (spec.clockColors) clockCells.push(el);
 
     var rec = {
-        el: el, inner: inner, spec: spec, isImage: !!imgSrc || !!spec.qr || !!spec.chips || !!spec.seats,
+        el: el, inner: inner, spec: spec, isImage: !!imgSrc || !!spec.qr || !!spec.chips || !!spec.seats || ('video' in spec),
         variants: Array.isArray(spec.variants) ? spec.variants : [],
         elSpans: [], lastText: null, lastVariant: -2, isFit: !!spec.fit
     };
@@ -1465,7 +1626,7 @@ function buildScreen(idx) {
         ? CURRENT_LAYOUT.styles : {};
     rebuildElementIndex();
     var screen = CURRENT_LAYOUT.screens[idx] || { root: { col: [] } };
-    fitCells = []; clockCells = []; allCells = []; whenBoxes = []; qrCells = []; chipCells = []; seatCells = [];
+    fitCells = []; clockCells = []; allCells = []; whenBoxes = []; qrCells = []; chipCells = []; seatCells = []; videoFrames = [];
     root.textContent = '';
     root.style.background = '';
     root.style.backgroundImage = '';
@@ -2281,6 +2442,10 @@ if (window.TB_EMBED) {
             var c = compileCond(t);
             return { ok: !!c.fn, error: c.error };
         },
+        // Streaming-URL check: the editor validates a pasted link through the
+        // renderer's own normalizer (same reason as validateCondition — the
+        // tick the author sees and what the display loads can never disagree).
+        normalizeStreamUrl: function (raw) { return normalizeStreamUrl(raw); },
         conditionNames: function () { return COND_NAMES.slice(); },
         // Trigger "Test" button: run an action list right now, ignoring
         // when/cooldown/once — auditioning, not simulating.
