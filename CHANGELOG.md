@@ -4,6 +4,49 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2115] - 2026-08-26
+
+### Changed
+
+- **The level alarm now ducks a stream's audio instead of cutting it.** Muting a
+  live stream dead for five seconds and snapping it back is more jarring than
+  the alarm it is making room for. `tbFadeVolume()` ramps the volume with a
+  raised-cosine ease, 250ms out and 600ms back in: out quickly enough to clear
+  the way, back slowly enough not to startle a room. The asymmetry is
+  deliberate, since a duck that returns as abruptly as it left draws more
+  attention than the duck. An in-flight ramp is cancelled before a new one
+  starts, so overlapping alarms cannot leave two animation loops fighting over
+  one volume.
+
+  Both the mute state and the *level* are captured before ducking. A host who
+  muted the stream deliberately is never unmuted by the fade back in, and a host
+  who turned it down to sit under table talk returns to that level rather than
+  to full volume. Provider embeds (YouTube, Vimeo) keep the old hard duck: their
+  volume cannot be read back over `postMessage`, so ramping blind could hand the
+  room a louder stream than the host chose.
+
+- **A stream's volume is remembered, not just whether it was muted.**
+  `gn.tbStreamVolume` joins `gn.tbStreamMuted`, so a level set on a device
+  survives a screen rebuild and a page reload.
+
+### Fixed
+
+- **The alarm's own fade can no longer be mistaken for the host adjusting the
+  volume.** `STREAM_MUTED_BY_ALARM` was cleared as soon as `tbStreamMute(false)`
+  returned, but the fade back in runs for another 600ms after that, and every
+  step of it fires `volumechange`. The preference listener would have stored a
+  half-faded level as the host's setting, so the stream came back quieter after
+  every alarm until it was effectively silent. The flag is now held until the
+  ramp actually finishes.
+
+  Covered by `qa-headless/hls_fade_check.js`, which drives Chromium against a
+  live HLS stream through the real trigger path and asserts the volume passes
+  through intermediate values in both directions, returns to the host's 0.4
+  rather than to 1.0, leaves the stored preference untouched, and never unmutes
+  a stream the host had deliberately muted.
+
+---
+
 ## [v0.2114] - 2026-08-26
 
 ### Fixed
