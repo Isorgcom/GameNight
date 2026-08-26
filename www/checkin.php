@@ -3511,6 +3511,14 @@ function loadPayoutStructure() {
         .then(function(j) {
             pkProgressDone();
             if (!j.ok) { pkAlert(j.error || 'Error'); return; }
+            // Legacy preset (pre-v0.2089): it carried no blind schedule and this
+            // game's timer has none either. Warn here, in Setup, rather than
+            // letting the host discover 0/0 blinds mid-game.
+            if (j.no_blinds) {
+                pkAlert('This preset was saved before blind schedules traveled with presets, so it brought no blinds along.\n\n'
+                      + 'Open the Blinds tab and pick a schedule before game time — without one the timer has nothing to count through. '
+                      + 'Saving the preset again afterwards (Update preset) stores the schedule in it for good.');
+            }
             PAYOUTS = j.payouts;
             POOL = j.pool || POOL;
             if (j.session) SESSION = j.session;  // recipe presets update bounty/jackpot too

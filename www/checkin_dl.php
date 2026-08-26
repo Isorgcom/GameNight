@@ -2039,18 +2039,32 @@ if ($action === 'load_payout_structure') {
 
     $sess2 = $db->prepare('SELECT * FROM poker_sessions WHERE id = ?');
     $sess2->execute([$session_id]);
+    $sessRow = $sess2->fetch();
 
     // Current timer flags so the client can retarget the Timer button and
     // refresh the Blinds pane without another round-trip.
-    $tq2 = $db->prepare('SELECT use_beta FROM timer_state WHERE session_id = ?');
+    $tq2 = $db->prepare('SELECT use_beta, preset_id FROM timer_state WHERE session_id = ?');
     $tq2->execute([$session_id]);
+    $trow2 = $tq2->fetch() ?: [];
+
+    // Legacy-preset guard: a structure saved before v0.2089 carries no blind
+    // schedule ("NULL = legacy"), and applying one used to leave a tournament
+    // timer schedule-less in silence — the host found out at the table, when
+    // the board read 0/0 and the clock had nothing to advance into. If the
+    // loaded structure brought no blinds AND the game's timer still has no
+    // schedule of its own, say so NOW, while the host is in Setup with the
+    // Blinds tab one click away. Cash games have no blind clock to starve.
+    $no_blinds = empty($struct['blind_levels'])
+        && !(int)($trow2['preset_id'] ?? 0)
+        && (($sessRow['game_type'] ?? '') !== 'cash');
 
     echo json_encode([
         'ok'      => true,
-        'session' => $sess2->fetch(),
+        'session' => $sessRow,
         'payouts' => get_payouts($db, $session_id),
         'pool'    => calc_pool($db, $session_id),
-        'use_beta' => (int)($tq2->fetchColumn() ?: 0),
+        'use_beta' => (int)($trow2['use_beta'] ?? 0),
+        'no_blinds' => $no_blinds,
     ]);
     exit;
 }

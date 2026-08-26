@@ -462,10 +462,13 @@ var ELEMENTS = {
     clock:        function () { return fmtClock(liveRemaining()); },
     gameName:     function () { return S.isBreak ? 'BREAK' : "No Limit Texas Hold 'Em"; },
     nextGameName: function () { return S.nextIsBreak ? 'Break' : "No Limit Texas Hold 'Em"; },
-    smallBlind:   function () { return fmtChips(S.sb); },
-    bigBlind:     function () { return fmtChips(S.bb); },
+    smallBlind:   function () { return S.noSchedule ? '—' : fmtChips(S.sb); },
+    bigBlind:     function () { return S.noSchedule ? '—' : fmtChips(S.bb); },
     ante:         function () { return S.ante ? fmtChips(S.ante) : '-'; },
-    blinds:       function () { return S.isBreak ? 'On Break' : fmtChips(S.sb) + ' / ' + fmtChips(S.bb); },
+    blinds:       function () {
+        if (S.noSchedule) return '—';
+        return S.isBreak ? 'On Break' : fmtChips(S.sb) + ' / ' + fmtChips(S.bb);
+    },
     nextBlinds:   function () {
         if (S.nsb === null) return '-';
         if (S.nextIsBreak) return 'Break';
@@ -2128,6 +2131,11 @@ function drawQrCells() {
 
 function refreshDerived() {
     var cur = findLevel(S.level), nxt = findLevel(S.level + 1);
+    // A LIVE game with an empty schedule: the timer has no blind preset, so
+    // there are no numbers to show and no level to advance into. Flagged so
+    // the blinds elements render '—' instead of a confident-looking 0/0, and
+    // so the controller banner can say what is actually wrong.
+    S.noSchedule = !S.sample && S.levels.length === 0;
     S.isBreak = !!(cur && (cur.is_break | 0));
     S.sb = cur ? cur.small_blind : 0;
     S.bb = cur ? cur.big_blind : 0;
@@ -2266,9 +2274,29 @@ function poll() {
             CAN_CONTROL = !!j.can_control;
             if (j.csrf_token) CSRF = j.csrf_token;
             refreshDerived();
+            updateNoBlindsBanner();
             updateAll();
         })
         .catch(function () { /* transient network errors: keep ticking on last state */ });
+}
+
+/* ── No-schedule banner ───────────────────────────────────────────────────
+ * A live game whose timer has no blind preset shows '—' blinds (see
+ * refreshDerived) — but only someone who can FIX it gets told why. Guests and
+ * cast screens see the quiet dashes; the host sees the amber banner. Built in
+ * JS rather than the page so the editor's embed preview (sample data, no
+ * session) can never grow one. */
+function updateNoBlindsBanner() {
+    if (window.TB_EMBED) return;
+    var el = document.getElementById('tbNoBlinds');
+    var want = !!(S.noSchedule && CAN_CONTROL);
+    if (want && !el) {
+        el = document.createElement('div');
+        el.id = 'tbNoBlinds';
+        el.textContent = 'This game has no blind schedule — pick one in Setup → Blinds, then reload this display.';
+        document.body.appendChild(el);
+    }
+    if (el) el.style.display = want ? '' : 'none';
 }
 
 // Whether keyboard control is live: a real event session, the viewer can

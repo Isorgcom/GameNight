@@ -4,6 +4,30 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2112] - 2026-08-26
+
+### Fixed
+
+- **Loading a legacy Setup preset no longer leaves a tournament silently
+  schedule-less.** A preset saved before v0.2089 predates blind schedules
+  traveling with presets (`blind_levels` NULL = legacy), and loading one
+  restored payouts and game config while leaving the timer with no schedule at
+  all — the host found out at the table, when the board read 0/0 and the clock
+  stopped dead at the end of level 1. Three guards now stand, each at the
+  moment its audience can act: `load_payout_structure` answers
+  `no_blinds: true` when the loaded structure brought no schedule and the
+  game's timer still has none (cash games excluded — no blind clock to
+  starve); Setup surfaces that as an alert on load, pointing at the Blinds tab
+  and noting that **Update preset** afterwards stores the schedule in the
+  preset for good; and the BETA display renders '&mdash;' for blinds instead
+  of a confident-looking 0/0 on a live game with an empty schedule, with an
+  amber banner — visible only to a viewer who can control the game — saying
+  what is wrong and where to fix it. Guests and cast screens see the quiet
+  dashes; sample mode and the editor preview are untouched. Verified by
+  `qa-headless/noblinds_check.js` plus load-path round-trips both ways.
+
+---
+
 ## [v0.2111] - 2026-08-26
 
 ### Added
