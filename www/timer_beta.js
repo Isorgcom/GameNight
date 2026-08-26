@@ -701,24 +701,68 @@ var deviceOverride = null;
  * the classic timer carries over here. */
 var STREAM_MUTED_BY_ALARM = false;
 var STREAM_UNMUTE_TIMER = null;
+// Fade timings. Out fast enough to clear the way for the alarm, back in slow
+// enough not to startle a room. Deliberately asymmetric: a duck that returns as
+// abruptly as it left is more noticeable than the duck itself.
+var STREAM_FADE_OUT_MS = 250;
+var STREAM_FADE_IN_MS  = 600;
+
+/* Ramp a media element's volume instead of cutting it.
+ *
+ * Eased with a raised cosine so both ends are smooth; a linear ramp over this
+ * distance has an audible corner where it starts and stops. Any ramp already
+ * running on the element is cancelled first, so overlapping alarms cannot leave
+ * two rAF loops fighting over one volume. */
+function tbFadeVolume(vid, to, ms, done) {
+    if (vid._fadeRaf) { cancelAnimationFrame(vid._fadeRaf); vid._fadeRaf = null; }
+    var from = vid.volume;
+    to = Math.max(0, Math.min(1, to));
+    if (ms <= 0 || Math.abs(from - to) < 0.005) {
+        try { vid.volume = to; } catch (e) {}
+        if (done) done();
+        return;
+    }
+    var t0 = performance.now();
+    vid._fadeRaf = requestAnimationFrame(function step(now) {
+        var k = Math.min(1, (now - t0) / ms);
+        var e = 0.5 - Math.cos(Math.PI * k) / 2;
+        try { vid.volume = Math.max(0, Math.min(1, from + (to - from) * e)); } catch (err) {}
+        if (k < 1) { vid._fadeRaf = requestAnimationFrame(step); }
+        else { vid._fadeRaf = null; if (done) done(); }
+    });
+}
+
 function tbStreamMute(on) {
     videoFrames.forEach(function (frame) {
         if (!frame.isConnected || !frame.src) return;
         if (frame.tagName === 'VIDEO') {
-            // A real media element: mute it directly, no postMessage involved.
-            // Remember what it was first, so the alarm's unmute can never
-            // switch on audio the host had deliberately muted.
+            // A real media element: ramp it rather than cut it. Both the mute
+            // state AND the level are remembered, because a host who muted
+            // deliberately must not be unmuted by the fade back in, and one who
+            // set a quiet level must return to THAT, never to full volume.
             if (on) {
                 if (frame.dataset.preAlarmMuted === undefined) {
                     frame.dataset.preAlarmMuted = frame.muted ? '1' : '0';
+                    frame.dataset.preAlarmVol   = String(frame.volume);
                 }
-                frame.muted = true;
+                if (frame.muted) return;             // nothing audible to duck
+                tbFadeVolume(frame, 0, STREAM_FADE_OUT_MS, function () { frame.muted = true; });
             } else {
-                if (frame.dataset.preAlarmMuted === '0') frame.muted = false;
+                var wasMuted = frame.dataset.preAlarmMuted === '1';
+                var vol = parseFloat(frame.dataset.preAlarmVol);
+                if (isNaN(vol)) vol = 1;
                 delete frame.dataset.preAlarmMuted;
+                delete frame.dataset.preAlarmVol;
+                if (wasMuted) return;                // host had it off; leave it
+                frame.muted = false;
+                try { frame.volume = 0; } catch (e) {}
+                tbFadeVolume(frame, vol, STREAM_FADE_IN_MS);
             }
             return;
         }
+        // Provider embeds only expose mute/unMute over postMessage and their
+        // current level cannot be read back, so ramping blind could hand the
+        // room a louder stream than the host set. They stay a hard duck.
         try {
             var host = new URL(frame.src).hostname;
             if (/youtube/.test(host)) {
@@ -746,7 +790,15 @@ function tbMuteStreamForAlarm(durationMs) {
     tbStreamMute(true);
     if (STREAM_UNMUTE_TIMER) clearTimeout(STREAM_UNMUTE_TIMER);
     STREAM_UNMUTE_TIMER = setTimeout(function () {
-        if (STREAM_MUTED_BY_ALARM) { tbStreamMute(false); STREAM_MUTED_BY_ALARM = false; }   // flag held across the call, cleared after
+        if (STREAM_MUTED_BY_ALARM) {
+            tbStreamMute(false);
+            // Hold the flag until the ramp FINISHES, not merely until the call
+            // returns. Every step of the fade fires volumechange, and the
+            // preference listener must not read the ramp as the host reaching
+            // for the volume; it would store a half-faded level as their
+            // setting and the stream would come back quieter after every alarm.
+            setTimeout(function () { STREAM_MUTED_BY_ALARM = false; }, STREAM_FADE_IN_MS + 80);
+        }
         STREAM_UNMUTE_TIMER = null;
     }, durationMs);
 }
@@ -1419,6 +1471,17 @@ function tbStreamMutePref() {
 function tbSetStreamMutePref(m) {
     try { localStorage.setItem('gn.tbStreamMuted', m ? 'true' : 'false'); } catch (e) {}
 }
+// The level as well as the switch. Now that the alarm ramps rather than mutes,
+// a host who turned the stream down to sit under table talk should find it
+// there next time instead of back at full.
+function tbStreamVolPref() {
+    var v;
+    try { v = parseFloat(localStorage.getItem('gn.tbStreamVolume')); } catch (e) { v = NaN; }
+    return (isNaN(v) || v < 0 || v > 1) ? 1 : v;
+}
+function tbSetStreamVolPref(v) {
+    try { localStorage.setItem('gn.tbStreamVolume', String(Math.max(0, Math.min(1, v)))); } catch (e) {}
+}
 
 // Autoplay WITH sound needs user activation, and a display that has been
 // clicked (Start) usually has it. Ask for sound first and fall back to muted
@@ -1614,13 +1677,16 @@ function buildCell(spec) {
                 // path gets that from the provider's own player.
                 vid.controls = true;
                 vid.muted = tbStreamMutePref();
+                try { vid.volume = tbStreamVolPref(); } catch (e) {}
                 vid.setAttribute('playsinline', '');
                 rec = videoCache[mSrc] = { el: vid, hls: attachHls(vid, mSrc) };
                 // Remember what the host chose, so it survives the next rebuild
                 // AND the next page load. Ignored while the alarm holds the
                 // channel, or ducking would be recorded as an intentional mute.
                 vid.addEventListener('volumechange', function () {
-                    if (!STREAM_MUTED_BY_ALARM) tbSetStreamMutePref(vid.muted);
+                    if (STREAM_MUTED_BY_ALARM) return;   // the alarm's ramp, not the host
+                    tbSetStreamMutePref(vid.muted);
+                    tbSetStreamVolPref(vid.volume);
                 });
             }
             if (window.TB_EMBED) vid.style.pointerEvents = 'none';
