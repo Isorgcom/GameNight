@@ -738,11 +738,15 @@ function tbMuteStreamForAlarm(durationMs) {
     try {
         if (localStorage.getItem('gn.muteStreamDuringAlarms') === 'false') return;
     } catch (e) {}
-    tbStreamMute(true);
+    // Flag BEFORE muting, not after: muting a <video> fires volumechange, and
+    // the preference listener must be able to tell the alarm's ducking from the
+    // host reaching for the volume. Set afterwards, one alarm would be recorded
+    // as "the host wants this muted" and every later load would start silent.
     STREAM_MUTED_BY_ALARM = true;
+    tbStreamMute(true);
     if (STREAM_UNMUTE_TIMER) clearTimeout(STREAM_UNMUTE_TIMER);
     STREAM_UNMUTE_TIMER = setTimeout(function () {
-        if (STREAM_MUTED_BY_ALARM) { tbStreamMute(false); STREAM_MUTED_BY_ALARM = false; }
+        if (STREAM_MUTED_BY_ALARM) { tbStreamMute(false); STREAM_MUTED_BY_ALARM = false; }   // flag held across the call, cleared after
         STREAM_UNMUTE_TIMER = null;
     }, durationMs);
 }
@@ -1366,7 +1370,6 @@ function mediaStreamUrl(raw) {
     return u.toString();
 }
 
-var hlsPlayers = []; // live hls.js instances — destroyed on every re-render
 
 // Point a <video> at a source, bringing hls.js in for .m3u8 where the browser
 // has no native HLS. Safari (and iOS in general) plays HLS directly, so it
@@ -1393,7 +1396,59 @@ function attachHls(vid, src) {
     });
     h.loadSource(src);
     h.attachMedia(vid);
-    hlsPlayers.push(h);
+    return h;
+}
+
+/* A <video> must SURVIVE buildScreen().
+ *
+ * buildScreen() wipes the tree and rebuilds it on every screen change: cycling,
+ * a break screen, a trigger takeover. Rebuilding a video cell from scratch each
+ * time meant a fresh element, a fresh hls.js, a fresh manifest fetch — the
+ * stream visibly restarted every few minutes and any unmute the host had done
+ * was lost with the old element. So elements are cached by source and re-parented
+ * into the new tree instead of recreated, and the sweep below disposes only the
+ * ones the new screen genuinely dropped. */
+var videoCache = {};
+
+// The host's sound choice, remembered per device. Mirrors the classic timer's
+// gn.muteStreamDuringAlarms convention. Default UNMUTED: a stream nobody can
+// hear is not what anyone put on the display for.
+function tbStreamMutePref() {
+    try { return localStorage.getItem('gn.tbStreamMuted') === 'true'; } catch (e) { return false; }
+}
+function tbSetStreamMutePref(m) {
+    try { localStorage.setItem('gn.tbStreamMuted', m ? 'true' : 'false'); } catch (e) {}
+}
+
+// Autoplay WITH sound needs user activation, and a display that has been
+// clicked (Start) usually has it. Ask for sound first and fall back to muted
+// only if the browser actually refuses, rather than assuming it will.
+function tbTryPlay(vid) {
+    var p;
+    try { p = vid.play(); } catch (e) { return; }
+    if (p && p.catch) {
+        p.catch(function () {
+            if (!vid.muted) {
+                vid.muted = true;
+                var q; try { q = vid.play(); } catch (e) { return; }
+                if (q && q.catch) q.catch(function () {});
+            }
+        });
+    }
+}
+
+// Dispose cached players the rebuilt tree no longer contains. Anything still
+// connected is on screen and must keep playing untouched.
+function sweepVideoCache() {
+    Object.keys(videoCache).forEach(function (k) {
+        var rec = videoCache[k];
+        if (rec.el && rec.el.isConnected) {
+            if (rec.el.paused) tbTryPlay(rec.el);
+            return;
+        }
+        if (rec.hls) { try { rec.hls.destroy(); } catch (e) {} }
+        delete videoCache[k];
+    });
 }
 
 // Normalize a user-pasted streaming URL into a safe embed URL — the classic
@@ -1546,17 +1601,28 @@ function buildCell(spec) {
         var mSrc = mediaStreamUrl(spec.video);
         var vSrc = mSrc ? '' : normalizeStreamUrl(spec.video);
         if (mSrc) {
-            var vid = document.createElement('video');
-            vid.className = 'tb-video';
-            attachHls(vid, mSrc);
-            vid.autoplay = true;
-            // Autoplay is only granted to a muted element, and the level alarm
-            // needs the audio channel regardless. `controls` is how the host
-            // unmutes it on the TV; the iframe path gets that from the
-            // provider's own player.
-            vid.muted = true;
-            vid.controls = true;
-            vid.setAttribute('playsinline', '');
+            var rec = videoCache[mSrc], vid;
+            if (rec && rec.el) {
+                // Already playing from an earlier screen: re-parent it, do not
+                // rebuild it. Moving the node keeps the buffer and the sound.
+                vid = rec.el;
+            } else {
+                vid = document.createElement('video');
+                vid.className = 'tb-video';
+                vid.autoplay = true;
+                // `controls` is how the host changes sound on the TV; the iframe
+                // path gets that from the provider's own player.
+                vid.controls = true;
+                vid.muted = tbStreamMutePref();
+                vid.setAttribute('playsinline', '');
+                rec = videoCache[mSrc] = { el: vid, hls: attachHls(vid, mSrc) };
+                // Remember what the host chose, so it survives the next rebuild
+                // AND the next page load. Ignored while the alarm holds the
+                // channel, or ducking would be recorded as an intentional mute.
+                vid.addEventListener('volumechange', function () {
+                    if (!STREAM_MUTED_BY_ALARM) tbSetStreamMutePref(vid.muted);
+                });
+            }
             if (window.TB_EMBED) vid.style.pointerEvents = 'none';
             inner.appendChild(vid);
             videoFrames.push(vid);
@@ -1709,8 +1775,6 @@ function buildScreen(idx) {
         ? CURRENT_LAYOUT.styles : {};
     rebuildElementIndex();
     var screen = CURRENT_LAYOUT.screens[idx] || { root: { col: [] } };
-    hlsPlayers.forEach(function (h) { try { h.destroy(); } catch (e) {} });
-    hlsPlayers = [];
     fitCells = []; clockCells = []; allCells = []; whenBoxes = []; qrCells = []; chipCells = []; seatCells = []; videoFrames = [];
     root.textContent = '';
     root.style.background = '';
@@ -1740,6 +1804,9 @@ function buildScreen(idx) {
     drawQrCells();
     drawChipCells();
     drawSeatCells();
+    // After the tree exists: dispose players this screen dropped, and resume
+    // any that were paused by being detached during the rebuild.
+    sweepVideoCache();
 }
 
 function renderLayoutObj(layout) {
