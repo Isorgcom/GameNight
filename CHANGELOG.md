@@ -4,6 +4,61 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2119] - 2026-08-27
+
+### Added
+
+- **Trigger warm-up: an alarm can now fade the stream down before it sounds.**
+  Previously the duck and the sound started together, so the alarm's first
+  moment landed while the stream was still at full volume — the "sudden" effect
+  the ducking was supposed to prevent. A sound action gains a **warm-up in
+  seconds** (`warmup`, 0-10, half-second steps, set in the trigger row next to
+  the sound). With one set, the stream ramps down over that period *first* and
+  the sound waits for the bottom of the ramp, arriving into audio that has
+  already made room. The duck window is extended by the same amount so the hold
+  still covers the sound rather than being eaten by the ramp. Left at 0, the
+  behaviour is exactly as before.
+
+- **Layout-level control over how the stream's audio behaves around an alarm.**
+  A `stream` block on the layout sets `fadeOut` and `fadeIn` (50-10000ms),
+  `hold` (500-60000ms, how long the duck lasts, previously a hard-coded 5s), and
+  `duckTo` (0-1). That last one is the interesting knob: ducking *to* a level
+  rather than to silence keeps the stream present under the alarm, where a full
+  drop can read as a dropout. These are layout-level rather than per-trigger
+  because they describe the room's sound, not any one event; every alarm in a
+  layout should duck the same way. Each key falls back to the previous hard-coded
+  default when absent, so existing layouts are unchanged.
+
+  The four settings sit **in the video stream cell's own settings**, directly
+  under the Stream URL, as a plain sentence: *while an alarm plays, this stream*
+  drops to / fading down over / staying down for / coming back over. They belong
+  with the stream they govern rather than in a right-click menu or a separate
+  panel, so nobody has to hunt for a setting attached to the thing already in
+  front of them. Choosing a default deletes the key rather than writing it, so a
+  layout only carries what was actually changed, and the saved layout still
+  accepts any value in range for exact figures set by hand.
+
+### Fixed
+
+- **A single-screen layout lost its whole-layout settings the moment it was
+  opened in the editor.** `normalizeLayout()` rebuilt the document from a
+  hand-written key list (`v`, `aspect`, `screens`), so anything not named there
+  was silently dropped: triggers, custom elements, shared styles and now the
+  stream audio settings. The new panels would have appeared to save and then
+  reverted. It now carries every whole-layout key across, and still does not
+  materialise absent ones as nulls.
+
+- **The QA sound hook fired before the sound was audible.** It sat at the top of
+  `tbPlaySound()` and returned early, so with a warm-up it reported the sound as
+  instant and hid the very ordering the feature creates. It now fires in
+  `tbPlaySoundNow()`, at the moment the sound is actually heard.
+
+  Verified in Chromium against a live stream: with a 2s warm-up the sound fired
+  at 2002ms, the stream was already at the configured 0.20 duck level when it
+  did, and it got there through 34 intermediate volume steps rather than a cut.
+
+---
+
 ## [v0.2118] - 2026-08-27
 
 ### Fixed

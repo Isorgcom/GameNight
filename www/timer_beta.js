@@ -701,11 +701,31 @@ var deviceOverride = null;
  * the classic timer carries over here. */
 var STREAM_MUTED_BY_ALARM = false;
 var STREAM_UNMUTE_TIMER = null;
-// Fade timings. Out fast enough to clear the way for the alarm, back in slow
+// Fade defaults. Out fast enough to clear the way for the alarm, back in slow
 // enough not to startle a room. Deliberately asymmetric: a duck that returns as
-// abruptly as it left is more noticeable than the duck itself.
+// abruptly as it left is more noticeable than the duck itself. A layout can
+// override any of these (see tbStreamCfg) without touching the defaults, so an
+// existing layout keeps behaving exactly as it did.
 var STREAM_FADE_OUT_MS = 250;
 var STREAM_FADE_IN_MS  = 600;
+var STREAM_HOLD_MS     = 5000;
+var STREAM_DUCK_TO     = 0;
+
+// Layout-level audio settings, read fresh each time because a layout can be
+// swapped under a running display.
+function tbStreamCfg() {
+    var c = (CURRENT_LAYOUT && CURRENT_LAYOUT.stream) || {};
+    var num = function (v, dflt, lo, hi) {
+        v = parseFloat(v);
+        return (isNaN(v) || v < lo || v > hi) ? dflt : v;
+    };
+    return {
+        fadeOut: num(c.fadeOut, STREAM_FADE_OUT_MS, 50, 10000),
+        fadeIn:  num(c.fadeIn,  STREAM_FADE_IN_MS,  50, 10000),
+        hold:    num(c.hold,    STREAM_HOLD_MS,     500, 60000),
+        duckTo:  num(c.duckTo,  STREAM_DUCK_TO,     0, 1)
+    };
+}
 
 /* Ramp a media element's volume instead of cutting it.
  *
@@ -732,7 +752,11 @@ function tbFadeVolume(vid, to, ms, done) {
     });
 }
 
-function tbStreamMute(on) {
+function tbStreamMute(on, cfg, fadeOutMs) {
+    cfg = cfg || tbStreamCfg();
+    // fadeOutMs lets a trigger's warm-up stretch the ramp for one alarm without
+    // changing the layout's own setting.
+    var outMs = (fadeOutMs === undefined) ? cfg.fadeOut : fadeOutMs;
     videoFrames.forEach(function (frame) {
         if (!frame.isConnected || !frame.src) return;
         if (frame.tagName === 'VIDEO') {
@@ -746,7 +770,12 @@ function tbStreamMute(on) {
                     frame.dataset.preAlarmVol   = String(frame.volume);
                 }
                 if (frame.muted) return;             // nothing audible to duck
-                tbFadeVolume(frame, 0, STREAM_FADE_OUT_MS, function () { frame.muted = true; });
+                // Ducking TO a level rather than to zero keeps the stream
+                // present under the alarm; a full drop can read as a dropout.
+                // Only mute outright when the target really is silence.
+                tbFadeVolume(frame, cfg.duckTo, outMs, function () {
+                    if (cfg.duckTo <= 0) frame.muted = true;
+                });
             } else {
                 var wasMuted = frame.dataset.preAlarmMuted === '1';
                 var vol = parseFloat(frame.dataset.preAlarmVol);
@@ -755,8 +784,8 @@ function tbStreamMute(on) {
                 delete frame.dataset.preAlarmVol;
                 if (wasMuted) return;                // host had it off; leave it
                 frame.muted = false;
-                try { frame.volume = 0; } catch (e) {}
-                tbFadeVolume(frame, vol, STREAM_FADE_IN_MS);
+                if (cfg.duckTo <= 0) { try { frame.volume = 0; } catch (e) {} }
+                tbFadeVolume(frame, vol, cfg.fadeIn);
             }
             return;
         }
@@ -777,41 +806,64 @@ function tbStreamMute(on) {
         } catch (e) {}
     });
 }
-function tbMuteStreamForAlarm(durationMs) {
+function tbMuteStreamForAlarm(durationMs, fadeOutMs) {
     if (!videoFrames.length) return;
     try {
         if (localStorage.getItem('gn.muteStreamDuringAlarms') === 'false') return;
     } catch (e) {}
+    var cfg = tbStreamCfg();
     // Flag BEFORE muting, not after: muting a <video> fires volumechange, and
     // the preference listener must be able to tell the alarm's ducking from the
     // host reaching for the volume. Set afterwards, one alarm would be recorded
     // as "the host wants this muted" and every later load would start silent.
     STREAM_MUTED_BY_ALARM = true;
-    tbStreamMute(true);
+    tbStreamMute(true, cfg, fadeOutMs);
     if (STREAM_UNMUTE_TIMER) clearTimeout(STREAM_UNMUTE_TIMER);
     STREAM_UNMUTE_TIMER = setTimeout(function () {
         if (STREAM_MUTED_BY_ALARM) {
-            tbStreamMute(false);
+            tbStreamMute(false, cfg);
             // Hold the flag until the ramp FINISHES, not merely until the call
             // returns. Every step of the fade fires volumechange, and the
             // preference listener must not read the ramp as the host reaching
             // for the volume; it would store a half-faded level as their
             // setting and the stream would come back quieter after every alarm.
-            setTimeout(function () { STREAM_MUTED_BY_ALARM = false; }, STREAM_FADE_IN_MS + 80);
+            setTimeout(function () { STREAM_MUTED_BY_ALARM = false; }, cfg.fadeIn + 80);
         }
         STREAM_UNMUTE_TIMER = null;
     }, durationMs);
 }
 
-function tbPlaySound(val) {
+/* Play a trigger sound, optionally after a WARM-UP.
+ *
+ * Without a warm-up the duck and the alarm start together, so the alarm's first
+ * moment lands while the stream is still at full volume — the exact "sudden"
+ * effect this exists to remove. With one, the stream ramps down over `warmupMs`
+ * FIRST and the sound waits for it, arriving into audio that has already made
+ * room. The duck window is extended by the same amount so the hold still covers
+ * the sound itself rather than being eaten by the ramp. */
+function tbPlaySound(val, warmupMs) {
     if (!soundOn) return;
     if (typeof val !== 'string') return;
+    var cfg = tbStreamCfg();
+    warmupMs = Math.max(0, Math.min(10000, +warmupMs || 0));
+    if (warmupMs > 0 && videoFrames.length) {
+        // Ramp over the warm-up rather than the layout's normal fade, hold for
+        // the warm-up plus the usual window, and delay the sound to the bottom
+        // of the ramp.
+        tbMuteStreamForAlarm(warmupMs + cfg.hold, warmupMs);
+        setTimeout(function () { tbPlaySoundNow(val); }, warmupMs);
+        return;
+    }
+    tbMuteStreamForAlarm(cfg.hold);
+    tbPlaySoundNow(val);
+}
+
+function tbPlaySoundNow(val) {
+    // The QA hook fires HERE, not at tbPlaySound, so it observes the moment the
+    // sound is actually heard. With a warm-up that is after the ramp, and a hook
+    // placed earlier would report the sound as instant and hide the very
+    // ordering this feature exists to create.
     if (soundHook) { soundHook(val); return; }   // heard, not played
-    // Duck any streaming cells while the sound plays. Presets run ~1-2s and
-    // uploaded sounds are capped short; a flat 5s window (sound + padding)
-    // matches the classic timer's per-alarm windows without tracking each
-    // sound's real length. Reentrant — an overlapping sound extends the mute.
-    tbMuteStreamForAlarm(5000);
     if (val.indexOf('preset:') === 0) {
         var segs = TB_PRESETS[val.slice(7)];
         if (!segs) return;
@@ -878,7 +930,9 @@ function runTriggerActions(list) {
     for (var i = 0; i < (list || []).length; i++) {
         var act = list[i];
         if (!act || typeof act !== 'object') continue;
-        if (act.sound) tbPlaySound(act.sound);
+        // warmup is in SECONDS in the layout (that is the unit an author thinks
+        // in); tbPlaySound wants ms.
+        if (act.sound) tbPlaySound(act.sound, (parseFloat(act.warmup) || 0) * 1000);
         if (act.flash) {
             root.classList.remove('tb-flash');
             void root.offsetWidth;                    // restart the animation
@@ -2770,6 +2824,9 @@ if (window.TB_EMBED) {
         runActions: function (list) { runTriggerActions(list); },
         // QA hooks: the engine is IIFE-wrapped, so the suite observes sound
         // policy and would-be playback here instead of stubbing internals.
+        // Exposed so a test can assert the warm-up ordering (ramp first, sound
+        // second) without waiting on real audio.
+        streamCfg: function () { return tbStreamCfg(); },
         sound: {
             on:   function () { return soundOn; },
             set:  function (v) { soundOn = !!v; },

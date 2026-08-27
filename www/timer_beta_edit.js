@@ -26,8 +26,18 @@ var editScreenIndex = 0;       // which screen the tree/inspector edit
 function normalizeLayout() {
     if (!LAYOUT) return;
     if (!Array.isArray(LAYOUT.screens) || !LAYOUT.screens.length) {
-        LAYOUT = { v: LAYOUT.v || 1, aspect: LAYOUT.aspect,
-                   screens: [{ name: 'Main', bg: LAYOUT.bg || null, root: LAYOUT.root || { col: [] } }] };
+        // Carry every whole-layout key across, not just aspect. Rebuilding from
+        // a hand-written list silently DROPPED anything not named here, so a
+        // single-screen layout lost its triggers, custom elements and stream
+        // audio settings the moment it was opened in the editor.
+        var carried = { v: LAYOUT.v || 1, aspect: LAYOUT.aspect,
+                        triggers: LAYOUT.triggers, customElements: LAYOUT.customElements,
+                        styles: LAYOUT.styles, stream: LAYOUT.stream,
+                        screens: [{ name: 'Main', bg: LAYOUT.bg || null, root: LAYOUT.root || { col: [] } }] };
+        Object.keys(carried).forEach(function (k) {
+            if (carried[k] === undefined || carried[k] === null) delete carried[k];
+        });
+        LAYOUT = carried;
         if (!LAYOUT.aspect) delete LAYOUT.aspect;
     }
     if (editScreenIndex >= LAYOUT.screens.length) editScreenIndex = 0;
@@ -1035,6 +1045,65 @@ function triggerLabel(tg) {
     return when + (acts.length ? ' — ' + acts.join(', ') : '');
 }
 
+/* Whole-layout audio behaviour for alarms, rendered inline in the Triggers
+ * panel. Selects rather than a submenu: these are settings someone tunes by
+ * ear, and a control they cannot see is a control they will not tune. Picking
+ * the default deletes the key, so a layout only carries what was changed. */
+function streamDuckPanel() {
+    var wrap = document.createElement('div');
+    wrap.className = 'tbe-duck';
+    var h = document.createElement('div');
+    h.className = 'tbe-duck-head';
+    h.textContent = 'While an alarm plays, this stream…';
+    wrap.appendChild(h);
+
+    function row(label, key, dflt, opts, title) {
+        var lab = document.createElement('label');
+        lab.className = 'tbe-duck-row';
+        if (title) lab.title = title;
+        var sp = document.createElement('span');
+        sp.textContent = label;
+        var sel = document.createElement('select');
+        opts.forEach(function (o) {
+            var op = document.createElement('option');
+            op.value = String(o[0]); op.textContent = o[1];
+            sel.appendChild(op);
+        });
+        var st = LAYOUT.stream || {};
+        sel.value = String(st[key] !== undefined ? st[key] : dflt);
+        sel.addEventListener('change', function () {
+            pushUndo();
+            var v = parseFloat(sel.value);
+            var s2 = LAYOUT.stream || (LAYOUT.stream = {});
+            if (v === dflt) delete s2[key]; else s2[key] = v;
+            if (!Object.keys(LAYOUT.stream).length) delete LAYOUT.stream;
+            refresh(true);
+        });
+        lab.appendChild(sp); lab.appendChild(sel);
+        wrap.appendChild(lab);
+    }
+
+    row('drops to', 'duckTo', 0,
+        [[0, 'silence'], [0.1, '10% volume'], [0.2, '20% volume'], [0.5, 'half volume']],
+        'Ducking to a level rather than to silence keeps the stream present under the alarm. A full drop can sound like the feed died.');
+    row('fading down over', 'fadeOut', 250,
+        [[100, '0.1s'], [250, '0.25s'], [600, '0.6s'], [1200, '1.2s']],
+        'How long the stream takes to get quiet once an alarm fires.');
+    row('staying down for', 'hold', 5000,
+        [[3000, '3s'], [5000, '5s'], [8000, '8s'], [12000, '12s']],
+        'How long the duck holds. Too short and the stream returns over the tail of the alarm.');
+    row('coming back over', 'fadeIn', 600,
+        [[300, '0.3s'], [600, '0.6s'], [1200, '1.2s'], [2500, '2.5s']],
+        'Deliberately slower than the fade down by default: a duck that returns as abruptly as it left draws more attention than the duck.');
+
+    var tip = document.createElement('div');
+    tip.className = 'tbe-note';
+    tip.textContent = 'Applies to every alarm in this layout. Set a warm-up on a trigger\u2019s '
+                    + 'sound to fade down BEFORE that alarm plays, so it does not cut across a loud stream.';
+    wrap.appendChild(tip);
+    return wrap;
+}
+
 function renderTriggers() {
     if (!triggersPane) return;
     triggersPane.textContent = '';
@@ -1228,6 +1297,32 @@ function triggerActionRow(tg, act, ai) {
             pushUndo(); act.sound = snd.value; refresh(true);
         });
         row.appendChild(snd);
+
+        // Warm-up: ramp the stream down BEFORE this sound plays, so the alarm
+        // arrives into audio that has already made room instead of cutting
+        // across it. 0 keeps the old behaviour of both starting together.
+        var warmWrap = document.createElement('label');
+        warmWrap.className = 'tbe-inline';
+        warmWrap.title = 'Seconds to fade the video stream down BEFORE this sound plays. '
+                       + '0 = sound and fade start together (can sound abrupt).';
+        var warmLbl = document.createElement('span');
+        warmLbl.textContent = 'warm-up';
+        var warm = document.createElement('input');
+        warm.type = 'number'; warm.min = '0'; warm.max = '10'; warm.step = '0.5';
+        warm.style.width = '4.2rem';
+        warm.value = act.warmup === undefined ? '0' : String(act.warmup);
+        warm.addEventListener('change', function () {
+            pushUndo();
+            var v = parseFloat(warm.value);
+            if (!isFinite(v) || v <= 0) { delete act.warmup; warm.value = '0'; }
+            else { act.warmup = Math.min(10, Math.round(v * 2) / 2); warm.value = String(act.warmup); }
+            refresh(true);
+        });
+        warmWrap.appendChild(warmLbl); warmWrap.appendChild(warm);
+        row.appendChild(warmWrap);
+        var warmUnit = document.createElement('span');
+        warmUnit.className = 'tbe-note'; warmUnit.textContent = 's';
+        row.appendChild(warmUnit);
     } else if (type === 'takeover') {
         var scr = document.createElement('select');
         (LAYOUT.screens || []).forEach(function (sc) {
@@ -1657,6 +1752,11 @@ function renderInspector() {
             vCheck();
             insp.appendChild(field('Stream URL', vu));
             insp.appendChild(vErr);
+            // The stream's own audio behaviour, with the stream. It was in the
+            // Triggers panel and before that a right-click menu; both made
+            // someone hunt for a setting that plainly belongs to the thing they
+            // are already looking at.
+            insp.appendChild(streamDuckPanel());
             insp.appendChild(field('Weight (share of space)', numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
             insp.appendChild(field('Show when', condEditor(cell.when, function (v) { pushUndo(); setOrDelete(cell, 'when', v); refresh(true); })));
             var rmV = document.createElement('button'); rmV.className = 'tbe-mini tbe-mini-danger';
@@ -2166,6 +2266,7 @@ function openNodeMenu(path, x, y) {
             addRow('Keep the painted panels', on, function () { setPanelColours(true); });
             addRow('Let the artwork show through', !on, function () { setPanelColours(false); });
         });
+
     }
 
     if (container) {
