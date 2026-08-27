@@ -1486,18 +1486,59 @@ function tbSetStreamVolPref(v) {
 // Autoplay WITH sound needs user activation, and a display that has been
 // clicked (Start) usually has it. Ask for sound first and fall back to muted
 // only if the browser actually refuses, rather than assuming it will.
+// True only while autoplay policy is forcing a mute on us. The preference
+// listener checks it for the same reason it checks STREAM_MUTED_BY_ALARM:
+// without it, the browser's refusal to autoplay with sound gets written down as
+// "the host wants this muted", and every later load starts silent for good.
+var STREAM_FORCING_MUTE = false;
+
 function tbTryPlay(vid) {
     var p;
     try { p = vid.play(); } catch (e) { return; }
     if (p && p.catch) {
         p.catch(function () {
             if (!vid.muted) {
+                // A page that has never been clicked has no user activation, so
+                // autoplay WITH SOUND is refused. Fall back to muted rather than
+                // showing a frozen frame, mark it, and let the first tap on the
+                // display restore the sound (see tbArmUnmuteOnGesture).
+                STREAM_FORCING_MUTE = true;
                 vid.muted = true;
+                vid.dataset.autoMuted = '1';
+                STREAM_FORCING_MUTE = false;
                 var q; try { q = vid.play(); } catch (e) { return; }
                 if (q && q.catch) q.catch(function () {});
             }
         });
     }
+}
+
+/* Give the host their sound back on the first real interaction.
+ *
+ * Autoplay policy only blocks sound BEFORE the page has been interacted with;
+ * once it has, unmuting is allowed. A timer display is always touched (the host
+ * starts the clock), so binding one listener turns "always starts muted" into
+ * "muted for the first few seconds". Only videos WE muted are touched, and only
+ * when the stored preference actually asks for sound. */
+var _unmuteArmed = false;
+function tbArmUnmuteOnGesture() {
+    if (_unmuteArmed) return;
+    _unmuteArmed = true;
+    var go = function () {
+        if (tbStreamMutePref()) return;      // the host chose silence; respect it
+        videoFrames.forEach(function (v) {
+            if (v.tagName !== 'VIDEO' || v.dataset.autoMuted !== '1') return;
+            // Marker first: unmuting here IS the host getting what they asked
+            // for, so the resulting volumechange should be recorded normally.
+            delete v.dataset.autoMuted;
+            v.muted = false;
+            try { v.volume = tbStreamVolPref(); } catch (e) {}
+            if (v.paused) { var q; try { q = v.play(); } catch (e) {} if (q && q.catch) q.catch(function () {}); }
+        });
+    };
+    ['pointerdown', 'touchend', 'keydown'].forEach(function (evt) {
+        document.addEventListener(evt, go, { passive: true });
+    });
 }
 
 // Dispose cached players the rebuilt tree no longer contains. Anything still
@@ -1684,10 +1725,21 @@ function buildCell(spec) {
                 // AND the next page load. Ignored while the alarm holds the
                 // channel, or ducking would be recorded as an intentional mute.
                 vid.addEventListener('volumechange', function () {
-                    if (STREAM_MUTED_BY_ALARM) return;   // the alarm's ramp, not the host
+                    // Neither the alarm's ramp nor an autoplay-forced mute is the
+                    // host expressing a preference; recording either makes the
+                    // stream come back silent forever.
+                    //
+                    // The autoMuted MARKER does that job rather than a flag,
+                    // because volumechange fires asynchronously: a flag set and
+                    // cleared around the assignment is already false again by the
+                    // time this runs. The marker survives until the gesture
+                    // handler clears it, which is exactly the window we need.
+                    if (STREAM_MUTED_BY_ALARM || STREAM_FORCING_MUTE) return;
+                    if (vid.dataset.autoMuted === '1') return;
                     tbSetStreamMutePref(vid.muted);
                     tbSetStreamVolPref(vid.volume);
                 });
+                tbArmUnmuteOnGesture();
             }
             if (window.TB_EMBED) vid.style.pointerEvents = 'none';
             inner.appendChild(vid);
