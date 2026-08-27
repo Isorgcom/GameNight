@@ -194,6 +194,15 @@
 .tbe-inline { display: inline-flex; align-items: center; gap: .3rem; }
 .tbe-inline > span { color: #94a3b8; font-size: .74rem; white-space: nowrap; }
 
+/* Alarm ducking, shown inline at the top of the Triggers panel. Visible on the
+   panel rather than hidden behind a right-click, because these are tuned by ear
+   and a control nobody can find is a control nobody adjusts. */
+.tbe-duck { border: 1px solid #1e293b; border-radius: 8px; padding: .5rem .6rem; margin: .5rem 0 .7rem; background: #0f172a; }
+.tbe-duck-head { color: #94a3b8; font-size: .76rem; margin-bottom: .35rem; }
+.tbe-duck-row { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin: .22rem 0; }
+.tbe-duck-row > span { color: #cbd5e1; font-size: .78rem; }
+.tbe-duck-row select { flex: 0 0 auto; min-width: 7.5rem; }
+
 /* Right-click menu for a layout node. Body-level so it escapes both the tree's
    scroll box and the preview iframe. */
 .tbe-menu { display: none; position: fixed; z-index: 4000; background: #fff;

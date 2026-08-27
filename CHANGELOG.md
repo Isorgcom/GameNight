@@ -29,11 +29,14 @@ All notable changes to GameNight are documented here.
   layout should duck the same way. Each key falls back to the previous hard-coded
   default when absent, so existing layouts are unchanged.
 
-  The four settings are editable from the right-click menu on the screen
-  background, beside **Screen shape** and **Panel colours**, as preset rows
-  matching that menu's idiom: duck depth (silence / 10% / 20% / 50%), fade down,
-  fade back and how long the duck holds. The saved layout still accepts any
-  value in range, so exact figures can be set by hand.
+  The four settings sit **in the Triggers panel**, above the trigger list, as a
+  plain sentence: *while an alarm plays, the video stream* drops to / fading down
+  over / staying down for / coming back over. They are visible on the panel
+  rather than tucked into a right-click menu, because these are tuned by ear and
+  a control nobody can find is a control nobody adjusts. Choosing a default
+  deletes the key rather than writing it, so a layout only carries what was
+  actually changed, and the saved layout still accepts any value in range for
+  exact figures set by hand.
 
 ### Fixed
 

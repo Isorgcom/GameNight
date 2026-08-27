@@ -1045,6 +1045,65 @@ function triggerLabel(tg) {
     return when + (acts.length ? ' — ' + acts.join(', ') : '');
 }
 
+/* Whole-layout audio behaviour for alarms, rendered inline in the Triggers
+ * panel. Selects rather than a submenu: these are settings someone tunes by
+ * ear, and a control they cannot see is a control they will not tune. Picking
+ * the default deletes the key, so a layout only carries what was changed. */
+function streamDuckPanel() {
+    var wrap = document.createElement('div');
+    wrap.className = 'tbe-duck';
+    var h = document.createElement('div');
+    h.className = 'tbe-duck-head';
+    h.textContent = 'While an alarm plays, the video stream…';
+    wrap.appendChild(h);
+
+    function row(label, key, dflt, opts, title) {
+        var lab = document.createElement('label');
+        lab.className = 'tbe-duck-row';
+        if (title) lab.title = title;
+        var sp = document.createElement('span');
+        sp.textContent = label;
+        var sel = document.createElement('select');
+        opts.forEach(function (o) {
+            var op = document.createElement('option');
+            op.value = String(o[0]); op.textContent = o[1];
+            sel.appendChild(op);
+        });
+        var st = LAYOUT.stream || {};
+        sel.value = String(st[key] !== undefined ? st[key] : dflt);
+        sel.addEventListener('change', function () {
+            pushUndo();
+            var v = parseFloat(sel.value);
+            var s2 = LAYOUT.stream || (LAYOUT.stream = {});
+            if (v === dflt) delete s2[key]; else s2[key] = v;
+            if (!Object.keys(LAYOUT.stream).length) delete LAYOUT.stream;
+            refresh(true);
+        });
+        lab.appendChild(sp); lab.appendChild(sel);
+        wrap.appendChild(lab);
+    }
+
+    row('drops to', 'duckTo', 0,
+        [[0, 'silence'], [0.1, '10% volume'], [0.2, '20% volume'], [0.5, 'half volume']],
+        'Ducking to a level rather than to silence keeps the stream present under the alarm. A full drop can sound like the feed died.');
+    row('fading down over', 'fadeOut', 250,
+        [[100, '0.1s'], [250, '0.25s'], [600, '0.6s'], [1200, '1.2s']],
+        'How long the stream takes to get quiet once an alarm fires.');
+    row('staying down for', 'hold', 5000,
+        [[3000, '3s'], [5000, '5s'], [8000, '8s'], [12000, '12s']],
+        'How long the duck holds. Too short and the stream returns over the tail of the alarm.');
+    row('coming back over', 'fadeIn', 600,
+        [[300, '0.3s'], [600, '0.6s'], [1200, '1.2s'], [2500, '2.5s']],
+        'Deliberately slower than the fade down by default: a duck that returns as abruptly as it left draws more attention than the duck.');
+
+    var tip = document.createElement('div');
+    tip.className = 'tbe-note';
+    tip.textContent = 'Set a warm-up on a sound below to fade the stream down BEFORE that alarm '
+                    + 'sounds, so it does not cut across a loud stream.';
+    wrap.appendChild(tip);
+    return wrap;
+}
+
 function renderTriggers() {
     if (!triggersPane) return;
     triggersPane.textContent = '';
@@ -1070,6 +1129,12 @@ function renderTriggers() {
     note.textContent = 'Fire ONCE each time the condition becomes true — a sound, a screen '
                      + 'takeover, a flash, a spoken line. Screens opened from the QR start muted.';
     box.appendChild(note);
+
+    // How alarms treat a video cell's audio. It belongs HERE, in front of
+    // whoever is editing alarms, rather than buried in a right-click menu they
+    // would have to find by accident. Whole-layout: every alarm ducks the same
+    // way, so it sits above the trigger list rather than inside each row.
+    box.appendChild(streamDuckPanel());
 
     LAYOUT.triggers.forEach(function (tg, ix) {
         if (!Array.isArray(tg['do'])) tg['do'] = [];
@@ -2203,56 +2268,6 @@ function openNodeMenu(path, x, y) {
             addRow('Let the artwork show through', !on, function () { setPanelColours(false); });
         });
 
-        // How a video cell's audio behaves when an alarm fires. Whole-layout,
-        // like the two above: every alarm in a layout should duck the same way.
-        // Presets rather than number boxes to match the rest of this menu; the
-        // saved layout accepts any value in range for exact tuning by hand.
-        function streamCfgVal(key, dflt) {
-            var st = LAYOUT.stream;
-            return (st && st[key] !== undefined) ? +st[key] : dflt;
-        }
-        function setStreamCfg(key, v, dflt) {
-            return edit(function () {
-                var st = LAYOUT.stream || (LAYOUT.stream = {});
-                if (v === dflt) delete st[key]; else st[key] = v;
-                // Never leave an empty object behind in the saved layout.
-                if (LAYOUT.stream && !Object.keys(LAYOUT.stream).length) delete LAYOUT.stream;
-            })();
-        }
-        sub('Alarm ducking: depth', function (panel, addRow) {
-            // Ducking to a LEVEL rather than to silence keeps the stream present
-            // under the alarm; a full drop can read as the feed dying.
-            var cur = streamCfgVal('duckTo', 0);
-            addRow('All the way to silence', cur === 0,   function () { setStreamCfg('duckTo', 0, 0); });
-            addRow('Very quiet (10%)',       cur === 0.1, function () { setStreamCfg('duckTo', 0.1, 0); });
-            addRow('Quiet (20%)',            cur === 0.2, function () { setStreamCfg('duckTo', 0.2, 0); });
-            addRow('Half volume (50%)',      cur === 0.5, function () { setStreamCfg('duckTo', 0.5, 0); });
-        });
-        sub('Alarm ducking: fade down', function (panel, addRow) {
-            var cur = streamCfgVal('fadeOut', 250);
-            addRow('Snappy (0.1s)',        cur === 100,  function () { setStreamCfg('fadeOut', 100, 250); });
-            addRow('Normal (0.25s)',       cur === 250,  function () { setStreamCfg('fadeOut', 250, 250); });
-            addRow('Gentle (0.6s)',        cur === 600,  function () { setStreamCfg('fadeOut', 600, 250); });
-            addRow('Slow (1.2s)',          cur === 1200, function () { setStreamCfg('fadeOut', 1200, 250); });
-        });
-        sub('Alarm ducking: fade back', function (panel, addRow) {
-            // Deliberately slower than the fade down by default: a duck that
-            // returns as abruptly as it left draws more attention than the duck.
-            var cur = streamCfgVal('fadeIn', 600);
-            addRow('Quick (0.3s)',         cur === 300,  function () { setStreamCfg('fadeIn', 300, 600); });
-            addRow('Normal (0.6s)',        cur === 600,  function () { setStreamCfg('fadeIn', 600, 600); });
-            addRow('Gentle (1.2s)',        cur === 1200, function () { setStreamCfg('fadeIn', 1200, 600); });
-            addRow('Slow (2.5s)',          cur === 2500, function () { setStreamCfg('fadeIn', 2500, 600); });
-        });
-        sub('Alarm ducking: how long', function (panel, addRow) {
-            // Covers the sound plus padding. Too short and the stream comes
-            // back over the tail of the alarm.
-            var cur = streamCfgVal('hold', 5000);
-            addRow('3 seconds',  cur === 3000,  function () { setStreamCfg('hold', 3000, 5000); });
-            addRow('5 seconds',  cur === 5000,  function () { setStreamCfg('hold', 5000, 5000); });
-            addRow('8 seconds',  cur === 8000,  function () { setStreamCfg('hold', 8000, 5000); });
-            addRow('12 seconds', cur === 12000, function () { setStreamCfg('hold', 12000, 5000); });
-        });
     }
 
     if (container) {
