@@ -4,6 +4,25 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2116] - 2026-08-27
+
+### Fixed
+
+- **HLS video played in Chrome and Edge but showed nothing in Firefox.**
+  `worker-src` was `'self'`, and hls.js runs its demuxer in a Worker created
+  from a `blob:` URL. Chromium tolerates that; Firefox enforces the directive
+  and refuses the worker outright, so hls.js never demuxed a byte and the cell
+  sat at `readyState 0` with no error on the element, the only clue being a CSP
+  violation in the console. The directive is now `'self' blob:`, which concedes
+  little: `script-src` carries a nonce, so an attacker cannot run the script
+  that would be needed to construct a blob worker in the first place.
+
+  Confirmed by driving both engines against the same page and stream:
+  Firefox paused at `readyState 0` with the violation logged, Chromium playing
+  at `currentTime 8.86` with `readyState 4` and a clean console.
+
+---
+
 ## [v0.2115] - 2026-08-26
 
 ### Changed

@@ -63,7 +63,14 @@ $_csp = implode('; ', [
     "object-src 'none'",
     // Service worker for Web Push (sw.js). Workers don't fall back to
     // script-src in all browsers, so declare explicitly.
-    "worker-src 'self'",
+    //
+    // `blob:` is required by hls.js, which runs its demuxer in a Worker created
+    // from a blob URL. Without it Firefox refuses the worker outright and video
+    // never decodes, while Chromium allows it — so the timer played in Edge and
+    // showed nothing in Firefox, with the only clue a CSP violation in the
+    // console. It concedes little: script-src carries a nonce, so an attacker
+    // cannot run the script that would be needed to construct a blob worker.
+    "worker-src 'self' blob:",
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
