@@ -4,6 +4,33 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2118] - 2026-08-27
+
+### Fixed
+
+- **Devices poisoned by the pre-v0.2117 mute bug now heal themselves.** That
+  bug wrote an autoplay-forced mute into `localStorage` as though the host had
+  chosen it. v0.2117 stopped new writes, but it could not undo the ones already
+  on people's machines, and the gesture unmute deliberately respects a stored
+  preference, so an affected browser had no way back: it opened muted, refused
+  to unmute on interaction, and looked exactly like the bug was never fixed.
+  Clearing site data was the only escape, which is not a thing to ask of anyone.
+
+  Both keys are now versioned (`gn.tbStreamMuted2`, `gn.tbStreamVolume2`) and
+  the originals are deleted on sight, so every stale value retires on the next
+  load without anyone touching browser settings.
+
+  The volume key is included because it fails the same way and is harder to
+  spot: a level captured while a fade was in flight could be stored as `0`,
+  which looks identical to a muted stream but is not fixed by unmuting. A
+  stored `0` is now treated as unset and reads back as full volume, on the
+  grounds that nobody deliberately sets a stream to silent-but-unmuted.
+
+  Covered by `qa-headless/mute_migrate_check.js`, which seeds both poisoned
+  values and asserts they are ignored and removed.
+
+---
+
 ## [v0.2117] - 2026-08-27
 
 ### Fixed

@@ -1465,22 +1465,41 @@ var videoCache = {};
 // The host's sound choice, remembered per device. Mirrors the classic timer's
 // gn.muteStreamDuringAlarms convention. Default UNMUTED: a stream nobody can
 // hear is not what anyone put on the display for.
+// Key is versioned (…2) on purpose. Before v0.2117 an autoplay-forced mute was
+// written here as though the host had chosen it, so any device that opened a
+// stream in that window carries a poisoned `true` that would keep the sound off
+// forever — and the gesture unmute correctly refuses to override a stored
+// preference, so it could never heal itself. Reading a new key retires those
+// values without asking anyone to clear site data; the old one is deleted on
+// sight so it does not linger.
 function tbStreamMutePref() {
-    try { return localStorage.getItem('gn.tbStreamMuted') === 'true'; } catch (e) { return false; }
+    try {
+        localStorage.removeItem('gn.tbStreamMuted');
+        return localStorage.getItem('gn.tbStreamMuted2') === 'true';
+    } catch (e) { return false; }
 }
 function tbSetStreamMutePref(m) {
-    try { localStorage.setItem('gn.tbStreamMuted', m ? 'true' : 'false'); } catch (e) {}
+    try { localStorage.setItem('gn.tbStreamMuted2', m ? 'true' : 'false'); } catch (e) {}
 }
 // The level as well as the switch. Now that the alarm ramps rather than mutes,
 // a host who turned the stream down to sit under table talk should find it
 // there next time instead of back at full.
+// Versioned alongside the mute key, and for the same reason: a level captured
+// mid-fade or during a forced mute could be stored as 0, which looks identical
+// to a muted stream but is NOT cleared by unmuting, so it would survive every
+// fix above. A stored 0 is also treated as unset — nobody deliberately sets a
+// stream to silent-but-unmuted, and reading it back as full volume is the
+// recoverable choice.
 function tbStreamVolPref() {
     var v;
-    try { v = parseFloat(localStorage.getItem('gn.tbStreamVolume')); } catch (e) { v = NaN; }
-    return (isNaN(v) || v < 0 || v > 1) ? 1 : v;
+    try {
+        localStorage.removeItem('gn.tbStreamVolume');
+        v = parseFloat(localStorage.getItem('gn.tbStreamVolume2'));
+    } catch (e) { v = NaN; }
+    return (isNaN(v) || v <= 0 || v > 1) ? 1 : v;
 }
 function tbSetStreamVolPref(v) {
-    try { localStorage.setItem('gn.tbStreamVolume', String(Math.max(0, Math.min(1, v)))); } catch (e) {}
+    try { localStorage.setItem('gn.tbStreamVolume2', String(Math.max(0, Math.min(1, v)))); } catch (e) {}
 }
 
 // Autoplay WITH sound needs user activation, and a display that has been
