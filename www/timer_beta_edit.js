@@ -1054,7 +1054,7 @@ function streamDuckPanel() {
     wrap.className = 'tbe-duck';
     var h = document.createElement('div');
     h.className = 'tbe-duck-head';
-    h.textContent = 'While an alarm plays, the video stream…';
+    h.textContent = 'While an alarm plays, this stream…';
     wrap.appendChild(h);
 
     function row(label, key, dflt, opts, title) {
@@ -1098,8 +1098,8 @@ function streamDuckPanel() {
 
     var tip = document.createElement('div');
     tip.className = 'tbe-note';
-    tip.textContent = 'Set a warm-up on a sound below to fade the stream down BEFORE that alarm '
-                    + 'sounds, so it does not cut across a loud stream.';
+    tip.textContent = 'Applies to every alarm in this layout. Set a warm-up on a trigger\u2019s '
+                    + 'sound to fade down BEFORE that alarm plays, so it does not cut across a loud stream.';
     wrap.appendChild(tip);
     return wrap;
 }
@@ -1129,12 +1129,6 @@ function renderTriggers() {
     note.textContent = 'Fire ONCE each time the condition becomes true — a sound, a screen '
                      + 'takeover, a flash, a spoken line. Screens opened from the QR start muted.';
     box.appendChild(note);
-
-    // How alarms treat a video cell's audio. It belongs HERE, in front of
-    // whoever is editing alarms, rather than buried in a right-click menu they
-    // would have to find by accident. Whole-layout: every alarm ducks the same
-    // way, so it sits above the trigger list rather than inside each row.
-    box.appendChild(streamDuckPanel());
 
     LAYOUT.triggers.forEach(function (tg, ix) {
         if (!Array.isArray(tg['do'])) tg['do'] = [];
@@ -1758,6 +1752,11 @@ function renderInspector() {
             vCheck();
             insp.appendChild(field('Stream URL', vu));
             insp.appendChild(vErr);
+            // The stream's own audio behaviour, with the stream. It was in the
+            // Triggers panel and before that a right-click menu; both made
+            // someone hunt for a setting that plainly belongs to the thing they
+            // are already looking at.
+            insp.appendChild(streamDuckPanel());
             insp.appendChild(field('Weight (share of space)', numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
             insp.appendChild(field('Show when', condEditor(cell.when, function (v) { pushUndo(); setOrDelete(cell, 'when', v); refresh(true); })));
             var rmV = document.createElement('button'); rmV.className = 'tbe-mini tbe-mini-danger';

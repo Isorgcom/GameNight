@@ -29,14 +29,14 @@ All notable changes to GameNight are documented here.
   layout should duck the same way. Each key falls back to the previous hard-coded
   default when absent, so existing layouts are unchanged.
 
-  The four settings sit **in the Triggers panel**, above the trigger list, as a
-  plain sentence: *while an alarm plays, the video stream* drops to / fading down
-  over / staying down for / coming back over. They are visible on the panel
-  rather than tucked into a right-click menu, because these are tuned by ear and
-  a control nobody can find is a control nobody adjusts. Choosing a default
-  deletes the key rather than writing it, so a layout only carries what was
-  actually changed, and the saved layout still accepts any value in range for
-  exact figures set by hand.
+  The four settings sit **in the video stream cell's own settings**, directly
+  under the Stream URL, as a plain sentence: *while an alarm plays, this stream*
+  drops to / fading down over / staying down for / coming back over. They belong
+  with the stream they govern rather than in a right-click menu or a separate
+  panel, so nobody has to hunt for a setting attached to the thing already in
+  front of them. Choosing a default deletes the key rather than writing it, so a
+  layout only carries what was actually changed, and the saved layout still
+  accepts any value in range for exact figures set by hand.
 
 ### Fixed
 
