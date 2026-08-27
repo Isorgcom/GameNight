@@ -436,6 +436,16 @@ function pk_lo_trigger($t, array $screenNames): ?array {
             $presets = ['buzzer','chime','casino','horn','countdown','double','descending','five3s','tick','pulse','chirp','gentle'];
             if (preg_match('/^preset:([a-z0-9]+)$/', $v, $m) && in_array($m[1], $presets, true)) $act['sound'] = $v;
             elseif (preg_match('#^/uploads/timer_sounds/[A-Za-z0-9._-]{1,160}$#', $v)) $act['sound'] = $v;
+            // Warm-up: ramp the stream down over this many seconds BEFORE the
+            // sound plays, so the alarm lands in already-quiet audio instead of
+            // cutting across a loud stream. Deliberately NOT the same key as the
+            // takeover's `seconds`, which means something else entirely on the
+            // same action object. Fractional, because half a second is a real
+            // choice here and whole seconds are a coarse dial.
+            if (isset($act['sound'])) {
+                $w0 = pk_lo_num($a['warmup'] ?? 0, 0, 10);
+                if ($w0 !== null && $w0 > 0) $act['warmup'] = round((float)$w0, 2);
+            }
         }
         if (isset($a['takeover']) && is_string($a['takeover']) && in_array($a['takeover'], $screenNames, true)) {
             $act['takeover'] = $a['takeover'];
@@ -481,6 +491,25 @@ function pk_layout_sanitize($doc, array &$err): ?array {
     // cropped to fill the screen while the text spreads across all of it.
     // Locking the ratio letterboxes both together instead.
     if (isset($doc['aspect'])) { $n = pk_lo_num($doc['aspect'], 0.4, 4.0); if ($n !== null) $out['aspect'] = $n; }
+
+    // How the video stream's audio behaves around an alarm. Layout-level rather
+    // than per-trigger because it is a property of the room's sound, not of any
+    // one event: every alarm in a layout should duck the same way. Each key
+    // falls back to the renderer's default when absent, so an old layout keeps
+    // behaving exactly as it did.
+    if (isset($doc['stream']) && is_array($doc['stream'])) {
+        $st = [];
+        // Ramp lengths in ms. Floors are not zero: an instant cut is the thing
+        // this whole feature exists to avoid.
+        if (isset($doc['stream']['fadeOut'])) { $n = pk_lo_num($doc['stream']['fadeOut'], 50, 10000); if ($n !== null) $st['fadeOut'] = (int)$n; }
+        if (isset($doc['stream']['fadeIn']))  { $n = pk_lo_num($doc['stream']['fadeIn'], 50, 10000); if ($n !== null) $st['fadeIn']  = (int)$n; }
+        // How long the duck holds once down, covering the sound plus padding.
+        if (isset($doc['stream']['hold']))    { $n = pk_lo_num($doc['stream']['hold'], 500, 60000); if ($n !== null) $st['hold'] = (int)$n; }
+        // Duck TO this level rather than to silence. 0.15 under a voice is
+        // often better than nothing at all, which can read as a dropout.
+        if (isset($doc['stream']['duckTo']))  { $n = pk_lo_num($doc['stream']['duckTo'], 0, 1); if ($n !== null) $st['duckTo'] = round((float)$n, 3); }
+        if ($st) $out['stream'] = $st;
+    }
 
     // Triggers: fire actions when a condition BECOMES true. Same `when`
     // grammar as everything else; actions whitelisted by key; sounds may only

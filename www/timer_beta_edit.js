@@ -1228,6 +1228,32 @@ function triggerActionRow(tg, act, ai) {
             pushUndo(); act.sound = snd.value; refresh(true);
         });
         row.appendChild(snd);
+
+        // Warm-up: ramp the stream down BEFORE this sound plays, so the alarm
+        // arrives into audio that has already made room instead of cutting
+        // across it. 0 keeps the old behaviour of both starting together.
+        var warmWrap = document.createElement('label');
+        warmWrap.className = 'tbe-inline';
+        warmWrap.title = 'Seconds to fade the video stream down BEFORE this sound plays. '
+                       + '0 = sound and fade start together (can sound abrupt).';
+        var warmLbl = document.createElement('span');
+        warmLbl.textContent = 'warm-up';
+        var warm = document.createElement('input');
+        warm.type = 'number'; warm.min = '0'; warm.max = '10'; warm.step = '0.5';
+        warm.style.width = '4.2rem';
+        warm.value = act.warmup === undefined ? '0' : String(act.warmup);
+        warm.addEventListener('change', function () {
+            pushUndo();
+            var v = parseFloat(warm.value);
+            if (!isFinite(v) || v <= 0) { delete act.warmup; warm.value = '0'; }
+            else { act.warmup = Math.min(10, Math.round(v * 2) / 2); warm.value = String(act.warmup); }
+            refresh(true);
+        });
+        warmWrap.appendChild(warmLbl); warmWrap.appendChild(warm);
+        row.appendChild(warmWrap);
+        var warmUnit = document.createElement('span');
+        warmUnit.className = 'tbe-note'; warmUnit.textContent = 's';
+        row.appendChild(warmUnit);
     } else if (type === 'takeover') {
         var scr = document.createElement('select');
         (LAYOUT.screens || []).forEach(function (sc) {
