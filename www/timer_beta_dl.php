@@ -262,7 +262,16 @@ function pk_lo_cell($cell, array &$err): ?array {
     if (isset($cell['qr']) && in_array($cell['qr'], ['display'], true)) $out['qr'] = $cell['qr'];
     // Streaming video: the raw URL, kept only for recognised services (the
     // renderer normalizes it into the actual embed URL — see pk_lo_stream_url).
-    if (isset($cell['video'])) { $v = pk_lo_stream_url($cell['video']); if ($v !== null) $out['video'] = $v; }
+    // A REJECTED url must not take the cell with it. Setting `video` only on
+    // success meant a bad paste (an http:// link, a typo) left the cell with no
+    // `video` key at all, so it silently stopped being a video cell and came
+    // back as text — the author lost the cell, not just the URL. Keep it a video
+    // cell with an empty source: the display draws its placeholder and the
+    // editor still shows the Stream URL field to fix.
+    if (isset($cell['video'])) {
+        $v = pk_lo_stream_url($cell['video']);
+        $out['video'] = ($v !== null) ? $v : '';
+    }
     // Chip legend. A flag, not content: the denominations come from the game,
     // never from the layout file.
     if (!empty($cell['chips'])) $out['chips'] = true;

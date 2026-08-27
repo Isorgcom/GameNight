@@ -4,6 +4,32 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2120] - 2026-08-27
+
+### Fixed
+
+- **A rejected stream URL no longer destroys the video cell.** `pk_lo_cell()`
+  set `video` only when the URL survived validation, so a bad paste left the
+  cell with no `video` key at all: it stopped being a video cell and came back
+  as text. The author lost the cell, not just the URL. A rejected URL now stores
+  an empty string, keeping it a video cell that draws its placeholder and still
+  offers the Stream URL field to correct.
+
+- **The editor and the server disagreed about `http://` links.**
+  `mediaStreamUrl()` accepted an `http` URL and silently rewrote it to `https`,
+  so the editor showed a green tick while `pk_lo_stream_url()` rejected the very
+  same string on save. Combined with the bug above, pasting an `http` link
+  looked accepted and then removed the cell. The rewrite was wishful in any
+  case: a host serving plain `http` generally has no `https` listener, so the
+  upgraded URL could not have played either. The client now requires `https`,
+  exactly as the server does, and `diagnose()` explains why.
+
+  Covered by `qa-headless/stream_url_agree_check.js`, which runs the same five
+  URLs through the shipped client function and the shipped server function and
+  asserts both reach the same verdict.
+
+---
+
 ## [v0.2119] - 2026-08-27
 
 ### Added

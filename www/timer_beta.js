@@ -1470,9 +1470,13 @@ function mediaStreamUrl(raw) {
     if (!raw) return '';
     var u;
     try { u = new URL(String(raw).trim()); } catch (e) { return ''; }
-    if (u.protocol !== 'https:' && u.protocol !== 'http:') return '';
+    // https ONLY, matching pk_lo_stream_url exactly. This used to accept http
+    // and silently rewrite it to https, which told the author their link was
+    // fine while the server rejected the very same string on save. It was also
+    // wishful: a host serving plain http usually has no https listener at all,
+    // so the rewritten URL could not have played either.
+    if (u.protocol !== 'https:') return '';
     if (!/\.(m3u8|mp4|m4v|webm)$/i.test(u.pathname)) return '';
-    u.protocol = 'https:';   // never mixed content on an https page
     return u.toString();
 }
 
