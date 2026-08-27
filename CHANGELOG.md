@@ -4,6 +4,40 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2117] - 2026-08-27
+
+### Fixed
+
+- **A stream no longer starts muted every time, and stays that way.** Two
+  faults compounded. A page that has not been interacted with has no user
+  activation, so a browser refuses to autoplay WITH SOUND and `tbTryPlay()`
+  falls back to muted, which is correct and unavoidable. But that forced mute
+  fired `volumechange`, and the preference listener recorded it as *the host's
+  choice*, so `gn.tbStreamMuted` was set to true on the very first load and
+  every later load started silent on purpose. The same class of bug as the
+  alarm-ordering one fixed in v0.2115, in a second place.
+
+  The guard is the `autoMuted` marker on the element rather than a flag,
+  because `volumechange` fires asynchronously: a flag set and cleared around the
+  assignment is already false again by the time the listener runs. The marker
+  survives until it is deliberately cleared, which is exactly the window needed.
+
+- **The first interaction now gives the sound back.** Autoplay policy only
+  blocks audio *before* a page has been interacted with; afterwards, unmuting is
+  allowed. A timer display always gets touched, so `tbArmUnmuteOnGesture()`
+  binds one `pointerdown` / `touchend` / `keydown` listener that unmutes any
+  video the browser forced quiet, turning "always starts muted" into "muted for
+  the first few seconds". Only videos we muted are touched, and only when the
+  stored preference actually asks for sound, so a stream the host deliberately
+  silenced stays silent.
+
+  Covered by `qa-headless/unmute_logic.js`, which lifts the real listener body
+  out of `timer_beta.js` rather than mirroring it, so the test cannot drift from
+  what ships. The mirrored version of that test passed while the shipped code
+  was still broken, which is why it now reads the source.
+
+---
+
 ## [v0.2116] - 2026-08-27
 
 ### Fixed
