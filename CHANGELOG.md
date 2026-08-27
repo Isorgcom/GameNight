@@ -29,7 +29,21 @@ All notable changes to GameNight are documented here.
   layout should duck the same way. Each key falls back to the previous hard-coded
   default when absent, so existing layouts are unchanged.
 
+  The four settings are editable from the right-click menu on the screen
+  background, beside **Screen shape** and **Panel colours**, as preset rows
+  matching that menu's idiom: duck depth (silence / 10% / 20% / 50%), fade down,
+  fade back and how long the duck holds. The saved layout still accepts any
+  value in range, so exact figures can be set by hand.
+
 ### Fixed
+
+- **A single-screen layout lost its whole-layout settings the moment it was
+  opened in the editor.** `normalizeLayout()` rebuilt the document from a
+  hand-written key list (`v`, `aspect`, `screens`), so anything not named there
+  was silently dropped: triggers, custom elements, shared styles and now the
+  stream audio settings. The new panels would have appeared to save and then
+  reverted. It now carries every whole-layout key across, and still does not
+  materialise absent ones as nulls.
 
 - **The QA sound hook fired before the sound was audible.** It sat at the top of
   `tbPlaySound()` and returned early, so with a warm-up it reported the sound as
