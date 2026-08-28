@@ -4,6 +4,60 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2121] - 2026-08-28
+
+### Fixed
+
+- **The video cell never worked in Chrome or Edge.** `attachHls()` asked
+  `canPlayType('application/vnd.apple.mpegurl')` before considering hls.js, and
+  Chromium answers `"maybe"` — truthy — while being unable to demux HLS at all.
+  Every Chromium display was therefore handed the `.m3u8` directly and sat at
+  `readyState 1` forever, failing with `DEMUXER_ERROR_COULD_NOT_PARSE` and
+  `NotSupportedError: The element has no supported sources`. Safari was the only
+  browser the cell ever played in. The check is now hls.js first and native only
+  as the fallback, which is hls.js's own documented order; iOS still takes the
+  native path because it genuinely has no MSE for video.
+
+- **CSP `media-src` was missing `blob:`, blocking hls.js outright.** hls.js
+  attaches through MediaSource, and the bundled build has no `srcObject` path, so
+  the element's `src` is always a `blob:` URL that `media-src` governs. The
+  directive was written in v0.2113 for native playback and never extended, so
+  Chromium refused the attach. This hid behind the bug above and behind Safari,
+  which plays the `https:` URL natively and never builds a blob. Grants nothing
+  new: `media-src` already allows `https:`, and a `blob:` URL can only carry data
+  this origin's own script produced. Mirrors the `worker-src 'self' blob:`
+  precedent added in v0.2116 for the same library.
+
+### Added
+
+- **Several screens showing the timer now stay in sync with each other.** Two
+  browsers opening one HLS stream each join at whatever segment boundary they
+  land on and hold that offset indefinitely; hls.js cannot correct it, because it
+  steers toward its own per-client view of the live edge and ignores any gap
+  inside its tolerance. `tbStartLiveSync()` in `timer_beta.js` instead steers
+  every screen toward `now - 8s` using each segment's `#EXT-X-PROGRAM-DATE-TIME`
+  stamp, so displays converge on one another rather than merely on "live", and a
+  screen that rebuffers catches back up instead of drifting for the rest of the
+  night. Drift under 400 ms is ignored, drift up to 5 s is closed by nudging
+  `playbackRate` no more than 5-8% (pitch-corrected, so inaudible), and only a
+  larger dislocation earns a seek, which is clamped to `video.seekable`. A drift
+  beyond 120 s is treated as a wrong device clock or a stale stamp and the loop
+  stands down, since chasing it would look far worse than the drift it set out to
+  fix. hls.js's own `maxLiveSyncPlaybackRate` is disabled, because two
+  controllers pulling `playbackRate` toward different targets never settles.
+  Measured with two players started 7 s apart: a 4,770 ms gap closed to ~550 ms
+  in about a minute and then held, with both rates back at 1.0.
+
+  **Operator note:** this depends on the stream emitting
+  `#EXT-X-PROGRAM-DATE-TIME`. The `hls-game.service` unit that publishes
+  `stream.isorg.com/game/index.m3u8` was changed the same day to
+  `-hls_time 2 -hls_list_size 10` with `+program_date_time` (it had been cutting
+  10 s segments, which also capped how closely screens could ever agree). A
+  stream without those tags keeps playing; it simply gets no cross-screen
+  correction.
+
+---
+
 ## [v0.2120] - 2026-08-27
 
 ### Fixed

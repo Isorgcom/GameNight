@@ -76,7 +76,16 @@ $_csp = implode('; ', [
     "frame-ancestors 'none'",
     $_frame_src,
     $_connect_src,
-    "media-src 'self' https: data:",
+    // `blob:` for the same reason worker-src needs it: hls.js attaches to the
+    // <video> through MediaSource, and this build has no srcObject path, so the
+    // element's src is always a blob: URL that media-src governs. Without it
+    // Chromium refuses with NotSupportedError and the cell never leaves
+    // readyState 0 — while Safari, which plays HLS natively from the https: URL
+    // and never builds a blob, works fine. That split is why it went unnoticed:
+    // the directive was written in v0.2113 for native playback and hls.js was
+    // never covered. Concedes nothing extra — media-src already allows https:,
+    // and a blob: URL can only carry data this origin's own script produced.
+    "media-src 'self' https: data: blob:",
 ]);
 header("Content-Security-Policy: {$_csp}");
 if (!defined('CSP_POLICY')) define('CSP_POLICY', $_csp);

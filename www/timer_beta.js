@@ -1481,19 +1481,121 @@ function mediaStreamUrl(raw) {
 }
 
 
+/* Keeping several screens showing the SAME MOMENT.
+ *
+ * Two browsers opening one HLS stream each join at whatever segment boundary
+ * they happen to land on and then hold that offset forever, so a second display
+ * sits visibly behind the first. hls.js cannot fix this on its own: it steers
+ * toward ITS OWN view of the live edge, which is a per-client notion, and it
+ * ignores any gap inside its tolerance.
+ *
+ * The shared reference is #EXT-X-PROGRAM-DATE-TIME, which hls-game.service emits
+ * on every segment. It stamps each segment with an absolute wall-clock time, so
+ * every screen can steer toward `now - TB_SYNC_TARGET_MS` instead of toward its
+ * own arrival time. Screens then converge on each other rather than merely on
+ * "live", and a display that rebuffers catches back up instead of falling behind
+ * for the rest of the night.
+ *
+ * Corrections are gentle by default: a small drift is closed by nudging
+ * playbackRate, which is invisible, and only a real dislocation earns a seek.
+ */
+var TB_SYNC_TARGET_MS = 8000;   // where every screen aims to sit behind wall clock
+var TB_SYNC_DEAD_MS   = 400;    // close enough; leave it alone
+var TB_SYNC_SEEK_MS   = 5000;   // past this it is a dislocation, not drift: jump
+var TB_SYNC_SANE_MS   = 120000; // beyond this, distrust the input rather than act
+var TB_SYNC_EVERY_MS  = 2000;
+
+// Wall-clock time of the frame on screen right now, or null when the stream
+// carries no PDT. hls.js exposes it directly; Safari plays HLS natively and
+// instead offers the stream's start date, which currentTime is an offset from.
+function tbProgramDate(vid, h) {
+    if (h && h.playingDate) return h.playingDate;
+    if (typeof vid.getStartDate === 'function') {
+        var start = vid.getStartDate();
+        var t = start && start.getTime ? start.getTime() : NaN;
+        if (!isNaN(t)) return new Date(t + vid.currentTime * 1000);
+    }
+    return null;
+}
+
+// Steer one element toward the shared target. Returns the interval id so the
+// cache sweep can stop it when the element is disposed.
+function tbStartLiveSync(vid, h) {
+    try { vid.preservesPitch = true; } catch (e) {}
+    return setInterval(function () {
+        if (vid.paused || vid.readyState < 2 || !vid.isConnected) return;
+        var pd = tbProgramDate(vid, h);
+        if (!pd) return;
+        // Positive drift = we are BEHIND the target and must move forward.
+        var drift = (Date.now() - TB_SYNC_TARGET_MS) - pd.getTime();
+
+        // A device whose clock is wrong, or a stale PDT, produces a huge figure.
+        // Chasing it would seek endlessly and look far worse than the drift we
+        // set out to fix, so treat it as "no usable reference" and stand down.
+        if (!isFinite(drift) || Math.abs(drift) > TB_SYNC_SANE_MS) {
+            if (vid.playbackRate !== 1) { try { vid.playbackRate = 1; } catch (e) {} }
+            return;
+        }
+
+        if (Math.abs(drift) > TB_SYNC_SEEK_MS) {
+            var want = vid.currentTime + drift / 1000;
+            var sk = vid.seekable;
+            if (sk && sk.length) {
+                // Never seek outside what is actually buffered/available, or the
+                // element stalls instead of catching up.
+                want = Math.min(Math.max(want, sk.start(0) + 0.5),
+                                sk.end(sk.length - 1) - 0.5);
+            }
+            if (isFinite(want) && Math.abs(want - vid.currentTime) > 0.25) {
+                try { vid.currentTime = want; } catch (e) {}
+            }
+            try { vid.playbackRate = 1; } catch (e) {}
+            return;
+        }
+
+        if (Math.abs(drift) <= TB_SYNC_DEAD_MS) {
+            if (vid.playbackRate !== 1) { try { vid.playbackRate = 1; } catch (e) {} }
+            return;
+        }
+        // Proportional nudge. Deliberately small: pitch is corrected, so this is
+        // inaudible, and closing a couple of seconds over ~20s is imperceptible
+        // where a seek would be a visible jolt.
+        var rate = 1 + Math.max(-0.05, Math.min(0.08, drift / 15000));
+        try { vid.playbackRate = rate; } catch (e) {}
+    }, TB_SYNC_EVERY_MS);
+}
+
 // Point a <video> at a source, bringing hls.js in for .m3u8 where the browser
 // has no native HLS. Safari (and iOS in general) plays HLS directly, so it
-// never loads the library. Tuned to sit ~3 segments off the live edge and to
-// catch up by playing slightly fast rather than drifting further behind.
+// never loads the library. Live position is steered by tbStartLiveSync() against
+// the stream's PROGRAM-DATE-TIME, so several screens agree with each other and
+// not merely with their own idea of the live edge.
 function attachHls(vid, src) {
     if (!/\.m3u8(\?|$)/i.test(src)) { vid.src = src; return; }
-    if (vid.canPlayType('application/vnd.apple.mpegurl')) { vid.src = src; return; }
-    if (!window.Hls || !window.Hls.isSupported()) { vid.src = src; return; }
+    // hls.js FIRST, native only as the fallback — hls.js's own documented order,
+    // and it must be this way round. Chromium answers "maybe" to
+    // canPlayType('application/vnd.apple.mpegurl'), which is truthy, but cannot
+    // actually demux HLS: handing it the .m3u8 direct produced
+    // DEMUXER_ERROR_COULD_NOT_PARSE and "The element has no supported sources",
+    // so testing canPlayType first silently routed every Chrome and Edge display
+    // into a player that can never start. Safari was the only browser the cell
+    // ever worked in. Where MSE is genuinely absent — iOS, which has no MSE for
+    // video — isSupported() is false and the native path below still runs.
+    if (!window.Hls || !window.Hls.isSupported()) {
+        vid.src = src;
+        if (vid.canPlayType('application/vnd.apple.mpegurl')) {
+            vid._tbSync = tbStartLiveSync(vid, null);
+        }
+        return;
+    }
     var h = new window.Hls({
         lowLatencyMode: true,
         backBufferLength: 30,
         liveSyncDurationCount: 3,
-        maxLiveSyncPlaybackRate: 1.5
+        // 1 disables hls.js's own catch-up. It steers toward this client's live
+        // edge, which pulls AGAINST the wall-clock target the screens share, and
+        // two controllers fighting over playbackRate never settles.
+        maxLiveSyncPlaybackRate: 1
     });
     // A display runs unattended for hours, so a blip must not end the night.
     // These are hls.js's own documented recoveries; only an unrecoverable
@@ -1506,6 +1608,7 @@ function attachHls(vid, src) {
     });
     h.loadSource(src);
     h.attachMedia(vid);
+    vid._tbSync = tbStartLiveSync(vid, h);
     return h;
 }
 
@@ -1627,6 +1730,10 @@ function sweepVideoCache() {
             if (rec.el.paused) tbTryPlay(rec.el);
             return;
         }
+        // The sync loop outlives the element unless it is stopped here: it holds
+        // a reference to the <video>, so leaving it running leaks the element
+        // and keeps ticking against a player that no longer exists.
+        if (rec.el && rec.el._tbSync) { clearInterval(rec.el._tbSync); rec.el._tbSync = null; }
         if (rec.hls) { try { rec.hls.destroy(); } catch (e) {} }
         delete videoCache[k];
     });
