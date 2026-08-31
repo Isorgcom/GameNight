@@ -1946,6 +1946,153 @@ function stream_allowed_hosts(): array {
     return array_keys($out);
 }
 
+/* ── Plex Media Server ───────────────────────────────────────────────────────
+ * Backs the Timer BETA video cell's Plex source.
+ *
+ * A layout stores only a token-free reference ("plex:/library/metadata/12345").
+ * The server attaches the token at RENDER time and only for the layout's owner.
+ * That gate is not decoration: timer_beta.php admits anyone holding the
+ * display's remote_key, and that key is handed to the whole room as a QR code,
+ * so a token living in the layout would give every scanner the run of the
+ * library. The same reasoning is why the token is never a query parameter on
+ * our own API calls (see plex_api_get) — only on the media URL the browser
+ * must fetch directly, where there is no alternative.
+ */
+function plex_config(): array {
+    $raw = trim(get_setting('plex_url', ''));
+    $tok = trim(get_setting('plex_token', ''));
+    if ($raw === '' || $tok === '') return [];
+    $p = parse_url($raw);
+    if (!$p || !in_array(strtolower($p['scheme'] ?? ''), ['http', 'https'], true)) return [];
+    $host = strtolower($p['host'] ?? '');
+    if ($host === '') return [];
+    return [
+        'base'  => strtolower($p['scheme']) . '://' . $host . (isset($p['port']) ? ':' . (int)$p['port'] : ''),
+        'host'  => $host,
+        'token' => $tok,
+    ];
+}
+
+/**
+ * Canonicalize whatever the author pasted into "plex:/library/metadata/N".
+ *
+ * Accepts the app.plex.tv link the Plex web UI actually hands you (the target
+ * rides percent-encoded in the fragment), a direct URL on the configured
+ * server, or the canonical ref itself. Returns null for anything else — a URL
+ * on some other host must never be silently adopted as a Plex item.
+ */
+function plex_canonical_ref(string $raw): ?string {
+    $raw = trim($raw);
+    if ($raw === '' || strlen($raw) > 500) return null;
+    if (preg_match('#^plex:/library/metadata/(\d{1,12})$#', $raw, $m)) {
+        return 'plex:/library/metadata/' . $m[1];
+    }
+    $p = parse_url($raw);
+    if (!$p || empty($p['host'])) return null;
+    $h = preg_replace('/^www\./', '', strtolower($p['host']));
+    $cfg = plex_config();
+    if ($h !== 'app.plex.tv' && $h !== 'plex.tv' && !($cfg && $h === $cfg['host'])) return null;
+    // The metadata key is a query param on a direct URL and lives inside the
+    // fragment on app.plex.tv (…/#!/server/<id>/details?key=%2Flibrary%2F…).
+    $hay = ($p['path'] ?? '') . '?' . ($p['query'] ?? '') . '#' . ($p['fragment'] ?? '');
+    // Delimiter is ~ on purpose: the class below contains '#', which would end
+    // a #-delimited pattern early and make the rest read as modifiers.
+    if (preg_match('~key=([^&#]+)~', $hay, $m)) {
+        $key = urldecode($m[1]);
+        if (preg_match('#^/library/metadata/(\d{1,12})(?![0-9])#', $key, $k)) {
+            return 'plex:/library/metadata/' . $k[1];
+        }
+    }
+    if (preg_match('#/library/metadata/(\d{1,12})(?![0-9])#', $p['path'] ?? '', $m)) {
+        return 'plex:/library/metadata/' . $m[1];
+    }
+    return null;
+}
+
+/**
+ * GET a Plex API path as decoded JSON, or null on any failure.
+ * The token goes in a header, never the query string: query strings land in
+ * access logs and Referer headers, and this one opens the whole library.
+ */
+function plex_api_get(string $path, array $query = []): ?array {
+    $cfg = plex_config();
+    if (!$cfg) return null;
+    $url = $cfg['base'] . $path . ($query ? '?' . http_build_query($query) : '');
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 8,
+        CURLOPT_CONNECTTIMEOUT => 4,
+        CURLOPT_FOLLOWLOCATION => false,
+        CURLOPT_HTTPHEADER     => ['Accept: application/json', 'X-Plex-Token: ' . $cfg['token']],
+    ]);
+    $body = curl_exec($ch);
+    $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($body === false || $code !== 200) return null;
+    $j = json_decode($body, true);
+    return is_array($j) ? $j : null;
+}
+
+/**
+ * Resolve a canonical ref to something a <video> element can actually play.
+ * Returns ['url' => …, 'title' => …, 'mode' => 'direct'|'transcode'] or null.
+ *
+ * Direct play when the browser can already decode the file as it sits. Anything
+ * else goes through Plex's transcoder as progressive MP4 (protocol=http) rather
+ * than HLS, because HLS needs hls.js in Chrome and Firefox and a third-party
+ * script has no room under script-src 'self'. Transcoding costs CPU on the
+ * Plex box for the length of the game.
+ */
+function plex_resolve(string $ref): ?array {
+    $cfg = plex_config();
+    if (!$cfg) return null;
+    if (!preg_match('#^plex:/library/metadata/(\d{1,12})$#', $ref, $m)) return null;
+    $id   = $m[1];
+    $meta = plex_api_get('/library/metadata/' . $id);
+    $item = $meta['MediaContainer']['Metadata'][0] ?? null;
+    if (!is_array($item)) return null;
+
+    $title = (string)($item['grandparentTitle'] ?? '') !== ''
+        ? $item['grandparentTitle'] . ' — ' . ($item['title'] ?? '')
+        : (string)($item['title'] ?? 'Untitled');
+
+    $media   = $item['Media'][0]   ?? null;
+    $part    = is_array($media) ? ($media['Part'][0] ?? null) : null;
+    $partKey = is_array($part) ? (string)($part['key'] ?? '') : '';
+
+    $container = strtolower((string)($media['container']  ?? ''));
+    $vcodec    = strtolower((string)($media['videoCodec'] ?? ''));
+    $acodec    = strtolower((string)($media['audioCodec'] ?? ''));
+    $direct = $partKey !== ''
+        && in_array($container, ['mp4', 'm4v'], true)
+        && in_array($vcodec, ['h264', 'avc1'], true)
+        && in_array($acodec, ['aac', 'mp3'], true);
+
+    if ($direct) {
+        return ['mode' => 'direct', 'title' => $title,
+                'url'  => $cfg['base'] . $partKey
+                        . (strpos($partKey, '?') === false ? '?' : '&')
+                        . 'X-Plex-Token=' . rawurlencode($cfg['token'])];
+    }
+    return ['mode' => 'transcode', 'title' => $title,
+            'url'  => $cfg['base'] . '/video/:/transcode/universal/start.mp4?' . http_build_query([
+                'path'                     => '/library/metadata/' . $id,
+                'mediaIndex'               => 0,
+                'partIndex'                => 0,
+                'protocol'                 => 'http',
+                'fastSeek'                 => 1,
+                'directPlay'               => 0,
+                'directStream'             => 1,
+                'videoQuality'             => 100,
+                'videoResolution'          => '1920x1080',
+                'maxVideoBitrate'          => 8000,
+                'audioBoost'               => 100,
+                'X-Plex-Client-Identifier' => 'gamenight-timer',
+                'X-Plex-Token'             => $cfg['token'],
+            ])];
+}
+
 /**
  * Emit SEO + social-share meta tags into a page <head>. Pages keep their own
  * <title>; this adds the description, canonical link, Open Graph, and Twitter

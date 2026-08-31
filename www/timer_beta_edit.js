@@ -1693,15 +1693,15 @@ function renderInspector() {
             vWrap.className = 'tbe-field';
             var vl = document.createElement('span'); vl.textContent = 'Video stream'; vWrap.appendChild(vl);
             var vn = document.createElement('div'); vn.className = 'tbe-note';
-            vn.textContent = 'Paste a YouTube, Twitch, Vimeo or Kick link, or any direct https '
-                           + '.m3u8 / .mp4 URL — that is how a restream (IPTV, a live game) gets here. '
+            vn.textContent = 'Paste a YouTube, Twitch, Vimeo or Kick link, a Plex link, or any direct '
+                           + 'https .m3u8 / .mp4 URL — that is how a restream (IPTV, a live game) gets here. '
                            + 'A direct video URL needs no approval from an admin, and everyone watching the '
                            + 'display sees it. The video fills this cell — give the box more weight for a '
                            + 'bigger picture. Streams mute themselves while alarm sounds play.';
             vWrap.appendChild(vn);
             insp.appendChild(vWrap);
             var vu = document.createElement('input');
-            vu.type = 'text'; vu.placeholder = 'https://…  (YouTube link, or a .m3u8 restream)';
+            vu.type = 'text'; vu.placeholder = 'https://…  (YouTube, Plex, or a .m3u8 restream)';
             vu.value = cell.video || '';
             var vErr = document.createElement('div'); vErr.className = 'tbe-note';
             var localOk = function (raw) {
@@ -1738,16 +1738,56 @@ function renderInspector() {
                 }
                 return 'That host did not work out. Check the link opens on its own in a browser tab.';
             };
+            // A stored Plex cell holds the canonical ref, never a URL — the
+            // token is attached server-side at display time, for an admin
+            // viewing their own layout and nobody else.
+            var isPlexRef = function (raw) { return /^plex:\/library\/metadata\/\d+$/.test(raw); };
             var vCheck = function (msg) {
                 var raw = vu.value.trim();
                 if (msg !== undefined) { vu.style.borderColor = ''; vErr.textContent = msg; return; }
+                if (isPlexRef(raw)) {
+                    vu.style.borderColor = '';
+                    vErr.textContent = 'Plex item. It plays on your own display only — a screen opened with '
+                                     + 'the QR code shows a placeholder. The preview above stays a placeholder '
+                                     + 'until you save and reload.';
+                    return;
+                }
                 vu.style.borderColor = (raw === '' || localOk(raw)) ? '' : '#ef4444';
                 vErr.textContent = raw === '' ? 'No link yet — the cell shows a placeholder until one is pasted.'
                                  : localOk(raw) ? '' : diagnose(raw);
             };
             vu.addEventListener('input', vCheck);
             vu.addEventListener('change', function () {
-                pushUndo(); cell.video = vu.value.trim(); refresh(true); vCheck();
+                var raw = vu.value.trim();
+                if (raw === '' || localOk(raw) || isPlexRef(raw)) {
+                    pushUndo(); cell.video = raw; refresh(true); vCheck();
+                    return;
+                }
+                // Not a host the renderer knows. It may still be a Plex link,
+                // and only the server can tell — it holds the token and does
+                // the library lookup. Ask before calling it invalid.
+                vCheck('Checking…');
+                fetch('/timer_beta_dl.php?action=plex_check&url=' + encodeURIComponent(raw),
+                      { credentials: 'same-origin' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (d) {
+                        pushUndo();
+                        if (d && d.ok) {
+                            cell.video = d.ref;
+                            vu.value = d.ref;
+                            refresh(true);
+                            vCheck('Plex: ' + d.title
+                                 + (d.mode === 'transcode' ? ' — Plex will transcode this while it plays.'
+                                                           : ' — plays directly, no transcode.')
+                                 + ' Your display only; a QR-opened screen shows a placeholder.');
+                        } else {
+                            cell.video = raw; refresh(true);
+                            vu.style.borderColor = '#ef4444';
+                            vErr.textContent = (d && d.error && d.error !== 'That is not a Plex link.')
+                                ? d.error : diagnose(raw);
+                        }
+                    })
+                    .catch(function () { pushUndo(); cell.video = raw; refresh(true); vCheck(); });
             });
             vCheck();
             insp.appendChild(field('Stream URL', vu));
@@ -1791,7 +1831,7 @@ function renderInspector() {
 
         var toVid = document.createElement('button');
         toVid.className = 'tbe-mini'; toVid.textContent = 'Use a video stream instead';
-        toVid.title = 'Embed a YouTube / Twitch / Vimeo / Kick video, or play a direct stream, in this cell';
+        toVid.title = 'Embed a YouTube / Twitch / Vimeo / Kick video, or play from Plex, in this cell';
         toVid.addEventListener('click', function () { pushUndo(); cell.video = ''; refresh(true); renderInspector(); });
         insp.appendChild(toVid);
 

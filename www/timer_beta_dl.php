@@ -36,15 +36,61 @@ $action = $_POST['action'] ?? $_GET['action'] ?? '';
  * layout that timer is currently showing — it cannot be pointed at any other
  * row, and it answers with the layout alone: no owner, no scope, no editable
  * flag, nothing that would let a viewer act on it. */
+/* Expand Plex refs into playable URLs on the way OUT to a browser.
+ *
+ * A layout stores "plex:/library/metadata/N" and nothing else. The playable
+ * URL is built here and added only when $allow says this caller owns the
+ * layout. Every other viewer — including a screen opened with the display's
+ * remote_key, which is handed to the whole room as a QR code — gets the ref
+ * without a URL, so the cell draws the empty-video stub rather than leaking a
+ * credential that opens the entire library.
+ *
+ * The ref itself STAYS in `video`. It carries nothing sensitive, and the
+ * layout editor reads and writes that key: dropping it here would round-trip
+ * the cell back through save as an ordinary empty video cell and quietly
+ * destroy the author's Plex reference. The resolved URL rides alongside in
+ * `videoMedia`, so the renderer can tell a media source from an iframe embed
+ * without sniffing. */
+function pk_plex_expand(array $node, bool $allow, array &$cache): array {
+    if (isset($node['cell']) && is_array($node['cell'])
+        && isset($node['cell']['video']) && is_string($node['cell']['video'])
+        && strncmp($node['cell']['video'], 'plex:', 5) === 0) {
+        $c = $node['cell'];
+        $ref = $c['video'];
+        if ($allow) {
+            if (!array_key_exists($ref, $cache)) {
+                $r = plex_resolve($ref);
+                $cache[$ref] = is_array($r) ? $r['url'] : null;
+            }
+            if ($cache[$ref] !== null) $c['videoMedia'] = $cache[$ref];
+        }
+        $node['cell'] = $c;
+    }
+    foreach ($node as $k => $v) {
+        if (is_array($v)) $node[$k] = pk_plex_expand($v, $allow, $cache);
+    }
+    return $node;
+}
+
 if ($action === 'get_layout' && ($rk = trim((string)($_GET['key'] ?? ''))) !== '') {
-    $q = $db->prepare('SELECT tl.id, tl.name, tl.layout
+    $q = $db->prepare('SELECT tl.id, tl.name, tl.layout, tl.created_by
                        FROM timer_state ts JOIN timer_layouts tl ON tl.id = ts.layout_id
                        WHERE ts.remote_key = ?');
     $q->execute([$rk]);
     $row = $q->fetch();
     if (!$row) { echo json_encode(['ok' => false, 'error' => 'Not found']); exit; }
+    $lay = json_decode($row['layout'], true);
+    $pxCache = [];
+    // Same Plex gate as the id path below, not a blanket refusal: the host's
+    // own display can carry a cast key too (castKeyParam appends it whenever
+    // the page was opened with one), and reaching this branch says nothing
+    // about who is asking. Admin AND owner still, so a scanned screen — which
+    // is the normal way a key holder gets here — gets no URL.
+    $pxAllow = $current && $current['role'] === 'admin'
+               && (int)$row['created_by'] === (int)$current['id'];
+    if (is_array($lay)) $lay = pk_plex_expand($lay, $pxAllow, $pxCache);
     echo json_encode(['ok' => true, 'id' => (int)$row['id'], 'name' => $row['name'],
-                      'layout' => json_decode($row['layout'], true)]);
+                      'layout' => $lay]);
     exit;
 }
 
@@ -106,6 +152,10 @@ function pk_lo_stream_url($v): ?string {
     if (!is_string($v)) return null;
     $v = trim($v);
     if ($v === '' || strlen($v) > 500) return null;
+    // A Plex item is stored as a token-free ref rather than a URL: the token is
+    // attached at render time, and only for the owner (see pk_plex_expand).
+    $px = plex_canonical_ref($v);
+    if ($px !== null) return $px;
     // A DIRECT media URL — .m3u8 from a restreamer, or a plain file — is
     // accepted from any https host, with no allowlist and no admin approval.
     // A host chooses the source for their own game; making that a support
@@ -660,6 +710,24 @@ function pk_lo_gc_images(PDO $db, array $candidateNames, int $exceptId): void {
 
 /* ── Actions ────────────────────────────────────────────────────────────── */
 
+// ─── GET: plex_check ───────────────────────────────────────
+// Editor-side probe for a pasted Plex link: confirms the item resolves and says
+// whether it will direct-play or transcode, so the author learns that at paste
+// time rather than when the room is watching. Returns the title and mode only,
+// never the URL — that carries the token.
+if ($action === 'plex_check') {
+    // Admin only, for the same reason the URL gate is: this probes the site's
+    // Plex library with the site's token, and a member has no claim on either.
+    if (!$isAdmin) { http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Admins only.']); exit; }
+    $ref = plex_canonical_ref((string)($_GET['url'] ?? ''));
+    if ($ref === null) { echo json_encode(['ok' => false, 'error' => 'That is not a Plex link.']); exit; }
+    if (!plex_config()) { echo json_encode(['ok' => false, 'error' => 'No Plex server is configured in Settings.']); exit; }
+    $r = plex_resolve($ref);
+    if (!$r) { echo json_encode(['ok' => false, 'error' => 'Plex did not recognise that item.']); exit; }
+    echo json_encode(['ok' => true, 'ref' => $ref, 'title' => $r['title'], 'mode' => $r['mode']]);
+    exit;
+}
+
 if ($action === 'get_layouts') {
     $stmt = $db->prepare(
         'SELECT tl.id, tl.name, tl.is_global, tl.created_by, tl.league_id, l.name AS league_name
@@ -675,6 +743,7 @@ if ($action === 'get_layouts') {
 }
 
 if ($action === 'get_layout') {
+    $pxCache = [];
     $id = (int)($_GET['id'] ?? 0);
     $stmt = $db->prepare(
         'SELECT * FROM timer_layouts WHERE id = ? AND (is_global = 1 OR created_by = ?
@@ -685,7 +754,13 @@ if ($action === 'get_layout') {
     echo json_encode(['ok' => true, 'id' => (int)$row['id'], 'name' => $row['name'],
         'is_global' => (int)$row['is_global'], 'league_id' => $row['league_id'] ? (int)$row['league_id'] : null,
         'created_by' => (int)$row['created_by'],
-        'layout' => json_decode($row['layout'], true),
+        // Plex URLs carry a token that opens the WHOLE library, and that
+        // credential belongs to the site, not to whoever happens to own a
+        // layout — owning one is self-serve, so gating on ownership alone
+        // would let any member mint a token-bearing URL by pasting a Plex
+        // link into a layout of their own. Admin AND owner, or no URL.
+        'layout' => pk_plex_expand(json_decode($row['layout'], true) ?: [],
+                                    $isAdmin && (int)$row['created_by'] === $uid, $pxCache),
         'editable' => pk_lo_may_modify($db, $row, $uid, $isAdmin)]);
     exit;
 }
