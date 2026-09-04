@@ -592,7 +592,11 @@ function rebalance_tables($db, $session_id, array $protected_ids = []): array {
     // Single table: assign all unassigned players to table 1 with random seats
     if ((int)$s['num_tables'] <= 1) {
         $moves = [];
-        $unassigned = $db->prepare('SELECT id, display_name FROM poker_players WHERE session_id = ? AND removed = 0 AND eliminated = 0 AND bought_in = 1 AND table_number IS NULL');
+        // cash_out IS NOT NULL means they left the table (set_cashout nulls their
+        // seat), and a cash game never sets `eliminated` — without this the
+        // balancer walks cashed-out players straight back into a seat. Only the
+        // cash flows ever write cash_out, so the clause is a no-op for tournaments.
+        $unassigned = $db->prepare('SELECT id, display_name FROM poker_players WHERE session_id = ? AND removed = 0 AND eliminated = 0 AND bought_in = 1 AND cash_out IS NULL AND table_number IS NULL');
         $unassigned->execute([$session_id]);
         foreach ($unassigned->fetchAll() as $p) {
             $seat = pick_random_seat($db, $session_id, 1);
@@ -604,7 +608,7 @@ function rebalance_tables($db, $session_id, array $protected_ids = []): array {
 
     $num = (int)$s['num_tables'];
 
-    $players = $db->prepare('SELECT id, display_name, table_number, seat_number FROM poker_players WHERE session_id = ? AND removed = 0 AND eliminated = 0 AND bought_in = 1 ORDER BY table_number, seat_number, id');
+    $players = $db->prepare('SELECT id, display_name, table_number, seat_number FROM poker_players WHERE session_id = ? AND removed = 0 AND eliminated = 0 AND bought_in = 1 AND cash_out IS NULL ORDER BY table_number, seat_number, id');
     $players->execute([$session_id]);
     $all = $players->fetchAll();
 

@@ -1,5 +1,5 @@
 
-# Table Manager — phone-first tournament director console
+# Table Manager — phone-first table console
 
 > Shipped as **Table Manager** (`/table_manager.php` + `table_manager.js`);
 > this design doc predates the rename and says "Game Day"/`gameday.php`
@@ -93,7 +93,6 @@ Then, **read-only** bootstrap:
 ```
 SELECT * FROM poker_sessions WHERE event_id = ?     → $session
   if (!$session)  → 302 to /checkin.php?event_id=N   (session creation stays on the console)
-  if ($session['game_type'] !== 'tournament') → 302 to /checkin.php?event_id=N   (v1 is tournaments only)
 
 SELECT * FROM timer_state WHERE session_id = ?      → $timer   (may be false)
 $csrf = csrf_token();
@@ -550,8 +549,32 @@ gdBuyIn(pid):
 ### 9.5 No timer row
 §2.1 / §4.3. Header shows "Timer not set up" + a link to `/timer.php?event_id=N`. Roster half fully functional.
 
-### 9.6 Cash games
-`gameday.php` redirects `game_type !== 'tournament'` to `checkin.php`. The Game Day link in the console header renders **only** when `isTourney()` (same guard the existing `#timerLink` uses at `checkin.php:1325`).
+### 9.6 Cash games — supported since v0.2122
+
+The original v1 redirected `game_type !== 'tournament'` to `checkin.php`. That gate is gone: only a **missing session** still redirects, and the console's Table Manager link is no longer wrapped in `isTourney()` (the Timer link still is).
+
+The branch point is `isCash()`, which reads **`GD.gameType`** — baked into the page server-side, never `SESSION.game_type`. `SESSION` is null until the first roster poll lands, and a roster rendered "as a tournament" for those ~200 ms is a host tapping KO on a cash player.
+
+| Concern | Tournament | Cash |
+|---|---|---|
+| "Still in?" | `bought_in && !eliminated` | `bought_in && cash_out IS NULL` |
+| Header anchor | the clock | money on the table (`total_cash_in - total_cash_out`), with `.gd-head-blinds` hidden and the 250 ms tick standing down so it cannot overwrite the figure |
+| Header stats | left / avg stack / pool / top 3 | playing / in / out / tips |
+| Row primary | Buy In · KO · Re-enter | Buy In · Cash Out · Back In |
+| Badges | Playing / place / 🏆 1st | Playing / Cashed out / **Busted** (a `$0` cash-out keeps the red `out` badge) |
+| Sheet | rebuy + add-on counters, bounty, jackpot, undo elimination, undo buy-in | Add money · Correct total in · Cash out · Bust out · Undo cash-out |
+| Finished strip | champion + 1st-place payout, taps through to the console | money still on the table, taps open the cash box |
+| Extra footer button | — | 🧾 Box (the cash-box sheet) |
+
+Three things that are easy to get wrong:
+
+- **`calc_pool()`'s `still_playing` counts `eliminated = 0 AND bought_in = 1`, which a cashed-out player satisfies.** `stillPlaying()` subtracts `cashed_out` for cash rather than trusting the column.
+- **No "undo buy-in" on a cash game.** `toggle_buyin` clears the flag and leaves `cash_in` standing, which is money the pool still believes in. Correcting a wrong figure is what `set_cashin` ("Correct total in") is for.
+- **The cash box shares the one bottom sheet** via `SHEET_MODE`. A roster poll calls `cashBoxRecompute()` (derived spans only) instead of `renderSheet()`, or the host's half-typed count is wiped every 10 s.
+
+`clockInterval()` backs the timer poll off to 30 s on a timer-less cash game: the console never offers a cash game a timer, so the 3 s poll would otherwise be a 60-byte error all night. It snaps back to 3 s the moment a timer appears.
+
+**QA:** `~/qa-headless/gd_cash_check.js` (36 assertions, re-seeds session 141 / event 234 on every run). Both sweeps carry `/table_manager.php?event_id=234` alongside the tournament page.
 
 ### 9.7 Two devices
 Every write is server-authoritative and every read re-derives from a shared anchor, so two phones converge within one poll. The only genuine race is two hosts KO-ing different players simultaneously — both succeed, places are derived server-side from the live count, and both devices see the same result within 10 s. Acceptable.
@@ -593,7 +616,7 @@ Two plain anchors — no `data-act`, no new handler, nothing for the dispatch sw
 
 Each step ends in a state you can load in a browser.
 
-1. **`gameday.php` skeleton.** Gates, bootstrap, `<head>`, static markup, `window.GD`, script tags. `gameday.js` = a stub that logs `GD`. Confirm: 200 for JamesTest on event 237, 403 for a non-manager, 302 to `checkin.php` for a cash game, 404 for a bad event id.
+1. **`gameday.php` skeleton.** Gates, bootstrap, `<head>`, static markup, `window.GD`, script tags. `gameday.js` = a stub that logs `GD`. Confirm: 200 for JamesTest on event 237, 403 for a non-manager, 302 to `checkin.php` for an event with no session, 404 for a bad event id.
 2. **Clock poll + header + local tick.** `pollClock()`, `noteClockSample`/`clockOffset`/`serverNow`/`liveRemaining` ported from `timer_beta.js:393-428`, `applyTimerSync` from `:1958-1991`. Header renders level, clock, blinds, next blinds, and the §4.2 stats. Verify the clock does not stutter across a poll boundary.
 3. **CSRF refresh + `gdPost()` wrapper.** Retry-once-on-403. This lands before any write exists, so every write inherits it.
 4. **Wake lock + `visibilitychange` + stale banner.** All three from `timer.js:772-840`. Test by killing the container for 20 s.
@@ -631,7 +654,7 @@ Base `http://localhost:8080`, login `JamesTest` / `TempTest123!`. Note the exist
 1. `/gameday.php?event_id=237` as JamesTest → 200; page title contains "Game Day".
 2. As a non-manager (or logged out) → 403 / redirect to `/login.php`.
 3. `?event_id=999999` → 404. `?event_id=` missing → 400.
-4. Cash game (event 234 / session 141) → 302 to `/checkin.php`.
+4. Cash game (event 234 / session 141) → 200, money header (see §9.6). An event with no session at all (event 239) → 302 to `/checkin.php`.
 
 *Page shape*
 5. Zero `on*` attributes in the rendered DOM (including JS-built) — the same scan v0.2079 used before shutting `script-src-attr`.
