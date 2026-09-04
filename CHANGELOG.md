@@ -4,6 +4,80 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2122] - 2026-09-04
+
+### Added
+
+- **The Table Manager runs cash games.** The phone-first table console shipped
+  tournaments-only: `table_manager.php` 302'd every `game_type !== 'tournament'`
+  session to the check-in console, and the console's Table Mgr link was wrapped
+  in the same `isTourney()` guard as the Timer link. A cash host standing at the
+  table therefore had nothing to hold but the desktop console. Both gates are
+  gone. Only a session that does not exist yet still redirects, because creating
+  one stays a console job.
+
+  The page branches on `isCash()`, which reads the server-baked `GD.gameType`
+  rather than `SESSION.game_type` -- `SESSION` is null until the first roster
+  poll lands, and a roster rendered "as a tournament" for those ~200 ms is a
+  host tapping KO on a cash player. With no clock to anchor the header, the big
+  number becomes the money still on the table, the blinds line is removed and
+  the 250 ms tick stands down so it cannot overwrite the figure; the stats line
+  reads playing / in / out / tips. Rows offer Buy In, Cash Out and Back In in
+  place of Buy In, KO and Re-enter, badge a `$0` exit as **Busted** and anything
+  else as **Cashed out**, and carry in / out / profit. The player sheet swaps
+  the rebuy and add-on counters for Add money, Correct total in, Cash out, Bust
+  out and Undo cash-out, and a new footer button opens a cash-box sheet with
+  tips, expected, counted and over/short, including the "record the surplus as
+  tips" shortcut from the console.
+
+  Three traps worth recording. `calc_pool()`'s `still_playing` counts
+  `eliminated = 0 AND bought_in = 1`, which a cashed-out player satisfies, so
+  `stillPlaying()` subtracts `cashed_out` itself rather than trusting the
+  column. There is deliberately **no** "undo buy-in" on a cash game:
+  `toggle_buyin` would clear the flag and leave `cash_in` standing, which is
+  money the pool still believes in -- correcting a wrong figure is what
+  `set_cashin` is for. And the cash box shares the one bottom sheet via
+  `SHEET_MODE`, so a roster poll re-derives its computed rows instead of
+  re-rendering the sheet and wiping a half-typed count every 10 s.
+
+  Affected: `www/table_manager.php`, `www/table_manager.js`, `www/checkin.php`,
+  `TABLE_MANAGER.md` (§9.6 rewritten).
+
+### Fixed
+
+- **The lifecycle strip quoted numbers it did not have yet.** `renderLifecycle()`
+  ran once at boot and then only when `status` changed, but what it displays
+  arrives later: the champion's name and first-place payout come with the pool,
+  and the new cash line quotes the money on the table. A game that was already
+  finished when the page opened therefore rendered "Winner wins" with no name
+  and, on a cash game, "$0 still on the table" -- permanently, because the
+  status never changed again. The render is now keyed on a signature of what it
+  actually shows and re-runs from both pollers and every pool merge, so it
+  settles on the real figures and still skips the rebuild when nothing moved
+  (re-rendering on every poll would swap the "Start game" button out from under
+  a thumb mid-tap).
+
+- **Rebalancing a cash game walked cashed-out players back into a seat.**
+  `rebalance_tables()` picks its field with `eliminated = 0 AND bought_in = 1`,
+  which describes a cashed-out cash player exactly: nothing sets `eliminated` in
+  a cash game, and `set_cashout` frees the seat by nulling `table_number`, so
+  the balancer read them as unseated and dealt them back in. Both of its queries
+  now carry `AND cash_out IS NULL`. This is not new to the Table Manager -- the
+  console's Balance button on the Table view has always been offered for cash
+  games and had the same result. The clause is a no-op for tournaments: only the
+  cash flows ever write `cash_out`. Affected: `www/_poker_helpers.php`.
+
+### Infrastructure
+
+- `~/qa-headless/gd_cash_check.js` covers the cash path end to end (36
+  assertions: header, roster model, sheet, and the add / cash-out / undo / bust
+  round trip against real endpoints), re-seeding session 141 on every run. The
+  inline-JS and double-dispatch sweeps now walk the cash page alongside the
+  tournament one, and `gd_gates.js` asserts the cash game returns 200 while an
+  event with no session still redirects.
+
+---
+
 ## [v0.2121] - 2026-08-28
 
 ### Fixed

@@ -1,5 +1,10 @@
 /**
- * Table Manager — behaviour for table_manager.php (phone-first tournament director).
+ * Table Manager — behaviour for table_manager.php (phone-first table console).
+ *
+ * Serves both game types. `isCash()` reads GD.gameType, which the server bakes
+ * into the page, NOT SESSION.game_type — SESSION is null until the first roster
+ * poll lands, and a header or a roster row rendered "as a tournament" for those
+ * first ~200ms is a host tapping KO on a cash player.
  *
  * Architecture (see TABLE_MANAGER.md):
  *  - Two pollers: clock  = timer_dl.php get_state   every 3s  (anchors, levels,
@@ -36,6 +41,7 @@ var LEVELS  = [];                      // blind schedule (clock poll)
 var VIEW    = (GD.status === 'setup') ? 'all' : 'playing';
 var SEARCH  = '';
 var SHEET_PID = null;                  // player the bottom sheet is showing
+var SHEET_MODE = 'player';             // 'player' | 'cashbox' — one sheet, two renders
 var CAN_CONTROL = true;                // page is manager-gated; refined per poll
 
 // Clock state (anchor protocol — see liveRemaining()).
@@ -115,6 +121,51 @@ function playerById(pid) {
     return PLAYERS.find(function (p) { return parseInt(p.id) === pid; }) || null;
 }
 
+/* ── Game-type predicates ──────────────────────────────────────────────────
+ * A cash game has no eliminations and no finish positions: leaving the table
+ * is a non-NULL cash_out (0 = busted). Every "is this player still in?" test
+ * on the page goes through playerIn()/playerDone() so the two models never
+ * get read with the wrong column — `eliminated` is 0 for a cashed-out player,
+ * so a stray `!p.eliminated` would leave them seated forever.
+ */
+function isCash() { return GD.gameType === 'cash'; }
+
+function cashedOut(p) {
+    return !!p && p.cash_out !== null && p.cash_out !== undefined && p.cash_out !== '';
+}
+function playerIn(p) {
+    if (!p || !parseInt(p.bought_in)) return false;
+    return isCash() ? !cashedOut(p) : !parseInt(p.eliminated);
+}
+function playerDone(p) {
+    return isCash() ? cashedOut(p) : !!parseInt(p && p.eliminated);
+}
+// Cash: what a player has put in is the money, not a buy-in count.
+function cashIn(p) { return parseInt(p && p.cash_in) || 0; }
+function cashProfit(p) { return cashedOut(p) ? (parseInt(p.cash_out) || 0) - cashIn(p) : null; }
+function signedMoney(cents) { return (cents >= 0 ? '+' : '−') + gdMoney(Math.abs(cents)); }
+// Money on the table right now — the cash game's headline number.
+function onTable() {
+    if (!POOL) return 0;
+    return (parseInt(POOL.total_cash_in) || 0) - (parseInt(POOL.total_cash_out) || 0);
+}
+// calc_pool's still_playing counts `eliminated = 0 AND bought_in = 1`, which a
+// cashed-out player satisfies. Cash has to subtract them itself.
+function stillPlaying() {
+    if (!POOL) return 0;
+    return isCash()
+        ? Math.max(0, (parseInt(POOL.bought_in) || 0) - (parseInt(POOL.cashed_out) || 0))
+        : (parseInt(POOL.still_playing) || 0);
+}
+// "$40" / "$12.50" back to cents, or null when the field is blank or junk.
+function moneyToCents(v) {
+    var s = String(v === null || v === undefined ? '' : v).replace(/[$,\s]/g, '');
+    if (s === '') return null;
+    var n = parseFloat(s);
+    if (isNaN(n) || n < 0) return null;
+    return Math.round(n * 100);
+}
+
 /* ── Clock engine (ported from timer_beta.js — Cristian offset + anchor) ── */
 
 var clockSamples = [];
@@ -188,7 +239,7 @@ function pollClock() {
                 if (GD.hasTimer) gdNoteFail(); else renderHeader();
                 return;
             }
-            if (!GD.hasTimer) { GD.hasTimer = true; renderHeader(); }
+            if (!GD.hasTimer) { GD.hasTimer = true; renderHeader(); scheduleClock(); }
             noteClockSample(j.server_now_ms, requestedAt, Date.now());
             applyTimerSync(j.timer || {}, requestedAt);
             LEVELS = j.levels || [];
@@ -202,7 +253,7 @@ function pollClock() {
                 renderLifecycle(); renderRoster();
             }
             lastClockOkAt = Date.now();
-            renderHeader(); renderNet();
+            renderHeader(); renderLifecycle(); renderNet();
         })
         .catch(function () { clockInFlight = false; if (kill) clearTimeout(kill); gdNoteFail(); });
 }
@@ -241,16 +292,22 @@ function pollRoster() {
             checkWalkinArrivals(j.players || []);
             PLAYERS = j.players || [];
             lastRosterOkAt = Date.now();
-            renderPending(); renderRoster(); renderHeader(); renderNet();
-            if (SHEET_PID !== null) renderSheet();   // an open sheet tracks the world
+            renderPending(); renderRoster(); renderHeader(); renderLifecycle(); renderNet();
+            refreshSheet();                          // an open sheet tracks the world
         })
         .catch(function () { rosterInFlight = false; if (kill) clearTimeout(kill);
                              if (rosterAgain) { rosterAgain = false; pollRoster(); return; }
                              gdNoteFail(); });
 }
 
+// A cash game is never offered a timer by the console, so its clock poll is
+// almost always a 60-byte error every 3s for the whole night. Back it off to
+// 30s until a timer actually appears (pollClock re-schedules the moment one
+// does), instead of switching it off — a host can still create one elsewhere.
+function clockInterval() { return (!GD.hasTimer && isCash()) ? 30000 : 3000; }
+
 // setTimeout self-rescheduling: a slow response can never stack requests.
-function scheduleClock()  { clearTimeout(clockTimer);  clockTimer  = setTimeout(function () { pollClock();  scheduleClock();  }, 3000); }
+function scheduleClock()  { clearTimeout(clockTimer);  clockTimer  = setTimeout(function () { pollClock();  scheduleClock();  }, clockInterval()); }
 function scheduleRoster() { clearTimeout(rosterTimer); rosterTimer = setTimeout(function () { pollRoster(); scheduleRoster(); }, 10000); }
 
 document.addEventListener('visibilitychange', function () {
@@ -335,7 +392,7 @@ function takePlayers(list) {
     PLAYERS = list;
     renderPending(); renderRoster(); renderHeader();
 }
-function takePool(pool) { if (pool) { POOL = pool; renderHeader(); } }
+function takePool(pool) { if (pool) { POOL = pool; renderHeader(); renderLifecycle(); } }
 
 /* ── Net / stale banner ────────────────────────────────────────────────── */
 
@@ -426,16 +483,29 @@ window.gdCmd = function (cmd) {
 };
 
 function renderHeader() {
+    // A cash game with no timer has no clock and no blinds: the anchor number
+    // becomes the money on the table, and the blinds line is removed rather
+    // than left showing an em dash all night.
+    var moneyHead = isCash() && !GD.hasTimer;
+    var blindRow = document.querySelector('.gd-head-blinds');
+    if (blindRow) blindRow.style.display = moneyHead ? 'none' : '';
+
     var lvl = findLevel(T.level);
-    el('gdLevel').textContent = GD.hasTimer
-        ? (lvl && parseInt(lvl.is_break) ? 'ON BREAK' : 'Level ' + (T.level || '—'))
-        : 'No timer';
-    el('gdBlinds').textContent = blindsText(lvl);
-    var nxt = null;
-    for (var i = 0; i < LEVELS.length; i++) {
-        if ((LEVELS[i].level_number | 0) > T.level) { nxt = LEVELS[i]; break; }
+    if (moneyHead) {
+        el('gdLevel').textContent = 'ON TABLE';
+        el('gdClock').textContent = gdMoney(onTable());
+        el('gdClock').classList.remove('paused');
+    } else {
+        el('gdLevel').textContent = GD.hasTimer
+            ? (lvl && parseInt(lvl.is_break) ? 'ON BREAK' : 'Level ' + (T.level || '—'))
+            : 'No timer';
+        el('gdBlinds').textContent = blindsText(lvl);
+        var nxt = null;
+        for (var i = 0; i < LEVELS.length; i++) {
+            if ((LEVELS[i].level_number | 0) > T.level) { nxt = LEVELS[i]; break; }
+        }
+        el('gdNext').textContent = nxt ? '→ ' + blindsText(nxt) : '';
     }
-    el('gdNext').textContent = nxt ? '→ ' + blindsText(nxt) : '';
 
     // Stats line — all sourced from the clock poll's pool/payouts so it stays
     // live even when the roster poll is wedged.
@@ -449,7 +519,16 @@ function renderHeader() {
         s.appendChild(document.createTextNode(' ' + label));
         stats.appendChild(s);
     }
-    if (POOL) {
+    if (POOL && isCash()) {
+        // timer_dl.php ships `pool` only for tournaments, so these numbers ride
+        // the 10s roster poll and every mutation's own merge, not the clock.
+        stat('playing', stillPlaying() + '/' + (POOL.total_players || 0));
+        stat('in', gdMoney(POOL.total_cash_in));
+        if (parseInt(POOL.total_cash_out) > 0) stat('out', gdMoney(POOL.total_cash_out));
+        // With a timer the big number is the clock, so on-table moves down here.
+        if (GD.hasTimer) stat('on table', gdMoney(onTable()));
+        if (SESSION && parseInt(SESSION.tips) > 0) stat('tips', gdMoney(SESSION.tips));
+    } else if (POOL) {
         stat('left', (POOL.still_playing || 0) + '/' + (POOL.total_players || 0));
         if (parseInt(POOL.chips_in_play) > 0 && parseInt(POOL.still_playing) > 0) {
             stat('avg', fmtChips(Math.round(POOL.chips_in_play / POOL.still_playing)));
@@ -474,6 +553,9 @@ function renderHeader() {
 setInterval(function () {
     var c = el('gdClock');
     if (!c) return;
+    // Timer-less cash game: renderHeader owns this element (money on the
+    // table). Writing '--:--' four times a second would erase it.
+    if (isCash() && !GD.hasTimer) { renderNet(); return; }
     if (!GD.hasTimer || !T.synced) { c.textContent = '--:--'; return; }
     c.textContent = fmtClock(liveRemaining());
     c.classList.toggle('paused', !T.running);
@@ -489,7 +571,28 @@ window.gdStartGame = function () {
     }).catch(gdErr);
 };
 
-function renderLifecycle() {
+/**
+ * The strip is cheap to build but it is not status-only: the cash line quotes
+ * the money on the table and the tournament line names the champion, and both
+ * of those arrive AFTER the first render. Re-rendering on every poll would
+ * swap the "Start game" button out from under a thumb mid-tap, so the render
+ * is keyed on what it actually displays and skipped when nothing moved.
+ */
+var lifecycleSig = null;
+
+function lifecycleSignature() {
+    if (GD.status === 'setup') return 'setup';
+    if (GD.status !== 'finished') return 'none';
+    if (isCash()) return 'finished-cash|' + onTable();
+    var champ = PLAYERS.find(function (p) { return parseInt(p.finish_position) === 1; });
+    return 'finished|' + (champ ? champ.display_name : '') + '|' + payoutForPlace(1);
+}
+
+function renderLifecycle(force) {
+    var sig = lifecycleSignature();
+    if (!force && sig === lifecycleSig) return;
+    lifecycleSig = sig;
+
     var box = el('gdLifecycle');
     box.textContent = '';
     if (GD.status === 'setup') {
@@ -502,6 +605,14 @@ function renderLifecycle() {
         b.dataset.act = 'gdStartGame';
         s.appendChild(t); s.appendChild(b);
         box.appendChild(s);
+    } else if (GD.status === 'finished' && isCash()) {
+        // No champion to name: what is left is squaring the box, so the strip
+        // opens it instead of sending the host to the console.
+        var d = document.createElement('div');
+        d.className = 'gd-strip gd-done';
+        d.textContent = '🧾 Game finished · ' + gdMoney(onTable()) + ' still on the table · tap to square the cash box';
+        d.dataset.act = 'gdCashBox';
+        box.appendChild(d);
     } else if (GD.status === 'finished') {
         var w = document.createElement('div');
         w.className = 'gd-strip gd-winner';
@@ -627,6 +738,12 @@ function positionSegSoon() {
 var rowEls = new Map();     // playerId -> {root, name, meta, badge, primary}
 
 function playerState(p) {
+    if (isCash()) {
+        // A $0 cash-out is a bust and keeps the red badge; anything else is an
+        // ordinary exit and should not read like a knockout.
+        if (cashedOut(p)) return parseInt(p.cash_out) === 0 ? 'out' : 'cashed';
+        return parseInt(p.bought_in) ? 'playing' : 'idle';
+    }
     if (parseInt(p.finish_position) === 1 && !parseInt(p.eliminated)) return 'champ';
     if (parseInt(p.eliminated)) return 'out';
     if (parseInt(p.bought_in)) return 'playing';
@@ -642,6 +759,14 @@ function seatLabel(p) {
 
 function primaryFor(p) {
     var st = playerState(p);
+    if (isCash()) {
+        // Money in re-activates a cashed-out player server-side (add_cashin
+        // clears cash_out and re-seats them), so "Back In" is the same POST as
+        // a first buy-in — one button, one prompt, no separate un-cash step.
+        if (cashedOut(p)) return { label: 'Back In', cls: 'reenter', act: 'gdCashAdd' };
+        if (!parseInt(p.bought_in)) return { label: 'Buy In', cls: 'buyin', act: 'gdCashAdd' };
+        return { label: 'Cash Out', cls: 'cashout', act: 'gdCashOut' };
+    }
     if (st === 'champ') return null;
     if (st === 'idle') return { label: 'Buy In', cls: 'buyin', act: 'gdBuyIn' };
     if (st === 'playing') return { label: 'KO', cls: 'ko', act: 'gdKO' };
@@ -687,16 +812,27 @@ function patchRow(els, p) {
     var pid = parseInt(p.id);
     var st = playerState(p);
     els.name.textContent = p.display_name;
-    els.root.classList.toggle('gd-out', st === 'out');
+    els.root.classList.toggle('gd-out', playerDone(p));
     els.badge.className = 'gd-badge ' + st;
-    els.badge.textContent = st === 'playing' ? 'Playing'
-                          : st === 'out' ? (parseInt(p.finish_position) ? gdOrdinal(parseInt(p.finish_position)) : 'Out')
-                          : st === 'champ' ? '🏆 1st' : 'Not in';
-    els.seat.textContent = seatLabel(p);
     var bits = [];
-    if (parseInt(p.rebuys) > 0) bits.push(parseInt(p.rebuys) + '× rebuy');
-    if (parseInt(p.addons) > 0) bits.push(parseInt(p.addons) + '× add-on');
-    if (parseInt(p.bounties_won) > 0) bits.push('🎯 ' + parseInt(p.bounties_won));
+    if (isCash()) {
+        els.badge.textContent = st === 'playing' ? 'Playing'
+                              : st === 'out' ? 'Busted'
+                              : st === 'cashed' ? 'Cashed out' : 'Not in';
+        if (cashIn(p) > 0) bits.push('in ' + gdMoney(cashIn(p)));
+        if (cashedOut(p)) {
+            bits.push('out ' + gdMoney(parseInt(p.cash_out) || 0));
+            bits.push(signedMoney(cashProfit(p)));
+        }
+    } else {
+        els.badge.textContent = st === 'playing' ? 'Playing'
+                              : st === 'out' ? (parseInt(p.finish_position) ? gdOrdinal(parseInt(p.finish_position)) : 'Out')
+                              : st === 'champ' ? '🏆 1st' : 'Not in';
+        if (parseInt(p.rebuys) > 0) bits.push(parseInt(p.rebuys) + '× rebuy');
+        if (parseInt(p.addons) > 0) bits.push(parseInt(p.addons) + '× add-on');
+        if (parseInt(p.bounties_won) > 0) bits.push('🎯 ' + parseInt(p.bounties_won));
+    }
+    els.seat.textContent = seatLabel(p);
     els.extras.textContent = bits.join(' · ');
 
     var prim = primaryFor(p);
@@ -717,13 +853,13 @@ function visiblePlayers() {
         if (parseInt(p.removed)) return false;
         if ((p.approval_status || 'approved') === 'pending') return false;   // strip owns them
         if (q && String(p.display_name || '').toLowerCase().indexOf(q) === -1) return false;
-        if (VIEW === 'playing') return parseInt(p.bought_in) && !parseInt(p.eliminated);
-        if (VIEW === 'out') return !!parseInt(p.eliminated);
+        if (VIEW === 'playing') return playerIn(p);
+        if (VIEW === 'out') return playerDone(p);
         return true;
     });
     base.sort(function (a, b) {
-        var ain = (parseInt(a.bought_in) && !parseInt(a.eliminated)) ? 0 : 1;
-        var bin = (parseInt(b.bought_in) && !parseInt(b.eliminated)) ? 0 : 1;
+        var ain = playerIn(a) ? 0 : 1;
+        var bin = playerIn(b) ? 0 : 1;
         if (ain !== bin) return ain - bin;
         var at = parseInt(a.table_number) || 99, bt = parseInt(b.table_number) || 99;
         if (at !== bt) return at - bt;
@@ -778,7 +914,7 @@ function renderSeats(view) {
 
     var q = SEARCH.toLowerCase();
     var live = PLAYERS.filter(function (p) {
-        return parseInt(p.bought_in) && !parseInt(p.eliminated) && !parseInt(p.removed)
+        return playerIn(p) && !parseInt(p.removed)
             && (p.approval_status || 'approved') !== 'pending'
             && (!q || String(p.display_name || '').toLowerCase().indexOf(q) !== -1);
     });
@@ -843,7 +979,7 @@ function renderSeats(view) {
 
 window.gdRebalance = function () {
     var tables = parseInt(SESSION && SESSION.num_tables) || 1;
-    var n = PLAYERS.filter(function (p) { return parseInt(p.bought_in) && !parseInt(p.eliminated) && !parseInt(p.removed); }).length;
+    var n = PLAYERS.filter(function (p) { return playerIn(p) && !parseInt(p.removed); }).length;
     pkConfirm('Rebalance ' + n + ' players across ' + tables + ' table' + (tables === 1 ? '' : 's')
               + '? Everyone gets a new random seat, including players who stay at their table.',
               { okLabel: 'Rebalance' }).then(function (ok) {
@@ -878,7 +1014,7 @@ window.gdMoveTable = function (pid) {
         if (!ok || !target) return;
         gdAction('move_player_table', { player_id: pid, new_table: target }).then(function (j) {
             if (j.players) takePlayers(j.players); else mergePlayer(j.player);
-            if (SHEET_PID !== null) renderSheet();
+            refreshSheet();
         }).catch(gdErr);
     });
 };
@@ -1055,6 +1191,236 @@ window.gdReenter = function (pid) {
     });
 };
 
+/* ── Cash-game money actions ───────────────────────────────────────────────
+ * Money is typed in dollars and posted in cents. Every amount goes through
+ * moneyToCents(), which returns null for blank/negative/junk — a silent
+ * NaN posted as 0 would zero someone's buy-in.
+ */
+
+// One prompt for the three "money in" cases: first buy-in, a top-up, and
+// bringing a cashed-out player back (add_cashin clears cash_out server-side).
+window.gdCashAdd = function (pid) {
+    var p = playerById(pid);
+    if (!p) return;
+    var back = cashedOut(p);
+    var already = cashIn(p);
+    var def = parseInt(SESSION && SESSION.buyin_amount) > 0 ? parseInt(SESSION.buyin_amount) / 100 : 20;
+    var msg = back
+        ? '<b>' + gdEsc(p.display_name) + '</b> cashed out for ' + gdMoney(parseInt(p.cash_out) || 0)
+          + '. Buying back in clears that cash-out and puts them in a seat again.'
+        : (already > 0
+            ? '<b>' + gdEsc(p.display_name) + '</b> is in for ' + gdMoney(already) + '. Add how much more?'
+            : 'How much is <b>' + gdEsc(p.display_name) + '</b> buying in for?');
+    pkPrompt(msg, {
+        title: back ? 'Back in' : (already > 0 ? 'Add money' : 'Buy in'),
+        inputType: 'number', 'default': def, okLabel: back ? 'Back in' : 'Add'
+    }).then(function (v) {
+        var cents = moneyToCents(v);
+        if (cents === null || cents <= 0) return;
+        gdAction('add_cashin', { player_id: pid, amount: cents }).then(function (j) {
+            mergePlayer(j.player); takePool(j.pool);
+            refreshSheet();
+        }).catch(gdErr);
+    });
+};
+
+// Correct a wrong total rather than stacking another add on top of it.
+window.gdCashSet = function (pid) {
+    var p = playerById(pid);
+    if (!p) return;
+    gdCloseSheet();
+    pkPrompt('Set <b>' + gdEsc(p.display_name) + '</b>’s <b>total</b> money in. This replaces the running'
+             + ' total (' + gdMoney(cashIn(p)) + '), it does not add to it.',
+             { title: 'Correct total in', inputType: 'number', 'default': cashIn(p) / 100, okLabel: 'Save' })
+    .then(function (v) {
+        var cents = moneyToCents(v);
+        if (cents === null) return;
+        gdAction('set_cashin', { player_id: pid, amount: cents }).then(function (j) {
+            mergePlayer(j.player); takePool(j.pool);
+        }).catch(gdErr);
+    });
+};
+
+window.gdCashOut = function (pid) {
+    var p = playerById(pid);
+    if (!p) return;
+    var inAmt = cashIn(p);
+    pkPrompt('What is <b>' + gdEsc(p.display_name) + '</b> leaving the table with?'
+             + '<br><br>They are in for <b>' + gdMoney(inAmt) + '</b>. Cashing out frees their seat.',
+             { title: 'Cash out', inputType: 'number', placeholder: '0.00', okLabel: 'Cash out' })
+    .then(function (v) {
+        var cents = moneyToCents(v);
+        if (cents === null) return;
+        gdAction('set_cashout', { player_id: pid, cash_out: cents }).then(function (j) {
+            mergePlayer(j.player); takePool(j.pool);
+            refreshSheet();
+            var diff = cents - inAmt;
+            showSnack(p.display_name + ' out for ' + gdMoney(cents) + ' (' + signedMoney(diff) + ')',
+                      'Undo', function () { gdUndoCashout(pid); });
+        }).catch(gdErr);
+    });
+};
+
+window.gdBust = function (pid) {
+    var p = playerById(pid);
+    gdCloseSheet();
+    pkConfirm('Bust <b>' + gdEsc(p ? p.display_name : '') + '</b> out? Records a <b>' + gdMoney(0)
+              + '</b> cash-out and frees their seat. Adding money later brings them back in.',
+              { okLabel: 'Bust out', danger: true }).then(function (ok) {
+        if (!ok) return;
+        gdAction('set_cashout', { player_id: pid, cash_out: 0 }).then(function (j) {
+            mergePlayer(j.player); takePool(j.pool);
+            showSnack((p ? p.display_name : 'Player') + ' busted out', 'Undo',
+                      function () { gdUndoCashout(pid); });
+        }).catch(gdErr);
+    });
+};
+
+// set_cashout treats '' as "clear it" — the player is back in play and
+// auto_assign_table re-seats them. An empty FormData value posts as ''.
+window.gdUndoCashout = function (pid) {
+    hideSnack();
+    gdAction('set_cashout', { player_id: pid, cash_out: '' }).then(function (j) {
+        mergePlayer(j.player); takePool(j.pool);
+        refreshSheet();
+    }).catch(gdErr);
+};
+
+/* ── Cash box ──────────────────────────────────────────────────────────────
+ * Reuses the one bottom sheet in 'cashbox' mode. The two typed fields must
+ * survive a roster poll, so a poll calls cashBoxRecompute() (derived spans
+ * only) rather than re-rendering the sheet out from under the host's thumb.
+ */
+
+window.gdCashBox = function () {
+    if (!isCash()) return;
+    SHEET_PID = null;
+    SHEET_MODE = 'cashbox';
+    renderSheet();
+    el('gdSheetBack').classList.add('open');
+    el('gdSheet').classList.add('open');
+};
+
+function cbField(id) {
+    var e = document.getElementById(id);
+    return e ? moneyToCents(e.value) : null;
+}
+
+function cbRow(label, sub, valueId) {
+    var v = document.createElement('span');
+    v.className = 'gd-cb-val';
+    v.id = valueId;
+    return sheetRow(label, sub, v);
+}
+
+function cbInputRow(label, sub, id, value) {
+    var i = document.createElement('input');
+    i.type = 'number'; i.step = '0.01'; i.min = '0';
+    i.className = 'gd-cb-input';
+    i.id = id;
+    i.placeholder = '0.00';
+    i.value = (value === null || value === undefined) ? '' : value;
+    i.dataset.actInput = 'gdCashBoxRecompute';
+    return sheetRow(label, sub, i);
+}
+
+function renderCashBox() {
+    el('gdSheetName').textContent = '🧾 Cash box';
+    el('gdSheetSub').textContent = 'Record tips and square the box against what is counted.';
+
+    var grid = el('gdSheetGrid');
+    grid.textContent = '';
+    grid.appendChild(cbRow('Total cash in', null, 'gdCbIn'));
+    grid.appendChild(cbRow('Total cashed out', null, 'gdCbOut'));
+    grid.appendChild(cbRow('Still on the table', null, 'gdCbOnTable'));
+
+    var rule = document.createElement('div');
+    rule.className = 'gd-cb-rule';
+    grid.appendChild(rule);
+
+    var tips = parseInt(SESSION && SESSION.tips) || 0;
+    grid.appendChild(cbInputRow('Tips (host)', 'held back from the box', 'gdCbTips', tips ? tips / 100 : ''));
+    grid.appendChild(cbRow('Expected in box', 'on the table + tips', 'gdCbExpected'));
+
+    var counted = (SESSION && SESSION.cash_counted !== null && SESSION.cash_counted !== undefined && SESSION.cash_counted !== '')
+        ? parseInt(SESSION.cash_counted) / 100 : '';
+    grid.appendChild(cbInputRow('Counted in box', 'count it, then type it', 'gdCbCounted', counted));
+    grid.appendChild(cbRow('Over / short', null, 'gdCbOs'));
+
+    var tipBtn = document.createElement('button');
+    tipBtn.type = 'button';
+    tipBtn.className = 'gd-sheet-btn wide';
+    tipBtn.id = 'gdCbTipBtn';
+    tipBtn.textContent = 'Record the surplus as tips';
+    tipBtn.dataset.act = 'gdCashBoxTipSurplus';
+    tipBtn.style.display = 'none';
+    grid.appendChild(tipBtn);
+
+    var save = document.createElement('button');
+    save.type = 'button';
+    save.className = 'gd-sheet-btn wide go';
+    save.textContent = 'Save cash box';
+    save.dataset.act = 'gdCashBoxSave';
+    grid.appendChild(save);
+
+    cashBoxRecompute();
+}
+
+function cashBoxRecompute() {
+    if (SHEET_MODE !== 'cashbox') return;
+    var inC  = POOL ? (parseInt(POOL.total_cash_in) || 0) : 0;
+    var outC = POOL ? (parseInt(POOL.total_cash_out) || 0) : 0;
+    var table = inC - outC;
+    var tips = cbField('gdCbTips') || 0;
+    var expected = table + tips;
+    var set = function (id, txt) { var e = document.getElementById(id); if (e) e.textContent = txt; };
+    set('gdCbIn', gdMoney(inC));
+    set('gdCbOut', gdMoney(outC));
+    set('gdCbOnTable', gdMoney(table));
+    set('gdCbExpected', gdMoney(expected));
+
+    var counted = cbField('gdCbCounted');
+    var os = document.getElementById('gdCbOs');
+    var tipBtn = document.getElementById('gdCbTipBtn');
+    if (!os) return;
+    if (counted === null) {
+        os.textContent = '—';
+        os.className = 'gd-cb-val';
+        if (tipBtn) tipBtn.style.display = 'none';
+        return;
+    }
+    var diff = counted - expected;
+    if (diff === 0)      { os.textContent = 'Even ✓';                        os.className = 'gd-cb-val even'; }
+    else if (diff > 0)   { os.textContent = 'Over ' + gdMoney(diff);         os.className = 'gd-cb-val over'; }
+    else                 { os.textContent = 'Short ' + gdMoney(-diff);       os.className = 'gd-cb-val short'; }
+    // A surplus is almost always uncollected tips — offer to absorb it.
+    if (tipBtn) tipBtn.style.display = diff > 0 ? '' : 'none';
+}
+window.gdCashBoxRecompute = cashBoxRecompute;
+
+window.gdCashBoxTipSurplus = function () {
+    var counted = cbField('gdCbCounted');
+    if (counted === null) return;
+    var inC  = POOL ? (parseInt(POOL.total_cash_in) || 0) : 0;
+    var outC = POOL ? (parseInt(POOL.total_cash_out) || 0) : 0;
+    var newTips = Math.max(0, counted - (inC - outC));
+    var f = document.getElementById('gdCbTips');
+    if (f) f.value = newTips / 100;
+    cashBoxRecompute();
+};
+
+window.gdCashBoxSave = function () {
+    var tips = cbField('gdCbTips') || 0;
+    var counted = cbField('gdCbCounted');
+    gdAction('set_cash_reconcile', {
+        session_id: GD.sessionId, tips: tips, counted: counted === null ? '' : counted
+    }).then(function (j) {
+        if (j.session) SESSION = j.session;
+        gdCloseSheet();
+        renderHeader();
+    }).catch(gdErr);
+};
+
 /* ── Post-KO undo snackbar ─────────────────────────────────────────────── */
 
 var snackCb = null, snackTimer = null;
@@ -1084,15 +1450,24 @@ window.gdOpenSheet = function (pid) {
     if (!p) return;
     if ((p.approval_status || 'approved') === 'pending') return;   // strip owns them
     SHEET_PID = parseInt(pid);
+    SHEET_MODE = 'player';
     renderSheet();
     el('gdSheetBack').classList.add('open');
     el('gdSheet').classList.add('open');
 };
 window.gdCloseSheet = function () {
     SHEET_PID = null;
+    SHEET_MODE = 'player';
     el('gdSheetBack').classList.remove('open');
     el('gdSheet').classList.remove('open');
 };
+
+// A poll must keep an open sheet honest without wiping half-typed input, so
+// the cash box only re-derives its computed rows.
+function refreshSheet() {
+    if (SHEET_MODE === 'cashbox') { cashBoxRecompute(); return; }
+    if (SHEET_PID !== null) renderSheet();
+}
 
 function sheetRow(labelText, subText, control) {
     var row = document.createElement('div');
@@ -1133,18 +1508,32 @@ function sheetBtn(label, act, pid, danger) {
 }
 
 function renderSheet() {
+    if (SHEET_MODE === 'cashbox') { renderCashBox(); return; }
     var p = SHEET_PID !== null ? playerById(SHEET_PID) : null;
     if (!p) { gdCloseSheet(); return; }
     var pid = parseInt(p.id);
     el('gdSheetName').textContent = p.display_name;
     var subBits = [seatLabel(p) || 'No seat'];
-    if (parseInt(p.bought_in)) subBits.push('bought in');
-    if (parseInt(p.eliminated)) subBits.push('out' + (parseInt(p.finish_position) ? ' · ' + gdOrdinal(parseInt(p.finish_position)) : ''));
+    if (isCash()) {
+        if (cashIn(p) > 0) subBits.push('in ' + gdMoney(cashIn(p)));
+        if (cashedOut(p)) {
+            subBits.push('out ' + gdMoney(parseInt(p.cash_out) || 0));
+            subBits.push(signedMoney(cashProfit(p)));
+        }
+    } else {
+        if (parseInt(p.bought_in)) subBits.push('bought in');
+        if (parseInt(p.eliminated)) subBits.push('out' + (parseInt(p.finish_position) ? ' · ' + gdOrdinal(parseInt(p.finish_position)) : ''));
+    }
     el('gdSheetSub').textContent = subBits.join(' · ');
 
     var grid = el('gdSheetGrid');
     grid.textContent = '';
-    var live = parseInt(p.bought_in) && !parseInt(p.eliminated);
+    var live = playerIn(p);
+
+    if (isCash()) {
+        renderCashSheet(grid, p, pid, live);
+        return;
+    }
 
     if (SESSION && parseInt(SESSION.rebuy_allowed) && parseInt(p.bought_in)) {
         grid.appendChild(sheetRow('Rebuys', gdMoney(SESSION.rebuy_amount) + ' each',
@@ -1185,6 +1574,33 @@ function renderSheet() {
     grid.appendChild(sheetBtn('Remove from game', 'gdRemove', pid, true));
 }
 
+/**
+ * Cash-game sheet. No rebuy/add-on counters (a cash game counts dollars, not
+ * entries), no bounty or jackpot side pots (the console gates both on
+ * isTourney() for the same reason), and no "undo buy-in" — toggle_buyin would
+ * clear the flag and leave cash_in standing, which is money the pool still
+ * believes in. Correcting a wrong amount is what "Correct total in" is for.
+ */
+function renderCashSheet(grid, p, pid, live) {
+    grid.appendChild(sheetBtn(cashIn(p) > 0 ? 'Add money…' : 'Buy in…', 'gdCashAdd', pid));
+    grid.appendChild(sheetBtn('Correct total in…', 'gdCashSet', pid));
+    if (cashedOut(p)) {
+        grid.appendChild(sheetBtn('Undo cash-out', 'gdUndoCashout', pid));
+    } else if (parseInt(p.bought_in)) {
+        grid.appendChild(sheetBtn('Cash out…', 'gdCashOut', pid));
+        grid.appendChild(sheetBtn('Bust out (' + gdMoney(0) + ')', 'gdBust', pid, true));
+    }
+    if (live && (parseInt(SESSION && SESSION.num_tables) || 1) > 1) {
+        grid.appendChild(sheetBtn('Move to another table…', 'gdMoveTable', pid));
+    }
+    if (live && p.table_number) {
+        grid.appendChild(sheetBtn('Unassign seat', 'gdUnassign', pid));
+    }
+    grid.appendChild(sheetBtn('Notes…', 'gdNotes', pid));
+    grid.appendChild(sheetBtn('Money ledger', 'gdLedger', pid));
+    grid.appendChild(sheetBtn('Remove from game', 'gdRemove', pid, true));
+}
+
 window.gdRebuy = function (pid, delta) {
     delta = parseInt(delta) || 1;
     var p = playerById(pid);
@@ -1196,25 +1612,25 @@ window.gdRebuy = function (pid, delta) {
         } else {
             mergePlayer(j.player); takePool(j.pool);
         }
-        if (SHEET_PID !== null) renderSheet();
+        refreshSheet();
     }).catch(gdErr);
 };
 window.gdAddon = function (pid, delta) {
     gdAction('update_addons', { player_id: pid, delta: parseInt(delta) || 1 }).then(function (j) {
         mergePlayer(j.player); takePool(j.pool);
-        if (SHEET_PID !== null) renderSheet();
+        refreshSheet();
     }).catch(gdErr);
 };
 window.gdBountyToggle = function (pid) {
     gdAction('toggle_bounty', { player_id: pid }).then(function (j) {
         mergePlayer(j.player); takePool(j.pool);
-        if (SHEET_PID !== null) renderSheet();
+        refreshSheet();
     }).catch(gdErr);
 };
 window.gdJackpotToggle = function (pid) {
     gdAction('toggle_jackpot', { player_id: pid }).then(function (j) {
         mergePlayer(j.player); takePool(j.pool);
-        if (SHEET_PID !== null) renderSheet();
+        refreshSheet();
     }).catch(gdErr);
 };
 window.gdNotes = function (pid) {
@@ -1288,7 +1704,8 @@ window.gdAddWalkin = function () {
  * closure-scoped, and the tests must not be able to mutate it by accident. */
 window.gdDebug = function () {
     return { players: PLAYERS, pool: POOL, session: SESSION, view: VIEW,
-             timer: T, csrf: GD.csrf, tickets: TICKETS };
+             timer: T, csrf: GD.csrf, tickets: TICKETS,
+             gameType: GD.gameType, sheet: { mode: SHEET_MODE, pid: SHEET_PID } };
 };
 
 /* ── Boot ──────────────────────────────────────────────────────────────── */
