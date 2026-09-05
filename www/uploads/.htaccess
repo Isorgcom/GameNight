@@ -7,3 +7,17 @@ Options -ExecCGI -Indexes
 <FilesMatch "\.(php|phtml|php[0-9]|phar|pl|py|cgi|sh)$">
     Require all denied
 </FilesMatch>
+
+# Uploaded files keep their names when replaced (header_banner.png, og_image.png,
+# avatars), so the year-long immutable rule in the parent .htaccess would pin a
+# stale banner in every browser that had seen it. One day is the compromise.
+# Must be a <FilesMatch> too: Apache applies every Files section after every
+# directory-level directive, so a bare "Header set" here would lose to the
+# parent's FilesMatch. Same pattern, later in merge order, this one wins.
+# NOTE: this directory is a bind mount in Docker, so the file the server reads
+# is written by docker-entrypoint.sh at start; keep the two copies identical.
+<IfModule mod_headers.c>
+    <FilesMatch "\.(css|js|png|jpe?g|webp|gif|svg|ico|woff2?)$">
+        Header set Cache-Control "public, max-age=86400"
+    </FilesMatch>
+</IfModule>

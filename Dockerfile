@@ -18,7 +18,7 @@ RUN docker-php-ext-configure pdo_sqlite --with-pdo-sqlite=/usr/local \
 
 # Enable .htaccess overrides and mod_rewrite
 RUN sed -i 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf \
-    && a2enmod rewrite
+    && a2enmod rewrite headers
 
 # Tune prefork MPM for a small-RAM host. Default MaxRequestWorkers=150 can OOM a
 # 512 MB VPS at peak load; cap at 25 to keep memory bounded. PHP can use up to

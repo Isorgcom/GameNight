@@ -4,6 +4,50 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2126] - 2026-09-05
+
+### Changed
+
+- **The landing page loads lighter and stops shifting.** Every image now has
+  its intrinsic width and height, so the browser reserves the box before the
+  bytes arrive: the hero banner (the largest thing above the fold, previously
+  unsized, so the headline jumped when it loaded) also gets
+  `fetchpriority="high"`; the 30 carousel shots and the three screenshots are
+  wrapped in `<picture>` with a WebP source and the original as fallback, cut
+  by about half (1.2 MB of JPEG to 0.57 MB; the 175 KB PNG to 49 KB). The WebP
+  files were produced by headless Chromium's canvas encoder, since the build
+  host has no image tooling. The app home's own ~15 KB of inline CSS (timeline
+  sidebar, week grid) is emitted only when the app home renders, not on the
+  landing that never used it.
+
+- **Guests no longer download what only members use.** For a logged-out
+  visitor `pk-seg.js` and `push.js` load with `defer` (their synchronous callers
+  only exist on logged-in screens), `avatar.js` is not loaded at all, and the
+  service worker is not registered (there is no push subscription to keep
+  current, and a crawler certainly has none). Logged-in pages are unchanged.
+
+### Infrastructure
+
+- **Static assets are cacheable for a year.** `.htaccess` sets
+  `Cache-Control: public, max-age=31536000, immutable` for CSS, JS, images and
+  fonts, which is safe because every local asset tag already carries a
+  `?v=<version>.<mtime>` cache-buster. Uploads keep their names when replaced,
+  so they get one day instead: `www/uploads/.htaccess` in the repo and, because
+  that directory is a bind mount the entrypoint rewrites on every start, the
+  same block in `docker-entrypoint.sh` (as a `<FilesMatch>`, since Apache applies
+  Files sections after directory-level directives and a bare `Header set` would
+  lose to the parent's). Both blocks are inside `<IfModule mod_headers.c>`; the
+  Dockerfile now enables `headers`, and **the production container must be
+  rebuilt** (`docker compose up -d --build`) for any of this to take effect: a
+  plain `git pull` leaves the site working but uncached, exactly as before.
+
+- `~/qa-headless/pagespeed_check.js`: sized images, declared sizes matching the
+  decoded files, 33 WebP pictures, no app CSS on the landing, guest footer
+  without blocking scripts or a service worker, measured CLS under 0.1, and the
+  logged-in home unchanged. `img_to_webp.js` is the converter.
+
+---
+
 ## [v0.2125] - 2026-09-05
 
 ### Added

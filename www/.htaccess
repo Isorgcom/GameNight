@@ -1,6 +1,19 @@
 # Disable directory listing
 Options -Indexes
 
+# Long-lived caching for static assets. Safe because every local .js/.css tag
+# carries a ?v=<version>.<mtime> cache-buster, so a changed file is a new URL and
+# an unchanged one can be immutable for a year. Images under /img are versioned
+# by name when they change. Uploads are NOT covered here: their names are stable
+# across replacements, so www/uploads/.htaccess gives them a day instead. The
+# IfModule guard keeps the site up on an Apache without mod_headers (the
+# Dockerfile enables it; a rebuild is what activates this on a running host).
+<IfModule mod_headers.c>
+    <FilesMatch "\.(css|js|png|jpe?g|webp|gif|svg|ico|woff2?)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+</IfModule>
+
 # Route favicon.ico requests to favicon.php (serves the uploaded site icon)
 RewriteEngine On
 RewriteRule ^s/([a-zA-Z0-9]+)$ /s.php?code=$1 [L,QSA]
