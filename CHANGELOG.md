@@ -4,6 +4,60 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2123] - 2026-09-05
+
+### Added
+
+- **"Add to Home Screen": the site now invites installation as an app.** Taking
+  a timer fullscreen on an iPad works, but iPadOS paints its own close ✕ in the
+  top-left of any fullscreen page and nothing a page does can remove it. The
+  route to no browser bars and no ✕ is running the site as a home-screen web
+  app, which the manifest and service worker `_footer.php` already ship have
+  made possible on Chromium for a while -- what was missing was the invitation,
+  and on iOS there is no install API to invite with: the user has to tap Share,
+  then Add to Home Screen. So `pk-a2hs.js` teaches exactly those taps -- the
+  share glyph, where the button lives on this device (top toolbar on an iPad,
+  bottom of the screen on an iPhone), then Add to Home Screen. Chromium gets
+  the real thing: `beforeinstallprompt` is captured and the card's button calls
+  `prompt()`. On iOS the installed app is also the only place push
+  notifications can be enabled, so the two tie together.
+
+  `_footer.php` loads it for every logged-in user on a touch device, from their
+  second page view (a first visit is for the page they came for), and it waits
+  while the push-prompt card is up so there is never more than one card on
+  screen. It never appears in standalone display mode (nothing left to gain),
+  inside an iframe, or on a fine-pointer device (a TV or a laptop is not
+  putting anything on a home screen). "Not now" snoozes a week, an ignored card
+  snoozes a day, "Don't show again" is permanent, all in `localStorage`. The
+  script is self-contained (own CSS, own listeners, every string via
+  `textContent`). **My Settings** gained an "Install as an App" card whose
+  button forces the card past any snooze, for anyone who dismissed it or never
+  saw it on a laptop; where the browser has nothing to offer it says what does
+  work on that device.
+
+  Deliberately not on the timer or Table Manager display pages: the app is the
+  thing to install, not one game's screen.
+
+- **Every page now carries `apple-touch-icon`** (display pages in their head,
+  footer pages by injection next to the manifest). Without it iOS uses a
+  screenshot of the page as the home-screen icon, which is what every install
+  looked like until now.
+
+### Changed
+
+- `TIMER_BETA.md` said the iPad has no element Fullscreen API. It does; it is
+  the iPhone that lacks it, and the iPad's ✕ is the actual problem. Rewritten,
+  with the card documented alongside.
+
+### Infrastructure
+
+- `~/qa-headless/a2hs_site_check.js`: the footer card on an emulated iPad
+  (logged-out silence, the second-view rule, one card at a time with the push
+  prompt, the Settings button overriding "never") and the display pages'
+  deliberate silence.
+
+---
+
 ## [v0.2122] - 2026-09-04
 
 ### Added

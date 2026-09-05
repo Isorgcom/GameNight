@@ -318,6 +318,9 @@ $themeCss   = timer_theme_css_vars($themeProps);
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Poker Timer">
+    <!-- Home-screen icon for anyone who adds this page by hand; without it iOS
+         uses a screenshot of the page. -->
+    <link rel="apple-touch-icon" href="/img/app-icon-192.png">
     <title>Poker Timer &mdash; <?= htmlspecialchars($site_name) ?></title>
     <link rel="icon" href="/favicon.php">
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">

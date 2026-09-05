@@ -486,6 +486,17 @@ $site_name = get_setting('site_name', 'Game Night');
             <p style="font-size:.75rem;color:#94a3b8;margin-top:.7rem">iPhone/iPad: add this site to your Home Screen first (Share &rarr; Add to Home Screen), then enable from the installed app.</p>
         </div>
 
+        <!-- Install as an app: the permanent home for the Add to Home Screen
+             card, for anyone who dismissed it or never saw it (a laptop). -->
+        <div class="card" style="max-width:100%">
+            <h2>Install as an App</h2>
+            <p class="subtitle">Put <?= htmlspecialchars($site_name, ENT_QUOTES | ENT_SUBSTITUTE) ?> on your Home Screen. It opens full screen like an app, and on iPhone and iPad it is what makes notifications possible.</p>
+            <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+                <button type="button" class="btn btn-primary" data-act="a2hsInstallNow">Add to Home Screen</button>
+            </div>
+            <p style="font-size:.75rem;color:#94a3b8;margin-top:.7rem">iPhone/iPad: Safari, then Share &rarr; Add to Home Screen. Android: Chrome offers an Install button. Computers: Chrome and Edge show an install icon in the address bar.</p>
+        </div>
+
         <!-- Change password -->
         <div class="card" style="max-width:100%">
             <h2>Change Password</h2>
@@ -639,6 +650,19 @@ function confirmDeleteTyped() {
             }
         }).catch(function () { statusEl.textContent = 'Could not check notification status.'; });
     }
+
+    // Install as an App. show(true) forces the card past its own snooze and
+    // device rules; false back means this browser has nothing to offer (no
+    // install prompt captured, not iOS), so say what does work instead.
+    window.a2hsInstallNow = function () {
+        if (window.pkA2HS && pkA2HS.standalone()) {
+            pkAlert('You are already using the installed app.');
+            return;
+        }
+        if (window.pkA2HS && pkA2HS.show(true)) return;
+        pkAlert('This browser does not offer an install here.<br><br>On an iPhone or iPad, open this page in Safari and use Share &rarr; Add to Home Screen. '
+              + 'On Android, use Chrome. On a computer, Chrome and Edge show an install icon at the right end of the address bar.');
+    };
 
     window.pushEnable = function () {
         enableBtn.disabled = true;

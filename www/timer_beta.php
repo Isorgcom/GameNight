@@ -114,6 +114,9 @@ if ($session_id) {
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Timer">
+    <?php /* The icon iOS puts on the home screen when someone adds this page
+             by hand; without it Safari uses a screenshot of the page. */ ?>
+    <link rel="apple-touch-icon" href="/img/app-icon-192.png">
     <title>Timer BETA &mdash; <?= htmlspecialchars($site_name) ?></title>
     <link rel="stylesheet" href="/fonts.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/fonts.css') ?: 0)) ?>">
     <link rel="stylesheet" href="/timer_beta.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/timer_beta.css') ?: 0)) ?>">

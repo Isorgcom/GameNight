@@ -99,6 +99,13 @@ if ($_hb_user && empty($_hb_user['timezone'])) {
         l.rel = 'manifest'; l.href = '/manifest.php';
         document.head.appendChild(l);
     }
+    // The icon iOS puts on the home screen. Without it Safari uses a screenshot
+    // of the page, which is what every install looked like before v0.2123.
+    if (!document.querySelector('link[rel="apple-touch-icon"]')) {
+        var a = document.createElement('link');
+        a.rel = 'apple-touch-icon'; a.href = '/img/app-icon-192.png';
+        document.head.appendChild(a);
+    }
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js').catch(function () {});
     }
@@ -244,4 +251,15 @@ if ($_hb_user && empty($_hb_user['timezone'])) {
     }).catch(function () {});
 })();
 </script>
+<?php /* "Add to Home Screen" for the whole site (pk-a2hs.js): the manifest above
+         starts at '/', so the icon opens the app. Logged-in users only, from
+         their second page view, on touch devices, and it waits while the push
+         card is up so there is never more than one card on screen. On iOS the
+         installed app is also the only place push can be enabled at all. */ ?>
+<script nonce="<?= csp_nonce() ?>">
+window.PK_A2HS = { key: 'app', name: <?= json_encode(get_setting('site_name', 'Game Night')) ?>,
+                   why: 'It opens like an app, full screen, and can send you notifications about your games.',
+                   avoid: '#pushPromptCard', minViews: 2 };
+</script>
+<script src="/pk-a2hs.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-a2hs.js') ?: 0)) ?>" defer></script>
 <?php endif; ?>
