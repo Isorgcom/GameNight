@@ -2786,9 +2786,23 @@ if (ctrls) {
             else if (fe.webkitRequestFullscreen) fe.webkitRequestFullscreen();
             return;
         }
+        if (btn.getAttribute('data-act') === 'exit') { leaveTimer(); return; }
         var cmd = btn.getAttribute('data-cmd');
         if (cmd) sendCommand(cmd);
     });
+}
+// Leave the display for the game's console. Installed as an app there is no
+// address bar and no back button, so this is the only way off the timer short
+// of closing the app. Fullscreen is dropped first so the console does not
+// arrive fullscreen with its own chrome hidden.
+function leaveTimer() {
+    var url = (typeof TB_EXIT_URL === 'string' && TB_EXIT_URL) ? TB_EXIT_URL : '/calendar.php';
+    try {
+        if (document.fullscreenElement || document.webkitFullscreenElement) {
+            (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+        }
+    } catch (e) {}
+    window.location.href = url;
 }
 /* ── Fullscreen, for any viewer ───────────────────────────────────────────
  * The tray's fullscreen button only exists once the server says this viewer can

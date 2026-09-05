@@ -4,6 +4,24 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2124] - 2026-09-05
+
+### Fixed
+
+- **The Timer BETA display had no way out when run as an installed app.** In
+  the app there is no address bar and no back button, and in standalone display
+  mode the display removes its own corner fullscreen button (there is no
+  browser chrome to escape), so a host who opened the timer could only close
+  the app to leave it. The control tray gains an **Exit** button, after the
+  fullscreen one, that drops fullscreen and goes to the game's check-in console,
+  the same place the classic timer's "Back to Check-in" link has always gone
+  (or the calendar for a timer with no game behind it). The destination is
+  built server-side from the resolved event id (`TB_EXIT_URL`), never from the
+  URL. Found by the user on the first night running the site as an app.
+  Affected: `www/timer_beta.php`, `www/timer_beta.js`, `www/timer_beta.css`.
+
+---
+
 ## [v0.2123] - 2026-09-05
 
 ### Added

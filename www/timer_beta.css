@@ -322,6 +322,9 @@ video.tb-video { object-fit: contain; }
 #tbControls .tb-ctrl-play { background: #16a34a; border-color: #16a34a; color: #fff; min-width: 56px; }
 #tbControls .tb-ctrl-play.is-running { background: #dc2626; border-color: #dc2626; }
 #tbControls .tb-ctrl-sep { width: 1px; height: 1.6rem; background: rgba(148, 163, 184, 0.3); margin: 0 .15rem; flex-shrink: 0; }
+/* The one worded button in a row of glyphs: a word because "leave the timer"
+   has no glyph everyone reads the same way, and smaller so it sits with them. */
+#tbControls .tb-ctrl-exit { font-size: .82rem; letter-spacing: .04em; text-transform: uppercase; color: #cbd5e1; }
 @media (pointer: coarse) {
     #tbControls button { min-width: 48px; min-height: 48px; }
 }
