@@ -42,12 +42,7 @@ if ($slug === '') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Leagues &mdash; <?= htmlspecialchars($site_name) ?></title>
-    <link rel="canonical" href="<?= htmlspecialchars($dirUrl) ?>">
-    <meta property="og:type" content="website">
-    <meta property="og:title" content="Leagues &mdash; <?= htmlspecialchars($site_name) ?>">
-    <meta property="og:description" content="Browse the leagues on <?= htmlspecialchars($site_name) ?> and see their upcoming events.">
-    <meta property="og:url" content="<?= htmlspecialchars($dirUrl) ?>">
-    <meta name="description" content="Browse the leagues on <?= htmlspecialchars($site_name) ?> and see their upcoming events.">
+    <?php render_seo_meta('Leagues — ' . $site_name, 'Browse public poker and game-night leagues on ' . $site_name . ': upcoming events, standings, and how to join.', 'league'); ?>
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
         .ld-layout { max-width: 860px; margin: 0 auto; padding: 0 1.25rem 3rem; }
@@ -127,7 +122,7 @@ $league = null;
 if (preg_match('/^[a-z0-9-]{1,60}$/', $slug)) {
     // Explicit column list: this projection is the public contract.
     $L = $db->prepare(
-        "SELECT id, name, description, slug, approval_mode, banner_path, banner_fit
+        "SELECT id, name, description, slug, approval_mode, banner_path, banner_fit, seo_index
            FROM leagues
           WHERE slug = ? AND public_page = 1 AND is_hidden = 0"
     );
@@ -272,18 +267,51 @@ $autoJoin = $user && $myRole === null && !$pending && ($_GET['join'] ?? '') === 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($league['name']) ?> &mdash; <?= htmlspecialchars($site_name) ?></title>
-    <link rel="canonical" href="<?= htmlspecialchars($pubUrl) ?>">
-    <meta property="og:type" content="website">
-    <meta property="og:title" content="<?= htmlspecialchars($league['name'] . ' — ' . $site_name) ?>">
-    <meta property="og:description" content="<?= htmlspecialchars($ogDesc) ?>">
-    <meta property="og:url" content="<?= htmlspecialchars($pubUrl) ?>">
-    <?php if ($banner !== ''): ?>
-    <meta property="og:image" content="<?= htmlspecialchars(get_site_url() . $banner) ?>">
-    <meta name="twitter:card" content="summary_large_image">
-    <?php else: ?>
-    <meta name="twitter:card" content="summary">
-    <?php endif; ?>
-    <meta name="description" content="<?= htmlspecialchars($ogDesc) ?>">
+    <?php
+    // Public means reachable by link and QR. Listed in search engines is a
+    // separate promise the owner makes with the "let search engines list this
+    // page" toggle; until then the page is noindex, and follow keeps the
+    // crawler moving to pages that are.
+    $seoIndex = (int)($league['seo_index'] ?? 0) === 1;
+    ?>
+    <meta name="robots" content="<?= $seoIndex ? 'index,follow' : 'noindex,follow' ?>">
+    <?php render_seo_meta($league['name'] . ' — ' . $site_name, $ogDesc, 'league/' . $slug, $banner !== '' ? get_site_url() . $banner : null); ?>
+    <?php if ($seoIndex):
+        // Structured data for the listed page: the league as an organization
+        // and its upcoming events. Same allowlisted columns the page itself
+        // shows (title, dates, venue name); nothing else leaves the server.
+        $ldTz = new DateTimeZone(get_setting('timezone', 'UTC'));
+        $ldOrg = ['@type' => 'Organization', '@id' => $pubUrl . '#org', 'name' => (string)$league['name'], 'url' => $pubUrl];
+        if ($banner !== '') $ldOrg['logo'] = get_site_url() . $banner;
+        $ldGraph = [$ldOrg];
+        foreach ($events as $evRow) {
+            $sd = trim((string)($evRow['start_date'] ?? ''));
+            if ($sd === '') continue;
+            $st = trim((string)($evRow['start_time'] ?? ''));
+            try { $sdt = new DateTime($sd . ' ' . ($st !== '' ? $st : '00:00'), $ldTz); } catch (Exception $x) { continue; }
+            $item = [
+                '@type'               => 'Event',
+                'name'                => (string)$evRow['title'],
+                'startDate'           => $st !== '' ? $sdt->format(DATE_ATOM) : $sdt->format('Y-m-d'),
+                'eventAttendanceMode' => 'https://schema.org/OfflineEventAttendanceMode',
+                'eventStatus'         => 'https://schema.org/EventScheduled',
+                'organizer'           => ['@id' => $pubUrl . '#org'],
+                'url'                 => $pubUrl,
+            ];
+            $ed = trim((string)($evRow['end_date'] ?? ''));
+            $et = trim((string)($evRow['end_time'] ?? ''));
+            if ($et !== '' || $ed !== '') {
+                try {
+                    $edt = new DateTime(($ed !== '' ? $ed : $sd) . ' ' . ($et !== '' ? $et : '23:59'), $ldTz);
+                    $item['endDate'] = $edt->format(DATE_ATOM);
+                } catch (Exception $x) {}
+            }
+            $venue = trim((string)($evRow['venue_name'] ?? ''));
+            if ($venue !== '') $item['location'] = ['@type' => 'Place', 'name' => $venue];
+            $ldGraph[] = $item;
+        }
+        render_jsonld(['@context' => 'https://schema.org', '@graph' => $ldGraph]);
+    endif; ?>
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
         .lp-layout { max-width: 860px; margin: 0 auto; padding: 0 1.25rem 3rem; }

@@ -8,6 +8,7 @@ $site_name = get_setting('site_name', 'Game Night');
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Terms &amp; Conditions &mdash; <?= htmlspecialchars($site_name) ?></title>
+    <?php render_seo_meta('Terms & Conditions — ' . $site_name, 'The terms for using ' . $site_name . ' to organize game nights, leagues and poker tournaments.', 'terms.php'); ?>
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
 </head>
 <body>

@@ -156,6 +156,24 @@ Overview of your site: total users, total events, total posts, and recent activi
 | Allow Maybe RSVP | On | When off, only Yes/No RSVP options are available |
 | Enable Notifications | Off | Master switch for all email/SMS/WhatsApp notifications |
 
+#### Search & Sharing
+
+The landing page (shown to logged-out visitors when **Show Landing Page** is on) is the one page search engines are meant to find, and these settings control what they show for it. All of them live in Admin → Settings → General.
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Search title | Free Poker Tournament Timer & League Manager \| *Site Name* | The landing page `<title>` and the headline in search results (about 60 characters show in full) |
+| Search description | (a fixed sentence about the timer, RSVPs and leagues) | The snippet under the headline and the text on shared links, up to 160 characters |
+| Google Search Console verification | (blank) | Paste the token or the whole `<meta>` tag from Search Console's HTML-tag method; emitted on the landing page only |
+| Bing Webmaster Tools verification | (blank) | The `msvalidate.01` token; or import the site into Bing from Search Console and leave this blank |
+| Share Image | (blank, falls back to the header banner) | The 1200×630 picture shown when a link to the site is shared; uploads are checked for the card shape |
+
+What the site does on its own: every public page carries a description, canonical URL and Open Graph tags; the landing page carries JSON-LD (`Organization`, `WebSite`, `SoftwareApplication`); `/sitemap.xml` lists the landing page, the three guides, the league directory, sign-up, terms and privacy with last-modified dates; `robots.txt` keeps the logged-in app out of crawlers; the login page is `noindex`.
+
+**League pages and search engines.** A league's public page (`/league/<slug>`) is reachable by link the moment the owner turns it on, but it is *not* listed by search engines until the owner also ticks **Let search engines list this page** in the league's settings. Until then the page carries `noindex,follow` and stays out of the sitemap. Once listed it gains structured data for the league and its upcoming events. The directory at `/league` (names and counts only) is always indexable.
+
+To get into Google after a deploy: Search Console → Add property (URL prefix `https://your-site/`) → HTML tag → paste the token above → Verify; then Sitemaps → submit `https://your-site/sitemap.xml`. Bing Webmaster Tools can import the property from Search Console in one step.
+
 ### Appearance
 
 - **Header Banner** — Upload a wide image displayed across the top of every page. Adjust the display height with the slider.

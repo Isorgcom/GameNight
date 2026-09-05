@@ -8,6 +8,7 @@ $site_name = get_setting('site_name', 'Game Night');
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Privacy Policy &mdash; <?= htmlspecialchars($site_name) ?></title>
+    <?php render_seo_meta('Privacy Policy — ' . $site_name, 'How ' . $site_name . ' handles account details, contact information, RSVPs and notifications, and what is never shared.', 'privacy.php'); ?>
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
 </head>
 <body>
