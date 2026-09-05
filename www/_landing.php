@@ -64,8 +64,16 @@
     </nav>
 </header>
 <div class="hero">
-    <?php $_lp_banner = get_setting('header_banner_path', ''); if ($_lp_banner): ?>
-    <img src="<?= htmlspecialchars($_lp_banner) ?>" alt="<?= htmlspecialchars(get_setting('site_name', 'Game Night')) ?>" style="max-width:400px;width:90%;margin-bottom:1.5rem">
+    <?php $_lp_banner = get_setting('header_banner_path', ''); if ($_lp_banner):
+        // The banner is the largest thing above the fold (the LCP element) and
+        // used to arrive with no size, so the headline jumped when it loaded.
+        // Intrinsic width/height let the browser reserve the box (CSS keeps it
+        // responsive via height:auto); fetchpriority pulls it ahead of the
+        // carousel. getimagesize() is core PHP; a missing file just omits both.
+        $_lp_dims = (preg_match('#^/uploads/[A-Za-z0-9._/-]+$#', $_lp_banner) && is_file(__DIR__ . $_lp_banner))
+            ? (@getimagesize(__DIR__ . $_lp_banner) ?: null) : null;
+        ?>
+    <img src="<?= htmlspecialchars($_lp_banner, ENT_QUOTES | ENT_SUBSTITUTE) ?>" alt="<?= htmlspecialchars(get_setting('site_name', 'Game Night'), ENT_QUOTES | ENT_SUBSTITUTE) ?>"<?php if ($_lp_dims && !empty($_lp_dims[0]) && !empty($_lp_dims[1])): ?> width="<?= (int)$_lp_dims[0] ?>" height="<?= (int)$_lp_dims[1] ?>"<?php endif; ?> fetchpriority="high" decoding="async" style="max-width:400px;width:90%;height:auto;margin-bottom:1.5rem">
     <?php endif; ?>
     <?php /* The H1 carries the words people search for; the brand line the
              page opened with becomes the kicker above it. */ ?>
@@ -88,123 +96,123 @@
     <button type="button" class="lp-gal-btn lp-gal-next" data-act="lpGalNav" data-a1="1" aria-label="Next screenshot">&#10095;</button>
     <div class="lp-gallery" aria-label="App screenshots and timer layout examples">
         <figure>
-            <img src="/img/landing/action-event-form.jpg" alt="The event editor with a poker night filled out and guests invited">
+            <picture><source type="image/webp" srcset="/img/landing/action-event-form.webp"><img src="/img/landing/action-event-form.jpg" width="1280" height="800" decoding="async" alt="The event editor with a poker night filled out and guests invited"></picture>
             <figcaption>Schedule a game in seconds</figcaption>
         </figure>
         <figure>
-            <img src="/img/landing/action-event-page.jpg" alt="An event page showing RSVP buttons and the guest list" loading="lazy">
+            <picture><source type="image/webp" srcset="/img/landing/action-event-page.webp"><img src="/img/landing/action-event-page.jpg" width="1280" height="800" decoding="async" loading="lazy" alt="An event page showing RSVP buttons and the guest list"></picture>
             <figcaption>Event page &mdash; RSVPs at a glance</figcaption>
         </figure>
         <figure>
-            <img src="/img/landing/action-calendar.jpg" alt="A month calendar with several scheduled game nights" loading="lazy">
+            <picture><source type="image/webp" srcset="/img/landing/action-calendar.webp"><img src="/img/landing/action-calendar.jpg" width="1280" height="800" decoding="async" loading="lazy" alt="A month calendar with several scheduled game nights"></picture>
             <figcaption>Your group&rsquo;s calendar</figcaption>
         </figure>
         <figure>
-            <img src="/img/landing/action-checkin-list.jpg" alt="The tournament check-in console with players, buy-ins, and the live prize pool" loading="lazy">
+            <picture><source type="image/webp" srcset="/img/landing/action-checkin-list.webp"><img src="/img/landing/action-checkin-list.jpg" width="1280" height="800" decoding="async" loading="lazy" alt="The tournament check-in console with players, buy-ins, and the live prize pool"></picture>
             <figcaption>Tournament check-in console</figcaption>
         </figure>
         <figure>
-            <img src="/img/landing/action-checkin-tables.jpg" alt="The table view showing seat assignments across two tables" loading="lazy">
+            <picture><source type="image/webp" srcset="/img/landing/action-checkin-tables.webp"><img src="/img/landing/action-checkin-tables.jpg" width="1280" height="800" decoding="async" loading="lazy" alt="The table view showing seat assignments across two tables"></picture>
             <figcaption>Table draw &amp; seating</figcaption>
         </figure>
         <figure>
-            <img src="/img/landing/action-setup-payouts.jpg" alt="The game setup editor on the payouts and rewards tab" loading="lazy">
+            <picture><source type="image/webp" srcset="/img/landing/action-setup-payouts.webp"><img src="/img/landing/action-setup-payouts.jpg" width="1280" height="800" decoding="async" loading="lazy" alt="The game setup editor on the payouts and rewards tab"></picture>
             <figcaption>Payouts &amp; rewards setup</figcaption>
         </figure>
         <figure>
-            <img src="/img/landing/neon-nights-main-desktop.jpg" alt="Neon Nights timer layout on a TV" loading="lazy">
+            <picture><source type="image/webp" srcset="/img/landing/neon-nights-main-desktop.webp"><img src="/img/landing/neon-nights-main-desktop.jpg" width="896" height="505" decoding="async" loading="lazy" alt="Neon Nights timer layout on a TV"></picture>
             <figcaption>Neon Nights</figcaption>
         </figure>
         <figure>
-            <img src="/img/landing/neon-nights-main-phone.jpg" alt="Neon Nights layout on a phone" loading="lazy">
+            <picture><source type="image/webp" srcset="/img/landing/neon-nights-main-phone.webp"><img src="/img/landing/neon-nights-main-phone.jpg" width="256" height="552" decoding="async" loading="lazy" alt="Neon Nights layout on a phone"></picture>
             <figcaption>Neon Nights — on a phone</figcaption>
         </figure>
         <figure>
-            <img src="/img/landing/neon-nights-break-desktop.jpg" alt="Neon Nights break screen on a TV" loading="lazy">
+            <picture><source type="image/webp" srcset="/img/landing/neon-nights-break-desktop.webp"><img src="/img/landing/neon-nights-break-desktop.jpg" width="896" height="505" decoding="async" loading="lazy" alt="Neon Nights break screen on a TV"></picture>
             <figcaption>Neon Nights — break screen</figcaption>
         </figure>
         <figure>
-            <img src="/img/landing/neon-nights-break-phone.jpg" alt="Neon Nights break screen on a phone" loading="lazy">
+            <picture><source type="image/webp" srcset="/img/landing/neon-nights-break-phone.webp"><img src="/img/landing/neon-nights-break-phone.jpg" width="256" height="552" decoding="async" loading="lazy" alt="Neon Nights break screen on a phone"></picture>
             <figcaption>Neon Nights — break, on a phone</figcaption>
         </figure>
         <figure>
-            <img src="/img/landing/dusty-trail-saloon-main-desktop.jpg" alt="Dusty Trail Saloon timer layout on a TV" loading="lazy">
+            <picture><source type="image/webp" srcset="/img/landing/dusty-trail-saloon-main-desktop.webp"><img src="/img/landing/dusty-trail-saloon-main-desktop.jpg" width="896" height="505" decoding="async" loading="lazy" alt="Dusty Trail Saloon timer layout on a TV"></picture>
             <figcaption>Dusty Trail Saloon</figcaption>
         </figure>
         <figure>
-            <img src="/img/landing/dusty-trail-saloon-main-phone.jpg" alt="Dusty Trail Saloon layout on a phone" loading="lazy">
+            <picture><source type="image/webp" srcset="/img/landing/dusty-trail-saloon-main-phone.webp"><img src="/img/landing/dusty-trail-saloon-main-phone.jpg" width="256" height="552" decoding="async" loading="lazy" alt="Dusty Trail Saloon layout on a phone"></picture>
             <figcaption>Dusty Trail Saloon — on a phone</figcaption>
         </figure>
         <figure>
-            <img src="/img/landing/dusty-trail-saloon-break-desktop.jpg" alt="Dusty Trail Saloon break screen on a TV" loading="lazy">
+            <picture><source type="image/webp" srcset="/img/landing/dusty-trail-saloon-break-desktop.webp"><img src="/img/landing/dusty-trail-saloon-break-desktop.jpg" width="896" height="505" decoding="async" loading="lazy" alt="Dusty Trail Saloon break screen on a TV"></picture>
             <figcaption>Dusty Trail Saloon — break screen</figcaption>
         </figure>
         <figure>
-            <img src="/img/landing/dusty-trail-saloon-break-phone.jpg" alt="Dusty Trail Saloon break screen on a phone" loading="lazy">
+            <picture><source type="image/webp" srcset="/img/landing/dusty-trail-saloon-break-phone.webp"><img src="/img/landing/dusty-trail-saloon-break-phone.jpg" width="256" height="552" decoding="async" loading="lazy" alt="Dusty Trail Saloon break screen on a phone"></picture>
             <figcaption>Dusty Trail Saloon — break, on a phone</figcaption>
         </figure>
         <figure>
-            <img src="/img/landing/zen-minimal-main-desktop.jpg" alt="Zen Minimal timer layout on a TV" loading="lazy">
+            <picture><source type="image/webp" srcset="/img/landing/zen-minimal-main-desktop.webp"><img src="/img/landing/zen-minimal-main-desktop.jpg" width="896" height="505" decoding="async" loading="lazy" alt="Zen Minimal timer layout on a TV"></picture>
             <figcaption>Zen Minimal</figcaption>
         </figure>
         <figure>
-            <img src="/img/landing/zen-minimal-main-phone.jpg" alt="Zen Minimal layout on a phone" loading="lazy">
+            <picture><source type="image/webp" srcset="/img/landing/zen-minimal-main-phone.webp"><img src="/img/landing/zen-minimal-main-phone.jpg" width="256" height="552" decoding="async" loading="lazy" alt="Zen Minimal layout on a phone"></picture>
             <figcaption>Zen Minimal — on a phone</figcaption>
         </figure>
         <figure>
-            <img src="/img/landing/zen-minimal-break-desktop.jpg" alt="Zen Minimal break screen on a TV" loading="lazy">
+            <picture><source type="image/webp" srcset="/img/landing/zen-minimal-break-desktop.webp"><img src="/img/landing/zen-minimal-break-desktop.jpg" width="896" height="505" decoding="async" loading="lazy" alt="Zen Minimal break screen on a TV"></picture>
             <figcaption>Zen Minimal — break screen</figcaption>
         </figure>
         <figure>
-            <img src="/img/landing/zen-minimal-break-phone.jpg" alt="Zen Minimal break screen on a phone" loading="lazy">
+            <picture><source type="image/webp" srcset="/img/landing/zen-minimal-break-phone.webp"><img src="/img/landing/zen-minimal-break-phone.jpg" width="256" height="552" decoding="async" loading="lazy" alt="Zen Minimal break screen on a phone"></picture>
             <figcaption>Zen Minimal — break, on a phone</figcaption>
         </figure>
         <figure>
-            <img src="/img/landing/emerald-high-roller-main-desktop.jpg" alt="Emerald High Roller timer layout on a TV" loading="lazy">
+            <picture><source type="image/webp" srcset="/img/landing/emerald-high-roller-main-desktop.webp"><img src="/img/landing/emerald-high-roller-main-desktop.jpg" width="896" height="505" decoding="async" loading="lazy" alt="Emerald High Roller timer layout on a TV"></picture>
             <figcaption>Emerald High Roller</figcaption>
         </figure>
         <figure>
-            <img src="/img/landing/emerald-high-roller-main-phone.jpg" alt="Emerald High Roller layout on a phone" loading="lazy">
+            <picture><source type="image/webp" srcset="/img/landing/emerald-high-roller-main-phone.webp"><img src="/img/landing/emerald-high-roller-main-phone.jpg" width="256" height="552" decoding="async" loading="lazy" alt="Emerald High Roller layout on a phone"></picture>
             <figcaption>Emerald High Roller — on a phone</figcaption>
         </figure>
         <figure>
-            <img src="/img/landing/emerald-high-roller-break-desktop.jpg" alt="Emerald High Roller break screen on a TV" loading="lazy">
+            <picture><source type="image/webp" srcset="/img/landing/emerald-high-roller-break-desktop.webp"><img src="/img/landing/emerald-high-roller-break-desktop.jpg" width="896" height="505" decoding="async" loading="lazy" alt="Emerald High Roller break screen on a TV"></picture>
             <figcaption>Emerald High Roller — break screen</figcaption>
         </figure>
         <figure>
-            <img src="/img/landing/emerald-high-roller-break-phone.jpg" alt="Emerald High Roller break screen on a phone" loading="lazy">
+            <picture><source type="image/webp" srcset="/img/landing/emerald-high-roller-break-phone.webp"><img src="/img/landing/emerald-high-roller-break-phone.jpg" width="256" height="552" decoding="async" loading="lazy" alt="Emerald High Roller break screen on a phone"></picture>
             <figcaption>Emerald High Roller — break, on a phone</figcaption>
         </figure>
         <figure>
-            <img src="/img/landing/pixel-arcade-main-desktop.jpg" alt="Pixel Arcade timer layout on a TV" loading="lazy">
+            <picture><source type="image/webp" srcset="/img/landing/pixel-arcade-main-desktop.webp"><img src="/img/landing/pixel-arcade-main-desktop.jpg" width="896" height="505" decoding="async" loading="lazy" alt="Pixel Arcade timer layout on a TV"></picture>
             <figcaption>Pixel Arcade</figcaption>
         </figure>
         <figure>
-            <img src="/img/landing/pixel-arcade-main-phone.jpg" alt="Pixel Arcade layout on a phone" loading="lazy">
+            <picture><source type="image/webp" srcset="/img/landing/pixel-arcade-main-phone.webp"><img src="/img/landing/pixel-arcade-main-phone.jpg" width="256" height="552" decoding="async" loading="lazy" alt="Pixel Arcade layout on a phone"></picture>
             <figcaption>Pixel Arcade — on a phone</figcaption>
         </figure>
         <figure>
-            <img src="/img/landing/pixel-arcade-break-desktop.jpg" alt="Pixel Arcade break screen on a TV" loading="lazy">
+            <picture><source type="image/webp" srcset="/img/landing/pixel-arcade-break-desktop.webp"><img src="/img/landing/pixel-arcade-break-desktop.jpg" width="896" height="505" decoding="async" loading="lazy" alt="Pixel Arcade break screen on a TV"></picture>
             <figcaption>Pixel Arcade — break screen</figcaption>
         </figure>
         <figure>
-            <img src="/img/landing/pixel-arcade-break-phone.jpg" alt="Pixel Arcade break screen on a phone" loading="lazy">
+            <picture><source type="image/webp" srcset="/img/landing/pixel-arcade-break-phone.webp"><img src="/img/landing/pixel-arcade-break-phone.jpg" width="256" height="552" decoding="async" loading="lazy" alt="Pixel Arcade break screen on a phone"></picture>
             <figcaption>Pixel Arcade — break, on a phone</figcaption>
         </figure>
         <figure>
-            <img src="/img/landing/snowman-griffs-main-desktop.jpg" alt="Snowman Poker League timer layout on a TV" loading="lazy">
+            <picture><source type="image/webp" srcset="/img/landing/snowman-griffs-main-desktop.webp"><img src="/img/landing/snowman-griffs-main-desktop.jpg" width="896" height="505" decoding="async" loading="lazy" alt="Snowman Poker League timer layout on a TV"></picture>
             <figcaption>Snowman Poker League</figcaption>
         </figure>
         <figure>
-            <img src="/img/landing/snowman-griffs-main-phone.jpg" alt="Snowman Poker League layout on a phone" loading="lazy">
+            <picture><source type="image/webp" srcset="/img/landing/snowman-griffs-main-phone.webp"><img src="/img/landing/snowman-griffs-main-phone.jpg" width="256" height="552" decoding="async" loading="lazy" alt="Snowman Poker League layout on a phone"></picture>
             <figcaption>Snowman Poker League — dedicated phone screen</figcaption>
         </figure>
         <figure>
-            <img src="/img/landing/snowman-griffs-break-desktop.jpg" alt="Snowman Poker League break screen on a TV" loading="lazy">
+            <picture><source type="image/webp" srcset="/img/landing/snowman-griffs-break-desktop.webp"><img src="/img/landing/snowman-griffs-break-desktop.jpg" width="896" height="505" decoding="async" loading="lazy" alt="Snowman Poker League break screen on a TV"></picture>
             <figcaption>Snowman Poker League — break screen</figcaption>
         </figure>
         <figure>
-            <img src="/img/landing/snowman-griffs-break-phone.jpg" alt="Snowman Poker League break screen on a phone" loading="lazy">
+            <picture><source type="image/webp" srcset="/img/landing/snowman-griffs-break-phone.webp"><img src="/img/landing/snowman-griffs-break-phone.jpg" width="256" height="552" decoding="async" loading="lazy" alt="Snowman Poker League break screen on a phone"></picture>
             <figcaption>Snowman Poker League — phone screen on break</figcaption>
         </figure>
     </div>
@@ -308,15 +316,15 @@ window.lpGalNav = function (dir) {
 </div>
 <div class="lp-screens">
     <figure>
-        <img src="/img/help/event-create.png" alt="The Add Event dialog for scheduling a game night" loading="lazy">
+        <picture><source type="image/webp" srcset="/img/help/event-create.webp"><img src="/img/help/event-create.png" width="1583" height="320" decoding="async" loading="lazy" alt="The Add Event dialog for scheduling a game night"></picture>
         <figcaption>Schedule an event</figcaption>
     </figure>
     <figure>
-        <img src="/img/help/checkin-start.png" alt="The check-in dashboard with players, tables, and prize pool" loading="lazy">
+        <picture><source type="image/webp" srcset="/img/help/checkin-start.webp"><img src="/img/help/checkin-start.png" width="1651" height="1197" decoding="async" loading="lazy" alt="The check-in dashboard with players, tables, and prize pool"></picture>
         <figcaption>Check players in</figcaption>
     </figure>
     <figure>
-        <img src="/img/help/event-rsvps.png" alt="An event invite list showing yes, no, and maybe RSVPs" loading="lazy">
+        <picture><source type="image/webp" srcset="/img/help/event-rsvps.webp"><img src="/img/help/event-rsvps.png" width="652" height="855" decoding="async" loading="lazy" alt="An event invite list showing yes, no, and maybe RSVPs"></picture>
         <figcaption>Track RSVPs</figcaption>
     </figure>
 </div>

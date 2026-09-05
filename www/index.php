@@ -146,6 +146,10 @@ if ($isLanding) {
         ]);
     endif; ?>
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
+    <?php /* The app home's own styles (timeline sidebar, week grid): ~15 KB the
+             landing page never uses but used to download and parse before it
+             could paint. Emitted only when the app home actually renders. */ ?>
+    <?php if (!$isLanding): ?>
     <style>
         /* ── Main layout: centered content, sidebar pinned to viewport left ── */
         .page-layout {
@@ -542,6 +546,7 @@ if ($isLanding) {
         }
 
     </style>
+    <?php endif; ?>
 </head>
 <body>
 

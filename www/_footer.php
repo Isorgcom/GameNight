@@ -77,22 +77,31 @@ if ($_hb_user && empty($_hb_user['timezone'])) {
          put its own inline <script nonce="<?= csp_nonce() ?>"> after this footer (checkin.php does), and it
          must see these functions already defined. Tiny, and already at the end
          of the body, so blocking is a non-issue. */ ?>
-<script src="/pk-seg.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-seg.js') ?: 0)) ?>"></script>
-<?php /* Web Push helpers. No defer: the opt-in prompt script below and
+<?php /* Both of those synchronous callers only exist for a logged-in user
+         (checkin.php is login-gated; the push prompt below is $_hb_user-gated),
+         so for a guest these two can defer and stop blocking the landing page's
+         first paint. Same file, same cache entry; only the attribute changes. */ ?>
+<script src="/pk-seg.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-seg.js') ?: 0)) ?>"<?= $_hb_user ? '' : ' defer' ?>></script>
+<?php /* Web Push helpers. No defer for a user: the opt-in prompt script below and
          settings.php's card script both call into it synchronously. */ ?>
-<script src="/push.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/push.js') ?: 0)) ?>"></script>
+<script src="/push.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/push.js') ?: 0)) ?>"<?= $_hb_user ? '' : ' defer' ?>></script>
 <?php /* filemtime cache-buster: pk-dialogs.js changes must reach browsers even
          between version bumps (a stale copy silently breaks pk* callers). */ ?>
 <script src="/pk-dialogs.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-dialogs.js') ?: 0)) ?>" defer></script>
 <!-- Shared declarative handler dispatch (see SECURITY.md). External, so it needs
      no CSP nonce; cache-busted because it carries behaviour, not just styling. -->
 <script src="/pk-dispatch.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-dispatch.js') ?: 0)) ?>" defer></script>
+<?php /* Avatars only appear on logged-in screens; a guest has nothing to draw. */ ?>
+<?php if ($_hb_user): ?>
 <script src="/avatar.js?v=<?= htmlspecialchars(APP_VERSION) ?>" defer></script>
+<?php endif; ?>
 <script nonce="<?= csp_nonce() ?>">
 // PWA manifest + service worker for Web Push. The manifest link is injected
 // here rather than into every page's <head>; iOS reads it from the live DOM
 // at add-to-home-screen time, so this is sufficient. Registering sw.js on
-// every load is what propagates sw.js updates to already-subscribed devices.
+// every load is what propagates sw.js updates to already-subscribed devices,
+// which is a logged-in concern: a guest (or a crawler) has no subscription to
+// keep current, so the registration is skipped for them.
 (function () {
     if (!document.querySelector('link[rel="manifest"]')) {
         var l = document.createElement('link');
@@ -106,9 +115,11 @@ if ($_hb_user && empty($_hb_user['timezone'])) {
         a.rel = 'apple-touch-icon'; a.href = '/img/app-icon-192.png';
         document.head.appendChild(a);
     }
+<?php if ($_hb_user): ?>
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js').catch(function () {});
     }
+<?php endif; ?>
 })();
 </script>
 <?php if ($_hb_user): /* Live badge updater + chime: polls unread counts and

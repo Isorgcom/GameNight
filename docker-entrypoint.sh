@@ -85,6 +85,16 @@ Options -ExecCGI -Indexes
 <FilesMatch "\.(php|phtml|php[0-9]|phar|pl|py|cgi|sh)$">
     Require all denied
 </FilesMatch>
+# Uploads keep their names when replaced (header_banner.png, og_image.png), so
+# the parent .htaccess's year-long immutable rule would pin a stale banner in
+# every browser. One day instead. A <FilesMatch> on purpose: Apache applies
+# Files sections after directory-level directives, so a bare "Header set" here
+# would lose to the parent's FilesMatch. Keep identical to www/uploads/.htaccess.
+<IfModule mod_headers.c>
+    <FilesMatch "\.(css|js|png|jpe?g|webp|gif|svg|ico|woff2?)$">
+        Header set Cache-Control "public, max-age=86400"
+    </FilesMatch>
+</IfModule>
 UPHT
 chown www-data:www-data "$UPLOADS/.htaccess" 2>/dev/null || true
 
