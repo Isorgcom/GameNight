@@ -700,13 +700,25 @@ likely to want fullscreen is the one someone just scanned the QR code onto, whic
 usually cannot. `#tbFsBtn` is rendered for every non-embed viewer and fades with
 the tray, so it is there when it is needed and invisible the rest of the time.
 
-**iOS has no element Fullscreen API.** Safari implements it for `<video>` and
-nothing else, iPad included, so `requestFullscreen()` is simply absent. That is
-feature-detected, never sniffed. Where it is missing the button says what does
-work instead: **Share → Add to Home Screen**, which needs
-`apple-mobile-web-app-capable` (plus the status-bar style) on the page to launch
-chrome-free. The saved icon keeps the URL it was added from, key and all, so a
-dedicated display device reopens that same game straight into a full screen.
+**The iPhone has no element Fullscreen API** (Safari implements it for `<video>`
+and nothing else), so `requestFullscreen()` is simply absent there. That is
+feature-detected, never sniffed. **The iPad does have it**, and that turns out
+to be the worse case: a fullscreen page on iPadOS gets Safari's own close ✕
+painted in the top-left corner, which fades and returns on every touch and
+which no page can remove. Either way the real answer is the same: **Share → Add
+to Home Screen**, which needs `apple-mobile-web-app-capable` (plus the
+status-bar style) on the page to launch chrome-free. The saved icon keeps the
+URL it was added from, key and all, so a dedicated display device reopens that
+same game straight into a full screen.
+
+**The Add to Home Screen card (`pk-a2hs.js`, v0.2123) lives in `_footer.php`,
+not here.** It offers the whole site as one app (the site manifest's start_url
+is `/`) to logged-in users on touch devices, and My Settings has an "Install as
+an App" button. The display pages deliberately do not carry it: the app is the
+thing to install, not one game's screen, and a display someone scanned onto
+should not be pitched anything. What they do carry is `apple-touch-icon`, so a
+timer added to a home screen by hand gets the app icon rather than a screenshot
+of the page.
 
 `navigator.standalone` / `display-mode: standalone` removes the button
 altogether: there is no browser chrome left to escape.

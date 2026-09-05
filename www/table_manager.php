@@ -81,6 +81,9 @@ $title     = (string)$event['title'];
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Table Mgr">
     <meta name="theme-color" content="#0f172a">
+    <!-- Home-screen icon for anyone who adds this page by hand; without it iOS
+         uses a screenshot of the page. -->
+    <link rel="apple-touch-icon" href="/img/app-icon-192.png">
     <title>Table Manager &ndash; <?= htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE) ?></title>
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
