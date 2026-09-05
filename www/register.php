@@ -17,7 +17,8 @@ if (get_setting('allow_registration', '1') !== '1') {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title><?= htmlspecialchars($site_name) ?></title>
+        <title>Registration closed &mdash; <?= htmlspecialchars($site_name) ?></title>
+        <meta name="robots" content="noindex,follow">
         <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     </head>
     <body>
@@ -141,7 +142,8 @@ $site_name = get_setting('site_name', 'Game Night');
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= htmlspecialchars($site_name) ?></title>
+    <title>Create a free account &mdash; <?= htmlspecialchars($site_name) ?></title>
+    <?php render_seo_meta('Create a free account — ' . $site_name, 'Sign up free to schedule game nights, invite players, run the poker tournament timer, and track league standings.', 'register.php'); ?>
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
 </head>
 <body>

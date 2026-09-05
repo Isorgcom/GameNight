@@ -196,6 +196,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 set_setting('show_landing_page', isset($_POST['show_landing_page']) ? '1' : '0');
                 set_setting('show_upcoming_events', isset($_POST['show_upcoming_events']) ? '1' : '0');
                 set_setting('show_calendar', isset($_POST['show_calendar']) ? '1' : '0');
+                // Search & Sharing fields, same rules as admin_settings.php.
+                if (array_key_exists('seo_title', $_POST))              set_setting('seo_title', mb_substr(trim(strip_tags($_POST['seo_title'])), 0, 70));
+                if (array_key_exists('seo_description', $_POST))        set_setting('seo_description', mb_substr(trim(strip_tags($_POST['seo_description'])), 0, 160));
+                if (array_key_exists('google_site_verification', $_POST)) set_setting('google_site_verification', seo_verification_token($_POST['google_site_verification']));
+                if (array_key_exists('bing_site_verification', $_POST))   set_setting('bing_site_verification', seo_verification_token($_POST['bing_site_verification']));
                 db_log_activity($current['id'], 'updated site settings');
                 $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Settings saved.'];
             }

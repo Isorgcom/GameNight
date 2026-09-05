@@ -1722,8 +1722,14 @@ function ordinal($n) {
                     &mdash; never member contact info, attendee lists, or the invite link.
                 </p>
                 <label style="display:flex;align-items:center;gap:.5rem;font-size:.9rem;margin-bottom:.65rem">
-                    <input type="checkbox" id="ppEnabled" <?= (int)($league['public_page'] ?? 0) === 1 ? 'checked' : '' ?>>
+                    <input type="checkbox" id="ppEnabled" data-act-change="ppToggleSeo" <?= (int)($league['public_page'] ?? 0) === 1 ? 'checked' : '' ?>>
                     <span>Enable public page</span>
+                </label>
+                <label style="display:flex;align-items:flex-start;gap:.5rem;font-size:.9rem;margin-bottom:.65rem">
+                    <input type="checkbox" id="ppSeoIndex" style="margin-top:.2rem" <?= (int)($league['seo_index'] ?? 0) === 1 ? 'checked' : '' ?> <?= (int)($league['public_page'] ?? 0) === 1 ? '' : 'disabled' ?>>
+                    <span>Let search engines list this page
+                        <span style="display:block;font-size:.78rem;color:#94a3b8">Off, the page is reachable only by its link or QR code. On, Google and Bing may show it in results; remember the leaderboard shows first names and last initials.</span>
+                    </span>
                 </label>
                 <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.5rem">
                     <span style="font-family:ui-monospace,monospace;font-size:.82rem;color:#64748b"><?= htmlspecialchars(preg_replace('#^https?://#', '', get_site_url())) ?>/league/</span>
@@ -1990,12 +1996,25 @@ function ppFlash(msg, isError) {
     s.style.display = 'block';
     setTimeout(function() { s.style.display = 'none'; }, 4000);
 }
+// The search-listing box only means something with a public page: it follows
+// the public toggle, and clears when the page goes off so a stale tick cannot
+// survive a later re-enable.
+function ppToggleSeo() {
+    var on  = document.getElementById('ppEnabled').checked;
+    var seo = document.getElementById('ppSeoIndex');
+    if (!seo) return;
+    seo.disabled = !on;
+    if (!on) seo.checked = false;
+}
 function savePublicPage() {
     var enabled = document.getElementById('ppEnabled').checked ? 1 : 0;
     var slug    = document.getElementById('ppSlug').value.trim();
-    post({ action: 'update_league_public', league_id: LEAGUE_ID, public_page: enabled, slug: slug }).then(function(j) {
+    var seoEl   = document.getElementById('ppSeoIndex');
+    var seo     = (enabled && seoEl && seoEl.checked) ? 1 : 0;
+    post({ action: 'update_league_public', league_id: LEAGUE_ID, public_page: enabled, slug: slug, seo_index: seo }).then(function(j) {
         if (!j.ok) { ppFlash(j.error || 'Failed', true); return; }
         document.getElementById('ppSlug').value = j.slug;
+        if (seoEl) { seoEl.checked = !!j.seo_index; seoEl.disabled = !j.public_page; }
         var row = document.getElementById('ppUrlRow');
         if (j.public_page) {
             document.getElementById('ppUrlField').value = j.url;

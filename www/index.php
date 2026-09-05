@@ -93,14 +93,58 @@ $tlStmt = $db->prepare(
 );
 $tlStmt->execute($_vp['params']);
 $tlMonths = $tlStmt->fetchAll();
+// Landing mode: a visitor who is not logged in sees the marketing page. Decided
+// once here because the head, the body and the footer all branch on it.
+$isLanding = !$user && get_setting('show_landing_page', '0') === '1';
+// The search-facing copy is a setting (Admin → Settings → Search & Sharing) so
+// it can be tuned without a release. Only the landing carries it: the logged-in
+// home is an app screen nobody finds through a search engine.
+$seoDesc  = trim(get_setting('seo_description', ''));
+if ($seoDesc === '') $seoDesc = 'Free poker tournament timer with blind schedules, game-night invites and RSVP tracking, walk-in QR check-in, payouts, and league leaderboards.';
+$seoTitle = $site_name;
+if ($isLanding) {
+    $seoTitle = trim(get_setting('seo_title', ''));
+    if ($seoTitle === '') $seoTitle = 'Free Poker Tournament Timer & League Manager | ' . $site_name;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= htmlspecialchars($site_name) ?></title>
-    <?php render_seo_meta($site_name, 'Plan game nights and poker tournaments: invite friends by email, SMS, or WhatsApp, track RSVPs, run a tournament clock, and check players in at the door.', ''); ?>
+    <title><?= htmlspecialchars($seoTitle, ENT_QUOTES | ENT_SUBSTITUTE) ?></title>
+    <?php render_seo_meta($seoTitle, $seoDesc, ''); ?>
+    <?php if ($isLanding):
+        render_seo_verification();
+        // Crawler-visible icon and manifest links. The footer injects the same
+        // two by JavaScript for the app pages; a crawler reads the HTML.
+        ?>
+    <link rel="icon" href="/favicon.php">
+    <link rel="apple-touch-icon" href="/img/app-icon-192.png">
+    <link rel="manifest" href="/manifest.php">
+    <meta name="theme-color" content="#0f172a">
+    <?php
+        $ldSite = get_site_url();
+        render_jsonld([
+            '@context' => 'https://schema.org',
+            '@graph'   => [
+                ['@type' => 'Organization', '@id' => $ldSite . '/#org', 'name' => $site_name,
+                 'url' => $ldSite . '/', 'logo' => $ldSite . '/img/app-icon-512.png'],
+                ['@type' => 'WebSite', '@id' => $ldSite . '/#website', 'name' => $site_name,
+                 'url' => $ldSite . '/', 'publisher' => ['@id' => $ldSite . '/#org']],
+                ['@type' => 'SoftwareApplication', 'name' => $site_name, 'url' => $ldSite . '/',
+                 'applicationCategory' => 'EntertainmentApplication', 'operatingSystem' => 'Web',
+                 'description' => $seoDesc,
+                 'offers' => ['@type' => 'Offer', 'price' => '0', 'priceCurrency' => 'USD'],
+                 'screenshot' => $ldSite . '/img/landing/action-event-form.jpg',
+                 'featureList' => ['Leagues', 'Roster Management', 'Event Scheduling', 'RSVP Management',
+                                   'Tournament Tools', 'Player Stats & Leaderboard', 'Walk-in QR Registration',
+                                   'Privacy & Approval Controls', 'Multi-Table & Payouts', 'Smart Notifications',
+                                   'Posts & Comments', 'WordPress & API'],
+                 'publisher' => ['@id' => $ldSite . '/#org']],
+            ],
+        ]);
+    endif; ?>
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
         /* ── Main layout: centered content, sidebar pinned to viewport left ── */
@@ -503,7 +547,7 @@ $tlMonths = $tlStmt->fetchAll();
 
 <?php $nav_active = 'home'; $nav_user = $user; require __DIR__ . '/_nav.php'; ?>
 
-<?php if (!$user && get_setting('show_landing_page', '0') === '1'):
+<?php if ($isLanding):
     require __DIR__ . '/_landing.php';
     require __DIR__ . '/_footer.php';
     echo '</body></html>';

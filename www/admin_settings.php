@@ -196,6 +196,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 set_setting('default_reminder_offsets', json_encode(array_reverse($__newDefs)));
                 set_setting('donation_url', trim($_POST['donation_url'] ?? ''));
                 set_setting('donation_message', trim($_POST['donation_message'] ?? ''));
+                // Search & Sharing: what search engines and link previews show for
+                // the landing page, plus the ownership proofs for Search Console and
+                // Bing Webmaster Tools. Plain text only; a pasted whole <meta> tag is
+                // reduced to its token by seo_verification_token().
+                set_setting('seo_title', mb_substr(trim(strip_tags($_POST['seo_title'] ?? '')), 0, 70));
+                set_setting('seo_description', mb_substr(trim(strip_tags($_POST['seo_description'] ?? '')), 0, 160));
+                set_setting('google_site_verification', seo_verification_token($_POST['google_site_verification'] ?? ''));
+                set_setting('bing_site_verification', seo_verification_token($_POST['bing_site_verification'] ?? ''));
                 // Extra hosts the timer streaming panel may embed. Store raw; it is
                 // strictly re-validated on read by stream_allowed_hosts() before use.
                 set_setting('stream_allowed_hosts', trim($_POST['stream_allowed_hosts'] ?? ''));
@@ -676,6 +684,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             set_setting('header_banner_height', (string)$h);
             $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Header height saved.'];
             $post_tab = 'appearance';
+        }
+
+        // Share image for search results and link previews (og:image). The nav
+        // banner is 3:1 and gets cropped on every social card; this wants the
+        // 1.91:1 card shape (1200x630) and is checked for it, so a wrong upload
+        // fails here instead of looking wrong on every share.
+        if ($action === 'seo_share_image_upload') {
+            if (isset($_FILES['seo_share_image']) && $_FILES['seo_share_image']['error'] === UPLOAD_ERR_OK) {
+                $tmp   = $_FILES['seo_share_image']['tmp_name'];
+                $finfo = new finfo(FILEINFO_MIME_TYPE);
+                $mime  = $finfo->file($tmp);
+                $allowed_mime = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
+                $dims  = @getimagesize($tmp) ?: [0, 0];
+                $w = (int)($dims[0] ?? 0); $h = (int)($dims[1] ?? 0);
+                $cardShape = $w >= 600 && $h > 0 && abs(($w / $h) - 1.91) <= 0.12;
+                if (!isset($allowed_mime[$mime]) || $_FILES['seo_share_image']['size'] > 4 * 1024 * 1024) {
+                    $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid file. Use JPEG, PNG, or WebP under 4 MB.'];
+                } elseif (!$cardShape) {
+                    $_SESSION['flash'] = ['type' => 'error', 'msg' => "Share image must be card-shaped: 1200×630 (1.91:1) and at least 600 px wide. This one is {$w}×{$h}."];
+                } else {
+                    $ext  = $allowed_mime[$mime];
+                    $dest = __DIR__ . '/uploads/og_image.' . $ext;
+                    foreach (glob(__DIR__ . '/uploads/og_image.*') ?: [] as $old) { @unlink($old); }
+                    if (move_uploaded_file($tmp, $dest)) {
+                        set_setting('seo_og_image_path', '/uploads/og_image.' . $ext);
+                        db_log_activity($current['id'], 'uploaded share image');
+                        $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Share image uploaded.'];
+                    } else {
+                        $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Upload failed — check directory permissions.'];
+                    }
+                }
+            } else {
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'No file received.'];
+            }
+            $post_tab = 'general';
+        }
+
+        if ($action === 'seo_share_image_remove') {
+            foreach (glob(__DIR__ . '/uploads/og_image.*') ?: [] as $f) { @unlink($f); }
+            set_setting('seo_og_image_path', '');
+            db_log_activity($current['id'], 'removed share image');
+            $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Share image removed.'];
+            $post_tab = 'general';
         }
 
         done:
@@ -1455,6 +1506,36 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 </div>
 
                 <hr style="border:none;border-top:1px solid #e2e8f0;margin:1rem 0">
+                <h3 style="font-size:.95rem;margin:0 0 .5rem">Search &amp; Sharing</h3>
+                <p class="hint" style="margin-bottom:.75rem">What search engines and link previews show for the landing page, and the ownership proofs for Google Search Console and Bing Webmaster Tools. The share image is uploaded below, outside this form.</p>
+                <div class="form-group">
+                    <label for="seo_title">Search title</label>
+                    <input type="text" name="seo_title" id="seo_title" maxlength="70"
+                           value="<?= htmlspecialchars(get_setting('seo_title', ''), ENT_QUOTES | ENT_SUBSTITUTE) ?>"
+                           placeholder="Free Poker Tournament Timer &amp; League Manager | <?= htmlspecialchars($site_name, ENT_QUOTES | ENT_SUBSTITUTE) ?>">
+                    <p class="hint">The landing page's <code>&lt;title&gt;</code> and headline in search results. About 60 characters show in full. Blank uses the default shown here.</p>
+                </div>
+                <div class="form-group">
+                    <label for="seo_description">Search description</label>
+                    <textarea name="seo_description" id="seo_description" rows="2" maxlength="160"
+                              placeholder="Free poker tournament timer with blind schedules, game-night invites and RSVP tracking, walk-in QR check-in, payouts, and league leaderboards."><?= htmlspecialchars(get_setting('seo_description', ''), ENT_QUOTES | ENT_SUBSTITUTE) ?></textarea>
+                    <p class="hint">The snippet under the headline, and the text on shared links. Up to 160 characters. Blank uses the default.</p>
+                </div>
+                <div class="form-group">
+                    <label for="google_site_verification">Google Search Console verification</label>
+                    <input type="text" name="google_site_verification" id="google_site_verification" autocomplete="off" spellcheck="false"
+                           value="<?= htmlspecialchars(get_setting('google_site_verification', ''), ENT_QUOTES | ENT_SUBSTITUTE) ?>"
+                           placeholder="Paste the token, or the whole &lt;meta&gt; tag Google gives you">
+                    <p class="hint">Search Console → Add property → HTML tag method. Paste, save, then click Verify there. The tag is emitted on the landing page only.</p>
+                </div>
+                <div class="form-group">
+                    <label for="bing_site_verification">Bing Webmaster Tools verification</label>
+                    <input type="text" name="bing_site_verification" id="bing_site_verification" autocomplete="off" spellcheck="false"
+                           value="<?= htmlspecialchars(get_setting('bing_site_verification', ''), ENT_QUOTES | ENT_SUBSTITUTE) ?>"
+                           placeholder="msvalidate.01 token (or import from Search Console and leave this blank)">
+                </div>
+
+                <hr style="border:none;border-top:1px solid #e2e8f0;margin:1rem 0">
                 <h3 style="font-size:.95rem;margin:0 0 .5rem">Tournament Timer</h3>
                 <div class="form-group">
                     <label for="stream_allowed_hosts">Allowed video stream hosts</label>
@@ -1476,6 +1557,38 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 <button type="submit" class="btn btn-primary" style="width:100%;margin-top:.25rem">
                     Save
                 </button>
+            </form>
+
+            <?php /* Share image (og:image). Its own forms: a file upload cannot
+                     ride inside the general settings form. */ ?>
+            <hr style="border:none;border-top:1px solid #e2e8f0;margin:1.25rem 0 1rem">
+            <h3 style="font-size:.95rem;margin:0 0 .5rem">Share Image</h3>
+            <p class="hint" style="margin-bottom:.75rem">The picture shown when the site is shared on social media or in chat apps, and the image search engines pair with the landing page. Card-shaped: <strong>1200 &times; 630</strong> pixels (1.91:1). Without one, the header banner is used and gets cropped.</p>
+            <?php $seo_og_image_path = get_setting('seo_og_image_path', ''); if ($seo_og_image_path): ?>
+            <div style="background:#f1f5f9;padding:.65rem;border-radius:8px;margin-bottom:.85rem;text-align:center">
+                <img src="<?= htmlspecialchars($seo_og_image_path, ENT_QUOTES | ENT_SUBSTITUTE) ?>?v=<?= time() ?>"
+                     alt="Current share image" style="max-width:100%;max-height:200px;border-radius:6px">
+            </div>
+            <form method="post" action="/admin_settings.php" style="margin-bottom:1rem">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                <input type="hidden" name="action" value="seo_share_image_remove">
+                <input type="hidden" name="tab" value="general">
+                <button type="submit" class="btn btn-outline"
+                        style="color:#ef4444;border-color:#fca5a5;font-size:.82rem"
+                        data-confirm="Remove the share image? Shared links fall back to the header banner." data-confirm-ok="Remove" data-confirm-danger="1">&#x2715; Remove Share Image</button>
+            </form>
+            <?php endif; ?>
+            <form method="post" action="/admin_settings.php" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                <input type="hidden" name="action" value="seo_share_image_upload">
+                <input type="hidden" name="tab" value="general">
+                <div class="form-group">
+                    <label><?= $seo_og_image_path ? 'Replace Share Image' : 'Upload Share Image' ?></label>
+                    <input type="file" name="seo_share_image" required
+                           accept="image/jpeg,image/png,image/webp"
+                           style="display:block;width:100%;padding:.45rem 0;font-size:.875rem">
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%">Upload</button>
             </form>
         </div>
     </div>

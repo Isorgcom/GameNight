@@ -234,15 +234,18 @@ case 'update_league_public': {
     $chk->execute([$slug, $league_id]);
     if ($chk->fetchColumn()) fail('That URL name is already taken by another league.');
 
+    // Search-engine listing is opt-in and only meaningful with a public page;
+    // turning the page off clears it so it cannot silently survive a re-enable.
+    $seoIndex = ($enable && !empty($_POST['seo_index'])) ? 1 : 0;
     try {
-        $db->prepare('UPDATE leagues SET slug = ?, public_page = ? WHERE id = ?')
-            ->execute([$slug, $enable, $league_id]);
+        $db->prepare('UPDATE leagues SET slug = ?, public_page = ?, seo_index = ? WHERE id = ?')
+            ->execute([$slug, $enable, $seoIndex, $league_id]);
     } catch (Throwable $e) {
         // Unique-index backstop for a save race on the same slug.
         fail('That URL name is already taken by another league.');
     }
-    db_log_activity($uid, "updated public page for league id=$league_id (public_page=$enable, slug=$slug)");
-    ok(['slug' => $slug, 'public_page' => $enable, 'url' => get_site_url() . '/league/' . $slug]);
+    db_log_activity($uid, "updated public page for league id=$league_id (public_page=$enable, seo_index=$seoIndex, slug=$slug)");
+    ok(['slug' => $slug, 'public_page' => $enable, 'seo_index' => $seoIndex, 'url' => get_site_url() . '/league/' . $slug]);
 }
 
 case 'league_banner_upload': {

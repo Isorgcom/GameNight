@@ -169,7 +169,10 @@ $site_name = get_setting('site_name', 'Game Night');
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= htmlspecialchars($site_name) ?></title>
+    <title>Log in &mdash; <?= htmlspecialchars($site_name) ?></title>
+    <?php /* A sign-in form is not a page anyone should find in a search result;
+             follow lets the crawler keep walking to the pages that are. */ ?>
+    <meta name="robots" content="noindex,follow">
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
 </head>
 <body>

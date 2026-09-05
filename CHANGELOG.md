@@ -4,6 +4,69 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2125] - 2026-09-05
+
+### Added
+
+- **Search visibility: the landing page now says what the product is where
+  search engines look.** Google indexed exactly one page of the site, titled
+  just "Game Night", and the competitive set for the product's own keywords all
+  rank with titles like "Free Poker Tournament Timer & Blind Clock". The landing
+  page now carries a keyword-bearing `<title>` and H1 ("Free Poker Tournament
+  Timer & Game Night Organizer", with the old brand line as a kicker above it),
+  a description written for the snippet, `og:locale`, `og:image:width/height`,
+  crawler-visible icon and manifest links, and one JSON-LD block (`Organization`,
+  `WebSite`, `SoftwareApplication` with a free offer and the feature list).
+  Title and description are settings, so they can be tuned without a release.
+
+- **Admin → Settings → Search & Sharing.** Search title, search description,
+  Google Search Console and Bing Webmaster Tools verification tokens (a pasted
+  whole `<meta>` tag is reduced to its token; anything that is not a plain token
+  is refused), and a **Share Image** upload for `og:image` that must be
+  card-shaped (1200×630, 1.91:1, at least 600 px wide) because the 3:1 header
+  banner it replaces is cropped on every social card. The verification metas
+  are emitted on the landing page only.
+
+- **The landing page has a header again.** `_nav.php` renders nothing for
+  guests in landing mode, which left the page with no link home and no crawlable
+  path to the league directory or the guides: `/league` was reachable only
+  through the sitemap. A slim guest header (site name → `/`, Leagues, the three
+  guides, Log in, Sign up) fixes that with plain anchors, the "How it works"
+  section gains a third card for the timer guide, and the Leagues feature card
+  links the public directory.
+
+- **League pages are listed by search engines only when the owner opts in.**
+  Public (reachable by link and QR) and listed (found by a stranger searching a
+  player's name) are different promises. New `leagues.seo_index`, a second
+  checkbox under the public-page toggle ("Let search engines list this page",
+  cleared whenever the public page is turned off), `noindex,follow` on every
+  public league page until it is ticked, and only opted-in leagues in the
+  sitemap. A listed page gains JSON-LD for the league and its upcoming events
+  (title, dates, venue name: the same allowlisted columns the page shows).
+  **Behaviour change:** every currently public league page is `noindex` until
+  its owner opts in.
+
+### Changed
+
+- `render_seo_meta()` takes an optional per-page image and is now used by the
+  league directory and league pages too (they hand-rolled a partial tag set),
+  by privacy, terms and sign-up (which had no description or canonical at all).
+  `/login.php` is `noindex,follow` and out of the sitemap; the sitemap gains
+  `help-timer.php` and `<lastmod>` dates (file mtime for static pages, newest
+  event for leagues). New helpers `render_seo_verification()`,
+  `render_jsonld()`, `seo_verification_token()` in `db.php`.
+
+### Infrastructure
+
+- `~/qa-headless/seo_check.js` (34 assertions: heads of every public page,
+  JSON-LD validity, sitemap contents, guest header links, league noindex default
+  and flip) and `seo_admin_check.js` (the admin card: saves, token extraction,
+  junk refused, share-image shape enforcement, landing reflects it all). The
+  inline-JS sweep now skips `application/ld+json` blocks, which are JSON, not
+  JavaScript. `DOCS.md` gained a Search & Sharing section.
+
+---
+
 ## [v0.2124] - 2026-09-05
 
 ### Fixed

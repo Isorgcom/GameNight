@@ -35,13 +35,42 @@
 .lp-screens figure { margin:0; }
 .lp-screens img { width:100%; height:auto; border-radius:10px; border:1px solid var(--border,#e2e8f0); box-shadow:0 8px 24px rgba(0,0,0,.12); display:block; }
 .lp-screens figcaption { text-align:center; font-size:.85rem; color:#64748b; margin-top:.6rem; }
+/* Guest header. _nav.php deliberately renders nothing in landing mode, which
+   left the page with no link home and no crawlable path to the league
+   directory or the guides: every public page was an orphan except through the
+   sitemap. Plain anchors, no JS. */
+.lp-topbar { display:flex; align-items:center; gap:.5rem 1rem; flex-wrap:wrap; padding:.7rem 1.25rem;
+  background:#0f172a; color:#e2e8f0; font-size:.9rem; }
+.lp-topbar .lp-brand { color:#fff; font-weight:800; text-decoration:none; font-size:1.05rem; margin-right:auto; }
+.lp-topbar nav { display:flex; gap:.25rem .9rem; flex-wrap:wrap; align-items:center; }
+.lp-topbar nav a { color:#cbd5e1; text-decoration:none; padding:.35rem .15rem; }
+.lp-topbar nav a:hover { color:#fff; text-decoration:underline; }
+.lp-topbar nav a.lp-cta { color:#fff; background:#2563eb; border-radius:7px; padding:.4rem .85rem; }
+.lp-topbar nav a.lp-cta:hover { background:#1d4ed8; text-decoration:none; }
+.hero-kicker { color:#94a3b8; font-size:.8rem; letter-spacing:.14em; text-transform:uppercase; font-weight:700; margin:0 0 .6rem; }
 </style>
 <!-- ── SaaS-style marketing landing page for visitors ── -->
+<header class="lp-topbar" aria-label="Site">
+    <a class="lp-brand" href="/"><?= htmlspecialchars(get_setting('site_name', 'Game Night'), ENT_QUOTES | ENT_SUBSTITUTE) ?></a>
+    <nav aria-label="Public pages">
+        <a href="/league">Leagues</a>
+        <a href="/help-hosts.php">Host Guide</a>
+        <a href="/help-guests.php">Guest Guide</a>
+        <a href="/help-timer.php">Timer Guide</a>
+        <a href="/login.php">Log in</a>
+        <?php if (get_setting('allow_registration', '1') === '1'): ?>
+        <a class="lp-cta" href="/register.php">Sign up</a>
+        <?php endif; ?>
+    </nav>
+</header>
 <div class="hero">
     <?php $_lp_banner = get_setting('header_banner_path', ''); if ($_lp_banner): ?>
     <img src="<?= htmlspecialchars($_lp_banner) ?>" alt="<?= htmlspecialchars(get_setting('site_name', 'Game Night')) ?>" style="max-width:400px;width:90%;margin-bottom:1.5rem">
     <?php endif; ?>
-    <h1>Your Game Nights,<br>Organized.</h1>
+    <?php /* The H1 carries the words people search for; the brand line the
+             page opened with becomes the kicker above it. */ ?>
+    <p class="hero-kicker">Your game nights, organized.</p>
+    <h1>Free Poker Tournament Timer &amp; Game Night Organizer</h1>
     <p>The all-in-one platform for organizing leagues, scheduling game nights, managing RSVPs, running poker tournaments, and keeping your crew in the loop.</p>
     <div class="cta-group">
         <?php if (get_setting('allow_registration', '1') === '1'): ?>
@@ -215,7 +244,7 @@ window.lpGalNav = function (dir) {
     <div class="feature-card">
         <div class="icon" aria-hidden="true">&#127942;</div>
         <h3>Leagues</h3>
-        <p>Create private leagues for your poker group, board game crew, or any circle. Build a roster, invite members by email or shareable link, and keep your events and contacts separate from other groups on the site.</p>
+        <p>Create private leagues for your poker group, board game crew, or any circle. Build a roster, invite members by email or shareable link, and keep your events and contacts separate from other groups on the site. <a href="/league">Browse public leagues</a>.</p>
     </div>
     <div class="feature-card">
         <div class="icon" aria-hidden="true">&#128101;</div>
@@ -296,7 +325,7 @@ window.lpGalNav = function (dir) {
     <h2 style="font-size:1.6rem;margin-bottom:.5rem">How it works</h2>
     <p style="color:#64748b;margin-bottom:1.5rem">New here? Pick the guide that fits.</p>
 </div>
-<div class="feature-grid" style="max-width:760px;margin:0 auto">
+<div class="feature-grid" style="max-width:1000px;margin:0 auto">
     <a href="/help-hosts.php" class="feature-card" style="text-decoration:none;color:inherit;display:block">
         <div class="icon" aria-hidden="true">&#127922;</div>
         <h3>Hosting a game night?</h3>
@@ -306,6 +335,11 @@ window.lpGalNav = function (dir) {
         <div class="icon" aria-hidden="true">&#128231;</div>
         <h3>Got an invite?</h3>
         <p>Quick-start guide for guests: how RSVP links work, walk-in QR codes, and what you get with a free account.</p>
+    </a>
+    <a href="/help-timer.php" class="feature-card" style="text-decoration:none;color:inherit;display:block">
+        <div class="icon" aria-hidden="true">&#9201;</div>
+        <h3>Running a tournament?</h3>
+        <p>The tournament timer guide: blind schedules and breaks, putting the clock on a TV, phone control, sounds, and sharing the display by QR code.</p>
     </a>
 </div>
 

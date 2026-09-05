@@ -1673,6 +1673,10 @@ JSON;
     // How the banner fills its box on the public page: 'cover' crops the edges to
     // fill, 'contain' scales the whole image to fit and letterboxes the remainder.
     try { $pdo->exec("ALTER TABLE leagues ADD COLUMN banner_fit TEXT NOT NULL DEFAULT 'cover'"); } catch (Exception $e) {}
+    // Search engines list a public league page only when its owner opts in.
+    // Public (reachable by link) and indexed (found by strangers searching a
+    // player's name) are different promises; the default keeps the second one.
+    try { $pdo->exec("ALTER TABLE leagues ADD COLUMN seo_index INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     // Backfill slugs for pre-existing leagues (idempotent: only touches NULL/empty)
     try {
         $rows = $pdo->query("SELECT id, name FROM leagues WHERE slug IS NULL OR slug = ''")->fetchAll();
@@ -1953,26 +1957,95 @@ function stream_allowed_hosts(): array {
  * $path is the request path relative to the site root ('' for the homepage,
  * 'help-hosts.php' for a page, etc.).
  */
-function render_seo_meta(string $title, string $description, string $path = ''): void {
+function render_seo_meta(string $title, string $description, string $path = '', ?string $imageAbs = null): void {
     $site   = get_site_url();
     $url    = $site . '/' . ltrim($path, '/');
     $name   = get_setting('site_name', 'Game Night');
-    $img    = get_setting('header_banner_path', '');
-    if ($img === '') $img = get_setting('banner_path', '');
-    $imgAbs = $img !== '' ? $site . $img : '';
+    // Share image: a per-page image when the caller has one (a league banner),
+    // else the 1200x630 card uploaded under Search & Sharing, else the nav
+    // banner, else the site icon. The nav banner is 3:1 and gets cropped on
+    // social cards, which is why the dedicated setting exists.
+    $img = '';
+    if ($imageAbs === null || $imageAbs === '') {
+        foreach (['seo_og_image_path', 'header_banner_path', 'banner_path'] as $k) {
+            $img = get_setting($k, '');
+            if ($img !== '') break;
+        }
+        $imgAbs = $img !== '' ? $site . $img : '';
+    } else {
+        $imgAbs = $imageAbs;
+        $img    = strpos($imageAbs, $site . '/') === 0 ? substr($imageAbs, strlen($site)) : '';
+    }
+    // Width/height let a crawler lay the card out before fetching the image.
+    // Local uploads only; getimagesize() is core PHP, no GD required.
+    $dims = null;
+    if ($img !== '' && preg_match('#^/uploads/[A-Za-z0-9._/-]+$#', $img) && is_file(__DIR__ . $img)) {
+        $dims = @getimagesize(__DIR__ . $img) ?: null;
+    }
     $e = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE);
     echo "\n    <meta name=\"description\" content=\"" . $e($description) . "\">";
     echo "\n    <link rel=\"canonical\" href=\"" . $e($url) . "\">";
     echo "\n    <meta property=\"og:type\" content=\"website\">";
     echo "\n    <meta property=\"og:site_name\" content=\"" . $e($name) . "\">";
+    echo "\n    <meta property=\"og:locale\" content=\"en_US\">";
     echo "\n    <meta property=\"og:title\" content=\"" . $e($title) . "\">";
     echo "\n    <meta property=\"og:description\" content=\"" . $e($description) . "\">";
     echo "\n    <meta property=\"og:url\" content=\"" . $e($url) . "\">";
-    if ($imgAbs !== '') echo "\n    <meta property=\"og:image\" content=\"" . $e($imgAbs) . "\">";
+    if ($imgAbs !== '') {
+        echo "\n    <meta property=\"og:image\" content=\"" . $e($imgAbs) . "\">";
+        if ($dims && !empty($dims[0]) && !empty($dims[1])) {
+            echo "\n    <meta property=\"og:image:width\" content=\"" . (int)$dims[0] . "\">";
+            echo "\n    <meta property=\"og:image:height\" content=\"" . (int)$dims[1] . "\">";
+        }
+    }
     echo "\n    <meta name=\"twitter:card\" content=\"" . ($imgAbs !== '' ? 'summary_large_image' : 'summary') . "\">";
     echo "\n    <meta name=\"twitter:title\" content=\"" . $e($title) . "\">";
     echo "\n    <meta name=\"twitter:description\" content=\"" . $e($description) . "\">";
     if ($imgAbs !== '') echo "\n    <meta name=\"twitter:image\" content=\"" . $e($imgAbs) . "\">";
+    // Trailing newline: the PHP close tag after a call to this helper swallows
+    // the one newline that follows it, which glued the next tag onto this line.
+    echo "\n";
+}
+
+/**
+ * Site-ownership proofs for Google Search Console and Bing Webmaster Tools.
+ * Only the landing page calls this; a token is a bare identifier, so anything
+ * else stored in the setting is refused here as well as at save time.
+ */
+function render_seo_verification(): void {
+    $e = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE);
+    $tags = ['google_site_verification' => 'google-site-verification', 'bing_site_verification' => 'msvalidate.01'];
+    foreach ($tags as $key => $metaName) {
+        $v = trim(get_setting($key, ''));
+        if ($v !== '' && preg_match('/^[A-Za-z0-9_-]{1,128}$/', $v)) {
+            echo "\n    <meta name=\"" . $metaName . "\" content=\"" . $e($v) . "\">\n";
+        }
+    }
+}
+
+/**
+ * Normalise a pasted verification token. Search Console hands out a whole
+ * <meta … content="TOKEN"> tag and people paste it as-is; take the content.
+ * Returns '' for anything that is not a plain token afterwards.
+ */
+function seo_verification_token(string $raw): string {
+    $raw = trim($raw);
+    if (preg_match('/content\s*=\s*["\']([^"\']+)["\']/i', $raw, $m)) $raw = trim($m[1]);
+    return preg_match('/^[A-Za-z0-9_-]{1,128}$/', $raw) ? $raw : '';
+}
+
+/**
+ * Emit one JSON-LD block. JSON_HEX_TAG keeps a "</script>" inside any string
+ * (a setting, a league name) from ending the block early; the nonce is
+ * belt-and-braces, since browsers never execute a data block.
+ */
+function render_jsonld(array $data): void {
+    $json = json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP);
+    if ($json === false) return;
+    $nonce = function_exists('csp_nonce') ? csp_nonce() : '';
+    echo "\n    <script type=\"application/ld+json\""
+       . ($nonce !== '' ? ' nonce="' . htmlspecialchars($nonce, ENT_QUOTES | ENT_SUBSTITUTE) . '"' : '')
+       . ">" . $json . "</script>\n";
 }
 
 /**
