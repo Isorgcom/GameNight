@@ -169,6 +169,13 @@ if ($session_id) {
     <button type="button" data-cmd="undo" title="Undo last action" aria-label="Undo">&#8630;</button>
     <span class="tb-ctrl-sep"></span>
     <button type="button" data-act="fullscreen" title="Fullscreen" aria-label="Fullscreen">&#9974;</button>
+    <?php /* The way out. Installed as an app there is no address bar and no
+             back button, and in standalone mode the corner fullscreen button
+             removes itself, so without this a host on the timer can only close
+             the app. Goes to the game's check-in console, the same place the
+             classic timer's "Back to Check-in" link goes. */ ?>
+    <span class="tb-ctrl-sep"></span>
+    <button type="button" class="tb-ctrl-exit" data-act="exit" title="Leave the timer (back to the game)" aria-label="Leave the timer">Exit</button>
 </div>
 <?php endif; ?>
 
@@ -189,6 +196,10 @@ var TB_EVENT_LAYOUT_ID = <?= json_encode($event_layout_id) ?>;
 // frame-src allowlist built in auth.php, same as the classic timer's page).
 var TB_STREAM_HOSTS = <?= json_encode(stream_allowed_hosts()) ?>;
 var TB_EVENT_LAYOUT_KEY = <?= json_encode($event_layout_key) ?>;
+// Where the tray's Exit button goes: this game's console, or the calendar for
+// a timer with no game behind it. Built here from the resolved event id, never
+// from anything in the URL.
+var TB_EXIT_URL = <?= json_encode($event_id ? '/checkin.php?event_id=' . (int)$event_id : '/calendar.php') ?>;
 </script>
 <?php if (!$is_embed): ?>
 <?php /* Keep-awake, same pair the classic timer uses: navigator.wakeLock where
