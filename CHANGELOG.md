@@ -4,6 +4,22 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2128] - 2026-09-10
+
+### Changed
+
+- **Connected Apps stops looking like it needs a config file edited.** The
+  signing-key panel led with a public key and a block of `.env` variables, each
+  in its own box with a Copy button, and the sentence saying an app fetches the
+  key by itself sat in small grey type between them. It read as instructions.
+  It is now three numbered steps: add the app, open that app's own operator
+  settings and give it this site's address and the slug, check the key id
+  matches. The `.env` block and the raw key are still there, collapsed behind
+  "Setting it by hand instead", for an app that cannot fetch a key or a server
+  being built from a script before anyone points a browser at it.
+
+---
+
 ## [v0.2127] - 2026-09-10
 
 ### Added

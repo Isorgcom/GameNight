@@ -146,6 +146,16 @@ $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
         .sa-form label { display:block; font-size:.72rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; margin-bottom:.25rem; }
         .sa-form input { width:100%; box-sizing:border-box; padding:.45rem .6rem; border:1.5px solid #e2e8f0; border-radius:6px; font-size:.875rem; }
         .sa-warn { background:#fffbeb; border:1.5px solid #f59e0b; color:#92400e; border-radius:8px; padding:.75rem 1rem; font-size:.85rem; line-height:1.5; margin-top:1rem; }
+        .sa-steps { background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:8px; padding:.9rem 1rem; }
+        .sa-steps-head { font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:#94a3b8; font-weight:700; margin-bottom:.5rem; }
+        .sa-steps ol { margin:0; padding-left:1.15rem; font-size:.875rem; color:#334155; line-height:1.6; }
+        .sa-steps li + li { margin-top:.5rem; }
+        .sa-kv { display:grid; grid-template-columns:auto 1fr; gap:.3rem .7rem; align-items:center; margin-top:.45rem; }
+        .sa-kv span { font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:#94a3b8; font-weight:700; }
+        .sa-kv code { background:#fff; border:1px solid #e2e8f0; border-radius:5px; padding:.2rem .45rem; font-size:.8rem; }
+        .sa-details { margin-top:1rem; border-top:1px solid #f1f5f9; padding-top:.75rem; }
+        .sa-details > summary { cursor:pointer; font-size:.8rem; color:#64748b; font-weight:600; }
+        .sa-details > summary:hover { color:#334155; }
         @media (max-width: 720px) { .sa-form { grid-template-columns:1fr; } }
     </style>
 </head>
@@ -238,29 +248,54 @@ $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
 
     <div class="sa-card">
         <h2>Signing key</h2>
-        <p class="sa-help" style="margin-bottom:.5rem">
-            Tokens are signed here with a private key that never leaves this server. Give each app the
-            public key below so it can verify them. Key id <code><?= $e($keys['kid']) ?></code>, issuer <code><?= $e($issuer) ?></code>.
+        <p class="sa-help" style="margin-bottom:.75rem">
+            Tokens are signed here with a private key that never leaves this server. An app checks them
+            with the public half, which it fetches from this site by itself. There is nothing to copy and
+            no file to edit.
         </p>
-        <textarea class="sa-pre" id="ssoPubKey" rows="5" readonly><?= $e($keys['public_pem']) ?></textarea>
-        <div class="sa-row">
-            <button type="button" class="sa-btn" data-act="ssoCopy" data-a1="ssoPubKey">Copy public key</button>
+
+        <div class="sa-steps">
+            <div class="sa-steps-head">Connecting an app</div>
+            <ol>
+                <li>Add it above: a slug, a name, and the address players use to reach it.</li>
+                <li>
+                    Open that app's own operator settings &mdash; in <strong>FinalTable</strong> that is the
+                    <em>Operator</em> link in its lobby, behind its admin password &mdash; and give it this
+                    address and the slug:
+                    <div class="sa-kv">
+                        <span>Address</span><code><?= $e($issuer) ?></code>
+                        <span>Slug</span><code><?= $e(!empty($apps) ? $apps[0]['slug'] : 'finaltable') ?></code>
+                    </div>
+                </li>
+                <li>
+                    It fetches the key and shows its id. Check it reads
+                    <code><?= $e($keys['kid']) ?></code>, and that is the whole job.
+                </li>
+            </ol>
         </div>
 
-        <p class="sa-help" style="margin:1.25rem 0 .5rem">
-            <strong>FinalTable</strong> pairs from its own lobby: open <em>Operator</em> there (behind its admin password),
-            enter this site's address <code><?= $e($issuer) ?></code> and the app's slug, and it fetches this key itself.
-            The <code>.env</code> form below is the headless alternative: the key on one line with <code>\n</code> in place
-            of each line break, then <code>docker compose up -d</code> (not <code>restart</code>).
-        </p>
-        <textarea class="sa-pre" id="ssoEnv" rows="4" readonly>GAMENIGHT_URL=<?= $e($issuer) ?>
+        <details class="sa-details">
+            <summary>Setting it by hand instead</summary>
+            <p class="sa-help" style="margin:.75rem 0 .5rem">
+                Only for an app that cannot fetch the key itself, or a server being built from a script
+                before it has a browser pointed at it. FinalTable reads these three from its <code>.env</code>
+                at first boot and never again once it has been paired from its Operator page; applying them
+                takes <code>docker compose up -d</code>, since <code>restart</code> does not re-read the file.
+            </p>
+            <textarea class="sa-pre" id="ssoEnv" rows="4" readonly>GAMENIGHT_URL=<?= $e($issuer) ?>
 
 GAMENIGHT_AUDIENCE=<?= $e(!empty($apps) ? $apps[0]['slug'] : 'finaltable') ?>
 
 GAMENIGHT_PUBLIC_KEY="<?= $e($env_pem) ?>"</textarea>
-        <div class="sa-row">
-            <button type="button" class="sa-btn" data-act="ssoCopy" data-a1="ssoEnv">Copy .env snippet</button>
-        </div>
+            <div class="sa-row">
+                <button type="button" class="sa-btn" data-act="ssoCopy" data-a1="ssoEnv">Copy .env snippet</button>
+            </div>
+            <p class="sa-help" style="margin:1rem 0 .5rem">The key on its own, for anything else that asks for it:</p>
+            <textarea class="sa-pre" id="ssoPubKey" rows="5" readonly><?= $e($keys['public_pem']) ?></textarea>
+            <div class="sa-row">
+                <button type="button" class="sa-btn" data-act="ssoCopy" data-a1="ssoPubKey">Copy public key</button>
+            </div>
+        </details>
 
         <div class="sa-warn">
             Regenerating the key invalidates every token in flight and breaks sign-in for every connected app
