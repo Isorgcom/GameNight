@@ -49,7 +49,7 @@ RewriteRule ^api/v1/([a-z]+)/?$ /api/v1/$1.php [L,QSA]
 php_flag display_errors Off
 
 # Block direct web access to internal/partial PHP files
-<FilesMatch "^(auth|db|_nav|_footer|config|mail)\.php$">
+<FilesMatch "^(auth|db|_nav|_footer|config|mail|_sso)\.php$">
     Require all denied
 </FilesMatch>
 

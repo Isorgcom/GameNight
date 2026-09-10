@@ -257,6 +257,13 @@ api_ok([
             'response'    => '{event_id, title, deleted, notifications_queued}',
             'rate_limit'  => '60 successful deletes per hour per key (429 when exceeded)',
         ],
+        [
+            'method'      => 'GET',
+            'path'        => $base . '/sso',
+            'description' => 'Sign-in bridge for connected apps: the public ES256 signing key, key id, issuer and the connect URL. No API key needed. A connected app (registered by a site admin under Site Settings > Connected Apps) sends the browser to /connect.php?app=<slug>&return=<url>&state=<nonce>; the user signs in here and is returned to <url>#gn_token=<jwt>&state=<nonce> with a 120-second single-use token carrying the username.',
+            'auth'        => 'none',
+            'response'    => '{issuer, connect_url, token: {format, claims, carried}, keys: [{kid, kty, crv, alg, use, pem}]}',
+        ],
     ],
     'caching'    => 'Successful responses include Cache-Control: public, max-age=60. Cache for at least one minute on the consumer side.',
     'cors'       => 'Access-Control-Allow-Origin: * — browser-side calls from any domain are allowed.',

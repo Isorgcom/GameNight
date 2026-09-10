@@ -98,6 +98,11 @@ Token-gated new password form.
 Destroys the session and redirects home.
 - **Linked from:** nav dropdown
 
+### `www/connect.php` — Sign in to a Connected App  · **USER**
+The sign-in bridge for a connected app (FinalTable). Arrives as `?app=<slug>&return=<url>&state=<nonce>`; a guest is sent through `login.php?redirect=` (verification and MFA included) and back. Shows one card, "Continue to <app> as <you>?", then POSTs a 120-second ES256 identity token to `<return>#gn_token=...&state=...`. Unknown or disabled app → 404 page; a return URL that is not the app's registered origin → 400 page; never a redirect on failure.
+- **Helpers:** `_sso.php` (keys, signing, return-URL validation)
+- **Linked from:** the connected app's own "Sign in with GameNight" button
+
 ---
 
 ## 2. User Pages (Logged-in)
@@ -233,6 +238,10 @@ The single big admin console — `?tab=NAME`. Most legacy admin URLs redirect he
 
 - **AJAX:** `admin_settings_dl.php`, `auth_dl.php` (backup)
 - **Linked from:** nav (admin)
+
+### `www/admin_sso_apps.php` — Connected Apps  · **ADMIN**
+Registers the external apps that may sign people in with their account here (see `connect.php`): slug (the token audience), name, base URL (the only origin a token is ever returned to), enable / disable / remove. Shows the public signing key, the key id and a ready-to-paste `.env` snippet for FinalTable, and can regenerate the keypair (every app must then be re-paired). The public key is also served at `GET /api/v1/sso`, no API key needed.
+- **Linked from:** Site Settings tab strip (`_admin_tabs.php`)
 
 ### `www/users.php` — Legacy Users  · **REDIR**
 Redirects to `admin_settings.php?tab=users`.
