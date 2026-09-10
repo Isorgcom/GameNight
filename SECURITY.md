@@ -434,3 +434,17 @@ them) and half are conventions someone has to follow.
 - State-changing endpoints are POST plus `csrf_verify()`; a GET may render a
   confirmation but must not write. See `rsvp.php`, `verify_email.php`, `poll.php`
   and `join_league.php`.
+- `form-action 'self'` stays. The one exception is `connect.php`, whose confirm
+  POST answers with a redirect to a connected app, and Chromium checks
+  `form-action` against that redirect target (Firefox does not, which is how a
+  single-browser test misses it). It calls `csp_allow_form_action_to()` with the
+  origin of the app's **registered** `sso_apps.base_url`, never with anything
+  from the request, and the helper validates the origin to a bare
+  `scheme://host[:port]` before splicing it into the header. Do not widen it to
+  `*` or call it from any other page.
+- A redirect target that comes from a request parameter is validated
+  origin-exact (`sso_validate_return()` in `_sso.php`: scheme, host and port
+  equal, path under the registered path, no fragment or userinfo) and a failure
+  renders an error page rather than redirecting anywhere. A prefix compare on
+  the string is not a check: `http://a.com` is a prefix of
+  `http://a.com.evil.com/`.

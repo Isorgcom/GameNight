@@ -4,6 +4,63 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2127] - 2026-09-10
+
+### Added
+
+- **Sign in to another site with your Game Night account.** A new
+  *Connected Apps* tab under Site Settings registers an outside site that may
+  use Game Night as its login. FinalTable, the online tournament table, is the
+  first. The site sends the browser to the new `connect.php`, the ordinary
+  login runs here (verification gate, two-factor, lockouts, all unchanged), the
+  member confirms once on a card naming the app, and the browser goes back
+  carrying a signed token that says who they are. Registering an app takes a
+  slug, a name, and the base URL players use to reach it; that URL is the only
+  place a token is ever sent, matched on scheme, host and port. Each sign-in is
+  logged as `sso_login app=<slug>` and the app's row shows when it last happened.
+  Disabling or removing an app stops its links dead.
+- **`GET /api/v1/sso`**, unauthenticated, serving the public half of the signing
+  key with its id, the issuer and the connect URL. It is how a connected app
+  pairs itself without anyone copying a key by hand: FinalTable's operator types
+  this site's address and it fetches the rest. The Connected Apps page shows the
+  same key and a ready-made `.env` block for a headless setup.
+
+### Security
+
+- The identity token is a 120-second, single-use ES256 JWT carrying the username
+  and account tier, and nothing else: no email address, phone number or password
+  crosses the boundary. It is signed with a P-256 keypair generated on first use
+  and held only here, the private half encrypted at rest under `APP_SECRET`
+  alongside the SMTP and SMS credentials, so a connected app that is compromised
+  cannot mint a token for anybody. The token travels in the URL fragment rather
+  than the query string, so it never reaches the app's access log or a `Referer`
+  header, and the app scrubs it from the address bar on arrival. Keys can be
+  regenerated from the admin page, which invalidates every app until each is
+  re-paired.
+- **A return address is validated origin-exact**, never by string prefix: a
+  prefix compare would have let `http://a.com` match `http://a.com.evil.com`.
+  An unknown app, a disabled one, or an address that is not the registered
+  origin renders an error page and redirects nowhere, so a forged link cannot
+  aim a token at a stranger's server. `sso_validate_return()` in `_sso.php` is
+  the single check, and it fails closed on anything it does not understand.
+- `form-action 'self'` stays site-wide, with one deliberate exception:
+  `connect.php` calls the new `csp_allow_form_action_to()` with the origin of
+  the app's **registered** base URL, never with anything from the request.
+  Chromium enforces `form-action` against the redirect target of a form
+  submission and Firefox does not, so without this the hand-off worked in one
+  browser and was silently refused in the other.
+
+### Infrastructure
+
+- New `sso_apps` table, new `sso_public_pem` / `sso_private_pem` settings (the
+  latter added to `ENCRYPTED_SETTINGS`), and `_sso.php` holding the key
+  handling, signing and validation. `www/.htaccess` denies direct access to it,
+  as it does the other partials. The signing primitives are reused from
+  `webpush.php` rather than duplicated; the keypair is a separate one, because
+  one key should do one job.
+
+---
+
 ## [v0.2126] - 2026-09-05
 
 ### Changed

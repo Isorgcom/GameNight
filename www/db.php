@@ -1022,6 +1022,21 @@ JSON;
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )"); } catch (Exception $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_api_log_key_time ON api_request_log(key_id, created_at)"); } catch (Exception $e) {}
+    // ─── Connected apps: relying parties for the sign-in bridge (connect.php) ──
+    // One row per external app that may receive a signed identity token. The
+    // base_url is the only place a token may be redirected to; the slug is the
+    // token's audience. The signing keypair itself lives in site_settings
+    // (sso_private_pem, encrypted / sso_public_pem), not here.
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS sso_apps (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        slug         TEXT    NOT NULL UNIQUE,
+        name         TEXT    NOT NULL,
+        base_url     TEXT    NOT NULL,
+        enabled      INTEGER NOT NULL DEFAULT 1,
+        created_by   INTEGER,
+        created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_used_at DATETIME
+    )"); } catch (Exception $e) {}
     // Per-key permission scopes. Comma-separated; existing keys default to 'read' so
     // adding write endpoints (e.g. POST /api/v1/users) cannot be exercised by an old
     // sister-site key without an explicit re-mint.
@@ -1805,6 +1820,7 @@ define('ENCRYPTED_SETTINGS', [
     'sms_token', 'sms_webhook_secret', 'sms_webhook_token',
     'wa_token',
     'shortio_api_key',
+    'sso_private_pem',
 ]);
 
 $_settings_cache = [];

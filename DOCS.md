@@ -19,6 +19,7 @@ A complete guide to setting up, configuring, and using Game Night — your self-
   - [SMS Configuration](#sms-configuration)
   - [WhatsApp Configuration](#whatsapp-configuration)
   - [Activity Logs](#activity-logs)
+  - [Connected Apps](#connected-apps)
 - [Calendar & Events](#calendar--events)
   - [Creating Events](#creating-events)
   - [Recurring Events](#recurring-events)
@@ -52,6 +53,7 @@ A complete guide to setting up, configuring, and using Game Night — your self-
   - [Caching](#api-caching)
   - [Examples](#api-examples)
   - [Revoking a Key](#api-revoking-a-key)
+  - [Connected Apps: Sign-In Bridge](#connected-apps-sign-in-bridge)
 - [Security](#security)
 - [Troubleshooting](#troubleshooting)
 
@@ -237,6 +239,19 @@ Configure the webhook URL in your Meta Business dashboard to point to `https://y
 ### Activity Logs
 
 View a chronological log of all actions: logins, event changes, RSVP updates, admin actions, and more. Use **Clear Logs** to wipe the history.
+
+### Connected Apps
+
+A connected app is a separate site (FinalTable, the online tournament table, is the first) that lets people sign in with their Game Night account instead of creating another one. The app sends the browser to `/connect.php`, the normal Game Night login runs (verification gate, two-factor, lockouts, all unchanged), the member confirms once, and the browser returns to the app with a short-lived signed token carrying the username and nothing else. Passwords, emails and phone numbers never leave Game Night.
+
+**Site Settings → Connected Apps** is where an admin:
+
+- Registers an app: a **slug** (2-32 lowercase letters, digits, hyphens; it becomes the token audience), a **name** shown on the confirm card, and the **base URL** players use to reach the app. The base URL is the only place a token will ever be sent: scheme, host and port must match exactly, so `http://` and `https://` are different apps and so are two ports.
+- Enables, disables or removes an app. A disabled or removed app's sign-in links get a 404 page on Game Night, and nothing is shared.
+- Sees the **public signing key** and its id. FinalTable fetches the key itself when its operator enters this site's address on its Operator page; the `.env` snippet here is for a headless setup. The private half never leaves the server; it is generated on first visit and stored encrypted.
+- **Regenerates** the keypair. Every connected app must then be given the new public key before its sign-in works again, so this is a deliberate act behind a confirmation.
+
+Each sign-in is written to the activity log as `sso_login app=<slug>`, and the app's row shows its last sign-in. See [Connected Apps: Sign-In Bridge](#connected-apps-sign-in-bridge) under the API section for the wire contract.
 
 ---
 
@@ -1553,6 +1568,55 @@ If a key leaks, click **Revoke** on its row in the league's API tab. Consumers u
 
 To rotate a key: mint a new key with a different label, update the consumer to use the new key, then revoke the old one. Keys do not expire on their own — rotate them on whatever cadence makes sense for your operation (annual is reasonable for a low-traffic sister site).
 
+### Connected Apps: Sign-In Bridge
+
+Separate from the league API keys above. A **connected app** (registered under Site Settings → Connected Apps, see the [Admin Guide](#connected-apps)) can sign a Game Night member in without holding a password: it hands the browser to Game Night and receives a signed identity token back. No API key is involved, and the only thing the app needs from Game Night is the public signing key.
+
+**Outbound (app → Game Night), a browser navigation:**
+
+```
+GET /connect.php?app=<slug>&return=<url>&state=<nonce>
+```
+
+- `app` — the registered slug.
+- `return` — where to send the browser back to. Validated origin-exact against the app's registered base URL (scheme, host, port), with the path under the registered path, no fragment, no credentials, 512 characters at most. Anything else renders an error page; Game Night never redirects to an unvalidated URL.
+- `state` — `[A-Za-z0-9_-]{16,128}`, minted by the app, echoed back unchanged. It is the app's login-CSRF guard.
+
+A guest is sent through `login.php?redirect=...` first (email/phone verification and two-factor included). A signed-in member sees one card, "Continue to *app* as *username*?", with Continue, Cancel and Switch account.
+
+**Inbound (Game Night → app), a 302 after the confirm:**
+
+```
+<return>#gn_token=<jwt>&state=<nonce>          success
+<return>#gn_error=cancelled&state=<nonce>      the member pressed Cancel
+```
+
+The token rides in the URL **fragment**, so it never reaches the app's access log or a Referer header; the app's page script reads it, scrubs it, and sends it to its own server once.
+
+**The token** is a compact JWT, header `{"alg":"ES256","typ":"JWT","kid":"<first 16 hex of sha256(public PEM)>"}`, signature the raw 64-byte R||S. Claims:
+
+| Claim | Value |
+|---|---|
+| `iss` | the site URL (Site Settings → General → Site URL; falls back to the request host, so set it) |
+| `aud` | the app slug |
+| `sub` | the member's user id, as a string |
+| `iat`, `exp` | issued at, and 120 seconds later; one hop, then it is spent |
+| `jti` | 32 hex, random; the app rejects a repeat |
+| `name` | the username |
+| `tier` | the account tier (`Free`, `Personal`, `League`, `OriginalSupporters`); informational |
+
+No email, phone or avatar is carried.
+
+**The public key** is on the Connected Apps page and at:
+
+```
+GET /api/v1/sso
+```
+
+No API key. Returns `{issuer, connect_url, token: {format, claims, carried}, keys: [{kid, kty: "EC", crv: "P-256", alg: "ES256", use: "sig", pem}]}`, cacheable for five minutes. An app verifies locally: pin `alg` to ES256 (refuse `none` and HMAC before reading the signature), check the signature with the PEM, then `iss`, `aud`, `exp`/`iat` with a minute of skew, and keep `jti`s until they expire.
+
+**Pairing FinalTable:** register it here, then in FinalTable's lobby open **Operator** (behind its admin password), enter this site's address and the slug, and it fetches the key from `/api/v1/sso` itself. The `.env` snippet on the Connected Apps page is the headless alternative. FinalTable's own `docs/DEPLOYMENT.md` has the steps from its side.
+
 ---
 
 ## Security
@@ -1567,6 +1631,7 @@ Game Night includes several security measures:
 - **Session security** — HTTPOnly cookies, SameSite=Lax, session regeneration on login.
 - **Last admin protection** — The last admin account cannot be demoted or deleted.
 - **File upload validation** — MIME type checking on all uploads.
+- **Sign-in bridge** — Connected apps receive a 120-second, single-use, ES256-signed token carrying the username only; the private key never leaves the server and the token travels in a URL fragment. See [Connected Apps: Sign-In Bridge](#connected-apps-sign-in-bridge).
 
 ---
 

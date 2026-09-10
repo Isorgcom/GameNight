@@ -111,6 +111,21 @@ function csp_allow_same_origin_framing(): void {
 }
 
 /**
+ * Let a form on this response submit (via redirect) to one external origin.
+ * The default form-action 'self' is right everywhere except connect.php, whose
+ * confirm POST answers with a 302 to the connected app. Chromium checks
+ * form-action against the redirect target as well as the action, so without
+ * this the hand-off is refused in Chrome/Edge while Firefox lets it through.
+ * The origin must come from the registered sso_apps.base_url, never from a
+ * request parameter, and is validated to a bare scheme://host[:port] so the
+ * header cannot be widened by a stray token. Call it before any output.
+ */
+function csp_allow_form_action_to(string $origin): void {
+    if (!preg_match('#^https?://[A-Za-z0-9.-]+(:\d+)?$#', $origin)) return;
+    header('Content-Security-Policy: ' . str_replace("form-action 'self'", "form-action 'self' " . $origin, CSP_POLICY));
+}
+
+/**
  * Nonce for an inline script block: <script nonce="<?= csp_nonce() ?>">.
  * Required by script-src-elem. External <script src="/..."> does not need one,
  * it is covered by 'self'. A page that does not include auth.php gets no CSP

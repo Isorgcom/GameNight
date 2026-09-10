@@ -2,12 +2,13 @@
 /**
  * Shared Site Settings tab bar.
  *
- * Included by admin_settings.php (its many panel tabs), admin_api_keys.php, and
- * admin_help.php so the tab strip stays visible across all of them. Set the
+ * Included by admin_settings.php (its many panel tabs), admin_api_keys.php,
+ * admin_sso_apps.php and admin_help.php so the tab strip stays visible across
+ * all of them. Set the
  * active tab before including:
  *   $admin_tab — one of: dashboard | reports | general | appearance | logs |
  *                users | events | leagues | communication | cron | backup |
- *                apikeys | help
+ *                apikeys | sso | help
  * Styles for .tabs / .tab-btn live in style.css so every page gets them.
  */
 $_atab = $admin_tab ?? '';
@@ -26,6 +27,7 @@ $_atabs = [
     ['key' => 'backup',        'href' => '/admin_settings.php?tab=backup',      'label' => 'Backup'],
     ['key' => 'tickets',       'href' => '/admin_tickets.php',                  'label' => 'Support'],
     ['key' => 'apikeys',       'href' => '/admin_api_keys.php',                 'label' => 'API Keys'],
+    ['key' => 'sso',           'href' => '/admin_sso_apps.php',                 'label' => 'Connected Apps'],
     ['key' => 'help',          'href' => '/admin_help.php',                     'label' => 'Help Tips'],
 ];
 ?>
