@@ -280,6 +280,21 @@ function pk_lo_cell($cell, array &$err): ?array {
         $out['seats'] = true;
         if (isset($cell['table'])) { $tn = pk_lo_num($cell['table'], 1, 50); if ($tn !== null) $out['table'] = (int)$tn; }
     }
+    // Scrolling: behaviour, not a visual prop, so it lives on the cell only —
+    // never in a shared style (pk_lo_styles) or a variant. Speed and phase are
+    // nested under a valid direction so an orphan never persists, and a
+    // rejected value drops the KEY, not the cell (the video lesson above).
+    if (isset($cell['scroll']) && in_array($cell['scroll'], ['up', 'left'], true)) {
+        $out['scroll'] = $cell['scroll'];
+        if (isset($cell['scrollSpeed']) && in_array($cell['scrollSpeed'], ['slow', 'normal', 'fast'], true)) $out['scrollSpeed'] = $cell['scrollSpeed'];
+        if (isset($cell['scrollPhase'])) { $ph = pk_lo_num($cell['scrollPhase'], 0, 1); if ($ph !== null) $out['scrollPhase'] = round($ph, 3); }
+    }
+    // Payout table: a flag like chips. The places come from the game's payout
+    // structure, never from the layout file.
+    if (!empty($cell['payouts'])) {
+        $out['payouts'] = true;
+        if (!empty($cell['payoutsRemaining'])) $out['payoutsRemaining'] = true;
+    }
     if (isset($cell['when'])) { $w = pk_lo_cond($cell['when']); if ($w !== null) $out['when'] = $w; }
     // Per-element styling: a map of element name -> {color, bold, scale}, so
     // one element inside a cell's line can differ from the rest. Names are

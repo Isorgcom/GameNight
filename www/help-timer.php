@@ -180,6 +180,8 @@ $help_sections = [
             <img src="/img/help/timer-padding.png" alt="The Blinds plate with its padding shown as green bands and a dashed outline around the content area" loading="lazy">
             <figcaption>Focus the Padding field and the preview shows where the padding sits. This plate pads its top so the value stays clear of the painted <em>Blinds</em> tab &mdash; the most common reason to pad at all.</figcaption>
         </figure>
+        <p><strong>Scrolling:</strong> any text cell has a <strong>Scroll</strong> setting. <strong>Up</strong> rolls the content like film credits, and only when it is taller than its box: a short list sits still, a long one loops. Give the cell a weight, or it grows to fit its text and never has anything to roll. <strong>Left</strong> is a ticker that always moves, for a welcome line or a sponsor message along the bottom. Speed is a pace (slow, normal, fast), and the offset starts the loop part-way: set 0.5 on a second copy of a list and it shows the other half. Both stop for anyone who has asked their device for reduced motion.</p>
+        <p><strong>Payout table:</strong> right-click a cell and choose <strong>Use a payout table instead</strong>. It draws every paid place as a row, place, dotted leader, reward, from the game's payout structure, so the layout only says where and how big. Pick the <strong>Monospace</strong> font for the classic card-room look, tick <strong>Only places still to be won</strong> to drop places already taken, and set Scroll to Up for a Remaining Places panel that rolls when the field is deep.</p>
     </div>
 
     <div class="help-step" id="elements">
@@ -193,7 +195,7 @@ $help_sections = [
             <tr><th>Players</th><td><code>players.line &middot; players.left &middot; players.total &middot; players.entries &middot; players.buyIns &middot; players.rebuys &middot; players.addOns &middot; players.out &middot; players.cashed &middot; players.lastOut &middot; players.lastOutPlace</code></td></tr>
             <tr><th>Chips</th><td><code>chips.total &middot; chips.avg &middot; chips.avgBB &middot; chips.start &middot; chips.addOn</code></td></tr>
             <tr><th>Money</th><td><code>money.pot &middot; money.bounty &middot; money.jackpot &middot; money.buyIn &middot; money.rebuy &middot; money.addOn &middot; money.line</code></td></tr>
-            <tr><th>Prizes</th><td><code>prizes.line &middot; prizes.list &middot; prizes.stacked</code></td></tr>
+            <tr><th>Prizes</th><td><code>prizes.line &middot; prizes.list &middot; prizes.stacked</code> (or a <strong>payout table</strong> cell for real rows)</td></tr>
             <tr><th>Room</th><td><code>table.count &middot; table.seats</code></td></tr>
         </table>
         <div class="hint">Capitalisation never matters. A name the timer doesn't know shows as &#10216;name&#10217; on screen instead of vanishing, so typos stay visible.</div>

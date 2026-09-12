@@ -26,7 +26,8 @@ field list.
   `bg`, `border`, `justify`
 - cells: `text` with `<elements>` and newlines, `size` (vh units) or
   `fit: true`, `color`, `bg`, `bold`, `pad`, `align`, `when`, `clockColors`,
-  `variants`
+  `variants`, `scroll` (`up` | `left`) + `scrollSpeed` + `scrollPhase` (see
+  Scrolling cells), `payouts` + `payoutsRemaining` (see Payout table)
 
 Rendering is nested flexbox, so overlap and off-screen are impossible by
 construction. That property is the whole reason this engine exists; the
@@ -148,6 +149,11 @@ eliminated cashedOut
 **Money:** pot prizePool bountyPool jackpotPool buyInFee rebuyFee addOnFee
 buyinLine prizes prizeList prizesStacked
 
+The three prize elements read `S.prizes`, which is DERIVED in `refreshDerived()`
+from `S.prizeRows` (`{place, label, reward}`, the rows the payout table draws),
+so the text and the table can never disagree. Drive a test or a preview with
+`setState({prizeRows})`, never `prizes`.
+
 **Room:** tables seats
 
 Element names match `[a-zA-Z][a-zA-Z0-9]*`. Plus any layout-defined custom
@@ -185,7 +191,11 @@ timestamp in get_state).
 
 ## Built-in layouts
 
-classic, black_green, minimalist, two_column — pure CSS — and **pcf**, cut the
+classic, black_green, minimalist, two_column — pure CSS — **cardroom**, the
+green Bravo-style card-room board (two rolling "Remaining Places" payout
+tables, top-anchored label/value columns, a welcome ticker; the reference
+layout for the scrolling cells and the payout table, and pure CSS as well) —
+and **pcf**, cut the
 per-box way: the felt is the only full-screen image, and every plate is its own
 transparent PNG carried by its box (`bgImage`), so plates move, resize and
 reflow WITH their boxes. No aspect lock, no registration, no geometry constants
@@ -440,6 +450,80 @@ Three things worth remembering:
 - **Discs can be sized apart from the text.** `chipSize` (vh) overrides the
   default `1.15em`, for a legend whose numbers should stay at body size while
   the discs fill the band they sit in.
+
+## Scrolling cells
+
+A text cell (or a payout table) may carry `scroll: 'up'` (film credits) or
+`scroll: 'left'` (a ticker), with `scrollSpeed: slow | normal | fast` and
+`scrollPhase: 0..1`. Behaviour, not a visual prop: not a shared-style key, not
+a variant prop, and ignored on `fit` cells and on the DOM cell kinds
+(image/QR/chips/seats/video). The reference was the Bravo card-room clock, whose
+"Remaining Places" panels roll like credits and whose bottom banner marquees.
+
+How it is built (`buildCell()` + `syncScroll()` in `timer_beta.js`,
+`.tb-scroll-*` in `timer_beta.css`):
+
+- The cell's inner is re-parented into a **track**, and the track is what
+  moves. CSS keyframes, not the Web Animations API: reduced motion is then one
+  media rule, `buildScreen()` emptying `#tbRoot` ends every animation with its
+  element (nothing to cancel, no timer to leak), and the track is never
+  replaced, so the content can be re-cloned without restarting the loop. Only
+  numbers leave JS, as custom properties: `--tb-scroll-dur` and
+  `--tb-scroll-delay` (the phase, as a negative delay; `0.5` on a second
+  panel shows the other half).
+- **`up` scrolls only when the content is taller than the box.** A short list
+  sits still and reads as a list. When it overflows, the inner is cloned ONCE
+  (`cloneNode` of DOM that was itself built via `textContent`, so nothing is
+  parsed), the clone sits absolutely positioned at `top:100%`, and the track
+  translates by `-100%` of its own height, which lands the clone exactly where
+  the original was. Not "render twice, move -50%": an in-flow clone would double
+  the content height, and that height is the flex basis of every unweighted
+  cell, so the column would re-share its space each time the clone came and
+  went. The absolute clone adds nothing to layout. The clone's `data-el` spans
+  are never painted; the sync key is the original's RAW text plus its inline
+  font size (not `fitShape()`: a tick that changes a digit must re-clone), so a
+  change re-clones on the tick it lands.
+- **`left` always moves.** The track carries `padding-left: 100%` (the text
+  starts just past the right edge, what the reference gets from
+  `translateX(100vw)`) and translates by `-100%` of its own width, fully off
+  the left. No measured `from` value, no `var()` inside `@keyframes`.
+- **Speeds are em per second**, so a capped (shrunk) list keeps its pace and
+  the pace reads the same on a phone and a wall. `SCROLL_RATE` holds the three
+  rates per direction; calibrated so ten rows loop in about 20s and a 60-char
+  banner crosses a wall in about 16s at `normal`.
+- **The cap changes shape for a scrolling cell.** `capCell()` shrinks by
+  WIDTH only for `up` (a row wider than the box shrinks; height overflow is the
+  thing that scrolls) and not at all for `left` (a ticker exists to overflow).
+  The self-heal branch in `updateAll()` skips the height clause for `up`, or it
+  would re-cap every tick for a list that overflows on purpose.
+- **Reduced motion is decided at build time in JS**, with the CSS media rule as
+  backup. If only CSS switched the animation off, an overflowing `up` list
+  would be clipped (its cap is width-only). Under `prefers-reduced-motion`
+  `buildCell()` makes a plain cell instead, which takes the ordinary height
+  cap and stays readable; a change of preference rebuilds the screen. This
+  page loads no global reduced-motion rule (style.css is not on the display),
+  so the block in `timer_beta.css` is the one that applies.
+
+Authoring: `up` only scrolls in a constrained box. An unweighted cell is
+content-sized and never overflows, so give the cell (or its column) a weight.
+A `left` ticker placed in a ROW without a weight has a flex basis equal to its
+nowrap text width; give it a weight or its own full-width row.
+
+## Payout table
+
+`{ cell: { payouts: true } }` draws one row per paid place: place, a dotted
+leader, the reward. DOM for the same reason chips is (the leader is a drawn
+line), and every string still lands via `textContent`. `payoutsRemaining: true`
+shows only the places still to be won: places are taken from the bottom up, so
+a place is open while its number is no higher than the count still playing
+(`place <= S.stillNum`); before anyone is counted the whole structure shows.
+Rows are sized in em (fixed `1.4em` height, so the credits loop stays seamless
+even when a reward carries the ticket emoji) and take `capCell()`'s width-only
+shrink like the chip legend. `drawPayoutCells()` is keyed on the rows and never
+writes `display`: `updateAll()` owns hiding the empty cell (no structure, or
+every place taken). `font: 'mono'` gives the card-room Courier look. Sample mode
+carries six places (summing to the sample pot) so a scrolling table actually
+scrolls in the editor preview.
 
 ## The image library
 
@@ -1040,6 +1124,11 @@ row too, not just the mobile hamburger.
   is a harmless no-op client-side. Editor: "Shared styles" panel on the
   Screen inspector (above Custom elements), "Shared style" dropdown on each
   cell. Styles ride with save/export/import automatically.
+- **Scrolling cells + payout table (done):** `scroll: up | left` on any text
+  cell (credits that roll only on overflow; a ticker that always moves) with
+  `scrollSpeed`/`scrollPhase`, and `payouts: true` for a place / dotted leader /
+  reward table (see the two sections above). Prompted by the Bravo card-room
+  clock's Remaining Places panels and bottom banner.
 - **Remaining:** feature-complete — the promotion / fold-into-main-timer
   decision is what's left.
 
@@ -1055,8 +1144,9 @@ row too, not just the mobile hamburger.
 `beta_blindgrid_check.js` (grid cells, row menu, drag/keyboard reorder, undo),
 `beta_blindgrid_ipad_check.js` (tablet fit + long-press),
 `beta_triggers_check.js` (edge semantics, cooldown/once, takeover, flash,
-announce, audio policy, sanitizer round trip, sound upload), `beta_shot.js`
-(screenshots). Run against dev; the dev test login is JamesTest.
+announce, audio policy, sanitizer round trip, sound upload),
+`beta_scroll_check.js` (scrolling cells, payout table, reduced motion, sanitizer),
+`beta_shot.js` (screenshots). Run against dev; the dev test login is JamesTest.
 
 The break state in sample/preview mode derives from the LEVEL, not a flag:
 `setState({level:7})` (the sample schedule's break level) is how a script or

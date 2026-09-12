@@ -4,6 +4,60 @@ All notable changes to GameNight are documented here.
 
 ---
 
+## [v0.2129] - 2026-09-12
+
+### Added
+
+- **Scrolling cells: Timer BETA layouts can roll like film credits or run a
+  ticker.** Any text cell (and the new payout table) has a *Scroll* setting in
+  the inspector and the right-click menu. *Up* rolls the content upward, and
+  only when it is taller than its box: a short list sits still and reads as a
+  list, a long one loops. The content is cloned once, the clone hangs below the
+  original out of flow, and the cell's track moves by its own height, so the
+  loop is seamless and the cell's flex basis never changes. *Left* is a ticker
+  that always moves, for a welcome line along the bottom. Speed is a pace in em
+  per second (slow, normal, fast), so a list the engine has shrunk keeps its
+  pace, and an offset starts the loop part-way: a second copy set to 0.5 shows
+  the other half. Both stop for anyone who has asked their device for reduced
+  motion, decided at build time in `buildCell()` so an overflowing list takes
+  the ordinary height cap and stays readable rather than clipped, with a media
+  rule in `timer_beta.css` as backup. `capCell()` shrinks an Up cell by width
+  only and never touches a Left one; the self-heal in `updateAll()` skips the
+  height clause for Up so it cannot re-cap a list that overflows on purpose.
+  Keys `scroll`, `scrollSpeed`, `scrollPhase` are whitelisted in `pk_lo_cell()`,
+  nested so an orphan speed never persists, and a rejected value drops the key,
+  never the cell. Prompted by the Bravo card-room clock's Remaining Places
+  panels. Documented in TIMER_BETA.md and the timer help page.
+- **Payout table cell.** Right-click a cell and choose *Use a payout table
+  instead*: one row per paid place, place, dotted leader, reward, drawn as DOM
+  like the chip legend from the game's payout structure, so the layout only
+  says where and how big. *Only places still to be won* (`payoutsRemaining`)
+  hides places already taken: a place is open while its number is no higher
+  than the count still playing, and before anyone is counted the whole
+  structure shows. Rows are a fixed 1.3em tall so a credits loop stays seamless
+  even when a reward carries the ticket glyph, and the leader is a run of dots
+  in the text colour. The three prize text elements now derive from the same
+  rows (`S.prizeRows`, joined in `refreshDerived()`), so `<prizes.line>` and the
+  table can never disagree; sample mode carries six places so a scrolling table
+  actually scrolls in the editor preview.
+- **Card Room built-in layout.** The green Bravo-style board every card room
+  ran: a yellow brand row, the title band, two rolling Remaining Places panels
+  in Courier with the right one half a loop behind, level and clock with a
+  yellow bar under, blinds and details as label/value columns anchored to the
+  top of their panels, Entrants and Players Left, and a welcome ticker. Key
+  `cardroom`, in `LAYOUTS` and in `pk_timer_builtin_keys()`; the built-in key
+  drift check passes.
+
+### Fixed
+
+- **The layout editor's right-click menu scrolls when it is taller than the
+  window.** A text cell's menu is about thirty rows; on a laptop it already ran
+  past the bottom edge, and the two new rows made that certain. `.tbe-menu` now
+  caps at the viewport height and scrolls. The submenu is its own body-level
+  element, so nothing clips it.
+
+---
+
 ## [v0.2128] - 2026-09-10
 
 ### Changed

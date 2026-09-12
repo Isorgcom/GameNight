@@ -140,9 +140,11 @@ var ELEMENT_DESC = {
 var STRUCTURE_DESC = [
     ["Screen", "One full display. A layout can hold several; conditions decide which one shows (Break screens go before the catch-all Main)."],
     ["Row / Column", "Boxes that split space. A row lays children side by side, a column stacks them. Drag borders in the preview to resize, drag boxes to move."],
-    ["Cell", "One box of content: text with live <elements> in it, an image, a QR code, a chip legend, or the final-table seat map."],
+    ["Cell", "One box of content: text with live <elements> in it, an image, a QR code, a chip legend, a payout table, or the final-table seat map."],
+    ["Payout table", "Every paid place as a row: place, dotted leader, reward, from the game's payout structure. Pick Monospace for the card-room look. With Scroll: Up it becomes a Remaining Places panel; 'still to be won' hides places already taken."],
     ["Weight", "A box's share of its parent's space. No weight = hug the content. The number the resize handles write."],
     ["Size", "Text size as % of screen height — a MAXIMUM: values that outgrow the box wrap or shrink inside it, never spill."],
+    ["Scroll", "The cell's content moves. Up rolls a list like film credits, but ONLY when it is taller than its box (give the cell a weight, or it grows to fit and never scrolls). Left is a ticker that always moves. Speed is a pace; offset 0.5 starts halfway, so a second panel shows the other half. Off for anyone who asked their device for reduced motion."],
     ["Padding", "Inside space between a box's edge and its content, CSS-style: one value = all sides, two = vertical horizontal, four = top right bottom left. Units vh/vw scale with the screen. Use it to keep text clear of parts painted into the box's artwork — while the field has focus, the preview shows the padding as green bands."],
     ["Show when", "A condition that hides the box until it matches: a state (on break), or an expression like blinds.big > 10000."],
     ["Variants", "Alternate look or text for one cell behind a condition. First match wins; no match shows the base."],
@@ -372,6 +374,7 @@ var treeCollapsed = {};
 
 function cellLabel(cell) {
     if (cell.video !== undefined) return '(video stream)';
+    if (cell.payouts) return '(payout table)';
     var t = String(cell.text || '').replace(/\n/g, ' ').trim();
     return t.length > 26 ? t.slice(0, 26) + '…' : (t || '(empty cell)');
 }
@@ -702,6 +705,28 @@ function openImagePicker(imgs, onUrl) {
 function setOrDelete(obj, key, val) {
     if (val === undefined || val === '' || val === false) delete obj[key];
     else obj[key] = val;
+}
+
+/* Scroll fields, shared by the text and payout-table inspectors. Returns the
+ * rows to append. Clearing the direction drops speed and offset with it, so
+ * an orphan never lands in the JSON (the sanitizer would strip it anyway). */
+var SCROLL_OPTS = ['', 'up', 'left'];
+var SCROLL_LBLS = ['None', 'Up (credits)', 'Left (ticker)'];
+function clearScroll(cell) { delete cell.scroll; delete cell.scrollSpeed; delete cell.scrollPhase; }
+function scrollFields(cell) {
+    var rows = [];
+    rows.push(field('Scroll', selInput(cell.scroll || '', SCROLL_OPTS, function (v) {
+        if (!v) clearScroll(cell); else cell.scroll = v;
+        renderInspector();
+    }, SCROLL_LBLS)));
+    if (!cell.scroll) return rows;
+    rows.push(field('Scroll speed', selInput(cell.scrollSpeed || 'normal', ['slow', 'normal', 'fast'], function (v) {
+        setOrDelete(cell, 'scrollSpeed', v === 'normal' ? undefined : v);
+    }, ['Slow', 'Normal', 'Fast'])));
+    rows.push(field('Scroll offset (0 = start, 0.5 = halfway)', numInput(cell.scrollPhase, 0, 1, 0.05, function (v) {
+        setOrDelete(cell, 'scrollPhase', v || undefined);
+    })));
+    return rows;
 }
 
 /* A condition builder: state + round + ante/rebuys clauses that AND together.
@@ -1663,6 +1688,38 @@ function renderInspector() {
             return;
         }
 
+        // Payout table: rows drawn from the game's payout structure. Unlike the
+        // chip legend it keeps the type controls (size, font, colour): the
+        // Courier look and the row height are the whole point of the cell.
+        if (cell.payouts) {
+            var pyWrap = document.createElement('div');
+            pyWrap.className = 'tbe-field';
+            var pyl = document.createElement('span'); pyl.textContent = 'Payout table'; pyWrap.appendChild(pyl);
+            var pyn = document.createElement('div'); pyn.className = 'tbe-note';
+            pyn.textContent = 'Every paid place as a row: place, dotted leader, reward, from the game\'s '
+                            + 'payout structure. The layout only says where. Pick Monospace for the '
+                            + 'card-room look. For a Remaining Places panel set Scroll to Up and give '
+                            + 'the cell a weight: it rolls only when the list is taller than its box. '
+                            + 'The preview shows sample places.';
+            pyWrap.appendChild(pyn);
+            insp.appendChild(pyWrap);
+            insp.appendChild(field('Only places still to be won', boolInput(cell.payoutsRemaining, function (v) { setOrDelete(cell, 'payoutsRemaining', v); })));
+            insp.appendChild(field('Size (% of screen height)', numInput(cell.size, 0.5, 40, 0.1, function (v) { setOrDelete(cell, 'size', v); })));
+            insp.appendChild(field('Bold', boolInput(cell.bold, function (v) { setOrDelete(cell, 'bold', v); })));
+            insp.appendChild(field('Font', fontInput(cell.font, function (v) { setOrDelete(cell, 'font', v || undefined); })));
+            insp.appendChild(field('Colour', colorInput(cell.color, function (v) { setOrDelete(cell, 'color', v); })));
+            insp.appendChild(field('Background', colorInput(cell.bg, function (v) { setOrDelete(cell, 'bg', v); })));
+            insp.appendChild(padField(cell));
+            scrollFields(cell).forEach(function (f) { insp.appendChild(f); });
+            insp.appendChild(field('Weight (share of space)', numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
+            insp.appendChild(field('Show when', condEditor(cell.when, function (v) { pushUndo(); setOrDelete(cell, 'when', v); refresh(true); })));
+            var rmPy = document.createElement('button'); rmPy.className = 'tbe-mini tbe-mini-danger';
+            rmPy.textContent = 'Remove payout table (back to text)';
+            rmPy.addEventListener('click', function () { pushUndo(); delete cell.payouts; delete cell.payoutsRemaining; refresh(true); renderInspector(); });
+            insp.appendChild(rmPy);
+            return;
+        }
+
         if (cell.qr) {
             var qrWrap = document.createElement('div');
             qrWrap.className = 'tbe-field';
@@ -1789,6 +1846,12 @@ function renderInspector() {
         toSeats.addEventListener('click', function () { pushUndo(); cell.seats = true; refresh(true); renderInspector(); });
         insp.appendChild(toSeats);
 
+        var toPay = document.createElement('button');
+        toPay.className = 'tbe-mini'; toPay.textContent = 'Use a payout table instead';
+        toPay.title = 'Every paid place as a row: place, dotted leader, reward';
+        toPay.addEventListener('click', function () { pushUndo(); cell.payouts = true; refresh(true); renderInspector(); });
+        insp.appendChild(toPay);
+
         var toVid = document.createElement('button');
         toVid.className = 'tbe-mini'; toVid.textContent = 'Use a video stream instead';
         toVid.title = 'Embed a YouTube / Twitch / Vimeo / Kick video, or play a direct stream, in this cell';
@@ -1836,7 +1899,9 @@ function renderInspector() {
                 setOrDelete(cell, 'style', v || undefined);
             }, ['(none)'].concat(styleNames))));
         }
-        insp.appendChild(field('Fit to box', boolInput(cell.fit, function (v) { setOrDelete(cell, 'fit', v); renderInspector(); })));
+        // Fit fills the box, so there is nothing left to overflow: turning it
+        // on drops any scroll keys rather than leaving a setting that does nothing.
+        insp.appendChild(field('Fit to box', boolInput(cell.fit, function (v) { setOrDelete(cell, 'fit', v); if (v) clearScroll(cell); renderInspector(); })));
         if (!cell.fit) insp.appendChild(field('Size (% of screen height)', numInput(cell.size, 0.5, 40, 0.1, function (v) { setOrDelete(cell, 'size', v); })));
         insp.appendChild(field('Bold', boolInput(cell.bold, function (v) { setOrDelete(cell, 'bold', v); })));
         insp.appendChild(field('Font', fontInput(cell.font, function (v) { setOrDelete(cell, 'font', v || undefined); })));
@@ -1844,6 +1909,7 @@ function renderInspector() {
         insp.appendChild(field('Background', colorInput(cell.bg, function (v) { setOrDelete(cell, 'bg', v); })));
         insp.appendChild(field('Border', textInput(cell.border, function (v) { setOrDelete(cell, 'border', v); }, 'e.g. 3px solid #d4af37')));
         insp.appendChild(field('Align', selInput(cell.align || 'center', ['center', 'left', 'right'], function (v) { setOrDelete(cell, 'align', v === 'center' ? undefined : v); })));
+        if (!cell.fit) scrollFields(cell).forEach(function (f) { insp.appendChild(f); });
         insp.appendChild(padField(cell));
         insp.appendChild(field('Show when', condEditor(cell.when, function (v) { pushUndo(); setOrDelete(cell, 'when', v); refresh(true); })));
         insp.appendChild(field('Clock colours (warn/critical)', boolInput(cell.clockColors, function (v) { setOrDelete(cell, 'clockColors', v); })));
@@ -2124,6 +2190,18 @@ function openNodeMenu(path, x, y) {
     item('Add row' + where,    function () { insertNode(newRowNode()); });
     item('Add column' + where, function () { insertNode(newColNode()); });
 
+    // Scroll rows, shared by the text and payout-table branches below.
+    var scrollSubs = function () {
+        sub('Scroll', choices([['None', undefined], ['Up (credits)', 'up'], ['Left (ticker)', 'left']], cell.scroll,
+            function (v) { if (!v) clearScroll(cell); else cell.scroll = v; }));
+        if (cell.scroll) {
+            sub('Scroll speed',  choices([['Slow', 'slow'], ['Normal', undefined], ['Fast', 'fast']], cell.scrollSpeed,
+                function (v) { setOrDelete(cell, 'scrollSpeed', v); }));
+            sub('Scroll offset', choices([['Start', undefined], ['Halfway', 0.5]], cell.scrollPhase,
+                function (v) { setOrDelete(cell, 'scrollPhase', v); }));
+        }
+    };
+
     if (cell) {
         item(null);
         // A cell is text, an image, or a QR. The inspector hides the text
@@ -2143,11 +2221,29 @@ function openNodeMenu(path, x, y) {
             item('Remove chip legend (back to text)', edit(function () { delete cell.chips; }));
         } else if (cell.seats) {
             item('Remove seat map (back to text)', edit(function () { delete cell.seats; delete cell.table; }));
+        } else if (cell.payouts) {
+            toggle('Only places still to be won', !!cell.payoutsRemaining,
+                edit(function () { setOrDelete(cell, 'payoutsRemaining', cell.payoutsRemaining ? undefined : true); }));
+            toggle('Bold', !!cell.bold, edit(function () { setOrDelete(cell, 'bold', cell.bold ? undefined : true); }));
+            sub('Text size', function (panel, addRow) {
+                var cur = typeof cell.size === 'number' ? cell.size : 2.4;
+                addRow('Bigger',  false, edit(function () { cell.size = Math.min(40, r2(cur * 1.25)); }));
+                addRow('Smaller', false, edit(function () { cell.size = Math.max(0.5, r2(cur / 1.25)); }));
+                addRow('Reset (2.4)', cur === 2.4, edit(function () { cell.size = 2.4; }));
+            });
+            sub('Colour', colourPanel(cell.color, function (v) { setOrDelete(cell, 'color', v); }));
+            sub('Font', choices(
+                [['Default', undefined]].concat(Object.keys((PV && PV.fonts) || {}).map(function (k) {
+                    return [FONT_LABELS[k] || k, k];
+                })),
+                cell.font, function (v) { setOrDelete(cell, 'font', v); }));
+            scrollSubs();
+            item('Remove payout table (back to text)', edit(function () { delete cell.payouts; delete cell.payoutsRemaining; }));
         } else if (cell.video !== undefined) {
             item('Remove video (back to text)', edit(function () { delete cell.video; }));
         } else {
             toggle('Bold', !!cell.bold, edit(function () { setOrDelete(cell, 'bold', cell.bold ? undefined : true); }));
-            toggle('Fit text to box', !!cell.fit, edit(function () { setOrDelete(cell, 'fit', cell.fit ? undefined : true); }));
+            toggle('Fit text to box', !!cell.fit, edit(function () { setOrDelete(cell, 'fit', cell.fit ? undefined : true); if (cell.fit) clearScroll(cell); }));
             toggle('Clock colours', !!cell.clockColors, edit(function () { setOrDelete(cell, 'clockColors', cell.clockColors ? undefined : true); }));
             sub('Align', choices(ALIGNS, cell.align || 'center', function (v) {
                 setOrDelete(cell, 'align', v === 'center' ? undefined : v);
@@ -2160,6 +2256,7 @@ function openNodeMenu(path, x, y) {
             });
             sub('Colour',         colourPanel(cell.color, function (v) { setOrDelete(cell, 'color', v); }));
             sub('Letter spacing', choices(SPACING, cell.spacing, function (v) { setOrDelete(cell, 'spacing', v); }));
+            if (!cell.fit) scrollSubs();
             sub('Font', choices(
                 [['Default', undefined]].concat(Object.keys((PV && PV.fonts) || {}).map(function (k) {
                     return [FONT_LABELS[k] || k, k];
@@ -2181,6 +2278,7 @@ function openNodeMenu(path, x, y) {
             item('Use a QR code instead', edit(function () { cell.qr = 'display'; }));
             item('Use a chip legend instead', edit(function () { cell.chips = true; }));
             item('Use a seat map instead', edit(function () { cell.seats = true; }));
+            item('Use a payout table instead', edit(function () { cell.payouts = true; }));
             item('Use a video stream instead', edit(function () { cell.video = ''; }));
         }
         // Box properties apply whatever the cell holds.

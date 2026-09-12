@@ -121,6 +121,22 @@ body.tb-letterbox { background: #000; }
    against the background. */
 .tb-chip-disc.tb-chip-photo { box-shadow: 0 0 0 0.1em rgba(255,255,255,.75); }
 
+/* Payout table: one row per paid place, place | dotted leader | reward. All
+   in em so capCell's font shrink compresses it like the chip legend. The row
+   height is FIXED (not line-box driven) so a credits loop stays seamless even
+   when a reward carries the ticket emoji, which can grow a line box. */
+.tb-cell-payouts .tb-cell-inner { display: block; width: 100%; white-space: normal; }
+.tb-pay-row { display: flex; align-items: baseline; gap: 0.15em; height: 1.3em; line-height: 1.3em; white-space: nowrap; }
+.tb-pay-place { flex: 0 0 auto; }
+/* The leader is a run of dots the way a typewritten card-room board draws
+   it (periods in Courier), not a sparse dotted border: a repeating radial
+   gradient in the text colour, sized in em so it scales with the row. */
+.tb-pay-lead { flex: 1 1 auto; min-width: 1em; align-self: flex-end; height: 0.2em; margin-bottom: 0.3em;
+               background-image: radial-gradient(circle, currentColor 0.07em, transparent 0.1em);
+               background-size: 0.34em 0.2em; background-repeat: repeat-x; background-position: left bottom;
+               opacity: .85; }
+.tb-pay-amt { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+
 /* Final-table seat map: an ellipse of seats on a subtle felt. Sizes are all
    relative to the CELL (percent + em), so the map scales with its box and with
    capCell's font shrink like everything else. */
@@ -220,6 +236,46 @@ video.tb-video { object-fit: contain; }
 .tb-paused { opacity: 0.55; animation: tbPulse 2.2s ease-in-out infinite; }
 @keyframes tbPulse { 50% { opacity: 0.3; } }
 @media (prefers-reduced-motion: reduce) { .tb-paused { animation: none; } }
+
+/* ── Scrolling cells (see syncScroll in timer_beta.js) ──
+   The cell's inner sits in a TRACK, and the track is what moves; the numbers
+   (duration, start offset) arrive as custom properties. This page loads no
+   global reduced-motion rule (style.css is not on the display), so the media
+   block below is the one that applies here. */
+.tb-scroll-track { position: relative; }
+/* Credits: the clone hangs directly below the original, out of flow, so the
+   cell's content height (its flex basis when unweighted) never changes. The
+   track starts at the TOP of the box: .tb-cell centres its items, and an item
+   taller than the box would be centred and overflow both ends, so the loop
+   would begin mid-list. */
+.tb-scroll-up > .tb-scroll-track { width: 100%; }
+.tb-scroll-clone { position: absolute; top: 100%; left: 0; right: 0; }
+.tb-cell.tb-scroll-up.tb-scrolling > .tb-scroll-track {
+    align-self: flex-start;
+    animation: tbScrollUp var(--tb-scroll-dur, 20s) linear infinite;
+    animation-delay: var(--tb-scroll-delay, 0s);
+}
+@keyframes tbScrollUp { from { transform: translateY(0); } to { transform: translateY(-100%); } }
+/* Ticker: padding-left of one box width means the text starts just past the
+   right edge (what the reference gets from translateX(100vw)), and -100% of
+   the track's own width carries it fully off the left. */
+.tb-cell.tb-scroll-left { justify-content: flex-start !important; }
+.tb-scroll-left > .tb-scroll-track { flex: 0 0 auto; padding-left: 100%; }
+.tb-scroll-left .tb-cell-inner { white-space: nowrap; max-width: none; }
+.tb-cell.tb-scroll-left.tb-scrolling > .tb-scroll-track {
+    animation: tbScrollLeft var(--tb-scroll-dur, 16s) linear infinite;
+    animation-delay: var(--tb-scroll-delay, 0s);
+}
+@keyframes tbScrollLeft { from { transform: translateX(0); } to { transform: translateX(-100%); } }
+/* Backup for the build-time decision in timer_beta.js (reduceMotion): if a
+   preference changes under a built screen, nothing moves until the rebuild. */
+@media (prefers-reduced-motion: reduce) {
+    .tb-scroll-track { animation: none !important; transform: none !important; padding-left: 0 !important; }
+    .tb-scroll-clone { display: none; }
+    .tb-cell.tb-scroll-left { justify-content: center !important; }
+    .tb-scroll-left .tb-cell-inner { white-space: pre-wrap; max-width: 100%; }
+    .tb-cell.tb-scroll-up.tb-scrolling > .tb-scroll-track { align-self: center; }
+}
 
 /* ── Corner bar: badge, layout picker, escape hatch ── */
 #tbBar {
