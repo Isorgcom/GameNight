@@ -207,7 +207,11 @@
    scroll box and the preview iframe. */
 .tbe-menu { display: none; position: fixed; z-index: 4000; background: #fff;
             border: 1.5px solid #e2e8f0; border-radius: 9px;
-            box-shadow: 0 10px 28px rgba(15,23,42,.18); padding: .3rem; min-width: 180px; }
+            box-shadow: 0 10px 28px rgba(15,23,42,.18); padding: .3rem; min-width: 180px;
+            /* A text cell's menu is ~30 rows; on a laptop that is taller than the
+               window. Scroll the menu rather than lose the bottom rows: the
+               submenu is its own body-level element, so nothing clips it. */
+            max-height: calc(100vh - 12px); overflow-y: auto; }
 .tbe-menu-item { display: block; width: 100%; text-align: left; padding: .42rem .6rem;
                  border: 0; background: none; font-size: .82rem; color: #334155;
                  border-radius: 6px; cursor: pointer; }

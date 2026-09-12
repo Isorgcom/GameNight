@@ -1138,7 +1138,7 @@ function pk_preset_can_write(array $struct, array $user, bool $isAdmin): bool {
  * across the language boundary, so keep them adjacent in the same commit.
  */
 function pk_timer_builtin_keys(): array {
-    return ['classic', 'black_green', 'minimalist', 'two_column', 'showcase', 'pcf'];
+    return ['classic', 'black_green', 'minimalist', 'two_column', 'showcase', 'pcf', 'cardroom'];
 }
 function pk_is_timer_builtin(string $key): bool {
     return in_array($key, pk_timer_builtin_keys(), true);

@@ -15,6 +15,17 @@
  *                             conditional emphasis, first match wins over base
  *                             (conditional per-cell styling). Structural props
  *                             (size/align/weight) stay base-only.
+ *                 scroll      'up' | 'left': the content moves. up rolls like film
+ *                             credits, and ONLY when the content is taller than
+ *                             the box; left is a ticker that always moves.
+ *                 scrollSpeed 'slow' | 'normal' | 'fast' (em per second, so the
+ *                             pace survives capCell's shrink); scrollPhase 0..1
+ *                             starts the loop part-way (0.5 = a second panel
+ *                             shows the other half). Ignored on fit cells and on
+ *                             image/QR/chips/seats/video cells.
+ *                 payouts     true = the payout table (place, dotted leader,
+ *                             reward per row), drawn as DOM like chips;
+ *                             payoutsRemaining true = only places still to be won.
  *
  * A condition (in `when` or a variant) is a WHEN key string, or an object whose
  * clauses AND together: state (running|paused|on_break|pre_game|game_over),
@@ -169,7 +180,9 @@ var S = {
     seatPlayers: [],        // still-in players with seats, for the seat map
     bountyPool: 0, jackpotPool: 0,
     game: null,             // fees, chips per buy-in, table plan, start time
-    prizes: [], warnSecs: 60,
+    // prizeRows is the source ({place, label, reward}); prizes (the joined
+    // "1st: $525" strings the text elements read) is DERIVED in refreshDerived().
+    prizes: [], prizeRows: [], warnSecs: 60,
     sample: !TB_SESSION_ID
 };
 
@@ -203,7 +216,12 @@ if (S.sample) {
     ];
     S.chipCount = '67,500'; S.avgStack = '5,625';
     S.stillNum = 12; S.totalNum = 18; S.chipsNum = 67500;
-    S.prizes = ['1st: $525', '2nd: $315', '3rd: $210'];
+    // Six places (summing to the sample pot) rather than three: enough rows to
+    // overflow a modest side panel, so a scrolling payout table actually
+    // scrolls in the editor preview.
+    S.prizeRows = [420, 252, 158, 95, 73, 52].map(function (usd, i) {
+        return { place: i + 1, label: ordinal(i + 1), reward: '$' + usd.toLocaleString('en-US') };
+    });
     S.chips = [{ v: 25, c: '#ffffff' }, { v: 100, c: '#ef4444' }, { v: 500, c: '#22c55e' },
                { v: 1000, c: '#2563eb' }, { v: 5000, c: '#0f172a' }];
 }
@@ -357,6 +375,81 @@ LAYOUTS.pcf = {"v": 1,"screens": [{"name": "Break","when": "on_break","bg": {"im
  * after the compact built-ins because its definition is long — so put it
  * first here rather than hoisting a hundred lines. Re-assigning an existing
  * key does not move it, so the rest keep their order. */
+/* Card Room: the classic green card-room board (modelled on the Bravo clock
+ * every casino ran for twenty years). White grid lines on felt green, a yellow
+ * brand row, the title band, and the three things that make it read as THAT
+ * board: two "Remaining Places" panels that roll like credits (payout tables
+ * with scroll:'up', the right one half a loop behind), the label/value
+ * columns anchored to the top of their panels, and the welcome ticker along
+ * the bottom. Courier for the payouts, bold sans for everything else. The
+ * yellow bar under the clock stands in for Bravo's level-progress line. The
+ * panels only roll once the paid places outgrow them, so a three-place home
+ * game reads as a still list, exactly as the original does. */
+LAYOUTS.cardroom = {
+    name: 'Card Room',
+    screens: [{
+        name: 'Main',
+        bg: { color: '#063b1d' },
+        root: { col: [
+            { cell: { text: 'TOURNAMENT CLOCK', size: 3.4, color: '#f5ea36', bg: '#020302', border: '1px solid rgba(255,255,255,.84)', pad: '0.6vh 0', spacing: '0.02em' }, weight: 0.9 },
+            { cell: { text: '<event.name>', size: 4.4, bold: true, color: '#ffffff', bg: '#0b4a27', border: '1px solid rgba(255,255,255,.84)', pad: '0.5vh 1vw' }, weight: 1.0 },
+            { row: [
+                { col: [
+                    { cell: { text: 'Remaining Places', size: 2.3, font: 'mono', bold: true, color: '#ffffff', pad: '0.4vh 0 0.1vh' } },
+                    { cell: { text: '', payouts: true, payoutsRemaining: true, scroll: 'up', font: 'mono', size: 3.9, bold: true, color: '#ffffff', pad: '0.2vh 0.8vw 0.4vh' }, weight: 1 }
+                ], weight: 1.3, border: '1px solid rgba(255,255,255,.84)' },
+                { col: [
+                    { cell: { text: '<round.orBreak>', size: 3.4, bold: true, color: '#ffffff', border: '1px solid rgba(255,255,255,.84)', pad: '0.3vh 0',
+                              variants: [{ when: 'on_break', text: 'BREAK', color: '#f5ea36' }] }, weight: 0.3 },
+                    { cell: { text: '<clock>', fit: true, bold: true, color: '#ffffff', clockColors: true, pad: '0.4vh 1.5vw',
+                              variants: [{ when: 'game_over', text: 'GAME OVER', color: '#ff5a4f' }] }, weight: 1 },
+                    // The level-progress line: a hairline of the accent colour. Its
+                    // dot is the same colour as its background, so it reads as a bar
+                    // while still counting as content (an empty cell hides itself).
+                    { cell: { text: '·', size: 0.6, color: '#f5ea36', bg: '#f5ea36' }, weight: 0.035 }
+                ], weight: 2.1, border: '1px solid rgba(255,255,255,.84)' },
+                { col: [
+                    { cell: { text: 'Remaining Places', size: 2.3, font: 'mono', bold: true, color: '#ffffff', pad: '0.4vh 0 0.1vh' } },
+                    { cell: { text: '', payouts: true, payoutsRemaining: true, scroll: 'up', scrollPhase: 0.5, font: 'mono', size: 3.9, bold: true, color: '#ffffff', pad: '0.2vh 0.8vw 0.4vh' }, weight: 1 }
+                ], weight: 1.3, border: '1px solid rgba(255,255,255,.84)' }
+            ], weight: 4.0 },
+            { row: [
+                { col: [
+                    // An unweighted row inside a top-justified column hugs the
+                    // top of the panel; the two cells split it into a right-aligned
+                    // label column and a left-aligned value column.
+                    { col: [
+                        { row: [
+                            { cell: { text: 'Ante:\nSmall Blind:\nBig Blind:', size: 3.3, bold: true, color: '#ffffff', align: 'right', pad: '0.6vh 0.5vw 0 0' }, weight: 1.15 },
+                            { cell: { text: '<blinds.ante>\n<blinds.small>\n<blinds.big>', size: 3.3, bold: true, color: '#ffffff', align: 'left', pad: '0.6vh 0 0 0.5vw',
+                                      variants: [{ when: 'on_break', text: '-\n-\n-' }] }, weight: 0.85 }
+                        ] }
+                    ], weight: 3.6, justify: 'flex-start', border: '1px solid rgba(255,255,255,.84)' },
+                    { row: [
+                        { col: [
+                            { cell: { text: 'Entrants', size: 2.4, bold: true, color: '#ffffff', border: '1px solid rgba(255,255,255,.84)', pad: '0.2vh 0' } },
+                            { cell: { text: '<players.total>', size: 4.2, bold: true, color: '#ffffff' }, weight: 1 }
+                        ], weight: 1, border: '1px solid rgba(255,255,255,.84)' },
+                        { col: [
+                            { cell: { text: 'Players Left', size: 2.4, bold: true, color: '#ffffff', border: '1px solid rgba(255,255,255,.84)', pad: '0.2vh 0' } },
+                            { cell: { text: '<players.left>', size: 4.2, bold: true, color: '#ffffff' }, weight: 1 }
+                        ], weight: 1, border: '1px solid rgba(255,255,255,.84)' }
+                    ], weight: 1.4 }
+                ], weight: 1 },
+                { col: [
+                    { row: [
+                        { cell: { text: 'Prize Pool:\nNext Ante:\nNext Blinds:\nTotal Chips:\nAvg. Chips:\nNext Break:', size: 2.9, bold: true, color: '#ffffff', align: 'right', pad: '0.6vh 0.5vw 0 0' }, weight: 1 },
+                        { cell: { text: '<money.pot>\n<blinds.nextAnte>\n<blinds.nextSmall> - <blinds.nextBig>\n<chips.total>\n<chips.avg>\n<time.nextBreak>', size: 2.9, bold: true, color: '#ffffff', align: 'left', pad: '0.6vh 0 0 0.5vw' }, weight: 1.1 }
+                    ] },
+                    // Where Bravo hangs its wall clock.
+                    { cell: { text: '<time.now>', size: 2.6, bold: true, color: '#ffffff', align: 'right', pad: '0 1vw 0.6vh 0' } }
+                ], weight: 1, justify: 'space-between', border: '1px solid rgba(255,255,255,.84)' }
+            ], weight: 5.2 },
+            { cell: { text: 'WELCOME TO THE GAME  -  GOOD LUCK!', size: 2.5, bold: true, color: '#f5ea36', bg: '#020302', scroll: 'left', border: '1px solid rgba(255,255,255,.84)', pad: '0.3vh 0' }, weight: 0.7 }
+        ], pad: '1.2vh 1vw', gap: '0' }
+    }]
+};
+
 LAYOUTS = Object.assign({ showcase: LAYOUTS.showcase }, LAYOUTS);
 
 
@@ -1300,6 +1393,20 @@ var chipCells = [];  // cells rendering the chip legend
 var seatCells = [];  // cells rendering the final-table seat map
 var clockCells = []; // cells whose colour tracks warn/critical
 var videoFrames = []; // live streaming <iframe>s — the alarm mute walks these
+var payoutCells = []; // cells drawing the payout table (place · leader · reward)
+
+/* Reduced motion is decided HERE, at build time, not only in CSS. If a media
+ * rule alone switched the scroll animation off, an overflowing `up` list would
+ * simply be clipped (its cap is width-only, see capCell). Built as a plain
+ * cell instead, it takes the ordinary height cap and stays readable. A change
+ * of preference rebuilds the screen so the cells are re-made the other way. */
+var reduceMotion = false;
+try {
+    var rmq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    reduceMotion = rmq.matches;
+    var onRm = function (e) { reduceMotion = e.matches; if (CURRENT_LAYOUT && activeScreen >= 0) buildScreen(activeScreen); };
+    if (rmq.addEventListener) rmq.addEventListener('change', onRm); else if (rmq.addListener) rmq.addListener(onRm);
+} catch (e) {}
 
 function applyBox(el, node) {
     if (node.weight !== undefined) { el.style.flexGrow = String(node.weight); el.style.flexBasis = '0'; }
@@ -1860,6 +1967,14 @@ function buildCell(spec) {
         seatCells.push({ el: el, inner: inner, spec: spec, drawn: null });
     }
 
+    // Payout table: every paid place as a row (place, dotted leader, reward).
+    // DOM for the same reason chips is: the leader is a drawn line, not text.
+    // The places come from the game; the layout only says where and how big.
+    if (spec.payouts) {
+        el.classList.add('tb-cell-payouts');
+        payoutCells.push({ el: el, inner: inner, spec: spec, drawn: null });
+    }
+
     // QR cell: a code another screen scans to join this display.
     //
     // The URL is built HERE from the session's own remote_key — never from
@@ -1948,6 +2063,23 @@ function buildCell(spec) {
         }
     }
 
+    // Scrolling: the inner is re-parented into a TRACK, which is what moves.
+    // The animation lives on the track and the track is never replaced, so
+    // the content can be re-cloned (syncScroll) without restarting the loop.
+    // Off for fit cells (fit means fill the box, nothing to overflow), for the
+    // DOM cell kinds that draw their own thing, and when the viewer asked
+    // their device for reduced motion (see reduceMotion above).
+    var scroll = (spec.scroll === 'up' || spec.scroll === 'left') && !spec.fit && !reduceMotion
+              && !imgSrc && !spec.qr && !spec.chips && !spec.seats && !('video' in spec) ? spec.scroll : null;
+    var track = null;
+    if (scroll) {
+        track = document.createElement('div');
+        track.className = 'tb-scroll-track';
+        el.classList.add('tb-scroll-' + scroll);
+        el.appendChild(track);
+        track.appendChild(inner);   // rec.inner stays the content node everything else touches
+    }
+
     // Structural / base-only styling, set once.
     if (spec.fit) el.classList.add('tb-fit');
     else el.style.fontSize = (spec.size || 2.4) + 'vh';
@@ -1967,14 +2099,17 @@ function buildCell(spec) {
     // Base-only like size/align: a font swap changes metrics, so it must not
     // arrive via a variant and reflow the layout mid-game.
     if (spec.font && FONTS[spec.font]) el.style.fontFamily = FONTS[spec.font];
-    if (spec.align === 'left')  { el.style.justifyContent = 'flex-start'; el.style.textAlign = 'left'; }
-    if (spec.align === 'right') { el.style.justifyContent = 'flex-end';   el.style.textAlign = 'right'; }
+    // A ticker's track must start at the left edge whatever the alignment says
+    // (the stylesheet pins it too; this keeps the inline style from arguing).
+    if (spec.align === 'left')  { if (scroll !== 'left') el.style.justifyContent = 'flex-start'; el.style.textAlign = 'left'; }
+    if (spec.align === 'right') { if (scroll !== 'left') el.style.justifyContent = 'flex-end';   el.style.textAlign = 'right'; }
     if (spec.clockColors) clockCells.push(el);
 
     var rec = {
-        el: el, inner: inner, spec: spec, isImage: !!imgSrc || !!spec.qr || !!spec.chips || !!spec.seats || ('video' in spec),
+        el: el, inner: inner, spec: spec, isImage: !!imgSrc || !!spec.qr || !!spec.chips || !!spec.seats || !!spec.payouts || ('video' in spec),
         variants: Array.isArray(spec.variants) ? spec.variants : [],
-        elSpans: [], lastText: null, lastVariant: -2, isFit: !!spec.fit
+        elSpans: [], lastText: null, lastVariant: -2, isFit: !!spec.fit,
+        scroll: scroll, track: track, clone: null, scrollKey: null
     };
     allCells.push(rec);
     if (spec.fit) fitCells.push(rec);
@@ -2077,7 +2212,7 @@ function buildScreen(idx) {
         ? CURRENT_LAYOUT.styles : {};
     rebuildElementIndex();
     var screen = CURRENT_LAYOUT.screens[idx] || { root: { col: [] } };
-    fitCells = []; clockCells = []; allCells = []; whenBoxes = []; qrCells = []; chipCells = []; seatCells = []; videoFrames = [];
+    fitCells = []; clockCells = []; allCells = []; whenBoxes = []; qrCells = []; chipCells = []; seatCells = []; videoFrames = []; payoutCells = [];
     root.textContent = '';
     root.style.background = '';
     root.style.backgroundImage = '';
@@ -2106,6 +2241,7 @@ function buildScreen(idx) {
     drawQrCells();
     drawChipCells();
     drawSeatCells();
+    drawPayoutCells();
     // After the tree exists: dispose players this screen dropped, and resume
     // any that were paused by being detached during the rebuild.
     sweepVideoCache();
@@ -2163,6 +2299,8 @@ function updateAll() {
     // set's contents and returns immediately when nothing moved.
     drawChipCells();
     drawSeatCells();
+    // The payout structure (and the places still open) can change mid-game.
+    drawPayoutCells();
     condTickUpdate();
     evalTriggers();
     // State may have moved us to a different screen (e.g. onto the break
@@ -2220,7 +2358,7 @@ function updateAll() {
         // no chip set — it draws nodes rather than text, so the text test would
         // call it empty always, and the isImage exemption would call it full
         // always. Deciding it here keeps ONE place that hides empty cells.
-        var blank = rec.spec && (rec.spec.chips || rec.spec.seats) ? !rec.inner.firstChild
+        var blank = rec.spec && (rec.spec.chips || rec.spec.seats || rec.spec.payouts) ? !rec.inner.firstChild
                   : (!rec.isImage && !rec.spec.bgImage && rec.inner.textContent.trim() === '');
         rec.el.style.display = blank ? 'none' : '';
 
@@ -2229,7 +2367,14 @@ function updateAll() {
         // re-measures), re-check that it still fits its box and shrink the
         // inner if not — 2,000,000 / 4,000,000 by round 19 must compress, not
         // walk out over the artwork.
-        if (!rec.isFit && !blank && (!rec.isImage || (rec.spec && rec.spec.chips))) {
+        //
+        // A ticker (scroll left) exists to overflow and is never capped. A
+        // credits cell (scroll up) is capped by WIDTH only: a row wider than
+        // the box shrinks, but height overflow is the thing that scrolls, so
+        // the height clause of the self-heal must not fire for it, or it
+        // would re-cap every tick for a list that overflows on purpose.
+        if (!rec.isFit && !blank && rec.scroll !== 'left'
+            && (!rec.isImage || (rec.spec && (rec.spec.chips || rec.spec.payouts)))) {
             var ckey = fitShape(rec.inner.textContent);
             if (ckey !== rec.capLastText) { rec.capLastText = ckey; capCell(rec); }
             // Self-heal: a phone rotation can invalidate a cap AFTER it was
@@ -2237,8 +2382,10 @@ function updateAll() {
             // ticking clock never changes shape — without this the overflow
             // sticks until the text itself does.
             else if (rec.inner.scrollWidth > rec.el.clientWidth + 1
-                  || rec.inner.scrollHeight > rec.el.clientHeight + 1) capCell(rec);
+                  || (rec.scroll !== 'up' && rec.inner.scrollHeight > rec.el.clientHeight + 1)) capCell(rec);
         }
+        // After the cap, so the measured font (and so the pace) is final.
+        if (rec.scroll && !blank) syncScroll(rec);
     }
 
     var rem = liveRemaining();
@@ -2280,24 +2427,33 @@ function fitCell(fc) {
  * text shortens. The declared size stays on the cell element — resetting the
  * inner to 'inherit' before measuring is what makes growth possible. */
 function capCell(rec) {
-    // A chip legend is isImage for auto-hide purposes but its discs are DOM
-    // nodes sized in em — font shrink is exactly how it compresses, so it
-    // takes the cap. True image/QR cells stay out (object-fit contains them).
-    if (rec.isImage && !(rec.spec && rec.spec.chips)) return;
+    // A chip legend (and the payout table) is isImage for auto-hide purposes
+    // but its rows are DOM nodes sized in em — font shrink is exactly how it
+    // compresses, so it takes the cap. True image/QR cells stay out
+    // (object-fit contains them).
+    if (rec.isImage && !(rec.spec && (rec.spec.chips || rec.spec.payouts))) return;
+    if (rec.scroll === 'left') return;                // a ticker exists to overflow
     rec.inner.style.fontSize = '';
     var boxW = rec.el.clientWidth, boxH = rec.el.clientHeight;
     if (!boxW || !boxH) return;
     var w = rec.inner.scrollWidth, h = rec.inner.scrollHeight;
     if (!w || !h) return;
-    if (w <= boxW && h <= boxH) return;              // fits at its declared size
+    // Credits (scroll up) are capped by width only: height overflow scrolls.
+    var ratio = rec.scroll === 'up' ? boxW / w : Math.min(boxW / w, boxH / h);
+    if (ratio >= 1) return;                           // fits at its declared size
     var base = parseFloat(getComputedStyle(rec.el).fontSize) || 16;
-    var scaled = Math.max(8, Math.floor(base * Math.min(boxW / w, boxH / h) * 0.95));
+    var scaled = Math.max(8, Math.floor(base * ratio * 0.95));
     rec.inner.style.fontSize = scaled + 'px';
 }
 function fitAll() {
     for (var i = 0; i < fitCells.length; i++) fitCell(fitCells[i]);
     for (var j = 0; j < allCells.length; j++) {
         if (!allCells[j].isFit) capCell(allCells[j]);
+    }
+    // Same settle pass: a resize or rotation changes what overflows and how
+    // far a loop has to travel, so re-measure the scrolling cells too.
+    for (var k = 0; k < allCells.length; k++) {
+        if (allCells[k].scroll) syncScroll(allCells[k]);
     }
 }
 /* A rotation is not one resize: iOS settles the viewport (and vh-based font
@@ -2308,6 +2464,78 @@ function scheduleRefit() {
     requestAnimationFrame(fitAll);
     setTimeout(fitAll, 180);
     setTimeout(fitAll, 500);
+}
+
+/* ── Scrolling cells ──────────────────────────────────────────────────────
+ * Two motions, both CSS keyframes on the cell's TRACK (see buildCell), with
+ * only the numbers coming from here: a duration and a start offset, written
+ * as custom properties. Keyframes rather than the Web Animations API because
+ * reduced motion is then one media rule in the stylesheet, and because
+ * buildScreen() emptying #tbRoot ends every animation with its element, so
+ * there is nothing to cancel and no timer to leak.
+ *
+ * `up` (film credits): the content is cloned ONCE, the clone sits absolutely
+ * positioned directly below the original, and the track translates by -100%
+ * of its own height, which puts the clone exactly where the original was. An
+ * in-flow clone would double the content height, and that height is the flex
+ * basis of every unweighted cell, so the column would re-share its space each
+ * time the clone came and went. The absolute clone adds nothing to layout.
+ * It only scrolls when the content is taller than the box: a short list sits
+ * still and reads as a list. The clone is a DOM copy (cloneNode) of content
+ * that was itself built via textContent, so nothing is ever parsed. Its
+ * <span data-el> copies are never painted; instead the sync key includes the
+ * original's raw text and inline font, so any change re-clones on the tick it
+ * lands (and, the animation being on the track, without restarting the loop).
+ *
+ * `left` (ticker): the track carries padding-left:100%, so the text starts
+ * just past the right edge, and translates by -100% of its own width, which
+ * carries it fully off the left. Always moves; a banner that sat still would
+ * look broken.
+ *
+ * Speeds are em per second, so a capped (shrunk) list keeps its pace and the
+ * pace reads the same on a phone and a wall. */
+var SCROLL_RATE = {
+    up:   { slow: 0.4, normal: 0.65, fast: 1.1 },   // ~10 rows at line-height 1.25 loop in ~20s
+    left: { slow: 4,   normal: 6.5,  fast: 10  }    // a 60-char banner crosses a 16:9 wall in ~16s
+};
+function syncScroll(rec) {
+    if (!rec.track) return;
+    var cs = getComputedStyle(rec.el), boxW = rec.el.clientWidth;
+    var boxH = rec.el.clientHeight - (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0);
+    if (!boxW || boxH <= 0) return;                    // hidden, or not laid out yet
+    var rates = SCROLL_RATE[rec.scroll], speed = rates[rec.spec.scrollSpeed] || rates.normal;
+    var fontPx = parseFloat(getComputedStyle(rec.inner).fontSize) || 16;   // AFTER the cap
+    var phase = Math.min(1, Math.max(0, Number(rec.spec.scrollPhase) || 0));
+    var key, over, dur = 0;
+    if (rec.scroll === 'up') {
+        var h = rec.inner.scrollHeight;
+        over = h > boxH + 1;
+        // Raw textContent, NOT fitShape(): the clone must show the digits the
+        // original shows, so a tick that changes a number must re-clone.
+        key = [over, h, boxH, rec.inner.style.fontSize, rec.inner.textContent].join('');
+        if (key === rec.scrollKey) return;
+        rec.scrollKey = key;
+        if (rec.clone) { rec.clone.remove(); rec.clone = null; }
+        if (over) {
+            rec.clone = rec.inner.cloneNode(true);
+            rec.clone.classList.add('tb-scroll-clone');
+            rec.clone.setAttribute('aria-hidden', 'true');
+            rec.track.appendChild(rec.clone);
+            dur = Math.min(180, Math.max(4, (h / fontPx) / speed));
+        }
+    } else {
+        var w = rec.inner.scrollWidth;
+        over = true;
+        key = [w, boxW, fontPx].join('');
+        if (key === rec.scrollKey) return;
+        rec.scrollKey = key;
+        dur = Math.min(180, Math.max(3, ((boxW + w) / fontPx) / speed));
+    }
+    rec.el.classList.toggle('tb-scrolling', over);
+    if (over) {
+        rec.track.style.setProperty('--tb-scroll-dur', dur.toFixed(2) + 's');
+        rec.track.style.setProperty('--tb-scroll-delay', (-phase * dur).toFixed(2) + 's');
+    }
 }
 
 /* ── QR cells ─────────────────────────────────────────────────────────────
@@ -2536,6 +2764,49 @@ function drawChipCells() {
     }
 }
 
+/* ── Payout table ─────────────────────────────────────────────────────────
+ * One row per paid place: place, a dotted leader, the reward. Rows are DOM
+ * (the leader is a drawn line) and every text lands via textContent. Keyed on
+ * the rows themselves so a tick that changes nothing redraws nothing.
+ * `payoutsRemaining` shows only the places still to be won: the places are
+ * taken from the bottom up, so a place is open while its number is no higher
+ * than the count still playing. Before anyone is counted (pre-game) the whole
+ * structure shows. */
+function payoutRowsFor(spec) {
+    var rows = S.prizeRows || [];
+    if (spec.payoutsRemaining && S.stillNum > 0) {
+        rows = rows.filter(function (r) { return r.place <= S.stillNum; });
+    }
+    return rows;
+}
+function drawPayoutCells() {
+    if (!payoutCells.length) return;
+    for (var i = 0; i < payoutCells.length; i++) {
+        var c = payoutCells[i], rows = payoutRowsFor(c.spec), key = JSON.stringify(rows);
+        if (c.drawn === key) continue;
+        c.drawn = key;
+        c.inner.textContent = '';
+        // Visibility is not decided here: updateAll() owns hiding empty cells
+        // (same rule as the chip legend).
+        for (var j = 0; j < rows.length; j++) {
+            var row = document.createElement('div');
+            row.className = 'tb-pay-row';
+            var place = document.createElement('span');
+            place.className = 'tb-pay-place';
+            place.textContent = rows[j].label;
+            var lead = document.createElement('span');
+            lead.className = 'tb-pay-lead';
+            var amt = document.createElement('span');
+            amt.className = 'tb-pay-amt';
+            amt.textContent = rows[j].reward;
+            row.appendChild(place);
+            row.appendChild(lead);
+            row.appendChild(amt);
+            c.inner.appendChild(row);
+        }
+    }
+}
+
 function drawQrCells() {
     if (!qrCells.length) return;
     for (var i = 0; i < qrCells.length; i++) {
@@ -2595,6 +2866,10 @@ function refreshDerived() {
     S.nsb = nxt ? nxt.small_blind : null;
     S.nbb = nxt ? nxt.big_blind : null;
     S.nante = nxt ? nxt.ante : null;
+    // The joined strings the prize text elements read, derived from the rows
+    // the payout table draws — one source, so the two can never disagree.
+    // Drive with setState({prizeRows}), never prizes.
+    S.prizes = (S.prizeRows || []).map(function (r) { return r.label + ': ' + r.reward; });
 }
 
 // Display-mode hook: set by the layout-picker section so a change to the
@@ -2701,7 +2976,7 @@ function poll() {
             S.seatPlayers = Array.isArray(j.players) ? j.players : [];
             S.lastElim = (j.last_eliminated && j.last_eliminated.name) ? String(j.last_eliminated.name) : '';
             S.lastElimPlace = (j.last_eliminated && j.last_eliminated.place) ? (j.last_eliminated.place | 0) : 0;
-            S.prizes = [];
+            var rows = [];
             var pay = j.payouts || [], poolCents = p ? (p.pool_total | 0) : 0;
             for (var i = 0; i < pay.length; i++) {
                 // A place's reward is whatever the structure grants — a cut of
@@ -2717,8 +2992,9 @@ function poll() {
                 if ((pay[i].points | 0) > 0) parts.push((pay[i].points | 0) + ' pts');
                 if ((pay[i].ticket_cents | 0) > 0) parts.push('🎟 $' + ((pay[i].ticket_cents | 0) / 100).toLocaleString('en-US'));
                 if (pay[i].prize_label) parts.push(String(pay[i].prize_label));
-                if (parts.length) S.prizes.push(ordinal(pay[i].place | 0) + ': ' + parts.join(' · '));
+                if (parts.length) rows.push({ place: pay[i].place | 0, label: ordinal(pay[i].place | 0), reward: parts.join(' · ') });
             }
+            S.prizeRows = rows;   // S.prizes follows in refreshDerived()
             // Control: whether this viewer may drive the timer, and the CSRF
             // token to do it. The server re-checks manage rights on every
             // command regardless, so these only decide what the client offers.
