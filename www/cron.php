@@ -246,11 +246,11 @@ $pruned += $db->exec("DELETE FROM short_links WHERE created_at < datetime('now',
 // rows use negative sentinel session_ids and must be preserved.
 $pruned += $db->exec("DELETE FROM timer_state WHERE session_id > 0 AND session_id NOT IN (SELECT id FROM poker_sessions)");
 
-// ── 4b. Sweep orphaned Timer BETA uploads ────────────────────────────────────
+// ── 4b. Sweep orphaned Tournament Timer uploads ──────────────────────────────
 // A timer image or sound only becomes "referenced" when the layout using it is
 // SAVED. Upload one and abandon it (swap a background before saving, replace a
 // sound with another) and it is invisible to the delete-time GC in
-// timer_beta_dl.php, which only sweeps names the deleted layout referenced. Left
+// timer_layouts_dl.php, which only sweeps names the deleted layout referenced. Left
 // alone those files sit on disk forever.
 //
 // This unlinks real files, so it is deliberately conservative:

@@ -1,12 +1,19 @@
-# Timer BETA — layout engine
+# Tournament Timer — layout engine
 
-A rebuild of the tournament clock as a configurable layout engine, kept fully
-separate from the existing timer. Delete `timer_beta.{php,css,js}`,
-`timer_beta_edit.{php,css,js}` and `timer_beta_dl.php` and the feature is gone.
+The tournament clock as a configurable layout engine. It shipped as "Timer
+BETA" and became **the** Tournament Timer at v1.1.0; the original clock is now
+Tournament Timer Classic (`timer_classic.{php,css,js}`).
+
+Files: `timer.php` + `timer_display.{css,js}` (the display), `timer_layouts.php`
++ `_timer_layouts_editor.php` + `timer_layouts.{css,js}` (the editor), and
+`timer_layouts_dl.php` (layout CRUD). The old `timer_beta*` addresses are
+one-line redirect stubs kept for QR codes and bookmarks. Shipped layout
+artwork stays at `/img/timer_beta/` on purpose: saved layouts store those URLs,
+so renaming the directory would break every layout that uses them.
 
 ## Model
 
-A **layout** is a JSON tree. `timer_beta.js`'s header has the authoritative
+A **layout** is a JSON tree. `timer_display.js`'s header has the authoritative
 field list.
 
 - node := `{ row: [...] }` | `{ col: [...] }` | `{ cell: {...} }`
@@ -56,7 +63,7 @@ current timer's point-anchor themes can do both and needed a runtime clamp
 A `when` may be a string expression anywhere a condition goes (screen, cell,
 variant): `bigBlind > 10000`, `playersLeft <= 9 and not onBreak`,
 `(round >= 6 or entries > 20) and running`. Grammar (recursive descent in
-`timer_beta.js`, mirrored as a pure validator in `timer_beta_dl.php` — parsed,
+`timer_display.js`, mirrored as a pure validator in `timer_layouts_dl.php` — parsed,
 never eval'd):
 
 ```
@@ -173,7 +180,7 @@ identifier keys, style-string colours.
 
 **Lookup is case-insensitive** — a name that renders as ⟨blinds.small⟩ over
 nothing but capitalisation is a bad afternoon. `rebuildElementIndex()` in
-`timer_beta.js`.
+`timer_display.js`.
 
 The setup figures (fees, chips per buy-in, table plan, start time) ride in
 `get_state`'s `game` block, named explicitly rather than handing the whole
@@ -213,16 +220,16 @@ opacity-0 spacer for a plated box, opacity hides the plate too).
 
 ## Files
 
-- `timer_beta.php` — display page. `?event_id=N` shows a live game (host
+- `timer.php` — display page. `?event_id=N` shows a live game (host
   rights, same gate as timer.php); no event = sample data. `?embed=1` is the
   editor's preview iframe (opts into same-origin framing via
   `csp_allow_same_origin_framing()` in auth.php — that one page only).
-- `timer_beta.js` — the renderer + engine + four built-in layouts + embed API
+- `timer_display.js` — the renderer + engine + four built-in layouts + embed API
   (`window.TBPreview`).
-- `timer_beta_edit.php` / `.js` / `.css` — the layout editor. Live preview is
+- `timer_layouts.php` / `.js` / `.css` — the layout editor. Live preview is
   the real display page in the iframe; structure tree, inspector, element
   picker, per-state preview chips, screen tabs, undo.
-- `timer_beta_dl.php` — layout CRUD. `pk_layout_sanitize()` is the trust
+- `timer_layouts_dl.php` — layout CRUD. `pk_layout_sanitize()` is the trust
   boundary: whitelists node types, style keys and enums; clamps numbers;
   rejects `url()`/`expression()`/js in style strings; depth cap 8, node cap
   200, 6 screens, 12 variants, 128KB doc. Cell TEXT is permissive because the
@@ -247,7 +254,7 @@ could see, and round 19 was never one of them.
 ## Numbers must not wobble
 
 Every numeric readout is `font-variant-numeric: tabular-nums` (`.tb-cell-inner`
-in `timer_beta.css`). Several system fonts — SF Pro on macOS and iOS most
+in `timer_display.css`). Several system fonts — SF Pro on macOS and iOS most
 notably — default to PROPORTIONAL figures, so a clock ticking 03:54 → 03:53
 physically changes width. That shuffles the text horizontally, and on a fit
 cell whose limiting dimension is WIDTH rather than height it also makes
@@ -322,7 +329,7 @@ logic originally used `btns[4]`/`btns[5]`, which was correct for a seven-row
 menu and silently wrong once it grew to thirty.
 
 The preview is an **iframe**, which is the only fiddly part. The `contextmenu`
-listener lives on `frame.contentDocument` (same-origin, which `timer_beta.php`
+listener lives on `frame.contentDocument` (same-origin, which `timer.php`
 opts into for embed mode) and is wired in `boot()` after the renderer exists;
 the menu itself renders in the PARENT so the iframe cannot clip it, which means
 the coordinates have to be translated by the frame's bounding rect. Dismissal
@@ -460,8 +467,8 @@ a variant prop, and ignored on `fit` cells and on the DOM cell kinds
 (image/QR/chips/seats/video). The reference was the Bravo card-room clock, whose
 "Remaining Places" panels roll like credits and whose bottom banner marquees.
 
-How it is built (`buildCell()` + `syncScroll()` in `timer_beta.js`,
-`.tb-scroll-*` in `timer_beta.css`):
+How it is built (`buildCell()` + `syncScroll()` in `timer_display.js`,
+`.tb-scroll-*` in `timer_display.css`):
 
 - The cell's inner is re-parented into a **track**, and the track is what
   moves. CSS keyframes, not the Web Animations API: reduced motion is then one
@@ -502,7 +509,7 @@ How it is built (`buildCell()` + `syncScroll()` in `timer_beta.js`,
   `buildCell()` makes a plain cell instead, which takes the ordinary height
   cap and stays readable; a change of preference rebuilds the screen. This
   page loads no global reduced-motion rule (style.css is not on the display),
-  so the block in `timer_beta.css` is the one that applies.
+  so the block in `timer_display.css` is the one that applies.
 
 Authoring: `up` only scrolls in a constrained box. An unweighted cell is
 content-sized and never overflows, so give the cell (or its column) a weight.
@@ -543,7 +550,7 @@ The vocabulary is dotted and grouped so related names sort together:
 `blinds.small`, `blinds.big`, `blinds.next`, `players.left`,
 `players.lastOut`, `money.pot`, `clock.seconds`, `table.count`… One map each
 side — `ELEMENT_NS` (elements) and the ns block after `COND_VALUES`
-(conditions) in `timer_beta.js`, mirrored in `pk_lo_cond_expr`'s whitelist —
+(conditions) in `timer_display.js`, mirrored in `pk_lo_cond_expr`'s whitelist —
 defines dotted → registry key; the flat registry keys are internal
 implementation names, and everything user-facing presents only the dotted
 set. `<clock>` stays
@@ -599,7 +606,7 @@ display is someone's phone and starts MUTED. The speaker button (corner bar,
 same idle-fade as fullscreen) toggles per display, persisted in
 `localStorage.tb_sound_on`. TTS obeys the same toggle.
 
-**Engine invariants** (`evalTriggers()` in `timer_beta.js`): re-entrancy
+**Engine invariants** (`evalTriggers()` in `timer_display.js`): re-entrancy
 guarded — a takeover rebuilds the screen, whose `updateAll()` would land back
 in the loop before `wasTrue` is written and fire the same trigger forever;
 a throwing action must not strand the guard flag. `resetTriggers()` runs on
@@ -657,7 +664,7 @@ placeholder remains only for the one case with truly nothing to draw: the QR
 library failing to load.
 
 `{ cell: { qr: 'display' } }` renders a QR another screen scans to join this
-display. Requires `/vendor/qrcode.min.js`, which `timer_beta.php` loads; CSP
+display. Requires `/vendor/qrcode.min.js`, which `timer.php` loads; CSP
 already permits `data:` images.
 
 **`qr` is an ENUM naming a target, never a URL.** A layout is a shareable
@@ -666,7 +673,7 @@ a wall of screens. The sanitizer whitelists the target; the RENDERER builds the
 URL from the session's own `remote_key`, so nothing typed into a layout ever
 reaches a scanner.
 
-The route is `timer_beta.php?key=<remote_key>`, mirroring what the classic
+The route is `timer.php?key=<remote_key>`, mirroring what the classic
 timer has always done with `timer.php?view=remote&key=` — the key authorises
 **viewing**, and what the scanning device may DO is decided by who is logged in
 on it, not by the QR:
@@ -722,8 +729,8 @@ document. Three fences keep that safe, and each would hold alone:
 - the global CSP `frame-src` (auth.php) lists the same hosts, so the browser
   refuses anything that somehow slipped both.
 
-Keep the three lists in step: `normalizeStreamUrl` (timer_beta.js),
-`pk_lo_stream_url` (timer_beta_dl.php), and the CSP frame-src + admin extras
+Keep the three lists in step: `normalizeStreamUrl` (timer_display.js),
+`pk_lo_stream_url` (timer_layouts_dl.php), and the CSP frame-src + admin extras
 (auth.php / `stream_allowed_hosts()`).
 
 Implementation notes, all inherited from the QR cell's lessons:
@@ -752,7 +759,7 @@ to text.
 ## What a scanned screen may read
 
 A screen opened with `?key=` must render **the layout the host chose**, and it
-had two ways to fall back to a built-in instead. `timer_beta_dl.php` refused an
+had two ways to fall back to a built-in instead. `timer_layouts_dl.php` refused an
 anonymous caller outright, and `get_layout` only returns layouts the CALLER owns
 (or a global, or one of their leagues') — so a guest who scanned it, signed in or
 not, was never going to be handed the host's private layout.
@@ -810,7 +817,7 @@ altogether: there is no browser chrome left to escape.
 ## Keeping the screen awake
 
 A tournament clock is watched, not touched, so the phone or tablet showing it
-dims and sleeps mid-level. `timer_beta.php` carries the same pair `timer.js`
+dims and sleeps mid-level. `timer.php` carries the same pair `timer.js`
 has always used, and for the same reason:
 
 - `navigator.wakeLock` — the real API, tried on load and again on first tap.
@@ -834,7 +841,7 @@ correct time at once rather than counting up from a stale value.
 A timer display sits open for hours polling DATA, but it never re-fetches
 CODE — so no fix ever reaches a screen that is already on the wall, and "still
 broken" after a deploy usually means a stale tab, not a bad fix. `get_state`
-carries `asset_v` (the `filemtime` of `timer_beta.js`); the page compares it to
+carries `asset_v` (the `filemtime` of `timer_display.js`); the page compares it to
 the stamp it booted with (`TB_ASSET_V`) and reloads itself once when they
 differ. Verified by touching the file under an open display: it reloads within
 one poll and comes back on the fresh code. Screens opened before this feature
@@ -997,7 +1004,7 @@ and the check-in toolbar (tournaments only).
   chips, and half a chip does not exist. That distinction is load-bearing:
   rounding the whole ladder to 2dp turned the 37.5 rung into 37.50 instead of
   38 and changed every generated tournament structure. `fmtChips()` in
-  `timer_beta.js` also had to gain the fraction-digit branch the classic timer
+  `timer_display.js` also had to gain the fraction-digit branch the classic timer
   already had, or a .50 blind rendered as "0.5".
 
   Note the emulated-iPad suite runs in **Chromium, not Safari**: it can prove
@@ -1029,22 +1036,22 @@ and the check-in toolbar (tournaments only).
 - **Use BETA timer switch** (its own Setup → Timer tab in the check-in
   console, sliding in like the other panes; tournament only): stores
   `timer_state.use_beta` via `set_beta`. When on, the check-in Timer button
-  points at `timer_beta.php?event_id=N` (retargeted live by
+  points at `timer.php?event_id=N` (retargeted live by
   `toggleBetaTimer()`) and `timer.php?event_id=N` REDIRECTS to the BETA
   display — `?classic=1` is the escape hatch, and the BETA corner-bar "Timer"
   link carries it so the pages never bounce between each other. The tab also
   links to the per-event layout page and a display preview.
 - **Timer Display**: the full layout editor (shared partial
-  `_timer_beta_editor.php`, also used by timer_beta_edit.php). Binding lives
+  `_timer_layouts_editor.php`, also used by timer_layouts.php). Binding lives
   IN the editor header: with event context (`ES_EVENT_ID`/`ES_LAYOUT_ID`/
-  `ES_CSRF` globals), timer_beta_edit.js grows a "Use for this event" toggle
+  `ES_CSRF` globals), timer_layouts.js grows a "Use for this event" toggle
   on the loaded layout (stores `timer_state.layout_id` via `set_layout`;
   click again to unbind) and marks the bound layout "• this event" in the
   Load list. The editor is also embedded in check-in's Setup → Timer tab —
   rendered ONCE outside the panes (`#ckDisplayHome`, revealed by
   `syncDisplayHome()`) because pane re-renders rebuild innerHTML and moving
   an iframe reloads it.
-  `timer_beta.php?event_id=N` first-paints the bound layout (server-injected
+  `timer.php?event_id=N` first-paints the bound layout (server-injected
   `TB_EVENT_LAYOUT_ID`) and follows changes live — `get_state` returns
   `layout_id`, and the display refetches on change. Precedence: `?layout=`
   URL param > event binding > localStorage > classic; a manual pick at the
@@ -1052,10 +1059,11 @@ and the check-in toolbar (tournaments only).
 
 ## Nav / reachability
 
-"Timer Layouts (BETA)" sits under "Tournament Timer" in the hamburger site
-menu (signed-in users). Reached via `/timer_beta_edit.php`. When BETA
-graduates to being *the* timer, promote it to the always-visible desktop nav
-row too, not just the mobile hamburger.
+"Tournament Timer" in the site menu (desktop row and hamburger, signed-in
+users) opens the layout editor at `/timer_layouts.php`; "Tournament Timer
+Classic" opens `/timer_classic.php`. A game's own Timer button goes to
+`/timer.php?event_id=N`, which routes to whichever display that game's Setup
+switch names — see the dispatch note in `timer.php`'s header.
 
 ## Roadmap
 
@@ -1086,7 +1094,7 @@ row too, not just the mobile hamburger.
   the Custom elements panel under Screen background.
 - **Custom images (done):** background image per screen (`bg.image` + `bg.imageFit`
   cover/contain) and image cells (`cell.image` renders an `<img>`, `imageFit`
-  contain/cover). Uploaded via a self-contained `upload_image` action in timer_beta_dl.php
+  contain/cover). Uploaded via a self-contained `upload_image` action in timer_layouts_dl.php
   (byte-level MIME check + getimagesize decode, 8MB cap, shared per-user daily
   limit, CSRF) that writes to `/uploads/timer_layouts/` — its own folder,
   separate from every other upload, so BETA stays deletable and upload.php stays

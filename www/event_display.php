@@ -1,6 +1,6 @@
 <?php
 /**
- * Per-event Timer Display page (tournaments only): pick which Timer BETA
+ * Per-event Timer Display page (tournaments only): pick which Tournament Timer
  * layout THIS game's display shows (stored in timer_state.layout_id — the
  * live display follows the choice within a poll), plus the full layout
  * editor below for building or tweaking layouts without leaving the event.
@@ -57,7 +57,7 @@ $csrf = csrf_token();
     <title>Timer Display &mdash; <?= htmlspecialchars($event_title) ?> &mdash; <?= htmlspecialchars($site_name) ?></title>
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <link rel="stylesheet" href="/event_setup.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/event_setup.css') ?: 0)) ?>">
-    <link rel="stylesheet" href="/timer_beta_edit.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/timer_beta_edit.css') ?: 0)) ?>">
+    <link rel="stylesheet" href="/timer_layouts.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/timer_layouts.css') ?: 0)) ?>">
     <?php /* The Font picker's options preview in their own face, so the
              EDITOR page needs the bundled fonts too, not just the iframe. */ ?>
     <link rel="stylesheet" href="/fonts.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/fonts.css') ?: 0)) ?>">
@@ -78,7 +78,7 @@ $csrf = csrf_token();
 <?php if ($is_tournament): ?>
 <?php /* The layout binding lives in the editor header ("Use for this event",
          driven by the ES_* globals below) — no separate chooser bar. */ ?>
-<?php require __DIR__ . '/_timer_beta_editor.php'; ?>
+<?php require __DIR__ . '/_timer_layouts_editor.php'; ?>
 
 <script nonce="<?= csp_nonce() ?>">
 var ES_CSRF = <?= json_encode($csrf) ?>;

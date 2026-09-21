@@ -2,7 +2,7 @@
  * Self-hosted so every screen — TV, tablet, phone, a guest's browser — renders
  * the same face with no external requests (CSP default-src 'self' covers them).
  * font-display: swap — the timer must never wait on a font: text paints in the
- * fallback stack (declared per-key in timer_beta.js FONTS) and upgrades.
+ * fallback stack (declared per-key in timer_display.js FONTS) and upgrades.
  *
  * Weight note: single static instances on purpose. Oswald/Orbitron/Cinzel/
  * Playfair ship their 500–600 cut because 400 reads thin from across a room;

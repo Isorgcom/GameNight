@@ -1,5 +1,5 @@
 /* Timer BETA — page chrome and cell primitives. Layout geometry itself comes
- * from the JSON tree in timer_beta.js; this file only styles the pieces. */
+ * from the JSON tree in timer_display.js; this file only styles the pieces. */
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -237,7 +237,7 @@ video.tb-video { object-fit: contain; }
 @keyframes tbPulse { 50% { opacity: 0.3; } }
 @media (prefers-reduced-motion: reduce) { .tb-paused { animation: none; } }
 
-/* ── Scrolling cells (see syncScroll in timer_beta.js) ──
+/* ── Scrolling cells (see syncScroll in timer_display.js) ──
    The cell's inner sits in a TRACK, and the track is what moves; the numbers
    (duration, start offset) arrive as custom properties. This page loads no
    global reduced-motion rule (style.css is not on the display), so the media
@@ -267,7 +267,7 @@ video.tb-video { object-fit: contain; }
     animation-delay: var(--tb-scroll-delay, 0s);
 }
 @keyframes tbScrollLeft { from { transform: translateX(0); } to { transform: translateX(-100%); } }
-/* Backup for the build-time decision in timer_beta.js (reduceMotion): if a
+/* Backup for the build-time decision in timer_display.js (reduceMotion): if a
    preference changes under a built screen, nothing moves until the rebuild. */
 @media (prefers-reduced-motion: reduce) {
     .tb-scroll-track { animation: none !important; transform: none !important; padding-left: 0 !important; }

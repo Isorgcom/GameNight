@@ -166,20 +166,32 @@ If `GameNight` and `GameNight-dev` diverge on tracked source files, that almost 
 
 ## Version
 
-Tracked manually in `www/version.php`. **Bump exactly once per `git push`** — immediately before the commit that ships a change. Do not bump during in-dev troubleshooting iterations against the local `gamenight-dev` container; the version is a release marker for shipped commits, not a build counter for intermediate fix attempts.
+`APP_VERSION` in `www/version.php`, edited by hand, and **semantic since v1.0.0**. Semver against the people using the site, not against any API:
 
-## Release Tags
+| Change | Number |
+|---|---|
+| Something new at the table, in the calendar or in the admin pages; a rule, a payout or a timing that behaves differently; a new setting | **minor** — 1.1.0 |
+| A fix for something somebody could have hit; anything invisible from outside | **patch** — 1.0.1 |
+| A feature removed, or changed so that what a host already knew is now wrong | **major** — 2.0.0 |
 
-Every version bump that reaches `main` gets an annotated tag on the commit that ships it, pushed to origin:
+**Bump exactly once per release**, in the commit that ships it — never during in-dev iterations against `gamenight-dev`. The four-digit numbers up to `v0.2129` were a build counter and are history; do not add to them.
+
+## Cutting a release
+
+1. Rename `## [Unreleased]` in `CHANGELOG.md` to `## [vX.Y.Z] - YYYY-MM-DD` and open a fresh empty `## [Unreleased]` above it. Entries that landed in separate commits each add their own heading, so the section can hold two **Added** or two **Fixed**; merge them into one of each, in the file's order, without rewording.
+2. Set `APP_VERSION` in `www/version.php` to the same number. Nothing else carries it — `WORKFLOW.md`'s "App version at time of writing" line is a note, updated when that file is edited anyway.
+3. That rename and that bump are the **last commit** of the work, so the changelog and the number ride with the code. On a branch, it is the final commit before `gh pr merge --squash`.
+4. Annotated tag on the squash commit on `main`, then push both:
 
 ```bash
-git tag -a v0.2057 <commit> -m "v0.2057 — short summary of the release"
-git push origin v0.2057
+git tag -a v1.1.0 <commit> -m "1.1.0 — short summary of the release"
+git push origin main v1.1.0
 ```
 
-Tag name matches `APP_VERSION` with a `v` prefix (`0.2057` → `v0.2057`). Do this as part of the push routine, not later — tags are how "what exactly was running when this broke?" gets answered, and how a rollback point is found. Tag the squash commit on `main`, never a branch tip.
+5. `gh release create v1.1.0 --title 1.1.0 --notes-file <file>` with that section's notes.
+6. Deploy is a pull: `ssh root@gamenight.poker`, `git pull` in the app directory, and `docker compose down && up -d --build` only when the change needs a rebuild. The number shows in the footer of every page, read from `www/version.php`, so that is the check.
 
-(Tags before `v0.0155` are historical and irregular, and `gamenight-standalone-*` belongs to the tournament-timer fork, not this release line.)
+Tags are how "what exactly was running when this broke?" gets answered, and how a rollback point is found — tag the squash commit on `main`, never a branch tip. (Tags before `v0.0155` are historical and irregular, and `gamenight-standalone-*` belongs to the tournament-timer fork, not this release line.)
 
 ## Branches & Pull Requests
 
@@ -211,4 +223,4 @@ Never merge or delete a branch until the user has confirmed testing is done — 
 
 ## Changelog
 
-`CHANGELOG.md` updates ride in the same commit as the code that introduced them — never as a follow-up. When you bump `www/version.php` for a push, also add a new `## [vX.Y] — YYYY-MM-DD` block at the top of `CHANGELOG.md` (above the most recent existing entry), grouped under **Security / Added / Changed / Fixed / Infrastructure** as applicable. Match the long-form prose style of existing entries: lead with a bolded one-line summary, then 2–6 sentences explaining the *why*, the affected files/identifiers, and any operator notes. Stage `CHANGELOG.md` with the code files and `www/version.php` in the same `git add`.
+`CHANGELOG.md` updates ride in the same commit as the code that introduced them — never as a follow-up. Entries land under the standing `## [Unreleased]` heading at the top of the file, grouped under **Security / Added / Changed / Fixed / Infrastructure** as applicable; cutting a release renames that heading (see **Cutting a release**). It is written for the people who use the site and the person who runs it, not for whoever is reading the diff: a refactor, a rename, a test-only change or a dependency bump that nothing shows belongs in the commit message and nowhere else. Match the long-form prose style of existing entries: lead with a bolded one-line summary, then 2–6 sentences explaining the *why*, the affected files/identifiers, and any operator notes. Stage `CHANGELOG.md` with the code files and `www/version.php` in the same `git add`.

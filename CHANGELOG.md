@@ -1,6 +1,76 @@
 # Changelog
 
-All notable changes to GameNight are documented here.
+All notable changes to GameNight are documented here. Versions are semantic
+from v1.0.0 onwards: the first number moves when something people rely on is
+taken away or changed out from under them, the second when there is something
+new to see or a rule that behaves differently, the third when something that
+was broken is fixed. Entries are written under **[Unreleased]** as the work
+lands and that heading is renamed when a release is cut.
+
+---
+
+## [Unreleased]
+
+---
+
+## [v1.1.0] - 2026-09-21
+
+### Changed
+
+- **The layout timer is now the Tournament Timer, and the old one is
+  Tournament Timer Classic.** The designable display shipped as "Timer BETA"
+  a few releases ago and has been the better clock for a while, so the names
+  now say so: the site menu reads **Tournament Timer** (which opens the
+  layouts editor, where a board is built) and **Tournament Timer Classic**
+  (the original full-screen clock), and the amber BETA chip is gone from the
+  menu, the editor's title and the display's sample bar. A game still picks
+  its display in check-in under *Setup → Timer*, where the switch now reads
+  "Use the Tournament Timer (off: Classic)", and the per-account default in
+  *My Settings* offers the same two names. Nothing about how either clock
+  behaves has changed.
+- **The addresses match the names.** The layout display moved to `/timer.php`
+  and the original clock to `/timer_classic.php`; the editor is
+  `/timer_layouts.php`. Every link that existed before still works: `/timer.php`
+  is the doorway, forwarding a Classic cast link (`?view=remote&key=…`), the
+  `?classic=1` escape hatch and any game set to Classic on to the Classic
+  page, while `timer_beta.php` and `timer_beta_edit.php` answer 301 and
+  `timer_beta_dl.php` a 307, so printed QR codes, saved bookmarks and a
+  second screen already casting keep working. Classic owns creating a game's
+  `timer_state` row, so a game that has never opened a timer is sent there
+  first and handed back if the host's default is the new display; the two
+  pages forward only in opposite cases and cannot bounce a request between
+  them. Files renamed to match (`timer_classic.{php,js,css}`,
+  `timer_display.{js,css}`, `timer_layouts.{php,js,css}`,
+  `timer_layouts_dl.php`, `_timer_layouts_editor.php`, and `TIMER_BETA.md` →
+  `TOURNAMENT_TIMER.md`). Shipped layout artwork stays at `/img/timer_beta/`
+  deliberately: saved layouts store those URLs, and renaming the directory
+  would break every layout using them.
+
+---
+
+## [v1.0.0] - 2026-09-21
+
+### Changed
+
+- **The version is a version now: 1.0.0.** The number in the footer used to be
+  a build counter that only ever went up by one - v0.2128, v0.2129 - which
+  said when a release was cut and nothing about what was in it. From here it
+  is semantic, and it is read against the people using the site rather than
+  against the code: a new thing at the table or in the calendar, or a rule
+  that behaves differently, is a **minor** (1.1.0); a fix for something
+  somebody could have hit is a **patch** (1.0.1); taking a feature away, or
+  changing one so that what a host knew is now wrong, is a **major** (2.0.0).
+  Nothing about the site itself changed in this release: the code is exactly
+  what v0.2129 shipped on 12 September, and the only files touched are
+  `www/version.php`, this changelog, and the rules in CLAUDE.md and
+  WORKFLOW.md. **1.0.0 is a statement, not a rewrite** - after a year of
+  running real game nights it is the number you hand to a stranger.
+  Operator notes: the update check (`run_update_check()` in `www/db.php`)
+  compares with `version_compare()`, which orders `0.2129` below `1.0.0`
+  correctly, so an installation left on an old build still sees the dot.
+  Tags stay `vX.Y.Z` (`v1.0.0`), the cache-busters on `.js` and `.css` move
+  with the version as before, and GameNight's four-digit tags up to `v0.2129`
+  stay where they are as the history of the old scheme.
 
 ---
 

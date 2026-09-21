@@ -100,8 +100,8 @@ $_is_mobile = (bool) preg_match('/Mobile|Android|iPhone|iPad|iPod|CriOS|FxiOS/i'
 
 /**
  * Opt this response into being framed by our own pages. The default is
- * frame-ancestors 'none' + X-Frame-Options DENY sitewide; the Timer BETA
- * layout editor embeds the BETA display page (?embed=1) as its live preview,
+ * frame-ancestors 'none' + X-Frame-Options DENY sitewide; the Tournament
+ * Timer's layout editor embeds the display page (?embed=1) as its preview,
  * which needs exactly same-origin framing and nothing wider. Call it before
  * any output. Do not loosen this to '*' or a host list.
  */

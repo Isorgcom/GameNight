@@ -1,5 +1,5 @@
 /* Timer BETA layout editor chrome. The preview iframe carries its own styles
- * (timer_beta.css); everything here is the editing shell around it. */
+ * (timer_display.css); everything here is the editing shell around it. */
 
 .tbe-wrap { max-width: 1500px; margin: 0 auto; padding: 1rem; }
 
@@ -10,6 +10,9 @@
 .tbe-header { display: flex; flex-direction: column; align-items: flex-start; gap: .5rem; margin-bottom: .8rem; }
 .tbe-header h1 { font-size: 1.25rem; font-weight: 800; color: #0f172a; margin: 0; display: flex; align-items: center; gap: .5rem; }
 .tb-badge { background: #f59e0b; color: #451a03; font-size: .62rem; font-weight: 800; letter-spacing: .08em; border-radius: 5px; padding: 3px 7px; }
+/* What the amber BETA chip became at v1.1.0: this IS the Tournament Timer
+   now, so the second word is a quiet subtitle rather than a warning. */
+.tb-sub { color: #64748b; font-size: .8rem; font-weight: 600; letter-spacing: .02em; }
 .tbe-header-controls { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; }
 .tbe-header-controls input[type=text] { padding: .45rem .6rem; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: .875rem; min-width: 200px; }
 /* Fixed width: a select sizes itself to its LONGEST option, and option text
@@ -68,7 +71,7 @@
     /* The shell (nav + toolbar + editor) fills exactly one viewport; the
        footer sits UNDER it in normal flow, reached by a page scroll like any
        other page. --tbe-nav-h is kept live by a ResizeObserver in
-       timer_beta_edit.js — the nav's height moves when the banner loads. */
+       timer_layouts.js — the nav's height moves when the banner loads. */
     body.tbe-body { min-height: 100dvh; display: flex; flex-direction: column; }
     body.tbe-body > nav, body.tbe-body > footer { flex: 0 0 auto; }
     body.tbe-body .tbe-wrap { flex: 0 0 auto; height: calc(100dvh - var(--tbe-nav-h, 240px)); min-height: 30rem; width: 100%; box-sizing: border-box; display: flex; flex-direction: column; }
