@@ -69,6 +69,25 @@ if ($token === '' && $page_eid > 0) {
 
     $canManage = can_manage_event($db, $page_eid, (int)$current['id'], $isAdmin);
 
+    // Played online: the connected app, the game as this side knows it, and
+    // (for managers) everything "Set up the table" would send, so the page
+    // and the endpoint agree before the button is pressed. $ftApp is the row
+    // whether or not it holds a key; the preview says when it does not.
+    $ftApp = null; $ftGame = null; $ftPre = null; $ftLinks = ['join' => '', 'rail' => ''];
+    if (!empty($ev['online_app_id']) && (int)$ev['is_poker'] === 1) {
+        require_once __DIR__ . '/_poker_helpers.php';
+        require_once __DIR__ . '/_finaltable.php';
+        $fa = $db->prepare("SELECT id, slug, name, base_url, enabled, (api_key IS NOT NULL AND api_key <> '') AS has_key FROM sso_apps WHERE id = ?");
+        $fa->execute([(int)$ev['online_app_id']]);
+        $ftApp = $fa->fetch() ?: null;
+        if ($ftApp) {
+            $ftGame  = finaltable_game_for_event($db, $page_eid);
+            if ($ftGame) $ftLinks = finaltable_links($ftApp, $ftGame);
+            $ftLive  = $ftGame && in_array($ftGame['status'], ['registering', 'running'], true);
+            if ($canManage && !$ftLive) $ftPre = finaltable_setup_preview($db, $ev, (int)$current['id']);
+        }
+    }
+
     // Viewer-tz labels (same helper the token page uses further down)
     $_evt2    = event_public_time_labels($ev['start_date'], $ev['start_time'] ?? null, $ev['end_time'] ?? null, (int)$current['id']);
     $date_lbl2 = $_evt2['date_lbl'];
@@ -129,6 +148,16 @@ if ($token === '' && $page_eid > 0) {
     $isWaitMe    = $myInv && ($myInv['approval_status'] ?? 'approved') === 'waitlisted';
     $isCreator   = (int)$ev['created_by'] === (int)$current['id'];
     $notifsEnabled = get_setting('notifications_enabled', '0') === '1';
+    // On the FinalTable guest list: managers, and approved invitees by account id.
+    $ftIsRoster = false;
+    if ($ftApp) {
+        $ftIsRoster = $canManage;
+        if (!$ftIsRoster) {
+            $rq2 = $db->prepare("SELECT 1 FROM event_invites WHERE event_id = ? AND occurrence_date IS NULL AND approval_status = 'approved' AND user_id = ?");
+            $rq2->execute([$page_eid, (int)$current['id']]);
+            $ftIsRoster = (bool)$rq2->fetchColumn();
+        }
+    }
 
     // Waitlist position (same computation the calendar modal used)
     $waitPos = 0;
@@ -192,6 +221,26 @@ if ($token === '' && $page_eid > 0) {
         .evp-comment .who { font-weight:600; font-size:.85rem; color:#334155; }
         .evp-comment .when { color:#94a3b8; font-size:.75rem; margin-left:.4rem; }
         .evp-comment .body { font-size:.9rem; color:#334155; margin-top:.15rem; white-space:pre-wrap; }
+        /* The "not set up yet" call-to-action, checkin.php's warning palette. */
+        .pk-setup-cta{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin:0;padding:.7rem .9rem;
+            background:#fffbeb;border:1.5px solid #f59e0b;border-left-width:5px;border-radius:8px}
+        .pk-setup-cta-txt{flex:1 1 240px;min-width:0;font-size:.82rem;color:#92400e;line-height:1.4}
+        .pk-setup-cta-txt b{display:block;font-size:.9rem;color:#b45309}
+        .pk-setup-cta button{flex:0 0 auto;border:none;background:#d97706;color:#fff;border-radius:6px;
+            padding:.45rem 1rem;font-size:.82rem;font-weight:700;cursor:pointer}
+        .pk-setup-cta button:hover{background:#b45309}
+        .pk-setup-cta button[disabled]{opacity:.5;cursor:default}
+        .ft-head{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin-bottom:.45rem}
+        .ft-status{font-size:.9rem;color:#334155;line-height:1.5}
+        .ft-row{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.6rem;align-items:center}
+        .ft-ent{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;font-size:.85rem;color:#475569;padding:.2rem 0;border-top:1px solid #f1f5f9}
+        .ft-ent:first-child{border-top:0}
+        .ft-ent .n{flex:1;min-width:0;font-weight:600;color:#334155}
+        .ft-ent .c{font-variant-numeric:tabular-nums}
+        .ft-ent .out{color:#94a3b8;text-decoration:line-through}
+        .ft-mini{border:1px solid #cbd5e1;background:#fff;color:#334155;border-radius:6px;padding:.2rem .55rem;font-size:.75rem;font-weight:600;cursor:pointer}
+        .ft-mini:hover{background:#f1f5f9}
+        .ft-note{font-size:.8rem;color:#64748b;margin-top:.4rem}
     </style>
 </head>
 <body>
@@ -347,6 +396,67 @@ if ($token === '' && $page_eid > 0) {
             <?php if ($canManage): ?>
             <a class="btn btn-outline" style="text-decoration:none" href="/sms_conversations.php?event=<?= $page_eid ?>">&#128241; Text conversations</a>
             <span style="font-size:.78rem;color:#94a3b8">SMS/WhatsApp replies from your guests</span>
+            <?php endif; ?>
+        </div>
+        <?php endif; ?>
+
+        <?php if ($ftApp): $ftE = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE); ?>
+        <!-- Played online: the table on FinalTable. Before setup, managers see
+             what will be sent and the button; after, everyone sees the status
+             and the links, managers the controls. finaltable.js keeps it fresh. -->
+        <div id="ftPanel" style="margin-top:1.4rem;padding-top:1.1rem;border-top:1px solid #e2e8f0">
+            <div class="ft-head">Played online at <?= $ftE($ftApp['name']) ?></div>
+            <?php if (!$ftGame || !in_array($ftGame['status'], ['registering', 'running'], true)): ?>
+                <?php if ($ftGame):
+                    $ls = $ftGame['last_status'] ? (json_decode((string)$ftGame['last_status'], true) ?: []) : [];
+                    if ($ftGame['status'] === 'finished'):
+                        $w = (string)($ls['winner']['name'] ?? ''); ?>
+                <div class="ft-status" id="ftStatus">Finished<?= $w !== '' ? ' &mdash; <b>' . $ftE($w) . '</b> won' : '' ?><?= !empty($ls['entrants']) ? ', ' . (int)$ls['entrants'] . ' played' : '' ?>. The places are in Manage Game.</div>
+                    <?php else: ?>
+                <div class="ft-status" id="ftStatus">Called off<?= !empty($ftGame['reason']) ? ': ' . $ftE($ftGame['reason']) : '' ?>.</div>
+                    <?php endif; ?>
+                <?php endif; ?>
+                <?php if ($canManage && $ftPre): ?>
+                <div class="pk-setup-cta" style="margin-top:<?= $ftGame ? '.6rem' : '0' ?>">
+                    <div class="pk-setup-cta-txt">
+                        <?php if ($ftPre['ok']): $ro = $ftPre['roster']; ?>
+                        <b><?= $ftGame ? 'Set the table up again' : 'The table is not set up yet' ?></b>
+                        Sends <?= count($ro['invitees']) ?> people (you as host), <?= $ftPre['blinds']['levels'] ? count($ftPre['blinds']['levels']) . ' blind levels' : 'FinalTable&rsquo;s Standard blinds' ?>,
+                        <?= (int)$ftPre['chips'] ?> chips, <?= (int)$ftPre['seats'] ?> to a table<?= $ftPre['buyin'] > 0 ? ', $' . (int)$ftPre['buyin'] . ' buy-in' : '' ?><?= $ftPre['reentry_levels'] ? ', re-entry for ' . (int)$ftPre['reentry_levels'] . ' levels' : ', freezeout' ?>.
+                        <?php if ($ro['skipped']): ?><br>No account here, so not sent: <?= $ftE(implode(', ', $ro['skipped'])) ?>.<?php endif; ?>
+                        <?php foreach ($ftPre['notes'] as $n): ?><br><?= $ftE($n) ?><?php endforeach; ?>
+                        <?php else: ?>
+                        <b>The table cannot be set up yet</b>
+                        <?= $ftE($ftPre['error']) ?>
+                        <?php endif; ?>
+                    </div>
+                    <button type="button" data-act="ftSetup" data-a1="@self" <?= $ftPre['ok'] ? '' : 'disabled' ?>>Set up the table on <?= $ftE($ftApp['name']) ?></button>
+                </div>
+                <?php elseif (!$canManage && !$ftGame): ?>
+                <div class="ft-status">The host has not set the table up yet; you will be told where to play.</div>
+                <?php endif; ?>
+            <?php else: ?>
+                <div class="ft-status" id="ftStatus"><?= $ftGame['status'] === 'running' ? 'Running.' : 'Registering &mdash; the table is waiting.' ?></div>
+                <div class="ft-row">
+                    <?php if ($ftIsRoster && $ftLinks['join'] !== ''): ?>
+                    <a class="btn btn-primary" style="text-decoration:none" href="<?= $ftE($ftLinks['join']) ?>" target="_blank" rel="noopener">Play at <?= $ftE($ftApp['name']) ?></a>
+                    <button type="button" class="btn btn-outline" data-act="ftCopy" data-a1="<?= $ftE($ftLinks['join']) ?>">Copy join link</button>
+                    <?php endif; ?>
+                    <?php if ($ftLinks['rail'] !== ''): ?>
+                    <a class="btn btn-outline" style="text-decoration:none" href="<?= $ftE($ftLinks['rail']) ?>" target="_blank" rel="noopener">Watch</a>
+                    <button type="button" class="btn btn-outline" data-act="ftCopy" data-a1="<?= $ftE($ftLinks['rail']) ?>">Copy watch link</button>
+                    <?php endif; ?>
+                </div>
+                <?php if ($canManage): ?>
+                <div class="ft-row" id="ftControls">
+                    <button type="button" class="btn btn-outline" id="ftBtnStart" data-act="ftControl" data-a1="start" data-a2="@self" style="display:none">Start now</button>
+                    <button type="button" class="btn btn-outline" id="ftBtnPause" data-act="ftControl" data-a1="pause" data-a2="@self" style="display:none">Pause</button>
+                    <button type="button" class="btn btn-outline" id="ftBtnResume" data-act="ftControl" data-a1="resume" data-a2="@self" style="display:none">Resume</button>
+                    <button type="button" class="btn" style="background:#dc2626;color:#fff" data-act="ftCancel" data-a1="@self">Cancel the game</button>
+                </div>
+                <div id="ftEntrants" style="margin-top:.6rem"></div>
+                <?php endif; ?>
+                <div class="ft-note" id="ftNote"></div>
             <?php endif; ?>
         </div>
         <?php endif; ?>
@@ -897,7 +1007,23 @@ async function deleteEventMsg(mid, btn) {
 }
 </script>
 <?php endif; ?>
+<?php if ($ftApp): ?>
+<script nonce="<?= csp_nonce() ?>">
+// Server-known facts for finaltable.js; everything live arrives with the polls.
+window.FT = {
+    eventId:   <?= (int)$page_eid ?>,
+    csrf:      <?= json_encode($csrf) ?>,
+    canManage: <?= $canManage ? 'true' : 'false' ?>,
+    appName:   <?= json_encode((string)$ftApp['name']) ?>,
+    status:    <?= json_encode($ftGame ? (string)$ftGame['status'] : 'none') ?>,
+    pollMs:    15000
+};
+</script>
+<?php endif; ?>
 <?php require __DIR__ . '/_footer.php'; ?>
+<?php if ($ftApp): ?>
+<script src="/finaltable.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/finaltable.js') ?: 0)) ?>" defer></script>
+<?php endif; ?>
 </body>
 </html>
     <?php

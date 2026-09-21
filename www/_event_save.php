@@ -171,6 +171,20 @@ function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allo
     $poker_buyin       = (int)(round(floatval($_POST['poker_buyin'] ?? 20) * 100));
     $poker_tables      = max(1, (int)($_POST['poker_tables'] ?? 1));
     $poker_seats       = max(2, (int)($_POST['poker_seats']  ?? 8));
+    // Online play: only a poker TOURNAMENT, only on an enabled connected app
+    // that holds a game key. The field is written when the form carried it
+    // (or when the event stops being a poker tournament, which clears it);
+    // a write path that does not carry it leaves the column alone.
+    $online_app_id     = null;
+    $online_app_posted = isset($_POST['online_app_id']);
+    if ($online_app_posted && $is_poker && $poker_game_type === 'tournament') {
+        $cand = (int)$_POST['online_app_id'];
+        if ($cand > 0) {
+            $oa = $db->prepare("SELECT id FROM sso_apps WHERE id = ? AND enabled = 1 AND api_key IS NOT NULL AND api_key <> ''");
+            $oa->execute([$cand]);
+            if ($oa->fetchColumn()) $online_app_id = $cand;
+        }
+    }
     $rsvp_deadline_hrs = (int)($_POST['rsvp_deadline_hours'] ?? 0) ?: null;
     $waitlist_enabled  = !empty($_POST['waitlist_enabled']) ? 1 : 0;
     $max_guests        = (int)($_POST['max_guests'] ?? 0);
@@ -215,9 +229,9 @@ function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allo
 
     $new_invitee_usernames = [];
     if ($action === 'add') {
-        $db->prepare('INSERT INTO events (title, description, location, venue_name, max_guests, start_date, end_date, start_time, end_time, color, created_by, is_poker, requires_approval, hide_guest_list, league_id, visibility, rsvp_deadline_hours, waitlist_enabled, reminders_enabled, reminder_offsets)
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-           ->execute([$title, $desc ?: null, $location, $venue_name, $max_guests, $sd, $ed, $st, $et, $color, $current['id'], $is_poker, $requires_approval, $hide_guest_list, $league_id, $visibility, $rsvp_deadline_hrs, $waitlist_enabled, $reminders_enabled, $reminder_offsets_json]);
+        $db->prepare('INSERT INTO events (title, description, location, venue_name, max_guests, start_date, end_date, start_time, end_time, color, created_by, is_poker, requires_approval, hide_guest_list, league_id, visibility, rsvp_deadline_hours, waitlist_enabled, reminders_enabled, reminder_offsets, online_app_id)
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+           ->execute([$title, $desc ?: null, $location, $venue_name, $max_guests, $sd, $ed, $st, $et, $color, $current['id'], $is_poker, $requires_approval, $hide_guest_list, $league_id, $visibility, $rsvp_deadline_hrs, $waitlist_enabled, $reminders_enabled, $reminder_offsets_json, $online_app_id]);
         $notify_eid = (int)$db->lastInsertId();
         // Sticky poker default: remember this create choice for the user's next new event.
         $db->prepare('UPDATE users SET last_poker_default = ? WHERE id = ?')->execute([$is_poker, $current['id']]);
@@ -308,6 +322,9 @@ function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allo
 
         $db->prepare('UPDATE events SET title=?, description=?, location=?, venue_name=?, max_guests=?, start_date=?, end_date=?, start_time=?, end_time=?, color=?, is_poker=?, requires_approval=?, hide_guest_list=?, league_id=?, visibility=?, rsvp_deadline_hours=?, waitlist_enabled=?, reminders_enabled=?, reminder_offsets=? WHERE id=?')
            ->execute([$title, $desc ?: null, $location, $venue_name, $max_guests, $sd, $ed, $st, $et, $color, $is_poker, $requires_approval, $hide_guest_list, $league_id, $visibility, $rsvp_deadline_hrs, $waitlist_enabled, $reminders_enabled, $reminder_offsets_json, $id]);
+        if ($online_app_posted || !$is_poker || $poker_game_type !== 'tournament') {
+            $db->prepare('UPDATE events SET online_app_id = ? WHERE id = ?')->execute([$online_app_id, $id]);
+        }
 
         // If start/time, reminder toggle, or offsets changed — purge old queued reminders and mark event for re-queue.
         $reminder_context_changed = !$oldEv

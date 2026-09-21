@@ -5,7 +5,7 @@ history of the CSP gap that is now closed — kept because the reasoning is what
 stops it being reopened, and because the conversion that closed it is still the
 main source of regressions.
 
-Last reviewed: 2026-08-10 (v0.2083).
+Last reviewed: 2026-09-21 (v0.2130).
 
 ---
 
@@ -214,6 +214,47 @@ comment lines. A check that cries wolf gets ignored, which is worse than not
 having it.
 
 ---
+
+## Outbound calls and inbound webhooks (FinalTable, v0.2130)
+
+The first thing in the tree that both calls another server with a credential
+and accepts signed requests from it. What holds it:
+
+- **The game key** (`sso_apps.api_key`) is stored with `encrypt_value()` under
+  `APP_SECRET`, decrypted only inside `finaltable_request()` for the
+  `Authorization: Bearer` header, and never echoed: the admin page selects
+  its columns by name and renders *Set* / *Not set*; the activity log records
+  that a key was set, never the key. `CURLOPT_FOLLOWLOCATION` is off, so a
+  redirect cannot carry the bearer to another host. Every outbound call is a
+  person pressing a button behind `csrf_verify()` and `can_manage_event()`
+  (or an admin on the Connected Apps page); there is no queue that could
+  replay one.
+- **The webhook secret** is per game: 48 hex characters from
+  `random_bytes()`, sent to FinalTable once at creation and kept encrypted in
+  `finaltable_games.webhook_secret`. It never reaches a browser
+  (`finaltable_public_game()` strips it).
+- **The receiver** (`finaltable_webhook.php`) fails closed the way
+  `sms_webhook.php` does, with an explicit `$verified` flag: POST only, body
+  capped at 64 KB and read once, a millisecond timestamp within 300 s (a
+  seconds comparison copied from the SMS receiver rejects everything — that
+  was the first bug), a `sha256=<64 hex>` signature, then
+  `hash_equals('sha256=' . hash_hmac('sha256', $ts . '.' . $body, $secret), $sig)`
+  with the raw header string and the body exactly as sent. The game row is
+  looked up from the unverified body's `game.id` **before** the check because
+  the secret is per game; nothing else is read until the signature passes.
+  An unknown id is a 404 on purpose (a deleted event's stragglers; FinalTable
+  gives up after a day and logs it there). Dedupe is an INSERT into
+  `finaltable_deliveries` with a UNIQUE `(game_id, delivery_id)`: the
+  constraint is the lock, a repeat answers 200 and does nothing. It never
+  includes `auth.php`, so no session, CSRF or CSP is in play.
+- **What it writes** is bounded: `finaltable_games` columns and the
+  `poker_players` rows of the one session tied to that game, matched by
+  `user_id` (never by the name in the payload). A player it has to create
+  gets an invite row beside it so `sync_invitees()` cannot soft-remove it.
+- The new `data-act` controls (`ftSetup`, `ftControl`, `ftCancel`,
+  `ftRemove`, `ftCopy`) live in `finaltable.js` and render only when the
+  event carries `online_app_id`; give a dev event one before the
+  double-dispatch sweep, or it walks `event.php` without them.
 
 ## CLOSED: CSP no longer allows inline script (v0.2079)
 

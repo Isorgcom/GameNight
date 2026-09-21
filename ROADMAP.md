@@ -137,6 +137,7 @@ The biggest blocker right now is 10DLC carrier registration. This milestone is e
 **Ecosystem**
 - Optional outbound webhooks (on new RSVP, new event, etc.)
 - REST API (read-only to start)
+- ✅ Online tables: a poker tournament played on a connected FinalTable server, set up from the event page, with the bust-outs and standings written back into the session (v0.2130)
 
 ---
 
@@ -162,6 +163,7 @@ The biggest blocker right now is 10DLC carrier registration. This milestone is e
 | Documentation & developer experience | 🔜 Planned |
 | Push notifications, reminders, calendar integrations | 🔜 Planned |
 | Public launch polish, performance, API | 🔜 Future |
+| Online tables on FinalTable | ✅ Shipped (v0.2130) |
 
 ---
 

@@ -1037,6 +1037,56 @@ JSON;
         created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
         last_used_at DATETIME
     )"); } catch (Exception $e) {}
+    // FinalTable: the bearer key a connected app takes on POST /api/games and
+    // the control routes. Stored ENCRYPTED via encrypt_value() and read with
+    // decrypt_value() (the users.mfa_totp_secret pattern). NULL = the app is
+    // paired for sign-in only; a poker event cannot be played online there
+    // until an admin pastes a key on the Connected Apps page.
+    try { $pdo->exec("ALTER TABLE sso_apps ADD COLUMN api_key TEXT"); } catch (Exception $e) {}
+    // One FinalTable game per online event (the poker_sessions UNIQUE habit).
+    // "Set up again" after a finish or a cancel replaces the row: a new game,
+    // a new webhook secret. last_status is the newest clock/heartbeat/ending
+    // payload FinalTable sent; last_read caches GET /api/games/:id so a page
+    // full of viewers polling costs one outbound call per ten seconds.
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS finaltable_games (
+        id                INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id          INTEGER NOT NULL UNIQUE,
+        app_id            INTEGER NOT NULL,
+        game_id           TEXT    NOT NULL,
+        code              TEXT,
+        rail              TEXT,
+        join_url          TEXT,
+        rail_url          TEXT,
+        webhook_secret    TEXT    NOT NULL,
+        status            TEXT    NOT NULL DEFAULT 'registering',
+        outcome           TEXT,
+        reason            TEXT,
+        last_status       TEXT,
+        last_event_at     DATETIME,
+        last_heartbeat_at DATETIME,
+        last_read         TEXT,
+        last_read_at      DATETIME,
+        started_at        DATETIME,
+        ended_at          DATETIME,
+        created_by        INTEGER,
+        created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+        FOREIGN KEY (app_id)   REFERENCES sso_apps(id)
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ft_games_game ON finaltable_games(game_id)"); } catch (Exception $e) {}
+    // Every delivery FinalTable has made, keyed (game, delivery id). The INSERT
+    // is the lock: a UNIQUE failure is a retry of one already handled, answered
+    // 200 and dropped. Heartbeats carry delivery_id NULL and never land here.
+    // Pruned by cron.php at 30 days.
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS finaltable_deliveries (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        game_id     TEXT    NOT NULL,
+        delivery_id INTEGER NOT NULL,
+        event       TEXT,
+        received_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(game_id, delivery_id)
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ft_deliveries_received ON finaltable_deliveries(received_at)"); } catch (Exception $e) {}
     // Per-key permission scopes. Comma-separated; existing keys default to 'read' so
     // adding write endpoints (e.g. POST /api/v1/users) cannot be exercised by an old
     // sister-site key without an explicit re-mint.
@@ -1682,6 +1732,9 @@ JSON;
     // venue_name is the publishable half of an event's location: shown on public
     // league pages/feeds, while `location` (street address) stays members-only.
     try { $pdo->exec("ALTER TABLE events ADD COLUMN venue_name TEXT"); } catch (Exception $e) {}
+    // Online play: sso_apps.id of the FinalTable server a poker tournament is
+    // played on; NULL = in person. Set in the event editor's poker bar.
+    try { $pdo->exec("ALTER TABLE events ADD COLUMN online_app_id INTEGER"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE leagues ADD COLUMN slug TEXT"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE leagues ADD COLUMN public_page INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE leagues ADD COLUMN banner_path TEXT"); } catch (Exception $e) {}
@@ -2479,6 +2532,15 @@ function delete_user_account(int $user_id): void {
     $un = $db->prepare('SELECT username FROM users WHERE id = ?');
     $un->execute([$user_id]);
     $username = $un->fetchColumn();
+
+    // Best effort: end their sessions on every FinalTable that has a key. A
+    // sign-out there is not a ban - the next sign-in through the bridge works
+    // as before - but the account is about to stop existing here, so the
+    // bridge will refuse it. Never blocks the delete.
+    try {
+        require_once __DIR__ . '/_finaltable.php';
+        finaltable_sign_out_everywhere($db, $user_id);
+    } catch (Throwable $e) { /* best-effort */ }
 
     // ── League ownership transfer / cascade delete for orphaned leagues ──
     $ownedStmt = $db->prepare('SELECT id FROM leagues WHERE owner_id = ?');

@@ -527,6 +527,10 @@ case 'remove_member': {
             'You were removed from "' . $lname . '".',
             '<p>You were removed from the league <strong>' . htmlspecialchars($lname) . '</strong>.</p>'
         );
+        // Out of the league is out of its online games: end their sessions on
+        // every FinalTable that has a key. Best effort, never blocks the removal.
+        require_once __DIR__ . '/_finaltable.php';
+        finaltable_sign_out_everywhere($db, (int)$row['user_id']);
     }
     // Pending contacts: no notification (their invite is being rescinded silently).
     db_log_activity($uid, "removed member from league id=$league_id (member id=" . (int)$row['id'] . (!empty($row['user_id']) ? ", user #" . (int)$row['user_id'] : ", pending contact") . ")");
