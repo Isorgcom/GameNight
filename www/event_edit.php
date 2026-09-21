@@ -179,6 +179,10 @@ $reminder_presets_available = json_decode(get_setting('reminder_offsets_availabl
 $reminder_default_offsets   = json_decode(get_setting('default_reminder_offsets',    '[2880,720]'), true) ?: [2880,720];
 // Admins preload the full user list; everyone else fetches a scoped list async.
 $allUsers = $isAdmin ? $db->query('SELECT username, email, phone FROM users ORDER BY username')->fetchAll() : [];
+// Where a tournament can be played online: every enabled connected app that
+// holds a game key. None means the choice is not offered at all.
+$onlineApps = [];
+try { $onlineApps = $db->query("SELECT id, name FROM sso_apps WHERE enabled = 1 AND api_key IS NOT NULL AND api_key <> '' ORDER BY name")->fetchAll(); } catch (Throwable $e) {}
 
 $token     = csrf_token();
 $site_name = get_setting('site_name', 'Game Night');
@@ -480,11 +484,21 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
 
             <!-- ── Poker settings bar (inline, hidden by default) ── -->
             <div class="edit-poker-bar" id="ePokerFields" style="display:none">
-                <label>Type <select name="poker_game_type" id="ePokerGameType"><option value="tournament">Tournament</option><option value="cash">Cash</option></select></label>
+                <label>Type <select name="poker_game_type" id="ePokerGameType" data-act-change="pokerFieldsChanged"><option value="tournament">Tournament</option><option value="cash">Cash</option></select></label>
                 <label>Buy-in $ <input type="number" name="poker_buyin" id="ePokerBuyin" min="0" step="1" value="20"></label>
                 <label>Tables <input type="number" name="poker_tables" id="ePokerTables" min="1" max="50" value="1" data-act-change="updateCapacityLine" data-act-input="updateCapacityLine"></label>
                 <label>Seats <input type="number" name="poker_seats" id="ePokerSeats" min="2" max="12" value="8" data-act-change="updateCapacityLine" data-act-input="updateCapacityLine"></label>
                 <label>Deadline <select name="rsvp_deadline_hours" id="eRsvpDeadline"><option value="">None</option><option value="24">24h</option><option value="48">48h</option><option value="72">72h</option></select></label>
+                <?php if ($onlineApps): ?>
+                <label title="A tournament played on a connected FinalTable server; the organiser sets the table up from the event page">Played <select name="online_app_id" id="eOnlineApp">
+                    <option value="0">In person</option>
+                    <?php foreach ($onlineApps as $oa): ?>
+                    <option value="<?= (int)$oa['id'] ?>">Online at <?= htmlspecialchars($oa['name'], ENT_QUOTES | ENT_SUBSTITUTE) ?></option>
+                    <?php endforeach; ?>
+                </select></label>
+                <?php elseif ($isAdmin): ?>
+                <span style="font-size:.8rem;color:#94a3b8" title="Paste a FinalTable game key under Site Settings › Connected Apps to offer online play">In person only</span>
+                <?php endif; ?>
                 <span id="eCapacityHint" style="font-weight:700;color:#2563eb">8 seats</span>
             </div>
 
@@ -1240,6 +1254,10 @@ function togglePokerFields() {
     document.getElementById('eWaitlistLabel').style.display = (show || mgVal > 0) ? '' : 'none';
     if (show) updateCapacityLine();
     else updateDividerLine(); // clear divider when poker is off
+    // Online play is a tournament thing. A disabled select is not submitted,
+    // and the saver clears the column for a cash game whether or not it was.
+    var oa = document.getElementById('eOnlineApp');
+    if (oa) { var gt = document.getElementById('ePokerGameType'); oa.disabled = !!(gt && gt.value === 'cash'); }
     updateGuestOptsBadge(); // runs post-populate on edits, keeps the count honest
 }
 
@@ -1415,6 +1433,8 @@ function regenWalkinFromEdit() {
     document.getElementById('ePokerBuyin').value    = ps ? Math.round(parseInt(ps.buyin_amount,10)/100) : '20';
     document.getElementById('ePokerTables').value   = ps ? ps.num_tables : '1';
     document.getElementById('ePokerSeats').value    = ps ? ps.seats_per_table : '8';
+    var oaSel = document.getElementById('eOnlineApp');
+    if (oaSel) oaSel.value = (ev && ev.online_app_id) ? String(ev.online_app_id) : '0';
     document.getElementById('eRsvpDeadline').value  = (ev && ev.rsvp_deadline_hours) ? String(ev.rsvp_deadline_hours) : '';
     document.getElementById('eWaitlistEnabled').checked = ev ? !!(parseInt(ev.waitlist_enabled) || ev.waitlist_enabled === null) : false;
     document.getElementById('eMaxGuests').value = (ev && ev.max_guests) ? ev.max_guests : '';

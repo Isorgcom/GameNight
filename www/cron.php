@@ -232,6 +232,8 @@ try { $pruned += $db->exec("DELETE FROM user_notifications WHERE created_at < da
 // API request log: older than 30 days. Dominant table by row count (~28k/day);
 // rate limiting only needs the last minute, so 30d is purely forensic headroom.
 $pruned += $db->exec("DELETE FROM api_request_log WHERE created_at < datetime('now', '-30 days')");
+// FinalTable deliveries seen: the dedupe only needs the day a retry can span.
+try { $pruned += $db->exec("DELETE FROM finaltable_deliveries WHERE received_at < datetime('now', '-30 days')"); } catch (Exception $e) {}
 // Heal contact links pointing at deleted accounts — they'd otherwise render as
 // "Linked" with a Message button that leads nowhere.
 try { $db->exec("UPDATE user_contacts SET linked_user_id = NULL

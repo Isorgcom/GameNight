@@ -10,6 +10,7 @@
  */
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/_sso.php';
+require_once __DIR__ . '/_finaltable.php';
 
 $current = require_login();
 if (($current['role'] ?? '') !== 'admin') {
@@ -87,6 +88,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // The game key: what an online event's "Set up the table" sends as its
+    // bearer. Made once on FinalTable's Admin page, pasted here, kept
+    // encrypted, never shown again - only "set" or "not set".
+    if ($action === 'save_key' || $action === 'test') {
+        $id = (int)($_POST['id'] ?? 0);
+        $st = $db->prepare('SELECT * FROM sso_apps WHERE id = ?');
+        $st->execute([$id]);
+        $app = $st->fetch();
+        if (!$app) {
+            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'That app no longer exists.'];
+        } elseif ($action === 'save_key') {
+            $key   = trim((string)($_POST['api_key'] ?? ''));
+            $clear = !empty($_POST['clear_key']);
+            if ($clear) {
+                $db->prepare('UPDATE sso_apps SET api_key = NULL WHERE id = ?')->execute([$id]);
+                db_log_activity($uid, 'admin sso app key cleared slug=' . $app['slug'], 'warning');
+                $_SESSION['flash'] = ['type' => 'success', 'msg' => '"' . $app['name'] . '" no longer has a game key; its online events cannot be set up until one is pasted.'];
+            } elseif ($key === '') {
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Paste the key, or tick "clear" to remove the one that is there.'];
+            } elseif (strlen($key) < 16 || strlen($key) > 256 || preg_match('/\s/', $key)) {
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'That does not look like a FinalTable key.'];
+            } else {
+                $db->prepare('UPDATE sso_apps SET api_key = ? WHERE id = ?')->execute([encrypt_value($key), $id]);
+                db_log_activity($uid, 'admin sso app key set slug=' . $app['slug']);   // the fact, never the key
+                $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Game key saved for "' . $app['name'] . '". Press Test to prove it.'];
+            }
+        } else {
+            $r = finaltable_probe($app);
+            db_log_activity($uid, 'admin sso app test slug=' . $app['slug'] . ' ok=' . ($r['ok'] ? 1 : 0));
+            $_SESSION['flash'] = ['type' => $r['ok'] ? 'success' : 'error', 'msg' => $r['msg']];
+        }
+        header('Location: /admin_sso_apps.php');
+        exit;
+    }
+
     if ($action === 'rotate') {
         $keys = sso_rotate_keys();
         db_log_activity($uid, 'admin sso keys rotated kid=' . $keys['kid'], 'warning');
@@ -101,7 +137,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $keys   = sso_keys();
 $issuer = rtrim(get_site_url(), '/');
-$apps   = $db->query('SELECT * FROM sso_apps ORDER BY created_at DESC')->fetchAll();
+// Columns by name: the encrypted key must never reach the page, only whether there is one.
+$apps   = $db->query("SELECT id, slug, name, base_url, enabled, created_by, created_at, last_used_at,
+                             (api_key IS NOT NULL AND api_key <> '') AS has_key
+                      FROM sso_apps ORDER BY created_at DESC")->fetchAll();
 
 $local_tz = new DateTimeZone(display_timezone());
 function sso_admin_fmt(?string $utc_dt, DateTimeZone $local_tz): string {
@@ -156,6 +195,12 @@ $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
         .sa-details { margin-top:1rem; border-top:1px solid #f1f5f9; padding-top:.75rem; }
         .sa-details > summary { cursor:pointer; font-size:.8rem; color:#64748b; font-weight:600; }
         .sa-details > summary:hover { color:#334155; }
+        .sa-keyrow td { padding-top:0; border-bottom:1px solid #e2e8f0; }
+        .sa-keyform { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; margin:0; }
+        .sa-keyform input[type=password] { width:260px; max-width:100%; box-sizing:border-box; padding:.35rem .55rem; border:1.5px solid #e2e8f0; border-radius:6px; font-size:.8rem; }
+        .sa-keyform label { font-size:.75rem; color:#64748b; display:flex; align-items:center; gap:.25rem; }
+        .sa-keyform .sa-keylbl { font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:#94a3b8; font-weight:700; }
+        .sa-btn[disabled] { opacity:.45; cursor:default; }
         @media (max-width: 720px) { .sa-form { grid-template-columns:1fr; } }
     </style>
 </head>
@@ -188,6 +233,7 @@ $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
                     <th>Slug (audience)</th>
                     <th>Base URL</th>
                     <th>Status</th>
+                    <th>Game key</th>
                     <th>Created</th>
                     <th>Last sign-in</th>
                     <th></th>
@@ -200,6 +246,7 @@ $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
                     <td><code><?= $e($a['slug']) ?></code></td>
                     <td><code><?= $e($a['base_url']) ?></code></td>
                     <td><span class="sa-pill <?= (int)$a['enabled'] ? 'on' : 'off' ?>"><?= (int)$a['enabled'] ? 'Enabled' : 'Disabled' ?></span></td>
+                    <td><span class="sa-pill <?= (int)$a['has_key'] ? 'on' : 'off' ?>"><?= (int)$a['has_key'] ? 'Set' : 'Not set' ?></span></td>
                     <td><?= $e(sso_admin_fmt($a['created_at'], $local_tz)) ?></td>
                     <td><?= $e(sso_admin_fmt($a['last_used_at'], $local_tz)) ?></td>
                     <td style="text-align:right;white-space:nowrap">
@@ -214,6 +261,29 @@ $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
                             <input type="hidden" name="action" value="delete">
                             <input type="hidden" name="id" value="<?= (int)$a['id'] ?>">
                             <button type="submit" class="sa-btn danger">Remove</button>
+                        </form>
+                    </td>
+                </tr>
+                <tr class="sa-keyrow">
+                    <td colspan="8">
+                        <form method="post" class="sa-keyform">
+                            <input type="hidden" name="csrf_token" value="<?= $e(csrf_token()) ?>">
+                            <input type="hidden" name="action" value="save_key">
+                            <input type="hidden" name="id" value="<?= (int)$a['id'] ?>">
+                            <span class="sa-keylbl">Game key</span>
+                            <input type="password" name="api_key" maxlength="256" autocomplete="new-password"
+                                   placeholder="<?= (int)$a['has_key'] ? 'leave blank to keep the current key' : 'paste the key from its Admin page' ?>">
+                            <?php if ((int)$a['has_key']): ?>
+                            <label><input type="checkbox" name="clear_key" value="1"> clear</label>
+                            <?php endif; ?>
+                            <button type="submit" class="sa-btn">Save key</button>
+                        </form>
+                        <form method="post" style="margin:.35rem 0 0;display:inline">
+                            <input type="hidden" name="csrf_token" value="<?= $e(csrf_token()) ?>">
+                            <input type="hidden" name="action" value="test">
+                            <input type="hidden" name="id" value="<?= (int)$a['id'] ?>">
+                            <button type="submit" class="sa-btn" <?= (int)$a['has_key'] ? '' : 'disabled' ?>>Test</button>
+                            <span style="font-size:.75rem;color:#94a3b8;margin-left:.4rem">Proves the address and the key with two requests; nothing is made.</span>
                         </form>
                     </td>
                 </tr>
@@ -270,6 +340,12 @@ $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
                 <li>
                     It fetches the key and shows its id. Check it reads
                     <code><?= $e($keys['kid']) ?></code>, and that is the whole job.
+                </li>
+                <li>
+                    For games played there: on FinalTable's Admin page, under <strong>GameNight</strong>,
+                    press <strong>Make a key</strong> and paste it into the app's <em>Game key</em> above.
+                    <strong>Test</strong> proves the address and the key. A poker event can then be marked
+                    <em>Online at</em> that app in its editor, and its organiser sets the table up from the event page.
                 </li>
             </ol>
         </div>

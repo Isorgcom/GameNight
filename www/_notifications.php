@@ -336,6 +336,10 @@ function cancel_event_with_notifications(PDO $db, int $event_id, int $actor_id):
         $notified++;
     }
 
+    // A table set up on FinalTable is called off before its record cascades away.
+    require_once __DIR__ . '/_finaltable.php';
+    finaltable_cancel_if_live($db, $event_id);
+
     $db->prepare('DELETE FROM event_exceptions WHERE event_id=?')->execute([$event_id]);
     $db->prepare('DELETE FROM event_invites WHERE event_id=?')->execute([$event_id]);
     // event_messages has a FOREIGN KEY to events(id) without ON DELETE CASCADE,
@@ -404,7 +408,7 @@ function _notify_category(string $type): string {
     return match ($type) {
         'invite', 'rsvp_nudge'                                       => 'invites',
         'reminder'                                                   => 'reminders',
-        'event_updated', 'cancel_event', 'cancel_occurrence'         => 'changes',
+        'event_updated', 'cancel_event', 'cancel_occurrence', 'online_table' => 'changes',
         'event_comment'                                              => 'comments',
         'waitlist_promoted', 'rsvp_deadline_demoted', 'poker_approved' => 'status',
         'event_message', 'event_poll', 'sms_reply'                   => 'messages',
@@ -586,6 +590,10 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
         // At most one nudge per recipient per day; the host can re-fire on a
         // later day to chase remaining stragglers.
         $type_tag = 'rsvp_nudge_' . (string)($payload['day'] ?? '');
+    } elseif ($type === 'online_table') {
+        // Each "Set up the table" is its own send: a table set up again after
+        // a cancel has a new link, and the old marker must not swallow it.
+        $type_tag = 'online_table_' . $row_id;
     }
     $occ_key = $occ_date ?: '';
     $seenStmt = $db->prepare(
@@ -811,6 +819,24 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
             $smsBody = "\"$title\" on $start has been updated. View: $event_link";
             $htmlBody = '<p>Details for <strong>' . htmlspecialchars($title) . '</strong> on ' . htmlspecialchars($start) . ' have been updated.</p>'
                       . '<p style="margin-top:1rem"><a href="' . htmlspecialchars($event_link) . '">View the latest details</a></p>';
+            break;
+
+        case 'online_table':
+            // The organiser set the table up on FinalTable: here is the seat.
+            // The join link is the whole point; the watch link is for anybody
+            // they want to show it to.
+            $ftApp  = (string)($payload['app'] ?? 'FinalTable');
+            $ftJoin = (string)($payload['join_url'] ?? $url);
+            $ftRail = (string)($payload['rail_url'] ?? '');
+            $site_name = get_setting('site_name', 'Game Night');
+            $subject  = "Your table for $title is on $ftApp";
+            $smsBody  = "\"$title\" on $when is played online at $ftApp. Your seat: $ftJoin (sign in there with your $site_name account).";
+            $htmlBody = '<p><strong>' . htmlspecialchars($title) . '</strong> on ' . htmlspecialchars($when)
+                      . ' is played online at <strong>' . htmlspecialchars($ftApp) . '</strong>.</p>'
+                      . '<p style="margin-top:1rem"><a href="' . htmlspecialchars($ftJoin) . '" style="background:#2563eb;color:#fff;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600">Take your seat</a></p>'
+                      . '<p style="color:#64748b;font-size:.85rem">Sign in there with your ' . htmlspecialchars($site_name) . ' account; your seat is waiting. '
+                      . ($ftRail !== '' ? 'Anyone can watch at <a href="' . htmlspecialchars($ftRail) . '">' . htmlspecialchars($ftRail) . '</a>. ' : '')
+                      . 'Event page: <a href="' . htmlspecialchars($url) . '">' . htmlspecialchars($url) . '</a></p>';
             break;
 
         case 'rsvp_to_creator':

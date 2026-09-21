@@ -2,7 +2,7 @@
 
 A developer-facing map of every page in the GameNight app: where it lives, who can reach it, what it does, and how users get to it. Companion to `DOCS.md` (which is the end-user/admin guide).
 
-App version at time of writing: **1.0.0**
+App version at time of writing: **1.2.0**
 All page files live in `www/`. Data endpoints (`*_dl.php`) are listed but not detailed here — they exist only to serve AJAX from the page that owns them.
 
 ---
@@ -269,7 +269,7 @@ The single big admin console — `?tab=NAME`. Most legacy admin URLs redirect he
 - **Linked from:** nav (admin)
 
 ### `www/admin_sso_apps.php` — Connected Apps  · **ADMIN**
-Registers the external apps that may sign people in with their account here (see `connect.php`): slug (the token audience), name, base URL (the only origin a token is ever returned to), enable / disable / remove. Shows the public signing key, the key id and a ready-to-paste `.env` snippet for FinalTable, and can regenerate the keypair (every app must then be re-paired). The public key is also served at `GET /api/v1/sso`, no API key needed.
+Registers the external apps that may sign people in with their account here (see `connect.php`): slug (the token audience), name, base URL (the only origin a token is ever returned to), enable / disable / remove. Shows the public signing key, the key id and a ready-to-paste `.env` snippet for FinalTable, and can regenerate the keypair (every app must then be re-paired). The public key is also served at `GET /api/v1/sso`, no API key needed. Also holds each app's **game key** (`sso_apps.api_key`, encrypted with `encrypt_value()`, rendered only as set / not set) with a **Test** that probes the app through `finaltable_probe()`; the key is what `finaltable_dl.php` sends to make and drive a game there.
 - **Linked from:** Site Settings tab strip (`_admin_tabs.php`)
 
 ### `www/users.php` — Legacy Users  · **REDIR**
@@ -319,6 +319,9 @@ Receives WhatsApp inbound messages.
 ### `www/sms_webhook.php` — SMS Webhook  · **PUB** (signed by provider)
 Receives SMS replies (handles RSVP-by-text replies routed through `cron.php`/notification flow).
 
+### `www/finaltable_webhook.php` — FinalTable Webhook  · **PUB** (HMAC-signed, per game)
+Receives a FinalTable server's reports about a game made from here (`tournament.started` / `level` / `paused` / `resumed` / `heartbeat`, `player.eliminated` / `reentered`, `tournament.completed` / `cancelled`). Looks the game up by `game.id` in `finaltable_games`, checks the millisecond timestamp (5 min) and the `sha256=` HMAC over `<ts>.<body>` with that game's secret, dedupes on `finaltable_deliveries (game_id, delivery_id)` (the UNIQUE row is the lock), then `finaltable_apply_event()` writes the game row and the session's `poker_players`. 404 for an unknown game, 401 for a bad signature, 500 (with the dedupe row removed) when applying fails. Never includes `auth.php`.
+
 ### `www/favicon.php` — Favicon  · **PUB**
 Dynamic favicon serving.
 
@@ -338,6 +341,7 @@ These are POST-only AJAX backends — they have no HTML view of their own. Liste
 | `timer_dl.php` | `timer.php`, `timer_classic.php` |
 | `timer_layouts_dl.php` | `timer.php`, `timer_layouts.php` |
 | `admin_settings_dl.php` | `admin_settings.php` |
+| `finaltable_dl.php` | `event.php` (the *Played online* panel): `setup`, `start`, `pause`, `resume`, `cancel`, `remove` (POST, managers), `state` (GET, anyone who can see the event). `setup` also takes `bots` (0-40) from an admin, with no control in the UI, for trying a game out. |
 
 ---
 
@@ -346,6 +350,7 @@ These are POST-only AJAX backends — they have no HTML view of their own. Liste
 - `www/_nav.php` — top navigation partial
 - `www/_footer.php` — footer partial
 - `www/_poker_helpers.php` — chip-pool / payout math used by checkin & timer
+- `www/_finaltable.php` — the FinalTable client (`finaltable_request()`, bearer key, 8 s, no redirects), the roster and setup preview the event page and `finaltable_dl.php` share, and `finaltable_apply_event()` for the receiver
 - `www/auth.php` — `require_login()`, `current_user()`, security headers, CSRF
 - `www/db.php` — schema, migrations, all DB helpers
 - `www/mail.php` — PHPMailer wrapper

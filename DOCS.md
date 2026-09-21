@@ -31,6 +31,7 @@ A complete guide to setting up, configuring, and using Game Night — your self-
   - [Tournament Mode](#tournament-mode)
   - [Cash Game Mode](#cash-game-mode)
   - [Managing Players](#managing-players)
+  - [Online Tables (FinalTable)](#online-tables-finaltable)
 - [Posts & Announcements](#posts--announcements)
 - [Comments](#comments)
 - [User Guide](#user-guide)
@@ -250,6 +251,7 @@ A connected app is a separate site (FinalTable, the online tournament table, is 
 - Enables, disables or removes an app. A disabled or removed app's sign-in links get a 404 page on Game Night, and nothing is shared.
 - Sees the **public signing key** and its id. FinalTable fetches the key itself when its operator enters this site's address on its Operator page; the `.env` snippet here is for a headless setup. The private half never leaves the server; it is generated on first visit and stored encrypted.
 - **Regenerates** the keypair. Every connected app must then be given the new public key before its sign-in works again, so this is a deliberate act behind a confirmation.
+- Pastes the app's **game key**, for games played there. FinalTable's administrator makes it on FinalTable's Admin page under *GameNight* (**Make a key**, shown once); it goes in the app's *Game key* field here and is kept encrypted, shown afterwards only as *Set* or *Not set*. **Test** proves the address and the key with two requests that make nothing: a wrong key comes back with FinalTable's own sentence. Once an app has a key, a poker tournament can be marked *Online at* it (see [Online Tables](#online-tables-finaltable)). Clearing the key stops new tables being set up there; games already running are unaffected.
 
 Each sign-in is written to the activity log as `sso_login app=<slug>`, and the app's row shows its last sign-in. See [Connected Apps: Sign-In Bridge](#connected-apps-sign-in-bridge) under the API section for the wire contract.
 
@@ -368,6 +370,24 @@ Click **Settings** during an active game to adjust:
 - Starting chips
 - Number of tables
 - Payout structure (add/remove places, adjust percentages)
+
+### Online Tables (FinalTable)
+
+A poker **tournament** can be played on FinalTable, the online table, instead of in a room. It needs a connected app with a game key (see [Connected Apps](#connected-apps)); the event editor's poker bar then offers **Played: In person / Online at FinalTable**. Cash games stay in person.
+
+**Setting the table up.** The event page of an online event carries a *Played online at FinalTable* section. Before the table exists, the organiser (and any event manager) sees what will be sent and a **Set up the table on FinalTable** button:
+
+- **Who goes.** The organiser hosts the table, whether or not they are on their own guest list, and every *approved* invitee who has a Game Night account goes with them. FinalTable seats people by account, so an invitee without one is listed as *not sent*; give them an account and re-invite them. The guest list is the door: a listed member who signs in at FinalTable with their Game Night account walks straight in, and nobody else can.
+- **What goes.** The event's title and start time, the session's blind schedule (from *Blinds & timer display*; the site's default preset when the game has none; FinalTable's own Standard structure when there is neither, or when the blinds are in cents, since FinalTable plays whole chips), starting chips (1000, 2000, 5000 or 10000 there), seats per table (eight at most), the buy-in, add-ons, and re-entry for the first three levels when rebuys are allowed.
+- **When.** FinalTable takes a game up to seven days ahead; the page says when to come back for one further out. A start in the past, or an all-day event, means the host starts the clock by hand.
+
+Pressing the button makes the game, tells everyone on the guest list where to play (a notification with the join link, through their usual channels, under the *changes* category) and turns the section into the table's status: registering with its start, then the level, blinds, time to the next level, players left, and whether the host has paused. **Play at FinalTable** is the join link for people with a seat, **Watch** the rail link for anyone who can see the event; both have a copy button.
+
+**Driving the table.** Managers get **Start now** (before the scheduled time; two people must be seated), **Pause** and **Resume**, **Take out of play** beside any seated player (their seat goes, they are told; during a hand it waits for the hand to end), and **Cancel the game**, which sends everyone back to the lobby and keeps the places so far. FinalTable refuses what its own host could not do, in its own words, and the page shows the sentence.
+
+**The record of the night.** FinalTable reports back as the game runs, and this side writes what an in-person game would have written by hand: every bust-out becomes a finish position (provisional until late registration and re-entry close; the final standings are the last word), a re-entry clears it and counts as a rebuy, and the ending records every place, marks who actually played as bought in, sets the session to *finished* and computes payouts, points, bounties and entry tickets from **this event's payout structure**, exactly as Manage Game's *Finish* does. FinalTable's own prize figures are kept for the status line only. The league table picks the event up like any other. A cancelled game leaves the session as it stood. For an online game, let FinalTable keep the book: hand edits in Manage Game are overwritten by the standings when the game ends.
+
+**Afterwards.** Once a game has finished or been called off, the organiser can set the table up again; the old game's stragglers are ignored. Deleting an event with a live table calls the game off first. Removing a member from a league, or deleting their account, signs them out of every FinalTable that has a key.
 
 ---
 
@@ -1616,6 +1636,11 @@ GET /api/v1/sso
 No API key. Returns `{issuer, connect_url, token: {format, claims, carried}, keys: [{kid, kty: "EC", crv: "P-256", alg: "ES256", use: "sig", pem}]}`, cacheable for five minutes. An app verifies locally: pin `alg` to ES256 (refuse `none` and HMAC before reading the signature), check the signature with the PEM, then `iss`, `aud`, `exp`/`iat` with a minute of skew, and keep `jti`s until they expire.
 
 **Pairing FinalTable:** register it here, then in FinalTable's lobby open **Operator** (behind its admin password), enter this site's address and the slug, and it fetches the key from `/api/v1/sso` itself. The `.env` snippet on the Connected Apps page is the headless alternative. FinalTable's own `docs/DEPLOYMENT.md` has the steps from its side.
+
+**Games on FinalTable (Game Night → app, then app → Game Night).** The other direction of the bridge, for [online tables](#online-tables-finaltable). The contract is FinalTable's `docs/API.md`; what this side does with it:
+
+- **Outbound.** Every call carries the app's game key as `Authorization: Bearer <key>` (decrypted for the request, never logged) and reads FinalTable's `{ok, data | error}` envelope. Calls are made only by a person pressing a button: *Test* (`GET /api/status`, unkeyed, then `GET /api/games/probe`, whose 404 proves the key), *Set up the table* (`POST /api/games` with `title`, `start_at`, `seats_per_table`, `starting_chips`, `buyin_amount`, `addon_allowed`, `reentryLevels`, `blind_levels`, `invitees[{user_id, username, manager}]`, `webhook{url, secret}` and `external_id` = the event id), the controls (`POST /api/games/:id/start|pause|resume|cancel|remove`), the status poll (`GET /api/games/:id`, cached ten seconds per game), and sign-out (`POST /api/players/:user_id/sign-out`). Redirects are never followed. There is no retry queue; a refusal is shown to the person in FinalTable's words.
+- **Inbound.** FinalTable POSTs each game event to `/finaltable_webhook.php`: JSON, headers `X-FinalTable-Event`, `X-FinalTable-Delivery`, `X-FinalTable-Timestamp` (milliseconds) and `X-FinalTable-Signature: sha256=<hex>`, an HMAC-SHA256 keyed with the secret this side generated for that game (48 hex characters, stored encrypted beside the game) over `<timestamp>.<body>`. The receiver takes the body once, finds the game by `game.id`, refuses a stale timestamp (five minutes) or a bad signature with 401 before reading anything else, answers 404 for a game it does not hold (FinalTable retries for a day, then gives up and logs it), and dedupes on `(game, delivery_id)` with a UNIQUE row that is the lock: a repeat answers 200 and is dropped. A heartbeat has no delivery id and skips the dedupe. A delivery this side fails to apply answers 500 so FinalTable tries again. Events handled: `tournament.started`, `tournament.level`, `tournament.paused`, `tournament.resumed`, `tournament.heartbeat`, `player.eliminated`, `player.reentered`, `tournament.completed`, `tournament.cancelled`; anything else is acknowledged and ignored.
 
 ---
 

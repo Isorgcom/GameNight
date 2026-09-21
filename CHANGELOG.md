@@ -13,6 +13,87 @@ lands and that heading is renamed when a release is cut.
 
 ---
 
+## [v1.2.0] - 2026-09-21
+
+### Added
+
+- **A poker tournament can be played on FinalTable.** A connected app with a
+  game key offers *Played: Online at FinalTable* in the event editor's poker
+  bar (`events.online_app_id`). The event page then carries a *Played online
+  at* section: before the table exists, the organiser and managers see what
+  will be sent - the guest list (the organiser hosts; every approved invitee
+  with an account goes, one without is named as not sent), the blind
+  schedule, chips, seats, buy-in and re-entry - and a **Set up the table**
+  button. That one press POSTs FinalTable's `/api/games` with the roster, the
+  session's blinds (the site's default preset when the game has none;
+  FinalTable's Standard when neither exists or the blinds are in cents), the
+  start (FinalTable takes seven days ahead; the page says when to come back),
+  a per-game webhook secret and the event id, keeps what came back in the new
+  `finaltable_games` table, syncs the roster into the session's players, and
+  tells everyone on the guest list where to play with a new `online_table`
+  notification (a *changes*-category message with the join link). From then
+  on the section is the table's status - registering with its start, then the
+  level, blinds, time to the next level, players left, paused or an emptied
+  room - with **Play at FinalTable** for people with a seat, **Watch** for
+  anyone who can see the event, and copy buttons for both; `finaltable.js`
+  polls `finaltable_dl.php?action=state` every fifteen seconds while the tab
+  is visible. Managers get **Start now**, **Pause**, **Resume**, **Take out
+  of play** beside each seated player and **Cancel the game**; a refusal is
+  shown in FinalTable's own words. After a finish or a cancel the table can
+  be set up again. Deleting an event with a live table calls the game off
+  first, and removing a member from a league or deleting their account signs
+  them out of every FinalTable that has a key. Documented in DOCS.md under
+  *Online Tables* and in the sign-in bridge section.
+- **FinalTable reports the game back, and it becomes the session's record.**
+  A new receiver, `finaltable_webhook.php`, takes FinalTable's signed
+  deliveries - the clock starting, every level and break, pauses, every
+  bust-out and re-entry, the ending, and a heartbeat every five minutes - and
+  writes them the way Manage Game would by hand: a bust-out is a finish
+  position (provisional until late registration and re-entry close), a
+  re-entry clears it and counts as a rebuy, and the completion records every
+  place, marks who actually played as bought in, sets the session to
+  *finished* and runs the same finish hook as the **Finish** button, so
+  payouts, points, bounties and entry tickets come from **this event's
+  payout structure**, and the league table picks the night up like any
+  other. FinalTable's own prize figures stay on the status line only. A
+  player at the table with no row here (an invite deleted after setup) gets
+  one, with an invite beside it. A cancellation leaves the session as it
+  stood. Each delivery is remembered in `finaltable_deliveries` so a retry is
+  answered once; `cron.php` prunes it at thirty days.
+- **Connected Apps holds each app's game key, with a Test.** FinalTable's
+  administrator makes the key on its Admin page (shown once); an admin pastes
+  it into the app's *Game key* field on Site Settings › Connected Apps, where
+  it is kept encrypted with `encrypt_value()` (`sso_apps.api_key`) and shown
+  afterwards only as *Set* or *Not set*, with a *clear* tick to remove it.
+  **Test** makes two requests that create nothing - the unkeyed status route,
+  then a keyed read of a game that does not exist - and reports FinalTable's
+  own sentence when the key is wrong or missing. The activity log records
+  that a key was set, tested or cleared, never the key.
+
+### Security
+
+- **The receiver fails closed.** POST only, body capped at 64 KB and read
+  once, a millisecond timestamp within five minutes, a `sha256=` signature
+  checked with `hash_equals()` over `<timestamp>.<body>` using that game's
+  own secret (48 hex characters from `random_bytes()`, stored encrypted,
+  never sent to a browser) before anything in the body is trusted, 404 for a
+  game this site does not hold, 401 for a bad signature (logged as a
+  warning), and a UNIQUE `(game_id, delivery_id)` row as the dedupe lock. It
+  never includes `auth.php`. Outbound calls never follow a redirect, so the
+  bearer cannot be carried to another host, and every one is made by a
+  person behind CSRF and `can_manage_event()`. SECURITY.md has the section.
+
+### Changed
+
+- **The event editor's poker bar gains "Played".** *In person* or *Online at
+  <app>* per connected app that holds a game key; shown only when one does
+  (an admin without one sees where to paste it). Only a tournament can be
+  online - the choice is disabled for a cash game and the column is cleared
+  when an event stops being a poker tournament. The game type select now
+  re-runs the poker-field toggle on change.
+
+---
+
 ## [v1.1.0] - 2026-09-21
 
 ### Changed
