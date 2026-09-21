@@ -11,10 +11,14 @@ $_active               = $nav_active ?? '';
 // Point the Timer link at the user's in-progress game (so its prize pool /
 // players sync live), falling back to a standalone timer when none is running.
 $_timer_href = '/timer.php';
+$_timer_classic_href = '/timer_classic.php';
 if ($_nu && !empty($_nu['id']) && function_exists('user_active_poker_event_id')) {
     try {
         $_aeid = user_active_poker_event_id(get_db(), (int)$_nu['id'], (($_nu['role'] ?? '') === 'admin'));
-        if ($_aeid) $_timer_href = '/timer.php?event_id=' . $_aeid;
+        if ($_aeid) {
+            $_timer_href = '/timer.php?event_id=' . $_aeid;
+            $_timer_classic_href = '/timer_classic.php?event_id=' . $_aeid . '&classic=1';
+        }
     } catch (Throwable $e) { /* fall back to standalone */ }
 }
 // Admin-only "update available" dot on the Site Settings link.
@@ -125,8 +129,8 @@ $_accent        = get_setting('accent_color', '');
                         <a href="/admin_posts.php" class="nav-mobile-link<?= $_active === 'posts' ? ' active' : '' ?>">Posts</a>
                         <a href="/admin_settings.php" class="nav-mobile-link<?= $_active === 'site-settings' ? ' active' : '' ?>">Site Settings<?php if ($_show_update_dot): ?> <span class="nav-update-dot" title="Update available: v<?= htmlspecialchars(get_setting('latest_version')) ?>"></span><?php endif; ?></a>
                         <?php endif; ?>
-                        <a href="<?= htmlspecialchars($_timer_href, ENT_QUOTES | ENT_SUBSTITUTE) ?>" class="nav-mobile-link">Tournament Timer</a>
-                        <a href="/timer_beta_edit.php" class="nav-mobile-link<?= $_active === 'timer-beta' ? ' active' : '' ?>">Timer Layouts <span class="nav-beta-tag">BETA</span></a>
+                        <a href="/timer_layouts.php" class="nav-mobile-link<?= $_active === 'timer-layouts' ? ' active' : '' ?>">Tournament Timer</a>
+                        <a href="<?= htmlspecialchars($_timer_classic_href, ENT_QUOTES | ENT_SUBSTITUTE) ?>" class="nav-mobile-link">Tournament Timer Classic</a>
                         <div class="nav-mobile-divider"></div>
                         <div class="nav-help-group<?= $_active === 'help' || $_active === 'support' ? ' open' : '' ?>">
                             <button type="button" class="nav-help-toggle" data-nav="help">Help <span class="nav-help-caret" aria-hidden="true">&#9656;</span></button>
@@ -145,6 +149,7 @@ $_accent        = get_setting('accent_color', '');
                     <div class="nav-dropdown">
                         <?php if (get_setting('show_landing_page', '0') !== '1'): ?>
                         <a href="/timer.php" class="nav-mobile-link">Tournament Timer</a>
+                        <a href="/timer_classic.php" class="nav-mobile-link">Tournament Timer Classic</a>
                         <div class="nav-mobile-divider"></div>
                         <?php endif; ?>
                         <div class="nav-help-group<?= $_active === 'help' ? ' open' : '' ?>">
@@ -183,7 +188,7 @@ $_accent        = get_setting('accent_color', '');
         <a href="/calendar.php"<?= $_active === 'calendar' ? ' class="active"' : '' ?>>Calendar</a>
         <?php endif; ?>
         <?php if ($_nu): ?>
-        <a href="/timer_beta_edit.php"<?= $_active === 'timer-beta' ? ' class="active"' : '' ?>>Timer Layouts <span class="nav-beta-tag">BETA</span></a>
+        <a href="/timer_layouts.php"<?= $_active === 'timer-layouts' ? ' class="active"' : '' ?>>Tournament Timer</a>
         <?php endif; ?>
         <?php /* My Events / Contacts / Messages now live in the account (avatar) menu */ ?>
         <?php if ($_nu && $_nu['role'] === 'admin'): ?>

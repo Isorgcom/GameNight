@@ -11,6 +11,37 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+### Changed
+
+- **The layout timer is now the Tournament Timer, and the old one is
+  Tournament Timer Classic.** The designable display shipped as "Timer BETA"
+  a few releases ago and has been the better clock for a while, so the names
+  now say so: the site menu reads **Tournament Timer** (which opens the
+  layouts editor, where a board is built) and **Tournament Timer Classic**
+  (the original full-screen clock), and the amber BETA chip is gone from the
+  menu, the editor's title and the display's sample bar. A game still picks
+  its display in check-in under *Setup → Timer*, where the switch now reads
+  "Use the Tournament Timer (off: Classic)", and the per-account default in
+  *My Settings* offers the same two names. Nothing about how either clock
+  behaves has changed.
+- **The addresses match the names.** The layout display moved to `/timer.php`
+  and the original clock to `/timer_classic.php`; the editor is
+  `/timer_layouts.php`. Every link that existed before still works: `/timer.php`
+  is the doorway, forwarding a Classic cast link (`?view=remote&key=…`), the
+  `?classic=1` escape hatch and any game set to Classic on to the Classic
+  page, while `timer_beta.php` and `timer_beta_edit.php` answer 301 and
+  `timer_beta_dl.php` a 307, so printed QR codes, saved bookmarks and a
+  second screen already casting keep working. Classic owns creating a game's
+  `timer_state` row, so a game that has never opened a timer is sent there
+  first and handed back if the host's default is the new display; the two
+  pages forward only in opposite cases and cannot bounce a request between
+  them. Files renamed to match (`timer_classic.{php,js,css}`,
+  `timer_display.{js,css}`, `timer_layouts.{php,js,css}`,
+  `timer_layouts_dl.php`, `_timer_layouts_editor.php`, and `TIMER_BETA.md` →
+  `TOURNAMENT_TIMER.md`). Shipped layout artwork stays at `/img/timer_beta/`
+  deliberately: saved layouts store those URLs, and renaming the directory
+  would break every layout using them.
+
 ---
 
 ## [v1.0.0] - 2026-09-21

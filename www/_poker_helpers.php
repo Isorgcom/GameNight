@@ -223,7 +223,7 @@ function pk_clean_blind_levels($levels): array {
     return $clean;
 }
 
-// The acting user's Timer BETA preference, as a creation DEFAULT: 1 only when
+// The acting user's Tournament Timer preference, as a creation DEFAULT: 1 only when
 // they opted in (Settings, or the check-in console's one-time ask). NULL
 // (never asked), 0, an unknown id and guests all mean classic. Only consulted
 // when a timer row is born — a game's own Setup switch owns the value after.
@@ -1126,15 +1126,15 @@ function pk_preset_can_write(array $struct, array $user, bool $isAdmin): bool {
     return $isAdmin || (int)$struct['created_by'] === (int)$user['id'];
 }
 
-/* ── Timer BETA built-in layouts ─────────────────────────────────────────────
- * The keys of LAYOUTS in www/timer_beta.js. A game can bind one of these by
+/* ── Tournament Timer built-in layouts ───────────────────────────────────────
+ * The keys of LAYOUTS in www/timer_display.js. A game can bind one of these by
  * KEY (no library copy is made), so the server has to know which keys are real.
  *
  * MIRROR OF THE JS, and the reason this is a function rather than two inline
  * arrays: the list lived inline in event_setup_dl.php and checkin_dl.php, both
  * were missed when `showcase` was added, and binding the new layout to a game
  * answered "unknown builtin layout". Adding a built-in means editing LAYOUTS in
- * timer_beta.js AND this list; there is no way to derive one from the other
+ * timer_display.js AND this list; there is no way to derive one from the other
  * across the language boundary, so keep them adjacent in the same commit.
  */
 function pk_timer_builtin_keys(): array {

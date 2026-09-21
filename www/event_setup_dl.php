@@ -72,9 +72,9 @@ if ($action === 'get_blinds') {
     exit;
 }
 
-// Switch this game's Timer button between the classic timer and the BETA
+// Switch this game's Timer button between Tournament Timer Classic and the
 // layout display. timer.php honours it with a redirect (?classic=1 escapes).
-// One-time Timer BETA ask from the check-in console. Stores the user's answer
+// One-time Tournament Timer ask from the check-in console. Stores the answer
 // either way (so it is never asked again), and on yes flips THIS game's
 // display too, so the choice takes effect right where it was made. Future
 // games follow the stored preference when their timer row is created.
@@ -86,7 +86,7 @@ if ($action === 'beta_timer_pref') {
         $db->prepare("UPDATE timer_state SET use_beta = 1, updated_at = datetime('now') WHERE id = ?")
            ->execute([(int)$timer['id']]);
     }
-    db_log_activity($current['id'], 'answered BETA timer opt-in: ' . ($val ? 'yes' : 'no'));
+    db_log_activity($current['id'], 'answered Tournament Timer opt-in: ' . ($val ? 'yes' : 'no'));
     echo json_encode(['ok' => true, 'beta_timer' => $val]);
     exit;
 }
@@ -96,7 +96,7 @@ if ($action === 'set_beta') {
     if (!$timer) $timer = pk_ensure_timer_row($db, $session_id, $on);
     $db->prepare("UPDATE timer_state SET use_beta = ?, updated_at = datetime('now') WHERE id = ?")
        ->execute([$on, (int)$timer['id']]);
-    db_log_activity($current['id'], "set BETA timer " . ($on ? 'on' : 'off') . ": event #$event_id");
+    db_log_activity($current['id'], "set Tournament Timer " . ($on ? 'on' : 'off') . ": event #$event_id");
     echo json_encode(['ok' => true, 'use_beta' => $on]);
     exit;
 }
@@ -139,7 +139,7 @@ if ($action === 'set_layout') {
     }
     if ($builtin !== '') $layout_id = 0;
     if ($layout_id) {
-        // Same visibility rule as timer_beta_dl.php's get_layout.
+        // Same visibility rule as timer_layouts_dl.php's get_layout.
         $q = $db->prepare('SELECT id FROM timer_layouts WHERE id = ? AND (is_global = 1 OR created_by = ?
                 OR league_id IN (SELECT league_id FROM league_members WHERE user_id = ?))');
         $q->execute([$layout_id, (int)$current['id'], (int)$current['id']]);

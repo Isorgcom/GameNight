@@ -1,5 +1,5 @@
 /**
- * Timer BETA layout editor. The working layout lives here as a plain object;
+ * Tournament Timer layout editor. The working layout lives here as a plain object;
  * every mutation re-renders the iframe preview (the real renderer) and the
  * structure tree. Server-side sanitation happens on save; this file trusts
  * nothing it loads either (loaded layouts pass through the same renderer that
@@ -108,7 +108,7 @@ var ELEMENT_DESC = {
     tables: "Tables in the room", seats: "Seats per table"
 };
 // The namespaced spellings share the flat descriptions — one map (mirrors
-// ELEMENT_NS in timer_beta.js), so both spellings tooltip identically.
+// ELEMENT_NS in timer_display.js), so both spellings tooltip identically.
 (function () {
     var ns = {
         'event.name': 'eventName',
@@ -611,7 +611,7 @@ function colorInput(value, onchange) {
     wrap.appendChild(c); wrap.appendChild(t);
     return wrap;
 }
-// Upload an image via timer_beta_dl.php's upload_image action (byte-level MIME
+// Upload an image via timer_layouts_dl.php's upload_image action (byte-level MIME
 // check + getimagesize, size cap, per-user daily limit). Stores under
 // /uploads/timer_layouts/ and calls back with that URL.
 /* Every image pick in the editor comes through here (screen backgrounds, box
@@ -621,7 +621,7 @@ function colorInput(value, onchange) {
  * file costs nothing and counts against no quota; re-uploading the same
  * artwork for every layout burned through the daily upload cap. */
 function uploadImage(onUrl) {
-    fetch('/timer_beta_dl.php?action=list_images')
+    fetch('/timer_layouts_dl.php?action=list_images')
         .then(function (r) { return r.json(); })
         .then(function (j) {
             var imgs = (j && j.ok && Array.isArray(j.images)) ? j.images : [];
@@ -642,7 +642,7 @@ function pickNewImage(onUrl) {
         fd.append('action', 'upload_image');
         fd.append('image', f);
         fd.append('csrf_token', TBE_CSRF);
-        fetch('/timer_beta_dl.php', { method: 'POST', body: fd })
+        fetch('/timer_layouts_dl.php', { method: 'POST', body: fd })
             .then(function (r) { return r.json(); })
             .then(function (j) {
                 if (j && j.url) onUrl(j.url);
@@ -1386,7 +1386,7 @@ function triggerActionRow(tg, act, ai) {
 // The sound library: own uploads with a preview, upload as the last resort —
 // the image picker's shape.
 function pickSound(onUrl) {
-    fetch('/timer_beta_dl.php?action=list_sounds')
+    fetch('/timer_layouts_dl.php?action=list_sounds')
         .then(function (r) { return r.json(); })
         .then(function (j) {
             var snds = (j && j.ok && Array.isArray(j.sounds)) ? j.sounds : [];
@@ -1443,7 +1443,7 @@ function uploadSoundFile(onUrl) {
         fd.append('action', 'upload_sound');
         fd.append('sound', f);
         fd.append('csrf_token', TBE_CSRF);
-        fetch('/timer_beta_dl.php', { method: 'POST', body: fd })
+        fetch('/timer_layouts_dl.php', { method: 'POST', body: fd })
             .then(function (r) { return r.json(); })
             .then(function (j) {
                 if (j && j.url) onUrl(j.url);
@@ -1639,7 +1639,7 @@ function renderInspector() {
         // deliberately no URL field — the target is an enum and the renderer
         // builds the link from the game's own key, so a layout you share can
         // never send someone's scanner somewhere you chose. See SECURITY note
-        // in timer_beta_dl.php's sanitizer.
+        // in timer_layouts_dl.php's sanitizer.
         if (cell.chips) {
             var chWrap = document.createElement('div');
             chWrap.className = 'tbe-field';
@@ -2713,7 +2713,7 @@ function wirePreviewDrag() {
 }
 
 // Preview. The listener goes on the IFRAME's document (same-origin, which
-// timer_beta.php opts into for embed mode), and the coordinates have to be
+// timer.php opts into for embed mode), and the coordinates have to be
 // translated into this page's space — the menu is rendered here, so that the
 // iframe cannot clip it.
 function wirePreviewMenu() {
@@ -2856,7 +2856,7 @@ function populateLoadList() {
         bi.appendChild(o);
     });
     loadSel.appendChild(bi);
-    fetch('/timer_beta_dl.php?action=get_layouts')
+    fetch('/timer_layouts_dl.php?action=get_layouts')
         .then(function (r) { return r.json(); })
         .then(function (j) {
             if (!j || !j.ok || !j.layouts.length) return;
@@ -2929,8 +2929,8 @@ if (EV_ID) {
     evBtn = evToggle;   // the rest of the file speaks to this as "the control"
     evBtn._word = evWord;
     // The header's "Open display" link opens THIS game's display, not sample.
-    var od = document.querySelector('.tbe-header-controls a[href="/timer_beta.php"]');
-    if (od) od.href = '/timer_beta.php?event_id=' + EV_ID;
+    var od = document.querySelector('.tbe-header-controls a[href="/timer.php"]');
+    if (od) od.href = '/timer.php?event_id=' + EV_ID;
     var bindEvent = function (toId, toKey) {   // neither = back to default
         var body = new URLSearchParams();
         body.set('action', 'set_layout');
@@ -3040,7 +3040,7 @@ loadSel.addEventListener('change', function () {
         isGlobal = false; updateGlobalBtn();   // a fresh copy starts personal
         updateEventBtn();
     } else {
-        fetch('/timer_beta_dl.php?action=get_layout&id=' + v.slice(3))
+        fetch('/timer_layouts_dl.php?action=get_layout&id=' + v.slice(3))
             .then(function (r) { return r.json(); })
             .then(function (j) {
                 if (!j || !j.ok) return;
@@ -3071,10 +3071,10 @@ function save(asCopy, onSaved) {
     body.set('name', name);
     body.set('layout', JSON.stringify(LAYOUT));
     // Only an admin sends this at all; a save with no is_global leaves the
-    // stored scope untouched (see save_layout in timer_beta_dl.php).
+    // stored scope untouched (see save_layout in timer_layouts_dl.php).
     if (window.TBE_IS_ADMIN) body.set('is_global', isGlobal ? '1' : '0');
     if (!asCopy && layoutId) body.set('id', layoutId);
-    fetch('/timer_beta_dl.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: String(body) })
+    fetch('/timer_layouts_dl.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: String(body) })
         .then(function (r) { return r.json(); })
         .then(function (j) {
             if (!j.ok) { window.pkAlert ? pkAlert(j.error || 'Save failed') : alert(j.error); return; }
@@ -3109,7 +3109,7 @@ document.getElementById('tbeSaveCopy').addEventListener('click', function () { s
 var IMG_REF_RE = /^\/uploads\/timer_layouts\/[A-Za-z0-9._-]{1,120}$/;
 
 // Visit every node that can carry an `image` ref (screen bg + image cells),
-// mirroring pk_lo_image_names() in timer_beta_dl.php.
+// mirroring pk_lo_image_names() in timer_layouts_dl.php.
 function walkImageRefs(layout, fn) {
     (function scan(node) {
         if (!node || typeof node !== 'object') return;
@@ -3228,7 +3228,7 @@ function uploadEmbeddedImages(images, done) {
         fd.append('action', 'upload_image');
         fd.append('image', blob, 'imported');
         fd.append('csrf_token', TBE_CSRF);
-        fetch('/timer_beta_dl.php', { method: 'POST', body: fd })
+        fetch('/timer_layouts_dl.php', { method: 'POST', body: fd })
             .then(function (r) { return r.json(); })
             .then(function (j) {
                 if (j && j.url) map[keys[i]] = j.url;
@@ -3264,7 +3264,7 @@ function uploadEmbeddedSounds(sounds, done) {
         fd.append('action', 'upload_sound');
         fd.append('sound', blob, 'imported');
         fd.append('csrf_token', TBE_CSRF);
-        fetch('/timer_beta_dl.php', { method: 'POST', body: fd })
+        fetch('/timer_layouts_dl.php', { method: 'POST', body: fd })
             .then(function (r) { return r.json(); })
             .then(function (j) {
                 if (j && j.url) map[keys[i]] = j.url;
@@ -3426,7 +3426,7 @@ document.getElementById('tbeDelete').addEventListener('click', function () {
     var go = function () {
         var body = new URLSearchParams();
         body.set('action', 'delete_layout'); body.set('csrf_token', TBE_CSRF); body.set('id', layoutId);
-        fetch('/timer_beta_dl.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: String(body) })
+        fetch('/timer_layouts_dl.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: String(body) })
             .then(function (r) { return r.json(); })
             .then(function (j) {
                 if (!j.ok) { window.pkAlert ? pkAlert(j.error || 'Delete failed') : alert(j.error); return; }
@@ -3565,7 +3565,7 @@ function boot() {
     updateGlobalBtn();
     populateLoadList();
     if (EV_ID && evLayoutId) {
-        fetch('/timer_beta_dl.php?action=get_layout&id=' + evLayoutId)
+        fetch('/timer_layouts_dl.php?action=get_layout&id=' + evLayoutId)
             .then(function (r) { return r.json(); })
             .then(function (j) {
                 if (!j || !j.ok) return;

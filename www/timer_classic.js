@@ -26,7 +26,7 @@ function fmtMoney(cents) {
 function linkTimerToEvent() {
     var sel = document.getElementById('timerLinkSelect');
     if (!sel || !sel.value) return;
-    window.location.href = '/timer.php?event_id=' + encodeURIComponent(sel.value);
+    window.location.href = '/timer_classic.php?event_id=' + encodeURIComponent(sel.value);
 }
 function fmtChips(n) {
     // Blinds show the literal amount, grouped: 2,000 never 2K, 2,500 never 2.5K.
@@ -4064,7 +4064,7 @@ document.addEventListener('keydown', function(e) {
 
 // Open TV display mode in a new tab (for casting/TV browser)
 function openDisplayMode() {
-    var url = location.origin + '/timer.php?view=remote&key=' + encodeURIComponent(REMOTE_KEY) + '&display=1';
+    var url = location.origin + '/timer_classic.php?view=remote&key=' + encodeURIComponent(REMOTE_KEY) + '&display=1';
     window.open(url, '_blank');
 }
 
@@ -4079,7 +4079,7 @@ if (!IS_REMOTE) {
     // Generate QR code using qrcode-generator library
     var qrWrap = document.getElementById('qrWrap');
     if (qrWrap && typeof qrcode !== 'undefined') {
-        var remoteUrl = location.origin + '/timer.php?view=remote&key=' + REMOTE_KEY;
+        var remoteUrl = location.origin + '/timer_classic.php?view=remote&key=' + REMOTE_KEY;
         var qr = qrcode(0, 'M');
         qr.addData(remoteUrl);
         qr.make();

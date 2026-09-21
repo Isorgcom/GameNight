@@ -71,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $oldPhone->execute([$current['id']]);
                         $phoneChanged = ($oldPhone->fetchColumn() ?? '') !== ($phone ?: null);
 
-                        // Saving the profile answers the one-time BETA-timer
+                        // Saving the profile answers the one-time Tournament Timer
                         // ask too (the select always posts a value), which is
                         // fine: the setting has been seen.
                         $beta_timer = (int)($_POST['beta_timer'] ?? 0) === 1 ? 1 : 0;
@@ -410,8 +410,8 @@ $site_name = get_setting('site_name', 'Game Night');
                 <div class="form-group">
                     <label for="beta_timer">Tournament timer</label>
                     <select id="beta_timer" name="beta_timer" style="width:100%;padding:.5rem .75rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.95rem;background:#fff">
-                        <option value="0">Classic timer</option>
-                        <option value="1"<?= (int)($me['beta_timer'] ?? 0) === 1 ? ' selected' : '' ?>>New timer layouts (BETA)</option>
+                        <option value="0">Tournament Timer Classic</option>
+                        <option value="1"<?= (int)($me['beta_timer'] ?? 0) === 1 ? ' selected' : '' ?>>Tournament Timer (designable layouts)</option>
                     </select>
                     <p class="hint">New games you set up will use this timer display. Each game can still switch in its Setup, and this doesn't change games you've already configured.</p>
                 </div>

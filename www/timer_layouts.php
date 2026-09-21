@@ -1,0 +1,41 @@
+<?php
+/**
+ * The Tournament Timer's layout editor.
+ *
+ * The preview pane is the real display page (timer.php?embed=1) in an
+ * iframe, so what you see is exactly what a TV gets — same renderer, same
+ * fit-to-box, same vh sizing, driven through window.TBPreview (same origin).
+ *
+ * The editor never touches timer state; it only reads/writes timer_layouts
+ * through timer_layouts_dl.php, which sanitizes every save server-side.
+ *
+ * The editor body itself lives in _timer_layouts_editor.php, shared with
+ * event_display.php (the per-event Timer Display page).
+ */
+require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/db.php';
+require_login();
+$db = get_db();
+$current = current_user();
+$site_name = get_setting('site_name', 'Game Night');
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tournament Timer &mdash; Layouts &mdash; <?= htmlspecialchars($site_name) ?></title>
+    <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
+    <link rel="stylesheet" href="/timer_layouts.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/timer_layouts.css') ?: 0)) ?>">
+    <?php /* The Font picker's options preview in their own face, so the
+             EDITOR page needs the bundled fonts too, not just the iframe. */ ?>
+    <link rel="stylesheet" href="/fonts.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/fonts.css') ?: 0)) ?>">
+</head>
+<body class="tbe-body">
+<?php $nav_active = 'timer-beta'; $nav_user = $current; require __DIR__ . '/_nav.php'; ?>
+
+<?php require __DIR__ . '/_timer_layouts_editor.php'; ?>
+
+<?php require __DIR__ . '/_footer.php'; ?>
+</body>
+</html>

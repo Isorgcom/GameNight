@@ -804,13 +804,13 @@ function db_init(PDO $pdo): void {
     try { $pdo->exec("ALTER TABLE timer_state ADD COLUMN start_sound TEXT"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE timer_state ADD COLUMN warning_sound TEXT"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE timer_state ADD COLUMN theme_id INTEGER"); } catch (Exception $e) {}
-    // Which Timer BETA layout this game's display shows (event_display.php):
+    // Which Tournament Timer layout this game's display shows (event_display.php):
     // a saved timer_layouts row (layout_id) OR a built-in key (layout_builtin,
     // e.g. 'classic') — built-ins aren't rows, so binding one stores its key
     // instead of forcing a pointless library copy. At most one is set.
     try { $pdo->exec("ALTER TABLE timer_state ADD COLUMN layout_id INTEGER"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE timer_state ADD COLUMN layout_builtin TEXT"); } catch (Exception $e) {}
-    // Opt-in: this game's Timer button opens the BETA layout display instead
+    // Opt-in: this game's Timer button opens the Tournament Timer instead
     // of the classic timer (switch lives in Setup → Blinds).
     try { $pdo->exec("ALTER TABLE timer_state ADD COLUMN use_beta INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     // Game presets also carry the blind schedule + timer settings, so loading
@@ -821,9 +821,9 @@ function db_init(PDO $pdo): void {
     // Timer themes (visual customization of the timer screen). Scope mirrors blind_presets:
     // personal / league / global / default. Properties stored as a JSON blob so the schema
     // can evolve (new themable props) without ALTERs.
-    // Timer BETA layouts: a layout is a JSON tree of rows/columns/cells (see
-    // TIMER_BETA.md). Same scoping columns as timer_themes; `layout` is the
-    // sanitized JSON document (pk_layout_sanitize() in timer_beta_dl.php).
+    // Tournament Timer layouts: a layout is a JSON tree of rows/columns/cells (see
+    // TOURNAMENT_TIMER.md). Same scoping columns as timer_themes; `layout` is the
+    // sanitized JSON document (pk_layout_sanitize() in timer_layouts_dl.php).
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS timer_layouts (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         name        TEXT NOT NULL,
@@ -936,8 +936,8 @@ JSON;
     // Whether the user has dismissed (or acted on) the "enable two-factor" dashboard
     // banner. 0 = still show the nudge (any MFA-less user); set to 1 on dismiss or enable.
     try { $pdo->exec("ALTER TABLE users ADD COLUMN mfa_offer_dismissed INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
-    // Timer BETA opt-in. Deliberately nullable: NULL = never answered (the
-    // check-in console asks ONCE), 1 = new games default to the BETA layout
+    // Tournament Timer opt-in. Deliberately nullable: NULL = never answered (the
+    // check-in console asks ONCE), 1 = new games default to the layout
     // display, 0 = classic. Applied at timer-row creation, so a game's own
     // Setup switch always wins afterwards.
     try { $pdo->exec("ALTER TABLE users ADD COLUMN beta_timer INTEGER"); } catch (Exception $e) {}

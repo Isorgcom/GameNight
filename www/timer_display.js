@@ -1,5 +1,5 @@
 /**
- * Timer BETA layout engine — phase A (renderer + built-in layouts).
+ * Tournament Timer layout engine (renderer + built-in layouts).
  *
  * A layout is a JSON tree:
  *   node       := { row: [node…], …props } | { col: [node…], …props } | { cell: {…} }
@@ -2547,7 +2547,7 @@ function syncScroll(rec) {
 function qrTargetUrl(target) {
     var key = (typeof TB_CAST_KEY !== 'undefined' && TB_CAST_KEY) ? TB_CAST_KEY : null;
     if (!key) return null;
-    if (target === 'display') return location.origin + '/timer_beta.php?key=' + encodeURIComponent(key);
+    if (target === 'display') return location.origin + '/timer.php?key=' + encodeURIComponent(key);
     return null;
 }
 
@@ -3055,14 +3055,17 @@ if (ctrls) {
     ctrls.addEventListener('click', function (e) {
         var btn = e.target.closest('button');
         if (!btn) return;
-        if (btn.getAttribute('data-act') === 'fullscreen') {
+        // data-tb, not data-act: this page carries no shared dispatcher, and
+        // a control that claims the shared name reads as dead to the sweep
+        // (and would fire twice if pk-dispatch.js were ever added here).
+        if (btn.getAttribute('data-tb') === 'fullscreen') {
             var fe = document.documentElement;
             if (document.fullscreenElement) document.exitFullscreen();
             else if (fe.requestFullscreen) fe.requestFullscreen();
             else if (fe.webkitRequestFullscreen) fe.webkitRequestFullscreen();
             return;
         }
-        if (btn.getAttribute('data-act') === 'exit') { leaveTimer(); return; }
+        if (btn.getAttribute('data-tb') === 'exit') { leaveTimer(); return; }
         var cmd = btn.getAttribute('data-cmd');
         if (cmd) sendCommand(cmd);
     });
@@ -3319,7 +3322,7 @@ onEventLayout = function (lid, lkey) {
     if (lid) {
         // A scanned screen asks by KEY: it may not be logged in, and even if it
         // is, the layout belongs to the host rather than to whoever scanned it.
-        fetch('/timer_beta_dl.php?action=get_layout&id=' + lid + castKeyParam())
+        fetch('/timer_layouts_dl.php?action=get_layout&id=' + lid + castKeyParam())
             .then(function (r) { return r.json(); })
             .then(function (j) {
                 if (j && j.ok && j.layout) {
@@ -3346,7 +3349,7 @@ if (sel) {
     });
 
     // Saved layouts load after the built-ins; the picker groups them.
-    fetch('/timer_beta_dl.php?action=get_layouts')
+    fetch('/timer_layouts_dl.php?action=get_layouts')
         .then(function (r) { return r.json(); })
         .then(function (j) {
             if (!j || !j.ok || !j.layouts.length) return;
@@ -3370,7 +3373,7 @@ if (sel) {
 
 function applyPick(v) {
     if (/^id:\d+$/.test(v)) {
-        fetch('/timer_beta_dl.php?action=get_layout&id=' + v.slice(3) + castKeyParam())
+        fetch('/timer_layouts_dl.php?action=get_layout&id=' + v.slice(3) + castKeyParam())
             .then(function (r) { return r.json(); })
             // Accept both stored shapes: single-screen {root} and the
             // normalized {screens:[…]} every editor save produces. The old
