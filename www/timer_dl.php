@@ -273,7 +273,7 @@ if ($action === 'get_state') {
         // hours polling DATA but never re-fetches CODE, so a fix never reaches
         // an already-open screen; the client compares this against the stamp
         // it booted with and reloads itself when they differ.
-        'asset_v' => (int) (@filemtime(__DIR__ . '/timer_beta.js') ?: 0),
+        'asset_v' => (int) (@filemtime(__DIR__ . '/timer_display.js') ?: 0),
         'levels' => $levels,
         // Chip denominations with their colours, for the <chips> legend. Empty
         // when the game has none, so the display hides the cell rather than

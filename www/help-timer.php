@@ -133,7 +133,7 @@ $help_sections = [
 
 <div class="help-step" id="two-timers">
         <h2><span class="step-num">1</span> Two timers, one switch</h2>
-        <p>Every game has the <strong>classic timer</strong>, and a newer <strong>BETA timer</strong> with custom layouts, break screens and multi-screen casting. Switch per game in check-in under <strong>Setup &rarr; Timer &rarr; Use BETA timer</strong>. The Timer button then opens whichever one is on, and you can switch back any time.</p>
+        <p>Every game can use the <strong>Tournament Timer</strong>, with designable layouts, break screens and multi-screen casting, or <strong>Tournament Timer Classic</strong>, the original clock. Switch per game in check-in under <strong>Setup &rarr; Timer</strong>. The Timer button then opens whichever one is on, and you can switch back any time.</p>
         <p>You can also make the new timer your default. The first time you open a tournament's check-in console you'll be asked once which timer you'd like; whichever you answer is remembered, and it's never asked again. After that, <strong>new games you set up start on the timer you chose</strong>, while each game's own switch still wins and games you've already configured are left alone. Change your mind any time under <strong>Settings &rarr; Tournament timer</strong>.</p>
     </div>
 
@@ -167,7 +167,7 @@ $help_sections = [
 
     <div class="help-step" id="building">
         <h2><span class="step-num">5</span> Building a layout</h2>
-        <p>Open <strong>Timer Layouts</strong> from the site menu (or the Edit button next to the layout picker). The editor shows a live preview; everything is reachable two ways:</p>
+        <p>Open <strong>Tournament Timer</strong> from the site menu (or the Edit button next to the layout picker). The editor shows a live preview; everything is reachable two ways:</p>
         <ul>
             <li><strong>Right-click anything</strong>, in the preview or in the structure tree, for its full menu: text, size, colour, font, alignment, padding, duplicate, delete, and screen-wide options like background image, screen shape and panel colours.</li>
             <li><strong>Drag in the preview:</strong> drag a boundary between boxes to resize them, drag a box to move it. One Ctrl+Z undoes a whole drag.</li>
@@ -300,7 +300,7 @@ $help_sections = [
 
     <div class="help-cta" style="text-align:center;padding:2.5rem 1rem;background:#f8fafc;border-radius:8px;margin-top:2rem">
         <p style="color:#475569;margin-bottom:1.25rem">Layouts are safe to experiment with: the editor has undo everywhere, and a game only shows the layout you point it at.</p>
-        <a href="/timer_beta_edit.php" class="btn btn-primary" style="text-decoration:none">Open the layout editor</a>
+        <a href="/timer_layouts.php" class="btn btn-primary" style="text-decoration:none">Open the layout editor</a>
     </div>
 
         <nav class="docs-pager" aria-label="Section pager" id="docsPager"></nav>

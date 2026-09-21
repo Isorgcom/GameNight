@@ -1976,7 +1976,7 @@ if ($action === 'load_payout_structure') {
         $bl = pk_clean_blind_levels(json_decode((string)$struct['blind_levels'], true));
         if ($bl) pk_apply_event_blinds($db, $session_id, (int)$s['event_id'], $bl, (int)$current['id']);
     }
-    // Timer settings (BETA switch + bound layout). The layout is re-checked
+    // Timer settings (Classic switch + bound layout). The layout is re-checked
     // against the LOADER's visibility — a preset can't smuggle someone a
     // layout they can't see; an invisible one just doesn't bind.
     if (!empty($struct['timer_config'])) {

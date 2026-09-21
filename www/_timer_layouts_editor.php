@@ -1,6 +1,6 @@
 <?php
 /**
- * The Timer BETA layout editor body — shared by timer_beta_edit.php (library
+ * The Tournament Timer layout editor body — shared by timer_layouts.php (library
  * editing, no event context) and event_display.php (same editor below the
  * event's layout-binding bar). Caller must have required auth.php and set
  * $current; pages include this inside <body> and keep their own <head>.
@@ -10,7 +10,7 @@ $csrf = csrf_token();
 ?>
 <div class="tbe-wrap">
     <div class="tbe-header">
-        <h1>Timer Layout Editor <span class="tb-badge">BETA</span></h1>
+        <h1>Tournament Timer <span class="tb-sub">Layouts</span></h1>
         <div class="tbe-header-controls">
             <select id="tbeLoad" title="Load a layout"><option value="">Load&hellip;</option></select>
             <input type="text" id="tbeName" maxlength="80" placeholder="Layout name">
@@ -31,7 +31,7 @@ $csrf = csrf_token();
                      the feature on touch devices. */ ?>
             <input type="file" id="tbeImportFile" hidden>
             <button id="tbeDelete" class="tbe-btn tbe-btn-danger">Delete</button>
-            <a class="tbe-btn tbe-btn-ghost" href="/timer_beta.php" target="_blank">Open display</a>
+            <a class="tbe-btn tbe-btn-ghost" href="/timer.php" target="_blank">Open display</a>
             <a class="tbe-btn tbe-btn-ghost" href="/help-timer.php" target="_blank" title="Elements, conditions, artwork, casting — the whole guide">Help</a>
         </div>
     </div>
@@ -40,7 +40,7 @@ $csrf = csrf_token();
         <div class="tbe-preview-pane">
             <div class="tbe-preview-stage">
                 <div class="tbe-preview-frame">
-                    <iframe id="tbeFrame" src="/timer_beta.php?embed=1" title="Layout preview"></iframe>
+                    <iframe id="tbeFrame" src="/timer.php?embed=1" title="Layout preview"></iframe>
                 </div>
             </div>
             <div class="tbe-statebar">
@@ -95,4 +95,4 @@ $csrf = csrf_token();
 var TBE_CSRF = <?= json_encode($csrf) ?>;
 var TBE_IS_ADMIN = <?= json_encode($current['role'] === 'admin') ?>;
 </script>
-<script src="/timer_beta_edit.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/timer_beta_edit.js') ?: 0)) ?>" defer></script>
+<script src="/timer_layouts.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/timer_layouts.js') ?: 0)) ?>" defer></script>

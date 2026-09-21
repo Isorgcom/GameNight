@@ -11,7 +11,7 @@
  *    pool, payouts, can_control, and a FRESH CSRF TOKEN every response);
  *    roster = checkin_dl.php get_session&slim=1     every 10s (players, config).
  *    Both stop while the tab is hidden and re-fire on visibilitychange.
- *  - The clock is DERIVED from ends_at_ms/server_now_ms anchors (timer_beta.js
+ *  - The clock is DERIVED from ends_at_ms/server_now_ms anchors (timer_display.js
  *    engine), never assigned from a poll — stutter is impossible, not smoothed.
  *  - GD.csrf is never trusted, only refreshed; gdPost retries exactly once on a
  *    403 after forcing a re-poll. This page must not decay overnight the way
@@ -166,7 +166,7 @@ function moneyToCents(v) {
     return Math.round(n * 100);
 }
 
-/* ── Clock engine (ported from timer_beta.js — Cristian offset + anchor) ── */
+/* ── Clock engine (ported from timer_display.js — Cristian offset + anchor) ── */
 
 var clockSamples = [];
 function noteClockSample(serverNowMs, requestedAt, receivedAt) {

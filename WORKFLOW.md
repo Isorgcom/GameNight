@@ -41,7 +41,8 @@ Changes ride through three environments before users see them:
 - Site Settings → `/admin_settings.php` — admin only
 
 **Mobile / dropdown menu adds:**
-- Tournament Timer → `/timer.php`
+- Tournament Timer → `/timer_layouts.php` (the layout editor; the display itself is `/timer.php`)
+- Tournament Timer Classic → `/timer_classic.php`
 - Sign Up → `/register.php` (if registration enabled)
 - Log In / Log Out
 - My Settings → `/settings.php`
@@ -181,16 +182,44 @@ Full-screen QR code for an iPad at the registration table.
 - **Linked from:** `checkin.php`, `calendar.php` event options
 
 ### `www/timer.php` — Tournament Timer  · **PUB / USER / TOKEN**
-Three modes:
-- Standalone (`/timer.php`) — guest practice timer
+The layout-engine display, and the doorway every timer link comes through. Was
+`timer_beta.php` until v1.1.0, when it took the Tournament Timer name and this
+address; the old path 301s here.
+- Event-linked (`?event_id=X`) — that game's live board
+- Cast/second screen (`?key=X`) — the QR a display shows; viewing only
+- Sample mode (no parameters) — judge a layout without a game
+- Embed (`?embed=1`) — the editor's live preview, same-origin framed only
+- **Dispatch:** forwards to `timer_classic.php` for `?view=remote` (a Classic
+  cast link), `?classic=1`, and any game whose Setup switch says Classic or
+  that has no timer row yet. Classic forwards back only in the opposite case,
+  so the two cannot bounce a request between them.
+- **AJAX:** `timer_dl.php` (state), `timer_layouts_dl.php` (layouts)
+- **Linked from:** nav, `checkin.php`, `calendar.php`, `table_manager.php`
+
+### `www/timer_classic.php` — Tournament Timer Classic  · **PUB / USER / TOKEN**
+The original clock, at `www/timer.php` until v1.1.0. Owns creating a game's
+`timer_state` row, which is why a game with no row is sent here first.
+- Standalone (`/timer_classic.php`) — guest practice timer
 - Event-linked (`?event_id=X`) — synced with a real game
 - Remote viewer (`?view=remote&key=X`) — read-only spectator link
 - Blind levels with presets, pause/play/reset
 - Chip pool, prize pool, payout structure
 - Player count + elimination tracking
-- Mobile-responsive
 - **AJAX:** `timer_dl.php`
-- **Linked from:** nav (mobile), `checkin.php`, `calendar.php`
+- **Linked from:** nav, `checkin.php`, and `timer.php`'s dispatch
+
+### `www/timer_layouts.php` — Tournament Timer: Layouts  · **USER**
+The layout editor (was `timer_beta_edit.php`). Body in
+`_timer_layouts_editor.php`, behaviour in `timer_layouts.js`, live preview an
+iframe of `/timer.php?embed=1`.
+- **AJAX:** `timer_layouts_dl.php`
+- **Linked from:** nav ("Tournament Timer"), `help-timer.php`, the layout
+  picker's Edit button
+
+### `www/timer_beta.php`, `timer_beta_edit.php`, `timer_beta_dl.php` — old addresses  · **REDIR**
+301 to `/timer.php` and `/timer_layouts.php`; the endpoint 307s to
+`/timer_layouts_dl.php` so a POST stays a POST. They exist so QR codes, cast
+links and bookmarks printed before v1.1.0 keep working.
 
 ### `www/rsvp.php` — One-Click RSVP  · **TOKEN**
 Email-link RSVP, no login.
@@ -306,7 +335,8 @@ These are POST-only AJAX backends — they have no HTML view of their own. Liste
 | `calendar_dl.php` | `calendar.php`, `my_events.php` |
 | `event_invites_dl.php` | `calendar.php` |
 | `checkin_dl.php` | `checkin.php`, `walkin.php` |
-| `timer_dl.php` | `timer.php` |
+| `timer_dl.php` | `timer.php`, `timer_classic.php` |
+| `timer_layouts_dl.php` | `timer.php`, `timer_layouts.php` |
 | `admin_settings_dl.php` | `admin_settings.php` |
 
 ---
@@ -330,7 +360,7 @@ These are POST-only AJAX backends — they have no HTML view of their own. Liste
 `register.php` → email → `verify_email.php` → `login.php` → `index.php`
 
 **Host runs a poker night:**
-`calendar.php` (create event, mark as poker) → `walkin_display.php` (QR on iPad) → guests use `walkin.php` → host uses `checkin.php` → `timer.php` runs the clock → optional remote `timer.php?view=remote&key=…` for spectators.
+`calendar.php` (create event, mark as poker) → `walkin_display.php` (QR on iPad) → guests use `walkin.php` → host uses `checkin.php` → `timer.php` runs the clock (or `timer_classic.php`, per that game's Setup switch) → optional cast link `timer.php?key=…`, or `timer_classic.php?view=remote&key=…` for spectators.
 
 **Invitee RSVPs from email:**
 Email link → `rsvp.php?token=…&r=yes` → done (creator notified).

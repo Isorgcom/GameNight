@@ -93,7 +93,7 @@ $sessStmt->execute([$event_id]);
 $session = $sessStmt->fetch();
 
 // Timer flags for the Setup → Timer tab: whether the Timer button opens the
-// BETA layout display, and which layout this game's display is bound to.
+// Tournament Timer (layout) display, and which layout it is bound to.
 $use_beta_timer = 0;
 $event_layout_id = null;
 $event_layout_key = null;
@@ -119,7 +119,7 @@ if ($session) {
     <link rel="stylesheet" href="/event_setup.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/event_setup.css') ?: 0)) ?>">
     <script src="/event_blinds.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/event_blinds.js') ?: 0)) ?>" defer></script>
     <?php if ($is_tournament_session): ?>
-    <link rel="stylesheet" href="/timer_beta_edit.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/timer_beta_edit.css') ?: 0)) ?>">
+    <link rel="stylesheet" href="/timer_layouts.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/timer_layouts.css') ?: 0)) ?>">
     <?php endif; ?>
     <style>
     .pk-wrap{padding:0 1rem 2rem;max-width:100%}
@@ -676,25 +676,25 @@ if ($session) {
      re-renders and the 10s poll can never clobber an open editor. -->
 <div id="settingsRoot"></div>
 
-<?php /* One-time Timer BETA ask. Three answers, which is one more than
+<?php /* One-time Tournament Timer ask. Three answers, which is one more than
          pkConfirm offers, so it uses this page's own modal pattern: yes and
          "keep classic" are final and stored; "Not now" is not an answer at
          all — it leaves the account unanswered and only quietens the ask in
          this browser for a while. */ ?>
 <div class="pk-modal-overlay" id="betaTimerModal">
     <div class="pk-modal">
-        <h3>&#9201; There's a new tournament timer</h3>
+        <h3>&#9201; Try the Tournament Timer</h3>
         <p id="betaBannerMsg" style="font-size:.9rem;color:#475569;line-height:1.5;margin:.4rem 0 0">
             Designable layouts, break screens, phone views for players who scan the QR code, and sounds.
-            Switch this game over and use it for new games too?
+            Switch this game over to it and use it for new games too?
         </p>
         <p style="font-size:.8rem;color:#94a3b8;line-height:1.45;margin:.6rem 0 0">
-            Any game can still switch back in Setup, and you can change your mind any time in Settings.
+            Any game can still go back to Classic in Setup, and you can change your mind any time in Settings.
         </p>
         <div class="pk-modal-actions">
             <button type="button" data-act="betaTimerLater">Not now</button>
-            <button type="button" data-act="betaTimerAnswer" data-a1="0">Keep classic</button>
-            <button type="button" class="pk-save pk-beta-yes" data-act="betaTimerAnswer" data-a1="1">Use the new timer</button>
+            <button type="button" data-act="betaTimerAnswer" data-a1="0">Keep Classic</button>
+            <button type="button" class="pk-save pk-beta-yes" data-act="betaTimerAnswer" data-a1="1">Use the Tournament Timer</button>
         </div>
     </div>
 </div>
@@ -863,7 +863,7 @@ if ($session) {
      innerHTML and moving an iframe in the DOM reloads it. syncDisplayHome()
      reveals this block only while the Timer tab is active. -->
 <div id="ckDisplayHome" hidden>
-    <?php require __DIR__ . '/_timer_beta_editor.php'; ?>
+    <?php require __DIR__ . '/_timer_layouts_editor.php'; ?>
 </div>
 <script nonce="<?= csp_nonce() ?>">
 var ES_CSRF = <?= json_encode($csrf) ?>;
@@ -879,9 +879,9 @@ var ES_LAYOUT_KEY = <?= json_encode($event_layout_key) ?>;
 <script nonce="<?= csp_nonce() ?>">
 var CSRF = <?= json_encode($csrf, JSON_HEX_TAG) ?>;
 var USE_BETA_TIMER = <?= (int)$use_beta_timer ?>;
-<?php /* One-time BETA-timer ask: any tournament game, while the user has
+<?php /* One-time Tournament Timer ask: any tournament game, while the user has
          never answered (users.beta_timer IS NULL). The copy adapts — a game
-         already on the BETA display asks about making it the DEFAULT, since
+         already on the Tournament Timer asks about making it the DEFAULT, since
          "switch this game" would be incoherent there. Any answer is stored;
          it is never asked twice. */ ?>
 var BETA_TIMER_ASK = <?= ($is_tournament_session
@@ -1323,7 +1323,7 @@ function renderDashboard() {
     // conditional Timer / Cash Box / Jackpot buttons come and go.
     h += '<button class="pk-btn-settings" title="How this screen works" aria-label="Help" data-act="openHelp">?<span class="pk-act-label"> Help</span></button>';
     if (isTourney()) {
-        h += '<a class="pk-btn-settings" id="timerLink" href="' + (USE_BETA_TIMER ? '/timer_beta.php' : '/timer.php') + '?event_id=' + <?= (int)$event['id'] ?> + '" style="text-decoration:none" title="Timer">&#9201;<span class="pk-act-label"> Timer</span></a>';
+        h += '<a class="pk-btn-settings" id="timerLink" href="' + (USE_BETA_TIMER ? '/timer.php' : '/timer.php') + '?event_id=' + <?= (int)$event['id'] ?> + '" style="text-decoration:none" title="Timer">&#9201;<span class="pk-act-label"> Timer</span></a>';
     }
     // Not gated on the game type: the Table Manager runs cash games too, and a
     // cash host is the one most likely to be standing at the table with a phone.
@@ -2356,8 +2356,8 @@ function refreshSettingsView() {
 function renderTimerPane() {
     var h = '<div class="pk-cfg-section" style="border-top:none;padding-top:0;margin-top:0">';
     h += '<div class="pk-cfg-title">Tournament timer</div>';
-    h += '<label class="es-toggle" style="margin:.4rem 0"><input type="checkbox" id="ckUseBeta"' + (USE_BETA_TIMER ? ' checked' : '') + ' data-act-change="toggleBetaTimer"> Use BETA timer</label>';
-    h += '<p class="es-note" style="margin:.2rem 0 .8rem">When on, the Timer button (and any link to this game\'s timer) opens the new layout-engine display: custom layouts, multi-screen rotation, break screens. Switch off any time to go back to the classic timer.</p>';
+    h += '<label class="es-toggle" style="margin:.4rem 0"><input type="checkbox" id="ckUseBeta"' + (USE_BETA_TIMER ? ' checked' : '') + ' data-act-change="toggleBetaTimer"> Use the Tournament Timer (off: Classic)</label>';
+    h += '<p class="es-note" style="margin:.2rem 0 .8rem">On, the Timer button (and any link to this game\'s timer) opens the Tournament Timer: designable layouts, multi-screen rotation, break screens. Off, it opens Tournament Timer Classic, the original clock. Switch any time.</p>';
     h += '<p class="es-note">Pick which layout this game\'s display shows, and build or tweak layouts, right below. ' +
          '<a href="/help-timer.php" target="_blank">Timer guide</a> covers layouts, casting and conditions.</p>';
     h += '</div>';
@@ -2413,7 +2413,7 @@ function toggleBetaTimer() {
             if (!j.ok) { if (cb) cb.checked = !on; (window.pkAlert || alert)(j.error || 'Could not switch'); return; }
             USE_BETA_TIMER = on;
             var a = document.getElementById('timerLink');
-            if (a) a.href = (on ? '/timer_beta.php' : '/timer.php') + '?event_id=' + EVENT_ID;
+            if (a) a.href = (on ? '/timer.php' : '/timer.php') + '?event_id=' + EVENT_ID;
         })
         .catch(function () { if (cb) cb.checked = !on; (window.pkAlert || alert)('Network error'); });
 }
@@ -2942,7 +2942,7 @@ function uploadChipImage() {
     fd.append('image', file);
     // Shares the timer-layout image folder and its daily cap: same kind of file,
     // same sweepable place, one validated path prefix instead of two.
-    fetch('/timer_beta_dl.php', { method: 'POST', body: fd })
+    fetch('/timer_layouts_dl.php', { method: 'POST', body: fd })
         .then(function (r) { return r.json(); })
         .then(function (j) {
             if (!j || !j.url) { pkAlert((j && j.error) || 'Could not upload that image.'); return; }
@@ -3299,7 +3299,7 @@ function showPresetHelp() {
     pkAlert(
         '<div class="pk-help-content">'
         + '<h4>What a preset stores</h4>'
-        + '<p>A snapshot of everything in this editor: the Game tab (buy-in, rebuys, add-ons, chips, tables), the Payouts &amp; Rewards tab (payout split, points, ticket prize values, prize labels, and the bounty and jackpot setup including baked-in vs. optional), the Blinds tab (the full level schedule), and the Timer tab (the BETA timer switch and this game\'s display layout). The satellite target event is the one thing not stored; that stays per-game.</p>'
+        + '<p>A snapshot of everything in this editor: the Game tab (buy-in, rebuys, add-ons, chips, tables), the Payouts &amp; Rewards tab (payout split, points, ticket prize values, prize labels, and the bounty and jackpot setup including baked-in vs. optional), the Blinds tab (the full level schedule), and the Timer tab (the Classic switch and this game\'s display layout). The satellite target event is the one thing not stored; that stays per-game.</p>'
         + '<h4>Load</h4>'
         + '<p>Applies the selected preset to <b>this game</b> right away, replacing the current setup on both tabs. There is no separate save step after loading.</p>'
         + '<h4>Save As&#8230;</h4>'
@@ -3534,7 +3534,7 @@ function loadPayoutStructure() {
             if (j.use_beta !== undefined) {
                 USE_BETA_TIMER = j.use_beta ? 1 : 0;
                 var tl = document.getElementById('timerLink');
-                if (tl) tl.href = (USE_BETA_TIMER ? '/timer_beta.php' : '/timer.php') + '?event_id=' + EVENT_ID;
+                if (tl) tl.href = (USE_BETA_TIMER ? '/timer.php' : '/timer.php') + '?event_id=' + EVENT_ID;
             }
             // Capture an unsaved game-type choice BEFORE the redraw. Both
             // renderDashboard() and refreshSettingsView() rebuild the pane from
