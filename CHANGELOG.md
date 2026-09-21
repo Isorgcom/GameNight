@@ -11,6 +11,10 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+---
+
+## [v1.1.0] - 2026-09-21
+
 ### Changed
 
 - **The layout timer is now the Tournament Timer, and the old one is
