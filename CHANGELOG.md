@@ -1,6 +1,41 @@
 # Changelog
 
-All notable changes to GameNight are documented here.
+All notable changes to GameNight are documented here. Versions are semantic
+from v1.0.0 onwards: the first number moves when something people rely on is
+taken away or changed out from under them, the second when there is something
+new to see or a rule that behaves differently, the third when something that
+was broken is fixed. Entries are written under **[Unreleased]** as the work
+lands and that heading is renamed when a release is cut.
+
+---
+
+## [Unreleased]
+
+---
+
+## [v1.0.0] - 2026-09-21
+
+### Changed
+
+- **The version is a version now: 1.0.0.** The number in the footer used to be
+  a build counter that only ever went up by one - v0.2128, v0.2129 - which
+  said when a release was cut and nothing about what was in it. From here it
+  is semantic, and it is read against the people using the site rather than
+  against the code: a new thing at the table or in the calendar, or a rule
+  that behaves differently, is a **minor** (1.1.0); a fix for something
+  somebody could have hit is a **patch** (1.0.1); taking a feature away, or
+  changing one so that what a host knew is now wrong, is a **major** (2.0.0).
+  Nothing about the site itself changed in this release: the code is exactly
+  what v0.2129 shipped on 12 September, and the only files touched are
+  `www/version.php`, this changelog, and the rules in CLAUDE.md and
+  WORKFLOW.md. **1.0.0 is a statement, not a rewrite** - after a year of
+  running real game nights it is the number you hand to a stranger.
+  Operator notes: the update check (`run_update_check()` in `www/db.php`)
+  compares with `version_compare()`, which orders `0.2129` below `1.0.0`
+  correctly, so an installation left on an old build still sees the dot.
+  Tags stay `vX.Y.Z` (`v1.0.0`), the cache-busters on `.js` and `.css` move
+  with the version as before, and GameNight's four-digit tags up to `v0.2129`
+  stay where they are as the history of the old scheme.
 
 ---
 
