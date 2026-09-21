@@ -50,7 +50,10 @@
         if (g.status === 'registering') {
             var at = live && live.startsAt ? localTime(live.startsAt) : '';
             parts.push('Registering' + (at ? ' &mdash; starts ' + esc(at) : ''));
-            if (live && live.entrants) parts.push(live.entrants.length + ' seated');
+            // seated is a count the endpoint gives every viewer; entrants
+            // itself only reaches a manager.
+            var seated = live ? (live.seated != null ? live.seated : (live.entrants ? live.entrants.length : null)) : null;
+            if (seated != null) parts.push(seated + ' seated');
         } else if (g.status === 'running') {
             var lvl = live && live.level ? live.level : (ls.level || 0);
             var bl = ls.blinds || null;

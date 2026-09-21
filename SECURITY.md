@@ -247,6 +247,16 @@ and accepts signed requests from it. What holds it:
   `finaltable_deliveries` with a UNIQUE `(game_id, delivery_id)`: the
   constraint is the lock, a repeat answers 200 and does nothing. It never
   includes `auth.php`, so no session, CSRF or CSP is in play.
+- **What the panel's `state` read gives back** is filtered by the caller, not
+  left to the page to hide: the join code and link only for someone on the
+  guest list (a manager, or an approved invite matching their account id -
+  the same test `event.php` makes), the FinalTable roster and the
+  seat-by-seat entrants only for a manager, a bare `seated` count for
+  everyone else, and the finishing order never - it stays in `last_status`
+  for the server-rendered line and Manage Game. `event_visibility_sql()`
+  alone is too loose here: on a public or league event it is true for every
+  signed-in member, so a read authorised only by it would have walked past
+  the organiser's *hide guest list* setting.
 - **What it writes** is bounded: `finaltable_games` columns and the
   `poker_players` rows of the one session tied to that game, matched by
   `user_id` (never by the name in the payload). A player it has to create

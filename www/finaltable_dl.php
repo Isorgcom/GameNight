@@ -37,7 +37,13 @@ function ft_fail(string $msg, int $code = 200): void {
     exit;
 }
 
-// ── state: anyone who can see the event ──────────────────────────────────
+// ── state: anyone who can see the event, but not the same answer for all ──
+// The panel shows a viewer less than it shows a manager, and this endpoint
+// has to draw the same lines rather than leave them to the page: the guest
+// list and the seat-by-seat table are a manager's, the join link belongs to
+// people with a seat, and the finishing order is nobody's business here -
+// event.php renders the winner's name server-side and sends the rest to
+// Manage Game. Anyone who can see the event gets the clock and a head count.
 if ($action === 'state') {
     $vis = event_visibility_sql('e', $uid);
     $evq = $db->prepare("SELECT e.* FROM events e WHERE e.id = ? AND {$vis['sql']}");
@@ -71,9 +77,43 @@ if ($action === 'state') {
             $live = $row['last_read'] ? (json_decode((string)$row['last_read'], true) ?: null) : null;
         }
     }
+    // On the guest list: a manager, or an approved invitee by account id -
+    // the same test event.php makes before it shows the join link.
+    $ftIsRoster = $canManage;
+    if (!$ftIsRoster) {
+        $q = $db->prepare("SELECT 1 FROM event_invites
+                           WHERE event_id = ? AND occurrence_date IS NULL
+                             AND approval_status = 'approved' AND user_id = ?");
+        $q->execute([$event_id, $uid]);
+        $ftIsRoster = (bool)$q->fetchColumn();
+    }
+
+    $game = finaltable_public_game($row, $app);
+    if (!$ftIsRoster) { $game['code'] = null; $game['join_url'] = ''; }
+    // The standings ride in on tournament.completed and stay in last_status
+    // for the server-rendered panel. Nothing in finaltable.js reads them, and
+    // handing every viewer the night's full finishing order - names, ids and
+    // prizes - would walk straight past hide_guest_list.
+    if (is_array($game['last_status'])) unset($game['last_status']['standings']);
+
+    if (is_array($live)) {
+        $seated = is_array($live['entrants'] ?? null) ? count($live['entrants']) : null;
+        unset($live['webhook']);   // the callback address is no use to a browser
+        if (!$canManage) {
+            // The clock and nothing else. roster is the guest list by name,
+            // entrants is who is sitting where with how many chips: both are
+            // the manager's panel, which is the only thing that renders them.
+            $live = array_intersect_key($live, array_flip([
+                'id', 'status', 'startsAt', 'startedAt', 'finishedAt', 'level', 'paused',
+                'awayHeld', 'awayHeldSince', 'nextLevelIn', 'remaining', 'winner',
+            ]));
+        }
+        $live['seated'] = $seated;   // the head count the status line shows everyone
+    }
+
     echo json_encode([
         'ok'         => true,
-        'game'       => finaltable_public_game($row, $app),
+        'game'       => $game,
         'live'       => $live,
         'live_error' => $liveError,
         'can_manage' => $canManage,
