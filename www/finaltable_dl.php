@@ -172,13 +172,16 @@ if ($action === 'setup') {
 
     $db->prepare('DELETE FROM finaltable_games WHERE event_id = ?')->execute([$event_id]);
     $db->prepare("INSERT INTO finaltable_games
-                    (event_id, app_id, game_id, code, rail, join_url, rail_url, webhook_secret, status, last_read, last_read_at, created_by)
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'registering', ?, ?, ?)")
+                    (event_id, app_id, game_id, code, rail, join_url, rail_url, webhook_secret, status, last_read, last_read_at, created_by, roster)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'registering', ?, ?, ?, ?)")
        ->execute([
            $event_id, (int)$app['id'], (string)$g['id'],
            $g['code'] ?? null, $g['rail'] ?? null,
            $g['links']['join'] ?? null, $g['links']['rail'] ?? null,
            encrypt_value($secret), json_encode($g), gmdate('Y-m-d H:i:s'), $uid,
+           // The guest list as sent. FinalTable has no way to amend it after
+           // creation, so this is what its webhooks may name and nothing else.
+           json_encode(array_map(fn($i) => (int)$i['user_id'], $pre['roster']['invitees'])),
        ]);
     $row = finaltable_game_for_event($db, $event_id);
 

@@ -11,6 +11,30 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+### Security
+
+- **A game's results are only written for the people that game was sent.**
+  When a table is set up on FinalTable, the guest list that goes with it is
+  now kept beside the game, and the receiver writes bust-outs, re-entries and
+  finishing places only for accounts on it. Before this, a delivery naming
+  somebody who had never been invited would have made that account a player
+  in the session and given it an approved invite to the event — which is what
+  decides who can see a private event and its guest list. Reaching that took
+  being the FinalTable server the table was handed to, so nothing was open to
+  a member here; it is closed because the receiver should record a night, not
+  extend the guest list. Ids that were never sent are refused and written to
+  the activity log once per delivery, however many a standings list names. A
+  table set up before this release keeps recording as it did.
+
+### Changed
+
+- **Watching an online game is public, and the guide now says so.** *Hide
+  guest list* covers the guest list on the event page; the watch link is
+  pass-on-able by design — the invitation email tells every invitee as much,
+  and somebody on the rail sees the field by name and the chip counts, never
+  anyone's cards. Nothing behaves differently; the documentation stops
+  leaving the question open.
+
 ---
 
 ## [v1.2.0] - 2026-09-21

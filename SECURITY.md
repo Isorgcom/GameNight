@@ -259,8 +259,24 @@ and accepts signed requests from it. What holds it:
   the organiser's *hide guest list* setting.
 - **What it writes** is bounded: `finaltable_games` columns and the
   `poker_players` rows of the one session tied to that game, matched by
-  `user_id` (never by the name in the payload). A player it has to create
-  gets an invite row beside it so `sync_invitees()` cannot soft-remove it.
+  `user_id` (never by the name in the payload) **and only for an id on the
+  roster this side sent**, which is kept as JSON on `finaltable_games.roster`
+  when the table is set up. Without that test a signed delivery naming a
+  stranger would have this side make them a player and give them an approved
+  `event_invites` row — which is an authorisation grant, since
+  `event_visibility_sql()` reads it. Ids that were never sent are refused and
+  logged once per delivery, however many a standings list names. A game set
+  up before the column existed has `roster` NULL, which means "do not check",
+  so a table already running keeps recording; that fallback can go a release
+  later. A player it does have to create gets an invite row beside it so
+  `sync_invitees()` cannot soft-remove it.
+- **The watch link is not gated, and that is the decision.** The `state` read
+  withholds the roster and the entrants from a non-manager, but the rail link
+  goes to every viewer of the event and FinalTable's rail shows the field by
+  name. Gating the button would not make the night private — every invitee
+  already has the link by email, and the link is pass-on-able by design on
+  both sides — so *hide guest list* binds the guest list on the event page
+  and nothing else. DOCS.md says so where a host will read it.
 - The new `data-act` controls (`ftSetup`, `ftControl`, `ftCancel`,
   `ftRemove`, `ftCopy`) live in `finaltable.js` and render only when the
   event carries `online_app_id`; give a dev event one before the

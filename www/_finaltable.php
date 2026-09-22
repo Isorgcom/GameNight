@@ -405,9 +405,29 @@ function finaltable_apply_event(PDO $db, array $game, string $event, array $d): 
         foreach ($keys as $k) if (array_key_exists($k, $d)) $o[$k] = $d[$k];
         return $o;
     };
-    $playerOf = function (array $p) use ($db, $sid, $eid): ?array {
+    // Who this game was sent. A delivery is signed with that game's own
+    // secret, so it comes from the server the table was handed to - but a
+    // result for somebody who was never on the guest list is not a result,
+    // and acting on one would make that account a player here and give it an
+    // approved invite to the event. NULL means a game set up before the
+    // column existed: do not check, or a table already running stops
+    // recording. FinalTable has no way to amend a guest list after creation,
+    // so this list and its roster cannot drift apart.
+    $roster = null;
+    if (isset($game['roster']) && $game['roster'] !== null && $game['roster'] !== '') {
+        $decoded = json_decode((string)$game['roster'], true);
+        if (is_array($decoded)) $roster = array_map('intval', $decoded);
+    }
+    $refused = [];
+    $playerOf = function (array $p) use ($db, $sid, $eid, $roster, &$refused): ?array {
         $uid = (int)($p['user_id'] ?? 0);
         if ($uid <= 0 || !empty($p['is_bot']) || $sid <= 0) return null;
+        if ($roster !== null && !in_array($uid, $roster, true)) {
+            // Collected rather than logged one by one: a crafted completion
+            // carries a whole standings list, and that is one event, not ten.
+            if (!in_array($uid, $refused, true)) $refused[] = $uid;
+            return null;
+        }
         return finaltable_player_row($db, $sid, $eid, $uid, isset($p['name']) ? (string)$p['name'] : null);
     };
 
@@ -501,5 +521,16 @@ function finaltable_apply_event(PDO $db, array $game, string $event, array $d): 
 
         default:
             break;   // an event this side does not know: acknowledged, ignored
+    }
+
+    // One line however many names were refused, so a misbehaving app is
+    // visible without a crafted completion being able to fill the log.
+    if ($refused) {
+        db_log_anon_activity(
+            'finaltable webhook: ' . $event . ' for game=' . (string)$game['game_id']
+            . ' named ' . count($refused) . ' account(s) not on its roster (#'
+            . implode(', #', array_slice($refused, 0, 10)) . ')',
+            'warning'
+        );
     }
 }
