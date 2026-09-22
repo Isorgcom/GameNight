@@ -1033,9 +1033,10 @@ and the check-in toolbar (tournaments only).
   all mounts, since the check-in console remounts the editor on every settings
   re-render and a per-mount menu would leak a detached `<div>` each time
   (`pkBlindsEditor._teardown` drops the previous mount's document listeners).
-- **Use BETA timer switch** (its own Setup → Timer tab in the check-in
-  console, sliding in like the other panes; tournament only): stores
-  `timer_state.use_beta` via `set_beta`. When on, the check-in Timer button
+- **"Use the Tournament Timer (off: Classic)" switch** (its own Setup →
+  Timer tab in the check-in console, sliding in like the other panes;
+  tournament only): stores `timer_state.use_beta` via `set_beta` — the column
+  keeps its old name. When on, the check-in Timer button
   points at `timer.php?event_id=N` (retargeted live by
   `toggleBetaTimer()`) and `timer.php?event_id=N` REDIRECTS to the BETA
   display — `?classic=1` is the escape hatch, and the BETA corner-bar "Timer"

@@ -17,11 +17,11 @@ Everything in the brief checked out except the following. Each one changes a des
 
 | # | Brief says | Code says | Consequence |
 |---|---|---|---|
-| **0.1** | "New page … will include `_footer.php`" | `timer.php`, `timer_beta.php` and `walkin_display.php` are all standalone and do **not** include `_footer.php`; `walkin_display.php:252-253` loads `pk-dialogs.js` + `pk-dispatch.js` by hand | **Do not include `_footer.php`.** It injects `<link rel="manifest" href="/manifest.php">` (`_footer.php:92-98`), and `manifest.php` hardcodes `start_url: '/'` — so Add to Home Screen from `/gameday.php` would launch the **home page**, destroying the chrome-free PWA requirement. It also drops a `position:fixed;right:1rem;bottom:1rem` push-prompt card (`_footer.php:~190`) straight on top of the bottom sheet, adds a 15 s `notify_status.php` poll, and pulls in the help-bubble machinery. Follow `walkin_display.php`: load `pk-seg.js`, `pk-dialogs.js`, `pk-dispatch.js` explicitly. You still get the **shared** dispatcher, which is what the convention actually requires. |
+| **0.1** | "New page … will include `_footer.php`" | `timer_classic.php`, `timer.php` (the Tournament Timer, `timer_beta.php` before v1.1.0) and `walkin_display.php` are all standalone and do **not** include `_footer.php`; `walkin_display.php:252-253` loads `pk-dialogs.js` + `pk-dispatch.js` by hand | **Do not include `_footer.php`.** It injects `<link rel="manifest" href="/manifest.php">` (`_footer.php:92-98`), and `manifest.php` hardcodes `start_url: '/'` — so Add to Home Screen from `/gameday.php` would launch the **home page**, destroying the chrome-free PWA requirement. It also drops a `position:fixed;right:1rem;bottom:1rem` push-prompt card (`_footer.php:~190`) straight on top of the bottom sheet, adds a 15 s `notify_status.php` poll, and pulls in the help-bubble machinery. Follow `walkin_display.php`: load `pk-seg.js`, `pk-dialogs.js`, `pk-dispatch.js` explicitly. You still get the **shared** dispatcher, which is what the convention actually requires. |
 | **0.2** | "Rebalance button showing the moves list … **before**/after applying" | `rebalance_tables()` (`_poker_helpers.php:586-681`) **writes as it goes** — there is no dry-run mode | No "preview then apply". Do: `pkConfirm` first (generic warning), POST, then show the returned `moves` in a `pkAlert`. Also note it calls `pick_random_seat()` for **every** player, so *seat numbers change for everyone* even where the table did not — say so in the dialog. |
 | **0.3** | "`rebalance_tables` returns moves array" | returns `{ok, players, moves}` (`checkin_dl.php:1706-1712`) | Better than stated: take `players` wholesale, no reload needed. |
 | **0.4** | "per-player Move (`set_table`)" | `set_table` (`checkin_dl.php:990-1006`) reads `$_POST['table_number']` with **no `??` default** and no range check; a missing key gives `null !== ''` → `(int)null` → **table 0**. `move_player_table` (`:1603-1626`) validates `1..num_tables` and returns `{player, players}` | Use **`move_player_table`** for moves between tables. Use `set_table` only for "Unassign", and then always send `table_number=''` explicitly. |
-| **0.5** | "classic `timer.js:552-678` is the simpler [clock]" | It is simpler, but it does **not** use the anchor — `startLocalTick()` (`timer.js:632`) decrements a local counter and `pollState()` assigns `time_remaining_seconds` from each poll | **Copy `timer_beta.js`**, not `timer.js`. Specifically `noteClockSample`/`clockOffset`/`serverNow`/`liveRemaining` (`timer_beta.js:393-427`) and `applyTimerSync` (`:1958-1991`). At a 3 s cadence the classic path visibly stutters; the anchor path makes stutter *impossible*, which is the entire reason `ends_at_ms` exists. |
+| **0.5** | "classic `timer.js:552-678` is the simpler [clock]" | It is simpler, but it does **not** use the anchor — `startLocalTick()` (`timer_classic.js:632`, `timer.js` before v1.1.0) decrements a local counter and `pollState()` assigns `time_remaining_seconds` from each poll | **Copy `timer_display.js`** (the Tournament Timer's engine, `timer_display.js` before v1.1.0), not `timer_classic.js`. Specifically `noteClockSample`/`clockOffset`/`serverNow`/`liveRemaining` (`timer_display.js:393-427`) and `applyTimerSync` (`:1958-1991`). At a 3 s cadence the classic path visibly stutters; the anchor path makes stutter *impossible*, which is the entire reason `ends_at_ms` exists. |
 | **0.6** | "Eliminated → **Re-enter** or Undo" (Re-enter listed first) | A wrong heads-up KO **auto-finishes the game and issues entry tickets** (`checkin_dl.php:1053-1066` → `pk_finish_session`) | The mistake path is the time-critical one. Design: a 10 s **post-KO snackbar with a one-tap Undo**, then `Re-enter` as the row primary for older eliminations, with both always in the sheet. Details in §7.4. |
 | **0.7** | `timer_dl` command "returns … state" (implied) | `action=command` returns **`{ok:true}` and nothing else** (`timer_dl.php:434`) | Every control-row tap must be followed by an immediate `get_state()`, exactly as `timer.js:562` does. |
 | **0.8** | "zero or near-zero new endpoint code" | Measured against dev (event 237): `get_session` = **28,883 bytes**, of which **`log` alone is 22,890 (79 %)** — and Game Day never renders the log. `get_state` = 8,002 bytes | Recommend a **3-line additive delta** to `checkin_dl.php` (§4.3). Zero-backend fallback documented. |
@@ -50,7 +50,7 @@ Everything in the brief checked out except the following. Each one changes a des
 | `www/gameday.php` | ~450 lines | Gates + bootstrap + inline `<style>` + static skeleton + nonced config block. No `_nav.php`, no `_footer.php`. |
 | `www/gameday.js` | ~900 lines | All behaviour. External → covered by `script-src 'self'`, no nonce, checked directly by `node --check`. Cache-buster mandatory. |
 
-**Why external JS, not a giant inline block:** `SECURITY.md §1a` exists because one `SyntaxError` in PHP-generated JS discards the whole `<script>` and every function in it — and `php -l` cannot see it. An external file is checked by `node --check` for free, caches across the reloads a 4-hour session will accumulate, and is diffable. Only a ~12-line nonced config block stays in the page (the `timer_beta.php:171-185` pattern).
+**Why external JS, not a giant inline block:** `SECURITY.md §1a` exists because one `SyntaxError` in PHP-generated JS discards the whole `<script>` and every function in it — and `php -l` cannot see it. An external file is checked by `node --check` for free, caches across the reloads a 4-hour session will accumulate, and is diffable. Only a ~12-line nonced config block stays in the page (the pattern at the foot of `timer.php`, the Tournament Timer — `timer_beta.php` before v1.1.0).
 
 **Why inline `<style>`, not `gameday.css`:** the CSS is page-only and ~7 KB; `notifications.php:47-61` and `walkin_display.php` both do exactly this. One fewer asset is one fewer cache-buster to forget — and a forgotten cache-buster on CSS cost the stylesheet in v0.2062.
 
@@ -185,7 +185,7 @@ Both use `setTimeout` self-rescheduling (never `setInterval`) so a slow response
 
 ### 4.2 The header stats come from the *clock* poll
 
-`get_state` already returns `pool` (identical `calc_pool()` output, 558 bytes) and `payouts`. So players-left / entrants / avg stack / prize pool refresh every 3 s and stay correct even if the roster poll is wedged. Derived exactly as `timer_beta.js:2026-2033`:
+`get_state` already returns `pool` (identical `calc_pool()` output, 558 bytes) and `payouts`. So players-left / entrants / avg stack / prize pool refresh every 3 s and stay correct even if the roster poll is wedged. Derived exactly as `timer_display.js:2026-2033`:
 
 - players left / entrants → `pool.still_playing` / `pool.total_players`
 - entries → `pool.total_buyins`
@@ -238,7 +238,7 @@ Amber for degraded, red for broken. This is the direct answer to "fetch errors s
 
 ### 4.6 Self-reload on new build
 
-`timer_beta.js:2015-2020`: compare `GD.assetV` against the `asset_v` in each poll; if they differ, set a one-shot guard and `location.reload()` after 500 ms. Ships with the §4.3 backend delta; skip it in the zero-backend variant. A console left open across a deploy otherwise never gets the fix.
+`timer_display.js:2015-2020`: compare `GD.assetV` against the `asset_v` in each poll; if they differ, set a one-shot guard and `location.reload()` after 500 ms. Ships with the §4.3 backend delta; skip it in the zero-backend variant. A console left open across a deploy otherwise never gets the fix.
 
 ---
 
@@ -303,9 +303,9 @@ Every global in `gameday.js` is prefixed `gd` (`gdKO`, `gdBuyIn`, `gdOpenSheet`,
 
 ### 6.1 Sticky timer header
 
-Content per §4.2 plus, from `get_state`: `levels` → current level row and `level+1` row for "next blinds". Break rows (`is_break`) render as `BREAK` / `On Break`, mirroring `timer_beta.js`'s `ELEMENTS.blinds`.
+Content per §4.2 plus, from `get_state`: `levels` → current level row and `level+1` row for "next blinds". Break rows (`is_break`) render as `BREAK` / `On Break`, mirroring `timer_display.js`'s `ELEMENTS.blinds`.
 
-Clock: local `setInterval(tick, 250)` → `fmtClock(liveRemaining())`. `liveRemaining()` = `(anchorEndsAt - serverNow())/1000` when running, `anchorRemainingMs/1000` when paused (`timer_beta.js:422-428`). 250 ms rather than 1000 ms so the displayed second flips within a quarter-second of the true boundary — free, since it's one `textContent` write.
+Clock: local `setInterval(tick, 250)` → `fmtClock(liveRemaining())`. `liveRemaining()` = `(anchorEndsAt - serverNow())/1000` when running, `anchorRemainingMs/1000` when paused (`timer_display.js:422-428`). 250 ms rather than 1000 ms so the displayed second flips within a quarter-second of the true boundary — free, since it's one `textContent` write.
 
 Control row, hidden behind a header tap (`data-act="gdToggleControls"` on the header):
 
@@ -400,7 +400,7 @@ An "Unassigned" group collects `table_number == null` players.
 
 ### 6.6 Pool strip
 
-Third line of the sticky header, from the clock poll (§4.2): `$275 · 1st $137 · 2nd $82 · 3rd $55`. Places with `percentage = 0` but a `ticket_cents` or `prize_label` render the label instead of a dollar figure (a points league has no pool — `timer_beta.js:2052-2060` has the precedent for not letting the dollar amount gatekeep). Truncate to the first three places; the full ladder stays on the console.
+Third line of the sticky header, from the clock poll (§4.2): `$275 · 1st $137 · 2nd $82 · 3rd $55`. Places with `percentage = 0` but a `ticket_cents` or `prize_label` render the label instead of a dollar figure (a points league has no pool — `timer_display.js:2052-2060` has the precedent for not letting the dollar amount gatekeep). Truncate to the first three places; the full ladder stays on the console.
 
 ### 6.7 Lifecycle
 
@@ -617,7 +617,7 @@ Two plain anchors — no `data-act`, no new handler, nothing for the dispatch sw
 Each step ends in a state you can load in a browser.
 
 1. **`gameday.php` skeleton.** Gates, bootstrap, `<head>`, static markup, `window.GD`, script tags. `gameday.js` = a stub that logs `GD`. Confirm: 200 for JamesTest on event 237, 403 for a non-manager, 302 to `checkin.php` for an event with no session, 404 for a bad event id.
-2. **Clock poll + header + local tick.** `pollClock()`, `noteClockSample`/`clockOffset`/`serverNow`/`liveRemaining` ported from `timer_beta.js:393-428`, `applyTimerSync` from `:1958-1991`. Header renders level, clock, blinds, next blinds, and the §4.2 stats. Verify the clock does not stutter across a poll boundary.
+2. **Clock poll + header + local tick.** `pollClock()`, `noteClockSample`/`clockOffset`/`serverNow`/`liveRemaining` ported from `timer_display.js:393-428`, `applyTimerSync` from `:1958-1991`. Header renders level, clock, blinds, next blinds, and the §4.2 stats. Verify the clock does not stutter across a poll boundary.
 3. **CSRF refresh + `gdPost()` wrapper.** Retry-once-on-403. This lands before any write exists, so every write inherits it.
 4. **Wake lock + `visibilitychange` + stale banner.** All three from `timer.js:772-840`. Test by killing the container for 20 s.
 5. **Roster poll + row build/patch + `pk-seg` view switcher.** Playing / All / Out / Seats, search, `slideViewIn`. Read-only at this point.
@@ -774,7 +774,7 @@ grep -rEh '[[:space:]]on[a-z]+="' www/*.php www/*.js | grep -vE '^\s*(//|\*)'
 
 - `/home/bryce/Claude/GameNight/www/checkin_dl.php` — every roster mutation (`get_session` :28-70, `toggle_buyin` :691, `update_rebuys` :828, `eliminate_player` :1008, `add_walkin` :1182, `rebalance_tables` :1689) and the shared POST+CSRF gate at :372-382
 - `/home/bryce/Claude/GameNight/www/timer_dl.php` — `get_state` :136-315 (anchors, `pool`, `can_control`, `csrf_token` at :311) and `command` :350-436
-- `/home/bryce/Claude/GameNight/www/timer_beta.js` — clock-sync engine to port: `noteClockSample`/`clockOffset`/`serverNow`/`liveRemaining` :393-428, `applyTimerSync` :1958-1991, `poll` :1993-2060
+- `/home/bryce/Claude/GameNight/www/timer_display.js` — clock-sync engine to port: `noteClockSample`/`clockOffset`/`serverNow`/`liveRemaining` :393-428, `applyTimerSync` :1958-1991, `poll` :1993-2060
 - `/home/bryce/Claude/GameNight/www/checkin.php` — patterns to port and the one line to edit: header link :1326, `eliminatePlayer` :4115-4143, `toggleBuyin` ticket prompt :3722-3756, `WALKIN_SEEN` :5133-5182, `escHtml` :5106
 - `/home/bryce/Claude/GameNight/www/timer.js` — wake-lock block to port verbatim, :772-840
 - `/home/bryce/Claude/GameNight/www/walkin_display.php` — the standalone-page shape to follow (no `_nav.php`, no `_footer.php`, explicit `pk-dialogs.js` + `pk-dispatch.js` at :252-253)

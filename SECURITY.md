@@ -150,7 +150,7 @@ did nothing for any event whose title contained an apostrophe.
 |---|---|
 | PHP, attribute holding **JS source** (`onclick="fn(…)"`) | `htmlspecialchars(json_encode($v), ENT_QUOTES \| ENT_SUBSTITUTE)` — **historical only, no such attributes remain** |
 | PHP, attribute holding **data** (`data-a1`, `data-confirm`, `title`) | `htmlspecialchars($v, ENT_QUOTES \| ENT_SUBSTITUTE)`, or a cast such as `(int)$id` |
-| JS in `timer.php`, attribute context | `escAttr($v)` |
+| JS in `timer_classic.php`, attribute context | `escAttr($v)` |
 | JS, text context | `escHtml($v)` |
 
 **The `json_encode` rule is a trap now.** It was correct while attributes carried
@@ -404,7 +404,10 @@ which is exactly the pattern that has to move to event delegation.
      `data-toggle-class="id:class"`, `data-click-file="inputId"`,
      `data-select-all-on-focus`, `data-uppercase`. Reach for those before
      writing yet another near-identical named helper. `checkin.php` and
-     `timer.php` carry their own copies from before it existed; leave them.
+     `timer_classic.php` carry their own copies from before it existed; leave
+     them. The Tournament Timer (`timer.php`) has no shared dispatcher at all
+     and reads its own `data-tb` attributes, which is why it does not claim
+     the shared `data-act` name.
    - **Delegate in the CAPTURE phase.** An ancestor that calls
      `stopPropagation()` makes a bubble-phase listener on `document` blind to
      everything beneath it. `timer.php`'s control tray does exactly that, so the
