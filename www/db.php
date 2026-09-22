@@ -1074,6 +1074,13 @@ JSON;
         FOREIGN KEY (app_id)   REFERENCES sso_apps(id)
     )"); } catch (Exception $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ft_games_game ON finaltable_games(game_id)"); } catch (Exception $e) {}
+    // Who was sent to that game, as a JSON list of account ids. The receiver
+    // writes results for these people and nobody else: a signed delivery
+    // naming an id that never went would otherwise have this side make the
+    // account a player, and an approved invite beside it. NULL on a game set
+    // up before this column existed, which means "do not check" - a table
+    // already running must keep recording its results.
+    try { $pdo->exec("ALTER TABLE finaltable_games ADD COLUMN roster TEXT"); } catch (Exception $e) {}
     // Every delivery FinalTable has made, keyed (game, delivery id). The INSERT
     // is the lock: a UNIQUE failure is a retry of one already handled, answered
     // 200 and dropped. Heartbeats carry delivery_id NULL and never land here.

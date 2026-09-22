@@ -138,9 +138,7 @@ The biggest blocker right now is 10DLC carrier registration. This milestone is e
 - Optional outbound webhooks (on new RSVP, new event, etc.)
 - REST API (read-only to start)
 - ✅ Online tables: a poker tournament played on a connected FinalTable server, set up from the event page, with the bust-outs and standings written back into the session (v1.2.0)
-- Online tables, two follow-ups from the security review of that work (2026-09-22). Neither is a hole — both were raised, checked and ruled out, because reaching them means being the FinalTable server the admin registered and the manager handed the game to — but both are cheap and close a gap between what the code allows and what it means:
-  - **Bound the webhook to the roster it was sent.** `finaltable_apply_event()` takes `player.user_id` from a signed payload and, if that account has no row, creates one and an *approved* `event_invites` row beside it. Persist the roster at setup and reject an id that was not on it, logging a warning so a misbehaving app is visible. Three lines in `www/_finaltable.php`.
-  - **Decide whether *hide guest list* binds the watch link.** The `state` read withholds the roster and the entrants from non-managers on exactly that ground, but the rail link goes to every viewer and FinalTable's rail shows the field by name — so the setting is honoured in one path and walked past in another. Either gate the rail link the way the join link is gated, or say in DOCS.md that watching is public and the setting covers the guest list only.
+- ✅ Online tables, the two follow-ups from the security review of 2026-09-22, both closed in v1.2.1: the receiver now writes results only for accounts on the roster that game was sent (kept on `finaltable_games.roster`, refusals logged once per delivery), and *hide guest list* is documented as binding the event page's guest list rather than the watch link — the rail is pass-on-able by design on both sides, and every invitee already has the link by email
 
 ---
 
