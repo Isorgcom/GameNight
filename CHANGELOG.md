@@ -11,6 +11,10 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+---
+
+## [v1.2.1] - 2026-09-22
+
 ### Security
 
 - **A game's results are only written for the people that game was sent.**

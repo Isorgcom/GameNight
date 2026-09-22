@@ -2,7 +2,7 @@
 
 A developer-facing map of every page in the GameNight app: where it lives, who can reach it, what it does, and how users get to it. Companion to `DOCS.md` (which is the end-user/admin guide).
 
-App version at time of writing: **1.2.0**
+App version at time of writing: **1.2.1**
 All page files live in `www/`. Data endpoints (`*_dl.php`) are listed but not detailed here — they exist only to serve AJAX from the page that owns them.
 
 ---
