@@ -11,6 +11,10 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+---
+
+## [v1.3.0] - 2026-09-23
+
 ### Added
 
 - **A connected app can show your face.** The sign-in token now carries the
