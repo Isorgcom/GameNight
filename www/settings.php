@@ -303,7 +303,7 @@ $site_name = get_setting('site_name', 'Game Night');
                         </form>
                         <?php endif; ?>
                     </div>
-                    <div style="font-size:.75rem;color:#94a3b8;margin-top:.3rem">JPEG/PNG/GIF/WebP, up to 8&nbsp;MB. No photo shows your initial in a colored circle.</div>
+                    <div style="font-size:.75rem;color:#94a3b8;margin-top:.3rem">JPEG/PNG/GIF/WebP. Big pictures are shrunk to 256&nbsp;px when you upload them. No photo shows your initial in a colored circle.</div>
                 </div>
             </div>
             <form id="stAvatarForm" method="post" action="/settings.php" style="display:none">
@@ -312,14 +312,43 @@ $site_name = get_setting('site_name', 'Game Night');
                 <input type="hidden" name="avatar_path" id="stAvatarPath">
             </form>
             <script nonce="<?= csp_nonce() ?>">
+            // An avatar is never drawn bigger than 64px, and a connected app draws
+            // eight at once at a poker table, so the camera original is shrunk to a
+            // 256px square here rather than stored and served whole. Square because
+            // every place that draws one crops to a circle anyway. If the browser
+            // cannot do it the original goes as before and upload.php decides.
+            function shrinkAvatar(file) {
+                if (!window.createImageBitmap || !document.createElement('canvas').toBlob) {
+                    return Promise.resolve(file);
+                }
+                return createImageBitmap(file, { imageOrientation: 'from-image' })
+                    .then(function (bmp) {
+                        var side = Math.min(bmp.width, bmp.height);
+                        var out = Math.min(256, side);
+                        var c = document.createElement('canvas');
+                        c.width = out; c.height = out;
+                        var ctx = c.getContext('2d');
+                        ctx.imageSmoothingQuality = 'high';
+                        ctx.drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2,
+                            side, side, 0, 0, out, out);
+                        bmp.close && bmp.close();
+                        return new Promise(function (resolve) {
+                            c.toBlob(function (blob) {
+                                resolve(blob && blob.size < file.size ? blob : file);
+                            }, 'image/webp', 0.82);
+                        });
+                    })
+                    .catch(function () { return file; });
+            }
             document.getElementById('stAvatarFile').addEventListener('change', function () {
                 var f = this.files && this.files[0];
                 if (!f) return;
+                var self = this;
+                shrinkAvatar(f).then(function (img) {
                 var fd = new FormData();
                 fd.append('csrf_token', <?= json_encode($token) ?>);
-                fd.append('image', f);
+                fd.append('image', img, img.name || 'avatar.webp');
                 fd.append('feature', 'avatars');
-                var self = this;
                 fetch('/upload.php', { method: 'POST', body: fd, credentials: 'same-origin' })
                     .then(function (r) { return r.json(); })
                     .then(function (j) {
@@ -328,6 +357,7 @@ $site_name = get_setting('site_name', 'Game Night');
                         document.getElementById('stAvatarForm').submit();
                     })
                     .catch(function () { pkAlert('Upload failed.'); self.value = ''; });
+                });
             });
             </script>
 

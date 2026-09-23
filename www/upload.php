@@ -78,6 +78,7 @@ if ($file['size'] > 8 * 1024 * 1024) {
     exit;
 }
 
+
 // Per-user daily cap (admins exempt): every successful upload logs
 // "uploaded image: <name>", so the activity log is the counter.
 if ($current['role'] !== 'admin') {
@@ -100,6 +101,20 @@ if ($current['role'] !== 'admin') {
 $features = ['avatars', 'posts', 'tickets'];
 $feature = (isset($_POST['feature']) && in_array($_POST['feature'], $features, true)) ? $_POST['feature'] : '';
 $sub = $feature !== '' ? $feature . '/' : '';
+// An avatar is drawn at 64 pixels at its largest and eight of them at once on a
+// connected app's poker table, so it has no business being a camera original.
+// Settings shrinks the picture to 256px in the browser before it gets here, so
+// nobody reaching this has come through the form; it is the backstop that makes
+// that step load-bearing rather than advisory. Posts and tickets keep the 8 MB.
+if ($feature === 'avatars') {
+    $dims = @getimagesize($file['tmp_name']);
+    if ($file['size'] > 512 * 1024 || ($dims && ($dims[0] > 1024 || $dims[1] > 1024))) {
+        http_response_code(400);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'That picture is too large for an avatar. Try a smaller one.']);
+        exit;
+    }
+}
 
 $uploadDir = __DIR__ . '/uploads/' . $sub;
 if (!is_dir($uploadDir) && !mkdir($uploadDir, 0755, true)) {

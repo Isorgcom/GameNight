@@ -214,7 +214,7 @@ $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
         A connected app lets people sign in with their <?= $e($site_name) ?> account instead of
         creating another one. The app sends the browser to <code>/connect.php</code>, the normal
         login (including verification and two-factor) runs here, and the browser returns to the app
-        with a signed token carrying the username and nothing else. Passwords never leave this site.
+        with a signed token carrying the username and their profile photo. Passwords never leave this site.
     </p>
 
     <?php if ($flash): ?>

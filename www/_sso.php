@@ -24,6 +24,8 @@ require_once __DIR__ . '/webpush.php';
 
 /** Seconds a token stays valid. One redirect hop, then it is spent. */
 const SSO_TOKEN_TTL = 120;
+/** A photo bigger than this is not carried to a connected app. */
+const SSO_AVATAR_MAX_BYTES = 512 * 1024;
 
 /** Longest return URL accepted from a connected app. */
 const SSO_MAX_RETURN_LEN = 512;
@@ -82,6 +84,25 @@ function sso_sign_token(array $claims): string {
         throw new RuntimeException('SSO token sign failed: ' . openssl_error_string());
     }
     return $signingInput . '.' . wp_b64url_encode(wp_der_sig_to_raw($der));
+}
+
+/**
+ * The avatar_path claim, or null.
+ *
+ * The regex is settings.php's own save-time one, which is what defines what an
+ * avatar_path can be - not the looser render-time test in avatar_html(). The
+ * size cap is the other half: nothing here resizes an upload, so a member can
+ * be carrying a five-megabyte photo from a phone camera, and a connected app
+ * that draws eight faces at a poker table would fetch every byte of all eight.
+ * Over the cap the claim is simply absent, which the app reads as "no photo"
+ * and falls back on. Settings tells them why, and re-uploading fixes it.
+ */
+function sso_avatar_claim(?string $path): ?string {
+    if (!$path) return null;
+    if (!preg_match('#^/uploads/(avatars/u\d+_)?[a-f0-9]{32}\.(jpg|png|gif|webp)\z#', $path)) return null;
+    $abs = __DIR__ . $path;
+    if (!is_file($abs) || filesize($abs) > SSO_AVATAR_MAX_BYTES) return null;
+    return $path;
 }
 
 // ── Connected apps ──────────────────────────────────────────────────────────

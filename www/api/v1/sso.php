@@ -24,7 +24,7 @@ api_ok([
     'connect_url' => $site . '/connect.php',
     'token'       => [
         'format'  => 'JWT, ES256 (P-256, raw R||S signature), 120 second lifetime, single use (jti)',
-        'claims'  => ['iss', 'aud', 'sub', 'iat', 'exp', 'jti', 'name', 'tier'],
+        'claims'  => ['iss', 'aud', 'sub', 'iat', 'exp', 'jti', 'name', 'tier', 'avatar_path'],
         'carried' => 'in the URL fragment of the return redirect: <return>#gn_token=<jwt>&state=<state>',
     ],
     'keys' => [[

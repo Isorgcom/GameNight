@@ -108,6 +108,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'jti'  => bin2hex(random_bytes(16)),
             'name' => (string)$user['username'],
             'tier' => (string)($user['tier'] ?? 'Free'),
+            // The member's photo, as the site-relative path the app fetches it
+            // from - never the image itself. Null when they have not set one,
+            // and null when it is larger than an avatar has any business being.
+            'avatar_path' => sso_avatar_claim($user['avatar_path'] ?? null),
         ];
         $jwt = sso_sign_token($claims);
         sso_touch_app((int)$app['id']);
@@ -171,7 +175,7 @@ $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
         </form>
 
         <p class="sso-note">
-            <?= $e($app['name']) ?> receives your username and nothing else: no email address, phone number or password.
+            <?= $e($app['name']) ?> receives your username and your profile photo, and nothing else: no email address, phone number or password.
             You can stop using it at any time by signing out inside <?= $e($app['name']) ?>.
         </p>
     </div>

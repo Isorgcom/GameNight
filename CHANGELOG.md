@@ -13,6 +13,32 @@ lands and that heading is renamed when a release is cut.
 
 ---
 
+## [v1.3.0] - 2026-09-23
+
+### Added
+
+- **A connected app can show your face.** The sign-in token now carries the
+  path to your profile photo alongside your username, so an app you sign in to
+  through this site can draw you rather than a letter. FinalTable uses it for
+  the portrait on your seat at the table. Nothing else changed about what is
+  carried: still no email address, phone number or password, and the app is
+  handed a path it fetches the picture from like any other visitor, never the
+  image itself. A member with no photo sends nothing, and the app falls back to
+  whatever it used before. The consent card on the sign-in page says so, and it
+  has always shown the photo it is about to share right above that sentence.
+
+### Changed
+
+- **A profile photo is shrunk when you upload it.** It used to be stored and
+  served exactly as it came off the phone, at every size it was drawn -
+  including the sixteen-pixel face beside a message. A picture is now squared
+  off and reduced to 256 pixels in the browser before it is sent, which is
+  larger than anywhere it is shown. Photos already uploaded are left alone;
+  upload one again and it shrinks. An avatar over 512 KB is refused, and one
+  that big is not carried to a connected app until it has been replaced.
+
+---
+
 ## [v1.2.1] - 2026-09-22
 
 ### Security
