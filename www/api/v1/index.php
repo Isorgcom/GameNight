@@ -260,7 +260,7 @@ api_ok([
         [
             'method'      => 'GET',
             'path'        => $base . '/sso',
-            'description' => 'Sign-in bridge for connected apps: the public ES256 signing key, key id, issuer and the connect URL. No API key needed. A connected app (registered by a site admin under Site Settings > Connected Apps) sends the browser to /connect.php?app=<slug>&return=<url>&state=<nonce>; the user signs in here and is returned to <url>#gn_token=<jwt>&state=<nonce> with a 120-second single-use token carrying the username.',
+            'description' => 'Sign-in bridge for connected apps: the public ES256 signing key, key id, issuer and the connect URL. No API key needed. A connected app (registered by a site admin under Site Settings > Connected Apps) sends the browser to /connect.php?app=<slug>&return=<url>&state=<nonce>; the user signs in here and is returned to <url>#gn_token=<jwt>&state=<nonce> with a 120-second single-use token carrying the username and, when they have one, the path to their profile photo.',
             'auth'        => 'none',
             'response'    => '{issuer, connect_url, token: {format, claims, carried}, keys: [{kid, kty, crv, alg, use, pem}]}',
         ],

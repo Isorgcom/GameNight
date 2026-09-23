@@ -243,7 +243,7 @@ View a chronological log of all actions: logins, event changes, RSVP updates, ad
 
 ### Connected Apps
 
-A connected app is a separate site (FinalTable, the online tournament table, is the first) that lets people sign in with their Game Night account instead of creating another one. The app sends the browser to `/connect.php`, the normal Game Night login runs (verification gate, two-factor, lockouts, all unchanged), the member confirms once, and the browser returns to the app with a short-lived signed token carrying the username and nothing else. Passwords, emails and phone numbers never leave Game Night.
+A connected app is a separate site (FinalTable, the online tournament table, is the first) that lets people sign in with their Game Night account instead of creating another one. The app sends the browser to `/connect.php`, the normal Game Night login runs (verification gate, two-factor, lockouts, all unchanged), the member confirms once, and the browser returns to the app with a short-lived signed token carrying the username and, when they have one, the path to their profile photo. Passwords, emails and phone numbers never leave Game Night.
 
 **Site Settings → Connected Apps** is where an admin:
 
@@ -1626,8 +1626,11 @@ The token rides in the URL **fragment**, so it never reaches the app's access lo
 | `jti` | 32 hex, random; the app rejects a repeat |
 | `name` | the username |
 | `tier` | the account tier (`Free`, `Personal`, `League`, `OriginalSupporters`); informational |
+| `avatar_path` | the member's profile photo as a site-relative path (`/uploads/avatars/u<id>_<32 hex>.<ext>`), or `null` - absent when they have no photo, and absent when the file is over 512 KB |
 
-No email, phone or avatar is carried.
+No email, phone or password is carried. The profile photo is carried as a
+path, never as image data: the app fetches it from this site the way any
+visitor would, and a member with no photo sends `null`.
 
 **The public key** is on the Connected Apps page and at:
 
@@ -1658,7 +1661,7 @@ Game Night includes several security measures:
 - **Session security** — HTTPOnly cookies, SameSite=Lax, session regeneration on login.
 - **Last admin protection** — The last admin account cannot be demoted or deleted.
 - **File upload validation** — MIME type checking on all uploads.
-- **Sign-in bridge** — Connected apps receive a 120-second, single-use, ES256-signed token carrying the username only; the private key never leaves the server and the token travels in a URL fragment. See [Connected Apps: Sign-In Bridge](#connected-apps-sign-in-bridge).
+- **Sign-in bridge** — Connected apps receive a 120-second, single-use, ES256-signed token carrying the username and the path to the member's profile photo; the private key never leaves the server and the token travels in a URL fragment. See [Connected Apps: Sign-In Bridge](#connected-apps-sign-in-bridge).
 
 ---
 
