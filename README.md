@@ -12,6 +12,7 @@ A self-hosted PHP web application for organizing game night events with full pok
 - **Event polls** — managers create multi-question polls sent to guests who RSVP'd Yes or Maybe; guests vote via tokenized email/SMS/WhatsApp links and results stay anonymous (counts only)
 - **Poker tournament & cash game management** — full check-in dashboard for both formats: buy-ins, rebuys, add-ons, eliminations and prize-pool tracking for tournaments; cash-in/cash-out with money-in-play and on-table tracking for cash games; plus a per-session activity log recording every buy-in, cash-out, add, rebuy, and elimination with who did it and when
 - **Game Setup editor** — one place per game for buy-in and chip rules, payouts and rewards, the blind schedule, the timer display and the chip set, saved together and reusable as a named game preset
+- **Online tables** — a poker tournament can be played on a connected [FinalTable](https://github.com/Isorgcom/FinalTable) server instead of in a room: pick the game and the betting on the event, set the table up from the event page, and the night's results come back into the session as if entered by hand (see [Online tables](#online-tables-finaltable) below)
 - **Table management** — auto-assign players to tables, table view with move/balance controls, break up tables, seats-per-table limits, button/blind protection during rebalancing
 - **Tournament Timer Classic** — the original full-screen blind level timer with remote viewer (QR code), remote control for managers, customizable blind structures with presets, configurable sounds, wake lock for mobile devices, and Chromecast cast-to-TV
 - **Tournament Timer** — build the board itself instead of taking the one that ships: a layout is a tree of rows, columns and cells holding live `<element>` values, images, a share QR or the final-table seat map. Layouts carry several screens chosen by condition (a break screen, a final table, a phone view for whoever scans the QR), per-cell variants, and edge-fired triggers that play a sound, flash, take over the screen or speak a line. Built in a visual editor with a live preview, shareable as a file that carries its own artwork and sounds. Hosts opt in per game or set it as their default
@@ -266,6 +267,19 @@ Each league can expose a versioned, read-only-by-default JSON API (write access 
 - **Exposes:** league summary, members (linked users and pending contacts), events with RSVP counts, posts, and rules
 
 This is what lets a sister site embed a league's upcoming events, roster, or posts.
+
+## Online tables (FinalTable)
+
+A poker tournament can be played online instead of in a room, on [FinalTable](https://github.com/Isorgcom/FinalTable) — a self-hosted poker server built alongside this one. The two are paired both ways:
+
+- **Sign-in.** FinalTable is a *connected app*: members sign in there with their Game Night account (a signed token carrying the username and profile photo, nothing else), so a seat at the table is a Game Night account.
+- **The game key.** An admin registers the FinalTable server under **Site Settings → Connected Apps** with the API key FinalTable's own admin page mints; **Test** checks that the key is accepted.
+
+Once an app is connected, the event editor's poker bar offers **Played: In person / Online at FinalTable**, and for an online event the **Game** — Hold'em, Omaha, Omaha Hi-Lo, Crazy Pineapple, Seven-Card Stud, Stud Hi-Lo, Razz, Five-Card Draw, or HORSE, which plays five of them in turn, one a level — and the **Betting** (no-limit, pot-limit or fixed-limit), preset to the game's usual and changeable. The organiser presses **Set up the table** on the event page: Game Night creates the tournament over FinalTable's API with the guest list, the game and betting, the session's blind schedule, chips, seats, buy-in, add-on and re-entry rules, and every invitee is sent their join link. A stud game or HORSE seats seven; where FinalTable makes something other than what was asked, the organiser is told.
+
+FinalTable reports back as the night runs, through signed webhooks to `/finaltable_webhook.php`: the event page shows the clock and each level in the game's own terms (blinds, or a stud game's ante, bring-in and bets), every bust-out and re-entry is written into the session, and the finishing order lands as if entered by hand — payouts, points, bounties and tickets come from the event's own payout structure, and the league table picks the game up like any other. Managers can start, pause, resume, take a player out or cancel from the event page; anyone who can see the event gets a watch link. Results are written only for people on the guest list the table was sent.
+
+The Game Night site URL must be reachable from the FinalTable server, or its webhooks cannot arrive. Details are in [DOCS.md](DOCS.md#online-tables-finaltable); the API contract is FinalTable's `docs/API.md`. The game and betting need FinalTable 0.29.0, HORSE 0.32.0.
 
 ## Branding
 
