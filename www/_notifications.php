@@ -828,11 +828,16 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
             $ftApp  = (string)($payload['app'] ?? 'FinalTable');
             $ftJoin = (string)($payload['join_url'] ?? $url);
             $ftRail = (string)($payload['rail_url'] ?? '');
+            // The game and betting ("Omaha Hi-Lo · Pot-limit"), when the setup
+            // said; a table set up before there was a pick names none.
+            $ftGameLabel = (string)($payload['game'] ?? '');
+            $ftGameText  = $ftGameLabel !== '' ? " \u{2014} $ftGameLabel" : '';
             $site_name = get_setting('site_name', 'Game Night');
             $subject  = "Your table for $title is on $ftApp";
-            $smsBody  = "\"$title\" on $when is played online at $ftApp. Your seat: $ftJoin (sign in there with your $site_name account).";
+            $smsBody  = "\"$title\" on $when is played online at $ftApp$ftGameText. Your seat: $ftJoin (sign in there with your $site_name account).";
             $htmlBody = '<p><strong>' . htmlspecialchars($title) . '</strong> on ' . htmlspecialchars($when)
-                      . ' is played online at <strong>' . htmlspecialchars($ftApp) . '</strong>.</p>'
+                      . ' is played online at <strong>' . htmlspecialchars($ftApp) . '</strong>'
+                      . ($ftGameLabel !== '' ? ' &mdash; ' . htmlspecialchars($ftGameLabel) : '') . '.</p>'
                       . '<p style="margin-top:1rem"><a href="' . htmlspecialchars($ftJoin) . '" style="background:#2563eb;color:#fff;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600">Take your seat</a></p>'
                       . '<p style="color:#64748b;font-size:.85rem">Sign in there with your ' . htmlspecialchars($site_name) . ' account; your seat is waiting. '
                       . ($ftRail !== '' ? 'Anyone can watch at <a href="' . htmlspecialchars($ftRail) . '">' . htmlspecialchars($ftRail) . '</a>. ' : '')

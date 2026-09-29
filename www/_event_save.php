@@ -165,6 +165,7 @@ function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allo
 
     $is_poker = !empty($_POST['is_poker']) ? 1 : 0;
     if ($is_poker) require_once __DIR__ . '/_poker_helpers.php';
+    if ($is_poker) require_once __DIR__ . '/_finaltable.php';   // the games an online table may play
     $requires_approval = !empty($_POST['requires_approval']) ? 1 : 0;
     $hide_guest_list   = !empty($_POST['hide_guest_list']) ? 1 : 0;
     $poker_game_type   = in_array($_POST['poker_game_type'] ?? '', ['tournament','cash'], true) ? $_POST['poker_game_type'] : 'tournament';
@@ -183,6 +184,19 @@ function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allo
             $oa = $db->prepare("SELECT id FROM sso_apps WHERE id = ? AND enabled = 1 AND api_key IS NOT NULL AND api_key <> ''");
             $oa->execute([$cand]);
             if ($oa->fetchColumn()) $online_app_id = $cand;
+        }
+    }
+    // The game and the betting the table plays, only with an app to play it
+    // on. The two selects are posted whenever the bar shows (a cash game
+    // disables Played, not them), so the app id decides, not the post; an
+    // in-person event stores NULL, which reads as Hold'em no-limit.
+    $online_game = null; $online_limit = null;
+    if ($online_app_id !== null) {
+        $og = (string)($_POST['online_game']  ?? '');
+        $ol = (string)($_POST['online_limit'] ?? '');
+        if (isset(finaltable_catalog()[$og])) {
+            $online_game  = $og;
+            $online_limit = isset(finaltable_limit_names()[$ol]) ? $ol : finaltable_catalog()[$og]['limit'];
         }
     }
     $rsvp_deadline_hrs = (int)($_POST['rsvp_deadline_hours'] ?? 0) ?: null;
@@ -229,9 +243,9 @@ function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allo
 
     $new_invitee_usernames = [];
     if ($action === 'add') {
-        $db->prepare('INSERT INTO events (title, description, location, venue_name, max_guests, start_date, end_date, start_time, end_time, color, created_by, is_poker, requires_approval, hide_guest_list, league_id, visibility, rsvp_deadline_hours, waitlist_enabled, reminders_enabled, reminder_offsets, online_app_id)
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-           ->execute([$title, $desc ?: null, $location, $venue_name, $max_guests, $sd, $ed, $st, $et, $color, $current['id'], $is_poker, $requires_approval, $hide_guest_list, $league_id, $visibility, $rsvp_deadline_hrs, $waitlist_enabled, $reminders_enabled, $reminder_offsets_json, $online_app_id]);
+        $db->prepare('INSERT INTO events (title, description, location, venue_name, max_guests, start_date, end_date, start_time, end_time, color, created_by, is_poker, requires_approval, hide_guest_list, league_id, visibility, rsvp_deadline_hours, waitlist_enabled, reminders_enabled, reminder_offsets, online_app_id, online_game, online_limit)
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+           ->execute([$title, $desc ?: null, $location, $venue_name, $max_guests, $sd, $ed, $st, $et, $color, $current['id'], $is_poker, $requires_approval, $hide_guest_list, $league_id, $visibility, $rsvp_deadline_hrs, $waitlist_enabled, $reminders_enabled, $reminder_offsets_json, $online_app_id, $online_game, $online_limit]);
         $notify_eid = (int)$db->lastInsertId();
         // Sticky poker default: remember this create choice for the user's next new event.
         $db->prepare('UPDATE users SET last_poker_default = ? WHERE id = ?')->execute([$is_poker, $current['id']]);
@@ -323,7 +337,8 @@ function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allo
         $db->prepare('UPDATE events SET title=?, description=?, location=?, venue_name=?, max_guests=?, start_date=?, end_date=?, start_time=?, end_time=?, color=?, is_poker=?, requires_approval=?, hide_guest_list=?, league_id=?, visibility=?, rsvp_deadline_hours=?, waitlist_enabled=?, reminders_enabled=?, reminder_offsets=? WHERE id=?')
            ->execute([$title, $desc ?: null, $location, $venue_name, $max_guests, $sd, $ed, $st, $et, $color, $is_poker, $requires_approval, $hide_guest_list, $league_id, $visibility, $rsvp_deadline_hrs, $waitlist_enabled, $reminders_enabled, $reminder_offsets_json, $id]);
         if ($online_app_posted || !$is_poker || $poker_game_type !== 'tournament') {
-            $db->prepare('UPDATE events SET online_app_id = ? WHERE id = ?')->execute([$online_app_id, $id]);
+            $db->prepare('UPDATE events SET online_app_id = ?, online_game = ?, online_limit = ? WHERE id = ?')
+               ->execute([$online_app_id, $online_game, $online_limit, $id]);
         }
 
         // If start/time, reminder toggle, or offsets changed — purge old queued reminders and mark event for re-queue.

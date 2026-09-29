@@ -150,6 +150,8 @@ if ($action === 'setup') {
     $secret = bin2hex(random_bytes(24));
     $body = [
         'title'           => mb_substr((string)$ev['title'], 0, 24),
+        'game'            => $pre['game'],
+        'limit'           => $pre['limit'],
         'seats_per_table' => $pre['seats'],
         'starting_chips'  => $pre['chips'],
         'buyin_amount'    => $pre['buyin'],
@@ -194,14 +196,26 @@ if ($action === 'setup') {
     foreach ($pre['roster']['invitees'] as $inv) {
         queue_event_notification($db, $event_id, (string)$inv['username'], 'online_table', null, [
             'app' => (string)$app['name'], 'join_url' => $links['join'], 'rail_url' => $links['rail'], 'code' => (string)($g['code'] ?? ''),
+            'game' => (string)$pre['label'],
         ]);
     }
 
+    // What FinalTable made of what was sent, where it differs: the stack, the
+    // game and betting, the seats. Shown to the person who pressed the button
+    // and kept in the game log, so the difference is not a surprise later.
     $notes = $pre['notes'];
     $got = (int)($g['settings']['startChips'] ?? 0);
     if ($got && $got !== $pre['chips']) $notes[] = "Stacks are $got chips there.";
+    $gotGame  = (string)($g['settings']['game']  ?? '');
+    $gotLimit = (string)($g['settings']['limit'] ?? '');
+    if (($gotGame !== '' && $gotGame !== $pre['game']) || ($gotLimit !== '' && $gotLimit !== $pre['limit'])) {
+        $notes[] = 'The table plays ' . finaltable_game_label($gotGame !== '' ? $gotGame : $pre['game'], $gotLimit !== '' ? $gotLimit : $pre['limit']) . ' there.';
+    }
+    $gotSeats = (int)($g['settings']['tableSize'] ?? 0);
+    if ($gotSeats && $gotSeats !== (int)$pre['seats']) $notes[] = "$gotSeats to a table there.";
     pk_log($db, $sid, $uid, 'note', null, null, null,
-           'Table set up on ' . $app['name'] . ' (' . count($pre['roster']['invitees']) . ' on the guest list)');
+           'Table set up on ' . $app['name'] . ' (' . count($pre['roster']['invitees']) . ' on the guest list, ' . $pre['label'] . ')');
+    foreach (array_values(array_unique($notes)) as $n) pk_log($db, $sid, $uid, 'note', null, null, null, 'FinalTable: ' . $n);
     db_log_activity($uid, "finaltable setup event #$event_id game=" . $g['id'] . ' roster=' . count($pre['roster']['invitees']));
     echo json_encode(['ok' => true, 'game' => finaltable_public_game($row, $app), 'live' => $g, 'notes' => array_values(array_unique($notes))]);
     exit;

@@ -1742,6 +1742,11 @@ JSON;
     // Online play: sso_apps.id of the FinalTable server a poker tournament is
     // played on; NULL = in person. Set in the event editor's poker bar.
     try { $pdo->exec("ALTER TABLE events ADD COLUMN online_app_id INTEGER"); } catch (Exception $e) {}
+    // The game and the betting that table plays, in FinalTable's own keys
+    // ('razz', 'fixed'); NULL = Hold'em no-limit, as every table was before
+    // there was a pick. Set beside online_app_id and cleared with it.
+    try { $pdo->exec("ALTER TABLE events ADD COLUMN online_game TEXT"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE events ADD COLUMN online_limit TEXT"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE leagues ADD COLUMN slug TEXT"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE leagues ADD COLUMN public_page INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE leagues ADD COLUMN banner_path TEXT"); } catch (Exception $e) {}
