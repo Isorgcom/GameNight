@@ -11,6 +11,10 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+---
+
+## [v1.4.0] - 2026-09-29
+
 ### Added
 
 - **An online table can play any of FinalTable's games.** Beside *Played:
