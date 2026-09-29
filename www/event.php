@@ -74,6 +74,7 @@ if ($token === '' && $page_eid > 0) {
     // and the endpoint agree before the button is pressed. $ftApp is the row
     // whether or not it holds a key; the preview says when it does not.
     $ftApp = null; $ftGame = null; $ftPre = null; $ftLinks = ['join' => '', 'rail' => ''];
+    $ftGameKey = 'holdem'; $ftLimit = 'no'; $ftGameLabel = '';
     if (!empty($ev['online_app_id']) && (int)$ev['is_poker'] === 1) {
         require_once __DIR__ . '/_poker_helpers.php';
         require_once __DIR__ . '/_finaltable.php';
@@ -85,6 +86,10 @@ if ($token === '' && $page_eid > 0) {
             if ($ftGame) $ftLinks = finaltable_links($ftApp, $ftGame);
             $ftLive  = $ftGame && in_array($ftGame['status'], ['registering', 'running'], true);
             if ($canManage && !$ftLive) $ftPre = finaltable_setup_preview($db, $ev, (int)$current['id']);
+            // The game and betting: what the table plays once it exists, else
+            // what the organiser picked, else Hold'em no-limit.
+            [$ftGameKey, $ftLimit] = finaltable_game_of($ev, $ftLive ? $ftGame : null);
+            $ftGameLabel = finaltable_game_label($ftGameKey, $ftLimit);
         }
     }
 
@@ -406,6 +411,7 @@ if ($token === '' && $page_eid > 0) {
              and the links, managers the controls. finaltable.js keeps it fresh. -->
         <div id="ftPanel" style="margin-top:1.4rem;padding-top:1.1rem;border-top:1px solid #e2e8f0">
             <div class="ft-head">Played online at <?= $ftE($ftApp['name']) ?></div>
+            <div class="ft-status"><?= $ftE($ftGameLabel) ?></div>
             <?php if (!$ftGame || !in_array($ftGame['status'], ['registering', 'running'], true)): ?>
                 <?php if ($ftGame):
                     $ls = $ftGame['last_status'] ? (json_decode((string)$ftGame['last_status'], true) ?: []) : [];
@@ -422,7 +428,7 @@ if ($token === '' && $page_eid > 0) {
                         <?php if ($ftPre['ok']): $ro = $ftPre['roster']; ?>
                         <b><?= $ftGame ? 'Set the table up again' : 'The table is not set up yet' ?></b>
                         Sends <?= count($ro['invitees']) ?> people (you as host), <?= $ftPre['blinds']['levels'] ? count($ftPre['blinds']['levels']) . ' blind levels' : 'FinalTable&rsquo;s Standard blinds' ?>,
-                        <?= (int)$ftPre['chips'] ?> chips, <?= (int)$ftPre['seats'] ?> to a table<?= $ftPre['buyin'] > 0 ? ', $' . (int)$ftPre['buyin'] . ' buy-in' : '' ?><?= $ftPre['reentry_levels'] ? ', re-entry for ' . (int)$ftPre['reentry_levels'] . ' levels' : ', freezeout' ?>.
+                        <?= (int)$ftPre['chips'] ?> chips, <?= (int)$ftPre['seats'] ?> to a table, <?= $ftE($ftPre['label']) ?><?= $ftPre['buyin'] > 0 ? ', $' . (int)$ftPre['buyin'] . ' buy-in' : '' ?><?= $ftPre['reentry_levels'] ? ', re-entry for ' . (int)$ftPre['reentry_levels'] . ' levels' : ', freezeout' ?>.
                         <?php if ($ro['skipped']): ?><br>No account here, so not sent: <?= $ftE(implode(', ', $ro['skipped'])) ?>.<?php endif; ?>
                         <?php foreach ($ftPre['notes'] as $n): ?><br><?= $ftE($n) ?><?php endforeach; ?>
                         <?php else: ?>
@@ -1016,7 +1022,12 @@ window.FT = {
     canManage: <?= $canManage ? 'true' : 'false' ?>,
     appName:   <?= json_encode((string)$ftApp['name']) ?>,
     status:    <?= json_encode($ftGame ? (string)$ftGame['status'] : 'none') ?>,
-    pollMs:    15000
+    pollMs:    15000,
+    // The game and betting the table plays, and every game's name, so the
+    // status line can read a level the way that game posts it.
+    game:      <?= json_encode($ftGameKey, JSON_HEX_TAG) ?>,
+    limit:     <?= json_encode($ftLimit, JSON_HEX_TAG) ?>,
+    games:     <?= json_encode(array_map(fn($d) => $d['name'], finaltable_catalog()), JSON_HEX_TAG) ?>
 };
 </script>
 <?php endif; ?>

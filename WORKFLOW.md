@@ -2,7 +2,7 @@
 
 A developer-facing map of every page in the GameNight app: where it lives, who can reach it, what it does, and how users get to it. Companion to `DOCS.md` (which is the end-user/admin guide).
 
-App version at time of writing: **1.2.1**
+App version at time of writing: **1.4.0**
 All page files live in `www/`. Data endpoints (`*_dl.php`) are listed but not detailed here — they exist only to serve AJAX from the page that owns them.
 
 ---
@@ -350,7 +350,7 @@ These are POST-only AJAX backends — they have no HTML view of their own. Liste
 - `www/_nav.php` — top navigation partial
 - `www/_footer.php` — footer partial
 - `www/_poker_helpers.php` — chip-pool / payout math used by checkin & timer
-- `www/_finaltable.php` — the FinalTable client (`finaltable_request()`, bearer key, 8 s, no redirects), the roster and setup preview the event page and `finaltable_dl.php` share, and `finaltable_apply_event()` for the receiver
+- `www/_finaltable.php` — the FinalTable client (`finaltable_request()`, bearer key, 8 s, no redirects), the catalog of games it plays (`finaltable_catalog()`, and `finaltable_game_of()` for the game and betting an event's table plays), the roster and setup preview the event page and `finaltable_dl.php` share, and `finaltable_apply_event()` for the receiver
 - `www/auth.php` — `require_login()`, `current_user()`, security headers, CSRF
 - `www/db.php` — schema, migrations, all DB helpers
 - `www/mail.php` — PHPMailer wrapper

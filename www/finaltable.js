@@ -1,7 +1,9 @@
 /* finaltable.js — the event page's FinalTable panel.
  *
  * Loaded by event.php when the event is played online, after a nonced config
- * block sets window.FT {eventId, csrf, canManage, appName, status, pollMs}.
+ * block sets window.FT {eventId, csrf, canManage, appName, status, pollMs,
+ * game, limit, games} - the game and betting the table plays and the names
+ * of every game FinalTable has, for the status line.
  * Polls finaltable_dl.php?action=state while the game is registering or
  * running (visible tab only), renders the status line, the manager controls
  * and the seated entrants, and drives the table through the same endpoint.
@@ -41,6 +43,21 @@
         try { return new Date(ms).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; }
     }
     function toast(msg) { if (typeof evToast === 'function') evToast(msg); }
+    function gameName(key) { return esc((C.games && C.games[key]) || key); }
+
+    // The level as the game posts it, from the last clock webhook: a stud
+    // game's ante, bring-in and two bets; a fixed-limit blinds game's blinds
+    // and bets; blinds and the ante otherwise, as it always read.
+    function stakesText(ls) {
+        var bl = ls.blinds || null, bt = ls.bets || null;
+        if (bt && bt.bringIn != null) {
+            return 'ante ' + esc(bt.ante) + ' &middot; bring-in ' + esc(bt.bringIn) + ' &middot; bets ' + esc(bt.smallBet) + '/' + esc(bt.bigBet);
+        }
+        if (!bl) return '';
+        var s = esc(bl.sb) + '/' + esc(bl.bb) + (bl.ante ? ' (' + esc(bl.ante) + ')' : '');
+        if (bt && C.limit === 'fixed' && bt.smallBet != null) s += ' &middot; bets ' + esc(bt.smallBet) + '/' + esc(bt.bigBet);
+        return s;
+    }
 
     // The one line that says how the game is going. `live` is FinalTable's
     // GET answer (fresh or cached); `ls` is the last webhook this side kept.
@@ -56,9 +73,11 @@
             if (seated != null) parts.push(seated + ' seated');
         } else if (g.status === 'running') {
             var lvl = live && live.level ? live.level : (ls.level || 0);
-            var bl = ls.blinds || null;
             parts.push('Level ' + lvl + (ls.on_break ? ' (break)' : ''));
-            if (bl) parts.push(bl.sb + '/' + bl.bb + (bl.ante ? ' (' + bl.ante + ')' : ''));
+            // In HORSE the level's own game leads, since it turns with the level.
+            if (ls.variant && C.game && ls.variant !== C.game) parts.push(gameName(ls.variant));
+            var st = stakesText(ls);
+            if (st) parts.push(st);
             if (live && live.nextLevelIn != null && !(live.paused)) parts.push('next level in ' + mmss(live.nextLevelIn));
             var left = live ? live.remaining : ls.remaining;
             if (left != null) parts.push(left + ' left');
@@ -136,8 +155,13 @@
 
     // ── Controls (data-act handlers) ─────────────────────────────────────
     window.ftSetup = function (btn) {
-        pkBusy(btn, post('setup').then(function (j) {
+        pkBusy(btn, post('setup').then(async function (j) {
             if (!j.ok) { pkAlert(esc(j.error || 'Could not set up the table.'), { title: esc(C.appName) + ' said' }); return; }
+            // What FinalTable changed about what was sent (the stack, the
+            // seats, the game), before the page turns into the table.
+            if (j.notes && j.notes.length) {
+                await pkAlert(j.notes.map(esc).join('<br>'), { title: esc(C.appName) + ' made the table, with a note' });
+            }
             location.reload();
         }).catch(function () { pkAlert('Network error.'); }));
     };

@@ -16,6 +16,7 @@
  *   wk=YYYY-MM-DD   calendar week (Sunday) to return to after save/cancel
  */
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/_finaltable.php';   // the games an online table may play, for the poker bar
 
 $current = require_login();
 $db      = get_db();
@@ -490,12 +491,28 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                 <label>Seats <input type="number" name="poker_seats" id="ePokerSeats" min="2" max="12" value="8" data-act-change="updateCapacityLine" data-act-input="updateCapacityLine"></label>
                 <label>Deadline <select name="rsvp_deadline_hours" id="eRsvpDeadline"><option value="">None</option><option value="24">24h</option><option value="48">48h</option><option value="72">72h</option></select></label>
                 <?php if ($onlineApps): ?>
-                <label title="A tournament played on a connected FinalTable server; the organiser sets the table up from the event page">Played <select name="online_app_id" id="eOnlineApp">
+                <label title="A tournament played on a connected FinalTable server; the organiser sets the table up from the event page">Played <select name="online_app_id" id="eOnlineApp" data-act-change="pokerFieldsChanged">
                     <option value="0">In person</option>
                     <?php foreach ($onlineApps as $oa): ?>
                     <option value="<?= (int)$oa['id'] ?>">Online at <?= htmlspecialchars($oa['name'], ENT_QUOTES | ENT_SUBSTITUTE) ?></option>
                     <?php endforeach; ?>
                 </select></label>
+                <!-- The game and the betting, with an online table only: shown
+                     when Played is an app, hidden in person. Each game comes up
+                     at the betting it is usually played at; the pick can change. -->
+                <span id="eOnlineGameWrap" style="display:none;gap:.5rem;align-items:center">
+                <label title="Which poker game the table plays; HORSE plays five of them in turn, one a level">Game <select name="online_game" id="eOnlineGame" data-act-change="onlineGameChanged">
+                    <?php $ftGroup = null; foreach (finaltable_catalog() as $ftKey => $ftDef): ?>
+                    <?php if ($ftDef['group'] !== $ftGroup): if ($ftGroup !== null) echo '</optgroup>'; $ftGroup = $ftDef['group']; ?><optgroup label="<?= htmlspecialchars($ftGroup, ENT_QUOTES | ENT_SUBSTITUTE) ?>"><?php endif; ?>
+                    <option value="<?= htmlspecialchars($ftKey, ENT_QUOTES | ENT_SUBSTITUTE) ?>" data-limit="<?= htmlspecialchars($ftDef['limit'], ENT_QUOTES | ENT_SUBSTITUTE) ?>"><?= htmlspecialchars($ftDef['name'], ENT_QUOTES | ENT_SUBSTITUTE) ?></option>
+                    <?php endforeach; if ($ftGroup !== null) echo '</optgroup>'; ?>
+                </select></label>
+                <label title="How the table is bet; it follows the game and can be changed">Betting <select name="online_limit" id="eOnlineLimit">
+                    <?php foreach (finaltable_limit_names() as $ftKey => $ftName): ?>
+                    <option value="<?= htmlspecialchars($ftKey, ENT_QUOTES | ENT_SUBSTITUTE) ?>"><?= htmlspecialchars($ftName, ENT_QUOTES | ENT_SUBSTITUTE) ?></option>
+                    <?php endforeach; ?>
+                </select></label>
+                </span>
                 <?php elseif ($isAdmin): ?>
                 <span style="font-size:.8rem;color:#94a3b8" title="Paste a FinalTable game key under Site Settings › Connected Apps to offer online play">In person only</span>
                 <?php endif; ?>
@@ -1258,6 +1275,10 @@ function togglePokerFields() {
     // and the saver clears the column for a cash game whether or not it was.
     var oa = document.getElementById('eOnlineApp');
     if (oa) { var gt = document.getElementById('ePokerGameType'); oa.disabled = !!(gt && gt.value === 'cash'); }
+    // The game and betting go with an online table only. Hidden in person or
+    // for a cash game; the saver reads them only with an app id anyway.
+    var gw = document.getElementById('eOnlineGameWrap');
+    if (gw) gw.style.display = (oa && !oa.disabled && oa.value !== '0') ? 'inline-flex' : 'none';
     updateGuestOptsBadge(); // runs post-populate on edits, keeps the count honest
 }
 
@@ -1435,6 +1456,10 @@ function regenWalkinFromEdit() {
     document.getElementById('ePokerSeats').value    = ps ? ps.seats_per_table : '8';
     var oaSel = document.getElementById('eOnlineApp');
     if (oaSel) oaSel.value = (ev && ev.online_app_id) ? String(ev.online_app_id) : '0';
+    // The pick, or Hold'em no-limit: what an event with none plays.
+    var ogSel = document.getElementById('eOnlineGame'), olSel = document.getElementById('eOnlineLimit');
+    if (ogSel) ogSel.value = (ev && ev.online_game)  ? String(ev.online_game)  : 'holdem';
+    if (olSel) olSel.value = (ev && ev.online_limit) ? String(ev.online_limit) : 'no';
     document.getElementById('eRsvpDeadline').value  = (ev && ev.rsvp_deadline_hours) ? String(ev.rsvp_deadline_hours) : '';
     document.getElementById('eWaitlistEnabled').checked = ev ? !!(parseInt(ev.waitlist_enabled) || ev.waitlist_enabled === null) : false;
     document.getElementById('eMaxGuests').value = (ev && ev.max_guests) ? ev.max_guests : '';
@@ -1494,6 +1519,13 @@ function regenWalkinFromEdit() {
 <script nonce="<?= csp_nonce() ?>">
 function capacityChanged()   { updateCapacityLine(); updateGuestOptsBadge(); }
 function pokerFieldsChanged(){ togglePokerFields();  updateGuestOptsBadge(); }
+// A game brings its usual betting with it; the host may then pick another.
+function onlineGameChanged() {
+    var g = document.getElementById('eOnlineGame'), l = document.getElementById('eOnlineLimit');
+    if (!g || !l) return;
+    var o = g.options[g.selectedIndex];
+    if (o && o.dataset && o.dataset.limit) l.value = o.dataset.limit;
+}
 </script>
 </body>
 </html>

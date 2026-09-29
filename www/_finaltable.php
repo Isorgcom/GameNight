@@ -130,6 +130,66 @@ function finaltable_links(array $app, array $row): array {
     return ['join' => $join, 'rail' => $rail];
 }
 
+/**
+ * The games FinalTable plays, as its create call names them - a mirror of
+ * its games.js, kept here because FinalTable has no call that lists them.
+ * `limit` is the betting each game usually plays and `seats` the most
+ * FinalTable seats at one of its tables: seven for the stud family and for
+ * HORSE, three of whose five rounds are stud. A key a FinalTable server does
+ * not know yet is refused by that server, in the sentence the setup panel
+ * already shows.
+ */
+function finaltable_catalog(): array {
+    return [
+        'holdem'    => ['name' => "Texas Hold'em",   'limit' => 'no',    'seats' => 8, 'group' => 'Flop games'],
+        'omaha'     => ['name' => 'Omaha',           'limit' => 'pot',   'seats' => 8, 'group' => 'Flop games'],
+        'omahahl'   => ['name' => 'Omaha Hi-Lo',     'limit' => 'pot',   'seats' => 8, 'group' => 'Flop games'],
+        'pineapple' => ['name' => 'Crazy Pineapple', 'limit' => 'no',    'seats' => 8, 'group' => 'Flop games'],
+        'stud'      => ['name' => 'Seven-Card Stud', 'limit' => 'fixed', 'seats' => 7, 'group' => 'Stud games'],
+        'studhl'    => ['name' => 'Stud Hi-Lo',      'limit' => 'fixed', 'seats' => 7, 'group' => 'Stud games'],
+        'razz'      => ['name' => 'Razz',            'limit' => 'fixed', 'seats' => 7, 'group' => 'Stud games'],
+        'draw'      => ['name' => 'Five-Card Draw',  'limit' => 'no',    'seats' => 8, 'group' => 'Draw games'],
+        'horse'     => ['name' => 'HORSE',           'limit' => 'fixed', 'seats' => 7, 'group' => 'Mixed games'],
+    ];
+}
+
+function finaltable_limit_names(): array {
+    return ['no' => 'No-limit', 'pot' => 'Pot-limit', 'fixed' => 'Fixed-limit'];
+}
+
+/**
+ * The game and the betting an event's table plays, as [game, limit]: what
+ * FinalTable made, when a table exists (its settings ride every answer this
+ * side keeps in last_read, so an organiser editing the pick after setup
+ * cannot make the page say a game the table is not playing); else what the
+ * organiser picked; else Hold'em no-limit, the one game every table played
+ * before there was a pick. A value this side does not know is read as that.
+ */
+function finaltable_game_of(array $ev, ?array $ftGame = null): array {
+    $catalog = finaltable_catalog();
+    $limits  = finaltable_limit_names();
+    $game = null; $limit = null;
+    if ($ftGame && !empty($ftGame['last_read'])) {
+        $read = json_decode((string)$ftGame['last_read'], true);
+        if (is_array($read) && isset($read['settings']) && is_array($read['settings'])) {
+            $game  = $read['settings']['game']  ?? null;
+            $limit = $read['settings']['limit'] ?? null;
+        }
+    }
+    if ($game === null)  $game  = $ev['online_game']  ?? null;
+    if ($limit === null) $limit = $ev['online_limit'] ?? null;
+    $game  = is_string($game)  && isset($catalog[$game]) ? $game  : 'holdem';
+    $limit = is_string($limit) && isset($limits[$limit]) ? $limit : $catalog[$game]['limit'];
+    return [$game, $limit];
+}
+
+/** "Omaha Hi-Lo · Pot-limit", for the page, the preview and the invitation. */
+function finaltable_game_label(string $game, string $limit): string {
+    $catalog = finaltable_catalog();
+    $limits  = finaltable_limit_names();
+    return ($catalog[$game]['name'] ?? $game) . ' · ' . ($limits[$limit] ?? $limit);
+}
+
 /** A finaltable_games row shaped for a browser: no secret, JSON columns decoded, links filled in. */
 function finaltable_public_game(array $row, array $app): array {
     $links = finaltable_links($app, $row);
@@ -241,7 +301,8 @@ function finaltable_blind_levels(PDO $db, int $session_id, int $user_id = 0): ar
 function finaltable_setup_preview(PDO $db, array $ev, int $user_id = 0): array {
     $out = ['ok' => false, 'error' => null, 'app' => null, 'session' => null, 'roster' => null,
             'blinds' => ['levels' => [], 'name' => null, 'note' => null], 'start_at' => null, 'start_note' => null,
-            'seats' => 8, 'chips' => 5000, 'buyin' => 0, 'addon' => false, 'reentry_levels' => 0, 'notes' => []];
+            'seats' => 8, 'chips' => 5000, 'buyin' => 0, 'addon' => false, 'reentry_levels' => 0, 'notes' => [],
+            'game' => 'holdem', 'limit' => 'no', 'label' => finaltable_game_label('holdem', 'no')];
     if ((int)($ev['is_poker'] ?? 0) !== 1 || empty($ev['online_app_id'])) {
         $out['error'] = 'This event is not played online.'; return $out;
     }
@@ -263,14 +324,25 @@ function finaltable_setup_preview(PDO $db, array $ev, int $user_id = 0): array {
     if (($sess['game_type'] ?? '') !== 'tournament') { $out['error'] = 'Only a tournament can be played on FinalTable.'; return $out; }
     $out['session'] = $sess;
 
-    $out['seats']          = max(2, min(8, (int)($sess['seats_per_table'] ?? 8)));
+    // The game the organiser picked on the event, and how many FinalTable
+    // seats at one of its tables: the stud family and HORSE hold seven.
+    [$game, $limit] = finaltable_game_of($ev);
+    $def = finaltable_catalog()[$game];
+    $out['game']  = $game;
+    $out['limit'] = $limit;
+    $out['label'] = finaltable_game_label($game, $limit);
+    $asked = (int)($sess['seats_per_table'] ?? 8);
+    $out['seats']          = max(2, min($def['seats'], $asked));
+    if ($asked > $def['seats']) {
+        $out['notes'][] = ($def['seats'] < 8 ? "FinalTable seats {$def['seats']} at a {$def['name']} table; "
+                                             : 'FinalTable seats eight to a table; ') . $asked . ' was asked for.';
+    }
     // A session made before chips were a setting carries 0; FinalTable's own
     // default is the one to show, not a zero that reads as a mistake.
     $out['chips']          = (int)($sess['starting_chips'] ?? 0) > 0 ? (int)$sess['starting_chips'] : 5000;
     $out['buyin']          = min(10000, intdiv(max(0, (int)($sess['buyin_amount'] ?? 0)), 100));
     $out['addon']          = !empty($sess['addon_allowed']);
     $out['reentry_levels'] = !empty($sess['rebuy_allowed']) ? 3 : 0;
-    if ((int)($sess['seats_per_table'] ?? 8) > 8) $out['notes'][] = 'FinalTable seats eight to a table; ' . (int)$sess['seats_per_table'] . ' was asked for.';
     if (!in_array($out['chips'], [1000, 2000, 5000, 10000], true)) $out['notes'][] = 'FinalTable stacks are 1000, 2000, 5000 or 10000 chips; ' . $out['chips'] . ' becomes 5000.';
 
     $out['roster'] = finaltable_roster($db, $ev);

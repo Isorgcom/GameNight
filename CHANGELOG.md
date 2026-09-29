@@ -13,6 +13,34 @@ lands and that heading is renamed when a release is cut.
 
 ---
 
+## [v1.4.0] - 2026-09-29
+
+### Added
+
+- **An online table can play any of FinalTable's games.** Beside *Played:
+  Online at FinalTable* in the event editor's poker bar there is now a
+  **Game** - Hold'em, Omaha, Omaha Hi-Lo, Crazy Pineapple, Seven-Card Stud,
+  Stud Hi-Lo, Razz, Five-Card Draw, or HORSE, which plays five of them in
+  turn, one a level - and a **Betting** (no-limit, pot-limit or fixed-limit)
+  that comes up at the game's usual and can be changed. The pick is saved on
+  the event (`events.online_game`, `events.online_limit`), sent when the
+  table is set up, named under *Played online at FinalTable* on the event
+  page and in the seat invitation, and an event made before this, or left
+  alone, plays Hold'em no-limit exactly as before. Once the table exists the
+  page says what FinalTable actually made, so editing the pick afterwards
+  cannot mislabel a table already dealt. The status line reads each level
+  the way the game posts it - a stud game's ante, bring-in and bets, a
+  fixed-limit game's bets beside the blinds - and in HORSE names the round
+  the level is on. A stud game or HORSE seats seven, so the preview says
+  seven to a table for those. The notes FinalTable's answer earns when it
+  changed what was sent - the stack size, the seats, the game - are now
+  shown when the button is pressed and kept in the game log; they were
+  computed before and never displayed. Needs FinalTable 0.29.0 for the games
+  and betting and 0.32.0 for HORSE; an older server refuses a game it does
+  not have, in its own words, on the button.
+
+---
+
 ## [v1.3.0] - 2026-09-23
 
 ### Added
