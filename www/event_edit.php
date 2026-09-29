@@ -491,7 +491,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                 <label>Seats <input type="number" name="poker_seats" id="ePokerSeats" min="2" max="12" value="8" data-act-change="updateCapacityLine" data-act-input="updateCapacityLine"></label>
                 <label>Deadline <select name="rsvp_deadline_hours" id="eRsvpDeadline"><option value="">None</option><option value="24">24h</option><option value="48">48h</option><option value="72">72h</option></select></label>
                 <?php if ($onlineApps): ?>
-                <label title="A tournament played on a connected FinalTable server; the organiser sets the table up from the event page">Played <select name="online_app_id" id="eOnlineApp" data-act-change="pokerFieldsChanged">
+                <label title="A tournament played on a connected FinalTable server; the organiser sets the table up from the event page">Played <select name="online_app_id" id="eOnlineApp" data-act-change="onlineAppChanged">
                     <option value="0">In person</option>
                     <?php foreach ($onlineApps as $oa): ?>
                     <option value="<?= (int)$oa['id'] ?>">Online at <?= htmlspecialchars($oa['name'], ENT_QUOTES | ENT_SUBSTITUTE) ?></option>
@@ -1274,12 +1274,23 @@ function togglePokerFields() {
     // Online play is a tournament thing. A disabled select is not submitted,
     // and the saver clears the column for a cash game whether or not it was.
     var oa = document.getElementById('eOnlineApp');
-    if (oa) { var gt = document.getElementById('ePokerGameType'); oa.disabled = !!(gt && gt.value === 'cash'); }
-    // The game and betting go with an online table only. Hidden in person or
-    // for a cash game; the saver reads them only with an app id anyway.
-    var gw = document.getElementById('eOnlineGameWrap');
-    if (gw) gw.style.display = (oa && !oa.disabled && oa.value !== '0') ? 'inline-flex' : 'none';
+    if (oa) {
+        var gt = document.getElementById('ePokerGameType');
+        var dis = !!(gt && gt.value === 'cash');
+        if (oa.disabled !== dis) oa.disabled = dis;   // assigned only on a change: a select is touchy about its own properties mid-event
+    }
+    toggleOnlineGameWrap();
     updateGuestOptsBadge(); // runs post-populate on edits, keeps the count honest
+}
+
+// The game and betting go with an online table only: shown when Played is
+// an app, hidden in person or for a cash game. The saver reads them only
+// with an app id anyway, so hiding is for the eye, not the data.
+function toggleOnlineGameWrap() {
+    var oa = document.getElementById('eOnlineApp'), gw = document.getElementById('eOnlineGameWrap');
+    if (!gw) return;
+    var on = !!(oa && !oa.disabled && oa.value !== '0');
+    if ((gw.style.display !== 'none') !== on) gw.style.display = on ? 'inline-flex' : 'none';
 }
 
 function toggleReminderFields() {
@@ -1519,6 +1530,12 @@ function regenWalkinFromEdit() {
 <script nonce="<?= csp_nonce() ?>">
 function capacityChanged()   { updateCapacityLine(); updateGuestOptsBadge(); }
 function pokerFieldsChanged(){ togglePokerFields();  updateGuestOptsBadge(); }
+// Played changed: only the game pair follows it, and a tick later, so the
+// select has finished its own change before anything near it moves.
+// Nothing else on the form depends on Played, and running the whole poker
+// bar's refresh from a select's own change handler is the kind of thing
+// that wedges a native dropdown.
+function onlineAppChanged()  { setTimeout(toggleOnlineGameWrap, 0); }
 // A game brings its usual betting with it; the host may then pick another.
 function onlineGameChanged() {
     var g = document.getElementById('eOnlineGame'), l = document.getElementById('eOnlineLimit');

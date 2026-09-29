@@ -13,6 +13,24 @@ lands and that heading is renamed when a release is cut.
 
 ---
 
+## [v1.4.1] - 2026-09-29
+
+### Fixed
+
+- **The *Played* select could wedge after switching to Online at FinalTable.**
+  In v1.4.0, changing *Played* ran the whole poker bar's refresh from the
+  select's own change event - assigning its disabled property and re-laying
+  the guest list while the dropdown was still closing - and an admin in
+  Firefox on Windows found the select stuck, unable to go back to In person.
+  It now does only what the change needs, showing or hiding the Game and
+  Betting pair, and a tick later, once the select has finished its own
+  change; the poker bar's refresh stays with the Type control that always
+  ran it. Seen on the live site the day v1.4.0 went out; it could not be
+  reproduced headlessly, and the change removes everything in the path that
+  could have caused it.
+
+---
+
 ## [v1.4.0] - 2026-09-29
 
 ### Added
