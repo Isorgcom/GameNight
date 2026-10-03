@@ -62,7 +62,7 @@ $allow_reg   = get_setting('allow_registration', '1') === '1';
         <h2><span class="step-num">1</span> Set up your league <em style="font-weight:400;color:#94a3b8;font-size:1rem">(optional)</em></h2>
         <p>A <strong>league</strong> is your private group &mdash; your poker crew, board game club, or any circle. It scopes events, contacts, and stats so different groups don't see each other's stuff.</p>
         <p>From the home page, open <a href="/leagues.php"><strong>Leagues</strong></a> in the nav and create one. Give it a name and you're done.</p>
-        <img class="help-shot" src="/img/help/leagues-create.png" alt="League creation form">
+        <img class="help-shot" src="/img/help/leagues-create.png?v=<?= @filemtime(__DIR__ . '/img/help/leagues-create.png') ?: 0 ?>" alt="League creation form">
         <div class="hint"><strong>This step is optional</strong> &mdash; you can create and run events without a league at all. A league only matters when you want to keep separate groups' events, contacts, and stats apart. If you only ever host the same crew, you can skip it.</div>
     </div>
 
@@ -73,7 +73,7 @@ $allow_reg   = get_setting('allow_registration', '1') === '1';
             <li>Bulk-add by pasting a CSV of names and emails</li>
             <li>When a contact later creates an account on the site, they auto-link to the entry you already made &mdash; no double work</li>
         </ul>
-        <img class="help-shot" src="/img/help/contacts-add.png" alt="Adding a contact">
+        <img class="help-shot" src="/img/help/contacts-add.png?v=<?= @filemtime(__DIR__ . '/img/help/contacts-add.png') ?: 0 ?>" alt="Adding a contact">
         <div class="hint"><strong>Optional, but recommended.</strong> A saved roster makes inviting people in the next step a couple of clicks instead of retyping the same emails every event &mdash; but you can always invite someone who isn't in your contacts yet.</div>
     </div>
 
@@ -89,7 +89,7 @@ $allow_reg   = get_setting('allow_registration', '1') === '1';
             <li><strong>Time</strong> (optional) and <strong>Duration</strong> (&mdash;, 30m, 1h, up to 8h).</li>
         </ul>
         <p>Need notes for guests? Click <strong>+ Description</strong> to expand a description box. When everything looks right, click <strong>Add Event</strong> (the same button reads <strong>Save Changes</strong> when you reopen an event to edit it).</p>
-        <img class="help-shot" src="/img/help/event-create.png" alt="Add Event dialog with title and date filled in">
+        <img class="help-shot" src="/img/help/event-create.png?v=<?= @filemtime(__DIR__ . '/img/help/event-create.png') ?: 0 ?>" alt="Add Event dialog with title and date filled in">
         <div class="hint"><strong>Visibility</strong> controls who can <em>see</em> the event. Sending invitations is a separate step (next) &mdash; you can invite people to an Invitees-only event without making it visible to your whole league.</div>
     </div>
 
@@ -102,7 +102,7 @@ $allow_reg   = get_setting('allow_registration', '1') === '1';
             <li>On a league event, tick <strong>Hide non-members</strong> to narrow the left list to your league.</li>
         </ul>
         <p>When you save, every invitee gets a <strong>one-click RSVP link</strong> delivered however they prefer &mdash; email, SMS, or WhatsApp &mdash; so they can answer without logging in.</p>
-        <img class="help-shot" src="/img/help/event-invite.png" alt="Invite picker showing All Users and Invited panes">
+        <img class="help-shot" src="/img/help/event-invite.png?v=<?= @filemtime(__DIR__ . '/img/help/event-invite.png') ?: 0 ?>" alt="Invite picker showing All Users and Invited panes">
         <div class="hint">You don't have to line everyone up now &mdash; you can also add players <strong>later, during check-in</strong> on event day, by typing their name on the dashboard or letting them register through the walk-in QR code (see step 7).</div>
         <div class="hint">Each guest's contact method comes from their own profile, so the site routes each invite correctly &mdash; you don't pick the channel per person. Guests can also <strong>Sign up to attend</strong> on their own, and <strong>Leave this event</strong> later if plans change.</div>
     </div>
@@ -118,7 +118,7 @@ $allow_reg   = get_setting('allow_registration', '1') === '1';
             <li><strong>Reminders</strong> (on by default) &mdash; expands a row of interval checkboxes: <strong>1 wk, 3 days, 2 days, 1 day, 12 hr, 2 hr, 30 min</strong>. Tick the ones you want sent automatically.</li>
         </ul>
         <p>To change any of this later, open the event, click <strong>Edit</strong>, adjust the toggles, and hit <strong>Save Changes</strong>.</p>
-        <img class="help-shot" src="/img/help/event-settings.png" alt="Event dialog toolbar with Poker, Waitlist, Approval, and Reminders toggles">
+        <img class="help-shot" src="/img/help/event-settings.png?v=<?= @filemtime(__DIR__ . '/img/help/event-settings.png') ?: 0 ?>" alt="Event dialog toolbar with Poker, Waitlist, Approval, and Reminders toggles">
         <div class="hint">As guests respond, each one carries a status: <strong>Approved</strong>, <strong>Pending</strong> (awaiting your approval), <strong>Waitlisted</strong> (past capacity), or <strong>Denied</strong>.</div>
     </div>
 
@@ -126,7 +126,7 @@ $allow_reg   = get_setting('allow_registration', '1') === '1';
         <h2><span class="step-num">6</span> Track RSVPs</h2>
         <p>Open the event and look at the <strong>Invites</strong> list. You'll see each person's response &mdash; yes, no, maybe, or no answer yet &mdash; and you can change it for them or hit <strong>Resend</strong> to send their invitation again.</p>
         <p>Reminder messages go out automatically before the event &mdash; you don't need to nudge anyone manually.</p>
-        <img class="help-shot" src="/img/help/event-rsvps.png" alt="Guest RSVP list">
+        <img class="help-shot" src="/img/help/event-rsvps.png?v=<?= @filemtime(__DIR__ . '/img/help/event-rsvps.png') ?: 0 ?>" alt="Guest RSVP list">
     </div>
 
     <div class="help-step">
@@ -137,12 +137,15 @@ $allow_reg   = get_setting('allow_registration', '1') === '1';
             <li><strong>Buy-in $</strong>, and for tournaments also <strong>Rebuy $</strong>, <strong>Add-on $</strong>, <strong>Starting Chips</strong>, and <strong>Add-on Chips</strong>.</li>
             <li><strong>Number of Tables</strong>.</li>
         </ul>
-        <p>Click <strong>Create Session &amp; Import Players</strong> &mdash; this pulls in everyone who RSVP'd Yes. On the check-in dashboard you can add walk-ins with the name field and <strong>+ Add</strong>, filter by <strong>All / RSVP Yes / Playing / Out</strong>, and let <strong>Balance</strong> auto-assign tables and seats. The <strong>QR</strong> button opens a registration screen players can scan to sign themselves in.</p>
-        <img class="help-shot" src="/img/help/checkin-start.png" alt="Check-in dashboard after starting a session">
-        <p>When you're ready to play, click the <strong>Timer</strong> button to launch the tournament clock. It loads your default blind structure automatically. Everything about the game &mdash; blinds included &mdash; is edited in <strong>Setup</strong>, which is the next step.</p>
-        <img class="help-shot" src="/img/help/blind-structure.png" alt="Blind Structure editor with levels and breaks">
-        <p>Run the clock with <strong>Start</strong> / <strong>Pause</strong>, step levels with <strong>Next</strong> and <strong>Prev</strong>, nudge the clock with <strong>&minus;Min</strong> / <strong>+Min</strong>, and use <strong>Reset Level</strong> or <strong>Reset Timer</strong> if needed. <strong>TV</strong> opens a big-screen view for a projector, and <strong>Players</strong> lets you mark eliminations and rebuys as the night goes on.</p>
-        <img class="help-shot" src="/img/help/timer-running.png" alt="Tournament timer running with blinds and clock">
+        <p>Click <strong>Create Session &amp; Import Players</strong> &mdash; this pulls in everyone who RSVP'd Yes. On the check-in dashboard you can add walk-ins with the name field and <strong>+ Add</strong>, filter by <strong>All / RSVP Yes / Playing / Out</strong>, and switch to the <strong>Table</strong> view to seat people, where <strong>Balance</strong> auto-assigns tables and seats. The <strong>QR</strong> button opens a registration screen players can scan to sign themselves in.</p>
+        <img class="help-shot" src="/img/help/checkin-start.png?v=<?= @filemtime(__DIR__ . '/img/help/checkin-start.png') ?: 0 ?>" alt="The check-in dashboard with a session running: player rows with buy-in, rebuys, table, seat and status, the Setup button, the List / Table / Log / Payouts / Chop views, and the prize pool">
+        <p>When you're ready to play, click <strong>Timer</strong> to put the tournament clock on the big screen. It runs the blind schedule from <strong>Setup &rarr; Blinds</strong>, with your default structure loaded for you, breaks included. Everything about the game, blinds included, is edited in <strong>Setup</strong>, which is the next step.</p>
+        <img class="help-shot" src="/img/help/blind-structure.png?v=<?= @filemtime(__DIR__ . '/img/help/blind-structure.png') ?: 0 ?>" alt="Setup → Blinds: the level grid with durations, blinds, antes, a break and start times">
+        <p>The first time you open a tournament's check-in you're asked, once, which clock you'd like: the <strong>Tournament Timer</strong>, with designable layouts, break and final-table screens, a QR code that puts the clock on any phone or TV, and sounds; or <strong>Tournament Timer Classic</strong>, the original. Your answer becomes the default for new games, and any game can still switch under <strong>Setup &rarr; Timer</strong>.</p>
+        <img class="help-shot" src="/img/help/timer-choice.png?v=<?= @filemtime(__DIR__ . '/img/help/timer-choice.png') ?: 0 ?>" alt="The one-time prompt: Try the Tournament Timer, with Not now, Keep Classic and Use the Tournament Timer buttons" style="max-width:420px">
+        <p>If you can manage the game, the display carries a control tray along its bottom edge: start / stop, previous and next level, <strong>&minus;1m</strong> / <strong>+1m</strong>, reset the level, undo, fullscreen, and <strong>Exit</strong> back to check-in. From a keyboard, the space bar starts and stops and the arrow keys step a level. Everyone else sees a clean clock. Eliminations and rebuys are marked here on the check-in dashboard as the night goes on (every player row has them), and the display follows.</p>
+        <img class="help-shot" src="/img/help/timer-running.png?v=<?= @filemtime(__DIR__ . '/img/help/timer-running.png') ?: 0 ?>" alt="The Tournament Timer's Default Layout on a live game: the clock, blinds, next level and next break, players, average stack, entries and prize pool, the QR code, and the control tray along the bottom">
+        <div class="hint">The display, casting it to more screens and building a layout of your own are covered in the <a href="/help-timer.php">Timer Guide</a>. Prefer the original clock? <strong>Tournament Timer Classic</strong> is a switch away under Setup &rarr; Timer.</div>
         <p>That's it. After the event, results lock in and stats update automatically.</p>
         <div class="hint"><strong>Payouts aren't loaded by default.</strong> No payout structure is set up automatically, so the <strong>Payouts</strong> card starts empty. If you want payout tracking (who finishes in the money, and for how much), set up a split first &mdash; use <strong>Edit in Settings</strong> on the Payouts card, or the <strong>Payout</strong> button on the check-in dashboard.</div>
         <div class="hint">If you turned on <strong>Approval</strong> for the event, players who register by scanning the QR code land in <strong>pending approval</strong> until you wave them in from the check-in dashboard.</div>
@@ -155,11 +158,11 @@ $allow_reg   = get_setting('allow_registration', '1') === '1';
             <li><strong>Game</strong> &mdash; game type, buy-in, rebuys and add-ons, starting chips, tables and seats, and which league the event belongs to.</li>
             <li><strong>Payouts &amp; Rewards</strong> &mdash; the payout split, plus points, entry-ticket values, prize labels, bounties and jackpots.</li>
             <li><strong>Blinds</strong> &mdash; the level schedule as an editable grid (<strong>Level, Duration, Small Blind, Big Blind, Ante, Start Time</strong>), with breaks, undo/redo, and a generator that builds a ladder for you.</li>
-            <li><strong>Timer</strong> &mdash; whether this game uses the classic timer or the new layout display, and which layout its display shows.</li>
+            <li><strong>Timer</strong> &mdash; whether this game uses Tournament Timer Classic or the Tournament Timer, and which layout its display shows. The <a href="/help-timer.php">Timer Guide</a> covers the display, casting to more screens, and the layout editor.</li>
             <li><strong>Chip set</strong> &mdash; the denominations and colours drawn on the display as a legend, so players can see what each colour is worth at colour-up.</li>
         </ul>
         <p>Blinds, Timer and Chip set apply to tournaments, so they're hidden for a cash game. Blinds and Timer also stay locked until the game has actually been saved as a tournament.</p>
-        <img class="help-shot" src="/img/help/setup-editor.png" alt="The game Setup editor showing its Game, Payouts &amp; Rewards, Blinds, Timer and Chip set tabs">
+        <img class="help-shot" src="/img/help/setup-editor.png?v=<?= @filemtime(__DIR__ . '/img/help/setup-editor.png') ?: 0 ?>" alt="The game Setup editor showing its Game, Payouts &amp; Rewards, Blinds, Timer and Chip set tabs">
         <p><strong>Save game</strong> commits the whole editor at once &mdash; every tab, including the blind schedule &mdash; and leaves you exactly where you were, on the same tab, with the button confirming <em>Saved &#10003;</em> for a moment. Setting a game up usually takes a few passes, so saving is a checkpoint rather than an exit. Use <strong>Close</strong> (or Escape) when you're done; if anything is still unsaved you'll be asked before it's discarded.</p>
         <div class="hint"><strong>Presets save the whole editor.</strong> The <strong>Game preset</strong> bar at the top stores game setup, payouts and rewards, the blind schedule and the timer settings as one reusable recipe &mdash; so next week's game is one <strong>Load</strong> away. The line above it always tells you whether this game came from a preset and whether it has drifted from it.</div>
     </div>

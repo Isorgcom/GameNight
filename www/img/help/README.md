@@ -9,9 +9,14 @@ Drop annotated screenshots here, sized roughly 1200px wide. Pages render fine wi
 - `event-invite.png` — invite picker on a created event (showing typeahead with a couple of contacts)
 - `event-settings.png` — Add/Edit Event dialog toolbar with Poker / Waitlist / Approval / Reminders toggles
 - `event-rsvps.png` — event view showing the Invites list with yes/no/maybe responses
-- `checkin-start.png` — `/checkin.php` check-in dashboard after a session is started (Timer / QR / Balance, prize pool)
-- `blind-structure.png` — Timer "Blind Structure" editor with levels and a break
-- `timer-running.png` — `/timer.php` running clock showing blinds and the countdown
+- `checkin-start.png` — `/checkin.php` check-in dashboard after a session is started (Setup, the List / Table / Log / Payouts / Chop strip, player rows, prize pool)
+- `timer-choice.png` — the one-time "Try the Tournament Timer" prompt a host sees on first opening a tournament's check-in (first-time copy: taken on a game still on Classic)
+- `blind-structure.png` — Setup → Blinds: the level grid with a break
+- `timer-running.png` — the Tournament Timer's Default Layout on a live game, clock running, control tray showing
+
+The four above are retaken together by `~/qa-headless/help_hosts_shots.js`
+(JamesTest, events 237 and 247 on dev); the older pictures on this page are
+hand-captured.
 
 ## help-timer.php expects:
 All taken on dev by `~/qa-headless/help_timer_shots.js` (PCF loaded, JamesTest
@@ -40,4 +45,4 @@ re-cropping by hand.
 - `walkin-qr.png` — `/walkin.php` registration form (after scanning QR), name/contact fields visible
 - `register.png` — `/register.php` signup form
 
-When recapturing later (UI changes), keep the same filenames so the pages don't need editing.
+When recapturing later (UI changes), keep the same filenames so the pages don't need editing. The pages append each file's modification time to its URL (`?v=<mtime>`), so a retaken picture is fetched fresh even though `/img/help/` is cached as immutable for a year; without that stamp a browser that had seen the old picture kept it.

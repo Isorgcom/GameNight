@@ -155,13 +155,13 @@ $help_sections = [
         <h2><span class="step-num">2</span> Choose what the display shows</h2>
         <p>On the same Setup &rarr; Timer pane, pick the <strong>layout</strong> this game's display uses: one of the built-ins, or any layout you have saved. The layout editor sits right there on the pane, and the bar above it asks the only question that matters, <strong>Use this layout for <em>your event</em></strong>, with a yes/no switch. Flip it on and the loaded layout drives the game's display; flip it off and the display goes back to the default. When some other layout is already on the display, the bar names it, so switching on reads as a replacement rather than a first choice.</p>
         <figure class="help-shot">
-            <img src="/img/help/timer-bind.png" alt="The bar above the editor: Use this layout for Friday Night Poker, with the switch set to Yes" loading="lazy">
+            <img src="/img/help/timer-bind.png?v=<?= @filemtime(__DIR__ . '/img/help/timer-bind.png') ?: 0 ?>" alt="The bar above the editor: Use this layout for Friday Night Poker, with the switch set to Yes" loading="lazy">
             <figcaption>The binding bar names the game, so it is obvious which display changes. The <strong>Load&hellip;</strong> list marks the layout a game is using with <em>&bull; this event</em>.</figcaption>
         </figure>
         <p>The display follows your choice live, so you can change it mid-game and every connected screen updates without a reload. A game with nothing chosen shows <strong>Default Layout</strong>, the built-in feature tour, which is also what the editor opens on for that game, so what you see while editing is what the TV is showing.</p>
         <p>The <strong>Load&hellip;</strong> list has two groups. <strong>Built-in</strong> holds Default Layout, Classic, Black &amp; Green, Minimalist, Two Column, PCF Poker Chip Forum and Card Room. <strong>Saved</strong> holds your own layouts, plus any the site admin has shared with every host (marked <em>(site)</em>).</p>
         <figure class="help-shot">
-            <img src="/img/help/timer-pcf.jpg" alt="The PCF Poker Chip Forum built-in layout: dark felt, glossy plates, clock, blinds, stats panel and chip legend" loading="lazy">
+            <img src="/img/help/timer-pcf.jpg?v=<?= @filemtime(__DIR__ . '/img/help/timer-pcf.jpg') ?: 0 ?>" alt="The PCF Poker Chip Forum built-in layout: dark felt, glossy plates, clock, blinds, stats panel and chip legend" loading="lazy">
             <figcaption>The <strong>PCF Poker Chip Forum</strong> built-in. Most examples in this guide are drawn from it.</figcaption>
         </figure>
         <p>The <strong>chip set</strong> has its own tab next to Timer: the denominations in play with their colours, drawn on the display as a legend wherever the layout puts one (see <a href="#cells">Cells beyond text</a>). It rides along with a game preset, so a recurring game keeps its chips. Each chip can also carry a photo of the real thing instead of a flat colour.</p>
@@ -171,7 +171,7 @@ $help_sections = [
         <h2><span class="step-num">3</span> Running the display</h2>
         <p>If you can manage the game, a control tray appears along the bottom of the display. Anyone else sees a clean display with no controls. Every button is checked against your rights on the server, so a display left on a TV can never be driven by a guest who finds it.</p>
         <figure class="help-shot">
-            <img src="/img/help/timer-controls.jpg" alt="The PCF display for a live game with the control tray showing along the bottom: previous level, start, next level, minus and plus one minute, reset level, undo, fullscreen and Exit" loading="lazy">
+            <img src="/img/help/timer-controls.jpg?v=<?= @filemtime(__DIR__ . '/img/help/timer-controls.jpg') ?: 0 ?>" alt="The PCF display for a live game with the control tray showing along the bottom: previous level, start, next level, minus and plus one minute, reset level, undo, fullscreen and Exit" loading="lazy">
             <figcaption>A live game on the PCF layout, paused (the clock turns red), with the host's control tray showing. The speaker and fullscreen buttons sit in the bottom-right corner for every viewer.</figcaption>
         </figure>
         <ul>
@@ -192,7 +192,7 @@ $help_sections = [
         <div class="hint"><strong>Scanning only ever grants viewing.</strong> The link in the code shows the display; whether that device also gets controls depends on who is signed in on it. A guest's phone is a spectator screen, your own tablet is a remote control.</div>
         <p>The same layout runs on every screen that scans it, which is where the <code>mobile</code>, <code>tablet</code> and <code>desktop</code> conditions earn their keep: a layout can carry a <strong>Phone</strong> screen that only phones see, with the clock and blinds stacked large and nothing else. The Default Layout ships one, and <strong>+ Screen</strong> in the editor offers it ready-made (see <a href="#screens">Screens &amp; rotation</a>).</p>
         <figure class="help-shot shot-phone">
-            <img src="/img/help/timer-phone.png" alt="A phone showing the Default Layout's Phone screen: a large clock, the blinds in gold, the next level, the round and players left" loading="lazy">
+            <img src="/img/help/timer-phone.png?v=<?= @filemtime(__DIR__ . '/img/help/timer-phone.png') ?: 0 ?>" alt="A phone showing the Default Layout's Phone screen: a large clock, the blinds in gold, the next level, the round and players left" loading="lazy">
             <figcaption>What a phone gets after scanning the Default Layout's QR code: its own Phone screen, the speaker and fullscreen buttons, and the tap-to-stay-awake banner.</figcaption>
         </figure>
     </div>
@@ -201,7 +201,7 @@ $help_sections = [
         <h2><span class="step-num">5</span> The editor at a glance</h2>
         <p>Open <strong>Tournament Timer</strong> from the site menu, or edit right on a game's Setup &rarr; Timer pane. The editor is the real display in a frame, with the tools around it.</p>
         <figure class="help-shot">
-            <img src="/img/help/timer-editor.jpg" alt="The layout editor: toolbar across the top, the live preview on the left with the preview-state bar and Triggers below it, the Structure panel with screen tabs and the layout tree in the middle, and the Cell inspector on the right" loading="lazy">
+            <img src="/img/help/timer-editor.jpg?v=<?= @filemtime(__DIR__ . '/img/help/timer-editor.jpg') ?: 0 ?>" alt="The layout editor: toolbar across the top, the live preview on the left with the preview-state bar and Triggers below it, the Structure panel with screen tabs and the layout tree in the middle, and the Cell inspector on the right" loading="lazy">
             <figcaption>The editor with PCF loaded and the clock cell selected: preview and state bar on the left, Structure in the middle, the inspector on the right.</figcaption>
         </figure>
         <ul>
@@ -213,10 +213,10 @@ $help_sections = [
             <li><strong>The inspector:</strong> everything about the selected box. With a cell selected it is titled <strong>Cell</strong>; with the screen itself selected it is <strong>Screen background</strong>, which is also where shared styles and custom elements live.</li>
         </ul>
         <figure class="help-shot">
-            <img src="/img/help/timer-toolbar.png" alt="The editor toolbar: Load, the layout name, Save layout, Save layout as copy, Export, Import, Delete, Open display, Help" loading="lazy">
+            <img src="/img/help/timer-toolbar.png?v=<?= @filemtime(__DIR__ . '/img/help/timer-toolbar.png') ?: 0 ?>" alt="The editor toolbar: Load, the layout name, Save layout, Save layout as copy, Export, Import, Delete, Open display, Help" loading="lazy">
         </figure>
         <figure class="help-shot">
-            <img src="/img/help/timer-statebar.png" alt="The preview state bar: Running, Paused, On break, Game over chips and the TV / PC, Tablet, Phone switch" loading="lazy">
+            <img src="/img/help/timer-statebar.png?v=<?= @filemtime(__DIR__ . '/img/help/timer-statebar.png') ?: 0 ?>" alt="The preview state bar: Running, Paused, On break, Game over chips and the TV / PC, Tablet, Phone switch" loading="lazy">
             <figcaption>The state chips and the device switch under the preview. The preview itself is the display, so what you see here is what the screen will do.</figcaption>
         </figure>
         <p>Everything is reachable two ways, and either is fine:</p>
@@ -236,7 +236,7 @@ $help_sections = [
         <p><strong>Fonts:</strong> every text cell has a <strong>Font</strong> setting in the inspector and the right-click menu, each choice previewed in the dropdown itself. Eight are system looks (Serif, Monospace, Condensed, Wide, Heavy, Impact, Script, Comic) built from faces every device already has; the rest ship with the site: scoreboard and poster faces (Bebas Neue, Oswald, Anton, Orbitron), casino serifs (Cinzel, Playfair), a western saloon (Rye), a neon sign (Monoton), a brush script (Lobster), and <strong>Digital clock</strong>, a real 7-segment face made for <code>&lt;clock&gt;</code> and blinds cells (digits only; it is not for sentences). Bundled fonts load from this site, never a third party, and every choice has a same-shape fallback while it loads. A <strong>shared style</strong> can carry a font too, so one setting gives a whole design its typeface.</p>
         <p><strong>Padding</strong> is a box's inside margin: the gap between its edge and its own content, written CSS-style in the inspector, one value for all sides, two for top/bottom &amp; left/right, four for top&nbsp;right&nbsp;bottom&nbsp;left. Use <code>vh</code> (% of screen height) and <code>vw</code> (% of screen width) so the gap scales with the display. While the Padding field has focus, the preview marks the padding as <strong>green bands</strong> with a dashed line around the space the content actually gets, and the bands follow every keystroke, so you can watch the room appear before you commit. Hovering the field shows the same reference as a tooltip.</p>
         <figure class="help-shot">
-            <img src="/img/help/timer-padding.png" alt="The Blinds plate with its padding shown as green bands and a dashed outline around the content area" loading="lazy">
+            <img src="/img/help/timer-padding.png?v=<?= @filemtime(__DIR__ . '/img/help/timer-padding.png') ?: 0 ?>" alt="The Blinds plate with its padding shown as green bands and a dashed outline around the content area" loading="lazy">
             <figcaption>Focus the Padding field and the preview shows where the padding sits. This plate pads its top so the value stays clear of the painted <em>Blinds</em> tab, the most common reason to pad at all.</figcaption>
         </figure>
         <p><strong>Scrolling:</strong> any text cell has a <strong>Scroll</strong> setting. <strong>Up (credits)</strong> rolls the content like film credits, and only when it is taller than its box: a short list sits still, a long one loops. Give the cell a weight, or it grows to fit its text and never has anything to roll. <strong>Left (ticker)</strong> is a ticker that always moves, for a welcome line or a sponsor message along the bottom. Speed is a pace (slow, normal, fast), and the offset starts the loop part-way: set <em>Halfway</em> on a second copy of a list and it shows the other half. Both stop for anyone who has asked their device for reduced motion.</p>
@@ -246,7 +246,7 @@ $help_sections = [
         <h2><span class="step-num">7</span> Cells beyond text</h2>
         <p>A cell holds text until you tell it otherwise. Right-click it (or use the buttons at the top of the inspector) and the <strong>Use a &hellip; instead</strong> items turn it into something else. Each kind has a <strong>Remove &hellip; (back to text)</strong> button, and the box settings (background, box image, padding, opacity, border, size in parent) apply whatever the cell holds.</p>
         <figure class="help-shot shot-narrow">
-            <img src="/img/help/timer-cellmenu.png" alt="Part of a cell's right-click menu: Use an image instead, Use a QR code instead, Use a chip legend instead, Use a seat map instead, Use a payout table instead, Use a video stream instead" loading="lazy">
+            <img src="/img/help/timer-cellmenu.png?v=<?= @filemtime(__DIR__ . '/img/help/timer-cellmenu.png') ?: 0 ?>" alt="Part of a cell's right-click menu: Use an image instead, Use a QR code instead, Use a chip legend instead, Use a seat map instead, Use a payout table instead, Use a video stream instead" loading="lazy">
             <figcaption>The six conversions, in the middle of a cell's right-click menu.</figcaption>
         </figure>
         <ul>
@@ -261,11 +261,11 @@ $help_sections = [
         <p>Choose <strong>Use a video stream instead</strong> and paste a link into the inspector's <strong>Stream URL</strong> field. Three kinds of link work: a YouTube video or live stream (any form of YouTube link), a Twitch channel, Vimeo or Kick; any other embeddable host the site admin has allowed under Settings &rarr; General; and a <strong>direct video address</strong>, an <code>https</code> link ending in <code>.m3u8</code>, <code>.mp4</code>, <code>.m4v</code> or <code>.webm</code> from any server, which is how a restream (an IPTV channel, a camera rig at the table) gets onto the board, and needs no admin approval. The player fills the cell, so give the box weight for a bigger picture. The field checks the link as you type and says so when a link is not one the display can show; such a link is dropped on save and the cell goes back to text rather than showing a dead player on the night.</p>
         <div class="shot-pair">
             <figure class="help-shot">
-                <img src="/img/help/timer-video-preview.jpg" alt="A layout in the editor preview with a clock, the blinds and a YouTube player filling the right-hand cell" loading="lazy">
+                <img src="/img/help/timer-video-preview.jpg?v=<?= @filemtime(__DIR__ . '/img/help/timer-video-preview.jpg') ?: 0 ?>" alt="A layout in the editor preview with a clock, the blinds and a YouTube player filling the right-hand cell" loading="lazy">
                 <figcaption>A YouTube feed in the right-hand cell, beside the clock and blinds. In the editor the player ignores clicks, so you can still select and move the cell.</figcaption>
             </figure>
             <figure class="help-shot shot-narrow">
-                <img src="/img/help/timer-video.png" alt="The video cell's inspector: the Stream URL field and the panel headed While an alarm plays, this stream: drops to, fading down over, staying down for, coming back over" loading="lazy">
+                <img src="/img/help/timer-video.png?v=<?= @filemtime(__DIR__ . '/img/help/timer-video.png') ?: 0 ?>" alt="The video cell's inspector: the Stream URL field and the panel headed While an alarm plays, this stream: drops to, fading down over, staying down for, coming back over" loading="lazy">
                 <figcaption>The video cell's inspector: the link, and how the stream ducks under alarms.</figcaption>
             </figure>
         </div>
@@ -295,16 +295,16 @@ $help_sections = [
         </ul>
         <div class="shot-pair">
             <figure class="help-shot">
-                <img src="/img/help/timer-ante-off.jpg" alt="Blinds plate showing 100 / 200, no ante" loading="lazy">
+                <img src="/img/help/timer-ante-off.jpg?v=<?= @filemtime(__DIR__ . '/img/help/timer-ante-off.jpg') ?: 0 ?>" alt="Blinds plate showing 100 / 200, no ante" loading="lazy">
                 <figcaption>Rounds without an ante: the base text.</figcaption>
             </figure>
             <figure class="help-shot">
-                <img src="/img/help/timer-ante-on.jpg" alt="Blinds plate showing 100 / 200 / 25 with the ante smaller, bold and tinted" loading="lazy">
+                <img src="/img/help/timer-ante-on.jpg?v=<?= @filemtime(__DIR__ . '/img/help/timer-ante-on.jpg') ?: 0 ?>" alt="Blinds plate showing 100 / 200 / 25 with the ante smaller, bold and tinted" loading="lazy">
                 <figcaption>An ante round: the variant swaps the text in, and the element style makes the ante its own.</figcaption>
             </figure>
         </div>
         <figure class="help-shot shot-narrow">
-            <img src="/img/help/timer-elstyles.png" alt="The Element styles panel in the inspector: ante entry with colour, bold and size fields" loading="lazy">
+            <img src="/img/help/timer-elstyles.png?v=<?= @filemtime(__DIR__ . '/img/help/timer-elstyles.png') ?: 0 ?>" alt="The Element styles panel in the inspector: ante entry with colour, bold and size fields" loading="lazy">
             <figcaption>The <strong>Element styles</strong> panel that produced it: <code>&lt;blinds.ante&gt;</code> with a colour, bold, and size 0.7.</figcaption>
         </figure>
         <p>No ante, plain blinds; ante rounds get the long form with just the ante highlighted. Element styles follow the element through variants, and they scale with the line if a long value makes the whole cell shrink.</p>
@@ -324,7 +324,7 @@ $help_sections = [
         <p>Comparisons are <code>&lt; &lt;= &gt; &gt;= = !=</code>, joined with <code>and</code>, <code>or</code>, <code>not</code>. The values you can test: <code>round &middot; blinds.small &middot; blinds.big &middot; blinds.ante &middot; players.left &middot; players.total &middot; players.entries &middot; players.buyIns &middot; players.rebuys &middot; players.addOns &middot; players.out &middot; chips.total &middot; chips.avg &middot; money.pot &middot; table.count &middot; table.seats &middot; clock.minutes &middot; clock.seconds</code>, and the true/false states <code>running paused onBreak preGame gameOver hasAnte hasRebuys</code>. <strong>Values you can use</strong>, folded under every condition field, lists the same names.</p>
         <p>Three more tell you <em>what kind of screen is watching</em>: <code>mobile</code>, <code>tablet</code>, <code>desktop</code>. With QR casting the same layout runs on every scanned device at once, so a cell with <code>when: desktop</code> puts the QR code on the TV only, and <code>not mobile</code> hides a dense stats block on phones. A phone stays a phone when rotated, and a touch-screen laptop counts as a desktop. The <strong>TV / PC &middot; Tablet &middot; Phone</strong> switch under the preview shows each one.</p>
         <figure class="help-shot shot-narrow">
-            <img src="/img/help/timer-expression.png" alt="The Show when field with a valid expression and the list of comparable values" loading="lazy">
+            <img src="/img/help/timer-expression.png?v=<?= @filemtime(__DIR__ . '/img/help/timer-expression.png') ?: 0 ?>" alt="The Show when field with a valid expression and the list of comparable values" loading="lazy">
             <figcaption>The expression checks itself as you type, and the values you can compare are listed right below.</figcaption>
         </figure>
         <div class="hint">The editor checks the expression as you type and names anything it doesn't recognise. A condition with a mistake in it never matches, so a typo can't make something show at the wrong moment.</div>
@@ -334,7 +334,7 @@ $help_sections = [
         <h2><span class="step-num">10</span> Variants: one cell, different looks</h2>
         <p>A cell can hold <strong>variants</strong>: alternate text, colour, background, bold or opacity, each behind its own condition. The first matching variant wins; with no match the cell shows its base look. That is how "show A, else B" works: the base is B, a variant with your condition is A. A variant only changes how a cell looks, never where it sits, so a layout can't jump around as conditions change.</p>
         <figure class="help-shot shot-narrow">
-            <img src="/img/help/timer-variants.png" alt="The Variants panel for the PCF clock cell: one variant whose condition is Paused, with text, a red colour, background and bold fields, and an Add variant button" loading="lazy">
+            <img src="/img/help/timer-variants.png?v=<?= @filemtime(__DIR__ . '/img/help/timer-variants.png') ?: 0 ?>" alt="The Variants panel for the PCF clock cell: one variant whose condition is Paused, with text, a red colour, background and bold fields, and an Add variant button" loading="lazy">
             <figcaption>The PCF clock's one variant: when the game is <strong>Paused</strong>, the clock turns red. The amber last minute and the red at zero come from the cell's separate <strong>Clock colours</strong> setting.</figcaption>
         </figure>
         <p>Open <strong>Variants</strong> in the inspector, <strong>+ Add variant</strong>, give it a condition and fill in only what should change; anything left blank is inherited from the base. A cell can carry up to twelve.</p>
@@ -344,7 +344,7 @@ $help_sections = [
         <h2><span class="step-num">11</span> Screens: break, final table, phone, rotation</h2>
         <p>A layout can hold several whole <strong>screens</strong>, each with its own condition, and the display shows the first one whose condition holds. They are the tabs at the top of the Structure panel. The screen with no condition is the default, and it should be last, because screens are checked top to bottom and the first match wins. That is how a break screen takes over during breaks: it sits above Main with the condition <em>On break</em>, and the moment the schedule reaches a break every connected screen switches to it, and back again when play resumes.</p>
         <figure class="help-shot shot-narrow">
-            <img src="/img/help/timer-screens.png" alt="The screens area of the Structure panel: Main, Break and Final Table tabs, + Screen, the screen name, Delete screen, Show this screen when with the On break state picked, and Rotate after (seconds)" loading="lazy">
+            <img src="/img/help/timer-screens.png?v=<?= @filemtime(__DIR__ . '/img/help/timer-screens.png') ?: 0 ?>" alt="The screens area of the Structure panel: Main, Break and Final Table tabs, + Screen, the screen name, Delete screen, Show this screen when with the On break state picked, and Rotate after (seconds)" loading="lazy">
             <figcaption>PCF's three screens. The Break tab is selected: its condition is the <strong>On break</strong> state, and it has no rotation time, so it takes over outright.</figcaption>
         </figure>
         <ul>
@@ -355,7 +355,7 @@ $help_sections = [
         </ul>
         <p><strong>The final table, automatically:</strong> add a screen with the condition <code>players.left &lt;= 10 and players.left &gt; 1</code> and put a <strong>seat map</strong> cell on it (right-click a cell &rarr; <em>Use a seat map instead</em>), which is exactly what the ready-made Final table screen does. The seat map draws every remaining player at their assigned seat, with their avatar or initials, name, and seat number, using the table and seat assignments from check-in. The moment the field drops to ten, every screen switches to it by itself; the PCF built-in ships with this screen ready-made.</p>
         <figure class="help-shot">
-            <img src="/img/help/timer-finaltable.jpg" alt="The PCF Final Table screen: nine players around an oval table, each at their seat with an initials disc and name" loading="lazy">
+            <img src="/img/help/timer-finaltable.jpg?v=<?= @filemtime(__DIR__ . '/img/help/timer-finaltable.jpg') ?: 0 ?>" alt="The PCF Final Table screen: nine players around an oval table, each at their seat with an initials disc and name" loading="lazy">
             <figcaption>PCF's built-in Final Table screen. Players with a profile photo get it; everyone else gets their initials on their own colour.</figcaption>
         </figure>
         <div class="hint"><strong>Order matters for phones too.</strong> The Default Layout lists its Phone screen first, so a phone keeps its simple view even during a break, and announces the break with a conditional cell instead. Put the most specific screens at the top and the catch-all at the bottom.</div>
@@ -367,13 +367,13 @@ $help_sections = [
         <h3>Shared styles</h3>
         <p>A <strong>shared style</strong> is a named look, size, bold, font, colour, background and alignment, that any number of cells can use. Change it once and every cell wearing it updates, on every screen; that is how a whole design gets its typeface or its label colour from one place. Add one with a name (letters and digits) and <strong>+ Add</strong>, set its look, then give a cell that look with the <strong>Shared style</strong> dropdown in the cell's inspector or right-click menu. A cell's own settings still win over its shared style, so one cell can be the exception. Text, conditions, variants and images never come from a style; it is purely a look.</p>
         <figure class="help-shot shot-narrow">
-            <img src="/img/help/timer-styles.png" alt="The Shared styles panel on the screen inspector: two named styles, plate and label, each with size, bold, font, colour, background and align fields" loading="lazy">
+            <img src="/img/help/timer-styles.png?v=<?= @filemtime(__DIR__ . '/img/help/timer-styles.png') ?: 0 ?>" alt="The Shared styles panel on the screen inspector: two named styles, plate and label, each with size, bold, font, colour, background and align fields" loading="lazy">
             <figcaption>Two shared styles, <code>plate</code> for the big values and <code>label</code> for the small print. Cells pick one from their <strong>Shared style</strong> dropdown.</figcaption>
         </figure>
         <h3>Custom elements</h3>
         <p>A <strong>custom element</strong> is a name of your own with fixed text behind it: <code>&lt;sponsor&gt;</code> for the bar that put up the trophy, <code>&lt;rules&gt;</code> for the house line along the bottom. Define it once on the screen inspector and use it in any cell's text on any screen, like a built-in element; it appears in the <strong>Insert element&hellip;</strong> list too. Plain text only, up to thirty per layout, and a built-in name always wins if you pick the same one. Both shared styles and custom elements travel with the layout when it is saved or exported.</p>
         <figure class="help-shot shot-narrow">
-            <img src="/img/help/timer-customel.png" alt="The Custom elements panel: sponsor and rules entries with their text, and a field to add another" loading="lazy">
+            <img src="/img/help/timer-customel.png?v=<?= @filemtime(__DIR__ . '/img/help/timer-customel.png') ?: 0 ?>" alt="The Custom elements panel: sponsor and rules entries with their text, and a field to add another" loading="lazy">
             <figcaption>Two custom elements. <code>Tonight by &lt;sponsor&gt;</code> in a cell renders the text behind the name.</figcaption>
         </figure>
     </div>
@@ -388,7 +388,7 @@ $help_sections = [
             <li><strong>Picking an image opens your library first:</strong> everything you've already uploaded plus the built-in artwork (the PCF felt and plates are all reusable). Uploading a new file is the button in the corner, and re-using an existing image costs nothing against the daily upload allowance. PNG, JPEG, GIF and WebP up to 8 MB.</li>
         </ul>
         <figure class="help-shot">
-            <img src="/img/help/timer-pcf-wide.jpg" alt="The same PCF layout filling an ultrawide screen, every plate stretched with its box" loading="lazy">
+            <img src="/img/help/timer-pcf-wide.jpg?v=<?= @filemtime(__DIR__ . '/img/help/timer-pcf-wide.jpg') ?: 0 ?>" alt="The same PCF layout filling an ultrawide screen, every plate stretched with its box" loading="lazy">
             <figcaption>The same PCF layout on an ultrawide screen: no black bars, no drift. Each plate simply rides its box.</figcaption>
         </figure>
         <div class="hint"><strong>Don't paint buttons into a full-screen picture.</strong> A screen image with plates drawn into it forces the layout to land cells on pixels it can't see, and they drift the moment the screen shape changes. Give each plate to its box instead. (The QR code needs no plate at all; it brings its own white backing.)</div>
@@ -413,7 +413,7 @@ $help_sections = [
             <li><code>playerEliminated</code>: someone was just knocked out (undoing an elimination stays silent). Pair it with the <code>&lt;players.lastOut&gt;</code> element: announce <code>&lt;players.lastOut&gt; has been eliminated</code> and the display speaks the actual name. <code>&lt;players.lastOutPlace&gt;</code> adds their finishing place.</li>
         </ul>
         <figure class="help-shot">
-            <img src="/img/help/timer-triggers.png" alt="The Triggers panel in the layout editor: a levelChange trigger playing a chime, with Test and Remove buttons" loading="lazy">
+            <img src="/img/help/timer-triggers.png?v=<?= @filemtime(__DIR__ . '/img/help/timer-triggers.png') ?: 0 ?>" alt="The Triggers panel in the layout editor: a levelChange trigger playing a chime, with Test and Remove buttons" loading="lazy">
             <figcaption>The Triggers panel on the PCF built-in: <code>levelChange</code> plays a chime. The green tick means the condition parses; &#9654; Test runs the actions right now.</figcaption>
         </figure>
         <p>Triggers fire on the <em>change</em>, never on the state: a screen that joins mid-game stays quiet about things that were already true, and a condition must go false and come true again before its trigger fires twice. <strong>Cooldown</strong> sets a minimum quiet time between fires; <strong>once per game</strong> means exactly that. The <strong>&#9654; Test</strong> button on each trigger runs its actions in the preview immediately, the quickest way to audition a sound.</p>

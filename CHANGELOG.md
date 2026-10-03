@@ -13,6 +13,37 @@ lands and that heading is renamed when a release is cut.
 
 ---
 
+## [v1.4.3] - 2026-10-03
+
+### Changed
+
+- **The Host Guide's *Start the game* step describes the Tournament Timer.**
+  It still walked through Tournament Timer Classic, with Classic's buttons
+  (Start / Pause, Next / Prev, TV, Players) and three pictures from May: the
+  old check-in dashboard with its *Settings* button, Classic's *Blind
+  Structure* dialog, and Classic's TV view. The step now covers what a host
+  actually meets: the one-time *Try the Tournament Timer* prompt and what
+  the answer does, the control tray and its keyboard, where eliminations and
+  rebuys are marked, and that *Balance* lives in the Table view. The three
+  pictures are retaken on the current console (`checkin-start.png`,
+  `blind-structure.png`, `timer-running.png`, same names) and the prompt
+  gets one of its own (`timer-choice.png`); `help_hosts_shots.js` in the QA
+  harness retakes them. A note under the step and the *Timer* entry in the
+  Setup list link the Timer Guide for layouts, casting and sounds.
+
+### Fixed
+
+- **A retaken help-page picture now reaches people who saw the old one.**
+  `/img/help/` is served as immutable for a year, and the pictures kept
+  their names when retaken, so anyone who had opened a guide before kept
+  seeing the May pictures (Classic's *Blind Structure* dialog under a
+  paragraph about Setup → Blinds) however often they reloaded. Every picture
+  on the three guides now carries its file's modification time in its
+  address, the way the site's scripts and stylesheet already do, so a
+  changed picture is a new address and the old copy is never shown again.
+
+---
+
 ## [v1.4.2] - 2026-10-03
 
 ### Changed

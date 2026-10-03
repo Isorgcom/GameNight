@@ -61,7 +61,7 @@ $allow_reg   = get_setting('allow_registration', '1') === '1';
     <div class="help-step">
         <h2><span class="step-num">1</span> You got an invite &mdash; what now?</h2>
         <p>When a host invites you, you'll get a message by email, text, or WhatsApp with a link. Tap the link and you'll see the event details and a quick RSVP button.</p>
-        <img class="help-shot" src="/img/help/rsvp-page.png" alt="RSVP confirmation page">
+        <img class="help-shot" src="/img/help/rsvp-page.png?v=<?= @filemtime(__DIR__ . '/img/help/rsvp-page.png') ?: 0 ?>" alt="RSVP confirmation page">
         <div class="hint">No password, no sign-up, no app to download. The link itself is your ticket in.</div>
     </div>
 
@@ -75,7 +75,7 @@ $allow_reg   = get_setting('allow_registration', '1') === '1';
     <div class="help-step">
         <h2><span class="step-num">3</span> Walking in without an invite?</h2>
         <p>Some events have a <strong>walk-in QR code</strong> at the door. Scan it with your phone camera, enter your name and a contact method, and you're checked in. The site can even assign you a table and seat automatically.</p>
-        <img class="help-shot" src="/img/help/walkin-qr.png" alt="Walk-in registration after scanning the QR code">
+        <img class="help-shot" src="/img/help/walkin-qr.png?v=<?= @filemtime(__DIR__ . '/img/help/walkin-qr.png') ?: 0 ?>" alt="Walk-in registration after scanning the QR code">
         <div class="hint">Some hosts review walk-ins before adding them to the player list, so you might see a "pending approval" message until the host waves you in.</div>
     </div>
 
@@ -89,7 +89,7 @@ $allow_reg   = get_setting('allow_registration', '1') === '1';
             <li>Pick how you want to be contacted (email vs SMS vs WhatsApp)</li>
         </ul>
         <p>&hellip;then sign up for a free account. It takes about thirty seconds.</p>
-        <img class="help-shot" src="/img/help/register.png" alt="Account signup form">
+        <img class="help-shot" src="/img/help/register.png?v=<?= @filemtime(__DIR__ . '/img/help/register.png') ?: 0 ?>" alt="Account signup form">
     </div>
 
     <div class="help-cta">
