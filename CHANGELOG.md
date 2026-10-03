@@ -13,6 +13,42 @@ lands and that heading is renamed when a release is cut.
 
 ---
 
+## [v1.4.2] - 2026-10-03
+
+### Changed
+
+- **The Timer Guide now covers the whole Tournament Timer.** `help-timer.php`
+  was written for the first release of the layout engine and never caught
+  up: a video stream in a cell, screen rotation, shared styles, image cells,
+  the control tray's keyboard, copy and paste in the editor, saving a
+  built-in as your own copy, site layouts for admins and the ready-made
+  screens and triggers were all on the site and nowhere in the guide. It is
+  now fifteen sections in the order a host meets things, with two new ones
+  for the editor itself and for the cells that hold something other than
+  text (image, QR, chip legend, seat map, payout table and video, including
+  the stream-ducking settings), one for screens and rotation, one for shared
+  styles and custom elements, and the sharing section rewritten around Save
+  layout, Save layout as copy, Export, Import and Site layout. Thirteen new
+  pictures, all taken on the current editor; the conditions example that
+  read `minutesLeft` (a name the guide's own list does not carry) now reads
+  `clock.minutes`; and a note says the built-ins still use the original
+  element spellings such as `<playersLeft>`, which work alongside the dotted
+  ones. `img/help/README.md` lists the pictures and the script that takes
+  them, so they can be retaken after an editor change.
+
+### Fixed
+
+- **The Timer Guide was unreadable on a phone.** The site stylesheet keeps
+  data-table cells on one line at phone widths (`th, td { white-space:
+  nowrap }`), and the guide's element and condition tables inherited it, so
+  the long dotted lists could not wrap: the page laid out 1,400px wide, the
+  browser zoomed out to fit it, and every jump from the *On this page* menu
+  landed well short of its section. The guide's tables now wrap, and the
+  page fits a 390px screen with nothing cut off. True of the old guide as
+  well; found by checking the rewrite under an iPhone profile.
+
+---
+
 ## [v1.4.1] - 2026-09-29
 
 ### Fixed
