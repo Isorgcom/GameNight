@@ -13,6 +13,21 @@ lands and that heading is renamed when a release is cut.
 
 ---
 
+## [v1.4.5] - 2026-10-05
+
+### Fixed
+
+- **The walk-in page printed the date as stored.** A player who scanned the
+  door code saw `2026-10-17 · 2:00 PM` at the top of the form, with no day
+  of the week and no timezone, while the RSVP page for the same event says
+  "Saturday, October 17, 2026 · 2:00 PM CDT". `walkin.php` now uses the
+  same label helper as the RSVP page (`event_public_time_labels()`), in the
+  same zone: a signed-in viewer's own, otherwise the event creator's. The
+  waiting-list message a walk-in receives when the host reviews sign-ups
+  carried the raw date too and now reads the same way.
+
+---
+
 ## [v1.4.4] - 2026-10-05
 
 ### Fixed

@@ -17,7 +17,7 @@ $site_name  = get_setting('site_name', 'Game Night');
 // ── Validate event + token ────────────────────────────────────────────────────
 $event = null;
 if ($event_id > 0 && $token !== '') {
-    $stmt = $db->prepare('SELECT id, title, start_date, start_time, end_time, walkin_token, visibility FROM events WHERE id = ?');
+    $stmt = $db->prepare('SELECT id, title, start_date, start_time, end_time, walkin_token, visibility, created_by FROM events WHERE id = ?');
     $stmt->execute([$event_id]);
     $row = $stmt->fetch();
     if ($row && hash_equals((string)$row['walkin_token'], $token)) {
@@ -44,16 +44,17 @@ function walkin_record_attempt(PDO $db): void {
 }
 
 // ── Format display date/time ──────────────────────────────────────────────────
+// The same labels the RSVP page shows ("Saturday, October 17, 2026 · 2:00 PM
+// CDT"), in the same zone: a signed-in viewer's own, otherwise the event
+// creator's, since a walk-in is usually standing at the venue with no account.
+// It used to print the raw stored date (2026-10-17). Entities are decoded
+// because every call site escapes the result.
 function fmt_event_display(array $ev): string {
-    $out = $ev['start_date'];
-    if (!empty($ev['start_time'])) {
-        $t = DateTime::createFromFormat('H:i', $ev['start_time']);
-        if ($t) $out .= '  ·  ' . $t->format('g:i A');
-        if (!empty($ev['end_time'])) {
-            $t2 = DateTime::createFromFormat('H:i', $ev['end_time']);
-            if ($t2) $out .= ' – ' . $t2->format('g:i A');
-        }
-    }
+    $cu  = function_exists('current_user') ? current_user() : null;
+    $uid = !empty($cu['id']) ? (int)$cu['id'] : ((int)($ev['created_by'] ?? 0) ?: null);
+    $lbl = event_public_time_labels((string)$ev['start_date'], $ev['start_time'] ?: null, $ev['end_time'] ?: null, $uid);
+    $out = $lbl['date_lbl'];
+    if ($lbl['time_lbl'] !== '') $out .= '  ·  ' . html_entity_decode($lbl['time_lbl'], ENT_QUOTES | ENT_HTML5, 'UTF-8');
     return $out;
 }
 
@@ -204,8 +205,8 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     $uNotify->execute([$uid]);
                     $uRow = $uNotify->fetch();
                     if ($uRow && function_exists('send_notification')) {
-                        $smsBody  = "You're on the waiting list for \"{$event['title']}\" on {$event['start_date']}. The host will approve your registration shortly.";
-                        $htmlBody = '<p>You are on the waiting list for <strong>' . htmlspecialchars($event['title']) . '</strong> on ' . htmlspecialchars($event['start_date']) . '.</p>'
+                        $smsBody  = "You're on the waiting list for \"{$event['title']}\" on " . fmt_event_display($event) . ". The host will approve your registration shortly.";
+                        $htmlBody = '<p>You are on the waiting list for <strong>' . htmlspecialchars($event['title']) . '</strong> on ' . htmlspecialchars(fmt_event_display($event)) . '.</p>'
                                   . '<p style="color:#64748b">The host will approve your registration shortly. You will receive another notification when approved.</p>';
                         send_notification($uRow['username'], $uRow['email'] ?? '', $uRow['phone'] ?? '',
                             $uRow['preferred_contact'] ?? 'email',
@@ -299,8 +300,8 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         notify_creator_of_pending($event_id, $final_username);
                         // Notify the new user they're on the waiting list (email only — they just registered).
                         if (function_exists('send_notification')) {
-                            $smsBody  = "You're on the waiting list for \"{$event['title']}\" on {$event['start_date']}. The host will approve your registration shortly.";
-                            $htmlBody = '<p>You are on the waiting list for <strong>' . htmlspecialchars($event['title']) . '</strong> on ' . htmlspecialchars($event['start_date']) . '.</p>'
+                            $smsBody  = "You're on the waiting list for \"{$event['title']}\" on " . fmt_event_display($event) . ". The host will approve your registration shortly.";
+                            $htmlBody = '<p>You are on the waiting list for <strong>' . htmlspecialchars($event['title']) . '</strong> on ' . htmlspecialchars(fmt_event_display($event)) . '.</p>'
                                       . '<p style="color:#64748b">The host will approve your registration shortly. You will receive another notification when approved.</p>';
                             send_notification($final_username, $email, $phone_normalized,
                                 'email', // new user — default to email since they just gave us their email
