@@ -13,6 +13,22 @@ lands and that heading is renamed when a release is cut.
 
 ---
 
+## [v1.4.4] - 2026-10-05
+
+### Fixed
+
+- **The Guest Guide's pictures existed only as broken-image icons.** The
+  three pictures `help-guests.php` has referred to since May (the RSVP
+  page, the walk-in form, the sign-up form) were never captured, so every
+  visitor to the guide, on the live site too, saw a broken-image icon in
+  each of its first three steps. They are now taken on dev the way a guest
+  sees them, logged out, at phone width for the two link flows
+  (`help_guests_shots.js` in the QA harness retakes them), and the page
+  sizes the phone pictures as phones rather than stretching them across
+  the column.
+
+---
+
 ## [v1.4.3] - 2026-10-03
 
 ### Changed

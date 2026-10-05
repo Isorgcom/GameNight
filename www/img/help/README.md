@@ -41,8 +41,15 @@ re-cropping by hand.
 - `timer-triggers.png` — the Triggers pane with the level-change chime expanded
 
 ## help-guests.php expects:
-- `rsvp-page.png` — `/rsvp.php?token=...` confirmation page as a guest sees it
-- `walkin-qr.png` — `/walkin.php` registration form (after scanning QR), name/contact fields visible
-- `register.png` — `/register.php` signup form
+- `rsvp-page.png` — `/rsvp.php?token=...&r=yes` as a guest sees it: the event card and the Confirm button (a GET only renders; nothing is written until the POST)
+- `walkin-qr.png` — `/walkin.php?event_id=...&token=...` registration form after scanning the QR, name and contact fields visible
+- `register.png` — `/register.php` sign-up form
+
+Taken logged out by `~/qa-headless/help_guests_shots.js` (phone width for the
+two link flows, desktop for sign-up). It needs an invitee's `rsvp_token` and
+the event's `walkin_token` in the environment; on dev, event 237 carries a
+walk-in token and its invitees have tokens. Give the event a future
+`start_date` and the creator (JamesTest, normally UTC) the site timezone
+before shooting, and put both back after, or the card reads oddly.
 
 When recapturing later (UI changes), keep the same filenames so the pages don't need editing. The pages append each file's modification time to its URL (`?v=<mtime>`), so a retaken picture is fetched fresh even though `/img/help/` is cached as immutable for a year; without that stamp a browser that had seen the old picture kept it.
