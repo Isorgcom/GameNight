@@ -13,6 +13,22 @@ lands and that heading is renamed when a release is cut.
 
 ---
 
+## [v1.7.1] - 2026-10-06
+
+### Fixed
+
+- **Help tips step aside for a modal.** On a fresh account, Manage Game
+  opened the one-time *Try the Tournament Timer* prompt and the first tip
+  of the tour at the same time, the bubble lying across the prompt's edge,
+  two things to read and answer at once. The tour now waits while a modal
+  has the screen (the timer prompt, the Balance and QR dialogs, every
+  confirm) and comes back the moment it closes, anchored where it was
+  going; a tip anchored inside the open modal still shows. The check is
+  in `help-bubble.js` and applies on every page with tips, so a tour that
+  has no anchored tips now also keeps its watcher running for this.
+
+---
+
 ## [v1.7.0] - 2026-10-06
 
 ### Changed

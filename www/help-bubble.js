@@ -23,6 +23,10 @@
  *     when it disappears. If waiting would leave the current step with no
  *     bubbles at all, the waiting tips show in the corner meanwhile so the
  *     tour never presents an empty step.
+ *   - a modal is open (.pk-modal-overlay.open, <dialog open>) -> every tip
+ *     not anchored inside it waits until the modal closes. One thing to read
+ *     at a time: the one-time timer prompt on Manage Game used to come up
+ *     with the first tip half under it.
  */
 (function () {
   var cfg = window.__help;
@@ -57,7 +61,6 @@
   var waiting = [];          // current-step tips whose anchor exists but is hidden
   var watchTimer = null;
 
-  var hasAnchoredTips = cfg.tips.some(function (t) { return !!t.anchor_selector; });
 
   function el(tag, cls) {
     var n = document.createElement(tag);
@@ -75,6 +78,21 @@
     var r = node.getBoundingClientRect();
     if (r.width <= 0 || r.height <= 0) return false;
     return window.getComputedStyle(node).visibility !== 'hidden';
+  }
+
+  // The modal that owns the screen right now, if any. Closed overlays are
+  // display:none, so visibility is the test; pk-dialogs' confirms use the
+  // same overlay class and count too.
+  function openModal() {
+    var els = document.querySelectorAll('.pk-modal-overlay, dialog[open]');
+    for (var i = 0; i < els.length; i++) if (isVisible(els[i])) return els[i];
+    return null;
+  }
+  var modalWas = false;      // modal state at the last render, so the watcher sees it change
+
+  // On screen, and not behind an open modal.
+  function anchorReady(a, modal) {
+    return !!a && isVisible(a) && (!modal || modal.contains(a));
   }
 
   function buildBubble(tip) {
@@ -174,8 +192,11 @@
     ensureStack();
     clearBubbles();
     var step = steps[stepIdx] || [];
+    var modal = openModal();
+    modalWas = !!modal;
     step.forEach(function (tip) {
       var anchor = findAnchor(tip);
+      if (modal && !(anchor && modal.contains(anchor))) { waiting.push(tip); return; } // behind the modal: wait for it to close
       if (anchor && !isVisible(anchor)) { waiting.push(tip); return; } // wait for it
       // A selector that matches nothing yet starts in the corner demoted, so
       // the watcher moves it onto the element the moment one appears. A plain
@@ -186,7 +207,8 @@
     });
     // Never present an empty step: surface waiting tips in the corner meanwhile.
     // They stay in `waiting` so the watcher upgrades them once the anchor shows.
-    if (!live.length && !corner.length && waiting.length) {
+    // Not while a modal is up, though: an empty step is the point of waiting then.
+    if (!modal && !live.length && !corner.length && waiting.length) {
       waiting.forEach(function (tip) { addBubble(tip, null, true); });
     }
     startWatch();
@@ -230,24 +252,28 @@
   function checkAnchors() {
     if (!shown) return;
     var changed = false;
+    var modal = openModal();
+    if (!!modal !== modalWas) changed = true;       // a modal opened or closed
     waiting.forEach(function (tip) {
       var a = findAnchor(tip);
+      if (modal) { if (anchorReady(a, modal)) changed = true; return; } // only something inside the modal can come ready
       if (!a || isVisible(a)) changed = true;       // appeared, or removed from DOM
     });
     corner.forEach(function (o) {
       if (!o.demoted) return;
-      var a = findAnchor(o.tip);
-      if (a && isVisible(a)) changed = true;        // can upgrade to anchored now
+      if (anchorReady(findAnchor(o.tip), modal)) changed = true;   // can upgrade to anchored now
     });
     live.forEach(function (o) {
-      if (!isVisible(o.anchor)) changed = true;     // anchor hid (e.g. modal closed)
+      if (!anchorReady(o.anchor, modal)) changed = true;   // anchor hid, or a modal came up over it
     });
     if (changed) { render(); return; }
     live.forEach(function (o) { placeByAnchor(o.bubble, o.anchor); });
   }
 
+  // Always on while the tour shows, anchors or not: a corner-only tour still
+  // has to step aside for a modal and come back when it closes.
   function startWatch() {
-    if (watchTimer || !hasAnchoredTips) return;
+    if (watchTimer) return;
     watchTimer = setInterval(checkAnchors, 350);
   }
 
@@ -258,7 +284,7 @@
   // Modals open from clicks; re-check shortly after any click for a snappy
   // response instead of waiting for the next interval tick.
   document.addEventListener('click', function (e) {
-    if (!shown || !hasAnchoredTips) return;
+    if (!shown) return;
     if (e.target.closest && e.target.closest('.help-bubble, .help-pill')) return;
     setTimeout(checkAnchors, 60);
   }, true);
