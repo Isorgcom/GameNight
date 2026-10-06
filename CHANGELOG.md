@@ -13,6 +13,27 @@ lands and that heading is renamed when a release is cut.
 
 ---
 
+## [v1.8.0] - 2026-10-06
+
+### Changed
+
+- **The Setup editor opens on the game, not on the preset bar.** The
+  *Game preset* section at the top of every Setup tab used to be fully
+  open: the preset list, Load, an amber *Save preset*, Save as… and the ⋯
+  menu, plus a sentence about what presets store, before a single game
+  field. For a host setting up their first game that was the wrong thing
+  to meet first, and the amber button beside the blue *Save game* read as
+  the thing to press. It is now one line: the title, its (?) help, where
+  this game's setup came from ("Not from a preset", or "From: Friday
+  Standard" with the MODIFIED tag when it has drifted), and a **Show
+  presets** button that opens the controls. Opened, it stays open on that
+  browser, so a host who runs every game from a preset is not clicking it
+  weekly. *Save preset* is amber only while pressing it would actually
+  write the game back over its preset; disabled, it is plain like its
+  neighbours. The Host Guide's Setup picture and its preset note follow.
+
+---
+
 ## [v1.7.2] - 2026-10-06
 
 ### Changed

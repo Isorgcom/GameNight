@@ -368,6 +368,11 @@ if ($session) {
     .pk-preset-update{border-color:#f59e0b !important;color:#92400e !important;background:#fffbeb !important}
     .pk-preset-update:hover{background:#fef3c7 !important}
     .pk-preset-bar{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+    .pk-preset-head{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;padding-bottom:.4rem}
+    .pk-preset-head .pk-cfg-title,.pk-preset-head .pk-preset-from{margin:0}
+    .pk-preset-toggle{padding:.25rem .65rem;border:1.5px solid var(--border,#e2e8f0);border-radius:999px;background:#fff;font-size:.74rem;font-weight:600;color:#475569;cursor:pointer}
+    .pk-preset-toggle:hover{background:#f1f5f9}
+    #presetBody{margin-top:.5rem}
     .pk-preset-more{position:relative}
     .pk-preset-morebtn{padding:.4rem .6rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;background:#fff;font-size:.9rem;line-height:1;color:#64748b;cursor:pointer}
     .pk-preset-morebtn:hover{background:#f1f5f9}
@@ -2561,16 +2566,28 @@ function renderSettingsView() {
     // could not be reached until the game type had been saved and the editor
     // reopened — the same defect the Payouts tab had.
     {
-        h += '<div class="pk-cfg-section" id="cfgPresetSection" style="border-top:none;padding-top:0;margin-top:0' + (isCash() ? ';display:none' : '') + '"><div class="pk-cfg-title" style="display:flex;align-items:center;gap:.45rem">Game Preset'
+        // One quiet line by default: the title, where this game's setup came
+        // from, and a disclosure for the controls. The select and its buttons
+        // used to sit open at the top of every tab, so the first thing a new
+        // host met in Setup was preset machinery they had no use for yet, with
+        // an amber Save preset beside the blue Save game. Once opened it stays
+        // open on this browser (localStorage), so a host who lives by presets
+        // is not clicking it every week.
+        var presetOpen = presetBarOpen();
+        h += '<div class="pk-cfg-section" id="cfgPresetSection" style="border-top:none;padding-top:0;margin-top:0' + (isCash() ? ';display:none' : '') + '">';
+        h += '<div class="pk-preset-head"><div class="pk-cfg-title" style="display:flex;align-items:center;gap:.45rem">Game Preset'
            + '<button class="pk-help-btn" style="padding:.15rem .5rem;font-size:.7rem" title="What game presets do" aria-label="Game preset help" data-act="showPresetHelp">?</button></div>';
         // Provenance line: which preset this game was set up from, and whether
         // it still matches. Filled by refreshPresetState() from the server —
         // it must survive a reload, so it cannot live in a JS variable.
         h += '<div class="pk-preset-from" id="presetFrom"></div>';
+        h += '<button type="button" class="pk-preset-toggle" id="presetToggle" data-act="togglePresetBar" aria-controls="presetBody" aria-expanded="' + (presetOpen ? 'true' : 'false') + '">' + (presetOpen ? 'Hide presets &#9652;' : 'Show presets &#9662;') + '</button>';
+        h += '</div>';
+        h += '<div id="presetBody"' + (presetOpen ? '' : ' hidden') + '>';
         h += '<div class="pk-preset-bar">';
         h += '<select id="payoutStructureSelect" data-act-change="onPayoutStructureChange" style="flex:0 1 300px;min-width:160px;padding:.3rem .5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:4px;font-size:.85rem"></select>';
         h += '<button data-act="loadPayoutStructure" title="Apply the selected preset to this game: game setup, payout split, points, ticket prizes, prizes, bounty and jackpot entry, blind schedule and timer settings">Load</button>';
-        h += '<button id="btnUpdPayoutStructure" class="pk-preset-update" data-act="updatePayoutStructure">Save preset</button>';
+        h += '<button id="btnUpdPayoutStructure" data-act="updatePayoutStructure">Save preset</button>';
         h += '<button data-act="savePayoutStructureAs" title="Save everything in this editor as a NEW named preset">Save as…</button>';
         // Destructive / admin actions live behind the ⋯ menu: they applied to
         // whatever was selected in the dropdown, which reads as if they applied
@@ -2581,9 +2598,10 @@ function renderSettingsView() {
         h += '<button id="btnDefPayoutStructure" data-act="setDefaultPayoutStructure">Set as site default</button>';
         h += '<button id="btnDelPayoutStructure" class="danger" data-act="deletePayoutStructure">Delete preset</button>';
         h += '</div></div>';
-        h += '</div>';
+        h += '</div>';   // .pk-preset-bar
         h += '<div style="font-size:.75rem;color:#94a3b8;margin-top:.3rem">A preset stores the whole editor — game setup (buy-in, chips, rebuys, tables), payouts &amp; rewards, blind schedule and timer settings. (The satellite target event stays per-game.)</div>';
-        h += '</div>';
+        h += '</div>';   // #presetBody
+        h += '</div>';   // #cfgPresetSection
     }
     h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'game' ? ' active' : '') + '" data-pane="game">' + renderGamePane() + '</div>';
     h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'payouts' ? ' active' : '') + '" data-pane="payouts">' + renderPayoutsPane() + '</div>';
@@ -3543,6 +3561,9 @@ function setPresetSaveState() {
     var allowed = !!(PRESET_STATE && PRESET_STATE.modified && PRESET_STATE.can_update);
     upd.disabled = !allowed;
     upd.classList.toggle('disabled', !allowed);
+    // Amber only when pressing it would write over a preset: the warning
+    // colour on a button that could not be pressed read as the thing to click.
+    upd.classList.toggle('pk-preset-update', allowed);
     upd.title = !PRESET_STATE ? 'This game was not set up from a preset — use Save as… to make one.'
         : !PRESET_STATE.can_update ? 'You cannot change "' + PRESET_STATE.name + '" — use Save as… to make your own copy.'
         : !PRESET_STATE.modified ? 'This game already matches "' + PRESET_STATE.name + '".'
@@ -3554,6 +3575,21 @@ function svEl(tag, cls, text) {
     if (cls) e.className = cls;
     if (text !== undefined) e.textContent = text;
     return e;
+}
+
+var PRESET_OPEN_KEY = 'pk_preset_bar_open';
+function presetBarOpen() {
+    try { return localStorage.getItem(PRESET_OPEN_KEY) === '1'; } catch (e) { return false; }
+}
+function togglePresetBar() {
+    var body = document.getElementById('presetBody');
+    var btn  = document.getElementById('presetToggle');
+    if (!body || !btn) return;
+    var open = body.hidden;                      // about to open
+    body.hidden = !open;
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    btn.innerHTML = open ? 'Hide presets &#9652;' : 'Show presets &#9662;';
+    try { localStorage.setItem(PRESET_OPEN_KEY, open ? '1' : '0'); } catch (e) {}
 }
 
 function togglePresetMenu() {

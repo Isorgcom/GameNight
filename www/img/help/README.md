@@ -14,7 +14,7 @@ Those three are retaken together by `~/qa-headless/help_hosts_event_shots.js`
 deleted afterwards, so seed one again by cloning a user row); the May
 originals showed the calendar's old modal.
 - `event-rsvps.png` — the event page's Invites panel with a mix of answers, Resend on the unanswered, and a Declined section (event 237 on dev, RSVPs set to a mix and invitations marked sent first)
-- `setup-editor.png` — Manage Game's Setup editor on the Game tab: header, the five tabs, the preset bar, the first fields
+- `setup-editor.png` — Manage Game's Setup editor on the Game tab: header, the five tabs, the collapsed Game preset line (*Show presets*), the first fields
 
 `leagues-create`, `contacts-add`, `event-rsvps` and `setup-editor` are taken
 together by `~/qa-headless/help_hosts_roster_shots.js` (a fresh host with no
