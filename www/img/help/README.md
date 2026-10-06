@@ -3,8 +3,8 @@
 Drop annotated screenshots here, sized roughly 1200px wide. Pages render fine without them (broken-image icon only), so capture at your leisure.
 
 ## help-hosts.php expects:
-- `leagues-create.png` — `/leagues.php` create-league form, filled in
-- `contacts-add.png` — `/contacts.php` add-contact form (or CSV import dialog)
+- `leagues-create.png` — `/leagues.php` Create League form, filled in and not submitted
+- `contacts-add.png` — `/contacts.php` with the Add a contact form filled in and a few contacts listed
 - `event-create.png` — `/event_edit.php` (the Add Event page) with title, date and venue filled and nobody invited, so the toolbar shows the single *Add Event* button
 - `event-invite.png` — the same page's guest list with two *+ Add Name* rows filled and *Save without sending* / *Save & Send Invites* showing
 - `event-settings.png` — the toolbar with the *Guest options* menu open above the poker and reminders rows
@@ -12,7 +12,12 @@ Drop annotated screenshots here, sized roughly 1200px wide. Pages render fine wi
 Those three are retaken together by `~/qa-headless/help_hosts_event_shots.js`
 (NewHostTest on dev, nothing saved); the May originals showed the calendar's
 old modal.
-- `event-rsvps.png` — event view showing the Invites list with yes/no/maybe responses
+- `event-rsvps.png` — the event page's Invites panel with a mix of answers, Resend on the unanswered, and a Declined section (event 237 on dev, RSVPs set to a mix and invitations marked sent first)
+- `setup-editor.png` — Manage Game's Setup editor on the Game tab: header, the five tabs, the preset bar, the first fields
+
+`leagues-create`, `contacts-add`, `event-rsvps` and `setup-editor` are taken
+together by `~/qa-headless/help_hosts_roster_shots.js` (NewHostTest2,
+NewHostTest and JamesTest on dev).
 - `checkin-start.png` — `/checkin.php` check-in dashboard after a session is started (Setup, the List / Table / Log / Payouts / Chop strip, player rows, prize pool)
 - `timer-choice.png` — the one-time "Try the Tournament Timer" prompt a host sees on first opening a tournament's check-in (first-time copy: taken on a game still on Classic)
 - `blind-structure.png` — Setup → Blinds: the level grid with a break

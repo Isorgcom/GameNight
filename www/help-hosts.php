@@ -71,7 +71,7 @@ $allow_reg   = get_setting('allow_registration', '1') === '1';
         <h2><span class="step-num">2</span> Add your roster <em style="font-weight:400;color:#94a3b8;font-size:1rem">(optional, but recommended)</em></h2>
         <p>Open <a href="/contacts.php"><strong>Contacts</strong></a> and add the people you'll invite. You can add them by name plus email or phone &mdash; <em>they don't need to sign up first</em>.</p>
         <ul>
-            <li>Bulk-add by pasting a CSV of names and emails</li>
+            <li>Bulk-add with <strong>Import CSV</strong>: a file of names and emails, one per line (<strong>Export CSV</strong> gives you the shape)</li>
             <li>When a contact later creates an account on the site, they auto-link to the entry you already made &mdash; no double work</li>
         </ul>
         <img class="help-shot" src="/img/help/contacts-add.png?v=<?= @filemtime(__DIR__ . '/img/help/contacts-add.png') ?: 0 ?>" alt="Adding a contact">

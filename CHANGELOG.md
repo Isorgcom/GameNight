@@ -13,6 +13,19 @@ lands and that heading is renamed when a release is cut.
 
 ---
 
+## [v1.5.2] - 2026-10-06
+
+### Changed
+
+- **The Host Guide's last four pictures match the site.** The league form,
+  the contacts page and the Setup editor were taken again on the current
+  pages, and the RSVP picture no longer shows the calendar's retired popup:
+  it is the event page's Invites panel, with answered, unanswered (with
+  Resend) and declined guests. The roster step also said to bulk-add
+  contacts by pasting a CSV; it is a file import, and the text says so.
+
+---
+
 ## [v1.5.1] - 2026-10-06
 
 ### Changed
