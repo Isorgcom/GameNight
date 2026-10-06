@@ -136,7 +136,7 @@ function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): strin
     <div style="display:flex;align-items:center;flex-wrap:wrap;gap:.75rem;margin-bottom:1.75rem">
         <h2 style="font-size:1.4rem;font-weight:700;color:#1e293b;margin:0">My Events</h2>
         <a href="/event_edit.php" style="margin-left:auto;display:inline-flex;align-items:center;gap:.3rem;padding:.4rem .75rem;background:#2563eb;color:#fff;border-radius:6px;text-decoration:none;font-size:.85rem;font-weight:600">
-            <span style="font-size:1.1rem;line-height:1">&#43;</span> New Event
+            <span style="font-size:1.1rem;line-height:1">&#43;</span> Add Event
         </a>
         <div style="display:flex;align-items:center;gap:.5rem;font-size:.8rem;color:#64748b">
             <label>Past:

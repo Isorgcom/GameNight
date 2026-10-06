@@ -13,6 +13,21 @@ lands and that heading is renamed when a release is cut.
 
 ---
 
+## [v1.5.1] - 2026-10-06
+
+### Changed
+
+- **One name for the one button.** My Events said *+ New Event* where the
+  home page and the calendar say *+ Add Event*; all three now say *+ Add
+  Event*, and the Host Guide no longer has to mention the odd one out.
+- **An empty save says what is missing.** The title is the only field a
+  save can lack (the date is filled in for you), and the browser's own
+  words for it were "Please fill out this field". The field is now marked
+  *Event title \** like the guest rows, and leaving it empty says "Give the
+  event a title first."
+
+---
+
 ## [v1.5.0] - 2026-10-06
 
 ### Added

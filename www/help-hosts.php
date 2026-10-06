@@ -80,7 +80,7 @@ $allow_reg   = get_setting('allow_registration', '1') === '1';
 
     <div class="help-step">
         <h2><span class="step-num">3</span> Create the event</h2>
-        <p>Click <strong>+ Add Event</strong> on the home page or the <a href="/calendar.php"><strong>Calendar</strong></a>, or click the date you want on the calendar grid (<a href="/my_events.php"><strong>My Events</strong></a>, under your avatar menu, has a <strong>+ New Event</strong> button too). The <strong>Add Event</strong> page opens with everything on one screen: the event itself across the top, a toolbar of options under it, and the guest list below.</p>
+        <p>Click <strong>+ Add Event</strong> on the home page or the <a href="/calendar.php"><strong>Calendar</strong></a>, or click the date you want on the calendar grid (<a href="/my_events.php"><strong>My Events</strong></a>, under your avatar menu, has the same button). The <strong>Add Event</strong> page opens with everything on one screen: the event itself across the top, a toolbar of options under it, and the guest list below.</p>
         <p>The core fields:</p>
         <ul>
             <li><strong>League</strong>: the group this event belongs to, or <strong>None</strong>.</li>

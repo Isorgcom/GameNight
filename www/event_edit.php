@@ -425,7 +425,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                         <?php if ($isAdmin): ?><option value="public">Public</option><?php endif; ?>
                     </select>
                 </label>
-                <input type="text" name="title" id="eTitle" class="edit-title-input" placeholder="Event title" required autocomplete="off">
+                <input type="text" name="title" id="eTitle" class="edit-title-input" placeholder="Event title *" required autocomplete="off" title="Required">
                 <label>Date <input type="date" name="start_date" id="eStartDate" required></label>
                 <label>Time <input type="time" id="eTimeNative"><input type="hidden" name="start_time" id="eStartTime"></label>
                 <label>Duration
@@ -1207,6 +1207,13 @@ function showSaveSendOverlay(sending) {
     pkProgress(sending ? 'Saving & sending invitations…' : 'Saving event…',
                sending ? 'Saving the event and sending invitation emails.' : 'Saving your changes.');
 }
+
+// The title is the one thing a save can be missing (the date is prefilled), and
+// the browser's own words for it are "Please fill out this field". Say what
+// the field is instead; cleared the moment something is typed.
+var eTitleEl = document.getElementById('eTitle');
+eTitleEl.addEventListener('invalid', function () { if (!eTitleEl.value.trim()) eTitleEl.setCustomValidity('Give the event a title first.'); });
+eTitleEl.addEventListener('input', function () { eTitleEl.setCustomValidity(''); });
 
 document.getElementById('editForm').addEventListener('submit', function(e) {
     // Show the saving/sending progress overlay (this fires only after HTML5 validation passes).
