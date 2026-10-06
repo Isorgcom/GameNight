@@ -636,10 +636,14 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
     max-width: calc(100vw - 32px);
     box-sizing: border-box;
     background: #1e293b;
-    border: 1.5px solid #334155;
+    border: 1.5px solid #475569;
     border-left: 4px solid var(--accent, #2563eb);
     border-radius: 14px;
-    box-shadow: 0 10px 30px rgba(15, 23, 42, .35);
+    /* The pale ring is what keeps the bubble visible over a dark backdrop:
+       anchored to a control in a dark header (check-in's Timer button, say)
+       the navy-on-navy card had no edge at all. On a light page the ring is
+       lost in the white and the shadow carries it, as before. */
+    box-shadow: 0 0 0 1.5px rgba(255, 255, 255, .35), 0 10px 30px rgba(15, 23, 42, .45);
     padding: .85rem 1rem .7rem;
     font-size: .875rem;
     line-height: 1.5;
@@ -680,9 +684,9 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
 }
 .help-bubble__counter { font-size: .72rem; color: #94a3b8; }
 .help-bubble__arrow {
-    background: rgba(255, 255, 255, .12);
-    border: none;
-    color: #e2e8f0;
+    background: #334155;
+    border: 1px solid #64748b;
+    color: #fff;
     padding: .3rem .6rem;
     border-radius: 7px;
     font-size: .78rem;
@@ -690,7 +694,9 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
     line-height: 1;
     cursor: pointer;
 }
-.help-bubble__arrow:hover { background: var(--accent, #2563eb); color: #fff; }
+.help-bubble__arrow:hover { background: var(--accent, #2563eb); border-color: var(--accent, #2563eb); color: #fff; }
+.help-bubble__arrow:disabled { opacity: .4; cursor: default; }
+.help-bubble__arrow:disabled:hover { background: #334155; border-color: #64748b; }
 /* Tail pointer for anchored bubbles */
 .help-bubble__tail {
     position: absolute;
@@ -702,12 +708,12 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
 .help-bubble__tail--up {   /* bubble is below anchor: tail points up */
     top: -8px;
     border-bottom: 8px solid #1e293b;
-    filter: drop-shadow(0 -1px 0 #334155);
+    filter: drop-shadow(0 -1.5px 0 rgba(255, 255, 255, .45));
 }
 .help-bubble__tail--down { /* bubble is above anchor: tail points down */
     bottom: -8px;
     border-top: 8px solid #1e293b;
-    filter: drop-shadow(0 1px 0 #334155);
+    filter: drop-shadow(0 1.5px 0 rgba(255, 255, 255, .45));
 }
 .help-pill {
     position: fixed;

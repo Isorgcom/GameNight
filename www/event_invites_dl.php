@@ -61,7 +61,8 @@ $q_state = [];
 $qs = $db->prepare(
     "SELECT LOWER(username) AS u,
             SUM(CASE WHEN attempted_at IS NULL AND attempts < 3 THEN 1 ELSE 0 END) AS waiting,
-            SUM(CASE WHEN attempted_at IS NULL AND attempts >= 3 THEN 1 ELSE 0 END) AS dead
+            SUM(CASE WHEN attempted_at IS NULL AND attempts >= 3 THEN 1 ELSE 0 END) AS dead,
+            MAX(attempted_at) AS last_attempt
      FROM pending_notifications
      WHERE event_id = ? AND notify_type IN ('invite', 'rsvp_nudge')
      GROUP BY LOWER(username)"
@@ -86,6 +87,14 @@ function _invite_delivery(?array $q, ?array $l): array {
     }
     if ($q && (int)$q['dead'] > 0) {
         return ['state' => 'failed', 'error' => $l['error'] ?? 'Gave up after retries'];
+    }
+    // Dispatched within the last two minutes and nothing logged yet: the send
+    // is in flight. Without this the event page called a just-saved event's
+    // invitations "not sent" and offered to send them again, for the few
+    // seconds between the save and the provider's answer, which is exactly
+    // when the host is reading the page.
+    if ($q && !$l && !empty($q['last_attempt']) && (time() - strtotime($q['last_attempt'] . ' UTC')) < 120) {
+        return ['state' => 'sending', 'error' => null];
     }
     if ($l) {
         if ($l['status'] === 'failed') return ['state' => 'failed', 'error' => $l['error'] ?: 'Provider error'];

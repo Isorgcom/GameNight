@@ -1609,6 +1609,42 @@ JSON;
         }
     } catch (Exception $e) {}
 
+    // The first-event tour: help bubbles on the two host-only screens a
+    // first-time host crosses after the home page's "Your first game night"
+    // card (_first_night.php). Shipped with the code so a fresh install has
+    // them, seeded once and keyed on the title per screen, so an admin's
+    // later edits or deletions stand. Enabled, one step each, pinned to the
+    // controls they explain. Not on the event page: guests see that screen
+    // too, and a host-only tip with nothing to point at floats in the corner.
+    try {
+        if (get_setting('help_first_event_tips_v1', '') !== '1') {
+            $tips = [
+                ['event_edit', 'Start with a title and a date',
+                 "Everything else can wait. Poker is on, so the buy-in, tables and seats are already here to tweak, and the time starts at 7:00 PM.",
+                 '#eTitle', 1],
+                ['event_edit', 'Invite anyone by name',
+                 "+ Add Name takes a name and an email or phone; nobody needs an account. People you have invited before show up under All users on the left.",
+                 '#eAddNameBtn', 2],
+                ['event_edit', 'Two ways to save',
+                 "Add Event saves quietly. Once guests are on the list, Save & Send Invites beside it sends every invitation as you save. You can also send later from the event page.",
+                 '#eSubmitBtn', 3],
+                ['checkin', 'Set the game up first',
+                 "Buy-in, chips, rebuys, blinds and payouts live under Setup. Save the game and the Timer button is ready.",
+                 '#setupBtn', 1],
+                ['checkin', 'Then the clock',
+                 "Timer puts the tournament clock on the big screen. Its guide, under Help, covers layouts, casting to phones and sounds.",
+                 '#timerLink', 2],
+            ];
+            $has = $pdo->prepare('SELECT 1 FROM help_bubbles WHERE screen_key = ? AND title = ?');
+            $ins = $pdo->prepare('INSERT INTO help_bubbles (screen_key, title, body, anchor_selector, sort_order, enabled) VALUES (?, ?, ?, ?, ?, 1)');
+            foreach ($tips as $t) {
+                $has->execute([$t[0], $t[1]]);
+                if (!$has->fetchColumn()) $ins->execute($t);
+            }
+            set_setting('help_first_event_tips_v1', '1');
+        }
+    } catch (Exception $e) {}
+
     // ─── Event polls (host → Yes/Maybe invitees; counts shown, voters never) ──
     // Votes are stored linked to a recipient (enables change-vote, double-vote
     // prevention, and turnout display) but the UI only ever shows counts.

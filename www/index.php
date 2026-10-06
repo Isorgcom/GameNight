@@ -14,6 +14,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'dismi
     header('Location: /');
     exit;
 }
+// Dismiss the "Your first game night" card (_first_night.php). Recorded in the
+// help-dismissal table under its own key, so a help reset in My Settings
+// brings the card back along with the bubbles.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'dismiss_first_night') {
+    if (csrf_verify() && $user) {
+        $db->prepare("INSERT OR IGNORE INTO user_help_dismissed (user_id, screen_key) VALUES (?, 'first_night')")->execute([(int)$user['id']]);
+    }
+    header('Location: /');
+    exit;
+}
 
 $chunk = 5;
 $monthFilter = preg_match('/^\d{4}-\d{2}$/', $_GET['month'] ?? '') ? $_GET['month'] : null;
@@ -595,6 +605,11 @@ endif; ?>
 <?php endif; ?>
 
 <div class="posts-wrap">
+
+    <?php /* The first-night card goes above the two-factor nudge on purpose:
+             a new host came here to run a game, and that is the first thing
+             they should see. */ ?>
+    <?php require __DIR__ . '/_first_night.php'; ?>
 
     <?php if ($user && (int)($user['mfa_enabled'] ?? 0) === 0 && (int)($user['mfa_offer_dismissed'] ?? 0) === 0): ?>
     <div class="alert" style="display:flex;align-items:center;gap:.75rem;background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;margin-bottom:1.25rem">

@@ -879,12 +879,16 @@ var ES_LAYOUT_KEY = <?= json_encode($event_layout_key) ?>;
 <script nonce="<?= csp_nonce() ?>">
 var CSRF = <?= json_encode($csrf, JSON_HEX_TAG) ?>;
 var USE_BETA_TIMER = <?= (int)$use_beta_timer ?>;
-<?php /* One-time Tournament Timer ask: any tournament game, while the user has
-         never answered (users.beta_timer IS NULL). The copy adapts — a game
-         already on the Tournament Timer asks about making it the DEFAULT, since
-         "switch this game" would be incoherent there. Any answer is stored;
-         it is never asked twice. */ ?>
+<?php /* One-time Tournament Timer ask: any tournament game whose setup has been
+         saved, while the user has never answered (users.beta_timer IS NULL).
+         Not before setup: a host opening a brand-new game met this on top of
+         the "set up game" prompt, two first-time asks at once, and the timer
+         question has no meaning until there is a game to time. The copy
+         adapts — a game already on the Tournament Timer asks about making it
+         the DEFAULT, since "switch this game" would be incoherent there. Any
+         answer is stored; it is never asked twice. */ ?>
 var BETA_TIMER_ASK = <?= ($is_tournament_session
+                          && !empty($session['setup_saved'])
                           && array_key_exists('beta_timer', $current) && $current['beta_timer'] === null) ? 1 : 0 ?>;
 // "Not now" is remembered per browser rather than as an answer: the host has
 // not chosen, so the server keeps them in the unanswered state and the banner

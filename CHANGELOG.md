@@ -13,6 +13,79 @@ lands and that heading is renamed when a release is cut.
 
 ---
 
+## [v1.5.0] - 2026-10-06
+
+### Added
+
+- **"Your first game night": a four-step card on the home page for a host
+  who hasn't run one yet.** Create the event, invite your guests, set up the
+  game, put the clock on the TV: each step is ticked from what the site
+  knows (an event of yours exists, it has a guest, a game's setup is saved,
+  a timer has been opened), the next step carries the button that goes to
+  the right page, and the card leaves for good once all four are done or
+  you close it (a help reset in My Settings brings it back). It shows to
+  anyone who may create events and has a step left; an account that only
+  ever got invited somewhere is not told to host. `_first_night.php`,
+  included by `index.php` above the two-factor nudge.
+- **A first-event tour on the pages the card points to.** Five help bubbles,
+  shipped with the code and seeded once on upgrade (an admin's later edits
+  or deletions stand), each pinned to the control it explains and shown one
+  step at a time with Back / Next: on the Add Event page, the title field,
+  *+ Add Name* and the save buttons; on Manage Game, *Setup* and *Timer*.
+  They appear once per person and can be dismissed with the X, like any
+  other tip, and the Help Tips admin page edits them. Existing hosts will
+  meet them once on their next visit to those two pages.
+
+### Changed
+
+- **A new event starts at 7:00 PM.** The Add Event page filled the time
+  with the minute the page was opened, so every new host's first event was
+  "2:05 PM" until they noticed. It now starts at 7:00 PM, which is at least
+  a game-night time; change it as before.
+- **The save buttons say what they do.** With nobody on the guest list the
+  editor shows one button, *Add Event*. Once there is someone to send to, it
+  reads *Save without sending* beside the green *Save & Send Invites*, so
+  the difference between the two is on the buttons rather than in a tooltip
+  a first-time host never hovers. Editing an existing event keeps *Save
+  Changes*. The phone's action bar follows the same rule.
+- **The Tournament Timer question waits until the game is set up.** Opening
+  Manage Game on a brand-new tournament asked "Try the Tournament Timer?"
+  on top of the "this game isn't set up yet" prompt, two first-time asks at
+  once, and the timer question has no meaning until there is a game to
+  time. It now appears once the game's setup has been saved.
+- **The host's own event says "Add yourself to the guest list".** The host
+  is not on the guest list until they put themselves there, and the button
+  for that read *Sign up to attend*, a guest's phrase. Same action, a
+  host's label; guests still see *Sign up to attend*.
+- **The Host Guide's create / invite / settings steps match the page.** They
+  described the calendar's old dialog: a *+ Custom Invitee* button (it is
+  *+ Add Name*), Waitlist / Mute / Approval toggles on the toolbar (they are
+  the *Guest options* menu, and Mute is gone), a row of reminder
+  checkboxes (a dropdown), and Contacts in the main nav (the avatar menu).
+  Rewritten around the Add Event page with its three pictures retaken, and
+  a sentence for the new host that the *All users* pane is empty until they
+  have contacts or a league, so *+ Add Name* is the way in.
+
+### Fixed
+
+- **A just-saved event no longer says its invitations were not sent.** The
+  send runs in the background the moment the event is saved, but the event
+  page learned of it only from the provider's answer a few seconds later;
+  in between it showed "Invitations not sent to 1 person" with a *Send
+  Invitations* button under the green "1 invitation queued" banner, which
+  read as a failure and invited a second send. The invite status endpoint
+  now reports an invitation dispatched within the last two minutes with no
+  answer yet as *sending*, and the page shows "queued, sending now" until
+  the answer arrives.
+- **Help bubbles keep their edge on a dark backdrop.** A tip anchored to a
+  control in a dark header (Manage Game's *Timer* button) was navy on navy,
+  with Back and Next a faint wash on top. The bubble now carries a pale ring
+  and a deeper shadow, and the two buttons are solid, so it reads wherever
+  it lands; on a light page the ring sits in the white and the look is
+  unchanged.
+
+---
+
 ## [v1.4.5] - 2026-10-05
 
 ### Fixed

@@ -57,6 +57,7 @@ $allow_reg   = get_setting('allow_registration', '1') === '1';
     <a href="/" class="help-back">&larr; Back to home</a>
     <h1>Host Guide</h1>
     <p class="subtitle">Everything you need to run a game night, start to finish &mdash; from setting up your group to running the tournament clock.</p>
+    <div class="hint" style="margin-bottom:1.5rem"><strong>New here?</strong> The home page shows a <em>Your first game night</em> card with the four steps that matter, each ticking itself off as you go, and the pages it points to carry short tips of their own. This guide is the long version of the same path.</div>
 
     <div class="help-step">
         <h2><span class="step-num">1</span> Set up your league <em style="font-weight:400;color:#94a3b8;font-size:1rem">(optional)</em></h2>
@@ -79,46 +80,44 @@ $allow_reg   = get_setting('allow_registration', '1') === '1';
 
     <div class="help-step">
         <h2><span class="step-num">3</span> Create the event</h2>
-        <p>Open the <a href="/calendar.php"><strong>Calendar</strong></a> and click <strong>New Event</strong> &mdash; or click the date you want directly on the grid. (You can also start one from <a href="/my_events.php"><strong>My Events</strong></a> with the <strong>+ New Event</strong> button.) The <strong>Add Event</strong> dialog opens.</p>
-        <p>Fill in the core fields:</p>
+        <p>Click <strong>+ Add Event</strong> on the home page or the <a href="/calendar.php"><strong>Calendar</strong></a>, or click the date you want on the calendar grid (<a href="/my_events.php"><strong>My Events</strong></a>, under your avatar menu, has a <strong>+ New Event</strong> button too). The <strong>Add Event</strong> page opens with everything on one screen: the event itself across the top, a toolbar of options under it, and the guest list below.</p>
+        <p>The core fields:</p>
         <ul>
-            <li><strong>League</strong> &mdash; pick the group this event belongs to, or leave it on <strong>None</strong>.</li>
-            <li><strong>Visibility</strong> &mdash; <em>Invitees only</em> (just the people you invite), <em>League members only</em> (everyone in the league can see it), or <em>Public</em>.</li>
-            <li>A <strong>color</strong> swatch to tag the event on the calendar.</li>
-            <li><strong>Title</strong> (required) and <strong>Date</strong> (required).</li>
-            <li><strong>Time</strong> (optional) and <strong>Duration</strong> (&mdash;, 30m, 1h, up to 8h).</li>
+            <li><strong>League</strong>: the group this event belongs to, or <strong>None</strong>.</li>
+            <li><strong>Visibility</strong>: <em>Invitees only</em> (just the people you invite), <em>League members only</em> (everyone in the league can see it), or <em>Public</em>.</li>
+            <li>The <strong>colour</strong> swatch beside the heading tags the event on the calendar.</li>
+            <li><strong>Title</strong> (required), <strong>Date</strong> (required; today to start), <strong>Time</strong> (7:00 PM to start) and <strong>Duration</strong> (30m to 8h, or none).</li>
+            <li><strong>Venue name</strong> and <strong>Address</strong>, both optional; the event page turns an address into an <em>Open in Maps</em> link.</li>
         </ul>
-        <p>Need notes for guests? Click <strong>+ Description</strong> to expand a description box. When everything looks right, click <strong>Add Event</strong> (the same button reads <strong>Save Changes</strong> when you reopen an event to edit it).</p>
-        <img class="help-shot" src="/img/help/event-create.png?v=<?= @filemtime(__DIR__ . '/img/help/event-create.png') ?: 0 ?>" alt="Add Event dialog with title and date filled in">
+        <p>Need notes for guests? Click <strong>+ Description</strong>. Then the buttons at the right of the toolbar: with nobody on the guest list yet there is just <strong>Add Event</strong>. Once you have added guests it reads <strong>Save without sending</strong>, beside a green <strong>Save &amp; Send Invites</strong> that saves and sends every invitation straight away. Either way you land on the event's page, and anything unsent can be sent from there.</p>
+        <img class="help-shot" src="/img/help/event-create.png?v=<?= @filemtime(__DIR__ . '/img/help/event-create.png') ?: 0 ?>" alt="The Add Event page with a title, date and venue filled in, the Poker and Reminders toggles on, and a single Add Event button">
         <div class="hint"><strong>Visibility</strong> controls who can <em>see</em> the event. Sending invitations is a separate step (next) &mdash; you can invite people to an Invitees-only event without making it visible to your whole league.</div>
     </div>
 
     <div class="help-step">
         <h2><span class="step-num">4</span> Invite your guests</h2>
-        <p>Still in the event dialog, use the two-pane invite picker. <strong>All Users</strong> is on the left (search with the <em>Search name, email, phone&hellip;</em> box); <strong>Invited</strong> is on the right. Move people between the panes with the <strong>&gt;</strong> (add selected), <strong>&gt;&gt;</strong> (add all), <strong>&lt;</strong> (remove selected), and <strong>&lt;&lt;</strong> (remove all) buttons.</p>
+        <p>The guest list is the bottom half of the same page. <strong>Invited</strong> is on the right. On the left, <strong>All users</strong> lists the people you can pick from: your saved Contacts who have an account, plus the members of the league you chose. A brand-new host sees only themselves there, which is normal. Search with the box at the top, then move people across with the arrow buttons (<strong>&rsaquo;</strong> adds the selected, <strong>&raquo;</strong> adds everyone, <strong>&lsaquo;</strong> and <strong>&laquo;</strong> take them back), or double-click a name.</p>
         <ul>
-            <li>Inviting someone who isn't in the system yet? Click <strong>+ Custom Invitee</strong> and type their email or phone inline &mdash; <em>they don't need an account</em>.</li>
+            <li>Inviting someone who isn't on the site? Click <strong>+ Add Name</strong> above the Invited list and type their name and an email address or phone number; they don't need an account. For a first event this is the way in, and everyone you add is saved to your Contacts for next time.</li>
             <li>For each invitee you can preset an <strong>RSVP</strong> (Yes / No / Maybe) and a <strong>Role</strong>: <em>Invitee</em> or <em>Manager</em> (a Manager can edit the event with you).</li>
             <li>On a league event, tick <strong>Hide non-members</strong> to narrow the left list to your league.</li>
         </ul>
-        <p>When you save, every invitee gets a <strong>one-click RSVP link</strong> delivered however they prefer &mdash; email, SMS, or WhatsApp &mdash; so they can answer without logging in.</p>
-        <img class="help-shot" src="/img/help/event-invite.png?v=<?= @filemtime(__DIR__ . '/img/help/event-invite.png') ?: 0 ?>" alt="Invite picker showing All Users and Invited panes">
-        <div class="hint">You don't have to line everyone up now &mdash; you can also add players <strong>later, during check-in</strong> on event day, by typing their name on the dashboard or letting them register through the walk-in QR code (see step 7).</div>
-        <div class="hint">Each guest's contact method comes from their own profile, so the site routes each invite correctly &mdash; you don't pick the channel per person. Guests can also <strong>Sign up to attend</strong> on their own, and <strong>Leave this event</strong> later if plans change.</div>
+        <p>Every invitee gets a <strong>one-tap RSVP link</strong> delivered however they prefer, email, SMS or WhatsApp, so they can answer without logging in. <strong>Save &amp; Send Invites</strong> sends them as you save; <strong>Save without sending</strong> holds them, and the event page offers a <strong>Send Invitations</strong> button when you're ready.</p>
+        <img class="help-shot" src="/img/help/event-invite.png?v=<?= @filemtime(__DIR__ . '/img/help/event-invite.png') ?: 0 ?>" alt="The guest list: All users on the left, Invited on the right with two guests typed into + Add Name rows, and the Save & Send Invites button above">
+        <div class="hint">You don't have to line everyone up now; you can also add players <strong>later, during check-in</strong> on event day, by typing their name on the dashboard or letting them register through the walk-in QR code (see step 7).</div>
+        <div class="hint">Each guest's contact method comes from their own profile, so the site routes each invite correctly; you don't pick the channel per person. Guests with accounts can also <strong>Sign up to attend</strong> on their own and <strong>Leave this event</strong> later if plans change. You are not on your own guest list until you put yourself there: <strong>Add yourself to the guest list</strong> on the event page does it.</div>
     </div>
 
     <div class="help-step">
         <h2><span class="step-num">5</span> Adjust the event's settings</h2>
-        <p>The toolbar across the top of the Add/Edit Event dialog has the toggles that shape how the event behaves:</p>
+        <p>The toolbar under the event fields holds the options that shape how it behaves:</p>
         <ul>
-            <li><strong>Poker</strong> &mdash; turns on the poker setup: <strong>Type</strong> (<em>Tournament</em> or <em>Cash</em>), <strong>Buy-in $</strong>, <strong>Tables</strong> (1&ndash;50), <strong>Seats</strong> (2&ndash;12), and a <strong>Deadline</strong> (None / 24h / 48h / 72h). A capacity hint shows the total seats you've configured.</li>
-            <li><strong>Waitlist</strong> (appears once Poker is on) &mdash; once you're at capacity, extra guests are automatically marked <strong>Waitlisted</strong>.</li>
-            <li><strong>Mute</strong> &mdash; suppress notifications for this one event.</li>
-            <li><strong>Approval</strong> &mdash; RSVPs need your sign-off; guests sit at <strong>Pending</strong> until you approve them.</li>
-            <li><strong>Reminders</strong> (on by default) &mdash; expands a row of interval checkboxes: <strong>1 wk, 3 days, 2 days, 1 day, 12 hr, 2 hr, 30 min</strong>. Tick the ones you want sent automatically.</li>
+            <li><strong>Poker</strong> (on to start) shows the poker row: <strong>Type</strong> (<em>Tournament</em> or <em>Cash</em>), <strong>Buy-in $</strong>, <strong>Tables</strong>, <strong>Seats</strong>, a <strong>Deadline</strong> for RSVPs (None / 24h / 48h / 72h), and <strong>Played</strong>: in person, or online at FinalTable, which adds a <strong>Game</strong> and <strong>Betting</strong> pick. A capacity line totals the seats.</li>
+            <li><strong>Reminders</strong> (on to start): the <strong>Send reminders</strong> dropdown lists the intervals (<strong>1 wk, 3 days, 2 days, 1 day, 12 hr, 2 hr, 30 min</strong>); tick the ones you want sent automatically.</li>
+            <li><strong>Guest options</strong> opens a small menu: <strong>Waitlist</strong> (once you're at capacity, extra guests are marked <em>Waitlisted</em>), <strong>Require approval</strong> (RSVPs need your sign-off; guests sit at <em>Pending</em> until you approve them), <strong>Hide guest list</strong>, and, when Poker is off, <strong>Max guests</strong> (blank for no limit; with Poker on, capacity is tables &times; seats).</li>
         </ul>
-        <p>To change any of this later, open the event, click <strong>Edit</strong>, adjust the toggles, and hit <strong>Save Changes</strong>.</p>
-        <img class="help-shot" src="/img/help/event-settings.png?v=<?= @filemtime(__DIR__ . '/img/help/event-settings.png') ?: 0 ?>" alt="Event dialog toolbar with Poker, Waitlist, Approval, and Reminders toggles">
+        <p>To change any of this later, open the event, click <strong>Edit</strong>, adjust, and <strong>Save Changes</strong>.</p>
+        <img class="help-shot" src="/img/help/event-settings.png?v=<?= @filemtime(__DIR__ . '/img/help/event-settings.png') ?: 0 ?>" alt="The toolbar with Poker and Reminders on and the Guest options menu open, with the poker row beneath">
         <div class="hint">As guests respond, each one carries a status: <strong>Approved</strong>, <strong>Pending</strong> (awaiting your approval), <strong>Waitlisted</strong> (past capacity), or <strong>Denied</strong>.</div>
     </div>
 

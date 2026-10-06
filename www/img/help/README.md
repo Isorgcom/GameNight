@@ -5,9 +5,13 @@ Drop annotated screenshots here, sized roughly 1200px wide. Pages render fine wi
 ## help-hosts.php expects:
 - `leagues-create.png` — `/leagues.php` create-league form, filled in
 - `contacts-add.png` — `/contacts.php` add-contact form (or CSV import dialog)
-- `event-create.png` — `/calendar.php` event creation modal, with title + date filled
-- `event-invite.png` — invite picker on a created event (showing typeahead with a couple of contacts)
-- `event-settings.png` — Add/Edit Event dialog toolbar with Poker / Waitlist / Approval / Reminders toggles
+- `event-create.png` — `/event_edit.php` (the Add Event page) with title, date and venue filled and nobody invited, so the toolbar shows the single *Add Event* button
+- `event-invite.png` — the same page's guest list with two *+ Add Name* rows filled and *Save without sending* / *Save & Send Invites* showing
+- `event-settings.png` — the toolbar with the *Guest options* menu open above the poker and reminders rows
+
+Those three are retaken together by `~/qa-headless/help_hosts_event_shots.js`
+(NewHostTest on dev, nothing saved); the May originals showed the calendar's
+old modal.
 - `event-rsvps.png` — event view showing the Invites list with yes/no/maybe responses
 - `checkin-start.png` — `/checkin.php` check-in dashboard after a session is started (Setup, the List / Table / Log / Payouts / Chop strip, player rows, prize pool)
 - `timer-choice.png` — the one-time "Try the Tournament Timer" prompt a host sees on first opening a tournament's check-in (first-time copy: taken on a game still on Classic)

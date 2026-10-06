@@ -379,7 +379,10 @@ if ($token === '' && $page_eid > 0) {
                 .evp-rb:hover { border-color:#93c5fd; }
                 </style>
             <?php else: ?>
-                <button type="button" class="btn btn-primary" id="evpSignupBtn">Sign up to attend</button>
+                <?php /* The host is not on their own guest list until they add
+                         themselves; "Sign up to attend" is a guest's phrase for
+                         that, so the creator gets a host's. Same action. */ ?>
+                <button type="button" class="btn btn-primary" id="evpSignupBtn"<?= $isCreator ? ' title="Put yourself on the guest list for your own event"' : '' ?>><?= $isCreator ? 'Add yourself to the guest list' : 'Sign up to attend' ?></button>
             <?php endif; ?>
         </div>
 
@@ -803,15 +806,19 @@ function renderInvPanel() {
 
     if (NOTIFS_ON) {
         var q = invQueue;
-        if (q.pending > 0) {
-            ih += '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:.5rem .7rem;margin-bottom:.7rem;font-size:.8rem;color:#1e40af;font-weight:600">&#9203; ' + q.pending + ' invitation' + (q.pending===1?'':'s') + ' queued &mdash; sending now&hellip; <span style="font-weight:400;color:#3b82f6">(updates automatically)</span></div>';
+        // In flight = still queued, or dispatched moments ago with no answer
+        // yet (the endpoint reports those as 'sending'). Neither is "not sent".
+        var inFlight = approved.filter(function(i){ return !i.sent && i.delivery === 'sending'; }).length;
+        var sendingN = Math.max(q.pending || 0, inFlight);
+        if (sendingN > 0) {
+            ih += '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:.5rem .7rem;margin-bottom:.7rem;font-size:.8rem;color:#1e40af;font-weight:600">&#9203; ' + sendingN + ' invitation' + (sendingN===1?'':'s') + ' queued &mdash; sending now&hellip; <span style="font-weight:400;color:#3b82f6">(updates automatically)</span></div>';
         } else if (sawPending) {
             ih += '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:.5rem .7rem;margin-bottom:.7rem;font-size:.8rem;color:#166534;font-weight:600">&#10003; All queued invitations were sent.</div>';
         }
         if (q.failed > 0) {
             ih += '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.5rem .7rem;margin-bottom:.7rem;font-size:.8rem;color:#991b1b;font-weight:600">&#9888; ' + q.failed + ' invitation' + (q.failed===1?'':'s') + ' could not be sent after several retries. <a href="/sms_log.php?event=' + EV_EID + '&status=failed" style="color:#991b1b">View delivery log</a></div>';
         }
-        var unsent    = approved.filter(function(i){ return !i.sent && !i.no_contact; });
+        var unsent    = approved.filter(function(i){ return !i.sent && !i.no_contact && i.delivery !== 'sending'; });
         var noContact = approved.filter(function(i){ return i.no_contact; });
         if (unsent.length) {
             ih += '<div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:.55rem .7rem;margin-bottom:.7rem">'
@@ -902,6 +909,7 @@ function pollInv() {
             if (JSON.stringify(invBase) !== JSON.stringify(data.base)) { invBase = data.base; changed = true; }
             if (data.invite_queue) {
                 if (data.invite_queue.pending > 0) sawPending = true;
+                if (data.base && data.base.some(function(i){ return i.delivery === 'sending'; })) sawPending = true;
                 if (JSON.stringify(invQueue) !== JSON.stringify(data.invite_queue)) { invQueue = data.invite_queue; changed = true; }
             }
             if (changed) renderInvPanel();

@@ -348,6 +348,7 @@ These are POST-only AJAX backends — they have no HTML view of their own. Liste
 ## 8. Shared Includes (not pages)
 
 - `www/_nav.php` — top navigation partial
+- `www/_first_night.php` — the home page's "Your first game night" card: four steps ticked from the database for a host who hasn't run one yet; dismissal is a `user_help_dismissed` row under `first_night`. The matching help bubbles (event editor, Manage Game) are seeded once in `db_init()` (`help_first_event_tips_v1`)
 - `www/_footer.php` — footer partial
 - `www/_poker_helpers.php` — chip-pool / payout math used by checkin & timer
 - `www/_finaltable.php` — the FinalTable client (`finaltable_request()`, bearer key, 8 s, no redirects), the catalog of games it plays (`finaltable_catalog()`, and `finaltable_game_of()` for the game and betting an event's table plays), the roster and setup preview the event page and `finaltable_dl.php` share, and `finaltable_apply_event()` for the receiver

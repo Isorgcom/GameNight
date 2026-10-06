@@ -476,9 +476,9 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                 </div>
                 <span class="edit-desc-toggle" id="eDescToggle" data-act="toggleDesc">+ Description</span>
                 <div style="flex:1"></div>
-                <button type="submit" class="btn btn-primary" id="eSubmitBtn" data-set-value="eSendAfterSave:"><?= $event ? 'Save Changes' : 'Add Event' ?></button>
+                <button type="submit" class="btn btn-primary" id="eSubmitBtn" data-save="quiet" data-set-value="eSendAfterSave:"><?= $event ? 'Save Changes' : 'Add Event' ?></button>
                 <?php if (get_setting('notifications_enabled', '0') === '1'): ?>
-                <button type="submit" class="btn btn-primary" id="eSubmitSendBtn" style="background:#16a34a;border-color:#16a34a" data-set-value="eSendAfterSave:1" title="Save the event and send invitations now">Save &amp; Send Invites</button>
+                <button type="submit" class="btn btn-primary" id="eSubmitSendBtn" data-save="send" style="background:#16a34a;border-color:#16a34a" data-set-value="eSendAfterSave:1" title="Save the event and send invitations now">Save &amp; Send Invites</button>
                 <?php endif; ?>
                 <a href="<?= htmlspecialchars($cancelUrl) ?>" class="btn btn-outline" style="text-decoration:none">Cancel</a>
             </div>
@@ -588,7 +588,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                 <div class="invite-pane">
                     <div class="invite-pane-header" style="display:flex;align-items:center;gap:.5rem">
                         <span style="flex:1">Invited</span>
-                        <button type="button" class="btn btn-outline" style="font-size:.72rem;padding:.18rem .55rem" title="Invite someone who isn't a user — just a name, with optional email/phone" data-act="addBlankInviteRow">+ Add Name</button>
+                        <button type="button" class="btn btn-outline" style="font-size:.72rem;padding:.18rem .55rem" title="Invite someone who isn't a user — just a name, with optional email/phone" id="eAddNameBtn" data-act="addBlankInviteRow">+ Add Name</button>
                     </div>
                     <div class="inv-col-head">
                         <span style="flex:1;min-width:0">Name</span>
@@ -605,9 +605,9 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
             <!-- Mobile action bar: sticky at the bottom, after the invite picker
                  (the toolbar buttons above are hidden on small screens) -->
             <div class="edit-actions-mobile">
-                <button type="submit" class="btn btn-primary" data-set-value="eSendAfterSave:"><?= $event ? 'Save Changes' : 'Add Event' ?></button>
+                <button type="submit" class="btn btn-primary" data-save="quiet" data-set-value="eSendAfterSave:"><?= $event ? 'Save Changes' : 'Add Event' ?></button>
                 <?php if (get_setting('notifications_enabled', '0') === '1'): ?>
-                <button type="submit" class="btn" style="background:#16a34a;border-color:#16a34a;color:#fff" data-set-value="eSendAfterSave:1" title="Save the event and send invitations now">Save &amp; Send</button>
+                <button type="submit" class="btn" data-save="send" style="background:#16a34a;border-color:#16a34a;color:#fff" data-set-value="eSendAfterSave:1" title="Save the event and send invitations now">Save &amp; Send</button>
                 <?php endif; ?>
                 <a href="<?= htmlspecialchars($cancelUrl) ?>" class="btn btn-outline" style="text-decoration:none">Cancel</a>
             </div>
@@ -659,6 +659,7 @@ const PREFILL_DATE      = <?= json_encode($prefillDate, JSON_HEX_TAG) ?>;
 const LAST_POKER_DEFAULT = <?= ((int)($current['last_poker_default'] ?? 1)) ? 'true' : 'false' ?>;
 var ALL_USERS           = <?= json_encode(array_values($allUsers), JSON_HEX_TAG) ?>;
 var currentEvent        = EVENT; // name kept for parity with calendar.php's editor JS
+const EDIT_MODE         = !!EVENT;
 
 // ── Color picker ──────────────────────────────────────────────────────────────
 function toggleColorPicker(e) {
@@ -992,7 +993,28 @@ function syncInviteState() {
         li.classList.toggle('dimmed', isDimmed);
         li.title = isDimmed ? 'Already invited' : 'Double-click to invite';
     });
+    syncSaveButtons();
 }
+
+// The two save buttons only make sense together once there is someone to
+// send to. With nobody invited the green "Save & Send Invites" is hidden and
+// the blue one reads "Add Event"; with guests on the list the blue one reads
+// "Save without sending", so the difference is on the button, not in a
+// tooltip. A custom row counts once it has a name. Edit mode keeps "Save
+// Changes": re-saving an event is not the moment this confused anyone.
+function syncSaveButtons() {
+    var named = document.querySelectorAll('#eInvitedList li[data-iname]').length
+              + Array.from(document.querySelectorAll('#eInvitedList li.custom-row .cr-name')).filter(function(i){ return i.value.trim() !== ''; }).length;
+    var has = named > 0;
+    document.querySelectorAll('[data-save="send"]').forEach(function(b){ b.style.display = has ? '' : 'none'; });
+    document.querySelectorAll('[data-save="quiet"]').forEach(function(b){
+        b.textContent = EDIT_MODE ? 'Save Changes' : (has ? 'Save without sending' : 'Add Event');
+        if (has) b.title = 'Save the event; invitations stay unsent until you send them from the event page';
+        else b.removeAttribute('title');
+    });
+}
+document.getElementById('eInvitedList').addEventListener('input', syncSaveButtons);
+document.getElementById('eInvitedList').addEventListener('click', function(){ setTimeout(syncSaveButtons, 0); });
 
 // ── Multi-select + arrow button handlers ─────────────────────────────────────
 var _lastClickedAll = null;
@@ -1168,10 +1190,9 @@ function toggleDeclined() {
 
 // ── Time picker helpers ──────────────────────────────────────────────────────
 function setTimePicker(hhmm) {
-    if (!hhmm) {
-        const now = new Date();
-        hhmm = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
-    }
+    // A new event starts at 7:00 PM, not at the minute the form was opened: a
+    // game night is almost never "now", and every new host used to get 2:05 PM.
+    if (!hhmm) hhmm = '19:00';
     document.getElementById('eTimeNative').value = hhmm;
 }
 function getTimePicker() {
