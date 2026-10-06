@@ -13,6 +13,21 @@ lands and that heading is renamed when a release is cut.
 
 ---
 
+## [v1.7.2] - 2026-10-06
+
+### Changed
+
+- **The buy-in column on Manage Game is headed *Buy In*, not *$*.** A
+  first-time host read a bare dollar sign over a row of checkboxes as
+  "paid?" and went looking for a Buy In control somewhere else; the only
+  explanation was the small (?) beside it, which a phone cannot hover. The
+  column now carries the same name as the bulk bar's *Buy In* button, the
+  phone card's label and the *? Help* entry, so the three agree. Nothing
+  else about the box changes: ticking it still records the buy-in, checks
+  the player in and seats them.
+
+---
+
 ## [v1.7.1] - 2026-10-06
 
 ### Fixed

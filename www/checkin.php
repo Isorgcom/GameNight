@@ -1573,7 +1573,10 @@ function renderTableHeader() {
     h += sortableTh('Name', 'name');
     if (isTourney()) h += sortableTh('RSVP', 'rsvp');
     if (isTourney()) {
-        h += sortableTh('$ ' + tip('Tick the box to record a buy-in. It also checks the player in and seats them. The 📒 ledger icon shows their buy-in / rebuy / add-on history and lets you edit or clear a mistake.'), 'buyin', 'title="Buy-in"');
+        // Named, not "$": a first-time host read the bare sign over a checkbox as
+        // "paid?" and looked for a Buy In control elsewhere. Matches the bulk
+        // bar's button and the phone card's label.
+        h += sortableTh('Buy In ' + tip('Tick the box to record a buy-in. It also checks the player in and seats them. The 📒 ledger icon shows their buy-in / rebuy / add-on history and lets you edit or clear a mistake.'), 'buyin');
         if (parseInt(SESSION.jackpot_amount) > 0 && parseInt(SESSION.jackpot_optional)) h += sortableTh('💎 ' + tip('Optional jackpot side entry (' + formatMoney(parseInt(SESSION.jackpot_amount)) + ', on top of the buy-in). Tick for each player who\'s in — entries feed the league jackpot at finish.'), 'jackpot', 'title="Jackpot entry"');
         if (parseInt(SESSION.bounty_amount) > 0 && parseInt(SESSION.bounty_optional)) h += sortableTh('🎯 ' + tip('Optional bounty side pot (' + formatMoney(parseInt(SESSION.bounty_amount)) + ', on top of the buy-in). Tick for each player who\'s in — only pool members carry and collect bounties.'), 'bountyin', 'title="Bounty side pot"');
         if (parseInt(SESSION.rebuy_allowed)) h += sortableTh('Rebuys', 'rebuys');
