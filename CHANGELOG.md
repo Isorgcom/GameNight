@@ -13,6 +13,24 @@ lands and that heading is renamed when a release is cut.
 
 ---
 
+## [v1.6.0] - 2026-10-06
+
+### Added
+
+- **A help tip can be for hosts only.** Help Tips (Site Settings) has a
+  *Hosts only* checkbox beside *Always show*. Such a tip reaches someone who
+  can manage the event the page is about (on the event page, the editor,
+  Manage Game and its satellites) or, on a screen with no event, someone
+  who may create events; a guest reading the same page never sees it. The
+  tip list marks them *Hosts only*.
+- **Two tips on the event page, hosts only.** The first-event tour now
+  continues where the home card sends a host after saving: *Manage Game*
+  ("this is where the night runs from") and *Message guests* ("tell
+  everyone where"). Seeded once on upgrade like the others; edit or disable
+  them in Help Tips.
+
+---
+
 ## [v1.5.2] - 2026-10-06
 
 ### Changed

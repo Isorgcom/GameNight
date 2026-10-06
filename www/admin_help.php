@@ -35,7 +35,7 @@ foreach ($db->query("SELECT screen_key, COUNT(*) c FROM help_bubbles GROUP BY sc
 
 // Tips for the active screen (inlined so the list + preview render without a fetch).
 $tipsStmt = $db->prepare(
-    'SELECT id, screen_key, title, body, anchor_selector, bubble_index, always_show, sort_order, enabled
+    'SELECT id, screen_key, title, body, anchor_selector, bubble_index, always_show, hosts_only, sort_order, enabled
      FROM help_bubbles WHERE screen_key = ? ORDER BY sort_order, id'
 );
 $tipsStmt->execute([$screen]);
@@ -159,6 +159,13 @@ $tips = $tipsStmt->fetchAll();
                 </div>
                 <div class="hlp-field">
                     <label style="display:flex;align-items:center;gap:.45rem;cursor:pointer">
+                        <input type="checkbox" id="tipHostsOnly" style="width:16px;height:16px">
+                        Hosts only
+                    </label>
+                    <p class="hint">Shown only to someone who can manage the event the page is about (on Manage Game, the event page and the editor), or, on other screens, someone who may create events. For tips about buttons guests do not have.</p>
+                </div>
+                <div class="hlp-field">
+                    <label style="display:flex;align-items:center;gap:.45rem;cursor:pointer">
                         <input type="checkbox" id="tipPinned" style="width:16px;height:16px">
                         Always show
                     </label>
@@ -204,6 +211,7 @@ function renderList() {
             <div class="hlp-tip-head">
                 <span class="hlp-tip-title">${t.title ? esc(t.title) : '<span style="color:#94a3b8;font-weight:400">(no title)</span>'}</span>
                 ${Number(t.always_show) === 1 ? '<span class="hlp-badge" style="background:#fef3c7;color:#92400e">&#128204; Pinned</span>' : ''}
+                ${Number(t.hosts_only) === 1 ? '<span class="hlp-badge" style="background:#dbeafe;color:#1e40af">Hosts only</span>' : ''}
                 <span class="hlp-badge ${on ? 'on' : 'off'}">${on ? 'Shown' : 'Hidden'}</span>
             </div>
             <div class="hlp-tip-body">${esc(t.body)}</div>
@@ -250,7 +258,8 @@ async function saveTip() {
         body:   body,
         anchor_selector: document.getElementById('tipAnchor').value,
         bubble_index: document.getElementById('tipIndex').value,
-        always_show: document.getElementById('tipPinned').checked ? 1 : ''
+        always_show: document.getElementById('tipPinned').checked ? 1 : '',
+        hosts_only: document.getElementById('tipHostsOnly').checked ? 1 : ''
     };
     if (id) fields.id = id;
     const r = await post(fields);
@@ -270,6 +279,7 @@ function editTip(id) {
     document.getElementById('tipAnchor').value = t.anchor_selector || '';
     document.getElementById('tipIndex').value = (t.bubble_index !== null && t.bubble_index !== undefined) ? t.bubble_index : '';
     document.getElementById('tipPinned').checked = Number(t.always_show) === 1;
+    document.getElementById('tipHostsOnly').checked = Number(t.hosts_only) === 1;
     document.getElementById('formHeading').textContent = 'Edit tip';
     msg('');
     document.getElementById('tipTitle').focus();
@@ -282,6 +292,7 @@ function resetForm() {
     document.getElementById('tipAnchor').value = '';
     document.getElementById('tipIndex').value = '';
     document.getElementById('tipPinned').checked = false;
+    document.getElementById('tipHostsOnly').checked = false;
     document.getElementById('formHeading').textContent = 'Add a tip';
 }
 

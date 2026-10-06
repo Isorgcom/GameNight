@@ -24,8 +24,18 @@ if ($_hb_user) {
     $_hb_screen = basename($_SERVER['SCRIPT_NAME'] ?? '', '.php');
     // Fresh = pinned tips + tips this user hasn't individually dismissed.
     // Any fresh tips auto-show; otherwise ship the full set behind the "?" pill.
-    $_hb_fresh   = help_fresh_bubbles_for_screen((int)$_hb_user['id'], $_hb_screen);
-    $_hb_bubbles = $_hb_fresh ?: help_bubbles_for_screen($_hb_screen);
+    // Hosts-only tips are dropped for a viewer who is not a host here (see
+    // help_viewer_is_host). The host test runs once, and only when such a tip
+    // is actually on the screen, so most pages never pay for it.
+    $_hb_host = null;
+    $_hb_forViewer = function (array $list) use (&$_hb_host, $_hb_user, $_hb_screen): array {
+        $hasHostsOnly = (bool)array_filter($list, function ($b) { return !empty($b['hosts_only']); });
+        if (!$hasHostsOnly) return $list;
+        if ($_hb_host === null) $_hb_host = help_viewer_is_host($_hb_user, $_hb_screen);
+        return $_hb_host ? $list : array_values(array_filter($list, function ($b) { return empty($b['hosts_only']); }));
+    };
+    $_hb_fresh   = $_hb_forViewer(help_fresh_bubbles_for_screen((int)$_hb_user['id'], $_hb_screen));
+    $_hb_bubbles = $_hb_fresh ?: $_hb_forViewer(help_bubbles_for_screen($_hb_screen));
     if ($_hb_bubbles) {
         $_hb_tips = array_map(function ($b) {
             return [

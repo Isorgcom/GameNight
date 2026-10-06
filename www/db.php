@@ -1585,6 +1585,11 @@ JSON;
     // user dismisses the screen's help with the X (X only closes it for that
     // page view). Pinned bubbles are never written to the dismissal table.
     try { $pdo->exec("ALTER TABLE help_bubbles ADD COLUMN always_show INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    // hosts_only: shown only to someone who can manage the page's event (or,
+    // off an event page, someone who may create events). The event page is
+    // read by guests too, and a tip about Manage Game pointed at a button a
+    // guest does not have floats in the corner saying nothing useful.
+    try { $pdo->exec("ALTER TABLE help_bubbles ADD COLUMN hosts_only INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
 
     // Per-BUBBLE dismissal (replaces the per-screen user_help_dismissed table,
     // which is kept but no longer read). Tracking by bubble id means tips added
@@ -1642,6 +1647,29 @@ JSON;
                 if (!$has->fetchColumn()) $ins->execute($t);
             }
             set_setting('help_first_event_tips_v1', '1');
+        }
+    } catch (Exception $e) {}
+
+    // The event page's two tips, hosts only: Manage Game and Message guests
+    // are the host's buttons, and a guest reading the same page must not be
+    // told about controls they do not have. Same seeding rules as above.
+    try {
+        if (get_setting('help_event_page_tips_v1', '') !== '1') {
+            $tips = [
+                ['event', 'This is where the night runs from',
+                 "Manage Game holds the players, buy-ins, blinds, payouts and the clock. Set the game up there before the first hand.",
+                 'a[href^="/checkin.php?event_id="]', 1],
+                ['event', 'Tell everyone where',
+                 "Message guests sends the address and final details to everyone at once, by whatever each of them uses.",
+                 'button[data-act="openEventMsgModal"]', 2],
+            ];
+            $has = $pdo->prepare('SELECT 1 FROM help_bubbles WHERE screen_key = ? AND title = ?');
+            $ins = $pdo->prepare('INSERT INTO help_bubbles (screen_key, title, body, anchor_selector, sort_order, enabled, hosts_only) VALUES (?, ?, ?, ?, ?, 1, 1)');
+            foreach ($tips as $t) {
+                $has->execute([$t[0], $t[1]]);
+                if (!$has->fetchColumn()) $ins->execute($t);
+            }
+            set_setting('help_event_page_tips_v1', '1');
         }
     } catch (Exception $e) {}
 
@@ -1994,7 +2022,7 @@ define('HELP_SCREENS', [
 function help_bubbles_for_screen(string $screen): array {
     if ($screen === '' || !array_key_exists($screen, HELP_SCREENS)) return [];
     $stmt = get_db()->prepare(
-        'SELECT id, screen_key, title, body, anchor_selector, bubble_index, always_show, sort_order, enabled
+        'SELECT id, screen_key, title, body, anchor_selector, bubble_index, always_show, hosts_only, sort_order, enabled
          FROM help_bubbles WHERE screen_key = ? AND enabled = 1
          ORDER BY sort_order, id'
     );
@@ -2010,7 +2038,7 @@ function help_bubbles_for_screen(string $screen): array {
 function help_fresh_bubbles_for_screen(int $userId, string $screen): array {
     if ($screen === '' || !array_key_exists($screen, HELP_SCREENS)) return [];
     $stmt = get_db()->prepare(
-        'SELECT b.id, b.screen_key, b.title, b.body, b.anchor_selector, b.bubble_index, b.always_show, b.sort_order, b.enabled
+        'SELECT b.id, b.screen_key, b.title, b.body, b.anchor_selector, b.bubble_index, b.always_show, b.hosts_only, b.sort_order, b.enabled
          FROM help_bubbles b
          LEFT JOIN user_help_bubble_dismissed d ON d.bubble_id = b.id AND d.user_id = ?
          WHERE b.screen_key = ? AND b.enabled = 1 AND (b.always_show = 1 OR d.bubble_id IS NULL)
@@ -2037,6 +2065,26 @@ function help_dismiss_screen(int $userId, string $screen): void {
 function help_reset_user(int $userId): void {
     get_db()->prepare('DELETE FROM user_help_bubble_dismissed WHERE user_id = ?')->execute([$userId]);
     get_db()->prepare('DELETE FROM user_help_dismissed WHERE user_id = ?')->execute([$userId]);
+}
+
+/**
+ * Whether the signed-in viewer counts as a host for hosts_only tips. On a
+ * screen that carries an event (`id` on the event page and the editor,
+ * `event_id` on check-in and its satellites) that means someone who can
+ * manage that event; anywhere else, someone who may create events at all.
+ * Admins are hosts everywhere. Called only when a hosts_only tip is present
+ * on the screen, so the ordinary page pays nothing for it.
+ */
+function help_viewer_is_host(array $user, string $screen): bool {
+    $isAdmin = ($user['role'] ?? '') === 'admin';
+    if ($isAdmin) return true;
+    $eid = in_array($screen, ['event', 'event_edit'], true)
+        ? (int)($_GET['id'] ?? 0)
+        : (int)($_GET['event_id'] ?? 0);
+    if ($eid > 0) {
+        return can_manage_event(get_db(), $eid, (int)$user['id'], false);
+    }
+    return get_setting('allow_user_events', '0') === '1';
 }
 
 /**
