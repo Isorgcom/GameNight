@@ -81,10 +81,15 @@ functions returning the RAW number from `S` (never a formatted string — a
 in `pk_lo_cond_expr()`'s whitelist + `COND_NAMES` for the hint line. Grammar,
 editor validation and the help page all read the registry.
 
-Numbers: round/level, smallBlind, bigBlind, ante, playersLeft, playersTotal,
-entries, buyIns, rebuys, addOns, eliminated, chipCount, avgStack, prizePool
-(dollars), tables, seats, minutesLeft. Booleans (riding the WHEN predicates):
-running, paused, onBreak, preGame, gameOver, hasAnte, hasRebuys.
+Numbers, in the dotted user-facing spellings (Namespaced names, below, maps
+them to the flat registry keys): round, blinds.small, blinds.big, blinds.ante,
+players.left, players.total, players.entries, players.buyIns, players.rebuys,
+players.addOns, players.out, chips.total, chips.avg, money.pot (dollars),
+table.count, table.seats, clock.minutes, clock.seconds. Booleans (riding the
+WHEN predicates): running, paused, onBreak, preGame, gameOver, hasAnte,
+hasRebuys. Edge events, true for one tick: levelChange, playerEliminated. The
+flat names (bigBlind, playersLeft, minutesLeft, secondsLeft…) still parse,
+but the help page and the editor's hint line show only the dotted set.
 
 Device class: mobile, tablet, desktop (`pc` resolves as a spoken alias but
 stays out of the hint line). Per DEVICE, not per game — with casting, every
@@ -140,31 +145,44 @@ Rules that keep it honest:
   over the base. Scoped to emphasis so a variant can never reflow the layout.
   Re-evaluated every tick.
 
-## Elements (~47)
+## Elements (48, plus custom)
 
-**Game:** eventName gameName nextGameName level levelOrBreak clock elapsedTime
-currentTime startTime nextBreak roundsToBreak roundsTotal
+The user-facing vocabulary is dotted and grouped by subject (Namespaced names,
+below); the flat registry keys in `timer_display.js` are internal and still
+accepted as aliases, which is why the built-in layouts, written before the
+dots (`<playersLeft>`, `<nextBlinds>`), keep working unchanged and the help
+page tells readers the two can be mixed.
 
-**Blinds:** smallBlind bigBlind ante blinds nextBlinds nextSmallBlind
-nextBigBlind nextAnte
+**Event / game:** event.name game.name game.next
 
-**Players:** players playersLeft playersTotal entries buyIns rebuys addOns
-eliminated cashedOut
+**Round:** round.num round.orBreak round.total round.toBreak
 
-**Chips:** chipCount avgStack avgStackBB startChips addOnChips
+**Time:** clock time.now time.elapsed time.nextBreak time.start
 
-**Money:** pot prizePool bountyPool jackpotPool buyInFee rebuyFee addOnFee
-buyinLine prizes prizeList prizesStacked
+**Blinds:** blinds.small blinds.big blinds.ante blinds.now blinds.next
+blinds.nextSmall blinds.nextBig blinds.nextAnte
+
+**Players:** players.line players.left players.total players.entries
+players.buyIns players.rebuys players.addOns players.out players.cashed
+players.lastOut players.lastOutPlace
+
+**Chips:** chips.total chips.avg chips.avgBB chips.start chips.addOn
+
+**Money:** money.pot money.bounty money.jackpot money.buyIn money.rebuy
+money.addOn money.line
+
+**Prizes:** prizes.line prizes.list prizes.stacked
 
 The three prize elements read `S.prizes`, which is DERIVED in `refreshDerived()`
 from `S.prizeRows` (`{place, label, reward}`, the rows the payout table draws),
 so the text and the table can never disagree. Drive a test or a preview with
 `setState({prizeRows})`, never `prizes`.
 
-**Room:** tables seats
+**Room:** table.count table.seats
 
-Element names match `[a-zA-Z][a-zA-Z0-9]*`. Plus any layout-defined custom
-elements (see roadmap).
+Element names match `[a-zA-Z][a-zA-Z0-9.]*` (the dot is an ordinary name
+character to the tokenizer; the registry decides what it means). Plus any
+layout-defined custom elements (see roadmap).
 
 **Per-element styling** (`cell.elStyles`): a map of element name to
 `{color, bold, scale}`, so one element inside a cell's line renders apart from
@@ -186,19 +204,25 @@ The setup figures (fees, chips per buy-in, table plan, start time) ride in
 `get_state`'s `game` block, named explicitly rather than handing the whole
 session row to every screen — a display is public to anyone with the key.
 
-`avgStackBB` is average stack in big blinds ("38 BB"); `levelOrBreak` is a
-single "Level 5"/"Break" label. The editor's element picker shows each
-element's LIVE value and sources its list from the renderer
-(`TBPreview.elementNames` / `elementValues`), so the two can't drift.
+`chips.avgBB` is average stack in big blinds ("38 BB"); `round.orBreak` is a
+single "Level 5"/"Break" label. The editor's element picker ("Insert
+element…" under the Text field) shows each element's LIVE value and sources
+its list from the renderer (`TBPreview.elementNames` / `elementValues`), so
+the two can't drift.
 
-Known data gaps: `buyinLine` is sample-only (get_state doesn't return buy-in
-config); `gameName` is a fixed string (no per-level game field exists);
-`elapsedTime` is blind-schedule time, not wall time (no session start
+Known data gaps: `money.line` is sample-only (get_state doesn't return buy-in
+config); `game.name` is a fixed string (no per-level game field exists);
+`time.elapsed` is blind-schedule time, not wall time (no session start
 timestamp in get_state).
 
 ## Built-in layouts
 
-classic, black_green, minimalist, two_column — pure CSS — **cardroom**, the
+**showcase**, shown as *Default Layout*: what an unconfigured game displays,
+the feature tour (a Phone screen first, then Break, then Main; a QR cell, an
+ante-only cell, a paused-clock variant, a one-minute warning) and the layout a
+new design copies. The key stays `showcase` because `timer_state.layout_builtin`
+stores it. Then classic, black_green, minimalist, two_column — pure CSS —
+**cardroom**, the
 green Bravo-style card-room board (two rolling "Remaining Places" payout
 tables, top-anchored label/value columns, a welcome ticker; the reference
 layout for the scrolling cells and the payout table, and pure CSS as well) —
@@ -224,8 +248,8 @@ opacity-0 spacer for a plated box, opacity hides the plate too).
   rights, same gate as timer.php); no event = sample data. `?embed=1` is the
   editor's preview iframe (opts into same-origin framing via
   `csp_allow_same_origin_framing()` in auth.php — that one page only).
-- `timer_display.js` — the renderer + engine + four built-in layouts + embed API
-  (`window.TBPreview`).
+- `timer_display.js` — the renderer + engine + the seven built-in layouts +
+  embed API (`window.TBPreview`).
 - `timer_layouts.php` / `.js` / `.css` — the layout editor. Live preview is
   the real display page in the iframe; structure tree, inspector, element
   picker, per-state preview chips, screen tabs, undo.
@@ -572,23 +596,25 @@ the layout reloads).
   "do": [ { "sound": "preset:chime" },
           { "takeover": "Alert", "seconds": 8 },
           { "flash": "screen" },
-          { "announce": "Blinds up: <blinds>" } ],
+          { "announce": "Blinds up: <blinds.now>" } ],
   "cooldown": 30, "once": true }
 ```
 
 - **`when`** is the same condition language as everywhere else. Three values
-  exist mostly for triggers: `secondsLeft` (`secondsLeft <= 60 and running`
-  is the one-minute warning, re-arming naturally at each level),
+  exist mostly for triggers: `clock.seconds` (`clock.seconds <= 60 and running`
+  is the one-minute warning, re-arming naturally at each level; registry key
+  `secondsLeft`),
   `levelChange` / `levelup` (true for exactly one update tick when the level
   number moves, either direction — snapshotted once per tick in
   `condTickUpdate()`, never computed on read, because variants evaluate a
   condition many times per paint), and `playerEliminated` / `playerOut`
   (one-tick edge when the eliminated COUNT goes UP — an elimination undo
   moves it down and stays silent). Pair the latter with the
-  `<lastEliminated>` / `<lastEliminatedPlace>` elements (most recent
-  knockout's name and ordinal place, from `last_eliminated` in `get_state`:
-  lowest `finish_position` among the eliminated): announce
-  "`<lastEliminated> has been eliminated`" speaks the actual name.
+  `<players.lastOut>` / `<players.lastOutPlace>` elements (registry
+  `lastEliminated` / `lastEliminatedPlace`: the most recent knockout's name
+  and ordinal place, from `last_eliminated` in `get_state`, lowest
+  `finish_position` among the eliminated): announce
+  "`<players.lastOut> has been eliminated`" speaks the actual name.
 - **`sound`** is `preset:<key>` (Web Audio synth from `TB_PRESETS` — buzzer,
   chime, casino, horn, countdown, double, descending, five3s, tick, pulse,
   chirp, gentle; zero files, travel everywhere) or an uploaded file
@@ -622,8 +648,11 @@ layout update/delete (`pk_lo_sound_names` / `pk_lo_gc_sounds`) — classic's
 `alarm_*` files leak forever; these don't. Do NOT copy classic's
 `update_sounds` (stores raw, unvalidated) or its flat upload path.
 
-The PCF builtin ships three: `levelChange` → chime; `secondsLeft <= 60 and
-running` → tick + flash; final table → casino + flash (once).
+The PCF builtin ships three: `levelChange` → chime; `clock.seconds <= 60 and
+running` → tick + flash; final table → casino + flash (once). The editor's
+"+ Add trigger" menu offers nine ready-made ones (level change, one-minute
+warning, announce the blinds, break starts, final table, heads-up, game over,
+player eliminated, blank).
 
 ## Seat map — the final table
 
@@ -715,7 +744,11 @@ the same links): YouTube in every spelling (watch / youtu.be / embed / live /
 shorts / tv.), Twitch channels (`parent=` is filled from `location.hostname`,
 so the same layout works on localhost and prod), Vimeo, Kick, a best-effort
 Prime pass-through, plus the admin-allowlisted hosts from Settings → General
-(injected as `TB_STREAM_HOSTS`).
+(injected as `TB_STREAM_HOSTS`). A **direct media URL** is the other kind: an
+https link whose path ends in `.m3u8`, `.mp4`, `.m4v` or `.webm`, from ANY
+host, played in a `<video>` (hls.js brought in for `.m3u8` where the browser
+has no native HLS; Safari plays it natively). That is how a restream (an IPTV
+channel, a camera rig) reaches the board, and it needs no admin allowlisting.
 
 Unlike the QR target (an enum), a video URL is author content in a shareable
 document. Three fences keep that safe, and each would hold alone:
@@ -741,12 +774,19 @@ Implementation notes, all inherited from the QR cell's lessons:
 - The iframe gets `pointer-events: none` in embed mode only, so a click in the
   editor preview selects the cell instead of vanishing into the player.
   On a live display the player keeps its controls.
-- Trigger sounds duck the stream: `tbPlaySound()` calls
-  `tbMuteStreamForAlarm(5000)`, which postMessages mute/unmute to YouTube and
-  Vimeo embeds (the only hosts with a message API — Twitch/Kick/Prime keep
-  playing, same as the classic timer). It honours the classic timer's
-  `gn.muteStreamDuringAlarms` localStorage toggle, default on, so a device's
-  choice there carries over here.
+- Trigger sounds duck the stream, and how is a layout setting:
+  `layout.stream` carries `duckTo` (0..1; 0 = silence), `fadeOut`, `hold` and
+  `fadeIn` (ms), edited in the video cell's inspector under "While an alarm
+  plays, this stream…" and clamped by `pk_layout_sanitize`. A direct `<video>`
+  ramps to the level and back (`tbFadeVolume`, remembering the host's own
+  mute state and volume so the fade-in never hands the room a louder stream
+  than they set). Provider embeds only expose mute/unMute over postMessage,
+  so YouTube and Vimeo stay a hard duck for the hold, and Twitch/Kick/Prime
+  keep playing, same as the classic timer. A sound action's `warmup` (0–10 s,
+  half-second steps) starts the duck BEFORE the sound, so an alarm never cuts
+  across a loud feed. The classic timer's `gn.muteStreamDuringAlarms`
+  localStorage toggle, default on, is honoured, so a device's choice there
+  carries over here.
 
 **Editor**: "Use a video stream instead" beside the other conversions sets
 `video: ''` — the cell shows the placeholder until a link is pasted into the
@@ -1073,14 +1113,20 @@ switch names — see the dispatch note in `timer.php`'s header.
   server-side sanitizer.
 - **C (done):** conditions — per-cell variants and multi-screen layouts with
   break-screen auto-swap.
-- **Promotion (started):** keyboard controls (Space/Left/Right) AND an
+- **Promotion (done, v1.1.0):** keyboard controls (Space/Left/Right) AND an
   on-screen control tray (#tbControls: prev/play/next, -1m/+1m, reset-level,
-  undo, fullscreen) drive a live event-linked display for users with rights.
-  The tray is server-rendered only on an event-linked non-embed page and
-  revealed by syncControls() once get_state confirms can_control; the play
-  button reflects the running state. It is solid when active and auto-hides
-  completely after 3s of no pointer/touch/key activity (video-player style),
-  reappearing on any interaction. The fold-into-main-timer decision remains.
+  undo, fullscreen, and Exit back to check-in, the only way out once the
+  timer is installed as an app) drive a live event-linked display for users
+  with rights. The tray is server-rendered only on an event-linked non-embed
+  page and revealed by syncControls() once get_state confirms can_control; the
+  play button reflects the running state. It is solid when active and
+  auto-hides completely after 3s of no pointer/touch/key activity
+  (video-player style), reappearing on any interaction. The fold decision
+  was taken at v1.1.0: this engine IS the Tournament Timer at `/timer.php`,
+  the original clock is Tournament Timer Classic at `/timer_classic.php`,
+  each game picks one under Setup → Timer (`timer_state.use_beta`), and the
+  check-in console asks a host once which to default to (`users.beta_timer`;
+  since v1.5.0 only after the game's setup is saved).
 - **Export/import (done):** a layout exports as one self-contained JSON file
   (`{gnTimerLayout:1, name, layout}`, `.gntimer.json`), with any referenced
   images embedded as data URIs and re-uploaded on the way in. Import
@@ -1138,8 +1184,12 @@ switch names — see the dispatch note in `timer.php`'s header.
   `scrollSpeed`/`scrollPhase`, and `payouts: true` for a place / dotted leader /
   reward table (see the two sections above). Prompted by the Bravo card-room
   clock's Remaining Places panels and bottom banner.
-- **Remaining:** feature-complete — the promotion / fold-into-main-timer
-  decision is what's left.
+- **Remaining:** nothing structural. The open items are data ones noted
+  above: `money.line` is sample-only, `time.elapsed` is schedule time, and the
+  seat map has no per-player chip stacks (needs a column plus a host entry
+  UI). The user-facing guide is `help-timer.php` (fifteen sections, pictures
+  retaken by `~/qa-headless/help_timer_shots.js`); keep it in step with this
+  file.
 
 ## Testing
 
