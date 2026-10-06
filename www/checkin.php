@@ -1530,7 +1530,13 @@ function renderFilterBar() {
     }
     h += '</div>';
     if (VIEW_MODE === 'table') {
-        h += '<button id="balanceBtn" class="pk-btn-view-toggle" title="Even out the number of players at each table" data-act="balanceTables">&#9878; Balance</button>';
+        // Muted, not hidden, on a one-table game: a host should still find
+        // out what it is for, and pressing it explains instead of opening a
+        // dialog about dealer buttons with nothing to move.
+        var oneTable = parseInt(SESSION.num_tables) <= 1;
+        h += '<button id="balanceBtn" class="pk-btn-view-toggle"' + (oneTable ? ' style="opacity:.55"' : '')
+           + ' title="' + (oneTable ? 'Evens out the players across tables. This game has one table, so there is nothing to balance yet.' : 'Even out the number of players at each table') + '"'
+           + ' data-act="balanceTables">&#9878; Balance</button>';
         h += '<button id="addTableBtn" class="pk-btn-green" data-act="addTable">Add Table</button>';
     }
     h += '</div>';
@@ -4028,6 +4034,13 @@ function movePlayer(pid, newTable) {
 
 function balanceTables() {
     var numTables = parseInt(SESSION.num_tables);
+    if (numTables <= 1) {
+        pkAlert('Balancing moves players between tables so every table has about the same number. '
+            + 'This game has one table, so there is nothing to balance. When the room outgrows it, '
+            + '<b>Add Table</b> here or set the number of tables in Setup, and Balance will spread the players out.',
+            { title: 'One table, nothing to balance' });
+        return;
+    }
     // Group active players by table
     var byTable = {};
     for (var t = 1; t <= numTables; t++) byTable[t] = [];
@@ -4039,7 +4052,7 @@ function balanceTables() {
 
     // Build modal to select button player per table
     var html = '<div style="text-align:left;max-height:70vh;overflow-y:auto">';
-    html += '<p style="margin:0 0 .75rem;color:#64748b;font-size:.85rem">Select the <strong>Button</strong> player at each table. The Button, Small Blind, and Big Blind will not be moved.</p>';
+    html += '<p style="margin:0 0 .75rem;color:#64748b;font-size:.85rem">Pick who has the dealer <strong>Button</strong> at each table. The button, small blind and big blind stay where they are; anyone else may be moved to even the tables out.</p>';
     for (var t = 1; t <= numTables; t++) {
         var players = byTable[t];
         if (players.length === 0) continue;
@@ -4058,9 +4071,11 @@ function balanceTables() {
     html += '</div>';
 
     // Show in a modal overlay
+    // The shared overlay class, so it looks like every other dialog here and
+    // the help tour steps aside for it (help-bubble.js watches that class).
     var overlay = document.createElement('div');
     overlay.id = 'balanceModal';
-    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;display:flex;align-items:center;justify-content:center';
+    overlay.className = 'pk-modal-overlay open';
     overlay.innerHTML = '<div style="background:#fff;border-radius:10px;padding:1.5rem;max-width:400px;width:90%;box-shadow:0 8px 30px rgba(0,0,0,.2)">'
         + '<h3 style="margin:0 0 .75rem;font-size:1rem">Balance Tables</h3>'
         + html
@@ -4069,6 +4084,17 @@ function balanceTables() {
         + '<button data-act="executeBalance" style="padding:.4rem 1rem;border:none;border-radius:6px;background:#2563eb;color:#fff;cursor:pointer;font-weight:600;font-size:.85rem">Balance</button>'
         + '</div></div>';
     document.body.appendChild(overlay);
+}
+
+// One move per line. The dialog renders HTML, so the "\n" these used to
+// join with collapsed into a space and every move ran together.
+function movesHtml(moves) {
+    var msg = moves.length + (moves.length === 1 ? ' player moved:' : ' players moved:') + '<br>';
+    for (var i = 0; i < moves.length; i++) {
+        var m = moves[i];
+        msg += escHtml(m.display_name) + ': Table ' + (m.old_table || '?') + ' → ' + m.new_table + '<br>';
+    }
+    return msg;
 }
 
 function executeBalance() {
@@ -4105,12 +4131,7 @@ function executeBalance() {
     postAction('rebalance_tables', { session_id: SESSION.id, protected_ids: JSON.stringify(protectedIds) }, function(j) {
         PLAYERS = j.players;
         if (j.moves && j.moves.length > 0) {
-            var msg = j.moves.length + ' player(s) moved:\n';
-            for (var i = 0; i < j.moves.length; i++) {
-                var m = j.moves[i];
-                msg += escHtml(m.display_name) + ': Table ' + (m.old_table || '?') + ' \u2192 ' + m.new_table + '\n';
-            }
-            pkAlert(msg);
+            pkAlert(movesHtml(j.moves), { title: 'Tables balanced' });
         } else {
             pkAlert('Tables are already balanced.');
         }
@@ -4134,12 +4155,7 @@ async function breakUpTable(tableNum) {
         PLAYERS = j.players;
         SESSION = j.session;
         if (j.moves && j.moves.length > 0) {
-            var msg = j.moves.length + ' player(s) moved:\n';
-            for (var i = 0; i < j.moves.length; i++) {
-                var m = j.moves[i];
-                msg += escHtml(m.display_name) + ': Table ' + (m.old_table || '?') + ' \u2192 ' + m.new_table + '\n';
-            }
-            pkAlert(msg);
+            pkAlert(movesHtml(j.moves), { title: 'Table ' + tableNum + ' broken up' });
         }
         renderDashboard();
     });

@@ -13,6 +13,29 @@ lands and that heading is renamed when a release is cut.
 
 ---
 
+## [v1.8.1] - 2026-10-06
+
+### Changed
+
+- **Balance knows when there is one table.** On the Table view of a
+  one-table game, *Balance* opened a dialog asking which player held the
+  dealer button at "Table 1" and then reported that the tables were
+  already balanced. It is now muted on a one-table game and, pressed,
+  says what balancing does and that *Add Table* (or the table count in
+  Setup) is what makes it useful. With two or more tables the dialog
+  opens as before, worded more plainly (the button, small blind and big
+  blind stay; anyone else may move), on the same overlay as every other
+  dialog so the help tour steps aside for it too.
+
+### Fixed
+
+- **Table moves are listed one per line.** The "players moved" report
+  after a balance or a broken-up table ran every move together on one
+  line, because the dialog renders HTML and the line breaks it was
+  written with collapsed into spaces.
+
+---
+
 ## [v1.8.0] - 2026-10-06
 
 ### Changed
@@ -62,6 +85,8 @@ lands and that heading is renamed when a release is cut.
   going; a tip anchored inside the open modal still shows. The check is
   in `help-bubble.js` and applies on every page with tips, so a tour that
   has no anchored tips now also keeps its watcher running for this.
+  (Balance Tables drew its own overlay until the next release, so the
+  tour did not yet step aside for it; QR is a separate page.)
 
 ---
 
