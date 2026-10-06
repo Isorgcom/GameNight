@@ -15,7 +15,9 @@
  *
  * Anchoring is visibility-aware:
  *   - selector matches a visible element  -> bubble points at it
- *   - selector matches nothing            -> bubble floats in the corner stack
+ *   - selector matches nothing            -> bubble floats in the corner stack,
+ *     and moves onto the element if one appears later (the check-in dashboard
+ *     draws its buttons from script after the page loads)
  *   - selector matches a HIDDEN element   -> bubble waits, then appears anchored
  *     when the element becomes visible (e.g. its modal opens) and hides again
  *     when it disappears. If waiting would leave the current step with no
@@ -175,7 +177,12 @@
     step.forEach(function (tip) {
       var anchor = findAnchor(tip);
       if (anchor && !isVisible(anchor)) { waiting.push(tip); return; } // wait for it
-      addBubble(tip, anchor);
+      // A selector that matches nothing yet starts in the corner demoted, so
+      // the watcher moves it onto the element the moment one appears. A plain
+      // corner bubble was never re-checked, which left the check-in tips in
+      // the corner for good: #setupBtn does not exist until the dashboard
+      // has loaded.
+      addBubble(tip, anchor, !anchor && !!tip.anchor_selector);
     });
     // Never present an empty step: surface waiting tips in the corner meanwhile.
     // They stay in `waiting` so the watcher upgrades them once the anchor shows.

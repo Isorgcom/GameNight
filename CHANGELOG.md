@@ -13,6 +13,38 @@ lands and that heading is renamed when a release is cut.
 
 ---
 
+## [v1.7.0] - 2026-10-06
+
+### Changed
+
+- **Finish says what it is about to lock in, and warns when the standings
+  are not ready.** The Finish button on Manage Game asked "Mark this game as
+  finished?" and then finished without another word, whatever state the
+  table was in; a host who pressed it with players still in got a game with
+  no winner and nothing paid, and only a Reopen button to tell them so. The
+  dialog now names the players still in (they get no place, so their places
+  pay nobody), warns when a prize pool has no payout structure, and on a
+  cash game names anyone who has not cashed out (their result is recorded as
+  losing the whole buy-in until they do). Each warning turns the button into
+  a red *Finish anyway*. Below the warnings it states what will be recorded
+  ("3 places and $60 in payouts"), and after finishing a toast repeats it.
+  A Finish pressed with exactly one player still in and nobody in 1st now
+  records 1st for that player, as the final elimination would have, instead
+  of leaving the survivor with no place and 1st unpaid.
+
+### Fixed
+
+- **Help tips now find a control the page draws after loading.** The
+  Manage Game tips *Set the game up first* and *Then the clock* point at the
+  Setup and Timer buttons, which the dashboard draws from script once the
+  game has loaded. A tip whose target was not on the page yet fell to the
+  corner stack and stayed there, because only tips whose target existed but
+  was hidden were re-checked. Such a tip now starts in the corner and moves
+  onto its control the moment it appears, which on Manage Game is well under
+  a second. `help-bubble.js` only; tips in Help Tips need no change.
+
+---
+
 ## [v1.6.0] - 2026-10-06
 
 ### Added

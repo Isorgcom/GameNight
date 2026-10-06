@@ -691,6 +691,24 @@ if ($action === 'update_status') {
 
     // Manual finish: lock in winnings from the final standings + issue tickets.
     if ($status === 'finished') {
+        // The last player standing is the winner. The final elimination
+        // records 1st and finishes the game by itself; a Finish pressed with
+        // one player still in and nobody in 1st records the same, instead of
+        // leaving the survivor without a place and 1st unpaid.
+        if (($s['game_type'] ?? '') === 'tournament') {
+            $remain = $db->prepare('SELECT id, display_name FROM poker_players
+                                    WHERE session_id = ? AND removed = 0 AND eliminated = 0 AND bought_in = 1
+                                      AND (finish_position IS NULL OR finish_position = 0)');
+            $remain->execute([$session_id]);
+            $survivors = $remain->fetchAll();
+            $first = $db->prepare('SELECT COUNT(*) FROM poker_players WHERE session_id = ? AND removed = 0 AND finish_position = 1');
+            $first->execute([$session_id]);
+            if (count($survivors) === 1 && (int)$first->fetchColumn() === 0) {
+                $db->prepare('UPDATE poker_players SET finish_position = 1 WHERE id = ?')->execute([(int)$survivors[0]['id']]);
+                pk_log($db, $session_id, (int)$current['id'], 'eliminate', (int)$survivors[0]['id'],
+                       (string)$survivors[0]['display_name'], null, 'Won — 1st place');
+            }
+        }
         pk_finish_session($db, $session_id, (int)$current['id']);
     }
 

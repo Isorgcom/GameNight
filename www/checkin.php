@@ -975,8 +975,74 @@ window.PK_DISPATCH_LOCAL = 1;
 // Each of these was an inline lambda or a DOM mutation written straight into an
 // on* attribute. A nonce cannot authorise those, so they get names.
 function finishGameConfirm() {
-    pkConfirm('Mark this game as finished? This finalizes all stats and payouts.')
-        .then(function (ok) { if (ok) changeStatus('finished'); });
+    // Finish is final for the standings, so the dialog says what it is about
+    // to lock in and flags the two things a first-time host does not see
+    // coming: players still in (no place, so their places pay nobody) and a
+    // prize pool with no payout structure. It used to say only "finalizes all
+    // stats and payouts" and then finish without a word.
+    var inPlay = (PLAYERS || []).filter(function(p) { return !parseInt(p.removed) && parseInt(p.bought_in); });
+    var names = function(list) {
+        var n = list.map(function(p) { return '<b>' + escHtml(p.display_name) + '</b>'; });
+        if (n.length > 4) n = n.slice(0, 3).concat(['and ' + (n.length - 3) + ' more']);
+        return n.join(', ');
+    };
+    var who = function(n) { return n === 1 ? '1 player is' : n + ' players are'; };
+    var warn = [], note = '', lead = '', summary = '';
+    if (isTourney()) {
+        var placed   = inPlay.filter(function(p) { return parseInt(p.finish_position) > 0; });
+        var stillIn  = inPlay.filter(function(p) { return !parseInt(p.eliminated) && !(parseInt(p.finish_position) > 0); });
+        var hasFirst = placed.some(function(p) { return parseInt(p.finish_position) === 1; });
+        var pool = parseInt(POOL.pool_total) || 0;
+        var places = placed.length, paid = 0;
+        placed.forEach(function(p) { paid += payoutForPlace(p.finish_position); });
+        if (!inPlay.length) {
+            warn.push('Nobody has bought in, so there are no standings to record.');
+        } else if (stillIn.length === 1 && !hasFirst) {
+            // The server records 1st for a lone survivor, as the final elimination would have.
+            note = names(stillIn) + ' is the last player standing and takes 1st place.';
+            places += 1;
+            paid += payoutForPlace(1);
+        } else if (stillIn.length) {
+            warn.push(who(stillIn.length) + ' still in: ' + names(stillIn) + '. They get no place, so '
+                + (hasFirst ? '' : 'no winner is recorded and ') + 'whatever their places pay goes to nobody. '
+                + 'Eliminate players as they bust; the last one standing finishes the game by itself.');
+        }
+        if (inPlay.length && pool > 0 && !PAYOUTS.length) {
+            warn.push('No payout structure is set, so the ' + formatMoney(pool) + ' prize pool pays nobody. '
+                + 'Set one in Setup &rarr; Payouts first if money is on the table.');
+        }
+        var tickets = parseInt(SESSION.ticket_target_event_id) > 0 && PAYOUTS.some(function(r) { return parseInt(r.ticket_cents) > 0; });
+        lead = 'This locks in the standings: ';
+        summary = places + (places === 1 ? ' place' : ' places') + ' and ' + formatMoney(paid) + ' in payouts'
+            + (tickets ? ', and the entry tickets go out' : '');
+    } else {
+        var seated = inPlay.filter(function(p) { return p.cash_out === null || p.cash_out === undefined; });
+        if (!inPlay.length) {
+            warn.push('Nobody has bought in, so there is nothing to record.');
+        } else if (seated.length) {
+            warn.push(who(seated.length) + ' still seated: ' + names(seated) + '. Until they cash out, their result is '
+                + 'recorded as losing the whole buy-in (cashed out $0). Cash Out is in the List view.');
+        }
+        lead = 'This locks in every player\'s result: ';
+        summary = formatMoney(POOL.total_cash_in || 0) + ' in and ' + formatMoney(POOL.total_cash_out || 0) + ' out across '
+            + inPlay.length + (inPlay.length === 1 ? ' player' : ' players');
+    }
+    var msg = '';
+    warn.forEach(function(w) {
+        msg += '<p style="margin:0 0 .6rem;padding:.5rem .7rem;background:#fffbeb;border-left:3px solid #f59e0b;color:#92400e;border-radius:4px">&#9888; ' + w + '</p>';
+    });
+    if (note) msg += '<p style="margin:0 0 .6rem">' + note + '</p>';
+    msg += '<p style="margin:0">' + lead + summary + '. <b>Reopen</b> puts it back if something is wrong.</p>';
+    pkConfirm(msg, { title: 'Finish the game?', okLabel: warn.length ? 'Finish anyway' : 'Finish', danger: warn.length > 0 })
+        .then(function (ok) {
+            if (!ok) return;
+            postAction('update_status', { session_id: SESSION.id, status: 'finished' }, function(j) {
+                SESSION.status = j.status;
+                renderDashboard();
+                loadSession();   // the winnings, and 1st for a lone survivor, were written server-side
+                walkinToast('Game finished: ' + summary + '. Reopen puts it back.');
+            });
+        });
 }
 function reopenGameConfirm() {
     pkConfirm('Reopen this game?').then(function (ok) { if (ok) changeStatus('active'); });
