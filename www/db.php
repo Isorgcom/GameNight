@@ -1793,7 +1793,7 @@ JSON;
         if (get_setting('event_invites_user_id_backfilled', '') !== '1') {
             $pdo->exec("UPDATE event_invites
                            SET user_id = (SELECT u.id FROM users u
-                                           WHERE LOWER(u.username) = LOWER(event_invites.username))
+                                           WHERE LOWER(u.username) = LOWER(event_invites.username)) -- ONE-SHOT BACK-FILL, see above
                          WHERE user_id IS NULL");
             set_setting('event_invites_user_id_backfilled', '1');
         }

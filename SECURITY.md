@@ -135,10 +135,13 @@ problem quickly gets ignored. On a clean tree the whole command prints nothing.
 ### 2b. Invites matched to accounts by name
 
 ```bash
-grep -rnE "LOWER\((u|users)\.username\) = LOWER\((ei|event_invites)\.username\)|LOWER\((ei|event_invites)\.username\) = LOWER\((u|users)\.username\)" www/ --include=*.php
+grep -rnE "LOWER\((u|users)\.username\) = LOWER\((ei|event_invites)\.username\)|LOWER\((ei|event_invites)\.username\) = LOWER\((u|users)\.username\)" www/ --include=*.php \
+  | grep -v "ONE-SHOT BACK-FILL"
 ```
 
-Prints nothing on a clean tree. An invite's account is `event_invites.user_id`,
+Prints nothing on a clean tree. The one sanctioned match is the one-shot back-fill
+in `db_init()`, which carries that marker as a SQL comment and runs once, under
+the `event_invites_user_id_backfilled` setting. An invite's account is `event_invites.user_id`,
 set by the host at write time (`resolve_invite_user_id()`, or the caller's own
 id); a username is user-chosen, so matching on it at run time lets whoever
 registers a name that a host typed become that invitee (reminders, the comment
