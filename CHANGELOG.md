@@ -11,6 +11,10 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+---
+
+## [v1.8.5] - 2026-10-07
+
 ### Security
 
 - **An invitee is an account only when the host linked one; a matching
