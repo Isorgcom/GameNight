@@ -1040,10 +1040,21 @@ function pk_preset_places(PDO $db, string $table, string $col, int $id): array {
 }
 
 /* The session's live blind schedule in the same shape a preset stores. */
-function pk_session_blind_levels(PDO $db, int $session_id): array {
+/* The session's own blind schedule, or [] when it has not saved one. With
+ * $effective, a session without one falls back to the site default preset,
+ * which is what the timer (timer_dl.php, timer_classic.php) and the Blinds
+ * pane (event_setup_dl.php get_blinds) run and show for it: the schedule the
+ * game actually plays. finaltable_blind_levels() keeps the plain form, since
+ * it does its own fallback and wants the default's name with it. */
+function pk_session_blind_levels(PDO $db, int $session_id, bool $effective = false): array {
     $t = $db->prepare('SELECT preset_id FROM timer_state WHERE session_id = ?');
     $t->execute([$session_id]);
     $pid = (int)($t->fetchColumn() ?: 0);
+    if (!$pid && $effective) {
+        $d = $db->prepare('SELECT id FROM blind_presets WHERE is_default = 1 AND session_id IS NULL ORDER BY id LIMIT 1');
+        $d->execute();
+        $pid = (int)($d->fetchColumn() ?: 0);
+    }
     if (!$pid) return [];
     $l = $db->prepare('SELECT small_blind, big_blind, ante, duration_minutes, is_break
                        FROM blind_preset_levels WHERE preset_id = ? ORDER BY level_number');
@@ -1083,10 +1094,14 @@ function pk_preset_is_modified(PDO $db, array $struct, array $sess): bool {
         }
     }
 
-    // 4. Blind schedule.
+    // 4. Blind schedule, against what the game actually runs. A game that has
+    // never saved its own schedule plays the site default, and the Blinds pane
+    // shows that default as its grid, so Save as… captures it; comparing with
+    // the session's SAVED schedule (none) read every such preset as MODIFIED
+    // the moment it was made.
     if (!empty($struct['blind_levels'])) {
         $want = pk_clean_blind_levels(json_decode((string)$struct['blind_levels'], true));
-        if ($want !== pk_session_blind_levels($db, $session_id)) return true;
+        if ($want !== pk_session_blind_levels($db, $session_id, true)) return true;
     }
 
     // 5. Timer settings.

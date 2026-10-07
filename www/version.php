@@ -1,5 +1,5 @@
 <?php
-define('APP_VERSION', '1.8.3');
+define('APP_VERSION', '1.8.4');
 
 // Source for the "update available" check (public repo, no auth needed).
 // run_update_check() in db.php fetches this, regexes out APP_VERSION, and

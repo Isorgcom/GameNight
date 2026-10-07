@@ -13,6 +13,26 @@ lands and that heading is renamed when a release is cut.
 
 ---
 
+## [v1.8.4] - 2026-10-07
+
+### Fixed
+
+- **A preset made with Save as… no longer reads MODIFIED on the spot.** A
+  game that has never saved a blind schedule of its own plays the site
+  default, and Setup → Blinds shows that default as its grid, so a preset
+  saved from the editor captured those levels. The "has this game drifted
+  from its preset?" check then compared them with the game's *saved*
+  schedule, which was none, and the line under Game preset read "From:
+  Friday Standard MODIFIED" with an amber *Save preset* before anything had
+  been changed. The check now compares with the schedule the game actually
+  runs, the same fallback the timer and the Blinds pane use
+  (`pk_session_blind_levels()` with its new `$effective` flag). A grid that
+  has been edited but not saved still shows MODIFIED, correctly, until
+  *Save game* commits it. Online tables at FinalTable are not affected;
+  that path keeps its own fallback.
+
+---
+
 ## [v1.8.3] - 2026-10-07
 
 ### Fixed
