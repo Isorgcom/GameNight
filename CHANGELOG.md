@@ -13,6 +13,25 @@ lands and that heading is renamed when a release is cut.
 
 ---
 
+## [v1.8.3] - 2026-10-07
+
+### Fixed
+
+- **The Host Guide's step 7 describes the screen a host actually lands
+  on.** It said the first visit to "Check-in" shows a *Start Poker
+  Session* form and to press *Create Session & Import Players*. An event
+  saved with Poker on, which is the usual case, already has its game, so
+  *Manage Game* opens straight on the dashboard with everyone who said
+  Yes on the list; the form only appears for an event saved without
+  poker. The step now says so, uses the button's real name, describes Buy
+  In seating players and the Table view's Move, Add Table and Balance as
+  they are, points at the dashboard's *? Help*, and ends with Finish and
+  its warnings instead of "results lock in automatically". The payouts
+  note names *Edit in Setup* (the Payouts card) rather than buttons that
+  no longer exist.
+
+---
+
 ## [v1.8.2] - 2026-10-07
 
 ### Changed
