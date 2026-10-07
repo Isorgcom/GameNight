@@ -431,8 +431,9 @@ if ($action === 'init_session') {
         'num_tables'      => $tables,
     ]);
 
-    // Import all invitees with their RSVP status
-    $invites = $db->prepare("SELECT ei.username, ei.rsvp, u.id as user_id FROM event_invites ei LEFT JOIN users u ON LOWER(ei.username) = LOWER(u.username) WHERE ei.event_id = ? GROUP BY LOWER(ei.username)");
+    // Import all invitees with their RSVP status. The account is the invite's
+    // own user_id (set by the host at write time), never a name match.
+    $invites = $db->prepare("SELECT ei.username, ei.rsvp, ei.user_id FROM event_invites ei WHERE ei.event_id = ? GROUP BY LOWER(ei.username)");
     $invites->execute([$event_id]);
     $pIns = $db->prepare('INSERT INTO poker_players (session_id, user_id, display_name, rsvp) VALUES (?, ?, ?, ?)');
     foreach ($invites->fetchAll() as $inv) {

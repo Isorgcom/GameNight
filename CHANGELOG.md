@@ -13,6 +13,35 @@ lands and that heading is renamed when a release is cut.
 
 ---
 
+## [v1.8.5] - 2026-10-07
+
+### Security
+
+- **An invitee is an account only when the host linked one; a matching
+  username no longer stands in.** When a host adds someone who already
+  has an account, the invite records that account, and the site's main
+  authority checks have resolved through it since the earlier hardening.
+  Ten queries still matched invites to accounts by comparing usernames at
+  run time: the two that decide which events a person may manage (the
+  nav's live-game shortcut and the Classic timer's event list), the two
+  roster imports that write a player's account onto their seat (and so
+  onto their results and entry tickets), the recipient lists for comment
+  notifications, reminders and the hosts' SMS alerts, the guest-list phone
+  match in SMS conversations, and the API's guest list. All now use the
+  invite's recorded account. The API's two invite writers, which never
+  recorded one, now do, since they add people by account anyway. What
+  changes for people: registering a username that equals a name a host
+  typed on an invite (single-word names only; usernames cannot hold
+  spaces) no longer makes that person the invitee, so nobody receives a
+  stranger's reminders or comments, nobody's stats pick up a stranger's
+  results, and a co-host typed in by name must be re-added from the user
+  list once they have an account. A renamed account keeps its reminders
+  and comments, which the name match used to drop. No stored data
+  changes; the four live invites whose name now matches a later account
+  stay as they are. `SECURITY.md` carries the grep that keeps this closed.
+
+---
+
 ## [v1.8.4] - 2026-10-07
 
 ### Fixed

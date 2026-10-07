@@ -132,6 +132,25 @@ The trailing filter matters: the third pattern also matches correctly-escaped
 code such as `value="'+escAttr(col)+'"`, and a check that reports clean code as a
 problem quickly gets ignored. On a clean tree the whole command prints nothing.
 
+### 2b. Invites matched to accounts by name
+
+```bash
+grep -rnE "LOWER\((u|users)\.username\) = LOWER\((ei|event_invites)\.username\)|LOWER\((ei|event_invites)\.username\) = LOWER\((u|users)\.username\)" www/ --include=*.php \
+  | grep -v "ONE-SHOT BACK-FILL"
+```
+
+Prints nothing on a clean tree. The one sanctioned match is the one-shot back-fill
+in `db_init()`, which carries that marker as a SQL comment and runs once, under
+the `event_invites_user_id_backfilled` setting. An invite's account is `event_invites.user_id`,
+set by the host at write time (`resolve_invite_user_id()`, or the caller's own
+id); a username is user-chosen, so matching on it at run time lets whoever
+registers a name that a host typed become that invitee (reminders, the comment
+thread, the roster row their results attach to, and for a typed-in manager the
+event's controls). The join was removed from the authority checks in the first
+hardening and crept back into ten readers and the API's writers by v1.8.4; the
+v1.8.5 pass cleared them. Any new reader selects `ei.user_id` or joins
+`users u ON u.id = ei.user_id`; any new writer records `user_id`.
+
 Anything it prints is a real bug, not a style preference. In order, it flags:
 
 | Pattern | Why it is wrong |
@@ -489,7 +508,9 @@ them) and half are conventions someone has to follow.
 - `sanitize_html()` now walks the subtree of an element it is about to unwrap, so
   every caller gets correct sanitization.
 - Event authority resolves through `event_invites.user_id` rather than a username
-  string match.
+  string match. Since v1.8.5 so does everything else that turns an invite into an
+  account: roster imports, notification recipients, SMS matching and the API
+  (sweep 2b keeps it that way).
 - `username_format_error()` in `auth.php` is the single username rule, applied by
   registration, the API and the profile editor.
 - `pk_theme_sanitize_props()` constrains stored theme JSON on every write path.

@@ -329,8 +329,8 @@ function user_poker_events($db, $user_id, $is_admin = false) {
         $stmt = $db->prepare("SELECT e.id, e.title, e.start_date, ps.status AS session_status
             FROM events e JOIN poker_sessions ps ON ps.event_id = e.id
             WHERE e.created_by = ?
-               OR EXISTS (SELECT 1 FROM event_invites ei JOIN users u ON LOWER(u.username) = LOWER(ei.username)
-                          WHERE ei.event_id = e.id AND u.id = ? AND ei.event_role = 'manager')
+               OR EXISTS (SELECT 1 FROM event_invites ei
+                          WHERE ei.event_id = e.id AND ei.user_id = ? AND ei.event_role = 'manager')
                OR EXISTS (SELECT 1 FROM league_members lm
                           WHERE lm.league_id = e.league_id AND lm.user_id = ? AND lm.role IN ('owner','manager'))
             $order");
@@ -458,7 +458,10 @@ function sync_invitees($db, $session_id, $event_id) {
 
     // Sync approved AND pending invitees into poker_players so the host can see
     // pending players in checkin.php and approve/deny them. Denied rows stay hidden.
-    $invites = $db->prepare("SELECT ei.username, ei.rsvp, u.id as user_id FROM event_invites ei LEFT JOIN users u ON LOWER(ei.username) = LOWER(u.username) WHERE ei.event_id = ? AND ei.approval_status IN ('approved', 'pending') GROUP BY LOWER(ei.username)");
+    // The account, if any, is the invite's own user_id (set by the host at
+    // write time), never a name match: the roster row's user_id is what a
+    // player's results and tickets attach to.
+    $invites = $db->prepare("SELECT ei.username, ei.rsvp, ei.user_id FROM event_invites ei WHERE ei.event_id = ? AND ei.approval_status IN ('approved', 'pending') GROUP BY LOWER(ei.username)");
     $invites->execute([$event_id]);
 
     $pIns = $db->prepare('INSERT INTO poker_players (session_id, user_id, display_name, rsvp) VALUES (?, ?, ?, ?)');

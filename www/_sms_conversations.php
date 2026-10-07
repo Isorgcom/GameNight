@@ -284,7 +284,7 @@ function sms_conv_notify_hosts(PDO $db, int $event_id, string $display, string $
     if ($cu = $c->fetch()) $recips[strtolower($cu['username'])] = (int)$cu['id'];
 
     $m = $db->prepare("SELECT DISTINCT u.id, u.username FROM event_invites ei
-                       JOIN users u ON LOWER(u.username) = LOWER(ei.username)
+                       JOIN users u ON u.id = ei.user_id
                        WHERE ei.event_id = ? AND ei.event_role = 'manager'");
     $m->execute([$event_id]);
     foreach ($m->fetchAll() as $mu) $recips[strtolower($mu['username'])] = (int)$mu['id'];

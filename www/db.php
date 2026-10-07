@@ -1793,7 +1793,7 @@ JSON;
         if (get_setting('event_invites_user_id_backfilled', '') !== '1') {
             $pdo->exec("UPDATE event_invites
                            SET user_id = (SELECT u.id FROM users u
-                                           WHERE LOWER(u.username) = LOWER(event_invites.username))
+                                           WHERE LOWER(u.username) = LOWER(event_invites.username)) -- ONE-SHOT BACK-FILL, see above
                          WHERE user_id IS NULL");
             set_setting('event_invites_user_id_backfilled', '1');
         }
@@ -3584,8 +3584,8 @@ function user_active_poker_event_id(PDO $db, int $user_id, bool $is_admin = fals
         $stmt = $db->prepare("SELECT e.id FROM events e JOIN poker_sessions ps ON ps.event_id = e.id
             WHERE ps.status = 'active' AND (
                 e.created_by = ?
-                OR EXISTS (SELECT 1 FROM event_invites ei JOIN users u ON LOWER(u.username) = LOWER(ei.username)
-                           WHERE ei.event_id = e.id AND u.id = ? AND ei.event_role = 'manager')
+                OR EXISTS (SELECT 1 FROM event_invites ei
+                           WHERE ei.event_id = e.id AND ei.user_id = ? AND ei.event_role = 'manager')
                 OR EXISTS (SELECT 1 FROM league_members lm
                            WHERE lm.league_id = e.league_id AND lm.user_id = ? AND lm.role IN ('owner','manager'))
             ) ORDER BY e.start_date DESC, e.id DESC LIMIT 1");

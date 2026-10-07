@@ -179,8 +179,8 @@ function queue_event_comment_notifications(
     if ($cu = $c->fetchColumn()) $recips[strtolower((string)$cu)] = (string)$cu;
 
     $m = $db->prepare(
-        "SELECT DISTINCT ei.username FROM event_invites ei
-         JOIN users u ON LOWER(u.username) = LOWER(ei.username)
+        "SELECT DISTINCT u.username FROM event_invites ei
+         JOIN users u ON u.id = ei.user_id
          WHERE ei.event_id = ?
            AND (ei.event_role = 'manager'
                 OR (ei.approval_status = 'approved' AND ei.rsvp IN ('yes','maybe')))"
@@ -247,8 +247,8 @@ function queue_reminders_for_event(PDO $db, int $event_id, ?string $occurrence_d
     $now = new DateTime('now', new DateTimeZone('UTC'));
 
     $inv = $db->prepare(
-        "SELECT ei.username FROM event_invites ei
-         JOIN users u ON LOWER(u.username) = LOWER(ei.username)
+        "SELECT u.username FROM event_invites ei
+         JOIN users u ON u.id = ei.user_id
          WHERE ei.event_id = ? AND ei.approval_status = 'approved'"
     );
     $inv->execute([$event_id]);

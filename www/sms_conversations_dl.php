@@ -67,7 +67,7 @@ if ($action === 'send') {
         // so stored formats like "(555) 123-4567" compare the same way the
         // inbound webhook path compares them.
         $inv = $db->prepare('SELECT ei.phone AS ip, u.phone AS up FROM event_invites ei
-                             LEFT JOIN users u ON LOWER(u.username) = LOWER(ei.username)
+                             LEFT JOIN users u ON u.id = ei.user_id
                              WHERE ei.event_id = ?');
         $inv->execute([$event]);
         foreach ($inv->fetchAll(PDO::FETCH_ASSOC) as $r) {

@@ -402,15 +402,19 @@ function handle_events_post(): void {
     // Insert invitees — always approved, like calendar_dl.php:63
     $invitees_added = 0;
     if (!empty($resolved_invitees)) {
+        // user_id is what links the invite to the account (visibility, co-host
+        // authority, notifications, roster attribution); the API adds people
+        // by id, so it is known here and must be written, never name-matched.
         $ins = $db->prepare(
-            "INSERT INTO event_invites (event_id, username, phone, email, rsvp, event_role, approval_status, sort_order, rsvp_token)
-             VALUES (?, ?, ?, ?, NULL, ?, 'approved', ?, ?)"
+            "INSERT INTO event_invites (event_id, username, user_id, phone, email, rsvp, event_role, approval_status, sort_order, rsvp_token)
+             VALUES (?, ?, ?, ?, ?, NULL, ?, 'approved', ?, ?)"
         );
         $sort = 1;
         foreach ($resolved_invitees as $inv) {
             $ins->execute([
                 $new_eid,
                 $inv['username'],
+                (int)$inv['user_id'],
                 $inv['phone'] ?: null,
                 $inv['email'] ?: null,
                 $inv['role'],
@@ -1010,9 +1014,10 @@ function handle_events_invites_post(): void {
     try {
         $db->beginTransaction();
 
+        // user_id written at insert, same reason as the create path above.
         $ins = $db->prepare(
-            "INSERT INTO event_invites (event_id, username, phone, email, rsvp, event_role, approval_status, sort_order, rsvp_token)
-             VALUES (?, ?, ?, ?, NULL, ?, 'approved', ?, ?)"
+            "INSERT INTO event_invites (event_id, username, user_id, phone, email, rsvp, event_role, approval_status, sort_order, rsvp_token)
+             VALUES (?, ?, ?, ?, ?, NULL, ?, 'approved', ?, ?)"
         );
         // Walk the original input so duplicates and order are preserved.
         $seen_in_request = [];
@@ -1029,6 +1034,7 @@ function handle_events_invites_post(): void {
             $ins->execute([
                 $event_id,
                 $u['username'],
+                $uid,
                 $u['phone'] ?: null,
                 $u['email'] ?: null,
                 $role,
@@ -1059,10 +1065,9 @@ function handle_events_invites_post(): void {
         if (!empty($added)) {
             $addedPh = implode(',', array_fill(0, count($added), '?'));
             $statusStmt = $db->prepare(
-                "SELECT u.id, ei.username, ei.approval_status
+                "SELECT ei.user_id AS id, ei.username, ei.approval_status
                    FROM event_invites ei
-                   JOIN users u ON LOWER(u.username) = LOWER(ei.username)
-                  WHERE ei.event_id = ? AND ei.occurrence_date IS NULL AND u.id IN ($addedPh)"
+                  WHERE ei.event_id = ? AND ei.occurrence_date IS NULL AND ei.user_id IN ($addedPh)"
             );
             $statusStmt->execute(array_merge([$event_id], $added));
             $statuses = $statusStmt->fetchAll();
@@ -1185,9 +1190,8 @@ function handle_events_invites_get(): void {
     }
 
     $stmt = $db->prepare(
-        "SELECT u.id AS user_id, ei.username, ei.rsvp, ei.approval_status, ei.event_role
+        "SELECT ei.user_id, ei.username, ei.rsvp, ei.approval_status, ei.event_role
            FROM event_invites ei
-           LEFT JOIN users u ON LOWER(u.username) = LOWER(ei.username)
           WHERE ei.event_id = ? AND ei.occurrence_date IS NULL
           ORDER BY COALESCE(ei.sort_order, 999999), ei.username"
     );
