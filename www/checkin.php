@@ -820,16 +820,53 @@ if ($session) {
     <div class="pk-modal">
         <h3>How this screen works</h3>
         <div class="pk-help-content">
+            <?php /* Ordered the way a night goes. The .help-tourney and .help-cash
+                     groups are shown or hidden by openHelp() for the game type,
+                     so a cash host is not reading about eliminations. */ ?>
+            <div class="pk-cfg-title" style="margin:0 0 .2rem">Before the game</div>
             <h4>Setup</h4>
-            <p>Do this first. <b>&#9881; Setup</b> holds the buy-in amount, starting chips, rebuy and add-on rules, the payout structure and any bounties, tickets or jackpot. Until it's set, buy-ins and prizes won't add up.</p>
-            <h4>Buy In</h4>
-            <p>Records a player's buy-in. It also checks them in and assigns them a seat automatically &mdash; there is no separate check-in step to do first.</p>
+            <p>Do this first. <b>&#9881; Setup</b> holds the buy-in and the tables and seats; for a tournament also the starting chips, rebuy and add-on rules, the payout structure, any bounties, tickets or jackpot, and the <b>Blinds</b> and <b>Timer</b> tabs for the clock. Until it is saved, buy-ins and prizes will not add up.</p>
+            <h4>Who is on the list</h4>
+            <p>Everyone who answered Yes to the invitation is already here. For anyone who turns up unannounced, type their name in the <b>Walk-in name</b> box and press <b>+ Add</b>.</p>
             <h4>Approve / Deny</h4>
-            <p>These appear only for players who added themselves through the self-signup or walk-in QR code. <b>Approve</b> puts them on the roster so you can buy them in; <b>Deny</b> rejects them. If you add everyone yourself, you'll never see these buttons.</p>
+            <p>These appear only for players who put themselves on the list through the QR code or self-signup. <b>Approve</b> puts them on the roster so you can buy them in; <b>Deny</b> turns them away. If you add everyone yourself, you will never see these buttons.</p>
+            <div class="pk-cfg-title" style="margin:.9rem 0 .2rem">During the game</div>
+            <div class="help-tourney">
+            <h4>Buy In</h4>
+            <p>Tick the box when a player pays. It also checks them in and gives them a seat; there is no separate check-in step. The &#128210; beside the box is their ledger: every buy-in, rebuy and add-on, with <b>Edit</b> and <b>Clear</b> for mistakes.</p>
             <h4>Rebuys &amp; Add-ons</h4>
-            <p>Use the + / &minus; counters on a player's row to track each rebuy or add-on. The prize pool at the top right updates as you go.</p>
+            <p>When the game allows them, the + / &minus; counters on a player's row track each one. The prize pool at the top right follows.</p>
             <h4>Eliminate</h4>
-            <p>Marks a player as knocked out. Their finishing place is filled in automatically by elimination order (9th, 8th … down to 1st), and if that place is in the money the prize owed shows next to their name. Eliminate players in the order they bust. Use <b>Undo</b> if you make a mistake.</p>
+            <p>Marks a player out. Their finishing place is filled in by elimination order (9th, 8th &hellip; down to 1st), and if that place is in the money the prize owed shows next to their name, so eliminate players in the order they bust. <b>Undo</b> puts them back. The last player standing wins, and that finishes the game.</p>
+            </div>
+            <div class="help-cash">
+            <h4>Cash In / Cash Out</h4>
+            <p>Type what a player buys in for and press Enter; <b>+</b> adds a top-up. When they leave, type what they take with them and press the green check; clear the field to put them back in play. <b>Profit</b> does the arithmetic. The &#128210; beside a name is their ledger, with <b>Edit</b> and <b>Clear</b> for mistakes.</p>
+            <h4>Cash Box</h4>
+            <p>At the end, <b>Cash Box</b> in the header records tips and squares the box against what came in and went out.</p>
+            </div>
+            <h4>Remove</h4>
+            <p>Takes someone off the list who is not playing: a no-show, a duplicate. It is not an elimination; a player who busted gets <b>Eliminate</b>.</p>
+            <h4>Notes</h4>
+            <p>A note on a player for tonight, for you and your managers.</p>
+            <h4>Several at once</h4>
+            <p>Tick the boxes at the left of the rows and the bar above the list acts on all of them: Buy In, Eliminate, Approve, Remove.</p>
+            <h4>Filters and sorting</h4>
+            <p><b>All</b>, <b>RSVP Yes</b>, <b>Playing</b> and <b>Out</b> narrow the list; click a column heading to sort by it.</p>
+            <div class="pk-cfg-title" style="margin:.9rem 0 .2rem">The views</div>
+            <h4>List, Table, Log<span class="help-tourney">, Payouts, Chop</span></h4>
+            <p><b>List</b> is this roster. <b>Table</b> shows who sits where: <b>Move&hellip;</b> moves a player, <b>Add Table</b> when the room outgrows one, <b>Balance</b> evens the tables out, <b>Break Up</b> closes a table and spreads its players. <b>Log</b> is every money and roster change, newest first, with Edit and Clear.<span class="help-tourney"> <b>Payouts</b> is the prize ladder and who is owed what as the places fill. <b>Chop</b> is the deal calculator for when the last players agree to split, by chip counts.</span></p>
+            <div class="pk-cfg-title" style="margin:.9rem 0 .2rem">Also in the header</div>
+            <div class="help-tourney">
+            <h4>Timer</h4>
+            <p>The tournament clock for the big screen. Its own guide is under Help.</p>
+            </div>
+            <h4>Table Mgr</h4>
+            <p>A phone-sized console for this same game: buy-ins, knockouts and the clock within one thumb, for walking the room.</p>
+            <h4>QR</h4>
+            <p>A page to leave on a tablet at the door. Guests scan it to put themselves on the list, and arrive here as <b>Approve / Deny</b>.</p>
+            <h4>Finish</h4>
+            <p>Locks in the results<span class="help-tourney">: the standings and payouts, and any entry tickets go out</span><span class="help-cash">: every player's cash-out</span>. It warns first if something is not ready. <b>Reopen</b> puts the game back if something was wrong.</p>
         </div>
         <div class="pk-modal-actions">
             <button class="pk-save" data-act="closeHelp">Got it</button>
@@ -4821,7 +4858,13 @@ function closeNotes() {
 }
 
 function openHelp() {
-    document.getElementById('helpModal').classList.add('open');
+    // The text is written for both game types; show the half that applies.
+    var cash = isCash();
+    document.querySelectorAll('#helpModal .help-tourney').forEach(function (el) { el.style.display = cash ? 'none' : ''; });
+    document.querySelectorAll('#helpModal .help-cash').forEach(function (el) { el.style.display = cash ? '' : 'none'; });
+    var m = document.getElementById('helpModal');
+    m.querySelector('.pk-help-content').scrollTop = 0;
+    m.classList.add('open');
 }
 
 function closeHelp() {

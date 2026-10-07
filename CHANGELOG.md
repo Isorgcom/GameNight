@@ -13,6 +13,25 @@ lands and that heading is renamed when a release is cut.
 
 ---
 
+## [v1.8.2] - 2026-10-07
+
+### Changed
+
+- **Manage Game's ? Help covers the whole screen.** It explained five
+  things (Setup, Buy In, Approve / Deny, Rebuys, Eliminate) and stopped,
+  so a host looking for what Finish does, what the Table, Log, Payouts and
+  Chop views are, or what Table Mgr and QR open, found nothing. It now
+  walks the screen in the order a night goes: before the game (Setup, who
+  is on the list and the walk-in box, Approve / Deny), during it (Buy In
+  and the ledger, rebuys and add-ons, Eliminate and Undo, Remove as
+  distinct from Eliminate, Notes, acting on several rows at once, the
+  filters and sorting), the five views, and the header's Timer, Table
+  Mgr, QR and Finish / Reopen. A cash game reads its own half (Cash In /
+  Cash Out, Profit, the Cash Box) instead of the tournament's, chosen when
+  the dialog opens.
+
+---
+
 ## [v1.8.1] - 2026-10-06
 
 ### Changed
