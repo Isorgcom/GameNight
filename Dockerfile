@@ -20,6 +20,21 @@ RUN docker-php-ext-configure pdo_sqlite --with-pdo-sqlite=/usr/local \
 RUN sed -i 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf \
     && a2enmod rewrite headers
 
+# Log the visitor, not the proxy. Every request reaches Apache from Nginx Proxy
+# Manager (or, on dev, from the host's Docker bridge), so the access log's %h and
+# PHP's REMOTE_ADDR both read the proxy's address and a visit cannot be traced
+# without the proxy's own log. mod_remoteip swaps in the X-Real-IP the proxy sets
+# (the same header get_client_ip() in db.php already trusts), but only when the
+# connection itself comes from a Docker bridge network (172.16.0.0/12): the
+# container has no published ports on live, so anything arriving with such a
+# source is another container on the host, never the internet. A client that
+# reaches Apache any other way has its header ignored. InternalProxy, not
+# TrustedProxy, so a LAN address in the header (dev) is kept rather than dropped.
+RUN printf 'RemoteIPHeader X-Real-IP\nRemoteIPInternalProxy 172.16.0.0/12\n' \
+       > /etc/apache2/conf-available/remoteip.conf \
+    && a2enmod remoteip \
+    && a2enconf remoteip
+
 # Tune prefork MPM for a small-RAM host. Default MaxRequestWorkers=150 can OOM a
 # 512 MB VPS at peak load; cap at 25 to keep memory bounded. PHP can use up to
 # memory_limit (128 MB) per request, so 25 workers ~ 3 GB worst case headroom.
