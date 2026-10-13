@@ -13,6 +13,28 @@ lands and that heading is renamed when a release is cut.
 
 ---
 
+## [v1.8.6] - 2026-10-13
+
+### Infrastructure
+
+- **The container's access log now names the visitor, not the proxy.** Every
+  request reaches Apache from Nginx Proxy Manager, so `docker logs gamenight`
+  showed the proxy's internal address on every line and a visit could only be
+  traced from the proxy's own per-host log on the server. The image now enables
+  `mod_remoteip` with `RemoteIPHeader X-Real-IP` (the header the proxy already
+  sends and that `get_client_ip()` already trusts) and
+  `RemoteIPInternalProxy 172.16.0.0/12`, so the header is honoured only when
+  the connection itself comes from a Docker bridge network; a client that
+  reaches Apache any other way keeps its real connection address and its
+  header is ignored. As a side effect PHP's `REMOTE_ADDR` is the visitor's
+  address too, which corrects the `ip` column the remember-me token table has
+  been filling with the proxy's. **Operator note:** this is a Dockerfile change,
+  so the deploy needs `docker compose down && docker compose up -d --build`,
+  not just a pull. The log is still subject to the host's Docker log rotation,
+  so the proxy's file remains the place to look for older visits.
+
+---
+
 ## [v1.8.5] - 2026-10-07
 
 ### Security
