@@ -11,6 +11,10 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+---
+
+## [v1.8.11] - 2026-10-16
+
 ### Added
 
 - **The event editor's guest lists work from the keyboard.** Tab into All
