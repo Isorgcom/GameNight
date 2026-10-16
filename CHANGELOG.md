@@ -11,6 +11,22 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+### Added
+
+- **The event editor's guest lists work from the keyboard.** Tab into All
+  Users or Invited and the arrow keys walk the names, selecting as they go;
+  Shift with an arrow extends the selection, Space toggles a name, Home and
+  End jump. Enter invites the selection from All Users or removes it from
+  Invited, Delete removes too, and Alt+Up / Alt+Down move an invited guest up
+  or down the list, which is the order that decides who gets a seat when the
+  event is full and was reachable only by dragging. Both lists are announced
+  to a screen reader as multi-select lists with the selected names marked. The
+  Guest options and reminder dropdowns say whether they are open, close on
+  Escape with focus back on their button, and close when focus leaves them;
+  the contact popup is a proper dialog that Escape closes, Tab stays inside
+  and focus returns from; the colour swatches open on Enter and move with the
+  arrow keys. `www/event_edit.php`.
+
 ### Changed
 
 - **The event editor's title has a label, and the required fields say so.**

@@ -303,6 +303,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
         .invite-pane-list li { padding:.35rem .6rem;border-radius:5px;font-size:.875rem;cursor:pointer;user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
         .invite-pane-list li:hover { background:#f1f5f9; }
         .invite-pane-list li.inv-selected { background:#dbeafe !important;color:#1e40af; }
+        .invite-pane-list li[role="option"]:focus-visible { outline:2px solid #2563eb;outline-offset:-2px; }
         .invite-pane-list li.dimmed { color:#64748b;cursor:default; }
         .invite-pane-list li.dimmed::before { content:'\2713\00a0';color:#16a34a;font-weight:700; }
         .invite-pane-list li.dimmed:hover { background:transparent; }
@@ -483,7 +484,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                      the show/hide logic (waitlist needs a capacity, max-guests is
                      non-poker-only) keeps working inside the panel. -->
                 <div class="rem-dd" id="eGuestOptsDD">
-                    <button type="button" class="rem-dd-btn" data-act="toggleGuestOptsDD" data-a1="@event">
+                    <button type="button" class="rem-dd-btn" data-act="toggleGuestOptsDD" data-a1="@event" aria-haspopup="true" aria-expanded="false" aria-controls="eGuestOptsPanel">
                         Guest options <span id="eGuestOptsBadge" style="display:none;background:#2563eb;color:#fff;border-radius:999px;font-size:.68rem;font-weight:700;padding:.05rem .38rem"></span> <span style="font-size:.7rem">&#9662;</span>
                     </button>
                     <div class="rem-dd-panel go-panel" id="eGuestOptsPanel">
@@ -554,7 +555,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
             <div class="edit-poker-bar" id="eReminderFields">
                 <span style="font-weight:600;color:#475569">Send reminders:</span>
                 <div class="rem-dd" id="eRemDD">
-                    <button type="button" class="rem-dd-btn" data-act="toggleRemDD" data-a1="@event">
+                    <button type="button" class="rem-dd-btn" data-act="toggleRemDD" data-a1="@event" aria-haspopup="true" aria-expanded="false" aria-controls="eRemPanel">
                         <span class="sr-only">Reminders: </span><span id="eRemSummary">&mdash;</span> <span style="font-size:.7rem" aria-hidden="true">&#9662;</span>
                     </button>
                     <div class="rem-dd-panel" id="eRemPanel">
@@ -607,7 +608,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                         <span class="pk-toggle-sm"></span>
                         <span>Hide non-members</span>
                     </label>
-                    <ul class="invite-pane-list" id="eAllUsersList"></ul>
+                    <ul class="invite-pane-list" id="eAllUsersList" role="listbox" aria-multiselectable="true" aria-label="All users"></ul>
                 </div>
                 <!-- Center: arrow buttons (desktop: left/right, mobile: up/down) -->
                 <div class="invite-arrows">
@@ -628,7 +629,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                         <span class="inv-col-rsvp">RSVP</span>
                         <span class="inv-col-mgr"></span>
                     </div>
-                    <ul class="invite-pane-list" id="eInvitedList"></ul>
+                    <ul class="invite-pane-list" id="eInvitedList" role="listbox" aria-multiselectable="true" aria-label="Invited"></ul>
                 </div>
             </div>
             <!-- Hidden inputs synced from invite lists -->
@@ -702,7 +703,15 @@ function toggleColorPicker(e) {
     const open   = picker.classList.toggle('open');
     dot.classList.toggle('open', open);
     dot.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) { const sw = picker.querySelector('.color-swatch.selected') || picker.querySelector('.color-swatch'); if (sw) sw.focus(); }
 }
+document.getElementById('eColorPicker').addEventListener('keydown', function (e) {
+    const swatches = Array.from(this.querySelectorAll('.color-swatch'));
+    const i = swatches.indexOf(document.activeElement);
+    if (e.key === 'Escape') { e.preventDefault(); closeColorPicker(); document.getElementById('eColorDot').focus(); return; }
+    if (['ArrowRight', 'ArrowDown'].includes(e.key)) { e.preventDefault(); swatches[(i + 1) % swatches.length].focus(); }
+    else if (['ArrowLeft', 'ArrowUp'].includes(e.key)) { e.preventDefault(); swatches[(i - 1 + swatches.length) % swatches.length].focus(); }
+});
 function closeColorPicker() {
     const picker = document.getElementById('eColorPicker');
     const dot    = document.getElementById('eColorDot');
@@ -729,6 +738,9 @@ function selectColor(c) {
 // ── All-users pane ────────────────────────────────────────────────────────────
 function buildAllUsersList() {
     const ul = document.getElementById('eAllUsersList');
+    // Rebuilt from scratch on every league change; a keyboard user's focus
+    // has to land back on the same name or the next arrow key goes nowhere.
+    const hadFocus = ul.contains(document.activeElement) ? ((document.activeElement.dataset || {}).uname || '') : null;
     ul.innerHTML = '';
     const lgSel = document.getElementById('eLeagueId');
     const leagueSelected = !!(lgSel && parseInt(lgSel.value, 10) > 0);
@@ -753,6 +765,7 @@ function buildAllUsersList() {
         li.dataset.uemail   = u.email     || '';
         li.dataset.uphone   = u.phone     || '';
         li.dataset.member   = u.is_league_member ? '1' : '0';
+        li.setAttribute('role', 'option'); li.setAttribute('aria-selected', 'false'); li.tabIndex = -1;
         li.textContent = display;
         if (u.is_pending) {
             const tag = document.createElement('span');
@@ -793,6 +806,10 @@ function buildAllUsersList() {
     });
     // Re-apply the already-invited dimming/checkmarks every time the list is (re)built.
     syncInviteState();
+    if (hadFocus !== null) {
+        const back = Array.from(ul.querySelectorAll('li[role="option"]')).find(l => l.dataset.uname === hadFocus) || listRows(ul)[0];
+        if (back) { setRoving(ul, back); back.focus(); }
+    }
 }
 
 // Fetch the scoped contact list for the current league selection and rebuild the pane.
@@ -847,6 +864,7 @@ function inviteUser(username, phone, email, rsvp, role, approvalStatus) {
     li.dataset.irsvp    = rsvp   || '';
     li.dataset.irole    = role   || 'invitee';
     li.dataset.istatus  = approvalStatus || 'approved';
+    li.setAttribute('role', 'option'); li.setAttribute('aria-selected', 'false'); li.tabIndex = -1;
 
     const nameSpan = document.createElement('span');
     nameSpan.textContent = username;
@@ -939,6 +957,7 @@ function inviteUser(username, phone, email, rsvp, role, approvalStatus) {
     syncInviteState();
     updateDividerLine();
     updateDirty();
+    setRoving(document.getElementById('eInvitedList'));
 }
 
 // ── Per-invitee contact icon + inline editor ─────────────────────────────────
@@ -968,8 +987,23 @@ function openContactEdit(li) {
 }
 function closeContactEdit() {
     document.getElementById('invContactModal').classList.remove('open');
+    // Back to the row's contact button, where the popup came from.
+    var back = _contactEditLi ? _contactEditLi.querySelector('.inv-contact-ctl') : null;
     _contactEditLi = null;
+    if (back && back.isConnected) back.focus();
 }
+// The popup is a dialog: Escape closes it, Tab stays inside it.
+document.getElementById('invContactModal').addEventListener('keydown', function (e) {
+    var overlay = this;
+    if (!overlay.classList.contains('open')) return;
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeContactEdit(); return; }
+    if (e.key !== 'Tab') return;
+    var items = Array.from(overlay.querySelectorAll('input, button')).filter(function (el) { return !el.disabled && el.offsetParent !== null; });
+    if (!items.length) return;
+    var first = items[0], last = items[items.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+});
 function saveContactEdit() {
     if (!_contactEditLi) { closeContactEdit(); return; }
     _contactEditLi.dataset.iemail = document.getElementById('invContactEmail').value.trim();
@@ -996,6 +1030,7 @@ function addBlankInviteRow() {
     const ul = document.getElementById('eInvitedList');
     const li = document.createElement('li');
     li.className = 'custom-row';
+    li.setAttribute('role', 'presentation');   // its inputs carry their own semantics
     // The name input re-checks the seat cutoff as you type: a row starts blank
     // (counting for nothing) and becomes a real guest the moment it has a name,
     // which is exactly when it can push someone onto the waitlist. Removing a
@@ -1046,8 +1081,11 @@ function syncInviteState() {
         const isDimmed = invited.includes((li.dataset.uname || '').toLowerCase());
         li.classList.toggle('dimmed', isDimmed);
         li.title = isDimmed ? 'Already invited' : 'Double-click to invite';
+        // Not aria-disabled: on a phone a tap on a dimmed name un-invites it.
     });
     syncSaveButtons();
+    setRoving(document.getElementById('eAllUsersList'));
+    setRoving(document.getElementById('eInvitedList'));
 }
 
 // The two save buttons only make sense together once there is someone to
@@ -1098,7 +1136,100 @@ function handleListSelect(e, li, listId) {
     }
     if (listId === 'eAllUsersList') _lastClickedAll = li;
     else _lastClickedInv = li;
+    syncAria(ul);
 }
+
+/* ── Keyboard on the guest lists (the WAI-ARIA listbox pattern) ──────────────
+ * Each list is a multi-select listbox whose rows are options; one row is the
+ * tab stop (the last one focused, else the first that can be picked) and the
+ * others are reached with the arrow keys. Up / Down move and select as they
+ * go, Shift+Up / Down extend, Space toggles, Home / End jump, Enter adds
+ * (All users) or removes (Invited) the selection, Delete removes on Invited,
+ * and Alt+Up / Alt+Down move an invited row: the list's order is the
+ * priority order that decides who makes capacity, and dragging was the only
+ * way to set it. Already-invited names are skipped, as the mouse skips them. */
+function listRows(ul) {
+    return Array.from(ul.querySelectorAll('li[role="option"]')).filter(function (li) {
+        return li.offsetParent !== null && !li.classList.contains('dimmed') && !li.classList.contains('inv-declined-item');
+    });
+}
+function setRoving(ul, preferred) {
+    if (!ul) return;
+    var rows = listRows(ul);
+    var stop = (preferred && rows.indexOf(preferred) >= 0) ? preferred : (rows.find(function (r) { return r.tabIndex === 0; }) || rows[0]);
+    Array.from(ul.querySelectorAll('li[role="option"]')).forEach(function (li) { li.tabIndex = li === stop ? 0 : -1; });
+}
+function syncAria(ul) {
+    if (!ul) return;
+    ul.querySelectorAll('li[role="option"]').forEach(function (li) { li.setAttribute('aria-selected', li.classList.contains('inv-selected') ? 'true' : 'false'); });
+}
+function moveRow(li, dir) {
+    var ul = li.parentNode;
+    var named = Array.from(ul.querySelectorAll('li[data-iname]'));
+    var i = named.indexOf(li), j = i + dir;
+    if (i < 0 || j < 0 || j >= named.length) return;
+    if (dir < 0) ul.insertBefore(li, named[j]); else ul.insertBefore(li, named[j].nextSibling);
+    updateDividerLine(); updateDirty();
+    setRoving(ul, li); li.focus();
+}
+function listKeydown(e) {
+    var ul = e.currentTarget, listId = ul.id;
+    var li = e.target.closest ? e.target.closest('li[role="option"]') : null;
+    if (!li) return;                                   // a typed row's inputs keep their keys
+    var rows = listRows(ul), i = rows.indexOf(li);
+    var fake = function (extend) { return { shiftKey: !!extend, ctrlKey: false, metaKey: false }; };
+    var go = function (target, extend) {
+        if (!target) return;
+        handleListSelect(fake(extend), target, listId);
+        setRoving(ul, target); target.focus();
+    };
+    switch (e.key) {
+        case 'ArrowDown':
+            e.preventDefault();
+            if (e.altKey) { if (listId === 'eInvitedList') moveRow(li, +1); }
+            else go(rows[i + 1], e.shiftKey);
+            break;
+        case 'ArrowUp':
+            e.preventDefault();
+            if (e.altKey) { if (listId === 'eInvitedList') moveRow(li, -1); }
+            else go(rows[i - 1], e.shiftKey);
+            break;
+        case 'Home': e.preventDefault(); go(rows[0], e.shiftKey); break;
+        case 'End':  e.preventDefault(); go(rows[rows.length - 1], e.shiftKey); break;
+        case ' ':
+            e.preventDefault();
+            handleListSelect({ shiftKey: false, ctrlKey: true, metaKey: false }, li, listId);
+            break;
+        case 'Enter': {
+            e.preventDefault();
+            var next = rows[i + 1] || rows[i - 1] || null;
+            li.classList.add('inv-selected');
+            if (listId === 'eAllUsersList') moveRight(); else moveLeft();
+            var left = listRows(ul);
+            var land = (next && left.indexOf(next) >= 0) ? next : left[Math.min(i, left.length - 1)];
+            if (land) { setRoving(ul, land); land.focus(); }
+            syncAria(ul);
+            break;
+        }
+        case 'Delete': case 'Backspace': {
+            if (listId !== 'eInvitedList') break;
+            e.preventDefault();
+            removeInvite(li.dataset.iname);
+            var rest = listRows(ul);
+            var at = rest[Math.min(i, rest.length - 1)];
+            if (at) { setRoving(ul, at); at.focus(); }
+            break;
+        }
+    }
+}
+['eAllUsersList', 'eInvitedList'].forEach(function (id) {
+    var ul = document.getElementById(id);
+    if (!ul) return;
+    ul.addEventListener('keydown', listKeydown);
+    // A click lands focus on the row; make it the tab stop so Tab leaves and
+    // comes back to the same place.
+    ul.addEventListener('focusin', function (e) { var li = e.target.closest ? e.target.closest('li[role="option"]') : null; if (li) setRoving(ul, li); });
+});
 
 function moveRight() {
     var selected = document.querySelectorAll('#eAllUsersList li.inv-selected:not(.dimmed)');
@@ -1210,6 +1341,7 @@ function updateDividerLine() {
         if (cutoffAt) {
             var divider = document.createElement('li');
             divider.className = 'inv-capacity-divider';
+            divider.setAttribute('role', 'presentation');
             divider.textContent = '--- Seat cutoff (' + cap + ' seats) --- waitlist below ---';
             divider.draggable = false;
             ul.insertBefore(divider, cutoffAt);
@@ -1220,6 +1352,7 @@ function updateDividerLine() {
     if (declined.length > 0) {
         var decDivider = document.createElement('li');
         decDivider.className = 'inv-declined-divider';
+        decDivider.setAttribute('role', 'presentation');
         decDivider.innerHTML = '&blacktriangledown; Declined (' + declined.length + ')';
         decDivider.draggable = false;
         decDivider.onclick = function() { toggleDeclined(); };
@@ -1465,13 +1598,19 @@ function applyReminderOffsets(offsets) {
 // Reminder dropdown: button shows a summary of the checked presets.
 function toggleRemDD(e) {
     if (e) e.stopPropagation();
-    document.getElementById('eRemDD').classList.toggle('open');
+    setDD('eRemDD', document.getElementById('eRemDD').classList.toggle('open'));
+}
+// One place that keeps the button's aria-expanded in step with the panel.
+function setDD(id, open) {
+    var dd = document.getElementById(id); if (!dd) return;
+    dd.classList.toggle('open', !!open);
+    var btn = dd.querySelector('.rem-dd-btn'); if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 
 // Guest-options dropdown: badge shows how many options are active.
 function toggleGuestOptsDD(e) {
     if (e) e.stopPropagation();
-    document.getElementById('eGuestOptsDD').classList.toggle('open');
+    setDD('eGuestOptsDD', document.getElementById('eGuestOptsDD').classList.toggle('open'));
 }
 function updateGuestOptsBadge() {
     var n = 0;
@@ -1498,7 +1637,22 @@ function updateRemSummary() {
 document.addEventListener('click', function(e) {
     ['eRemDD', 'eGuestOptsDD'].forEach(function(id) {
         var dd = document.getElementById(id);
-        if (dd && dd.classList.contains('open') && !dd.contains(e.target)) dd.classList.remove('open');
+        if (dd && dd.classList.contains('open') && !dd.contains(e.target)) setDD(id, false);
+    });
+});
+// Escape closes a dropdown and puts focus back on its button; focus leaving
+// the dropdown closes it too, so a Tab past it never leaves a panel hanging.
+['eRemDD', 'eGuestOptsDD'].forEach(function (id) {
+    var dd = document.getElementById(id); if (!dd) return;
+    dd.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape' || !dd.classList.contains('open')) return;
+        e.preventDefault(); e.stopPropagation();
+        setDD(id, false);
+        var btn = dd.querySelector('.rem-dd-btn'); if (btn) btn.focus();
+    });
+    dd.addEventListener('focusout', function (e) {
+        if (e.relatedTarget && dd.contains(e.relatedTarget)) return;
+        if (dd.classList.contains('open')) setDD(id, false);
     });
 });
 document.addEventListener('DOMContentLoaded', function() { updateRemSummary(); updateGuestOptsBadge(); });
