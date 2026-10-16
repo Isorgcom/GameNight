@@ -76,6 +76,8 @@
         if (!progOverlay) {
             progOverlay = document.createElement('div');
             progOverlay.className = 'pk-progress';
+            progOverlay.setAttribute('role', 'status');
+            progOverlay.setAttribute('aria-live', 'polite');
             progOverlay.innerHTML =
                 '<div class="pk-progress-card">' +
                     '<div class="pk-progress-title"></div>' +

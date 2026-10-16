@@ -18,7 +18,7 @@ body.tbe-body .es-wrap { flex: 0 0 auto; width: 100%; box-sizing: border-box; pa
 /* ── Cards ── */
 .es-card { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: .9rem; margin-bottom: 1rem; }
 .es-card-title { font-weight: 700; font-size: .9rem; color: #0f172a; margin: 0 0 .6rem; display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
-.es-note { font-size: .74rem; color: #94a3b8; line-height: 1.4; }
+.es-note { font-size: .74rem; color: #64748b; line-height: 1.4; }
 
 /* ── Blind editor layout: status + controls rail, rounds table right ── */
 .es-blinds-flex { display: flex; gap: 1rem; align-items: flex-start; }

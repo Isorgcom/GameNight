@@ -154,7 +154,7 @@
         var genTog = el('button', 'es-mini', 'Generator…'); genTog.type='button'; genTog.id='esGenToggle';
         ctrls.appendChild(genTog);
         ctrls.appendChild(el('div', 'es-divider'));
-        var presetSel = el('select'); presetSel.id='esPresetSel';
+        var presetSel = el('select'); presetSel.id='esPresetSel'; presetSel.setAttribute('aria-label', 'Blind preset');
         presetSel.appendChild(new Option('Choose a preset…', ''));
         var loadBtn = el('button', 'es-mini', 'Load into table'); loadBtn.type='button'; loadBtn.id='esLoadBtn';
         loadBtn.title = 'Fills the table only — nothing changes for this event until you save';
@@ -201,7 +201,9 @@
         // ladder at a glance.
         [['Level', ''], ['Duration', ''], ['Small Blind', 'es-th-num'], ['Big Blind', 'es-th-num'],
          ['Ante', 'es-th-num'], ['Start Time', 'es-th-num']].forEach(function (t) {
-            hr.appendChild(el('th', t[1] || null, t[0]));
+            var th = el('th', t[1] || null, t[0]);
+            th.setAttribute('scope', 'col');
+            hr.appendChild(th);
         });
         thead.appendChild(hr); table.appendChild(thead);
         var tbody = el('tbody'); tbody.id='esRows';
@@ -383,10 +385,13 @@
             }
         }
 
-        function cellInput(lv, i, key, min, max, cls) {
+        var CELL_NAMES = { duration_minutes: 'duration', small_blind: 'small blind', big_blind: 'big blind', ante: 'ante' };
+        function cellInput(lv, i, key, min, max, cls, label) {
             var td = el('td', cls);
             var inp = el('input');
             inp.type = 'number'; inp.min = min; inp.max = max;
+            // "Round 3 small blind": the grid's headers do not reach an input.
+            inp.setAttribute('aria-label', (label || ('Level ' + (i + 1))) + ' ' + (CELL_NAMES[key] || key));
             // Durations are whole minutes; money is not. step="any" keeps the
             // browser from rejecting 0.25 as an invalid step off 0, and
             // inputmode asks iOS for the keypad WITH a decimal point (a
@@ -437,15 +442,16 @@
             var lc = el('td', 'es-round-label');
             var grip = el('span', 'es-drag', '⠿');
             grip.title = 'Drag to reorder';
+            grip.setAttribute('aria-hidden', 'true');
             lc.appendChild(grip);
             if (isCur) lc.appendChild(el('span', 'es-cur-arrow', '➜'));
             lc.appendChild(el('span', 'es-lbl', label));
             tr.appendChild(lc);
 
-            tr.appendChild(cellInput(lv, i, 'duration_minutes', 1, 999));
-            tr.appendChild(cellInput(lv, i, 'small_blind', 0, 100000000, 'es-cell-num'));
-            tr.appendChild(cellInput(lv, i, 'big_blind', 0, 100000000, 'es-cell-num'));
-            tr.appendChild(cellInput(lv, i, 'ante', 0, 100000000, 'es-cell-num'));
+            tr.appendChild(cellInput(lv, i, 'duration_minutes', 1, 999, null, label));
+            tr.appendChild(cellInput(lv, i, 'small_blind', 0, 100000000, 'es-cell-num', label));
+            tr.appendChild(cellInput(lv, i, 'big_blind', 0, 100000000, 'es-cell-num', label));
+            tr.appendChild(cellInput(lv, i, 'ante', 0, 100000000, 'es-cell-num', label));
             var st = el('td', 'es-cell-num es-start');
             tr.appendChild(st);
             startEls[i] = st;

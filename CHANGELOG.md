@@ -13,6 +13,22 @@ lands and that heading is renamed when a release is cut.
 
 ---
 
+## [v1.8.12] - 2026-10-16
+
+### Changed
+
+- **Every control on the Manage Game console now says what it is and whom it is for.** Screen readers and the browser's own tools had almost nothing to go on: the Setup fields, the payout rows, the chip rows, the blinds grid, the walk-in box and every per-player control in the roster were unnamed, and a row's buttons read as six identical "Eliminate"s. Now each control names the player ("Buy in for Ava", "RSVP for Ben", "Remove Finn", "Money history for Cleo", "Move Dev"), the Setup labels are tied to their fields, payout inputs are named by place ("1st place: cash %"), chip rows by their value, blind cells by round and column ("Round 3 small blind"), every column header carries its scope, the header's icon buttons keep their names when their labels collapse on a phone, the "?" tips read their text, and the add-on count (which removes the last add-on) is a real button. The modals are labelled dialogs and the Help modal's group labels are headings. In `www/checkin.php` (the builders and the server-rendered modals) and `www/event_blinds.js`.
+- **A player card on a phone opens from a ▾ button as well as a tap.** The card's summary row was the only way in and nothing on it was focusable, so a keyboard or switch user could not reach rebuys, cash, table, RSVP, Eliminate, Notes or Remove on a phone, and nothing hinted that the row opened at all. Each card now carries a chevron (`.pk-mobile-more`, `aria-expanded`, 44px on touch) beside the status badge; the row still opens on a tap. The bulk-action bar is hidden on phones: the checkboxes it acts on live in the desktop table, so on a phone it could only ever say "0 selected".
+- **Setup guards unsaved work.** Leaving the page with unsaved Setup changes gets the browser's own prompt, the back arrow asks first, and **Load preset asks before dropping unsaved edits** (it rebuilds every pane from the server). **A payout total over 100% is now refused before anything is saved**: it used to be caught only after the game settings had already been written, which left the game half-updated behind the error. After Save game the amber unsaved dot goes out and "Saved ✓" shows for a moment; the dot used to stay lit after a successful save.
+- **More actions ask first, and name the player.** Bulk Eliminate ("Eliminate 3 selected players?"), un-ticking a buy-in (it also frees the seat; a slip there once cost a real game two buy-ins), putting a cashed-out player back in play, taking a player off a table through Move, and switching off a reward chip that holds amounts (the chip wipes them). Deny says who. A declined confirm leaves the control exactly as it was. The console's passing notices (a walk-in arriving, a bulk action done, the game finished) are announced through a live region now, as is the saving progress card.
+
+### Fixed
+
+- **Contrast on the Manage Game console.** The light grey (`#94a3b8`, 2.6:1) on section titles, seat info, log and ledger times, chip placeholders, the "$" prefix, hints and the Help modal's group headings is `#64748b` now; "Playing", the prize pool totals, payout amounts and profit (`#22c55e`, 2.3:1) are `#15803d`; Eliminate, Approve, Finish, Add Table and the reward chips (white on `#16a34a`, 3.3:1) take the same `#15803d` Save & Send took in 1.8.11; the warning ambers (`#d97706`, 3.2:1) are `#b45309`; the winner's "1st" and the "?" tips (white on `#cbd5e1`, 1.5:1) are readable. Input borders are unchanged (decorative). The small row controls (the ledger, bust, add-on, Move, ledger Edit / Clear, payout and jackpot × buttons, the "?" tips) are at least 24px, and finger-sized on a touch screen through a `pointer: coarse` block.
+- **Setup's tab strip lit two tabs on a phone.** With five or six tabs the strip wraps onto a second row, and the sliding thumb spanned both rows, so Game and Timer both looked selected. The thumb now takes the active button's row as well as its width (`www/pk-seg.js`), which every segmented control on the site inherits.
+
+---
+
 ## [v1.8.11] - 2026-10-16
 
 ### Added
