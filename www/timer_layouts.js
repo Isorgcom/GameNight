@@ -140,8 +140,9 @@ var ELEMENT_DESC = {
 var STRUCTURE_DESC = [
     ["Screen", "One full display. A layout can hold several; conditions decide which one shows (Break screens go before the catch-all Main)."],
     ["Row / Column", "Boxes that split space. A row lays children side by side, a column stacks them. Drag borders in the preview to resize, drag boxes to move."],
-    ["Cell", "One box of content: text with live <elements> in it, an image, a QR code, a chip legend, a payout table, or the final-table seat map."],
+    ["Cell", "One box of content: text with live <elements> in it, an image, a QR code, a chip legend, a payout table, a players list, or the final-table seat map."],
     ["Payout table", "Every paid place as a row: place, dotted leader, reward, from the game's payout structure. Pick Monospace for the card-room look. With Scroll: Up it becomes a Remaining Places panel; 'still to be won' hides places already taken."],
+    ["Players list", "Everyone who bought in, one row each: photo, name and finishing place, from check-in. The field comes first in seat order, then the knocked-out by place, dimmed; at game over it reads 1st to last. Switch any column off, pick Grid for cards instead of rows, or narrow Who to the field or to the placed."],
     ["Weight", "A box's share of its parent's space. No weight = hug the content. The number the resize handles write."],
     ["Size", "Text size as % of screen height — a MAXIMUM: values that outgrow the box wrap or shrink inside it, never spill."],
     ["Scroll", "The cell's content moves. Up rolls a list like film credits, but ONLY when it is taller than its box (give the cell a weight, or it grows to fit and never scrolls). Left is a ticker that always moves. Speed is a pace; offset 0.5 starts halfway, so a second panel shows the other half. Off for anyone who asked their device for reduced motion."],
@@ -197,11 +198,50 @@ function refresh(keepSel) {
 
 var screensEl = document.getElementById('tbeScreens');
 
+// The preview context a screen's own condition names: which state chip and
+// which device the screen is FOR. A catch-all (no condition) is the layout's
+// home screen, so it names the defaults, Running on a TV / PC. A condition
+// that names neither (players.left <= 10, a round rule) says nothing, and the
+// chips stay where they are. `not mobile` says nothing about the device.
+var SCREEN_STATE_WORDS  = { running: 'normal', paused: 'paused', on_break: 'break', onbreak: 'break', game_over: 'over', gameover: 'over' };
+var SCREEN_DEVICE_WORDS = { mobile: 'mobile', tablet: 'tablet', desktop: 'desktop', pc: 'desktop' };
+function screenContext(scr) {
+    var when = scr ? scr.when : undefined;
+    if (when === undefined || when === null || when === '') return { state: 'normal', dev: 'desktop' };
+    var ctx = { state: null, dev: null };
+    if (typeof when === 'object') {    // the clause form: { state, hasAnte, round, … }
+        if (when.state) ctx.state = SCREEN_STATE_WORDS[String(when.state).toLowerCase()] || null;
+        return ctx;
+    }
+    // A state keyword or an expression: the first state word and the first
+    // device word that are not negated win.
+    var toks = String(when).toLowerCase().match(/!|[a-z0-9_.]+/g) || [];
+    for (var i = 0; i < toks.length; i++) {
+        if (i > 0 && (toks[i - 1] === 'not' || toks[i - 1] === '!')) continue;
+        if (!ctx.state && SCREEN_STATE_WORDS[toks[i]]) ctx.state = SCREEN_STATE_WORDS[toks[i]];
+        if (!ctx.dev && SCREEN_DEVICE_WORDS[toks[i]]) ctx.dev = SCREEN_DEVICE_WORDS[toks[i]];
+    }
+    return ctx;
+}
+
 function selectScreen(i) {
     editScreenIndex = i;
     selPath = null;
     treeCollapsed = {};          // paths are per-screen; stale ones would fold the wrong nodes
-    if (PV) PV.forceScreen(i);   // pin the preview to the screen being edited
+    if (PV) {
+        PV.forceScreen(i);       // pin the preview to the screen being edited
+        // …and put the preview's state chip and device switch where this
+        // screen's condition says, so the Break tab previews on break and the
+        // Phone tab previews in a phone-shaped frame; the catch-all brings
+        // both back to Running on a TV. The pin stays: these never release it.
+        // The chips and the switch already follow the preview the other way
+        // (they release the pin and edit whatever shows), so the two agree
+        // whichever one the author reaches for.
+        var ctx = screenContext(LAYOUT.screens[i]), moved = false;
+        if (ctx.state) moved = applyPreviewState(ctx.state) || moved;
+        if (ctx.dev)   moved = applyPreviewDevice(ctx.dev)  || moved;
+        if (moved) requestAnimationFrame(mountResizeHandles);   // the frame may have changed shape
+    }
     renderScreensBar();
     renderTree();
     renderInspector();
@@ -375,6 +415,7 @@ var treeCollapsed = {};
 function cellLabel(cell) {
     if (cell.video !== undefined) return '(video stream)';
     if (cell.payouts) return '(payout table)';
+    if (cell.players) return '(players list)';
     var t = String(cell.text || '').replace(/\n/g, ' ').trim();
     return t.length > 26 ? t.slice(0, 26) + '…' : (t || '(empty cell)');
 }
@@ -706,8 +747,16 @@ function setOrDelete(obj, key, val) {
     if (val === undefined || val === '' || val === false) delete obj[key];
     else obj[key] = val;
 }
+// For a switch that is ON when the key is absent (the players list's three
+// columns): on = no key, off = an explicit false. setOrDelete cannot store a
+// false, so it would turn "off" straight back into "on".
+function setOnByDefault(obj, key, on) {
+    if (on) delete obj[key]; else obj[key] = false;
+}
+var PLAYERS_KEYS = ['players', 'playersPhoto', 'playersName', 'playersPlace', 'playersLayout', 'playersWho'];
+function removePlayersKeys(cell) { PLAYERS_KEYS.forEach(function (k) { delete cell[k]; }); }
 
-/* Scroll fields, shared by the text and payout-table inspectors. Returns the
+/* Scroll fields, shared by the text, payout-table and players-list inspectors. Returns the
  * rows to append. Clearing the direction drops speed and offset with it, so
  * an orphan never lands in the JSON (the sanitizer would strip it anyway). */
 var SCROLL_OPTS = ['', 'up', 'left'];
@@ -1720,6 +1769,42 @@ function renderInspector() {
             return;
         }
 
+        // Players list: rows drawn from check-in's roster. Keeps the type
+        // controls like the payout table does: the row height and the face
+        // are the look of the thing.
+        if (cell.players) {
+            var plWrap = document.createElement('div');
+            plWrap.className = 'tbe-field';
+            var pll = document.createElement('span'); pll.textContent = 'Players list'; plWrap.appendChild(pll);
+            var pln = document.createElement('div'); pln.className = 'tbe-note';
+            pln.textContent = 'Everyone who bought in, one row each: photo, name and finishing place, from '
+                            + 'check-in. The field comes first in seat order, then the knocked-out by place, '
+                            + 'dimmed; at game over it reads 1st to last. Switch any column off, pick Grid '
+                            + 'for cards, or narrow Who to the field or the placed. Scroll Up with a weight '
+                            + 'rolls a long list. The preview shows sample players.';
+            plWrap.appendChild(pln);
+            insp.appendChild(plWrap);
+            insp.appendChild(field('Show photo', boolInput(cell.playersPhoto !== false, function (v) { setOnByDefault(cell, 'playersPhoto', v); })));
+            insp.appendChild(field('Show name', boolInput(cell.playersName !== false, function (v) { setOnByDefault(cell, 'playersName', v); })));
+            insp.appendChild(field('Show place', boolInput(cell.playersPlace !== false, function (v) { setOnByDefault(cell, 'playersPlace', v); })));
+            insp.appendChild(field('Layout', selInput(cell.playersLayout || '', ['', 'grid'], function (v) { setOrDelete(cell, 'playersLayout', v || undefined); }, ['Rows', 'Grid of cards'])));
+            insp.appendChild(field('Who', selInput(cell.playersWho || '', ['', 'in', 'out'], function (v) { setOrDelete(cell, 'playersWho', v || undefined); }, ['Everyone', 'Still playing', 'Finished (placed)'])));
+            insp.appendChild(field('Size (% of screen height)', numInput(cell.size, 0.5, 40, 0.1, function (v) { setOrDelete(cell, 'size', v); })));
+            insp.appendChild(field('Bold', boolInput(cell.bold, function (v) { setOrDelete(cell, 'bold', v); })));
+            insp.appendChild(field('Font', fontInput(cell.font, function (v) { setOrDelete(cell, 'font', v || undefined); })));
+            insp.appendChild(field('Colour', colorInput(cell.color, function (v) { setOrDelete(cell, 'color', v); })));
+            insp.appendChild(field('Background', colorInput(cell.bg, function (v) { setOrDelete(cell, 'bg', v); })));
+            insp.appendChild(padField(cell));
+            scrollFields(cell).forEach(function (f) { insp.appendChild(f); });
+            insp.appendChild(field('Weight (share of space)', numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
+            insp.appendChild(field('Show when', condEditor(cell.when, function (v) { pushUndo(); setOrDelete(cell, 'when', v); refresh(true); })));
+            var rmPl = document.createElement('button'); rmPl.className = 'tbe-mini tbe-mini-danger';
+            rmPl.textContent = 'Remove players list (back to text)';
+            rmPl.addEventListener('click', function () { pushUndo(); removePlayersKeys(cell); refresh(true); renderInspector(); });
+            insp.appendChild(rmPl);
+            return;
+        }
+
         if (cell.qr) {
             var qrWrap = document.createElement('div');
             qrWrap.className = 'tbe-field';
@@ -1852,6 +1937,12 @@ function renderInspector() {
         toPay.addEventListener('click', function () { pushUndo(); cell.payouts = true; refresh(true); renderInspector(); });
         insp.appendChild(toPay);
 
+        var toPlayers = document.createElement('button');
+        toPlayers.className = 'tbe-mini'; toPlayers.textContent = 'Use a players list instead';
+        toPlayers.title = 'Everyone who bought in: photo, name and finishing place';
+        toPlayers.addEventListener('click', function () { pushUndo(); cell.players = true; refresh(true); renderInspector(); });
+        insp.appendChild(toPlayers);
+
         var toVid = document.createElement('button');
         toVid.className = 'tbe-mini'; toVid.textContent = 'Use a video stream instead';
         toVid.title = 'Embed a YouTube / Twitch / Vimeo / Kick video, or play a direct stream, in this cell';
@@ -1969,6 +2060,42 @@ function dupNode() {
     p.list.splice(p.index + 1, 0, JSON.parse(JSON.stringify(p.list[p.index])));
     refresh(); select(selPath);
 }
+// Split: divide a cell's own share of its parent in two. When the parent
+// already runs that way (left / right inside a row, top / bottom inside a
+// column) the new half is inserted as a sibling and the cell's weight is
+// halved between the two, so the tree stays flat; otherwise the cell is
+// wrapped in a new row or column that takes over its weight and holds the
+// pair at equal weights. The new half is a text cell wearing the original's
+// look (never its content or kind) with placeholder text, and it is selected
+// so the author can type straight away. Like dupNode it acts on the
+// selection: the menu select()s the pointed-at node first.
+var LOOK_KEYS = ['size', 'fit', 'color', 'bg', 'bold', 'font', 'align', 'pad', 'style', 'opacity', 'border'];
+function splitNode(dir) {   // dir: 'row' = left / right, 'col' = top / bottom
+    if (!selPath) return;
+    var n = nodeAt(selPath).node;
+    if (!n.cell) return;
+    pushUndo();
+    var fresh = { cell: { text: 'New cell' } };
+    LOOK_KEYS.forEach(function (k) { if (n.cell[k] !== undefined) fresh.cell[k] = JSON.parse(JSON.stringify(n.cell[k])); });
+    if (fresh.cell.size === undefined && !fresh.cell.fit) fresh.cell.size = 2.4;
+    if (fresh.cell.color === undefined) fresh.cell.color = '#ffffff';
+    var p = parentOf(selPath), path;
+    if (p.parent[dir]) {
+        // Same direction: a sibling, the share halved (content-sized stays so).
+        if (typeof n.weight === 'number') { n.weight = r2(n.weight / 2); fresh.weight = n.weight; }
+        p.list.splice(p.index + 1, 0, fresh);
+        path = selPath.replace(/\d+$/, String(p.index + 1));
+    } else {
+        var wrap = {};
+        wrap[dir] = [n, fresh];
+        if (typeof n.weight === 'number') wrap.weight = n.weight;
+        n.weight = 1; fresh.weight = 1;
+        p.list.splice(p.index, 1, wrap);
+        path = selPath + '.1';
+    }
+    refresh();
+    select(path);
+}
 // Node clipboard: a JSON snapshot, so it survives screen switches and layout
 // loads — copy a cell from one layout, load another, paste it there.
 var nodeClipboard = null;
@@ -2018,33 +2145,76 @@ document.getElementById('tbeDown').addEventListener('click', function () { move(
  * Both surfaces show the same tree, so both get the same menu, and it acts on
  * the node you POINTED AT rather than whatever happened to be selected — it
  * selects first, then runs the ordinary operation, so the toolbar and the menu
- * can never diverge. */
-var tbeMenu = null, tbeSub = null;
-function closeSubMenu() { if (tbeSub) tbeSub.style.display = 'none'; }
-function closeNodeMenu() { if (tbeMenu) tbeMenu.style.display = 'none'; closeSubMenu(); }
-
-/* Submenu panel. One element, rebuilt per open, anchored beside the row that
- * spawned it and flipped to its left when there is no room on the right. */
-function openSubMenu(anchor, build) {
-    if (!tbeSub) {
-        tbeSub = document.createElement('div');
-        tbeSub.className = 'tbe-menu tbe-submenu';
-        document.body.appendChild(tbeSub);
+ * can never diverge.
+ *
+ * The menu is short on purpose: a dozen rows, with the node's look folded into
+ * a few submenus (Text, Box, Turn into) whose pickers open one level deeper.
+ * The flat version offered every property at the top level and ran to
+ * thirty-four rows on a text cell, taller than a laptop screen, with Delete
+ * and Undo below the fold. */
+var tbeMenu = null, tbeSubs = [];   // tbeSubs[k] is the panel at menu level k + 1
+function closeSubMenus(from) {
+    for (var i = from || 0; i < tbeSubs.length; i++) {
+        tbeSubs[i].style.display = 'none';
+        tbeSubs[i].textContent = '';   // a hidden panel keeps no stale rows
     }
-    var sm = tbeSub;
+}
+function closeNodeMenu() { if (tbeMenu) tbeMenu.style.display = 'none'; closeSubMenus(0); }
+
+/* Submenu panel at `level` (1 = beside the main menu, 2 = beside a level-1
+ * row). One element per level, rebuilt per open, anchored beside the row that
+ * spawned it on the side its parent panel sits, flipped when there is no room.
+ * Opening a panel closes every deeper one, and hovering a plain row closes
+ * everything deeper than its own panel, so the cascade never shows a stale
+ * branch. `build(panel, addRow, addSwatches, x)`: x.sub opens the next level
+ * from a row, x.toggle is a checkable row indented whether or not it is on,
+ * x.sep draws a rule. */
+function openSubMenu(anchor, build, level) {
+    level = level || 1;
+    closeSubMenus(level - 1);
+    var sm = tbeSubs[level - 1];
+    if (!sm) {
+        sm = document.createElement('div');
+        sm.className = 'tbe-menu tbe-submenu';
+        document.body.appendChild(sm);
+        tbeSubs[level - 1] = sm;
+    }
     sm.textContent = '';
 
-    function addRow(label, on, fn) {
+    function row(label, cls) {
         var b = document.createElement('button');
         b.type = 'button';
-        b.className = 'tbe-menu-item' + (on ? ' tbe-menu-check on' : '');
+        b.className = 'tbe-menu-item' + (cls ? ' ' + cls : '');
         b.textContent = label;
-        b.addEventListener('click', function () { closeNodeMenu(); fn(); });
         sm.appendChild(b);
+        return b;
+    }
+    function addRow(label, on, fn) {
+        var b = row(label, on ? 'tbe-menu-check on' : '');
+        b.addEventListener('mouseenter', function () { closeSubMenus(level); });
+        b.addEventListener('click', function () { closeNodeMenu(); fn(); });
+        return b;
+    }
+    function addToggle(label, on, fn) {
+        var b = row(label, 'tbe-menu-check' + (on ? ' on' : ''));
+        b.addEventListener('mouseenter', function () { closeSubMenus(level); });
+        b.addEventListener('click', function () { closeNodeMenu(); fn(); });
+        return b;
+    }
+    function addSub(label, build2) {
+        var b = row(label, 'tbe-menu-sub');
+        b.addEventListener('mouseenter', function () { openSubMenu(b, build2, level + 1); });
+        b.addEventListener('click', function (e) { e.stopPropagation(); openSubMenu(b, build2, level + 1); });
+        return b;
+    }
+    function addSep() {
+        var sep = document.createElement('div');
+        sep.className = 'tbe-menu-sep';
+        sm.appendChild(sep);
     }
     function addSwatches(list, current, pick) {
-        var row = document.createElement('div');
-        row.className = 'tbe-swatches';
+        var grid = document.createElement('div');
+        grid.className = 'tbe-swatches';
         list.forEach(function (c) {
             var sw = document.createElement('button');
             sw.type = 'button';
@@ -2052,19 +2222,26 @@ function openSubMenu(anchor, build) {
             sw.style.background = c;
             sw.title = c;
             sw.addEventListener('click', function () { closeNodeMenu(); pick(c); });
-            row.appendChild(sw);
+            grid.appendChild(sw);
         });
-        sm.appendChild(row);
+        sm.appendChild(grid);
     }
 
-    build(sm, addRow, addSwatches);
+    build(sm, addRow, addSwatches, { sub: addSub, toggle: addToggle, sep: addSep });
     sm.style.display = 'block';
     sm.style.left = '0px'; sm.style.top = '0px';
+    // Level with the row that opened it, beside the PANEL that holds the row.
     var r = anchor.getBoundingClientRect();
+    var parent = (level > 1 ? tbeSubs[level - 2] : tbeMenu).getBoundingClientRect();
     var w = sm.offsetWidth, h = sm.offsetHeight;
-    var left = r.right + 2;
-    if (left + w > window.innerWidth - 6) left = Math.max(4, r.left - w - 2);
-    sm.style.left = left + 'px';
+    // The side the parent panel took, so a cascade walks one way across the
+    // screen instead of folding back over the menu it came from.
+    var side = level > 1 ? (tbeSubs[level - 2].getAttribute('data-side') || 'right') : 'right';
+    var left = side === 'right' ? parent.right + 2 : parent.left - w - 2;
+    if (side === 'right' && left + w > window.innerWidth - 6) { left = parent.left - w - 2; side = 'left'; }
+    else if (side === 'left' && left < 4) { left = parent.right + 2; side = 'right'; }
+    sm.setAttribute('data-side', side);
+    sm.style.left = Math.max(4, left) + 'px';
     sm.style.top = Math.max(4, Math.min(r.top, window.innerHeight - h - 6)) + 'px';
 }
 function nodeMenuEl() {
@@ -2076,7 +2253,7 @@ function nodeMenuEl() {
     // to escape both the tree's scroll box and the preview iframe.
     document.addEventListener('mousedown', function (e) {
         if (tbeMenu.contains(e.target)) return;
-        if (tbeSub && tbeSub.contains(e.target)) return;   // the submenu is part of the menu
+        for (var i = 0; i < tbeSubs.length; i++) if (tbeSubs[i].contains(e.target)) return;   // the panels are part of the menu
         closeNodeMenu();
     });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeNodeMenu(); });
@@ -2104,11 +2281,15 @@ function openNodeMenu(path, x, y) {
     select(path);
     var m = nodeMenuEl();
     m.textContent = '';
-    closeSubMenu();
+    closeSubMenus(0);
     var isRoot = (path === '' || path === null);
     var node = nodeAt(path).node;
     var container = !!(node.row || node.col);
     var cell = node.cell;
+    // What the cell holds, in the renderer's order of precedence.
+    var kind = !cell ? null
+             : cell.image ? 'image' : cell.qr ? 'qr' : cell.chips ? 'chips' : cell.seats ? 'seats'
+             : cell.payouts ? 'payouts' : cell.players ? 'players' : cell.video !== undefined ? 'video' : 'text';
 
     // Every property edit is one undo step and one re-render, so the menu can
     // never leave the preview showing something the layout does not say.
@@ -2127,7 +2308,7 @@ function openNodeMenu(path, x, y) {
         b.type = 'button';
         b.className = 'tbe-menu-item' + (cls ? ' ' + cls : '');
         b.textContent = label;
-        b.addEventListener('mouseenter', closeSubMenu);
+        b.addEventListener('mouseenter', function () { closeSubMenus(0); });
         b.addEventListener('click', function () { closeNodeMenu(); fn(); });
         m.appendChild(b);
         return b;
@@ -2140,20 +2321,20 @@ function openNodeMenu(path, x, y) {
         b.type = 'button';
         b.className = 'tbe-menu-item tbe-menu-check' + (on ? ' on' : '');
         b.textContent = label;
-        b.addEventListener('mouseenter', closeSubMenu);
+        b.addEventListener('mouseenter', function () { closeSubMenus(0); });
         b.addEventListener('click', function () { closeNodeMenu(); fn(); });
         m.appendChild(b);
     }
 
     // Submenu: choices open beside the parent row rather than making the menu
-    // twenty items long.
+    // thirty items long.
     function sub(label, build) {
         var b = document.createElement('button');
         b.type = 'button';
         b.className = 'tbe-menu-item tbe-menu-sub';
         b.textContent = label;
-        b.addEventListener('mouseenter', function () { openSubMenu(b, build); });
-        b.addEventListener('click', function (e) { e.stopPropagation(); openSubMenu(b, build); });
+        b.addEventListener('mouseenter', function () { openSubMenu(b, build, 1); });
+        b.addEventListener('click', function (e) { e.stopPropagation(); openSubMenu(b, build, 1); });
         m.appendChild(b);
     }
 
@@ -2183,112 +2364,103 @@ function openNodeMenu(path, x, y) {
         };
     }
 
-    // insertNode() puts a node INSIDE a container and AFTER a cell, so the
-    // labels say which will happen rather than making you find out.
-    var where = container ? ' inside' : ' after';
-    item('Add cell' + where,   function () { insertNode(newCellNode()); });
-    item('Add row' + where,    function () { insertNode(newRowNode()); });
-    item('Add column' + where, function () { insertNode(newColNode()); });
+    // ── The folded groups ──────────────────────────────────────────────────
 
-    // Scroll rows, shared by the text and payout-table branches below.
-    var scrollSubs = function () {
-        sub('Scroll', choices([['None', undefined], ['Up (credits)', 'up'], ['Left (ticker)', 'left']], cell.scroll,
+    function fontPanel() {
+        return choices(
+            [['Default', undefined]].concat(Object.keys((PV && PV.fonts) || {}).map(function (k) {
+                return [FONT_LABELS[k] || k, k];
+            })),
+            cell.font, function (v) { setOrDelete(cell, 'font', v); });
+    }
+    function sizePanel(panel, addRow) {
+        var cur = typeof cell.size === 'number' ? cell.size : 2.4;
+        addRow('Bigger',  false, edit(function () { delete cell.fit; cell.size = Math.min(40, r2(cur * 1.25)); }));
+        addRow('Smaller', false, edit(function () { delete cell.fit; cell.size = Math.max(0.5, r2(cur / 1.25)); }));
+        addRow('Reset (2.4)', cur === 2.4, edit(function () { cell.size = 2.4; }));
+    }
+    // Scroll rows, shared by the text, payout-table and players-list looks.
+    function scrollRows(x) {
+        x.sub('Scroll', choices([['None', undefined], ['Up (credits)', 'up'], ['Left (ticker)', 'left']], cell.scroll,
             function (v) { if (!v) clearScroll(cell); else cell.scroll = v; }));
         if (cell.scroll) {
-            sub('Scroll speed',  choices([['Slow', 'slow'], ['Normal', undefined], ['Fast', 'fast']], cell.scrollSpeed,
+            x.sub('Scroll speed',  choices([['Slow', 'slow'], ['Normal', undefined], ['Fast', 'fast']], cell.scrollSpeed,
                 function (v) { setOrDelete(cell, 'scrollSpeed', v); }));
-            sub('Scroll offset', choices([['Start', undefined], ['Halfway', 0.5]], cell.scrollPhase,
+            x.sub('Scroll offset', choices([['Start', undefined], ['Halfway', 0.5]], cell.scrollPhase,
                 function (v) { setOrDelete(cell, 'scrollPhase', v); }));
         }
-    };
-
-    if (cell) {
-        item(null);
-        // A cell is text, an image, or a QR. The inspector hides the text
-        // fields for the other two because they do not apply; the menu mirrors
-        // that rather than offering settings with no effect.
-        if (cell.image) {
-            sub('Image fit', choices([['Contain', 'contain'], ['Cover', 'cover']],
-                cell.imageFit || 'contain',
-                function (v) { setOrDelete(cell, 'imageFit', v === 'contain' ? undefined : v); }));
-            item('Replace image…', function () {
-                uploadImage(function (url) { pushUndo(); cell.image = url; refresh(true); renderInspector(); });
-            });
-            item('Remove image (back to text)', edit(function () { delete cell.image; delete cell.imageFit; }));
-        } else if (cell.qr) {
-            item('Remove QR code (back to text)', edit(function () { delete cell.qr; }));
-        } else if (cell.chips) {
-            item('Remove chip legend (back to text)', edit(function () { delete cell.chips; }));
-        } else if (cell.seats) {
-            item('Remove seat map (back to text)', edit(function () { delete cell.seats; delete cell.table; }));
-        } else if (cell.payouts) {
-            toggle('Only places still to be won', !!cell.payoutsRemaining,
-                edit(function () { setOrDelete(cell, 'payoutsRemaining', cell.payoutsRemaining ? undefined : true); }));
-            toggle('Bold', !!cell.bold, edit(function () { setOrDelete(cell, 'bold', cell.bold ? undefined : true); }));
-            sub('Text size', function (panel, addRow) {
-                var cur = typeof cell.size === 'number' ? cell.size : 2.4;
-                addRow('Bigger',  false, edit(function () { cell.size = Math.min(40, r2(cur * 1.25)); }));
-                addRow('Smaller', false, edit(function () { cell.size = Math.max(0.5, r2(cur / 1.25)); }));
-                addRow('Reset (2.4)', cur === 2.4, edit(function () { cell.size = 2.4; }));
-            });
-            sub('Colour', colourPanel(cell.color, function (v) { setOrDelete(cell, 'color', v); }));
-            sub('Font', choices(
-                [['Default', undefined]].concat(Object.keys((PV && PV.fonts) || {}).map(function (k) {
-                    return [FONT_LABELS[k] || k, k];
-                })),
-                cell.font, function (v) { setOrDelete(cell, 'font', v); }));
-            scrollSubs();
-            item('Remove payout table (back to text)', edit(function () { delete cell.payouts; delete cell.payoutsRemaining; }));
-        } else if (cell.video !== undefined) {
-            item('Remove video (back to text)', edit(function () { delete cell.video; }));
-        } else {
-            toggle('Bold', !!cell.bold, edit(function () { setOrDelete(cell, 'bold', cell.bold ? undefined : true); }));
-            toggle('Fit text to box', !!cell.fit, edit(function () { setOrDelete(cell, 'fit', cell.fit ? undefined : true); if (cell.fit) clearScroll(cell); }));
-            toggle('Clock colours', !!cell.clockColors, edit(function () { setOrDelete(cell, 'clockColors', cell.clockColors ? undefined : true); }));
-            sub('Align', choices(ALIGNS, cell.align || 'center', function (v) {
+    }
+    // Text: the look of the words. Toggles first, then the pickers one level
+    // deeper. A payout table or players list has text too, but no alignment,
+    // fit, spacing or shared style, so `full` is the plain text cell only.
+    function textPanel(full) {
+        return function (panel, addRow, addSwatches, x) {
+            x.toggle('Bold', !!cell.bold, edit(function () { setOrDelete(cell, 'bold', cell.bold ? undefined : true); }));
+            if (full) {
+                x.toggle('Fit text to box', !!cell.fit, edit(function () { setOrDelete(cell, 'fit', cell.fit ? undefined : true); if (cell.fit) clearScroll(cell); }));
+                x.toggle('Clock colours', !!cell.clockColors, edit(function () { setOrDelete(cell, 'clockColors', cell.clockColors ? undefined : true); }));
+            }
+            x.sep();
+            if (full) x.sub('Align', choices(ALIGNS, cell.align || 'center', function (v) {
                 setOrDelete(cell, 'align', v === 'center' ? undefined : v);
             }));
-            sub('Text size', function (panel, addRow) {
-                var cur = typeof cell.size === 'number' ? cell.size : 2.4;
-                addRow('Bigger',  false, edit(function () { delete cell.fit; cell.size = Math.min(40, r2(cur * 1.25)); }));
-                addRow('Smaller', false, edit(function () { delete cell.fit; cell.size = Math.max(0.5, r2(cur / 1.25)); }));
-                addRow('Reset (2.4)', cur === 2.4, edit(function () { cell.size = 2.4; }));
-            });
-            sub('Colour',         colourPanel(cell.color, function (v) { setOrDelete(cell, 'color', v); }));
-            sub('Letter spacing', choices(SPACING, cell.spacing, function (v) { setOrDelete(cell, 'spacing', v); }));
-            if (!cell.fit) scrollSubs();
-            sub('Font', choices(
-                [['Default', undefined]].concat(Object.keys((PV && PV.fonts) || {}).map(function (k) {
-                    return [FONT_LABELS[k] || k, k];
-                })),
-                cell.font, function (v) { setOrDelete(cell, 'font', v); }));
-            var styleNames = Object.keys((LAYOUT && LAYOUT.styles) || {});
-            if (styleNames.length) {
-                sub('Shared style', function (panel, addRow) {
-                    addRow('None', !cell.style, edit(function () { setOrDelete(cell, 'style', undefined); }));
-                    styleNames.forEach(function (n) {
-                        addRow(n, cell.style === n, edit(function () { cell.style = n; }));
+            x.sub('Text size', sizePanel);
+            x.sub('Colour', colourPanel(cell.color, function (v) { setOrDelete(cell, 'color', v); }));
+            if (full) x.sub('Letter spacing', choices(SPACING, cell.spacing, function (v) { setOrDelete(cell, 'spacing', v); }));
+            x.sub('Font', fontPanel());
+            if (full) {
+                var styleNames = Object.keys((LAYOUT && LAYOUT.styles) || {});
+                if (styleNames.length) {
+                    x.sub('Shared style', function (panel2, addRow2) {
+                        addRow2('None', !cell.style, edit(function () { setOrDelete(cell, 'style', undefined); }));
+                        styleNames.forEach(function (n) {
+                            addRow2(n, cell.style === n, edit(function () { cell.style = n; }));
+                        });
                     });
-                });
+                }
             }
-            item(null);
-            item('Use an image instead…', function () {
-                uploadImage(function (url) { pushUndo(); cell.image = url; refresh(true); renderInspector(); });
-            });
-            item('Use a QR code instead', edit(function () { cell.qr = 'display'; }));
-            item('Use a chip legend instead', edit(function () { cell.chips = true; }));
-            item('Use a seat map instead', edit(function () { cell.seats = true; }));
-            item('Use a payout table instead', edit(function () { cell.payouts = true; }));
-            item('Use a video stream instead', edit(function () { cell.video = ''; }));
-        }
-        // Box properties apply whatever the cell holds.
-        sub('Background', colourPanel(cell.bg, function (v) { setOrDelete(cell, 'bg', v); }, 'None'));
-        sub('Box image', boxImagePanel(cell));
-        sub('Padding',    choices(PADS,    cell.pad,     function (v) { setOrDelete(cell, 'pad', v); }));
-        sub('Opacity',    choices(OPACITY, cell.opacity, function (v) { setOrDelete(cell, 'opacity', v); }));
-        sub('Border',     choices(BORDERS, cell.border,  function (v) { setOrDelete(cell, 'border', v); }));
+            if (!(full && cell.fit)) scrollRows(x);   // fit and scroll exclude each other
+        };
     }
-
+    // Box: the frame around whatever the node holds, cell or container alike.
+    // A container's own rows come first because they are what a row or column
+    // is for. Size in parent is the share of the parent, the same number the
+    // resize handles write, so it belongs to every node but the screen.
+    function boxPanel(panel, addRow, addSwatches, x) {
+        var t = cell || node;
+        if (container) {
+            x.sub('Justify', choices(JUSTIFY, node.justify, function (v) { setOrDelete(node, 'justify', v); }));
+            x.sub('Gap',     choices(GAPS,    node.gap,     function (v) { setOrDelete(node, 'gap', v); }));
+        }
+        x.sub('Background', colourPanel(t.bg, function (v) { setOrDelete(t, 'bg', v); }, 'None'));
+        x.sub('Box image',  boxImagePanel(t));
+        x.sub('Padding',    choices(PADS,    t.pad,     function (v) { setOrDelete(t, 'pad', v); }));
+        if (cell) x.sub('Opacity', choices(OPACITY, t.opacity, function (v) { setOrDelete(t, 'opacity', v); }));
+        x.sub('Border',     choices(BORDERS, t.border,  function (v) { setOrDelete(t, 'border', v); }));
+        if (!isRoot) {
+            x.sep();
+            x.sub('Size in parent', function (panel2, addRow2) {
+                var w = typeof node.weight === 'number' ? node.weight : null;
+                addRow2('More',  false, edit(function () { node.weight = r2(Math.min(50, (w === null ? 1 : w) + 0.5)); }));
+                addRow2('Less',  false, edit(function () { node.weight = r2(Math.max(0, (w === null ? 1 : w) - 0.5)); }));
+                addRow2('Content-sized', w === null, edit(function () { delete node.weight; }));
+            });
+        }
+    }
+    // Turn into: what a text cell becomes. Conversions start from text and
+    // every other kind offers its way back instead, so a cell never carries
+    // two kinds at once.
+    function turnIntoPanel(panel, addRow) {
+        addRow('Image…', false, function () {
+            uploadImage(function (url) { pushUndo(); cell.image = url; refresh(true); renderInspector(); });
+        });
+        addRow('QR code',      false, edit(function () { cell.qr = 'display'; }));
+        addRow('Chip legend',  false, edit(function () { cell.chips = true; }));
+        addRow('Seat map',     false, edit(function () { cell.seats = true; }));
+        addRow('Payout table', false, edit(function () { cell.payouts = true; }));
+        addRow('Players list', false, edit(function () { cell.players = true; }));
+        addRow('Video stream', false, edit(function () { cell.video = ''; }));
+    }
     // A box's OWN background image: plate art that moves and resizes with the
     // box, so a value can never misalign with the artwork behind it. Offered on
     // cells and containers alike; default fit is Stretch because plate art is
@@ -2313,6 +2485,69 @@ function openNodeMenu(path, x, y) {
                     edit(function () { delete target.bgImage; delete target.bgImageFit; }));
             }
         };
+    }
+    // Paste is offered everywhere, root included — that is how a copied cell
+    // lands on an empty screen.
+    function pasteItem() {
+        var pasteBtn = item('Paste', pasteNode);
+        if (!nodeClipboard) { pasteBtn.disabled = true; pasteBtn.title = 'Nothing copied yet — Copy or Cut a box first.'; }
+    }
+
+    // ── The menu ───────────────────────────────────────────────────────────
+
+    // insertNode() puts a node INSIDE a container and AFTER a cell, so the row
+    // says which will happen rather than making you find out.
+    sub(container ? 'Add inside' : 'Add after', function (panel, addRow) {
+        addRow('Cell',   false, function () { insertNode(newCellNode()); });
+        addRow('Row',    false, function () { insertNode(newRowNode()); });
+        addRow('Column', false, function () { insertNode(newColNode()); });
+    });
+
+    if (cell) {
+        item(null);
+        // A cell is text or one of six other kinds. The inspector hides the
+        // text fields for the kinds they do not apply to; the menu mirrors
+        // that rather than offering settings with no effect. The kind's own
+        // rows lead, then its look, its box, and last what it can become or
+        // the way back to text.
+        if (kind === 'image') {
+            sub('Image', function (panel, addRow, addSwatches, x) {
+                var fit = cell.imageFit || 'contain';
+                addRow('Fit: Contain', fit === 'contain', edit(function () { delete cell.imageFit; }));
+                addRow('Fit: Cover',   fit === 'cover',   edit(function () { cell.imageFit = 'cover'; }));
+                x.sep();
+                addRow('Replace image…', false, function () {
+                    uploadImage(function (url) { pushUndo(); cell.image = url; refresh(true); renderInspector(); });
+                });
+            });
+        } else if (kind === 'payouts') {
+            toggle('Only places still to be won', !!cell.payoutsRemaining,
+                edit(function () { setOrDelete(cell, 'payoutsRemaining', cell.payoutsRemaining ? undefined : true); }));
+            sub('Text', textPanel(false));
+        } else if (kind === 'players') {
+            sub('Players list', function (panel, addRow, addSwatches, x) {
+                x.toggle('Show photo', cell.playersPhoto !== false, edit(function () { setOnByDefault(cell, 'playersPhoto', cell.playersPhoto === false); }));
+                x.toggle('Show name',  cell.playersName  !== false, edit(function () { setOnByDefault(cell, 'playersName',  cell.playersName  === false); }));
+                x.toggle('Show place', cell.playersPlace !== false, edit(function () { setOnByDefault(cell, 'playersPlace', cell.playersPlace === false); }));
+                x.sep();
+                x.sub('Layout', choices([['Rows', undefined], ['Grid of cards', 'grid']], cell.playersLayout,
+                    function (v) { setOrDelete(cell, 'playersLayout', v); }));
+                x.sub('Who', choices([['Everyone', undefined], ['Still playing', 'in'], ['Finished (placed)', 'out']], cell.playersWho,
+                    function (v) { setOrDelete(cell, 'playersWho', v); }));
+            });
+            sub('Text', textPanel(false));
+        } else if (kind === 'text') {
+            sub('Text', textPanel(true));
+        }
+        sub('Box', boxPanel);
+        if      (kind === 'image')   item('Remove image (back to text)',        edit(function () { delete cell.image; delete cell.imageFit; }));
+        else if (kind === 'qr')      item('Remove QR code (back to text)',      edit(function () { delete cell.qr; }));
+        else if (kind === 'chips')   item('Remove chip legend (back to text)',  edit(function () { delete cell.chips; }));
+        else if (kind === 'seats')   item('Remove seat map (back to text)',     edit(function () { delete cell.seats; delete cell.table; }));
+        else if (kind === 'payouts') item('Remove payout table (back to text)', edit(function () { delete cell.payouts; delete cell.payoutsRemaining; }));
+        else if (kind === 'players') item('Remove players list (back to text)', edit(function () { removePlayersKeys(cell); }));
+        else if (kind === 'video')   item('Remove video (back to text)',        edit(function () { delete cell.video; }));
+        else                         sub('Turn into', turnIntoPanel);
     }
 
     // The SCREEN's background belongs to the screen, not to any node, so it is
@@ -2364,50 +2599,36 @@ function openNodeMenu(path, x, y) {
             addRow('Keep the painted panels', on, function () { setPanelColours(true); });
             addRow('Let the artwork show through', !on, function () { setPanelColours(false); });
         });
-
     }
 
     if (container) {
-        item(null);
-        sub('Justify', choices(JUSTIFY, node.justify, function (v) { setOrDelete(node, 'justify', v); }));
-        sub('Gap',     choices(GAPS,    node.gap,     function (v) { setOrDelete(node, 'gap', v); }));
-        sub('Padding', choices(PADS,    node.pad,     function (v) { setOrDelete(node, 'pad', v); }));
-        sub('Background', colourPanel(node.bg, function (v) { setOrDelete(node, 'bg', v); }, 'None'));
-        sub('Box image', boxImagePanel(node));
-        sub('Border',  choices(BORDERS, node.border,  function (v) { setOrDelete(node, 'border', v); }));
-    }
-
-    if (!isRoot) {
-        // Weight is the share of the parent, so it applies to cells and
-        // containers alike — the same number the resize handles write.
-        sub('Size in parent', function (panel, addRow) {
-            var w = typeof node.weight === 'number' ? node.weight : null;
-            addRow('More',  false, edit(function () { node.weight = r2(Math.min(50, (w === null ? 1 : w) + 0.5)); }));
-            addRow('Less',  false, edit(function () { node.weight = r2(Math.max(0, (w === null ? 1 : w) - 0.5)); }));
-            addRow('Content-sized', w === null, edit(function () { delete node.weight; }));
-        });
+        if (!isRoot) item(null);
+        sub('Box', boxPanel);
     }
 
     if (!isRoot) {
         var p = parentOf(path);
         item(null);
         item('Duplicate', dupNode);
+        if (cell) sub('Split', function (panel, addRow) {
+            addRow('Split left / right', false, function () { splitNode('row'); });
+            addRow('Split top / bottom', false, function () { splitNode('col'); });
+        });
         item('Copy', copyNode);
         item('Cut', cutNode);
-        // Held by reference, not by index: this menu grew from seven rows to
-        // thirty and any positional lookup would silently disable the wrong one.
+        pasteItem();
+        // Held by reference, not by index: a positional lookup would silently
+        // disable the wrong row the next time a row was added above these.
         var upBtn = item('Move up',   function () { move(-1); });
         var dnBtn = item('Move down', function () { move(1); });
         if (p && p.index === 0) { upBtn.disabled = true; upBtn.title = 'Already first in its container.'; }
         if (p && p.index === p.list.length - 1) { dnBtn.disabled = true; dnBtn.title = 'Already last in its container.'; }
         item(null);
         item('Delete', removeNode, 'tbe-menu-danger');
+    } else {
+        item(null);
+        pasteItem();
     }
-
-    // Paste is offered everywhere, root included — that is how a copied cell
-    // lands on an empty screen.
-    var pasteBtn = item('Paste', pasteNode);
-    if (!nodeClipboard) { pasteBtn.disabled = true; pasteBtn.title = 'Nothing copied yet — Copy or Cut a box first.'; }
 
     item(null);
     var undoBtn = item('Undo last change', doUndo);
@@ -2781,23 +3002,38 @@ var STATES = {
     break:  { level: 7, running: true,  gameOver: false },
     over:   { level: 5, running: false, gameOver: true }
 };
+// Light one chip and put the sample state behind it, leaving the pinned
+// screen alone. Returns whether anything changed (false if already lit), so a
+// screen tab can tell whether the frame needs re-measuring.
+function applyPreviewState(name) {
+    var chip = document.querySelector('.tbe-chip[data-state="' + name + '"]');
+    if (!chip || !STATES[name] || chip.classList.contains('active')) return false;
+    document.querySelectorAll('.tbe-chip').forEach(function (x) { x.classList.remove('active'); });
+    chip.classList.add('active');
+    if (PV) PV.setState(STATES[name]);
+    return true;
+}
+
+// Release the pinned screen so the preview shows the REAL screen the
+// conditions pick for the state and device now set — the whole point of the
+// chips is to verify "Main when running / Break on break" actually switches.
+// Then follow the preview: edit whichever screen is now showing.
+function followPreview() {
+    if (!PV) return;
+    PV.forceScreen(null);
+    var idx = PV.activeScreenIndex();
+    if (idx >= 0 && idx < LAYOUT.screens.length && idx !== editScreenIndex) {
+        editScreenIndex = idx; selPath = null;
+        renderScreensBar(); renderTree(); renderInspector();
+    } else {
+        renderScreensBar();   // refresh the "(showing)" hint even if unchanged
+    }
+}
+
 document.querySelectorAll('.tbe-chip').forEach(function (b) {
     b.addEventListener('click', function () {
-        document.querySelectorAll('.tbe-chip').forEach(function (x) { x.classList.remove('active'); });
-        b.classList.add('active');
-        PV.setState(STATES[b.getAttribute('data-state')]);
-        // Release the pinned screen so the preview shows the REAL screen the
-        // conditions would pick for this state — the whole point of the chips is
-        // to verify "Main when running / Paused when paused" actually switches.
-        // Then follow the preview: edit whichever screen is now showing.
-        PV.forceScreen(null);
-        var idx = PV.activeScreenIndex();
-        if (idx >= 0 && idx < LAYOUT.screens.length && idx !== editScreenIndex) {
-            editScreenIndex = idx; selPath = null;
-            renderScreensBar(); renderTree(); renderInspector();
-        } else {
-            renderScreensBar();   // refresh the "(showing)" hint even if unchanged
-        }
+        applyPreviewState(b.getAttribute('data-state'));
+        followPreview();
     });
 });
 
@@ -2806,30 +3042,31 @@ document.querySelectorAll('.tbe-chip').forEach(function (b) {
  * conditioned cells, columns and whole screens can be auditioned from a PC.
  * Like the state chips, it releases the pinned screen and follows whichever
  * screen the conditions now pick — a screen with `when: mobile` shows the
- * moment Phone is selected. */
+ * moment Phone is selected. (And the other way round: selecting that screen's
+ * tab flips this switch to Phone, through applyPreviewDevice.) */
 var devSeg = document.getElementById('tbeDevSeg');
+
+// Move the switch, reshape the frame and set the renderer's device override,
+// leaving the pinned screen alone. Returns whether anything changed.
+function applyPreviewDevice(d) {
+    var btn = devSeg ? devSeg.querySelector('button[data-dev="' + d + '"]') : null;
+    if (!btn || btn.classList.contains('active')) return false;
+    devSeg.querySelectorAll('button').forEach(function (x) { x.classList.remove('active'); });
+    btn.classList.add('active');
+    if (typeof positionSegThumb === 'function') positionSegThumb('tbeDevSeg', true);
+    var fr = document.querySelector('.tbe-preview-frame');
+    fr.classList.toggle('tbe-frame-tablet', d === 'tablet');
+    fr.classList.toggle('tbe-frame-mobile', d === 'mobile');
+    if (PV && PV.device) PV.device(d);
+    return true;
+}
+
 if (devSeg) {
     devSeg.addEventListener('click', function (e) {
         var btn = e.target && e.target.closest ? e.target.closest('button[data-dev]') : null;
         if (!btn || btn.classList.contains('active')) return;
-        devSeg.querySelectorAll('button').forEach(function (x) { x.classList.remove('active'); });
-        btn.classList.add('active');
-        if (typeof positionSegThumb === 'function') positionSegThumb('tbeDevSeg', true);
-        var d = btn.getAttribute('data-dev');
-        var fr = document.querySelector('.tbe-preview-frame');
-        fr.classList.toggle('tbe-frame-tablet', d === 'tablet');
-        fr.classList.toggle('tbe-frame-mobile', d === 'mobile');
-        if (PV && PV.device) {
-            PV.device(d);
-            PV.forceScreen(null);
-            var idx = PV.activeScreenIndex();
-            if (idx >= 0 && idx < LAYOUT.screens.length && idx !== editScreenIndex) {
-                editScreenIndex = idx; selPath = null;
-                renderScreensBar(); renderTree(); renderInspector();
-            } else {
-                renderScreensBar();
-            }
-        }
+        applyPreviewDevice(btn.getAttribute('data-dev'));
+        followPreview();
         requestAnimationFrame(mountResizeHandles);
     });
     if (typeof positionSegThumb === 'function') requestAnimationFrame(function () { positionSegThumb('tbeDevSeg', false); });

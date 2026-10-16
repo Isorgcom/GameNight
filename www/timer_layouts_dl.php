@@ -295,6 +295,17 @@ function pk_lo_cell($cell, array &$err): ?array {
         $out['payouts'] = true;
         if (!empty($cell['payoutsRemaining'])) $out['payoutsRemaining'] = true;
     }
+    // Players list: a flag like payouts. Names, photos and places come from the
+    // game, never from the layout file. The three column switches are ON by
+    // default, so only an explicit false is kept — the schema's first stored
+    // false (every other boolean here is true-only via !empty()); the editor
+    // writes false or deletes the key, nothing else.
+    if (!empty($cell['players'])) {
+        $out['players'] = true;
+        foreach (['playersPhoto', 'playersName', 'playersPlace'] as $b) if (isset($cell[$b]) && $cell[$b] === false) $out[$b] = false;
+        if (isset($cell['playersLayout']) && $cell['playersLayout'] === 'grid') $out['playersLayout'] = 'grid';
+        if (isset($cell['playersWho']) && in_array($cell['playersWho'], ['in', 'out'], true)) $out['playersWho'] = $cell['playersWho'];
+    }
     if (isset($cell['when'])) { $w = pk_lo_cond($cell['when']); if ($w !== null) $out['when'] = $w; }
     // Per-element styling: a map of element name -> {color, bold, scale}, so
     // one element inside a cell's line can differ from the rest. Names are

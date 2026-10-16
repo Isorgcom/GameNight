@@ -34,7 +34,9 @@ field list.
 - cells: `text` with `<elements>` and newlines, `size` (vh units) or
   `fit: true`, `color`, `bg`, `bold`, `pad`, `align`, `when`, `clockColors`,
   `variants`, `scroll` (`up` | `left`) + `scrollSpeed` + `scrollPhase` (see
-  Scrolling cells), `payouts` + `payoutsRemaining` (see Payout table)
+  Scrolling cells), `payouts` + `payoutsRemaining` (see Payout table),
+  `players` + `playersPhoto` / `playersName` / `playersPlace` / `playersLayout` /
+  `playersWho` (see Players list)
 
 Rendering is nested flexbox, so overlap and off-screen are impossible by
 construction. That property is the whole reason this engine exists; the
@@ -136,6 +138,16 @@ Rules that keep it honest:
   renderer (`pickScreen()`), is reset on layout load, and the editor preview
   is exempt because it pins screens via `forceScreen`. Editor control:
   "Rotate after (seconds)" in the screen management area.
+- **Editor preview context**: `selectScreen(i)` in `timer_layouts.js` pins
+  the preview (`forceScreen`) and also moves the state chip and the device
+  switch to what the screen's `when` names, through `screenContext()`: the
+  first un-negated state word picks Running / Paused / On break / Game over,
+  the first device word picks TV / PC / Tablet / Phone, a catch-all (no
+  `when`) restores both defaults, and anything else (a `players.left` rule)
+  leaves them alone. `applyPreviewState()` / `applyPreviewDevice()` never
+  release the pin. The chips and the switch go the other way
+  (`followPreview()`: release the pin, edit whatever the conditions now
+  show), so the two agree whichever one the author reaches for.
 - **Conditions** (`when` on a cell or screen, or on a variant): a keyword
   string, or an object of clauses that AND together — `state`
   (running|paused|on_break|pre_game|game_over), `hasAnte`, `hasRebuys`, `round`
@@ -300,8 +312,9 @@ that missed it.
 ## Right-click menus in the editor
 
 Both surfaces that show the layout tree — the **preview** and the **structure
-tree** — carry the same node menu: add cell / row / column, duplicate, move up
-/ down, delete.
+tree** — carry the same node menu: add, duplicate, split, copy / cut / paste,
+move up / down, delete, with the node's look folded under three rows (**Text**,
+**Box**, **Turn into**) whose panels cascade one level deeper.
 
 Two properties are load-bearing:
 
@@ -311,30 +324,62 @@ Two properties are load-bearing:
   `dupNode()` / `removeNode()` / `move()` and the `newCellNode()` family exist
   for exactly that reason.
 - **The labels say where the node will land.** `insertNode()` puts a node
-  INSIDE a container but AFTER a cell, so the menu reads "Add cell inside" on a
-  row/column and "Add cell after" on a cell rather than making you find out.
+  INSIDE a container but AFTER a cell, so the menu reads "Add inside" on a
+  row/column and "Add after" on a cell (cell / row / column inside it) rather
+  than making you find out.
+- **Split keeps the tree flat.** `splitNode(dir)` divides a cell's own share
+  of its parent: when the parent already runs that way (`'row'` = left /
+  right inside a row, `'col'` = top / bottom inside a column) the new half is
+  a sibling and the cell's `weight` is halved between the two; otherwise the
+  cell is wrapped in a new row or column that takes over its weight and holds
+  the pair at weight 1 each. The new half is a text cell wearing the
+  original's look (`LOOK_KEYS`: size, fit, colour, background, bold, font,
+  align, pad, shared style, opacity, border), never its content or kind, and
+  it is selected afterwards. Cells only; the menu offers it as a **Split**
+  submenu beside Duplicate.
 
 Moves that would fall off the end are disabled with the reason, and edits go
 through `pushUndo()` like any other, so Ctrl+Z takes them back. The menu also
 carries its own **Undo last change**, disabled when there is no history.
 
 Beyond structure it exposes the node's whole property set, so most editing
-never needs the inspector:
+never needs the inspector, but **the top level stays a dozen rows**. The flat
+version offered every property at the top level and ran to thirty-four rows on
+a text cell, taller than a laptop window, with Delete and Undo below the fold.
+Now a text cell's menu is `Add after ▸ · Text ▸ · Box ▸ · Turn into ▸ ·
+Duplicate · Split ▸ · Copy · Cut · Paste · Move up · Move down · Delete · Undo
+last change`, and the panels hold:
 
-| Text cell | Image / QR cell | Container | Screen (root) |
-|---|---|---|---|
-| Bold, Fit text to box, Clock colours | Image fit, Replace image… | Justify | Screen background |
-| Align, Text size, Colour, Letter spacing | Remove image / Remove QR | Gap, Padding | (colours + image + fit) |
-| Use an image instead… / Use a QR code instead | | Background, Border | |
-| Shared style (when the layout defines any) | | | |
-| Background, Padding, Opacity, Border | Background, Padding, Opacity, Border | | |
-| Size in parent | Size in parent | Size in parent | |
+| Panel | Rows |
+|---|---|
+| **Text** (text cell) | Bold, Fit text to box, Clock colours · Align ▸, Text size ▸, Colour ▸, Letter spacing ▸, Font ▸, Shared style ▸ (when the layout defines any), Scroll ▸ (+ speed and offset once scrolling) |
+| **Text** (payout table, players list) | Bold · Text size ▸, Colour ▸, Font ▸, Scroll ▸ |
+| **Box** (cell) | Background ▸, Box image ▸, Padding ▸, Opacity ▸, Border ▸ · Size in parent ▸ |
+| **Box** (row / column) | Justify ▸, Gap ▸, Background ▸, Box image ▸, Padding ▸, Border ▸ · Size in parent ▸ (not on the screen) |
+| **Turn into** (text cell only) | Image…, QR code, Chip legend, Seat map, Payout table, Players list, Video stream |
+| **Image** (image cell) | Fit: Contain, Fit: Cover · Replace image… |
+| **Players list** | Show photo, Show name, Show place · Layout ▸, Who ▸ |
 
-A cell is text, an image or a QR, and **the menu offers only what applies to the
-mode it is in** — the inspector hides the text fields for an image, and a menu
-that offered them would be worse, since a menu implies the setting does
-something. Each mode has a way back to text. Box properties (background,
-padding, opacity, border) apply in every mode and are always offered.
+A kind's own rows lead (the payout table's *Only places still to be won*
+toggle stays flat, as the one row it has), then Text, then Box, and last what
+the cell can become or its **Remove … (back to text)** row, which is always a
+top-level row so the way back is never hidden. A container gets `Add inside ▸
+· Box ▸` and the verbs; the screen gets `Add inside ▸ · Screen background ▸ ·
+Screen shape ▸ · Panel colours ▸ · Box ▸ · Paste · Undo`.
+
+**The menu offers only what applies to the kind the cell is in** — the
+inspector hides the text fields for an image, and a menu that offered them
+would be worse, since a menu implies the setting does something. Conversions
+start from text (Turn into is offered on a text cell only) and every other kind
+offers its way back instead, so a cell never carries two kinds at once.
+
+The cascade is `openSubMenu(anchor, build, level)`: one body-level panel per
+level in `tbeSubs[]`, rebuilt on every open, and `build(panel, addRow,
+addSwatches, x)` gets `x.sub` (a row that opens the next level), `x.toggle` (a
+checkable row, indented either way) and `x.sep`. Opening a panel closes every
+deeper one, hovering a plain row closes everything deeper than its own panel
+(`closeSubMenus(from)`), and a hidden panel is emptied, so neither the user nor
+a probe ever sees a stale branch.
 
 The **screen's** background belongs to the screen rather than to any node, so it
 is offered where you would look for it: on the screen's own right-click menu.
@@ -344,9 +389,12 @@ is offered where you would look for it: on the screen's own right-click menu.
 server silently strips is worse than no menu.
 
 Two details: a tick IS the current value, so the menu doubles as a readout of
-what the node already has; and submenus flip to the left of the parent row when
-there is no room on the right, which is the common case since the menu often
-opens near the right edge of the preview.
+what the node already has; and a panel opens beside the panel that holds its
+row, level with the row. The first panel flips to the left when there is no
+room on the right, which is the common case since the menu often opens near
+the right edge of the preview, and a deeper panel takes the side its parent
+took (`data-side`), so a cascade walks one way across the screen instead of
+folding back over the menu it came from.
 
 Hold menu rows **by reference, never by index**. The disable-the-impossible-move
 logic originally used `btns[4]`/`btns[5]`, which was correct for a seven-row
@@ -556,6 +604,42 @@ every place taken). `font: 'mono'` gives the card-room Courier look. Sample mode
 carries six places (summing to the sample pot) so a scrolling table actually
 scrolls in the editor preview.
 
+## Players list
+
+`{ cell: { players: true } }` draws everyone who bought in, one row each:
+avatar disc (photo, or the initials disc the seat map draws; `avatarDisc()` is
+shared so the two never drift), name, and once the player has a finishing
+place a dotted leader (the payout table's `.tb-pay-lead`, re-centred) and the
+place. Rows are DOM like payouts, every string via `textContent`, sized in em
+with a fixed row height, and take `capCell()`'s shrink; `drawPlayerCells()` is
+keyed on the rows and never writes `display` (`updateAll()` hides the empty
+cell: no tournament, or nobody bought in yet).
+
+Order: the field first, in the order the server sends it (table, seat), then
+the placed by place ascending, so mid-game the knocked-out trail the list
+(13th, 14th, ...) and at game over it reads 1st to last. The index breaks ties
+so the order never leans on a stable sort.
+
+**Placed and knocked out are different sets.** `eliminate_player` never
+eliminates the last survivor: it writes `finish_position = 1` on a still-in
+row (`update_status` does the same for a lone survivor). So the winner arrives
+in `players` with `place: 1`, not in `players_out`; `playersWho: 'out'` means
+has-a-place (the winner included, or the results board has no winner), and
+the dim treatment (`.tb-pl-out`: opacity, greyscale photo) keys on which list
+the row came from, never on `place`, so the winner stays bright.
+
+Options, all on the cell: `playersPhoto` / `playersName` / `playersPlace`
+default ON and are stored only as an explicit `false` (the schema's first
+stored false: the editor's `setOnByDefault()` writes false or deletes the key,
+and `pk_lo_cell()` keeps `=== false` only). If all three are off the renderer
+shows the name anyway. `playersLayout: 'grid'` draws cards (disc 3.2em, name
+under, the place as a badge on the disc's shoulder; with the photo off the
+place becomes a line under the name). `playersWho: 'in' | 'out'` narrows to
+the field or to the placed; absent is everyone. `scroll: 'up'` works as on the
+payout table. Sample mode carries twelve in (nine at table 1, three at table
+2) and six out at 13th to 18th, Danny R. in 13th matching the
+`<lastEliminated>` sample.
+
 ## The image library
 
 Every image pick in the editor (screen backgrounds, box images, image cells)
@@ -664,12 +748,18 @@ table reads short-handed. Pair with `when: 'playersLeft <= 10 and playersLeft
 > 1'` and the display flips to it BY ITSELF when the field shrinks (the lower
 bound keeps pre-game's 0 from matching). PCF ships the screen.
 
-The data contract: `get_state` sends `players` — still-in only (`removed=0 AND
-bought_in=1 AND eliminated=0`, calc_pool's exact predicate), name + table +
-seat + avatar path, capped at 30. **This deliberately widens the `?key`
-channel**: a wall display exists to show who is at which seat, so the key now
-buys still-in names and avatars — and nothing else. Avatar paths are checked
-at BOTH ends against `/uploads/avatars/` only.
+The data contract: `get_state` sends `players`, the still-in rows (`removed=0
+AND bought_in=1 AND eliminated=0`, calc_pool's exact predicate) with name,
+table, seat, avatar path and `place` (null except on the winner, see Players
+list), and `players_out`, the knocked-out rows with name, place and avatar
+path, best finisher first; both capped at 100. **This deliberately widens the
+`?key` channel**: a wall display exists to show who is at which seat and who
+finished where, so the key buys the name, avatar and finishing place of
+everyone who bought in, and nothing else: never notes, per-player payouts,
+user ids or contact data. Avatar paths are checked at BOTH ends against
+`/uploads/avatars/` only. The seat map reads `players` alone; `players_out`
+carries no table or seat, so an eliminated row can never land in its
+"Awaiting seat" tray.
 
 Rules that came from the data model: `table` pins a table, default is the
 busiest (at an actual final table, THE table). Seat numbers may exceed
@@ -1184,6 +1274,10 @@ switch names — see the dispatch note in `timer.php`'s header.
   `scrollSpeed`/`scrollPhase`, and `payouts: true` for a place / dotted leader /
   reward table (see the two sections above). Prompted by the Bravo card-room
   clock's Remaining Places panels and bottom banner.
+- **Players list (done):** `players: true` for a photo / name / finishing
+  place roster, the field first and the knocked-out by place (see Players
+  list). The first cell that shows knocked-out players on the wall; the
+  `?key` contract widened to match.
 - **Remaining:** nothing structural. The open items are data ones noted
   above: `money.line` is sample-only, `time.elapsed` is schedule time, and the
   seat map has no per-player chip stacks (needs a column plus a host entry
