@@ -19,6 +19,7 @@ var layoutId = null;           // DB id when editing a saved layout
 var editable = true;           // false = loaded someone else's; save forces copy
 var selPath = null;            // "0.2.1" or '' for root, null for nothing
 var undoStack = [];
+var savedJson = null, savedName = '';   // the layout as last loaded or saved; see markSaved()
 var editScreenIndex = 0;       // which screen the tree/inspector edit
 
 // Normalize a loaded layout to the multi-screen form so the editor always
@@ -41,6 +42,13 @@ function normalizeLayout() {
         if (!LAYOUT.aspect) delete LAYOUT.aspect;
     }
     if (editScreenIndex >= LAYOUT.screens.length) editScreenIndex = 0;
+    // The shared-styles and custom-elements panels each keep a container on
+    // the layout, and the triggers panel drops its array again when empty;
+    // settle all three here, before the unsaved-changes snapshot, so rendering
+    // a panel never changes the layout.
+    if (Array.isArray(LAYOUT.triggers) && !LAYOUT.triggers.length) delete LAYOUT.triggers;
+    if (!LAYOUT.styles || typeof LAYOUT.styles !== 'object') LAYOUT.styles = {};
+    if (!LAYOUT.customElements || typeof LAYOUT.customElements !== 'object') LAYOUT.customElements = {};
 }
 function curScreen() { return LAYOUT.screens[editScreenIndex]; }
 
@@ -192,6 +200,52 @@ function refresh(keepSel) {
     // Boxes have moved, so the drag handles have to be re-measured. After the
     // frame paints, or every rect is the previous layout's.
     if (typeof mountResizeHandles === 'function') requestAnimationFrame(mountResizeHandles);
+    updateDirty();   // every edit passes through here
+}
+
+/* ── Unsaved changes ──────────────────────────────────────────────────────
+ * A snapshot of the layout as it was last loaded or saved; dirty means the
+ * live layout or its name differs. Content, not the undo stack: a drag that
+ * lands nowhere pushes an undo entry and changes nothing. Rendering must not
+ * touch the layout either (read defaults through a local, create on write),
+ * or the marker lights up from looking. There is deliberately NO autosave: a
+ * layout bound to a running display is what the TV shows, so half-finished
+ * edits must never reach it on their own. */
+// Key order is not a change: setOrDelete() removes a key and a later edit adds
+// it back at the end of its object, and an edit undone by hand must read clean.
+function canonJson(v) {
+    if (Array.isArray(v)) return v.map(canonJson);
+    if (v && typeof v === 'object') {
+        var o = {};
+        Object.keys(v).sort().forEach(function (k) { if (v[k] !== undefined) o[k] = canonJson(v[k]); });
+        return o;
+    }
+    return v;
+}
+function markSaved() {
+    savedJson = JSON.stringify(canonJson(LAYOUT));
+    savedName = nameInput ? nameInput.value.trim() : '';
+    updateDirty();
+}
+function isDirty() {
+    if (savedJson === null) return false;
+    return JSON.stringify(canonJson(LAYOUT)) !== savedJson || (nameInput ? nameInput.value.trim() : '') !== savedName;
+}
+function updateDirty() {
+    var btn = document.getElementById('tbeSave');
+    if (!btn || btn.getAttribute('data-flash')) return;   // "Saved ✓" is showing; its timeout re-runs this
+    var d = isDirty();
+    btn.textContent = d ? 'Save layout •' : 'Save layout';
+    btn.title = d ? 'Unsaved changes' : '';
+}
+// Anything that replaces the layout asks first when there is unsaved work.
+function confirmDiscard(go, stay) {
+    if (!isDirty()) { go(); return; }
+    var nm = (nameInput && nameInput.value.trim()) || 'this layout';
+    if (window.pkConfirm) {
+        pkConfirm('Discard unsaved changes to "' + nm + '"?', { danger: true }).then(function (yes) { if (yes) go(); else if (stay) stay(); });
+    } else if (confirm('Discard unsaved changes?')) go();
+    else if (stay) stay();
 }
 
 /* ── Screens (break screen, pre-game screen, …) ──────────────────────── */
@@ -226,7 +280,7 @@ function screenContext(scr) {
 
 function selectScreen(i) {
     editScreenIndex = i;
-    selPath = null;
+    selPath = '';                // the screen itself: its settings show in the inspector
     treeCollapsed = {};          // paths are per-screen; stale ones would fold the wrong nodes
     if (PV) {
         PV.forceScreen(i);       // pin the preview to the screen being edited
@@ -293,62 +347,6 @@ function renderScreensBar() {
         screensEl.appendChild(menu);
     }
 
-    // Management row for the active screen: name, show-when, delete.
-    var scr = curScreen();
-    var mgmt = document.createElement('div');
-    mgmt.className = 'tbe-screen-mgmt';
-    var nm = document.createElement('input');
-    nm.type = 'text'; nm.value = scr.name || ''; nm.placeholder = 'Screen name'; nm.maxLength = 40;
-    nm.addEventListener('change', function () { pushUndo(); scr.name = nm.value.trim() || 'Screen'; renderScreensBar(); });
-    mgmt.appendChild(nm);
-
-    var del = document.createElement('button');
-    del.className = 'tbe-mini tbe-mini-danger'; del.textContent = 'Delete screen';
-    del.disabled = LAYOUT.screens.length <= 1;
-    del.addEventListener('click', function () {
-        if (LAYOUT.screens.length <= 1) return;
-        pushUndo();
-        LAYOUT.screens.splice(editScreenIndex, 1);
-        editScreenIndex = 0;
-        refresh(); selectScreen(0);
-    });
-    mgmt.appendChild(del);
-    screensEl.appendChild(mgmt);
-
-    var condWrap = document.createElement('div');
-    condWrap.className = 'tbe-screen-cond';
-    var lbl = document.createElement('span');
-    lbl.textContent = 'Show this screen when:';
-    condWrap.appendChild(lbl);
-    condWrap.appendChild(condEditor(scr.when, function (c) { pushUndo(); setOrDelete(scr, 'when', c); refresh(true); }));
-    var note = document.createElement('div');
-    note.className = 'tbe-screen-note';
-    note.textContent = 'Conditional screens are checked in order and the first match shows; the default screen (no condition) shows when nothing matches.';
-    condWrap.appendChild(note);
-
-    // Rotation: dwell seconds; blank = this screen never rotates.
-    var cycRow = document.createElement('div');
-    cycRow.className = 'tbe-screen-cycle';
-    var cycLbl = document.createElement('span');
-    cycLbl.textContent = 'Rotate after (seconds):';
-    var cyc = document.createElement('input');
-    cyc.type = 'number'; cyc.min = 2; cyc.max = 3600; cyc.step = 1; cyc.placeholder = 'off';
-    cyc.value = scr.cycle === undefined ? '' : scr.cycle;
-    cyc.addEventListener('change', function () {
-        pushUndo();
-        var v = parseInt(cyc.value, 10);
-        setOrDelete(scr, 'cycle', (v >= 2 && v <= 3600) ? v : undefined);
-        cyc.value = scr.cycle === undefined ? '' : scr.cycle;
-        refresh(true);
-    });
-    cycRow.appendChild(cycLbl);
-    cycRow.appendChild(cyc);
-    var cycNote = document.createElement('div');
-    cycNote.className = 'tbe-screen-note';
-    cycNote.textContent = 'Give two or more screens a rotation time and the display cycles through the ones whose conditions match, each for its own time. A screen without one (Break) still takes over outright.';
-    condWrap.appendChild(cycRow);
-    condWrap.appendChild(cycNote);
-    screensEl.appendChild(condWrap);
 }
 
 var screenMenuOpen = false;
@@ -761,6 +759,71 @@ function removePlayersKeys(cell) { PLAYERS_KEYS.forEach(function (k) { delete ce
  * an orphan never lands in the JSON (the sanitizer would strip it anyway). */
 var SCROLL_OPTS = ['', 'up', 'left'];
 var SCROLL_LBLS = ['None', 'Up (credits)', 'Left (ticker)'];
+// What a cell holds, in the renderer's order of precedence (an imported file
+// could carry two flags; the first wins everywhere).
+function cellKind(cell) {
+    return cell.image ? 'image' : cell.qr ? 'qr' : cell.chips ? 'chips' : cell.seats ? 'seats'
+         : cell.payouts ? 'payouts' : cell.players ? 'players' : cell.video !== undefined ? 'video' : 'text';
+}
+// Drops every kind's keys, exactly what the menu's Remove rows delete, so a
+// cell never carries two kinds at once.
+function clearKind(cell) {
+    delete cell.image; delete cell.imageFit; delete cell.qr; delete cell.chips;
+    delete cell.seats; delete cell.table; delete cell.payouts; delete cell.payoutsRemaining;
+    delete cell.video;
+    removePlayersKeys(cell);
+}
+var KINDS = [['text', 'Text'], ['image', 'Image'], ['qr', 'QR code'], ['chips', 'Chip legend'], ['seats', 'Seat map'],
+             ['payouts', 'Payout table'], ['players', 'Players list'], ['video', 'Video stream']];
+// The Kind dropdown at the top of every cell's inspector: a readout of what
+// the cell is and the one place to change it, in place of seven "Use a …
+// instead" buttons that sat above the Text field. Not selInput(): that pushes
+// undo before the choice is known, and an image is only a change once the
+// picker returns.
+function kindSelect(cell) {
+    var cur = cellKind(cell);
+    var s = document.createElement('select');
+    KINDS.forEach(function (k) {
+        var op = document.createElement('option');
+        op.value = k[0]; op.textContent = k[1];
+        s.appendChild(op);
+    });
+    s.value = cur;
+    s.addEventListener('change', function () {
+        var k = s.value;
+        if (k === cur) return;
+        if (k === 'image') {
+            s.value = cur;   // the picker may be cancelled; nothing changes until it returns
+            uploadImage(function (url) { pushUndo(); clearKind(cell); cell.image = url; refresh(true); renderInspector(); });
+            return;
+        }
+        pushUndo();
+        clearKind(cell);
+        if      (k === 'qr')      cell.qr = 'display';
+        else if (k === 'chips')   cell.chips = true;
+        else if (k === 'seats')   cell.seats = true;
+        else if (k === 'payouts') cell.payouts = true;
+        else if (k === 'players') cell.players = true;
+        else if (k === 'video')   cell.video = '';
+        refresh(true); renderInspector();
+    });
+    return s;
+}
+var WEIGHT_LABEL = 'Size in parent (share of space)';   // the menu's name for the same number
+// A heading inside the inspector, for a panel that holds several groups.
+function inspSection(title) {
+    var h = document.createElement('div');
+    h.className = 'tbe-insp-sec';
+    h.textContent = title;
+    return h;
+}
+// One quiet line under a field.
+function inspNote(text) {
+    var d = document.createElement('div');
+    d.className = 'tbe-note';
+    d.textContent = text;
+    return d;
+}
 function clearScroll(cell) { delete cell.scroll; delete cell.scrollSpeed; delete cell.scrollPhase; }
 function scrollFields(cell) {
     var rows = [];
@@ -1622,38 +1685,99 @@ function renderInspector() {
     }
 
     if (selPath === '') {
-        inspTitle.textContent = 'Screen background';
+        // The screen itself: its own settings first (they used to sit in the
+        // Structure panel above the tree, where they cost the tree its room),
+        // then its background, then the two whole-layout switches its menu
+        // also offers, then the layout-wide panels that have always lived here.
+        inspTitle.textContent = 'Screen';
         var scr = curScreen();
-        scr.bg = scr.bg || {};
-        var g = scr.bg.gradient;
-        insp.appendChild(field('Solid colour', colorInput(scr.bg.color, function (v) { setOrDelete(scr.bg, 'color', v); })));
+        // Read through a local, create on write: rendering must not touch the
+        // layout or the unsaved marker lights up from looking.
+        var bg = scr.bg || {};
+        var bgOf = function () { return scr.bg || (scr.bg = {}); };
+
+        insp.appendChild(inspSection('This screen'));
+        var nm = document.createElement('input');
+        nm.type = 'text'; nm.value = scr.name || ''; nm.placeholder = 'Screen name'; nm.maxLength = 40;
+        nm.addEventListener('change', function () { pushUndo(); scr.name = nm.value.trim() || 'Screen'; renderScreensBar(); refresh(true); });
+        insp.appendChild(field('Name', nm));
+        var condWrap = document.createElement('div');
+        condWrap.className = 'tbe-field';
+        var condLbl = document.createElement('span'); condLbl.textContent = 'Show this screen when'; condWrap.appendChild(condLbl);
+        condWrap.appendChild(condEditor(scr.when, function (c) { pushUndo(); setOrDelete(scr, 'when', c); refresh(true); }));
+        condWrap.appendChild(inspNote('Screens are checked top to bottom and the first match shows; the screen with no condition is the fallback.'));
+        insp.appendChild(condWrap);
+        // Rotation: dwell seconds; blank = this screen never rotates.
+        var cyc = document.createElement('input');
+        cyc.type = 'number'; cyc.min = 2; cyc.max = 3600; cyc.step = 1; cyc.placeholder = 'off';
+        cyc.value = scr.cycle === undefined ? '' : scr.cycle;
+        cyc.addEventListener('change', function () {
+            pushUndo();
+            var v = parseInt(cyc.value, 10);
+            setOrDelete(scr, 'cycle', (v >= 2 && v <= 3600) ? v : undefined);
+            cyc.value = scr.cycle === undefined ? '' : scr.cycle;
+            refresh(true);
+        });
+        var cycWrap = field('Rotate after (seconds)', cyc);
+        cycWrap.appendChild(inspNote('Give two or more screens a time and the display cycles through the ones whose conditions match, each for its own time; a screen without one takes over outright.'));
+        insp.appendChild(cycWrap);
+        var del = document.createElement('button');
+        del.className = 'tbe-mini tbe-mini-danger'; del.textContent = 'Delete screen';
+        del.disabled = LAYOUT.screens.length <= 1;
+        if (del.disabled) del.title = 'A layout keeps at least one screen.';
+        del.addEventListener('click', function () {
+            if (LAYOUT.screens.length <= 1) return;
+            pushUndo();
+            LAYOUT.screens.splice(editScreenIndex, 1);
+            editScreenIndex = 0;
+            refresh(); selectScreen(0);
+        });
+        insp.appendChild(del);
+
+        insp.appendChild(inspSection('Background'));
+        var g = bg.gradient;
+        insp.appendChild(field('Solid colour', colorInput(bg.color, function (v) { setOrDelete(bgOf(), 'color', v); })));
         insp.appendChild(field('Gradient from', colorInput(g ? g[0] : '', function (v) {
-            scr.bg.gradient = [v, (scr.bg.gradient || ['#000', '#000'])[1]];
+            bgOf().gradient = [v, (bgOf().gradient || ['#000', '#000'])[1]];
         })));
         insp.appendChild(field('Gradient to', colorInput(g ? g[1] : '', function (v) {
-            scr.bg.gradient = [(scr.bg.gradient || ['#000', '#000'])[0], v];
+            bgOf().gradient = [(bgOf().gradient || ['#000', '#000'])[0], v];
         })));
         var clr = document.createElement('button');
         clr.className = 'tbe-mini'; clr.textContent = 'Remove gradient';
-        clr.addEventListener('click', function () { pushUndo(); delete scr.bg.gradient; refresh(true); renderInspector(); });
+        clr.addEventListener('click', function () { pushUndo(); delete bgOf().gradient; refresh(true); renderInspector(); });
         insp.appendChild(clr);
-
         // Background image (over the colour/gradient).
         var bgImgWrap = document.createElement('div');
         bgImgWrap.className = 'tbe-field';
         var bgLbl = document.createElement('span'); bgLbl.textContent = 'Background image'; bgImgWrap.appendChild(bgLbl);
-        if (scr.bg.image) {
-            var th = document.createElement('img'); th.className = 'tbe-img-thumb'; th.src = scr.bg.image; bgImgWrap.appendChild(th);
-            bgImgWrap.appendChild(field('Fit', selInput(scr.bg.imageFit || 'cover', ['cover', 'contain'], function (v) { setOrDelete(scr.bg, 'imageFit', v === 'cover' ? undefined : v); })));
+        if (bg.image) {
+            var th = document.createElement('img'); th.className = 'tbe-img-thumb'; th.src = bg.image; bgImgWrap.appendChild(th);
+            bgImgWrap.appendChild(field('Fit', selInput(bg.imageFit || 'cover', ['cover', 'contain'], function (v) { setOrDelete(bgOf(), 'imageFit', v === 'cover' ? undefined : v); })));
             var rmBg = document.createElement('button'); rmBg.className = 'tbe-mini tbe-mini-danger'; rmBg.textContent = 'Remove image';
-            rmBg.addEventListener('click', function () { pushUndo(); delete scr.bg.image; delete scr.bg.imageFit; refresh(true); renderInspector(); });
+            rmBg.addEventListener('click', function () { pushUndo(); delete bgOf().image; delete bgOf().imageFit; refresh(true); renderInspector(); });
             bgImgWrap.appendChild(rmBg);
         } else {
             var upBg = document.createElement('button'); upBg.className = 'tbe-mini'; upBg.textContent = 'Upload image';
-            upBg.addEventListener('click', function () { uploadImage(function (url) { pushUndo(); scr.bg.image = url; refresh(true); renderInspector(); }); });
+            upBg.addEventListener('click', function () { uploadImage(function (url) { pushUndo(); bgOf().image = url; refresh(true); renderInspector(); }); });
             bgImgWrap.appendChild(upBg);
         }
         insp.appendChild(bgImgWrap);
+
+        // Whole-layout switches: one look for every screen, as the screen's
+        // right-click menu offers them.
+        insp.appendChild(inspSection('Whole layout'));
+        var shapeWrap = field('Screen shape', selInput(String(+LAYOUT.aspect || 0), ['0', '1.6', '1.78', '1.33'], function (v) {
+            var a2 = parseFloat(v);
+            if (a2) LAYOUT.aspect = a2; else delete LAYOUT.aspect;
+        }, ['Fill the screen', 'Keep 16:10', 'Keep 16:9', 'Keep 4:3']));
+        shapeWrap.appendChild(inspNote('A design drawn for one shape keeps it and letterboxes elsewhere. Applies to every screen.'));
+        insp.appendChild(shapeWrap);
+        var panelsWrap = field('Panel colours', selInput(panelColoursOn() ? 'on' : 'off', ['on', 'off'], function (v) {
+            setPanelColours(v === 'on', true);   // selInput already pushed the undo step
+        }, ['Keep the painted panels', 'Let the artwork show through']));
+        panelsWrap.appendChild(inspNote('Whether cells paint their own backgrounds or let the artwork show through. Applies to every screen.'));
+        insp.appendChild(panelsWrap);
 
         renderSharedStyles();
         renderCustomElements();
@@ -1666,6 +1790,7 @@ function renderInspector() {
     if (kind === 'cell') {
         inspTitle.textContent = 'Cell';
         var cell = node.cell;
+        insp.appendChild(field('Kind', kindSelect(cell)));
 
         // Image cell: an uploaded picture instead of text. When set, the text /
         // element fields are hidden; removing the image returns it to a text cell.
@@ -1676,11 +1801,8 @@ function renderInspector() {
             var thumb = document.createElement('img'); thumb.className = 'tbe-img-thumb'; thumb.src = cell.image; imgWrap.appendChild(thumb);
             insp.appendChild(imgWrap);
             insp.appendChild(field('Fit', selInput(cell.imageFit || 'contain', ['contain', 'cover'], function (v) { setOrDelete(cell, 'imageFit', v === 'contain' ? undefined : v); })));
-            insp.appendChild(field('Weight (share of space)', numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
+            insp.appendChild(field(WEIGHT_LABEL, numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
             insp.appendChild(field('Show when', condEditor(cell.when, function (v) { pushUndo(); setOrDelete(cell, 'when', v); refresh(true); })));
-            var rmImg = document.createElement('button'); rmImg.className = 'tbe-mini tbe-mini-danger'; rmImg.textContent = 'Remove image (back to text)';
-            rmImg.addEventListener('click', function () { pushUndo(); delete cell.image; delete cell.imageFit; refresh(true); renderInspector(); });
-            insp.appendChild(rmImg);
             return;
         }
 
@@ -1699,12 +1821,8 @@ function renderInspector() {
                             + 'show them. The preview uses sample chips.';
             chWrap.appendChild(chn);
             insp.appendChild(chWrap);
-            insp.appendChild(field('Weight (share of space)', numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
+            insp.appendChild(field(WEIGHT_LABEL, numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
             insp.appendChild(field('Show when', condEditor(cell.when, function (v) { pushUndo(); setOrDelete(cell, 'when', v); refresh(true); })));
-            var rmCh = document.createElement('button'); rmCh.className = 'tbe-mini tbe-mini-danger';
-            rmCh.textContent = 'Remove chip legend (back to text)';
-            rmCh.addEventListener('click', function () { pushUndo(); delete cell.chips; refresh(true); renderInspector(); });
-            insp.appendChild(rmCh);
             return;
         }
 
@@ -1728,12 +1846,8 @@ function renderInspector() {
                 refresh(true);
             });
             insp.appendChild(field('Table number (blank = auto)', tno));
-            insp.appendChild(field('Weight (share of space)', numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
+            insp.appendChild(field(WEIGHT_LABEL, numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
             insp.appendChild(field('Show when', condEditor(cell.when, function (v) { pushUndo(); setOrDelete(cell, 'when', v); refresh(true); })));
-            var rmSt = document.createElement('button'); rmSt.className = 'tbe-mini tbe-mini-danger';
-            rmSt.textContent = 'Remove seat map (back to text)';
-            rmSt.addEventListener('click', function () { pushUndo(); delete cell.seats; delete cell.table; refresh(true); renderInspector(); });
-            insp.appendChild(rmSt);
             return;
         }
 
@@ -1760,12 +1874,8 @@ function renderInspector() {
             insp.appendChild(field('Background', colorInput(cell.bg, function (v) { setOrDelete(cell, 'bg', v); })));
             insp.appendChild(padField(cell));
             scrollFields(cell).forEach(function (f) { insp.appendChild(f); });
-            insp.appendChild(field('Weight (share of space)', numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
+            insp.appendChild(field(WEIGHT_LABEL, numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
             insp.appendChild(field('Show when', condEditor(cell.when, function (v) { pushUndo(); setOrDelete(cell, 'when', v); refresh(true); })));
-            var rmPy = document.createElement('button'); rmPy.className = 'tbe-mini tbe-mini-danger';
-            rmPy.textContent = 'Remove payout table (back to text)';
-            rmPy.addEventListener('click', function () { pushUndo(); delete cell.payouts; delete cell.payoutsRemaining; refresh(true); renderInspector(); });
-            insp.appendChild(rmPy);
             return;
         }
 
@@ -1796,12 +1906,8 @@ function renderInspector() {
             insp.appendChild(field('Background', colorInput(cell.bg, function (v) { setOrDelete(cell, 'bg', v); })));
             insp.appendChild(padField(cell));
             scrollFields(cell).forEach(function (f) { insp.appendChild(f); });
-            insp.appendChild(field('Weight (share of space)', numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
+            insp.appendChild(field(WEIGHT_LABEL, numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
             insp.appendChild(field('Show when', condEditor(cell.when, function (v) { pushUndo(); setOrDelete(cell, 'when', v); refresh(true); })));
-            var rmPl = document.createElement('button'); rmPl.className = 'tbe-mini tbe-mini-danger';
-            rmPl.textContent = 'Remove players list (back to text)';
-            rmPl.addEventListener('click', function () { pushUndo(); removePlayersKeys(cell); refresh(true); renderInspector(); });
-            insp.appendChild(rmPl);
             return;
         }
 
@@ -1815,12 +1921,8 @@ function renderInspector() {
                            + 'The preview shows a placeholder — a real code only exists once the layout is on a live game.';
             qrWrap.appendChild(qn);
             insp.appendChild(qrWrap);
-            insp.appendChild(field('Weight (share of space)', numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
+            insp.appendChild(field(WEIGHT_LABEL, numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
             insp.appendChild(field('Show when', condEditor(cell.when, function (v) { pushUndo(); setOrDelete(cell, 'when', v); refresh(true); })));
-            var rmQr = document.createElement('button'); rmQr.className = 'tbe-mini tbe-mini-danger';
-            rmQr.textContent = 'Remove QR (back to text)';
-            rmQr.addEventListener('click', function () { pushUndo(); delete cell.qr; refresh(true); renderInspector(); });
-            insp.appendChild(rmQr);
             return;
         }
 
@@ -1899,56 +2001,10 @@ function renderInspector() {
             // someone hunt for a setting that plainly belongs to the thing they
             // are already looking at.
             insp.appendChild(streamDuckPanel());
-            insp.appendChild(field('Weight (share of space)', numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
+            insp.appendChild(field(WEIGHT_LABEL, numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
             insp.appendChild(field('Show when', condEditor(cell.when, function (v) { pushUndo(); setOrDelete(cell, 'when', v); refresh(true); })));
-            var rmV = document.createElement('button'); rmV.className = 'tbe-mini tbe-mini-danger';
-            rmV.textContent = 'Remove video (back to text)';
-            rmV.addEventListener('click', function () { pushUndo(); delete cell.video; refresh(true); renderInspector(); });
-            insp.appendChild(rmV);
             return;
         }
-
-        var toImg = document.createElement('button');
-        toImg.className = 'tbe-mini'; toImg.textContent = 'Use an image instead';
-        toImg.addEventListener('click', function () { uploadImage(function (url) { pushUndo(); cell.image = url; refresh(true); renderInspector(); }); });
-        insp.appendChild(toImg);
-
-        var toQr = document.createElement('button');
-        toQr.className = 'tbe-mini'; toQr.textContent = 'Use a QR code instead';
-        toQr.title = 'A code viewers scan to open this timer on their own screen';
-        toQr.addEventListener('click', function () { pushUndo(); cell.qr = 'display'; refresh(true); renderInspector(); });
-        insp.appendChild(toQr);
-
-        var toChips = document.createElement('button');
-        toChips.className = 'tbe-mini'; toChips.textContent = 'Use a chip legend instead';
-        toChips.title = "This game's chip denominations and colours";
-        toChips.addEventListener('click', function () { pushUndo(); cell.chips = true; refresh(true); renderInspector(); });
-        insp.appendChild(toChips);
-
-        var toSeats = document.createElement('button');
-        toSeats.className = 'tbe-mini'; toSeats.textContent = 'Use a seat map instead';
-        toSeats.title = 'The final table: every remaining player at their assigned seat';
-        toSeats.addEventListener('click', function () { pushUndo(); cell.seats = true; refresh(true); renderInspector(); });
-        insp.appendChild(toSeats);
-
-        var toPay = document.createElement('button');
-        toPay.className = 'tbe-mini'; toPay.textContent = 'Use a payout table instead';
-        toPay.title = 'Every paid place as a row: place, dotted leader, reward';
-        toPay.addEventListener('click', function () { pushUndo(); cell.payouts = true; refresh(true); renderInspector(); });
-        insp.appendChild(toPay);
-
-        var toPlayers = document.createElement('button');
-        toPlayers.className = 'tbe-mini'; toPlayers.textContent = 'Use a players list instead';
-        toPlayers.title = 'Everyone who bought in: photo, name and finishing place';
-        toPlayers.addEventListener('click', function () { pushUndo(); cell.players = true; refresh(true); renderInspector(); });
-        insp.appendChild(toPlayers);
-
-        var toVid = document.createElement('button');
-        toVid.className = 'tbe-mini'; toVid.textContent = 'Use a video stream instead';
-        toVid.title = 'Embed a YouTube / Twitch / Vimeo / Kick video, or play a direct stream, in this cell';
-        toVid.addEventListener('click', function () { pushUndo(); cell.video = ''; refresh(true); renderInspector(); });
-        insp.appendChild(toVid);
-
         var ta = document.createElement('textarea');
         ta.rows = 3; ta.value = cell.text || '';
         ta.addEventListener('change', function () { pushUndo(); cell.text = ta.value; refresh(true); });
@@ -2004,12 +2060,12 @@ function renderInspector() {
         insp.appendChild(padField(cell));
         insp.appendChild(field('Show when', condEditor(cell.when, function (v) { pushUndo(); setOrDelete(cell, 'when', v); refresh(true); })));
         insp.appendChild(field('Clock colours (warn/critical)', boolInput(cell.clockColors, function (v) { setOrDelete(cell, 'clockColors', v); })));
-        insp.appendChild(field('Weight (share of space)', numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
+        insp.appendChild(field(WEIGHT_LABEL, numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
         renderElStyles(cell);
         renderVariants(cell);
     } else {
         inspTitle.textContent = kind === 'row' ? 'Row' : 'Column';
-        insp.appendChild(field('Weight (share of space)', numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
+        insp.appendChild(field(WEIGHT_LABEL, numInput(node.weight, 0, 50, 0.1, function (v) { setOrDelete(node, 'weight', v); })));
         insp.appendChild(field('Gap', textInput(node.gap, function (v) { setOrDelete(node, 'gap', v); }, 'e.g. 0.5vh')));
         insp.appendChild(padField(node));
         insp.appendChild(field('Background', colorInput(node.bg, function (v) { setOrDelete(node, 'bg', v); })));
@@ -2287,9 +2343,7 @@ function openNodeMenu(path, x, y) {
     var container = !!(node.row || node.col);
     var cell = node.cell;
     // What the cell holds, in the renderer's order of precedence.
-    var kind = !cell ? null
-             : cell.image ? 'image' : cell.qr ? 'qr' : cell.chips ? 'chips' : cell.seats ? 'seats'
-             : cell.payouts ? 'payouts' : cell.players ? 'players' : cell.video !== undefined ? 'video' : 'text';
+    var kind = cell ? cellKind(cell) : null;
 
     // Every property edit is one undo step and one re-render, so the menu can
     // never leave the preview showing something the layout does not say.
@@ -2555,7 +2609,7 @@ function openNodeMenu(path, x, y) {
     if (isRoot) {
         item(null);
         sub('Screen background', function (panel, addRow, addSwatches) {
-            var bg = curScreen().bg || (curScreen().bg = {});
+            var bg = curScreen().bg || {};   // created on write, never by looking
             addSwatches(PALETTE, bg.color, function (c) {
                 edit(function () { (curScreen().bg || (curScreen().bg = {})).color = c; })();
             });
@@ -3263,6 +3317,9 @@ function updateEventBtn() {
 loadSel.addEventListener('change', function () {
     var v = loadSel.value;
     if (!v) return;
+    confirmDiscard(function () { loadChoice(v); }, function () { loadSel.value = ''; });
+});
+function loadChoice(v) {
     if (v.indexOf('builtin:') === 0) {
         var k = v.slice(8);
         LAYOUT = JSON.parse(JSON.stringify(PV.builtins[k]));
@@ -3271,6 +3328,7 @@ loadSel.addEventListener('change', function () {
         nameInput.value = PV.builtins[k].name + ' (mine)';
         undoStack = []; selPath = null;
         normalizeLayout();
+        markSaved();
         editScreenIndex = mainScreenIndex();
         refresh(); selectScreen(editScreenIndex);
         curBuiltin = k;
@@ -3287,6 +3345,7 @@ loadSel.addEventListener('change', function () {
                 nameInput.value = j.name + (j.editable ? '' : ' (copy)');
                 undoStack = []; selPath = null;
                 normalizeLayout();
+                markSaved();
                 editScreenIndex = mainScreenIndex();
                 refresh(); selectScreen(editScreenIndex);
                 curBuiltin = null;
@@ -3297,7 +3356,7 @@ loadSel.addEventListener('change', function () {
             }).catch(function () {});
     }
     loadSel.value = '';
-});
+}
 
 function save(asCopy, onSaved) {
     var name = nameInput.value.trim();
@@ -3316,19 +3375,26 @@ function save(asCopy, onSaved) {
         .then(function (j) {
             if (!j.ok) { window.pkAlert ? pkAlert(j.error || 'Save failed') : alert(j.error); return; }
             layoutId = j.id; editable = true;
+            markSaved();
             if (onSaved) onSaved();
             populateLoadList();
             var btn = document.getElementById('tbeSave');
+            btn.setAttribute('data-flash', '1');
             btn.textContent = 'Saved ✓';
-            // Restore the label the markup shipped with, not a hard-coded
-            // 'Save' — the button is "Save layout" now, and rewriting it to
-            // 'Save' after the first save undid the rename.
-            setTimeout(function () { btn.textContent = 'Save layout'; }, 1500);
+            // Then back to whatever the marker says (clean, or dirty again if
+            // an edit landed during the flash).
+            setTimeout(function () { btn.removeAttribute('data-flash'); updateDirty(); }, 1500);
         })
         .catch(function () { window.pkAlert ? pkAlert('Network error') : alert('Network error'); });
 }
 document.getElementById('tbeSave').addEventListener('click', function () { save(false); });
 document.getElementById('tbeSaveCopy').addEventListener('click', function () { save(true); });
+nameInput.addEventListener('input', updateDirty);
+window.addEventListener('beforeunload', function (e) {
+    if (!isDirty()) return;
+    e.preventDefault();
+    e.returnValue = '';   // Chrome wants the value, Firefox the preventDefault
+});
 
 /* ── Export / Import ─────────────────────────────────────────────────────
  * A layout exports as one self-contained JSON file — our own portable format,
@@ -3560,7 +3626,9 @@ function setPanelColours(on, quiet) {
     if (!quiet) { refresh(true); renderInspector(); }
 }
 
-document.getElementById('tbeImport').addEventListener('click', function () { importFile.value = ''; importFile.click(); });
+document.getElementById('tbeImport').addEventListener('click', function () {
+    confirmDiscard(function () { importFile.value = ''; importFile.click(); });
+});
 importFile.addEventListener('change', function () {
     var file = importFile.files && importFile.files[0];
     if (!file) return;
@@ -3608,6 +3676,7 @@ importFile.addEventListener('change', function () {
             normalizeLayout();
             editScreenIndex = mainScreenIndex();
             nameInput.value = name.replace(/\s*\(imported\)\s*$/i, '') + ' (imported)';
+            markSaved();
             undoStack = []; selPath = null;
             refresh(); selectScreen(editScreenIndex); renderInspector();
             save(true);   // save as a new copy; server sanitizes and rejects anything invalid
@@ -3669,6 +3738,7 @@ document.getElementById('tbeDelete').addEventListener('click', function () {
                 if (!j.ok) { window.pkAlert ? pkAlert(j.error || 'Delete failed') : alert(j.error); return; }
                 layoutId = null;
                 nameInput.value = '';
+                markSaved();   // gone by choice; nothing left to guard
                 populateLoadList();
             });
     };
@@ -3792,6 +3862,7 @@ function boot() {
     curBuiltin = bootKey;   // fresh boot shows a pristine built-in
     nameInput.value = PV.builtins[bootKey].name + ' (mine)';
     normalizeLayout();
+    markSaved();
     // Open on the catch-all, not screen 0. Conditional screens sort FIRST in
     // the array, so with a multi-screen default (Showcase leads with Phone)
     // index 0 is a conditional screen and the editor opened on it. The load
@@ -3812,6 +3883,7 @@ function boot() {
                 nameInput.value = j.name + (j.editable ? '' : ' (copy)');
                 undoStack = []; selPath = null;
                 normalizeLayout();
+                markSaved();
                 editScreenIndex = mainScreenIndex();
                 refresh(); selectScreen(editScreenIndex);
                 curBuiltin = null;
