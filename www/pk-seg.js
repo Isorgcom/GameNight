@@ -37,14 +37,22 @@
         var thumb = seg.querySelector('.pk-seg-thumb');
         var active = seg.querySelector('button.active');
         if (!thumb || !active) return;
+        // Top and height too: a strip that wraps onto a second row (Setup's six
+        // tabs on a phone) would otherwise stretch the thumb over both rows,
+        // lighting a button on each. An inline top + height outranks the
+        // stylesheet's bottom:3px.
         if (!animate) {
             thumb.style.transition = 'none';
             thumb.style.width = active.offsetWidth + 'px';
+            thumb.style.top = active.offsetTop + 'px';
+            thumb.style.height = active.offsetHeight + 'px';
             thumb.style.transform = 'translateX(' + active.offsetLeft + 'px)';
             void thumb.offsetWidth;   // reflow so the next change can transition
             thumb.style.transition = '';
         } else {
             thumb.style.width = active.offsetWidth + 'px';
+            thumb.style.top = active.offsetTop + 'px';
+            thumb.style.height = active.offsetHeight + 'px';
             thumb.style.transform = 'translateX(' + active.offsetLeft + 'px)';
         }
     };
