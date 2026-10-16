@@ -249,6 +249,10 @@
 .tbe-node:hover { background: #f1f5f9; }
 .tbe-node.selected { background: #dbeafe; color: #1e3a8a; font-weight: 600; }
 .tbe-node-container { color: #0f172a; font-weight: 600; }
+/* Keyboard focus, drawn inside the row so the panel's overflow cannot clip
+   it; the browser's own ring stays on every other control. */
+.tbe-node:focus-visible, .tbe-menu-item:focus-visible, .tbe-swatch:focus-visible { outline: 2px solid #2563eb; outline-offset: -2px; }
+.tbe-mini:disabled { opacity: .45; cursor: default; }
 
 .tbe-addbar { display: flex; gap: .3rem; flex-wrap: wrap; padding: .5rem .6rem; border-top: 1.5px solid #e2e8f0; background: #f8fafc; }
 .tbe-mini { padding: .3rem .55rem; border-radius: 6px; border: 1.5px solid #cbd5e1; background: #fff; font-size: .76rem; cursor: pointer; color: #334155; min-height: 32px; }

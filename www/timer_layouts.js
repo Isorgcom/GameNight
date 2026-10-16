@@ -19,6 +19,7 @@ var layoutId = null;           // DB id when editing a saved layout
 var editable = true;           // false = loaded someone else's; save forces copy
 var selPath = null;            // "0.2.1" or '' for root, null for nothing
 var undoStack = [];
+var redoStack = [];   // what doUndo() set aside; any new edit clears it
 var savedJson = null, savedName = '';   // the layout as last loaded or saved; see markSaved()
 var editScreenIndex = 0;       // which screen the tree/inspector edit
 
@@ -187,6 +188,7 @@ function kindOf(n) { return n.cell ? 'cell' : (n.row ? 'row' : 'col'); }
 function pushUndo() {
     undoStack.push(JSON.stringify(LAYOUT));
     if (undoStack.length > 50) undoStack.shift();
+    redoStack = [];   // a new edit forks history; the undone branch is gone
     // Any edit means this is no longer the pristine built-in — the event
     // binding button must stop offering to bind the built-in by key.
     if (curBuiltin) { curBuiltin = null; updateEventBtn(); }
@@ -201,6 +203,7 @@ function refresh(keepSel) {
     // frame paints, or every rect is the previous layout's.
     if (typeof mountResizeHandles === 'function') requestAnimationFrame(mountResizeHandles);
     updateDirty();   // every edit passes through here
+    updateHistoryBtns();
 }
 
 /* ── Unsaved changes ──────────────────────────────────────────────────────
@@ -405,6 +408,8 @@ function addScreen(make) {
 /* ── Structure tree ──────────────────────────────────────────────────── */
 
 var treeEl = document.getElementById('tbeTree');
+treeEl.setAttribute('role', 'tree');
+treeEl.setAttribute('aria-label', 'Layout structure');
 
 // Session-only UI state: which container paths are folded shut. Never saved
 // with the layout; reset when the edited screen changes (paths are per-screen).
@@ -421,13 +426,23 @@ function cellLabel(cell) {
 // One tree row. Containers get a fold toggle; cells get a spacer so labels align.
 function treeRow(ps, label, isContainer, depth) {
     var el = document.createElement('div');
-    el.className = 'tbe-node' + (selPath === ps ? ' selected' : '');
+    var sel = selPath === ps;
+    el.className = 'tbe-node' + (sel ? ' selected' : '');
     el.style.paddingLeft = (10 + depth * 16) + 'px';
     el.setAttribute('data-tpath', ps);
+    // A real tree for the keyboard and a screen reader: one row in the tab
+    // order (the selected one, or the screen when nothing is), the rest
+    // reached with the arrow keys; the fold state and the level are announced.
+    el.setAttribute('role', 'treeitem');
+    el.setAttribute('aria-level', String(depth + 1));
+    el.setAttribute('aria-selected', sel ? 'true' : 'false');
+    el.tabIndex = (sel || (selPath === null && ps === '')) ? 0 : -1;
     var tog = document.createElement('span');
     tog.className = 'tbe-node-tog';
+    tog.setAttribute('aria-hidden', 'true');
     if (isContainer) {
         el.classList.add('tbe-node-container');
+        el.setAttribute('aria-expanded', treeCollapsed[ps] ? 'false' : 'true');
         tog.setAttribute('data-tog', ps);
         tog.textContent = treeCollapsed[ps] ? '▸' : '▾';
         tog.title = treeCollapsed[ps] ? 'Expand' : 'Collapse';
@@ -438,9 +453,14 @@ function treeRow(ps, label, isContainer, depth) {
 }
 
 function renderTree() {
+    // The rows are rebuilt on every select and refresh; a keyboard user's
+    // focus must land back on the selected row or every arrow key would be
+    // the last one that worked.
+    var hadFocus = treeEl.contains(document.activeElement);
     treeEl.textContent = '';
     treeEl.appendChild(treeRow('', 'Screen (' + kindOf(curScreen().root) + ')', true, 0));
     if (!treeCollapsed['']) walk(curScreen().root, [], 1);
+    if (hadFocus) focusTreeRow(selPath === null ? '' : selPath);
 
     function walk(node, path, depth) {
         var kids = node.row || node.col;
@@ -466,6 +486,56 @@ treeEl.addEventListener('click', function (e) {
     }
     var n = e.target.closest('[data-tpath]');
     if (n) select(n.getAttribute('data-tpath'));
+});
+function treeRowEl(path) { return treeEl.querySelector('[data-tpath="' + path + '"]'); }
+function focusTreeRow(path) { var r = treeRowEl(path); if (r) r.focus({ preventScroll: false }); }
+
+/* Keyboard on the tree (the WAI-ARIA tree pattern): arrows walk the visible
+ * rows and selection follows focus, Right opens a folded container or steps
+ * into it, Left folds it or steps out to the parent, Home / End, Delete
+ * removes the box and lands on the row that takes its place, Shift+F10 or
+ * the Menu key opens the right-click menu for the row. */
+treeEl.addEventListener('keydown', function (e) {
+    var row = e.target.closest ? e.target.closest('[data-tpath]') : null;
+    if (!row || (e.ctrlKey || e.metaKey || e.altKey)) return;
+    var rows = Array.prototype.slice.call(treeEl.querySelectorAll('[data-tpath]'));
+    var i = rows.indexOf(row), path = row.getAttribute('data-tpath');
+    var isContainer = row.classList.contains('tbe-node-container');
+    function go(r) { if (r) { select(r.getAttribute('data-tpath')); focusTreeRow(r.getAttribute('data-tpath')); } }
+    switch (e.key) {
+        case 'ArrowDown': e.preventDefault(); go(rows[i + 1]); break;
+        case 'ArrowUp':   e.preventDefault(); go(rows[i - 1]); break;
+        case 'Home':      e.preventDefault(); go(rows[0]); break;
+        case 'End':       e.preventDefault(); go(rows[rows.length - 1]); break;
+        case 'ArrowRight':
+            e.preventDefault();
+            if (!isContainer) break;
+            if (treeCollapsed[path]) { delete treeCollapsed[path]; renderTree(); focusTreeRow(path); }
+            else go(rows[i + 1]);   // an open container's first child is the next row
+            break;
+        case 'ArrowLeft':
+            e.preventDefault();
+            var node = nodeAt(path).node, kids = (node.row || node.col) || [];
+            if (isContainer && !treeCollapsed[path] && kids.length) { treeCollapsed[path] = true; renderTree(); focusTreeRow(path); }
+            else if (path !== '') go(treeRowEl(path.indexOf('.') >= 0 ? path.slice(0, path.lastIndexOf('.')) : ''));
+            break;
+        case 'Enter': case ' ':
+            e.preventDefault(); select(path); focusTreeRow(path); break;
+        case 'Delete': case 'Backspace':
+            if (path === '') break;
+            e.preventDefault();
+            select(path); removeNode();
+            var left = Array.prototype.slice.call(treeEl.querySelectorAll('[data-tpath]'));
+            go(left[Math.min(i, left.length - 1)]);
+            break;
+        case 'ContextMenu': case 'F10':
+            if (e.key === 'F10' && !e.shiftKey) break;
+            e.preventDefault();
+            var rr = row.getBoundingClientRect();
+            select(path);
+            openNodeMenu(path, rr.left + 24, rr.bottom - 4, treeRowEl(path));
+            break;
+    }
 });
 
 /* ── Selection + inspector ───────────────────────────────────────────── */
@@ -2209,13 +2279,67 @@ document.getElementById('tbeDown').addEventListener('click', function () { move(
  * thirty-four rows on a text cell, taller than a laptop screen, with Delete
  * and Undo below the fold. */
 var tbeMenu = null, tbeSubs = [];   // tbeSubs[k] is the panel at menu level k + 1
+var tbeSubAnchors = [];             // the row that opened tbeSubs[k], for aria-expanded and ArrowLeft
+var menuOpener = null;              // where focus goes back when the menu closes
 function closeSubMenus(from) {
     for (var i = from || 0; i < tbeSubs.length; i++) {
         tbeSubs[i].style.display = 'none';
         tbeSubs[i].textContent = '';   // a hidden panel keeps no stale rows
+        if (tbeSubAnchors[i]) { tbeSubAnchors[i].setAttribute('aria-expanded', 'false'); tbeSubAnchors[i] = null; }
     }
 }
-function closeNodeMenu() { if (tbeMenu) tbeMenu.style.display = 'none'; closeSubMenus(0); }
+function menuHasFocus() {
+    var a = document.activeElement;
+    if (!a) return false;
+    if (tbeMenu && tbeMenu.contains(a)) return true;
+    for (var i = 0; i < tbeSubs.length; i++) if (tbeSubs[i].contains(a)) return true;
+    return false;
+}
+// Focus goes back to the row or preview that opened the menu, so a keyboard
+// user is where they were; a mouse user's next click lands wherever it was
+// going anyway.
+function closeNodeMenu() {
+    var back = menuHasFocus() ? menuOpener : null;
+    if (tbeMenu) tbeMenu.style.display = 'none';
+    closeSubMenus(0);
+    menuOpener = null;
+    if (back && back.focus && document.contains(back)) back.focus({ preventScroll: true });
+}
+function focusFirstRow(panel) {
+    var f = panel.querySelector('.tbe-menu-item:not(:disabled), .tbe-swatch');
+    if (f) f.focus({ preventScroll: true });
+}
+/* Keys inside the menu (the WAI-ARIA menu pattern), one handler on the menu
+ * and on every panel: Up / Down walk the enabled rows of the panel that has
+ * focus and wrap, Right opens a submenu row's panel on its first row, Left
+ * closes the panel and returns to the row that opened it, Home / End, Enter
+ * and Space are the button's own activation, Tab leaves and closes the menu,
+ * Escape closes it (bound on the document). */
+function menuKeydown(e) {
+    var panel = e.currentTarget;
+    var rows = Array.prototype.filter.call(panel.querySelectorAll('.tbe-menu-item, .tbe-swatch'), function (b) { return !b.disabled; });
+    var cur = document.activeElement, i = rows.indexOf(cur);
+    var level = panel === tbeMenu ? 0 : tbeSubs.indexOf(panel) + 1;
+    function at(n) { if (rows.length) rows[(n + rows.length) % rows.length].focus({ preventScroll: true }); }
+    switch (e.key) {
+        case 'ArrowDown': e.preventDefault(); at(i < 0 ? 0 : i + 1); break;
+        case 'ArrowUp':   e.preventDefault(); at(i < 0 ? rows.length - 1 : i - 1); break;
+        case 'Home':      e.preventDefault(); at(0); break;
+        case 'End':       e.preventDefault(); at(rows.length - 1); break;
+        case 'ArrowRight':
+            if (cur && cur.__tbeOpen) { e.preventDefault(); cur.__tbeOpen(true); }
+            break;
+        case 'ArrowLeft':
+            if (level > 0) {
+                e.preventDefault();
+                var anchor = tbeSubAnchors[level - 1];
+                closeSubMenus(level - 1);
+                if (anchor) anchor.focus({ preventScroll: true });
+            }
+            break;
+        case 'Tab': closeNodeMenu(); break;
+    }
+}
 
 /* Submenu panel at `level` (1 = beside the main menu, 2 = beside a level-1
  * row). One element per level, rebuilt per open, anchored beside the row that
@@ -2225,13 +2349,15 @@ function closeNodeMenu() { if (tbeMenu) tbeMenu.style.display = 'none'; closeSub
  * branch. `build(panel, addRow, addSwatches, x)`: x.sub opens the next level
  * from a row, x.toggle is a checkable row indented whether or not it is on,
  * x.sep draws a rule. */
-function openSubMenu(anchor, build, level) {
+function openSubMenu(anchor, build, level, focusFirst) {
     level = level || 1;
     closeSubMenus(level - 1);
     var sm = tbeSubs[level - 1];
     if (!sm) {
         sm = document.createElement('div');
         sm.className = 'tbe-menu tbe-submenu';
+        sm.setAttribute('role', 'menu');
+        sm.addEventListener('keydown', menuKeydown);
         document.body.appendChild(sm);
         tbeSubs[level - 1] = sm;
     }
@@ -2245,27 +2371,38 @@ function openSubMenu(anchor, build, level) {
         sm.appendChild(b);
         return b;
     }
-    function addRow(label, on, fn) {
+    // `role` names what the tick means: 'menuitemradio' for one choice of a
+    // set, 'menuitemcheckbox' for a state, plain 'menuitem' for an action.
+    function addRow(label, on, fn, role) {
         var b = row(label, on ? 'tbe-menu-check on' : '');
+        b.setAttribute('role', role || 'menuitem');
+        if (role) b.setAttribute('aria-checked', on ? 'true' : 'false');
         b.addEventListener('mouseenter', function () { closeSubMenus(level); });
         b.addEventListener('click', function () { closeNodeMenu(); fn(); });
         return b;
     }
     function addToggle(label, on, fn) {
         var b = row(label, 'tbe-menu-check' + (on ? ' on' : ''));
+        b.setAttribute('role', 'menuitemcheckbox');
+        b.setAttribute('aria-checked', on ? 'true' : 'false');
         b.addEventListener('mouseenter', function () { closeSubMenus(level); });
         b.addEventListener('click', function () { closeNodeMenu(); fn(); });
         return b;
     }
     function addSub(label, build2) {
         var b = row(label, 'tbe-menu-sub');
-        b.addEventListener('mouseenter', function () { openSubMenu(b, build2, level + 1); });
-        b.addEventListener('click', function (e) { e.stopPropagation(); openSubMenu(b, build2, level + 1); });
+        b.setAttribute('role', 'menuitem');
+        b.setAttribute('aria-haspopup', 'menu');
+        b.setAttribute('aria-expanded', 'false');
+        b.__tbeOpen = function (focus) { openSubMenu(b, build2, level + 1, focus); };
+        b.addEventListener('mouseenter', function () { b.__tbeOpen(false); });
+        b.addEventListener('click', function (e) { e.stopPropagation(); b.__tbeOpen(true); });
         return b;
     }
     function addSep() {
         var sep = document.createElement('div');
         sep.className = 'tbe-menu-sep';
+        sep.setAttribute('role', 'separator');
         sm.appendChild(sep);
     }
     function addSwatches(list, current, pick) {
@@ -2277,6 +2414,9 @@ function openSubMenu(anchor, build, level) {
             sw.className = 'tbe-swatch' + (current === c ? ' on' : '');
             sw.style.background = c;
             sw.title = c;
+            sw.setAttribute('role', 'menuitemradio');
+            sw.setAttribute('aria-checked', current === c ? 'true' : 'false');
+            sw.setAttribute('aria-label', c);
             sw.addEventListener('click', function () { closeNodeMenu(); pick(c); });
             grid.appendChild(sw);
         });
@@ -2299,11 +2439,17 @@ function openSubMenu(anchor, build, level) {
     sm.setAttribute('data-side', side);
     sm.style.left = Math.max(4, left) + 'px';
     sm.style.top = Math.max(4, Math.min(r.top, window.innerHeight - h - 6)) + 'px';
+    anchor.setAttribute('aria-expanded', 'true');
+    tbeSubAnchors[level - 1] = anchor;
+    if (focusFirst) focusFirstRow(sm);   // the keyboard's way in; hover leaves focus where it is
 }
 function nodeMenuEl() {
     if (tbeMenu) return tbeMenu;
     tbeMenu = document.createElement('div');
     tbeMenu.className = 'tbe-menu';
+    tbeMenu.setAttribute('role', 'menu');
+    tbeMenu.setAttribute('aria-label', 'Box menu');
+    tbeMenu.addEventListener('keydown', menuKeydown);
     document.body.appendChild(tbeMenu);
     // Dismissal lives at document level because the menu is body-level: it has
     // to escape both the tree's scroll box and the preview iframe.
@@ -2333,7 +2479,7 @@ var JUSTIFY = [['Start', 'flex-start'], ['Center', 'center'], ['End', 'flex-end'
                ['Space between', 'space-between'], ['Space around', 'space-around']];
 var ALIGNS  = [['Left', 'left'], ['Center', 'center'], ['Right', 'right']];
 
-function openNodeMenu(path, x, y) {
+function openNodeMenu(path, x, y, opener) {
     select(path);
     var m = nodeMenuEl();
     m.textContent = '';
@@ -2355,12 +2501,14 @@ function openNodeMenu(path, x, y) {
         if (label === null) {
             var sep = document.createElement('div');
             sep.className = 'tbe-menu-sep';
+            sep.setAttribute('role', 'separator');
             m.appendChild(sep);
             return;
         }
         var b = document.createElement('button');
         b.type = 'button';
         b.className = 'tbe-menu-item' + (cls ? ' ' + cls : '');
+        b.setAttribute('role', 'menuitem');
         b.textContent = label;
         b.addEventListener('mouseenter', function () { closeSubMenus(0); });
         b.addEventListener('click', function () { closeNodeMenu(); fn(); });
@@ -2374,6 +2522,8 @@ function openNodeMenu(path, x, y) {
         var b = document.createElement('button');
         b.type = 'button';
         b.className = 'tbe-menu-item tbe-menu-check' + (on ? ' on' : '');
+        b.setAttribute('role', 'menuitemcheckbox');
+        b.setAttribute('aria-checked', on ? 'true' : 'false');
         b.textContent = label;
         b.addEventListener('mouseenter', function () { closeSubMenus(0); });
         b.addEventListener('click', function () { closeNodeMenu(); fn(); });
@@ -2386,9 +2536,13 @@ function openNodeMenu(path, x, y) {
         var b = document.createElement('button');
         b.type = 'button';
         b.className = 'tbe-menu-item tbe-menu-sub';
+        b.setAttribute('role', 'menuitem');
+        b.setAttribute('aria-haspopup', 'menu');
+        b.setAttribute('aria-expanded', 'false');
         b.textContent = label;
-        b.addEventListener('mouseenter', function () { openSubMenu(b, build, 1); });
-        b.addEventListener('click', function (e) { e.stopPropagation(); openSubMenu(b, build, 1); });
+        b.__tbeOpen = function (focus) { openSubMenu(b, build, 1, focus); };
+        b.addEventListener('mouseenter', function () { b.__tbeOpen(false); });
+        b.addEventListener('click', function (e) { e.stopPropagation(); b.__tbeOpen(true); });
         m.appendChild(b);
     }
 
@@ -2397,7 +2551,7 @@ function openNodeMenu(path, x, y) {
         return function (panel, addRow) {
             list.forEach(function (opt) {
                 addRow(opt[0], opt[1] === current || (opt[1] === undefined && current === undefined),
-                       edit(function () { apply(opt[1]); }));
+                       edit(function () { apply(opt[1]); }), 'menuitemradio');
             });
         };
     }
@@ -2414,7 +2568,7 @@ function openNodeMenu(path, x, y) {
                 inp.addEventListener('change', function () { edit(function () { apply(inp.value); })(); });
                 inp.click();
             });
-            addRow(clearLabel || 'Default', current === undefined, edit(function () { apply(undefined); }));
+            addRow(clearLabel || 'Default', current === undefined, edit(function () { apply(undefined); }), 'menuitemradio');
         };
     }
 
@@ -2431,7 +2585,7 @@ function openNodeMenu(path, x, y) {
         var cur = typeof cell.size === 'number' ? cell.size : 2.4;
         addRow('Bigger',  false, edit(function () { delete cell.fit; cell.size = Math.min(40, r2(cur * 1.25)); }));
         addRow('Smaller', false, edit(function () { delete cell.fit; cell.size = Math.max(0.5, r2(cur / 1.25)); }));
-        addRow('Reset (2.4)', cur === 2.4, edit(function () { cell.size = 2.4; }));
+        addRow('Reset (2.4)', cur === 2.4, edit(function () { cell.size = 2.4; }), 'menuitemcheckbox');
     }
     // Scroll rows, shared by the text, payout-table and players-list looks.
     function scrollRows(x) {
@@ -2466,9 +2620,9 @@ function openNodeMenu(path, x, y) {
                 var styleNames = Object.keys((LAYOUT && LAYOUT.styles) || {});
                 if (styleNames.length) {
                     x.sub('Shared style', function (panel2, addRow2) {
-                        addRow2('None', !cell.style, edit(function () { setOrDelete(cell, 'style', undefined); }));
+                        addRow2('None', !cell.style, edit(function () { setOrDelete(cell, 'style', undefined); }), 'menuitemradio');
                         styleNames.forEach(function (n) {
-                            addRow2(n, cell.style === n, edit(function () { cell.style = n; }));
+                            addRow2(n, cell.style === n, edit(function () { cell.style = n; }), 'menuitemradio');
                         });
                     });
                 }
@@ -2497,7 +2651,7 @@ function openNodeMenu(path, x, y) {
                 var w = typeof node.weight === 'number' ? node.weight : null;
                 addRow2('More',  false, edit(function () { node.weight = r2(Math.min(50, (w === null ? 1 : w) + 0.5)); }));
                 addRow2('Less',  false, edit(function () { node.weight = r2(Math.max(0, (w === null ? 1 : w) - 0.5)); }));
-                addRow2('Content-sized', w === null, edit(function () { delete node.weight; }));
+                addRow2('Content-sized', w === null, edit(function () { delete node.weight; }), 'menuitemcheckbox');
             });
         }
     }
@@ -2530,11 +2684,11 @@ function openNodeMenu(path, x, y) {
             });
             if (target.bgImage) {
                 addRow('Fit: Stretch', (target.bgImageFit || 'stretch') === 'stretch',
-                    edit(function () { delete target.bgImageFit; }));
+                    edit(function () { delete target.bgImageFit; }), 'menuitemradio');
                 addRow('Fit: Cover', target.bgImageFit === 'cover',
-                    edit(function () { target.bgImageFit = 'cover'; }));
+                    edit(function () { target.bgImageFit = 'cover'; }), 'menuitemradio');
                 addRow('Fit: Contain', target.bgImageFit === 'contain',
-                    edit(function () { target.bgImageFit = 'contain'; }));
+                    edit(function () { target.bgImageFit = 'contain'; }), 'menuitemradio');
                 addRow('Remove image', false,
                     edit(function () { delete target.bgImage; delete target.bgImageFit; }));
             }
@@ -2567,8 +2721,8 @@ function openNodeMenu(path, x, y) {
         if (kind === 'image') {
             sub('Image', function (panel, addRow, addSwatches, x) {
                 var fit = cell.imageFit || 'contain';
-                addRow('Fit: Contain', fit === 'contain', edit(function () { delete cell.imageFit; }));
-                addRow('Fit: Cover',   fit === 'cover',   edit(function () { cell.imageFit = 'cover'; }));
+                addRow('Fit: Contain', fit === 'contain', edit(function () { delete cell.imageFit; }), 'menuitemradio');
+                addRow('Fit: Cover',   fit === 'cover',   edit(function () { cell.imageFit = 'cover'; }), 'menuitemradio');
                 x.sep();
                 addRow('Replace image…', false, function () {
                     uploadImage(function (url) { pushUndo(); cell.image = url; refresh(true); renderInspector(); });
@@ -2623,14 +2777,14 @@ function openNodeMenu(path, x, y) {
             });
             if (bg.image) {
                 addRow('Fit: Cover',   (bg.imageFit || 'cover') === 'cover',
-                    edit(function () { delete curScreen().bg.imageFit; }));
+                    edit(function () { delete curScreen().bg.imageFit; }), 'menuitemradio');
                 addRow('Fit: Contain', bg.imageFit === 'contain',
-                    edit(function () { curScreen().bg.imageFit = 'contain'; }));
+                    edit(function () { curScreen().bg.imageFit = 'contain'; }), 'menuitemradio');
                 // Distorts the picture, but the picture then covers exactly the
                 // area the layout does, so anything drawn into it stays put on
                 // a screen the design was not made for.
                 addRow('Fit: Stretch', bg.imageFit === 'stretch',
-                    edit(function () { curScreen().bg.imageFit = 'stretch'; }));
+                    edit(function () { curScreen().bg.imageFit = 'stretch'; }), 'menuitemradio');
                 addRow('Remove image', false,
                     edit(function () { delete curScreen().bg.image; delete curScreen().bg.imageFit; }));
             }
@@ -2641,17 +2795,17 @@ function openNodeMenu(path, x, y) {
         sub('Screen shape', function (panel, addRow) {
             var cur = +LAYOUT.aspect || 0;
             function pick(v) { return edit(function () { if (v) LAYOUT.aspect = v; else delete LAYOUT.aspect; })(); }
-            addRow('Fill the screen', !cur, function () { pick(0); });
-            addRow('Keep 16:10', cur === 1.6, function () { pick(1.6); });
-            addRow('Keep 16:9', cur === 1.78, function () { pick(1.78); });
-            addRow('Keep 4:3',  cur === 1.33, function () { pick(1.33); });
+            addRow('Fill the screen', !cur, function () { pick(0); }, 'menuitemradio');
+            addRow('Keep 16:10', cur === 1.6, function () { pick(1.6); }, 'menuitemradio');
+            addRow('Keep 16:9', cur === 1.78, function () { pick(1.78); }, 'menuitemradio');
+            addRow('Keep 4:3',  cur === 1.33, function () { pick(1.33); }, 'menuitemradio');
         });
         // Applies to the whole layout, not this screen: it is one look, and
         // half-and-half is never what anyone wants.
         sub('Panel colours', function (panel, addRow) {
             var on = panelColoursOn();
-            addRow('Keep the painted panels', on, function () { setPanelColours(true); });
-            addRow('Let the artwork show through', !on, function () { setPanelColours(false); });
+            addRow('Keep the painted panels', on, function () { setPanelColours(true); }, 'menuitemradio');
+            addRow('Let the artwork show through', !on, function () { setPanelColours(false); }, 'menuitemradio');
         });
     }
 
@@ -2687,12 +2841,22 @@ function openNodeMenu(path, x, y) {
     item(null);
     var undoBtn = item('Undo last change', doUndo);
     if (!undoStack.length) { undoBtn.disabled = true; undoBtn.title = 'Nothing to undo yet.'; }
+    var redoBtn = item('Redo', doRedo);
+    if (!redoStack.length) { redoBtn.disabled = true; redoBtn.title = 'Nothing to redo.'; }
 
     // Show first so it can be measured, then keep it inside the viewport.
     m.style.display = 'block';
     m.style.left = '0px'; m.style.top = '0px';
     m.style.left = Math.max(4, Math.min(x, window.innerWidth  - m.offsetWidth  - 6)) + 'px';
     m.style.top  = Math.max(4, Math.min(y, window.innerHeight - m.offsetHeight - 6)) + 'px';
+    // Focus moves into the menu however it was opened (a mouse user sees no
+    // ring: :focus-visible stays off after a pointer gesture), and goes back
+    // to the opener on close.
+    // A tree row handed in as the opener was rebuilt by select() above, so
+    // take the fresh element for its path; the preview frame is itself.
+    menuOpener = (opener && opener.getAttribute && opener.getAttribute('data-tpath') !== null)
+               ? treeRowEl(opener.getAttribute('data-tpath')) : (opener || null);
+    focusFirstRow(m);
 }
 
 // Structure tree.
@@ -2700,7 +2864,7 @@ document.getElementById('tbeTree').addEventListener('contextmenu', function (e) 
     var row = e.target.closest ? e.target.closest('[data-tpath]') : null;
     if (!row) return;
     e.preventDefault();
-    openNodeMenu(row.getAttribute('data-tpath'), e.clientX, e.clientY);
+    openNodeMenu(row.getAttribute('data-tpath'), e.clientX, e.clientY, row);
 });
 
 /* ── Drag a boundary to resize ─────────────────────────────────────────────
@@ -2999,7 +3163,7 @@ function wirePreviewMenu() {
         var el = e.target.closest ? e.target.closest('[data-path]') : null;
         e.preventDefault();
         var r = frame.getBoundingClientRect();
-        openNodeMenu(el ? el.getAttribute('data-path') : '', r.left + e.clientX, r.top + e.clientY);
+        openNodeMenu(el ? el.getAttribute('data-path') : '', r.left + e.clientX, r.top + e.clientY, frame);
     });
 }
 
@@ -3012,10 +3176,24 @@ document.getElementById('tbeUndo').addEventListener('click', doUndo);
  * click, drag or resize in the preview — which is to say, after every edit it
  * was most needed for. */
 function editorKeydown(e) {
-    if (!(e.ctrlKey || e.metaKey)) return;
+    var inField = !!(e.target.closest && e.target.closest('input, textarea, select'));
+    if (!(e.ctrlKey || e.metaKey)) {
+        if (inField) return;
+        if (e.key === 'Escape') { closeNodeMenu(); return; }
+        // Plain keys act only from the PREVIEW document (e.view is the iframe's
+        // window). The tree has its own handler, and the parent page at large
+        // must never delete a box because a toolbar button happened to have
+        // focus: the editor is embedded in check-in, with text fields around it.
+        if (e.view && e.view !== window) {
+            if ((e.key === 'Delete' || e.key === 'Backspace') && selPath) { e.preventDefault(); removeNode(); return; }
+            if ((e.key === 'F10' && e.shiftKey) || e.key === 'ContextMenu') { e.preventDefault(); openPreviewMenuAtSelection(); return; }
+        }
+        return;
+    }
     var k = (e.key || '').toLowerCase();
-    if (e.target.closest && e.target.closest('input, textarea, select')) return;
-    if (k === 'z') { e.preventDefault(); doUndo(); return; }
+    if (inField) return;
+    if (k === 'z') { e.preventDefault(); if (e.shiftKey) doRedo(); else doUndo(); return; }
+    if (k === 'y') { e.preventDefault(); doRedo(); return; }
     if (k === 'c' || k === 'x') {
         // A real text selection keeps the browser's own copy.
         var sel = e.view && e.view.getSelection ? String(e.view.getSelection()) : '';
@@ -3039,14 +3217,49 @@ function wirePreviewKeys() {
     doc.__tbeKeysWired = true;
     doc.addEventListener('keydown', editorKeydown);
 }
+// The keyboard's right-click: the menu opens on the selected box in the
+// preview, and focus goes back to the preview when it closes.
+function openPreviewMenuAtSelection() {
+    var doc = frame.contentDocument;
+    var path = selPath === null ? '' : selPath;
+    var el = doc && path ? doc.querySelector('[data-path="' + path + '"]') : null;
+    var fr = frame.getBoundingClientRect();
+    var r = el ? el.getBoundingClientRect() : { left: 20, top: 20, height: 0 };
+    openNodeMenu(path, fr.left + r.left + 24, fr.top + r.top + Math.min(24, r.height || 24), frame);
+}
 function doUndo() {
     if (!undoStack.length) return;
-    LAYOUT = JSON.parse(undoStack.pop());
+    redoStack.push(JSON.stringify(LAYOUT));
+    if (redoStack.length > 50) redoStack.shift();
+    restoreHistory(undoStack.pop());
+}
+function doRedo() {
+    if (!redoStack.length) return;
+    undoStack.push(JSON.stringify(LAYOUT));   // not pushUndo(): that would clear the redo branch
+    if (undoStack.length > 50) undoStack.shift();
+    restoreHistory(redoStack.pop());
+}
+// A history step puts the layout back and keeps the selection when a node
+// still exists at that path (undo of a Bold must not throw you off the cell);
+// the screen index is clamped as before.
+function restoreHistory(json) {
+    var keep = selPath;
+    LAYOUT = JSON.parse(json);
     normalizeLayout();
     selPath = null;
     refresh();
     selectScreen(Math.min(editScreenIndex, LAYOUT.screens.length - 1));
+    if (keep && pathExists(keep)) select(keep);
 }
+function pathExists(path) {
+    try { return !!nodeAt(path).node; } catch (e) { return false; }
+}
+function updateHistoryBtns() {
+    var u = document.getElementById('tbeUndo'), r = document.getElementById('tbeRedo');
+    if (u) u.disabled = !undoStack.length;
+    if (r) r.disabled = !redoStack.length;
+}
+document.getElementById('tbeRedo').addEventListener('click', doRedo);
 
 /* ── Preview state chips ─────────────────────────────────────────────── */
 
@@ -3062,8 +3275,9 @@ var STATES = {
 function applyPreviewState(name) {
     var chip = document.querySelector('.tbe-chip[data-state="' + name + '"]');
     if (!chip || !STATES[name] || chip.classList.contains('active')) return false;
-    document.querySelectorAll('.tbe-chip').forEach(function (x) { x.classList.remove('active'); });
+    document.querySelectorAll('.tbe-chip').forEach(function (x) { x.classList.remove('active'); x.setAttribute('aria-pressed', 'false'); });
     chip.classList.add('active');
+    chip.setAttribute('aria-pressed', 'true');
     if (PV) PV.setState(STATES[name]);
     return true;
 }

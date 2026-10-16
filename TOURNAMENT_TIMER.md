@@ -342,7 +342,14 @@ Two properties are load-bearing:
 
 Moves that would fall off the end are disabled with the reason, and edits go
 through `pushUndo()` like any other, so Ctrl+Z takes them back. The menu also
-carries its own **Undo last change**, disabled when there is no history.
+carries its own **Undo last change** and **Redo**, each disabled when there is
+nothing on its stack. `redoStack` mirrors `undoStack` (cap 50): `doUndo()`
+sets the current layout aside on it, `doRedo()` takes it back, and
+`pushUndo()` clears it, since a new edit forks history. Both go through
+`restoreHistory()`, which keeps `selPath` when a node still exists at that
+path (undoing a Bold must not throw you off the cell). Ctrl+Y and
+Ctrl+Shift+Z redo; `#tbeRedo` sits beside `#tbeUndo`, and `refresh()` keeps
+both buttons' disabled state right through `updateHistoryBtns()`.
 
 **Unsaved changes** are tracked by content, not by the undo stack:
 `markSaved()` snapshots `canonJson(LAYOUT)` (keys sorted, so a value deleted
@@ -395,13 +402,39 @@ straight from a QR to a seat map. Image goes through `uploadImage()` and the
 dropdown snaps back until the picker returns, since a cancelled pick is no
 change.
 
-The cascade is `openSubMenu(anchor, build, level)`: one body-level panel per
-level in `tbeSubs[]`, rebuilt on every open, and `build(panel, addRow,
-addSwatches, x)` gets `x.sub` (a row that opens the next level), `x.toggle` (a
-checkable row, indented either way) and `x.sep`. Opening a panel closes every
-deeper one, hovering a plain row closes everything deeper than its own panel
-(`closeSubMenus(from)`), and a hidden panel is emptied, so neither the user nor
-a probe ever sees a stale branch.
+The cascade is `openSubMenu(anchor, build, level, focusFirst)`: one body-level
+panel per level in `tbeSubs[]`, rebuilt on every open, and `build(panel,
+addRow, addSwatches, x)` gets `x.sub` (a row that opens the next level),
+`x.toggle` (a checkable row, indented either way) and `x.sep`. Opening a panel
+closes every deeper one, hovering a plain row closes everything deeper than its
+own panel (`closeSubMenus(from)`), and a hidden panel is emptied, so neither
+the user nor a probe ever sees a stale branch.
+
+**Keyboard and screen readers (the WAI-ARIA menu pattern).** The menu and every
+panel are `role="menu"`; rows are `menuitem`, a tick is `menuitemcheckbox`
+(toggles) or `menuitemradio` (one of a set: `choices()`, the Fit rows, the
+screen shape and panel colours, the swatches, which also carry `aria-label`)
+with `aria-checked`, submenu rows carry `aria-haspopup="menu"` and
+`aria-expanded` (set in `openSubMenu`, cleared by `closeSubMenus` through
+`tbeSubAnchors[]`), rules are `separator`. `openNodeMenu(path, x, y, opener)`
+focuses the first row however the menu was opened (a mouse user sees no ring,
+`:focus-visible` stays off after a pointer gesture) and remembers `opener`:
+the tree row, re-resolved by path because `select()` has just rebuilt the
+tree, or the preview `frame`; `closeNodeMenu()` puts focus back there when it
+was inside the menu. `menuKeydown`, on the menu and every panel: Up / Down
+walk the enabled rows of the panel that has focus and wrap, Right opens a
+submenu row's panel on its first row (`row.__tbeOpen(true)`), Left closes the
+panel and returns to the row that opened it, Home / End, Tab closes, Escape
+closes (bound on the document). Hover opening never moves focus. The tree:
+`#tbeTree` is `role="tree"`, rows `treeitem` with `aria-level`,
+`aria-selected`, `aria-expanded` on containers and roving `tabindex` (the
+selected row is 0); `renderTree()` re-focuses the selected row when the tree
+had focus, since every select rebuilds the rows; its `keydown` walks rows with
+Up / Down (selection follows focus), Right unfolds or steps in, Left folds or
+steps out, Home / End, Delete removes and lands on the row that takes the
+place, Shift+F10 / Menu opens the menu for the row. Focus rings for rows,
+menu items and swatches are drawn inside the row (`outline-offset: -2px`) so
+the panel's `overflow: hidden` cannot clip them.
 
 The **screen's** background belongs to the screen rather than to any node, so it
 is offered where you would look for it: on the screen's own right-click menu.
@@ -505,6 +538,12 @@ subsequent keystroke is delivered to the iframe's document. `Ctrl+Z` was bound
 only to the parent, which meant it worked until you touched the preview and was
 dead from then on — after every edit it was most needed for. `editorKeydown` is
 now attached to the parent document and, in `wirePreviewKeys()`, to the iframe's.
+Plain keys are scoped by document: `Escape` closes the menu from either, but
+`Delete` / `Backspace` (remove the selected box) and `Shift+F10` / the Menu key
+(`openPreviewMenuAtSelection()`) act only when the event's `view` is the
+iframe's window. The parent page at large must never delete a box because a
+toolbar button had focus: the editor is embedded in check-in, with text fields
+all round it. The tree has its own `keydown` handler for the same keys.
 A headless test will NOT catch this by itself: synthetic drags on a resize
 handle call `preventDefault()`, which suppresses the focus change, so the
 regression test has to click the preview normally first.

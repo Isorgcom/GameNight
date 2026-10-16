@@ -45,10 +45,10 @@ $csrf = csrf_token();
             </div>
             <div class="tbe-statebar">
                 <span>Preview state:</span>
-                <button data-state="normal" class="tbe-chip active">Running</button>
-                <button data-state="paused" class="tbe-chip">Paused</button>
-                <button data-state="break" class="tbe-chip">On break</button>
-                <button data-state="over" class="tbe-chip">Game over</button>
+                <button data-state="normal" class="tbe-chip active" type="button" aria-pressed="true">Running</button>
+                <button data-state="paused" class="tbe-chip" type="button" aria-pressed="false">Paused</button>
+                <button data-state="break" class="tbe-chip" type="button" aria-pressed="false">On break</button>
+                <button data-state="over" class="tbe-chip" type="button" aria-pressed="false">Game over</button>
                 <div class="pk-seg tbe-devseg" id="tbeDevSeg" title="Preview as a TV, a tablet or a phone — device conditions follow along">
                     <span class="pk-seg-thumb"></span>
                     <button type="button" data-dev="desktop" class="active">TV / PC</button>
@@ -65,8 +65,9 @@ $csrf = csrf_token();
                 <div class="tbe-panel-head">
                     <span>Structure</span>
                     <span class="tbe-panel-actions">
-                        <button id="tbeHelpBtn" class="tbe-mini" title="What everything in a layout means">?</button>
-                        <button id="tbeUndo" class="tbe-mini" title="Undo (Ctrl+Z)">&#8630;</button>
+                        <button id="tbeHelpBtn" class="tbe-mini" type="button" title="What everything in a layout means" aria-label="Help: what everything in a layout means">?</button>
+                        <button id="tbeUndo" class="tbe-mini" type="button" title="Undo (Ctrl+Z)" aria-label="Undo">&#8630;</button>
+                        <button id="tbeRedo" class="tbe-mini" type="button" title="Redo (Ctrl+Y)" aria-label="Redo" disabled>&#8631;</button>
                     </span>
                 </div>
                 <div id="tbeScreens" class="tbe-screens"></div>
@@ -76,8 +77,8 @@ $csrf = csrf_token();
                     <button id="tbeAddRow"  class="tbe-mini">+ Row</button>
                     <button id="tbeAddCol"  class="tbe-mini">+ Column</button>
                     <button id="tbeDup"     class="tbe-mini">Duplicate</button>
-                    <button id="tbeUp"      class="tbe-mini">&#9650;</button>
-                    <button id="tbeDown"    class="tbe-mini">&#9660;</button>
+                    <button id="tbeUp"      class="tbe-mini" type="button" title="Move up" aria-label="Move up">&#9650;</button>
+                    <button id="tbeDown"    class="tbe-mini" type="button" title="Move down" aria-label="Move down">&#9660;</button>
                     <button id="tbeRemove"  class="tbe-mini tbe-mini-danger">Delete</button>
                 </div>
             </div>
