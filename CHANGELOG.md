@@ -11,6 +11,10 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+---
+
+## [v1.8.9] - 2026-10-16
+
 ### Added
 
 - **The layout editor works without a mouse.** Tab to the Structure tree and
