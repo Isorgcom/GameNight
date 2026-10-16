@@ -256,7 +256,7 @@ if ($token === '' && $page_eid > 0) {
     unset($_SESSION['flash']);
     if ($flash && !empty($flash['msg'])):
         $ok = ($flash['type'] ?? '') === 'success'; ?>
-    <div style="margin-bottom:.9rem;padding:.6rem .8rem;border-radius:8px;font-size:.9rem;font-weight:600;<?= $ok ? 'background:#f0fdf4;border:1px solid #bbf7d0;color:#166534' : 'background:#fef2f2;border:1px solid #fca5a5;color:#dc2626' ?>">
+    <div role="alert" style="margin-bottom:.9rem;padding:.6rem .8rem;border-radius:8px;font-size:.9rem;font-weight:600;<?= $ok ? 'background:#f0fdf4;border:1px solid #bbf7d0;color:#166534' : 'background:#fef2f2;border:1px solid #fca5a5;color:#dc2626' ?>">
         <?= htmlspecialchars($flash['msg']) ?>
     </div>
     <?php endif; ?>

@@ -67,7 +67,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['flash'] = ['type' => 'error', 'msg' => $res['error']];
         // Re-show the editor so nothing typed is lost server-side context-wise.
         $qs = $_POST['id'] ? ('?id=' . (int)$_POST['id']) : '';
-        if ($backM)  $qs .= ($qs ? '&' : '?') . 'm=' . urlencode($_POST['month_param'] ?? '');
+        if (!empty($_POST['month_param'])) $qs .= ($qs ? '&' : '?') . 'm=' . urlencode($_POST['month_param']);
+        if (!empty($_POST['occurrence_date'])) $qs .= ($qs ? '&' : '?') . 'occ=' . urlencode($_POST['occurrence_date']);
         header('Location: /event_edit.php' . $qs);
         exit;
     }
@@ -221,30 +222,39 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
             padding:.32rem .45rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.82rem;background:#fff;color:#1e293b;
         }
         .edit-top-bar select:focus, .edit-top-bar input:focus { border-color:#2563eb;outline:none; }
-        .edit-top-bar .edit-title-input { flex:1;min-width:140px; }
+        .edit-top-bar .edit-title-label { flex:1;min-width:140px; }
+        .edit-top-bar .edit-title-input { width:100%;box-sizing:border-box; }
+        .edit-top-bar .edit-title-input.is-invalid { border-color:#dc2626;box-shadow:0 0 0 3px rgba(220,38,38,.12); }
+        .req { color:#dc2626;font-weight:700; }
+        .req-note { font-size:.72rem;color:#64748b;align-self:flex-end;padding-bottom:.4rem;white-space:nowrap; }
+        .sr-only { position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0; }
         .edit-top-bar label { font-size:.72rem;font-weight:600;color:#64748b;display:flex;flex-direction:column;gap:.1rem; }
-        #eColorDot { width:38px;height:38px;border-radius:50%;cursor:pointer;border:3px solid transparent;flex-shrink:0;transition:border-color .15s,box-shadow .15s;position:relative; }
+        #eColorDot { width:38px;height:38px;border-radius:50%;cursor:pointer;border:3px solid transparent;padding:0;flex-shrink:0;transition:border-color .15s,box-shadow .15s;position:relative; }
         #eColorDot:hover { border-color:#1e293b; }
         #eColorDot.open { box-shadow:0 0 0 3px rgba(37,99,235,.3);border-color:#2563eb; }
         #eColorPicker { position:absolute;top:calc(100% + 6px);left:0;background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;padding:.6rem .75rem;display:none;gap:.5rem;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,.15); }
         #eColorPicker.open { display:flex; }
         #eColorPicker .color-swatch { width:26px;height:26px; }
         #eColorDotWrap { position:relative;flex-shrink:0; }
-        .color-swatch { width:28px;height:28px;border-radius:50%;cursor:pointer;border:3px solid transparent; }
+        .color-swatch { width:28px;height:28px;border-radius:50%;cursor:pointer;border:3px solid transparent;padding:0; }
+        #eColorDot:focus-visible, .color-swatch:focus-visible { outline:2px solid #2563eb;outline-offset:2px; }
         .color-swatch.selected { border-color:#1e293b; }
         .edit-title-input { flex:1;min-width:140px;padding:.45rem .7rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.95rem;font-weight:500; }
         .edit-title-input:focus { outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
         .inv-name-text { flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis; }
-        .mgr-toggle { display:inline-flex;align-items:center;gap:.25rem;margin-left:auto;cursor:pointer;flex-shrink:0;user-select:none; }
+        .mgr-toggle { display:inline-flex;align-items:center;gap:.25rem;margin-left:auto;cursor:pointer;flex-shrink:0;user-select:none;min-height:24px;position:relative; }
         .mgr-toggle .mgr-label { font-size:.62rem;font-weight:700;text-transform:uppercase;color:#7c3aed; }
-        .pk-toggle-input { display:none; }
-        .pk-toggle-slider { position:relative;width:36px;height:20px;background:#cbd5e1;border-radius:99px;transition:background .2s;flex-shrink:0; }
+        /* The real checkbox stays focusable and announced; only its pixels go.
+           display:none took every toggle out of the tab order. */
+        .pk-toggle-input { position:absolute;opacity:0;width:1px;height:1px;margin:-1px;overflow:hidden;pointer-events:none; }
+        .pk-toggle-input:focus-visible + .pk-toggle-slider, .pk-toggle-input:focus-visible + .pk-toggle-sm { outline:2px solid #2563eb;outline-offset:2px; }
+        .pk-toggle-slider { position:relative;width:36px;height:20px;background:#94a3b8;box-shadow:inset 0 0 0 1px #64748b;border-radius:99px;transition:background .2s;flex-shrink:0; }
         .pk-toggle-slider::after { content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.2); }
-        .pk-toggle-input:checked + .pk-toggle-slider { background:#22c55e; }
+        .pk-toggle-input:checked + .pk-toggle-slider { background:#22c55e;box-shadow:none; }
         .pk-toggle-input:checked + .pk-toggle-slider::after { transform:translateX(16px); }
-        .pk-toggle-sm { position:relative;width:28px;height:16px;background:#cbd5e1;border-radius:99px;transition:background .2s;flex-shrink:0; }
+        .pk-toggle-sm { position:relative;width:28px;height:16px;background:#94a3b8;box-shadow:inset 0 0 0 1px #64748b;border-radius:99px;transition:background .2s;flex-shrink:0; }
         .pk-toggle-sm::after { content:'';position:absolute;top:2px;left:2px;width:12px;height:12px;background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 1px 2px rgba(0,0,0,.2); }
-        .pk-toggle-input:checked + .pk-toggle-sm { background:#7c3aed; }
+        .pk-toggle-input:checked + .pk-toggle-sm { background:#7c3aed;box-shadow:none; }
         .pk-toggle-input:checked + .pk-toggle-sm::after { transform:translateX(12px); }
         #eInvitedList li[data-iname].inv-dragging { opacity:.4;background:#dbeafe; }
         #eInvitedList { counter-reset: inv; }
@@ -255,19 +265,20 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
         #eInvitedList li[data-iname],
         #eInvitedList li.custom-row { counter-increment: inv; }
         #eInvitedList li[data-iname] { display:flex;align-items:center;gap:.4rem; }
-        #eInvitedList li[data-iname] .inv-name-text::before { content: counter(inv) ". "; color:#94a3b8;font-weight:600; }
-        #eInvitedList li.custom-row .custom-row-inner::before { content: counter(inv) ". "; color:#94a3b8;font-weight:600;font-size:.8rem;flex:0 0 auto; }
+        #eInvitedList li[data-iname] .inv-name-text::before { content: counter(inv) ". "; color:#64748b;font-weight:600; }
+        #eInvitedList li.custom-row .custom-row-inner::before { content: counter(inv) ". "; color:#64748b;font-weight:600;font-size:.8rem;flex:0 0 auto; }
         .inv-rsvp-badge { font-size:.6rem;font-weight:700;padding:.1rem .35rem;border-radius:3px;text-transform:uppercase;letter-spacing:.03em;flex-shrink:0; }
         .inv-rsvp-yes { background:#dcfce7;color:#166534; }
         .inv-rsvp-no { background:#fee2e2;color:#991b1b; }
         .inv-rsvp-maybe { background:#fef9c3;color:#854d0e; }
         .inv-rsvp-waitlist { background:#eff6ff;color:#1e40af;border:1px solid #93c5fd; }
-        .inv-contact-ctl { flex-shrink:0;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:.15rem;padding:.05rem .3rem;border-radius:4px;line-height:1; }
+        .inv-contact-ctl { flex-shrink:0;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:.15rem;padding:.05rem .3rem;border-radius:4px;line-height:1;background:none;border:0;font:inherit;color:inherit;min-width:24px;min-height:24px; }
+        .inv-contact-ctl:focus-visible { outline:2px solid #2563eb;outline-offset:1px; }
         .inv-contact-ctl:hover { background:#e2e8f0; }
         .inv-contact-ctl .inv-ci { color:#16a34a;font-size:.95rem;line-height:1; }
         .inv-contact-ctl .inv-na { font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:#991b1b;background:#fee2e2;border-radius:3px;padding:.05rem .3rem; }
         .inv-capacity-divider { padding:.2rem .6rem;font-size:.68rem;font-weight:700;color:#b45309;background:#fef3c7;border-radius:4px;text-align:center;cursor:default;margin:.15rem 0; }
-        .inv-declined-divider { padding:.2rem .6rem;font-size:.68rem;font-weight:700;color:#64748b;background:#f1f5f9;border-radius:4px;text-align:center;cursor:pointer;margin:.15rem 0; }
+        .inv-declined-divider { padding:.2rem .6rem;font-size:.68rem;font-weight:700;color:#475569;background:#f1f5f9;border-radius:4px;text-align:center;cursor:pointer;margin:.15rem 0; }
         .inv-declined-divider:hover { background:#e2e8f0; }
         .inv-declined-item { opacity:.5;cursor:default !important; }
         .inv-declined-item .inv-rsvp-badge { display:inline-block !important; }
@@ -278,7 +289,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
         .arrow-mobile { display:none; }
         .invite-pane { display:flex;flex-direction:column;border:1.5px solid #e2e8f0;border-radius:8px;overflow:hidden;min-height:200px; }
         .invite-pane-header { background:#f8fafc;padding:.35rem .65rem;font-size:.7rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;flex-shrink:0;border-bottom:1px solid #e2e8f0; }
-        .inv-col-head { display:flex;align-items:center;gap:.4rem;padding:.25rem .6rem;font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#94a3b8;border-bottom:1px solid #eef2f7;flex-shrink:0; }
+        .inv-col-head { display:flex;align-items:center;gap:.4rem;padding:.25rem .6rem;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b;border-bottom:1px solid #eef2f7;flex-shrink:0; }
         .inv-col-head span:not(:first-child) { text-align:center; }
         .inv-col-contact { width:2.8rem;flex-shrink:0; }
         .inv-col-rsvp    { width:3.4rem;flex-shrink:0; }
@@ -292,7 +303,8 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
         .invite-pane-list li { padding:.35rem .6rem;border-radius:5px;font-size:.875rem;cursor:pointer;user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
         .invite-pane-list li:hover { background:#f1f5f9; }
         .invite-pane-list li.inv-selected { background:#dbeafe !important;color:#1e40af; }
-        .invite-pane-list li.dimmed { color:#94a3b8;cursor:default; }
+        .invite-pane-list li[role="option"]:focus-visible { outline:2px solid #2563eb;outline-offset:-2px; }
+        .invite-pane-list li.dimmed { color:#64748b;cursor:default; }
         .invite-pane-list li.dimmed::before { content:'\2713\00a0';color:#16a34a;font-weight:700; }
         .invite-pane-list li.dimmed:hover { background:transparent; }
         .invite-pane-list li.custom-row { padding:.2rem .4rem;cursor:default; }
@@ -304,15 +316,18 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
         .custom-row-inner input { padding:.28rem .45rem;border:1.5px solid #e2e8f0;border-radius:5px;font-size:.8rem;min-width:0; }
         .custom-row-inner .cr-name    { flex:1.5;min-width:110px; }
         .custom-row-inner .cr-contact { flex:2.5;min-width:160px; }
-        .custom-row-inner .cr-remove  { flex-shrink:0;padding:.2rem .4rem;border:1px solid #e2e8f0;border-radius:5px;background:#fff;cursor:pointer;color:#94a3b8;font-size:.85rem;line-height:1; }
+        .custom-row-inner .cr-remove  { flex-shrink:0;padding:.2rem .4rem;border:1px solid #cbd5e1;border-radius:5px;background:#fff;cursor:pointer;color:#64748b;font-size:.85rem;line-height:1;min-width:24px;min-height:24px; }
         .custom-row-inner .cr-remove:hover { background:#fee2e2;color:#dc2626;border-color:#fca5a5; }
         #eInviteData { display:none; }
         .edit-toolbar { display:flex;align-items:center;gap:.6rem;padding:.4rem 1rem;flex-wrap:wrap;flex-shrink:0;border-top:1px solid #e2e8f0;background:#f8fafc; }
-        .edit-toolbar .btn { font-size:.78rem;padding:.3rem .65rem; }
+        .edit-toolbar .btn { font-size:.78rem;padding:.42rem .75rem;min-height:30px; }
+        .btn-send { background:#15803d;border-color:#15803d;color:#fff; }
+        .btn-send:hover { background:#166534;border-color:#166534; }
+        #eAddNameBtn { min-height:24px; }
         .edit-desc-wrap { padding:0 1rem .5rem;flex-shrink:0; }
         .edit-desc-wrap textarea { width:100%;resize:vertical;min-height:80px;max-height:150px;padding:.5rem .7rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.85rem;box-sizing:border-box;font-family:inherit; }
         .edit-desc-wrap textarea:focus { outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
-        .edit-desc-toggle { font-size:.82rem;color:#2563eb;cursor:pointer;padding:.3rem 1rem;flex-shrink:0; }
+        .edit-desc-toggle { font-size:.82rem;color:#2563eb;cursor:pointer;padding:.3rem 1rem;flex-shrink:0;background:none;border:0;font-family:inherit; }
         .edit-desc-toggle:hover { text-decoration:underline; }
         .edit-poker-bar { display:flex;align-items:center;gap:.5rem;padding:.3rem 1rem;flex-wrap:wrap;flex-shrink:0;background:#f0f9ff;border-top:1px solid #bfdbfe;font-size:.78rem;color:#475569; }
         .edit-poker-bar label { display:flex;align-items:center;gap:.25rem; }
@@ -325,7 +340,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
         .modal-overlay.open { display:flex; }
         .modal { background:#fff;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.25);width:100%;max-width:480px;padding:1.75rem; }
         .modal-header { display:flex;align-items:center;margin-bottom:.5rem; }
-        .modal-close { background:none;border:none;font-size:1rem;cursor:pointer;color:#94a3b8;padding:.25rem .45rem;border-radius:6px;margin-left:auto; }
+        .modal-close { background:none;border:none;font-size:1rem;cursor:pointer;color:#64748b;padding:.25rem .45rem;border-radius:6px;margin-left:auto;min-width:24px;min-height:24px; }
         .modal-close:hover { background:#e2e8f0; }
 
         /* Guest-options dropdown rows: checkbox + bold title + muted explainer */
@@ -334,10 +349,21 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
             font-size: .85rem; color: #334155; white-space: normal !important; }
         .go-row input[type=checkbox] { margin-top: .2rem; flex-shrink: 0; }
         .go-row span strong { display: block; font-size: .85rem; }
-        .go-row span small { display: block; color: #94a3b8; font-size: .72rem; line-height: 1.3; }
+        .go-row span small { display: block; color: #64748b; font-size: .72rem; line-height: 1.3; }
         /* Explicit per-row remove — visible everywhere (double-click was invisible UX) */
-        .inv-remove-x { flex-shrink:0;color:#cbd5e1;font-weight:700;cursor:pointer;padding:0 .3rem;font-size:1.05rem;line-height:1; }
-        .inv-remove-x:hover { color:#dc2626; }
+        .inv-remove-x { flex-shrink:0;color:#64748b;font-weight:700;cursor:pointer;padding:0 .3rem;font-size:1.05rem;line-height:1;background:none;border:0;border-radius:4px;min-width:24px;min-height:24px;display:inline-flex;align-items:center;justify-content:center; }
+        .inv-remove-x:hover { color:#dc2626;background:#fee2e2; }
+        .inv-remove-x:focus-visible { outline:2px solid #2563eb;outline-offset:1px; }
+        /* Fingers: the row and its two controls at tap size, the switches too. */
+        @media (pointer: coarse) {
+            .invite-pane-list li { min-height:44px; }
+            .inv-remove-x, .inv-contact-ctl, .cr-remove, .modal-close { min-width:36px;min-height:36px; }
+            .pk-toggle-slider { width:44px;height:24px; }
+            .pk-toggle-slider::after { width:20px;height:20px; }
+            .pk-toggle-input:checked + .pk-toggle-slider::after { transform:translateX(20px); }
+            .color-swatch, #eColorPicker .color-swatch { width:36px;height:36px; }
+            #eAddNameBtn { min-height:36px; }
+        }
         .edit-actions-mobile { display:none; }
         @media (max-width: 1024px) {
             /* Phone flow: no arrow strip — tap a name to invite, tap again to remove.
@@ -348,13 +374,16 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
             .invite-pane-list li.dimmed { cursor:pointer; }
             .invite-pane-list li.dimmed:hover { background:#f8fafc; }
             .edit-actions-mobile { display:flex;gap:.5rem;position:sticky;bottom:0;background:#fff;
-                padding:.65rem .25rem;border-top:1.5px solid #e2e8f0;z-index:40; }
+                padding:.65rem .25rem calc(.65rem + env(safe-area-inset-bottom));border-top:1.5px solid #e2e8f0;z-index:40; }
             .edit-actions-mobile .btn { flex:1;text-align:center; }
             .evedit-wrap { margin:.5rem auto;padding:0 .5rem; }
-            .evedit-card { height:auto;min-height:0; }
+            /* overflow:hidden would make the card the sticky bar's scroll box, so
+               the bar scrolled away with the form instead of staying at the
+               bottom of the screen. */
+            .evedit-card { height:auto;min-height:0;overflow:visible; }
             .evedit-card form { overflow-y:visible; }
             .edit-top-bar { gap:.5rem;padding:.5rem .75rem; }
-            .edit-top-bar .edit-title-input { flex:1 1 100%;min-width:0; }
+            .edit-top-bar .edit-title-label { flex:1 1 100%;min-width:0; }
             /* Stack the two panes only on small screens; side-by-side above. */
             .edit-invite-panel { grid-template-columns:1fr;height:auto;padding:0 .75rem; }
             .invite-arrows { flex-direction:row;justify-content:center;padding:.25rem 0; }
@@ -378,7 +407,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
 
 <div class="evedit-wrap">
     <?php if ($flash && !empty($flash['msg'])): ?>
-        <div class="alert alert-<?= ($flash['type'] ?? '') === 'error' ? 'error' : 'success' ?>" style="margin-bottom:.75rem">
+        <div class="alert alert-<?= ($flash['type'] ?? '') === 'error' ? 'error' : 'success' ?>" style="margin-bottom:.75rem" role="alert">
             <?= htmlspecialchars($flash['msg']) ?>
         </div>
     <?php endif; ?>
@@ -386,15 +415,15 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
     <div class="evedit-card">
         <div class="evedit-head">
             <div id="eColorDotWrap" style="align-self:center">
-                <div id="eColorDot" style="background:#2563eb" data-act="toggleColorPicker" data-a1="@event" title="Pick the event's calendar color"></div>
-                <div id="eColorPicker">
-                    <?php foreach (['#2563eb','#16a34a','#dc2626','#d97706','#7c3aed','#0891b2','#db2777'] as $c): ?>
-                        <div class="color-swatch" style="background:<?= $c ?>" data-color="<?= $c ?>" data-act="selectColor" data-a1="<?= $c ?>"></div>
+                <button type="button" id="eColorDot" style="background:#2563eb" data-act="toggleColorPicker" data-a1="@event" title="Pick the event's calendar colour" aria-label="Pick the event's calendar colour" aria-haspopup="true" aria-expanded="false"></button>
+                <div id="eColorPicker" role="group" aria-label="Calendar colour">
+                    <?php foreach (['#2563eb' => 'Blue', '#16a34a' => 'Green', '#dc2626' => 'Red', '#d97706' => 'Amber', '#7c3aed' => 'Purple', '#0891b2' => 'Teal', '#db2777' => 'Pink'] as $c => $cName): ?>
+                        <button type="button" class="color-swatch" style="background:<?= $c ?>" data-color="<?= $c ?>" data-act="selectColor" data-a1="<?= $c ?>" title="<?= $cName ?>" aria-label="<?= $cName ?>" aria-pressed="false"></button>
                     <?php endforeach; ?>
                 </div>
             </div>
             <h1><?= htmlspecialchars($pageHeading) ?><?= $occDate ? ' — ' . htmlspecialchars($occDate) . ' only' : '' ?></h1>
-            <a href="<?= htmlspecialchars($cancelUrl) ?>" class="btn btn-outline" style="font-size:.8rem;text-decoration:none">Back to calendar</a>
+            <a href="<?= htmlspecialchars($cancelUrl) ?>" class="btn btn-outline" style="font-size:.8rem;text-decoration:none" data-act="leaveEditor" data-a1="@event">Back to calendar</a>
         </div>
         <form method="post" action="/event_edit.php" id="editForm">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
@@ -425,8 +454,10 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                         <?php if ($isAdmin): ?><option value="public">Public</option><?php endif; ?>
                     </select>
                 </label>
-                <input type="text" name="title" id="eTitle" class="edit-title-input" placeholder="Event title *" required autocomplete="off" title="Required">
-                <label>Date <input type="date" name="start_date" id="eStartDate" required></label>
+                <label class="edit-title-label"><span>Title <span class="req" aria-hidden="true">*</span></span>
+                    <input type="text" name="title" id="eTitle" class="edit-title-input" placeholder="Event title" required aria-required="true" autocomplete="off">
+                </label>
+                <label><span>Date <span class="req" aria-hidden="true">*</span></span><input type="date" name="start_date" id="eStartDate" required aria-required="true"></label>
                 <label>Time <input type="time" id="eTimeNative"><input type="hidden" name="start_time" id="eStartTime"></label>
                 <label>Duration
                     <select id="eDuration">
@@ -442,6 +473,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                 <label style="flex:1;min-width:170px">Address
                     <input type="text" name="location" id="eLocation" placeholder="Street address (optional)" maxlength="200" autocomplete="off">
                 </label>
+                <span class="req-note"><span class="req" aria-hidden="true">*</span> required</span>
             </div>
 
             <!-- ── Toolbar: toggles + actions ── -->
@@ -452,7 +484,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                      the show/hide logic (waitlist needs a capacity, max-guests is
                      non-poker-only) keeps working inside the panel. -->
                 <div class="rem-dd" id="eGuestOptsDD">
-                    <button type="button" class="rem-dd-btn" data-act="toggleGuestOptsDD" data-a1="@event">
+                    <button type="button" class="rem-dd-btn" data-act="toggleGuestOptsDD" data-a1="@event" aria-haspopup="true" aria-expanded="false" aria-controls="eGuestOptsPanel">
                         Guest options <span id="eGuestOptsBadge" style="display:none;background:#2563eb;color:#fff;border-radius:999px;font-size:.68rem;font-weight:700;padding:.05rem .38rem"></span> <span style="font-size:.7rem">&#9662;</span>
                     </button>
                     <div class="rem-dd-panel go-panel" id="eGuestOptsPanel">
@@ -474,13 +506,13 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                         </label>
                     </div>
                 </div>
-                <span class="edit-desc-toggle" id="eDescToggle" data-act="toggleDesc">+ Description</span>
+                <button type="button" class="edit-desc-toggle" id="eDescToggle" data-act="toggleDesc" aria-expanded="false" aria-controls="eDescWrap">+ Description</button>
                 <div style="flex:1"></div>
                 <button type="submit" class="btn btn-primary" id="eSubmitBtn" data-save="quiet" data-set-value="eSendAfterSave:"><?= $event ? 'Save Changes' : 'Add Event' ?></button>
                 <?php if (get_setting('notifications_enabled', '0') === '1'): ?>
-                <button type="submit" class="btn btn-primary" id="eSubmitSendBtn" data-save="send" style="background:#16a34a;border-color:#16a34a" data-set-value="eSendAfterSave:1" title="Save the event and send invitations now">Save &amp; Send Invites</button>
+                <button type="submit" class="btn btn-primary btn-send" id="eSubmitSendBtn" data-save="send" data-set-value="eSendAfterSave:1" title="Save the event and send invitations now">Save &amp; Send Invites</button>
                 <?php endif; ?>
-                <a href="<?= htmlspecialchars($cancelUrl) ?>" class="btn btn-outline" style="text-decoration:none">Cancel</a>
+                <a href="<?= htmlspecialchars($cancelUrl) ?>" class="btn btn-outline" style="text-decoration:none" data-act="leaveEditor" data-a1="@event">Cancel</a>
             </div>
 
             <!-- ── Poker settings bar (inline, hidden by default) ── -->
@@ -514,7 +546,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                 </select></label>
                 </span>
                 <?php elseif ($isAdmin): ?>
-                <span style="font-size:.8rem;color:#94a3b8" title="Paste a FinalTable game key under Site Settings › Connected Apps to offer online play">In person only</span>
+                <span style="font-size:.8rem;color:#64748b" title="Paste a FinalTable game key under Site Settings › Connected Apps to offer online play">In person only</span>
                 <?php endif; ?>
                 <span id="eCapacityHint" style="font-weight:700;color:#2563eb">8 seats</span>
             </div>
@@ -523,8 +555,8 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
             <div class="edit-poker-bar" id="eReminderFields">
                 <span style="font-weight:600;color:#475569">Send reminders:</span>
                 <div class="rem-dd" id="eRemDD">
-                    <button type="button" class="rem-dd-btn" data-act="toggleRemDD" data-a1="@event">
-                        <span id="eRemSummary">&mdash;</span> <span style="font-size:.7rem">&#9662;</span>
+                    <button type="button" class="rem-dd-btn" data-act="toggleRemDD" data-a1="@event" aria-haspopup="true" aria-expanded="false" aria-controls="eRemPanel">
+                        <span class="sr-only">Reminders: </span><span id="eRemSummary">&mdash;</span> <span style="font-size:.7rem" aria-hidden="true">&#9662;</span>
                     </button>
                     <div class="rem-dd-panel" id="eRemPanel">
                         <?php foreach ($reminder_presets_available as $__off):
@@ -559,7 +591,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
 
             <!-- ── Description (collapsed by default) ── -->
             <div class="edit-desc-wrap" id="eDescWrap" style="display:none">
-                <textarea name="description" id="eDesc" rows="3" placeholder="Event description (optional)"></textarea>
+                <textarea name="description" id="eDesc" rows="3" placeholder="Event description (optional)" aria-label="Description"></textarea>
             </div>
 
             <!-- ── Dual-pane invite panel with arrow buttons ── -->
@@ -568,6 +600,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                 <div class="invite-pane">
                     <div class="invite-pane-header">All Users</div>
                     <input type="text" id="eUserSearch" class="invite-pane-search"
+                           aria-label="<?= $isAdmin ? 'Search name, email, phone' : 'Search name' ?>"
                            placeholder="<?= $isAdmin ? 'Search name, email, phone&hellip;' : 'Search name&hellip;' ?>"
                            data-act-input="filterAllUsers" data-input-a1="@value" autocomplete="off">
                     <label id="eHideNonMembersWrap" style="display:none;align-items:center;gap:.4rem;padding:.25rem .65rem .35rem;font-size:.75rem;color:#64748b;cursor:pointer">
@@ -575,14 +608,14 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                         <span class="pk-toggle-sm"></span>
                         <span>Hide non-members</span>
                     </label>
-                    <ul class="invite-pane-list" id="eAllUsersList"></ul>
+                    <ul class="invite-pane-list" id="eAllUsersList" role="listbox" aria-multiselectable="true" aria-label="All users"></ul>
                 </div>
                 <!-- Center: arrow buttons (desktop: left/right, mobile: up/down) -->
                 <div class="invite-arrows">
-                    <button type="button" class="inv-arrow-btn" data-act="moveRight" title="Add selected"><span class="arrow-desktop">&rsaquo;</span><span class="arrow-mobile">&darr;</span></button>
-                    <button type="button" class="inv-arrow-btn" data-act="moveAllRight" title="Add all visible"><span class="arrow-desktop">&raquo;</span><span class="arrow-mobile">&dArr;</span></button>
-                    <button type="button" class="inv-arrow-btn" data-act="moveLeft" title="Remove selected"><span class="arrow-desktop">&lsaquo;</span><span class="arrow-mobile">&uarr;</span></button>
-                    <button type="button" class="inv-arrow-btn" data-act="moveAllLeft" title="Remove all"><span class="arrow-desktop">&laquo;</span><span class="arrow-mobile">&uArr;</span></button>
+                    <button type="button" class="inv-arrow-btn" data-act="moveRight" title="Add selected" aria-label="Add selected"><span class="arrow-desktop">&rsaquo;</span><span class="arrow-mobile">&darr;</span></button>
+                    <button type="button" class="inv-arrow-btn" data-act="moveAllRight" title="Add all visible" aria-label="Add all visible"><span class="arrow-desktop">&raquo;</span><span class="arrow-mobile">&dArr;</span></button>
+                    <button type="button" class="inv-arrow-btn" data-act="moveLeft" title="Remove selected" aria-label="Remove selected"><span class="arrow-desktop">&lsaquo;</span><span class="arrow-mobile">&uarr;</span></button>
+                    <button type="button" class="inv-arrow-btn" data-act="moveAllLeft" title="Remove all" aria-label="Remove all"><span class="arrow-desktop">&laquo;</span><span class="arrow-mobile">&uArr;</span></button>
                 </div>
                 <!-- Right: invited users -->
                 <div class="invite-pane">
@@ -590,13 +623,13 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                         <span style="flex:1">Invited</span>
                         <button type="button" class="btn btn-outline" style="font-size:.72rem;padding:.18rem .55rem" title="Invite someone who isn't a user — just a name, with optional email/phone" id="eAddNameBtn" data-act="addBlankInviteRow">+ Add Name</button>
                     </div>
-                    <div class="inv-col-head">
+                    <div class="inv-col-head" aria-hidden="true">
                         <span style="flex:1;min-width:0">Name</span>
                         <span class="inv-col-contact" title="Click the icon on a row to add/edit email &amp; phone">Contact</span>
                         <span class="inv-col-rsvp">RSVP</span>
                         <span class="inv-col-mgr"></span>
                     </div>
-                    <ul class="invite-pane-list" id="eInvitedList"></ul>
+                    <ul class="invite-pane-list" id="eInvitedList" role="listbox" aria-multiselectable="true" aria-label="Invited"></ul>
                 </div>
             </div>
             <!-- Hidden inputs synced from invite lists -->
@@ -605,11 +638,11 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
             <!-- Mobile action bar: sticky at the bottom, after the invite picker
                  (the toolbar buttons above are hidden on small screens) -->
             <div class="edit-actions-mobile">
-                <button type="submit" class="btn btn-primary" data-save="quiet" data-set-value="eSendAfterSave:"><?= $event ? 'Save Changes' : 'Add Event' ?></button>
+                <button type="submit" class="btn btn-primary" id="eSubmitBtnMobile" data-save="quiet" data-set-value="eSendAfterSave:"><?= $event ? 'Save Changes' : 'Add Event' ?></button>
                 <?php if (get_setting('notifications_enabled', '0') === '1'): ?>
-                <button type="submit" class="btn" data-save="send" style="background:#16a34a;border-color:#16a34a;color:#fff" data-set-value="eSendAfterSave:1" title="Save the event and send invitations now">Save &amp; Send</button>
+                <button type="submit" class="btn btn-send" data-save="send" data-set-value="eSendAfterSave:1" title="Save the event and send invitations now">Save &amp; Send</button>
                 <?php endif; ?>
-                <a href="<?= htmlspecialchars($cancelUrl) ?>" class="btn btn-outline" style="text-decoration:none">Cancel</a>
+                <a href="<?= htmlspecialchars($cancelUrl) ?>" class="btn btn-outline" style="text-decoration:none" data-act="leaveEditor" data-a1="@event">Cancel</a>
             </div>
         </form>
         <?php if ($isAdmin && $event && !$isCopy): ?>
@@ -626,15 +659,15 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
 
 <!-- ── Per-invitee contact editor (email / phone) ── -->
 <div class="modal-overlay" id="invContactModal" data-act-self="closeContactEdit">
-    <div class="modal" style="max-width:340px">
+    <div class="modal" style="max-width:340px" role="dialog" aria-modal="true" aria-labelledby="invContactTitle">
         <div class="modal-header" style="justify-content:space-between">
-            <h2 style="font-size:1rem;font-weight:700">Contact for <span id="invContactName"></span></h2>
-            <button class="modal-close" type="button" data-act="closeContactEdit">&#x2715;</button>
+            <h2 id="invContactTitle" style="font-size:1rem;font-weight:700">Contact for <span id="invContactName"></span></h2>
+            <button class="modal-close" type="button" data-act="closeContactEdit" aria-label="Close">&#x2715;</button>
         </div>
-        <label style="display:block;font-size:.8rem;color:#475569;margin:.4rem 0 .15rem">Email</label>
+        <label for="invContactEmail" style="display:block;font-size:.8rem;color:#475569;margin:.4rem 0 .15rem">Email</label>
         <input type="email" id="invContactEmail" autocomplete="off" placeholder="name@example.com"
                style="width:100%;padding:.5rem .6rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.9rem;box-sizing:border-box">
-        <label style="display:block;font-size:.8rem;color:#475569;margin:.6rem 0 .15rem">Phone</label>
+        <label for="invContactPhone" style="display:block;font-size:.8rem;color:#475569;margin:.6rem 0 .15rem">Phone</label>
         <input type="tel" id="invContactPhone" autocomplete="off" placeholder="(555) 123-4567"
                style="width:100%;padding:.5rem .6rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.9rem;box-sizing:border-box">
         <div style="display:flex;gap:.5rem;margin-top:1rem">
@@ -660,6 +693,7 @@ const LAST_POKER_DEFAULT = <?= ((int)($current['last_poker_default'] ?? 1)) ? 't
 var ALL_USERS           = <?= json_encode(array_values($allUsers), JSON_HEX_TAG) ?>;
 var currentEvent        = EVENT; // name kept for parity with calendar.php's editor JS
 const EDIT_MODE         = !!EVENT;
+const MAX_INVITEES      = <?= (int)MAX_INVITEES_PER_EVENT ?>;
 
 // ── Color picker ──────────────────────────────────────────────────────────────
 function toggleColorPicker(e) {
@@ -668,12 +702,21 @@ function toggleColorPicker(e) {
     const dot    = document.getElementById('eColorDot');
     const open   = picker.classList.toggle('open');
     dot.classList.toggle('open', open);
+    dot.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) { const sw = picker.querySelector('.color-swatch.selected') || picker.querySelector('.color-swatch'); if (sw) sw.focus(); }
 }
+document.getElementById('eColorPicker').addEventListener('keydown', function (e) {
+    const swatches = Array.from(this.querySelectorAll('.color-swatch'));
+    const i = swatches.indexOf(document.activeElement);
+    if (e.key === 'Escape') { e.preventDefault(); closeColorPicker(); document.getElementById('eColorDot').focus(); return; }
+    if (['ArrowRight', 'ArrowDown'].includes(e.key)) { e.preventDefault(); swatches[(i + 1) % swatches.length].focus(); }
+    else if (['ArrowLeft', 'ArrowUp'].includes(e.key)) { e.preventDefault(); swatches[(i - 1 + swatches.length) % swatches.length].focus(); }
+});
 function closeColorPicker() {
     const picker = document.getElementById('eColorPicker');
     const dot    = document.getElementById('eColorDot');
     if (picker) picker.classList.remove('open');
-    if (dot)    dot.classList.remove('open');
+    if (dot)    { dot.classList.remove('open'); dot.setAttribute('aria-expanded', 'false'); }
 }
 document.addEventListener('click', e => {
     const wrap = document.getElementById('eColorDotWrap');
@@ -684,14 +727,20 @@ function selectColor(c) {
     const dot        = document.getElementById('eColorDot');
     if (colorInput) colorInput.value = c;
     if (dot) dot.style.background = c;
-    document.querySelectorAll('#eColorPicker .color-swatch').forEach(s =>
-        s.classList.toggle('selected', s.dataset.color === c));
+    document.querySelectorAll('#eColorPicker .color-swatch').forEach(s => {
+        s.classList.toggle('selected', s.dataset.color === c);
+        s.setAttribute('aria-pressed', s.dataset.color === c ? 'true' : 'false');
+    });
     closeColorPicker();
+    updateDirty();
 }
 
 // ── All-users pane ────────────────────────────────────────────────────────────
 function buildAllUsersList() {
     const ul = document.getElementById('eAllUsersList');
+    // Rebuilt from scratch on every league change; a keyboard user's focus
+    // has to land back on the same name or the next arrow key goes nowhere.
+    const hadFocus = ul.contains(document.activeElement) ? ((document.activeElement.dataset || {}).uname || '') : null;
     ul.innerHTML = '';
     const lgSel = document.getElementById('eLeagueId');
     const leagueSelected = !!(lgSel && parseInt(lgSel.value, 10) > 0);
@@ -716,6 +765,7 @@ function buildAllUsersList() {
         li.dataset.uemail   = u.email     || '';
         li.dataset.uphone   = u.phone     || '';
         li.dataset.member   = u.is_league_member ? '1' : '0';
+        li.setAttribute('role', 'option'); li.setAttribute('aria-selected', 'false'); li.tabIndex = -1;
         li.textContent = display;
         if (u.is_pending) {
             const tag = document.createElement('span');
@@ -756,6 +806,10 @@ function buildAllUsersList() {
     });
     // Re-apply the already-invited dimming/checkmarks every time the list is (re)built.
     syncInviteState();
+    if (hadFocus !== null) {
+        const back = Array.from(ul.querySelectorAll('li[role="option"]')).find(l => l.dataset.uname === hadFocus) || listRows(ul)[0];
+        if (back) { setRoving(ul, back); back.focus(); }
+    }
 }
 
 // Fetch the scoped contact list for the current league selection and rebuild the pane.
@@ -810,6 +864,7 @@ function inviteUser(username, phone, email, rsvp, role, approvalStatus) {
     li.dataset.irsvp    = rsvp   || '';
     li.dataset.irole    = role   || 'invitee';
     li.dataset.istatus  = approvalStatus || 'approved';
+    li.setAttribute('role', 'option'); li.setAttribute('aria-selected', 'false'); li.tabIndex = -1;
 
     const nameSpan = document.createElement('span');
     nameSpan.textContent = username;
@@ -818,9 +873,11 @@ function inviteUser(username, phone, email, rsvp, role, approvalStatus) {
 
     // Clickable contact indicator: shows an email/phone glyph for whatever is on file (or
     // "NA" when neither). Click opens a small popup to edit this invitee's email + phone.
-    const contactCtl = document.createElement('span');
+    const contactCtl = document.createElement('button');
+    contactCtl.type = 'button';
     contactCtl.className = 'inv-contact-ctl inv-col-contact';
     contactCtl.title = 'Click to edit email / phone';
+    contactCtl.setAttribute('aria-label', contactLabel(username, li.dataset.iemail, li.dataset.iphone));
     contactCtl.innerHTML = invContactCtlInner(li.dataset.iemail, li.dataset.iphone);
     contactCtl.addEventListener('click', function(e) { e.stopPropagation(); openContactEdit(li); });
     contactCtl.addEventListener('dblclick', function(e) { e.stopPropagation(); });
@@ -861,10 +918,12 @@ function inviteUser(username, phone, email, rsvp, role, approvalStatus) {
     li.appendChild(mgrSlot);
 
     // Explicit remove control (works on touch, where double-click doesn't exist)
-    const xBtn = document.createElement('span');
+    const xBtn = document.createElement('button');
+    xBtn.type = 'button';
     xBtn.className = 'inv-remove-x';
     xBtn.textContent = '×';
     xBtn.title = 'Remove from invite list';
+    xBtn.setAttribute('aria-label', 'Remove ' + username);
     xBtn.addEventListener('click', function(e) { e.stopPropagation(); removeInvite(li.dataset.iname); });
     li.appendChild(xBtn);
 
@@ -891,11 +950,14 @@ function inviteUser(username, phone, email, rsvp, role, approvalStatus) {
     li.addEventListener('dragend', function() {
         this.classList.remove('inv-dragging');
         updateDividerLine();
+        updateDirty();
     });
 
     document.getElementById('eInvitedList').appendChild(li);
     syncInviteState();
     updateDividerLine();
+    updateDirty();
+    setRoving(document.getElementById('eInvitedList'));
 }
 
 // ── Per-invitee contact icon + inline editor ─────────────────────────────────
@@ -908,6 +970,12 @@ function invContactCtlInner(email, phone) {
     if (hasP) s += '<span class="inv-ci" title="Has phone">&#9742;</span>';
     return s;
 }
+// The spoken name of a row's contact button: what is on file, in words.
+function contactLabel(name, email, phone) {
+    var what = email && phone ? 'email and phone' : email ? 'email' : phone ? 'phone' : 'none on file';
+    return 'Contact for ' + name + ': ' + what;
+}
+function customRowRemoved() { updateDividerLine(); updateDirty(); }
 var _contactEditLi = null;
 function openContactEdit(li) {
     _contactEditLi = li;
@@ -919,15 +987,34 @@ function openContactEdit(li) {
 }
 function closeContactEdit() {
     document.getElementById('invContactModal').classList.remove('open');
+    // Back to the row's contact button, where the popup came from.
+    var back = _contactEditLi ? _contactEditLi.querySelector('.inv-contact-ctl') : null;
     _contactEditLi = null;
+    if (back && back.isConnected) back.focus();
 }
+// The popup is a dialog: Escape closes it, Tab stays inside it.
+document.getElementById('invContactModal').addEventListener('keydown', function (e) {
+    var overlay = this;
+    if (!overlay.classList.contains('open')) return;
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeContactEdit(); return; }
+    if (e.key !== 'Tab') return;
+    var items = Array.from(overlay.querySelectorAll('input, button')).filter(function (el) { return !el.disabled && el.offsetParent !== null; });
+    if (!items.length) return;
+    var first = items[0], last = items[items.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+});
 function saveContactEdit() {
     if (!_contactEditLi) { closeContactEdit(); return; }
     _contactEditLi.dataset.iemail = document.getElementById('invContactEmail').value.trim();
     _contactEditLi.dataset.iphone = document.getElementById('invContactPhone').value.trim();
     var ctl = _contactEditLi.querySelector('.inv-contact-ctl');
-    if (ctl) ctl.innerHTML = invContactCtlInner(_contactEditLi.dataset.iemail, _contactEditLi.dataset.iphone);
+    if (ctl) {
+        ctl.innerHTML = invContactCtlInner(_contactEditLi.dataset.iemail, _contactEditLi.dataset.iphone);
+        ctl.setAttribute('aria-label', contactLabel(_contactEditLi.dataset.iname, _contactEditLi.dataset.iemail, _contactEditLi.dataset.iphone));
+    }
     closeContactEdit();
+    updateDirty();
 }
 
 function removeInvite(username) {
@@ -936,20 +1023,22 @@ function removeInvite(username) {
     if (li) li.remove();
     syncInviteState();
     updateDividerLine();
+    updateDirty();
 }
 
 function addBlankInviteRow() {
     const ul = document.getElementById('eInvitedList');
     const li = document.createElement('li');
     li.className = 'custom-row';
+    li.setAttribute('role', 'presentation');   // its inputs carry their own semantics
     // The name input re-checks the seat cutoff as you type: a row starts blank
     // (counting for nothing) and becomes a real guest the moment it has a name,
     // which is exactly when it can push someone onto the waitlist. Removing a
     // row has to re-check for the same reason.
     li.innerHTML = '<div class="custom-row-inner">' +
-        '<input type="text" class="cr-name"    placeholder="Name *" data-act-input="updateDividerLine">' +
-        '<input type="text" class="cr-contact" placeholder="Email or phone" autocomplete="off">' +
-        '<button type="button" class="cr-remove" data-remove-closest="li\" data-then="updateDividerLine">&times;</button>' +
+        '<input type="text" class="cr-name"    placeholder="Name *" aria-label="Guest name" data-act-input="updateDividerLine">' +
+        '<input type="text" class="cr-contact" placeholder="Email or phone" aria-label="Email or phone" autocomplete="off">' +
+        '<button type="button" class="cr-remove" aria-label="Remove this name" data-remove-closest="li\" data-then="customRowRemoved">&times;</button>' +
         '</div>';
     ul.appendChild(li);
     // Divider first, focus last — anything that reshuffles the list would steal
@@ -992,8 +1081,11 @@ function syncInviteState() {
         const isDimmed = invited.includes((li.dataset.uname || '').toLowerCase());
         li.classList.toggle('dimmed', isDimmed);
         li.title = isDimmed ? 'Already invited' : 'Double-click to invite';
+        // Not aria-disabled: on a phone a tap on a dimmed name un-invites it.
     });
     syncSaveButtons();
+    setRoving(document.getElementById('eAllUsersList'));
+    setRoving(document.getElementById('eInvitedList'));
 }
 
 // The two save buttons only make sense together once there is someone to
@@ -1012,6 +1104,7 @@ function syncSaveButtons() {
         if (has) b.title = 'Save the event; invitations stay unsent until you send them from the event page';
         else b.removeAttribute('title');
     });
+    updateDirty();
 }
 document.getElementById('eInvitedList').addEventListener('input', syncSaveButtons);
 document.getElementById('eInvitedList').addEventListener('click', function(){ setTimeout(syncSaveButtons, 0); });
@@ -1043,7 +1136,100 @@ function handleListSelect(e, li, listId) {
     }
     if (listId === 'eAllUsersList') _lastClickedAll = li;
     else _lastClickedInv = li;
+    syncAria(ul);
 }
+
+/* ── Keyboard on the guest lists (the WAI-ARIA listbox pattern) ──────────────
+ * Each list is a multi-select listbox whose rows are options; one row is the
+ * tab stop (the last one focused, else the first that can be picked) and the
+ * others are reached with the arrow keys. Up / Down move and select as they
+ * go, Shift+Up / Down extend, Space toggles, Home / End jump, Enter adds
+ * (All users) or removes (Invited) the selection, Delete removes on Invited,
+ * and Alt+Up / Alt+Down move an invited row: the list's order is the
+ * priority order that decides who makes capacity, and dragging was the only
+ * way to set it. Already-invited names are skipped, as the mouse skips them. */
+function listRows(ul) {
+    return Array.from(ul.querySelectorAll('li[role="option"]')).filter(function (li) {
+        return li.offsetParent !== null && !li.classList.contains('dimmed') && !li.classList.contains('inv-declined-item');
+    });
+}
+function setRoving(ul, preferred) {
+    if (!ul) return;
+    var rows = listRows(ul);
+    var stop = (preferred && rows.indexOf(preferred) >= 0) ? preferred : (rows.find(function (r) { return r.tabIndex === 0; }) || rows[0]);
+    Array.from(ul.querySelectorAll('li[role="option"]')).forEach(function (li) { li.tabIndex = li === stop ? 0 : -1; });
+}
+function syncAria(ul) {
+    if (!ul) return;
+    ul.querySelectorAll('li[role="option"]').forEach(function (li) { li.setAttribute('aria-selected', li.classList.contains('inv-selected') ? 'true' : 'false'); });
+}
+function moveRow(li, dir) {
+    var ul = li.parentNode;
+    var named = Array.from(ul.querySelectorAll('li[data-iname]'));
+    var i = named.indexOf(li), j = i + dir;
+    if (i < 0 || j < 0 || j >= named.length) return;
+    if (dir < 0) ul.insertBefore(li, named[j]); else ul.insertBefore(li, named[j].nextSibling);
+    updateDividerLine(); updateDirty();
+    setRoving(ul, li); li.focus();
+}
+function listKeydown(e) {
+    var ul = e.currentTarget, listId = ul.id;
+    var li = e.target.closest ? e.target.closest('li[role="option"]') : null;
+    if (!li) return;                                   // a typed row's inputs keep their keys
+    var rows = listRows(ul), i = rows.indexOf(li);
+    var fake = function (extend) { return { shiftKey: !!extend, ctrlKey: false, metaKey: false }; };
+    var go = function (target, extend) {
+        if (!target) return;
+        handleListSelect(fake(extend), target, listId);
+        setRoving(ul, target); target.focus();
+    };
+    switch (e.key) {
+        case 'ArrowDown':
+            e.preventDefault();
+            if (e.altKey) { if (listId === 'eInvitedList') moveRow(li, +1); }
+            else go(rows[i + 1], e.shiftKey);
+            break;
+        case 'ArrowUp':
+            e.preventDefault();
+            if (e.altKey) { if (listId === 'eInvitedList') moveRow(li, -1); }
+            else go(rows[i - 1], e.shiftKey);
+            break;
+        case 'Home': e.preventDefault(); go(rows[0], e.shiftKey); break;
+        case 'End':  e.preventDefault(); go(rows[rows.length - 1], e.shiftKey); break;
+        case ' ':
+            e.preventDefault();
+            handleListSelect({ shiftKey: false, ctrlKey: true, metaKey: false }, li, listId);
+            break;
+        case 'Enter': {
+            e.preventDefault();
+            var next = rows[i + 1] || rows[i - 1] || null;
+            li.classList.add('inv-selected');
+            if (listId === 'eAllUsersList') moveRight(); else moveLeft();
+            var left = listRows(ul);
+            var land = (next && left.indexOf(next) >= 0) ? next : left[Math.min(i, left.length - 1)];
+            if (land) { setRoving(ul, land); land.focus(); }
+            syncAria(ul);
+            break;
+        }
+        case 'Delete': case 'Backspace': {
+            if (listId !== 'eInvitedList') break;
+            e.preventDefault();
+            removeInvite(li.dataset.iname);
+            var rest = listRows(ul);
+            var at = rest[Math.min(i, rest.length - 1)];
+            if (at) { setRoving(ul, at); at.focus(); }
+            break;
+        }
+    }
+}
+['eAllUsersList', 'eInvitedList'].forEach(function (id) {
+    var ul = document.getElementById(id);
+    if (!ul) return;
+    ul.addEventListener('keydown', listKeydown);
+    // A click lands focus on the row; make it the tab stop so Tab leaves and
+    // comes back to the same place.
+    ul.addEventListener('focusin', function (e) { var li = e.target.closest ? e.target.closest('li[role="option"]') : null; if (li) setRoving(ul, li); });
+});
 
 function moveRight() {
     var selected = document.querySelectorAll('#eAllUsersList li.inv-selected:not(.dimmed)');
@@ -1066,9 +1252,10 @@ function moveLeft() {
 }
 function moveAllLeft() {
     var all = Array.from(document.querySelectorAll('#eInvitedList li[data-iname]'));
-    all.forEach(function(li) {
-        removeInvite(li.dataset.iname);
-    });
+    var go = function () { all.forEach(function(li) { removeInvite(li.dataset.iname); }); };
+    if (all.length >= 2 && typeof pkConfirm === 'function') {
+        pkConfirm('Remove everyone from the invite list?', { danger: true }).then(function (yes) { if (yes) go(); });
+    } else go();
 }
 
 // ── Drag-and-drop reorder + capacity divider ────────────────────────────────
@@ -1154,6 +1341,7 @@ function updateDividerLine() {
         if (cutoffAt) {
             var divider = document.createElement('li');
             divider.className = 'inv-capacity-divider';
+            divider.setAttribute('role', 'presentation');
             divider.textContent = '--- Seat cutoff (' + cap + ' seats) --- waitlist below ---';
             divider.draggable = false;
             ul.insertBefore(divider, cutoffAt);
@@ -1164,6 +1352,7 @@ function updateDividerLine() {
     if (declined.length > 0) {
         var decDivider = document.createElement('li');
         decDivider.className = 'inv-declined-divider';
+        decDivider.setAttribute('role', 'presentation');
         decDivider.innerHTML = '&blacktriangledown; Declined (' + declined.length + ')';
         decDivider.draggable = false;
         decDivider.onclick = function() { toggleDeclined(); };
@@ -1212,10 +1401,78 @@ function showSaveSendOverlay(sending) {
 // the browser's own words for it are "Please fill out this field". Say what
 // the field is instead; cleared the moment something is typed.
 var eTitleEl = document.getElementById('eTitle');
-eTitleEl.addEventListener('invalid', function () { if (!eTitleEl.value.trim()) eTitleEl.setCustomValidity('Give the event a title first.'); });
-eTitleEl.addEventListener('input', function () { eTitleEl.setCustomValidity(''); });
+eTitleEl.addEventListener('invalid', function () {
+    if (!eTitleEl.value.trim()) eTitleEl.setCustomValidity('Give the event a title first.');
+    eTitleEl.setAttribute('aria-invalid', 'true'); eTitleEl.classList.add('is-invalid');
+});
+eTitleEl.addEventListener('input', function () { eTitleEl.setCustomValidity(''); eTitleEl.removeAttribute('aria-invalid'); eTitleEl.classList.remove('is-invalid'); });
+
+/* ── Unsaved changes ──────────────────────────────────────────────────────
+ * A snapshot of the form as it was loaded (or last saved): every field, the
+ * invited list in order with each row's role and contact, the typed rows, the
+ * colour. Dirty = differs. In edit mode the quiet Save buttons carry a dot;
+ * on any event leaving the page, Back and Cancel ask first. Nothing is saved
+ * on its own. */
+var savedSnap = null, submitting = false;
+function snapshot() {
+    var form = document.getElementById('editForm');
+    if (!form) return '';
+    var parts = [];
+    new FormData(form).forEach(function (v, k) {
+        if (k === 'csrf_token' || k === 'send_after_save' || k.indexOf('invite_') === 0) return;
+        parts.push(k + '=' + v);
+    });
+    var t = document.getElementById('eTimeNative'), d = document.getElementById('eDuration');
+    parts.push('time=' + (t ? t.value : '') + ' dur=' + (d ? d.value : ''));
+    document.querySelectorAll('#eInvitedList li').forEach(function (li) {
+        if (li.hasAttribute('data-iname')) parts.push('inv:' + li.dataset.iname + '|' + li.dataset.irole + '|' + li.dataset.iemail + '|' + li.dataset.iphone);
+        else if (li.classList.contains('custom-row')) parts.push('cr:' + ((li.querySelector('.cr-name') || {}).value || '') + '|' + ((li.querySelector('.cr-contact') || {}).value || ''));
+    });
+    return parts.join('\n');
+}
+function isDirty() { return savedSnap !== null && snapshot() !== savedSnap; }
+function markSaved() { savedSnap = snapshot(); updateDirty(); }
+function updateDirty() {
+    if (!EDIT_MODE) return;   // a new event is unsaved by nature; the guard still applies
+    var dirty = isDirty();
+    document.querySelectorAll('[data-save="quiet"]').forEach(function (b) {
+        var base = b.textContent.replace(/\s*•\s*$/, '').trim();
+        b.textContent = dirty ? base + ' •' : base;
+    });
+}
+document.getElementById('editForm').addEventListener('input', updateDirty);
+document.getElementById('editForm').addEventListener('change', updateDirty);
+window.addEventListener('beforeunload', function (e) {
+    if (submitting || !isDirty()) return;
+    e.preventDefault();
+    e.returnValue = '';
+});
+// Back to calendar and Cancel: plain links, held only when there is unsaved work.
+function leaveEditor(ev) {
+    if (!isDirty()) return;
+    ev.preventDefault();
+    var a = ev.target.closest('a');
+    var href = a ? a.getAttribute('href') : '/calendar.php';
+    if (typeof pkConfirm !== 'function') { if (confirm('Leave without saving?')) { submitting = true; location.href = href; } return; }
+    pkConfirm('Leave without saving?', { danger: true }).then(function (yes) { if (yes) { submitting = true; location.href = href; } });
+}
 
 document.getElementById('editForm').addEventListener('submit', function(e) {
+    // The one server-side refusal a host can reach from this page, caught
+    // here with the field in view instead of after a redirect that forgets
+    // what was typed.
+    var guests = document.querySelectorAll('#eInvitedList li[data-iname]').length
+               + Array.from(document.querySelectorAll('#eInvitedList li.custom-row .cr-name')).filter(function(i){ return i.value.trim() !== ''; }).length;
+    if (guests > MAX_INVITEES) {
+        e.preventDefault();
+        (window.pkAlert || alert)('Too many guests (' + guests + '). The limit is ' + MAX_INVITEES + ' per event.');
+        var first = document.querySelector('#eInvitedList li[data-iname] .inv-remove-x, #eInvitedList li.custom-row .cr-name');
+        if (first) first.focus();
+        return;
+    }
+    submitting = true;
+    // One save at a time: the overlay blocks the mouse but not Enter.
+    document.querySelectorAll('[data-save]').forEach(function (b) { b.disabled = true; });
     // Show the saving/sending progress overlay (this fires only after HTML5 validation passes).
     const _sas = document.getElementById('eSendAfterSave');
     showSaveSendOverlay(!!(_sas && _sas.value === '1'));
@@ -1341,13 +1598,19 @@ function applyReminderOffsets(offsets) {
 // Reminder dropdown: button shows a summary of the checked presets.
 function toggleRemDD(e) {
     if (e) e.stopPropagation();
-    document.getElementById('eRemDD').classList.toggle('open');
+    setDD('eRemDD', document.getElementById('eRemDD').classList.toggle('open'));
+}
+// One place that keeps the button's aria-expanded in step with the panel.
+function setDD(id, open) {
+    var dd = document.getElementById(id); if (!dd) return;
+    dd.classList.toggle('open', !!open);
+    var btn = dd.querySelector('.rem-dd-btn'); if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 
 // Guest-options dropdown: badge shows how many options are active.
 function toggleGuestOptsDD(e) {
     if (e) e.stopPropagation();
-    document.getElementById('eGuestOptsDD').classList.toggle('open');
+    setDD('eGuestOptsDD', document.getElementById('eGuestOptsDD').classList.toggle('open'));
 }
 function updateGuestOptsBadge() {
     var n = 0;
@@ -1374,7 +1637,22 @@ function updateRemSummary() {
 document.addEventListener('click', function(e) {
     ['eRemDD', 'eGuestOptsDD'].forEach(function(id) {
         var dd = document.getElementById(id);
-        if (dd && dd.classList.contains('open') && !dd.contains(e.target)) dd.classList.remove('open');
+        if (dd && dd.classList.contains('open') && !dd.contains(e.target)) setDD(id, false);
+    });
+});
+// Escape closes a dropdown and puts focus back on its button; focus leaving
+// the dropdown closes it too, so a Tab past it never leaves a panel hanging.
+['eRemDD', 'eGuestOptsDD'].forEach(function (id) {
+    var dd = document.getElementById(id); if (!dd) return;
+    dd.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape' || !dd.classList.contains('open')) return;
+        e.preventDefault(); e.stopPropagation();
+        setDD(id, false);
+        var btn = dd.querySelector('.rem-dd-btn'); if (btn) btn.focus();
+    });
+    dd.addEventListener('focusout', function (e) {
+        if (e.relatedTarget && dd.contains(e.relatedTarget)) return;
+        if (dd.classList.contains('open')) setDD(id, false);
     });
 });
 document.addEventListener('DOMContentLoaded', function() { updateRemSummary(); updateGuestOptsBadge(); });
@@ -1383,10 +1661,12 @@ function toggleDesc() {
     var tog  = document.getElementById('eDescToggle');
     if (wrap.style.display === 'none') {
         wrap.style.display = '';
+        tog.setAttribute('aria-expanded', 'true');
         tog.textContent = '- Hide description';
         document.getElementById('eDesc').focus();
     } else {
         wrap.style.display = 'none';
+        tog.setAttribute('aria-expanded', 'false');
         tog.textContent = '+ Description';
     }
 }
@@ -1450,6 +1730,13 @@ function loadPokerDefaultsIntoEditor() {
 
 <?php if ($isAdmin && $event && !$isCopy): ?>
 function regenWalkinFromEdit() {
+    if (typeof pkConfirm === 'function' && !window._regenConfirmed) {
+        pkConfirm('Make a new walk-up link? The old one stops working.', { danger: true }).then(function (yes) {
+            if (!yes) return;
+            window._regenConfirmed = true; regenWalkinFromEdit(); window._regenConfirmed = false;
+        });
+        return;
+    }
     var btn = document.getElementById('eRegenWalkinBtn');
     btn.textContent = 'Regenerating…';
     btn.disabled = true;
@@ -1466,6 +1753,10 @@ function regenWalkinFromEdit() {
         } else {
             btn.textContent = 'Failed — try again';
         }
+        setTimeout(function() { btn.textContent = 'Regenerate walk-up link'; btn.disabled = false; }, 2500);
+    })
+    .catch(function() {
+        btn.textContent = 'Failed — try again';
         setTimeout(function() { btn.textContent = 'Regenerate walk-up link'; btn.disabled = false; }, 2500);
     });
 }
@@ -1550,6 +1841,7 @@ function regenWalkinFromEdit() {
     syncInviteState();
     filterAllUsers('');
     updateDividerLine();
+    markSaved();   // the baseline the unsaved-changes guard compares against
     // Fetch the scoped contact list for the current league selection.
     refreshUserList();
     document.getElementById('eTitle').focus();
