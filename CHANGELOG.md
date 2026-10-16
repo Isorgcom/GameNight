@@ -11,6 +11,10 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+---
+
+## [v1.8.12] - 2026-10-16
+
 ### Changed
 
 - **Every control on the Manage Game console now says what it is and whom it is for.** Screen readers and the browser's own tools had almost nothing to go on: the Setup fields, the payout rows, the chip rows, the blinds grid, the walk-in box and every per-player control in the roster were unnamed, and a row's buttons read as six identical "Eliminate"s. Now each control names the player ("Buy in for Ava", "RSVP for Ben", "Remove Finn", "Money history for Cleo", "Move Dev"), the Setup labels are tied to their fields, payout inputs are named by place ("1st place: cash %"), chip rows by their value, blind cells by round and column ("Round 3 small blind"), every column header carries its scope, the header's icon buttons keep their names when their labels collapse on a phone, the "?" tips read their text, and the add-on count (which removes the last add-on) is a real button. The modals are labelled dialogs and the Help modal's group labels are headings. In `www/checkin.php` (the builders and the server-rendered modals) and `www/event_blinds.js`.
