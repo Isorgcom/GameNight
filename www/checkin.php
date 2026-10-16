@@ -212,6 +212,17 @@ if ($session) {
     .pk-table tr.elim td:nth-last-child(2){text-decoration:none;opacity:1}
     .pk-table th.pk-sortable{cursor:pointer;user-select:none;white-space:nowrap}
     .pk-table th.pk-sortable:hover{background:rgba(0,0,0,.05)}
+    .pk-sort-btn{background:none;border:0;padding:0 .1rem;margin:0;min-height:24px;font:inherit;color:inherit;text-transform:inherit;letter-spacing:inherit;cursor:pointer;white-space:nowrap}
+    .pk-table th.pk-sortable{padding-top:.3rem;padding-bottom:.3rem}
+    /* Keyboard focus rings on the console's own controls (the segmented
+       strips get theirs in style.css). */
+    .pk-sort-btn:focus-visible,.pk-act-btn:focus-visible,.pk-mobile-more:focus-visible,.pk-counter button:focus-visible,
+    .pk-ledger-btn:focus-visible,.pk-addon-btn:focus-visible,.pk-addon-count:focus-visible,.pk-bust-btn:focus-visible,
+    .pk-modal-actions button:focus-visible,.pk-actions button:focus-visible,.pk-actions a:focus-visible,.pk-btn-back:focus-visible,
+    .pk-toolbar .pk-btn-add:focus-visible,.pk-toolbar .pk-btn-setup:focus-visible,.pk-preset-menu button:focus-visible,
+    .pk-preset-morebtn:focus-visible,.pk-sv-save:focus-visible,.pk-sv-close:focus-visible,.pk-reward-chip:focus-visible,
+    .pk-mobile-actions button:focus-visible,.pk-bulk-bar button:focus-visible,.pk-btn-green:focus-visible,.pk-btn-view-toggle:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
+    .pk-actions button:focus-visible,.pk-actions a:focus-visible,.pk-btn-back:focus-visible,.pk-sv-save:focus-visible,.pk-sv-close:focus-visible{outline-color:#93c5fd}
     .pk-table tr.winner td{background:#fffbeb}
     .pk-mobile-card.winner{background:#fffbeb;border-color:#fde68a}
     .pk-table tr.cashed-out td{opacity:.6}
@@ -891,6 +902,8 @@ if ($session) {
             <p>A page to leave on a tablet at the door. Guests scan it to put themselves on the list, and arrive here as <b>Approve / Deny</b>.</p>
             <h5>Finish</h5>
             <p>Locks in the results<span class="help-tourney">: the standings and payouts, and any entry tickets go out</span><span class="help-cash">: every player's cash-out</span>. It warns first if something is not ready. <b>Reopen</b> puts the game back if something was wrong.</p>
+            <h5>From the keyboard</h5>
+            <p>Tab reaches every control. The arrow keys move along the view strip, the filters and Setup's tabs; Enter opens a card's &#9662; on a phone; Escape closes a dialog, a menu or Setup; the column headings sort on Enter; and the row menu in Setup &rarr; Blinds opens with Shift+F10.</p>
         </div>
         <div class="pk-modal-actions">
             <button class="pk-save" data-act="closeHelp">Got it</button>
@@ -979,14 +992,13 @@ if (BETA_TIMER_ASK && !betaAskedRecently()) {
             var yes = el.querySelector('.pk-beta-yes');
             if (yes) yes.textContent = 'Make it my default';
         }
-        el.classList.add('open');
+        openModal('betaTimerModal', '.pk-beta-yes');
     });
 }
 // Both answers are final: stored server-side, never asked again.
 function betaTimerAnswer(value) {
     var yes = String(value) === '1';
-    var el = document.getElementById('betaTimerModal');
-    if (el) el.classList.remove('open');
+    closeModal('betaTimerModal');
     try { localStorage.removeItem(BETA_LATER_KEY); } catch (e) {}
     var body = new URLSearchParams();
     body.set('action', 'beta_timer_pref'); body.set('csrf_token', CSRF);
@@ -998,8 +1010,7 @@ function betaTimerAnswer(value) {
         .catch(function () {});
 }
 function betaTimerLater() {
-    var el = document.getElementById('betaTimerModal');
-    if (el) el.classList.remove('open');
+    closeModal('betaTimerModal');
     try { localStorage.setItem(BETA_LATER_KEY, String(Date.now())); } catch (e) {}
 }
 
@@ -1138,6 +1149,8 @@ function removePayoutRow() {
 function closeBalanceModal() {
     var m = document.getElementById('balanceModal');
     if (m) m.remove();
+    restoreFocus(MODAL_OPENER.balanceModal);
+    MODAL_OPENER.balanceModal = null;
 }
 function cashInOnEnter(ev, pid) {
     if (ev.key !== 'Enter') return;
@@ -1370,8 +1383,8 @@ function renderSetup() {
     h += '<p>Configure the game for <strong>' + escHtml(<?= json_encode($event['title'], JSON_HEX_TAG) ?>) + '</strong></p>';
     h += '<label id="s_type_lbl">Game Type</label>';
     h += '<div class="pk-type-toggle" id="typeToggle" role="group" aria-labelledby="s_type_lbl">';
-    h += '<button class="t-tournament active" data-act="setSetupType" data-a1="tournament">Tournament</button>';
-    h += '<button class="t-cash" data-act="setSetupType" data-a1="cash">Cash Game</button>';
+    h += '<button type="button" class="t-tournament active" aria-pressed="true" data-act="setSetupType" data-a1="tournament">Tournament</button>';
+    h += '<button type="button" class="t-cash" aria-pressed="false" data-act="setSetupType" data-a1="cash">Cash Game</button>';
     h += '</div>';
     h += '<label for="s_buyin">Buy-in Amount</label><div class="pk-money-wrap"><input type="number" id="s_buyin" value="20" step="1" min="0"></div>';
     h += '<div id="setupTourneyFields">';
@@ -1404,8 +1417,9 @@ function renderSetup() {
 function setSetupType(type) {
     setupGameType = type;
     var btns = document.querySelectorAll('#typeToggle button');
-    btns.forEach(function(b) { b.classList.remove('active'); });
-    document.querySelector('#typeToggle .t-' + type).classList.add('active');
+    btns.forEach(function(b) { b.classList.remove('active'); b.setAttribute('aria-pressed', 'false'); });
+    var cur = document.querySelector('#typeToggle .t-' + type);
+    cur.classList.add('active'); cur.setAttribute('aria-pressed', 'true');
     var tf = document.getElementById('setupTourneyFields');
     if (tf) tf.style.display = type === 'cash' ? 'none' : '';
 }
@@ -1517,8 +1531,8 @@ function renderDashboard() {
     h += '<div class="pk-toolbar">';
     h += '<div class="pk-tb-group pk-tb-add">';
     h += '<div class="walkin-autocomplete">';
-    h += '<input type="text" id="walkinName" placeholder="Walk-in name..." aria-label="Walk-in name" autocomplete="off" data-act-input="walkinSuggest" data-input-a1="@value" data-act-keydown="walkinKeydown" data-keydown-a1="@event">';
-    h += '<div class="walkin-dropdown" id="walkinDropdown"></div>';
+    h += '<input type="text" id="walkinName" placeholder="Walk-in name..." aria-label="Walk-in name" autocomplete="off" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false" aria-controls="walkinDropdown" data-act-input="walkinSuggest" data-input-a1="@value" data-act-keydown="walkinKeydown" data-keydown-a1="@event">';
+    h += '<div class="walkin-dropdown" id="walkinDropdown" role="listbox" aria-label="Matching players"></div>';
     h += '</div>';
     h += '<button class="pk-btn-add" data-act="addWalkin">+ Add</button>';
     h += '</div>';
@@ -1537,14 +1551,14 @@ function renderDashboard() {
     // The strip holds VIEWS — things you look at. Six equal segments made Setup
     // read as a sixth view and it got lost, hence the button above. Labels
     // collapse to icons on phones, Setup's along with them.
-    h += '<div class="pk-seg pk-view-seg" id="viewSeg">';
+    h += '<div class="pk-seg pk-view-seg" id="viewSeg" data-seg-role="tablist" aria-label="Views">';
     h += '<span class="pk-seg-thumb"></span>';
-    h += '<button data-view="list" class="' + (VIEW_MODE === 'list' ? 'active' : '') + '" title="Player list" aria-label="List" data-act="setViewMode" data-a1="list">&#9776;<span class="pk-seg-label"> List</span></button>';
-    h += '<button data-view="table" class="' + (VIEW_MODE === 'table' ? 'active' : '') + '" title="Table &amp; seat layout" aria-label="Table" data-act="setViewMode" data-a1="table">&#9638;<span class="pk-seg-label"> Table</span></button>';
-    h += '<button data-view="log" class="' + (VIEW_MODE === 'log' ? 'active' : '') + '" title="Activity log: buy-ins, cash-outs, adds and more" aria-label="Log" data-act="setViewMode" data-a1="log">&#128203;<span class="pk-seg-label"> Log</span></button>';
+    h += '<button data-view="list" class="' + (VIEW_MODE === 'list' ? 'active' : '') + '" title="Player list" aria-label="List" aria-controls="viewContent" data-act="setViewMode" data-a1="list">&#9776;<span class="pk-seg-label"> List</span></button>';
+    h += '<button data-view="table" class="' + (VIEW_MODE === 'table' ? 'active' : '') + '" title="Table &amp; seat layout" aria-label="Table" aria-controls="viewContent" data-act="setViewMode" data-a1="table">&#9638;<span class="pk-seg-label"> Table</span></button>';
+    h += '<button data-view="log" class="' + (VIEW_MODE === 'log' ? 'active' : '') + '" title="Activity log: buy-ins, cash-outs, adds and more" aria-label="Log" aria-controls="viewContent" data-act="setViewMode" data-a1="log">&#128203;<span class="pk-seg-label"> Log</span></button>';
     if (isTourney()) {
-        h += '<button data-view="payouts" class="' + (VIEW_MODE === 'payouts' ? 'active' : '') + '" title="Prize ladder, pool breakdown and rewards" aria-label="Payouts" data-act="setViewMode" data-a1="payouts">&#128176;<span class="pk-seg-label"> Payouts</span></button>';
-        h += '<button data-view="chop" class="' + (VIEW_MODE === 'chop' ? 'active' : '') + '" title="Deal split calculator: ICM, standard or chip chop" aria-label="Chop" data-act="setViewMode" data-a1="chop">&#129535;<span class="pk-seg-label"> Chop</span></button>';
+        h += '<button data-view="payouts" class="' + (VIEW_MODE === 'payouts' ? 'active' : '') + '" title="Prize ladder, pool breakdown and rewards" aria-label="Payouts" aria-controls="viewContent" data-act="setViewMode" data-a1="payouts">&#128176;<span class="pk-seg-label"> Payouts</span></button>';
+        h += '<button data-view="chop" class="' + (VIEW_MODE === 'chop' ? 'active' : '') + '" title="Deal split calculator: ICM, standard or chip chop" aria-label="Chop" aria-controls="viewContent" data-act="setViewMode" data-a1="chop">&#129535;<span class="pk-seg-label"> Chop</span></button>';
     }
     h += '</div>';
     h += '</div>';  // .pk-tb-controls
@@ -1558,7 +1572,7 @@ function renderDashboard() {
 
     h += '<div id="setupCta">' + renderSetupCta() + '</div>';
 
-    h += '<div id="viewContent">' + renderViewContent() + '</div>';
+    h += '<div id="viewContent" role="tabpanel">' + renderViewContent() + '</div>';
     h += '</div>';
 
     // Right: sidebar
@@ -1571,9 +1585,11 @@ function renderDashboard() {
 
     h += '</div>'; // pk-grid
 
+    var fs = focusSnapshot();
     document.getElementById('app').innerHTML = h;
     positionAllSegThumbs(false);
     if (VIEW_MODE === 'log') renderLog();
+    focusRestore(fs);
 }
 
 // Renders the content area for the active view (list / table / log).
@@ -1586,7 +1602,7 @@ function renderDashboard() {
 // Help button drift.
 function renderFilterBar() {
     if (!filterApplies(VIEW_MODE)) return '';
-    var h = '<div class="pk-filter-bar"><div class="pk-seg pk-filter" id="filterSeg">';
+    var h = '<div class="pk-filter-bar"><div class="pk-seg pk-filter" id="filterSeg" aria-label="Show">';
     h += '<span class="pk-seg-thumb"></span>';
     h += '<button data-filter="all" class="' + (FILTER==='all'?'active':'') + '" data-act="setFilter" data-a1="all">All</button>';
     if (isTourney()) h += '<button data-filter="rsvp_yes" class="' + (FILTER==='rsvp_yes'?'active':'') + '" data-act="setFilter" data-a1="rsvp_yes">RSVP Yes</button>';
@@ -1644,7 +1660,14 @@ function renderViewContent() {
 
 function sortableTh(label, key, extra) {
     var arrow = (SORT_KEY === key) ? ' <span style="font-size:.7em">' + (SORT_DIR === 1 ? '▲' : '▼') + '</span>' : '';
-    return '<th scope="col" class="pk-sortable" ' + (extra || '') + ' data-act="setSort" data-a1="' + key + '">' + label + arrow + '</th>';
+    var sort = (SORT_KEY === key) ? (SORT_DIR === 1 ? 'ascending' : 'descending') : 'none';
+    // The label is a button so the keyboard can sort; it carries no data-act
+    // of its own, so a click or Enter dispatches once through the th. The ?
+    // tip (focusable in its own right) sits beside the button, not inside it.
+    var at = label.indexOf('<span class="pk-tip"');
+    var text = at >= 0 ? label.slice(0, at) : label, tipHtml = at >= 0 ? label.slice(at) : '';
+    return '<th scope="col" class="pk-sortable" aria-sort="' + sort + '" ' + (extra || '') + ' data-act="setSort" data-a1="' + key + '">'
+         + '<button type="button" class="pk-sort-btn">' + text.trim() + arrow + '</button>' + tipHtml + '</th>';
 }
 
 function renderTableHeader() {
@@ -1679,6 +1702,9 @@ function setSort(key) {
     var head = document.getElementById('playerHead');
     if (head) head.innerHTML = renderTableHeader();
     refreshUI();
+    // The header was rebuilt under the keyboard: land on the same column's button.
+    var th = document.querySelector('th[data-act="setSort"][data-a1="' + key + '"] .pk-sort-btn');
+    if (th) th.focus({ preventScroll: true });
 }
 
 function sortVal(p, key) {
@@ -2462,7 +2488,90 @@ async function closeSettings() {
     SETTINGS_DIRTY = false;
     setViewMode(VIEW_MODE_PREV === 'settings' ? 'list' : VIEW_MODE_PREV);
 }
-document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && SETTINGS_OPEN) closeSettings(); });
+// Escape closes Setup only when nothing nearer is open: a dialog, a menu, the
+// walk-in list or the embedded layout editor take it first (each marks the
+// event defaultPrevented, and the DOM check covers the ones that run later).
+document.addEventListener('keydown', function(e) {
+    if (e.key !== 'Escape' || !SETTINGS_OPEN || e.defaultPrevented) return;
+    if (e.target && e.target.closest && e.target.closest('#ckDisplayHome')) return;
+    if (somethingElseOpen()) return;
+    closeSettings();
+});
+function somethingElseOpen() {
+    if (document.querySelector('.pk-dialog.open, .pk-modal-overlay.open, #presetMenu.open, .walkin-dropdown.open')) return true;
+    var em = document.querySelector('.es-menu');
+    return !!(em && getComputedStyle(em).display !== 'none');
+}
+
+// ─── Page modals: focus in, Tab kept inside, Escape closes, focus returned ───
+// Every one of the console's own modals opens and closes through these two, so
+// the keyboard story is one story. The pk-dialogs overlay (.pk-dialog) looks
+// after itself and sits above them.
+var MODAL_OPENER = {};
+var MODAL_CLOSERS = { notesModal: 'closeNotes', jackpotModal: 'closeJackpotModal', saveStructModal: 'closeSaveStruct',
+    cashAdjustModal: 'closeCashAdjust', ledgerModal: 'closeLedger', cashBoxModal: 'closeCashBox', helpModal: 'closeHelp',
+    elimModal: 'closeElim', winnerModal: 'closeWinner', betaTimerModal: 'betaTimerLater', balanceModal: 'closeBalanceModal' };
+function modalFocusables(m) {
+    return Array.prototype.filter.call(m.querySelectorAll('a[href], button, input, select, textarea, [tabindex]'), function (el) {
+        return !el.disabled && el.tabIndex >= 0 && el.offsetParent !== null;
+    });
+}
+function openModal(id, focusSel) {
+    var m = document.getElementById(id);
+    if (!m) return;
+    MODAL_OPENER[id] = document.activeElement;
+    m.classList.add('open');
+    var target = (focusSel && m.querySelector(focusSel)) || modalFocusables(m)[0];
+    if (target) setTimeout(function () { try { target.focus(); if (target.tagName === 'INPUT' && target.select) target.select(); } catch (e) {} }, 30);
+}
+function closeModal(id) {
+    var m = document.getElementById(id);
+    if (m) m.classList.remove('open');
+    restoreFocus(MODAL_OPENER[id]);
+    MODAL_OPENER[id] = null;
+}
+// Focus goes back to the control that opened the modal; when the roster was
+// re-rendered meanwhile that element is detached, so its successor is found
+// by the dispatch attributes it carried.
+function restoreFocus(el) {
+    if (!el || el === document.body) return;
+    var t = document.contains(el) ? el : findSuccessor(el);
+    if (t && t.focus) { try { t.focus({ preventScroll: true }); } catch (e) {} }
+}
+function findSuccessor(el) {
+    if (!el.getAttribute) return null;
+    var act = el.getAttribute('data-act') || el.getAttribute('data-act-change');
+    var a1 = el.getAttribute('data-a1') || el.getAttribute('data-change-a1');
+    var a2 = el.getAttribute('data-a2') || el.getAttribute('data-change-a2');
+    if (act) {
+        // a2 too: a row's rebuy − and + share act and a1 and differ only there.
+        var hit = document.querySelector('[data-act="' + act + '"]' + (a1 ? '[data-a1="' + a1 + '"]' : '') + (a2 ? '[data-a2="' + a2 + '"]' : ''))
+               || document.querySelector('[data-act-change="' + act + '"]' + (a1 ? '[data-change-a1="' + a1 + '"]' : '') + (a2 ? '[data-change-a2="' + a2 + '"]' : ''));
+        if (hit) return hit;
+    }
+    if (el.id) return document.getElementById(el.id);
+    return null;
+}
+function topPageModal() {
+    if (document.querySelector('.pk-dialog.open')) return null;   // pk-dialogs handles its own keys
+    var opens = document.querySelectorAll('.pk-modal-overlay.open:not(.pk-dialog)');
+    return opens.length ? opens[opens.length - 1] : null;
+}
+document.addEventListener('keydown', function (e) {
+    var open = topPageModal();
+    if (!open) return;
+    if (e.key === 'Escape') {
+        e.preventDefault();
+        var fn = window[MODAL_CLOSERS[open.id]];
+        if (typeof fn === 'function') fn(); else closeModal(open.id);
+    } else if (e.key === 'Tab') {
+        var f = modalFocusables(open);
+        if (!f.length) { e.preventDefault(); return; }
+        var at = f.indexOf(document.activeElement);
+        if (e.shiftKey && at <= 0) { e.preventDefault(); f[f.length - 1].focus(); }
+        else if (!e.shiftKey && (at === -1 || at === f.length - 1)) { e.preventDefault(); f[0].focus(); }
+    }
+});
 // Leaving the page with unsaved Setup changes gets the browser's own prompt;
 // the in-page exits (Close, another view, the back arrow) ask through pkConfirm.
 window.addEventListener('beforeunload', function (e) {
@@ -2637,21 +2746,21 @@ function renderSettingsView() {
 
     // Tab strip — a segmented control with a sliding thumb, same as the toolbar.
     h += '<div class="pk-sv-tabs">';
-    h += '<div class="pk-seg pk-sv-seg" id="settingsSeg">';
+    h += '<div class="pk-seg pk-sv-seg" id="settingsSeg" data-seg-role="tablist" aria-label="Setup sections">';
     h += '<span class="pk-seg-thumb"></span>';
-    h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'game' ? ' active' : '') + '" data-tab="game" data-act="setSettingsTab" data-a1="game">Game</button>';
-    h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'payouts' ? ' active' : '') + (isCash() ? ' disabled' : '') + '" data-tab="payouts" ' + (isCash() ? 'disabled title="Cash games have no payout structure"' : 'data-act="setSettingsTab" data-a1="payouts"') + '>Payouts &amp; Rewards</button>';
+    h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'game' ? ' active' : '') + '" id="svTab_game" aria-controls="svPane_game" data-tab="game" data-act="setSettingsTab" data-a1="game">Game</button>';
+    h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'payouts' ? ' active' : '') + (isCash() ? ' disabled' : '') + '" id="svTab_payouts" aria-controls="svPane_payouts" data-tab="payouts" ' + (isCash() ? 'disabled title="Cash games have no payout structure"' : 'data-act="setSettingsTab" data-a1="payouts"') + '>Payouts &amp; Rewards</button>';
     // Rendered for BOTH game types and shown or hidden live by
     // previewGameType(). Building them only for a saved tournament is what made
     // the strip lag the dropdown: switching to Cash left them standing, and
     // switching to Tournament could not reveal them because they did not exist.
     // (Their panes were always rendered — only these buttons were gated.)
     var tourneyTabHidden = isCash() ? ' style="display:none"' : '';
-    h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'blinds' ? ' active' : '') + '" data-tab="blinds" data-act="setSettingsTab" data-a1="blinds"' + tourneyTabHidden + '>Blinds</button>';
-    h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'timer' ? ' active' : '') + '" data-tab="timer" data-act="setSettingsTab" data-a1="timer"' + tourneyTabHidden + '>Timer</button>';
-    h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'chips' ? ' active' : '') + '" data-tab="chips" data-act="setSettingsTab" data-a1="chips"' + tourneyTabHidden + '>Chip set</button>';
+    h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'blinds' ? ' active' : '') + '" id="svTab_blinds" aria-controls="svPane_blinds" data-tab="blinds" data-act="setSettingsTab" data-a1="blinds"' + tourneyTabHidden + '>Blinds</button>';
+    h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'timer' ? ' active' : '') + '" id="svTab_timer" aria-controls="svPane_timer" data-tab="timer" data-act="setSettingsTab" data-a1="timer"' + tourneyTabHidden + '>Timer</button>';
+    h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'chips' ? ' active' : '') + '" id="svTab_chips" aria-controls="svPane_chips" data-tab="chips" data-act="setSettingsTab" data-a1="chips"' + tourneyTabHidden + '>Chip set</button>';
     if (hasTickets && !isCash()) {
-        h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'tickets' ? ' active' : '') + '" data-tab="tickets" data-act="setSettingsTab" data-a1="tickets">Tickets <span class="pk-sv-badge">' + TICKETS.outgoing.length + '</span></button>';
+        h += '<button class="pk-sv-tab' + (SETTINGS_TAB === 'tickets' ? ' active' : '') + '" id="svTab_tickets" aria-controls="svPane_tickets" data-tab="tickets" data-act="setSettingsTab" data-a1="tickets">Tickets <span class="pk-sv-badge">' + TICKETS.outgoing.length + '</span></button>';
     }
     h += '</div>';
     h += '</div>';
@@ -2691,25 +2800,25 @@ function renderSettingsView() {
         // Destructive / admin actions live behind the ⋯ menu: they applied to
         // whatever was selected in the dropdown, which reads as if they applied
         // to the game, and they crowded the two buttons that matter.
-        h += '<div class="pk-preset-more"><button class="pk-preset-morebtn" data-act="togglePresetMenu" title="More preset actions" aria-label="More preset actions">&#8943;</button>';
-        h += '<div class="pk-preset-menu" id="presetMenu">';
+        h += '<div class="pk-preset-more" data-act-keydown="presetMenuKeydown" data-keydown-a1="@event"><button type="button" class="pk-preset-morebtn" data-act="togglePresetMenu" title="More preset actions" aria-label="More preset actions" aria-haspopup="menu" aria-expanded="false" aria-controls="presetMenu">&#8943;</button>';
+        h += '<div class="pk-preset-menu" id="presetMenu" role="menu" aria-label="More preset actions">';
         h += '<div class="pk-preset-menu-hint" id="presetMenuHint" style="display:none"></div>';
-        h += '<button id="btnDefPayoutStructure" data-act="setDefaultPayoutStructure">Set as site default</button>';
-        h += '<button id="btnDelPayoutStructure" class="danger" data-act="deletePayoutStructure">Delete preset</button>';
+        h += '<button type="button" role="menuitem" id="btnDefPayoutStructure" data-act="setDefaultPayoutStructure">Set as site default</button>';
+        h += '<button type="button" role="menuitem" id="btnDelPayoutStructure" class="danger" data-act="deletePayoutStructure">Delete preset</button>';
         h += '</div></div>';
         h += '</div>';   // .pk-preset-bar
         h += '<div style="font-size:.75rem;color:#64748b;margin-top:.3rem">A preset stores the whole editor — game setup (buy-in, chips, rebuys, tables), payouts &amp; rewards, blind schedule and timer settings. (The satellite target event stays per-game.)</div>';
         h += '</div>';   // #presetBody
         h += '</div>';   // #cfgPresetSection
     }
-    h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'game' ? ' active' : '') + '" data-pane="game">' + renderGamePane() + '</div>';
-    h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'payouts' ? ' active' : '') + '" data-pane="payouts">' + renderPayoutsPane() + '</div>';
+    h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'game' ? ' active' : '') + '" id="svPane_game" role="tabpanel" aria-labelledby="svTab_game" data-pane="game">' + renderGamePane() + '</div>';
+    h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'payouts' ? ' active' : '') + '" id="svPane_payouts" role="tabpanel" aria-labelledby="svTab_payouts" data-pane="payouts">' + renderPayoutsPane() + '</div>';
     // The blinds pane is a mounted component (event_blinds.js), not an HTML
     // string — mountBlindsPane() fills this container after every render.
-    h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'blinds' ? ' active' : '') + '" data-pane="blinds"><div id="ckBlindsPane"><div class="pk-log-empty">Loading&hellip;</div></div></div>';
-    h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'timer' ? ' active' : '') + '" data-pane="timer">' + renderTimerPane() + '</div>';
-    h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'chips' ? ' active' : '') + '" data-pane="chips">' + renderChipsPane() + '</div>';
-    h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'tickets' ? ' active' : '') + '" data-pane="tickets">' + renderTicketsPanel() + '</div>';
+    h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'blinds' ? ' active' : '') + '" id="svPane_blinds" role="tabpanel" aria-labelledby="svTab_blinds" data-pane="blinds"><div id="ckBlindsPane"><div class="pk-log-empty">Loading&hellip;</div></div></div>';
+    h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'timer' ? ' active' : '') + '" id="svPane_timer" role="tabpanel" aria-labelledby="svTab_timer" data-pane="timer">' + renderTimerPane() + '</div>';
+    h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'chips' ? ' active' : '') + '" id="svPane_chips" role="tabpanel" aria-labelledby="svTab_chips" data-pane="chips">' + renderChipsPane() + '</div>';
+    h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'tickets' ? ' active' : '') + '" id="svPane_tickets" role="tabpanel"' + (hasTickets && !isCash() ? ' aria-labelledby="svTab_tickets"' : '') + ' data-pane="tickets">' + renderTicketsPanel() + '</div>';
     h += '</div>';
     h += '</div>';
 
@@ -2802,12 +2911,12 @@ function renderPayoutsPane() {
     // ── Bonus rewards: opt-in toggles keep a plain game plain ──
     h += '<div class="pk-cfg-section" id="cfgRewardsSection" style="' + (isCash()?'display:none':'') + '"><div class="pk-cfg-title">Bonus Rewards <span style="font-weight:400;text-transform:none;letter-spacing:0">— optional, tap to enable</span></div>';
     h += '<div class="pk-reward-chips">';
-    h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.bounty ? ' on' : '') + '" id="chip_bounty" data-act="toggleReward" data-a1="bounty">🎯 Bounties</button>';
-    h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.pts ? ' on' : '') + '" id="chip_pts" data-act="toggleReward" data-a1="pts">🏆 League points</button>';
-    h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.ticket ? ' on' : '') + '" id="chip_ticket" data-act="toggleReward" data-a1="ticket">🎟 Satellite seat</button>';
-    h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.label ? ' on' : '') + '" id="chip_label" data-act="toggleReward" data-a1="label">🎁 Prizes</button>';
+    h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.bounty ? ' on' : '') + '" aria-pressed="' + (REWARDS_UI.bounty ? 'true' : 'false') + '" id="chip_bounty" data-act="toggleReward" data-a1="bounty">🎯 Bounties</button>';
+    h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.pts ? ' on' : '') + '" aria-pressed="' + (REWARDS_UI.pts ? 'true' : 'false') + '" id="chip_pts" data-act="toggleReward" data-a1="pts">🏆 League points</button>';
+    h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.ticket ? ' on' : '') + '" aria-pressed="' + (REWARDS_UI.ticket ? 'true' : 'false') + '" id="chip_ticket" data-act="toggleReward" data-a1="ticket">🎟 Satellite seat</button>';
+    h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.label ? ' on' : '') + '" aria-pressed="' + (REWARDS_UI.label ? 'true' : 'false') + '" id="chip_label" data-act="toggleReward" data-a1="label">🎁 Prizes</button>';
     if (EVENT_LEAGUE_ID) {
-        h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.jackpot ? ' on' : '') + '" id="chip_jackpot" data-act="toggleReward" data-a1="jackpot">💎 Jackpots</button>';
+        h += '<button type="button" class="pk-reward-chip' + (REWARDS_UI.jackpot ? ' on' : '') + '" aria-pressed="' + (REWARDS_UI.jackpot ? 'true' : 'false') + '" id="chip_jackpot" data-act="toggleReward" data-a1="jackpot">💎 Jackpots</button>';
     } else {
         h += '<button type="button" class="pk-reward-chip" disabled style="opacity:.4;cursor:default" title="Jackpots are league funds — this event has no league">💎 Jackpots</button>';
     }
@@ -3192,7 +3301,7 @@ function applyToggleReward(key) {
     markSettingsDirty();
     var on = REWARDS_UI[key];
     var chip = document.getElementById('chip_' + key);
-    if (chip) chip.classList.toggle('on', on);
+    if (chip) { chip.classList.toggle('on', on); chip.setAttribute('aria-pressed', on ? 'true' : 'false'); }
     var body = document.getElementById('rewardBody_' + key);
     if (body) body.classList.toggle('on', on);
     var editor = document.getElementById('cfgPayoutSection');
@@ -3263,10 +3372,10 @@ function openJackpotModal() {
     addJackpotRecipient();
     document.getElementById('jpAdjustRow').style.display = 'none';
     loadJackpotHistory();
-    document.getElementById('jackpotModal').classList.add('open');
+    openModal('jackpotModal', '#jpType');
 }
 function closeJackpotModal() {
-    document.getElementById('jackpotModal').classList.remove('open');
+    closeModal('jackpotModal');
 }
 
 // ── Fund history (view + void, same correction model as the game ledger) ──
@@ -3722,16 +3831,52 @@ function togglePresetBar() {
 function togglePresetMenu() {
     var m = document.getElementById('presetMenu');
     if (!m) return;
-    var open = m.classList.toggle('open');
-    if (!open) return;
+    if (m.classList.contains('open')) { closePresetMenu(true); return; }
+    m.classList.add('open');
+    var btn = document.querySelector('.pk-preset-morebtn');
+    if (btn) btn.setAttribute('aria-expanded', 'true');
     // Reuse the existing eligibility rules for the items now inside the menu.
     updatePayoutStructureButtons();
-    var close = function (e) {
-        if (m.contains(e.target)) return;
-        m.classList.remove('open');
-        document.removeEventListener('mousedown', close);
-    };
-    setTimeout(function () { document.addEventListener('mousedown', close); }, 0);
+    // Focus lands on the first live item; a click outside, or focus leaving
+    // the menu and its button, closes it.
+    // Looked up inside the timeout: the eligibility pass above may have swapped
+    // the items' state, and a stale reference would focus nothing.
+    setTimeout(function () { var first = presetMenuItems(m)[0]; if (first && m.classList.contains('open')) first.focus(); }, 0);
+    m._close = function (e) { if (m.contains(e.target) || (btn && btn.contains(e.target))) return; closePresetMenu(false); };
+    m._fo = function (e) { var to = e.relatedTarget; if (to && (m.contains(to) || (btn && btn.contains(to)))) return; if (to) closePresetMenu(false); };
+    setTimeout(function () { document.addEventListener('mousedown', m._close); m.parentNode.addEventListener('focusout', m._fo); }, 0);
+}
+function closePresetMenu(refocus) {
+    var m = document.getElementById('presetMenu');
+    if (!m) return;
+    m.classList.remove('open');
+    var btn = document.querySelector('.pk-preset-morebtn');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+    if (m._close) { document.removeEventListener('mousedown', m._close); m._close = null; }
+    if (m._fo && m.parentNode) { m.parentNode.removeEventListener('focusout', m._fo); m._fo = null; }
+    if (refocus && btn) btn.focus();
+}
+// Keys inside the ⋯ menu: arrows walk the live items, Home / End jump, Escape
+// closes and returns to the button, Tab closes and moves on.
+// The items the keyboard can land on: the eligibility pass hides a button
+// outright (display:none) when it does not apply, as well as disabling it.
+function presetMenuItems(m) {
+    return Array.prototype.filter.call(m.querySelectorAll('button'), function (b) { return !b.disabled && b.offsetParent !== null; });
+}
+function presetMenuKeydown(e) {
+    var m = document.getElementById('presetMenu');
+    if (!m || !m.classList.contains('open')) return;
+    var items = presetMenuItems(m);
+    var at = items.indexOf(document.activeElement), to = null;   // -1 while the ⋯ button has focus
+    if (e.key === 'ArrowDown') to = (at + 1) % items.length;
+    else if (e.key === 'ArrowUp') to = (at - 1 + items.length) % items.length;
+    else if (e.key === 'Home') to = 0;
+    else if (e.key === 'End') to = items.length - 1;
+    else if (e.key === 'Escape') { e.preventDefault(); closePresetMenu(true); return; }
+    else if (e.key === 'Tab') { closePresetMenu(false); return; }
+    if (to === null || !items.length) return;
+    e.preventDefault();
+    items[to].focus();
 }
 
 async function loadPayoutStructure() {
@@ -3830,12 +3975,11 @@ function _continueSavePayoutStructureAs(leagues, inputs) {
         scope.appendChild(o);
     });
     document.getElementById('ssName').value = '';
-    document.getElementById('saveStructModal').classList.add('open');
-    setTimeout(function() { document.getElementById('ssName').focus(); }, 30);
+    openModal('saveStructModal', '#ssName');
 }
 
 function closeSaveStruct() {
-    document.getElementById('saveStructModal').classList.remove('open');
+    closeModal('saveStructModal');
 }
 
 function confirmSaveStruct() {
@@ -4219,6 +4363,7 @@ function balanceTables() {
         + '<button data-act="executeBalance" style="padding:.4rem 1rem;border:none;border-radius:6px;background:#2563eb;color:#fff;cursor:pointer;font-weight:600;font-size:.85rem">Balance</button>'
         + '</div></div>';
     document.body.appendChild(overlay);
+    openModal('balanceModal', 'select');   // already open; this records the opener and moves focus in
 }
 
 // One move per line. The dialog renders HTML, so the "\n" these used to
@@ -4410,11 +4555,11 @@ function eliminatePlayer(pid) {
     }
     elimPid = pid;
     document.getElementById('elimMsg').innerHTML = msg;
-    document.getElementById('elimModal').classList.add('open');
+    openModal('elimModal', '.pk-modal-actions .pk-save');
 }
 
 function closeElim() {
-    document.getElementById('elimModal').classList.remove('open');
+    closeModal('elimModal');
     elimPid = null;
 }
 
@@ -4438,11 +4583,11 @@ function showWinner(w) {
     var amt = (w && parseInt(w.payout)) || payoutForPlace(1);
     document.getElementById('winnerMsg').textContent = (w && w.display_name ? w.display_name : 'Winner') + ' wins!';
     document.getElementById('winnerSub').innerHTML = '1st place' + (amt > 0 ? ' &middot; ' + formatMoney(amt) : '') + '<br>The game is now finished.';
-    document.getElementById('winnerModal').classList.add('open');
+    openModal('winnerModal', '.pk-save');
 }
 
 function closeWinner() {
-    document.getElementById('winnerModal').classList.remove('open');
+    closeModal('winnerModal');
 }
 
 function confirmElim() {
@@ -4504,13 +4649,11 @@ function adjustMoney(pid, direction) {
     var inp = document.getElementById('cashAdjustAmount');
     inp.value = def;
     inp.onkeydown = function(e) { if (e.key === 'Enter') applyCashAdjust(); };
-    document.getElementById('cashAdjustModal').classList.add('open');
-    inp.focus();
-    inp.select();
+    openModal('cashAdjustModal', '#cashAdjustAmount');
 }
 
 function closeCashAdjust() {
-    document.getElementById('cashAdjustModal').classList.remove('open');
+    closeModal('cashAdjustModal');
     cashAdjustPid = null;
 }
 
@@ -4665,7 +4808,7 @@ function walkinSuggest(val) {
     var dd = document.getElementById('walkinDropdown');
     if (!dd) return;
     val = val.trim().toLowerCase();
-    if (val.length < 1) { dd.classList.remove('open'); dd.innerHTML = ''; _walkinIdx = -1; return; }
+    if (val.length < 1) { walkinCloseDD(); return; }
 
     // Exclude users already in the session
     var existing = PLAYERS.map(function(p) { return p.display_name.toLowerCase(); });
@@ -4673,24 +4816,43 @@ function walkinSuggest(val) {
         return u.toLowerCase().indexOf(val) !== -1 && existing.indexOf(u.toLowerCase()) === -1;
     }).slice(0, 6);
 
-    if (matches.length === 0) { dd.classList.remove('open'); dd.innerHTML = ''; _walkinIdx = -1; return; }
+    if (matches.length === 0) { walkinCloseDD(); return; }
 
     dd.innerHTML = matches.map(function(u, i) {
         // Name rides in a data attribute rather than inside the inline handler's
         // JS string: attribute values are HTML-decoded before JS parses them, so
         // an escaped quote would come back and break out of the literal.
-        return '<div class="walkin-dropdown-item" data-u="' + escHtml(u) + '" data-act-mousedown="walkinPick" data-mousedown-a1="@dataU">' + escHtml(u) + '</div>';
+        return '<div class="walkin-dropdown-item" role="option" id="wkopt_' + i + '" aria-selected="false" data-u="' + escHtml(u) + '" data-act-mousedown="walkinPick" data-mousedown-a1="@dataU">' + escHtml(u) + '</div>';
     }).join('');
     dd.classList.add('open');
+    var inp = document.getElementById('walkinName');
+    if (inp) { inp.setAttribute('aria-expanded', 'true'); inp.removeAttribute('aria-activedescendant'); }
     _walkinIdx = -1;
+}
+// The listbox's open / closed state and the highlighted option are mirrored on
+// the combobox for the screen reader.
+function walkinCloseDD() {
+    var dd = document.getElementById('walkinDropdown');
+    if (dd) { dd.classList.remove('open'); dd.innerHTML = ''; }
+    var inp = document.getElementById('walkinName');
+    if (inp) { inp.setAttribute('aria-expanded', 'false'); inp.removeAttribute('aria-activedescendant'); }
+    _walkinIdx = -1;
+}
+function walkinHighlight(items) {
+    var inp = document.getElementById('walkinName');
+    items.forEach(function(el, i) {
+        var on = i === _walkinIdx;
+        el.classList.toggle('active', on);
+        el.setAttribute('aria-selected', on ? 'true' : 'false');
+        if (on && inp) inp.setAttribute('aria-activedescendant', el.id);
+    });
+    if (_walkinIdx < 0 && inp) inp.removeAttribute('aria-activedescendant');
 }
 
 function walkinPick(name) {
     var input = document.getElementById('walkinName');
     input.value = name;
-    var dd = document.getElementById('walkinDropdown');
-    if (dd) { dd.classList.remove('open'); dd.innerHTML = ''; }
-    _walkinIdx = -1;
+    walkinCloseDD();
     addWalkin();
 }
 
@@ -4704,11 +4866,11 @@ function walkinKeydown(e) {
     if (e.key === 'ArrowDown') {
         e.preventDefault();
         _walkinIdx = Math.min(_walkinIdx + 1, items.length - 1);
-        items.forEach(function(el, i) { el.classList.toggle('active', i === _walkinIdx); });
+        walkinHighlight(items);
     } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         _walkinIdx = Math.max(_walkinIdx - 1, 0);
-        items.forEach(function(el, i) { el.classList.toggle('active', i === _walkinIdx); });
+        walkinHighlight(items);
     } else if (e.key === 'Enter') {
         e.preventDefault();
         if (_walkinIdx >= 0 && items[_walkinIdx]) {
@@ -4724,8 +4886,8 @@ function walkinKeydown(e) {
             if (exactMatch) { walkinPick(exactMatch); } else { addWalkin(); }
         }
     } else if (e.key === 'Escape') {
-        dd.classList.remove('open');
-        _walkinIdx = -1;
+        e.preventDefault();   // taken here: Setup's Escape must not fire too
+        walkinCloseDD();
     }
 }
 
@@ -4733,15 +4895,14 @@ function walkinKeydown(e) {
 document.addEventListener('click', function(e) {
     if (!e.target.closest('.walkin-autocomplete')) {
         var dd = document.getElementById('walkinDropdown');
-        if (dd) { dd.classList.remove('open'); _walkinIdx = -1; }
+        if (dd && dd.classList.contains('open')) walkinCloseDD();
     }
 });
 
 function addWalkin() {
     var name = document.getElementById('walkinName').value.trim();
     if (!name) { pkAlert('Enter a name'); return; }
-    var dd = document.getElementById('walkinDropdown');
-    if (dd) { dd.classList.remove('open'); dd.innerHTML = ''; _walkinIdx = -1; }
+    walkinCloseDD();
     postAction('add_walkin', { session_id: SESSION.id, name: name }, function(j) {
         // The endpoint returns the whole roster, so a re-activated player is
         // replaced and a new one appended without the client reasoning about it.
@@ -4959,11 +5120,11 @@ function openNotes(pid) {
     notesPlayerId = pid;
     var p = PLAYERS.find(function(x) { return parseInt(x.id) === pid; });
     document.getElementById('notesText').value = (p && p.notes) ? p.notes : '';
-    document.getElementById('notesModal').classList.add('open');
+    openModal('notesModal', '#notesText');
 }
 
 function closeNotes() {
-    document.getElementById('notesModal').classList.remove('open');
+    closeModal('notesModal');
     notesPlayerId = null;
 }
 
@@ -4974,11 +5135,11 @@ function openHelp() {
     document.querySelectorAll('#helpModal .help-cash').forEach(function (el) { el.style.display = cash ? '' : 'none'; });
     var m = document.getElementById('helpModal');
     m.querySelector('.pk-help-content').scrollTop = 0;
-    m.classList.add('open');
+    openModal('helpModal', '.pk-help-content');   // reading starts at the top
 }
 
 function closeHelp() {
-    document.getElementById('helpModal').classList.remove('open');
+    closeModal('helpModal');
 }
 
 // ─── Per-player ledger (money history + corrections) ───
@@ -5008,7 +5169,7 @@ function openLedger(pid) {
     var p = PLAYERS.filter(function(x){ return x.id == pid; })[0];
     document.getElementById('ledgerTitle').textContent = 'Ledger — ' + (p ? p.display_name : '');
     document.getElementById('ledgerList').innerHTML = '<div class="pk-ledger-empty">Loading&hellip;</div>';
-    document.getElementById('ledgerModal').classList.add('open');
+    openModal('ledgerModal');
     fetch('/checkin_dl.php?action=get_ledger&player_id=' + pid)
         .then(function(r){ return r.json(); })
         .then(function(j){ if (j.ok) renderLedger(j.ledger); else pkAlert(j.error || 'Could not load ledger'); })
@@ -5017,7 +5178,7 @@ function openLedger(pid) {
 
 function closeLedger() {
     LEDGER_PID = null;
-    document.getElementById('ledgerModal').classList.remove('open');
+    closeModal('ledgerModal');
 }
 
 // ─── Cash box reconciliation (cash games) ───
@@ -5025,11 +5186,11 @@ function openCashBox() {
     document.getElementById('cbTips').value = (parseInt(SESSION.tips) || 0) ? ((parseInt(SESSION.tips)) / 100) : '';
     document.getElementById('cbCounted').value = (SESSION.cash_counted !== null && SESSION.cash_counted !== undefined && SESSION.cash_counted !== '') ? (parseInt(SESSION.cash_counted) / 100) : '';
     cashBoxRecompute();
-    document.getElementById('cashBoxModal').classList.add('open');
+    openModal('cashBoxModal', '#cbTips');
 }
 
 function closeCashBox() {
-    document.getElementById('cashBoxModal').classList.remove('open');
+    closeModal('cashBoxModal');
 }
 
 function cashBoxOnTable() { return (parseInt(POOL.total_cash_in) || 0) - (parseInt(POOL.total_cash_out) || 0); }
@@ -5267,7 +5428,36 @@ function updatePlayer(updated) {
     }
 }
 
+// A repaint replaces every node in the roster, so whatever had focus is gone
+// with it: remember it first and land on its successor afterwards. Without
+// this every Buy In, rebuy or Eliminate from the keyboard dropped focus to the
+// top of the page, and the 10 s poll did the same under a parked cursor.
+function focusSnapshot() {
+    var ae = document.activeElement;
+    if (!ae || ae === document.body || !ae.closest || !ae.closest('#app')) return null;
+    return { el: ae, id: ae.id || '', label: ae.getAttribute('aria-label') || '',
+             act: ae.getAttribute('data-act') || ae.getAttribute('data-act-change') || '',
+             a1: ae.getAttribute('data-a1') || ae.getAttribute('data-change-a1') || '',
+             pid: (ae.closest('[data-pid]') || { getAttribute: function () { return ''; } }).getAttribute('data-pid') || '' };
+}
+function focusRestore(snap) {
+    if (!snap || document.contains(snap.el)) return;   // still there: nothing to do
+    var t = null;
+    if (snap.id) t = document.getElementById(snap.id);
+    if (!t && snap.act) t = findSuccessor(snap.el);
+    if (!t && snap.label) t = document.querySelector('[aria-label="' + snap.label.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"]');
+    if (!t && snap.pid) t = document.querySelector('[data-pid="' + snap.pid + '"] button, [data-pid="' + snap.pid + '"] input, [data-pid="' + snap.pid + '"] select');
+    if (!t && snap.act) t = document.querySelector('[data-act="' + snap.act + '"], [data-act-change="' + snap.act + '"]');   // the row is gone: the same control on another
+    if (!t) t = document.getElementById('walkinName');
+    if (t && t.focus) { try { t.focus({ preventScroll: true }); } catch (e) {} }
+}
+
 function refreshUI() {
+    var fs = focusSnapshot();
+    refreshUIInner();
+    focusRestore(fs);
+}
+function refreshUIInner() {
     // The Settings editor holds unsaved form state, so the 10s poll must never
     // repaint it — this is the reason it used to live outside #app entirely.
     // Everything below #viewContent (stats, pool header, cards) still updates.

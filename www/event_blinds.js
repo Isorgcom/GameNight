@@ -64,20 +64,47 @@
      * instant it appeared. Ignore dismissals for a moment afterwards. */
     var lpGuard = 0;
 
+    /* What had focus when the menu opened (the cell that was right-clicked,
+     * or the row), so Escape and a chosen action can hand it back. */
+    var MENU_OPENER = null;
     function menuEl() {
         if (MENU) return MENU;
         MENU = el('div', 'es-menu');
+        MENU.setAttribute('role', 'menu');
+        MENU.setAttribute('aria-label', 'Row actions');
         MENU.addEventListener('click', function (e) {
             var b = e.target.closest('button[data-i]');
             if (!b || !MENU_ACTIONS) return;
             var fn = MENU_ACTIONS[+b.dataset.i];
-            closeMenu();
+            closeMenu(true);
             if (fn) fn();
+        });
+        // Arrow keys walk the items, Home / End jump, Escape closes and hands
+        // focus back, Tab closes and lets focus move on.
+        MENU.addEventListener('keydown', function (e) {
+            var items = Array.prototype.slice.call(MENU.querySelectorAll('button.es-menu-item'));
+            if (!items.length) return;
+            var at = items.indexOf(document.activeElement), to = null;
+            if (e.key === 'ArrowDown') to = (at + 1) % items.length;
+            else if (e.key === 'ArrowUp') to = (at - 1 + items.length) % items.length;
+            else if (e.key === 'Home') to = 0;
+            else if (e.key === 'End') to = items.length - 1;
+            else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeMenu(true); return; }
+            else if (e.key === 'Tab') { closeMenu(false); return; }
+            if (to === null) return;
+            e.preventDefault();
+            items[to].focus();
         });
         document.body.appendChild(MENU);
         return MENU;
     }
-    function closeMenu() { if (MENU) MENU.style.display = 'none'; }
+    function menuOpen() { return !!MENU && MENU.style.display === 'block'; }
+    function closeMenu(refocus) {
+        if (!MENU) return;
+        MENU.style.display = 'none';
+        if (refocus && MENU_OPENER && document.contains(MENU_OPENER)) { try { MENU_OPENER.focus(); } catch (_) {} }
+        MENU_OPENER = null;
+    }
 
     function mount(container, opts) {
         // Drop the previous mount's document-level listeners before wiring new
@@ -585,6 +612,7 @@
                 if (label === null) { m.appendChild(el('div', 'es-menu-sep')); return; }
                 var b = el('button', 'es-menu-item' + (cls ? ' ' + cls : ''), label);
                 b.type = 'button';
+                b.setAttribute('role', 'menuitem');
                 b.dataset.i = MENU_ACTIONS.length;
                 MENU_ACTIONS.push(fn);
                 m.appendChild(b);
@@ -649,7 +677,13 @@
             }, 'es-menu-danger');
 
             // Show first so it can be measured, then keep it inside the viewport.
+            MENU_OPENER = document.activeElement;
             m.style.display = 'block';
+            // Focus lands on the first item so the keyboard can take it from here
+            // (Shift+F10 / the Menu key reach this through the native contextmenu
+            // event on the focused cell).
+            var firstItem = m.querySelector('button.es-menu-item');
+            if (firstItem) setTimeout(function () { firstItem.focus(); }, 0);
             m.style.left = '0px'; m.style.top = '0px';
             var w = m.offsetWidth, h = m.offsetHeight;
             m.style.left = Math.max(4, Math.min(x, window.innerWidth - w - 6)) + 'px';
@@ -866,7 +900,10 @@
                 if (!MENU || !MENU.contains(e.target)) closeMenu();
             }],
             [document, 'keydown', function (e) {
-                if (e.key === 'Escape') closeMenu();
+                // Only an OPEN menu consumes Escape; the page's other Escape
+                // handlers (Setup's close, a dialog's dismiss) read
+                // defaultPrevented to know it was taken.
+                if (e.key === 'Escape' && menuOpen()) { closeMenu(true); e.preventDefault(); }
                 if (!(e.ctrlKey || e.metaKey)) return;
                 var k = (e.key || '').toLowerCase();
                 if (k !== 'z' && k !== 'y') return;
