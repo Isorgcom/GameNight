@@ -78,7 +78,7 @@ $csrf = csrf_token();
                     <button id="tbeDup"     class="tbe-mini">Duplicate</button>
                     <button id="tbeUp"      class="tbe-mini">&#9650;</button>
                     <button id="tbeDown"    class="tbe-mini">&#9660;</button>
-                    <button id="tbeRemove"  class="tbe-mini tbe-mini-danger">Remove</button>
+                    <button id="tbeRemove"  class="tbe-mini tbe-mini-danger">Delete</button>
                 </div>
             </div>
             <div class="tbe-panel tbe-panel-inspector">

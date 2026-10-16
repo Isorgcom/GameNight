@@ -137,7 +137,8 @@ Rules that keep it honest:
   matching cycle screen alone never rotates. Rotation state lives in the
   renderer (`pickScreen()`), is reset on layout load, and the editor preview
   is exempt because it pins screens via `forceScreen`. Editor control:
-  "Rotate after (seconds)" in the screen management area.
+  "Rotate after (seconds)" on the Screen inspector (a screen tab selects the
+  screen root, so its settings show there).
 - **Editor preview context**: `selectScreen(i)` in `timer_layouts.js` pins
   the preview (`forceScreen`) and also moves the state chip and the device
   switch to what the screen's `when` names, through `screenContext()`: the
@@ -263,8 +264,9 @@ opacity-0 spacer for a plated box, opacity hides the plate too).
 - `timer_display.js` — the renderer + engine + the seven built-in layouts +
   embed API (`window.TBPreview`).
 - `timer_layouts.php` / `.js` / `.css` — the layout editor. Live preview is
-  the real display page in the iframe; structure tree, inspector, element
-  picker, per-state preview chips, screen tabs, undo.
+  the real display page in the iframe; structure tree, inspector (a cell's
+  starts with its Kind, the screen's holds the screen settings), element
+  picker, per-state preview chips, screen tabs, undo, unsaved-changes marker.
 - `timer_layouts_dl.php` — layout CRUD. `pk_layout_sanitize()` is the trust
   boundary: whitelists node types, style keys and enums; clamps numbers;
   rejects `url()`/`expression()`/js in style strings; depth cap 8, node cap
@@ -342,6 +344,19 @@ Moves that would fall off the end are disabled with the reason, and edits go
 through `pushUndo()` like any other, so Ctrl+Z takes them back. The menu also
 carries its own **Undo last change**, disabled when there is no history.
 
+**Unsaved changes** are tracked by content, not by the undo stack:
+`markSaved()` snapshots `canonJson(LAYOUT)` (keys sorted, so a value deleted
+and set again is not a change) plus the name after every load, import, save
+and delete, `isDirty()` compares, and `updateDirty()` runs from `refresh()`
+and the name field to put the • on the Save button. `beforeunload` and
+`confirmDiscard()` (Load…, Import) guard it. Rendering must therefore never
+touch the layout: the root inspector and the menu's Screen background panel
+read `scr.bg` through a local and create it on write, and `normalizeLayout()`
+settles the three panel containers (`styles` and `customElements` present,
+an empty `triggers` absent, which is how the triggers panel leaves it) before
+the snapshot. There is deliberately no autosave: a bound layout is what the
+TV shows, so half-finished edits must never reach it on their own.
+
 Beyond structure it exposes the node's whole property set, so most editing
 never needs the inspector, but **the top level stays a dozen rows**. The flat
 version offered every property at the top level and ran to thirty-four rows on
@@ -371,7 +386,14 @@ Screen shape ▸ · Panel colours ▸ · Box ▸ · Paste · Undo`.
 inspector hides the text fields for an image, and a menu that offered them
 would be worse, since a menu implies the setting does something. Conversions
 start from text (Turn into is offered on a text cell only) and every other kind
-offers its way back instead, so a cell never carries two kinds at once.
+offers its way back instead, so a cell never carries two kinds at once. The
+inspector's **Kind** dropdown (`kindSelect()`, first field of every cell) is
+the same switch in one control: it reads `cellKind()` (the menu's precedence
+order) and on change runs `clearKind()`, which deletes every kind's keys
+exactly as the Remove rows do, before setting the new one, so it can go
+straight from a QR to a seat map. Image goes through `uploadImage()` and the
+dropdown snaps back until the picker returns, since a cancelled pick is no
+change.
 
 The cascade is `openSubMenu(anchor, build, level)`: one body-level panel per
 level in `tbeSubs[]`, rebuilt on every open, and `build(panel, addRow,
@@ -806,9 +828,9 @@ on it, not by the QR:
 Both screens derive from the same anchor, so they count in step with no
 cross-screen messaging.
 
-**Editor**: the cell inspector offers "Use a QR code instead" beside "Use an
-image instead", and once converted shows what the code does plus "Remove QR
-(back to text)". There is deliberately **no URL field** — the target is an enum
+**Editor**: the cell inspector's Kind dropdown offers "QR code", and once
+converted the inspector shows what the code does (Kind → Text is the way
+back). There is deliberately **no URL field** — the target is an enum
 and the URL is the renderer's to build.
 
 Three implementation notes worth keeping:
@@ -878,7 +900,8 @@ Implementation notes, all inherited from the QR cell's lessons:
   localStorage toggle, default on, is honoured, so a device's choice there
   carries over here.
 
-**Editor**: "Use a video stream instead" beside the other conversions sets
+**Editor**: Kind → "Video stream" (the inspector's dropdown, or Turn into in
+the menu) sets
 `video: ''` — the cell shows the placeholder until a link is pasted into the
 inspector's Stream URL field, which validates through
 `TBPreview.normalizeStreamUrl` (the renderer's own function, same contract as
@@ -1267,8 +1290,8 @@ switch names — see the dispatch note in `timer.php`'s header.
   `pk_lo_prune_style_refs()` drops refs to undefined names on save. Renderer:
   `withSharedStyle()` merges at build time in `buildNode()`; an unknown ref
   is a harmless no-op client-side. Editor: "Shared styles" panel on the
-  Screen inspector (above Custom elements), "Shared style" dropdown on each
-  cell. Styles ride with save/export/import automatically.
+  Screen inspector (below the screen's own settings and background, above
+  Custom elements), "Shared style" dropdown on each cell. Styles ride with save/export/import automatically.
 - **Scrolling cells + payout table (done):** `scroll: up | left` on any text
   cell (credits that roll only on overflow; a ticker that always moves) with
   `scrollSpeed`/`scrollPhase`, and `payouts: true` for a place / dotted leader /

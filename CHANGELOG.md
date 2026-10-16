@@ -13,6 +13,50 @@ lands and that heading is renamed when a release is cut.
 
 ---
 
+## [v1.8.8] - 2026-10-16
+
+### Changed
+
+- **A cell's inspector starts with Kind.** The seven "Use a … instead" buttons
+  that stood above the Text field are one dropdown reading Text, Image, QR
+  code, Chip legend, Seat map, Payout table, Players list or Video stream. It
+  says what the cell is and changes it, straight from one kind to another,
+  dropping the old kind's settings as the right-click menu's Remove rows do;
+  picking Image opens the picture library and nothing changes until a picture
+  is chosen. The per-kind "Remove … (back to text)" buttons in the inspector
+  are gone with it (Kind → Text does the same; the menu keeps its rows). The
+  weight field is now named like the menu, "Size in parent (share of space)",
+  and the Structure panel's Remove button says Delete. `kindSelect()`,
+  `clearKind()` in `www/timer_layouts.js`.
+
+- **The screen's settings live in the inspector, so the tree keeps its room.**
+  The screen's name, Delete screen, Show this screen when and Rotate after sat
+  at the top of the Structure panel above a tree capped at 300px, and on a
+  laptop the inspector fell below the fold. Picking a screen tab now selects
+  the screen itself and the inspector, titled Screen, holds those settings,
+  the screen's background, the Screen shape and Panel colours switches (the
+  same ones its right-click menu offers) and the shared styles and custom
+  elements. The Structure panel is the tabs, the tree and the toolbar, and the
+  tree's cap follows the window. The Timer Guide's screens picture is retaken.
+
+- **The editor knows when there is unsaved work.** The Save button reads "Save
+  layout •" while the layout or its name differs from what was last loaded or
+  saved, and reads plain again when an edit is undone, by hand or by Undo.
+  Leaving the page asks first, and so do Load… and Import, naming the layout.
+  Nothing is saved on its own: a layout a game is using is what its display
+  shows, so half-finished edits must never reach the TV by themselves.
+  `markSaved()`, `isDirty()`, `confirmDiscard()` in `www/timer_layouts.js`.
+
+### Fixed
+
+- **Hint text in the layout editor is readable again.** The explanatory lines
+  under the condition fields, the empty-inspector message, inline labels and
+  the submenu arrows used a grey that measured 2.6:1 on white, under the 4.5:1
+  that WCAG asks of body text. They use the editor's darker secondary grey
+  (4.8:1) now. `www/timer_layouts.css`.
+
+---
+
 ## [v1.8.7] - 2026-10-16
 
 ### Added
