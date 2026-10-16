@@ -11,6 +11,10 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+---
+
+## [v1.8.8] - 2026-10-16
+
 ### Changed
 
 - **A cell's inspector starts with Kind.** The seven "Use a … instead" buttons
