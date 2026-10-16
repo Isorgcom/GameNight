@@ -13,6 +13,39 @@ lands and that heading is renamed when a release is cut.
 
 ---
 
+## [v1.8.9] - 2026-10-16
+
+### Added
+
+- **The layout editor works without a mouse.** Tab to the Structure tree and
+  the arrow keys walk the rows, selecting as they go: Right unfolds a row or
+  column and steps into it, Left folds it or steps out, Home and End jump,
+  Delete removes the selected box and lands on the one that takes its place,
+  and Shift+F10 or the Menu key opens the right-click menu for the row; the
+  same two keys work on the selected box in the preview. Inside the menu the
+  arrows move, Right opens a submenu on its first row, Left comes back out,
+  Enter picks, Tab leaves and Esc closes it with focus back where it came
+  from. The tree and the menu are announced to a screen reader as a tree and a
+  menu, with levels, folds, ticks and submenus. Keyboard focus is drawn as a
+  blue ring on rows, menu items and colour swatches. `treeRow()`,
+  `menuKeydown()`, `openNodeMenu()` in `www/timer_layouts.js`.
+
+- **Redo.** Ctrl+Y or Ctrl+Shift+Z redoes what Ctrl+Z took back, as does the
+  new ↷ beside undo in the Structure panel and a Redo row under Undo in the
+  right-click menu; a new edit after an undo forks history, so the undone
+  branch is gone. Undo and redo now keep the selected box when it still
+  exists, instead of dropping the selection. `doRedo()`, `restoreHistory()` in
+  `www/timer_layouts.js`.
+
+### Changed
+
+- **The Structure panel's icon buttons are labelled for assistive tech.** Move
+  up, Move down, Undo, Redo and the ? help button carry spoken names and
+  tooltips, the preview-state chips say which one is pressed, and the undo and
+  redo buttons are greyed when there is nothing to do.
+
+---
+
 ## [v1.8.8] - 2026-10-16
 
 ### Changed
