@@ -137,6 +137,45 @@ body.tb-letterbox { background: #000; }
                opacity: .85; }
 .tb-pay-amt { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
 
+/* Players list: one row per player, disc | name | dotted leader | place. All
+   in em so capCell's font shrink compresses it like the payout table, and the
+   row height is FIXED for the same reason as .tb-pay-row (a seamless credits
+   loop). The leader is the payout table's own, re-centred for a row whose
+   items align to the middle rather than the baseline. */
+.tb-cell-players .tb-cell-inner { display: block; width: 100%; white-space: normal; }
+.tb-pl-row { display: flex; align-items: center; gap: 0.4em; height: 1.5em; line-height: 1.5em; white-space: nowrap; }
+.tb-pl-row .tb-pay-lead { align-self: center; margin-bottom: 0; }
+/* The disc's own font size is the initial's; its width is stated in THAT em,
+   so 1.9 × .65 ≈ 1.24 of the row's font: a disc a shade taller than a capital. */
+.tb-pl-disc { flex: 0 0 auto; width: 1.9em; height: 1.9em; border-radius: 50%; overflow: hidden;
+              display: inline-flex; align-items: center; justify-content: center;
+              font-size: 0.65em; font-weight: 700; line-height: 1; color: #fff;
+              background: rgba(255,255,255,.10);
+              box-shadow: 0 0 0 0.1em rgba(255,255,255,.6); }
+.tb-pl-disc img { width: 100%; height: 100%; object-fit: cover; }
+.tb-pl-name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tb-pl-place { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+/* Knocked out: dimmed, the photo in grey, so the field reads at a glance. The
+   winner is placed but not out, so they stay bright. */
+.tb-pl-out { opacity: .6; }
+.tb-pl-out .tb-pl-disc img { filter: grayscale(1); }
+/* Grid: cards that wrap, the seat map's disc and name, the place as a badge
+   on the disc's shoulder (wider than the seat number: "13th" must fit). */
+.tb-cell-players.tb-pl-grid .tb-cell-inner { display: flex; flex-wrap: wrap; justify-content: center;
+                                             align-content: flex-start; gap: 0.6em 0.8em; }
+.tb-pl-card { flex: 0 0 auto; width: 7em; text-align: center; }
+.tb-pl-discwrap { position: relative; display: inline-block; }
+.tb-pl-card .tb-pl-disc { width: 3.2em; height: 3.2em; font-size: 1em; display: flex; margin: 0 auto;
+                          box-shadow: 0 0 0 0.14em rgba(255,255,255,.75), 0 0.4vh 1.2vh rgba(0,0,0,.5); }
+.tb-pl-badge { position: absolute; top: -0.4em; right: -0.6em; min-width: 1.4em; height: 1.4em; padding: 0 0.4em;
+               border-radius: 999px; background: rgba(15,23,42,.9); color: #e2e8f0;
+               font-size: 0.62em; font-weight: 700; display: flex; align-items: center;
+               justify-content: center; box-shadow: 0 0 0 1px rgba(255,255,255,.4); white-space: nowrap; }
+.tb-pl-card .tb-pl-name { display: block; font-size: 0.85em; font-weight: 700; margin-top: 0.25em;
+                          max-width: 7em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+                          text-shadow: 0 1px 3px rgba(0,0,0,.8); }
+.tb-pl-card .tb-pl-place { font-size: 0.85em; font-weight: 700; }
+
 /* Final-table seat map: an ellipse of seats on a subtle felt. Sizes are all
    relative to the CELL (percent + em), so the map scales with its box and with
    capCell's font shrink like everything else. */

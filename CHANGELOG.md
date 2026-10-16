@@ -11,6 +11,78 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+### Added
+
+- **The Tournament Timer has a players list cell.** A layout cell that draws
+  everyone who bought in, one row each: their profile photo (or the coloured
+  initial the rest of the site shows when they have none), their name and
+  their finishing place. Players still in come first in seat order, then the
+  knocked-out by place, dimmed with the photo in grey; once the game is over
+  the list reads 1st to last, with the winner bright. In the layout editor it
+  is the seventh conversion (**Turn into → Players list** in a cell's
+  right-click menu, or **Use a players list instead** in the inspector), and
+  its inspector has **Show photo**, **Show name** and **Show place** switches,
+  a **Layout** choice of rows or a grid of cards (the place becomes a badge on
+  the photo), and a **Who** choice of everyone, still playing or finished.
+  Size, font, colour, background, padding, scrolling and the usual box
+  settings apply as on the payout table, so Scroll Up with a weight rolls a
+  long roster like film credits. **Operator note:** to draw it, the display's
+  state feed now carries the knocked-out players' names, photos and places
+  alongside the still-in players it already sent for the seat map, so anyone
+  holding a display's `?key` link can see who finished where (never notes,
+  payouts per player or contact details); both lists are capped at 100
+  players.
+
+- **A cell can be split in two from its right-click menu.** Right-click a cell
+  in the layout editor, in the preview or in the Structure tree, and **Split**
+  offers **left / right** and **top / bottom**. The two halves share the space
+  the cell had: when the cell already sits in a row or column running that way
+  the new half simply joins it beside the original with the share halved,
+  otherwise the cell becomes a row or column of two, so the Structure tree
+  never gains a level it does not need. The new half is a text cell wearing
+  the original's size, colour, font, bold, background, alignment, padding and
+  shared style, with placeholder text, and it is selected so you can type
+  straight away; the original keeps its place and its contents. Undo takes it
+  back like any other edit. `splitNode()` in `www/timer_layouts.js`.
+
+### Changed
+
+- **The layout editor's right-click menu is a dozen rows instead of
+  thirty-four.** As cells gained kinds and settings, right-clicking a text
+  cell listed every property at the top level, taller than a laptop window,
+  with Delete, Paste and Undo below the fold. The menu now keeps the verbs in
+  the list (Add, Duplicate, Split, Copy, Cut, Paste, Move up, Move down,
+  Delete, Undo last change) and folds the rest under three rows that open
+  beside it: **Text** holds the look of the words (bold, fit, clock colours,
+  alignment, size, colour, letter spacing, font, shared style, scroll),
+  **Box** holds the frame (background, box image, padding, opacity, border,
+  size in parent) and **Turn into** holds the seven kinds a text cell can
+  become. A picker inside a panel, such as Colour's swatches, opens one level
+  further beside the panel that holds it; the panels walk one way across the
+  screen and flip left when there is no room. A kind's own options sit under a
+  row of their own (**Players list** for the photo, name, place, layout and
+  who switches; **Image** for the fit and Replace image), the payout table's
+  one toggle stays in the list, and every kind's **Remove … (back to text)**
+  stays a top-level row. **Add after** on a cell and **Add inside** on a row
+  or column each offer a cell, a row or a column. Nothing was removed and
+  nothing changed meaning; the Timer Guide's menu picture is retaken.
+  `openNodeMenu()` and `openSubMenu()` in `www/timer_layouts.js`.
+
+- **Picking a screen tab in the layout editor now swaps the whole preview.**
+  Selecting Main, Phone or Break at the top of the Structure panel always
+  pinned the preview to that screen, but it left the state chips and the
+  device switch where they were, so a Phone screen drew inside the TV-shaped
+  frame and a Break screen previewed with Running lit, and the swap was easy
+  to miss. A tab now also moves the chip and the switch to whatever the
+  screen's own condition names: the Break tab previews on break, the Phone tab
+  previews in a phone-shaped frame, a tablet or game-over screen likewise, and
+  the screen with no condition brings both back to Running on a TV / PC. The
+  chips and the switch keep working the other way round, releasing the pin and
+  editing whichever screen the conditions then show. A condition that names
+  neither a state nor a device, such as the final-table rule, leaves them
+  alone. `selectScreen()`, `screenContext()`, `applyPreviewState()` and
+  `applyPreviewDevice()` in `www/timer_layouts.js`.
+
 ---
 
 ## [v1.8.6] - 2026-10-13

@@ -222,21 +222,46 @@ if ($action === 'get_state') {
     }
 
     $players = [];
+    $players_out = [];
     if ($session_id > 0 && $game_type === 'tournament') {
         // The exact "still in" predicate calc_pool uses. Walk-ins have
         // user_id NULL, so the join leaves their avatar null and the display
-        // falls back to initials.
-        $pq = $db->prepare('SELECT pp.display_name, pp.table_number, pp.seat_number, u.avatar_path
+        // falls back to initials. `place` is almost always null here: the
+        // WINNER is a still-in row (eliminate_player / update_status write
+        // finish_position = 1 on the last survivor without eliminating them),
+        // so the <players> list reads 1st off this list, not players_out.
+        $pq = $db->prepare('SELECT pp.display_name, pp.table_number, pp.seat_number, pp.finish_position, u.avatar_path
                             FROM poker_players pp LEFT JOIN users u ON u.id = pp.user_id
                             WHERE pp.session_id = ? AND pp.removed = 0 AND pp.bought_in = 1 AND pp.eliminated = 0
-                            ORDER BY pp.table_number, pp.seat_number LIMIT 30');
+                            ORDER BY pp.table_number, pp.seat_number LIMIT 100');
         $pq->execute([$session_id]);
         foreach ($pq->fetchAll(PDO::FETCH_ASSOC) as $pr) {
             $av = (string)($pr['avatar_path'] ?? '');
+            $fp = (int)($pr['finish_position'] ?? 0);   // 0 = unset, as update_status reads it
             $players[] = [
                 'name'   => (string)$pr['display_name'],
                 'table'  => (int)$pr['table_number'],
                 'seat'   => (int)$pr['seat_number'],
+                'avatar' => preg_match('#^/uploads/avatars/[A-Za-z0-9._/-]{1,160}$#', $av) ? $av : null,
+                'place'  => $fp > 0 ? $fp : null,
+            ];
+        }
+        // Knocked-out players with their finishing place, for the <players>
+        // list's results half. Best finisher first (places count down as
+        // players bust, so the lowest number is the most recent knockout);
+        // a row without a place sorts last. No table/seat: eliminate_player
+        // NULLs both, and the seat map must never see these rows anyway.
+        $oq = $db->prepare('SELECT pp.display_name, pp.finish_position, u.avatar_path
+                            FROM poker_players pp LEFT JOIN users u ON u.id = pp.user_id
+                            WHERE pp.session_id = ? AND pp.removed = 0 AND pp.eliminated = 1
+                            ORDER BY (pp.finish_position IS NULL), pp.finish_position ASC LIMIT 100');
+        $oq->execute([$session_id]);
+        foreach ($oq->fetchAll(PDO::FETCH_ASSOC) as $orow) {
+            $av = (string)($orow['avatar_path'] ?? '');
+            $fp = (int)($orow['finish_position'] ?? 0);
+            $players_out[] = [
+                'name'   => (string)$orow['display_name'],
+                'place'  => $fp > 0 ? $fp : null,
                 'avatar' => preg_match('#^/uploads/avatars/[A-Za-z0-9._/-]{1,160}$#', $av) ? $av : null,
             ];
         }
@@ -279,13 +304,17 @@ if ($action === 'get_state') {
         // when the game has none, so the display hides the cell rather than
         // drawing an empty box.
         'chips' => $chip_set,
-        // Still-in players with their seats, for the <seats> final-table cell.
+        // Players, for the <seats> final-table cell and the <players> list.
         // This DELIBERATELY widens the ?key channel: a wall display exists to
-        // show who is at which seat, so possession of the key now buys names
-        // and avatars of players still IN the game — and nothing else. Only
-        // still-in rows (never eliminated players, notes, payouts or contact
-        // data), avatar paths only from our own avatars folder, capped.
+        // show who is at which seat and who finished where, so possession of
+        // the key buys the name, avatar and finishing place of everyone who
+        // bought in — and nothing else. Never notes, per-player payouts, user
+        // ids or contact data; avatar paths only from our own avatars folder;
+        // both lists capped at 100. `players` is the still-in rows (with seats,
+        // for the seat map; `place` set only on the winner), `players_out` the
+        // knocked-out rows with their places (the seat map ignores these).
         'players' => $players,
+        'players_out' => $players_out,
         'last_eliminated' => $lastElim,
         // Setup figures the display can show but cannot derive: the fees, the
         // chips each buy-in grants, the table plan and when the game starts.

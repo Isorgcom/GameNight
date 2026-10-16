@@ -26,6 +26,13 @@
  *                 payouts     true = the payout table (place, dotted leader,
  *                             reward per row), drawn as DOM like chips;
  *                             payoutsRemaining true = only places still to be won.
+ *                 players     true = the players list (photo, name, finishing
+ *                             place per row), drawn as DOM like payouts: the
+ *                             field first, then the knocked-out by place.
+ *                             playersPhoto / playersName / playersPlace false
+ *                             hides that column (absent = shown); playersLayout
+ *                             'grid' draws cards instead of rows; playersWho
+ *                             'in' = no place yet, 'out' = placed (winner included).
  *
  * A condition (in `when` or a variant) is a WHEN key string, or an object whose
  * clauses AND together: state (running|paused|on_break|pre_game|game_over),
@@ -177,7 +184,8 @@ var S = {
     stillNum: 0, totalNum: 0, chipsNum: 0,
     buyIns: 0, addOns: 0, elimNum: 0, cashedNum: 0,
     lastElim: '', lastElimPlace: 0,   // most recent knockout: name + finishing place
-    seatPlayers: [],        // still-in players with seats, for the seat map
+    seatPlayers: [],        // still-in players with seats, for the seat map (place set only on the winner)
+    outPlayers: [],         // knocked-out players with their finishing place, for the players list
     bountyPool: 0, jackpotPool: 0,
     game: null,             // fees, chips per buy-in, table plan, start time
     // prizeRows is the source ({place, label, reward}); prizes (the joined
@@ -212,7 +220,23 @@ if (S.sample) {
         { name: 'Ana',     table: 1, seat: 6, avatar: null },
         { name: 'Jimmy',   table: 1, seat: 7, avatar: null },
         { name: 'Pistol',  table: 1, seat: 8, avatar: null },
-        { name: 'June',    table: 1, seat: 9, avatar: null }
+        { name: 'June',    table: 1, seat: 9, avatar: null },
+        // Three more at a second table, so the field is the 12 the counts
+        // say and the players list shows all of them. The seat map still
+        // draws table 1, the busiest, as before.
+        { name: 'Marco',   table: 2, seat: 1, avatar: null },
+        { name: 'Lena',    table: 2, seat: 2, avatar: null },
+        { name: 'Teddy',   table: 2, seat: 3, avatar: null }
+    ];
+    // The six knockouts so far (18 entered, 12 left), best finisher first;
+    // Danny R. in 13th is the <lastEliminated> sample above.
+    S.outPlayers = [
+        { name: 'Danny R.', place: 13, avatar: null },
+        { name: 'Priya',    place: 14, avatar: null },
+        { name: 'Walt',     place: 15, avatar: null },
+        { name: 'Shauna',   place: 16, avatar: null },
+        { name: 'Gus',      place: 17, avatar: null },
+        { name: 'Kenji',    place: 18, avatar: null }
     ];
     S.chipCount = '67,500'; S.avgStack = '5,625';
     S.stillNum = 12; S.totalNum = 18; S.chipsNum = 67500;
@@ -1394,6 +1418,7 @@ var seatCells = [];  // cells rendering the final-table seat map
 var clockCells = []; // cells whose colour tracks warn/critical
 var videoFrames = []; // live streaming <iframe>s — the alarm mute walks these
 var payoutCells = []; // cells drawing the payout table (place · leader · reward)
+var playerCells = []; // cells drawing the players list (photo · name · place)
 
 /* Reduced motion is decided HERE, at build time, not only in CSS. If a media
  * rule alone switched the scroll animation off, an overflowing `up` list would
@@ -1975,6 +2000,16 @@ function buildCell(spec) {
         payoutCells.push({ el: el, inner: inner, spec: spec, drawn: null });
     }
 
+    // Players list: everyone who bought in, the field first and then the
+    // knocked-out with their finishing place. DOM like payouts (an avatar disc
+    // per row); the names and places come from the game, the layout only says
+    // where, how big and which columns.
+    if (spec.players) {
+        el.classList.add('tb-cell-players');
+        if (spec.playersLayout === 'grid') el.classList.add('tb-pl-grid');
+        playerCells.push({ el: el, inner: inner, spec: spec, drawn: null });
+    }
+
     // QR cell: a code another screen scans to join this display.
     //
     // The URL is built HERE from the session's own remote_key — never from
@@ -2106,7 +2141,7 @@ function buildCell(spec) {
     if (spec.clockColors) clockCells.push(el);
 
     var rec = {
-        el: el, inner: inner, spec: spec, isImage: !!imgSrc || !!spec.qr || !!spec.chips || !!spec.seats || !!spec.payouts || ('video' in spec),
+        el: el, inner: inner, spec: spec, isImage: !!imgSrc || !!spec.qr || !!spec.chips || !!spec.seats || !!spec.payouts || !!spec.players || ('video' in spec),
         variants: Array.isArray(spec.variants) ? spec.variants : [],
         elSpans: [], lastText: null, lastVariant: -2, isFit: !!spec.fit,
         scroll: scroll, track: track, clone: null, scrollKey: null
@@ -2212,7 +2247,7 @@ function buildScreen(idx) {
         ? CURRENT_LAYOUT.styles : {};
     rebuildElementIndex();
     var screen = CURRENT_LAYOUT.screens[idx] || { root: { col: [] } };
-    fitCells = []; clockCells = []; allCells = []; whenBoxes = []; qrCells = []; chipCells = []; seatCells = []; videoFrames = []; payoutCells = [];
+    fitCells = []; clockCells = []; allCells = []; whenBoxes = []; qrCells = []; chipCells = []; seatCells = []; videoFrames = []; payoutCells = []; playerCells = [];
     root.textContent = '';
     root.style.background = '';
     root.style.backgroundImage = '';
@@ -2242,6 +2277,7 @@ function buildScreen(idx) {
     drawChipCells();
     drawSeatCells();
     drawPayoutCells();
+    drawPlayerCells();
     // After the tree exists: dispose players this screen dropped, and resume
     // any that were paused by being detached during the rebuild.
     sweepVideoCache();
@@ -2301,6 +2337,8 @@ function updateAll() {
     drawSeatCells();
     // The payout structure (and the places still open) can change mid-game.
     drawPayoutCells();
+    // And a knockout moves a player from one half of the list to the other.
+    drawPlayerCells();
     condTickUpdate();
     evalTriggers();
     // State may have moved us to a different screen (e.g. onto the break
@@ -2358,7 +2396,7 @@ function updateAll() {
         // no chip set — it draws nodes rather than text, so the text test would
         // call it empty always, and the isImage exemption would call it full
         // always. Deciding it here keeps ONE place that hides empty cells.
-        var blank = rec.spec && (rec.spec.chips || rec.spec.seats || rec.spec.payouts) ? !rec.inner.firstChild
+        var blank = rec.spec && (rec.spec.chips || rec.spec.seats || rec.spec.payouts || rec.spec.players) ? !rec.inner.firstChild
                   : (!rec.isImage && !rec.spec.bgImage && rec.inner.textContent.trim() === '');
         rec.el.style.display = blank ? 'none' : '';
 
@@ -2374,7 +2412,7 @@ function updateAll() {
         // the height clause of the self-heal must not fire for it, or it
         // would re-cap every tick for a list that overflows on purpose.
         if (!rec.isFit && !blank && rec.scroll !== 'left'
-            && (!rec.isImage || (rec.spec && (rec.spec.chips || rec.spec.payouts)))) {
+            && (!rec.isImage || (rec.spec && (rec.spec.chips || rec.spec.payouts || rec.spec.players)))) {
             var ckey = fitShape(rec.inner.textContent);
             if (ckey !== rec.capLastText) { rec.capLastText = ckey; capCell(rec); }
             // Self-heal: a phone rotation can invalidate a cap AFTER it was
@@ -2427,11 +2465,11 @@ function fitCell(fc) {
  * text shortens. The declared size stays on the cell element — resetting the
  * inner to 'inherit' before measuring is what makes growth possible. */
 function capCell(rec) {
-    // A chip legend (and the payout table) is isImage for auto-hide purposes
-    // but its rows are DOM nodes sized in em — font shrink is exactly how it
-    // compresses, so it takes the cap. True image/QR cells stay out
-    // (object-fit contains them).
-    if (rec.isImage && !(rec.spec && (rec.spec.chips || rec.spec.payouts))) return;
+    // A chip legend (and the payout table, and the players list) is isImage
+    // for auto-hide purposes but its rows are DOM nodes sized in em — font
+    // shrink is exactly how it compresses, so it takes the cap. True image/QR
+    // cells stay out (object-fit contains them).
+    if (rec.isImage && !(rec.spec && (rec.spec.chips || rec.spec.payouts || rec.spec.players))) return;
     if (rec.scroll === 'left') return;                // a ticker exists to overflow
     rec.inner.style.fontSize = '';
     var boxW = rec.el.clientWidth, boxH = rec.el.clientHeight;
@@ -2572,6 +2610,26 @@ function avatarHue(name) {
 function safeAvatarSrc(v) {
     return (typeof v === 'string' && /^\/uploads\/avatars\/[A-Za-z0-9._/-]{1,160}$/.test(v)) ? v : null;
 }
+// One player's avatar as a disc: their photo when they have one, else their
+// first initial on the hue disc. Shared by the seat map and the players list
+// so the two never drift apart. The src is an attribute assignment, never
+// innerHTML, and only a path safeAvatarSrc() accepts is ever loaded.
+function avatarDisc(pl, className) {
+    var disc = document.createElement('div');
+    disc.className = className;
+    var src = safeAvatarSrc(pl.avatar);
+    if (src) {
+        var img = document.createElement('img');
+        img.src = src;
+        img.alt = '';
+        disc.appendChild(img);
+    } else {
+        disc.style.background = 'hsl(' + avatarHue(pl.name) + ',60%,30%)';
+        var ch = String(pl.name || '').replace(/[^a-zA-Z0-9]/g, '').charAt(0);
+        disc.textContent = (ch || '?').toUpperCase();
+    }
+    return disc;
+}
 
 function drawSeatCells() {
     if (!seatCells.length) return;
@@ -2676,21 +2734,12 @@ function drawSeatCells() {
                 node.style.left = (cx + d * 4) + '%';
                 node.style.top = (cy + d * 4) + '%';
 
-                var disc = document.createElement('div');
-                disc.className = 'tb-seat-disc';
+                var disc;
                 if (pl) {
-                    var src = safeAvatarSrc(pl.avatar);
-                    if (src) {
-                        var img = document.createElement('img');
-                        img.src = src;
-                        img.alt = '';
-                        disc.appendChild(img);
-                    } else {
-                        disc.style.background = 'hsl(' + avatarHue(pl.name) + ',60%,30%)';
-                        var ch = String(pl.name || '').replace(/[^a-zA-Z0-9]/g, '').charAt(0);
-                        disc.textContent = (ch || '?').toUpperCase();
-                    }
+                    disc = avatarDisc(pl, 'tb-seat-disc');
                 } else {
+                    disc = document.createElement('div');
+                    disc.className = 'tb-seat-disc';
                     disc.textContent = String(seat);
                 }
                 node.appendChild(disc);
@@ -2802,6 +2851,106 @@ function drawPayoutCells() {
             row.appendChild(place);
             row.appendChild(lead);
             row.appendChild(amt);
+            c.inner.appendChild(row);
+        }
+    }
+}
+
+/* ── Players list ─────────────────────────────────────────────────────────
+ * Everyone who bought in: the field first (in seat order, as the server sends
+ * it), then the knocked-out by finishing place. A row is avatar disc, name
+ * and — once the player has a place — a dotted leader and the place; the grid
+ * draws the same as cards with the place as a badge on the disc. Keyed on the
+ * rows like the payout table, so a tick that changes nothing redraws nothing.
+ *
+ * "Placed" and "knocked out" are NOT the same set: the winner is a still-in
+ * row holding 1st (eliminate_player never eliminates the last survivor). So
+ * `playersWho: 'out'` means has-a-place, the winner included (a results board
+ * without its winner is wrong), and dimming keys on `out`, never on `place`,
+ * so the winner stays bright at game over. */
+function playersRowsFor(spec) {
+    var rows = [], i;
+    var inn = S.seatPlayers || [], out = S.outPlayers || [];
+    for (i = 0; i < inn.length; i++) {
+        rows.push({ name: String(inn[i].name || ''), avatar: inn[i].avatar || null,
+                    place: (inn[i].place | 0) > 0 ? (inn[i].place | 0) : 0, out: false, i: rows.length });
+    }
+    for (i = 0; i < out.length; i++) {
+        rows.push({ name: String(out[i].name || ''), avatar: out[i].avatar || null,
+                    place: (out[i].place | 0) > 0 ? (out[i].place | 0) : 0, out: true, i: rows.length });
+    }
+    if (spec.playersWho === 'in')  rows = rows.filter(function (r) { return !r.place; });
+    if (spec.playersWho === 'out') rows = rows.filter(function (r) { return r.place > 0; });
+    // Unplaced first in input order, then by place. The index breaks ties so
+    // the order never leans on the browser's sort being stable (a TV's may not).
+    rows.sort(function (a, b) {
+        if (!a.place !== !b.place) return a.place ? 1 : -1;
+        if (a.place !== b.place) return a.place - b.place;
+        return a.i - b.i;
+    });
+    return rows;
+}
+function drawPlayerCells() {
+    if (!playerCells.length) return;
+    for (var i = 0; i < playerCells.length; i++) {
+        var c = playerCells[i], spec = c.spec, rows = playersRowsFor(spec), key = JSON.stringify(rows);
+        if (c.drawn === key) continue;
+        c.drawn = key;
+        c.inner.textContent = '';
+        // Visibility is not decided here: updateAll() owns hiding empty cells
+        // (same rule as the chip legend and the payout table).
+        var showPhoto = spec.playersPhoto !== false, showPlace = spec.playersPlace !== false;
+        // Every column off would draw a list of blank rows; nobody means that.
+        var showName = spec.playersName !== false || (!showPhoto && !showPlace);
+        var grid = spec.playersLayout === 'grid';
+        for (var j = 0; j < rows.length; j++) {
+            var r = rows[j];
+            var row = document.createElement('div');
+            row.className = (grid ? 'tb-pl-card' : 'tb-pl-row') + (r.out ? ' tb-pl-out' : '');
+            if (grid) {
+                if (showPhoto) {
+                    var dw = document.createElement('span');
+                    dw.className = 'tb-pl-discwrap';
+                    dw.appendChild(avatarDisc(r, 'tb-pl-disc'));
+                    if (showPlace && r.place) {
+                        var badge = document.createElement('span');
+                        badge.className = 'tb-pl-badge';
+                        badge.textContent = ordinal(r.place);
+                        dw.appendChild(badge);
+                    }
+                    row.appendChild(dw);
+                }
+                if (showName) {
+                    var nm = document.createElement('div');
+                    nm.className = 'tb-pl-name';
+                    nm.textContent = r.name;
+                    row.appendChild(nm);
+                }
+                // No disc for the badge to sit on: the place becomes a line.
+                if (showPlace && r.place && !showPhoto) {
+                    var pl = document.createElement('div');
+                    pl.className = 'tb-pl-place';
+                    pl.textContent = ordinal(r.place);
+                    row.appendChild(pl);
+                }
+            } else {
+                if (showPhoto) row.appendChild(avatarDisc(r, 'tb-pl-disc'));
+                if (showName) {
+                    var nm2 = document.createElement('span');
+                    nm2.className = 'tb-pl-name';
+                    nm2.textContent = r.name;
+                    row.appendChild(nm2);
+                }
+                if (showPlace && r.place) {
+                    var lead = document.createElement('span');
+                    lead.className = 'tb-pay-lead';
+                    var pl2 = document.createElement('span');
+                    pl2.className = 'tb-pl-place';
+                    pl2.textContent = ordinal(r.place);
+                    row.appendChild(lead);
+                    row.appendChild(pl2);
+                }
+            }
             c.inner.appendChild(row);
         }
     }
@@ -2974,6 +3123,7 @@ function poll() {
             }
             S.game = j.game || null;
             S.seatPlayers = Array.isArray(j.players) ? j.players : [];
+            S.outPlayers = Array.isArray(j.players_out) ? j.players_out : [];
             S.lastElim = (j.last_eliminated && j.last_eliminated.name) ? String(j.last_eliminated.name) : '';
             S.lastElimPlace = (j.last_eliminated && j.last_eliminated.place) ? (j.last_eliminated.place | 0) : 0;
             var rows = [];
