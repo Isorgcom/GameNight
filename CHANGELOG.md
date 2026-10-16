@@ -11,6 +11,10 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+---
+
+## [v1.8.13] - 2026-10-16
+
 ### Added
 
 - **The Manage Game console works from the keyboard.** The view strip, the player filter and Setup's tabs are proper tab and radio groups: one Tab stop each, the arrow keys move along them and switch as they go, Home and End jump to the ends, and a ring shows where focus is. Every one of the console's own dialogs (Notes, Eliminate, the ledger, Cash Box, the jackpot, Save preset, Balance Tables, Help, the timer prompt, the winner) now moves focus in, keeps Tab inside, closes on Escape and hands focus back to the control that opened it, found again even when the roster was redrawn in between. The preset "⋯" menu, the walk-in name box (a combobox whose matches are a listbox) and the row menu in Setup → Blinds (Shift+F10 on a cell) have menu and listbox roles and arrow keys; the column headings sort on Enter and announce the sort. The reward chips and the Tournament / Cash toggle report pressed. The Help modal gained a "From the keyboard" section and the Host Guide a sentence. In `www/checkin.php`, `www/pk-seg.js` (shared by every segmented control on the site), `www/pk-dialogs.js` and `www/event_blinds.js`.
