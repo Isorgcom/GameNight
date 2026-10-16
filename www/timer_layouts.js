@@ -204,6 +204,7 @@ function refresh(keepSel) {
     if (typeof mountResizeHandles === 'function') requestAnimationFrame(mountResizeHandles);
     updateDirty();   // every edit passes through here
     updateHistoryBtns();
+    pushPreview();
 }
 
 /* ── Unsaved changes ──────────────────────────────────────────────────────
@@ -241,6 +242,34 @@ function updateDirty() {
     btn.textContent = d ? 'Save layout •' : 'Save layout';
     btn.title = d ? 'Unsaved changes' : '';
 }
+/* ── Preview tab ──────────────────────────────────────────────────────────
+ * The toolbar's Preview opens /timer.php?preview=1 in a named tab, which
+ * paints whatever this editor holds: the layout as it is now, the state the
+ * chip has and the screen pinned by a tab, handed over through
+ * localStorage['tbe.preview'] (same origin, nothing saved, nothing served).
+ * pushPreview() runs after every refresh and every chip / tab change, and the
+ * tab follows the storage event, so the TV-sized view keeps up with the edit
+ * as it happens. Written only once a preview has been opened: an editor that
+ * never opened one leaves localStorage alone. */
+var previewOpen = false;    // a preview tab has been opened from this editor
+var previewPinned = false;  // the preview is pinned to editScreenIndex (a tab was picked)
+function pushPreview() {
+    if (!previewOpen) return;
+    var chip = document.querySelector('.tbe-chip.active');
+    var state = chip ? STATES[chip.getAttribute('data-state')] : null;
+    try {
+        localStorage.setItem('tbe.preview', JSON.stringify({
+            layout: LAYOUT, state: state || null,
+            screen: previewPinned ? editScreenIndex : null, t: Date.now() }));
+    } catch (e) {}   // quota or a private window: the tab keeps what it had
+}
+document.getElementById('tbePreview').addEventListener('click', function () {
+    previewOpen = true;
+    pushPreview();
+    var w = window.open('/timer.php?preview=1', 'tbe_preview');
+    if (w && w.focus) w.focus();
+});
+
 // Anything that replaces the layout asks first when there is unsaved work.
 function confirmDiscard(go, stay) {
     if (!isDirty()) { go(); return; }
@@ -287,6 +316,7 @@ function selectScreen(i) {
     treeCollapsed = {};          // paths are per-screen; stale ones would fold the wrong nodes
     if (PV) {
         PV.forceScreen(i);       // pin the preview to the screen being edited
+        previewPinned = true;
         // …and put the preview's state chip and device switch where this
         // screen's condition says, so the Break tab previews on break and the
         // Phone tab previews in a phone-shaped frame; the catch-all brings
@@ -302,6 +332,7 @@ function selectScreen(i) {
     renderScreensBar();
     renderTree();
     renderInspector();
+    pushPreview();
 }
 
 function renderScreensBar() {
@@ -1079,11 +1110,16 @@ function renderVariants(cell) {
  * elements actually present in the cell's text (base + variants): a style for
  * an element that never renders is a setting that does nothing. */
 function renderElStyles(cell) {
+    // The same token shape the renderer's buildInner() splits on (dotted names
+    // included: <round.num>, <blinds.ante>), and the same alias index behind
+    // it, so <round.num> and <level> count as one element here as they do on
+    // the display, whichever spelling the text uses first.
+    function canonEl(n) { return String((PV && PV.resolveElement && PV.resolveElement(n)) || n).toLowerCase(); }
     var names = [], seen = {};
     [cell.text || ''].concat((cell.variants || []).map(function (v) { return v.text || ''; }))
-        .join('\n').replace(/<([a-zA-Z][a-zA-Z0-9]*)>/g, function (m, n) {
-            var lc = n.toLowerCase();
-            if (!seen[lc]) { seen[lc] = true; names.push(n); }
+        .join('\n').replace(/<([a-zA-Z][a-zA-Z0-9.]*)>/g, function (m, n) {
+            var c = canonEl(n);
+            if (!seen[c]) { seen[c] = true; names.push(n); }
             return m;
         });
     var have = cell.elStyles && Object.keys(cell.elStyles).length;
@@ -1130,7 +1166,7 @@ function renderElStyles(cell) {
     });
 
     var unstyled = names.filter(function (n) {
-        return !Object.keys(cell.elStyles || {}).some(function (k) { return k.toLowerCase() === n.toLowerCase(); });
+        return !Object.keys(cell.elStyles || {}).some(function (k) { return canonEl(k) === canonEl(n); });
     });
     if (unstyled.length) {
         var row = document.createElement('div');
@@ -2077,7 +2113,9 @@ function renderInspector() {
         }
         var ta = document.createElement('textarea');
         ta.rows = 3; ta.value = cell.text || '';
-        ta.addEventListener('change', function () { pushUndo(); cell.text = ta.value; refresh(true); });
+        // change fires on blur, so redrawing the inspector costs no keystroke;
+        // the Element styles list and the element picker follow the text.
+        ta.addEventListener('change', function () { pushUndo(); cell.text = ta.value; refresh(true); renderInspector(); });
         insp.appendChild(field('Text', ta));
 
         var elRow = document.createElement('div');
@@ -3279,6 +3317,7 @@ function applyPreviewState(name) {
     chip.classList.add('active');
     chip.setAttribute('aria-pressed', 'true');
     if (PV) PV.setState(STATES[name]);
+    pushPreview();
     return true;
 }
 
@@ -3289,6 +3328,8 @@ function applyPreviewState(name) {
 function followPreview() {
     if (!PV) return;
     PV.forceScreen(null);
+    previewPinned = false;
+    pushPreview();
     var idx = PV.activeScreenIndex();
     if (idx >= 0 && idx < LAYOUT.screens.length && idx !== editScreenIndex) {
         editScreenIndex = idx; selPath = null;
@@ -3433,9 +3474,6 @@ if (EV_ID) {
     document.querySelector('.tbe-header').appendChild(evBar);
     evBtn = evToggle;   // the rest of the file speaks to this as "the control"
     evBtn._word = evWord;
-    // The header's "Open display" link opens THIS game's display, not sample.
-    var od = document.querySelector('.tbe-header-controls a[href="/timer.php"]');
-    if (od) od.href = '/timer.php?event_id=' + EV_ID;
     var bindEvent = function (toId, toKey) {   // neither = back to default
         var body = new URLSearchParams();
         body.set('action', 'set_layout');

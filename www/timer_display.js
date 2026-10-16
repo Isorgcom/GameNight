@@ -3350,6 +3350,10 @@ if (window.TB_EMBED) {
         forceScreen: function (i) { forceScreen = (i === null || i === undefined) ? null : i; if (CURRENT_LAYOUT) buildScreen(pickScreen()); },
         activeScreenIndex: function () { return activeScreen; },
         elementNames: function () { return Object.keys(ELEMENTS).concat(Object.keys(customEls)); },
+        // The canonical name behind any spelling (<round.num> and <level> are
+        // one element), so the editor's Element styles can offer each element
+        // once and match a style to it the way applyElStyle() will.
+        resolveElement: function (name) { return resolveElement(name); },
         // The advertised (namespaced) element list: dotted names plus the
         // undotted icons and the layout's custom elements.
         elementNamesNS: function () {
@@ -3436,6 +3440,29 @@ if (window.TB_EMBED) {
     // brings the flash right back.
     setInterval(tick, 500);
 } else {
+
+/* ── Preview mode: the layout editor's Preview button ────────────────────
+ * The editor writes the layout it is editing, the sample state its chip has
+ * and the screen it has pinned to localStorage['tbe.preview'] on every
+ * change; this tab paints it and follows the storage event, so what the
+ * author sees here is what the editor shows, full-screen and live. No
+ * polling, no picker, nothing saved: a layout that only exists in the editor
+ * is shown without ever touching the server. */
+var PREVIEW_KEY = 'tbe.preview';
+function applyPreview(raw) {
+    var d = null;
+    try { d = JSON.parse(raw || 'null'); } catch (e) { d = null; }
+    if (!d || !d.layout) return;
+    if (d.state && typeof d.state === 'object') { Object.assign(S, d.state); refreshDerived(); }
+    forceScreen = (d.screen === null || d.screen === undefined) ? null : (d.screen | 0);
+    renderLayoutObj(d.layout);
+    updateAll();
+    requestAnimationFrame(fitAll);
+}
+function bootPreview() {
+    try { applyPreview(localStorage.getItem(PREVIEW_KEY)); } catch (e) {}
+    window.addEventListener('storage', function (e) { if (e.key === PREVIEW_KEY) applyPreview(e.newValue); });
+}
 
 /* ── Layout picker (display mode) ─────────────────────────────────────── */
 
@@ -3537,8 +3564,9 @@ function applyPick(v) {
 
 if (!/^id:\d+$/.test(pick || '') && !LAYOUTS[pick]) pick = DEFAULT_LAYOUT;
 // First paint, independent of the picker: a saved layout is fetched by id (with
-// the cast key when there is one), a built-in is rendered outright.
-applyPick(pick);
+// the cast key when there is one), a built-in is rendered outright. A preview
+// tab paints from the editor's handover instead (bootPreview, at boot below).
+if (!window.TB_PREVIEW) applyPick(pick);
 if (sel) {
     if (LAYOUTS[pick]) sel.value = pick;
     sel.addEventListener('change', function () {
@@ -3618,8 +3646,9 @@ document.addEventListener('visibilitychange', function () {
 });
 
 refreshDerived();
-applyPick(LAYOUTS[pick] ? pick : DEFAULT_LAYOUT);
-poll();
+if (window.TB_PREVIEW) bootPreview();
+else applyPick(LAYOUTS[pick] ? pick : DEFAULT_LAYOUT);
+poll();   // a no-op with no session and no key, as in a preview tab
 setInterval(tick, 500);
 setInterval(poll, 2000);
 }

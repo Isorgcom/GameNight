@@ -82,6 +82,13 @@ $event_title = '';
 // renderer through window.TBPreview. Sample state, no polling, no corner bar.
 $is_embed = isset($_GET['embed']) && $_GET['embed'] === '1';
 if ($is_embed) { $event_id = 0; csp_allow_same_origin_framing(); }
+// Preview mode: the layout editor's Preview button opens this page in a new
+// tab showing the layout being EDITED, read from this browser's localStorage
+// (the editor writes it on every change and the page follows the storage
+// event). No game, no polling, no picker: nothing here is saved or served.
+// Login is still required, as for any display without a key.
+$is_preview = isset($_GET['preview']) && $_GET['preview'] === '1';
+if ($is_preview) $event_id = 0;
 
 // A key names the session directly; no event id and no event-access check.
 if ($key_timer) {
@@ -162,7 +169,11 @@ if ($session_id) {
          should not offer a stranger a dropdown), and a LIVE game doesn't
          either: the layout is chosen in the game's Setup, and the running
          board is a clean TV face — no picker, no chrome. */ ?>
-<?php if (!$is_embed && $remote_key === '' && !$session_id): ?>
+<?php if ($is_preview): ?>
+<div id="tbBar">
+    <span class="tb-sample" title="Following the layout editor. Nothing shown here is saved.">preview</span>
+</div>
+<?php elseif (!$is_embed && $remote_key === '' && !$session_id): ?>
 <div id="tbBar">
     <select id="tbLayoutSelect" title="Layout"></select>
     <span class="tb-sample" title="No game linked — showing sample data">sample</span>
@@ -222,6 +233,7 @@ var TB_ASSET_V  = <?= (int) (@filemtime(__DIR__ . '/timer_display.js') ?: 0) ?>;
 var TB_CAST_KEY = <?= json_encode($cast_key ?: null) ?>;
 var TB_EVENT_TITLE = <?= json_encode($event_title) ?>;
 var TB_EMBED       = <?= json_encode($is_embed) ?>;
+var TB_PREVIEW     = <?= json_encode($is_preview) ?>;
 var TB_EVENT_LAYOUT_ID = <?= json_encode($event_layout_id) ?>;
 // Admin-configured extra stream hosts for video cells (mirrors the CSP
 // frame-src allowlist built in auth.php, same as the classic timer's page).

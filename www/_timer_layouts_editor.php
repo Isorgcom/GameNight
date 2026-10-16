@@ -31,7 +31,7 @@ $csrf = csrf_token();
                      the feature on touch devices. */ ?>
             <input type="file" id="tbeImportFile" hidden>
             <button id="tbeDelete" class="tbe-btn tbe-btn-danger">Delete</button>
-            <a class="tbe-btn tbe-btn-ghost" href="/timer.php" target="_blank">Open display</a>
+            <button type="button" id="tbePreview" class="tbe-btn tbe-btn-ghost" title="Open the layout you are editing full-screen in a new tab. It follows your edits as you make them; nothing is saved.">Preview</button>
             <a class="tbe-btn tbe-btn-ghost" href="/help-timer.php" target="_blank" title="Elements, conditions, artwork, casting — the whole guide">Help</a>
         </div>
     </div>

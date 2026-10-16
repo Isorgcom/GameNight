@@ -206,8 +206,13 @@ the author MEANT: case-insensitive, like element lookup itself.
 `scale` is an em multiplier, deliberately relative — capCell() shrinks an
 overflowing line by font-size, and a styled element must shrink WITH its line.
 Editor: select a cell, "Element styles" in the inspector, offered only for
-elements present in the cell's text. Sanitizer caps at 10 entries per cell,
-identifier keys, style-string colours.
+elements present in the cell's text, collected with the same token shape
+`buildInner()` splits on (dotted names included: until v1.8.10 the editor's
+regex had no dot, so `<blinds.ante>` was never offered although the sanitizer
+and the renderer took it) and deduplicated through `PV.resolveElement`, the
+renderer's own alias index, so `<round.num>` and `<level>` are one entry,
+under whichever spelling the text uses first. Sanitizer caps at 10 entries per
+cell, identifier keys (dots allowed), style-string colours.
 
 **Lookup is case-insensitive** — a name that renders as ⟨blinds.small⟩ over
 nothing but capitalisation is a bad afternoon. `rebuildElementIndex()` in
@@ -350,6 +355,20 @@ sets the current layout aside on it, `doRedo()` takes it back, and
 path (undoing a Bold must not throw you off the cell). Ctrl+Y and
 Ctrl+Shift+Z redo; `#tbeRedo` sits beside `#tbeUndo`, and `refresh()` keeps
 both buttons' disabled state right through `updateHistoryBtns()`.
+
+**Preview** (the toolbar button, v1.8.10) opens `/timer.php?preview=1` in a
+named tab (`tbe_preview`, so repeated clicks reuse it). The editor writes
+`localStorage['tbe.preview']` = `{layout, state, screen, t}` through
+`pushPreview()` after every `refresh()`, chip change (`applyPreviewState`)
+and tab change (`selectScreen` pins, `followPreview` unpins), but only once a
+preview has been opened (`previewOpen`). The display page in preview mode
+(`$is_preview`: `$event_id = 0`, no picker bar, a "preview" badge,
+`TB_PREVIEW`) skips the layout picker: it `renderLayoutObj()`s the stored
+layout with `forceScreen` and the state applied, and follows the `storage`
+event, so the tab tracks the editor live. Same origin only; nothing is saved
+or served; login is still required. It replaced "Open display", which opened
+the saved display (the event's bound layout, or sample data) and so never
+showed an edit.
 
 **Unsaved changes** are tracked by content, not by the undo stack:
 `markSaved()` snapshots `canonJson(LAYOUT)` (keys sorted, so a value deleted

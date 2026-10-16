@@ -13,6 +13,37 @@ lands and that heading is renamed when a release is cut.
 
 ---
 
+## [v1.8.10] - 2026-10-16
+
+### Changed
+
+- **The layout editor's Open display button is now Preview, and it shows the
+  layout you are editing.** Open display opened the display page on whatever
+  was saved, the event's bound layout or sample data, so it never showed an
+  edit in progress. Preview opens the display full-screen in a new tab showing
+  the layout exactly as the editor holds it, in the preview state the chip has
+  and on the screen a tab has pinned, and it follows every change as you make
+  it, so a TV-sized check of an edit no longer needs a save. Nothing is saved
+  or sent anywhere by it; the layout is handed to the tab inside this browser.
+  Clicking Preview again brings the same tab forward. `pushPreview()` in
+  `www/timer_layouts.js`; `?preview=1` on `www/timer.php`, handled in
+  `www/timer_display.js`.
+
+### Fixed
+
+- **Element styles now offer the dotted element names.** The layout editor's
+  Element styles panel lists the elements found in a cell's text, but it
+  looked for the old undotted spellings only, so a cell written with the names
+  the guide teaches, `<round.num>`, `<blinds.ante>` and the rest, offered
+  nothing to style, even though the display and the server have always
+  accepted them. The panel now finds every element the display does and offers
+  each one once: `<round.num>` and its old spelling `<level>` are the same
+  element on the display, so they are one entry here too. `renderElStyles()`
+  in `www/timer_layouts.js`; the display's name resolver is exposed to the
+  editor as `TBPreview.resolveElement`.
+
+---
+
 ## [v1.8.9] - 2026-10-16
 
 ### Added
