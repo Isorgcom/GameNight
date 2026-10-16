@@ -23,6 +23,7 @@
     var resolver = null;
     var mode = 'confirm';
     var lastFocus = null;
+    var openedAt = 0;   // the keydown that opened a dialog must not also answer it
 
     function injectCss() {
         if (document.getElementById('pk-dialogs-css')) return;
@@ -110,9 +111,9 @@
         overlay = document.createElement('div');
         overlay.className = 'pk-modal-overlay pk-dialog';
         overlay.innerHTML =
-            '<div class="pk-modal" role="dialog" aria-modal="true">' +
-                '<h3 class="pk-dialog-title"></h3>' +
-                '<p class="pk-dialog-msg" style="font-size:.9rem;color:#475569;line-height:1.45;margin:0"></p>' +
+            '<div class="pk-modal" role="dialog" aria-modal="true" aria-labelledby="pkDialogTitle" aria-describedby="pkDialogMsg">' +
+                '<h3 class="pk-dialog-title" id="pkDialogTitle"></h3>' +
+                '<p class="pk-dialog-msg" id="pkDialogMsg" style="font-size:.9rem;color:#475569;line-height:1.45;margin:0"></p>' +
                 '<div class="pk-dialog-input" style="display:none;margin-top:.6rem">' +
                     '<input class="pk-dialog-field" style="width:100%;padding:.5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:1rem;box-sizing:border-box">' +
                 '</div>' +
@@ -135,8 +136,25 @@
         inputEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
         document.addEventListener('keydown', function (e) {
             if (!overlay.classList.contains('open')) return;
+            // A dialog raised from inside a keydown (Escape in Setup asks "Discard?")
+            // sees that same event here, after the opener's listener ran. Skip it.
+            if (e.timeStamp && e.timeStamp <= openedAt) return;
             if (e.key === 'Escape') { e.preventDefault(); dismiss(); }
-            else if (e.key === 'Enter' && mode !== 'prompt') { e.preventDefault(); submit(); }
+            else if (e.key === 'Enter' && mode !== 'prompt') {
+                // Enter means the button that has focus: a focused Cancel
+                // cancels. It used to confirm from anywhere, Cancel included.
+                e.preventDefault();
+                if (document.activeElement === cancelBtn) dismiss(); else submit();
+            } else if (e.key === 'Tab') {
+                // Tab stays inside the dialog: input (prompts), Cancel, OK.
+                var ring = [];
+                if (mode === 'prompt') ring.push(inputEl);
+                if (mode !== 'alert') ring.push(cancelBtn);
+                ring.push(okBtn);
+                var at = ring.indexOf(document.activeElement);
+                if (e.shiftKey && at <= 0) { e.preventDefault(); ring[ring.length - 1].focus(); }
+                else if (!e.shiftKey && (at === -1 || at === ring.length - 1)) { e.preventDefault(); ring[0].focus(); }
+            }
         });
     }
 
@@ -172,6 +190,7 @@
             inputWrap.style.display = 'none';
         }
         lastFocus = document.activeElement;
+        openedAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
         overlay.classList.add('open');
         var focusEl = (mode === 'prompt') ? inputEl : okBtn;
         setTimeout(function () { try { focusEl.focus(); if (mode === 'prompt') inputEl.select(); } catch (e) {} }, 30);

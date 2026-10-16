@@ -11,6 +11,16 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+### Added
+
+- **The Manage Game console works from the keyboard.** The view strip, the player filter and Setup's tabs are proper tab and radio groups: one Tab stop each, the arrow keys move along them and switch as they go, Home and End jump to the ends, and a ring shows where focus is. Every one of the console's own dialogs (Notes, Eliminate, the ledger, Cash Box, the jackpot, Save preset, Balance Tables, Help, the timer prompt, the winner) now moves focus in, keeps Tab inside, closes on Escape and hands focus back to the control that opened it, found again even when the roster was redrawn in between. The preset "⋯" menu, the walk-in name box (a combobox whose matches are a listbox) and the row menu in Setup → Blinds (Shift+F10 on a cell) have menu and listbox roles and arrow keys; the column headings sort on Enter and announce the sort. The reward chips and the Tournament / Cash toggle report pressed. The Help modal gained a "From the keyboard" section and the Host Guide a sentence. In `www/checkin.php`, `www/pk-seg.js` (shared by every segmented control on the site), `www/pk-dialogs.js` and `www/event_blinds.js`.
+
+### Fixed
+
+- **Enter in a confirm dialog confirmed even with Cancel focused.** The shared dialogs (`pk-dialogs.js`) now act on the button that has focus, keep Tab inside the dialog, and carry their title and message as their accessible name and description.
+- **Escape inside a dialog closed Setup underneath it.** One global Escape closed the Setup editor whenever it was open, so Escape in a confirm over Setup, in the blinds row menu, in the walk-in list or in the embedded layout editor also shut the editor (at once, when it had no unsaved changes). Setup now takes Escape only when nothing nearer is open.
+- **Focus was lost on every roster action.** Buy In, a rebuy, Eliminate, Notes, Remove and the 10-second poll all redraw the roster, which dropped keyboard focus to the top of the page. The console remembers what had focus and lands on its successor after the redraw.
+
 ---
 
 ## [v1.8.12] - 2026-10-16

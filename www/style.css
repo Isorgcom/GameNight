@@ -761,6 +761,10 @@ img.gn-avatar{object-fit:cover;background:transparent}
 .pk-seg button{position:relative;z-index:1;border:none;background:transparent;cursor:pointer;padding:.34rem .75rem;font-size:.76rem;font-weight:600;color:#475569;white-space:nowrap;transition:color .15s}
 .pk-seg button:hover:not(.active){color:#1e293b}
 .pk-seg button.active{color:#fff}
+/* Keyboard focus inside the pill: a ring drawn inside the button, white on the
+   accent thumb so it shows there too. */
+.pk-seg button:focus-visible{outline:2px solid #1d4ed8;outline-offset:-2px;border-radius:6px}
+.pk-seg button.active:focus-visible{outline-color:#fff}
 /* For when the selection lives outside the control, so no segment is current —
    parking the thumb under a stale button would look like two things selected. */
 .pk-seg.thumb-off .pk-seg-thumb{opacity:0}

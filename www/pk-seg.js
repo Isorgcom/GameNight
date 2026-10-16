@@ -11,6 +11,13 @@
  *   segTravelDirection(segId, attr, from, to) 1 = travelled right, -1 = left
  *   slideViewIn(el, dir)                      slide freshly-shown content in
  *
+ * Roles and keys come free with the thumb: positionSegThumb() gives the control
+ * role="radiogroup" (or "tablist" when the markup says data-seg-role="tablist")
+ * and its buttons role="radio" / aria-checked (or role="tab" / aria-selected)
+ * from .active, with one Tab stop per control (the active button). Left / Up
+ * and Right / Down move to the neighbour and activate it, Home / End to the
+ * ends. A page that gives the control an aria-label keeps it.
+ *
  * Markup contract:
  *   <div class="pk-seg" id="mySeg">
  *     <span class="pk-seg-thumb"></span>
@@ -27,9 +34,28 @@
     // Move a control's thumb under its active button. animate=false snaps
     // without a transition — use it on a fresh render, where nothing moved;
     // animate=true for a user's click, where the movement is the point.
+    // Roles, states and the roving tabindex, from the .active class. Runs on
+    // every re-measure, so it is never stale after a render.
+    function syncSegA11y(seg) {
+        var tabs = seg.getAttribute('data-seg-role') === 'tablist';
+        seg.setAttribute('role', tabs ? 'tablist' : 'radiogroup');
+        var btns = seg.querySelectorAll(':scope > button');
+        var active = seg.querySelector(':scope > button.active');
+        var first = null;
+        for (var i = 0; i < btns.length; i++) {
+            var b = btns[i];
+            b.setAttribute('role', tabs ? 'tab' : 'radio');
+            b.setAttribute(tabs ? 'aria-selected' : 'aria-checked', b.classList.contains('active') ? 'true' : 'false');
+            var usable = !b.disabled && b.offsetParent !== null;
+            if (!first && usable) first = b;
+            b.tabIndex = (b === active || (!active && b === first)) && usable ? 0 : -1;
+        }
+    }
+
     window.positionSegThumb = function (segId, animate) {
         var seg = document.getElementById(segId);
         if (!seg) return;
+        syncSegA11y(seg);
         // A hidden control measures zero, and writing that would park the thumb
         // at zero width in the corner for whenever it is shown again. Position
         // AFTER a control becomes visible, never before.
@@ -98,4 +124,28 @@
     // A resize changes button widths, so every control needs re-measuring. Free
     // for any page that uses the control — no per-page wiring.
     window.addEventListener('resize', function () { positionAllSegThumbs(false); });
+
+    // Arrow keys walk the buttons and activate as they go (the house switcher
+    // acts on selection, so the keyboard does too); Home / End jump. Delegated,
+    // so a control rendered after load needs no wiring.
+    document.addEventListener('keydown', function (e) {
+        if (!e.target || !e.target.closest) return;
+        var b = e.target.closest('.pk-seg > button');
+        if (!b) return;
+        var k = e.key, dir = 0;
+        if (k === 'ArrowRight' || k === 'ArrowDown') dir = 1;
+        else if (k === 'ArrowLeft' || k === 'ArrowUp') dir = -1;
+        else if (k !== 'Home' && k !== 'End') return;
+        var seg = b.parentNode;
+        var all = seg.querySelectorAll(':scope > button'), list = [];
+        for (var i = 0; i < all.length; i++) if (!all[i].disabled && all[i].offsetParent !== null) list.push(all[i]);
+        if (list.length < 2) return;
+        var at = list.indexOf(b), to;
+        if (k === 'Home') to = 0;
+        else if (k === 'End') to = list.length - 1;
+        else to = (at + dir + list.length) % list.length;
+        e.preventDefault();
+        list[to].focus();
+        if (list[to] !== b) list[to].click();
+    });
 })();
