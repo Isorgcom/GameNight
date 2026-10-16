@@ -68,9 +68,17 @@
     return n;
   }
 
+  // The first VISIBLE match, so one tip can name a desktop control and its
+  // phone twin ("#eSubmitBtn, .edit-actions-mobile [data-save=quiet]") and
+  // anchor to whichever the page is showing; failing that the first match,
+  // hidden, so the watcher still knows the control exists.
   function findAnchor(tip) {
     if (!tip.anchor_selector) return null;
-    try { return document.querySelector(tip.anchor_selector); } catch (e) { return null; }
+    try {
+      var all = document.querySelectorAll(tip.anchor_selector);
+      for (var i = 0; i < all.length; i++) if (isVisible(all[i])) return all[i];
+      return all.length ? all[0] : null;
+    } catch (e) { return null; }
   }
 
   function isVisible(node) {

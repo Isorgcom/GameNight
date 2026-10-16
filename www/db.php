@@ -1650,6 +1650,33 @@ JSON;
         }
     } catch (Exception $e) {}
 
+    // v2 (1.8.11): the three event_edit tips reworded to match the page (Poker
+    // follows the last event, the header reads All Users, the phone has no
+    // left) and the save tip anchored to the phone's own save button as well.
+    // Only a tip whose body is still the v1 text is touched: an admin's edit
+    // stands, as the v1 seed promised.
+    try {
+        if (get_setting('help_first_event_tips_v2', '') !== '1') {
+            $v2 = [
+                ['Start with a title and a date',
+                 "Everything else can wait. Poker is on, so the buy-in, tables and seats are already here to tweak, and the time starts at 7:00 PM.",
+                 "Everything else can wait. With Poker on, the buy-in, tables and seats are here to tweak, and the time starts at 7:00 PM.",
+                 '#eTitle'],
+                ['Invite anyone by name',
+                 "+ Add Name takes a name and an email or phone; nobody needs an account. People you have invited before show up under All users on the left.",
+                 "+ Add Name takes a name and an email or phone; nobody needs an account. People you have invited before show up under All Users (beside this list on a computer, above it on a phone).",
+                 '#eAddNameBtn'],
+                ['Two ways to save',
+                 "Add Event saves quietly. Once guests are on the list, Save & Send Invites beside it sends every invitation as you save. You can also send later from the event page.",
+                 "Add Event saves quietly. Once guests are on the list it reads Save without sending, and Save & Send beside it sends every invitation as you save. You can also send later from the event page.",
+                 '#eSubmitBtn, .edit-actions-mobile [data-save="quiet"]'],
+            ];
+            $upd = $pdo->prepare('UPDATE help_bubbles SET body = ?, anchor_selector = ? WHERE screen_key = ? AND title = ? AND body = ?');
+            foreach ($v2 as $t) $upd->execute([$t[2], $t[3], 'event_edit', $t[0], $t[1]]);
+            set_setting('help_first_event_tips_v2', '1');
+        }
+    } catch (Exception $e) {}
+
     // The event page's two tips, hosts only: Manage Game and Message guests
     // are the host's buttons, and a guest reading the same page must not be
     // told about controls they do not have. Same seeding rules as above.

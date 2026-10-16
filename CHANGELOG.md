@@ -11,6 +11,68 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+### Changed
+
+- **The event editor's title has a label, and the required fields say so.**
+  The title box was labelled by its placeholder alone, "Event title *", which
+  vanished the moment you typed, and the tooltip behind it meant a screen
+  reader called the field "Required". It now has a Title label like its
+  neighbours, Title and Date carry a red asterisk with a "* required" note at
+  the end of the row, and the field is marked invalid, in red, when a save
+  finds it empty. The description, the guest search, a typed guest's name and
+  contact, and the contact popup's two fields have spoken names too.
+  `www/event_edit.php`.
+
+- **Every icon control in the event editor has a name.** The four arrow
+  buttons between the guest lists, the × beside a typed name, the × that
+  removes a guest, the contact glyph on each guest, the colour dot and its
+  swatches, the popup's close and the "+ Description" switch all read as what
+  they do to a screen reader; the guest × and contact glyph are real buttons
+  now, reachable with Tab, and the colour swatches are buttons that say which
+  colour is picked. The Poker, Reminders, Hide non-members and Mgr switches
+  can be reached and flipped from the keyboard: their checkbox was hidden with
+  display:none, which took it out of the tab order altogether.
+  `www/event_edit.php`.
+
+- **The event editor knows when there is unsaved work.** Editing an existing
+  event, the Save button carries a dot while anything differs from what was
+  loaded: a field, the guest list and its order, a guest's role or contact,
+  the colour. On any event, leaving the page, Back to calendar and Cancel ask
+  first when there is unsaved work; Remove all asks before clearing a list of
+  two or more, and Regenerate walk-up link asks before invalidating the old
+  link. The save buttons disable once a save is under way, so a second Enter
+  cannot queue a second save, and a guest list over the per-event limit is
+  refused on the page, with the number, instead of after a round trip that
+  forgot what was typed. `www/event_edit.php`.
+
+- **The three first-event tips match the page.** "Poker is on" became "With
+  Poker on" (the switch follows your last event), "All users on the left"
+  became All Users beside the list on a computer and above it on a phone, and
+  the save tip names Save without sending. The tip also anchors to the phone's
+  own save button, so it shows there for the first time; help tips in general
+  now anchor to the first visible match when a selector names more than one
+  control. A tip an admin had already edited is left as it is. `www/db.php`,
+  `www/help-bubble.js`.
+
+### Fixed
+
+- **The event editor's phone save bar sticks to the bottom of the screen.** It
+  was styled to, but the card around the form clips its overflow, which makes
+  the card the bar's scroll box, so the bar scrolled away with the form. The
+  card no longer clips at phone widths and the bar keeps clear of the home
+  indicator. `www/event_edit.php`.
+
+- **Small grey text in the event editor is readable.** The column headers over
+  the guest list, the guest numbering, already-invited names, the option
+  explainers, the × controls and the "In person only" note used a grey that
+  measured 2.6:1 on white; they use the editor's darker grey (4.8:1) now. The
+  green Save & Send button is a darker green (4.9:1 with white) instead of
+  3.3:1. The off state of every switch has a visible track. The remove ×, the
+  contact glyph, the typed-row ×, + Add Name and the desktop save buttons are
+  at least 24px tall, 36px on a touch screen, where the guest rows are 44px
+  and the switches bigger; the help bubbles' own close button was the smallest
+  target on the site and is 24px too. `www/event_edit.php`, `www/style.css`.
+
 ---
 
 ## [v1.8.10] - 2026-10-16

@@ -666,6 +666,7 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
     cursor: pointer;
     padding: 2px 4px;
     border-radius: 6px;
+  min-width: 24px; min-height: 24px;   /* WCAG 2.5.8: the smallest target on the site was this 19×22 glyph */
 }
 .help-bubble__close:hover { color: #fff; background: rgba(255, 255, 255, .12); }
 .help-bubble__title {
