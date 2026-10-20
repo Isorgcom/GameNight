@@ -11,6 +11,10 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+---
+
+## [v1.9.0] - 2026-10-20
+
 ### Added
 
 - **Message guests can carry a PDF.** The compose box on the event page and the calendar has an **Attach a PDF** field (one file, up to 5 MB). Email recipients get it as an attachment with a note naming it; text and WhatsApp recipients, and anyone opening the message link, get an **Open** button for it on the message page; the event page's message history links it too. The file lives under `uploads/event_messages/` named by the message's own unguessable token, and goes away with the message or the event. A parked email retry carries the attachment along. Asked for by a host who sent the final details and had nowhere to put the house rules. In `www/calendar.php`, `www/event.php`, `www/event_message.php`, `www/_notifications.php`, `www/auth.php`, `www/mail.php` and `www/db.php`.
