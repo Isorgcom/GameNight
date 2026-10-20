@@ -383,6 +383,13 @@ function db_init(PDO $pdo): void {
     // Delivery correlation carried through retries (must run after the CREATE above).
     try { $pdo->exec("ALTER TABLE email_retry_queue ADD COLUMN event_id INTEGER"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE email_retry_queue ADD COLUMN username TEXT"); } catch (Exception $e) {}
+    // A parked email keeps its attachments (JSON [{path,name}]) so the retry
+    // carries the host's PDF too (v1.9.0, Message guests attachments).
+    try { $pdo->exec("ALTER TABLE email_retry_queue ADD COLUMN attachments TEXT"); } catch (Exception $e) {}
+    // Message guests can attach one PDF: the original name for display, the
+    // stored file under uploads/event_messages/ (named by the message token).
+    try { $pdo->exec("ALTER TABLE event_messages ADD COLUMN attachment_name TEXT"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE event_messages ADD COLUMN attachment_file TEXT"); } catch (Exception $e) {}
 
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS short_links (
         id         INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -14,7 +14,7 @@ $msg = null;
 
 if ($token !== '') {
     $stmt = get_db()->prepare(
-        'SELECT m.subject, m.body_html, m.occurrence_date, m.created_at,
+        'SELECT m.subject, m.body_html, m.occurrence_date, m.created_at, m.attachment_name, m.attachment_file,
                 e.title AS event_title, e.start_date, e.start_time
          FROM event_messages m JOIN events e ON e.id = m.event_id
          WHERE m.token = ?'
@@ -52,6 +52,9 @@ $pretty_time = (!empty($msg['start_time'])) ? date('g:i A', strtotime($msg['star
             <div class="event-message-body" style="margin-top:1rem;line-height:1.6">
                 <?= $msg['body_html'] /* already sanitized via sanitize_html() at store time */ ?>
             </div>
+            <?php if (!empty($msg['attachment_file'])): ?>
+            <p style="margin-top:1.25rem"><a class="btn btn-primary" href="/uploads/event_messages/<?= rawurlencode(basename((string)$msg['attachment_file'])) ?>" target="_blank" rel="noopener">&#128206; Open <?= htmlspecialchars((string)($msg['attachment_name'] ?: 'the attached PDF'), ENT_QUOTES | ENT_SUBSTITUTE) ?></a></p>
+            <?php endif; ?>
         <?php endif; ?>
     </div>
 </div>

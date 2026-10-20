@@ -122,7 +122,7 @@ function _email_queue_backoff_minutes(int $attemptNumber, bool $isQuota = false)
  * Returns null on success, or the error string. Does NOT log or enqueue — that
  * is the caller's job, so both the live path and the queue drain can share it.
  */
-function _email_attempt(string $toAddress, string $toName, string $subject, string $htmlBody): ?string {
+function _email_attempt(string $toAddress, string $toName, string $subject, string $htmlBody, array $attachments = []): ?string {
     // Prefer config.php constants; fall back to database values.
     $host     = defined('SMTP_HOST')       ? SMTP_HOST       : get_setting('smtp_host', '');
     $port     = defined('SMTP_PORT')       ? (int)SMTP_PORT  : (int)get_setting('smtp_port', '587');
@@ -169,6 +169,12 @@ function _email_attempt(string $toAddress, string $toName, string $subject, stri
             $mail->Subject = $subject;
             $mail->Body    = $htmlBody;
             $mail->AltBody = strip_tags($htmlBody);
+            // [{path, name}]: a file that has gone (its message deleted while the
+            // mail was parked) is left out rather than failing the send.
+            foreach ($attachments as $a) {
+                $path = (string)($a['path'] ?? '');
+                if ($path !== '' && is_file($path)) $mail->addAttachment($path, (string)($a['name'] ?? basename($path)));
+            }
 
             $mail->send();
             return null;
@@ -195,14 +201,14 @@ function _email_attempt(string $toAddress, string $toName, string $subject, stri
  * background retry would be misleading). Permanent failures (auth, rejected
  * recipient) are never retried or queued.
  */
-function send_email(string $toAddress, string $toName, string $subject, string $htmlBody, bool $queueOnFailure = true): ?string {
-    $err = _email_attempt($toAddress, $toName, $subject, $htmlBody);
+function send_email(string $toAddress, string $toName, string $subject, string $htmlBody, bool $queueOnFailure = true, array $attachments = []): ?string {
+    $err = _email_attempt($toAddress, $toName, $subject, $htmlBody, $attachments);
     if ($err === null) {
         _log_email($toAddress, $subject, 'sent', null);
         return null;
     }
 
-    if ($queueOnFailure && _smtp_error_is_retryable($err) && _enqueue_email_retry($toAddress, $toName, $subject, $htmlBody, $err)) {
+    if ($queueOnFailure && _smtp_error_is_retryable($err) && _enqueue_email_retry($toAddress, $toName, $subject, $htmlBody, $err, $attachments)) {
         // Parked for background retry — record as 'queued', not 'failed', so the
         // notification history reflects that delivery is still pending.
         _log_email($toAddress, $subject, 'queued', $err);
@@ -217,14 +223,14 @@ function send_email(string $toAddress, string $toName, string $subject, string $
  * stored (so the caller can log 'queued' vs 'failed'). First retry is due after
  * one backoff interval.
  */
-function _enqueue_email_retry(string $toAddress, string $toName, string $subject, string $htmlBody, ?string $error): bool {
+function _enqueue_email_retry(string $toAddress, string $toName, string $subject, string $htmlBody, ?string $error, array $attachments = []): bool {
     try {
         $delay = _email_queue_backoff_minutes(1, _smtp_error_is_quota($error));
         [$ctx_eid, $ctx_user] = notif_log_context_get();
         get_db()->prepare(
-            "INSERT INTO email_retry_queue (to_address, to_name, subject, body, attempts, last_error, next_attempt_at, event_id, username)
-             VALUES (?, ?, ?, ?, 0, ?, datetime('now', ? || ' minutes'), ?, ?)"
-        )->execute([$toAddress, $toName, $subject, $htmlBody, $error, '+' . $delay, $ctx_eid, $ctx_user]);
+            "INSERT INTO email_retry_queue (to_address, to_name, subject, body, attempts, last_error, next_attempt_at, event_id, username, attachments)
+             VALUES (?, ?, ?, ?, 0, ?, datetime('now', ? || ' minutes'), ?, ?, ?)"
+        )->execute([$toAddress, $toName, $subject, $htmlBody, $error, '+' . $delay, $ctx_eid, $ctx_user, $attachments ? json_encode(array_values($attachments)) : null]);
         return true;
     } catch (Exception $e) {
         error_log('email_retry_queue enqueue failed: ' . $e->getMessage());
@@ -240,7 +246,7 @@ function process_email_retry_queue(PDO $db, int $limit = 50): array {
     $sent = 0; $failed = 0; $requeued = 0;
     try {
         $rows = $db->prepare(
-            "SELECT id, to_address, to_name, subject, body, attempts, event_id, username
+            "SELECT id, to_address, to_name, subject, body, attempts, event_id, username, attachments
              FROM email_retry_queue
              WHERE next_attempt_at <= CURRENT_TIMESTAMP
              ORDER BY next_attempt_at, id LIMIT ?"
@@ -268,7 +274,8 @@ function process_email_retry_queue(PDO $db, int $limit = 50): array {
         // Restore the delivery-correlation context saved at enqueue time so the
         // retry's log rows still point at the right event/recipient.
         notif_log_context(isset($row['event_id']) ? (int)$row['event_id'] : null, $row['username'] ?? null);
-        $err = _email_attempt($row['to_address'], $row['to_name'], $row['subject'], $row['body']);
+        $att = !empty($row['attachments']) ? (json_decode((string)$row['attachments'], true) ?: []) : [];
+        $err = _email_attempt($row['to_address'], $row['to_name'], $row['subject'], $row['body'], is_array($att) ? $att : []);
 
         if ($err === null) {
             _log_email($row['to_address'], $row['subject'], 'sent', "recovered from queue (attempt $attemptNo)");

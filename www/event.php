@@ -204,7 +204,7 @@ if ($token === '' && $page_eid > 0) {
     // Host messages ("final details"): history for everyone, compose/delete for managers.
     $evMsgs = [];
     try {
-        $mq = $db->prepare("SELECT m.id, m.subject, m.body_html, m.audience, m.created_at, u.username AS author
+        $mq = $db->prepare("SELECT m.id, m.subject, m.body_html, m.audience, m.created_at, m.attachment_name, m.attachment_file, u.username AS author
                             FROM event_messages m LEFT JOIN users u ON u.id = m.created_by
                             WHERE m.event_id = ? ORDER BY m.created_at DESC, m.id DESC");
         $mq->execute([$page_eid]);
@@ -522,6 +522,9 @@ if ($token === '' && $page_eid > 0) {
                     </div>
                     <div style="font-size:.7rem;color:#94a3b8;margin:.1rem 0 .4rem"><?= htmlspecialchars($m['created_at']) ?><?= $canManage ? ' &middot; ' . htmlspecialchars($aud) : '' ?></div>
                     <div style="font-size:.85rem;color:#334155;line-height:1.5"><?= $m['body_html'] /* sanitized at store time */ ?></div>
+                    <?php if (!empty($m['attachment_file'])): ?>
+                    <div style="margin-top:.4rem;font-size:.8rem"><a href="/uploads/event_messages/<?= rawurlencode(basename((string)$m['attachment_file'])) ?>" target="_blank" rel="noopener">&#128206; <?= htmlspecialchars((string)$m['attachment_name'], ENT_QUOTES | ENT_SUBSTITUTE) ?></a></div>
+                    <?php endif; ?>
                 </div>
                 <?php endforeach; ?>
             </div>
@@ -773,6 +776,10 @@ async function editComment(id) {
             <label for="emBody">Message</label>
             <textarea id="emBody" name="body"></textarea>
         </div>
+        <div class="form-group">
+            <label for="emFile">Attach a PDF <span style="font-weight:400;color:#64748b">(optional, up to 5 MB; emailed as an attachment, a link for everyone else)</span></label>
+            <input type="file" id="emFile" accept="application/pdf,.pdf">
+        </div>
         <div style="display:flex;gap:.6rem;justify-content:flex-end;margin-top:.5rem">
             <button type="button" class="btn btn-outline" data-act="closeEventMsgModal">Cancel</button>
             <button type="button" class="btn btn-primary" id="emSendBtn" data-act="sendEventMessage">Send message</button>
@@ -989,6 +996,7 @@ function _emEnsureEditor() {
 function openEventMsgModal() {
     document.getElementById('emAudience').value = 'yes';
     document.getElementById('emSubject').value = '';
+    var emf = document.getElementById('emFile'); if (emf) emf.value = '';
     _emEnsureEditor();
     if (_emEditor) _emEditor.value = '';
     document.getElementById('eventMsgModal').classList.add('open');
@@ -1000,11 +1008,17 @@ function sendEventMessage() {
     var subject  = document.getElementById('emSubject').value.trim();
     var audience = document.getElementById('emAudience').value;
     var body     = _emEditor ? _emEditor.value : document.getElementById('emBody').value;
+    var files    = (document.getElementById('emFile') || {}).files;
+    var pdf      = files && files[0] ? files[0] : null;
     if (!subject) { pkAlert('Please enter a subject.'); return; }
     if (!body || !body.replace(/<[^>]*>/g, '').trim()) { pkAlert('Please write a message.'); return; }
+    if (pdf && !/\.pdf$/i.test(pdf.name)) { pkAlert('Only a PDF can be attached.'); return; }
+    if (pdf && pdf.size > 5 * 1024 * 1024) { pkAlert('The PDF is too large (5 MB at most).'); return; }
     var btn = document.getElementById('emSendBtn');
     btn.disabled = true; var orig = btn.textContent; btn.textContent = 'Sending…';
-    evPost('send_event_message', { subject: subject, audience: audience, body: body })
+    var extra = { subject: subject, audience: audience, body: body };
+    if (pdf) extra.attachment = pdf;   // FormData carries the File as-is
+    evPost('send_event_message', extra)
         .then(function (res) {
             btn.disabled = false; btn.textContent = orig;
             if (!res.ok) { pkAlert(res.error || 'Could not send the message.'); return; }
