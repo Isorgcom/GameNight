@@ -8,78 +8,8 @@ header('Content-Type: application/json');
 $db = get_db();
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
-// ─── Helper: compute live timer state (handles countdown + auto-advance) ──
-function compute_live_state($db, $timer) {
-    $remaining = (int)$timer['time_remaining_seconds'];
-    $level = (int)$timer['current_level'];
-    $running = (int)$timer['is_running'];
-    $session_id = (int)$timer['session_id'];
-
-    // ONE reading of the clock for the whole request. Two calls to time() can
-    // straddle a second boundary, and the anchor below is derived from it: two
-    // screens polling either side of that boundary latched deadlines a full
-    // second apart and then held them, so they disagreed forever.
-    $now = time();
-
-    if ($running && $timer['updated_at']) {
-        // updated_at is stored as UTC via SQLite datetime('now') — force UTC parsing
-        $elapsed = $now - strtotime($timer['updated_at'] . ' UTC');
-        $remaining -= $elapsed;
-
-        // Auto-advance levels if time ran out
-        if ($remaining <= 0 && $timer['preset_id']) {
-            $levels = $db->prepare('SELECT * FROM blind_preset_levels WHERE preset_id = ? ORDER BY level_number');
-            $levels->execute([$timer['preset_id']]);
-            $allLevels = [];
-            foreach ($levels->fetchAll(PDO::FETCH_ASSOC) as $lv) {
-                $allLevels[(int)$lv['level_number']] = $lv;
-            }
-
-            // Advance through levels until we consume all elapsed time
-            while ($remaining <= 0) {
-                $nextLevel = $level + 1;
-                if (!isset($allLevels[$nextLevel])) {
-                    // No more levels — stop timer
-                    $running = 0;
-                    $remaining = 0;
-                    break;
-                }
-                $level = $nextLevel;
-                $remaining += (int)$allLevels[$level]['duration_minutes'] * 60;
-            }
-
-            // Persist the auto-advanced state (clamp to 24h max)
-            $db->prepare("UPDATE timer_state SET current_level = ?, time_remaining_seconds = ?, is_running = ?, updated_at = datetime('now') WHERE id = ?")
-                ->execute([$level, max(0, min(86400, $remaining)), $running, (int)$timer['id']]);
-        }
-    }
-
-    // ── Anchor ────────────────────────────────────────────────────────────
-    // The countdown expressed as a CONSTANT, so a display can derive the time
-    // itself instead of being told it again every poll. Being told is what made
-    // the clock stutter: this function answers in whole seconds computed at
-    // request time, so consecutive polls disagree by up to a second and the
-    // display jumped backwards and forwards.
-    //
-    // ends_at is invariant between commands, which is the whole point:
-    //   ends_at = time() + remaining
-    //           = time() + (stored_remaining - (time() - updated_at))
-    //           = updated_at + stored_remaining
-    // The request time cancels out, so every poll — and every SCREEN — derives
-    // the same instant. Auto-advance above rewrites the row and is therefore
-    // picked up here automatically, since $remaining is already re-based.
-    $ends_at_ms = ($running && $remaining > 0) ? ($now + $remaining) * 1000 : null;
-
-    return [
-        'current_level' => $level,
-        'time_remaining_seconds' => max(0, $remaining),
-        'is_running' => $running,
-        // Running: count down to ends_at_ms. Paused: remaining_ms is the truth
-        // and nothing moves. Exactly one of the two is ever non-null.
-        'ends_at_ms'   => $ends_at_ms,
-        'remaining_ms' => $running ? null : max(0, $remaining) * 1000,
-    ];
-}
+// compute_live_state() (countdown + auto-advance) lives in _poker_helpers.php:
+// the Manage Game console reads the clock's level too, for the rebuy cutoff.
 
 // ─── Helper: resolve timer from key or session_id ─────────
 function resolve_timer($db, $key = null, $session_id = null) {

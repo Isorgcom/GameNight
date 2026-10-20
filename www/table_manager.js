@@ -277,6 +277,7 @@ function pollRoster() {
             if (rosterAgain) { rosterAgain = false; pollRoster(); return; }
             if (!j || !j.ok || !j.session) { gdNoteFail(); return; }
             SESSION = j.session;
+            GD.timerLevel = parseInt(j.timer_level) || 0;   // the clock's blind level, for the rebuy cutoff
             PAYOUTS = j.payouts || PAYOUTS;
             if (j.pool) POOL = j.pool;
             TICKETS = j.tickets || TICKETS;
@@ -872,6 +873,7 @@ function visiblePlayers() {
 
 function renderRoster() {
     var view = el('gdView');
+    renderBreakAddon();
     if (VIEW === 'seats') { renderSeats(view); return; }
     // Leaving the seats view: its DOM is disposable, rows are not.
     if (view.dataset.mode !== 'list') { view.textContent = ''; view.dataset.mode = 'list'; }
@@ -1167,6 +1169,43 @@ window.gdUndoElim = function (pid) {
     }).catch(gdErr);
 };
 
+/* ── Rebuy cutoff ────────────────────────────────────────────────────────
+ * The game may close rebuys after a blind level (Setup → Rebuys → Cutoff
+ * after level). The page's view of the clock rides on the roster poll
+ * (timer_level: the blind level, a break counting as the level before it).
+ * The + still works when closed: the host confirms, the server records with
+ * force=1, and the ledger row says the rebuy came after the cutoff. */
+function rebuysClosed() {
+    var c = parseInt(SESSION && SESSION.rebuy_cutoff_level) || 0;
+    return c > 0 && (parseInt(GD.timerLevel) || 0) > c;
+}
+function askPastCutoff(p, level) {
+    return pkConfirm('Rebuys closed after level ' + (parseInt(SESSION && SESSION.rebuy_cutoff_level) || 0)
+                     + '; the clock is on level ' + level + '. Record one for <b>' + gdEsc(p ? p.display_name : 'this player') + '</b> anyway?',
+                     { okLabel: 'Record anyway', danger: true });
+}
+// update_rebuys with the cutoff handled both ways: this page's view of the
+// clock first, and the server answering `closed` when that view was stale.
+// Resolves null when the host declines.
+function postRebuy(pid, delta, force) {
+    var fields = { action: 'update_rebuys', player_id: pid, delta: delta };
+    if (force) fields.force = 1;
+    return gdPost('/checkin_dl.php', fields).then(function (j) {
+        if (j && j.ok) return j;
+        if (j && j.closed && !force) {
+            GD.timerLevel = parseInt(j.level) || GD.timerLevel;
+            return askPastCutoff(playerById(pid), j.level).then(function (ok) { return ok ? postRebuy(pid, delta, true) : null; });
+        }
+        var e = new Error((j && j.error) || 'Request failed'); e.handled = false; throw e;
+    });
+}
+function rebuyWithCutoff(pid, delta) {
+    if (delta > 0 && rebuysClosed()) {
+        return askPastCutoff(playerById(pid), GD.timerLevel).then(function (ok) { return ok ? postRebuy(pid, delta, true) : null; });
+    }
+    return postRebuy(pid, delta, false);
+}
+
 window.gdReenter = function (pid) {
     var p = playerById(pid);
     if (!p) return;
@@ -1179,7 +1218,8 @@ window.gdReenter = function (pid) {
     pkConfirm('Rebuy and re-enter ' + gdEsc(p.display_name) + '? They come back into the game with a fresh stack.'
               + bountyNote, { okLabel: 'Re-enter' }).then(function (ok) {
         if (!ok) return;
-        gdAction('update_rebuys', { player_id: pid, delta: 1 }).then(function (j) {
+        rebuyWithCutoff(pid, 1).then(function (j) {
+            if (!j) return;                       // declined at the cutoff
             if (j.reentered || j.reopened) {
                 // Bounties banked, payouts and finish positions all moved.
                 if (j.status) { GD.status = j.status; renderLifecycle(); }
@@ -1536,11 +1576,25 @@ function renderSheet() {
     }
 
     if (SESSION && parseInt(SESSION.rebuy_allowed) && parseInt(p.bought_in)) {
-        grid.appendChild(sheetRow('Rebuys', gdMoney(SESSION.rebuy_amount) + ' each',
-            counter(parseInt(p.rebuys) || 0, 'gdRebuy', 'gdRebuy', pid)));
+        // "first 2 with the buy-in, then $20 each" when the buy-in includes
+        // some; a closed cutoff shows in words (a title never shows on touch).
+        var rInc = parseInt(SESSION.rebuys_included) || 0;
+        var rCtl = counter(parseInt(p.rebuys) || 0, 'gdRebuy', 'gdRebuy', pid);
+        var rRow = sheetRow('Rebuys', (rInc ? 'first ' + rInc + ' free, then ' : '') + gdMoney(SESSION.rebuy_amount) + ' each', rCtl);
+        if (rebuysClosed()) {
+            rCtl.lastChild.classList.add('gd-closed');
+            var tag = document.createElement('span');
+            tag.className = 'gd-closed-tag';
+            tag.textContent = 'closed after level ' + parseInt(SESSION.rebuy_cutoff_level);
+            rRow.firstChild.insertBefore(tag, rRow.firstChild.querySelector('.gd-sub'));
+        }
+        grid.appendChild(rRow);
     }
     if (SESSION && parseInt(SESSION.addon_allowed) && parseInt(p.bought_in)) {
-        grid.appendChild(sheetRow('Add-ons', gdMoney(SESSION.addon_amount) + ' each',
+        var aInc = parseInt(SESSION.addons_included) || 0;
+        var aShared = parseInt(SESSION.addons_share_rebuys) === 1 && parseInt(SESSION.rebuys_included);
+        grid.appendChild(sheetRow('Add-ons', aShared ? 'free unless they used the free rebuy, then ' + gdMoney(SESSION.addon_amount)
+                                             : (aInc ? 'first ' + aInc + ' free, then ' : '') + gdMoney(SESSION.addon_amount) + ' each',
             counter(parseInt(p.addons) || 0, 'gdAddon', 'gdAddon', pid)));
     }
     if (SESSION && parseInt(SESSION.bounty_amount) > 0 && parseInt(SESSION.bounty_optional) && parseInt(p.bought_in)) {
@@ -1605,7 +1659,8 @@ window.gdRebuy = function (pid, delta) {
     delta = parseInt(delta) || 1;
     var p = playerById(pid);
     if (p && delta > 0 && parseInt(p.eliminated)) { gdCloseSheet(); gdReenter(pid); return; }
-    gdAction('update_rebuys', { player_id: pid, delta: delta }).then(function (j) {
+    rebuyWithCutoff(pid, delta).then(function (j) {
+        if (!j) { refreshSheet(); return; }     // declined at the cutoff
         if (j.reentered || j.reopened) {
             if (j.status) { GD.status = j.status; renderLifecycle(); }
             pollRoster(); pollClock();
@@ -1620,6 +1675,64 @@ window.gdAddon = function (pid, delta) {
         mergePlayer(j.player); takePool(j.pool);
         refreshSheet();
     }).catch(gdErr);
+};
+
+/* ── The break add-on, in bulk ──────────────────────────────────────────
+ * One tap gives every player still in their add-on (one each: anyone who
+ * already has one is skipped, so a second tap never doubles up). The button
+ * sits above the roster whenever there is someone to give one to. */
+function addonEligible() {
+    var r = { eligible: [], taken: [] };
+    (PLAYERS || []).forEach(function (p) {
+        if (parseInt(p.removed) || (p.approval_status || 'approved') === 'pending' || !playerIn(p)) return;
+        if ((parseInt(p.addons) || 0) > 0) r.taken.push(p); else r.eligible.push(p);
+    });
+    return r;
+}
+var escHtmlAny = function (s) { return gdEsc(s); };
+// Rebuy OR add-on: a player's next add-on is free while the buy-in's allowance
+// lasts (pk_addon_allowance on the server; rebuys use it first).
+function addonFreeFor(p) {
+    var shared = parseInt(SESSION.addons_share_rebuys) === 1;
+    var n = shared ? Math.max(0, (parseInt(SESSION.rebuys_included) || 0) - (parseInt(p.rebuys) || 0)) : (parseInt(SESSION.addons_included) || 0);
+    return (parseInt(p.addons) || 0) < n;
+}
+// The confirm's money line for a set of add-ons about to be recorded.
+function addonCostLine(list, money) {
+    var free = list.filter(addonFreeFor), paid = list.filter(function (p) { return !addonFreeFor(p); });
+    var each = money(parseInt(SESSION.addon_amount)) + ' each';
+    if (!paid.length) return 'All free with the buy-in; nothing to collect.';
+    if (!free.length) return each + '.';
+    var shown = paid.slice(0, 3).map(function (p) { return escHtmlAny(p.display_name); });
+    var names = paid.length > 3 ? shown.join(', ') + ' and ' + (paid.length - 3) + ' more' : (shown.length > 1 ? shown.slice(0, -1).join(', ') + ' and ' + shown[shown.length - 1] : shown[0]);
+    return 'Free for ' + free.length + ' (came with the buy-in). ' + names + ' used their free rebuy and pay ' + each + '.';
+}
+function renderBreakAddon() {
+    var box = el('gdBreakAddon');
+    if (!box) return;
+    var n = (!isCash() && SESSION && parseInt(SESSION.addon_allowed) && GD.status !== 'finished') ? addonEligible().eligible.length : 0;
+    box.textContent = '';
+    if (!n) return;
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'gd-break-addon';
+    b.textContent = '+ Add-on for everyone still in (' + n + ')';
+    b.dataset.act = 'gdBulkAddons';
+    box.appendChild(b);
+}
+window.gdBulkAddons = function () {
+    var e = addonEligible();
+    var n = e.eligible.length;
+    if (!n) { pkAlert(e.taken.length ? 'Everyone still in already has an add-on.' : 'Nobody is in the game.'); return; }
+    var msg = 'Record an add-on for <b>' + n + '</b> player' + (n === 1 ? '' : 's') + ' still in?';
+    if (e.taken.length) msg += '<br><br>' + e.taken.length + ' already ' + (e.taken.length === 1 ? 'has' : 'have') + ' one and ' + (e.taken.length === 1 ? 'is' : 'are') + ' skipped.';
+    msg += '<br><br>' + addonCostLine(e.eligible, gdMoney);
+    pkConfirm(msg, { title: 'Add-on', okLabel: 'Record' }).then(function (ok) {
+        if (!ok) return;
+        gdAction('bulk_addons', { session_id: GD.sessionId, player_ids: e.eligible.map(function (p) { return p.id; }).join(',') }).then(function (j) {
+            takePlayers(j.players); takePool(j.pool);
+            showSnack('Add-on recorded for ' + j.recorded + ' player' + (j.recorded === 1 ? '' : 's'), 'OK', null);
+        }).catch(gdErr);
+    });
 };
 window.gdBountyToggle = function (pid) {
     gdAction('toggle_bounty', { player_id: pid }).then(function (j) {

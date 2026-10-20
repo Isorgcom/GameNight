@@ -151,7 +151,7 @@ $allow_reg   = get_setting('allow_registration', '1') === '1';
         <h2><span class="step-num">8</span> Set the game up</h2>
         <p>Everything that defines the game lives behind the <strong>Setup</strong> button on the check-in dashboard. It opens an editor with a tab per topic:</p>
         <ul>
-            <li><strong>Game</strong> &mdash; game type, buy-in, rebuys and add-ons, starting chips, tables and seats, and which league the event belongs to.</li>
+            <li><strong>Game</strong> &mdash; game type, buy-in, rebuys and add-ons, how many rebuys and add-ons are free with the buy-in, the level after which rebuys close, starting chips, tables and seats, and which league the event belongs to.</li>
             <li><strong>Payouts &amp; Rewards</strong> &mdash; the payout split, plus points, entry-ticket values, prize labels, bounties and jackpots.</li>
             <li><strong>Blinds</strong> &mdash; the level schedule as an editable grid (<strong>Level, Duration, Small Blind, Big Blind, Ante, Start Time</strong>), with breaks, undo/redo, and a generator that builds a ladder for you.</li>
             <li><strong>Timer</strong> &mdash; whether this game uses Tournament Timer Classic or the Tournament Timer, and which layout its display shows. The <a href="/help-timer.php">Timer Guide</a> covers the display, casting to more screens, and the layout editor.</li>

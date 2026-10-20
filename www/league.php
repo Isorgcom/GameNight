@@ -421,7 +421,7 @@ if ($tab === 'stats') {
                 ps.game_type,
                 CASE WHEN ps.game_type = 'tournament' THEN COALESCE(pp.finish_position, pc.field_size) END as finish_position,
                 CASE WHEN ps.game_type = 'tournament'
-                     THEN pp.bought_in * ps.buyin_amount + pp.rebuys * COALESCE(ps.rebuy_amount, 0) + pp.addons * COALESCE(ps.addon_amount, 0)
+                     THEN pp.bought_in * ps.buyin_amount + MAX(0, pp.rebuys - COALESCE(ps.rebuys_included, 0)) * COALESCE(ps.rebuy_amount, 0) + MAX(0, pp.addons - CASE WHEN COALESCE(ps.addons_share_rebuys, 0) = 1 THEN MAX(0, COALESCE(ps.rebuys_included, 0) - pp.rebuys) ELSE COALESCE(ps.addons_included, 0) END) * COALESCE(ps.addon_amount, 0)
                      ELSE COALESCE(pp.cash_in, 0) END as invested,
                 CASE WHEN ps.game_type = 'tournament' THEN COALESCE(pp.payout, 0) + COALESCE(pp.bounty_cash, 0)
                      ELSE COALESCE(pp.cash_out, 0) END as winnings,

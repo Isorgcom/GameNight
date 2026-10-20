@@ -365,8 +365,11 @@ if ($session) {
     .pk-settings-save:hover{opacity:.9}
 
     /* Settings sections + opt-in reward toggles (progressive disclosure) */
-    .pk-cfg-section{margin-top:1rem;padding-top:.75rem;border-top:1px solid var(--border,#e2e8f0)}
-    .pk-cfg-section:first-child{margin-top:0;padding-top:0;border-top:none}
+    /* Each Setup section is a card with a grey title band, so Game, Chips &
+       Rebuys and Tables read as three things rather than one run of fields. */
+    .pk-cfg-section{margin-top:.9rem;padding:0 .9rem .9rem;border:1.5px solid var(--border,#e2e8f0);border-radius:10px;background:var(--surface,#fff)}
+    .pk-cfg-section:first-child{margin-top:0}
+    .pk-cfg-section>.pk-cfg-title{margin:0 -.9rem .85rem;padding:.5rem .9rem;background:#f1f5f9;border-bottom:1.5px solid var(--border,#e2e8f0);border-radius:8px 8px 0 0}
     /* Load / Save As / Delete / Set Default carried no class at all, so they
        rendered at the browser default size and stayed there on tablets, where
        every other control in this console grows to a 44px touch target. */
@@ -435,8 +438,12 @@ if ($session) {
     .pk-subbox-check input{width:1rem;height:1rem;accent-color:var(--accent,#2563eb);cursor:pointer}
     .pk-subbox-body{display:none;grid-template-columns:1fr 1fr;gap:.6rem;margin-top:.6rem}
     .pk-subbox-body.on{display:grid}
+    .pk-subbox-body>div{display:flex;flex-direction:column;justify-content:flex-end}
     .pk-subbox-body label{font-size:.8rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem}
     .pk-subbox-body input{width:100%;padding:.4rem .6rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:.85rem}
+    .pk-subbox-body select{width:100%;padding:.4rem .6rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:.85rem;background:#fff}
+    .pk-subbox-wide{flex:1 1 100%;background:#f8fafc}
+    .pk-subbox-wide .pk-subbox-body{grid-template-columns:minmax(150px,220px) minmax(150px,220px)}
 
     /* $ prefix inside dollar inputs — typing "1" when you meant "$20" is the
        kind of slip a visible unit prevents. */
@@ -494,6 +501,10 @@ if ($session) {
     .pk-mobile-more:active{background:#e2e8f0}
     .pk-addon-count{display:inline-flex;align-items:center;justify-content:center;min-width:1.3rem;min-height:24px;height:1.3rem;padding:0 .4rem;border:none;border-radius:10px;background:#7c3aed;color:#fff;font-size:.75rem;font-weight:700;cursor:pointer;flex-shrink:0}
     .pk-addon-count:hover{background:#6d28d9}
+    .pk-rebuy-closed{opacity:.45}
+    .pk-rebuy-closed-tag{display:inline-block;font-size:.68rem;font-weight:600;color:#92400e;background:#fffbeb;border:1px solid #f59e0b;border-radius:4px;padding:0 .3rem;margin-left:.25rem;vertical-align:middle}
+    .pk-break-addon{display:none;justify-content:center;margin:.1rem 0 .6rem}
+    .pk-break-addon button{font-size:.85rem;padding:.5rem .9rem;min-height:36px;border-radius:6px;border:1px solid #c4b5fd;background:#f5f3ff;color:#6d28d9;font-weight:600;cursor:pointer}
     .pk-mobile-expand{display:none;padding:.5rem .8rem;border-top:1px solid #f1f5f9;background:#f8fafc}
     .pk-mobile-expand.open{display:block}
     .pk-mobile-row{display:flex;align-items:center;justify-content:space-between;padding:.35rem 0;gap:.5rem;flex-wrap:wrap}
@@ -521,6 +532,7 @@ if ($session) {
     @media(max-width:768px){
         .pk-table-wrap{display:none}
         .pk-bulk-bar{display:none}
+        .pk-break-addon{display:flex}
         .pk-mobile-list{display:block;max-height:calc(100dvh - 210px);overflow-y:auto;-webkit-overflow-scrolling:touch}
         .pk-header{padding:.4rem .5rem;gap:.35rem}
         .pk-header h1{font-size:.85rem}
@@ -870,7 +882,7 @@ if ($session) {
             <h5>Buy In</h5>
             <p>Tick the box when a player pays. It also checks them in and gives them a seat; there is no separate check-in step. The &#128210; beside the box is their ledger: every buy-in, rebuy and add-on, with <b>Edit</b> and <b>Clear</b> for mistakes.</p>
             <h5>Rebuys &amp; Add-ons</h5>
-            <p>When the game allows them, the + / &minus; counters on a player's row track each one. The prize pool at the top right follows.</p>
+            <p>When the game allows them, the + / &minus; counters on a player's row track each one. The prize pool at the top right follows. If the entry fee covers rebuys or add-ons (Setup &rarr; <b>Free with the buy-in</b>), a player's first ones are recorded at $0 and only those beyond count toward the pool. <b>Free rebuy and free add-on: One stack</b> means a player gets one or the other: a rebuy before the break, or the add-on at the break; a player who took the rebuy pays for the add-on. <b>No rebuys after level</b> closes rebuys once the clock is past that level: the + still works but asks first, and the ledger says the rebuy came after the cutoff. At the break, <b>Add-on for everyone still in</b> (above the list on a phone; on a desktop select the players and press <b>Add-on</b> in the bar) records one for each player who has none yet.</p>
             <h5>Eliminate</h5>
             <p>Marks a player out. Their finishing place is filled in by elimination order (9th, 8th &hellip; down to 1st), and if that place is in the money the prize owed shows next to their name, so eliminate players in the order they bust. <b>Undo</b> puts them back. The last player standing wins, and that finishes the game.</p>
             </div>
@@ -1258,6 +1270,7 @@ var SORT_DIR = 1;    // 1 = ascending, -1 = descending
 var notesPlayerId = null;
 var LOG = [];        // session activity log entries (newest-first)
 var TICKETS = { incoming: [], outgoing: [] };  // entry tickets touching this session
+var TIMER_LEVEL = 0;   // the clock's blind level, from get_session (0 = no timer yet)
 var JACKPOTS = { league_id: null, balance: 0 };  // league jackpot fund (cents)
 
 // Fallback shims: if a stale-cached pk-dialogs.js predates pkProgress, Save
@@ -1367,6 +1380,7 @@ function loadSession() {
                 POOL = j.pool;
                 LOG = j.log || [];
                 TICKETS = j.tickets || { incoming: [], outgoing: [] };
+                TIMER_LEVEL = parseInt(j.timer_level) || 0;
                 JACKPOTS = j.jackpots || JACKPOTS;
                 WALKIN_SEEN = new Set(pendingPlayerIds(PLAYERS)); // baseline: no alerts for pre-existing pendings
                 renderDashboard();
@@ -1646,6 +1660,7 @@ function renderViewContent() {
     if (isTourney()) {
         h += '<button class="primary" title="Record buy-in for the selected players (also checks them in and seats them)" data-act="bulkAction" data-a1="toggle_buyin">Buy In</button>';
         h += '<button data-act="bulkAction" data-a1="eliminate_player">Eliminate</button>';
+        if (parseInt(SESSION.addon_allowed)) h += '<button title="Record one add-on for each selected player still in the game; anyone who already has one is skipped" data-act="bulkAddons" data-a1="selected">Add-on</button>';
     }
     h += '<button title="Approve the selected pending self-signups / walk-ins onto the roster" data-act="bulkAction" data-a1="approve_player">Approve</button>';
     h += '<button class="danger" data-act="bulkRemoveConfirm">Remove</button>';
@@ -1654,7 +1669,7 @@ function renderViewContent() {
     h += '<div class="pk-table-wrap"><table class="pk-table">';
     h += '<thead><tr id="playerHead">' + renderTableHeader() + '</tr></thead>';
     h += '<tbody id="playerBody">' + renderPlayerRows() + '</tbody></table></div>';
-    h += '<div class="pk-mobile-list" id="mobileList">' + renderMobileCards() + '</div>';
+    h += '<div class="pk-mobile-list" id="mobileList">' + renderBreakAddonBar() + renderMobileCards() + '</div>';
     return h;
 }
 
@@ -1682,8 +1697,8 @@ function renderTableHeader() {
         h += sortableTh('Buy In ' + tip('Tick the box to record a buy-in. It also checks the player in and seats them. The 📒 ledger icon shows their buy-in / rebuy / add-on history and lets you edit or clear a mistake.'), 'buyin');
         if (parseInt(SESSION.jackpot_amount) > 0 && parseInt(SESSION.jackpot_optional)) h += sortableTh('💎 ' + tip('Optional jackpot side entry (' + formatMoney(parseInt(SESSION.jackpot_amount)) + ', on top of the buy-in). Tick for each player who\'s in — entries feed the league jackpot at finish.'), 'jackpot', 'title="Jackpot entry"');
         if (parseInt(SESSION.bounty_amount) > 0 && parseInt(SESSION.bounty_optional)) h += sortableTh('🎯 ' + tip('Optional bounty side pot (' + formatMoney(parseInt(SESSION.bounty_amount)) + ', on top of the buy-in). Tick for each player who\'s in — only pool members carry and collect bounties.'), 'bountyin', 'title="Bounty side pot"');
-        if (parseInt(SESSION.rebuy_allowed)) h += sortableTh('Rebuys', 'rebuys');
-        if (parseInt(SESSION.addon_allowed)) h += sortableTh('Add-ons', 'addons');
+        if (parseInt(SESSION.rebuy_allowed)) h += sortableTh('Rebuys' + rebuysIncludedTip(), 'rebuys');
+        if (parseInt(SESSION.addon_allowed)) h += sortableTh('Add-ons' + addonsIncludedTip(), 'addons');
     } else {
         h += sortableTh('Cash In ' + tip('Type the total they bought in for and press Enter. Use + to add a top-up. The 📒 ledger icon shows every entry and lets you edit or clear a wrong one.'), 'totalin');
         h += sortableTh('Cash Out ' + tip('Type what they leave the table with and press the green check (or Enter). Clear the field to put them back in play.'), 'cashout');
@@ -1780,7 +1795,8 @@ function playerTotalIn(p) {
     }
     var buyinAmt = parseInt(SESSION.buyin_amount);
     var rebuyAmt = parseInt(SESSION.rebuy_amount);
-    return (parseInt(p.bought_in) * buyinAmt) + (parseInt(p.rebuys) * rebuyAmt);
+    var paidRebuys = Math.max(0, (parseInt(p.rebuys) || 0) - (parseInt(SESSION.rebuys_included) || 0));
+    return (parseInt(p.bought_in) * buyinAmt) + (paidRebuys * rebuyAmt);
 }
 
 function playerProfit(p) {
@@ -1857,7 +1873,7 @@ function renderPlayerRows() {
                 h += '<td><input type="checkbox" class="pk-check" style="accent-color:#0e7490" aria-label="Bounty for ' + nm + '" title="Bounty side pot (' + formatMoney(parseInt(SESSION.bounty_amount)) + ')" ' + (parseInt(p.bounty_in) ? 'checked' : '') + dis + ' data-act-change="toggleBounty" data-change-a1="' + p.id + '"></td>';
             }
             if (parseInt(SESSION.rebuy_allowed)) {
-                h += '<td><div class="pk-counter"><button aria-label="Remove a rebuy for ' + nm + '" data-act="updateRebuys" data-a1="' + p.id + '" data-a2="-1"' + dis + '>-</button><span aria-label="Rebuys">' + p.rebuys + '</span><button aria-label="Add a rebuy for ' + nm + '" data-act="updateRebuys" data-a1="' + p.id + '" data-a2="1"' + dis + '>+</button></div></td>';
+                h += '<td><div class="pk-counter"><button aria-label="Remove a rebuy for ' + nm + '" data-act="updateRebuys" data-a1="' + p.id + '" data-a2="-1"' + dis + '>-</button><span aria-label="Rebuys">' + p.rebuys + '</span><button aria-label="Add a rebuy for ' + nm + '"' + rebuyPlusAttrs() + ' data-act="updateRebuys" data-a1="' + p.id + '" data-a2="1"' + dis + '>+</button></div></td>';
             }
             if (parseInt(SESSION.addon_allowed)) {
                 var aoCount = parseInt(p.addons) || 0;
@@ -2048,13 +2064,16 @@ function renderMobileCards() {
                 }
                 if (parseInt(SESSION.rebuy_allowed)) {
                     h += '<div class="pk-mobile-row">';
-                    h += '<label>Rebuys</label><div class="pk-counter"><button aria-label="Remove a rebuy for ' + nm + '" data-act="updateRebuys" data-a1="' + p.id + '" data-a2="-1">-</button><span aria-label="Rebuys">' + p.rebuys + '</span><button aria-label="Add a rebuy for ' + nm + '" data-act="updateRebuys" data-a1="' + p.id + '" data-a2="1">+</button></div>';
+                    var mInc = parseInt(SESSION.rebuys_included) || 0;
+                    h += '<label>Rebuys' + (mInc ? ' <span style="font-weight:400;color:#64748b">(' + mInc + ' free)</span>' : '') + (rebuysClosed() ? ' <span class="pk-rebuy-closed-tag">closed after level ' + parseInt(SESSION.rebuy_cutoff_level) + '</span>' : '') + '</label><div class="pk-counter"><button aria-label="Remove a rebuy for ' + nm + '" data-act="updateRebuys" data-a1="' + p.id + '" data-a2="-1">-</button><span aria-label="Rebuys">' + p.rebuys + '</span><button aria-label="Add a rebuy for ' + nm + '"' + rebuyPlusAttrs() + ' data-act="updateRebuys" data-a1="' + p.id + '" data-a2="1">+</button></div>';
                     h += '</div>';
                 }
                 if (parseInt(SESSION.addon_allowed)) {
                     var mAoCount = parseInt(p.addons) || 0;
                     h += '<div class="pk-mobile-row">';
-                    h += '<label>Add-ons</label><div style="display:flex;align-items:center;gap:.3rem">'
+                    var mAoInc = parseInt(SESSION.addons_included) || 0;
+                    var mAoNote = parseInt(SESSION.addons_share_rebuys) === 1 ? (parseInt(SESSION.rebuys_included) ? 'free unless rebuy used' : '') : (mAoInc ? mAoInc + ' free' : '');
+                    h += '<label>Add-ons' + (mAoNote ? ' <span style="font-weight:400;color:#64748b">(' + mAoNote + ')</span>' : '') + '</label><div style="display:flex;align-items:center;gap:.3rem">'
                        + '<button class="pk-addon-btn" aria-label="Add an add-on for ' + nm + '" data-act="addAddon" data-a1="' + p.id + '" style="font-size:.85rem;padding:.35rem .7rem;border-radius:4px;border:1px solid #c4b5fd;background:#f5f3ff;color:#6d28d9;cursor:pointer;font-weight:600">+ Add-on</button>'
                        + (mAoCount > 0 ? '<button type="button" class="pk-addon-count" aria-label="Remove the last add-on for ' + nm + ' (' + mAoCount + ' taken)" title="Tap to remove last" data-act="removeAddon" data-a1="' + p.id + '" style="min-width:1.5rem;height:1.5rem;padding:0 .45rem;border-radius:12px;font-size:.8rem">' + mAoCount + '</button>' : '')
                        + '</div>';
@@ -2154,10 +2173,16 @@ function renderPoolCard() {
         // Rebuy/add-on lines only when the feature is enabled — or when entries
         // were already recorded, so history never hides after a rule change.
         if (parseInt(SESSION.rebuy_allowed) || parseInt(POOL.total_rebuys) > 0) {
-            h += '<div class="pk-pool-row"><span>Rebuys (' + POOL.total_rebuys + ' &times; ' + formatMoney(parseInt(SESSION.rebuy_amount)) + ')</span><span>' + formatMoney(POOL.rebuy_total) + '</span></div>';
+            // Rebuys that came with the buy-in were paid for at the door: the
+            // line counts only the ones bought beyond them, and says so.
+            var freeRb = parseInt(POOL.free_rebuys) || 0;
+            var paidRb = (POOL.paid_rebuys !== undefined) ? parseInt(POOL.paid_rebuys) : parseInt(POOL.total_rebuys);
+            h += '<div class="pk-pool-row"><span>Rebuys (' + paidRb + ' &times; ' + formatMoney(parseInt(SESSION.rebuy_amount)) + (freeRb ? ', ' + freeRb + ' included' : '') + ')</span><span>' + formatMoney(POOL.rebuy_total) + '</span></div>';
         }
         if (parseInt(SESSION.addon_allowed) || parseInt(POOL.total_addons) > 0) {
-            h += '<div class="pk-pool-row"><span>Add-ons (' + POOL.total_addons + ' &times; ' + formatMoney(parseInt(SESSION.addon_amount)) + ')</span><span>' + formatMoney(POOL.addon_total) + '</span></div>';
+            var freeAo = parseInt(POOL.free_addons) || 0;
+            var paidAo = (POOL.paid_addons !== undefined) ? parseInt(POOL.paid_addons) : parseInt(POOL.total_addons);
+            h += '<div class="pk-pool-row"><span>Add-ons (' + paidAo + ' &times; ' + formatMoney(parseInt(SESSION.addon_amount)) + (freeAo ? ', ' + freeAo + ' included' : '') + ')</span><span>' + formatMoney(POOL.addon_total) + '</span></div>';
         }
         // Net-pool adjustments (bounties / entry tickets) — only shown when in play.
         var bw = parseInt(POOL.bounty_withheld) || 0;
@@ -2875,16 +2900,24 @@ function renderGamePane() {
 
     // ── Chips, rebuys & add-ons (tournament only). Rebuys and Add-ons are
     // grouped boxes whose Yes/No header gates their own fields. ──
-    h += '<div class="pk-cfg-section" id="cfgTourneyFields" style="' + (isCash()?'display:none':'') + '"><div class="pk-cfg-title">Chips, Rebuys &amp; Add-ons</div>';
-    h += '<div class="pk-settings-grid" style="margin-bottom:.75rem">';
-    h += '<div><label for="cfg_chips">Starting Chips</label><input type="number" id="cfg_chips" value="' + SESSION.starting_chips + '" min="1"></div>';
-    h += '</div>';
+    h += '<div class="pk-cfg-section" id="cfgTourneyFields" style="' + (isCash()?'display:none':'') + '"><div class="pk-cfg-title" style="display:flex;align-items:center;gap:.5rem">Chips, Rebuys &amp; Add-ons'
+       + '<button class="pk-help-btn" style="padding:.15rem .5rem;font-size:.7rem;min-width:24px;min-height:24px" title="How chips, rebuys, add-ons and the free stacks work" aria-label="Chips, rebuys and add-ons help" data-act="showChipsHelp">?</button></div>';
+    // Four boxes: what a buy-in gets (Chips), what a rebuy and an add-on cost
+    // (Rebuys, Add-ons, each gated by its Allowed), and what the entry fee
+    // already covers (Free with the buy-in, full width, the cross-cutting rule).
+    var aoShared = parseInt(SESSION.addons_share_rebuys) === 1;
     h += '<div class="pk-subgrids">';
+    h += '<div class="pk-subbox" id="subbox_chips" style="flex:0 1 180px;min-width:160px">';
+    h += '<div class="pk-subbox-head"><span>&#9921; Chips</span></div>';
+    h += '<div class="pk-subbox-body on" style="grid-template-columns:1fr">';
+    h += '<div><label for="cfg_chips">Starting Chips</label><input type="number" id="cfg_chips" value="' + SESSION.starting_chips + '" min="1" title="The stack every buy-in gets"></div>';
+    h += '</div></div>';
     h += '<div class="pk-subbox">';
     h += '<div class="pk-subbox-head"><span>&#8635; Rebuys</span><label class="pk-subbox-check"><input type="checkbox" id="cfg_rebuy_allowed" aria-label="Rebuys allowed"' + (parseInt(SESSION.rebuy_allowed)?' checked':'') + ' data-act-change="toggleSubBox" data-change-a1="rebuy" data-change-a2="@checked01"> Allowed</label></div>';
     h += '<div class="pk-subbox-body' + (parseInt(SESSION.rebuy_allowed)?' on':'') + '" id="subbox_rebuy">';
     h += '<div><label for="cfg_rebuy">Rebuy</label><div class="pk-money-wrap"><input type="number" id="cfg_rebuy" value="' + Math.round(parseInt(SESSION.rebuy_amount)/100) + '" step="1" min="0"></div></div>';
-    h += '<div><label for="cfg_max_rebuys">Max (0=unlimited)</label><input type="number" id="cfg_max_rebuys" value="' + SESSION.max_rebuys + '" min="0"></div>';
+    h += '<div><label for="cfg_max_rebuys">Max (0=unlimited)</label><input type="number" id="cfg_max_rebuys" value="' + SESSION.max_rebuys + '" min="0" title="Rebuys per player, free ones included"></div>';
+    h += '<div><label for="cfg_rebuy_cutoff">Close after level</label><input type="number" id="cfg_rebuy_cutoff" value="' + (parseInt(SESSION.rebuy_cutoff_level) || 0) + '" min="0" title="The clock\'s level; the break right after it still counts. 0 = rebuys all game. Past it, the + on a row asks before recording one."></div>';
     h += '</div></div>';
     h += '<div class="pk-subbox">';
     h += '<div class="pk-subbox-head"><span>&#10133; Add-ons</span><label class="pk-subbox-check"><input type="checkbox" id="cfg_addon_allowed" aria-label="Add-ons allowed"' + (parseInt(SESSION.addon_allowed)?' checked':'') + ' data-act-change="toggleSubBox" data-change-a1="addon" data-change-a2="@checked01"> Allowed</label></div>';
@@ -2892,7 +2925,25 @@ function renderGamePane() {
     h += '<div><label for="cfg_addon">Add-on</label><div class="pk-money-wrap"><input type="number" id="cfg_addon" value="' + Math.round(parseInt(SESSION.addon_amount)/100) + '" step="1" min="0"></div></div>';
     h += '<div><label for="cfg_addon_chips">Add-on Chips</label><input type="number" id="cfg_addon_chips" value="' + (parseInt(SESSION.addon_chips) || parseInt(SESSION.starting_chips) || 0) + '" min="0" title="Chips granted per add-on taken"></div>';
     h += '</div></div>';
+    // What the entry fee already covers. The counts are recorded at $0 at the
+    // table; the choice below says whether the free rebuy and the free add-on
+    // are two stacks or one (Bernard's game: a rebuy before the break, or the
+    // add-on at the break). The choice only matters once a free rebuy exists.
+    h += '<div class="pk-subbox pk-subbox-wide" id="subbox_free">';
+    h += '<div class="pk-subbox-head"><span>&#127873; Free with the buy-in <small style="font-weight:400;color:#64748b">&middot; what the entry fee already covers</small></span></div>';
+    h += '<div class="pk-subbox-body on">';
+    h += '<div><label for="cfg_rebuys_included">Free rebuys</label><input type="number" id="cfg_rebuys_included" value="' + (parseInt(SESSION.rebuys_included) || 0) + '" min="0" title="Rebuys per player the entry fee already covers. Recorded at $0; any beyond cost the Rebuy amount." data-act-input="syncFreeStackRow"></div>';
+    h += '<div id="cfg_addons_included_wrap"' + (aoShared ? ' style="display:none"' : '') + '><label for="cfg_addons_included">Free add-ons</label><input type="number" id="cfg_addons_included" value="' + (parseInt(SESSION.addons_included) || 0) + '" min="0" title="Add-ons per player the entry fee already covers. Recorded at $0; any beyond cost the Add-on amount."></div>';
+    h += '<div id="addonFreeNote"' + (aoShared ? '' : ' style="display:none"') + '><label>Free add-ons</label><div style="font-size:.85rem;color:#64748b;min-height:30px;display:flex;align-items:center" title="A player who used their free rebuy pays the Add-on amount">Free unless the rebuy was used</div></div>';
+    h += '<div id="freeStackRow" style="grid-column:1/-1' + (parseInt(SESSION.rebuys_included) > 0 ? '' : ';display:none') + '">';
+    h += '<label for="cfg_free_stack">Free rebuy and free add-on</label><select id="cfg_free_stack" data-act-change="toggleAddonShare" data-change-a1="@value">'
+       + '<option value="0"' + (aoShared ? '' : ' selected') + '>Separate: a player may take both</option>'
+       + '<option value="1"' + (aoShared ? ' selected' : '') + '>One stack: a rebuy before the break, or the add-on at the break</option></select>'
+       + '<div style="font-size:.78rem;color:#64748b;margin-top:.35rem">One stack: the entry fee covers a rebuy if the player busts before the break, or the add-on at the break. A player who took the rebuy pays for the add-on.</div>';
+    h += '</div>';
     h += '</div></div>';
+    h += '</div>';   // .pk-subgrids
+    h += '</div>';   // .pk-cfg-section
 
     // ── Tables ──
     h += '<div class="pk-cfg-section"><div class="pk-cfg-title">Tables</div>';
@@ -3622,6 +3673,25 @@ function loadPayoutStructures() {
         });
 }
 
+function showChipsHelp() {
+    pkAlert(
+        '<div class="pk-help-content">'
+        + '<h4>Chips</h4>'
+        + '<p><b>Starting Chips</b> is the stack every buy-in gets.</p>'
+        + '<h4>Rebuys</h4>'
+        + '<p>A rebuy is a fresh stack for a player who busts. <b>Rebuy</b> is what it costs, <b>Max</b> caps how many one player may take (0 = no cap), and <b>Close after level</b> stops rebuys once the clock is past that level; the break right after it still counts. Past the close, the + on a row asks before recording one.</p>'
+        + '<h4>Add-ons</h4>'
+        + '<p>An add-on is an extra stack bought at the break, usually by everyone still in. <b>Add-on</b> is what it costs and <b>Add-on Chips</b> what it gives. At the break, <b>Add-on for everyone still in</b> records them all in one tap.</p>'
+        + '<h4>Free with the buy-in</h4>'
+        + '<p>Some games fold a rebuy or an add-on into the entry fee: everyone pays one price at the door. Enter how many <b>free rebuys</b> and <b>free add-ons</b> that price covers; those are recorded at $0 and the prize pool counts only the ones bought beyond them.</p>'
+        + '<p><b>Free rebuy and free add-on</b>: <i>Separate</i> means a player may take both. <i>One stack</i> means the fee covers one or the other: a rebuy if they bust before the break, or the add-on at the break. A player who took the rebuy pays the add-on price.</p>'
+        + '<h4>Example</h4>'
+        + '<p>$30 buy-in that includes one stack, taken as a rebuy or at the break: Rebuy $20, Free rebuys 1, Close after level 4 (the last level before the break), Add-on $10, One stack. A player who never busts takes the add-on free; one who rebought pays $10 for it; a second rebuy is $20.</p>'
+        + '</div>',
+        { title: 'Chips, rebuys and add-ons', okLabel: 'Got it' }
+    );
+}
+
 function showPresetHelp() {
     pkAlert(
         '<div class="pk-help-content">'
@@ -4023,6 +4093,10 @@ function buildPresetFormData() {
     fd.append('gc_addon_chips', parseInt((document.getElementById('cfg_addon_chips') || {}).value || 0));
     fd.append('gc_rebuy_allowed', (document.getElementById('cfg_rebuy_allowed') || {}).checked ? 1 : 0);
     fd.append('gc_max_rebuys', parseInt((document.getElementById('cfg_max_rebuys') || {}).value || 0));
+    fd.append('gc_rebuys_included', Math.max(0, parseInt((document.getElementById('cfg_rebuys_included') || {}).value || 0)));
+    fd.append('gc_rebuy_cutoff_level', Math.max(0, parseInt((document.getElementById('cfg_rebuy_cutoff') || {}).value || 0)));
+    fd.append('gc_addons_included', Math.max(0, parseInt((document.getElementById('cfg_addons_included') || {}).value || 0)));
+    fd.append('gc_addons_share_rebuys', (document.getElementById('cfg_free_stack') || {}).value === '1' ? 1 : 0);
     fd.append('gc_addon_allowed', (document.getElementById('cfg_addon_allowed') || {}).checked ? 1 : 0);
     fd.append('gc_num_tables', parseInt((document.getElementById('cfg_tables') || {}).value || 1));
     fd.append('gc_seats_per_table', parseInt((document.getElementById('cfg_seats_per_table') || {}).value || 8));
@@ -4173,17 +4247,39 @@ function toggleBounty(pid) {
 }
 
 function updateRebuys(pid, delta) {
-    var doPost = function() {
-        postAction('update_rebuys', { player_id: pid, delta: delta }, function(j) {
+    var p = (PLAYERS || []).find(function(x) { return x.id == pid; });
+    var cutoff = parseInt(SESSION.rebuy_cutoff_level) || 0;
+    var askPastCutoff = function(level) {
+        return pkConfirm('Rebuys closed after level ' + cutoff + '; the clock is on level ' + level + '. Record one for <b>' + escHtml(p ? p.display_name : 'this player') + '</b> anyway?', { okLabel: 'Record anyway', danger: true });
+    };
+    var doPost = function(force) {
+        var data = { player_id: pid, delta: delta };
+        if (force) data.force = 1;
+        postAction('update_rebuys', data, function(j) {
             // Re-entry changes more than one row (eliminator's banked bounty,
             // recomputed payouts, possibly a reopened game) — full resync.
             if (j.reentered || j.reopened) { loadSession(); return; }
             updatePlayer(j.player);
             POOL = j.pool;
             refreshUI();
+        }, function(j) {
+            // The game has closed rebuys and the console had not seen the clock
+            // get there yet: ask, then record on purpose.
+            if (j.closed && !force) {
+                TIMER_LEVEL = parseInt(j.level) || TIMER_LEVEL;
+                askPastCutoff(j.level).then(function(ok) { if (ok) doPost(true); else refreshUI(); });
+                return;
+            }
+            pkAlert(j.error || 'Error');
         });
     };
-    var p = (PLAYERS || []).find(function(x) { return x.id == pid; });
+    var start = function() {
+        if (delta > 0 && rebuysClosed()) {
+            askPastCutoff(TIMER_LEVEL).then(function(ok) { if (ok) doPost(true); });
+            return;
+        }
+        doPost(false);
+    };
     if (p && delta > 0 && parseInt(p.eliminated)) {
         var bountyNote = '';
         if (parseInt(SESSION.bounty_amount) > 0) {
@@ -4192,10 +4288,10 @@ function updateRebuys(pid, delta) {
                 : ' Any bounty already collected on them stays collected.';
         }
         pkConfirm('Rebuy and re-enter ' + escHtml(p.display_name) + '? They come back into the game with a fresh stack.' + bountyNote, { okLabel: 'Re-enter' })
-            .then(function(ok) { if (ok) doPost(); });
+            .then(function(ok) { if (ok) start(); });
         return;
     }
-    doPost();
+    start();
 }
 
 function addAddon(pid) {
@@ -4210,6 +4306,57 @@ function updateAddons(pid, delta) {
         POOL = j.pool;
         refreshUI();
     });
+}
+
+// ── The break add-on, in bulk ──
+// Which of these players can take an add-on now: still in and without one
+// (one per player, so a repeat never doubles up), already holding one, or not
+// in the game at all.
+function addonEligible(ids) {
+    var r = { eligible: [], taken: [], out: [] };
+    ids.forEach(function(id) {
+        var p = (PLAYERS || []).find(function(x) { return parseInt(x.id) === parseInt(id); });
+        if (!p) return;
+        var playing = parseInt(p.bought_in) && !parseInt(p.eliminated) && p.approval_status !== 'pending';
+        if (!playing) r.out.push(p);
+        else if ((parseInt(p.addons) || 0) > 0) r.taken.push(p);
+        else r.eligible.push(p);
+    });
+    return r;
+}
+// scope 'selected' = the bulk bar's ticked rows (desktop); 'playing' = everyone
+// still in (the phone's one button). Asks with the count and who is skipped.
+async function bulkAddons(scope) {
+    var ids = scope === 'selected'
+        ? Array.from(document.querySelectorAll('.pk-player-cb:checked')).map(function(cb) { return parseInt(cb.value); })
+        : (PLAYERS || []).map(function(p) { return parseInt(p.id); });
+    if (!ids.length) return;
+    var e = addonEligible(ids);
+    var n = e.eligible.length;
+    if (!n) {
+        pkAlert(e.taken.length ? 'Everyone ' + (scope === 'selected' ? 'selected' : 'still in') + ' already has an add-on.' : 'Nobody ' + (scope === 'selected' ? 'selected' : '') + ' is in the game.');
+        return;
+    }
+    var msg = 'Record an add-on for <b>' + n + '</b> player' + (n === 1 ? '' : 's') + (scope === 'playing' ? ' still in' : '') + '?';
+    var notes = [];
+    if (e.taken.length) notes.push(e.taken.length + ' already ' + (e.taken.length === 1 ? 'has' : 'have') + ' one and ' + (e.taken.length === 1 ? 'is' : 'are') + ' skipped');
+    if (scope === 'selected' && e.out.length) notes.push(e.out.length + ' not in the game, skipped');
+    if (notes.length) msg += '<br><br>' + notes.join('; ') + '.';
+    msg += '<br><br>' + addonCostLine(e.eligible, formatMoney);
+    if (!(await pkConfirm(msg, { title: 'Add-on', okLabel: 'Record' }))) return;
+    postAction('bulk_addons', { session_id: SESSION.id, player_ids: e.eligible.map(function(p) { return p.id; }).join(',') }, function(j) {
+        loadSession();
+        walkinToast('Add-on recorded for ' + j.recorded + ' player' + (j.recorded === 1 ? '' : 's'));
+    });
+}
+// The phone has no bulk bar, so the list leads with one button when there is
+// anyone to give an add-on to. Hidden on wider screens (CSS), where the bulk
+// bar's Add-on does the same for the selected rows.
+function renderBreakAddonBar() {
+    if (!isTourney() || !parseInt(SESSION.addon_allowed)) return '';
+    var n = addonEligible((PLAYERS || []).map(function(p) { return p.id; })).eligible.length;
+    if (!n) return '';
+    return '<div class="pk-break-addon"><button type="button" title="One add-on for each player still in who has none yet" data-act="bulkAddons" data-a1="playing">+ Add-on for everyone still in (' + n + ')</button></div>';
 }
 
 function setTable(pid, val) {
@@ -5002,7 +5149,11 @@ function saveSettings() {
         data.addon_chips = parseInt((document.getElementById('cfg_addon_chips') || {}).value || data.starting_chips);
         data.rebuy_allowed = (document.getElementById('cfg_rebuy_allowed') || {}).checked ? 1 : 0;
         data.max_rebuys = parseInt((document.getElementById('cfg_max_rebuys') || {}).value || 0);
+        data.rebuys_included = Math.max(0, parseInt((document.getElementById('cfg_rebuys_included') || {}).value || 0));
+        data.rebuy_cutoff_level = Math.max(0, parseInt((document.getElementById('cfg_rebuy_cutoff') || {}).value || 0));
         data.addon_allowed = (document.getElementById('cfg_addon_allowed') || {}).checked ? 1 : 0;
+        data.addons_included = Math.max(0, parseInt((document.getElementById('cfg_addons_included') || {}).value || 0));
+        data.addons_share_rebuys = ((document.getElementById('cfg_free_stack') || {}).value === '1' && data.rebuys_included > 0) ? 1 : 0;
         data.bounty_amount = Math.max(0, Math.round(parseFloat((document.getElementById('cfg_bounty') || {}).value || 0))) * 100;
         data.bounty_points = parseInt((document.getElementById('cfg_bounty_points') || {}).value || 0);
         data.ticket_target_event_id = parseInt((document.getElementById('cfg_ticket_target') || {}).value || 0);
@@ -5018,7 +5169,11 @@ function saveSettings() {
         data.addon_chips = 0;
         data.rebuy_allowed = 1;
         data.max_rebuys = 0;
+        data.rebuys_included = 0;
+        data.rebuy_cutoff_level = 0;
         data.addon_allowed = 0;
+        data.addons_included = 0;
+        data.addons_share_rebuys = 0;
     }
     postAction('update_config', data, function(j) {
         SESSION = j.session;
@@ -5150,6 +5305,67 @@ function ledgerBtn(pid, nm) {
 }
 
 // Small tap-friendly help marker; data-tip is shown on hover or focus/tap.
+// The Rebuys / Add-ons heading's ? when the buy-in includes some: the host
+// reading a player's count needs to know which of them cost anything.
+function rebuysIncludedTip() {
+    var n = parseInt(SESSION.rebuys_included) || 0;
+    var c = parseInt(SESSION.rebuy_cutoff_level) || 0;
+    var parts = [];
+    if (n) parts.push('Each player\'s first ' + n + ' rebuy' + (n > 1 ? 's are' : ' is') + ' free with the buy-in; the rest are ' + formatMoney(parseInt(SESSION.rebuy_amount)) + ' each.');
+    if (c) parts.push(rebuysClosed() ? 'Rebuys closed after level ' + c + '; the clock is on level ' + TIMER_LEVEL + '.' : 'Rebuys close after level ' + c + '.');
+    return parts.length ? tip(parts.join(' ')) : '';
+}
+// The rebuy cutoff, as the console last saw the clock (TIMER_LEVEL rides on
+// every get_session poll). The + still works when closed: the host confirms.
+function rebuysClosed() {
+    var c = parseInt(SESSION.rebuy_cutoff_level) || 0;
+    return c > 0 && TIMER_LEVEL > c;
+}
+function rebuyPlusAttrs() {
+    return rebuysClosed() ? ' class="pk-rebuy-closed" title="Rebuys closed after level ' + parseInt(SESSION.rebuy_cutoff_level) + ' (the clock is on level ' + TIMER_LEVEL + ')"' : '';
+}
+function toggleAddonShare(val) {
+    var one = String(val) === '1';
+    var w = document.getElementById('cfg_addons_included_wrap'), note = document.getElementById('addonFreeNote');
+    if (w) w.style.display = one ? 'none' : '';
+    if (note) note.style.display = one ? '' : 'none';
+    markSettingsDirty();
+}
+// The one-stack choice only means something once the buy-in covers a rebuy.
+function syncFreeStackRow() {
+    var n = parseInt((document.getElementById('cfg_rebuys_included') || {}).value) || 0;
+    var row = document.getElementById('freeStackRow');
+    if (row) row.style.display = n > 0 ? '' : 'none';
+    var s = document.getElementById('cfg_free_stack');
+    if (n <= 0 && s && s.value === '1') { s.value = '0'; toggleAddonShare('0'); }
+}
+var escHtmlAny = function (s) { return escHtml(s); };
+// Rebuy OR add-on: a player's next add-on is free while the buy-in's allowance
+// lasts (pk_addon_allowance on the server; rebuys use it first).
+function addonFreeFor(p) {
+    var shared = parseInt(SESSION.addons_share_rebuys) === 1;
+    var n = shared ? Math.max(0, (parseInt(SESSION.rebuys_included) || 0) - (parseInt(p.rebuys) || 0)) : (parseInt(SESSION.addons_included) || 0);
+    return (parseInt(p.addons) || 0) < n;
+}
+// The confirm's money line for a set of add-ons about to be recorded.
+function addonCostLine(list, money) {
+    var free = list.filter(addonFreeFor), paid = list.filter(function (p) { return !addonFreeFor(p); });
+    var each = money(parseInt(SESSION.addon_amount)) + ' each';
+    if (!paid.length) return 'All free with the buy-in; nothing to collect.';
+    if (!free.length) return each + '.';
+    var shown = paid.slice(0, 3).map(function (p) { return escHtmlAny(p.display_name); });
+    var names = paid.length > 3 ? shown.join(', ') + ' and ' + (paid.length - 3) + ' more' : (shown.length > 1 ? shown.slice(0, -1).join(', ') + ' and ' + shown[shown.length - 1] : shown[0]);
+    return 'Free for ' + free.length + ' (came with the buy-in). ' + names + ' used their free rebuy and pay ' + each + '.';
+}
+function addonsIncludedTip() {
+    if (parseInt(SESSION.addons_share_rebuys) === 1 && parseInt(SESSION.rebuys_included)) {
+        return tip('One free stack per player, a rebuy or the add-on: the add-on is free unless they used their free rebuy, then it is ' + formatMoney(parseInt(SESSION.addon_amount)) + '.');
+    }
+    var n = parseInt(SESSION.addons_included) || 0;
+    if (!n) return '';
+    return tip('Each player\'s first ' + n + ' add-on' + (n > 1 ? 's are' : ' is') + ' free with the buy-in; the rest are ' + formatMoney(parseInt(SESSION.addon_amount)) + ' each.');
+}
+
 function tip(text) {
     return '<span class="pk-tip" tabindex="0" role="note" aria-label="' + escHtml(text) + '" data-tip="' + escHtml(text) + '" data-stop="1">?</span>';
 }
@@ -5342,7 +5558,9 @@ function isMoneyLogRow(e) {
 // sign is lost (-0 === 0) and clearing would decrement again instead of
 // restoring, so the row offers no Clear. Guards both the log and the ledger.
 function ledgerRowClearable(e, amt) {
-    if ((e.event_type === 'rebuy' || e.event_type === 'addon') && (amt === null || amt === 0)) return false;
+    // A rebuy or add-on row undoes cleanly whatever it carries: the server
+    // reads the direction from the sign, and a $0 row (a rebuy that came with
+    // the buy-in) from its wording.
     return true;
 }
 
@@ -5489,7 +5707,7 @@ function refreshUIInner() {
             if (m) expandedIds.push(m[1]);
         });
         var mobileList = document.getElementById('mobileList');
-        if (mobileList) mobileList.innerHTML = renderMobileCards();
+        if (mobileList) mobileList.innerHTML = renderBreakAddonBar() + renderMobileCards();
         // Restore expanded state
         expandedIds.forEach(function(pid) {
             var el = document.getElementById('mexp_' + pid);
@@ -5686,6 +5904,9 @@ setInterval(function() {
         .then(function(j) {
             if (!j.ok || !j.session) return;
             POOL = j.pool;
+            var lvl = parseInt(j.timer_level) || 0;
+            var levelMoved = lvl !== TIMER_LEVEL && (parseInt(j.session.rebuy_cutoff_level) || 0) > 0;
+            TIMER_LEVEL = lvl;
             checkWalkinArrivals(j.players); // alert even when the render below is skipped
             if (j.log) { LOG = j.log; if (VIEW_MODE === 'log') renderLog(); }
             var poolEl = document.getElementById('poolTotal');
@@ -5699,7 +5920,7 @@ setInterval(function() {
             var changed = JSON.stringify(j.players) !== JSON.stringify(PLAYERS)
                        || JSON.stringify(j.payouts) !== JSON.stringify(PAYOUTS)
                        || JSON.stringify(j.session) !== JSON.stringify(SESSION);
-            if (changed && !rosterEditInProgress()) {
+            if ((changed || levelMoved) && !rosterEditInProgress()) {
                 SESSION = j.session;
                 PLAYERS = j.players;
                 PAYOUTS = j.payouts;

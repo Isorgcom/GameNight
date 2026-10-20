@@ -258,9 +258,9 @@ function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allo
                 : ['rebuy_amount'=>2000,'addon_amount'=>1000,'starting_chips'=>5000,'addon_chips'=>5000,'rebuy_allowed'=>1,'addon_allowed'=>1,'max_rebuys'=>0,'auto_assign_tables'=>1];
             $db->prepare('INSERT OR IGNORE INTO poker_sessions
                 (event_id, buyin_amount, rebuy_amount, addon_amount, starting_chips, addon_chips,
-                 rebuy_allowed, addon_allowed, max_rebuys, num_tables, seats_per_table,
+                 rebuy_allowed, addon_allowed, max_rebuys, rebuys_included, addons_included, addons_share_rebuys, rebuy_cutoff_level, num_tables, seats_per_table,
                  auto_assign_tables, game_type)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
                ->execute([
                    $notify_eid,
                    $poker_buyin,
@@ -270,7 +270,7 @@ function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allo
                    (int)$__def['addon_chips'],
                    (int)$__def['rebuy_allowed'],
                    (int)$__def['addon_allowed'],
-                   (int)$__def['max_rebuys'],
+                   (int)$__def['max_rebuys'], (int)($__def['rebuys_included'] ?? 0), (int)($__def['addons_included'] ?? 0), (int)($__def['addons_share_rebuys'] ?? 0), (int)($__def['rebuy_cutoff_level'] ?? 0),
                    $poker_tables,
                    $poker_seats,
                    (int)$__def['auto_assign_tables'],
@@ -368,14 +368,14 @@ function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allo
                     : ['rebuy_amount'=>2000,'addon_amount'=>1000,'starting_chips'=>5000,'addon_chips'=>5000,'rebuy_allowed'=>1,'addon_allowed'=>1,'max_rebuys'=>0,'auto_assign_tables'=>1];
                 $db->prepare('INSERT INTO poker_sessions
                     (event_id, buyin_amount, rebuy_amount, addon_amount, starting_chips, addon_chips,
-                     rebuy_allowed, addon_allowed, max_rebuys, num_tables, seats_per_table,
+                     rebuy_allowed, addon_allowed, max_rebuys, rebuys_included, addons_included, addons_share_rebuys, rebuy_cutoff_level, num_tables, seats_per_table,
                      auto_assign_tables, game_type)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
                    ->execute([
                        $id, $poker_buyin,
                        (int)$__def['rebuy_amount'], (int)$__def['addon_amount'],
                        (int)$__def['starting_chips'], (int)$__def['addon_chips'],
-                       (int)$__def['rebuy_allowed'], (int)$__def['addon_allowed'], (int)$__def['max_rebuys'],
+                       (int)$__def['rebuy_allowed'], (int)$__def['addon_allowed'], (int)$__def['max_rebuys'], (int)($__def['rebuys_included'] ?? 0), (int)($__def['addons_included'] ?? 0), (int)($__def['addons_share_rebuys'] ?? 0), (int)($__def['rebuy_cutoff_level'] ?? 0),
                        $poker_tables, $poker_seats, (int)$__def['auto_assign_tables'], $poker_game_type,
                    ]);
             }

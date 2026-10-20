@@ -61,6 +61,8 @@ if ($action === 'get_session') {
         'players'  => get_players($db, $session['id']),
         'payouts'  => get_payouts($db, $session['id']),
         'pool'     => calc_pool($db, $session['id']),
+        // The clock's blind level, for the rebuy cutoff (0 = no timer yet).
+        'timer_level' => pk_timer_blind_level($db, (int)$session['id']),
         // slim=1 (table_manager.php's roster poll) drops the log — it is ~80% of
         // this payload and Game Day never renders it. checkin.php never sends
         // the flag, so the console is untouched.
@@ -156,12 +158,13 @@ if ($action === 'void_ledger_entry') {
                ->execute([$player_id]);
             break;
         case 'rebuy':
-            $db->prepare('UPDATE poker_players SET rebuys = MAX(0, rebuys - ?) WHERE id = ?')
-               ->execute([$amt >= 0 ? 1 : -1, $player_id]);
-            break;
         case 'addon':
-            $db->prepare('UPDATE poker_players SET addons = MAX(0, addons - ?) WHERE id = ?')
-               ->execute([$amt >= 0 ? 1 : -1, $player_id]);
+            // Which way the row went is its sign. A $0 row (a rebuy that came
+            // with the buy-in, or a $0 fee) says so in its wording instead.
+            $dir = $amt > 0 ? 1 : ($amt < 0 ? -1 : (str_contains((string)$entry['detail'], 'removed') ? -1 : 1));
+            $col = $entry['event_type'] === 'rebuy' ? 'rebuys' : 'addons';
+            $db->prepare("UPDATE poker_players SET $col = MAX(0, $col - ?) WHERE id = ?")
+               ->execute([$dir, $player_id]);
             break;
     }
 
@@ -573,13 +576,17 @@ if ($action === 'update_config') {
     // setup_saved=1: the host has been through the editor, so the "not set up
     // yet" prompt retires for this session whatever the numbers end up being
     // (a freeroll's $0 buy-in is a real answer, not a blank).
-    $db->prepare('UPDATE poker_sessions SET buyin_amount=?, rebuy_amount=?, addon_amount=?, rebuy_allowed=?, addon_allowed=?, max_rebuys=?, starting_chips=?, addon_chips=?, num_tables=?, game_type=?, auto_assign_tables=?, seats_per_table=?, bounty_amount=?, bounty_points=?, ticket_target_event_id=?, jackpot_amount=?, bounty_optional=?, jackpot_optional=?, setup_saved=1 WHERE id=?')->execute([
+    $db->prepare('UPDATE poker_sessions SET buyin_amount=?, rebuy_amount=?, addon_amount=?, rebuy_allowed=?, addon_allowed=?, max_rebuys=?, rebuys_included=?, addons_included=?, addons_share_rebuys=?, rebuy_cutoff_level=?, starting_chips=?, addon_chips=?, num_tables=?, game_type=?, auto_assign_tables=?, seats_per_table=?, bounty_amount=?, bounty_points=?, ticket_target_event_id=?, jackpot_amount=?, bounty_optional=?, jackpot_optional=?, setup_saved=1 WHERE id=?')->execute([
         $new_buyin,
         (int)($_POST['rebuy_amount'] ?? $s['rebuy_amount']),
         (int)($_POST['addon_amount'] ?? $s['addon_amount']),
         (int)($_POST['rebuy_allowed'] ?? $s['rebuy_allowed']),
         (int)($_POST['addon_allowed'] ?? $s['addon_allowed']),
         (int)($_POST['max_rebuys'] ?? $s['max_rebuys']),
+        max(0, (int)($_POST['rebuys_included'] ?? $s['rebuys_included'] ?? 0)),
+        max(0, (int)($_POST['addons_included'] ?? $s['addons_included'] ?? 0)),
+        (int)($_POST['addons_share_rebuys'] ?? $s['addons_share_rebuys'] ?? 0) ? 1 : 0,
+        max(0, (int)($_POST['rebuy_cutoff_level'] ?? $s['rebuy_cutoff_level'] ?? 0)),
         (int)($_POST['starting_chips'] ?? $s['starting_chips']),
         (int)($_POST['addon_chips'] ?? $s['addon_chips'] ?? $s['starting_chips']),
         $new_num_tables,
@@ -637,6 +644,10 @@ if ($action === 'update_config') {
         'rebuy_allowed'      => (int)$srow['rebuy_allowed'],
         'addon_allowed'      => (int)$srow['addon_allowed'],
         'max_rebuys'         => (int)$srow['max_rebuys'],
+        'rebuys_included'    => (int)($srow['rebuys_included'] ?? 0),
+        'addons_included'    => (int)($srow['addons_included'] ?? 0),
+        'addons_share_rebuys'=> (int)($srow['addons_share_rebuys'] ?? 0),
+        'rebuy_cutoff_level' => (int)($srow['rebuy_cutoff_level'] ?? 0),
         'num_tables'         => (int)$srow['num_tables'],
         'seats_per_table'    => (int)$srow['seats_per_table'],
         'auto_assign_tables' => (int)$srow['auto_assign_tables'],
@@ -878,6 +889,22 @@ if ($action === 'update_rebuys') {
         $newVal = (int)$session['max_rebuys'];
     }
 
+    // Rebuy cutoff: the game may close rebuys once the clock is past a blind
+    // level. The host stays in charge: the console asks and re-posts with
+    // force=1, and the ledger row then says the rebuy came after the cutoff.
+    $cutoff = (int)($session['rebuy_cutoff_level'] ?? 0);
+    $pastCutoff = false;
+    if ($delta > 0 && $cutoff > 0) {
+        $clockLevel = pk_timer_blind_level($db, (int)$session['id']);
+        if ($clockLevel > $cutoff) {
+            if (empty($_POST['force'])) {
+                echo json_encode(['ok' => false, 'closed' => true, 'level' => $clockLevel, 'cutoff' => $cutoff,
+                                  'error' => 'Rebuys closed after level ' . $cutoff . ' — the clock is on level ' . $clockLevel . '.']); exit;
+            }
+            $pastCutoff = true;
+        }
+    }
+
     // Rebuy re-entry: a paid rebuy brings an eliminated player back into the
     // game. The recorded knockout is BANKED on the eliminator first (they keep
     // the bounty they collected), then the live elimination link is cleared.
@@ -956,9 +983,14 @@ if ($action === 'update_rebuys') {
     $p->execute([$player_id]);
     $prow = $p->fetch();
     if ($newVal !== $cur) {
-        $amt = (int)$session['rebuy_amount'];
+        // The rebuy being added or taken back is the higher of the two counts.
+        // Within the number the buy-in includes it costs nothing: that money
+        // was in the entry fee, so the row carries $0 and calc_pool charges
+        // only the rebuys beyond that number.
+        $included = max($newVal, $cur) <= (int)($session['rebuys_included'] ?? 0);
+        $amt = $included ? 0 : (int)$session['rebuy_amount'];
         $detail = ($newVal > $cur)
-            ? 'Rebuy #' . $newVal . ' — ' . pk_money($amt) . ($reentered ? ' — re-entered the game' : '')
+            ? 'Rebuy #' . $newVal . ' — ' . ($included ? 'included in buy-in' : pk_money($amt)) . ($reentered ? ' — re-entered the game' : '') . ($pastCutoff ? ' — after the level-' . $cutoff . ' cutoff' : '')
             : 'Rebuy removed (now ' . $newVal . ')';
         pk_log($db, (int)$session['id'], (int)$current['id'], 'rebuy', $player_id, $prow['display_name'] ?? '', ($newVal > $cur ? $amt : -$amt), $detail);
     }
@@ -979,6 +1011,56 @@ if ($action === 'update_rebuys') {
     exit;
 }
 
+// ─── bulk_addons ───────────────────────────────────────────
+// The break add-on: one add-on each for a list of players, in one transaction,
+// with the same ledger rule as update_addons (a player's first N come with the
+// buy-in). A player who already has one, is not bought in, is out, or is not
+// on this session is skipped, so a repeat never doubles up. The answer says
+// how many were recorded and who was skipped.
+if ($action === 'bulk_addons') {
+    $session_id = (int)($_POST['session_id'] ?? 0);
+    $sq = $db->prepare('SELECT * FROM poker_sessions WHERE id = ?');
+    $sq->execute([$session_id]);
+    $session = $sq->fetch();
+    if (!$session) { echo json_encode(['ok' => false, 'error' => 'Session not found']); exit; }
+    verify_event_access($db, $session['event_id'], $current, $isAdmin);
+    if (!(int)$session['addon_allowed']) {
+        echo json_encode(['ok' => false, 'error' => 'Add-ons not allowed']); exit;
+    }
+    $ids = array_values(array_unique(array_filter(array_map('intval', explode(',', (string)($_POST['player_ids'] ?? ''))))));
+    if (!$ids) { echo json_encode(['ok' => false, 'error' => 'No players named']); exit; }
+
+    $amt = (int)$session['addon_amount'];
+    $recorded = 0; $skipped = [];
+    $sel = $db->prepare('SELECT id, display_name, addons, rebuys, bought_in, eliminated, removed FROM poker_players WHERE id = ? AND session_id = ?');
+    $upd = $db->prepare('UPDATE poker_players SET addons = addons + 1 WHERE id = ?');
+    $db->beginTransaction();
+    foreach ($ids as $pid) {
+        $sel->execute([$pid, $session_id]);
+        $p = $sel->fetch();
+        if (!$p) continue;
+        if ((int)$p['removed'] || !(int)$p['bought_in'] || (int)$p['eliminated'] || (int)$p['addons'] > 0) {
+            $skipped[] = (string)$p['display_name'];
+            continue;
+        }
+        $upd->execute([$pid]);
+        $n = (int)$p['addons'] + 1;
+        $included = $n <= pk_addon_allowance($session, (int)$p['rebuys']);
+        pk_log($db, $session_id, (int)$current['id'], 'addon', $pid, (string)$p['display_name'], $included ? 0 : $amt,
+               'Add-on #' . $n . ' — ' . ($included ? 'included in buy-in' : pk_money($amt)));
+        $recorded++;
+    }
+    $db->commit();
+    echo json_encode([
+        'ok'       => true,
+        'recorded' => $recorded,
+        'skipped'  => $skipped,
+        'players'  => get_players($db, $session_id),
+        'pool'     => calc_pool($db, $session_id),
+    ]);
+    exit;
+}
+
 // ─── update_addons ─────────────────────────────────────────
 if ($action === 'update_addons') {
     $player_id = (int)($_POST['player_id'] ?? 0);
@@ -991,9 +1073,10 @@ if ($action === 'update_addons') {
         echo json_encode(['ok' => false, 'error' => 'Add-ons not allowed']); exit;
     }
 
-    $pl = $db->prepare('SELECT addons FROM poker_players WHERE id = ?');
+    $pl = $db->prepare('SELECT addons, rebuys FROM poker_players WHERE id = ?');
     $pl->execute([$player_id]);
-    $cur = (int)$pl->fetch()['addons'];
+    $plRow = $pl->fetch();
+    $cur = (int)$plRow['addons'];
     $newVal = max(0, $cur + $delta);
 
     $db->prepare('UPDATE poker_players SET addons = ? WHERE id = ?')->execute([$newVal, $player_id]);
@@ -1002,9 +1085,12 @@ if ($action === 'update_addons') {
     $p->execute([$player_id]);
     $prow = $p->fetch();
     if ($newVal !== $cur) {
-        $amt = (int)$session['addon_amount'];
+        // Same rule as a rebuy: within the number the buy-in includes, the
+        // add-on costs nothing and calc_pool leaves it out of the pool.
+        $included = max($newVal, $cur) <= pk_addon_allowance($session, (int)$plRow['rebuys']);
+        $amt = $included ? 0 : (int)$session['addon_amount'];
         $detail = ($newVal > $cur)
-            ? 'Add-on #' . $newVal . ' — ' . pk_money($amt)
+            ? 'Add-on #' . $newVal . ' — ' . ($included ? 'included in buy-in' : pk_money($amt))
             : 'Add-on removed (now ' . $newVal . ')';
         pk_log($db, (int)$session['id'], (int)$current['id'], 'addon', $player_id, $prow['display_name'] ?? '', ($newVal > $cur ? $amt : -$amt), $detail);
     }
@@ -1797,7 +1883,7 @@ if ($action === 'save_payout_structure') {
     // preset restores the ENTIRE settings editor. Whitelisted keys only.
     $gc = [];
     foreach (['buyin_amount', 'rebuy_amount', 'addon_amount', 'starting_chips', 'addon_chips',
-              'rebuy_allowed', 'max_rebuys', 'addon_allowed', 'num_tables', 'seats_per_table',
+              'rebuy_allowed', 'max_rebuys', 'rebuys_included', 'rebuy_cutoff_level', 'addon_allowed', 'addons_included', 'addons_share_rebuys', 'num_tables', 'seats_per_table',
               'auto_assign_tables', 'bounty_optional', 'jackpot_optional'] as $k) {
         if (isset($_POST['gc_' . $k])) $gc[$k] = max(0, (int)$_POST['gc_' . $k]);
     }
@@ -1949,7 +2035,7 @@ if ($action === 'load_payout_structure') {
     if (!empty($struct['game_config'])) {
         $gc = json_decode((string)$struct['game_config'], true) ?: [];
         $allowed = ['buyin_amount', 'rebuy_amount', 'addon_amount', 'starting_chips', 'addon_chips',
-                    'rebuy_allowed', 'max_rebuys', 'addon_allowed', 'num_tables', 'seats_per_table',
+                    'rebuy_allowed', 'max_rebuys', 'rebuys_included', 'rebuy_cutoff_level', 'addon_allowed', 'addons_included', 'addons_share_rebuys', 'num_tables', 'seats_per_table',
                     'auto_assign_tables', 'bounty_optional', 'jackpot_optional'];
         $sets = []; $vals = [];
         foreach ($allowed as $k) {
