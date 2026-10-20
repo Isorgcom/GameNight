@@ -160,7 +160,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             finaltable_cancel_if_live($db, $id);
 
             $db->prepare("DELETE FROM comments WHERE type='event' AND content_id=?")->execute([$id]);
-            try { $db->prepare('DELETE FROM event_messages WHERE event_id=?')->execute([$id]); } catch (Exception $e) {}
+            try { require_once __DIR__ . '/_notifications.php'; event_message_unlink_attachments($db, 'event_id = ?', [$id]); $db->prepare('DELETE FROM event_messages WHERE event_id=?')->execute([$id]); } catch (Exception $e) {}
             $db->prepare('DELETE FROM event_exceptions WHERE event_id=?')->execute([$id]);
             $db->prepare('DELETE FROM event_invites WHERE event_id=?')->execute([$id]);
             // Clean up already-sent notification history for this event; leave any unsent
@@ -654,8 +654,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Store the message (history + tokenized view link).
         $token = bin2hex(random_bytes(16));
-        $db->prepare('INSERT INTO event_messages (event_id, occurrence_date, token, subject, body_html, audience, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
-           ->execute([$eid, $occ, $token, $subject, $body, $audience, (int)$current['id']]);
+
+        // One optional PDF: attached to every email, linked from the message page
+        // for text recipients. Sniffed, not trusted by extension; 5 MB at most
+        // (relays cap attachments, and a phone opens it). Stored under the
+        // message token, which is the same grant as the view link.
+        $attName = null; $attFile = null;
+        if (!empty($_FILES['attachment']) && (int)$_FILES['attachment']['error'] !== UPLOAD_ERR_NO_FILE) {
+            $f = $_FILES['attachment'];
+            if ((int)$f['error'] !== UPLOAD_ERR_OK) $fail('The PDF did not upload. Try again.');
+            if ((int)$f['size'] > 5 * 1024 * 1024) $fail('The PDF is too large (5 MB at most).');
+            $finfo = new finfo(FILEINFO_MIME_TYPE);
+            $head  = (string)@file_get_contents($f['tmp_name'], false, null, 0, 5);
+            if ($finfo->file($f['tmp_name']) !== 'application/pdf' || strncmp($head, '%PDF-', 5) !== 0) $fail('Only a PDF can be attached.');
+            $dir = __DIR__ . '/uploads/event_messages/';
+            if (!is_dir($dir) && !mkdir($dir, 0755, true)) $fail('Storage unavailable.', 500);
+            $attFile = $token . '.pdf';
+            if (!move_uploaded_file($f['tmp_name'], $dir . $attFile)) $fail('Could not save the PDF.', 500);
+            $attName = trim((string)preg_replace('/[^\w .()\-]+/u', '_', basename((string)$f['name'])));
+            if ($attName === '' || $attName === '.pdf') $attName = 'attachment.pdf';
+            $attName = mb_substr($attName, 0, 80);
+            if (!preg_match('/\.pdf$/i', $attName)) $attName .= '.pdf';
+        }
+        $db->prepare('INSERT INTO event_messages (event_id, occurrence_date, token, subject, body_html, audience, created_by, attachment_name, attachment_file) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+           ->execute([$eid, $occ, $token, $subject, $body, $audience, (int)$current['id'], $attName, $attFile]);
         $msgId = (int)$db->lastInsertId();
 
         require_once __DIR__ . '/_notifications.php';
@@ -683,6 +705,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($isXhr) { http_response_code(403); header('Content-Type: application/json'); echo json_encode(['ok' => false, 'error' => 'Permission denied.']); exit; }
             http_response_code(403); exit('Permission denied.');
         }
+        require_once __DIR__ . '/_notifications.php';
+        event_message_unlink_attachments($db, 'id = ? AND event_id = ?', [$mid, $eid]);
         $db->prepare('DELETE FROM event_messages WHERE id = ? AND event_id = ?')->execute([$mid, $eid]);
         db_log_activity((int)$current['id'], "deleted event message id $mid on event id: $eid");
         if ($isXhr) { header('Content-Type: application/json'); echo json_encode(['ok' => true]); exit; }
@@ -928,7 +952,7 @@ $ev_messages = [];
 if ($current && !empty($allPageEids)) {
     $curLc = strtolower($current['username']);
     $mph = implode(',', array_fill(0, count($allPageEids), '?'));
-    $mq  = $db->prepare("SELECT m.id, m.event_id, m.subject, m.body_html, m.audience, m.created_at, u.username AS author, e.created_by
+    $mq  = $db->prepare("SELECT m.id, m.event_id, m.subject, m.body_html, m.audience, m.created_at, m.attachment_name, m.attachment_file, u.username AS author, e.created_by
                          FROM event_messages m JOIN events e ON e.id = m.event_id LEFT JOIN users u ON u.id = m.created_by
                          WHERE m.event_id IN ($mph) ORDER BY m.created_at ASC");
     $mq->execute($allPageEids);
@@ -957,6 +981,7 @@ if ($current && !empty($allPageEids)) {
                 'audience'   => $m['audience'],
                 'created_at' => $m['created_at'],
                 'author'     => $m['author'],
+                'attachment' => !empty($m['attachment_file']) ? ['name' => (string)$m['attachment_name'], 'url' => '/uploads/event_messages/' . rawurlencode(basename((string)$m['attachment_file']))] : null,
                 'can_manage' => $canMng,
             ];
         }
@@ -2159,6 +2184,7 @@ function renderInvitesPanel(eid) {
                     + '</div>'
                     + '<div style="font-size:.7rem;color:#94a3b8;margin:.1rem 0 .4rem">' + escHtml(m.created_at) + (m.can_manage ? ' &middot; ' + aud : '') + '</div>'
                     + '<div style="font-size:.85rem;color:#334155;line-height:1.5">' + m.body_html + '</div>'
+                    + (m.attachment ? '<div style="margin-top:.4rem;font-size:.8rem"><a href="' + escHtml(m.attachment.url) + '" target="_blank" rel="noopener">&#128206; ' + escHtml(m.attachment.name) + '</a></div>' : '')
                     + '</div>';
             });
             ih += '</div>';
@@ -3093,6 +3119,10 @@ function copyWalkinLink() {
             <label for="emBody">Message</label>
             <textarea id="emBody" name="body"></textarea>
         </div>
+        <div class="form-group">
+            <label for="emFile">Attach a PDF <span style="font-weight:400;color:#64748b">(optional, up to 5 MB; emailed as an attachment, a link for everyone else)</span></label>
+            <input type="file" id="emFile" accept="application/pdf,.pdf">
+        </div>
         <div style="display:flex;gap:.6rem;justify-content:flex-end;margin-top:.5rem">
             <button type="button" class="btn" data-act="closeEventMsgModal">Cancel</button>
             <button type="button" class="btn btn-primary" id="emSendBtn" data-act="sendEventMessage">Send message</button>
@@ -3122,6 +3152,7 @@ function openEventMsgModal(eid) {
     document.getElementById('emEventId').value = eid;
     document.getElementById('emAudience').value = 'yes';
     document.getElementById('emSubject').value = '';
+    const emf = document.getElementById('emFile'); if (emf) emf.value = '';
     _emEnsureEditor();
     if (_emEditor) _emEditor.value = '';
     document.getElementById('eventMsgModal').classList.add('open');
@@ -3131,6 +3162,10 @@ function closeEventMsgModal() {
 }
 function sendEventMessage() {
     const eid     = parseInt(document.getElementById('emEventId').value);
+    const emFile  = (document.getElementById('emFile') || {}).files;
+    const pdf     = emFile && emFile[0] ? emFile[0] : null;
+    if (pdf && !/\.pdf$/i.test(pdf.name)) { pkAlert('Only a PDF can be attached.'); return; }
+    if (pdf && pdf.size > 5 * 1024 * 1024) { pkAlert('The PDF is too large (5 MB at most).'); return; }
     const subject = document.getElementById('emSubject').value.trim();
     const audience= document.getElementById('emAudience').value;
     const body    = _emEditor ? _emEditor.value : document.getElementById('emBody').value;
@@ -3147,6 +3182,7 @@ function sendEventMessage() {
     data.append('subject',    subject);
     data.append('audience',   audience);
     data.append('body',       body);
+    if (pdf) data.append('attachment', pdf, pdf.name);
     fetch('/calendar.php', {method:'POST', body:data, headers:{'X-Requested-With':'XMLHttpRequest'}})
         .then(async r => {
             const txt = await r.text();

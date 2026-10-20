@@ -7,7 +7,7 @@
 const USER_SESSION_DEFAULT_COLS = [
     'game_type', 'buyin_amount', 'rebuy_amount', 'addon_amount',
     'starting_chips', 'addon_chips', 'rebuy_allowed', 'addon_allowed',
-    'max_rebuys', 'num_tables', 'seats_per_table', 'auto_assign_tables',
+    'max_rebuys', 'rebuys_included', 'addons_included', 'addons_share_rebuys', 'rebuy_cutoff_level', 'num_tables', 'seats_per_table', 'auto_assign_tables',
     'bounty_amount', 'bounty_points', 'jackpot_amount',
     'bounty_optional', 'jackpot_optional',
 ];
@@ -24,6 +24,10 @@ function default_session_defaults(): array {
         'rebuy_allowed'      => 1,
         'addon_allowed'      => 1,
         'max_rebuys'         => 0,
+        'rebuys_included'    => 0,
+        'addons_included'    => 0,
+        'addons_share_rebuys'=> 0,
+        'rebuy_cutoff_level' => 0,
         'num_tables'         => 1,
         'seats_per_table'    => 8,
         'auto_assign_tables' => 1,
@@ -340,6 +344,14 @@ function user_poker_events($db, $user_id, $is_admin = false) {
 }
 
 // Verify session access via player_id
+// How many add-ons a player can still take free, before this one: the add-on
+// count the buy-in includes, or with "rebuy or add-on" whatever their rebuys
+// left of the shared allowance. Rebuys use it first because they come first.
+function pk_addon_allowance(array $session, int $rebuys): int {
+    if ((int)($session['addons_share_rebuys'] ?? 0) === 1) return max(0, (int)($session['rebuys_included'] ?? 0) - $rebuys);
+    return (int)($session['addons_included'] ?? 0);
+}
+
 function get_session_from_player($db, $player_id) {
     $stmt = $db->prepare('SELECT ps.* FROM poker_players pp JOIN poker_sessions ps ON pp.session_id = ps.id WHERE pp.id = ?');
     $stmt->execute([$player_id]);
@@ -348,9 +360,17 @@ function get_session_from_player($db, $player_id) {
 
 // Calculate pool stats for a session
 function calc_pool($db, $session_id) {
-    $sess = $db->prepare('SELECT buyin_amount, rebuy_amount, addon_amount, starting_chips, addon_chips, game_type, bounty_amount, jackpot_amount, bounty_optional, jackpot_optional FROM poker_sessions WHERE id = ?');
+    $sess = $db->prepare('SELECT buyin_amount, rebuy_amount, addon_amount, rebuys_included, addons_included, addons_share_rebuys, starting_chips, addon_chips, game_type, bounty_amount, jackpot_amount, bounty_optional, jackpot_optional FROM poker_sessions WHERE id = ?');
     $sess->execute([$session_id]);
     $s = $sess->fetch();
+    // Rebuys and add-ons that came with the buy-in: a player's first N of each
+    // are part of the entry fee, so the pool charges only what they took beyond.
+    $included    = (int)($s['rebuys_included'] ?? 0);
+    $ao_included = (int)($s['addons_included'] ?? 0);
+    // Rebuy OR add-on: the add-on draws on what the rebuys left of the shared
+    // allowance, so its base is the rebuy count and each rebuy takes one off.
+    $ao_shared   = (int)($s['addons_share_rebuys'] ?? 0) === 1;
+    $ao_base     = $ao_shared ? $included : $ao_included;
 
     $stats = $db->prepare('SELECT
         COUNT(*) as total_players,
@@ -359,7 +379,9 @@ function calc_pool($db, $session_id) {
         SUM(eliminated) as eliminated,
         SUM(bought_in) as total_buyins,
         SUM(rebuys) as total_rebuys,
+        SUM(MIN(rebuys, ?)) as free_rebuys,
         SUM(addons) as total_addons,
+        SUM(MIN(addons, MAX(0, ? - ? * rebuys))) as free_addons,
         SUM(CASE WHEN cash_out IS NOT NULL THEN 1 ELSE 0 END) as cashed_out,
         SUM(COALESCE(cash_out, 0)) as total_cash_out,
         SUM(COALESCE(cash_in, 0)) as total_cash_in,
@@ -367,13 +389,23 @@ function calc_pool($db, $session_id) {
         SUM(COALESCE(bounty_in, 0)) as bounty_entries,
         SUM(COALESCE(bounty_cash_banked, 0)) as bounty_consumed
     FROM poker_players WHERE session_id = ? AND removed = 0');
-    $stats->execute([$session_id]);
+    // Bound as integers: PDO's default is text, and SQLite ranks any integer
+    // below any text, so MIN(rebuys, '2') would return the rebuys every time.
+    $stats->bindValue(1, $included, PDO::PARAM_INT);
+    $stats->bindValue(2, $ao_base, PDO::PARAM_INT);
+    $stats->bindValue(3, $ao_shared ? 1 : 0, PDO::PARAM_INT);
+    $stats->bindValue(4, (int)$session_id, PDO::PARAM_INT);
+    $stats->execute();
     $r = $stats->fetch();
 
     $bounty_withheld        = 0;
     $jackpot_baked_withheld = 0;
     $ticket_withheld        = 0;
     $ticket_in              = 0;
+    $free_rebuys            = 0;
+    $paid_rebuys            = 0;
+    $free_addons            = 0;
+    $paid_addons            = 0;
     if ($s['game_type'] === 'cash') {
         $pool_total = (int)$r['total_cash_in'];
         $buyin_total = $pool_total;
@@ -382,8 +414,12 @@ function calc_pool($db, $session_id) {
         $pool_gross  = $pool_total;
     } else {
         $buyin_total  = (int)$r['total_buyins'] * (int)$s['buyin_amount'];
-        $rebuy_total  = (int)$r['total_rebuys'] * (int)$s['rebuy_amount'];
-        $addon_total  = (int)$r['total_addons'] * (int)$s['addon_amount'];
+        $free_rebuys  = $included > 0 ? (int)$r['free_rebuys'] : 0;
+        $paid_rebuys  = (int)$r['total_rebuys'] - $free_rebuys;
+        $rebuy_total  = $paid_rebuys * (int)$s['rebuy_amount'];
+        $free_addons  = $ao_base > 0 ? (int)$r['free_addons'] : 0;
+        $paid_addons  = (int)$r['total_addons'] - $free_addons;
+        $addon_total  = $paid_addons * (int)$s['addon_amount'];
         $pool_gross   = $buyin_total + $rebuy_total + $addon_total;
 
         // Net pool: BAKED bounty/jackpot ride on initial buy-ins only (not
@@ -432,7 +468,14 @@ function calc_pool($db, $session_id) {
         'eliminated'     => (int)$r['eliminated'],
         'total_buyins'   => (int)$r['total_buyins'],
         'total_rebuys'   => (int)$r['total_rebuys'],
+        'free_rebuys'    => $free_rebuys,
+        'paid_rebuys'    => $paid_rebuys,
+        'rebuys_included'=> $included,
         'total_addons'   => (int)$r['total_addons'],
+        'free_addons'    => $free_addons,
+        'paid_addons'    => $paid_addons,
+        'addons_included'=> $ao_included,
+        'addons_share_rebuys' => $ao_shared ? 1 : 0,
         'buyin_total'    => $buyin_total,
         'rebuy_total'    => $rebuy_total,
         'addon_total'    => $addon_total,
@@ -1198,4 +1241,100 @@ function pk_clean_chip_set($chips): array {
 function pk_chip_set_json($chips): ?string {
     $clean = pk_clean_chip_set($chips);
     return $clean ? json_encode($clean) : null;
+}
+
+// ─── Helper: compute live timer state (handles countdown + auto-advance) ──
+function compute_live_state($db, $timer) {
+    $remaining = (int)$timer['time_remaining_seconds'];
+    $level = (int)$timer['current_level'];
+    $running = (int)$timer['is_running'];
+    $session_id = (int)$timer['session_id'];
+
+    // ONE reading of the clock for the whole request. Two calls to time() can
+    // straddle a second boundary, and the anchor below is derived from it: two
+    // screens polling either side of that boundary latched deadlines a full
+    // second apart and then held them, so they disagreed forever.
+    $now = time();
+
+    if ($running && $timer['updated_at']) {
+        // updated_at is stored as UTC via SQLite datetime('now') — force UTC parsing
+        $elapsed = $now - strtotime($timer['updated_at'] . ' UTC');
+        $remaining -= $elapsed;
+
+        // Auto-advance levels if time ran out
+        if ($remaining <= 0 && $timer['preset_id']) {
+            $levels = $db->prepare('SELECT * FROM blind_preset_levels WHERE preset_id = ? ORDER BY level_number');
+            $levels->execute([$timer['preset_id']]);
+            $allLevels = [];
+            foreach ($levels->fetchAll(PDO::FETCH_ASSOC) as $lv) {
+                $allLevels[(int)$lv['level_number']] = $lv;
+            }
+
+            // Advance through levels until we consume all elapsed time
+            while ($remaining <= 0) {
+                $nextLevel = $level + 1;
+                if (!isset($allLevels[$nextLevel])) {
+                    // No more levels — stop timer
+                    $running = 0;
+                    $remaining = 0;
+                    break;
+                }
+                $level = $nextLevel;
+                $remaining += (int)$allLevels[$level]['duration_minutes'] * 60;
+            }
+
+            // Persist the auto-advanced state (clamp to 24h max)
+            $db->prepare("UPDATE timer_state SET current_level = ?, time_remaining_seconds = ?, is_running = ?, updated_at = datetime('now') WHERE id = ?")
+                ->execute([$level, max(0, min(86400, $remaining)), $running, (int)$timer['id']]);
+        }
+    }
+
+    // ── Anchor ────────────────────────────────────────────────────────────
+    // The countdown expressed as a CONSTANT, so a display can derive the time
+    // itself instead of being told it again every poll. Being told is what made
+    // the clock stutter: this function answers in whole seconds computed at
+    // request time, so consecutive polls disagree by up to a second and the
+    // display jumped backwards and forwards.
+    //
+    // ends_at is invariant between commands, which is the whole point:
+    //   ends_at = time() + remaining
+    //           = time() + (stored_remaining - (time() - updated_at))
+    //           = updated_at + stored_remaining
+    // The request time cancels out, so every poll — and every SCREEN — derives
+    // the same instant. Auto-advance above rewrites the row and is therefore
+    // picked up here automatically, since $remaining is already re-based.
+    $ends_at_ms = ($running && $remaining > 0) ? ($now + $remaining) * 1000 : null;
+
+    return [
+        'current_level' => $level,
+        'time_remaining_seconds' => max(0, $remaining),
+        'is_running' => $running,
+        // Running: count down to ends_at_ms. Paused: remaining_ms is the truth
+        // and nothing moves. Exactly one of the two is ever non-null.
+        'ends_at_ms'   => $ends_at_ms,
+        'remaining_ms' => $running ? null : max(0, $remaining) * 1000,
+    ];
+}
+
+// The blind level the clock is on, numbered as the display numbers it (a break
+// takes a number too), for the rebuy cutoff. During a break it is the last
+// blind level before the break, so "no rebuys after level 5" stays open
+// through the break that follows level 5 and closes when the next level
+// starts. 0 when the game has no timer yet. Reads the live clock, so a
+// running timer that has rolled over is advanced here like on a display poll.
+function pk_timer_blind_level($db, int $session_id): int {
+    $t = $db->prepare('SELECT * FROM timer_state WHERE session_id = ?');
+    $t->execute([$session_id]);
+    $timer = $t->fetch(PDO::FETCH_ASSOC);
+    if (!$timer) return 0;
+    $level = (int)compute_live_state($db, $timer)['current_level'];
+    if (!empty($timer['preset_id'])) {
+        $q = $db->prepare('SELECT level_number FROM blind_preset_levels
+                           WHERE preset_id = ? AND COALESCE(is_break, 0) = 0 AND level_number <= ?
+                           ORDER BY level_number DESC LIMIT 1');
+        $q->execute([(int)$timer['preset_id'], $level]);
+        $last = (int)$q->fetchColumn();
+        if ($last > 0) $level = $last;
+    }
+    return $level;
 }

@@ -343,7 +343,9 @@ function cancel_event_with_notifications(PDO $db, int $event_id, int $actor_id):
     $db->prepare('DELETE FROM event_exceptions WHERE event_id=?')->execute([$event_id]);
     $db->prepare('DELETE FROM event_invites WHERE event_id=?')->execute([$event_id]);
     // event_messages has a FOREIGN KEY to events(id) without ON DELETE CASCADE,
-    // so it must be cleared before the event row or the DELETE fails.
+    // so it must be cleared before the event row or the DELETE fails. Their
+    // attached PDFs go with them.
+    event_message_unlink_attachments($db, 'event_id = ?', [$event_id]);
     $db->prepare('DELETE FROM event_messages WHERE event_id=?')->execute([$event_id]);
     $db->prepare('DELETE FROM pending_notifications WHERE event_id=? AND attempted_at IS NOT NULL')->execute([$event_id]);
     $db->prepare('DELETE FROM event_notifications_sent WHERE event_id=?')->execute([$event_id]);
@@ -556,7 +558,21 @@ function _rsvp_links_sms(string $site_url, string $rsvp_token, bool $allowMaybe)
     return "Reply $opts to RSVP - any other reply goes to your host.\nDetails: $link";
 }
 
+// Remove the PDFs attached to the host messages a WHERE clause selects, before
+// those rows are deleted (an event cancelled, a message deleted).
+function event_message_unlink_attachments(PDO $db, string $where, array $params): void {
+    try {
+        $q = $db->prepare("SELECT attachment_file FROM event_messages WHERE $where AND attachment_file IS NOT NULL");
+        $q->execute($params);
+        foreach ($q->fetchAll(PDO::FETCH_COLUMN) as $f) {
+            $p = __DIR__ . '/uploads/event_messages/' . basename((string)$f);
+            if (is_file($p)) @unlink($p);
+        }
+    } catch (Throwable $e) { /* pre-migration DB */ }
+}
+
 function dispatch_queued_notification(PDO $db, array $row): bool {
+    $attachments = [];   // [{path, name}] for the email; only a host message carries one
     $event_id    = (int)$row['event_id'];
     $username    = (string)$row['username'];
     $type        = (string)$row['notify_type'];
@@ -858,7 +874,7 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
             $msgId = (int)($payload['message_id'] ?? 0);
             $msg = null;
             if ($msgId > 0) {
-                $ms = $db->prepare('SELECT m.subject, m.body_html, m.token, u.username AS sender
+                $ms = $db->prepare('SELECT m.subject, m.body_html, m.token, m.attachment_name, m.attachment_file, u.username AS sender
                                     FROM event_messages m LEFT JOIN users u ON u.id = m.created_by
                                     WHERE m.id = ?');
                 $ms->execute([$msgId]);
@@ -870,10 +886,23 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
             $viewUrl  = $site_url . '/event_message.php?token=' . urlencode($msg['token']);
             $shortUrl = (get_setting('url_shortener_enabled') === '1') ? shorten_url($viewUrl) : $viewUrl;
             $subject  = $msg['subject'];
+            // The host's PDF: attached to the email, linked for everyone else.
+            $attLine = ''; $attPlain = '';
+            if (!empty($msg['attachment_file'])) {
+                $attPath = __DIR__ . '/uploads/event_messages/' . basename((string)$msg['attachment_file']);
+                $attUrl  = $site_url . '/uploads/event_messages/' . rawurlencode(basename((string)$msg['attachment_file']));
+                $attName = (string)($msg['attachment_name'] ?: 'attachment.pdf');
+                if (is_file($attPath)) {
+                    $attachments[] = ['path' => $attPath, 'name' => $attName];
+                    $attLine  = '<p style="margin-top:1rem">&#128206; Attached: <strong>' . htmlspecialchars($attName) . '</strong> (also at <a href="' . htmlspecialchars($attUrl) . '" style="color:#2563eb">' . htmlspecialchars($attUrl) . '</a>)</p>';
+                    $attPlain = "\n\nPDF: " . $attName . "\n" . $attUrl;
+                }
+            }
             // Email: attribution line + full rich body + link.
             $htmlBody = '<p style="color:#64748b;font-size:.85rem;margin:0 0 .75rem">From <strong>'
                       . htmlspecialchars($sender) . '</strong> &middot; ' . htmlspecialchars($title) . '</p>'
                       . $msg['body_html']
+                      . $attLine
                       . '<p style="margin-top:1.25rem"><a href="' . htmlspecialchars($viewUrl) . '" style="color:#2563eb">View this message in your browser</a></p>';
             // SMS: who + event + link only (link on its own line). Plain ASCII to stay GSM-7.
             $smsBody  = $site . ': new message from ' . $sender . ' about "' . $title . '".'
@@ -881,7 +910,7 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
             // WhatsApp: "From <sender> · <event>" header, then full message as plain text + link.
             $plain    = strip_tags(str_replace(['</p>', '<br>', '<br/>', '<br />', '</div>', '</li>'], "\n", $msg['body_html']));
             $plain    = trim(preg_replace('/\n{3,}/', "\n\n", html_entity_decode($plain, ENT_QUOTES)));
-            $waBody   = 'From ' . $sender . ' ' . "\xC2\xB7" . ' ' . $title . "\n\n" . $plain . "\n\n" . $shortUrl;
+            $waBody   = 'From ' . $sender . ' ' . "\xC2\xB7" . ' ' . $title . "\n\n" . $plain . $attPlain . "\n\n" . $shortUrl;
             break;
 
         case 'event_poll':
@@ -1003,7 +1032,7 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
         send_notification(
             $user['username'], $user['email'] ?? '', $user['phone'] ?? '',
             $user['preferred_contact'] ?? 'email',
-            $subject, $smsBody, $htmlBody, $waBody
+            $subject, $smsBody, $htmlBody, $waBody, $attachments
         );
         notif_log_context(null, null);
 

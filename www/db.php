@@ -383,6 +383,13 @@ function db_init(PDO $pdo): void {
     // Delivery correlation carried through retries (must run after the CREATE above).
     try { $pdo->exec("ALTER TABLE email_retry_queue ADD COLUMN event_id INTEGER"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE email_retry_queue ADD COLUMN username TEXT"); } catch (Exception $e) {}
+    // A parked email keeps its attachments (JSON [{path,name}]) so the retry
+    // carries the host's PDF too (v1.9.0, Message guests attachments).
+    try { $pdo->exec("ALTER TABLE email_retry_queue ADD COLUMN attachments TEXT"); } catch (Exception $e) {}
+    // Message guests can attach one PDF: the original name for display, the
+    // stored file under uploads/event_messages/ (named by the message token).
+    try { $pdo->exec("ALTER TABLE event_messages ADD COLUMN attachment_name TEXT"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE event_messages ADD COLUMN attachment_file TEXT"); } catch (Exception $e) {}
 
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS short_links (
         id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -445,6 +452,10 @@ function db_init(PDO $pdo): void {
         rebuy_allowed   INTEGER NOT NULL DEFAULT 1,
         addon_allowed   INTEGER NOT NULL DEFAULT 1,
         max_rebuys      INTEGER NOT NULL DEFAULT 0,
+        rebuys_included INTEGER NOT NULL DEFAULT 0,
+        addons_included INTEGER NOT NULL DEFAULT 0,
+        addons_share_rebuys INTEGER NOT NULL DEFAULT 0,
+        rebuy_cutoff_level INTEGER NOT NULL DEFAULT 0,
         starting_chips  INTEGER NOT NULL DEFAULT 5000,
         num_tables      INTEGER NOT NULL DEFAULT 1,
         status          TEXT NOT NULL DEFAULT 'setup',
@@ -552,6 +563,10 @@ function db_init(PDO $pdo): void {
         rebuy_allowed       INTEGER DEFAULT 1,
         addon_allowed       INTEGER DEFAULT 1,
         max_rebuys          INTEGER DEFAULT 0,
+        rebuys_included     INTEGER DEFAULT 0,
+        addons_included     INTEGER DEFAULT 0,
+        addons_share_rebuys INTEGER DEFAULT 0,
+        rebuy_cutoff_level  INTEGER DEFAULT 0,
         num_tables          INTEGER DEFAULT 1,
         seats_per_table     INTEGER DEFAULT 8,
         auto_assign_tables  INTEGER DEFAULT 1,
@@ -702,6 +717,22 @@ function db_init(PDO $pdo): void {
     // Defaults preserve prior behavior: bounty baked, jackpot optional.
     try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN bounty_optional INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN jackpot_optional INTEGER NOT NULL DEFAULT 1"); } catch (Exception $e) {}
+    // Rebuys and add-ons that come with the buy-in (v1.9.0): a player's first N
+    // of each are part of the entry fee, recorded at $0 and not charged to the
+    // pool (calc_pool).
+    try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN rebuys_included INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN addons_included INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE user_session_defaults ADD COLUMN rebuys_included INTEGER DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE user_session_defaults ADD COLUMN addons_included INTEGER DEFAULT 0"); } catch (Exception $e) {}
+    // Rebuy OR add-on (v1.9.0): the included rebuys are one allowance shared
+    // with add-ons. A rebuy uses it first; an add-on is free only while some
+    // of it is left (pk_addon_allowance, calc_pool).
+    try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN addons_share_rebuys INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE user_session_defaults ADD COLUMN addons_share_rebuys INTEGER DEFAULT 0"); } catch (Exception $e) {}
+    // Rebuy cutoff (v1.9.0): no rebuys once the clock is past this blind level
+    // (0 = all game). Enforced in checkin_dl.php update_rebuys, host override.
+    try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN rebuy_cutoff_level INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE user_session_defaults ADD COLUMN rebuy_cutoff_level INTEGER DEFAULT 0"); } catch (Exception $e) {}
     // Has a host ever saved Setup (or loaded a preset) for this session? Drives
     // the "this game isn't set up yet" prompt on the check-in console. It has to
     // be a flag, not a guess from the numbers: a $0 buy-in is a perfectly valid

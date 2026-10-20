@@ -231,6 +231,12 @@ $title     = (string)$event['title'];
     .gd-counter button { width:48px; height:48px; border:1.5px solid #cbd5e1; background:#fff;
         border-radius:10px; font-size:1.3rem; font-weight:700; color:#334155; cursor:pointer; }
     .gd-counter .gd-cnt { min-width:2rem; text-align:center; font-weight:800; font-size:1.05rem; }
+    .gd-counter button.gd-closed { opacity:.45; }
+    .gd-closed-tag { display:inline-block; margin-left:.35rem; font-size:.68rem; font-weight:600; color:#92400e; background:#fffbeb;
+                     border:1px solid #f59e0b; border-radius:4px; padding:0 .3rem; vertical-align:middle; }
+    #gdBreakAddon:empty { display:none; }
+    .gd-break-addon { display:block; width:calc(100% - 1.5rem); margin:.35rem .75rem .25rem; min-height:44px; padding:.6rem .9rem;
+                      border:1px solid #c4b5fd; border-radius:10px; background:#f5f3ff; color:#6d28d9; font-weight:700; font-size:.9rem; }
     .gd-sheet-btn { border:1.5px solid #cbd5e1; background:#fff; color:#334155; border-radius:10px;
         min-height:48px; padding:0 .9rem; font-weight:700; font-size:.88rem; cursor:pointer;
         -webkit-tap-highlight-color:transparent; }
@@ -322,6 +328,7 @@ $title     = (string)$event['title'];
         </div>
     </div>
 
+    <div id="gdBreakAddon"></div>
     <div id="gdView"></div>
 
 </div>
