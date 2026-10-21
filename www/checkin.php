@@ -388,6 +388,7 @@ if ($session) {
     .pk-preset-toggle{padding:.25rem .65rem;border:1.5px solid var(--border,#e2e8f0);border-radius:999px;background:#fff;font-size:.74rem;font-weight:600;color:#475569;cursor:pointer}
     .pk-preset-toggle:hover{background:#f1f5f9}
     #presetBody{margin-top:.5rem}
+    .pk-blinds-hint{margin:0 0 .75rem;padding:.5rem .75rem;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;color:#1e40af;font-size:.82rem;line-height:1.45}
     .pk-preset-more{position:relative}
     .pk-preset-morebtn{padding:.4rem .6rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;background:#fff;font-size:.9rem;line-height:1;color:#64748b;cursor:pointer}
     .pk-preset-morebtn:hover{background:#f1f5f9}
@@ -490,6 +491,9 @@ if ($session) {
     .pk-mobile-card.elim{opacity:.5}
     .pk-mobile-card.cashed-out{opacity:.7}
     .pk-mobile-card.rsvp-no{opacity:.45}
+    .pk-declined-row td,div.pk-declined-row{text-align:center;padding:.6rem;color:#64748b;font-size:.85rem}
+    .pk-table tr.pk-declined-row:hover td{background:transparent}
+    .pk-declined-btn{background:none;border:none;color:#1d4ed8;font:inherit;font-weight:600;cursor:pointer;padding:.2rem .4rem;min-height:24px;text-decoration:underline}
     .pk-mobile-summary{display:flex;justify-content:space-between;align-items:center;padding:.65rem .8rem;cursor:pointer;-webkit-tap-highlight-color:transparent}
     .pk-mobile-summary:active{background:#f1f5f9}
     .pk-mobile-card .pk-check{width:22px;height:22px}
@@ -899,7 +903,7 @@ if ($session) {
             <h5>Several at once</h5>
             <p>Tick the boxes at the left of the rows and the bar above the list acts on all of them: Buy In, Eliminate, Approve, Remove.</p>
             <h5>Filters and sorting</h5>
-            <p><b>All</b>, <b>RSVP Yes</b>, <b>Playing</b> and <b>Out</b> narrow the list; click a column heading to sort by it.</p>
+            <p><b>All</b>, <b>RSVP Yes</b>, <b>Playing</b> and <b>Out</b> narrow the list; click a column heading to sort by it. Guests who said No are folded under a <b>said no</b> line at the foot of All and are not counted as players; <b>Show</b> brings them back, and one who turns up and buys in counts like anyone.</p>
             <h4 class="pk-cfg-title" style="margin:.9rem 0 .2rem">The views</h4>
             <h5>List, Table, Log<span class="help-tourney">, Payouts, Chop</span></h5>
             <p><b>List</b> is this roster. <b>Table</b> shows who sits where: <b>Move&hellip;</b> moves a player, <b>Add Table</b> when the room outgrows one, <b>Balance</b> evens the tables out, <b>Break Up</b> closes a table and spreads its players. <b>Log</b> is every money and roster change, newest first, with Edit and Clear.<span class="help-tourney"> <b>Payouts</b> is the prize ladder and who is owed what as the places fill. <b>Chop</b> is the deal calculator for when the last players agree to split, by chip counts.</span></p>
@@ -1264,6 +1268,9 @@ var PLAYERS = [];
 var PAYOUTS = [];
 var POOL = {};
 var FILTER = 'all';
+// Declined invitees (RSVP No, not bought in) are folded out of the All list
+// behind a "said no" line; this is that line's Show / Hide.
+var SHOW_DECLINED = false;
 var VIEW_MODE = 'list';
 var SORT_KEY = '';   // '' = default (entry order); otherwise a column key
 var SORT_DIR = 1;    // 1 = ascending, -1 = descending
@@ -1810,8 +1817,10 @@ function playerProfit(p) {
 // person it just added would be filtered straight back out.
 // renderTableView() deliberately keeps its own copy: the seating chart has
 // never branched on cash vs tournament for "playing".
+function isDeclined(p) { return p.rsvp === 'no' && !parseInt(p.bought_in); }
 function passesFilter(p) {
     if (FILTER === 'rsvp_yes') return p.rsvp === 'yes';
+    if (FILTER === 'all' && !SHOW_DECLINED && isDeclined(p)) return false;
     if (isCash()) {
         if (FILTER === 'playing') return parseInt(p.bought_in) && (p.cash_out === null || p.cash_out === undefined);
         if (FILTER === 'eliminated') return p.cash_out !== null && p.cash_out !== undefined;
@@ -1820,6 +1829,27 @@ function passesFilter(p) {
         if (FILTER === 'eliminated') return parseInt(p.eliminated);
     }
     return true;
+}
+
+// "6 said no · Show": a host who has to scroll past (or Remove) everyone who
+// declined is looking at the wrong list, but a No who turns up anyway must
+// stay one tap away. Only on the All view; the other views never show them.
+function declinedLine() {
+    if (FILTER !== 'all') return '';
+    var n = PLAYERS.filter(isDeclined).length;
+    if (!n) return '';
+    return '<span class="pk-declined-line">' + n + ' said no'
+         + ' <button type="button" class="pk-declined-btn" data-act="toggleDeclined" aria-expanded="' + (SHOW_DECLINED ? 'true' : 'false') + '">'
+         + (SHOW_DECLINED ? 'Hide' : 'Show') + '</button></span>';
+}
+function toggleDeclined() {
+    SHOW_DECLINED = !SHOW_DECLINED;
+    refreshUI();
+}
+function listColspan() {
+    return isTourney()
+        ? 7 + ((parseInt(SESSION.jackpot_amount)>0&&parseInt(SESSION.jackpot_optional))?1:0) + ((parseInt(SESSION.bounty_amount)>0&&parseInt(SESSION.bounty_optional))?1:0) + (parseInt(SESSION.rebuy_allowed)?1:0) + (parseInt(SESSION.addon_allowed)?1:0) + (parseInt(SESSION.num_tables)>1?1:0)
+        : 8 + (parseInt(SESSION.num_tables)>1?1:0);
 }
 
 function renderPlayerRows() {
@@ -1981,11 +2011,10 @@ function renderPlayerRows() {
         h += '</tr>';
     }
     if (filtered.length === 0) {
-        var cols = isTourney()
-            ? 7 + ((parseInt(SESSION.jackpot_amount)>0&&parseInt(SESSION.jackpot_optional))?1:0) + ((parseInt(SESSION.bounty_amount)>0&&parseInt(SESSION.bounty_optional))?1:0) + (parseInt(SESSION.rebuy_allowed)?1:0) + (parseInt(SESSION.addon_allowed)?1:0) + (parseInt(SESSION.num_tables)>1?1:0)
-            : 8 + (parseInt(SESSION.num_tables)>1?1:0);
-        h += '<tr><td colspan="' + cols + '" style="text-align:center;padding:2rem;color:#64748b">No players</td></tr>';
+        h += '<tr><td colspan="' + listColspan() + '" style="text-align:center;padding:2rem;color:#64748b">No players</td></tr>';
     }
+    var dl = declinedLine();
+    if (dl) h += '<tr class="pk-declined-row"><td colspan="' + listColspan() + '">' + dl + '</td></tr>';
     return h;
 }
 
@@ -2137,6 +2166,8 @@ function renderMobileCards() {
     if (filtered.length === 0) {
         h += '<div style="text-align:center;padding:2rem;color:#64748b">No players</div>';
     }
+    var dl = declinedLine();
+    if (dl) h += '<div class="pk-declined-row">' + dl + '</div>';
     return h;
 }
 
@@ -2840,7 +2871,7 @@ function renderSettingsView() {
     h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'payouts' ? ' active' : '') + '" id="svPane_payouts" role="tabpanel" aria-labelledby="svTab_payouts" data-pane="payouts">' + renderPayoutsPane() + '</div>';
     // The blinds pane is a mounted component (event_blinds.js), not an HTML
     // string — mountBlindsPane() fills this container after every render.
-    h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'blinds' ? ' active' : '') + '" id="svPane_blinds" role="tabpanel" aria-labelledby="svTab_blinds" data-pane="blinds"><div id="ckBlindsPane"><div class="pk-log-empty">Loading&hellip;</div></div></div>';
+    h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'blinds' ? ' active' : '') + '" id="svPane_blinds" role="tabpanel" aria-labelledby="svTab_blinds" data-pane="blinds"><div class="pk-blinds-hint">Reusing a schedule from an earlier game? Pick it from the <b>Saved blind schedules</b> list under Status, click <b>Load into table</b>, then <b>Save game</b>. The Game Preset above is a different thing: it carries a whole game setup.</div><div id="ckBlindsPane"><div class="pk-log-empty">Loading&hellip;</div></div></div>';
     h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'timer' ? ' active' : '') + '" id="svPane_timer" role="tabpanel" aria-labelledby="svTab_timer" data-pane="timer">' + renderTimerPane() + '</div>';
     h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'chips' ? ' active' : '') + '" id="svPane_chips" role="tabpanel" aria-labelledby="svTab_chips" data-pane="chips">' + renderChipsPane() + '</div>';
     h += '<div class="pk-sv-pane' + (SETTINGS_TAB === 'tickets' ? ' active' : '') + '" id="svPane_tickets" role="tabpanel"' + (hasTickets && !isCash() ? ' aria-labelledby="svTab_tickets"' : '') + ' data-pane="tickets">' + renderTicketsPanel() + '</div>';

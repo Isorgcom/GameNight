@@ -181,8 +181,8 @@
         var genTog = el('button', 'es-mini', 'Generator…'); genTog.type='button'; genTog.id='esGenToggle';
         ctrls.appendChild(genTog);
         ctrls.appendChild(el('div', 'es-divider'));
-        var presetSel = el('select'); presetSel.id='esPresetSel'; presetSel.setAttribute('aria-label', 'Blind preset');
-        presetSel.appendChild(new Option('Choose a preset…', ''));
+        var presetSel = el('select'); presetSel.id='esPresetSel'; presetSel.setAttribute('aria-label', 'Saved blind schedules');
+        presetSel.appendChild(new Option('Saved blind schedules…', ''));
         var loadBtn = el('button', 'es-mini', 'Load into table'); loadBtn.type='button'; loadBtn.id='esLoadBtn';
         loadBtn.title = 'Fills the table only — nothing changes for this event until you save';
         var pubBtn = el('button', 'es-mini', 'Save to library…'); pubBtn.type='button'; pubBtn.id='esPublishBtn';
