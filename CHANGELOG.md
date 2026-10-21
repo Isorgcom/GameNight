@@ -11,6 +11,8 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.9.1] - 2026-10-21
+
 ### Fixed
 
 - **Guests who said No no longer count as players or fill the Manage Game list.** Every invitee lands on the roster so a change of heart needs no re-adding, but the PLAYERS tile, the Table Manager's "x/21" and the timer's total counted the No's too, and the All list made the host scroll past them or click Remove on each. A host with 15 yes and 6 no saw 21. `calc_pool()` now leaves out anyone who said No and has not bought in, and the All list folds them under a "6 said no · Show" line at its foot, on the computer and the phone. A No who turns up and buys in shows and counts like anyone; the RSVP Yes, Playing and Out views are unchanged. The ? Help modal and Host Guide step 7 say so.
