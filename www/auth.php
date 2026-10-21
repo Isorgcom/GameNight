@@ -146,6 +146,19 @@ function session_start_safe(): void {
         // 8-hour server-side session lifetime so idle users within a browser
         // session don't get kicked out by PHP's default 24-minute GC.
         ini_set('session.gc_maxlifetime', '28800');
+        // Session files live beside the database, not in PHP's default /tmp.
+        // /tmp is inside the container, so every rebuild (a PHP security
+        // update, a Dockerfile change) signed out everyone who had not ticked
+        // Remember me, and their open pages failed on the next background
+        // request with a bare "Not authenticated" (a host's report,
+        // 2026-10-21). dirname(DB_PATH) is a bind mount outside the web root,
+        // the same place .app_secret is kept.
+        $dir = dirname(DB_PATH) . '/sessions';
+        if (!is_dir($dir)) @mkdir($dir, 0700, true);
+        if (is_dir($dir) && is_writable($dir)) {
+            session_save_path($dir);
+            _carry_tmp_session($dir);
+        }
         session_set_cookie_params([
             'lifetime' => 0,
             'path'     => '/',
@@ -155,6 +168,20 @@ function session_start_safe(): void {
         ]);
         session_start();
     }
+}
+
+// The switch away from /tmp would itself have signed everybody out once: a
+// browser's session id points at a file the new directory does not have. So
+// the first request that finds it missing copies it across from the old
+// place. Once every session from before the switch has expired (8 hours),
+// this does nothing and can be removed.
+function _carry_tmp_session(string $dir): void {
+    $id = $_COOKIE[session_name()] ?? '';
+    if (!is_string($id) || !preg_match('/^[a-zA-Z0-9,-]{22,256}$/', $id)) return;
+    $dest = $dir . '/sess_' . $id;
+    if (is_file($dest)) return;
+    $src = rtrim(sys_get_temp_dir(), '/') . '/sess_' . $id;
+    if (is_file($src) && filemtime($src) > time() - 28800) @copy($src, $dest);
 }
 
 // ── Persistent "Remember me" auth tokens ─────────────────────────────────────

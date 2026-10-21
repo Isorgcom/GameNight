@@ -17,7 +17,7 @@ require_once __DIR__ . '/webpush.php';
 
 header('Content-Type: application/json');
 $current = current_user();
-if (!$current) { http_response_code(401); echo json_encode(['ok' => false, 'error' => 'Not authenticated']); exit; }
+if (!$current) { http_response_code(401); echo json_encode(['ok' => false, 'error' => "You've been signed out. Reload the page and sign in again."]); exit; }
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); echo json_encode(['ok' => false, 'error' => 'POST only']); exit; }
 if (!csrf_verify()) { http_response_code(403); echo json_encode(['ok' => false, 'error' => 'CSRF token invalid']); exit; }
 
