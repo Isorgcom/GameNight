@@ -148,6 +148,11 @@
  * vh-based cell sizes preview true to a TV. */
 .tbe-preview-frame { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 10px; overflow: hidden; border: 1.5px solid #e2e8f0; }
 .tbe-preview-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+/* The preview runs on made-up data (sample players, a six-place payout), and
+   without saying so a host comparing it with their own game reads the
+   difference as a bug. It leads the state bar rather than sitting on the
+   preview, where it would hide part of the layout being edited. */
+.tbe-sample-tag { padding: .15rem .55rem; border-radius: 999px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; font-size: .74rem; font-weight: 600; line-height: 1.4; white-space: nowrap; cursor: help; }
 
 /* Device preview shapes (the Desktop/Tablet/Phone toggle): the frame becomes
  * the target device's viewport, so vh/vw sizing and device conditions preview

@@ -11,6 +11,12 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.9.3] - 2026-10-21
+
+### Changed
+
+- **The layout editor's preview says it is a sample game.** The preview fills every layout with made-up data (18 players, 12 still in, a six-place payout) so each element has something to show, but nothing on screen said so, and a host comparing the Card Room preview's six payout places with a game paying four took it for a mistake. A small blue **Sample game** tag now leads the bar beneath the preview (not on the preview, where it would hide part of the layout), with a tooltip saying the game's own display uses its real players, blinds and payouts. The Timer Guide's editor section says the same.
+
 ## [v1.9.2] - 2026-10-21
 
 ### Fixed
