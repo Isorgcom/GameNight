@@ -568,6 +568,23 @@ function pk_layout_sanitize($doc, array &$err): ?array {
         if ($ce) $out['customElements'] = $ce;
     }
 
+    // The Library card: what the gallery shows for a site layout, a line of
+    // description and a preview picture. Kept in the layout itself rather than
+    // in columns so it rides along with undo, the unsaved marker and export.
+    // Plain text only (the gallery assigns it via textContent); the picture is
+    // an upload, never artwork from the repo.
+    if (isset($doc['library']) && is_array($doc['library'])) {
+        $lib = [];
+        $d = $doc['library']['description'] ?? null;
+        if (is_string($d)) {
+            $d = trim(preg_replace('/[^\P{C}\n]/u', '', $d));
+            if ($d !== '') $lib['description'] = mb_substr($d, 0, 400);
+        }
+        $pv = pk_lo_img($doc['library']['preview'] ?? null);
+        if ($pv !== null && str_starts_with($pv, '/uploads/timer_layouts/')) $lib['preview'] = $pv;
+        if ($lib) $out['library'] = $lib;
+    }
+
     // Multi-screen form (break screens etc.) or single-screen shorthand.
     if (isset($doc['screens']) && is_array($doc['screens'])) {
         $screens = [];
@@ -631,7 +648,14 @@ function pk_lo_image_names($layout): array {
         }
         if (isset($node['root'])) $scan($node['root']);
     };
-    $scan(is_string($layout) ? json_decode($layout, true) : $layout);
+    $doc = is_string($layout) ? json_decode($layout, true) : $layout;
+    $scan($doc);
+    // The Library card's preview picture is a reference like any other: without
+    // this, saving or deleting a layout would sweep a preview it still shows.
+    if (is_array($doc) && isset($doc['library']['preview']) && is_string($doc['library']['preview'])
+        && preg_match('#^/uploads/timer_layouts/([A-Za-z0-9._-]{1,120})$#', $doc['library']['preview'], $m)) {
+        $names[$m[1]] = true;
+    }
     return $names;
 }
 
@@ -685,6 +709,24 @@ function pk_lo_gc_images(PDO $db, array $candidateNames, int $exceptId): void {
 }
 
 /* ── Actions ────────────────────────────────────────────────────────────── */
+
+// The Library: every site layout, with its card (description + preview) when
+// the admin gave it one. The built-ins are listed by the editor itself, which
+// has them in code. Same visibility as get_layouts' site rows: any signed-in
+// host may browse and use them.
+if ($action === 'get_library') {
+    $rows = $db->query('SELECT id, name, layout FROM timer_layouts WHERE is_global = 1 ORDER BY LOWER(name)');
+    $out = [];
+    foreach ($rows as $r) {
+        $doc = json_decode((string)$r['layout'], true);
+        $lib = (is_array($doc) && isset($doc['library']) && is_array($doc['library'])) ? $doc['library'] : [];
+        $out[] = ['id' => (int)$r['id'], 'name' => $r['name'],
+                  'description' => is_string($lib['description'] ?? null) ? $lib['description'] : '',
+                  'preview' => is_string($lib['preview'] ?? null) ? $lib['preview'] : ''];
+    }
+    echo json_encode(['ok' => true, 'layouts' => $out]);
+    exit;
+}
 
 if ($action === 'get_layouts') {
     $stmt = $db->prepare(

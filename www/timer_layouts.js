@@ -192,6 +192,7 @@ function pushUndo() {
     // Any edit means this is no longer the pristine built-in — the event
     // binding button must stop offering to bind the built-in by key.
     if (curBuiltin) { curBuiltin = null; updateEventBtn(); }
+    if (curSiteId) { curSiteId = null; updateEventBtn(); }
 }
 
 function refresh(keepSel) {
@@ -1885,6 +1886,45 @@ function renderInspector() {
         panelsWrap.appendChild(inspNote('Whether cells paint their own backgrounds or let the artwork show through. Applies to every screen.'));
         insp.appendChild(panelsWrap);
 
+        // The Library card (admins): what every host sees for this layout in
+        // the Library once it is a Site layout.
+        if (window.TBE_IS_ADMIN) {
+            insp.appendChild(inspSection('Library card'));
+            var lib = LAYOUT.library || {};
+            var libOf = function () { return LAYOUT.library || (LAYOUT.library = {}); };
+            var tidyLib = function () { if (LAYOUT.library && !LAYOUT.library.description && !LAYOUT.library.preview) delete LAYOUT.library; };
+            var ta = document.createElement('textarea');
+            ta.rows = 3; ta.maxLength = 400;
+            ta.value = lib.description || '';
+            ta.placeholder = 'One or two sentences on the look';
+            ta.setAttribute('aria-label', 'Library description');
+            ta.addEventListener('focus', function () { pushUndo(); }, { once: true });
+            ta.addEventListener('input', function () {
+                if (ta.value.trim()) libOf().description = ta.value;
+                else if (LAYOUT.library) { delete LAYOUT.library.description; tidyLib(); }
+                updateDirty();
+            });
+            insp.appendChild(field('Description', ta));
+            var pvWrap = document.createElement('div');
+            pvWrap.className = 'tbe-field';
+            var pvl = document.createElement('span'); pvl.textContent = 'Preview picture'; pvWrap.appendChild(pvl);
+            if (lib.preview) {
+                var pth = document.createElement('img'); pth.className = 'tbe-img-thumb'; pth.src = lib.preview; pth.alt = 'Library preview';
+                pvWrap.appendChild(pth);
+                var rmPv = document.createElement('button'); rmPv.className = 'tbe-mini tbe-mini-danger'; rmPv.textContent = 'Remove picture';
+                rmPv.addEventListener('click', function () { pushUndo(); delete libOf().preview; tidyLib(); refresh(true); renderInspector(); });
+                pvWrap.appendChild(rmPv);
+            } else {
+                var upPv = document.createElement('button'); upPv.className = 'tbe-mini'; upPv.textContent = 'Upload picture';
+                upPv.addEventListener('click', function () { uploadImage(function (url) { pushUndo(); libOf().preview = url; refresh(true); renderInspector(); }); });
+                pvWrap.appendChild(upPv);
+            }
+            insp.appendChild(pvWrap);
+            insp.appendChild(inspNote(isGlobal
+                ? 'Shown on this layout’s card in the Library. A 16:9 screenshot works best.'
+                : 'Shown in the Library once this is a Site layout (the Site layout button above).'));
+        }
+
         renderSharedStyles();
         renderCustomElements();
         return;
@@ -3432,6 +3472,10 @@ var EV_NAME = (typeof window.ES_EVENT_NAME !== 'undefined' && window.ES_EVENT_NA
 var evLayoutId = (typeof window.ES_LAYOUT_ID !== 'undefined' && window.ES_LAYOUT_ID) ? (window.ES_LAYOUT_ID | 0) : null;
 var evLayoutKey = (typeof window.ES_LAYOUT_KEY !== 'undefined' && window.ES_LAYOUT_KEY) ? String(window.ES_LAYOUT_KEY) : null;
 var curBuiltin = null;   // built-in key currently loaded UNMODIFIED, else null
+// A site (Library) layout someone else owns, loaded UNMODIFIED: the game binds
+// to it by id, so the owner's later improvements reach that display. Any edit
+// clears it, and binding then saves the host's own copy first, as before.
+var curSiteId = null;
 var evBtn = null, evStatus = null, evBoundName = null, evToggle = null, evNote = null;
 if (EV_ID) {
     // The binding bar: one question about the layout on screen — use it for
@@ -3499,6 +3543,8 @@ if (EV_ID) {
         if (!evToggle.checked) { bindEvent(0, null); return; }
         if (curBuiltin) {
             bindEvent(0, curBuiltin);          // built-in binds by key, no copy
+        } else if (curSiteId) {
+            bindEvent(curSiteId, null);        // an untouched Library layout binds as is
         } else if (layoutId) {
             bindEvent(layoutId, null);
         } else {
@@ -3541,7 +3587,8 @@ function updateGlobalBtn() {
 
 function updateEventBtn() {
     if (!evBtn) return;
-    var bound = (!!layoutId && evLayoutId === layoutId) || (!!curBuiltin && evLayoutKey === curBuiltin);
+    var bound = (!!layoutId && evLayoutId === layoutId) || (!!curBuiltin && evLayoutKey === curBuiltin)
+             || (!!curSiteId && evLayoutId === curSiteId);
     var anyBound = !!(evLayoutId || evLayoutKey);
     // The question, with the game named so it is obvious WHICH game this
     // changes — the editor is embedded in two different pages.
@@ -3584,6 +3631,7 @@ function loadChoice(v) {
         editScreenIndex = mainScreenIndex();
         refresh(); selectScreen(editScreenIndex);
         curBuiltin = k;
+        curSiteId = null;
         isGlobal = false; updateGlobalBtn();   // a fresh copy starts personal
         updateEventBtn();
     } else {
@@ -3601,6 +3649,7 @@ function loadChoice(v) {
                 editScreenIndex = mainScreenIndex();
                 refresh(); selectScreen(editScreenIndex);
                 curBuiltin = null;
+                curSiteId = (!j.editable && j.is_global) ? j.id : null;
                 // A layout you may not edit becomes a personal copy on save, so
                 // it must not carry the site flag into that copy.
                 isGlobal = !!j.is_global && !!j.editable; updateGlobalBtn();
@@ -3609,6 +3658,170 @@ function loadChoice(v) {
     }
     loadSel.value = '';
 }
+
+/* ── Layout Library ─────────────────────────────────────────────────────
+ * A gallery of ready-made layouts: the built-ins (pictures shipped in
+ * /img/timer_library/) and every site layout, whose card, a line of
+ * description and a preview picture, an admin sets in the Screen inspector
+ * (LAYOUT.library). A name in the Load list never sold a look, so each card
+ * shows the layout itself. Opened for a game, a card puts the layout on that
+ * game's display at once; anywhere, it opens in the editor, where saving makes
+ * the host's own copy. */
+var BUILTIN_CARDS = {
+    showcase:    'Navy and gold: a big clock, the blinds in a gold box, the next level and break, players, average stack and prize pool, a QR code, and a Phone screen for anyone who scans it.',
+    classic:     'Royal blue with the clock in the middle, the game’s numbers down both sides and the payouts along the bottom.',
+    black_green: 'Black with green bars: a huge clock, the blinds in green, and the counts tucked into the strips at the top and bottom.',
+    minimalist:  'Just the clock and the blinds, white on black, readable from across any room.',
+    two_column:  'A column of game numbers and payouts on the left, the clock and blinds on green on the right.',
+    pcf:         'Glossy plates on dark felt, made for the Poker Chip Forum: an orange blinds plate, the stats panel, a payout bar, and a seat map at the final table.',
+    cardroom:    'A casino tournament clock in green: payouts down both sides, the level and clock in the middle, blinds and chip counts below, and a ticker along the bottom.'
+};
+var libWrap = null, libOpener = null;
+
+function closeLibrary() {
+    if (!libWrap) return;
+    libWrap.remove(); libWrap = null;
+    if (libOpener && document.contains(libOpener)) libOpener.focus();
+}
+
+function libChoose(card, use) {
+    closeLibrary();
+    var v = card.key ? 'builtin:' + card.key : 'id:' + card.id;
+    confirmDiscard(function () {
+        loadChoice(v);
+        if (use && EV_ID) bindEvent(card.id || 0, card.key || null);
+    });
+}
+
+function libCard(card) {
+    var art = document.createElement('article');
+    art.className = 'tbe-lib-card';
+    var pic = document.createElement('div');
+    pic.className = 'tbe-lib-pic';
+    if (card.preview) {
+        var img = document.createElement('img');
+        img.src = card.preview; img.loading = 'lazy';
+        img.alt = card.name + ' layout, shown on a sample game';
+        pic.appendChild(img);
+    } else {
+        pic.textContent = 'No preview yet';
+    }
+    art.appendChild(pic);
+    var body = document.createElement('div');
+    body.className = 'tbe-lib-text';
+    var h = document.createElement('h3');
+    h.textContent = card.name;
+    var onDisplay = !!EV_ID && ((!!card.key && evLayoutKey === card.key) || (!!card.id && evLayoutId === card.id));
+    if (onDisplay) {
+        var tag = document.createElement('span');
+        tag.className = 'tbe-lib-on';
+        tag.textContent = 'On this game’s display';
+        h.appendChild(tag);
+    }
+    body.appendChild(h);
+    if (card.description) {
+        var d = document.createElement('p');
+        d.textContent = card.description;
+        body.appendChild(d);
+    }
+    var acts = document.createElement('div');
+    acts.className = 'tbe-lib-acts';
+    if (EV_ID) {
+        var use = document.createElement('button');
+        use.type = 'button';
+        use.className = 'tbe-btn tbe-btn-primary';
+        use.textContent = onDisplay ? 'In use' : 'Use for ' + (EV_NAME || 'this game');
+        use.disabled = onDisplay;
+        use.title = 'Show this layout on the game’s display now; connected screens follow within seconds';
+        use.addEventListener('click', function () { libChoose(card, true); });
+        acts.appendChild(use);
+    }
+    var open = document.createElement('button');
+    open.type = 'button';
+    open.className = 'tbe-btn';
+    open.textContent = 'Open in editor';
+    open.title = 'Load it here to look around or change it. Saving keeps your own copy.';
+    open.addEventListener('click', function () { libChoose(card, false); });
+    acts.appendChild(open);
+    body.appendChild(acts);
+    art.appendChild(body);
+    return art;
+}
+
+function libSection(title, cards) {
+    var sec = document.createElement('section');
+    var h = document.createElement('h3');
+    h.className = 'tbe-lib-sec';
+    h.textContent = title;
+    sec.appendChild(h);
+    var grid = document.createElement('div');
+    grid.className = 'tbe-lib-grid';
+    cards.forEach(function (c) { grid.appendChild(libCard(c)); });
+    sec.appendChild(grid);
+    return sec;
+}
+
+function openLibrary() {
+    closeLibrary();
+    libOpener = document.activeElement;
+    var wrap = document.createElement('div');
+    wrap.className = 'tbe-lib-wrap';
+    var panel = document.createElement('div');
+    panel.className = 'tbe-lib';
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-modal', 'true');
+    panel.setAttribute('aria-labelledby', 'tbeLibTitle');
+    var head = document.createElement('div');
+    head.className = 'tbe-lib-head';
+    var t = document.createElement('h2');
+    t.id = 'tbeLibTitle';
+    t.textContent = 'Layout library';
+    var sub = document.createElement('span');
+    sub.className = 'tbe-lib-sub';
+    sub.textContent = EV_ID ? 'Pick a look for ' + (EV_NAME || 'this game') + '’s display.' : 'Ready-made looks to start from.';
+    var x = document.createElement('button');
+    x.type = 'button'; x.className = 'tbe-mini'; x.textContent = '×';
+    x.setAttribute('aria-label', 'Close the library');
+    x.addEventListener('click', closeLibrary);
+    head.appendChild(t); head.appendChild(sub); head.appendChild(x);
+    panel.appendChild(head);
+    var body = document.createElement('div');
+    body.className = 'tbe-lib-body';
+    body.textContent = 'Loading…';
+    panel.appendChild(body);
+    wrap.appendChild(panel);
+    wrap.addEventListener('click', function (e) { if (e.target === wrap) closeLibrary(); });
+    // Escape closes the library, not whatever page it sits on (check-in's
+    // Setup editor closes on Escape too, and bails on a handled event).
+    wrap.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeLibrary(); return; }
+        if (e.key !== 'Tab') return;
+        var f = Array.prototype.filter.call(panel.querySelectorAll('button:not([disabled])'), function (b) { return b.offsetParent; });
+        if (!f.length) return;
+        var i = f.indexOf(document.activeElement);
+        if (e.shiftKey && i <= 0) { e.preventDefault(); f[f.length - 1].focus(); }
+        else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); }
+    });
+    document.body.appendChild(wrap);
+    libWrap = wrap;
+    x.focus();
+
+    var builtins = Object.keys(PV.builtins).map(function (k) {
+        return { key: k, name: PV.builtins[k].name, description: BUILTIN_CARDS[k] || '',
+                 preview: '/img/timer_library/' + k + '.jpg?v=' + encodeURIComponent(window.TBE_LIB_V || '') };
+    });
+    fetch('/timer_layouts_dl.php?action=get_library')
+        .then(function (r) { return r.json(); })
+        .then(function (j) { return (j && j.ok) ? j.layouts : []; })
+        .catch(function () { return []; })
+        .then(function (site) {
+            if (libWrap !== wrap) return;   // closed while loading
+            body.textContent = '';
+            if (site.length) body.appendChild(libSection('Ready-made', site));
+            body.appendChild(libSection('Built-in', builtins));
+        });
+}
+document.getElementById('tbeLibrary').addEventListener('click', openLibrary);
 
 function save(asCopy, onSaved) {
     var name = nameInput.value.trim();
@@ -3680,6 +3893,10 @@ function walkImageRefs(layout, fn) {
         });
         if (node.root) scan(node.root);
     })(layout);
+    // The Library card's preview travels with an export like any other image.
+    if (layout && layout.library && typeof layout.library.preview === 'string' && IMG_REF_RE.test(layout.library.preview)) {
+        fn(layout.library, 'preview');
+    }
 }
 
 // Trigger sounds get the same passport: refs walked, bytes embedded on
@@ -3923,7 +4140,7 @@ importFile.addEventListener('change', function () {
             // Load it into the editor first (through the same renderer, which only
             // assigns text via textContent), then persist a NEW row via the
             // server-sanitized save path so it lands in the Load list.
-            LAYOUT = layout; layoutId = null; editable = true; curBuiltin = null;
+            LAYOUT = layout; layoutId = null; editable = true; curBuiltin = null; curSiteId = null;
             isGlobal = false; updateGlobalBtn();   // an import lands in your own library
             normalizeLayout();
             editScreenIndex = mainScreenIndex();
@@ -4139,6 +4356,7 @@ function boot() {
                 editScreenIndex = mainScreenIndex();
                 refresh(); selectScreen(editScreenIndex);
                 curBuiltin = null;
+                curSiteId = (!j.editable && j.is_global) ? j.id : null;
                 // A layout you may not edit becomes a personal copy on save, so
                 // it must not carry the site flag into that copy.
                 isGlobal = !!j.is_global && !!j.editable; updateGlobalBtn();

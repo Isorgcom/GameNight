@@ -233,6 +233,39 @@ config); `game.name` is a fixed string (no per-level game field exists);
 `time.elapsed` is blind-schedule time, not wall time (no session start
 timestamp in get_state).
 
+## The Layout Library
+
+A gallery of ready-made layouts behind the editor's **Library** button (beside
+Load…): every site layout (`is_global = 1`) under *Ready-made*, then the seven
+built-ins. A name in a dropdown never sold a look, so each card is a picture
+and a line of description.
+
+- **Card data.** A site layout's card lives in the layout document itself as
+  `library: {description, preview}` (description ≤ 400 chars of plain text,
+  preview an `/uploads/timer_layouts/` image), so it rides along with undo,
+  the unsaved marker and export. `pk_layout_sanitize()` keeps it;
+  `pk_lo_image_names()` counts the preview as a reference so a save or delete
+  never sweeps it (the cron sweep already matches basenames in the raw text).
+  Admins edit it in the Screen inspector's *Library card* section.
+- **Built-in cards** are in code: `BUILTIN_CARDS` in `timer_layouts.js`, with
+  pictures at `/img/timer_library/<key>.jpg` (the sample game, 1280×720 JPEG).
+  `/img` is cached for a year, so the page passes `TBE_LIB_V` (APP_VERSION +
+  newest picture mtime) and the gallery appends it.
+- **Endpoint.** `timer_layouts_dl.php?action=get_library` returns the site
+  layouts with `{id, name, description, preview}`; any signed-in host.
+- **Use for this game** (event context only) calls the binding bar's
+  `bindEvent()`: a built-in by key, a site layout **by id, with no copy**, so
+  the admin's later edits reach every game using it. `curSiteId` is the
+  site-layout twin of `curBuiltin`: set when someone else's site layout is
+  loaded unmodified, cleared by the first edit (after which binding saves the
+  host's copy first, as before). The boot path sets it too, so a game opened
+  with a Library layout bound shows the switch on Yes.
+- **Open in editor** is plain `loadChoice()`; saving someone else's layout
+  makes a personal copy, as it always has.
+- The six ready-made layouts on gamenight.poker (Neon Nights, Dusty Trail
+  Saloon, Zen Minimal, Emerald High Roller, Pixel Arcade, Watch Party) are
+  the blog's downloads, imported as admin-owned site layouts with a card each.
+
 ## Built-in layouts
 
 **showcase**, shown as *Default Layout*: what an unconfigured game displays,
