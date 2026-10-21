@@ -48,7 +48,7 @@ if ($action === 'get_layout' && ($rk = trim((string)($_GET['key'] ?? ''))) !== '
     exit;
 }
 
-if (!$current) { http_response_code(401); echo json_encode(['ok' => false, 'error' => 'Not authenticated']); exit; }
+if (!$current) { http_response_code(401); echo json_encode(['ok' => false, 'error' => "You've been signed out. Reload the page and sign in again."]); exit; }
 $isAdmin = $current['role'] === 'admin';
 $uid = (int)$current['id'];
 

@@ -11,6 +11,12 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.9.2] - 2026-10-21
+
+### Fixed
+
+- **A server update no longer signs everybody out.** Signed-in sessions were kept in the container's own temporary folder, so every rebuild (a PHP security update, a Dockerfile change) threw them away: anyone who had not ticked Remember me was signed out, and a page they had open failed on its next background request with a bare "Not authenticated". A host hit exactly that while loading a blind schedule during the 2026-10-21 PHP update. Sessions now live in a `sessions/` folder beside the database (`dirname(DB_PATH)`, the same bind mount that holds `.app_secret`), so they survive rebuilds and reboots, and a session from before this change is carried across on its first request so the switch itself signs nobody out. The background endpoints now say "You've been signed out. Reload the page and sign in again." instead. Operator note: nothing to do; the folder is created on the first request, and PHP's own clean-up removes sessions idle for more than 8 hours.
+
 ## [v1.9.1] - 2026-10-21
 
 ### Fixed

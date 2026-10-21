@@ -16,7 +16,7 @@ require_once __DIR__ . '/_poker_helpers.php';
 
 header('Content-Type: application/json');
 $current = current_user();
-if (!$current) { http_response_code(401); echo json_encode(['ok' => false, 'error' => 'Not authenticated']); exit; }
+if (!$current) { http_response_code(401); echo json_encode(['ok' => false, 'error' => "You've been signed out. Reload the page and sign in again."]); exit; }
 $isAdmin = $current['role'] === 'admin';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); echo json_encode(['ok' => false, 'error' => 'POST only']); exit; }

@@ -23,7 +23,7 @@ require_once __DIR__ . '/_finaltable.php';
 
 header('Content-Type: application/json');
 $current = current_user();
-if (!$current) { http_response_code(401); echo json_encode(['ok' => false, 'error' => 'Not authenticated']); exit; }
+if (!$current) { http_response_code(401); echo json_encode(['ok' => false, 'error' => "You've been signed out. Reload the page and sign in again."]); exit; }
 $isAdmin = $current['role'] === 'admin';
 $db = get_db();
 $uid = (int)$current['id'];
