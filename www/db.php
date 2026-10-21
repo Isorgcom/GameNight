@@ -633,7 +633,7 @@ function db_init(PDO $pdo): void {
     try {
         $has = (int)$pdo->query("SELECT COUNT(*) FROM payout_structures")->fetchColumn();
         if ($has === 0) {
-            $pdo->exec("INSERT INTO payout_structures (name, created_by, is_default, is_global) VALUES ('Standard (50/30/20)', 0, 1, 1)");
+            $pdo->exec("INSERT INTO payout_structures (name, created_by, is_default, is_global) VALUES ('50/30/20 payouts only', 0, 1, 1)");
             $sid = (int)$pdo->lastInsertId();
             $pdo->exec("INSERT INTO payout_structure_places (structure_id, place, percentage) VALUES ($sid, 1, 50.0), ($sid, 2, 30.0), ($sid, 3, 20.0)");
         }
@@ -1705,6 +1705,21 @@ JSON;
             $upd = $pdo->prepare('UPDATE help_bubbles SET body = ?, anchor_selector = ? WHERE screen_key = ? AND title = ? AND body = ?');
             foreach ($v2 as $t) $upd->execute([$t[2], $t[3], 'event_edit', $t[0], $t[1]]);
             set_setting('help_first_event_tips_v2', '1');
+        }
+    } catch (Exception $e) {}
+
+    // The seeded site default was named "Standard (50/30/20)" when presets
+    // held only a payout split. The preset bar now sits above every Setup tab
+    // and a preset can carry the whole game, so on the Blinds tab that name
+    // read as a blind choice (a host's report, 2026-10-21). The seed still
+    // holds only the split, so say so. Only the untouched seed is renamed: an
+    // admin who renamed it, or saved a whole game into it, keeps theirs.
+    try {
+        if (get_setting('default_preset_renamed_v1', '') !== '1') {
+            $pdo->exec("UPDATE payout_structures SET name = '50/30/20 payouts only'
+                         WHERE name = 'Standard (50/30/20)' AND created_by = 0
+                           AND game_config IS NULL AND blind_levels IS NULL AND timer_config IS NULL");
+            set_setting('default_preset_renamed_v1', '1');
         }
     } catch (Exception $e) {}
 

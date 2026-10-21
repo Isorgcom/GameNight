@@ -372,8 +372,12 @@ function calc_pool($db, $session_id) {
     $ao_shared   = (int)($s['addons_share_rebuys'] ?? 0) === 1;
     $ao_base     = $ao_shared ? $included : $ao_included;
 
+    // An invitee who said No and never bought in is on the roster (so a
+    // change of heart needs no re-adding) but is not a player: counting them
+    // made the console, the Table Manager and the timer read 21 for a
+    // 15-player game. A No who turns up and buys in counts like anyone.
     $stats = $db->prepare('SELECT
-        COUNT(*) as total_players,
+        SUM(CASE WHEN rsvp = \'no\' AND bought_in = 0 THEN 0 ELSE 1 END) as total_players,
         SUM(bought_in) as bought_in,
         SUM(CASE WHEN eliminated = 0 AND bought_in = 1 THEN 1 ELSE 0 END) as still_playing,
         SUM(eliminated) as eliminated,

@@ -11,6 +11,13 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.9.1] - 2026-10-21
+
+### Fixed
+
+- **Guests who said No no longer count as players or fill the Manage Game list.** Every invitee lands on the roster so a change of heart needs no re-adding, but the PLAYERS tile, the Table Manager's "x/21" and the timer's total counted the No's too, and the All list made the host scroll past them or click Remove on each. A host with 15 yes and 6 no saw 21. `calc_pool()` now leaves out anyone who said No and has not bought in, and the All list folds them under a "6 said no · Show" line at its foot, on the computer and the phone. A No who turns up and buys in shows and counts like anyone; the RSVP Yes, Playing and Out views are unchanged. The ? Help modal and Host Guide step 7 say so.
+- **The site default game preset no longer reads as a blind choice.** The preset bar sits above every Setup tab, and the seeded default was still called "Standard (50/30/20)" from when presets held only a payout split, so on the Blinds tab it looked like a blind schedule on offer. It still holds only the split, and is now named "50/30/20 payouts only" (a one-time rename in `db_init`, flag `default_preset_renamed_v1`, that touches the seed only while it is untouched: an admin's renamed or re-saved default stays as it is). The Blinds tab gains a short note pointing at the blind editor's own list, which is now labelled **Saved blind schedules** instead of "Choose a preset…", so a schedule saved for an earlier game is easy to find.
+
 ---
 
 ## [v1.9.0] - 2026-10-20
