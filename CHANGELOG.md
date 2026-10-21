@@ -11,6 +11,16 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.10.0] - 2026-10-21
+
+### Added
+
+- **A Layout Library: ready-made timer looks you can see before you pick.** The layout editor has a **Library** button beside Load… that opens a gallery of cards, each a picture of the layout on a sample game with a line about the look: six ready-made themes (Neon Nights, Dusty Trail Saloon, Zen Minimal, Emerald High Roller, Pixel Arcade and Watch Party, the downloads from the isorg.com post) under *Ready-made*, then the seven built-ins. A name in the Load list never sold a look; a picture does. Opened from a game's Setup → Timer, each card has **Use for** *the game*, which puts it on that game's display at once, and anywhere **Open in editor** loads it to look around or change, with saving keeping the host's own copy. A ready-made layout used unchanged stays linked rather than copied, so an improvement to it reaches every game showing it, and a game opened with one bound shows the switch on Yes. Admins set a site layout's card in the Screen inspector's new **Library card** section (description and preview picture); it is stored in the layout itself (`library`), travels with an export, and the preview counts as a used image so no clean-up sweeps it. The Timer Guide and TOURNAMENT_TIMER.md describe it.
+
+### Fixed
+
+- **The layout editor fits a phone screen.** On a narrow screen the editor's single column could not shrink below its content's width, so the whole page was about 80px wider than the phone and scrolled sideways. The column now shrinks like the two-column desktop layout's already did (`minmax(0, 1fr)` in `timer_layouts.css`).
+
 ## [v1.9.3] - 2026-10-21
 
 ### Changed

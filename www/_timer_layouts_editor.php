@@ -13,6 +13,7 @@ $csrf = csrf_token();
         <h1>Tournament Timer <span class="tb-sub">Layouts</span></h1>
         <div class="tbe-header-controls">
             <select id="tbeLoad" title="Load a layout"><option value="">Load&hellip;</option></select>
+            <button type="button" id="tbeLibrary" class="tbe-btn" title="Browse ready-made layouts, with a picture of each">Library</button>
             <input type="text" id="tbeName" maxlength="80" placeholder="Layout name">
             <?php /* "Save layout", not "Save": embedded in the check-in Setup
                      editor this sits a few inches from the button that saves the
@@ -96,5 +97,8 @@ $csrf = csrf_token();
 <script nonce="<?= csp_nonce() ?>">
 var TBE_CSRF = <?= json_encode($csrf) ?>;
 var TBE_IS_ADMIN = <?= json_encode($current['role'] === 'admin') ?>;
+<?php // Version for the built-in Library pictures: /img is cached for a year, so a
+      // retaken picture needs a new URL. ?>
+var TBE_LIB_V = <?= json_encode(APP_VERSION . '.' . (max(array_map('filemtime', glob(__DIR__ . '/img/timer_library/*.jpg') ?: [])  ?: [0]))) ?>;
 </script>
 <script src="/timer_layouts.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/timer_layouts.js') ?: 0)) ?>" defer></script>
