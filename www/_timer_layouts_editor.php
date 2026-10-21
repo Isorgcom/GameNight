@@ -44,6 +44,7 @@ $csrf = csrf_token();
                 </div>
             </div>
             <div class="tbe-statebar">
+                <span class="tbe-sample-tag" role="note" title="The preview fills every layout with a made-up game: 18 players, 12 still in, a six-place payout. On the night the display shows your own players, blinds and payouts.">Sample game</span>
                 <span>Preview state:</span>
                 <button data-state="normal" class="tbe-chip active" type="button" aria-pressed="true">Running</button>
                 <button data-state="paused" class="tbe-chip" type="button" aria-pressed="false">Paused</button>
