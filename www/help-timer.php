@@ -13,7 +13,7 @@ $help_sections = [
     ['two-timers',    'Two timers, one switch'],
     ['choose-layout', 'Choose what the display shows'],
     ['running',       'Running the display'],
-    ['qr-casting',    'More screens: the QR code and Cast'],
+    ['qr-casting',    'More screens: QR, Send to TV, Cast'],
     ['editor',        'The editor at a glance'],
     ['building',      'Building a layout'],
     ['cells',         'Cells beyond text'],
@@ -147,7 +147,7 @@ $help_sections = [
 
     <div class="help-step" id="two-timers">
         <h2><span class="step-num">1</span> Two timers, one switch</h2>
-        <p>Every game can use the <strong>Tournament Timer</strong>, with designable layouts, break screens and multi-screen casting, or <strong>Tournament Timer Classic</strong>, the original clock. Switch per game in check-in under <strong>Setup &rarr; Timer</strong>: the switch reads <em>Use the Tournament Timer (off: Classic)</em>. The Timer button then opens whichever one is on, and you can switch back any time.</p>
+        <p>Every game can use the <strong>Tournament Timer</strong>, with designable layouts, break screens and the clock on any TV or phone, or <strong>Tournament Timer Classic</strong>, the original clock. Switch per game in check-in under <strong>Setup &rarr; Timer</strong>: the switch reads <em>Use the Tournament Timer (off: Classic)</em>. The Timer button then opens whichever one is on, and you can switch back any time.</p>
         <p>You can also make the new timer your default. The first time you open a tournament's check-in console you'll be asked once which timer you'd like; whichever you answer is remembered, and it's never asked again. After that, <strong>new games you set up start on the timer you chose</strong>, while each game's own switch still wins and games you've already configured are left alone. Change your mind any time under <strong>Settings &rarr; Tournament timer</strong>.</p>
     </div>
 
@@ -188,7 +188,8 @@ $help_sections = [
     </div>
 
     <div class="help-step" id="qr-casting">
-        <h2><span class="step-num">4</span> More screens: the QR code and Cast</h2>
+        <h2><span class="step-num">4</span> More screens: QR, Send to TV, Cast</h2>
+        <p>There are three ways to get the clock onto another screen, and each fits a different one. Players' phones and tablets: the <strong>QR code</strong>. A TV with a web browser, from any phone including an iPhone: <strong>Send to TV</strong>. A Chromecast, from Chrome on a laptop or an Android phone: <strong>Cast</strong>. Every one of them shows the game and none can control it; the TV or phone then runs the clock by itself, in sync with yours.</p>
         <p>Add a <strong>QR code</strong> cell to a layout and any phone, tablet or TV browser that scans it opens the same timer, live and in sync, showing the layout you chose. No account needed. A scanned screen gets no layout picker and no links, just the display, and it starts with sound off.</p>
         <div class="hint"><strong>Scanning only ever grants viewing.</strong> The link in the code shows the display; whether that device also gets controls depends on who is signed in on it. A guest's phone is a spectator screen, your own tablet is a remote control.</div>
         <p>The same layout runs on every screen that scans it, which is where the <code>mobile</code>, <code>tablet</code> and <code>desktop</code> conditions earn their keep: a layout can carry a <strong>Phone</strong> screen that only phones see, with the clock and blinds stacked large and nothing else. The Default Layout ships one, and <strong>+ Screen</strong> in the editor offers it ready-made (see <a href="#screens">Screens &amp; rotation</a>).</p>
@@ -196,9 +197,12 @@ $help_sections = [
             <img src="/img/help/timer-phone.png?v=<?= @filemtime(__DIR__ . '/img/help/timer-phone.png') ?: 0 ?>" alt="A phone showing the Default Layout's Phone screen: a large clock, the blinds in gold, the next level, the round and players left" loading="lazy">
             <figcaption>What a phone gets after scanning the Default Layout's QR code: its own Phone screen, the speaker and fullscreen buttons, and the tap-to-stay-awake banner.</figcaption>
         </figure>
+        <h3>Send to TV: a TV with a web browser</h3>
+        <p>For a TV that has a browser of its own (Fire TV's Silk, a Samsung or LG smart TV, a browser app on a Chromecast with Google TV, or a laptop plugged into the TV), there is no link to type. Open <strong><?= htmlspecialchars(preg_replace('#^https?://#', '', rtrim(get_site_url(), '/')), ENT_QUOTES | ENT_SUBSTITUTE) ?>/tv</strong> in the TV's browser once and bookmark it. It shows a four-character code and a QR code. Scan the QR code with the phone you run the game from (or open <strong>/tv/send</strong> and type the code), tap the game, and the TV switches to its timer within a few seconds. Next game, open the bookmark and do the same.</p>
+        <div class="hint">The check-in console's <strong>TV</strong> button opens the same page with the game already at the top. The TV gets the view-only timer a QR scan gives, starts with sound on, and keeps its speaker button for the remote. A code works once and changes every ten minutes.</div>
         <h3>Cast to a Chromecast</h3>
         <p>When this site has Cast turned on, a <strong>Cast</strong> button joins the speaker and fullscreen buttons in the display's corner whenever Chrome or Edge can see a Chromecast or Google TV on your network. Click it, pick the TV, and the TV shows the timer on its own: you can close the laptop or put the phone away and it keeps running, in sync, with sound on. Click it again to stop casting or switch TVs.</p>
-        <div class="hint">The TV gets the same view-only link as the QR code, so it shows the game and can never control it. Safari, Firefox and iPhones cannot cast this way and never show the button; scan the QR code on the TV's browser instead, or use screen mirroring.</div>
+        <div class="hint">The TV gets the same view-only link as the QR code, so it shows the game and can never control it. Safari, Firefox and iPhones cannot cast this way and never show the button. From an iPhone or iPad, use Send to TV with a TV that has a browser, or AirPlay screen mirroring to an Apple TV.</div>
     </div>
 
     <div class="help-step" id="editor">

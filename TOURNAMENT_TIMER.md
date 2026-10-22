@@ -1027,6 +1027,29 @@ Two smaller things fell out of the same bug:
   picker: it is legitimately absent, and populating a control that is not there
   threw on the first `appendChild` and took the whole display down with it.
 
+## Send to TV
+
+**A TV browser pairs by code, not by link.** `tv.php` (routed as `/tv`, no
+login) mints a `tv_pairings` row through `tv_pair_new()` in `_tv_pair.php`:
+a four-character `code` from an unambiguous alphabet for people to read, and a
+32-hex `secret` only that browser holds. It draws a QR of
+`/tv/send?c=<code>` and polls `tv_dl.php?action=poll&s=<secret>` every 2.5 s.
+`tv_send.php` (`/tv/send`, login, CSRF) lists the caller's unfinished
+tournaments from `user_poker_events()`; picking one checks
+`can_manage_event()`, finds the live code, and stores the session and its
+`target`. The poll hands the target over once and deletes the row.
+
+- **The poll answers by secret, never by code**, so a code read off a screen
+  or guessed buys nothing beyond putting a game the guesser already runs on
+  that TV. Ten misses in ten minutes per browser session and `tv_send` waits.
+- **Target** (`tv_pair_target_url()`): `pk_ensure_timer_row()` first (a game
+  that never opened a timer gets its row and key), then
+  `/timer.php?key=…&tv=1` for a Tournament Timer game or
+  `/timer_classic.php?view=remote&key=…&display=1` for a Classic one.
+- **`tv=1`** sets `TB_TV`: sound on by default (a saved choice still wins),
+  everything else as any key screen. Codes live ten minutes; an expired TV
+  reloads for a fresh one.
+
 ## Google Cast
 
 **The TV is just another key screen.** `timer.php` shows `#tbCastBtn` when

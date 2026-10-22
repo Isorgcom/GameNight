@@ -95,6 +95,9 @@ if ($is_preview) $event_id = 0;
 // page, so it needs exactly same-origin framing.
 $is_cast = $key_timer && isset($_GET['cast']) && $_GET['cast'] === '1';
 if ($is_cast) csp_allow_same_origin_framing();
+// Sent by Send to TV (tv.php): a key screen that is a TV, not a guest's
+// phone, so it starts with sound on. Keeps its speaker button for the remote.
+$is_tv = $key_timer && isset($_GET['tv']) && $_GET['tv'] === '1';
 
 // A key names the session directly; no event id and no event-access check.
 if ($key_timer) {
@@ -256,6 +259,7 @@ var TB_EVENT_TITLE = <?= json_encode($event_title) ?>;
 var TB_EMBED       = <?= json_encode($is_embed) ?>;
 var TB_PREVIEW     = <?= json_encode($is_preview) ?>;
 var TB_CAST        = <?= json_encode($is_cast) ?>;
+var TB_TV          = <?= json_encode($is_tv) ?>;
 var TB_EVENT_LAYOUT_ID = <?= json_encode($event_layout_id) ?>;
 // Admin-configured extra stream hosts for video cells (mirrors the CSP
 // frame-src allowlist built in auth.php, same as the classic timer's page).

@@ -911,6 +911,8 @@ if ($session) {
             <div class="help-tourney">
             <h5>Timer</h5>
             <p>The tournament clock for the big screen. Its own guide is under Help.</p>
+            <h5>TV</h5>
+            <p>Puts this game's clock on a TV that has a web browser. Open <b>/tv</b> on the TV; it shows a code. This button opens the page to type that code into, with this game at the top. Scanning the TV's QR code with your phone gets you to the same page.</p>
             </div>
             <h5>Table Mgr</h5>
             <p>A phone-sized console for this same game: buy-ins, knockouts and the clock within one thumb, for walking the room.</p>
@@ -1503,6 +1505,8 @@ function renderDashboard() {
     h += '<button class="pk-btn-settings" title="How this screen works" aria-label="Help" data-act="openHelp">?<span class="pk-act-label"> Help</span></button>';
     if (isTourney()) {
         h += '<a class="pk-btn-settings" id="timerLink" href="' + (USE_BETA_TIMER ? '/timer.php' : '/timer.php') + '?event_id=' + <?= (int)$event['id'] ?> + '" style="text-decoration:none" title="Timer" aria-label="Timer">&#9201;<span class="pk-act-label"> Timer</span></a>';
+        // Send to TV: the host picks this game, then types the code a TV shows at /tv.
+        h += '<a class="pk-btn-settings" href="/tv/send?event_id=' + <?= (int)$event['id'] ?> + '" style="text-decoration:none" title="Show this game\'s timer on a TV" aria-label="Send to TV">&#128250;<span class="pk-act-label"> TV</span></a>';
     }
     // Not gated on the game type: the Table Manager runs cash games too, and a
     // cash host is the one most likely to be standing at the table with a phone.

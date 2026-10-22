@@ -61,7 +61,7 @@ $allow_reg   = get_setting('allow_registration', '1') === '1';
     <div class="help-step">
         <h2><span class="step-num">1</span> You got an invite &mdash; what now?</h2>
         <p>When a host invites you, you'll get a message by email, text, or WhatsApp with a link for each answer. Tap the one you mean and you'll see the event details, who's going so far, and a button to confirm.</p>
-        <img class="help-shot" src="/img/help/rsvp-page.png?v=<?= @filemtime(__DIR__ . '/img/help/rsvp-page.png') ?: 0 ?>" alt="The RSVP page on a phone: the event card with date, time, description and who's going, and a Confirm Yes button" style="max-width:360px">
+        <img class="help-shot" src="/img/help/rsvp-page.png?v=<?= @filemtime(__DIR__ . '/img/help/rsvp-page.png') ?: 0 ?>" alt="The RSVP page on a phone: the event card with date, time, description and who's going, and a Confirm Yes button" style="max-width:min(360px, 100%)">
         <div class="hint">No password, no sign-up, no app to download. The link itself is your ticket in.</div>
     </div>
 
@@ -75,7 +75,7 @@ $allow_reg   = get_setting('allow_registration', '1') === '1';
     <div class="help-step">
         <h2><span class="step-num">3</span> Walking in without an invite?</h2>
         <p>Some events have a <strong>walk-in QR code</strong> at the door. Scan it with your phone camera, enter your name and an email address or phone number, and you're checked in. The site can even assign you a table and seat automatically. If you gave a phone number, a 6-digit code arrives by text so you can sign in later; you can skip it, you're already in.</p>
-        <img class="help-shot" src="/img/help/walkin-qr.png?v=<?= @filemtime(__DIR__ . '/img/help/walkin-qr.png') ?: 0 ?>" alt="The walk-in registration form on a phone: the event name, date and time, a name field, an email-or-phone field, and the Register button" style="max-width:360px">
+        <img class="help-shot" src="/img/help/walkin-qr.png?v=<?= @filemtime(__DIR__ . '/img/help/walkin-qr.png') ?: 0 ?>" alt="The walk-in registration form on a phone: the event name, date and time, a name field, an email-or-phone field, and the Register button" style="max-width:min(360px, 100%)">
         <div class="hint">Some hosts review walk-ins before adding them to the player list, so you might see a "pending approval" message until the host waves you in.</div>
     </div>
 
