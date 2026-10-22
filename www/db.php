@@ -827,6 +827,23 @@ function db_init(PDO $pdo): void {
         FOREIGN KEY (preset_id) REFERENCES blind_presets(id) ON DELETE SET NULL
     )"); } catch (Exception $e) {}
 
+    // Send to TV (tv.php / tv_send.php / tv_dl.php): a TV browser shows a short
+    // code and polls with its secret until a host binds a game to the code.
+    // One-shot: the row is deleted when the TV collects its link. No foreign
+    // key on session_id on purpose, so deleting a game never trips over a
+    // pairing; a stale one points at nothing and the TV just keeps waiting.
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS tv_pairings (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        code       TEXT    NOT NULL,
+        secret     TEXT    NOT NULL UNIQUE,
+        session_id INTEGER,
+        target     TEXT,
+        paired_by  INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        expires_at DATETIME NOT NULL,
+        paired_at  DATETIME
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_tv_pairings_code ON tv_pairings(code)"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE timer_state ADD COLUMN commanded_at DATETIME"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE timer_state ADD COLUMN prev_state TEXT"); } catch (Exception $e) {}  // one-deep undo: pre-command {l,r,run,ts} JSON
     try { $pdo->exec("ALTER TABLE timer_state ADD COLUMN user_id INTEGER"); } catch (Exception $e) {}

@@ -11,6 +11,15 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+### Added
+
+- **Send a game's timer to a TV without typing a link.** Open `/tv` once in a TV's web browser (Fire TV's Silk, a Samsung or LG smart TV, a browser app on a Chromecast with Google TV) and bookmark it. It shows a four-character code and a QR code; the host scans the QR with their phone (or opens `/tv/send` and types the code), taps the game, and the TV switches to its timer in a few seconds. Next game, open the bookmark and do it again. The check-in console has a **TV** button that opens the same page with the game at the top. The TV gets the same view-only display a QR scan gives, never controls, and starts with sound on; a Classic game goes to Classic's TV display. Codes work once and change every ten minutes, and the TV waits on a private secret rather than the code, so reading a code off someone's screen gets you nothing. This is the answer for iPhone and iPad hosts, who can't use the Cast button. New `tv.php`, `tv_send.php`, `tv_dl.php`, `_tv_pair.php`, the `tv_pairings` table, and two routes in `.htaccess`. The Timer Guide's More screens section opens with which of QR, Send to TV and Cast fits which screen, the Host Guide's game-day step says how to put the clock on a TV, and the console's ? Help lists the TV button.
+
+### Fixed
+
+- **The Host and Guest Guides fit a phone.** Three pictures (the Host Guide's timer prompt, two in the Guest Guide) carried a fixed `max-width` in pixels that overrode the usual 100%, so on a 390px phone the page was 444px wide and scrolled sideways. They are now capped at the screen width as well (`max-width: min(420px, 100%)`).
+
+
 ## [v1.11.1] - 2026-10-22
 
 ### Fixed

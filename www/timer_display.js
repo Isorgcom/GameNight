@@ -797,13 +797,15 @@ function safeSoundSrc(v) {
 
 /* Sound policy: host/event screens sound by default, a key-scanned screen is
  * someone's PHONE and starts muted. The toggle persists per display. A cast
- * screen is the TV, which has no toggle at all, so it always sounds. */
+ * screen is the TV, which has no toggle at all, so it always sounds; a screen
+ * sent by Send to TV (TB_TV) is a TV too and starts with sound on. */
 var soundOn = (function () {
     if (typeof TB_CAST !== 'undefined' && TB_CAST) return true;
     try {
         var saved = localStorage.getItem('tb_sound_on');
         if (saved !== null) return saved === '1';
     } catch (e) {}
+    if (typeof TB_TV !== 'undefined' && TB_TV) return true;
     return !(typeof TB_KEY !== 'undefined' && TB_KEY);
 })();
 
