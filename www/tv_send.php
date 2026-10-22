@@ -61,18 +61,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $_SESSION['tv_send_fails'] = array_values($fails);
 }
 
-// Games worth offering: tournaments that are not finished, plus anything
-// played in the last day (a game finished last night may still be on a TV).
+// Games worth offering: tournaments dated yesterday (a night that ran past
+// midnight) through the coming week, plus any game being played right now
+// whatever its date. A past game nobody pressed Finish on is not one. The
+// caller's own games only, even for an admin, whose full list would be every
+// host's; an admin sends someone else's game from that game's console, which
+// arrives here as ?event_id and is added below.
+$from = date('Y-m-d', strtotime('-1 day'));
+$to   = date('Y-m-d', strtotime('+7 days'));
 $games = array_values(array_filter(
-    user_poker_events($db, (int)$current['id'], $isAdmin),
+    user_poker_events($db, (int)$current['id'], false),
     fn($e) => ($e['game_type'] ?? 'tournament') !== 'cash'
-        && (($e['session_status'] ?? '') !== 'finished' || (string)$e['start_date'] >= date('Y-m-d', strtotime('-1 day')))
+        && (($e['session_status'] ?? '') === 'active'
+            || ((string)$e['start_date'] >= $from && (string)$e['start_date'] <= $to))
 ));
-$games = array_slice($games, 0, 12);
-// The game the console sent us from goes first.
-if ($pick) {
-    usort($games, fn($a, $b) => ((int)$b['id'] === $pick) <=> ((int)$a['id'] === $pick));
+// Playing now first, then the soonest date.
+usort($games, fn($a, $b) => [($a['session_status'] ?? '') !== 'active', (string)$a['start_date'], (int)$a['id']]
+                        <=> [($b['session_status'] ?? '') !== 'active', (string)$b['start_date'], (int)$b['id']]);
+// The game the console sent us from goes first, listed even when the filter
+// above left it out (an admin's, or one dated outside the window).
+if ($pick && can_manage_event($db, $pick, (int)$current['id'], $isAdmin)) {
+    $games = array_values(array_filter($games, fn($e) => (int)$e['id'] !== $pick));
+    $pq = $db->prepare("SELECT e.id, e.title, e.start_date, ps.status AS session_status, ps.game_type
+                        FROM events e JOIN poker_sessions ps ON ps.event_id = e.id WHERE e.id = ?");
+    $pq->execute([$pick]);
+    if (($prow = $pq->fetch()) && ($prow['game_type'] ?? '') !== 'cash') array_unshift($games, $prow);
 }
+$games = array_slice($games, 0, 12);
 
 $sent_title = '';
 if (!empty($_GET['sent'])) {
@@ -144,7 +159,7 @@ $tv_label = preg_replace('#^https?://#', '', rtrim(get_site_url(), '/')) . '/tv'
                     <?php endforeach; ?>
                 </div>
             <?php else: ?>
-                <p class="tvs-empty">You have no tournament coming up to show. Games you host, or help run, appear here once their poker game is set up.</p>
+                <p class="tvs-empty">You have no tournament today or in the coming week. Games you host, or help run, appear here once their poker game is set up. To send another host's game, use the <strong>TV</strong> button on that game's check-in dashboard.</p>
             <?php endif; ?>
         </form>
     <?php endif; ?>

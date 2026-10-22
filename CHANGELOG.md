@@ -11,6 +11,12 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.12.1] - 2026-10-22
+
+### Fixed
+
+- **Send to TV lists only games worth showing.** Its game list offered every game not marked finished, so a host saw months of past games that nobody had pressed Finish on, and an admin saw every host's games on the site. It now lists your own games dated yesterday (a night that ran past midnight) through the coming week, plus any game being played right now whatever its date, with the game being played first and then the soonest. A game opened from its check-in dashboard's **TV** button is always listed first, so an admin can still send another host's game from that game's console.
+
 ## [v1.12.0] - 2026-10-22
 
 ### Added
