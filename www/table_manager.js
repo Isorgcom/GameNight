@@ -39,6 +39,7 @@ var POOL    = null;                    // calc_pool output (both polls carry it)
 var TICKETS = { incoming: [], outgoing: [] };
 var LEVELS  = [];                      // blind schedule (clock poll)
 var VIEW    = (GD.status === 'setup') ? 'all' : 'playing';
+var SHOW_DECLINED = false;   // the All view's "N said no · Show" toggle
 var SEARCH  = '';
 var SHEET_PID = null;                  // player the bottom sheet is showing
 var SHEET_MODE = 'player';             // 'player' | 'cashbox' — one sheet, two renders
@@ -140,6 +141,8 @@ function playerIn(p) {
 function playerDone(p) {
     return isCash() ? cashedOut(p) : !!parseInt(p && p.eliminated);
 }
+// Said no and never bought in: noise on the roster, same rule as checkin.php.
+function isDeclined(p) { return !!p && p.rsvp === 'no' && !parseInt(p.bought_in); }
 // Cash: what a player has put in is the money, not a buy-in count.
 function cashIn(p) { return parseInt(p && p.cash_in) || 0; }
 function cashProfit(p) { return cashedOut(p) ? (parseInt(p.cash_out) || 0) - cashIn(p) : null; }
@@ -854,6 +857,9 @@ function visiblePlayers() {
         if (parseInt(p.removed)) return false;
         if ((p.approval_status || 'approved') === 'pending') return false;   // strip owns them
         if (q && String(p.display_name || '').toLowerCase().indexOf(q) === -1) return false;
+        // Hidden on All unless asked for; a search still finds them, for the
+        // No who turns up anyway.
+        if (VIEW === 'all' && !q && !SHOW_DECLINED && isDeclined(p)) return false;
         if (VIEW === 'playing') return playerIn(p);
         if (VIEW === 'out') return playerDone(p);
         return true;
@@ -906,7 +912,32 @@ function renderRoster() {
         var stray = view.querySelector('.gd-empty');
         if (stray) stray.remove();
     }
+    renderDeclinedLine(view);
 }
+
+// "6 said no · Show" at the foot of the All view. Rebuilt on every render
+// (the loop above drops any child that is not a player row).
+function renderDeclinedLine(view) {
+    var old = view.querySelector('.gd-declined-line');
+    if (old) old.remove();
+    if (VIEW !== 'all' || SEARCH) return;
+    var n = PLAYERS.filter(function (p) { return !parseInt(p.removed) && isDeclined(p); }).length;
+    if (!n) return;
+    var line = document.createElement('div');
+    line.className = 'gd-declined-line';
+    line.appendChild(document.createTextNode(n + ' said no '));
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'gd-declined-btn';
+    b.dataset.act = 'gdToggleDeclined';
+    b.setAttribute('aria-expanded', SHOW_DECLINED ? 'true' : 'false');
+    b.textContent = SHOW_DECLINED ? 'Hide' : 'Show';
+    line.appendChild(b);
+    view.appendChild(line);
+}
+window.gdToggleDeclined = function () {
+    SHOW_DECLINED = !SHOW_DECLINED;
+    renderRoster();
+};
 
 /* ── Seats view ────────────────────────────────────────────────────────── */
 

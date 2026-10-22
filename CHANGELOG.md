@@ -11,6 +11,10 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The Table Manager no longer lists guests who said no.** v1.9.1 took declined guests out of the check-in console's All list, but the Table Manager, the phone page a host runs the game from, kept every one of them on its All view, so a host checking people in on a phone had to read past everyone who was not coming. Its All view now leaves out anyone who RSVPed No and has not bought in, with the same "6 said no · Show" line at the foot to bring them back. Searching a name still finds them, so a No who turns up anyway can be bought in without opening the list first. Playing, Out and Seats never showed them. `table_manager.js` (`isDeclined()`, `renderDeclinedLine()`, `gdToggleDeclined`).
+
 ## [v1.11.0] - 2026-10-22
 
 ### Added
