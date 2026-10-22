@@ -207,6 +207,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Extra hosts the timer streaming panel may embed. Store raw; it is
                 // strictly re-validated on read by stream_allowed_hosts() before use.
                 set_setting('stream_allowed_hosts', trim($_POST['stream_allowed_hosts'] ?? ''));
+                // Google Cast receiver app id: eight hex characters from the Cast
+                // console. Anything else is stored as blank, which hides the button.
+                $__castId = strtoupper(trim($_POST['cast_app_id'] ?? ''));
+                set_setting('cast_app_id', preg_match('/^[0-9A-F]{8}$/', $__castId) ? $__castId : '');
                 db_log_activity($current['id'], 'updated site settings');
                 $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Settings saved.'];
             }
@@ -1551,6 +1555,19 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                        no entry here and no approval from you: hosts paste their own stream into a layout and it
                        plays. Only pages that must be put in an <code>&lt;iframe&gt;</code> need listing, because
                        framing an arbitrary site is a real hazard and a direct video source is not.</p>
+                </div>
+                <div class="form-group">
+                    <label for="cast_app_id">Google Cast app ID</label>
+                    <input type="text" name="cast_app_id" id="cast_app_id" autocomplete="off" spellcheck="false"
+                           maxlength="8" pattern="[0-9A-Fa-f]{8}" placeholder="e.g. 1A2B3C4D"
+                           value="<?= htmlspecialchars(get_setting('cast_app_id', ''), ENT_QUOTES | ENT_SUBSTITUTE) ?>">
+                    <p class="hint">Turns on the Cast button on the Tournament Timer, which sends the display
+                       to a Chromecast or Google TV. Register a <strong>Custom Receiver</strong> in the
+                       <a href="https://cast.google.com/publish" target="_blank" rel="noopener">Google Cast SDK Developer Console</a>
+                       with the receiver URL
+                       <code><?= htmlspecialchars(rtrim(get_site_url(), '/') . '/cast_receiver.php', ENT_QUOTES | ENT_SUBSTITUTE) ?></code>
+                       and paste the eight-character app ID it gives you. Until the app is published there,
+                       only Chromecasts registered as test devices in that console can receive. Blank hides the button.</p>
                 </div>
 
 

@@ -1027,6 +1027,34 @@ Two smaller things fell out of the same bug:
   picker: it is legitimately absent, and populating a control that is not there
   threw on the first `appendChild` and took the whole display down with it.
 
+## Google Cast
+
+**The TV is just another key screen.** `timer.php` shows `#tbCastBtn` when
+`site_settings.cast_app_id` holds an eight-hex-digit app id and the page has a
+cast key (never in embed, preview or cast mode). `pk-cast.js` defines
+`__onGCastApiAvailable` before Google's `cast_sender.js` loads, keeps the
+button hidden while the SDK sees no device (so Safari, Firefox and iOS never
+show it), and on `SESSION_STARTED` / `SESSION_RESUMED` sends `{key}` over
+`urn:x-cast:poker.gamenight.timer`. The Chromecast loads the registered
+receiver, `cast_receiver.php` (CAF v3, `disableIdleTimeout`,
+`skipPlayersLoad`), which validates the key and frames
+`/timer.php?key=…&cast=1`. A frame rather than a navigation because the
+receiver context lives in that document: navigating away ends the session.
+
+- **Cast mode** (`cast=1`, key screens only) allows same-origin framing, drops
+  the fullscreen and sound buttons and the wake banner (nobody can press them
+  on a TV), and sets `TB_CAST`, which forces `soundOn`.
+- **CSP:** `csp_allow_cast_sdk()` adds `https://www.gstatic.com` to
+  `script-src` / `script-src-elem` on those two pages only, and on the
+  receiver `style-src` plus `connect-src ws://localhost:8008` (the CAF
+  runtime's channel to the device). Per-page amendments go through
+  `_csp_amend()`, which accumulates, so framing plus the SDK on one response
+  do not undo each other.
+- **Registration:** a Custom Receiver in the Google Cast SDK Developer Console
+  with the URL `https://<site>/cast_receiver.php`. Unpublished, only devices
+  registered by serial number there can load it. Each install registers its
+  own: the id is a site setting (Admin → Settings → Tournament Timer).
+
 ## Fullscreen on a scanned screen
 
 **The button belongs to the viewer, not the controller.** The control tray only

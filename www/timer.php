@@ -89,6 +89,12 @@ if ($is_embed) { $event_id = 0; csp_allow_same_origin_framing(); }
 // Login is still required, as for any display without a key.
 $is_preview = isset($_GET['preview']) && $_GET['preview'] === '1';
 if ($is_preview) $event_id = 0;
+// Cast mode: this page inside cast_receiver.php on a Chromecast. Key screens
+// only (the receiver has nothing else). It is a TV: no corner buttons nobody
+// can press, no tap-to-stay-awake banner, sound on. Framed by our own receiver
+// page, so it needs exactly same-origin framing.
+$is_cast = $key_timer && isset($_GET['cast']) && $_GET['cast'] === '1';
+if ($is_cast) csp_allow_same_origin_framing();
 
 // A key names the session directly; no event id and no event-access check.
 if ($key_timer) {
@@ -138,6 +144,14 @@ if ($session_id) {
     $event_layout_id = (int)($lrow['layout_id'] ?? 0) ?: null;
     $event_layout_key = ($lrow['layout_builtin'] ?? null) ?: null;
 }
+
+// The Cast button (sender side). Only when an admin has registered the
+// receiver (site_settings.cast_app_id) and there is a game to send, never in
+// the editor's frames, and not on the TV itself.
+$cast_app_id = (string)get_setting('cast_app_id', '');
+if (!preg_match('/^[0-9A-F]{8}$/i', $cast_app_id)) $cast_app_id = '';
+$cast_sender = $cast_app_id !== '' && $cast_key !== '' && !$is_embed && !$is_preview && !$is_cast;
+if ($cast_sender) csp_allow_cast_sdk();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -180,7 +194,7 @@ if ($session_id) {
 </div>
 <?php endif; ?>
 
-<?php if (!$is_embed): ?>
+<?php if (!$is_embed && !$is_cast): ?>
 <!-- Fullscreen, for EVERY viewer. The tray's copy of this only appears once
      get_state confirms control rights, so a screen opened by scanning the QR
      code — which is the whole point of the QR cell, and is usually a device
@@ -193,6 +207,13 @@ if ($session_id) {
          display. Fades with the tray like the fullscreen button. */ ?>
 <button type="button" id="tbSndBtn" title="Sounds on/off" aria-label="Sounds on or off">&#128266;</button>
 <div id="tbFsHint" hidden></div>
+<?php if ($cast_sender): ?>
+<?php /* Shown by pk-cast.js only once the Cast SDK reports a device nearby,
+         so browsers without Cast (Safari, Firefox, iOS) never see it. */ ?>
+<button type="button" id="tbCastBtn" hidden title="Cast to a TV" aria-label="Cast to a TV">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="currentColor"><path d="M21 3H3c-1.1 0-2 .9-2 2v3h2V5h18v14h-7v2h7c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM1 18v3h3c0-1.66-1.34-3-3-3zm0-4v2c2.76 0 5 2.24 5 5h2c0-3.87-3.13-7-7-7zm0-4v2c4.97 0 9 4.03 9 9h2c0-6.08-4.93-11-11-11z"/></svg>
+</button>
+<?php endif; ?>
 <?php endif; ?>
 
 <?php if ($session_id && !$is_embed): ?>
@@ -234,6 +255,7 @@ var TB_CAST_KEY = <?= json_encode($cast_key ?: null) ?>;
 var TB_EVENT_TITLE = <?= json_encode($event_title) ?>;
 var TB_EMBED       = <?= json_encode($is_embed) ?>;
 var TB_PREVIEW     = <?= json_encode($is_preview) ?>;
+var TB_CAST        = <?= json_encode($is_cast) ?>;
 var TB_EVENT_LAYOUT_ID = <?= json_encode($event_layout_id) ?>;
 // Admin-configured extra stream hosts for video cells (mirrors the CSP
 // frame-src allowlist built in auth.php, same as the classic timer's page).
@@ -244,7 +266,7 @@ var TB_EVENT_LAYOUT_KEY = <?= json_encode($event_layout_key) ?>;
 // from anything in the URL.
 var TB_EXIT_URL = <?= json_encode($event_id ? '/checkin.php?event_id=' . (int)$event_id : '/calendar.php') ?>;
 </script>
-<?php if (!$is_embed): ?>
+<?php if (!$is_embed && !$is_cast): ?>
 <?php /* Keep-awake, same pair the classic timer uses: navigator.wakeLock where
          it exists, and NoSleep.js (a hidden silent video) for iPhone Safari,
          which has no Wake Lock API over plain HTTP at all. Skipped in embed
@@ -260,5 +282,14 @@ var TB_EXIT_URL = <?= json_encode($event_id ? '/checkin.php?event_id=' . (int)$e
      to a native src, which still plays on Safari and iOS. -->
 <script src="/vendor/hls.min.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/hls.min.js') ?: 0)) ?>"></script>
 <script src="/timer_display.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/timer_display.js') ?: 0)) ?>"></script>
+<?php if ($cast_sender): ?>
+<script nonce="<?= csp_nonce() ?>">
+var TB_CAST_APP_ID = <?= json_encode($cast_app_id) ?>;
+</script>
+<?php /* pk-cast.js defines __onGCastApiAvailable, so it must run before the
+         SDK, which calls it once loaded. */ ?>
+<script src="/pk-cast.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-cast.js') ?: 0)) ?>"></script>
+<script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
+<?php endif; ?>
 </body>
 </html>
