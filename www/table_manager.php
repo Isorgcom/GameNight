@@ -181,6 +181,9 @@ $title     = (string)$event['title'];
        never the KO red, or the host learns to fear the primary button. */
     .gd-primary.cashout { background:#0891b2; color:#fff; min-width:84px; }
     .gd-empty { text-align:center; color:#94a3b8; font-size:.85rem; padding:1.6rem 0; }
+    .gd-declined-line { text-align:center; color:#64748b; font-size:.85rem; padding:.6rem 0 1rem; }
+    .gd-declined-btn { background:none; border:0; color:#1d4ed8; font:inherit; font-weight:600;
+                       text-decoration:underline; min-height:44px; padding:0 .6rem; cursor:pointer; }
 
     /* ── Seats view ── */
     .gd-table-card { background:#fff; border:1.5px solid #e2e8f0; border-radius:12px; margin-bottom:.6rem; overflow:hidden; }
