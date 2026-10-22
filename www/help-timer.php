@@ -13,7 +13,7 @@ $help_sections = [
     ['two-timers',    'Two timers, one switch'],
     ['choose-layout', 'Choose what the display shows'],
     ['running',       'Running the display'],
-    ['qr-casting',    'More screens: the QR code'],
+    ['qr-casting',    'More screens: the QR code and Cast'],
     ['editor',        'The editor at a glance'],
     ['building',      'Building a layout'],
     ['cells',         'Cells beyond text'],
@@ -188,7 +188,7 @@ $help_sections = [
     </div>
 
     <div class="help-step" id="qr-casting">
-        <h2><span class="step-num">4</span> More screens: the QR code</h2>
+        <h2><span class="step-num">4</span> More screens: the QR code and Cast</h2>
         <p>Add a <strong>QR code</strong> cell to a layout and any phone, tablet or TV browser that scans it opens the same timer, live and in sync, showing the layout you chose. No account needed. A scanned screen gets no layout picker and no links, just the display, and it starts with sound off.</p>
         <div class="hint"><strong>Scanning only ever grants viewing.</strong> The link in the code shows the display; whether that device also gets controls depends on who is signed in on it. A guest's phone is a spectator screen, your own tablet is a remote control.</div>
         <p>The same layout runs on every screen that scans it, which is where the <code>mobile</code>, <code>tablet</code> and <code>desktop</code> conditions earn their keep: a layout can carry a <strong>Phone</strong> screen that only phones see, with the clock and blinds stacked large and nothing else. The Default Layout ships one, and <strong>+ Screen</strong> in the editor offers it ready-made (see <a href="#screens">Screens &amp; rotation</a>).</p>
@@ -196,6 +196,9 @@ $help_sections = [
             <img src="/img/help/timer-phone.png?v=<?= @filemtime(__DIR__ . '/img/help/timer-phone.png') ?: 0 ?>" alt="A phone showing the Default Layout's Phone screen: a large clock, the blinds in gold, the next level, the round and players left" loading="lazy">
             <figcaption>What a phone gets after scanning the Default Layout's QR code: its own Phone screen, the speaker and fullscreen buttons, and the tap-to-stay-awake banner.</figcaption>
         </figure>
+        <h3>Cast to a Chromecast</h3>
+        <p>When this site has Cast turned on, a <strong>Cast</strong> button joins the speaker and fullscreen buttons in the display's corner whenever Chrome or Edge can see a Chromecast or Google TV on your network. Click it, pick the TV, and the TV shows the timer on its own: you can close the laptop or put the phone away and it keeps running, in sync, with sound on. Click it again to stop casting or switch TVs.</p>
+        <div class="hint">The TV gets the same view-only link as the QR code, so it shows the game and can never control it. Safari, Firefox and iPhones cannot cast this way and never show the button; scan the QR code on the TV's browser instead, or use screen mirroring.</div>
     </div>
 
     <div class="help-step" id="editor">

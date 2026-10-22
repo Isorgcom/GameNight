@@ -11,6 +11,12 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.11.0] - 2026-10-22
+
+### Added
+
+- **Cast the Tournament Timer to a Chromecast.** A Cast button joins the speaker and fullscreen buttons in the display's corner whenever Chrome or Edge can see a Chromecast or Google TV; pick the TV and it runs the timer on its own, in sync and with sound, so the laptop or phone that sent it can be closed. The TV gets the game's view-only link, the same one the QR code prints, and can never control the game. Browsers without Cast (Safari, Firefox, iPhones) never show the button. It is off until an admin registers a Custom Receiver in Google's Cast console pointing at `/cast_receiver.php` and pastes the app ID into Admin → Settings → Tournament Timer → **Google Cast app ID**. Google's SDK is allowed only on the timer and the receiver page, not site-wide. The Timer Guide's More screens section and TOURNAMENT_TIMER.md describe it.
+
 ## [v1.10.0] - 2026-10-21
 
 ### Added

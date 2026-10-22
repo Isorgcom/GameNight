@@ -107,7 +107,7 @@ $_is_mobile = (bool) preg_match('/Mobile|Android|iPhone|iPad|iPod|CriOS|FxiOS/i'
  */
 function csp_allow_same_origin_framing(): void {
     header('X-Frame-Options: SAMEORIGIN');
-    header('Content-Security-Policy: ' . str_replace("frame-ancestors 'none'", "frame-ancestors 'self'", CSP_POLICY));
+    _csp_amend("frame-ancestors 'none'", "frame-ancestors 'self'");
 }
 
 /**
@@ -122,15 +122,46 @@ function csp_allow_same_origin_framing(): void {
  */
 function csp_allow_form_action_to(string $origin): void {
     if (!preg_match('#^https?://[A-Za-z0-9.-]+(:\d+)?$#', $origin)) return;
-    header('Content-Security-Policy: ' . str_replace("form-action 'self'", "form-action 'self' " . $origin, CSP_POLICY));
+    _csp_amend("form-action 'self'", "form-action 'self' " . $origin);
+}
+
+/**
+ * Re-send the CSP header with one directive fragment replaced. The amendments
+ * accumulate on the policy as already amended, so two helpers on one page
+ * (the Cast receiver's timer frame needs framing AND nothing else, the sender
+ * page needs the SDK) do not silently undo each other, which re-deriving each
+ * from CSP_POLICY would. Call before any output.
+ */
+function _csp_amend(string $from, string $to): void {
+    static $policy = null;
+    if ($policy === null) $policy = CSP_POLICY;
+    $policy = str_replace($from, $to, $policy);
+    header('Content-Security-Policy: ' . $policy);
+}
+
+/**
+ * Let this response load Google's Cast SDK. Scoped to the two pages that need
+ * it, never site-wide: timer.php as the SENDER (the Cast button) and
+ * cast_receiver.php as the RECEIVER the Chromecast loads. Both SDKs are served
+ * from www.gstatic.com and load further pieces from there, which is why a host
+ * source is needed and not only a nonce. The receiver also talks to the
+ * device's own runtime over a websocket on localhost:8008.
+ */
+function csp_allow_cast_sdk(bool $receiver = false): void {
+    $g = 'https://www.gstatic.com';
+    _csp_amend("script-src 'self'", "script-src 'self' " . $g);
+    _csp_amend("script-src-elem 'self'", "script-src-elem 'self' " . $g);
+    if ($receiver) {
+        _csp_amend("style-src 'self'", "style-src 'self' " . $g);
+        _csp_amend("connect-src 'self'", "connect-src 'self' ws://localhost:8008");
+    }
 }
 
 /**
  * Nonce for an inline script block: <script nonce="<?= csp_nonce() ?>">.
  * Required by script-src-elem. External <script src="/..."> does not need one,
  * it is covered by 'self'. A page that does not include auth.php gets no CSP
- * header and must NOT call this (there are none at present; cast_receiver.php
- * was the last, deleted as dead code).
+ * header and must NOT call this (there are none at present).
  */
 function csp_nonce(): string {
     return defined('CSP_NONCE') ? CSP_NONCE : '';

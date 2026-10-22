@@ -796,8 +796,10 @@ function safeSoundSrc(v) {
 }
 
 /* Sound policy: host/event screens sound by default, a key-scanned screen is
- * someone's PHONE and starts muted. The toggle persists per display. */
+ * someone's PHONE and starts muted. The toggle persists per display. A cast
+ * screen is the TV, which has no toggle at all, so it always sounds. */
 var soundOn = (function () {
+    if (typeof TB_CAST !== 'undefined' && TB_CAST) return true;
     try {
         var saved = localStorage.getItem('tb_sound_on');
         if (saved !== null) return saved === '1';
@@ -3295,12 +3297,15 @@ function showControls() {
     if (fsBtn) fsBtn.classList.remove('tb-idle');
     var sB = document.getElementById('tbSndBtn');
     if (sB) sB.classList.remove('tb-idle');
+    var cB = document.getElementById('tbCastBtn');
+    if (cB) cB.classList.remove('tb-idle');
     if (ctrls && !ctrls.hidden) ctrls.classList.remove('tb-idle');
     if (idleTimer) clearTimeout(idleTimer);
     idleTimer = setTimeout(function () {
         if (ctrls) ctrls.classList.add('tb-idle');
         if (fsBtn) fsBtn.classList.add('tb-idle');
         if (sB) sB.classList.add('tb-idle');
+        if (cB) cB.classList.add('tb-idle');
     }, 3000);
 }
 ['mousemove', 'mousedown', 'touchstart', 'keydown'].forEach(function (ev) {
