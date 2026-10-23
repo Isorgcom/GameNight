@@ -47,12 +47,13 @@ function tv_pair_clean_code(string $raw): string {
  * Where the TV goes for a session: the game's own display choice, so a
  * Classic game gets Classic's TV display. Creates the timer row (and so the
  * key) when the game has never opened a timer, seeded as the rest of the app
- * seeds it.
+ * seeds it. tv=1 on either page marks a TV (sound on) and lets tv.php frame
+ * it, which is how the TV's full screen survives the game arriving.
  */
 function tv_pair_target_url(PDO $db, int $session_id, int $user_id): string {
     $timer = pk_ensure_timer_row($db, $session_id, pk_user_beta_pref($db, $user_id));
     $key = rawurlencode((string)$timer['remote_key']);
     return !empty($timer['use_beta'])
         ? '/timer.php?key=' . $key . '&tv=1'
-        : '/timer_classic.php?view=remote&key=' . $key . '&display=1';
+        : '/timer_classic.php?view=remote&key=' . $key . '&display=1&tv=1';
 }

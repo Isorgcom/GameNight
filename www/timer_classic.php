@@ -78,6 +78,9 @@ $is_guest = false;
 $is_standalone = false;       // timer opened with no event link (no pool/players)
 $linkable_events = [];        // events the host can link this standalone timer to
 $is_display = isset($_GET['display']) && $_GET['display'] === '1';
+// Send to TV frames the TV display inside tv.php (see tv.php for why). The
+// key is still the only thing that opens it, and the frame is our own page.
+if ($is_display && isset($_GET['tv']) && $_GET['tv'] === '1') csp_allow_same_origin_framing();
 $can_control = false;
 $session = null;
 $event = null;

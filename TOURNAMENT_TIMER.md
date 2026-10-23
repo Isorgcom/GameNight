@@ -1037,7 +1037,8 @@ a four-character `code` from an unambiguous alphabet for people to read, and a
 `tv_send.php` (`/tv/send`, login, CSRF) lists the caller's unfinished
 tournaments from `user_poker_events()`; picking one checks
 `can_manage_event()`, finds the live code, and stores the session and its
-`target`. The poll hands the target over once and deletes the row.
+`target`. The poll hands the target over once and deletes the row; `tv.php`
+then loads it in `#tvFrame`, a full-window iframe, and hides the code screen.
 
 - **The poll answers by secret, never by code**, so a code read off a screen
   or guessed buys nothing beyond putting a game the guesser already runs on
@@ -1045,10 +1046,20 @@ tournaments from `user_poker_events()`; picking one checks
 - **Target** (`tv_pair_target_url()`): `pk_ensure_timer_row()` first (a game
   that never opened a timer gets its row and key), then
   `/timer.php?key=…&tv=1` for a Tournament Timer game or
-  `/timer_classic.php?view=remote&key=…&display=1` for a Classic one.
+  `/timer_classic.php?view=remote&key=…&display=1&tv=1` for a Classic one.
 - **`tv=1`** sets `TB_TV`: sound on by default (a saved choice still wins),
-  everything else as any key screen. Codes live ten minutes; an expired TV
-  reloads for a fresh one.
+  same-origin framing allowed (`csp_allow_same_origin_framing()`, on
+  `timer_classic.php` too), everything else as any key screen.
+- **Fullscreen belongs to the outer page.** A browser enters fullscreen only
+  on a press, so `tv.php` shows "Press OK on the remote" while the code is up
+  (Enter, Select, Space or a click; only where the API exists) and requests
+  it on its own `documentElement`. Framing rather than navigating is what
+  keeps it when the game arrives. Inside the frame `timer_display.js` points
+  `fsDoc` at `window.parent.document` under `TB_TV`, so the timer's own ⛶
+  button toggles the outer page (a press inside a frame activates its
+  ancestors), falling back to its own document if the parent refuses.
+- Codes live ten minutes; an expired TV asks `tv_dl.php?action=new` and
+  swaps the code and QR in place, since a reload would end fullscreen.
 
 ## Google Cast
 

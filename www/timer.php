@@ -97,7 +97,11 @@ $is_cast = $key_timer && isset($_GET['cast']) && $_GET['cast'] === '1';
 if ($is_cast) csp_allow_same_origin_framing();
 // Sent by Send to TV (tv.php): a key screen that is a TV, not a guest's
 // phone, so it starts with sound on. Keeps its speaker button for the remote.
+// tv.php keeps its own page and frames this one, so the full screen a press
+// of OK bought on the code screen outlives the game arriving; the fullscreen
+// button here then drives that outer page (timer_display.js).
 $is_tv = $key_timer && isset($_GET['tv']) && $_GET['tv'] === '1';
+if ($is_tv) csp_allow_same_origin_framing();
 
 // A key names the session directly; no event id and no event-access check.
 if ($key_timer) {
