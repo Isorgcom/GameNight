@@ -163,7 +163,7 @@ $tv_label = preg_replace('#^https?://#', '', rtrim(get_site_url(), '/')) . '/tv'
             <?php endif; ?>
         </form>
     <?php endif; ?>
-    <p class="tvs-help">The TV gets the same view-only timer a guest gets by scanning the timer's QR code. It can't control the game. It works in any TV's web browser: Fire TV's Silk, Samsung and LG TVs, or a browser app on a Chromecast with Google TV.</p>
+    <p class="tvs-help">The TV gets the same view-only timer a guest gets by scanning the timer's QR code. It can't control the game. It works in any TV's web browser: Fire TV's Silk, Samsung and LG TVs, or a browser app on a Chromecast with Google TV. On the TV, press OK on the remote while its code is showing and the timer fills the screen when it arrives.</p>
 </main>
 <?php require __DIR__ . '/_footer.php'; ?>
 </body>

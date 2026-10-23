@@ -3249,7 +3249,17 @@ function leaveTimer() {
  * control that does nothing. */
 var fsBtn = document.getElementById('tbFsBtn');
 var fsHint = document.getElementById('tbFsHint');
-var fsRoot = document.documentElement;
+// Sent to a TV (TB_TV), this page sits inside tv.php's frame and fullscreen
+// belongs to THAT document: it was entered there with a press of OK before
+// the game arrived, and it has to outlive this frame being pointed at another
+// game. Same origin, so the parent document is reachable, and a press inside
+// the frame counts for the parent too (activation reaches every ancestor).
+// Anywhere else, this document.
+var fsDoc = document;
+try {
+    if (typeof TB_TV !== 'undefined' && TB_TV && window.parent !== window && window.parent.document) fsDoc = window.parent.document;
+} catch (e) {}
+var fsRoot = fsDoc.documentElement;
 var canFullscreen = !!(fsRoot.requestFullscreen || fsRoot.webkitRequestFullscreen);
 // Launched from the home screen, or already fullscreen: no chrome to escape.
 function inStandalone() {
@@ -3258,10 +3268,15 @@ function inStandalone() {
 }
 function toggleFullscreen() {
     if (canFullscreen) {
-        if (document.fullscreenElement || document.webkitFullscreenElement) {
-            (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+        if (fsDoc.fullscreenElement || fsDoc.webkitFullscreenElement) {
+            (fsDoc.exitFullscreen || fsDoc.webkitExitFullscreen).call(fsDoc);
         } else {
-            (fsRoot.requestFullscreen || fsRoot.webkitRequestFullscreen).call(fsRoot);
+            var p = (fsRoot.requestFullscreen || fsRoot.webkitRequestFullscreen).call(fsRoot);
+            // Should the parent refuse (no activation reached it), fill this
+            // frame instead: still the whole screen, just not kept across games.
+            if (fsDoc !== document && p && typeof p.catch === 'function') {
+                p.catch(function () { try { document.documentElement.requestFullscreen(); } catch (e) {} });
+            }
         }
         return;
     }

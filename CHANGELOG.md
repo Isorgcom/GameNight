@@ -11,6 +11,12 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.12.2] - 2026-10-23
+
+### Added
+
+- **Send to TV fills the screen with one press of OK.** A web page can only go full screen on a press, never on its own, and the game arriving on the TV is not a press, so until now the TV showed the timer with the browser's bar still in view until someone dug out the browser's own full-screen option. The TV page (`/tv`) now says **Press OK on the remote to fill the screen** while its code is showing, on TV browsers that can do it. The timer then loads inside that page instead of replacing it, so the full screen survives the switch, and the timer's own ⛶ button drives the TV page too. A code that runs out is renewed on the page rather than by a reload, for the same reason. The Timer Guide's Send to TV section says so.
+
 ## [v1.12.1] - 2026-10-22
 
 ### Fixed
