@@ -11,6 +11,8 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.12.8] - 2026-10-26
+
 ### Security
 
 - **A visitor's address is the one the connection came from.** Every per-address limit (login lockout, sign-up and walk-in caps, TV pairing) keys on the client address, and the site used to take that address from the `X-Real-IP` or `X-Forwarded-For` header of the request itself. Behind the reverse proxy that was fine, because Apache already rewrites the real address from the proxy's header; reached any other way, a request could name its own address and sidestep every limit. The headers are no longer read in PHP.
