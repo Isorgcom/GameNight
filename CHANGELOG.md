@@ -11,6 +11,8 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.12.5] - 2026-10-26
+
 ### Security
 
 - **Walk-ins join the league only once the host approves them.** The walk-in page added every arrival to the event's league the moment they typed their details, whether the event required approval, their spot was still pending, or the host had already denied them, so anyone holding the door's QR link could become a league member on their own. Now an approved walk-in joins at once, a pending one joins at the moment a host approves them (from the event page, the check-in console's approve and buy-in actions, the roster's RSVP, an on-behalf RSVP, or turning the event's approval requirement off), and a denied one never does. Members who got in through a pending or denied walk-in before this release stay unless a host removes them. A pending walk-in by an existing account also records its RSVP as yes, which a missing value had been dropping.
