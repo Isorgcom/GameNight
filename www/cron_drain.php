@@ -9,8 +9,11 @@
  * Handles every notify_type via dispatch_queued_notification(). Honors
  * scheduled_for (NULL = send ASAP; a future timestamp skips the row).
  *
- * Protected by the same cron_token as cron.php. CLI calls pass the token
- * as argv[1]; HTTP calls use ?token=.
+ * Protected by the same cron_token as cron.php. The CLI spawn
+ * (drain_queue_async) hands the token over in the CRON_TOKEN environment
+ * variable, never as an argument (arguments are readable through /proc by
+ * every user on the host); HTTP calls send the X-Cron-Token header, or
+ * ?token= as the fallback cron.php also accepts.
  *
  * Safe to run concurrently with cron.php — the drain UPDATEs attempted_at
  * before sending, so duplicate invocations see 0 claimed rows.
@@ -22,7 +25,7 @@ require_once __DIR__ . '/mail.php';
 require_once __DIR__ . '/_notifications.php';
 
 $cron_token = get_setting('cron_token', '');
-$provided = $_GET['token'] ?? ($argv[1] ?? '');
+$provided = (string)((getenv('CRON_TOKEN') ?: '') ?: ($_SERVER['HTTP_X_CRON_TOKEN'] ?? ($_GET['token'] ?? '')));
 if ($cron_token === '' || $provided === '' || !hash_equals($cron_token, $provided)) {
     http_response_code(403);
     exit('Forbidden');

@@ -491,7 +491,7 @@ Automated reminders require a cron job that calls the reminder endpoint.
 
 ```bash
 # Run every 15 minutes
-*/15 * * * * curl -s "https://yoursite.com/cron.php?token=YOUR_CRON_TOKEN" > /dev/null 2>&1
+*/15 * * * * curl -s -H "X-Cron-Token: YOUR_CRON_TOKEN" "https://yoursite.com/cron.php" > /dev/null 2>&1
 ```
 
 Or use the Docker container's built-in timer if configured in `docker-compose.yml`.

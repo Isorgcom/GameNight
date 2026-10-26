@@ -20,8 +20,11 @@ require_once __DIR__ . '/mail.php';
 require_once __DIR__ . '/_notifications.php';
 
 // ── Token protection ──────────────────────────────────────────────────────────
+// The token comes in the X-Cron-Token header (the container's own scheduler
+// sends it that way, so it never lands in the access log); ?token= is kept
+// for an external cron that cannot set a header.
 $cron_token = get_setting('cron_token', '');
-$provided   = $_GET['token'] ?? '';
+$provided   = (string)($_SERVER['HTTP_X_CRON_TOKEN'] ?? ($_GET['token'] ?? ''));
 if ($cron_token === '' || $provided === '' || !hash_equals($cron_token, $provided)) {
     http_response_code(403);
     exit('Forbidden');

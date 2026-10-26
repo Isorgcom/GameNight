@@ -792,8 +792,8 @@ async function editComment(id) {
      SVG icons render at natural size, one of which covers the modal as a giant
      black X. Lost in the v0.2038 port of this composer from the calendar popup,
      which loads the stylesheet (calendar.php) as do league.php and admin_posts.php. -->
-<link rel="stylesheet" href="/vendor/jodit/jodit.min.css">
-<script src="/vendor/jodit/jodit.min.js" defer></script>
+<link rel="stylesheet" href="/vendor/jodit/jodit.min.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/jodit/jodit.min.css') ?: 0)) ?>">
+<script src="/vendor/jodit/jodit.min.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/jodit/jodit.min.js') ?: 0)) ?>" defer></script>
 <script nonce="<?= csp_nonce() ?>">
 // ── Manager panel: live roster, approvals, delivery status, invites ─────────
 // Ported from the calendar popup (renderInvitesPanel/pollRsvps) — one view now.

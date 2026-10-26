@@ -5,7 +5,7 @@ history of the CSP gap that is now closed — kept because the reasoning is what
 stops it being reopened, and because the conversion that closed it is still the
 main source of regressions.
 
-Last reviewed: 2026-10-26 (v1.12.7).
+Last reviewed: 2026-10-26 (v1.12.8).
 
 ---
 
@@ -640,6 +640,22 @@ them) and half are conventions someone has to follow.
   page-defined function, never a browser built-in; `data-confirm` text is
   escaped before the dialog; the timer's custom-element maps have no
   prototype and the seven `Object.prototype` names are refused on save.
+- The Low list, second half (v1.12.8): `get_client_ip()` returns
+  `REMOTE_ADDR` and nothing else (mod_remoteip in the Dockerfile already
+  rewrites it from `X-Real-IP` for connections from the Docker bridge, so a
+  header from anywhere else now counts for nothing); the SMS log keeps
+  outbound bodies through `redact_secrets()` (six-digit codes and link
+  tokens blanked) and the mail retry queue stores bodies through
+  `encrypt_value()`; the cron token travels in the `X-Cron-Token` header
+  (`?token=` kept for an external cron) and reaches `cron_drain.php` through
+  the environment, never an argument; `cron_token`, `waha_api_key` and
+  `vapid_private_pem` are in `ENCRYPTED_SETTINGS` (one-shot
+  `settings_encrypted_v2` re-saved the stored values); `sanitize_html()`
+  allows no `class` or `id` and only the properties `sanitize_style()`
+  lists (no position, z-index, display, opacity, transform or `url()`);
+  Jodit is pinned by `JODIT_VERSION` in the entrypoint with a `.version`
+  marker so a bump reaches an existing install; Apache's twelve workers and
+  the 384 MB container limit are sized together.
 - `username_format_error()` in `auth.php` is the single username rule, applied by
   registration, the API and the profile editor.
 - `pk_theme_sanitize_props()` constrains stored theme JSON on every write path.

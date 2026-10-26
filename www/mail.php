@@ -224,18 +224,31 @@ function send_email(string $toAddress, string $toName, string $subject, string $
  * one backoff interval.
  */
 function _enqueue_email_retry(string $toAddress, string $toName, string $subject, string $htmlBody, ?string $error, array $attachments = []): bool {
-    try {
-        $delay = _email_queue_backoff_minutes(1, _smtp_error_is_quota($error));
-        [$ctx_eid, $ctx_user] = notif_log_context_get();
-        get_db()->prepare(
-            "INSERT INTO email_retry_queue (to_address, to_name, subject, body, attempts, last_error, next_attempt_at, event_id, username, attachments)
-             VALUES (?, ?, ?, ?, 0, ?, datetime('now', ? || ' minutes'), ?, ?, ?)"
-        )->execute([$toAddress, $toName, $subject, $htmlBody, $error, '+' . $delay, $ctx_eid, $ctx_user, $attachments ? json_encode(array_values($attachments)) : null]);
-        return true;
-    } catch (Exception $e) {
-        error_log('email_retry_queue enqueue failed: ' . $e->getMessage());
-        return false;
+    $delay = _email_queue_backoff_minutes(1, _smtp_error_is_quota($error));
+    [$ctx_eid, $ctx_user] = notif_log_context_get();
+    // The body is stored encrypted (encrypt_value, the app secret): a parked
+    // mail is a reset link or a one-click RSVP token sitting in a table for
+    // hours, readable by anyone with the database file. The drain decrypts.
+    $stored = encrypt_value($htmlBody);
+    // A busy relay has every background drain writing at once, and the park
+    // itself once lost a mail to "database is locked" past the 5 s
+    // busy_timeout; three tries with a short pause before giving up.
+    for ($try = 1; $try <= 3; $try++) {
+        try {
+            get_db()->prepare(
+                "INSERT INTO email_retry_queue (to_address, to_name, subject, body, attempts, last_error, next_attempt_at, event_id, username, attachments)
+                 VALUES (?, ?, ?, ?, 0, ?, datetime('now', ? || ' minutes'), ?, ?, ?)"
+            )->execute([$toAddress, $toName, $subject, $stored, $error, '+' . $delay, $ctx_eid, $ctx_user, $attachments ? json_encode(array_values($attachments)) : null]);
+            return true;
+        } catch (Exception $e) {
+            if ($try === 3 || stripos($e->getMessage(), 'locked') === false) {
+                error_log('email_retry_queue enqueue failed: ' . $e->getMessage());
+                return false;
+            }
+            usleep(300000 * $try);
+        }
     }
+    return false;
 }
 
 /**
@@ -275,7 +288,8 @@ function process_email_retry_queue(PDO $db, int $limit = 50): array {
         // retry's log rows still point at the right event/recipient.
         notif_log_context(isset($row['event_id']) ? (int)$row['event_id'] : null, $row['username'] ?? null);
         $att = !empty($row['attachments']) ? (json_decode((string)$row['attachments'], true) ?: []) : [];
-        $err = _email_attempt($row['to_address'], $row['to_name'], $row['subject'], $row['body'], is_array($att) ? $att : []);
+        // decrypt_value() passes a row parked before the body was encrypted through as it is.
+        $err = _email_attempt($row['to_address'], $row['to_name'], $row['subject'], decrypt_value((string)$row['body']), is_array($att) ? $att : []);
 
         if ($err === null) {
             _log_email($row['to_address'], $row['subject'], 'sent', "recovered from queue (attempt $attemptNo)");

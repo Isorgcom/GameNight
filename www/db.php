@@ -1798,6 +1798,21 @@ JSON;
         }
     } catch (Exception $e) {}
 
+    // v1.12.8: cron_token, waha_api_key and vapid_private_pem joined
+    // ENCRYPTED_SETTINGS. A value stored before that is plain text, which
+    // get_setting() still reads; re-saving it once writes the encrypted form.
+    try {
+        if (get_setting('settings_encrypted_v2', '') !== '1') {
+            foreach (['cron_token', 'waha_api_key', 'vapid_private_pem'] as $k) {
+                $raw = $pdo->prepare('SELECT value FROM site_settings WHERE key = ?');
+                $raw->execute([$k]);
+                $v = $raw->fetchColumn();
+                if ($v !== false && $v !== '' && !str_starts_with((string)$v, 'enc:')) set_setting($k, (string)$v);
+            }
+            set_setting('settings_encrypted_v2', '1');
+        }
+    } catch (Exception $e) {}
+
     // The event page's two tips, hosts only: Manage Game and Message guests
     // are the host's buttons, and a guest reading the same page must not be
     // told about controls they do not have. Same seeding rules as above.
@@ -2111,9 +2126,11 @@ JSON;
 define('ENCRYPTED_SETTINGS', [
     'smtp_pass', 'smtp_password',
     'sms_token', 'sms_webhook_secret', 'sms_webhook_token',
-    'wa_token',
+    'wa_token', 'waha_api_key',
     'shortio_api_key',
     'sso_private_pem',
+    'cron_token',
+    'vapid_private_pem',
 ]);
 
 $_settings_cache = [];
@@ -3012,18 +3029,55 @@ function invitee_contact_from_contacts(PDO $db, int $ownerId, string $username):
 }
 
 function get_client_ip(): string {
-    // X-Real-IP is set by the nginx reverse proxy
-    if (!empty($_SERVER['HTTP_X_REAL_IP'])
-        && filter_var($_SERVER['HTTP_X_REAL_IP'], FILTER_VALIDATE_IP)
-    ) {
-        return $_SERVER['HTTP_X_REAL_IP'];
+    // REMOTE_ADDR only. Apache's mod_remoteip (Dockerfile) already replaces it
+    // with the X-Real-IP header, but only when the connection itself comes
+    // from a Docker bridge address, i.e. from the reverse proxy. Reading the
+    // headers here as well meant any client that reached Apache another way
+    // (the published port on dev, a container on the shared network) could
+    // name its own address, and every per-address limit (login lockout,
+    // sign-up, walk-in, TV pairing) keys on this value.
+    $ip = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+    return $ip !== '' ? $ip : 'unknown';
+}
+
+/**
+ * The style attribute of rich text: a short allowlist of presentation
+ * properties with plain values. Anything that positions, layers, hides or
+ * loads (position, z-index, display, opacity, transform, url(), expression)
+ * is dropped, so a stored post cannot lay a clickjacking overlay over the
+ * page or borrow the site's own layout. Returns '' when nothing survives.
+ */
+function sanitize_style(string $style): string {
+    static $allowed = ['color', 'background-color', 'background', 'text-align', 'text-decoration', 'text-indent',
+        'font-size', 'font-weight', 'font-style', 'font-family', 'line-height',
+        'margin-left', 'margin-right', 'padding-left', 'padding-right', 'width', 'height', 'max-width',
+        'border', 'border-collapse', 'border-color', 'border-width', 'border-style', 'vertical-align',
+        'list-style-type', 'white-space'];
+    $out = [];
+    foreach (explode(';', $style) as $decl) {
+        if (strpos($decl, ':') === false) continue;
+        [$prop, $val] = explode(':', $decl, 2);
+        $prop = strtolower(trim($prop));
+        $val  = trim($val);
+        if (!in_array($prop, $allowed, true) || $val === '' || strlen($val) > 120) continue;
+        if (!preg_match('/^[a-zA-Z0-9#%.,()\'" -]+$/', $val)) continue;
+        if (preg_match('/url\s*\(|expression|javascript|important|\\\\/i', $val)) continue;
+        // background is a colour here, never an image.
+        if ($prop === 'background' && !preg_match('/^(#[0-9a-fA-F]{3,8}|[a-zA-Z]+|rgba?\([0-9., %]+\))$/', $val)) continue;
+        $out[] = $prop . ': ' . $val;
     }
-    // Fallback: first IP in X-Forwarded-For
-    if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-        $ip = trim(explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])[0]);
-        if (filter_var($ip, FILTER_VALIDATE_IP)) return $ip;
-    }
-    return $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    return implode('; ', $out);
+}
+
+/**
+ * A log copy of an outbound message with its secrets blanked: six-digit
+ * codes and the token of any link (rsvp.php?token=…, reset_password.php?token=…).
+ * The message itself is sent unredacted; only what is kept afterwards (the
+ * SMS log the admin can read for ninety days) carries the blanks.
+ */
+function redact_secrets(string $text): string {
+    $text = preg_replace('/(?<!\d)\d{6}(?!\d)/', '••••••', $text);
+    return preg_replace('/([?&](?:token|t|key|code|c)=)[A-Za-z0-9_-]{8,}/', '$1…', $text);
 }
 
 /**
@@ -3053,7 +3107,11 @@ function sanitize_html(string $html): string {
         'th'     => ['colspan', 'rowspan', 'scope'],
         'iframe' => ['src', 'width', 'height', 'title', 'allow', 'allowfullscreen', 'frameborder', 'loading', 'referrerpolicy'],
     ];
-    $global_attrs = ['class', 'style', 'id'];
+    // style only, through sanitize_style(). No class (it would borrow the
+    // site's own modal and layout classes) and no id (it would clobber the
+    // ids page scripts look up); nothing on the site styles a class an
+    // editor emits.
+    $global_attrs = ['style'];
     $safe_schemes = ['http', 'https', 'mailto'];
 
     // iframe sources are restricted to known-safe embed providers. Anything else
@@ -3152,14 +3210,11 @@ function sanitize_html(string $html): string {
                            || $safeDataUri;
                     if (!$safe) $drop_attrs[] = $name;
                 }
-                // Strip dangerous CSS in style attribute
+                // Keep only the allowlisted presentation properties.
                 if ($name === 'style') {
-                    $style = preg_replace(
-                        '/expression\s*\(|javascript\s*:|behavior\s*:|vbscript\s*:|-moz-binding/i',
-                        '',
-                        $attr->value
-                    );
-                    $child->setAttribute('style', $style);
+                    $style = sanitize_style($attr->value);
+                    if ($style === '') $drop_attrs[] = 'style';
+                    else $child->setAttribute('style', $style);
                 }
                 // Force external links to open safely
                 if ($name === 'target') {
@@ -3456,11 +3511,14 @@ function drain_queue_async(): void {
     if ($token === '') return;
     $php    = PHP_BINARY ?: '/usr/local/bin/php';
     $script = __DIR__ . '/cron_drain.php';
-    // The trailing '&' backgrounds the process; redirect stdout/stderr so PHP doesn't wait
-    @shell_exec(sprintf('%s %s %s > /dev/null 2>&1 &',
+    // The token travels in the environment, not on the command line: a
+    // process's arguments are readable by every user on the host through
+    // /proc, its environment only by its own user. The trailing '&'
+    // backgrounds the process; stdout/stderr redirected so PHP doesn't wait.
+    @shell_exec(sprintf('CRON_TOKEN=%s %s %s > /dev/null 2>&1 &',
+        escapeshellarg($token),
         escapeshellarg($php),
-        escapeshellarg($script),
-        escapeshellarg($token)
+        escapeshellarg($script)
     ));
 }
 
