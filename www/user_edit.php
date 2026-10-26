@@ -115,9 +115,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $hash = password_hash($new_pw, PASSWORD_BCRYPT);
                 $db->prepare('UPDATE users SET password_hash=? WHERE id=?')->execute([$hash, $id]);
-                // Security: purge remember-me tokens so previous "Remember me" logins are
-                // invalidated when an admin rotates the user's password.
-                try { $db->prepare('DELETE FROM remember_tokens WHERE user_id = ?')->execute([$id]); } catch (Exception $e) {}
+                // Every session and remember-me token of that account ends with the
+                // old password (an admin changing their own keeps this session).
+                invalidate_other_sessions((int)$id, (int)$id === (int)$current['id']);
                 db_log_activity($current['id'], "admin reset password for user id: $id");
                 $flash = ['type' => 'success', 'msg' => 'Password updated.'];
             }

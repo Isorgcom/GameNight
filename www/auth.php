@@ -177,6 +177,9 @@ function session_start_safe(): void {
         // 8-hour server-side session lifetime so idle users within a browser
         // session don't get kicked out by PHP's default 24-minute GC.
         ini_set('session.gc_maxlifetime', '28800');
+        // Only ids this server issued are accepted: an unknown cookie value gets
+        // a fresh session instead of becoming one (session fixation).
+        ini_set('session.use_strict_mode', '1');
         // Session files live beside the database, not in PHP's default /tmp.
         // /tmp is inside the container, so every rebuild (a PHP security
         // update, a Dockerfile change) signed out everyone who had not ticked
@@ -188,7 +191,6 @@ function session_start_safe(): void {
         if (!is_dir($dir)) @mkdir($dir, 0700, true);
         if (is_dir($dir) && is_writable($dir)) {
             session_save_path($dir);
-            _carry_tmp_session($dir);
         }
         session_set_cookie_params([
             'lifetime' => 0,
@@ -201,19 +203,6 @@ function session_start_safe(): void {
     }
 }
 
-// The switch away from /tmp would itself have signed everybody out once: a
-// browser's session id points at a file the new directory does not have. So
-// the first request that finds it missing copies it across from the old
-// place. Once every session from before the switch has expired (8 hours),
-// this does nothing and can be removed.
-function _carry_tmp_session(string $dir): void {
-    $id = $_COOKIE[session_name()] ?? '';
-    if (!is_string($id) || !preg_match('/^[a-zA-Z0-9,-]{22,256}$/', $id)) return;
-    $dest = $dir . '/sess_' . $id;
-    if (is_file($dest)) return;
-    $src = rtrim(sys_get_temp_dir(), '/') . '/sess_' . $id;
-    if (is_file($src) && filemtime($src) > time() - 28800) @copy($src, $dest);
-}
 
 // ── Persistent "Remember me" auth tokens ─────────────────────────────────────
 // Two-layer auth: short PHP session for the active browser, plus an optional
@@ -319,14 +308,23 @@ function current_user(): ?array {
         if ($remembered !== null) {
             session_regenerate_id(true);
             $_SESSION['user_id'] = $remembered;
+            $_SESSION['session_epoch'] = user_session_epoch($remembered);
             $id = $remembered;
         }
     }
     if ($id === null) return null;
 
-    $stmt = get_db()->prepare('SELECT id, username, email, role, last_login, must_change_password, my_events_past_days, my_events_future_days, timezone, last_poker_default, mfa_enabled, mfa_method, mfa_offer_dismissed, avatar_path, beta_timer, push_prompt_dismissed FROM users WHERE id = ?');
+    $stmt = get_db()->prepare('SELECT id, username, email, role, last_login, must_change_password, my_events_past_days, my_events_future_days, timezone, last_poker_default, mfa_enabled, mfa_method, mfa_offer_dismissed, avatar_path, beta_timer, push_prompt_dismissed, session_epoch, pending_email FROM users WHERE id = ?');
     $stmt->execute([$id]);
     $row = $stmt->fetch() ?: null;
+    // A password change or reset bumps users.session_epoch; a session still
+    // carrying the old value (or none, from before the column existed) is
+    // signed out here, on its next request, whatever device it is on.
+    if ($row && (int)($_SESSION['session_epoch'] ?? 0) !== (int)($row['session_epoch'] ?? 0)) {
+        unset($_SESSION['user_id'], $_SESSION['session_epoch']);
+        $_SESSION['signed_out_notice'] = 'You were signed out on every device because the password changed. Sign in again.';
+        return null;
+    }
     // Personal timezone overrides the site default (which was set in get_db()).
     // Cron / webhooks / API endpoints don't call current_user(), so they keep site tz.
     if ($row && !empty($row['timezone']) && in_array($row['timezone'], DateTimeZone::listIdentifiers(), true)) {
@@ -492,7 +490,11 @@ function attempt_login(string $identifier, string $password): bool|string {
 function complete_login(int $user_id): void {
     session_start_safe();
     session_regenerate_id(true);
+    // The signed-in session mints its own CSRF token: the one handed to the
+    // anonymous session must not carry over into it.
+    unset($_SESSION['csrf_token'], $_SESSION['signed_out_notice']);
     $_SESSION['user_id'] = $user_id;
+    $_SESSION['session_epoch'] = user_session_epoch($user_id);
     get_db()->prepare('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?')
             ->execute([$user_id]);
     db_log_activity($user_id, 'login');
@@ -517,6 +519,29 @@ function logout(): void {
     clear_remember_cookie();
     $_SESSION = [];
     session_destroy();
+}
+
+/** The account's current session epoch (0 for a row from before the column). */
+function user_session_epoch(int $user_id): int {
+    $s = get_db()->prepare('SELECT session_epoch FROM users WHERE id = ?');
+    $s->execute([$user_id]);
+    return (int)($s->fetchColumn() ?: 0);
+}
+
+/**
+ * End every session of an account: bump its epoch (current_user() signs out
+ * any session still carrying the old value on its next request) and purge its
+ * remember-me tokens. With $keep_current the caller's own session takes the
+ * new epoch, so the person who just changed their password stays signed in.
+ */
+function invalidate_other_sessions(int $user_id, bool $keep_current = false): void {
+    $db = get_db();
+    $db->prepare('UPDATE users SET session_epoch = session_epoch + 1 WHERE id = ?')->execute([$user_id]);
+    try { $db->prepare('DELETE FROM remember_tokens WHERE user_id = ?')->execute([$user_id]); } catch (Exception $e) {}
+    if ($keep_current) {
+        session_start_safe();
+        $_SESSION['session_epoch'] = user_session_epoch($user_id);
+    }
 }
 
 function csrf_token(): string {
@@ -749,10 +774,18 @@ function verify_code(int $user_id, string $code): string {
 // any MFA-enabled account — this is a login challenge, not account activation).
 
 /**
- * Send a 6-digit MFA code via SMS to an already-verified phone.
+ * Send a 6-digit MFA code by SMS, only to the account's VERIFIED phone. A
+ * number changed on the profile has not been proven to belong to the account,
+ * and texting the second factor there would hand it to whoever typed it.
+ * Returns false, sending nothing, when users.phone_verified is 0 or $phone is
+ * not the account's number; the login page then asks for a recovery code.
  */
-function send_mfa_sms_code(int $user_id, string $phone): void {
+function send_mfa_sms_code(int $user_id, string $phone): bool {
     $db   = get_db();
+    $pv = $db->prepare('SELECT phone, phone_verified FROM users WHERE id = ?');
+    $pv->execute([$user_id]);
+    $acct = $pv->fetch();
+    if (!$acct || (int)($acct['phone_verified'] ?? 0) !== 1 || (string)$acct['phone'] !== $phone) return false;
     $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
     $hash = hash('sha256', $code);
     $exp  = date('Y-m-d H:i:s', strtotime('+10 minutes'));
@@ -767,6 +800,7 @@ function send_mfa_sms_code(int $user_id, string $phone): void {
 
     require_once __DIR__ . '/sms.php';
     send_sms($phone, $msg);
+    return true;
 }
 
 /**
@@ -857,7 +891,12 @@ function mfa_recovery_codes_remaining(int $user_id): int {
     return (int)$stmt->fetchColumn();
 }
 
-function send_verification_email(int $user_id, string $email, string $username): void {
+/**
+ * The signup verification link, or (with $new_email) the confirmation link for
+ * an email CHANGE requested from Settings: the token row records the address
+ * it confirms, and verify_email.php applies it to users.email only then.
+ */
+function send_verification_email(int $user_id, string $email, string $username, ?string $new_email = null): void {
     $db    = get_db();
     $token = bin2hex(random_bytes(32));
     $hash  = hash('sha256', $token);
@@ -870,18 +909,81 @@ function send_verification_email(int $user_id, string $email, string $username):
     // Invalidate any previous unused tokens
     $db->prepare('UPDATE email_verifications SET used=1 WHERE user_id=? AND used=0')
        ->execute([$user_id]);
-    $db->prepare('INSERT INTO email_verifications (user_id, token_hash, expires_at) VALUES (?, ?, ?)')
-       ->execute([$user_id, $hash, $exp]);
+    $db->prepare('INSERT INTO email_verifications (user_id, token_hash, expires_at, new_email) VALUES (?, ?, ?, ?)')
+       ->execute([$user_id, $hash, $exp, $new_email]);
 
     $site  = get_setting('site_name', 'Game Night');
     $url   = get_site_url() . '/verify_email.php?token=' . $token;
 
     require_once __DIR__ . '/mail.php';
+    if ($new_email !== null) {
+        $html = '<p>Hi ' . htmlspecialchars($username) . ',</p>'
+              . '<p>You asked to change the email address on your ' . htmlspecialchars($site) . ' account to this one. Confirm it below; until then the account keeps its old address.</p>'
+              . '<p><a href="' . $url . '" style="background:#2563eb;color:#fff;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600">Confirm New Email Address</a></p>'
+              . '<p style="color:#64748b;font-size:.875rem">This link expires in 24 hours. If you did not ask for this, ignore this email and nothing changes.</p>';
+        send_email($email, $username, 'Confirm your new ' . $site . ' email address', $html);
+        return;
+    }
     $html = '<p>Hi ' . htmlspecialchars($username) . ',</p>'
           . '<p>Thanks for signing up for ' . htmlspecialchars($site) . '! Please verify your email address to activate your account.</p>'
           . '<p><a href="' . $url . '" style="background:#2563eb;color:#fff;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600">Verify Email Address</a></p>'
           . '<p style="color:#64748b;font-size:.875rem">This link expires in 24 hours.</p>';
     send_email($email, $username, 'Verify your ' . $site . ' email address', $html);
+}
+
+/**
+ * Confirm the signed-in account's current password before a sensitive change
+ * (contact details, two-factor, deleting the account, a new password). Returns
+ * 'ok', 'wrong', 'locked' (five wrong guesses in 15 minutes, on any device) or
+ * 'none' (no password on the account yet: walk-in and API accounts get their
+ * first one through Forgot password). A wrong guess is logged so the lock
+ * counts it, and shows in the admin's activity view like a failed login.
+ */
+function confirm_current_password(int $user_id, string $password): string {
+    if ($user_id <= 0) return 'wrong';
+    $db = get_db();
+    $l = $db->prepare("SELECT COUNT(*) FROM activity_log WHERE user_id = ? AND action = 'failed_password_confirm' AND created_at > datetime('now', '-15 minutes')");
+    $l->execute([$user_id]);
+    if ((int)$l->fetchColumn() >= 5) return 'locked';
+    $s = $db->prepare('SELECT password_hash FROM users WHERE id = ?');
+    $s->execute([$user_id]);
+    $hash = (string)($s->fetchColumn() ?: '');
+    if ($hash === '') return 'none';
+    if ($password === '' || !password_verify($password, $hash)) {
+        db_log_activity($user_id, 'failed_password_confirm');
+        return 'wrong';
+    }
+    return 'ok';
+}
+
+/** The message for a confirm_current_password() result other than 'ok'. */
+function password_confirm_message(string $result): string {
+    return match ($result) {
+        'locked' => 'Too many wrong password attempts. Try again in 15 minutes.',
+        'none'   => 'Set a password first: sign out and use Forgot password.',
+        default  => 'Current password is incorrect.',
+    };
+}
+
+/**
+ * A plain security notice to the account's email ("your password was changed",
+ * "an email change was requested"), or to $to when given. Goes straight to
+ * send_email(): these are not notifications a person can mute, and
+ * send_notification() is gated by the site's notifications setting and the
+ * recipient's channel choice. Never blocks the change it reports.
+ */
+function send_account_notice(int $user_id, string $subject, string $text, ?string $to = null): void {
+    $s = get_db()->prepare('SELECT username, email FROM users WHERE id = ?');
+    $s->execute([$user_id]);
+    $u = $s->fetch();
+    $to = $to ?? (string)($u['email'] ?? '');
+    if (!$u || $to === '') return;
+    $site = get_setting('site_name', 'Game Night');
+    require_once __DIR__ . '/mail.php';
+    $html = '<p>Hi ' . htmlspecialchars((string)$u['username']) . ',</p>'
+          . '<p>' . nl2br(htmlspecialchars($text)) . '</p>'
+          . '<p style="color:#64748b;font-size:.875rem">If this was not you, sign in to ' . htmlspecialchars($site) . ', change your password, and check your contact details.</p>';
+    try { send_email($to, (string)$u['username'], $site . ': ' . $subject, $html); } catch (Throwable $e) { /* a notice never blocks the change */ }
 }
 
 function csrf_verify(): bool {

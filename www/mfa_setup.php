@@ -36,30 +36,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $action = $_POST['action'] ?? '';
 
-        if ($action === 'choose_totp') {
-            $_SESSION['mfa_setup'] = ['method' => 'totp', 'secret' => totp_generate_secret()];
+        // Starting an enrolment, and minting new recovery codes, proves the
+        // current password first: an open session must not be enough to attach
+        // a second factor the account holder does not have. An enrolment in
+        // progress expires after 15 minutes.
+        $pwCheck = in_array($action, ['choose_totp', 'choose_sms', 'regen'], true)
+            ? confirm_current_password((int)$current['id'], (string)($_POST['current_password'] ?? ''))
+            : 'ok';
+        $setupFresh = function (?array $s): bool { return $s && (int)($s['at'] ?? 0) > time() - 900; };
+
+        if ($pwCheck !== 'ok') {
+            $error = password_confirm_message($pwCheck);
+        }
+
+        elseif ($action === 'choose_totp') {
+            $_SESSION['mfa_setup'] = ['method' => 'totp', 'secret' => totp_generate_secret(), 'at' => time()];
         }
 
         elseif ($action === 'choose_sms' || $action === 'resend_sms') {
             if (!$sms_available) {
                 $error = 'Add and verify a phone number on your profile before using SMS two-factor.';
+            } elseif ($action === 'resend_sms' && !$setupFresh($_SESSION['mfa_setup'] ?? null)) {
+                unset($_SESSION['mfa_setup']);
+                $error = 'Setup expired. Please start again.';
             } elseif ($action === 'resend_sms' && mfa_sms_resend_rate_limited((int)$current['id'])) {
                 // Throttle resends (SMS toll/flooding); the initial choose_sms send is not capped.
-                $_SESSION['mfa_setup'] = ['method' => 'sms'];
                 $error = 'Please wait a bit before requesting another code.';
             } else {
                 send_mfa_sms_code($current['id'], $me['phone']);
                 if ($action === 'resend_sms') db_log_activity((int)$current['id'], 'mfa_sms_resend');
-                $_SESSION['mfa_setup'] = ['method' => 'sms'];
+                $_SESSION['mfa_setup'] = ['method' => 'sms', 'at' => $action === 'resend_sms' ? (int)$_SESSION['mfa_setup']['at'] : time()];
             }
         }
 
         elseif ($action === 'confirm_totp') {
             $setup = $_SESSION['mfa_setup'] ?? null;
             $code  = preg_replace('/\s/', '', $_POST['code'] ?? '');
-            if (!$setup || ($setup['method'] ?? '') !== 'totp' || empty($setup['secret'])) {
+            if (!$setup || ($setup['method'] ?? '') !== 'totp' || empty($setup['secret']) || !$setupFresh($setup)) {
+                unset($_SESSION['mfa_setup']);
                 $error = 'Setup expired. Please start again.';
-            } elseif (!totp_verify($setup['secret'], $code)) {
+            } elseif (!totp_verify_consume($db, (int)$current['id'], $setup['secret'], $code)) {
+                // _consume records the step, so the enrolment code cannot be
+                // replayed at the first sign-in.
                 $error = 'That code did not match. Check your app and try again.';
             } else {
                 $db->prepare("UPDATE users SET mfa_enabled = 1, mfa_method = 'totp', mfa_totp_secret = ?, mfa_offer_dismissed = 1 WHERE id = ?")
@@ -68,13 +86,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $show_codes = mfa_generate_recovery_codes($current['id']);
                 $mfa_on = true;
                 db_log_activity($current['id'], 'enabled MFA (authenticator app)');
+                send_account_notice((int)$current['id'], 'Two-factor authentication was turned on', 'Two-factor authentication with an authenticator app was turned on for your account.');
             }
         }
 
         elseif ($action === 'confirm_sms') {
             $setup = $_SESSION['mfa_setup'] ?? null;
             $code  = preg_replace('/\s/', '', $_POST['code'] ?? '');
-            if (!$setup || ($setup['method'] ?? '') !== 'sms') {
+            if (!$setup || ($setup['method'] ?? '') !== 'sms' || !$setupFresh($setup)) {
+                unset($_SESSION['mfa_setup']);
                 $error = 'Setup expired. Please start again.';
             } else {
                 $res = verify_mfa_sms_code($current['id'], $code);
@@ -85,6 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $show_codes = mfa_generate_recovery_codes($current['id']);
                     $mfa_on = true;
                     db_log_activity($current['id'], 'enabled MFA (SMS)');
+                    send_account_notice((int)$current['id'], 'Two-factor authentication was turned on', 'Two-factor authentication by text message was turned on for your account.');
                 } elseif ($res === 'expired') {
                     $error = 'That code expired. Send a new one below.';
                 } elseif ($res === 'exhausted') {
@@ -114,6 +135,8 @@ $totp_uri  = ($setup && ($setup['method'] ?? '') === 'totp')
 
 // Landing here with 2FA already on and nothing in flight → back to settings.
 if (!$show_codes && !$setup && $mfa_on) {
+    // A refused regeneration (wrong password) reports on the Settings card.
+    if ($error !== '') $_SESSION['flash'] = ['type' => 'error', 'msg' => $error];
     header('Location: /settings.php');
     exit;
 }
@@ -207,19 +230,21 @@ $site_name = get_setting('site_name', 'Game Night');
 
             <form method="post" action="/mfa_setup.php" style="margin-bottom:.75rem">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
-                <input type="hidden" name="action" value="choose_totp">
-                <button type="submit" class="btn btn-primary" style="width:100%">Authenticator app</button>
+                <div class="form-group">
+                    <label for="mfa_current_password">Your password</label>
+                    <input type="password" id="mfa_current_password" name="current_password"
+                           autocomplete="current-password" required>
+                    <p class="hint" style="margin-top:.3rem">Confirms it is you adding the second step.</p>
+                </div>
+                <button type="submit" name="action" value="choose_totp" class="btn btn-primary" style="width:100%">Authenticator app</button>
                 <p class="hint" style="margin-top:.3rem">Use a TOTP app like Google Authenticator, Authy, or 1Password. Works without a phone signal.</p>
+                <?php if ($sms_available): ?>
+                <button type="submit" name="action" value="choose_sms" class="btn" style="width:100%;margin-top:.75rem">Text message (SMS)</button>
+                <p class="hint" style="margin-top:.3rem">We'll text a 6-digit code to <?= htmlspecialchars($phone_mask) ?> each time you sign in.</p>
+                <?php endif; ?>
             </form>
 
-            <?php if ($sms_available): ?>
-            <form method="post" action="/mfa_setup.php">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
-                <input type="hidden" name="action" value="choose_sms">
-                <button type="submit" class="btn" style="width:100%">Text message (SMS)</button>
-                <p class="hint" style="margin-top:.3rem">We'll text a 6-digit code to <?= htmlspecialchars($phone_mask) ?> each time you sign in.</p>
-            </form>
-            <?php else: ?>
+            <?php if (!$sms_available): ?>
             <p class="hint" style="margin-top:.4rem">To use SMS codes, add and verify a phone number on your <a href="/settings.php">profile</a> first.</p>
             <?php endif; ?>
 

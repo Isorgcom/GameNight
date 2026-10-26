@@ -33,7 +33,7 @@ A self-hosted PHP web application for organizing game night events with full pok
 - **Queued notifications** — event notifications dispatched via email/SMS with a fast background drain and provider rate-limit protection
 - **One-click RSVP** — invitees can RSVP directly from email links without logging in
 - **Branding** — custom banner/header images, nav colors, site name
-- **Security** — CSRF protection, optional two-factor authentication, rate limiting, credential encryption at rest, secure session cookies, and a closed Content Security Policy (per-request nonce, no inline handlers), HSTS
+- **Security** — CSRF protection, optional two-factor authentication, password confirmation for account changes, rate limiting, credential encryption at rest, secure session cookies, and a closed Content Security Policy (per-request nonce, no inline handlers), HSTS
 - **SQLite** — zero-config database, stored outside the web root
 
 ## Stack

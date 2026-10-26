@@ -17,7 +17,7 @@ if (!$isAdmin) {
 }
 
 $site_name = get_setting('site_name', 'Game Night');
-$token     = $_SESSION['csrf_token'] ?? ($_SESSION['csrf_token'] = bin2hex(random_bytes(32)));
+$token     = csrf_token();
 
 // Handle clear-log action (admin only)
 if ($isAdmin && $_SERVER['REQUEST_METHOD'] === 'POST'

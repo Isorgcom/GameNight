@@ -60,31 +60,76 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 $flash = ['type' => 'error', 'msg' => 'A valid email address is required.'];
             } else {
-                $chk = $db->prepare('SELECT id FROM users WHERE LOWER(email)=? AND id != ?');
-                $chk->execute([$email, $current['id']]);
-                if ($chk->fetch()) {
+                $cur = $db->prepare('SELECT username, email, phone, mfa_method FROM users WHERE id = ?');
+                $cur->execute([$current['id']]);
+                $cur = $cur->fetch() ?: [];
+                $curEmail        = strtolower((string)($cur['email'] ?? ''));
+                $curPhone        = (string)($cur['phone'] ?? '');
+                $usernameChanged = $username !== (string)($cur['username'] ?? '');
+                $emailChanged    = $email !== $curEmail;
+                $phoneChanged    = $phone !== $curPhone;
+                // Who you are (the name) and where you can be reached and recovered
+                // (email, phone) change only with the current password: an open
+                // session is not proof enough, and a stolen one must not be able to
+                // re-home the account. Preferences save as before.
+                $pwCheck = ($usernameChanged || $emailChanged || $phoneChanged)
+                    ? confirm_current_password((int)$current['id'], (string)($_POST['current_password'] ?? ''))
+                    : 'ok';
+                $emailTaken = false;
+                if ($emailChanged) {
+                    $chk = $db->prepare('SELECT id FROM users WHERE LOWER(email)=? AND id != ?');
+                    $chk->execute([$email, $current['id']]);
+                    $emailTaken = (bool)$chk->fetch();
+                }
+                $phoneTaken = false;
+                if ($phoneChanged && $phone !== '') {
+                    $chk = $db->prepare('SELECT id FROM users WHERE phone = ? AND id != ?');
+                    $chk->execute([$phone, $current['id']]);
+                    $phoneTaken = (bool)$chk->fetch();
+                }
+                if ($pwCheck !== 'ok') {
+                    $flash = ['type' => 'error', 'msg' => password_confirm_message($pwCheck)];
+                } elseif ($emailTaken) {
                     $flash = ['type' => 'error', 'msg' => 'That email is already in use.'];
+                } elseif ($phoneTaken) {
+                    $flash = ['type' => 'error', 'msg' => 'That phone number is already in use.'];
                 } else {
                     try {
-                        // Reset phone_verified if phone number changed
-                        $oldPhone = $db->prepare('SELECT phone FROM users WHERE id = ?');
-                        $oldPhone->execute([$current['id']]);
-                        $phoneChanged = ($oldPhone->fetchColumn() ?? '') !== ($phone ?: null);
-
                         // Saving the profile answers the one-time Tournament Timer
                         // ask too (the select always posts a value), which is
                         // fine: the setting has been seen.
                         $beta_timer = (int)($_POST['beta_timer'] ?? 0) === 1 ? 1 : 0;
-                        $db->prepare('UPDATE users SET username = ?, email = ?, phone = ?, preferred_contact = ?, my_events_past_days = ?, timezone = ?, beta_timer = ?, phone_verified = CASE WHEN ? THEN 0 ELSE phone_verified END WHERE id = ?')
-                           ->execute([$username, $email, $phone ?: null, $pref_contact, $past_days, $timezone !== '' ? $timezone : null, $beta_timer, $phoneChanged ? 1 : 0, $current['id']]);
+                        // The email is NOT written here: a new address takes effect only
+                        // when the confirmation link sent to it is used (verify_email.php),
+                        // so an account can never be pointed at an address its holder
+                        // does not control. A changed phone starts out unverified.
+                        $db->prepare('UPDATE users SET username = ?, phone = ?, preferred_contact = ?, my_events_past_days = ?, timezone = ?, beta_timer = ?, phone_verified = CASE WHEN ? THEN 0 ELSE phone_verified END WHERE id = ?')
+                           ->execute([$username, $phone ?: null, $pref_contact, $past_days, $timezone !== '' ? $timezone : null, $beta_timer, $phoneChanged ? 1 : 0, $current['id']]);
                         // The roster name on this account's own invite rows follows a
                         // rename: identity is the id, this is what hosts see.
-                        if ($username !== (string)$current['username']) {
+                        if ($usernameChanged) {
                             $db->prepare('UPDATE event_invites SET username = ? WHERE user_id = ?')->execute([$username, $current['id']]);
                             try { $db->prepare('UPDATE pending_notifications SET username = ? WHERE user_id = ? AND attempted_at IS NULL')->execute([$username, $current['id']]); } catch (Exception $e) {}
                         }
+                        $msgs = ['Profile updated.'];
+                        if ($phoneChanged) {
+                            // A code already sent belongs to the OLD number.
+                            unset($_SESSION['phone_verify_id'], $_SESSION['phone_verify_for']);
+                            if ($phone !== '' && ($cur['mfa_method'] ?? '') === 'sms') {
+                                $msgs[] = 'Your sign-in codes go by text: verify the new number now, or you will need a recovery code next time you sign in.';
+                            }
+                            send_account_notice((int)$current['id'], 'Your phone number was changed', 'The phone number on your account was ' . ($phone !== '' ? 'changed to ' . $phone : 'removed') . '.');
+                        }
+                        if ($emailChanged) {
+                            $db->prepare('UPDATE users SET pending_email = ? WHERE id = ?')->execute([$email, $current['id']]);
+                            send_verification_email((int)$current['id'], $email, $username, $email);
+                            if ($curEmail !== '') {
+                                send_account_notice((int)$current['id'], 'Email change requested', 'A request was made to change the email address on your account from ' . $curEmail . ' to ' . $email . '. It takes effect only when the link sent to the new address is used.', $curEmail);
+                            }
+                            $msgs[] = 'A confirmation link was sent to ' . $email . '; your email changes when you use it.';
+                        }
                         db_log_activity($current['id'], 'updated profile');
-                        $flash = ['type' => 'success', 'msg' => 'Profile updated.'];
+                        $flash = ['type' => 'success', 'msg' => implode(' ', $msgs)];
                     } catch (PDOException $e) {
                         $flash = ['type' => 'error', 'msg' => 'That username is already taken.'];
                     }
@@ -104,7 +149,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $result = surge_send_verification($phoneVal);
                 if (!empty($result['id'])) {
-                    $_SESSION['phone_verify_id'] = $result['id'];
+                    $_SESSION['phone_verify_id']  = $result['id'];
+                    $_SESSION['phone_verify_for'] = (string)$phoneVal;   // the code verifies this number only
                     $flash = ['type' => 'success', 'msg' => 'Verification code sent! Check your phone.'];
                 } else {
                     $flash = ['type' => 'error', 'msg' => 'Failed to send code: ' . ($result['error'] ?? 'Unknown error')];
@@ -116,6 +162,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             require_once __DIR__ . '/sms.php';
             $code = trim($_POST['verify_code'] ?? '');
             $verifyId = $_SESSION['phone_verify_id'] ?? '';
+            // The code was texted to one number and verifies that number only: a
+            // profile edit in between must not let it mark a different one.
+            $nowPhone = $db->prepare('SELECT phone FROM users WHERE id = ?');
+            $nowPhone->execute([$current['id']]);
+            if ($verifyId && (string)($_SESSION['phone_verify_for'] ?? '') !== (string)($nowPhone->fetchColumn() ?: '')) {
+                unset($_SESSION['phone_verify_id'], $_SESSION['phone_verify_for']);
+                $verifyId = '';
+            }
             if (!$verifyId) {
                 $flash = ['type' => 'error', 'msg' => 'No pending verification. Click Verify to send a new code.'];
             } elseif (!preg_match('/^\d{6}$/', $code)) {
@@ -124,16 +178,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $result = surge_check_verification($verifyId, $code);
                 if ($result === 'ok') {
                     $db->prepare('UPDATE users SET phone_verified = 1 WHERE id = ?')->execute([$current['id']]);
-                    unset($_SESSION['phone_verify_id']);
+                    unset($_SESSION['phone_verify_id'], $_SESSION['phone_verify_for']);
                     db_log_activity($current['id'], 'verified phone number');
                     $flash = ['type' => 'success', 'msg' => 'Phone number verified!'];
                 } elseif ($result === 'incorrect') {
                     $flash = ['type' => 'error', 'msg' => 'Incorrect code. Please try again.'];
                 } elseif ($result === 'exhausted') {
-                    unset($_SESSION['phone_verify_id']);
+                    unset($_SESSION['phone_verify_id'], $_SESSION['phone_verify_for']);
                     $flash = ['type' => 'error', 'msg' => 'Too many attempts. Click Verify to send a new code.'];
                 } elseif ($result === 'expired') {
-                    unset($_SESSION['phone_verify_id']);
+                    unset($_SESSION['phone_verify_id'], $_SESSION['phone_verify_for']);
                     $flash = ['type' => 'error', 'msg' => 'Code expired. Click Verify to send a new code.'];
                 } else {
                     $flash = ['type' => 'error', 'msg' => 'Verification failed: ' . $result];
@@ -161,12 +215,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $new_pw      = $_POST['new_password'] ?? '';
             $confirm_pw  = $_POST['confirm_password'] ?? '';
 
-            $row = $db->prepare('SELECT password_hash FROM users WHERE id = ?');
-            $row->execute([$current['id']]);
-            $hash = $row->fetchColumn();
-
-            if (!password_verify($current_pw, $hash)) {
-                $flash = ['type' => 'error', 'msg' => 'Current password is incorrect.'];
+            $pwCheck = confirm_current_password((int)$current['id'], $current_pw);
+            if ($pwCheck !== 'ok') {
+                $flash = ['type' => 'error', 'msg' => password_confirm_message($pwCheck)];
             } elseif (strlen($new_pw) < MIN_PASSWORD_LENGTH) {
                 $flash = ['type' => 'error', 'msg' => 'New password must be at least ' . MIN_PASSWORD_LENGTH . ' characters.'];
             } elseif ($new_pw !== $confirm_pw) {
@@ -175,9 +226,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $new_hash = password_hash($new_pw, PASSWORD_BCRYPT);
                 $db->prepare('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?')
                    ->execute([$new_hash, $current['id']]);
-                // Security: invalidate every remember-me cookie for this user so a stolen
-                // token can't keep authenticating after a password rotation.
-                try { $db->prepare('DELETE FROM remember_tokens WHERE user_id = ?')->execute([$current['id']]); } catch (Exception $e) {}
+                // Every OTHER session and every remember-me token ends; this one stays.
+                invalidate_other_sessions((int)$current['id'], true);
+                send_account_notice((int)$current['id'], 'Your password was changed', 'The password on your account was just changed from Settings, and every other signed-in device was signed out.');
                 db_log_activity($current['id'], 'changed password');
                 $flash = ['type' => 'success', 'msg' => 'Password updated.'];
             }
@@ -187,20 +238,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Enable/enroll and recovery-code display live on the dedicated
         // full-page flow (mfa_setup.php). Only disabling is handled here.
         elseif ($action === 'mfa_disable') {
-            $pw  = $_POST['current_password'] ?? '';
-            $row = $db->prepare('SELECT password_hash FROM users WHERE id = ?');
-            $row->execute([$current['id']]);
-            $hash = $row->fetchColumn();
-            if (!password_verify($pw, $hash)) {
-                $flash = ['type' => 'error', 'msg' => 'Password is incorrect. Two-factor authentication was not changed.'];
+            $pwCheck = confirm_current_password((int)$current['id'], (string)($_POST['current_password'] ?? ''));
+            if ($pwCheck !== 'ok') {
+                $flash = ['type' => 'error', 'msg' => password_confirm_message($pwCheck) . ' Two-factor authentication was not changed.'];
             } else {
                 $db->prepare("UPDATE users SET mfa_enabled = 0, mfa_method = NULL, mfa_totp_secret = NULL WHERE id = ?")
                    ->execute([$current['id']]);
                 $db->prepare('DELETE FROM mfa_recovery_codes WHERE user_id = ?')->execute([$current['id']]);
                 unset($_SESSION['mfa_setup'], $_SESSION['mfa_new_codes']);
                 db_log_activity($current['id'], 'disabled MFA');
+                send_account_notice((int)$current['id'], 'Two-factor authentication was turned off', 'Two-factor authentication was turned off on your account from Settings.');
                 $flash = ['type' => 'success', 'msg' => 'Two-factor authentication is off.'];
             }
+        }
+
+        elseif ($action === 'cancel_email_change') {
+            $db->prepare('UPDATE users SET pending_email = NULL WHERE id = ?')->execute([$current['id']]);
+            $db->prepare('UPDATE email_verifications SET used = 1 WHERE user_id = ? AND used = 0 AND new_email IS NOT NULL')->execute([$current['id']]);
+            db_log_activity($current['id'], 'cancelled email change');
+            $flash = ['type' => 'success', 'msg' => 'The email change was cancelled.'];
         }
 
         elseif ($action === 'reset_help') {
@@ -211,8 +267,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         elseif ($action === 'delete_account') {
             $confirm = strtoupper(trim($_POST['confirm_delete'] ?? ''));
+            // The typed word guards against a slip; the password guards against
+            // someone else at an open session.
+            $pwCheck = $confirm === 'DELETE' ? confirm_current_password((int)$current['id'], (string)($_POST['current_password'] ?? '')) : 'wrong';
             if ($confirm !== 'DELETE') {
                 $flash = ['type' => 'error', 'msg' => 'You must type DELETE to confirm account deletion.'];
+            } elseif ($pwCheck !== 'ok') {
+                $flash = ['type' => 'error', 'msg' => password_confirm_message($pwCheck) . ' The account was not deleted.'];
             } elseif ($current['role'] === 'admin') {
                 // Check if this is the last admin
                 $adminCount = (int)$db->query("SELECT COUNT(*) FROM users WHERE role='admin'")->fetchColumn();
@@ -239,7 +300,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Reload fresh user data after possible username change
-$me = $db->prepare('SELECT username, email, phone, preferred_contact, my_events_past_days, my_events_future_days, phone_verified, role, created_at, last_login, timezone, mfa_enabled, mfa_method, notify_prefs, beta_timer FROM users WHERE id = ?');
+$me = $db->prepare('SELECT username, email, pending_email, phone, preferred_contact, my_events_past_days, my_events_future_days, phone_verified, role, created_at, last_login, timezone, mfa_enabled, mfa_method, notify_prefs, beta_timer FROM users WHERE id = ?');
 $me->execute([$current['id']]);
 $me = $me->fetch();
 
@@ -381,6 +442,12 @@ $site_name = get_setting('site_name', 'Game Night');
                     <input type="email" id="email" name="email"
                            autocomplete="email" required
                            value="<?= htmlspecialchars($me['email'] ?? '') ?>">
+                    <?php if (!empty($me['pending_email'])): ?>
+                    <p class="hint" style="margin-top:.3rem">Pending: <strong><?= htmlspecialchars($me['pending_email']) ?></strong>. A confirmation link was sent there; your email changes when you use it.
+                        <button type="submit" form="emailCancelForm" style="background:none;border:none;color:#2563eb;cursor:pointer;font:inherit;padding:0;text-decoration:underline">Cancel the change</button></p>
+                    <?php else: ?>
+                    <p class="hint" style="margin-top:.3rem">A new address takes effect once you confirm it from a link sent there.</p>
+                    <?php endif; ?>
                 </div>
                 <?php
                     $_hasPhone   = !empty($me['phone']);
@@ -451,12 +518,20 @@ $site_name = get_setting('site_name', 'Game Night');
                     </select>
                     <p class="hint">New games you set up will use this timer display. Each game can still switch in its Setup, and this doesn't change games you've already configured.</p>
                 </div>
+                <div class="form-group">
+                    <label for="profile_current_password">Current password <span style="color:#94a3b8;font-size:.8rem;font-weight:400">(needed to change your username, email or phone)</span></label>
+                    <input type="password" id="profile_current_password" name="current_password" autocomplete="current-password">
+                </div>
                 <button type="submit" class="btn btn-primary" style="width:100%">Save Profile</button>
             </form>
 
-            <!-- Phone-verification helper forms: kept OUTSIDE the profile form (forms can't
-                 nest). The visible Verify/Resend buttons + code input live next to the phone
-                 field above and target these via the HTML form="..." attribute. -->
+            <!-- Phone-verification and email-change helper forms: kept OUTSIDE the profile
+                 form (forms can't nest). The visible buttons + code input live next to the
+                 phone and email fields above and target these via the HTML form="..." attribute. -->
+            <form id="emailCancelForm" method="post" action="/settings.php" style="display:none">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                <input type="hidden" name="action" value="cancel_email_change">
+            </form>
             <form id="phSendForm" method="post" action="/settings.php" style="display:none">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <input type="hidden" name="action" value="send_phone_code">
@@ -536,7 +611,7 @@ $site_name = get_setting('site_name', 'Game Night');
         <!-- Change password -->
         <div class="card" style="max-width:100%">
             <h2>Change Password</h2>
-            <p class="subtitle">Minimum 6 characters.</p>
+            <p class="subtitle">Minimum <?= (int)MIN_PASSWORD_LENGTH ?> characters. Changing it signs out every other device.</p>
             <form method="post" action="/settings.php">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <input type="hidden" name="action" value="update_password">
@@ -574,6 +649,11 @@ $site_name = get_setting('site_name', 'Game Night');
                 <form method="post" action="/mfa_setup.php" style="margin-bottom:.75rem">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                     <input type="hidden" name="action" value="regen">
+                    <div class="form-group">
+                        <label for="mfa_regen_pw">Enter your password to regenerate recovery codes</label>
+                        <input type="password" id="mfa_regen_pw" name="current_password"
+                               autocomplete="current-password" required>
+                    </div>
                     <button type="submit" class="btn" style="width:100%">Regenerate Recovery Codes</button>
                 </form>
                 <form method="post" action="/settings.php">
@@ -636,6 +716,11 @@ $site_name = get_setting('site_name', 'Game Night');
                        autocomplete="off" placeholder="DELETE"
                        data-uppercase="1"
                        style="border-color:#fca5a5;text-transform:uppercase">
+            </div>
+            <div class="form-group">
+                <label for="delete_current_password">Your password</label>
+                <input type="password" id="delete_current_password" name="current_password" required
+                       autocomplete="current-password" style="border-color:#fca5a5">
             </div>
             <button type="submit" class="btn" style="width:100%;background:#dc2626;color:#fff;border:none;font-weight:600;padding:.6rem">
                 Permanently Delete My Account

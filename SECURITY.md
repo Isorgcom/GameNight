@@ -5,7 +5,7 @@ history of the CSP gap that is now closed — kept because the reasoning is what
 stops it being reopened, and because the conversion that closed it is still the
 main source of regressions.
 
-Last reviewed: 2026-10-26 (v1.12.3).
+Last reviewed: 2026-10-26 (v1.12.4).
 
 ---
 
@@ -550,6 +550,19 @@ them) and half are conventions someone has to follow.
   (sweep 2b keeps it that way). Since v1.12.3 the reader's side too: a signed-in
   account finds its own invite by id, and a queued notification carries the
   account it is addressed to (sweep 2c).
+- Account self-service (v1.12.4): a signed-in session is not proof enough to
+  re-home an account. `confirm_current_password()` in `auth.php` gates every
+  change of username, email or phone, two-factor enrolment, recovery-code
+  regeneration, disabling two-factor, a new password and deleting the account
+  (five wrong guesses lock those prompts for 15 minutes). A new email waits in
+  `users.pending_email` until the link sent to it is used
+  (`email_verifications.new_email`, `verify_email.php`), and the old address is
+  told. A changed phone is unverified and `send_mfa_sms_code()` refuses to text
+  it; the sign-in page asks for a recovery code instead. `users.session_epoch`
+  is bumped by every password change or reset (`invalidate_other_sessions()`)
+  and `current_user()` signs out any session carrying the old value.
+  `session.use_strict_mode` is on, and `complete_login()` discards the
+  anonymous session's CSRF token so the signed-in session mints its own.
 - `username_format_error()` in `auth.php` is the single username rule, applied by
   registration, the API and the profile editor.
 - `pk_theme_sanitize_props()` constrains stored theme JSON on every write path.
