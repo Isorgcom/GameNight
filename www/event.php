@@ -185,8 +185,8 @@ if ($token === '' && $page_eid > 0) {
     if ($isInvited) {
         try {
             $rq = $db->prepare("SELECT payload FROM pending_notifications
-                                WHERE event_id = ? AND LOWER(username) = LOWER(?) AND notify_type = 'reminder' AND attempted_at IS NULL");
-            $rq->execute([$page_eid, $current['username']]);
+                                WHERE event_id = ? AND user_id = ? AND notify_type = 'reminder' AND attempted_at IS NULL");
+            $rq->execute([$page_eid, (int)$current['id']]);
             foreach ($rq->fetchAll(PDO::FETCH_COLUMN) as $pl) {
                 $o = (int)((json_decode((string)$pl, true) ?: [])['offset_minutes'] ?? 0);
                 if ($o > 0) $remPending[$o] = true;
@@ -478,11 +478,12 @@ if ($token === '' && $page_eid > 0) {
         <?php elseif (empty($ev['hide_guest_list'])): ?>
         <div style="margin-top:1.25rem;padding-top:1.1rem;border-top:1px solid #e2e8f0">
             <?php
-            // Avatar map for registered attendees (lower(username) => path).
+            // Avatar map for registered attendees (lower(roster name) => path),
+            // through the invite row's own account link.
             $rosterAvatars = [];
             try {
-                $ra = $db->prepare("SELECT LOWER(u.username) AS n, u.avatar_path FROM event_invites i
-                                    JOIN users u ON LOWER(u.username) = LOWER(i.username)
+                $ra = $db->prepare("SELECT LOWER(i.username) AS n, u.avatar_path FROM event_invites i
+                                    JOIN users u ON u.id = i.user_id
                                     WHERE i.event_id = ? AND i.occurrence_date IS NULL");
                 $ra->execute([$page_eid]);
                 foreach ($ra->fetchAll() as $r) $rosterAvatars[$r['n']] = $r['avatar_path'];
@@ -1070,7 +1071,7 @@ if ($token === '') {
 }
 
 // ── Look up the invite + event by token ──────────────────────────────────────
-$stmt = $db->prepare('SELECT ei.id, ei.event_id, ei.username, ei.rsvp, ei.approval_status,
+$stmt = $db->prepare('SELECT ei.id, ei.event_id, ei.username, ei.user_id, ei.rsvp, ei.approval_status,
                              e.title, e.description, e.location, e.venue_name, e.start_date, e.start_time, e.end_time, e.hide_guest_list, e.created_by
                       FROM event_invites ei
                       JOIN events e ON e.id = ei.event_id
@@ -1235,10 +1236,9 @@ function ev_names_block(string $label, array $names, string $color, array $avata
             <?php
             $month_str = substr($invite['start_date'], 0, 7);
             $event_redirect = '/calendar.php?m=' . urlencode($month_str) . '&open=' . $eid . '&date=' . urlencode($invite['start_date']);
-            $has_account = false;
-            $uChk = $db->prepare('SELECT 1 FROM users WHERE LOWER(username) = LOWER(?)');
-            $uChk->execute([$invite['username']]);
-            $has_account = (bool)$uChk->fetchColumn();
+            // The invite row's own link says whether there is an account; a
+            // stranger owning the name is not this invitee.
+            $has_account = !empty($invite['user_id']);
             $allow_reg = get_setting('allow_registration', '1') === '1';
             ?>
             <a href="/login.php?redirect=<?= urlencode($event_redirect) ?>" style="display:inline-block;margin:.2rem .3rem .2rem 0;padding:.45rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;background:#2563eb;color:#fff;font-size:.88rem">Log in</a>

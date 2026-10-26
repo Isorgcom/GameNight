@@ -11,6 +11,10 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+### Security
+
+- **Your invite is yours by account, never by name.** About thirty places still found a person's place on a guest list by their username: My Events, the RSVP and sign-up paths, the reminder picker, the walk-in display and the guest-list endpoint for a co-host, the SMS and WhatsApp EVENTS and RSVP replies, who the message picker offers, the event chat's members, the API's invitee routes, and the notification sender, which looked up the recipient's account by the name on the queued row. A host can type a guest's name before that person has an account, and whoever later registered that exact name would have been handed that guest's invitations, reminders and one-click RSVP links. Every one of those now asks for the account the host linked when they added the person (`event_invites.user_id`); a typed-in name with no link stays nobody's. Queued notifications carry the account they are addressed to (`pending_notifications.user_id`, set when queued and filled in once from the invite rows on the first request after this update), and the sender never turns a name into an account. Renaming your account now renames you on hosts' guest lists too. The guest-list endpoint and the walk-in display use the same manager rule as every other host page, which also admits a league's owners and managers. `SECURITY.md` gains sweep 2c for the pattern.
+
 ## [v1.12.2] - 2026-10-23
 
 ### Added

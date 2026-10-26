@@ -438,13 +438,13 @@ function handle_events_post(): void {
     // Queue invite notifications for approved invitees (skip waitlisted)
     if ($invitees_added > 0) {
         $approvedStmt = $db->prepare(
-            "SELECT username FROM event_invites
+            "SELECT username, user_id FROM event_invites
               WHERE event_id = ? AND occurrence_date IS NULL AND approval_status = 'approved'"
         );
         $approvedStmt->execute([$new_eid]);
-        $queue = $db->prepare("INSERT INTO pending_notifications (event_id, username, notify_type) VALUES (?, ?, 'invite')");
+        $queue = $db->prepare("INSERT INTO pending_notifications (event_id, username, user_id, notify_type) VALUES (?, ?, ?, 'invite')");
         foreach ($approvedStmt->fetchAll() as $ar) {
-            $queue->execute([$new_eid, (string)$ar['username']]);
+            $queue->execute([$new_eid, (string)$ar['username'], $ar['user_id'] !== null ? (int)$ar['user_id'] : null]);
         }
         drain_queue_async();
     }
@@ -1263,21 +1263,16 @@ function handle_events_invites_delete(): void {
         api_log_request($key_id, 404);
         api_fail('invitee_not_found', 404);
     }
-    $userStmt = $db->prepare('SELECT username FROM users WHERE id = ?');
-    $userStmt->execute([$user_id]);
-    $username = (string)$userStmt->fetchColumn();
-    if ($username === '') {
-        api_log_request($key_id, 404);
-        api_fail('invitee_not_found', 404);
-    }
-
-    // Confirm the user is currently invited (base row).
+    // The invite row is the account's own (event_invites.user_id); its roster
+    // name is read for the notice. A typed-in row that merely shares a name
+    // belongs to someone else, and a missing row collapses to invitee_not_found.
     $chk = $db->prepare(
-        "SELECT 1 FROM event_invites
-          WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL"
+        "SELECT username FROM event_invites
+          WHERE event_id = ? AND user_id = ? AND occurrence_date IS NULL"
     );
-    $chk->execute([$event_id, $username]);
-    if (!$chk->fetchColumn()) {
+    $chk->execute([$event_id, $user_id]);
+    $username = (string)($chk->fetchColumn() ?: '');
+    if ($username === '') {
         api_log_request($key_id, 404);
         api_fail('invitee_not_found', 404);
     }
@@ -1297,7 +1292,7 @@ function handle_events_invites_delete(): void {
             // so the dispatcher can render even if the event row gets edited later.
             queue_event_notification(
                 $db, $event_id, $username, 'cancel_event', null,
-                ['title' => $title, 'start_date' => $start_date]
+                ['title' => $title, 'start_date' => $start_date], null, $user_id
             );
             $notifications_queued = 1;
         }
@@ -1308,10 +1303,10 @@ function handle_events_invites_delete(): void {
         $del = $db->prepare(
             "DELETE FROM event_invites
               WHERE event_id = ?
-                AND LOWER(username) = LOWER(?)
+                AND user_id = ?
                 AND (occurrence_date IS NULL OR occurrence_date >= ?)"
         );
-        $del->execute([$event_id, $username, $today]);
+        $del->execute([$event_id, $user_id, $today]);
 
         $db->commit();
     } catch (Throwable $e) {
@@ -1377,20 +1372,13 @@ function handle_events_invites_patch(): void {
         api_log_request($key_id, 404);
         api_fail('invitee_not_found', 404);
     }
-    $userStmt = $db->prepare('SELECT username FROM users WHERE id = ?');
-    $userStmt->execute([$user_id]);
-    $username = (string)$userStmt->fetchColumn();
-    if ($username === '') {
-        api_log_request($key_id, 404);
-        api_fail('invitee_not_found', 404);
-    }
-
-    // Fetch current base-row values to compute the diff.
+    // Fetch current base-row values to compute the diff. The row is the
+    // account's own (event_invites.user_id), never one found by name.
     $invStmt = $db->prepare(
         "SELECT rsvp, event_role FROM event_invites
-          WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL"
+          WHERE event_id = ? AND user_id = ? AND occurrence_date IS NULL"
     );
-    $invStmt->execute([$event_id, $username]);
+    $invStmt->execute([$event_id, $user_id]);
     $current = $invStmt->fetch();
     if (!$current) {
         api_log_request($key_id, 404);
@@ -1450,10 +1438,10 @@ function handle_events_invites_patch(): void {
         $args = [];
         foreach ($updates as $col => $val) { $sets[] = "$col = ?"; $args[] = $val; }
         $args[] = $event_id;
-        $args[] = $username;
+        $args[] = $user_id;
         $db->prepare(
             'UPDATE event_invites SET ' . implode(', ', $sets) .
-            ' WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL'
+            ' WHERE event_id = ? AND user_id = ? AND occurrence_date IS NULL'
         )->execute($args);
 
         // RSVP=no may free a poker capacity slot. Snapshot approved-count

@@ -67,7 +67,7 @@ $drain_paused = is_drain_paused();
 if ($drain_paused) echo "Drain paused (provider rate limit).\n";
 if ($notifications_on && !$drain_paused) {
     $pending = $db->prepare(
-        "SELECT id, event_id, username, notify_type, occurrence_date, payload
+        "SELECT id, event_id, username, user_id, notify_type, occurrence_date, payload
          FROM pending_notifications
          WHERE attempted_at IS NULL
            AND attempts < 3

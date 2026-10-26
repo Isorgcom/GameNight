@@ -307,12 +307,12 @@ if (in_array($keyword, ['events', 'list', 'e', 'status', 's'], true)) {
         SELECT e.title, e.start_date, ei.rsvp
         FROM event_invites ei
         JOIN events e ON e.id = ei.event_id
-        WHERE LOWER(ei.username) = LOWER(?)
+        WHERE ei.user_id = ?
           AND e.start_date >= ?
         ORDER BY e.start_date ASC
         LIMIT 10
     ");
-    $evStmt->execute([$user['username'], $_sms_today]);
+    $evStmt->execute([(int)$user['id'], $_sms_today]);
     $events = $evStmt->fetchAll();
     if (empty($events)) {
         http_response_code(200);
@@ -412,24 +412,24 @@ $invStmt = $db->prepare("
     SELECT ei.event_id, ei.id as invite_id, ei.rsvp as old_rsvp, e.title, e.start_date
     FROM event_invites ei
     JOIN events e ON e.id = ei.event_id
-    WHERE LOWER(ei.username) = LOWER(?)
+    WHERE ei.user_id = ?
       AND e.start_date >= ?
       AND ei.approval_status = 'approved'
     ORDER BY e.start_date ASC
     LIMIT 10
 ");
-$invStmt->execute([$user['username'], $_sms_today]);
+$invStmt->execute([(int)$user['id'], $_sms_today]);
 $invites = $invStmt->fetchAll();
 
 // Check whether the user has any pending invites so we can give a helpful reply if they have nothing approved.
 $pendStmt = $db->prepare("
     SELECT COUNT(*) FROM event_invites ei
     JOIN events e ON e.id = ei.event_id
-    WHERE LOWER(ei.username) = LOWER(?)
+    WHERE ei.user_id = ?
       AND e.start_date >= ?
       AND ei.approval_status = 'pending'
 ");
-$pendStmt->execute([$user['username'], $_sms_today]);
+$pendStmt->execute([(int)$user['id'], $_sms_today]);
 $has_pending_invites = (int)$pendStmt->fetchColumn() > 0;
 
 // ── Handle direct "N RSVP" format (e.g. "1 yes", "all no") ─────────────────

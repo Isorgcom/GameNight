@@ -30,20 +30,20 @@ function dm_can_initiate(PDO $db, array $sender, array $recipient): bool {
     $q->execute([$rid, $sid]);
     if ($q->fetchColumn()) return true;
 
-    // Shared event (base invite rows are keyed by username, occurrence_date NULL)
+    // Shared event (base invite rows, matched by the account id the host linked)
     $q = $db->prepare('SELECT 1 FROM event_invites a
                        JOIN event_invites b ON b.event_id = a.event_id AND b.occurrence_date IS NULL
                        WHERE a.occurrence_date IS NULL
-                         AND LOWER(a.username) = LOWER(?) AND LOWER(b.username) = LOWER(?) LIMIT 1');
-    $q->execute([$sender['username'], $recipient['username']]);
+                         AND a.user_id = ? AND b.user_id = ? LIMIT 1');
+    $q->execute([$sid, $rid]);
     if ($q->fetchColumn()) return true;
 
     // Host <-> guest: one created an event the other is invited to
     $q = $db->prepare('SELECT 1 FROM events e
                        JOIN event_invites i ON i.event_id = e.id AND i.occurrence_date IS NULL
-                       WHERE (e.created_by = ? AND LOWER(i.username) = LOWER(?))
-                          OR (e.created_by = ? AND LOWER(i.username) = LOWER(?)) LIMIT 1');
-    $q->execute([$sid, $recipient['username'], $rid, $sender['username']]);
+                       WHERE (e.created_by = ? AND i.user_id = ?)
+                          OR (e.created_by = ? AND i.user_id = ?) LIMIT 1');
+    $q->execute([$sid, $rid, $rid, $sid]);
     if ($q->fetchColumn()) return true;
 
     // Linked contact in the sender's address book
@@ -171,21 +171,21 @@ function dm_eligible_recipients(PDO $db, array $user): array {
                 OR id IN (SELECT b.user_id FROM league_members a
                           JOIN league_members b ON b.league_id = a.league_id
                           WHERE a.user_id = :me)
-                OR LOWER(username) IN (
-                    SELECT LOWER(b.username) FROM event_invites a
+                OR id IN (
+                    SELECT b.user_id FROM event_invites a
                     JOIN event_invites b ON b.event_id = a.event_id AND b.occurrence_date IS NULL
-                    WHERE a.occurrence_date IS NULL AND LOWER(a.username) = LOWER(:uname))
-                OR LOWER(username) IN (
-                    SELECT LOWER(i.username) FROM events e
+                    WHERE a.occurrence_date IS NULL AND a.user_id = :me AND b.user_id IS NOT NULL)
+                OR id IN (
+                    SELECT i.user_id FROM events e
                     JOIN event_invites i ON i.event_id = e.id AND i.occurrence_date IS NULL
-                    WHERE e.created_by = :me)
+                    WHERE e.created_by = :me AND i.user_id IS NOT NULL)
                 OR id IN (SELECT e.created_by FROM events e
                           JOIN event_invites i ON i.event_id = e.id AND i.occurrence_date IS NULL
-                          WHERE LOWER(i.username) = LOWER(:uname))
+                          WHERE i.user_id = :me)
                 OR id IN (SELECT linked_user_id FROM user_contacts
                           WHERE owner_user_id = :me AND linked_user_id IS NOT NULL)
             ) ORDER BY LOWER(username)");
-        $q->execute([':me' => $uid, ':uname' => $user['username']]);
+        $q->execute([':me' => $uid]);
         $rows = $q->fetchAll();
     }
     $out = [];
@@ -248,7 +248,7 @@ function dm_sync_event_chat(PDO $db, array $conv): void {
     // Desired: creator + approved yes-RSVP registered users (base rows).
     $desired = [(int)$event['created_by'] => true];
     $q = $db->prepare("SELECT u.id FROM event_invites i
-                       JOIN users u ON LOWER(u.username) = LOWER(i.username)
+                       JOIN users u ON u.id = i.user_id
                        WHERE i.event_id = ? AND i.occurrence_date IS NULL
                          AND LOWER(COALESCE(i.rsvp,'')) = 'yes'
                          AND COALESCE(i.approval_status,'approved') = 'approved'");

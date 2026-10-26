@@ -27,13 +27,11 @@ if (!$event) {
     exit;
 }
 
-if (!$isAdmin && (int)$event['created_by'] !== (int)$current['id']) {
-    $mgr = $db->prepare("SELECT 1 FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND event_role='manager' LIMIT 1");
-    $mgr->execute([$event_id, $current['username']]);
-    if (!$mgr->fetch()) {
-        header('Location: /calendar.php');
-        exit;
-    }
+// Owner, per-event manager (by account id), league owner/manager, or admin:
+// the one rule in can_manage_event().
+if (!can_manage_event($db, $event_id, (int)$current['id'], $isAdmin)) {
+    header('Location: /calendar.php');
+    exit;
 }
 
 // Generate walkin_token if not set

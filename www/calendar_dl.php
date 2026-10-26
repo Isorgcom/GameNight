@@ -75,12 +75,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $target_user = strtolower(trim($_POST['target_username'] ?? ''));
         $today_date  = date('Y-m-d');
         if ($id > 0 && $target_user !== '') {
+            // The row's account link, read before the delete so the notice below
+            // is still addressed to that account.
+            $lk = $db->prepare('SELECT user_id FROM event_invites WHERE event_id=? AND LOWER(username)=? AND occurrence_date IS NULL');
+            $lk->execute([$id, $target_user]);
+            $lkRow = $lk->fetch();
+            $target_uid = ($lkRow && $lkRow['user_id'] !== null) ? (int)$lkRow['user_id'] : null;
             // Delete base row and future per-occurrence rows
             $db->prepare("DELETE FROM event_invites WHERE event_id=? AND LOWER(username)=? AND (occurrence_date IS NULL OR occurrence_date >= ?)")
                ->execute([$id, $target_user, $today_date]);
             // Queue removal notification — use event_updated template; user is already removed
             // from the invite list so they just need a heads-up.
-            queue_event_notification($db, $id, $target_user, 'cancel_event');
+            queue_event_notification($db, $id, $target_user, 'cancel_event', null, null, null, $target_uid);
             db_log_activity($current['id'], "removed $target_user from all occurrences of event id: $id");
             if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
                 header('Content-Type: application/json');
@@ -142,8 +148,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['flash'] = ['type' => 'error', 'msg' => 'You are not allowed to RSVP to that event.'];
         } elseif ($eid > 0) {
             // Approval gate: a user can't RSVP for themselves while their invite is pending or denied.
-            $statusStmt = $db->prepare('SELECT approval_status FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL');
-            $statusStmt->execute([$eid, $current['username']]);
+            // My own invite row, by account id: a typed-in row that merely shares
+            // the name is someone else's.
+            $statusStmt = $db->prepare('SELECT approval_status FROM event_invites WHERE event_id=? AND user_id=? AND occurrence_date IS NULL');
+            $statusStmt->execute([$eid, (int)$current['id']]);
             $currentApproval = $statusStmt->fetchColumn() ?: 'approved';
             if ($currentApproval === 'waitlisted') {
                 $wlMsg = 'You are on the waitlist for this event. You\'ll be notified if a seat opens up.';
@@ -168,15 +176,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             if ($occ_date) {
                 // Per-occurrence RSVP: update or insert occurrence-specific row
-                $chk = $db->prepare('SELECT id FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date=?');
-                $chk->execute([$eid, $current['username'], $occ_date]);
+                $chk = $db->prepare('SELECT id FROM event_invites WHERE event_id=? AND user_id=? AND occurrence_date=?');
+                $chk->execute([$eid, (int)$current['id'], $occ_date]);
                 if ($chk->fetch()) {
-                    $db->prepare('UPDATE event_invites SET rsvp=? WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date=?')
-                       ->execute([$rsvp, $eid, $current['username'], $occ_date]);
+                    $db->prepare('UPDATE event_invites SET rsvp=? WHERE event_id=? AND user_id=? AND occurrence_date=?')
+                       ->execute([$rsvp, $eid, (int)$current['id'], $occ_date]);
                 } else {
                     // Copy contact info + approval_status from base row so per-occurrence rows inherit gating.
-                    $base_stmt2 = $db->prepare('SELECT phone, email, approval_status FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL');
-                    $base_stmt2->execute([$eid, $current['username']]);
+                    $base_stmt2 = $db->prepare('SELECT phone, email, approval_status FROM event_invites WHERE event_id=? AND user_id=? AND occurrence_date IS NULL');
+                    $base_stmt2->execute([$eid, (int)$current['id']]);
                     $base_row2 = $base_stmt2->fetch() ?: [];
                     $base_approval2 = $base_row2['approval_status'] ?? 'approved';
                     $db->prepare('INSERT INTO event_invites (event_id, username, user_id, phone, email, rsvp, occurrence_date, approval_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
@@ -184,8 +192,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             } else {
                 // Non-recurring: update base row
-                $db->prepare('UPDATE event_invites SET rsvp=? WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL')
-                   ->execute([$rsvp, $eid, $current['username']]);
+                $db->prepare('UPDATE event_invites SET rsvp=? WHERE event_id=? AND user_id=? AND occurrence_date IS NULL')
+                   ->execute([$rsvp, $eid, (int)$current['id']]);
             }
             db_log_activity($current['id'], "updated RSVP for event id: $eid" . ($occ_date ? " ($occ_date)" : ''));
             // If they declined, check if a waitlisted invitee should be promoted
@@ -227,8 +235,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $_SESSION['flash'] = ['type' => 'error', 'msg' => 'You are not allowed to sign up for that event.'];
         } else {
-            $chk = $db->prepare('SELECT id, approval_status FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?)');
-            $chk->execute([$eid, $current['username']]);
+            $chk = $db->prepare('SELECT id, approval_status FROM event_invites WHERE event_id=? AND user_id=?');
+            $chk->execute([$eid, (int)$current['id']]);
             $existing_signup = $chk->fetch();
             if (!$existing_signup) {
                 // Self-signup: approval gate fires if the event has requires_approval=1.
@@ -259,8 +267,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'remove_self' && $current) {
         $eid = (int)($_POST['event_id'] ?? 0);
         if ($eid > 0) {
-            $db->prepare('DELETE FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?)')
-               ->execute([$eid, $current['username']]);
+            $db->prepare('DELETE FROM event_invites WHERE event_id=? AND user_id=?')
+               ->execute([$eid, (int)$current['id']]);
             db_log_activity($current['id'], "removed self from event id: $eid");
         }
         if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {

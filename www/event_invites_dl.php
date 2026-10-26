@@ -25,19 +25,12 @@ $evStmt = $db->prepare('SELECT created_by, league_id FROM events WHERE id = ?');
 $evStmt->execute([$eid]);
 $ev = $evStmt->fetch();
 if (!$ev) { http_response_code(404); echo json_encode(['ok' => false]); exit; }
-if (!$isAdmin && (int)$ev['created_by'] !== (int)$current['id']) {
-    $mgrStmt = $db->prepare("SELECT 1 FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND event_role='manager' LIMIT 1");
-    $mgrStmt->execute([$eid, $current['username']]);
-    $isLeagueMgr = false;
-    if (!empty($ev['league_id'])) {
-        $lr = league_role((int)$ev['league_id'], (int)$current['id']);
-        $isLeagueMgr = in_array($lr, ['owner', 'manager'], true);
-    }
-    if (!$mgrStmt->fetch() && !$isLeagueMgr) {
-        http_response_code(403);
-        echo json_encode(['ok' => false, 'error' => 'Access denied']);
-        exit;
-    }
+// Owner, per-event manager (by account id), league owner/manager, or admin:
+// the one rule in can_manage_event().
+if (!can_manage_event($db, $eid, (int)$current['id'], $isAdmin)) {
+    http_response_code(403);
+    echo json_encode(['ok' => false, 'error' => 'Access denied']);
+    exit;
 }
 
 $stmt = $db->prepare(

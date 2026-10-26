@@ -1599,6 +1599,11 @@ JSON;
     try { $pdo->exec("ALTER TABLE pending_notifications ADD COLUMN scheduled_for DATETIME"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE pending_notifications ADD COLUMN payload TEXT"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE pending_notifications ADD COLUMN occurrence_date TEXT"); } catch (Exception $e) {}
+    // The account a queued row is addressed to. Set when the row is queued (the
+    // caller's id, or the invite row's host-made link); the dispatcher never
+    // resolves the username to an account. NULL = a typed-in invitee with no
+    // account, reached through the contact details on the invite row.
+    try { $pdo->exec("ALTER TABLE pending_notifications ADD COLUMN user_id INTEGER"); } catch (Exception $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_pending_notifications_scheduled ON pending_notifications(scheduled_for) WHERE attempted_at IS NULL"); } catch (Exception $e) {}
 
     // ─── In-app help bubbles ("ghost bubble" hints) ─────────────────────
@@ -1886,6 +1891,22 @@ JSON;
                                            WHERE LOWER(u.username) = LOWER(event_invites.username)) -- ONE-SHOT BACK-FILL, see above
                          WHERE user_id IS NULL");
             set_setting('event_invites_user_id_backfilled', '1');
+        }
+    } catch (Exception $e) {}
+    // ONE-SHOT: queued notifications gained user_id in v1.12.3. Rows queued
+    // before then are addressed by copying the invite row's own link, inside
+    // the same event (no name-to-account resolution). Guarded like the block
+    // above so it never re-runs.
+    try {
+        if (get_setting('pending_notifications_user_id_backfilled', '') !== '1') {
+            $pdo->exec("UPDATE pending_notifications
+                           SET user_id = (SELECT ei.user_id FROM event_invites ei
+                                           WHERE ei.event_id = pending_notifications.event_id
+                                             AND LOWER(ei.username) = LOWER(pending_notifications.username)
+                                             AND ei.occurrence_date IS NULL
+                                           LIMIT 1)
+                         WHERE user_id IS NULL");
+            set_setting('pending_notifications_user_id_backfilled', '1');
         }
     } catch (Exception $e) {}
 
@@ -2760,10 +2781,11 @@ function delete_user_account(int $user_id): void {
     try { $db->prepare('DELETE FROM user_contacts WHERE owner_user_id = ?')->execute([$user_id]); } catch (Exception $e) {}
     try { $db->prepare('UPDATE user_contacts SET linked_user_id = NULL WHERE linked_user_id = ?')->execute([$user_id]); } catch (Exception $e) {}
 
+    // The account's own invite rows and queued notifications, by id. A typed-in
+    // row that merely shares the name is someone else's invitee and stays.
+    $db->prepare('DELETE FROM event_invites WHERE user_id = ?')->execute([$user_id]);
+    try { $db->prepare('DELETE FROM pending_notifications WHERE user_id = ?')->execute([$user_id]); } catch (Exception $e) {}
     if ($username) {
-        $db->prepare('DELETE FROM event_invites WHERE LOWER(username) = LOWER(?)')->execute([$username]);
-        // Pending queued invite notifications that targeted this username
-        try { $db->prepare('DELETE FROM pending_notifications WHERE LOWER(username) = LOWER(?)')->execute([$username]); } catch (Exception $e) {}
         // Notification dedup log keyed on username — clear so re-adding the name as a custom invitee fires fresh SMS/email.
         try { $db->prepare('DELETE FROM event_notifications_sent WHERE LOWER(user_identifier) = LOWER(?)')->execute([$username]); } catch (Exception $e) {}
     }

@@ -34,14 +34,14 @@ $stmt = $db->prepare("
            CASE WHEN e.created_by = :uid THEN 1 ELSE 0 END AS is_creator
     FROM events e
     LEFT JOIN leagues l ON l.id = e.league_id
-    LEFT JOIN event_invites ei ON ei.event_id = e.id AND LOWER(ei.username) = LOWER(:uname)
+    LEFT JOIN event_invites ei ON ei.event_id = e.id AND ei.user_id = :uid4
     WHERE e.created_by = :uid2
        OR ei.id IS NOT NULL
        OR (e.visibility = 'league' AND e.league_id IN (SELECT league_id FROM league_members WHERE user_id = :uid3))
     GROUP BY e.id
     ORDER BY e.start_date ASC, e.start_time ASC
 ");
-$stmt->execute([':uid' => $current['id'], ':uname' => $current['username'], ':uid2' => $current['id'], ':uid3' => $current['id']]);
+$stmt->execute([':uid' => $current['id'], ':uid4' => $current['id'], ':uid2' => $current['id'], ':uid3' => $current['id']]);
 $all_events = $stmt->fetchAll();
 
 // Precompute manage rights so the Manage Game button shows for creators, admins,
