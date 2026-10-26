@@ -440,8 +440,9 @@ Both posts and events support comments.
 
 Go to **Settings** (gear icon or nav menu) to:
 
-- Update your username, email, or phone number.
-- Change your password.
+- Update your username, email, or phone number. Changing any of these asks for your current password. A new email takes effect only after you use the confirmation link sent to it (the old address is told a change was requested), and a changed phone number must be verified again before SMS two-factor will text it.
+- Change your password. This signs out every other device and browser where you were logged in; a password reset does the same.
+- Turn two-factor authentication on or off and regenerate recovery codes (your password is asked for each), and delete your account (type DELETE and your password).
 - Set your **preferred contact method**: Email, SMS, WhatsApp, Both (email + SMS), or None.
 
 ### My Events
@@ -1658,7 +1659,8 @@ Game Night includes several security measures:
 - **Prepared statements** — All database queries use PDO prepared statements (no SQL injection).
 - **HTML sanitization** — Post content is sanitized to prevent XSS.
 - **Security headers** — CSP, X-Frame-Options, X-Content-Type-Options, and more.
-- **Session security** — HTTPOnly cookies, SameSite=Lax, session regeneration on login.
+- **Session security** — HTTPOnly cookies, SameSite=Lax, strict session ids, session regeneration and a fresh CSRF token on login, and every session of an account ends when its password changes or is reset.
+- **Account changes need the password** — changing the username, email or phone, enabling or disabling two-factor, and deleting the account all confirm the current password; a new email is confirmed from a link sent to it before it takes effect; sign-in codes are never texted to an unverified number.
 - **Last admin protection** — The last admin account cannot be demoted or deleted.
 - **File upload validation** — MIME type checking on all uploads.
 - **Sign-in bridge** — Connected apps receive a 120-second, single-use, ES256-signed token carrying the username and the path to the member's profile photo; the private key never leaves the server and the token travels in a URL fragment. See [Connected Apps: Sign-In Bridge](#connected-apps-sign-in-bridge).

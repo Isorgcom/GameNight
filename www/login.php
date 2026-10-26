@@ -69,7 +69,8 @@ if (($_GET['resend'] ?? '') === '1' && !empty($_SESSION['mfa_user_id']) && ($_SE
     $pu = (int)$_SESSION['mfa_user_id'];
     if (!mfa_sms_resend_rate_limited($pu)) {
         $ph = get_db()->prepare('SELECT phone FROM users WHERE id = ?'); $ph->execute([$pu]);
-        if ($phone = $ph->fetchColumn()) { send_mfa_sms_code($pu, $phone); db_log_activity($pu, 'mfa_sms_resend'); }
+        // Nothing is sent to an unverified number (send_mfa_sms_code refuses).
+        if (($phone = $ph->fetchColumn()) && send_mfa_sms_code($pu, (string)$phone)) db_log_activity($pu, 'mfa_sms_resend');
     }
     header('Location: /login.php'); exit;
 }
@@ -122,8 +123,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['mfa_redirect'] = $redirect;
                     if ($method === 'sms') {
                         $ph = get_db()->prepare('SELECT phone FROM users WHERE id = ?'); $ph->execute([$uid]);
-                        if ($phone = $ph->fetchColumn()) send_mfa_sms_code($uid, $phone);
-                        $notice = 'We texted you a code. Enter it below to finish signing in.';
+                        $phone = (string)($ph->fetchColumn() ?: '');
+                        if ($phone !== '' && send_mfa_sms_code($uid, $phone)) {
+                            $notice = 'We texted you a code. Enter it below to finish signing in.';
+                        } else {
+                            // The number on the account was changed on the profile and
+                            // never verified, so the second factor cannot go to it.
+                            $notice = 'Your phone number has not been verified since it was changed, so no code was texted. Enter one of your recovery codes to sign in, then verify the number in Settings.';
+                        }
                     } else {
                         $notice = 'Enter the code from your authenticator app to finish signing in.';
                     }
@@ -139,6 +146,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
+}
+
+// Signed out by a password change made elsewhere (current_user() leaves the
+// reason in the session for this one page).
+if (!empty($_SESSION['signed_out_notice'])) {
+    if (empty($notice)) $notice = (string)$_SESSION['signed_out_notice'];
+    unset($_SESSION['signed_out_notice']);
 }
 
 // A refresh/return while a code is pending keeps the prompt.

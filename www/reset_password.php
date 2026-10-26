@@ -48,9 +48,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $hash = password_hash($new_pw, PASSWORD_BCRYPT);
                 $db->prepare('UPDATE users SET password_hash=?, must_change_password=0 WHERE id=?')
                    ->execute([$hash, $reset['user_id']]);
-                // Security: purge every remember-me cookie for this user so a stolen token
-                // can't keep authenticating after the password rotation.
-                try { $db->prepare('DELETE FROM remember_tokens WHERE user_id = ?')->execute([$reset['user_id']]); } catch (Exception $e) {}
+                // Every session and remember-me token of the account ends with the
+                // old password: whoever held one is out, including the device that
+                // prompted the reset.
+                invalidate_other_sessions((int)$reset['user_id']);
+                send_account_notice((int)$reset['user_id'], 'Your password was reset', 'The password on your account was just reset through a password-reset link, and every signed-in device was signed out.');
                 // Defend against session fixation: any session ID the user had before the
                 // reset is retired. User has to sign in again with the new password.
                 session_regenerate_id(true);

@@ -256,6 +256,9 @@ function db_init(PDO $pdo): void {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id)
     )"); } catch (Exception $e) {}
+    // The address a token confirms when it was issued for an email CHANGE from
+    // Settings; NULL for the signup verification.
+    try { $pdo->exec("ALTER TABLE email_verifications ADD COLUMN new_email TEXT"); } catch (Exception $e) {}
 
     // Password reset tokens
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS password_resets (
@@ -992,6 +995,14 @@ JSON;
     // Highest TOTP time-step this user has already authenticated with. Used to
     // reject reuse of a still-valid code within its window (one-time use per step).
     try { $pdo->exec("ALTER TABLE users ADD COLUMN mfa_totp_last_step INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    // Account self-service (v1.12.4). session_epoch is bumped by every password
+    // change or reset; a session still carrying the old value is signed out on
+    // its next request (current_user()). pending_email is a new address that
+    // takes effect only when the confirmation link sent to it is used
+    // (verify_email.php), so an account can never be pointed at an address its
+    // holder does not control.
+    try { $pdo->exec("ALTER TABLE users ADD COLUMN session_epoch INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE users ADD COLUMN pending_email TEXT"); } catch (Exception $e) {}
 
     // Single-use MFA recovery codes (shown once at enable time; sha256-hashed at rest).
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS mfa_recovery_codes (
