@@ -54,7 +54,7 @@ if ($_hb_user) {
             'preview'   => false,
         ];
         ?>
-        <script nonce="<?= csp_nonce() ?>">window.__help = <?= json_encode($_hb_payload, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;</script>
+        <script nonce="<?= csp_nonce() ?>">window.__help = <?= js_json($_hb_payload, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;</script>
         <script src="/help-bubble.js?v=<?= htmlspecialchars(APP_VERSION) ?>" defer></script>
         <?php
     }
@@ -74,7 +74,7 @@ if ($_hb_user && empty($_hb_user['timezone'])) {
             fetch('/set_timezone_dl.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: 'csrf_token=' + encodeURIComponent(<?= json_encode(csrf_token(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>) +
+                body: 'csrf_token=' + encodeURIComponent(<?= js_json(csrf_token(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>) +
                       '&timezone=' + encodeURIComponent(tz)
             });
         } catch (e) {}
@@ -232,7 +232,7 @@ if ($_hb_user && empty($_hb_user['timezone'])) {
 </div>
 <script nonce="<?= csp_nonce() ?>">
 (function () {
-    var CSRF = <?= json_encode(csrf_token()) ?>;
+    var CSRF = <?= js_json(csrf_token()) ?>;
     var card = document.getElementById('pushPromptCard');
     function hide() { if (card) card.style.display = 'none'; }
 
@@ -278,7 +278,7 @@ if ($_hb_user && empty($_hb_user['timezone'])) {
          card is up so there is never more than one card on screen. On iOS the
          installed app is also the only place push can be enabled at all. */ ?>
 <script nonce="<?= csp_nonce() ?>">
-window.PK_A2HS = { key: 'app', name: <?= json_encode(get_setting('site_name', 'Game Night')) ?>,
+window.PK_A2HS = { key: 'app', name: <?= js_json(get_setting('site_name', 'Game Night')) ?>,
                    why: 'It opens like an app, full screen, and can send you notifications about your games.',
                    avoid: '#pushPromptCard', minViews: 2 };
 </script>

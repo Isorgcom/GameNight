@@ -365,11 +365,11 @@ $title     = (string)$event['title'];
 window.GD = {
     eventId:   <?= (int)$event_id ?>,
     sessionId: <?= (int)$session['id'] ?>,
-    status:    <?= json_encode((string)$session['status']) ?>,
+    status:    <?= js_json((string)$session['status']) ?>,
     // Server-known and stable for the life of the page: every render branch
     // reads this, so none of them can be wrong before the first roster poll.
-    gameType:  <?= json_encode((string)($session['game_type'] ?? 'tournament')) ?>,
-    csrf:      <?= json_encode($csrf) ?>,
+    gameType:  <?= js_json((string)($session['game_type'] ?? 'tournament')) ?>,
+    csrf:      <?= js_json($csrf) ?>,
     hasTimer:  <?= $has_timer ? 'true' : 'false' ?>,
     assetV:    <?= (int)(@filemtime(__DIR__ . '/table_manager.js') ?: 0) ?>
 };

@@ -17,7 +17,8 @@ if (($_GET['action'] ?? '') === 'export_users') {
     $out = fopen('php://output', 'w');
     fputcsv($out, ['id', 'username', 'email', 'phone', 'role', 'preferred_contact', 'notes', 'created_at', 'last_login']);
     foreach ($rows as $r) {
-        fputcsv($out, [$r['id'], $r['username'], $r['email'] ?? '', $r['phone'] ?? '', $r['role'], $r['preferred_contact'] ?? 'email', $r['notes'] ?? '', $r['created_at'] ?? '', $r['last_login'] ?? '']);
+        // csv_cell(): a member's notes or address never opens as a formula.
+        fputcsv($out, array_map('csv_cell', [$r['id'], $r['username'], $r['email'] ?? '', $r['phone'] ?? '', $r['role'], $r['preferred_contact'] ?? 'email', $r['notes'] ?? '', $r['created_at'] ?? '', $r['last_login'] ?? '']));
     }
     fclose($out);
     exit;
@@ -1323,7 +1324,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
 
         <script nonce="<?= csp_nonce() ?>">
         (function(){
-            var CSRF = <?= json_encode($token) ?>;
+            var CSRF = <?= js_json($token) ?>;
             function esc(s){ var d=document.createElement('div'); d.textContent=(s==null?'':String(s)); return d.innerHTML; }
             function paint(d){
                 document.getElementById('actTimers').textContent = d.timers_running;
@@ -2045,7 +2046,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
 
         <script nonce="<?= csp_nonce() ?>">
         (function () {
-            const csrf = <?= json_encode($token) ?>;
+            const csrf = <?= js_json($token) ?>;
             const ind  = document.getElementById('ugSaveIndicator');
             let saveTimer;
 
@@ -2417,7 +2418,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
 
         <script nonce="<?= csp_nonce() ?>">
         (function () {
-            const csrf   = <?= json_encode($token) ?>;
+            const csrf   = <?= js_json($token) ?>;
             const ind    = document.getElementById('evSaveIndicator');
             let saveTimer;
 
@@ -2993,9 +2994,9 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
     </div>
 
     <script nonce="<?= csp_nonce() ?>">
-    var WAHA_URL = <?= json_encode($waha_url, JSON_HEX_TAG) ?>;
-    var WAHA_SESSION = <?= json_encode($waha_session, JSON_HEX_TAG) ?>;
-    var WAHA_CSRF = <?= json_encode($token, JSON_HEX_TAG) ?>;
+    var WAHA_URL = <?= js_json($waha_url, JSON_HEX_TAG) ?>;
+    var WAHA_SESSION = <?= js_json($waha_session, JSON_HEX_TAG) ?>;
+    var WAHA_CSRF = <?= js_json($token, JSON_HEX_TAG) ?>;
 
     function wahaCheckStatus() {
         document.getElementById('wahaStatus').textContent = 'Connecting to WAHA...';
@@ -3149,7 +3150,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
     }
 
     // Check status on page load and poll every 10 seconds if on WhatsApp tab
-    if (<?= json_encode($tab === 'whatsapp') ?>) {
+    if (<?= js_json($tab === 'whatsapp') ?>) {
         wahaCheckStatus();
         setInterval(wahaCheckStatus, 10000);
     }

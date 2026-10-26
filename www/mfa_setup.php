@@ -62,8 +62,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif ($action === 'resend_sms' && mfa_sms_resend_rate_limited((int)$current['id'])) {
                 // Throttle resends (SMS toll/flooding); the initial choose_sms send is not capped.
                 $error = 'Please wait a bit before requesting another code.';
+            } elseif (send_mfa_sms_code($current['id'], $me['phone']) !== 'ok') {
+                // 'unverified' cannot happen here ($sms_available checked the
+                // flag); 'limited' is the per-account send cap.
+                $error = 'Too many codes were sent to your phone just now. Wait 15 minutes and try again.';
             } else {
-                send_mfa_sms_code($current['id'], $me['phone']);
                 if ($action === 'resend_sms') db_log_activity((int)$current['id'], 'mfa_sms_resend');
                 $_SESSION['mfa_setup'] = ['method' => 'sms', 'at' => $action === 'resend_sms' ? (int)$_SESSION['mfa_setup']['at'] : time()];
             }
@@ -263,7 +266,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var wrap = document.getElementById('mfaQr');
     if (!wrap || typeof qrcode === 'undefined') return;
     var qr = qrcode(0, 'M');
-    qr.addData(<?= json_encode($totp_uri) ?>);
+    qr.addData(<?= js_json($totp_uri) ?>);
     qr.make();
     var img = document.createElement('img');
     img.src = qr.createDataURL(6, 4);

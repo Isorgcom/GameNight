@@ -22,14 +22,9 @@ if (($_GET['action'] ?? '') === 'export') {
     $rows->execute([$uid]);
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="contacts_' . date('Ymd_His') . '.csv"');
-    // Neutralize CSV formula injection: a cell starting with = + - @ (or a
-    // tab/CR that some parsers treat as a lead-in) is prefixed with a single
-    // quote so spreadsheets treat it as text, not a formula.
-    $csvSafe = static function ($v): string {
-        $v = (string)$v;
-        if ($v !== '' && strpbrk($v[0], "=+-@\t\r") !== false) return "'" . $v;
-        return $v;
-    };
+    // Formula-leading cells are neutralised by csv_cell() (db.php), shared
+    // with the league and user exports.
+    $csvSafe = 'csv_cell';
     $out = fopen('php://output', 'w');
     fputcsv($out, ['name', 'email', 'phone', 'notes', 'status']);
     foreach ($rows->fetchAll() as $r) {
@@ -94,7 +89,10 @@ case 'add_contact': {
        ->execute([$uid, $linked, $name, $email ?: null, $phone ?: null, $notes ?: null]);
     $cid = (int)$db->lastInsertId();
     db_log_activity($uid, "added contact: $name (contact id: $cid)");
-    ok(['id' => $cid, 'linked' => (bool)$linked]);
+    // Whether the typed email or phone matches an account stays server-side:
+    // the page reloads and shows the Linked badge for contacts the owner
+    // already has, but the save response itself is not a lookup service.
+    ok(['id' => $cid]);
 }
 
 case 'update_contact': {
@@ -175,7 +173,7 @@ case 'save_row': {
     $db->prepare('UPDATE user_contacts SET contact_name = ?, contact_email = ?, contact_phone = ?, notes = ?, invite_via = ?, linked_user_id = ? WHERE id = ?')
        ->execute([$name, $email ?: null, $phone ?: null, $notes ?: null, $via, $linked, $cid]);
     db_log_activity($uid, "saved contact id=$cid");
-    ok(['phone' => $phone, 'linked' => (bool)$linked]);
+    ok(['phone' => $phone]);
 }
 
 case 'delete_contact': {

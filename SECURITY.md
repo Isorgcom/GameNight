@@ -5,7 +5,7 @@ history of the CSP gap that is now closed — kept because the reasoning is what
 stops it being reopened, and because the conversion that closed it is still the
 main source of regressions.
 
-Last reviewed: 2026-10-26 (v1.12.6).
+Last reviewed: 2026-10-26 (v1.12.7).
 
 ---
 
@@ -132,6 +132,27 @@ The trailing filter matters: the third pattern also matches correctly-escaped
 code such as `value="'+escAttr(col)+'"`, and a check that reports clean code as a
 problem quickly gets ignored. On a clean tree the whole command prints nothing.
 
+### 2d. JSON written into a script block
+
+```bash
+grep -rn '<?= json_encode(' www/ --include=*.php
+```
+
+Prints nothing on a clean tree. A value written into `<script>` as
+`var X = <?= … ?>;` goes through `js_json()` (`db.php`), never bare
+`json_encode()`. The HTML parser reads a script block before JavaScript does:
+`json_encode()` escapes `/`, so `</script>` cannot appear, but `<!--` and
+`<script>` can, and that pair moves the tokenizer into its "double escaped"
+state so the real `</script>` no longer ends the block (the page's next script
+tag does), which turns the block into a `SyntaxError` and discards every
+function in it. An event title is enough to do it, on every console the title
+is shown on. `js_json()` carries `JSON_HEX_TAG` and friends, substitutes an
+invalid UTF-8 byte instead of returning `false` (which printed `var X = ;`, the
+same outcome), and prints `null` as the last resort. Extra flags such as
+`JSON_FORCE_OBJECT` are passed through: `js_json($v, JSON_FORCE_OBJECT)`. This
+is the script-block rule; the attribute rule below is different (an attribute
+holds data, not JSON).
+
 ### 2b. Invites matched to accounts by name
 
 ```bash
@@ -208,6 +229,8 @@ did nothing for any event whose title contained an apostrophe.
 | PHP, attribute holding **data** (`data-a1`, `data-confirm`, `title`) | `htmlspecialchars($v, ENT_QUOTES \| ENT_SUBSTITUTE)`, or a cast such as `(int)$id` |
 | JS in `timer_classic.php`, attribute context | `escAttr($v)` |
 | JS, text context | `escHtml($v)` |
+| PHP, value inside a `<script>` block | `js_json($v)` (sweep 2d) |
+| JS, text passed to `pkConfirm()` / `pkAlert()` / `pkConfirmForm()` | the message is rendered as **HTML**: a name, title or other typed value goes through `escHtml()` (or the file's own escaper) first; `pk-dispatch.js` escapes `data-confirm` text itself |
 
 **The `json_encode` rule is a trap now.** It was correct while attributes carried
 JS source: `onclick="viewEvent(<?= json_encode($ev) ?>)"` needed a JS literal,
@@ -592,6 +615,31 @@ them) and half are conventions someone has to follow.
   account, 3 s connect / 5 s total, https only, the test button rate-limited;
   a payout structure loads only through the list's own visibility filter
   (`pk_payout_structure_for()`).
+- The Low list, first half (v1.12.7): every MFA text is counted
+  (`send_mfa_sms_code()` refuses past five in fifteen minutes, activity_log
+  `mfa_sms_send`) and every verification code per account
+  (`send_verification_code()`, five an hour); a phone number already
+  registered gets the DECOY code session (`verify_user_id = -1`, same answers
+  as a real signup) so the verify page is not a lookup; every SMS event
+  command needs a verified number (`sms_admin.php`); the API log stores the
+  canonical path (`api_canonical_path()`), so a direct-file call or a trailing
+  slash counts against the same per-endpoint limit, and the create limits
+  match exactly; API answers are `private` (a cached GET) or `no-store`;
+  contacts' save responses no longer say whether a typed address matches an
+  account; TV pairing codes are minted at most thirty an hour per address,
+  always unique (`tv_pair_new()` throws rather than duplicate), misses on
+  `tv_send.php` are counted per address, and the "sent" banner names only a
+  game the caller runs; `connect.php` refuses a missing or malformed `state`;
+  the FinalTable webhook logs one bad-signature line per game and address per
+  five minutes; a missing or unwritable app secret stops the site
+  (`db.php`) instead of minting a per-request one; every CSV export goes
+  through `csv_cell()`; `privacy.php` and `terms.php` carry the headers; the
+  service worker opens only a path on this site; script-block JSON goes
+  through `js_json()` (sweep 2d); the dispatchers (`pk-dispatch.js`,
+  `checkin.php`, `timer_classic.php`) call only an identifier-named,
+  page-defined function, never a browser built-in; `data-confirm` text is
+  escaped before the dialog; the timer's custom-element maps have no
+  prototype and the seven `Object.prototype` names are refused on save.
 - `username_format_error()` in `auth.php` is the single username rule, applied by
   registration, the API and the profile editor.
 - `pk_theme_sanitize_props()` constrains stored theme JSON on every write path.

@@ -250,29 +250,29 @@ if ($cast_sender) csp_allow_cast_sdk();
 <?php endif; ?>
 
 <script nonce="<?= csp_nonce() ?>">
-var TB_SESSION_ID  = <?= json_encode($session_id ?: null) ?>;
+var TB_SESSION_ID  = <?= js_json($session_id ?: null) ?>;
 // The key this screen was opened with (if any), and the one a QR cell should
 // encode. Read from the timer row rather than echoed back from the URL, so a
 // screen opened by event_id can still show a QR — and so nothing user-supplied
 // is ever reflected into the page.
-var TB_KEY      = <?= json_encode($remote_key !== '' ? $remote_key : null) ?>;
+var TB_KEY      = <?= js_json($remote_key !== '' ? $remote_key : null) ?>;
 // The build stamp this page booted with; get_state carries the current one.
 var TB_ASSET_V  = <?= (int) (@filemtime(__DIR__ . '/timer_display.js') ?: 0) ?>;
-var TB_CAST_KEY = <?= json_encode($cast_key ?: null) ?>;
-var TB_EVENT_TITLE = <?= json_encode($event_title) ?>;
-var TB_EMBED       = <?= json_encode($is_embed) ?>;
-var TB_PREVIEW     = <?= json_encode($is_preview) ?>;
-var TB_CAST        = <?= json_encode($is_cast) ?>;
-var TB_TV          = <?= json_encode($is_tv) ?>;
-var TB_EVENT_LAYOUT_ID = <?= json_encode($event_layout_id) ?>;
+var TB_CAST_KEY = <?= js_json($cast_key ?: null) ?>;
+var TB_EVENT_TITLE = <?= js_json($event_title) ?>;
+var TB_EMBED       = <?= js_json($is_embed) ?>;
+var TB_PREVIEW     = <?= js_json($is_preview) ?>;
+var TB_CAST        = <?= js_json($is_cast) ?>;
+var TB_TV          = <?= js_json($is_tv) ?>;
+var TB_EVENT_LAYOUT_ID = <?= js_json($event_layout_id) ?>;
 // Admin-configured extra stream hosts for video cells (mirrors the CSP
 // frame-src allowlist built in auth.php, same as the classic timer's page).
-var TB_STREAM_HOSTS = <?= json_encode(stream_allowed_hosts()) ?>;
-var TB_EVENT_LAYOUT_KEY = <?= json_encode($event_layout_key) ?>;
+var TB_STREAM_HOSTS = <?= js_json(stream_allowed_hosts()) ?>;
+var TB_EVENT_LAYOUT_KEY = <?= js_json($event_layout_key) ?>;
 // Where the tray's Exit button goes: this game's console, or the calendar for
 // a timer with no game behind it. Built here from the resolved event id, never
 // from anything in the URL.
-var TB_EXIT_URL = <?= json_encode($event_id ? '/checkin.php?event_id=' . (int)$event_id : '/calendar.php') ?>;
+var TB_EXIT_URL = <?= js_json($event_id ? '/checkin.php?event_id=' . (int)$event_id : '/calendar.php') ?>;
 </script>
 <?php if (!$is_embed && !$is_cast): ?>
 <?php /* Keep-awake, same pair the classic timer uses: navigator.wakeLock where
@@ -292,7 +292,7 @@ var TB_EXIT_URL = <?= json_encode($event_id ? '/checkin.php?event_id=' . (int)$e
 <script src="/timer_display.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/timer_display.js') ?: 0)) ?>"></script>
 <?php if ($cast_sender): ?>
 <script nonce="<?= csp_nonce() ?>">
-var TB_CAST_APP_ID = <?= json_encode($cast_app_id) ?>;
+var TB_CAST_APP_ID = <?= js_json($cast_app_id) ?>;
 </script>
 <?php /* pk-cast.js defines __onGCastApiAvailable, so it must run before the
          SDK, which calls it once loaded. */ ?>

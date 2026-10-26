@@ -2356,7 +2356,7 @@ function renderThemeSelect() {
     if (groups.def.length)    html += '<optgroup label="Default">' + groups.def.map(opt).join('') + '</optgroup>';
     if (groups.global.length) html += '<optgroup label="Global">' + groups.global.map(opt).join('') + '</optgroup>';
     Object.keys(groups.league).forEach(function(k){
-        html += '<optgroup label="League — '+k+'">' + groups.league[k].map(opt).join('') + '</optgroup>';
+        html += '<optgroup label="League — '+escAttr(k)+'">' + groups.league[k].map(opt).join('') + '</optgroup>';
     });
     if (groups.mine.length)   html += '<optgroup label="My Themes">' + groups.mine.map(opt).join('') + '</optgroup>';
     sel.innerHTML = html;
@@ -2535,7 +2535,7 @@ function saveThemeAs() {
         if (j.ok && j.leagues) leagueScopes = j.leagues;
         var sel = document.getElementById('saveThemeScope');
         var html = '<option value="personal">Personal (only me)</option>';
-        leagueScopes.forEach(function(l){ html += '<option value="league:'+l.id+'">League: '+l.name+'</option>'; });
+        leagueScopes.forEach(function(l){ html += '<option value="league:'+(l.id|0)+'">League: '+escHtml(l.name)+'</option>'; });
         if (IS_ADMIN) html += '<option value="global">Global (all users)</option>';
         sel.innerHTML = html;
         document.getElementById('saveThemeName').value = '';

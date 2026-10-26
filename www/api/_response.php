@@ -14,9 +14,17 @@ function api_send_headers(int $cache_seconds = 60): void {
     if ($sent) return;
     $sent = true;
     header('Content-Type: application/json; charset=utf-8');
-    // Public read API: anyone with a valid key gets the same answer, so client
-    // caches and CDNs can hold it briefly without leaking per-user data.
-    header('Cache-Control: public, max-age=' . max(0, $cache_seconds));
+    // A cacheable answer is a successful GET: the key holder's own browser or
+    // consumer may hold it for a minute. It is `private`, never `public`, so
+    // a shared cache in front of the site cannot serve one key's answer
+    // (members' contact details, a league's pending list) to the next
+    // caller. Writes, errors and uncached reads are not stored at all.
+    $method = (string)($_SERVER['REQUEST_METHOD'] ?? 'GET');
+    if ($cache_seconds > 0 && ($method === 'GET' || $method === 'HEAD')) {
+        header('Cache-Control: private, max-age=' . (int)$cache_seconds);
+    } else {
+        header('Cache-Control: no-store');
+    }
     header('Access-Control-Allow-Origin: *');
     header('Access-Control-Allow-Headers: Authorization, Content-Type');
     header('Access-Control-Allow-Methods: GET, POST, PATCH, DELETE, OPTIONS');

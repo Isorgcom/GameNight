@@ -13,6 +13,13 @@
 'use strict';
 
 var frame = document.getElementById('tbeFrame');
+// A layout's name goes into pkConfirm, which renders HTML: escape it first.
+function escText(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+// Names a custom element may not take: Object.prototype's own (the server
+// refuses them too, PK_LO_RESERVED_ELEMENT_NAMES in timer_layouts_dl.php).
+var RESERVED_ELEMENT_NAMES = ['constructor', 'hasOwnProperty', 'isPrototypeOf', 'propertyIsEnumerable', 'toLocaleString', 'toString', 'valueOf'];
 var PV = null;                 // iframe's TBPreview once loaded
 var LAYOUT = null;             // working copy
 var layoutId = null;           // DB id when editing a saved layout
@@ -276,7 +283,7 @@ function confirmDiscard(go, stay) {
     if (!isDirty()) { go(); return; }
     var nm = (nameInput && nameInput.value.trim()) || 'this layout';
     if (window.pkConfirm) {
-        pkConfirm('Discard unsaved changes to "' + nm + '"?', { danger: true }).then(function (yes) { if (yes) go(); else if (stay) stay(); });
+        pkConfirm('Discard unsaved changes to "' + escText(nm) + '"?', { danger: true }).then(function (yes) { if (yes) go(); else if (stay) stay(); });
     } else if (confirm('Discard unsaved changes?')) go();
     else if (stay) stay();
 }
@@ -1716,6 +1723,7 @@ function renderCustomElements() {
         var nm = nameIn.value.trim();
         if (!/^[a-zA-Z][a-zA-Z0-9]{0,39}$/.test(nm)) { (window.pkAlert || alert)('Name must start with a letter and contain only letters and digits.'); return; }
         if (ELEMENT_BUILTINS.indexOf(nm) !== -1) { (window.pkAlert || alert)('"' + nm + '" is a built-in element name.'); return; }
+        if (RESERVED_ELEMENT_NAMES.indexOf(nm) !== -1) { (window.pkAlert || alert)('"' + nm + '" is reserved; pick another name.'); return; }
         pushUndo(); ce[nm] = ce[nm] || ''; refresh(true); renderInspector();
     });
     add.appendChild(nameIn); add.appendChild(addBtn);
@@ -4211,7 +4219,7 @@ document.getElementById('tbeDelete').addEventListener('click', function () {
                 populateLoadList();
             });
     };
-    if (window.pkConfirm) pkConfirm('Delete "' + nameInput.value + '"?', { danger: true }).then(function (yes) { if (yes) go(); });
+    if (window.pkConfirm) pkConfirm('Delete "' + escText(nameInput.value) + '"?', { danger: true }).then(function (yes) { if (yes) go(); });
     else if (confirm('Delete layout?')) go();
 });
 

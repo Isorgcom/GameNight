@@ -1,5 +1,7 @@
 <?php
-require_once __DIR__ . '/db.php';
+// auth.php (not db.php alone) so this public page goes out with the same
+// security headers and CSP as every other; it starts no session by itself.
+require_once __DIR__ . '/auth.php';
 $site_name = get_setting('site_name', 'Game Night');
 ?>
 <!DOCTYPE html>

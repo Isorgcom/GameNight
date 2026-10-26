@@ -665,10 +665,18 @@ function register_user(string $username, string $email, string $password, string
 }
 
 /**
- * Send a 6-digit verification code via SMS or WhatsApp.
+ * Send a 6-digit verification code via SMS or WhatsApp. Returns false, sending
+ * nothing, once VERIFY_CODE_SENDS_PER_HOUR codes were issued to the account in
+ * the last hour (phone_verifications rows, whatever their method): the resend
+ * page's per-address limit does not stop a caller rotating addresses, and
+ * every code is a paid message to a number the caller typed.
  */
-function send_verification_code(int $user_id, string $phone, string $method): void {
+const VERIFY_CODE_SENDS_PER_HOUR = 5;
+function send_verification_code(int $user_id, string $phone, string $method): bool {
     $db   = get_db();
+    $sent = $db->prepare("SELECT COUNT(*) FROM phone_verifications WHERE user_id = ? AND created_at >= datetime('now', '-1 hour')");
+    $sent->execute([$user_id]);
+    if ((int)$sent->fetchColumn() >= VERIFY_CODE_SENDS_PER_HOUR) return false;
     $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
     $hash = hash('sha256', $code);
     $exp  = date('Y-m-d H:i:s', strtotime('+10 minutes'));
@@ -687,6 +695,7 @@ function send_verification_code(int $user_id, string $phone, string $method): vo
     } else {
         send_sms($phone, $msg);
     }
+    return true;
 }
 
 /**
@@ -754,15 +763,24 @@ function verify_code(int $user_id, string $code): string {
  * Send a 6-digit MFA code by SMS, only to the account's VERIFIED phone. A
  * number changed on the profile has not been proven to belong to the account,
  * and texting the second factor there would hand it to whoever typed it.
- * Returns false, sending nothing, when users.phone_verified is 0 or $phone is
- * not the account's number; the login page then asks for a recovery code.
+ * Returns 'unverified', sending nothing, when users.phone_verified is 0 or
+ * $phone is not the account's number (the login page then asks for a recovery
+ * code); 'limited' once MFA_SMS_SENDS_PER_15MIN codes went out in the last 15
+ * minutes (every send is counted here, in activity_log 'mfa_sms_send', so a
+ * correct password alone cannot drive an SMS bill: the resend link's own
+ * tighter gate, mfa_sms_resend_rate_limited(), sits on top); 'ok' otherwise.
  */
-function send_mfa_sms_code(int $user_id, string $phone): bool {
+const MFA_SMS_SENDS_PER_15MIN = 5;
+function send_mfa_sms_code(int $user_id, string $phone): string {
     $db   = get_db();
     $pv = $db->prepare('SELECT phone, phone_verified FROM users WHERE id = ?');
     $pv->execute([$user_id]);
     $acct = $pv->fetch();
-    if (!$acct || (int)($acct['phone_verified'] ?? 0) !== 1 || (string)$acct['phone'] !== $phone) return false;
+    if (!$acct || (int)($acct['phone_verified'] ?? 0) !== 1 || (string)$acct['phone'] !== $phone) return 'unverified';
+    $sent = $db->prepare("SELECT COUNT(*) FROM activity_log WHERE user_id = ? AND action = 'mfa_sms_send' AND created_at > datetime('now', '-15 minutes')");
+    $sent->execute([$user_id]);
+    if ((int)$sent->fetchColumn() >= MFA_SMS_SENDS_PER_15MIN) return 'limited';
+    db_log_activity($user_id, 'mfa_sms_send');
     $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
     $hash = hash('sha256', $code);
     $exp  = date('Y-m-d H:i:s', strtotime('+10 minutes'));
@@ -777,7 +795,7 @@ function send_mfa_sms_code(int $user_id, string $phone): bool {
 
     require_once __DIR__ . '/sms.php';
     send_sms($phone, $msg);
-    return true;
+    return 'ok';
 }
 
 /**

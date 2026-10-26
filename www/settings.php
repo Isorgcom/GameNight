@@ -414,7 +414,7 @@ $site_name = get_setting('site_name', 'Game Night');
                 var self = this;
                 shrinkAvatar(f).then(function (img) {
                 var fd = new FormData();
-                fd.append('csrf_token', <?= json_encode($token) ?>);
+                fd.append('csrf_token', <?= js_json($token) ?>);
                 fd.append('image', img, img.name || 'avatar.webp');
                 fd.append('feature', 'avatars');
                 fetch('/upload.php', { method: 'POST', body: fd, credentials: 'same-origin' })
@@ -745,7 +745,7 @@ function confirmDeleteTyped() {
 // Shared plumbing (permission/subscribe flow, API calls) lives in push.js,
 // loaded without defer by _footer.php above.
 (function () {
-    var CSRF = <?= json_encode(csrf_token()) ?>;
+    var CSRF = <?= js_json(csrf_token()) ?>;
     var statusEl  = document.getElementById('pushStatus');
     var enableBtn = document.getElementById('pushEnableBtn');
     var disableBtn= document.getElementById('pushDisableBtn');

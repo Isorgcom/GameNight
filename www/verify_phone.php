@@ -10,8 +10,13 @@ $site_name = get_setting('site_name', 'Game Night');
 $error     = '';
 $success   = false;
 
-$user_id = $_SESSION['verify_user_id'] ?? 0;
+$user_id = (int)($_SESSION['verify_user_id'] ?? 0);
 $method  = $_SESSION['verify_method'] ?? 'sms';
+// -1 is the decoy set by register.php / resend_verification.php when the
+// number typed belongs to someone else's account: no code was sent, nothing
+// can verify, but the answers below must read exactly as a real signup's so
+// this page cannot be used to test which numbers are registered.
+$decoy   = $user_id === -1;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!csrf_verify()) {
@@ -22,6 +27,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $code = trim($_POST['code'] ?? '');
         if (!preg_match('/^\d{6}$/', $code)) {
             $error = 'Please enter a 6-digit code.';
+        } elseif ($decoy) {
+            // Same budget as verify_code(): the fifth wrong try is "too many".
+            $_SESSION['verify_decoy_tries'] = (int)($_SESSION['verify_decoy_tries'] ?? 0) + 1;
+            $error = $_SESSION['verify_decoy_tries'] >= 5
+                ? 'Too many incorrect attempts. <a href="/resend_verification.php">Resend a new code</a>.'
+                : 'Incorrect code. Please try again.';
         } else {
             $result = verify_code($user_id, $code);
             if ($result === 'ok') {

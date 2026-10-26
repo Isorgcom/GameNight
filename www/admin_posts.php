@@ -480,7 +480,7 @@ $now_local = (new DateTime('now', $local_tz))->format('Y-m-d H:i:s');
 
 <script src="/vendor/jodit/jodit.min.js" defer></script>
 <script nonce="<?= csp_nonce() ?>">
-const csrfToken = <?= json_encode($token) ?>;
+const csrfToken = <?= js_json($token) ?>;
 
 // ── Jodit setup ───────────────────────────────────────────────────────────────
 // jodit.min.js is deferred (it's heavy and render-blocking otherwise), so init
@@ -583,7 +583,7 @@ function openModal(id, title, date, content, pinned, leagueId) {
     var _lg = document.getElementById('f_league');
     if (_lg) _lg.value = leagueId ? String(leagueId) : '';
 
-    const serverNow = <?= json_encode($now_local) ?>;
+    const serverNow = <?= js_json($now_local) ?>;
     const ts    = date || serverNow;
     const parts = ts.split(' ');
     document.getElementById('f_date').value = parts[0] ?? '';
@@ -681,9 +681,9 @@ async function bulkDelete() {
 document.addEventListener('DOMContentLoaded', function () {
 openModal(
     <?= (int)$edit_post['id'] ?>,
-    <?= json_encode($edit_post['title']) ?>,
-    <?= json_encode((new DateTime($edit_post['created_at'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone(display_timezone()))->format('Y-m-d H:i:s')) ?>,
-    <?= json_encode($edit_post['content']) ?>,
+    <?= js_json($edit_post['title']) ?>,
+    <?= js_json((new DateTime($edit_post['created_at'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone(display_timezone()))->format('Y-m-d H:i:s')) ?>,
+    <?= js_json($edit_post['content']) ?>,
     <?= (int)$edit_post['pinned'] ?>,
     <?= (int)($edit_post['league_id'] ?? 0) ?>
 );

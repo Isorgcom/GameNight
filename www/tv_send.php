@@ -23,14 +23,14 @@ $raw_code = (string)($_POST['code'] ?? $_GET['c'] ?? '');
 $pick = (int)($_POST['event_id'] ?? $_GET['event_id'] ?? 0);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // A miss costs a guess; ten in ten minutes and this browser waits. A code
-    // only ever buys showing a game you already run, so this is about noise.
+    // A miss costs a guess; ten in ten minutes and this ADDRESS waits (counted
+    // in activity_log, so a fresh session does not reset it). A code only
+    // ever buys showing a game you already run, so this is about noise.
     session_start_safe();
-    $fails = array_filter($_SESSION['tv_send_fails'] ?? [], fn($t) => $t > time() - 600);
     $event_id = (int)($_POST['event_id'] ?? 0);
     if (!csrf_verify()) {
         $error = 'Your session expired. Try again.';
-    } elseif (count($fails) >= 10) {
+    } elseif (tv_send_miss_limited($db)) {
         $error = 'Too many codes that did not match. Wait a few minutes, then try the code on the TV again.';
     } elseif ($code === '') {
         $error = $raw_code === '' ? 'Enter the code showing on the TV.' : 'That is not a TV code. It is four letters and numbers, shown in large print on the TV.';
@@ -46,19 +46,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$sess || ($sess['game_type'] ?? '') === 'cash') {
             $error = 'That game has no tournament timer to show.';
         } elseif (!$pair_id) {
-            $fails[] = time();
+            db_log_activity((int)$current['id'], 'tv_send_miss');
             $error = 'No TV is showing ' . $code . ' right now. Codes change every ' . TV_CODE_MINUTES . ' minutes, so check the TV and try again.';
         } else {
             $target = tv_pair_target_url($db, (int)$sess['id'], (int)$current['id']);
             $db->prepare("UPDATE tv_pairings SET session_id = ?, target = ?, paired_by = ?, paired_at = datetime('now') WHERE id = ? AND target IS NULL")
                ->execute([(int)$sess['id'], $target, (int)$current['id'], $pair_id]);
             db_log_activity((int)$current['id'], 'sent the timer for event #' . $event_id . ' to a TV');
-            unset($_SESSION['tv_send_fails']);
             header('Location: /tv/send?sent=' . $event_id);
             exit;
         }
     }
-    $_SESSION['tv_send_fails'] = array_values($fails);
 }
 
 // Games worth offering: tournaments dated yesterday (a night that ran past
@@ -89,8 +87,10 @@ if ($pick && can_manage_event($db, $pick, (int)$current['id'], $isAdmin)) {
 }
 $games = array_slice($games, 0, 12);
 
+// The banner names the game just sent; only one the caller runs, since the
+// number is in the address bar and any event's title could be asked for.
 $sent_title = '';
-if (!empty($_GET['sent'])) {
+if (!empty($_GET['sent']) && can_manage_event($db, (int)$_GET['sent'], (int)$current['id'], $isAdmin)) {
     $tq = $db->prepare('SELECT title FROM events WHERE id = ?');
     $tq->execute([(int)$_GET['sent']]);
     $sent_title = (string)($tq->fetchColumn() ?: '');

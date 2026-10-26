@@ -1911,30 +1911,30 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
 
 <script nonce="<?= csp_nonce() ?>">
 let currentEvent = null;
-const eventComments      = <?= json_encode($ev_comments, JSON_HEX_TAG) ?>;
+const eventComments      = <?= js_json($ev_comments, JSON_HEX_TAG) ?>;
 /* (object) cast keeps the top level an object (incl. empty {}) WITHOUT JSON_FORCE_OBJECT,
    which would recursively turn each event's message ARRAY into an object and break msgs.length/forEach. */
-const eventMessages      = <?= json_encode((object)$ev_messages, JSON_HEX_TAG) ?>;
-const eventInvites       = <?= json_encode($ev_invites, JSON_HEX_TAG) ?>;
-const eventInvitesByOcc  = <?= json_encode($ev_invites_occ, JSON_HEX_TAG) ?>;
+const eventMessages      = <?= js_json((object)$ev_messages, JSON_HEX_TAG) ?>;
+const eventInvites       = <?= js_json($ev_invites, JSON_HEX_TAG) ?>;
+const eventInvitesByOcc  = <?= js_json($ev_invites_occ, JSON_HEX_TAG) ?>;
 // Live invite queue state per event ({pending, dispatched, failed}), fed by the
 // 4s RSVP poll. Drives the "sending…" status line so the host can see the queue
 // draining instead of wondering whether Send worked.
 const eventInviteQueue   = {};
 const _invQueueSawPending = {};
-const eventPoker         = <?= json_encode($ev_poker, JSON_HEX_TAG | JSON_FORCE_OBJECT) ?>;
-const CURRENT_USERNAME  = <?= json_encode($current['username'] ?? '', JSON_HEX_TAG) ?>;
-const CURRENT_USER_ID   = <?= json_encode($current['id'] ?? null, JSON_HEX_TAG) ?>;
+const eventPoker         = <?= js_json($ev_poker, JSON_HEX_TAG | JSON_FORCE_OBJECT) ?>;
+const CURRENT_USERNAME  = <?= js_json($current['username'] ?? '', JSON_HEX_TAG) ?>;
+const CURRENT_USER_ID   = <?= js_json($current['id'] ?? null, JSON_HEX_TAG) ?>;
 const CAL_REDIR         = '/calendar.php?m=<?= htmlspecialchars($monthParam) ?>';
-const CAL_CSRF          = <?= json_encode($token, JSON_HEX_TAG) ?>;
+const CAL_CSRF          = <?= js_json($token, JSON_HEX_TAG) ?>;
 const CAL_CURRENT_ID    = <?= (int)($current['id'] ?? 0) ?>;
 const IS_ADMIN = <?= $isAdmin ? 'true' : 'false' ?>;
 const CAN_CREATE_EVENTS = <?= $canCreateEvents ? 'true' : 'false' ?>;
 const ALLOW_MAYBE = <?= $allowMaybe ? 'true' : 'false' ?>;
 const NOTIFS_ENABLED = <?= get_setting('notifications_enabled', '0') === '1' ? 'true' : 'false' ?>;
-const LEAGUE_NAMES = <?= json_encode((object)$_leagueNames, JSON_HEX_TAG | JSON_FORCE_OBJECT) ?>;
-const MANAGED_EVENT_IDS = <?= json_encode(array_values($managedEventIds), JSON_HEX_TAG) ?>;
-const EDITOR_CTX = <?= json_encode($editorCtx, JSON_HEX_TAG) ?>; // return-context query for /event_edit.php links
+const LEAGUE_NAMES = <?= js_json((object)$_leagueNames, JSON_HEX_TAG | JSON_FORCE_OBJECT) ?>;
+const MANAGED_EVENT_IDS = <?= js_json(array_values($managedEventIds), JSON_HEX_TAG) ?>;
+const EDITOR_CTX = <?= js_json($editorCtx, JSON_HEX_TAG) ?>; // return-context query for /event_edit.php links
 
 // ── View modal ────────────────────────────────────────────────────────────────
 // Popup retired: every event click now lands on the canonical event page,
@@ -2821,13 +2821,13 @@ function fmt12(t) {
 <?php if ($__autoEdit): ?>
 location.href = '/event_edit.php?id=<?= (int)$autoOpenEvent['id'] ?>&' + EDITOR_CTX;
 <?php else: ?>
-viewEvent(<?= (int)$autoOpenEvent['id'] ?>, <?= json_encode((string)($autoOpenDate ?? ''), JSON_HEX_TAG) ?>);
+viewEvent(<?= (int)$autoOpenEvent['id'] ?>, <?= js_json((string)($autoOpenDate ?? ''), JSON_HEX_TAG) ?>);
 <?php endif; ?>
 <?php endif; ?>
 
 // ── Week view rendering ───────────────────────────────────────────────────────
 <?php if ($viewMode === 'week'): ?>
-const WK_BY_DATE  = <?= json_encode($wkByDate) ?>;
+const WK_BY_DATE  = <?= js_json($wkByDate) ?>;
 const WK_TODAY    = '<?= $today->format('Y-m-d') ?>';
 const WK_START    = '<?= $wkStartStr ?>';
 const WK_END      = '<?= $wkEndStr ?>';

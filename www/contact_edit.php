@@ -116,7 +116,7 @@ $canMsg   = $isLinked && (int)$c['linked_user_id'] !== $uid;
 <script src="/_phone_input.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/_phone_input.js') ?: 0)) ?>"></script>
 <script nonce="<?= csp_nonce() ?>">
 initPhoneAutoFormat();
-var CSRF = <?= json_encode($csrf) ?>;
+var CSRF = <?= js_json($csrf) ?>;
 var CID = <?= $cid ?>;
 
 function post(data) {

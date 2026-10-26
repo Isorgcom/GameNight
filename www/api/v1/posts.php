@@ -202,7 +202,7 @@ function handle_posts_post(): void {
           WHERE key_id = ?
             AND status = 200
             AND method = 'POST'
-            AND path LIKE '%/api/v1/posts%'
+            AND path = '/api/v1/posts'
             AND path NOT LIKE '%/api/v1/posts/%'
             AND created_at > datetime('now','-1 hour')"
     );

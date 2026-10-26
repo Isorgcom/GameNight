@@ -99,17 +99,17 @@ $csrf = csrf_token();
 </div>
 
 <script nonce="<?= csp_nonce() ?>">
-var ES_CSRF = <?= json_encode($csrf) ?>;
+var ES_CSRF = <?= js_json($csrf) ?>;
 var ES_EVENT_ID = <?= (int)$event_id ?>;
-var ES_LEVELS = <?= json_encode(array_map(function ($l) {
+var ES_LEVELS = <?= js_json(array_map(function ($l) {
     // (float) for the money columns — see pk_clean_blind_levels().
     return ['small_blind' => (float)$l['small_blind'], 'big_blind' => (float)$l['big_blind'],
             'ante' => (float)$l['ante'], 'duration_minutes' => (int)$l['duration_minutes'],
             'is_break' => (int)$l['is_break']];
 }, $levels)) ?>;
 var ES_CURRENT_LEVEL = <?= (int)$current_level ?>;
-var ES_IS_LOCAL = <?= json_encode((bool)$is_local) ?>;
-var ES_TIMER_RUNNING = <?= json_encode((bool)$timer_running) ?>;
+var ES_IS_LOCAL = <?= js_json((bool)$is_local) ?>;
+var ES_TIMER_RUNNING = <?= js_json((bool)$timer_running) ?>;
 </script>
 <script src="/event_setup.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/event_setup.js') ?: 0)) ?>" defer></script>
 <?php if ($is_tournament): ?>

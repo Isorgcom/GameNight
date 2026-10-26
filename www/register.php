@@ -110,17 +110,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // was just created ($result === null) or the email/phone was
                     // already registered (sentinel) — so registration can't reveal
                     // which contacts exist. On the already-exists path we created
-                    // nothing and set NO verify session: the real owner keeps their
-                    // account, and an attacker never receives the code/link either way.
+                    // nothing: the real owner keeps their account, and an attacker
+                    // never receives the code/link either way.
                     $registered_email  = $email;
                     $registered_method = $verify_method;
                     $registered_phone  = $phone;
-                    // For a genuinely new SMS/WhatsApp signup, look up the new user ID
-                    // for code entry. Skipped for the already-exists path.
-                    if ($result === null && $verify_method !== 'email') {
-                        $uidStmt = get_db()->prepare('SELECT id FROM users WHERE phone = ?');
-                        $uidStmt->execute([$phone]);
-                        $registered_uid = (int)$uidStmt->fetchColumn();
+                    // For an SMS/WhatsApp signup, the code-entry page needs the
+                    // user id. On the already-exists path it gets the DECOY id -1:
+                    // verify_phone.php then answers "Incorrect code" exactly as it
+                    // would for a real signup, instead of "Session expired", which
+                    // used to tell the caller the number was already registered.
+                    if ($verify_method !== 'email') {
+                        $registered_uid = -1;
+                        if ($result === null) {
+                            $uidStmt = get_db()->prepare('SELECT id FROM users WHERE phone = ?');
+                            $uidStmt->execute([$phone]);
+                            $registered_uid = (int)$uidStmt->fetchColumn() ?: -1;
+                        }
                         $_SESSION['verify_user_id'] = $registered_uid;
                         $_SESSION['verify_method']  = $verify_method;
                     }

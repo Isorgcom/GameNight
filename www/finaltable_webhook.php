@@ -64,7 +64,13 @@ if ($secret !== '') {
     $verified = hash_equals('sha256=' . hash_hmac('sha256', $ts . '.' . $body, $secret), $sig);
 }
 if (!$verified) {
-    db_log_anon_activity("finaltable webhook refused: bad signature game=$gameId", 'warning');
+    // One line per game and address per five minutes: a game id is readable
+    // by anyone the game is shown to, and a loop of unsigned posts would
+    // otherwise write the activity log full. The 401 itself is unchanged.
+    $seen = $db->prepare("SELECT 1 FROM activity_log WHERE ip = ? AND action = ? AND created_at > datetime('now', '-5 minutes')");
+    $refusal = "finaltable webhook refused: bad signature game=$gameId";
+    $seen->execute([get_client_ip(), $refusal]);
+    if (!$seen->fetchColumn()) db_log_anon_activity($refusal, 'warning');
     http_response_code(401); echo '{"ok":false,"error":"Bad signature"}'; exit;
 }
 

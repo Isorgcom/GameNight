@@ -19,12 +19,15 @@ require_once __DIR__ . '/_response.php';
 
 function api_log_request(?int $key_id, int $status): void {
     try {
-        // Store only the path, dropping the query string entirely. This (a) keeps
-        // the ?key=<token> auth-fallback out of the audit log — keys are stored
-        // only as SHA-256 hashes, so a logged plaintext key would be replayable —
-        // and (b) prevents a caller from padding the URI (e.g. ?z=/api/v1/posts/)
-        // to evade the per-endpoint rate-limit counters, which match on `path`.
-        $path = strtok((string)($_SERVER['REQUEST_URI'] ?? ''), '?');
+        // Store the CANONICAL path, rebuilt from the script that answered and
+        // the id / sub / invitee parameters the rewrite rules carry, never the
+        // request URI. The per-endpoint rate limits count rows by `path`, and
+        // the URI could be spelled around them: /api/v1/events.php?id=5 (the
+        // direct file, which .htaccess allows), a trailing slash, or ?key=…
+        // padding. Rebuilding also keeps the ?key=<token> fallback out of the
+        // audit log (keys are stored as hashes; a logged plaintext key would
+        // be replayable). index.php logs as /api/v1.
+        $path = api_canonical_path();
         $db = get_db();
         $db->prepare(
             'INSERT INTO api_request_log (key_id, ip, method, path, status) VALUES (?, ?, ?, ?, ?)'
@@ -36,6 +39,29 @@ function api_log_request(?int $key_id, int $status): void {
             $status,
         ]);
     } catch (Exception $e) { /* logging is best-effort */ }
+}
+
+/**
+ * /api/v1/<endpoint>[/<id>[/<sub>[/<invitee>]]] for the running script, the
+ * shape the rewrite rules in .htaccess map onto it (pending_contacts.php is
+ * reached as /pending-contacts). Only numeric ids and a lowercase sub name
+ * are carried; anything else is dropped rather than logged.
+ */
+function api_canonical_path(): string {
+    $script = basename((string)($_SERVER['SCRIPT_NAME'] ?? ''), '.php');
+    if ($script === '' || $script === 'index') return '/api/v1';
+    $path = '/api/v1/' . str_replace('_', '-', $script);
+    $id = (string)($_GET['id'] ?? '');
+    if (preg_match('/^\d{1,12}$/', $id)) {
+        $path .= '/' . $id;
+        $sub = (string)($_GET['sub'] ?? '');
+        if (preg_match('/^[a-z]{1,30}$/', $sub)) {
+            $path .= '/' . $sub;
+            $inv = (string)($_GET['invitee'] ?? '');
+            if (preg_match('/^\d{1,12}$/', $inv)) $path .= '/' . $inv;
+        }
+    }
+    return $path;
 }
 
 function api_extract_token(): string {

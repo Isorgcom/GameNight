@@ -206,6 +206,16 @@ function sms_handle_admin_command(PDO $db, array $user, string $body, string $pr
         return true;
     }
 
+    // Everything from here on reads a guest list or acts on an event, so the
+    // number must be verified first: until then "this number matches a user
+    // row" is a self-asserted claim, and PENDING / WHO used to hand a spoofed
+    // sender the names and RSVPs of every guest (CONFIRM has its own check
+    // above, on the staged action).
+    if (!sms_admin_phone_verified($db, $user)) {
+        sms_admin_reply($provider, SMS_ADMIN_VERIFY_MSG);
+        return true;
+    }
+
     $events = sms_admin_manageable_events($db, $user);
 
     // ── PENDING: events with approval requests ──────────────────────────────
@@ -279,13 +289,8 @@ function sms_handle_admin_command(PDO $db, array $user, string $body, string $pr
 
     // ── MSG / REMIND / CANCEL: stage a pending action, ask for CONFIRM ───────
     if (in_array($verb, ['msg', 'remind', 'cancel'], true)) {
-        // These either delete an event or send to every guest, so they need a
-        // verified number — spoofing one is otherwise enough to reach them.
-        // Read-only verbs (ADMIN/WHO/COUNT/PENDING) are deliberately unaffected.
-        if (!sms_admin_phone_verified($db, $user)) {
-            sms_admin_reply($provider, SMS_ADMIN_VERIFY_MSG);
-            return true;
-        }
+        // These delete an event or send to every guest; the verified-number
+        // check they relied on now sits above, in front of every event verb.
         $tok  = preg_split('/\s+/', $rest, 2);
         $num  = $tok[0] ?? '';
         $ev   = sms_admin_resolve_event($events, $num);

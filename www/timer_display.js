@@ -726,9 +726,10 @@ var ELEMENT_NS = {
 
 /* One lowercase index over canonical names, aliases and layout-defined custom
  * elements. Rebuilt whenever the custom set changes. */
-var elementIndex = {};
+var elementIndex = Object.create(null);
 function rebuildElementIndex() {
-    elementIndex = {};
+    // No prototype: a lookup of "constructor" or "toString" must find nothing.
+    elementIndex = Object.create(null);
     Object.keys(ELEMENTS).forEach(function (n) { elementIndex[n.toLowerCase()] = n; });
     Object.keys(ELEMENT_NS).forEach(function (a) {
         var target = ELEMENT_NS[a];
@@ -1467,21 +1468,33 @@ function applyBoxImage(el, node) {
 // appending any {el,name} element spans it creates to `elList`.
 // Layout-defined custom elements: a flat name→plain-text map applied to every
 // screen. Resolved after the built-ins, so a built-in name always wins.
-var customEls = {};
+var customEls = Object.create(null);
+var hasOwn = Object.prototype.hasOwnProperty;
+/* The layout's custom elements as a prototype-free map. The names come from
+ * the layout JSON, and a layout is a file anyone can import: a name like
+ * "hasOwnProperty" must neither shadow a method on the map nor be found
+ * through Object.prototype. (The server refuses those names on save; this
+ * covers a layout handed straight to setLayout.) */
+function customElementMap(src) {
+    var m = Object.create(null);
+    if (!src || typeof src !== 'object') return m;
+    for (var k in src) if (hasOwn.call(src, k) && !(k in Object.prototype)) m[k] = src[k];
+    return m;
+}
 // A layout-defined custom element wins nothing over a built-in (the built-in is
 // checked first), but it IS matched exactly rather than case-insensitively: the
 // author chose that name and typed it into their own layout.
 function resolveElement(name) {
     var canon = elementIndex[String(name).toLowerCase()];
     if (canon) return canon;
-    return customEls.hasOwnProperty(name) ? name : null;
+    return hasOwn.call(customEls, name) ? name : null;
 }
 function isKnownElement(name) { return resolveElement(name) !== null; }
 function elementValue(name) {
     var canon = resolveElement(name);
     if (canon === null) return null;
-    if (ELEMENTS[canon]) return String(ELEMENTS[canon]());
-    if (customEls.hasOwnProperty(canon)) return String(customEls[canon]);
+    if (hasOwn.call(ELEMENTS, canon)) return String(ELEMENTS[canon]());
+    if (hasOwn.call(customEls, canon)) return String(customEls[canon]);
     return null;
 }
 
@@ -2245,8 +2258,7 @@ function pickScreen() {
 function buildScreen(idx) {
     _building = true;
     activeScreen = idx;
-    customEls = (CURRENT_LAYOUT && CURRENT_LAYOUT.customElements && typeof CURRENT_LAYOUT.customElements === 'object')
-        ? CURRENT_LAYOUT.customElements : {};
+    customEls = customElementMap(CURRENT_LAYOUT && CURRENT_LAYOUT.customElements);
     sharedStyles = (CURRENT_LAYOUT && CURRENT_LAYOUT.styles && typeof CURRENT_LAYOUT.styles === 'object')
         ? CURRENT_LAYOUT.styles : {};
     rebuildElementIndex();

@@ -67,8 +67,9 @@ if (($_GET['resend'] ?? '') === '1' && !empty($_SESSION['mfa_user_id']) && ($_SE
     $pu = (int)$_SESSION['mfa_user_id'];
     if (!mfa_sms_resend_rate_limited($pu)) {
         $ph = get_db()->prepare('SELECT phone FROM users WHERE id = ?'); $ph->execute([$pu]);
-        // Nothing is sent to an unverified number (send_mfa_sms_code refuses).
-        if (($phone = $ph->fetchColumn()) && send_mfa_sms_code($pu, (string)$phone)) db_log_activity($pu, 'mfa_sms_resend');
+        // Nothing is sent to an unverified number or past the send cap
+        // (send_mfa_sms_code refuses and counts every send itself).
+        if (($phone = $ph->fetchColumn()) && send_mfa_sms_code($pu, (string)$phone) === 'ok') db_log_activity($pu, 'mfa_sms_resend');
     }
     header('Location: /login.php'); exit;
 }
@@ -122,8 +123,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($method === 'sms') {
                         $ph = get_db()->prepare('SELECT phone FROM users WHERE id = ?'); $ph->execute([$uid]);
                         $phone = (string)($ph->fetchColumn() ?: '');
-                        if ($phone !== '' && send_mfa_sms_code($uid, $phone)) {
+                        $smsSent = $phone !== '' ? send_mfa_sms_code($uid, $phone) : 'unverified';
+                        if ($smsSent === 'ok') {
                             $notice = 'We texted you a code. Enter it below to finish signing in.';
+                        } elseif ($smsSent === 'limited') {
+                            // Five codes in fifteen minutes: whoever holds the
+                            // password is not getting a sixth text out of us.
+                            $notice = 'Too many codes were sent to your phone just now. Wait 15 minutes and sign in again, or enter one of your recovery codes below.';
                         } else {
                             // The number on the account was changed on the profile and
                             // never verified, so the second factor cannot go to it.
