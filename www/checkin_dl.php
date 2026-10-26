@@ -289,9 +289,7 @@ if ($action === 'preset_state') {
     $pid = (int)($sess['preset_structure_id'] ?? 0);
     if (!$pid) { echo json_encode(['ok' => true, 'preset' => null]); exit; }
 
-    $pq = $db->prepare('SELECT * FROM payout_structures WHERE id = ?');
-    $pq->execute([$pid]);
-    $struct = $pq->fetch(PDO::FETCH_ASSOC);
+    $struct = pk_payout_structure_for($db, $pid, (int)$current['id'], $isAdmin);
     // Preset deleted since: the game keeps its settings, it just has no origin
     // to compare against any more.
     if (!$struct) { echo json_encode(['ok' => true, 'preset' => null, 'dangling' => true]); exit; }
@@ -2020,9 +2018,9 @@ if ($action === 'load_payout_structure') {
         http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Access denied']); exit;
     }
 
-    $stq = $db->prepare('SELECT * FROM payout_structures WHERE id = ?');
-    $stq->execute([$structure_id]);
-    $struct = $stq->fetch();
+    // Only a structure the caller may see (the default, a site one, their own,
+    // or a league's they belong to): the list's filter, applied at load time.
+    $struct = pk_payout_structure_for($db, $structure_id, (int)$current['id'], $isAdmin);
     if (!$struct) { echo json_encode(['ok' => false, 'error' => 'Structure not found']); exit; }
 
     $sp = $db->prepare('SELECT place, percentage, points, ticket_cents, prize_label FROM payout_structure_places WHERE structure_id = ? ORDER BY place');

@@ -168,7 +168,13 @@ function wp_send(string $endpoint, string $p256dh, string $auth, string $payload
         CURLOPT_POST           => true,
         CURLOPT_POSTFIELDS     => $body,
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 10,
+        // A push service answers in well under a second; a slow or dead
+        // endpoint must not hold a web worker (fan-out runs inside requests).
+        CURLOPT_CONNECTTIMEOUT => 3,
+        CURLOPT_TIMEOUT        => 5,
+        CURLOPT_PROTOCOLS      => CURLPROTO_HTTPS,
+        CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS,
+        CURLOPT_FOLLOWLOCATION => false,
         CURLOPT_HTTPHEADER     => [
             'Content-Type: application/octet-stream',
             'Content-Encoding: aes128gcm',
@@ -183,15 +189,41 @@ function wp_send(string $endpoint, string $p256dh, string $auth, string $payload
 }
 
 /**
+ * Push endpoints this server will POST to: the browsers' own push services,
+ * plus hosts an admin lists in the push_extra_hosts setting (comma-separated;
+ * a leading dot matches subdomains). https only, no port, no userinfo. The
+ * server posts to this address on every notification, so it must never be an
+ * arbitrary host: an internal one, or a slow one that ties up the workers.
+ */
+function wp_endpoint_allowed(string $endpoint): bool {
+    if ($endpoint === '' || strlen($endpoint) > 1024) return false;
+    $p = parse_url($endpoint);
+    if (!$p || strtolower((string)($p['scheme'] ?? '')) !== 'https' || empty($p['host'])) return false;
+    if (isset($p['port']) || isset($p['user']) || isset($p['pass'])) return false;
+    $host = strtolower((string)$p['host']);
+    $allowed = ['fcm.googleapis.com', '.googleapis.com', 'updates.push.services.mozilla.com', '.push.services.mozilla.com',
+                '.notify.windows.com', 'web.push.apple.com', '.push.apple.com'];
+    foreach (explode(',', (string)get_setting('push_extra_hosts', '')) as $h) {
+        $h = strtolower(trim($h));
+        if ($h !== '') $allowed[] = $h;
+    }
+    foreach ($allowed as $a) {
+        if ($a[0] === '.' ? str_ends_with($host, $a) : $host === $a) return true;
+    }
+    return false;
+}
+
+/**
  * Fan a notification out to every push subscription a user has.
  * Best-effort by design: logs failures, prunes dead subscriptions,
  * never throws. Call AFTER writing the user_notifications inbox row.
  */
-function webpush_notify_user(PDO $db, int $user_id, string $title, string $body, string $link = '/'): void {
+function webpush_notify_user(PDO $db, int $user_id, string $title, string $body, string $link = '/', int $limit = 0): void {
     try {
-        $stmt = $db->prepare('SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?');
+        $stmt = $db->prepare('SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ? ORDER BY created_at DESC, id DESC');
         $stmt->execute([$user_id]);
         $subs = $stmt->fetchAll();
+        if ($limit > 0) $subs = array_slice($subs, 0, $limit);
         if (!$subs) return;
 
         $payload = json_encode([

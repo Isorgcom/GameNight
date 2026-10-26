@@ -24,9 +24,12 @@ $league = $L->fetch();
 if (!$league || $pk === '') { http_response_code(404); exit('Not found'); }
 
 $myRole = league_role($league_id, $uid);
-if ((int)$league['is_hidden'] === 1 && !$isAdmin && $myRole === null) {
+// Members and admins only, hidden league or not: the league page shows a
+// non-member a preview with no stats, and this page shows money in and out
+// per game for a named person.
+if (!$isAdmin && $myRole === null) {
     http_response_code(403);
-    exit('This league is private.');
+    exit('This league is for members only.');
 }
 
 // ── Date range (same options as the stats tab) ────────────────────────────────

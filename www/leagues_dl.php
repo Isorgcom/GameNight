@@ -81,6 +81,7 @@ function league_unique_slug(PDO $db, string $base, int $excludeId = 0): string {
  * "Added to {league}" notice) or create a pending invited member (pending path:
  * + "invite to join" link). Dedups against current membership. Returns:
  *   'linked'  — added an existing user as a member (notified)
+ *   'invited' — the email/phone belongs to an account: it was invited (accept link sent)
  *   'pending' — created a pending invite (invite sent)
  *   'already' — already a member, or already a pending contact for that email
  *   'invalid' — missing name, no email/phone, or a malformed email
@@ -110,23 +111,9 @@ function league_add_one_contact(PDO $db, int $league_id, string $lname, string $
     }
 
     if ($existing) {
-        // Linked path — insert the real user directly as a member.
-        if (league_role($league_id, (int)$existing['id']) !== null) return 'already';
-        $db->prepare(
-            "INSERT INTO league_members (league_id, user_id, role, invited_by, invited_at)
-             VALUES (?, ?, 'member', ?, CURRENT_TIMESTAMP)"
-        )->execute([$league_id, (int)$existing['id'], $invitedBy]);
-        $url = get_site_url() . '/league.php?id=' . $league_id;
-        if (get_setting('url_shortener_enabled') === '1') { $url = shorten_url($url); }
-        send_notification(
-            $existing['username'] ?? '', $existing['email'] ?? '', $existing['phone'] ?? '',
-            $existing['preferred_contact'] ?? 'email',
-            'Added to ' . $lname,
-            'You were added to the league "' . $lname . '". View: ' . $url,
-            '<p>You were added to the league <strong>' . htmlspecialchars($lname) . '</strong>. <a href="' . htmlspecialchars($url) . '">View league</a></p>'
-        );
-        db_log_activity($invitedBy, "added member to league id=$league_id (user #" . (int)$existing['id'] . ")");
-        return 'linked';
+        // A registered account is invited, never enrolled by someone else's act:
+        // it gets an accept link addressed to it (league_invite_account()).
+        return league_invite_account($db, $league_id, (int)$existing['id'], $email, $phone, $invitedBy, true);
     }
 
     // Pending path — dedup against an existing pending row for this email.
@@ -557,7 +544,7 @@ case 'add_contact': {
     $res = league_add_one_contact($db, $league_id, $lname, $name, $email, $phoneRaw, $uid);
     if ($res === 'already') fail('Already in this league.');
     if ($res === 'invalid') fail('Provide a valid name and an email or phone number.');
-    ok($res === 'linked' ? ['linked' => true] : ['pending' => true]);
+    ok($res === 'invited' ? ['invited' => true] : ['pending' => true]);
 }
 
 case 'import_contacts': {
@@ -589,8 +576,7 @@ case 'import_contacts': {
             (string)($c['contact_phone'] ?? ''),
             $uid
         );
-        if ($res === 'linked') $added++;
-        elseif ($res === 'pending') $invited++;
+        if ($res === 'invited' || $res === 'pending') $invited++;
         else $skipped++;
     }
     db_log_activity($uid, "imported contacts to league id=$league_id: $added added, $invited invited, $skipped skipped");
@@ -686,11 +672,16 @@ case 'resend_contact_invite': {
 
     $inviteUrl = get_site_url() . '/league_invite.php?token=' . $token;
     if (get_setting('url_shortener_enabled') === '1') { $inviteUrl = shorten_url($inviteUrl); }
+    // An invitation addressed to an account goes to that account's own details,
+    // not to whatever the inviter typed.
+    $to = ['name' => (string)$row['contact_name'], 'email' => (string)($row['contact_email'] ?? ''), 'phone' => (string)($row['contact_phone'] ?? ''), 'pref' => !empty($row['contact_email']) ? 'email' : 'sms'];
+    if (!empty($row['invited_user_id'])) {
+        $au = $db->prepare('SELECT username, email, phone, preferred_contact FROM users WHERE id = ?');
+        $au->execute([(int)$row['invited_user_id']]);
+        if ($a = $au->fetch()) $to = ['name' => (string)$a['username'], 'email' => (string)($a['email'] ?? ''), 'phone' => (string)($a['phone'] ?? ''), 'pref' => (string)($a['preferred_contact'] ?? 'email')];
+    }
     send_notification(
-        (string)$row['contact_name'],
-        (string)($row['contact_email'] ?? ''),
-        (string)($row['contact_phone'] ?? ''),
-        !empty($row['contact_email']) ? 'email' : 'sms',
+        $to['name'], $to['email'], $to['phone'], $to['pref'],
         'Reminder: invitation to join ' . $lname,
         'Reminder: you have been invited to join "' . $lname . '". Sign up: ' . $inviteUrl,
         '<p>Reminder: you have been invited to join the league <strong>' . htmlspecialchars($lname) . '</strong>.</p>'

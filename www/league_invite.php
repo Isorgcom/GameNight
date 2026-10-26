@@ -36,7 +36,22 @@ if (!$row) {
     // If a logged-in user lands here and a PROVEN email or phone of theirs matches
     // the pending row, link it. A detail typed on the profile and never verified
     // is not evidence that this is the invited person.
-    if ($current) {
+    if ($current && !empty($row['invited_user_id'])) {
+        // An invitation addressed to one account: only that account may accept
+        // it, and no contact matching is needed (or allowed).
+        if ((int)$row['invited_user_id'] === (int)$current['id']) {
+            $db->prepare(
+                "UPDATE league_members
+                 SET user_id = ?, contact_name = NULL, contact_email = NULL, contact_phone = NULL, invite_token = NULL, invited_user_id = NULL, joined_at = CURRENT_TIMESTAMP
+                 WHERE id = ? AND user_id IS NULL"
+            )->execute([(int)$current['id'], (int)$row['id']]);
+            db_log_activity((int)$current['id'], 'accepted league invitation (league id=' . (int)$row['league_id'] . ')');
+            header('Location: /league.php?id=' . (int)$row['league_id']);
+            exit;
+        }
+        $mismatch = true;
+        $mismatchAccount = true;
+    } elseif ($current) {
         $acct = $db->prepare('SELECT email, phone, email_verified, phone_verified FROM users WHERE id = ?');
         $acct->execute([(int)$current['id']]);
         $acct  = $acct->fetch() ?: [];
@@ -57,6 +72,11 @@ if (!$row) {
         // Logged in but identity doesn't match — show a friendly mismatch page.
         $mismatch = true;
     } else {
+        // An invitation to an account: sign in first, then come back here.
+        if (!empty($row['invited_user_id'])) {
+            header('Location: /login.php?redirect=' . urlencode('/league_invite.php?token=' . $token));
+            exit;
+        }
         // Not logged in: send them to register with email pre-filled. Signup hook handles the claim.
         $qs = http_build_query([
             'email' => $row['contact_email'] ?? '',
@@ -91,7 +111,11 @@ if (!$row) {
             <a class="li-btn" href="/">Home</a>
         <?php elseif (!empty($mismatch)): ?>
             <h1>Account mismatch</h1>
+            <?php if (!empty($mismatchAccount)): ?>
+            <p>This invitation was sent to a different account than the one you are signed in with.</p>
+            <?php else: ?>
             <p>This invitation was sent to <strong><?= htmlspecialchars($row['contact_email'] ?: $row['contact_phone']) ?></strong>, which doesn't match your current account.</p>
+            <?php endif; ?>
             <p>If that email or phone is on your profile but not yet verified, verify it in <a href="/settings.php">Settings</a> and open the link again. Otherwise <a href="/logout.php">sign out</a> and use the invite link again, or ask the league owner to send a new invite.</p>
         <?php endif; ?>
     </div>

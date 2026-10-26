@@ -1507,6 +1507,10 @@ JSON;
     try { $pdo->exec("ALTER TABLE league_members ADD COLUMN invited_by    INTEGER"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE league_members ADD COLUMN invited_at    DATETIME"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE league_members ADD COLUMN invite_token  TEXT"); } catch (Exception $e) {}
+    // A pending row that is an invitation to one specific account (v1.12.6):
+    // only that account may accept it (league_invite.php), and the row carries
+    // only what the inviter typed, never the account's own details.
+    try { $pdo->exec("ALTER TABLE league_members ADD COLUMN invited_user_id INTEGER"); } catch (Exception $e) {}
 
     // Relax user_id NOT NULL if still present (SQLite can't drop NOT NULL directly).
     try {
@@ -3503,6 +3507,53 @@ function league_enrol_if_approved(PDO $db, int $event_id, ?string $username = nu
 }
 
 /**
+ * Invite a registered account to a league. Nobody becomes a member by someone
+ * else's act: the account gets a pending row addressed to it (invited_user_id)
+ * and a notice with the accept link, and joins when it opens that link signed
+ * in (league_invite.php). The row keeps only what the inviter typed, so the
+ * Members tab and the export never learn the account's other details (typing
+ * someone's email used to make them a member and reveal their phone).
+ * Returns 'already' (a member, or already invited) or 'invited'.
+ */
+function league_invite_account(PDO $db, int $league_id, int $user_id, string $typed_email, string $typed_phone, int $invited_by, bool $notify = true): string {
+    if ($league_id <= 0 || $user_id <= 0) return 'already';
+    $m = $db->prepare('SELECT 1 FROM league_members WHERE league_id = ? AND (user_id = ? OR (user_id IS NULL AND invited_user_id = ?)) LIMIT 1');
+    $m->execute([$league_id, $user_id, $user_id]);
+    if ($m->fetchColumn()) return 'already';
+    $u = $db->prepare('SELECT username, email, phone, preferred_contact FROM users WHERE id = ?');
+    $u->execute([$user_id]);
+    $acct = $u->fetch();
+    if (!$acct) return 'already';
+    $typed_email = strtolower(trim($typed_email));
+    $typed_phone = $typed_phone !== '' ? normalize_phone(trim($typed_phone)) : '';
+    $token = bin2hex(random_bytes(16));
+    try {
+        $db->prepare("INSERT INTO league_members
+                        (league_id, user_id, role, contact_name, contact_email, contact_phone, invited_by, invited_at, invite_token, invited_user_id)
+                      VALUES (?, NULL, 'member', ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?)")
+           ->execute([$league_id, (string)$acct['username'], $typed_email ?: null, $typed_phone ?: null, $invited_by, $token, $user_id]);
+    } catch (Exception $e) { return 'already'; }   // a pending row for that email exists already
+    if ($notify && function_exists('send_notification')) {
+        $ln = $db->prepare('SELECT name FROM leagues WHERE id = ?');
+        $ln->execute([$league_id]);
+        $lname = (string)($ln->fetchColumn() ?: 'a league');
+        $url = get_site_url() . '/league_invite.php?token=' . $token;
+        if (get_setting('url_shortener_enabled') === '1' && function_exists('shorten_url')) { $url = shorten_url($url); }
+        send_notification(
+            (string)$acct['username'], (string)($acct['email'] ?? ''), (string)($acct['phone'] ?? ''),
+            (string)($acct['preferred_contact'] ?? 'email'),
+            'Invitation to join ' . $lname,
+            'You are invited to join the league "' . $lname . '". Accept: ' . $url,
+            '<p>You are invited to join the league <strong>' . htmlspecialchars($lname) . '</strong>.</p>'
+            . '<p><a href="' . htmlspecialchars($url) . '" style="background:#2563eb;color:#fff;padding:.5rem 1rem;border-radius:6px;text-decoration:none;font-weight:600">Accept the invitation</a></p>'
+            . '<p style="color:#64748b;font-size:.875rem">Nothing happens unless you accept.</p>'
+        );
+    }
+    db_log_activity($invited_by, "invited user #$user_id to league id=$league_id");
+    return 'invited';
+}
+
+/**
  * Auto-add a custom invitee to a league as a pending contact (or as a real member if
  * their email/phone already matches a registered user). Called from the event save path
  * so inviting someone to a league event surfaces them on the league Members tab.
@@ -3543,15 +3594,8 @@ function auto_add_pending_to_league(PDO $db, int $league_id, string $name, strin
     // Pending-contact rows need email or phone to dedup and to claim on signup.
     if ($uid === 0 && $email === '' && $phone === '') return;
     if ($uid > 0) {
-        $lm = $db->prepare('SELECT 1 FROM league_members WHERE league_id = ? AND user_id = ? LIMIT 1');
-        $lm->execute([$league_id, $uid]);
-        if ($lm->fetchColumn()) return; // already a member
-        try {
-            $db->prepare("INSERT OR IGNORE INTO league_members
-                            (league_id, user_id, role, joined_at, invited_by, invited_at)
-                          VALUES (?, ?, 'member', CURRENT_TIMESTAMP, ?, CURRENT_TIMESTAMP)")
-               ->execute([$league_id, $uid, $invited_by]);
-        } catch (Exception $e) { /* dupe — fine */ }
+        // A registered account is INVITED (accept link), never enrolled by the host's act.
+        league_invite_account($db, $league_id, $uid, $email, $phone, $invited_by, true);
         return;
     }
 

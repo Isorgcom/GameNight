@@ -253,8 +253,8 @@ When a user replies to an SMS notification with YES, NO, or MAYBE, the webhook:
 
 Leagues are persistent member communities that sit alongside the shared calendar. Each league has **owner / manager / member** roles, its own posts and rules, and tracks tournament stats and attendance for its members.
 
-- **Joining** — browse public leagues and request to join (owners/managers can require approval), or accept an emailed/SMS invite link. Pending contacts are auto-upgraded to full members when they sign up.
-- **Members** — owners and managers manage the roster, promote managers, and export membership as CSV.
+- **Joining** — browse public leagues and request to join (owners/managers can require approval), or accept an emailed/SMS invite link. Nobody is enrolled by someone else's act: a person who already has an account gets an invitation addressed to that account and joins when they accept it, and a pending contact becomes a member once they verify the email or phone the invitation went to.
+- **Members** — owners and managers manage the roster, promote managers, and export membership as CSV; they see members' contact details, plain members see names.
 - **Posts & rules** — league-scoped announcements with comments, plus a pinned rules post.
 
 ### REST API

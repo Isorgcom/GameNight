@@ -165,26 +165,9 @@ if ($canManageMembers && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['actio
         }
 
         if ($existing) {
-            // Already a member?
-            if (league_role($league_id, (int)$existing['id']) !== null) { $skipped++; continue; }
-            try {
-                $db->prepare(
-                    "INSERT INTO league_members (league_id, user_id, role, invited_by, invited_at)
-                     VALUES (?, ?, 'member', ?, CURRENT_TIMESTAMP)"
-                )->execute([$league_id, (int)$existing['id'], $uid]);
-                $linked++; $imported++;
-                if ($send_invites) {
-                    $url = get_site_url() . '/league.php?id=' . $league_id;
-                    if (get_setting('url_shortener_enabled') === '1') { $url = shorten_url($url); }
-                    send_notification(
-                        $existing['username'] ?? '', $existing['email'] ?? '', $existing['phone'] ?? '',
-                        $existing['preferred_contact'] ?? 'email',
-                        'Added to ' . $lname,
-                        'You were added to the league "' . $lname . '". View: ' . $url,
-                        '<p>You were added to the league <strong>' . htmlspecialchars($lname) . '</strong>. <a href="' . htmlspecialchars($url) . '">View league</a></p>'
-                    );
-                }
-            } catch (Throwable $e) { $errors[] = $name; }
+            // A registered account is invited (accept link), never enrolled outright.
+            $res = league_invite_account($db, $league_id, (int)$existing['id'], $email, $phone, $uid, $send_invites);
+            if ($res === 'invited') { $linked++; $imported++; } else { $skipped++; }
             continue;
         }
 
@@ -219,8 +202,8 @@ if ($canManageMembers && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['actio
     }
     fclose($handle);
 
-    $msg = "Imported $imported ($linked existing, $pending pending).";
-    if ($skipped) $msg .= " Skipped $skipped (already a member).";
+    $msg = "Imported $imported ($linked accounts invited, $pending pending contacts).";
+    if ($skipped) $msg .= " Skipped $skipped (already a member or invited).";
     if ($errors)  $msg .= ' Errors: ' . implode(', ', array_slice($errors, 0, 5)) . (count($errors) > 5 ? '…' : ''); // escaped at render
     $_SESSION['flash'] = ['type' => $imported > 0 ? 'success' : 'error', 'msg' => $msg];
     header('Location: /league.php?id=' . $league_id . '&tab=members');
