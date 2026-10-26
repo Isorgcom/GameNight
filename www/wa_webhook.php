@@ -250,12 +250,12 @@ if (in_array($keyword, ['events', 'list', 'e', 'status', 's'], true)) {
         SELECT e.title, e.start_date, ei.rsvp
         FROM event_invites ei
         JOIN events e ON e.id = ei.event_id
-        WHERE LOWER(ei.username) = LOWER(?)
+        WHERE ei.user_id = ?
           AND e.start_date >= ?
         ORDER BY e.start_date ASC
         LIMIT 10
     ");
-    $evStmt->execute([$user['username'], $today]);
+    $evStmt->execute([(int)$user['id'], $today]);
     $events = $evStmt->fetchAll();
     if (empty($events)) {
         send_whatsapp($from, "You don't have any upcoming event invites.");
@@ -318,23 +318,23 @@ $invStmt = $db->prepare("
     SELECT ei.event_id, ei.id as invite_id, ei.rsvp as old_rsvp, e.title, e.start_date
     FROM event_invites ei
     JOIN events e ON e.id = ei.event_id
-    WHERE LOWER(ei.username) = LOWER(?)
+    WHERE ei.user_id = ?
       AND e.start_date >= ?
       AND ei.approval_status = 'approved'
     ORDER BY e.start_date ASC
     LIMIT 10
 ");
-$invStmt->execute([$user['username'], $today]);
+$invStmt->execute([(int)$user['id'], $today]);
 $invites = $invStmt->fetchAll();
 
 $pendStmt = $db->prepare("
     SELECT COUNT(*) FROM event_invites ei
     JOIN events e ON e.id = ei.event_id
-    WHERE LOWER(ei.username) = LOWER(?)
+    WHERE ei.user_id = ?
       AND e.start_date >= ?
       AND ei.approval_status = 'pending'
 ");
-$pendStmt->execute([$user['username'], $today]);
+$pendStmt->execute([(int)$user['id'], $today]);
 $has_pending = (int)$pendStmt->fetchColumn() > 0;
 
 // ── Handle direct "N RSVP" or "ALL RSVP" format ────────────────────────────

@@ -41,7 +41,7 @@ $db = get_db();
 
 // Pick up unsent rows that are either unscheduled or due.
 $pending = $db->prepare(
-    "SELECT id, event_id, username, notify_type, occurrence_date, payload
+    "SELECT id, event_id, username, user_id, notify_type, occurrence_date, payload
      FROM pending_notifications
      WHERE attempted_at IS NULL
        AND attempts < 3

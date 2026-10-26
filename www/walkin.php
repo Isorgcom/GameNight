@@ -126,9 +126,11 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $uid      = (int)$existing['id'];
                 $username = $existing['username'];
 
-                // Check if already invited (base row, no occurrence_date)
-                $chk = $db->prepare('SELECT id, approval_status FROM event_invites WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL');
-                $chk->execute([$event_id, $username]);
+                // Check if already invited (base row, no occurrence_date): the
+                // account's own row, by id. A typed-in row that merely shares the
+                // name is someone else's and is never claimed by walking in.
+                $chk = $db->prepare('SELECT id, approval_status FROM event_invites WHERE event_id = ? AND user_id = ? AND occurrence_date IS NULL');
+                $chk->execute([$event_id, $uid]);
                 $existingInvite = $chk->fetch();
                 $effective_approval = 'approved';
                 $is_new_pending = false;
@@ -156,7 +158,7 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     // (the main `else` block far below) we still honor the event's requires_approval
                     // setting because those identifiers don't belong to anyone yet.
                     $db->prepare("INSERT INTO event_invites (event_id, username, user_id, email, rsvp, approval_status) VALUES (?, ?, ?, ?, ?, 'pending')")
-                       ->execute([$event_id, $username, resolve_invite_user_id($db, $username), $email]);
+                       ->execute([$event_id, $username, $uid, $email]);
                     $effective_approval = 'pending';
                     $is_new_pending = true;
                 }

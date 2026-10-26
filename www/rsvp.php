@@ -27,7 +27,7 @@ if ($token === '' || !in_array($rsvp, $valid, true)) {
 }
 
 $db   = get_db();
-$stmt = $db->prepare('SELECT ei.id, ei.event_id, ei.username, ei.rsvp, ei.approval_status, ei.rsvp_token_flips, e.title, e.description, e.start_date, e.start_time, e.end_time, e.hide_guest_list, e.created_by
+$stmt = $db->prepare('SELECT ei.id, ei.event_id, ei.username, ei.user_id, ei.rsvp, ei.approval_status, ei.rsvp_token_flips, e.title, e.description, e.start_date, e.start_time, e.end_time, e.hide_guest_list, e.created_by
                        FROM event_invites ei
                        JOIN events e ON e.id = ei.event_id
                        WHERE ei.rsvp_token = ?');
@@ -52,10 +52,8 @@ $rsvp_changed = ($invite['rsvp'] ?? '') !== $rsvp;
 $label        = ucfirst($rsvp);
 $date_str     = $invite['start_date'] . ($invite['start_time'] ? ' at ' . date('g:i A', strtotime($invite['start_time'])) : '');
 
-// Look up whether the invitee has a registered account (used by both branches).
-$userStmt = $db->prepare('SELECT id FROM users WHERE LOWER(username) = LOWER(?)');
-$userStmt->execute([$invite['username']]);
-$userRow = $userStmt->fetch();
+// The invitee's account, if any, is the invite row's own link (user_id); the
+// name is never resolved to whoever owns it now.
 
 // ── GET: render confirmation form (no state change) ──────────────────────────
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -161,8 +159,8 @@ if ($rsvp === 'no') {
 // so future audits can see who clicked what. user_id=0 is the convention used
 // elsewhere in activity_log for unattributable rows (e.g. walkin_rsvp).
 if ($rsvp_changed) {
-    if ($userRow) {
-        db_log_activity((int)$userRow['id'], "Email RSVP $rsvp for event id: " . $invite['event_id']);
+    if (!empty($invite['user_id'])) {
+        db_log_activity((int)$invite['user_id'], "Email RSVP $rsvp for event id: " . $invite['event_id']);
     } else {
         db_log_anon_activity("Email RSVP $rsvp for event id: " . $invite['event_id'] . " (pending invitee: " . $invite['username'] . ", invite_id: " . $invite['id'] . ")");
     }

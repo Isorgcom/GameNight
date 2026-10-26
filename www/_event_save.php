@@ -427,7 +427,7 @@ function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allo
     $invites_sent = 0;
     if (!empty($_POST['send_after_save']) && get_setting('notifications_enabled', '0') === '1') {
         $rows = $db->prepare(
-            "SELECT ei.username FROM event_invites ei
+            "SELECT ei.username, ei.user_id FROM event_invites ei
              WHERE ei.event_id = ? AND ei.occurrence_date IS NULL AND ei.approval_status = 'approved'
                AND NOT EXISTS (
                    SELECT 1 FROM event_notifications_sent ens
@@ -436,9 +436,9 @@ function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allo
                )"
         );
         $rows->execute([(int)$notify_eid]);
-        $targets   = array_column($rows->fetchAll(), 'username');
-        $queueStmt = $db->prepare("INSERT INTO pending_notifications (event_id, username, notify_type) VALUES (?, ?, 'invite')");
-        foreach ($targets as $uname) { $queueStmt->execute([(int)$notify_eid, $uname]); $invites_sent++; }
+        $targets   = $rows->fetchAll();
+        $queueStmt = $db->prepare("INSERT INTO pending_notifications (event_id, username, user_id, notify_type) VALUES (?, ?, ?, 'invite')");
+        foreach ($targets as $t) { $queueStmt->execute([(int)$notify_eid, $t['username'], $t['user_id'] !== null ? (int)$t['user_id'] : null]); $invites_sent++; }
         if ($invites_sent > 0) {
             db_log_activity((int)$current['id'], "sent invites to $invites_sent invitee(s) on event id: $notify_eid (save & send)");
             drain_queue_async();

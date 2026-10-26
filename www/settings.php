@@ -77,6 +77,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $beta_timer = (int)($_POST['beta_timer'] ?? 0) === 1 ? 1 : 0;
                         $db->prepare('UPDATE users SET username = ?, email = ?, phone = ?, preferred_contact = ?, my_events_past_days = ?, timezone = ?, beta_timer = ?, phone_verified = CASE WHEN ? THEN 0 ELSE phone_verified END WHERE id = ?')
                            ->execute([$username, $email, $phone ?: null, $pref_contact, $past_days, $timezone !== '' ? $timezone : null, $beta_timer, $phoneChanged ? 1 : 0, $current['id']]);
+                        // The roster name on this account's own invite rows follows a
+                        // rename: identity is the id, this is what hosts see.
+                        if ($username !== (string)$current['username']) {
+                            $db->prepare('UPDATE event_invites SET username = ? WHERE user_id = ?')->execute([$username, $current['id']]);
+                            try { $db->prepare('UPDATE pending_notifications SET username = ? WHERE user_id = ? AND attempted_at IS NULL')->execute([$username, $current['id']]); } catch (Exception $e) {}
+                        }
                         db_log_activity($current['id'], 'updated profile');
                         $flash = ['type' => 'success', 'msg' => 'Profile updated.'];
                     } catch (PDOException $e) {

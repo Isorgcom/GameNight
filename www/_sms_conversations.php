@@ -93,8 +93,8 @@ function sms_conv_candidate_events(PDO $db, string $digits, ?array $user): array
     if ($user) {
         $q = $db->prepare('SELECT DISTINCT ei.event_id FROM event_invites ei
                            JOIN events e ON e.id = ei.event_id
-                           WHERE LOWER(ei.username) = LOWER(?) AND e.start_date >= ?');
-        $q->execute([$user['username'], $today]);
+                           WHERE ei.user_id = ? AND e.start_date >= ?');
+        $q->execute([(int)$user['id'], $today]);
         $eventIds = $q->fetchAll(PDO::FETCH_COLUMN);
     } elseif ($digits !== '') {
         $q = $db->prepare("SELECT ei.event_id, ei.username, ei.phone FROM event_invites ei
@@ -348,10 +348,10 @@ function sms_guest_rsvp(PDO $db, string $digits, string $body): ?string {
  */
 function sms_unanswered_invite(PDO $db, array $user): bool {
     $q = $db->prepare("SELECT COUNT(*) FROM event_invites ei JOIN events e ON e.id = ei.event_id
-                       WHERE LOWER(ei.username) = LOWER(?) AND e.start_date >= ?
+                       WHERE ei.user_id = ? AND e.start_date >= ?
                          AND ei.approval_status = 'approved'
                          AND (ei.rsvp IS NULL OR ei.rsvp = '')");
-    $q->execute([$user['username'], _sms_conv_today()]);
+    $q->execute([(int)$user['id'], _sms_conv_today()]);
     return (int)$q->fetchColumn() > 0;
 }
 

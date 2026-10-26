@@ -5,7 +5,7 @@ history of the CSP gap that is now closed — kept because the reasoning is what
 stops it being reopened, and because the conversion that closed it is still the
 main source of regressions.
 
-Last reviewed: 2026-09-21 (v0.2130).
+Last reviewed: 2026-10-26 (v1.12.3).
 
 ---
 
@@ -135,7 +135,7 @@ problem quickly gets ignored. On a clean tree the whole command prints nothing.
 ### 2b. Invites matched to accounts by name
 
 ```bash
-grep -rnE "LOWER\((u|users)\.username\) = LOWER\((ei|event_invites)\.username\)|LOWER\((ei|event_invites)\.username\) = LOWER\((u|users)\.username\)" www/ --include=*.php \
+grep -rnE "LOWER\((u|users)\.username\) = LOWER\((ei|event_invites|i|a|b)\.username\)|LOWER\((ei|event_invites|i|a|b)\.username\) = LOWER\((u|users)\.username\)" www/ --include=*.php \
   | grep -v "ONE-SHOT BACK-FILL"
 ```
 
@@ -149,7 +149,44 @@ thread, the roster row their results attach to, and for a typed-in manager the
 event's controls). The join was removed from the authority checks in the first
 hardening and crept back into ten readers and the API's writers by v1.8.4; the
 v1.8.5 pass cleared them. Any new reader selects `ei.user_id` or joins
-`users u ON u.id = ei.user_id`; any new writer records `user_id`.
+`users u ON u.id = ei.user_id`; any new writer records `user_id`. The alias list
+grew in v1.12.3 when the audit found the join alive under `i` in two more places.
+
+### 2c. The signed-in account's username used as a query key
+
+```bash
+grep -rnE -A8 "LOWER\(([a-z_]+\.)?username\) *= *LOWER\((\?|:[a-z_]+)\)" www/ --include=*.php \
+  | grep -E "\\\$(current|user|cu|me|sender|recipient|viewer)\['username'\]"
+```
+
+A statement that compares `username` with a bound value, followed within eight
+lines by an execute that binds the signed-in (or phone-resolved) account's
+username. Prints nothing on a clean tree. Three rules, from the 2026-10-24 audit
+(fixed in v1.12.3):
+
+1. *Which invite is mine?* is `ei.user_id = <account id>`: never the signed-in
+   account's username, the phone-resolved account's username (the SMS and
+   WhatsApp webhooks), or an API caller's user_id turned into a username.
+2. *Which account does this invite belong to?* is `ei.user_id`
+   (`JOIN users u ON u.id = ei.user_id`); NULL means no account.
+3. A queued notification is addressed to `pending_notifications.user_id` (the
+   caller's account id, or the invite row's own link copied when it was queued),
+   else to the contact details on the invite row. `dispatch_queued_notification()`
+   never resolves a username to an account.
+
+The bound-parameter form `LOWER(username) = LOWER(?)` is still legitimate in two
+places, and the sweep leaves them alone: a host acting on a roster name inside an
+event they already control (approve, deny, resend, the check-in console's
+`poker_players.display_name` writes), where the name identifies a row and not an
+account; and resolving a *typed* name to an account at write time
+(`resolve_invite_user_id()`, `canonical_username()`, add_walkin), which is the
+host's decision. `event_notifications_sent.user_identifier` is a dedup log keyed
+by lowercase name on purpose and is not a `username` comparison, so the sweep
+does not see it. Before v1.12.3 this sweep printed 33 lines: My Events, the RSVP
+and sign-up paths, two manager checks, the DM
+picker and the webhooks all found "my" invite by a name a stranger could
+register, and the notification sender handed that stranger the reminders and
+one-click RSVP links meant for the person the host typed.
 
 Anything it prints is a real bug, not a style preference. In order, it flags:
 
@@ -510,7 +547,9 @@ them) and half are conventions someone has to follow.
 - Event authority resolves through `event_invites.user_id` rather than a username
   string match. Since v1.8.5 so does everything else that turns an invite into an
   account: roster imports, notification recipients, SMS matching and the API
-  (sweep 2b keeps it that way).
+  (sweep 2b keeps it that way). Since v1.12.3 the reader's side too: a signed-in
+  account finds its own invite by id, and a queued notification carries the
+  account it is addressed to (sweep 2c).
 - `username_format_error()` in `auth.php` is the single username rule, applied by
   registration, the API and the profile editor.
 - `pk_theme_sanitize_props()` constrains stored theme JSON on every write path.

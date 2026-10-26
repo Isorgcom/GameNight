@@ -15,8 +15,8 @@ $allowUserEvents = get_setting('allow_user_events', '0') === '1';
 $canCreateEvents = $isAdmin || ($current && $allowUserEvents);
 $isAnyEventManager = false;
 if ($current && !$isAdmin) {
-    $mgrCheck = $db->prepare("SELECT 1 FROM event_invites WHERE LOWER(username)=LOWER(?) AND event_role='manager' LIMIT 1");
-    $mgrCheck->execute([$current['username']]);
+    $mgrCheck = $db->prepare("SELECT 1 FROM event_invites WHERE user_id=? AND event_role='manager' LIMIT 1");
+    $mgrCheck->execute([(int)$current['id']]);
     $isAnyEventManager = (bool)$mgrCheck->fetch();
 }
 $canEditEvents = $canCreateEvents || $isAnyEventManager;
@@ -183,8 +183,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!in_array($offset, [60, 180, 720, 1440], true)) {
             echo json_encode(['ok' => false, 'error' => 'Invalid reminder time.']); exit;
         }
-        $chk = $db->prepare("SELECT 1 FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL AND approval_status='approved'");
-        $chk->execute([$eid, $current['username']]);
+        $chk = $db->prepare("SELECT 1 FROM event_invites WHERE event_id=? AND user_id=? AND occurrence_date IS NULL AND approval_status='approved'");
+        $chk->execute([$eid, (int)$current['id']]);
         if (!$chk->fetchColumn()) {
             echo json_encode(['ok' => false, 'error' => 'Only invitees can set a reminder.']); exit;
         }
@@ -206,13 +206,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $type_tag = 'reminder_' . $offset;
         $seen = $db->prepare("SELECT 1 FROM event_notifications_sent WHERE event_id=? AND occurrence_date=? AND user_identifier=? AND notification_type=?");
         $seen->execute([$eid, $eRow['start_date'], strtolower($current['username']), $type_tag]);
-        $dup = $db->prepare("SELECT 1 FROM pending_notifications WHERE event_id=? AND LOWER(username)=LOWER(?) AND notify_type='reminder' AND payload = ?");
-        $dup->execute([$eid, $current['username'], json_encode(['offset_minutes' => $offset])]);
+        $dup = $db->prepare("SELECT 1 FROM pending_notifications WHERE event_id=? AND user_id=? AND notify_type='reminder' AND payload = ?");
+        $dup->execute([$eid, (int)$current['id'], json_encode(['offset_minutes' => $offset])]);
         if ($seen->fetchColumn() || $dup->fetchColumn()) {
             echo json_encode(['ok' => true, 'already' => true]); exit;
         }
         queue_event_notification($db, $eid, $current['username'], 'reminder', null,
-            ['offset_minutes' => $offset], $when->format('Y-m-d H:i:s'));
+            ['offset_minutes' => $offset], $when->format('Y-m-d H:i:s'), (int)$current['id']);
         db_log_activity((int)$current['id'], "set a personal {$offset}-minute reminder on event id: $eid");
         echo json_encode(['ok' => true]);
         exit;
@@ -228,9 +228,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo json_encode(['ok' => false, 'error' => 'Invalid reminder.']); exit;
         }
         $del = $db->prepare("DELETE FROM pending_notifications
-                             WHERE event_id = ? AND LOWER(username) = LOWER(?)
+                             WHERE event_id = ? AND user_id = ?
                                AND notify_type = 'reminder' AND payload = ? AND attempted_at IS NULL");
-        $del->execute([$eid, $current['username'], json_encode(['offset_minutes' => $offset])]);
+        $del->execute([$eid, (int)$current['id'], json_encode(['offset_minutes' => $offset])]);
         if ($del->rowCount() < 1) {
             echo json_encode(['ok' => false, 'error' => 'That reminder was already sent (or no longer exists).']); exit;
         }
@@ -266,9 +266,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // any event_id — an IDOR granting private-event disclosure + approval
             // bypass. Managers acting on_behalf are already gated (isAdmin||isOwner)
             // and only ever target existing invitees via the roster panel.
+            // The invitee's rows are found by account id for a self RSVP (a typed-in
+            // row that merely shares the name is someone else's) and by the roster
+            // name when the host acts on behalf of a guest on their own event.
+            $invWhere = $on_behalf ? 'LOWER(username)=LOWER(?)' : 'user_id=?';
+            $invKey   = $on_behalf ? $target_username : (int)$current['id'];
             if (!$on_behalf) {
-                $selfInv = $db->prepare('SELECT 1 FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL');
-                $selfInv->execute([$eid, $target_username]);
+                $selfInv = $db->prepare("SELECT 1 FROM event_invites WHERE event_id=? AND $invWhere AND occurrence_date IS NULL");
+                $selfInv->execute([$eid, $invKey]);
                 if (!$selfInv->fetchColumn()) {
                     if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
                         http_response_code(403);
@@ -283,8 +288,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             // Approval gate: a non-host user cannot RSVP for themselves while their invite is pending or denied.
             // A host (creator/manager/admin) acting on_behalf implicitly approves the row by setting an RSVP.
-            $statusStmt = $db->prepare('SELECT approval_status FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL');
-            $statusStmt->execute([$eid, $target_username]);
+            $statusStmt = $db->prepare("SELECT approval_status FROM event_invites WHERE event_id=? AND $invWhere AND occurrence_date IS NULL");
+            $statusStmt->execute([$eid, $invKey]);
             $currentApproval = $statusStmt->fetchColumn() ?: 'approved';
             if (!$on_behalf && $currentApproval !== 'approved') {
                 if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
@@ -301,28 +306,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($occDate) {
                 // Per-occurrence RSVP: upsert occurrence-specific row
-                $chk = $db->prepare('SELECT id, rsvp FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date=?');
-                $chk->execute([$eid, $target_username, $occDate]);
+                $chk = $db->prepare("SELECT id, rsvp FROM event_invites WHERE event_id=? AND $invWhere AND occurrence_date=?");
+                $chk->execute([$eid, $invKey, $occDate]);
                 $existing = $chk->fetch();
                 $oldRsvp  = $existing ? ($existing['rsvp'] ?: null) : null;
                 if ($existing) {
                     $db->prepare("UPDATE event_invites SET rsvp=? {$approval_clause} WHERE id=?")->execute([$rsvp, $existing['id']]);
                 } else {
                     // Copy contact info and approval_status from base invite row so per-occurrence rows inherit gating.
-                    $baseStmt = $db->prepare('SELECT phone, email, approval_status FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL');
-                    $baseStmt->execute([$eid, $target_username]);
+                    $baseStmt = $db->prepare("SELECT user_id, phone, email, approval_status FROM event_invites WHERE event_id=? AND $invWhere AND occurrence_date IS NULL");
+                    $baseStmt->execute([$eid, $invKey]);
                     $baseRow = $baseStmt->fetch();
                     $baseApproval = $on_behalf ? 'approved' : ($baseRow['approval_status'] ?? 'approved');
+                    // The occurrence row carries the base row's own link as it is: a
+                    // typed-in row is never linked to an account later by its name.
+                    $occUid = $on_behalf
+                        ? (($baseRow && $baseRow['user_id'] !== null) ? (int)$baseRow['user_id'] : null)
+                        : (int)$current['id'];
                     $db->prepare('INSERT INTO event_invites (event_id, username, user_id, phone, email, rsvp, rsvp_token, occurrence_date, approval_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-                       ->execute([$eid, canonical_username($target_username), $baseRow['user_id'] ?? resolve_invite_user_id($db, $target_username), $baseRow['phone'] ?? null, $baseRow['email'] ?? null, $rsvp, bin2hex(random_bytes(16)), $occDate, $baseApproval]);
+                       ->execute([$eid, $on_behalf ? canonical_username($target_username) : $current['username'], $occUid, $baseRow['phone'] ?? null, $baseRow['email'] ?? null, $rsvp, bin2hex(random_bytes(16)), $occDate, $baseApproval]);
                 }
             } else {
                 // Base RSVP (non-recurring or updating all-occurrence default)
-                $oldRsvpStmt = $db->prepare('SELECT rsvp FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL');
-                $oldRsvpStmt->execute([$eid, $target_username]);
+                $oldRsvpStmt = $db->prepare("SELECT rsvp FROM event_invites WHERE event_id=? AND $invWhere AND occurrence_date IS NULL");
+                $oldRsvpStmt->execute([$eid, $invKey]);
                 $oldRsvp = ($oldRsvpStmt->fetchColumn()) ?: null;
-                $db->prepare("UPDATE event_invites SET rsvp=? {$approval_clause} WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL")
-                   ->execute([$rsvp, $eid, $target_username]);
+                $db->prepare("UPDATE event_invites SET rsvp=? {$approval_clause} WHERE event_id=? AND $invWhere AND occurrence_date IS NULL")
+                   ->execute([$rsvp, $eid, $invKey]);
             }
             db_log_activity($current['id'], "updated RSVP for event id: $eid" . ($occDate ? " on $occDate" : '') . ($on_behalf ? " (on behalf of $target_username)" : ''));
 
@@ -372,8 +382,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $_SESSION['flash'] = ['type' => 'error', 'msg' => 'You are not allowed to sign up for that event.'];
         } else {
-            $chk = $db->prepare('SELECT id, approval_status FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?)');
-            $chk->execute([$eid, $current['username']]);
+            $chk = $db->prepare('SELECT id, approval_status FROM event_invites WHERE event_id=? AND user_id=?');
+            $chk->execute([$eid, (int)$current['id']]);
             $existing_signup = $chk->fetch();
             if (!$existing_signup) {
                 // Self-signup: approval gate fires if the event has requires_approval=1.
@@ -405,8 +415,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'self_remove' && $current) {
         $eid = (int)($_POST['event_id'] ?? 0);
         if ($eid > 0) {
-            $db->prepare('DELETE FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?)')
-               ->execute([$eid, $current['username']]);
+            $db->prepare('DELETE FROM event_invites WHERE event_id=? AND user_id=?')
+               ->execute([$eid, (int)$current['id']]);
             db_log_activity($current['id'], "removed self from event id: $eid");
         }
         if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
@@ -464,9 +474,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $isXhr  = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest';
         if ($eid > 0 && $target !== '' && can_manage_event($db, $eid, (int)$current['id'], $isAdmin)) {
             // Verify the invitee actually exists on this event before doing anything.
-            $chk = $db->prepare('SELECT 1 FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL');
+            $chk = $db->prepare('SELECT user_id FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL');
             $chk->execute([$eid, $target]);
-            if (!$chk->fetchColumn()) {
+            $targetRow = $chk->fetch();
+            if (!$targetRow) {
                 if ($isXhr) {
                     http_response_code(404);
                     header('Content-Type: application/json');
@@ -493,8 +504,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db->prepare("DELETE FROM pending_notifications WHERE event_id=? AND LOWER(username)=LOWER(?) AND notify_type IN ('invite','rsvp_nudge') AND attempted_at IS NULL AND attempts >= 3")
                ->execute([$eid, $target]);
             // Queue a fresh invite notification.
-            $db->prepare("INSERT INTO pending_notifications (event_id, username, notify_type) VALUES (?, ?, 'invite')")
-               ->execute([$eid, $target]);
+            $db->prepare("INSERT INTO pending_notifications (event_id, username, user_id, notify_type) VALUES (?, ?, ?, 'invite')")
+               ->execute([$eid, $target, $targetRow['user_id'] !== null ? (int)$targetRow['user_id'] : null]);
             db_log_activity((int)$current['id'], "resent invite to $target on event id: $eid");
             drain_queue_async();
             if ($isXhr) {
@@ -534,7 +545,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             // Approved base invitees with no existing 'invite' dedup marker for this event.
             $rows = $db->prepare(
-                "SELECT ei.username FROM event_invites ei
+                "SELECT ei.username, ei.user_id FROM event_invites ei
                  WHERE ei.event_id = ? AND ei.occurrence_date IS NULL AND ei.approval_status = 'approved'
                    AND NOT EXISTS (
                        SELECT 1 FROM event_notifications_sent ens
@@ -543,10 +554,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                    )"
             );
             $rows->execute([$eid]);
-            $targets = array_column($rows->fetchAll(), 'username');
-            $queueStmt = $db->prepare("INSERT INTO pending_notifications (event_id, username, notify_type) VALUES (?, ?, 'invite')");
+            $targets = $rows->fetchAll();
+            $queueStmt = $db->prepare("INSERT INTO pending_notifications (event_id, username, user_id, notify_type) VALUES (?, ?, ?, 'invite')");
             $sent = 0;
-            foreach ($targets as $uname) { $queueStmt->execute([$eid, $uname]); $sent++; }
+            foreach ($targets as $t) { $queueStmt->execute([$eid, $t['username'], $t['user_id'] !== null ? (int)$t['user_id'] : null]); $sent++; }
             if ($sent > 0) {
                 db_log_activity((int)$current['id'], "sent invites to $sent invitee(s) on event id: $eid");
                 drain_queue_async();

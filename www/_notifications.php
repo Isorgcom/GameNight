@@ -67,6 +67,15 @@ function pause_drain_on_rate_limit(): void {
  * @param string|null $occurrence_date  YYYY-MM-DD for per-occurrence types
  * @param array|null  $payload          Type-specific data (stored as JSON)
  * @param string|null $scheduled_for    UTC "YYYY-MM-DD HH:MM:SS"; NULL = send ASAP
+ * @param int|null    $user_id          The account the row is addressed to. A caller
+ *                                      that holds an account id passes it; one queuing
+ *                                      for an invite row leaves it null and the row's
+ *                                      own host-made link is copied, inside this one
+ *                                      event. The dispatcher never resolves the
+ *                                      username to an account (a stranger who registers
+ *                                      a typed-in name must not receive that person's
+ *                                      reminders and RSVP links); NULL means no account,
+ *                                      reached through the invite row's contact details.
  */
 function queue_event_notification(
     PDO $db,
@@ -75,9 +84,18 @@ function queue_event_notification(
     string $notify_type,
     ?string $occurrence_date = null,
     ?array $payload = null,
-    ?string $scheduled_for = null
+    ?string $scheduled_for = null,
+    ?int $user_id = null
 ): void {
     if ($username === '' || $event_id <= 0) return;
+
+    if ($user_id === null) {
+        $lk = $db->prepare('SELECT user_id FROM event_invites WHERE event_id = ? AND LOWER(username) = LOWER(?)
+                            ORDER BY (occurrence_date IS NULL) DESC, id LIMIT 1');
+        $lk->execute([$event_id, $username]);
+        $linked = $lk->fetchColumn();
+        $user_id = ($linked !== false && $linked !== null) ? (int)$linked : null;
+    }
 
     // Per-recipient daily cap (circuit breaker against accidental storms).
     // Reminders are exempt because they're pre-scheduled with their own dedup.
@@ -88,11 +106,11 @@ function queue_event_notification(
         $cap = defined('MAX_NOTIFICATIONS_PER_DAY') ? MAX_NOTIFICATIONS_PER_DAY : 20;
         $c = $db->prepare(
             "SELECT COUNT(*) FROM pending_notifications
-             WHERE LOWER(username) = LOWER(?)
+             WHERE " . ($user_id !== null ? "user_id = ?" : "user_id IS NULL AND LOWER(username) = LOWER(?)") . "
                AND notify_type NOT IN ('reminder', 'rsvp_to_creator', 'event_message', 'event_poll')
                AND created_at >= datetime('now', '-1 day')"
         );
-        $c->execute([$username]);
+        $c->execute([$user_id !== null ? $user_id : $username]);
         if ((int)$c->fetchColumn() >= $cap) {
             error_log("[GameNight] Per-recipient daily cap reached for $username (type=$notify_type); skipping enqueue");
             return;
@@ -101,11 +119,12 @@ function queue_event_notification(
 
     $db->prepare(
         "INSERT INTO pending_notifications
-            (event_id, username, notify_type, occurrence_date, payload, scheduled_for)
-         VALUES (?, ?, ?, ?, ?, ?)"
+            (event_id, username, user_id, notify_type, occurrence_date, payload, scheduled_for)
+         VALUES (?, ?, ?, ?, ?, ?, ?)"
     )->execute([
         $event_id,
         $username,
+        $user_id,
         $notify_type,
         $occurrence_date,
         $payload !== null ? json_encode($payload) : null,
@@ -132,27 +151,33 @@ function queue_rsvp_reply_notifications(
 ): void {
     if ($event_id <= 0 || $rsvp === '') return;
 
-    // Collect recipients, keyed by lowercase username to dedupe owner-also-manager.
+    // Recipients: the creator and every manager row, deduped by account id. A
+    // manager row with no account is kept by name and reached through its own
+    // contact details. Each queue row is addressed to the id, never the name.
     $recips = [];
-    $c = $db->prepare('SELECT u.username FROM events e JOIN users u ON u.id = e.created_by WHERE e.id = ?');
+    $c = $db->prepare('SELECT u.id, u.username FROM events e JOIN users u ON u.id = e.created_by WHERE e.id = ?');
     $c->execute([$event_id]);
-    if ($cu = $c->fetchColumn()) $recips[strtolower((string)$cu)] = (string)$cu;
+    if ($cu = $c->fetch()) $recips['u' . (int)$cu['id']] = ['id' => (int)$cu['id'], 'username' => (string)$cu['username']];
 
-    $m = $db->prepare("SELECT DISTINCT username FROM event_invites WHERE event_id = ? AND event_role = 'manager'");
+    $m = $db->prepare("SELECT DISTINCT user_id, username FROM event_invites WHERE event_id = ? AND event_role = 'manager'");
     $m->execute([$event_id]);
-    foreach ($m->fetchAll(PDO::FETCH_COLUMN) as $mu) {
-        if ($mu !== null && $mu !== '') $recips[strtolower((string)$mu)] = (string)$mu;
+    foreach ($m->fetchAll() as $mu) {
+        if ($mu['username'] === null || $mu['username'] === '') continue;
+        $mid = $mu['user_id'] !== null ? (int)$mu['user_id'] : null;
+        $recips[$mid !== null ? 'u' . $mid : 'n' . strtolower((string)$mu['username'])] = ['id' => $mid, 'username' => (string)$mu['username']];
     }
 
     // Never notify the responder about their own reply.
-    unset($recips[strtolower($responder_username)]);
+    foreach ($recips as $k => $r) {
+        if (strtolower($r['username']) === strtolower($responder_username)) unset($recips[$k]);
+    }
 
     foreach ($recips as $u) {
-        queue_event_notification($db, $event_id, $u, 'rsvp_to_creator', $occurrence_date, [
+        queue_event_notification($db, $event_id, $u['username'], 'rsvp_to_creator', $occurrence_date, [
             'rsvp'               => $rsvp,
             'responder_username' => $responder_username,
             'responder_display'  => $responder_display,
-        ]);
+        ], null, $u['id']);
     }
 }
 
@@ -172,31 +197,34 @@ function queue_event_comment_notifications(
 ): void {
     if ($event_id <= 0 || $comment_id <= 0) return;
 
-    // Collect recipients, keyed by lowercase username to dedupe owner-also-manager.
+    // Recipients keyed by account id (dedupes owner-also-manager); each queue
+    // row is addressed to that id.
     $recips = [];
-    $c = $db->prepare('SELECT u.username FROM events e JOIN users u ON u.id = e.created_by WHERE e.id = ?');
+    $c = $db->prepare('SELECT u.id, u.username FROM events e JOIN users u ON u.id = e.created_by WHERE e.id = ?');
     $c->execute([$event_id]);
-    if ($cu = $c->fetchColumn()) $recips[strtolower((string)$cu)] = (string)$cu;
+    if ($cu = $c->fetch()) $recips[(int)$cu['id']] = (string)$cu['username'];
 
     $m = $db->prepare(
-        "SELECT DISTINCT u.username FROM event_invites ei
+        "SELECT DISTINCT u.id, u.username FROM event_invites ei
          JOIN users u ON u.id = ei.user_id
          WHERE ei.event_id = ?
            AND (ei.event_role = 'manager'
                 OR (ei.approval_status = 'approved' AND ei.rsvp IN ('yes','maybe')))"
     );
     $m->execute([$event_id]);
-    foreach ($m->fetchAll(PDO::FETCH_COLUMN) as $mu) {
-        if ($mu !== null && $mu !== '') $recips[strtolower((string)$mu)] = (string)$mu;
+    foreach ($m->fetchAll() as $mu) {
+        if ($mu['username'] !== null && $mu['username'] !== '') $recips[(int)$mu['id']] = (string)$mu['username'];
     }
 
-    unset($recips[strtolower($commenter_username)]);
+    foreach ($recips as $uid => $uname) {
+        if (strtolower($uname) === strtolower($commenter_username)) unset($recips[$uid]);
+    }
 
-    foreach ($recips as $u) {
-        queue_event_notification($db, $event_id, $u, 'event_comment', null, [
+    foreach ($recips as $uid => $uname) {
+        queue_event_notification($db, $event_id, $uname, 'event_comment', null, [
             'comment_id' => $comment_id,
             'commenter'  => $commenter_username,
-        ]);
+        ], null, (int)$uid);
     }
 }
 
@@ -247,12 +275,12 @@ function queue_reminders_for_event(PDO $db, int $event_id, ?string $occurrence_d
     $now = new DateTime('now', new DateTimeZone('UTC'));
 
     $inv = $db->prepare(
-        "SELECT u.username FROM event_invites ei
+        "SELECT DISTINCT u.id, u.username FROM event_invites ei
          JOIN users u ON u.id = ei.user_id
          WHERE ei.event_id = ? AND ei.approval_status = 'approved'"
     );
     $inv->execute([$event_id]);
-    $invitees = array_column($inv->fetchAll(), 'username');
+    $invitees = $inv->fetchAll();
     if (!$invitees) return 0;
 
     $queued = 0;
@@ -262,7 +290,9 @@ function queue_reminders_for_event(PDO $db, int $event_id, ?string $occurrence_d
 
         $scheduled = $when->format('Y-m-d H:i:s');
         $type_tag = 'reminder_' . $offset_minutes;
-        foreach ($invitees as $uname) {
+        foreach ($invitees as $iv) {
+            $uname = (string)$iv['username'];
+            $uid   = (int)$iv['id'];
             // Dedup: if an event_notifications_sent row already exists for this (event, occ, user, type), skip.
             $seen = $db->prepare(
                 "SELECT 1 FROM event_notifications_sent
@@ -274,19 +304,20 @@ function queue_reminders_for_event(PDO $db, int $event_id, ?string $occurrence_d
             // Also skip if already queued (row exists with same event/occ/user/offset + not yet sent or attempts < 3)
             $dup = $db->prepare(
                 "SELECT 1 FROM pending_notifications
-                 WHERE event_id=? AND LOWER(username)=LOWER(?) AND notify_type='reminder'
+                 WHERE event_id=? AND user_id=? AND notify_type='reminder'
                    AND (occurrence_date IS ? OR occurrence_date = ?)
                    AND payload = ?"
             );
             $payload_json = json_encode(['offset_minutes' => $offset_minutes]);
-            $dup->execute([$event_id, $uname, $occurrence_date, $occurrence_date, $payload_json]);
+            $dup->execute([$event_id, $uid, $occurrence_date, $occurrence_date, $payload_json]);
             if ($dup->fetchColumn()) continue;
 
             queue_event_notification(
                 $db, $event_id, $uname, 'reminder',
                 $occurrence_date,
                 ['offset_minutes' => $offset_minutes],
-                $scheduled
+                $scheduled,
+                $uid
             );
             $queued++;
         }
@@ -640,13 +671,21 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
         }
     }
 
-    $uStmt = $db->prepare('SELECT id, username, email, phone, preferred_contact, timezone, notify_prefs FROM users WHERE LOWER(username) = LOWER(?)');
-    $uStmt->execute([$username]);
-    $user = $uStmt->fetch();
+    // The recipient is the account the row was addressed to when it was queued
+    // (the caller's id, or the invite row's host-made link), never the account
+    // that owns the username today: a stranger who registers a name a host
+    // typed must not receive that person's reminders and RSVP links.
+    $user = null;
+    $row_uid = isset($row['user_id']) && $row['user_id'] !== null ? (int)$row['user_id'] : 0;
+    if ($row_uid > 0) {
+        $uStmt = $db->prepare('SELECT id, username, email, phone, preferred_contact, timezone, notify_prefs FROM users WHERE id = ?');
+        $uStmt->execute([$row_uid]);
+        $user = $uStmt->fetch() ?: null;
+    }
 
-    // Custom invitee fallback: the queued row references a `username` that isn't a
-    // registered GameNight user. Deliver via the email / phone stored directly on the
-    // event_invites row so hosts can invite people without accounts.
+    // No account (a typed-in invitee, or one whose account is gone): deliver via
+    // the email / phone stored directly on this event's invite row so hosts can
+    // invite people without accounts.
     if (!$user) {
         $ei = $db->prepare(
             "SELECT username, email, phone FROM event_invites
