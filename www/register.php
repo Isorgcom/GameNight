@@ -43,11 +43,9 @@ $registered_phone  = '';
 $registered_uid    = 0;
 
 // Optional post-auth destination (e.g. a public league page carrying join intent).
-// Same validation rule as login.php: relative path only, no protocol-relative tricks.
-$redirect = $_POST['redirect'] ?? $_GET['redirect'] ?? '';
-if ($redirect === '' || !str_starts_with($redirect, '/') || str_starts_with($redirect, '//') || str_starts_with($redirect, '/\\')) {
-    $redirect = '';
-}
+// Same rule as login.php (safe_local_path): a local path only.
+$redirectIn = $_POST['redirect'] ?? $_GET['redirect'] ?? '';
+$redirect   = safe_local_path(is_string($redirectIn) ? $redirectIn : '', '');
 $login_url = '/login.php' . ($redirect !== '' ? '?redirect=' . urlencode($redirect) : '');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

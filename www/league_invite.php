@@ -33,10 +33,15 @@ if (!$row) {
     http_response_code(404);
     // Fall through to render a friendly error (below).
 } else {
-    // If a logged-in user lands here and their email/phone matches the pending row, link it.
+    // If a logged-in user lands here and a PROVEN email or phone of theirs matches
+    // the pending row, link it. A detail typed on the profile and never verified
+    // is not evidence that this is the invited person.
     if ($current) {
-        $email = strtolower(trim((string)($current['email'] ?? '')));
-        $phone = trim((string)($current['phone'] ?? ''));
+        $acct = $db->prepare('SELECT email, phone, email_verified, phone_verified FROM users WHERE id = ?');
+        $acct->execute([(int)$current['id']]);
+        $acct  = $acct->fetch() ?: [];
+        $email = (int)($acct['email_verified'] ?? 0) === 1 ? strtolower(trim((string)($acct['email'] ?? ''))) : '';
+        $phone = (int)($acct['phone_verified'] ?? 0) === 1 ? trim((string)($acct['phone'] ?? '')) : '';
         $match = false;
         if ($email !== '' && !empty($row['contact_email']) && strcasecmp($email, (string)$row['contact_email']) === 0) $match = true;
         if (!$match && $phone !== '' && !empty($row['contact_phone']) && $phone === (string)$row['contact_phone']) $match = true;
@@ -87,7 +92,7 @@ if (!$row) {
         <?php elseif (!empty($mismatch)): ?>
             <h1>Account mismatch</h1>
             <p>This invitation was sent to <strong><?= htmlspecialchars($row['contact_email'] ?: $row['contact_phone']) ?></strong>, which doesn't match your current account.</p>
-            <p><a href="/logout.php">Sign out</a> and use the invite link again, or ask the league owner to send a new invite.</p>
+            <p>If that email or phone is on your profile but not yet verified, verify it in <a href="/settings.php">Settings</a> and open the link again. Otherwise <a href="/logout.php">sign out</a> and use the invite link again, or ask the league owner to send a new invite.</p>
         <?php endif; ?>
     </div>
 </div>

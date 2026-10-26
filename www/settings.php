@@ -178,6 +178,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $result = surge_check_verification($verifyId, $code);
                 if ($result === 'ok') {
                     $db->prepare('UPDATE users SET phone_verified = 1 WHERE id = ?')->execute([$current['id']]);
+                    claim_verified_contact((int)$current['id'], '', (string)($_SESSION['phone_verify_for'] ?? ''));
                     unset($_SESSION['phone_verify_id'], $_SESSION['phone_verify_for']);
                     db_log_activity($current['id'], 'verified phone number');
                     $flash = ['type' => 'success', 'msg' => 'Phone number verified!'];

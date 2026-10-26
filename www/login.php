@@ -10,10 +10,8 @@ session_start_safe();
 $error    = '';
 $notice   = '';
 $needCode = false;   // emphasize the code field (account has 2FA, awaiting code)
-$redirect = $_POST['redirect'] ?? $_GET['redirect'] ?? '';
-if ($redirect === '' || !str_starts_with($redirect, '/') || str_starts_with($redirect, '//') || str_starts_with($redirect, '/\\')) {
-    $redirect = '/';
-}
+$redirectIn = $_POST['redirect'] ?? $_GET['redirect'] ?? '';
+$redirect   = safe_local_path(is_string($redirectIn) ? $redirectIn : '', '/');
 
 // Per-account second-factor brute-force cap (across IPs, 15 min).
 function _login_mfa_locked(int $uid): bool {

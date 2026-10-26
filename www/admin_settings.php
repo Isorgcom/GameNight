@@ -398,6 +398,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     try {
                         $db->prepare('INSERT INTO users (username, password_hash, email, phone, role, preferred_contact, notes, must_change_password, email_verified) VALUES (?,?,?,?,?,?,?,1,1)')
                            ->execute([$username, $hash, $email ?: null, $phone ?: null, $role, $pref, $notes ?: null]);
+                        // Imported as verified: the admin vouches for the address.
+                        claim_verified_contact((int)$db->lastInsertId(), (string)($email ?: ''));
                         db_log_activity($current['id'], "imported user: $username");
                         $imported++;
                     } catch (PDOException $e) {

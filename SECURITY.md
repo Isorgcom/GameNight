@@ -5,7 +5,7 @@ history of the CSP gap that is now closed — kept because the reasoning is what
 stops it being reopened, and because the conversion that closed it is still the
 main source of regressions.
 
-Last reviewed: 2026-10-26 (v1.12.4).
+Last reviewed: 2026-10-26 (v1.12.5).
 
 ---
 
@@ -563,6 +563,21 @@ them) and half are conventions someone has to follow.
   and `current_user()` signs out any session carrying the old value.
   `session.use_strict_mode` is on, and `complete_login()` discards the
   anonymous session's CSRF token so the signed-in session mints its own.
+- League membership follows approval (v1.12.5): on a league event an approved
+  invite that has an account is a member, a pending or denied one is not.
+  `walkin.php` enrols only an approved walk-in, and every path that approves an
+  invite later calls `league_enrol_if_approved()` in `db.php`.
+- Pending league and contact rows are claimed by a PROVEN address only
+  (v1.12.5): `claim_verified_contact()` in `auth.php` runs from the
+  verification pages, the Surge code in Settings and admin imports, never from
+  `register_user()`; `league_invite.php` links a signed-in account only through
+  a verified email or phone. The unlinked `register_dl.php` copy of the sign-up
+  page, which had no attempt limit, is gone.
+- One local-redirect rule (v1.12.5): `safe_local_path()` in `auth.php` accepts a
+  single leading slash followed by printable ASCII only, so `//host`, `/\host`
+  and `/<tab>/host` (folded by browsers into `//host`) are all refused;
+  `referer_local_path()` applies it to "go back" redirects. login, register,
+  comment, the league post and API-key endpoints and the calendar all use it.
 - `username_format_error()` in `auth.php` is the single username rule, applied by
   registration, the API and the profile editor.
 - `pk_theme_sanitize_props()` constrains stored theme JSON on every write path.

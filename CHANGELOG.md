@@ -11,6 +11,14 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.12.5] - 2026-10-26
+
+### Security
+
+- **Walk-ins join the league only once the host approves them.** The walk-in page added every arrival to the event's league the moment they typed their details, whether the event required approval, their spot was still pending, or the host had already denied them, so anyone holding the door's QR link could become a league member on their own. Now an approved walk-in joins at once, a pending one joins at the moment a host approves them (from the event page, the check-in console's approve and buy-in actions, the roster's RSVP, an on-behalf RSVP, or turning the event's approval requirement off), and a denied one never does. Members who got in through a pending or denied walk-in before this release stay unless a host removes them. A pending walk-in by an existing account also records its RSVP as yes, which a missing value had been dropping.
+- **An address claims league and contact rows only once it is proven.** Registering with an email or phone number used to link the new account, immediately and unverified, to every league invitation and address-book entry waiting for that address. The link now happens when the verification link or code is used (or when an admin imports the account as verified), and the league invitation link accepts a signed-in account only through an email or phone it has verified. The old unlinked copy of the sign-up page, which had no attempt limit and accepted an unverified phone beside the email, is deleted.
+- **A sign-in link can no longer bounce you to another site.** The "where to go after signing in" value on the sign-in, sign-up and comment pages checked only that it started with a single slash, so a tab after the slash slipped through and Chrome folded it into a link to another website. One rule now serves every such redirect, including the calendar's "go back" ones: a single slash followed by ordinary characters only.
+
 ## [v1.12.4] - 2026-10-26
 
 ### Security

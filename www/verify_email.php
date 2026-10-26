@@ -54,6 +54,7 @@ if ($token_hash === '') {
             $upd = $db->prepare("UPDATE users SET email = ?, email_verified = 1, pending_email = NULL WHERE id = ? AND LOWER(COALESCE(pending_email, '')) = ?");
             $upd->execute([$change, $row['user_id'], strtolower($change)]);
             if ($upd->rowCount() === 1) {
+                claim_verified_contact((int)$row['user_id'], $change);
                 db_log_activity($row['user_id'], 'confirmed new email address');
                 $success = true;
             } else {
@@ -63,6 +64,8 @@ if ($token_hash === '') {
     } else {
         $db->prepare('UPDATE users SET email_verified=1 WHERE id=?')->execute([$row['user_id']]);
         $db->prepare('UPDATE email_verifications SET used=1 WHERE id=?')->execute([$row['id']]);
+        // The address is proven now: pending league and contact rows carrying it are claimed.
+        claim_verified_contact((int)$row['user_id'], (string)($row['email'] ?? ''));
         db_log_activity($row['user_id'], 'verified email');
         $success = true;
     }
