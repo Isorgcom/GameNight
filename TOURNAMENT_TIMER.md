@@ -1402,7 +1402,9 @@ switch names — see the dispatch note in `timer.php`'s header.
   accepted. Hostile styles are stripped, non-layout files import nothing.
 - **Custom elements (done):** layout-level `customElements: {name: value}` map,
   user-defined `<name>` = plain text (letters/digits names, values ≤500 chars,
-  ≤30 per layout, no HTML). Resolved after the built-ins (a built-in name always
+  ≤30 per layout, no HTML; the seven `Object.prototype` names such as
+  `constructor` and `toString` are refused on save and in the editor, and the
+  renderer keeps its element maps prototype-free). Resolved after the built-ins (a built-in name always
   wins), shown in the element picker, and travel with save/export. Edited from
   the Custom elements panel under Screen background.
 - **Custom images (done):** background image per screen (`bg.image` + `bg.imageFit`

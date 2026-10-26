@@ -173,7 +173,7 @@ if ($mode === 'thread') {
 
     <script nonce="<?= csp_nonce() ?>">
     (function () {
-        var eventId = <?= (int)$f_event ?>, phone = <?= json_encode($f_phone) ?>, lastId = <?= (int)$last_id ?>;
+        var eventId = <?= (int)$f_event ?>, phone = <?= js_json($f_phone) ?>, lastId = <?= (int)$last_id ?>;
         var thread = document.getElementById('convThread');
         var errBox = document.getElementById('convError');
         thread.scrollTop = thread.scrollHeight;
@@ -215,7 +215,7 @@ if ($mode === 'thread') {
             this.disabled = true;
             errBox.style.display = 'none';
             var fd = new FormData();
-            fd.append('csrf_token', <?= json_encode($token) ?>);
+            fd.append('csrf_token', <?= js_json($token) ?>);
             fd.append('action', 'send');
             fd.append('event', eventId);
             fd.append('phone', phone);
@@ -308,7 +308,7 @@ if ($mode === 'thread') {
             if (!eventId) return;
             btn.disabled = true;
             var fd = new FormData();
-            fd.append('csrf_token', <?= json_encode($token) ?>);
+            fd.append('csrf_token', <?= js_json($token) ?>);
             fd.append('action', 'assign');
             fd.append('phone', row.dataset.phone);
             fd.append('event', eventId);

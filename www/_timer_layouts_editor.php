@@ -95,10 +95,10 @@ $csrf = csrf_token();
 </div>
 
 <script nonce="<?= csp_nonce() ?>">
-var TBE_CSRF = <?= json_encode($csrf) ?>;
-var TBE_IS_ADMIN = <?= json_encode($current['role'] === 'admin') ?>;
+var TBE_CSRF = <?= js_json($csrf) ?>;
+var TBE_IS_ADMIN = <?= js_json($current['role'] === 'admin') ?>;
 <?php // Version for the built-in Library pictures: /img is cached for a year, so a
       // retaken picture needs a new URL. ?>
-var TBE_LIB_V = <?= json_encode(APP_VERSION . '.' . (max(array_map('filemtime', glob(__DIR__ . '/img/timer_library/*.jpg') ?: [])  ?: [0]))) ?>;
+var TBE_LIB_V = <?= js_json(APP_VERSION . '.' . (max(array_map('filemtime', glob(__DIR__ . '/img/timer_library/*.jpg') ?: [])  ?: [0]))) ?>;
 </script>
 <script src="/timer_layouts.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/timer_layouts.js') ?: 0)) ?>" defer></script>

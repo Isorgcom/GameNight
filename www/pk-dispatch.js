@@ -65,12 +65,33 @@
         return out;
     }
 
-    function dispatch(name, el, ev, pfx) {
+    // A handler is a function THIS SITE defined: a plain identifier naming a
+    // global whose source is not native code. The markup names it, and markup
+    // can carry data someone else typed, so the built-ins (alert, open, eval,
+    // fetch, postMessage…) are never callable through a data-act attribute.
+    function handler(name) {
+        if (typeof name !== 'string' || !/^[A-Za-z_$][\w$]*$/.test(name)) return null;
         var fn = window[name];
-        if (typeof fn === 'function') return fn.apply(el || null, args(el, ev, pfx));
+        if (typeof fn !== 'function') return null;
+        try { if (/\[native code\]/.test(Function.prototype.toString.call(fn))) return null; } catch (e) { return null; }
+        return fn;
+    }
+    window.pkHandler = handler;
+
+    function dispatch(name, el, ev, pfx) {
+        var fn = handler(name);
+        if (fn) return fn.apply(el || null, args(el, ev, pfx));
         // A dead control is otherwise completely silent, which is the whole
         // hazard of this refactor.
         if (window.console) console.warn('[pk-dispatch] no handler named', name);
+    }
+
+    // Text from an attribute is data; pkConfirm renders HTML. Escape it, and
+    // keep the line breaks a long confirmation was written with.
+    function textToHtml(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/\n/g, '<br>');
     }
 
     // CAPTURE phase throughout. An ancestor that calls stopPropagation() makes a
@@ -150,7 +171,7 @@
         if (!form) return;
         e.preventDefault();
         if (typeof window.pkConfirmForm === 'function') {
-            window.pkConfirmForm(form, btn.dataset.confirm, {
+            window.pkConfirmForm(form, textToHtml(btn.dataset.confirm), {
                 okLabel: btn.dataset.confirmOk || 'OK',
                 danger:  btn.dataset.confirmDanger === '1'
             });
@@ -165,8 +186,8 @@
         if (!t) return;
         var victim = t.closest(t.getAttribute('data-remove-closest'));
         if (victim) victim.remove();
-        var then = t.getAttribute('data-then');
-        if (then && typeof window[then] === 'function') window[then]();
+        var then = handler(t.getAttribute('data-then'));
+        if (then) then();
     }, true);
 
     // data-set-value="inputId:value": was onclick="document.getElementById(...).value='x'"

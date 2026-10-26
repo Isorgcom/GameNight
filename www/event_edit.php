@@ -681,16 +681,16 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
 
 <script nonce="<?= csp_nonce() ?>">
 // ── Server-provided state ─────────────────────────────────────────────────────
-const CSRF              = <?= json_encode($token, JSON_HEX_TAG) ?>;
+const CSRF              = <?= js_json($token, JSON_HEX_TAG) ?>;
 const IS_ADMIN          = <?= $isAdmin ? 'true' : 'false' ?>;
 const CAN_CREATE_EVENTS = <?= $canCreateEvents ? 'true' : 'false' ?>;
-const CURRENT_USER_ID   = <?= json_encode($current['id'] ?? null, JSON_HEX_TAG) ?>;
+const CURRENT_USER_ID   = <?= js_json($current['id'] ?? null, JSON_HEX_TAG) ?>;
 const EVENT             = <?= $event ? json_encode($event, JSON_HEX_TAG) : 'null' ?>;
-const EVENT_INVITES     = <?= json_encode($eventInvitesRows, JSON_HEX_TAG) ?>;
+const EVENT_INVITES     = <?= js_json($eventInvitesRows, JSON_HEX_TAG) ?>;
 const EVENT_POKER       = <?= $pokerRow ? json_encode($pokerRow, JSON_HEX_TAG) : 'null' ?>;
-const PREFILL_DATE      = <?= json_encode($prefillDate, JSON_HEX_TAG) ?>;
+const PREFILL_DATE      = <?= js_json($prefillDate, JSON_HEX_TAG) ?>;
 const LAST_POKER_DEFAULT = <?= ((int)($current['last_poker_default'] ?? 1)) ? 'true' : 'false' ?>;
-var ALL_USERS           = <?= json_encode(array_values($allUsers), JSON_HEX_TAG) ?>;
+var ALL_USERS           = <?= js_json(array_values($allUsers), JSON_HEX_TAG) ?>;
 var currentEvent        = EVENT; // name kept for parity with calendar.php's editor JS
 const EDIT_MODE         = !!EVENT;
 const MAX_INVITEES      = <?= (int)MAX_INVITEES_PER_EVENT ?>;

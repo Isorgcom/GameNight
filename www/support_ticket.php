@@ -108,7 +108,7 @@ $utc_tz    = new DateTimeZone('UTC');
 </div>
 <?php require __DIR__ . '/_footer.php'; ?>
 <script nonce="<?= csp_nonce() ?>">
-var CSRF = <?= json_encode($csrf) ?>;
+var CSRF = <?= js_json($csrf) ?>;
 var TID = <?= (int)$ticket['id'] ?>;
 var SHOT_PATH = '';
 

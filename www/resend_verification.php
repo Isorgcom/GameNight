@@ -23,6 +23,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ((int)$rlStmt->fetchColumn() < 3) {
             db_log_anon_activity('resend_verification: ' . $identifier);
             $user = find_user_by_identifier($identifier);
+            // A phone that matches no unverified account gets the decoy code
+            // session (see verify_phone.php), so the "Enter your code" page
+            // behaves the same whether or not the number is registered.
+            if (preg_match('/^\+?[\d\s().-]{6,}$/', $identifier)) {
+                session_start_safe();
+                $_SESSION['verify_user_id'] = -1;
+                $_SESSION['verify_method']  = 'sms';
+            }
 
             if ($user) {
                 $method = $user['verification_method'] ?? 'email';
@@ -33,6 +41,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 if ($needsVerify) {
                     if (in_array($method, ['sms', 'whatsapp'], true) && ($user['phone'] ?? '') !== '') {
+                        // Capped per account inside send_verification_code(); a
+                        // refused send still lands on the code page (the last
+                        // code sent is still valid for ten minutes).
                         send_verification_code($user['id'], $user['phone'], $method);
                         // Store session vars so verify_phone.php can pick them up
                         session_start_safe();

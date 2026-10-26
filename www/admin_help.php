@@ -191,9 +191,9 @@ $tips = $tipsStmt->fetchAll();
 <?php require __DIR__ . '/_footer.php'; ?>
 
 <script nonce="<?= csp_nonce() ?>">
-const CSRF   = <?= json_encode($token) ?>;
-const SCREEN = <?= json_encode($screen) ?>;
-let TIPS     = <?= json_encode($tips, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+const CSRF   = <?= js_json($token) ?>;
+const SCREEN = <?= js_json($screen) ?>;
+let TIPS     = <?= js_json($tips, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 
 function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));

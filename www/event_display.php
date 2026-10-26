@@ -81,11 +81,11 @@ $csrf = csrf_token();
 <?php require __DIR__ . '/_timer_layouts_editor.php'; ?>
 
 <script nonce="<?= csp_nonce() ?>">
-var ES_CSRF = <?= json_encode($csrf) ?>;
+var ES_CSRF = <?= js_json($csrf) ?>;
 var ES_EVENT_ID = <?= (int)$event_id ?>;
-var ES_EVENT_NAME = <?= json_encode($event_title) ?>;
-var ES_LAYOUT_ID = <?= json_encode($layout_id) ?>;
-var ES_LAYOUT_KEY = <?= json_encode($layout_key) ?>;
+var ES_EVENT_NAME = <?= js_json($event_title) ?>;
+var ES_LAYOUT_ID = <?= js_json($layout_id) ?>;
+var ES_LAYOUT_KEY = <?= js_json($layout_key) ?>;
 </script>
 <?php endif; ?>
 <script src="/event_setup.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/event_setup.js') ?: 0)) ?>" defer></script>

@@ -265,7 +265,7 @@ api_ok([
             'response'    => '{issuer, connect_url, token: {format, claims, carried}, keys: [{kid, kty, crv, alg, use, pem}]}',
         ],
     ],
-    'caching'    => 'Successful responses include Cache-Control: public, max-age=60. Cache for at least one minute on the consumer side.',
+    'caching'    => 'Successful GET responses include Cache-Control: private, max-age=60 (one minute, for the caller alone; never a shared cache). Writes and errors are sent with no-store.',
     'cors'       => 'Access-Control-Allow-Origin: * — browser-side calls from any domain are allowed.',
     'errors' => [
         '400' => 'Bad parameter or invalid request body.',

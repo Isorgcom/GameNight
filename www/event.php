@@ -571,7 +571,7 @@ if ($token === '' && $page_eid > 0) {
 </div>
 <script nonce="<?= csp_nonce() ?>">
 (function () {
-    var CSRF = <?= json_encode($csrf) ?>;
+    var CSRF = <?= js_json($csrf) ?>;
     var EID  = <?= (int)$page_eid ?>;
     function post(action, extra) {
         var fd = new FormData();
@@ -583,7 +583,7 @@ if ($token === '' && $page_eid > 0) {
             .then(function (r) { return r.json(); });
     }
     // Big RSVP buttons: tap to choose, tap the active one again to clear.
-    var MY_RSVP = <?= json_encode($myRsvp) ?>;
+    var MY_RSVP = <?= js_json($myRsvp) ?>;
     function paintRsvpBtns() {
         document.querySelectorAll('.evp-rb').forEach(function (b) {
             b.classList.toggle('on', b.dataset.rsvp === MY_RSVP);
@@ -666,7 +666,7 @@ if ($token === '' && $page_eid > 0) {
 })();
 
 // ── Shared helpers (copy link, comment moderation) ──────────────────────────
-var EV_CSRF = <?= json_encode($csrf) ?>;
+var EV_CSRF = <?= js_json($csrf) ?>;
 var EV_EID  = <?= (int)$page_eid ?>;
 function evPost(action, extra) {
     var fd = new FormData();
@@ -1041,16 +1041,16 @@ async function deleteEventMsg(mid, btn) {
 // Server-known facts for finaltable.js; everything live arrives with the polls.
 window.FT = {
     eventId:   <?= (int)$page_eid ?>,
-    csrf:      <?= json_encode($csrf) ?>,
+    csrf:      <?= js_json($csrf) ?>,
     canManage: <?= $canManage ? 'true' : 'false' ?>,
-    appName:   <?= json_encode((string)$ftApp['name']) ?>,
-    status:    <?= json_encode($ftGame ? (string)$ftGame['status'] : 'none') ?>,
+    appName:   <?= js_json((string)$ftApp['name']) ?>,
+    status:    <?= js_json($ftGame ? (string)$ftGame['status'] : 'none') ?>,
     pollMs:    15000,
     // The game and betting the table plays, and every game's name, so the
     // status line can read a level the way that game posts it.
-    game:      <?= json_encode($ftGameKey, JSON_HEX_TAG) ?>,
-    limit:     <?= json_encode($ftLimit, JSON_HEX_TAG) ?>,
-    games:     <?= json_encode(array_map(fn($d) => $d['name'], finaltable_catalog()), JSON_HEX_TAG) ?>
+    game:      <?= js_json($ftGameKey, JSON_HEX_TAG) ?>,
+    limit:     <?= js_json($ftLimit, JSON_HEX_TAG) ?>,
+    games:     <?= js_json(array_map(fn($d) => $d['name'], finaltable_catalog()), JSON_HEX_TAG) ?>
 };
 </script>
 <?php endif; ?>

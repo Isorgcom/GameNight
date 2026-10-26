@@ -802,12 +802,12 @@ endif; ?>
     if (!sentinel) return;
 
     const CHUNK      = <?= (int)$chunk ?>;
-    const MONTH_PARAM = <?= json_encode($monthFilter ? '&month=' . $monthFilter : '') ?>;
-    const SHOW_PARAM  = <?= json_encode($showHidden ? '&show=hidden' : '') ?>;
+    const MONTH_PARAM = <?= js_json($monthFilter ? '&month=' . $monthFilter : '') ?>;
+    const SHOW_PARAM  = <?= js_json($showHidden ? '&show=hidden' : '') ?>;
     let offset      = <?= count($posts) ?>;
-    let hasMore     = <?= json_encode($total > count($posts)) ?>;
+    let hasMore     = <?= js_json($total > count($posts)) ?>;
     let busy        = false;
-    let lastMonth   = <?= json_encode($tlPrevMonth ?? '') ?>;
+    let lastMonth   = <?= js_json($tlPrevMonth ?? '') ?>;
 
     if (!hasMore) { sentinel.remove(); return; }
 
@@ -915,7 +915,7 @@ function toggleComments(postId) {
 
 <?php if ($user): ?>
 <script nonce="<?= csp_nonce() ?>">
-const _csrf = <?= json_encode($csrf) ?>;
+const _csrf = <?= js_json($csrf) ?>;
 
 function editComment(id, btn) {
     const bodyEl  = document.getElementById('cbody-' + id);
@@ -1000,7 +1000,7 @@ function prepareBulkDelete(postId, form) {
 // Per-post kebab menu + personal hide/unhide. Delegated on document so cards
 // loaded later by infinite scroll work without re-binding.
 (function () {
-    const POST_CSRF = <?= json_encode($csrf) ?>;
+    const POST_CSRF = <?= js_json($csrf) ?>;
 
     function closeMenus(except) {
         document.querySelectorAll('.post-menu-wrap.open').forEach(function (w) {

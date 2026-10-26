@@ -521,7 +521,7 @@ function lpCopyCal() {
     function doJoin() {
         btn.disabled = true;
         var fd = new FormData();
-        fd.append('csrf_token', <?= json_encode($csrf) ?>);
+        fd.append('csrf_token', <?= js_json($csrf) ?>);
         fd.append('action', 'request_join');
         fd.append('league_id', '<?= $league_id ?>');
         fetch('/leagues_dl.php', { method: 'POST', body: fd })
@@ -541,7 +541,7 @@ function lpCopyCal() {
     btn.addEventListener('click', doJoin);
     <?php if ($autoJoin): ?>
     // Arrived back from login/register with join intent: fire it once, then clean the URL.
-    history.replaceState(null, '', <?= json_encode($pubPath) ?>);
+    history.replaceState(null, '', <?= js_json($pubPath) ?>);
     doJoin();
     <?php endif; ?>
 })();

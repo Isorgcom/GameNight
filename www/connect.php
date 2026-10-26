@@ -21,7 +21,12 @@ require_once __DIR__ . '/_sso.php';
 $slug   = trim((string)($_POST['app']    ?? $_GET['app']    ?? ''));
 $return = trim((string)($_POST['return'] ?? $_GET['return'] ?? ''));
 $state  = trim((string)($_POST['state']  ?? $_GET['state']  ?? ''));
-if (!sso_validate_state($state)) $state = '';
+// The state is the app's own nonce, which ties the token it gets back to the
+// request it made. Without a valid one the flow is refused below, not run
+// with an empty state: a token that answers no request is a token that can
+// be planted.
+$state_ok = sso_validate_state($state);
+if (!$state_ok) $state = '';
 
 // The URI to come back to after login.php or a switch of account.
 $self_uri = '/connect.php?' . http_build_query(['app' => $slug, 'return' => $return, 'state' => $state]);
@@ -36,6 +41,10 @@ if (!current_user()) {
 $user      = require_login();
 $current   = $user;
 $site_name = get_setting('site_name', 'Game Night');
+if (!$state_ok) {
+    sso_render_error(400, 'Sign-in request not valid',
+        'The app that sent you here did not include a valid request code (state), so the sign-in cannot be completed. Go back to the app and try again.');
+}
 
 function sso_render_error(int $code, string $title, string $message): void {
     global $site_name, $current, $_is_mobile;

@@ -201,7 +201,7 @@ $prefLabels = ['email' => 'Email', 'sms' => 'Text', 'whatsapp' => 'WhatsApp', 'b
 </div>
 
 <script nonce="<?= csp_nonce() ?>">
-var CSRF = <?= json_encode($csrf) ?>;
+var CSRF = <?= js_json($csrf) ?>;
 
 function post(data) {
     var fd = new FormData();

@@ -57,7 +57,8 @@ if ($canManageMembers && (($_GET['action'] ?? '') === 'export_members')) {
     $out = fopen('php://output', 'w');
     fputcsv($out, ['name', 'email', 'phone', 'role', 'status', 'joined_at', 'invited_at']);
     foreach ($rows as $r) {
-        fputcsv($out, [
+        // csv_cell(): a typed name or address never opens as a formula.
+        fputcsv($out, array_map('csv_cell', [
             $r['username'] ?? $r['contact_name'] ?? '',
             $r['email']    ?? $r['contact_email'] ?? '',
             $r['phone']    ?? $r['contact_phone'] ?? '',
@@ -65,7 +66,7 @@ if ($canManageMembers && (($_GET['action'] ?? '') === 'export_members')) {
             $r['status'],
             $r['joined_at']  ?? '',
             $r['invited_at'] ?? '',
-        ]);
+        ]));
     }
     fclose($out);
     exit;
@@ -1799,7 +1800,7 @@ function ordinal($n) {
 </div>
 
 <script nonce="<?= csp_nonce() ?>">
-var CSRF      = <?= json_encode($csrf) ?>;
+var CSRF      = <?= js_json($csrf) ?>;
 var LEAGUE_ID = <?= $league_id ?>;
 
 function post(data) {
@@ -2053,7 +2054,7 @@ async function removeLeagueBanner() {
     });
 }
 
-var LEAGUE_NAME = <?= json_encode($league['name']) ?>;
+var LEAGUE_NAME = <?= js_json($league['name']) ?>;
 
 function openDeleteLeague() {
     document.getElementById('delModal').style.display = 'flex';

@@ -62,6 +62,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
 // A layout stores the key; the renderer maps it to a CSS stack. Never accept a
 // raw font-family string here: it lands in element.style and a free string is
 // exactly the class of value pk_lo_style_str exists to fence.
+// Custom element names JavaScript's Object.prototype already carries. The
+// renderer and editor look names up on plain objects; these would be found
+// on the prototype (or, as a string value, break hasOwnProperty itself).
+const PK_LO_RESERVED_ELEMENT_NAMES = ['constructor', 'hasOwnProperty', 'isPrototypeOf', 'propertyIsEnumerable',
+    'toLocaleString', 'toString', 'valueOf'];
 const PK_LO_FONTS = ['serif', 'mono', 'condensed', 'wide', 'heavy', 'impact', 'script', 'comic',
                      'bebas', 'oswald', 'anton', 'orbitron', 'digital', 'cinzel', 'playfair', 'rye', 'monoton', 'lobster'];
 
@@ -562,6 +567,10 @@ function pk_layout_sanitize($doc, array &$err): ?array {
         foreach ($doc['customElements'] as $k => $v) {
             if (++$n > 30) break;
             if (!is_string($k) || !preg_match('/^[a-zA-Z][a-zA-Z0-9]{0,39}$/', $k)) continue;
+            // Names JavaScript's Object.prototype already has are refused: the
+            // renderer keeps the map prototype-free, but a layout file is also
+            // read by the editor and by older copies of the renderer.
+            if (in_array($k, PK_LO_RESERVED_ELEMENT_NAMES, true)) continue;
             if (!is_string($v) || strlen($v) > 500) continue;
             $ce[$k] = preg_replace('/[^\P{C}\n]/u', '', $v);
         }

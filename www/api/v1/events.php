@@ -157,7 +157,7 @@ function handle_events_post(): void {
           WHERE key_id = ?
             AND status = 200
             AND method = 'POST'
-            AND path LIKE '%/api/v1/events%'
+            AND path = '/api/v1/events'
             AND created_at > datetime('now','-1 hour')"
     );
     $rl->execute([$key_id]);

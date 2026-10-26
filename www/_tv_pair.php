@@ -17,13 +17,37 @@
 const TV_CODE_ALPHABET = 'ACDEFGHJKMNPQRTUVWXY3479';
 const TV_CODE_LEN = 4;
 const TV_CODE_MINUTES = 10;
+// Pairings one address may mint an hour (/tv loads and in-place renewals,
+// both without a login): a TV renews six times an hour, so thirty is a
+// household of TVs, not a script filling the table.
+const TV_MINT_PER_HOUR = 30;
+// Codes a host may get wrong in ten minutes before this address waits.
+const TV_SEND_MISSES_PER_10MIN = 10;
 
-/** A fresh pairing for a TV: ['code', 'secret', 'expires_in'] (seconds). */
+/**
+ * True once this address minted TV_MINT_PER_HOUR pairings in the last hour.
+ * Counted in activity_log ('tv_pair_mint', user 0) by tv_pair_new() itself,
+ * so every mint path is covered.
+ */
+function tv_pair_mint_limited(PDO $db): bool {
+    $q = $db->prepare("SELECT COUNT(*) FROM activity_log WHERE ip = ? AND action = 'tv_pair_mint' AND created_at > datetime('now', '-1 hour')");
+    $q->execute([get_client_ip()]);
+    return (int)$q->fetchColumn() >= TV_MINT_PER_HOUR;
+}
+
+/**
+ * A fresh pairing for a TV: ['code', 'secret', 'expires_in'] (seconds). The
+ * code is one no live pairing holds: a host's entry must mean one TV. With
+ * 24^4 codes and a ten-minute life a collision is rare; fifty misses in a
+ * row means the table is being filled, and then minting stops rather than
+ * handing two TVs one code (RuntimeException).
+ */
 function tv_pair_new(PDO $db): array {
     $db->exec("DELETE FROM tv_pairings WHERE expires_at < datetime('now')");
     $live = $db->prepare("SELECT 1 FROM tv_pairings WHERE code = ?");
     $code = '';
-    for ($try = 0; $try < 20; $try++) {
+    for ($try = 0; ; $try++) {
+        if ($try >= 50) throw new RuntimeException('No free TV pairing code');
         $code = '';
         for ($i = 0; $i < TV_CODE_LEN; $i++) {
             $code .= TV_CODE_ALPHABET[random_int(0, strlen(TV_CODE_ALPHABET) - 1)];
@@ -31,10 +55,18 @@ function tv_pair_new(PDO $db): array {
         $live->execute([$code]);
         if (!$live->fetchColumn()) break;
     }
+    db_log_anon_activity('tv_pair_mint');
     $secret = bin2hex(random_bytes(16));
     $db->prepare("INSERT INTO tv_pairings (code, secret, expires_at) VALUES (?, ?, datetime('now', ?))")
        ->execute([$code, $secret, '+' . TV_CODE_MINUTES . ' minutes']);
     return ['code' => $code, 'secret' => $secret, 'expires_in' => TV_CODE_MINUTES * 60];
+}
+
+/** True once this address missed TV_SEND_MISSES_PER_10MIN codes in ten minutes. */
+function tv_send_miss_limited(PDO $db): bool {
+    $q = $db->prepare("SELECT COUNT(*) FROM activity_log WHERE ip = ? AND action = 'tv_send_miss' AND created_at > datetime('now', '-10 minutes')");
+    $q->execute([get_client_ip()]);
+    return (int)$q->fetchColumn() >= TV_SEND_MISSES_PER_10MIN;
 }
 
 /** Uppercase, drop spaces and dashes; '' unless it could be a code. */

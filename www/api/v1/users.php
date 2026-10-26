@@ -43,7 +43,7 @@ $rl = $db->prepare(
       WHERE key_id = ?
         AND status = 200
         AND method = 'POST'
-        AND path LIKE '%/api/v1/users%'
+        AND path = '/api/v1/users'
         AND created_at > datetime('now','-1 hour')"
 );
 $rl->execute([$key_id]);
@@ -256,10 +256,12 @@ if ($verify_in !== 'none') {
     try {
         if ($verify_in === 'email') {
             send_verification_email($new_id, $email, $final_username);
+            $verification_sent = true;
         } else {
-            send_verification_code($new_id, $phone_normalized, $verify_in);
+            // false only past the account's hourly code cap (a fresh account
+            // is never there; kept honest for the response field).
+            $verification_sent = send_verification_code($new_id, $phone_normalized, $verify_in);
         }
-        $verification_sent = true;
     } catch (Exception $e) {
         // swallow — user is created and in the league; sender can retry later
     }

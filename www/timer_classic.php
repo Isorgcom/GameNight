@@ -341,7 +341,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
     <link rel="icon" href="/favicon.php">
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <link rel="stylesheet" href="/vendor/fonts/fonts.css">
-    <script nonce="<?= csp_nonce() ?>">window.TIMER_THEME = <?= json_encode($themeProps, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?>; window.TIMER_THEME_ID = <?= $themeId ? (int)$themeId : 'null' ?>;</script>
+    <script nonce="<?= csp_nonce() ?>">window.TIMER_THEME = <?= js_json($themeProps, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?>; window.TIMER_THEME_ID = <?= $themeId ? (int)$themeId : 'null' ?>;</script>
     <style id="themeStyle"><?= $themeCss ?></style>
     <link rel="stylesheet" href="/timer_classic.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/timer_classic.css') ?: 0)) ?>">
 </head>
@@ -836,17 +836,17 @@ $themeCss   = timer_theme_css_vars($themeProps);
 <script src="/vendor/nosleep.min.js"></script>
 <script nonce="<?= csp_nonce() ?>">
 // ─── §7.1  Config from PHP ──────────────────────────────────────
-var IS_REMOTE = <?= json_encode($is_remote) ?>;
-var IS_GUEST = <?= json_encode($is_guest) ?>;
-var IS_ADMIN = <?= json_encode($isAdmin) ?>;
-var CAN_CONTROL = <?= json_encode($can_control) ?>;
-var SESSION_ID = <?= json_encode($session ? (int)$session['id'] : null) ?>;
-var REMOTE_KEY = <?= json_encode($remote_key) ?>;
+var IS_REMOTE = <?= js_json($is_remote) ?>;
+var IS_GUEST = <?= js_json($is_guest) ?>;
+var IS_ADMIN = <?= js_json($isAdmin) ?>;
+var CAN_CONTROL = <?= js_json($can_control) ?>;
+var SESSION_ID = <?= js_json($session ? (int)$session['id'] : null) ?>;
+var REMOTE_KEY = <?= js_json($remote_key) ?>;
 // Admin-configured extra stream hosts (must mirror the CSP frame-src allowlist in auth.php).
-var EXTRA_STREAM_HOSTS = <?= json_encode(stream_allowed_hosts()) ?>;
-var CSRF = <?= json_encode($csrf) ?>;
+var EXTRA_STREAM_HOSTS = <?= js_json(stream_allowed_hosts()) ?>;
+var CSRF = <?= js_json($csrf) ?>;
 // Read by the theme and preset lists in timer.js to decide what is editable.
-var CURRENT_USER_ID = <?= json_encode((int)($current['id'] ?? 0)) ?>;
+var CURRENT_USER_ID = <?= js_json((int)($current['id'] ?? 0)) ?>;
 // This page installs its own delegated dispatcher below. Tell the shared
 // pk-dispatch.js (loaded from _footer.php) to stand down, or every control
 // fires twice — a rebuy would add 2 and a buy-in would toggle on then off.
@@ -944,9 +944,20 @@ function _argsT(el, ev, pfx) {
     }
     return out;
 }
-function _dispatchT(name, el, ev, pfx) {
+// A handler is a function this page defined: a plain identifier naming a
+// global whose source is not native code, so a data-act attribute can never
+// reach alert / open / eval / fetch (the same rule as pk-dispatch.js, which
+// stands down here and loads later than this script runs).
+function _handlerT(name) {
+    if (typeof name !== 'string' || !/^[A-Za-z_$][\w$]*$/.test(name)) return null;
     var fn = window[name];
-    if (typeof fn === 'function') return fn.apply(el || null, _argsT(el, ev, pfx));
+    if (typeof fn !== 'function') return null;
+    try { if (/\[native code\]/.test(Function.prototype.toString.call(fn))) return null; } catch (e) { return null; }
+    return fn;
+}
+function _dispatchT(name, el, ev, pfx) {
+    var fn = _handlerT(name);
+    if (fn) return fn.apply(el || null, _argsT(el, ev, pfx));
     console.warn('[timer] no handler named', name);   // a dead control is silent otherwise
 }
 // CAPTURE phase, deliberately. The control tray stops click propagation so a
@@ -982,22 +993,22 @@ var TIMER = {
     time_remaining_seconds: <?= $remaining ?>,
     is_running: <?= (int)($timer['is_running'] ?? 0) ?>
 };
-var LEVELS = <?= json_encode($levels) ?>;
-var POOL = <?= json_encode($pool) ?>;
+var LEVELS = <?= js_json($levels) ?>;
+var POOL = <?= js_json($pool) ?>;
 var soundEnabled = true;
 var localInterval = null;
 var lastSyncTime = Date.now();
 var audioCtx = null;
-var CURRENT_PRESET_ID = <?= json_encode($timer['preset_id'] ? (int)$timer['preset_id'] : null) ?>;
-var PAYOUTS = <?= json_encode($payouts) ?>;
-var GAME_TYPE = <?= json_encode($game_type) ?>;
-var EVENT_ID = <?= json_encode($event ? (int)$event['id'] : null) ?>;
-var POKER_SESSION_ID = <?= json_encode($session ? (int)$session['id'] : null) ?>;
+var CURRENT_PRESET_ID = <?= js_json($timer['preset_id'] ? (int)$timer['preset_id'] : null) ?>;
+var PAYOUTS = <?= js_json($payouts) ?>;
+var GAME_TYPE = <?= js_json($game_type) ?>;
+var EVENT_ID = <?= js_json($event ? (int)$event['id'] : null) ?>;
+var POKER_SESSION_ID = <?= js_json($session ? (int)$session['id'] : null) ?>;
 var SOUNDS = {
     warning_seconds: <?= (int)($timer['warning_seconds'] ?? 60) ?>,
-    alarm_sound: <?= json_encode($timer['alarm_sound'] ?? null) ?>,
-    start_sound: <?= json_encode($timer['start_sound'] ?? null) ?>,
-    warning_sound: <?= json_encode($timer['warning_sound'] ?? null) ?>
+    alarm_sound: <?= js_json($timer['alarm_sound'] ?? null) ?>,
+    start_sound: <?= js_json($timer['start_sound'] ?? null) ?>,
+    warning_sound: <?= js_json($timer['warning_sound'] ?? null) ?>
 };
 </script>
 <script src="/timer_classic.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/timer_classic.js') ?: 0)) ?>"></script>

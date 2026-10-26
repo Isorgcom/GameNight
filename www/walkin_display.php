@@ -173,8 +173,8 @@ if (!empty($event['start_time'])) {
 <script src="/vendor/qrcode.min.js" defer></script>
 <script nonce="<?= csp_nonce() ?>">
 var EVENT_ID = <?= $event_id ?>;
-var WALKIN_URL = <?= json_encode($walkin_url) ?>;
-var CSRF = <?= json_encode($csrf) ?>;
+var WALKIN_URL = <?= js_json($walkin_url) ?>;
+var CSRF = <?= js_json($csrf) ?>;
 
 function renderQR() {
     var wrap = document.getElementById('qrWrap');

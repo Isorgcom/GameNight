@@ -35,15 +35,53 @@ if (!defined('MAX_TICKET_REPLIES_PER_HOUR'))              define('MAX_TICKET_REP
 if (!defined('MAX_UPLOADS_PER_DAY'))                      define('MAX_UPLOADS_PER_DAY', 100);
 
 if (!defined('APP_SECRET')) {
+    // The key behind encrypt_value(): SMTP / SMS / WhatsApp tokens, the
+    // sign-in bridge's private key, every authenticator secret and API key.
+    // It is minted once and must be READ BACK from disk before use: a secret
+    // that could not be written would be a new one on every request, and
+    // everything encrypted under it would be lost quietly. So an unwritable
+    // or empty file stops the site with a clear message instead.
     $secretFile = dirname(DB_PATH) . '/.app_secret';
-    if (file_exists($secretFile)) {
-        define('APP_SECRET', trim(file_get_contents($secretFile)));
-    } else {
+    $secretVal  = file_exists($secretFile) ? trim((string)@file_get_contents($secretFile)) : '';
+    if ($secretVal === '') {
         $generated = bin2hex(random_bytes(32));
-        @file_put_contents($secretFile, $generated);
+        $wrote = @file_put_contents($secretFile, $generated, LOCK_EX);
         @chmod($secretFile, 0600);
-        define('APP_SECRET', $generated);
+        $secretVal = $wrote === strlen($generated) ? trim((string)@file_get_contents($secretFile)) : '';
     }
+    if (strlen($secretVal) < 32) {
+        error_log("GameNight: the app secret file $secretFile cannot be written or read (check that the db/ directory is owned by www-data); refusing to run with a per-request secret.");
+        http_response_code(500);
+        exit('The app secret file cannot be written; see the server log.');
+    }
+    define('APP_SECRET', $secretVal);
+    unset($secretFile, $secretVal, $generated, $wrote);
+}
+
+/**
+ * One CSV cell for fputcsv(): a value whose first character is one of
+ * = + - @ TAB CR gets a leading apostrophe, so a spreadsheet opening the
+ * export reads it as text and not as a formula (a guest's name or note is
+ * their own typing). Every export on the site goes through this.
+ */
+function csv_cell($v): string {
+    $v = (string)$v;
+    if ($v !== '' && strpbrk($v[0], "=+-@\t\r") !== false) return "'" . $v;
+    return $v;
+}
+
+/**
+ * JSON for a value written INTO A SCRIPT BLOCK: `var X = <?= js_json($v) ?>;`.
+ * HEX_TAG keeps "<!--" and "</script>" (and "<script>") out of the output,
+ * which the HTML parser would otherwise act on inside the block whatever the
+ * JSON quoting; the other HEX flags make the same output safe in a quoted
+ * attribute. Invalid UTF-8 is substituted rather than turning the whole
+ * value into `false`, which printed as `var X = ;` and threw the block away.
+ * `null` is the last resort. Attributes carry data, not JSON: see SECURITY.md.
+ */
+function js_json($v, int $flags = 0): string {
+    $j = json_encode($v, $flags | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE);
+    return $j === false ? 'null' : $j;
 }
 
 function encrypt_value(string $plaintext): string {

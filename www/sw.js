@@ -28,6 +28,9 @@ self.addEventListener('push', function (e) {
 self.addEventListener('notificationclick', function (e) {
     e.notification.close();
     var link = (e.notification.data && e.notification.data.link) || '/';
+    // Only a path on this site: the payload came over the push channel, and a
+    // notification must never open another origin from a click here.
+    if (typeof link !== 'string' || link.charAt(0) !== '/' || link.charAt(1) === '/') link = '/';
     e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
         // Focus an existing tab already on the target page, else reuse any
         // open tab, else open a new one.

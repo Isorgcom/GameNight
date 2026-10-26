@@ -963,18 +963,18 @@ if ($session) {
     <?php require __DIR__ . '/_timer_layouts_editor.php'; ?>
 </div>
 <script nonce="<?= csp_nonce() ?>">
-var ES_CSRF = <?= json_encode($csrf) ?>;
+var ES_CSRF = <?= js_json($csrf) ?>;
 var ES_EVENT_ID = <?= (int)$event_id ?>;
-var ES_EVENT_NAME = <?= json_encode((string)$event['title']) ?>;
-var ES_LAYOUT_ID = <?= json_encode($event_layout_id) ?>;
-var ES_LAYOUT_KEY = <?= json_encode($event_layout_key) ?>;
+var ES_EVENT_NAME = <?= js_json((string)$event['title']) ?>;
+var ES_LAYOUT_ID = <?= js_json($event_layout_id) ?>;
+var ES_LAYOUT_KEY = <?= js_json($event_layout_key) ?>;
 </script>
 <?php endif; ?>
 
 <?php require __DIR__ . '/_footer.php'; ?>
 
 <script nonce="<?= csp_nonce() ?>">
-var CSRF = <?= json_encode($csrf, JSON_HEX_TAG) ?>;
+var CSRF = <?= js_json($csrf, JSON_HEX_TAG) ?>;
 var USE_BETA_TIMER = <?= (int)$use_beta_timer ?>;
 <?php /* One-time Tournament Timer ask: any tournament game whose setup has been
          saved, while the user has never answered (users.beta_timer IS NULL).
@@ -1212,9 +1212,20 @@ function _args(el, ev, pfx) {
     }
     return out;
 }
-function _dispatch(name, el, ev, pfx) {
+// A handler is a function this page defined: a plain identifier naming a
+// global whose source is not native code, so a data-act attribute can never
+// reach alert / open / eval / fetch (the same rule as pk-dispatch.js, which
+// stands down here and loads later than this script runs).
+function _handler(name) {
+    if (typeof name !== 'string' || !/^[A-Za-z_$][\w$]*$/.test(name)) return null;
     var fn = window[name];
-    if (typeof fn === 'function') return fn.apply(el || null, el ? _args(el, ev, pfx) : []);
+    if (typeof fn !== 'function') return null;
+    try { if (/\[native code\]/.test(Function.prototype.toString.call(fn))) return null; } catch (e) { return null; }
+    return fn;
+}
+function _dispatch(name, el, ev, pfx) {
+    var fn = _handler(name);
+    if (fn) return fn.apply(el || null, el ? _args(el, ev, pfx) : []);
     console.warn('[checkin] no handler named', name);   // a dead control is silent otherwise
 }
 document.addEventListener('click', function (e) {
@@ -1249,10 +1260,10 @@ document.addEventListener('input', function (e) {
     var t = e.target.closest ? e.target.closest('[data-act-input]') : null;
     if (t) _dispatch(t.getAttribute('data-act-input'), t, e, 'input-');
 });
-var ALL_USERS = <?= json_encode($allUsernames, JSON_HEX_TAG) ?>;
+var ALL_USERS = <?= js_json($allUsernames, JSON_HEX_TAG) ?>;
 var EVENT_ID = <?= $event_id ?>;
 var EVENT_LEAGUE_ID = <?= (int)($event['league_id'] ?? 0) ?>;
-var ASSIGNABLE_LEAGUES = <?= json_encode(array_map(
+var ASSIGNABLE_LEAGUES = <?= js_json(array_map(
         function ($id, $name) { return ['id' => (int)$id, 'name' => $name]; },
         array_keys($assignable_leagues), array_values($assignable_leagues)
     ), JSON_HEX_TAG) ?>;
@@ -1403,7 +1414,7 @@ var setupGameType = 'tournament';
 function renderSetup() {
     var h = '<div class="pk-setup">';
     h += '<h2>Start Poker Session</h2>';
-    h += '<p>Configure the game for <strong>' + escHtml(<?= json_encode($event['title'], JSON_HEX_TAG) ?>) + '</strong></p>';
+    h += '<p>Configure the game for <strong>' + escHtml(<?= js_json($event['title'], JSON_HEX_TAG) ?>) + '</strong></p>';
     h += '<label id="s_type_lbl">Game Type</label>';
     h += '<div class="pk-type-toggle" id="typeToggle" role="group" aria-labelledby="s_type_lbl">';
     h += '<button type="button" class="t-tournament active" aria-pressed="true" data-act="setSetupType" data-a1="tournament">Tournament</button>';
@@ -1490,7 +1501,7 @@ function renderDashboard() {
     // Header
     h += '<div class="pk-header">';
     h += '<a href="/calendar.php" class="pk-btn-back" title="Back" aria-label="Back" style="text-decoration:none" data-act="goBackOrHome" data-a1="@event">&larr;</a>';
-    h += '<h1>' + escHtml(<?= json_encode($event['title'], JSON_HEX_TAG) ?>) + ' <a href="/calendar.php"><span class="pk-act-label">Calendar</span></a></h1>';
+    h += '<h1>' + escHtml(<?= js_json($event['title'], JSON_HEX_TAG) ?>) + ' <a href="/calendar.php"><span class="pk-act-label">Calendar</span></a></h1>';
     h += '<span class="pk-badge ' + typeClass + '">' + typeLabel + '</span>';
     h += '<div class="pk-actions">';
     // Settings moved into the view switcher below — a duplicate entry point here
@@ -2622,7 +2633,7 @@ document.addEventListener('keydown', function (e) {
     if (!open) return;
     if (e.key === 'Escape') {
         e.preventDefault();
-        var fn = window[MODAL_CLOSERS[open.id]];
+        var fn = _handler(MODAL_CLOSERS[open.id]);
         if (typeof fn === 'function') fn(); else closeModal(open.id);
     } else if (e.key === 'Tab') {
         var f = modalFocusables(open);
@@ -4167,7 +4178,7 @@ function buildPresetFormData() {
 // the bar says MODIFIED and the caller may write to that preset.
 async function updatePayoutStructure() {
     if (!PRESET_STATE || !PRESET_STATE.id) return;
-    if (!(await pkConfirm('Update "' + PRESET_STATE.name + '" with this game\'s current setup?\n\nEvery future game loading this preset gets these settings. Games already set up from it are not touched.',
+    if (!(await pkConfirm('Update "' + escHtml(PRESET_STATE.name) + '" with this game\'s current setup?<br><br>Every future game loading this preset gets these settings. Games already set up from it are not touched.',
                           { okLabel: 'Update preset' }))) return;
     var fd = buildPresetFormData();
     fd.append('structure_id', PRESET_STATE.id);
