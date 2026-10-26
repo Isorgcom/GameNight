@@ -11,6 +11,8 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.12.7] - 2026-10-26
+
 ### Security
 
 - **Codes by text are counted, and a phone number cannot be looked up through the sign-up page.** A correct password on an account with SMS two-factor used to text a fresh code on every attempt, uncounted; now five codes in fifteen minutes is the most an account gets, and the sign-in page then says to wait or use a recovery code (the setup page says the same). Verification codes are capped at five an hour per account. Registering with a phone number that already belongs to someone used to land on a code page that said "Session expired" where a new number said "Incorrect code"; both now answer alike, so the page cannot be used to test which numbers are registered. Every SMS host command that reads a guest list or touches an event (PENDING, WHO, COUNT, APPROVE as well as MSG, REMIND, CANCEL) now needs a verified phone number, since a sender's number is self-asserted until then.
