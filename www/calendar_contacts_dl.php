@@ -113,16 +113,20 @@ foreach ($personal as &$_pcRow) {
 unset($_pcRow);
 
 if ($league_id > 0) {
-    // Must be a member of this league to see its roster.
+    // Must be a member of this league to see its roster. Contact details are
+    // for the league's owner and managers: a plain member gets names only
+    // (_event_save.php fills in email/phone from the account when the picker
+    // sends none) and never the typed-in details of pending contacts.
     $role = league_role($league_id, $uid);
     if ($role === null) {
         echo json_encode(['ok' => false, 'error' => 'Not a member of that league.']);
         exit;
     }
+    $canManage = in_array($role, ['owner', 'manager'], true);
 
     // Linked members of the league
     $q1 = $db->prepare(
-        "SELECT u.username, u.email, u.phone, u.username AS display_name,
+        "SELECT u.username, " . ($canManage ? "u.email, u.phone" : "'' AS email, '' AS phone") . ", u.username AS display_name,
                 0 AS is_pending, 1 AS is_league_member
          FROM league_members lm
          JOIN users u ON u.id = lm.user_id
@@ -135,6 +139,7 @@ if ($league_id > 0) {
     // Pending league contacts (not yet signed up). Some pending invitees were added
     // with phone only (no email), so contact_email may be NULL — fall back to phone,
     // then to a synthetic key from the row id, so they still appear in the picker.
+    if ($canManage) {
     $q2 = $db->prepare(
         "SELECT COALESCE(NULLIF(LOWER(contact_email), ''),
                          NULLIF(contact_phone, ''),
@@ -150,6 +155,7 @@ if ($league_id > 0) {
     );
     $q2->execute([$league_id]);
     foreach ($q2->fetchAll() as $r) { _add_seen($users, $seen, $r); }
+    }
 
     // Merge personal contacts (deduped by username-key)
     foreach ($personal as $r) { _add_seen($users, $seen, $r); }

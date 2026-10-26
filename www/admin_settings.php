@@ -183,6 +183,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 set_setting('show_calendar', isset($_POST['show_calendar']) ? '1' : '0');
                 set_setting('allow_maybe_rsvp', isset($_POST['allow_maybe_rsvp']) ? '1' : '0');
                 set_setting('notifications_enabled', isset($_POST['notifications_enabled']) ? '1' : '0');
+                // Extra browser-push service hosts (comma list; a leading dot matches
+                // subdomains). Hostnames only: the server POSTs to these.
+                $__ph = [];
+                foreach (explode(',', (string)($_POST['push_extra_hosts'] ?? '')) as $__h) {
+                    $__h = strtolower(trim($__h));
+                    if ($__h !== '' && preg_match('/^\.?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/', $__h)) $__ph[] = $__h;
+                }
+                set_setting('push_extra_hosts', implode(',', array_unique($__ph)));
                 // Reminder default offsets (array of minute values)
                 $__newDefs = [];
                 if (!empty($_POST['reminder_default_offsets']) && is_array($_POST['reminder_default_offsets'])) {
@@ -1466,6 +1474,12 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                         Enable Notifications
                     </label>
                     <p class="hint">When off, no email, SMS, or WhatsApp notifications will be sent (invites, reminders, updates). Test messages from the Email/SMS tabs still work.</p>
+                </div>
+                <div class="form-group" style="margin-top:.5rem">
+                    <label for="push_extra_hosts">Extra browser-push services</label>
+                    <input type="text" id="push_extra_hosts" name="push_extra_hosts" placeholder="push.example.com, .example.net"
+                           value="<?= htmlspecialchars(get_setting('push_extra_hosts', ''), ENT_QUOTES | ENT_SUBSTITUTE) ?>">
+                    <p class="hint">Browser notifications are delivered only through the known push services (Google, Mozilla, Microsoft, Apple). A browser that uses another service needs its host listed here, comma-separated; a leading dot covers subdomains.</p>
                 </div>
 
                 <hr style="border:none;border-top:1px solid #e2e8f0;margin:1rem 0">

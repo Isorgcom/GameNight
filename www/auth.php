@@ -883,14 +883,16 @@ function claim_verified_contact(int $user_id, string $email = '', string $phone 
         if ($email !== '') {
             $db->prepare("UPDATE league_members
                           SET user_id = ?, contact_name = NULL, contact_email = NULL, contact_phone = NULL, invite_token = NULL
-                          WHERE user_id IS NULL AND LOWER(contact_email) = LOWER(?)")->execute([$user_id, $email]);
+                          WHERE user_id IS NULL AND LOWER(contact_email) = LOWER(?)
+                            AND (invited_user_id IS NULL OR invited_user_id = ?)")->execute([$user_id, $email, $user_id]);
             $db->prepare("UPDATE user_contacts SET linked_user_id = ? WHERE linked_user_id IS NULL AND LOWER(contact_email) = LOWER(?)")
                ->execute([$user_id, $email]);
         }
         if ($phone !== '') {
             $db->prepare("UPDATE league_members
                           SET user_id = ?, contact_name = NULL, contact_email = NULL, contact_phone = NULL, invite_token = NULL
-                          WHERE user_id IS NULL AND contact_phone = ?")->execute([$user_id, $phone]);
+                          WHERE user_id IS NULL AND contact_phone = ?
+                            AND (invited_user_id IS NULL OR invited_user_id = ?)")->execute([$user_id, $phone, $user_id]);
             $db->prepare("UPDATE user_contacts SET linked_user_id = ? WHERE linked_user_id IS NULL AND contact_phone = ?")
                ->execute([$user_id, $phone]);
         }

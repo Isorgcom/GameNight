@@ -11,6 +11,14 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+### Security
+
+- **Seven places read or wrote something the caller should not reach.** Any signed-in account could comment on any event by its number (and the host and guests were told); the event editor's contact picker handed every league member's email and phone to any member, and the typed-in details of people not yet signed up; the per-player history page of a league was open to non-members while the league page showed them only a preview; deleting a timer layout removed any picture it named, even another host's chip photo; browser-notification subscriptions accepted any address, without limit, so a few hundred slow ones could tie up the site and point the server at other hosts; and a payout structure loaded by its number alone, including other hosts' private ones. Now a comment needs the event to be visible to you, the picker gives plain members names only (managers keep the details), player history is for members, a layout save or delete removes only your own uploads and never one a chip set still uses, push subscriptions must point at a known push service (Google, Mozilla, Microsoft or Apple, or a host the admin lists under Admin → General) with at most ten per account, short timeouts and a rate-limited test button, and a payout structure loads only when you could see it in the list.
+
+### Changed
+
+- **Adding someone who already has an account to a league invites them instead of enrolling them.** Typing a person's email or phone on the Members tab, importing contacts or a CSV, or inviting them to a league event used to make their account a member on the spot and show the league's managers that account's email and phone. They now receive an invitation addressed to their account ("Accept the invitation") and join when they accept it; until then they appear as a pending contact showing only what you typed. People without an account are invited exactly as before.
+
 ## [v1.12.5] - 2026-10-26
 
 ### Security

@@ -1182,6 +1182,24 @@ function pk_preset_is_modified(PDO $db, array $struct, array $sess): bool {
     return false;
 }
 
+/* A payout structure the user may see: the site default, a global one, their
+ * own, or one shared with a league they belong to (the list's filter), or any
+ * for an admin. Null otherwise. Applied where a structure is loaded by id, so
+ * a number alone never reaches another host's private preset. */
+function pk_payout_structure_for(PDO $db, int $structure_id, int $uid, bool $isAdmin): ?array {
+    if ($structure_id <= 0) return null;
+    $sql  = 'SELECT * FROM payout_structures WHERE id = ?';
+    $args = [$structure_id];
+    if (!$isAdmin) {
+        $sql .= ' AND (is_default = 1 OR is_global = 1 OR created_by = ? OR league_id IN (SELECT league_id FROM league_members WHERE user_id = ?))';
+        $args[] = $uid; $args[] = $uid;
+    }
+    $q = $db->prepare($sql);
+    $q->execute($args);
+    $row = $q->fetch(PDO::FETCH_ASSOC);
+    return $row ?: null;
+}
+
 /* Who may overwrite or delete a preset. Mirrors delete_payout_structure: the
  * site default is admin-only, a global belongs to admins, everything else to
  * whoever created it. */

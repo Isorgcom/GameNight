@@ -42,10 +42,17 @@ switch ($action) {
         if ($endpoint === '' || !preg_match('#^https://#', $endpoint) || $p256dh === '' || $auth === '') {
             echo json_encode(['ok' => false, 'error' => 'Invalid subscription']); break;
         }
+        if (!wp_endpoint_allowed($endpoint)) {
+            echo json_encode(['ok' => false, 'error' => "That browser's push service isn't supported."]); break;
+        }
         // Sanity-check the keys decode to the expected sizes before storing.
         if (strlen(wp_b64url_decode($p256dh)) !== 65 || strlen(wp_b64url_decode($auth)) !== 16) {
             echo json_encode(['ok' => false, 'error' => 'Invalid subscription keys']); break;
         }
+        // At most 10 devices per account: the oldest make room for a new one.
+        $db->prepare('DELETE FROM push_subscriptions WHERE user_id = ? AND endpoint != ?
+                        AND id NOT IN (SELECT id FROM push_subscriptions WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 9)')
+           ->execute([$uid, $endpoint, $uid]);
         $db->prepare('INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, label)
                       VALUES (?, ?, ?, ?, ?)
                       ON CONFLICT(endpoint) DO UPDATE SET
@@ -72,9 +79,15 @@ switch ($action) {
         $cnt->execute([$uid]);
         $n = (int)$cnt->fetchColumn();
         if ($n === 0) { echo json_encode(['ok' => false, 'error' => 'No devices enabled']); break; }
+        // Three tests per ten minutes, to the three newest devices: a test is a
+        // sanity check, not a fan-out anyone can repeat at will.
+        $rl = $db->prepare("SELECT COUNT(*) FROM activity_log WHERE user_id = ? AND action = 'push_test' AND created_at > datetime('now', '-10 minutes')");
+        $rl->execute([$uid]);
+        if ((int)$rl->fetchColumn() >= 3) { echo json_encode(['ok' => false, 'error' => 'Try again in a few minutes.']); break; }
+        db_log_activity($uid, 'push_test');
         webpush_notify_user($db, $uid, 'Test notification',
-            'Browser notifications are working on this account. 🎉', '/settings.php');
-        echo json_encode(['ok' => true, 'devices' => $n]);
+            'Browser notifications are working on this account. 🎉', '/settings.php', 3);
+        echo json_encode(['ok' => true, 'devices' => min($n, 3)]);
         break;
     }
 

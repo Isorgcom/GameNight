@@ -674,7 +674,7 @@ function pk_lo_sound_names($layout): array {
     return $names;
 }
 
-function pk_lo_gc_sounds(PDO $db, array $candidateNames, int $exceptId): void {
+function pk_lo_gc_sounds(PDO $db, array $candidateNames, int $exceptId, int $uid, bool $isAdmin): void {
     if (!$candidateNames) return;
     $rows = $db->prepare('SELECT layout FROM timer_layouts WHERE id != ?');
     $rows->execute([$exceptId]);
@@ -685,6 +685,7 @@ function pk_lo_gc_sounds(PDO $db, array $candidateNames, int $exceptId): void {
     foreach ($candidateNames as $n => $_) {
         if (isset($stillUsed[$n])) continue;
         if (!preg_match('/^[A-Za-z0-9._-]{1,160}$/', $n)) continue;
+        if (!$isAdmin && !str_starts_with($n, 'u' . $uid . '_')) continue;   // only the uploader deletes a file
         @unlink(__DIR__ . '/uploads/timer_sounds/' . $n);
     }
 }
@@ -692,7 +693,7 @@ function pk_lo_gc_sounds(PDO $db, array $candidateNames, int $exceptId): void {
 // Delete timer-layout image files that are no longer referenced by ANY layout
 // (excluding $exceptId, the row being updated/deleted). Only ever unlinks inside
 // /uploads/timer_layouts/, and only names that pass the strict pattern.
-function pk_lo_gc_images(PDO $db, array $candidateNames, int $exceptId): void {
+function pk_lo_gc_images(PDO $db, array $candidateNames, int $exceptId, int $uid, bool $isAdmin): void {
     if (!$candidateNames) return;
     $rows = $db->prepare('SELECT layout FROM timer_layouts WHERE id != ?');
     $rows->execute([$exceptId]);
@@ -700,9 +701,22 @@ function pk_lo_gc_images(PDO $db, array $candidateNames, int $exceptId): void {
     foreach ($rows as $r) {
         foreach (pk_lo_image_names($r['layout']) as $n => $_) $stillUsed[$n] = true;
     }
+    // Chip photos live in the same folder and are referenced from chip sets,
+    // not layouts: the same two columns cron.php's orphan sweep consults.
+    $chipRefs = '';
+    foreach (['poker_sessions', 'payout_structures'] as $t) {
+        try {
+            foreach ($db->query("SELECT chip_set FROM $t WHERE chip_set IS NOT NULL AND chip_set != ''")->fetchAll(PDO::FETCH_COLUMN) as $cs) $chipRefs .= "\n" . $cs;
+        } catch (Exception $e) { /* no such column on an old DB: nothing to keep */ }
+    }
     foreach (array_keys($candidateNames) as $name) {
         if (isset($stillUsed[$name])) continue;                 // another layout keeps it
         if (!preg_match('/^[A-Za-z0-9._-]{1,120}$/', $name)) continue;   // paranoia
+        if ($chipRefs !== '' && strpos($chipRefs, $name) !== false) continue;   // a chip set keeps it
+        // Only the uploader (or an admin) deletes a file: a layout can name
+        // anyone's picture (the names show in the public timer state), and
+        // naming it must never remove it.
+        if (!$isAdmin && !str_starts_with($name, 'u' . $uid . '_')) continue;
         $path = __DIR__ . '/uploads/timer_layouts/' . $name;
         if (is_file($path)) @unlink($path);
     }
@@ -881,8 +895,8 @@ if ($action === 'save_layout') {
         $keepLeague = $hasLeague ? $league_id : (($row['league_id'] ?? null) !== null ? (int)$row['league_id'] : null);
         $db->prepare("UPDATE timer_layouts SET name = ?, layout = ?, is_global = ?, league_id = ?, updated_at = datetime('now') WHERE id = ?")
            ->execute([$name, json_encode($clean), $keepGlobal, $keepLeague, $id]);
-        pk_lo_gc_images($db, $removed, $id);
-        pk_lo_gc_sounds($db, $removedSnd, $id);
+        pk_lo_gc_images($db, $removed, $id, $uid, $isAdmin);
+        pk_lo_gc_sounds($db, $removedSnd, $id, $uid, $isAdmin);
     } else {
         $db->prepare('INSERT INTO timer_layouts (name, created_by, is_global, league_id, layout) VALUES (?, ?, ?, ?, ?)')
            ->execute([$name, $uid, $is_global, $league_id, json_encode($clean)]);
@@ -904,8 +918,8 @@ if ($action === 'delete_layout') {
     }
     $names = pk_lo_image_names($row['layout']);
     $db->prepare('DELETE FROM timer_layouts WHERE id = ?')->execute([$id]);
-    pk_lo_gc_images($db, $names, $id);   // free its images, unless another layout keeps them
-    pk_lo_gc_sounds($db, pk_lo_sound_names($row['layout']), $id);
+    pk_lo_gc_images($db, $names, $id, $uid, $isAdmin);   // free its OWN images, unless another layout or a chip set keeps them
+    pk_lo_gc_sounds($db, pk_lo_sound_names($row['layout']), $id, $uid, $isAdmin);
     db_log_activity($uid, "deleted timer layout: {$row['name']} (#$id)");
     echo json_encode(['ok' => true]);
     exit;

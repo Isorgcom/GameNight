@@ -58,6 +58,25 @@ if ($action === 'add') {
             exit;
         }
     }
+    // An event comment needs the event to be visible to the commenter, by the
+    // rule event.php applies (public, own, a league they belong to, or invited
+    // by account id). Otherwise any signed-in account could comment on any
+    // event by number, and the host and guests would be told about it.
+    if ($type === 'event' && $content_id > 0) {
+        $vis = event_visibility_sql('e', (int)$user['id']);
+        $eStmt = $db->prepare("SELECT e.id FROM events e WHERE e.id = ? AND {$vis['sql']}");
+        $eStmt->execute(array_merge([$content_id], $vis['params']));
+        if (!$eStmt->fetch()) {
+            http_response_code(403);
+            if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
+                header('Content-Type: application/json');
+                echo json_encode(['ok' => false, 'error' => 'You cannot comment on that event.']);
+                exit;
+            }
+            header('Location: ' . $redirect);
+            exit;
+        }
+    }
 
     if ($type && $content_id > 0 && $body !== '') {
         $db->prepare('INSERT INTO comments (type, content_id, user_id, body) VALUES (?, ?, ?, ?)')

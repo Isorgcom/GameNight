@@ -5,7 +5,7 @@ history of the CSP gap that is now closed — kept because the reasoning is what
 stops it being reopened, and because the conversion that closed it is still the
 main source of regressions.
 
-Last reviewed: 2026-10-26 (v1.12.5).
+Last reviewed: 2026-10-26 (v1.12.6).
 
 ---
 
@@ -578,6 +578,20 @@ them) and half are conventions someone has to follow.
   and `/<tab>/host` (folded by browsers into `//host`) are all refused;
   `referer_local_path()` applies it to "go back" redirects. login, register,
   comment, the league post and API-key endpoints and the calendar all use it.
+- Read-write gaps closed in v1.12.6: an event comment needs the event visible to
+  the commenter (`event_visibility_sql()`, as event.php); the event editor's
+  contact picker gives a plain league member names only and never a pending
+  contact's typed details; adding a registered account to a league creates an
+  invitation addressed to that account (`league_invite_account()` in `db.php`,
+  `league_members.invited_user_id`, accepted only by that account on
+  `league_invite.php`, the row carrying only what the inviter typed) instead of
+  enrolling it; per-player league history is members-only; a timer-layout save
+  or delete unlinks only the caller's own uploads (`u<uid>_` prefix) and never a
+  file a chip set still names (`pk_lo_gc_images()`); push endpoints must be a
+  known push service or an admin-listed host (`wp_endpoint_allowed()`), ten per
+  account, 3 s connect / 5 s total, https only, the test button rate-limited;
+  a payout structure loads only through the list's own visibility filter
+  (`pk_payout_structure_for()`).
 - `username_format_error()` in `auth.php` is the single username rule, applied by
   registration, the API and the profile editor.
 - `pk_theme_sanitize_props()` constrains stored theme JSON on every write path.
