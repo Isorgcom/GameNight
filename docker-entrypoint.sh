@@ -15,11 +15,22 @@ if [ ! -f "$VENDOR/phpmailer/PHPMailer.php" ]; then
     curl -fsSL https://raw.githubusercontent.com/PHPMailer/PHPMailer/v7.0.2/src/SMTP.php        -o "$VENDOR/phpmailer/SMTP.php"
 fi
 
-if [ ! -f "$VENDOR/jodit/jodit.min.js" ]; then
-    echo "[entrypoint] Downloading Jodit 4.2.7..."
+# Jodit: fetched when missing OR when the pinned version changes (the .version
+# marker), so a bump here reaches an install whose vendor copy already exists.
+# Downloaded beside the live files and swapped in only when both parts arrived.
+JODIT_VERSION="4.18.10"
+if [ ! -f "$VENDOR/jodit/jodit.min.js" ] || [ "$(cat "$VENDOR/jodit/.version" 2>/dev/null)" != "$JODIT_VERSION" ]; then
+    echo "[entrypoint] Downloading Jodit $JODIT_VERSION..."
     mkdir -p "$VENDOR/jodit"
-    curl -fsSL https://cdn.jsdelivr.net/npm/jodit@4.2.7/es2021/jodit.min.js  -o "$VENDOR/jodit/jodit.min.js"
-    curl -fsSL https://cdn.jsdelivr.net/npm/jodit@4.2.7/es2021/jodit.min.css -o "$VENDOR/jodit/jodit.min.css"
+    if curl -fsSL "https://cdn.jsdelivr.net/npm/jodit@${JODIT_VERSION}/es2021/jodit.min.js"  -o "$VENDOR/jodit/jodit.min.js.new" \
+    && curl -fsSL "https://cdn.jsdelivr.net/npm/jodit@${JODIT_VERSION}/es2021/jodit.min.css" -o "$VENDOR/jodit/jodit.min.css.new"; then
+        mv "$VENDOR/jodit/jodit.min.js.new" "$VENDOR/jodit/jodit.min.js"
+        mv "$VENDOR/jodit/jodit.min.css.new" "$VENDOR/jodit/jodit.min.css"
+        echo "$JODIT_VERSION" > "$VENDOR/jodit/.version"
+    else
+        echo "[entrypoint] WARNING: Jodit $JODIT_VERSION download failed; keeping the existing copy."
+        rm -f "$VENDOR/jodit/jodit.min.js.new" "$VENDOR/jodit/jodit.min.css.new"
+    fi
 fi
 
 PHPADMIN="/var/www/html/phpadmin"
@@ -105,7 +116,8 @@ if [ -n "$CRON_TOKEN" ]; then
     echo "[entrypoint] Starting background scheduler (every 5 min)..."
     (while true; do
         sleep 300
-        curl -s "http://localhost/cron.php?token=${CRON_TOKEN}" > /dev/null 2>&1 || true
+        # The token goes in a header, not the URL, so it never lands in the access log.
+        curl -s -H "X-Cron-Token: ${CRON_TOKEN}" "http://localhost/cron.php" > /dev/null 2>&1 || true
     done) &
 else
     echo "[entrypoint] WARNING: Could not set up cron token. Scheduled tasks disabled."

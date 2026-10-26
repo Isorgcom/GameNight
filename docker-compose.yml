@@ -15,10 +15,13 @@ services:
       # inbound is coming from waha, not a forged external request via NPM.
       # Token lives in the gitignored .env file beside this compose file.
       - WAHA_WEBHOOK_TOKEN=${WAHA_WEBHOOK_TOKEN}
-    # Guard rail on a 458 MB host. Steady-state Apache+PHP is ~17 MB; this gives plenty of
-    # headroom for big requests but caps a runaway PHP loop before it can hurt the host.
-    mem_limit: 192m
-    memswap_limit: 192m
+    # Guard rail: steady-state Apache+PHP is ~65 MB. Sized with the Dockerfile's
+    # twelve prefork workers (15 to 40 MB each, up to PHP's 128 MB memory_limit
+    # during one large upload), so a busy minute queues requests instead of
+    # the kernel killing a worker mid-request. 192 MB was below what the old
+    # 25 workers could reach.
+    mem_limit: 384m
+    memswap_limit: 384m
     networks:
       - default
       - npm_default

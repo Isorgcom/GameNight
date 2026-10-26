@@ -1560,7 +1560,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
         }
     </style>
     <?php if ($isAdmin): ?><script src="/vendor/qrcode.min.js" defer></script><?php endif; ?>
-    <?php if ($current): ?><link href="/vendor/jodit/jodit.min.css" rel="stylesheet"><?php endif; ?>
+    <?php if ($current): ?><link href="/vendor/jodit/jodit.min.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/jodit/jodit.min.css') ?: 0)) ?>" rel="stylesheet"><?php endif; ?>
 </head>
 <body>
 
@@ -3143,7 +3143,7 @@ function copyWalkinLink() {
         </div>
     </div>
 </div>
-<script src="/vendor/jodit/jodit.min.js" defer></script>
+<script src="/vendor/jodit/jodit.min.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/jodit/jodit.min.js') ?: 0)) ?>" defer></script>
 <script nonce="<?= csp_nonce() ?>">
 let _emEditor = null;
 function _emEnsureEditor() {

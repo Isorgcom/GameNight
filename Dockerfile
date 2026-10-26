@@ -35,10 +35,14 @@ RUN printf 'RemoteIPHeader X-Real-IP\nRemoteIPInternalProxy 172.16.0.0/12\n' \
     && a2enmod remoteip \
     && a2enconf remoteip
 
-# Tune prefork MPM for a small-RAM host. Default MaxRequestWorkers=150 can OOM a
-# 512 MB VPS at peak load; cap at 25 to keep memory bounded. PHP can use up to
-# memory_limit (128 MB) per request, so 25 workers ~ 3 GB worst case headroom.
-RUN printf '<IfModule mpm_prefork_module>\n    StartServers            3\n    MinSpareServers         3\n    MaxSpareServers         8\n    MaxRequestWorkers       25\n    MaxConnectionsPerChild  500\n</IfModule>\n' > /etc/apache2/conf-available/mpm-tuning.conf \
+# Tune prefork MPM for a small-RAM host. Default MaxRequestWorkers=150 would
+# OOM the VPS at peak load. Twelve workers: a worker runs at 15 to 40 MB and
+# PHP may use up to memory_limit (128 MB) during one large upload, so twelve
+# fit the 384 MB the container is allowed in docker-compose.yml (the two
+# numbers are sized together; change one, change the other). Beyond twelve
+# concurrent requests Apache queues, which is a slow page rather than the
+# kernel killing a worker mid-request (a 502).
+RUN printf '<IfModule mpm_prefork_module>\n    StartServers            2\n    MinSpareServers         2\n    MaxSpareServers         6\n    MaxRequestWorkers       12\n    MaxConnectionsPerChild  500\n</IfModule>\n' > /etc/apache2/conf-available/mpm-tuning.conf \
     && a2enconf mpm-tuning
 
 # Raise PHP upload limits

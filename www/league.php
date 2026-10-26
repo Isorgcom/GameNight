@@ -1287,8 +1287,8 @@ function ordinal($n) {
                 </div>
             </form>
         </div>
-        <script src="/vendor/jodit/jodit.min.js" defer></script>
-        <link rel="stylesheet" href="/vendor/jodit/jodit.min.css">
+        <script src="/vendor/jodit/jodit.min.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/jodit/jodit.min.js') ?: 0)) ?>" defer></script>
+        <link rel="stylesheet" href="/vendor/jodit/jodit.min.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/jodit/jodit.min.css') ?: 0)) ?>">
         <script nonce="<?= csp_nonce() ?>">
             // Jodit must be initialized only after the editor's container is visible;
             // initializing inside a display:none parent causes height/toolbar glitches.

@@ -11,6 +11,18 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+### Security
+
+- **A visitor's address is the one the connection came from.** Every per-address limit (login lockout, sign-up and walk-in caps, TV pairing) keys on the client address, and the site used to take that address from the `X-Real-IP` or `X-Forwarded-For` header of the request itself. Behind the reverse proxy that was fine, because Apache already rewrites the real address from the proxy's header; reached any other way, a request could name its own address and sidestep every limit. The headers are no longer read in PHP.
+- **Codes and links are not kept in the logs.** The SMS log's copy of an outbound text now has its six-digit code and any link token blanked (the text itself is sent unchanged; the log is what an admin reads for ninety days). A mail parked for retry after a relay outage, which can be a password-reset link or a one-click RSVP, is stored encrypted and decrypted only when it is resent. The park itself now retries when the database is briefly locked by a busy background send, which once lost a mail under a slow relay.
+- **The cron token stays out of the access log, and three more settings are encrypted.** The container's own scheduler sends the cron token in a header instead of the URL, and the background queue drain receives it through its environment instead of its command line. The cron token, the WhatsApp API key and the push private key are now stored encrypted like the SMTP and SMS credentials; existing values were re-saved on the first request after the update. An external cron job may keep using `?token=`, but the header form (`X-Cron-Token`) is the documented one.
+- **Rich text keeps presentation only.** The editor's HTML (posts, league rules, event descriptions and messages) may carry `style` for colour, alignment, fonts, sizes, indents, widths and table borders, and nothing else: no `class`, no `id`, and no property that positions, layers, hides or loads (so a stored post cannot lay an invisible overlay over the page or borrow the site's own dialog styling). Existing content is unchanged until it is saved again.
+
+### Infrastructure
+
+- **Jodit updated to 4.18.10** (from 4.2.7, which has published sanitizer bypasses; the server re-sanitises everything, so the risk was self-inflicted markup, but the editor was four years behind). The entrypoint now pins the version and re-downloads when it changes, so a future bump reaches an install whose copy already exists, and the editor's script and stylesheet tags carry a cache-buster.
+- **Apache and the container are sized together.** Twelve prefork workers inside a 384 MB memory limit, instead of twenty-five workers inside 192 MB, which the kernel could enforce by killing a worker mid-request (a 502) under a few concurrent uploads. A busier minute now queues requests instead. This release needs `docker compose down && docker compose up -d --build`.
+
 ## [v1.12.7] - 2026-10-26
 
 ### Security

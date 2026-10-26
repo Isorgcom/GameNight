@@ -326,6 +326,11 @@ function sms_log(string $direction, string $phone, string $body, ?string $provid
         $d = preg_replace('/\D/', '', $phone);
         if (strlen($d) === 11 && $d[0] === '1') $d = substr($d, 1);
         $digits = strlen($d) === 10 ? $d : null;
+        // The log keeps a copy of what we SENT with its codes and link tokens
+        // blanked (redact_secrets, db.php): a verification code or a reset
+        // link is good for minutes, the log for ninety days. Inbound text is
+        // the guest's own words and is kept as received.
+        if ($direction === 'outbound') $body = redact_secrets($body);
         $db = get_db();
         $db->prepare('INSERT INTO sms_log (direction, phone, body, provider, status, error, raw_response, event_id, username, phone_digits) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
             ->execute([$direction, $phone, $body, $provider, $status, $error, $raw !== '' ? $raw : null, $ctx_eid, $ctx_user, $digits]);
