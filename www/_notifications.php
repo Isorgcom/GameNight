@@ -397,6 +397,7 @@ function approve_event_invitee(PDO $db, int $event_id, string $target, int $acto
     $db->prepare("UPDATE event_invites SET approval_status='approved' WHERE event_id=? AND LOWER(username)=LOWER(?)")
        ->execute([$event_id, $target]);
     db_log_activity($actor_id, "approve_invite for $target on event id: $event_id");
+    league_enrol_if_approved($db, $event_id, $target);
 
     $seatInfo = '';
     $ppRow = null;

@@ -32,9 +32,7 @@ $__redirect = trim((string)($_POST['redirect'] ?? ''));
 // Only accept local relative paths as redirect targets; reject protocol-relative
 // (//evil.com) and absolute URLs so this endpoint can't bounce an authenticated user
 // off-site. Empty stays empty so JSON response mode is preserved.
-if ($__redirect !== '' && (!str_starts_with($__redirect, '/') || str_starts_with($__redirect, '//') || str_starts_with($__redirect, '/\\'))) {
-    $__redirect = '/';
-}
+if ($__redirect !== '') $__redirect = safe_local_path($__redirect, '/');
 $__is_json  = ($__redirect === '');
 if ($__is_json) header('Content-Type: application/json');
 

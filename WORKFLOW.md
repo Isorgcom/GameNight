@@ -76,7 +76,7 @@ Disabled (403) when `allow_registration=0`.
 - Sends verification email
 - Rate-limited per IP
 - Links to `terms.php` / `privacy.php`
-- **AJAX:** `register_dl.php`
+- **AJAX:** none (the form posts to itself; the old `register_dl.php` copy was removed in v1.12.5)
 - **Linked from:** nav, `login.php`
 
 ### `www/verify_email.php` — Email Verification  · **TOKEN**
@@ -334,7 +334,7 @@ These are POST-only AJAX backends — they have no HTML view of their own. Liste
 | Endpoint | Owned by |
 |---|---|
 | `auth_dl.php` | `login.php`, `register.php`, `admin_settings.php` (backup) |
-| `register_dl.php` | `register.php` |
+
 | `calendar_dl.php` | `calendar.php`, `my_events.php` |
 | `event_invites_dl.php` | `calendar.php` |
 | `checkin_dl.php` | `checkin.php`, `walkin.php` |

@@ -157,12 +157,15 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     // host sees a pending row and can approve or deny. For brand-new walk-in users
                     // (the main `else` block far below) we still honor the event's requires_approval
                     // setting because those identifiers don't belong to anyone yet.
-                    $db->prepare("INSERT INTO event_invites (event_id, username, user_id, email, rsvp, approval_status) VALUES (?, ?, ?, ?, ?, 'pending')")
+                    $db->prepare("INSERT INTO event_invites (event_id, username, user_id, email, rsvp, approval_status) VALUES (?, ?, ?, ?, 'yes', 'pending')")
                        ->execute([$event_id, $username, $uid, $email]);
                     $effective_approval = 'pending';
                     $is_new_pending = true;
                 }
-                auto_add_to_league($db, $event_id, $uid);
+                // League membership follows the host's decision: an approved walk-in
+                // joins now, a pending one when the host approves (see
+                // league_enrol_if_approved()), a denied one never.
+                if ($effective_approval === 'approved') auto_add_to_league($db, $event_id, $uid);
                 db_log_anon_activity("walkin_rsvp: existing user $username for event $event_id" . ($effective_approval !== 'approved' ? ' (waiting list)' : ''));
 
                 // Remember for next walk-up (30 days)
@@ -249,7 +252,7 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     $db->prepare('INSERT INTO event_invites (event_id, username, user_id, email, phone, rsvp, approval_status) VALUES (?, ?, ?, ?, ?, ?, ?)')
                        ->execute([$event_id, $final_username, $new_id, $has_email ? $email : null, $has_phone ? $phone_normalized : null, 'yes', $new_walkin_approval]);
 
-                    auto_add_to_league($db, $event_id, $new_id);
+                    if ($new_walkin_approval === 'approved') auto_add_to_league($db, $event_id, $new_id);
                     db_log_anon_activity("walkin_new_user: $final_username for event $event_id" . ($new_walkin_approval === 'pending' ? ' (waiting list)' : ''));
 
                     // Soft verification send. Email path: link goes to reset_password.php so they

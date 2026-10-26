@@ -766,6 +766,7 @@ if ($action === 'toggle_buyin') {
                 $db->prepare("UPDATE event_invites SET approval_status = 'approved' WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL")
                    ->execute([$session['event_id'], $pname]);
                 pk_log($db, (int)$session['id'], (int)$current['id'], 'approve', $player_id, $pname, null, 'Auto-approved by buy-in');
+                league_enrol_if_approved($db, (int)$session['event_id'], $pname);
             }
             if (($invRow['rsvp'] ?? '') !== 'yes') {
                 $db->prepare("UPDATE event_invites SET rsvp = 'yes' WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL")
@@ -1388,6 +1389,7 @@ if (in_array($action, ['approve_player', 'deny_player'], true)) {
        ->execute([$newStatus, $session['event_id'], $pRow['display_name']]);
 
     if ($newStatus === 'approved') {
+        league_enrol_if_approved($db, (int)$session['event_id'], $pRow['display_name']);
         // Assign table/seat if not already assigned
         $assigned_table = auto_assign_table($db, $session['id'], $player_id);
 
@@ -1572,6 +1574,7 @@ if ($action === 'update_rsvp') {
     if ($pRow) {
         $db->prepare("UPDATE event_invites SET rsvp = ?, approval_status = 'approved' WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL")
            ->execute([$rsvp, $session['event_id'], $pRow['display_name']]);
+        league_enrol_if_approved($db, (int)$session['event_id'], $pRow['display_name']);
     }
 
     $p = $db->prepare('SELECT * FROM poker_players WHERE id = ?');

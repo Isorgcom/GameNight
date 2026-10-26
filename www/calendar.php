@@ -282,7 +282,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         exit;
                     }
                     $_SESSION['flash'] = ['type' => 'error', 'msg' => 'You are not on this event.'];
-                    header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '/calendar.php'));
+                    header('Location: ' . referer_local_path('/calendar.php'));
                     exit;
                 }
             }
@@ -298,7 +298,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     exit;
                 }
                 $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Your spot for this event is waiting for the host to approve.'];
-                header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '/calendar.php'));
+                header('Location: ' . referer_local_path('/calendar.php'));
                 exit;
             }
             // Host action implicitly approves the row.
@@ -334,6 +334,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $db->prepare("UPDATE event_invites SET rsvp=? {$approval_clause} WHERE event_id=? AND $invWhere AND occurrence_date IS NULL")
                    ->execute([$rsvp, $eid, $invKey]);
             }
+            // A host answering for a guest approves the row; on a league event
+            // that is the moment the guest joins the league.
+            if ($on_behalf) league_enrol_if_approved($db, $eid, $target_username);
             db_log_activity($current['id'], "updated RSVP for event id: $eid" . ($occDate ? " on $occDate" : '') . ($on_behalf ? " (on behalf of $target_username)" : ''));
 
             // Notify the event owner AND every per-event manager if the RSVP

@@ -1163,7 +1163,7 @@ curl -X POST -H 'Authorization: Bearer YOUR_WRITE_KEY' \
 | `description` | string, optional | Plain text. |
 | `color` | hex string, optional | One of `#2563eb`, `#16a34a`, `#dc2626`, `#d97706`, `#7c3aed`, `#0891b2`, `#db2777`. Default `#2563eb`. |
 | `is_poker` | boolean, optional | Default `false`. When `true`, a `poker_sessions` row is auto-created and the waitlist applies. |
-| `requires_approval` | boolean, optional | Default `false`. Gates self-signups via walk-in / RSVP. Does **not** affect API-supplied `invitees` (those are always approved). |
+| `requires_approval` | boolean, optional | Default `false`. Gates self-signups via walk-in / RSVP; on a league event a walk-in joins the league only once approved. Does **not** affect API-supplied `invitees` (those are always approved). |
 | `rsvp_deadline_hours` | integer, optional | Hours before `start_at` when RSVPs lock. |
 | `waitlist_enabled` | boolean, optional | Default `true`. Only meaningful when `is_poker=true`. |
 | `reminders_enabled` | boolean, optional | Default `true`. |

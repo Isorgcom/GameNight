@@ -327,6 +327,7 @@ function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allo
             if ((int)$prev->fetchColumn() === 1) {
                 $db->prepare("UPDATE event_invites SET approval_status='approved' WHERE event_id=? AND approval_status='pending'")
                    ->execute([$id]);
+                league_enrol_if_approved($db, (int)$id);
             }
         }
         // Capture old start to decide if we need to re-queue reminders

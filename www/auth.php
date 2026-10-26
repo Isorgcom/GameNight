@@ -650,35 +650,9 @@ function register_user(string $username, string $email, string $password, string
     $id = (int)$db->lastInsertId();
     db_log_activity($id, "registered (verify via $verify_method)");
 
-    // Claim any pending league contact rows that match this email or phone —
-    // they become a linked member of each league immediately.
-    try {
-        if ($email !== '') {
-            $db->prepare(
-                "UPDATE league_members
-                 SET user_id = ?, contact_name = NULL, contact_email = NULL, contact_phone = NULL, invite_token = NULL
-                 WHERE user_id IS NULL AND LOWER(contact_email) = LOWER(?)"
-            )->execute([$id, $email]);
-        }
-        if ($phone !== '') {
-            $nph = normalize_phone($phone);
-            $db->prepare(
-                "UPDATE league_members
-                 SET user_id = ?, contact_name = NULL, contact_email = NULL, contact_phone = NULL, invite_token = NULL
-                 WHERE user_id IS NULL AND contact_phone = ?"
-            )->execute([$id, $nph]);
-        }
-        // Claim any pending personal-contact rows that match this email/phone
-        if ($email !== '') {
-            $db->prepare("UPDATE user_contacts SET linked_user_id = ? WHERE linked_user_id IS NULL AND LOWER(contact_email) = LOWER(?)")
-               ->execute([$id, $email]);
-        }
-        if ($phone !== '') {
-            $nph2 = normalize_phone($phone);
-            $db->prepare("UPDATE user_contacts SET linked_user_id = ? WHERE linked_user_id IS NULL AND contact_phone = ?")
-               ->execute([$id, $nph2]);
-        }
-    } catch (Exception $e) { /* non-fatal */ }
+    // Pending league and contact rows that carry this email or phone are claimed
+    // only once the address is PROVEN: see claim_verified_contact(), called by
+    // the verification pages. Until then anyone could have typed it (audit M6).
 
     // Send verification based on chosen method
     if ($verify_method === 'email') {
@@ -762,6 +736,9 @@ function verify_code(int $user_id, string $code): string {
     // Success — mark code used and verify the user
     $db->prepare('UPDATE phone_verifications SET used=1 WHERE id=?')->execute([$row['id']]);
     $db->prepare('UPDATE users SET email_verified=1, phone_verified=1 WHERE id=?')->execute([$user_id]);
+    // The phone is what was just proven; pending rows carrying it are claimed now.
+    $pc = $db->prepare('SELECT phone FROM users WHERE id = ?'); $pc->execute([$user_id]);
+    if ($pcPhone = $pc->fetchColumn()) claim_verified_contact($user_id, '', (string)$pcPhone);
     db_log_activity($user_id, 'phone verified');
 
     return 'ok';
@@ -889,6 +866,62 @@ function mfa_recovery_codes_remaining(int $user_id): int {
     $stmt = get_db()->prepare('SELECT COUNT(*) FROM mfa_recovery_codes WHERE user_id = ? AND used = 0');
     $stmt->execute([$user_id]);
     return (int)$stmt->fetchColumn();
+}
+
+/**
+ * Link an account to the pending league_members and user_contacts rows that
+ * carry an email or phone it has just PROVEN: the verification link or code,
+ * the Surge code in Settings, or an admin vouching for an imported account.
+ * Never at registration, where the address is only a claim.
+ */
+function claim_verified_contact(int $user_id, string $email = '', string $phone = ''): void {
+    if ($user_id <= 0) return;
+    $db    = get_db();
+    $email = strtolower(trim($email));
+    $phone = $phone !== '' ? normalize_phone(trim($phone)) : '';
+    try {
+        if ($email !== '') {
+            $db->prepare("UPDATE league_members
+                          SET user_id = ?, contact_name = NULL, contact_email = NULL, contact_phone = NULL, invite_token = NULL
+                          WHERE user_id IS NULL AND LOWER(contact_email) = LOWER(?)")->execute([$user_id, $email]);
+            $db->prepare("UPDATE user_contacts SET linked_user_id = ? WHERE linked_user_id IS NULL AND LOWER(contact_email) = LOWER(?)")
+               ->execute([$user_id, $email]);
+        }
+        if ($phone !== '') {
+            $db->prepare("UPDATE league_members
+                          SET user_id = ?, contact_name = NULL, contact_email = NULL, contact_phone = NULL, invite_token = NULL
+                          WHERE user_id IS NULL AND contact_phone = ?")->execute([$user_id, $phone]);
+            $db->prepare("UPDATE user_contacts SET linked_user_id = ? WHERE linked_user_id IS NULL AND contact_phone = ?")
+               ->execute([$user_id, $phone]);
+        }
+    } catch (Exception $e) { /* non-fatal: a claim never blocks a verification */ }
+}
+
+/**
+ * A redirect target this site will follow: a single leading slash and then
+ * printable ASCII only. "//host", "/\host" and "/<tab>/host" (which browsers
+ * fold into "//host") are refused, as is anything absolute; $default comes
+ * back instead. Empty input returns $default too, so pass '' as the default
+ * where empty means "no redirect".
+ */
+function safe_local_path(string $value, string $default = '/'): string {
+    if ($value === '' || strlen($value) > 2048) return $default;
+    return preg_match('#^/(?![/\\\\])[\x21-\x7E]*$#', $value) ? $value : $default;
+}
+
+/**
+ * The referring page as a local path (path and query) when it is on this
+ * host, else $default. For the "go back where you were" redirects.
+ */
+function referer_local_path(string $default = '/'): string {
+    $ref = (string)($_SERVER['HTTP_REFERER'] ?? '');
+    if ($ref === '') return $default;
+    $p = parse_url($ref);
+    if (!$p || empty($p['host'])) return $default;
+    $host = strtolower((string)$p['host']) . (isset($p['port']) ? ':' . $p['port'] : '');
+    if ($host !== strtolower((string)($_SERVER['HTTP_HOST'] ?? ''))) return $default;
+    $path = (string)($p['path'] ?? '/') . (isset($p['query']) ? '?' . $p['query'] : '');
+    return safe_local_path($path, $default);
 }
 
 /**

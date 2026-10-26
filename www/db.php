@@ -3484,6 +3484,25 @@ function auto_add_to_league(PDO $db, int $event_id, int $user_id): void {
 }
 
 /**
+ * On a league event, an APPROVED invite that has an account is a league
+ * member; a pending or denied one is not. Called wherever an invite becomes
+ * approved (the host approving a walk-in or self sign-up, the console's
+ * buy-in and roster actions, the requires-approval switch turned off), for
+ * one roster name or, with null, every approved row of the event. A walk-in
+ * used to join the league the moment it arrived, denied or not (audit M3).
+ */
+function league_enrol_if_approved(PDO $db, int $event_id, ?string $username = null): void {
+    if ($event_id <= 0) return;
+    $sql  = "SELECT DISTINCT user_id FROM event_invites
+             WHERE event_id = ? AND occurrence_date IS NULL AND approval_status = 'approved' AND user_id IS NOT NULL";
+    $args = [$event_id];
+    if ($username !== null) { $sql .= ' AND LOWER(username) = LOWER(?)'; $args[] = $username; }
+    $q = $db->prepare($sql);
+    $q->execute($args);
+    foreach ($q->fetchAll(PDO::FETCH_COLUMN) as $uid) auto_add_to_league($db, $event_id, (int)$uid);
+}
+
+/**
  * Auto-add a custom invitee to a league as a pending contact (or as a real member if
  * their email/phone already matches a registered user). Called from the event save path
  * so inviting someone to a league event surfaces them on the league Members tab.

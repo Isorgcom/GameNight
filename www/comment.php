@@ -14,8 +14,7 @@ if (!$user) {
 // single "/" not followed by "/" or "\", so protocol-relative targets like //evil.com
 // (a redirect off-site) are rejected. The previous pattern used "*" and so matched
 // "//evil.com" by consuming zero chars after the slash.
-$redirect = $_POST['redirect'] ?? '/';
-if (!preg_match('#^/(?![/\\\\])#', $redirect)) $redirect = '/';
+$redirect = safe_local_path(is_string($_POST['redirect'] ?? null) ? $_POST['redirect'] : '', '/');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !csrf_verify()) {
     header('Location: ' . $redirect);
