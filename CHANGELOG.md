@@ -11,6 +11,8 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.13.0] - 2026-10-27
+
 ### Added
 
 - **A league can know its members by name.** A member's account has a screen name, and that is all a league could show, so a host who added "Mike Rivera" to the roster saw "pokerking77" on the Members tab, the standings and the player pages once Mike linked his account, and the typed name was gone. Each membership now carries a **Known as** name (`league_members.known_as`) that owners and managers set on the Members tab (a new column, saved as you type like the other cells) and every member of the league sees as "screen name (known as)" wherever the league shows its people: the Members tab, the standings and champion line, the player history page, post and comment authors on the league page, the event editor's guest lists, the event page's guest lists, comments and the host's invite panel, the check-in console (roster, table view, payouts, prompts and the walk-in suggestions), the table manager, and the members export. When a pending contact links their account, the name the host typed becomes the known-as name on its own. The public league page keeps screen names, and the API's member list gains a `known_as` field.
