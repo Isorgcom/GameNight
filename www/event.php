@@ -136,7 +136,7 @@ if ($token === '' && $page_eid > 0) {
     } catch (Exception $e) { /* pre-migration DB */ }
 
     // Comments (registered users only, newest last — same order as the modal)
-    $cq = $db->prepare("SELECT c.id, c.user_id, c.body, c.created_at, u.username, u.avatar_path
+    $cq = $db->prepare("SELECT c.id, c.user_id, c.body, c.attachment, c.created_at, u.username, u.avatar_path
                         FROM comments c JOIN users u ON u.id = c.user_id
                         WHERE c.type = 'event' AND c.content_id = ?
                         ORDER BY c.created_at ASC, c.id ASC");
@@ -470,6 +470,20 @@ if ($token === '' && $page_eid > 0) {
         </div>
         <?php endif; ?>
 
+        <?php
+        // The league's known-as names (v1.13.0), keyed by the lower-cased roster
+        // name, for the guest lists and the host's panel; empty off a league event.
+        $rosterKnown = [];
+        if (!empty($ev['league_id'])) {
+            try {
+                $rk = $db->prepare("SELECT LOWER(i.username) AS n, lm.known_as FROM event_invites i
+                                    JOIN league_members lm ON lm.user_id = i.user_id AND lm.league_id = ?
+                                    WHERE i.event_id = ? AND i.occurrence_date IS NULL AND lm.known_as IS NOT NULL AND lm.known_as <> ''");
+                $rk->execute([(int)$ev['league_id'], $page_eid]);
+                foreach ($rk->fetchAll() as $r) { if (strcasecmp((string)$r['known_as'], (string)$r['n']) !== 0) $rosterKnown[$r['n']] = (string)$r['known_as']; }
+            } catch (Throwable $e) {}
+        }
+        ?>
         <!-- Who's coming: managers get the live panel (delivery status, approvals,
              on-behalf RSVPs — ported from the old calendar popup); guests keep the
              simple name list, honoring hide_guest_list. -->
@@ -489,10 +503,10 @@ if ($token === '' && $page_eid > 0) {
                 foreach ($ra->fetchAll() as $r) $rosterAvatars[$r['n']] = $r['avatar_path'];
             } catch (Throwable $e) {}
             ?>
-            <?= ev_names_block('Going', $going, '#16a34a', $rosterAvatars)
-              . ev_names_block('Maybe', $maybe, '#d97706', $rosterAvatars)
-              . ev_names_block('Invited', $pendingR, '#64748b', $rosterAvatars)
-              . ev_names_block("Can't make it", $declined, '#94a3b8', $rosterAvatars) ?>
+            <?= ev_names_block('Going', $going, '#16a34a', $rosterAvatars, $rosterKnown)
+              . ev_names_block('Maybe', $maybe, '#d97706', $rosterAvatars, $rosterKnown)
+              . ev_names_block('Invited', $pendingR, '#64748b', $rosterAvatars, $rosterKnown)
+              . ev_names_block("Can't make it", $declined, '#94a3b8', $rosterAvatars, $rosterKnown) ?>
         </div>
         <?php elseif (count($going) > 0): ?>
         <div style="margin-top:1.25rem;padding-top:1.1rem;border-top:1px solid #e2e8f0;font-size:.9rem;color:#475569">
@@ -546,7 +560,7 @@ if ($token === '' && $page_eid > 0) {
             <div class="evp-comment" id="evc-<?= (int)$c['id'] ?>" style="display:flex;gap:.5rem;align-items:flex-start">
                 <?= avatar_html($c['username'], $c['avatar_path'] ?? null, 28) ?>
                 <div style="flex:1;min-width:0">
-                    <span class="who"><?= htmlspecialchars($c['username']) ?></span><span class="when"><?= htmlspecialchars($c['created_at']) ?></span>
+                    <span class="who"><?= htmlspecialchars($c['username']) ?><?= isset($rosterKnown[strtolower((string)$c['username'])]) ? ' <span class="pk-known" title="Known as in the league">(' . htmlspecialchars($rosterKnown[strtolower((string)$c['username'])]) . ')</span>' : '' ?><?= '' ?></span><span class="when"><?= htmlspecialchars($c['created_at']) ?></span>
                     <?php if ($canModC): ?>
                     <span style="float:right;display:inline-flex;gap:.3rem">
                         <button type="button" title="Edit" data-act="editComment" data-a1="<?= (int)$c['id'] ?>" style="background:none;border:0;color:#94a3b8;cursor:pointer;font-size:.85rem;padding:0">&#9998;</button>
@@ -554,16 +568,22 @@ if ($token === '' && $page_eid > 0) {
                     </span>
                     <?php endif; ?>
                     <div class="body" id="evcb-<?= (int)$c['id'] ?>"><?= htmlspecialchars($c['body']) ?></div>
+                    <?= pictures_html(attachment_list($c['attachment'] ?? null), COMMENT_UPLOAD_URL) ?>
                 </div>
             </div>
             <?php endforeach; ?>
-            <form method="post" action="/comment.php" style="margin-top:.75rem;display:flex;gap:.5rem;align-items:flex-start">
+            <form method="post" action="/comment.php" enctype="multipart/form-data" id="evCommentForm" class="cm-form" style="margin-top:.75rem;display:flex;gap:.5rem;align-items:flex-start;flex-wrap:wrap">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
                 <input type="hidden" name="action" value="add">
                 <input type="hidden" name="type" value="event">
                 <input type="hidden" name="content_id" value="<?= $page_eid ?>">
                 <input type="hidden" name="redirect" value="<?= htmlspecialchars($selfUrl) ?>">
-                <textarea name="body" required maxlength="2000" placeholder="Write a comment…" rows="2" style="flex:1;padding:.5rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.9rem"></textarea>
+                <div class="cm-compose" style="flex:1;min-width:200px">
+                    <textarea name="body" id="evCommentBody" class="cm-body" maxlength="2000" placeholder="Write a comment… (paste a screenshot to attach it)" rows="2"></textarea>
+                    <div class="cm-thumbs" hidden></div>
+                </div>
+                <input type="file" name="image[]" class="cm-file" accept="image/jpeg,image/png,image/gif,image/webp" multiple hidden>
+                <button type="button" class="btn btn-secondary cm-pick" title="Attach pictures" aria-label="Attach pictures" style="min-width:44px;font-size:1.1rem">&#128247;</button>
                 <button type="submit" class="btn btn-primary">Post</button>
             </form>
         </div>
@@ -709,6 +729,7 @@ function evpCopyLink(btn) {
 // </body> blocks and the trailing one belongs to a render branch that a normal
 // event view never reaches, so the helper was undefined and the control dead.
 function copyEventLinkAndClose(el) { evpCopyLink(el); toggleEvMore(); }
+// Comment pictures: the form is a .cm-form served by pk-comment-pic.js (footer).
 async function deleteComment(id) {
     if (!(await pkConfirm('Delete this comment?'))) return;
     var fd = new FormData();
@@ -800,6 +821,8 @@ async function editComment(id) {
 var NOTIFS_ON   = <?= $notifsEnabled ? 'true' : 'false' ?>;
 var ALLOW_MAYBE = <?= $allowMaybe ? 'true' : 'false' ?>;
 var invBase = [], invQueue = {}, sawPending = false;
+var EV_KNOWN = <?= js_json($rosterKnown ?? [], JSON_FORCE_OBJECT) ?>;   // lower(roster name) -> the league's known-as name
+function knownTag(name) { var k = EV_KNOWN[String(name || '').toLowerCase()]; return k ? ' <span class="pk-known" title="Known as in the league">(' + escH(k) + ')</span>' : ''; }
 function escH(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 function renderInvPanel() {
@@ -859,7 +882,7 @@ function renderInvPanel() {
         ih += '<div style="display:flex;flex-direction:column;gap:.2rem;max-height:14rem;overflow-y:auto;padding-right:.25rem">';
         approved.forEach(function(inv) {
             ih += '<div style="font-size:.875rem;color:#334155;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">' + rsvpSel(inv)
-                + '<span style="flex:1;min-width:0">' + escH(inv.username)
+                + '<span style="flex:1;min-width:0">' + escH(inv.username) + knownTag(inv.username)
                 + (inv.no_contact ? ' <span class="inv-nocontact-tag" title="No email or phone on file">no contact</span>' : '') + '</span>';
             if (inv.delivery === 'failed') {
                 ih += '<span title="' + escH(inv.delivery_error || 'Delivery failed') + '" style="font-size:.68rem;font-weight:700;color:#dc2626;background:#fef2f2;border:1px solid #fecaca;border-radius:5px;padding:.1rem .4rem;cursor:help">&#10007; failed</span>';
@@ -881,7 +904,7 @@ function renderInvPanel() {
         ih += '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#d97706;margin-top:.7rem;margin-bottom:.4rem">&#9203; Pending Approval (' + pending.length + ')</div>';
         pending.forEach(function(inv) {
             ih += '<div style="font-size:.875rem;color:#334155;display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;background:#fefce8;border:1px solid #fde68a;border-radius:6px;padding:.35rem .5rem;margin-bottom:.3rem">'
-                + '<span style="flex:1;min-width:0">' + escH(inv.username) + '</span>'
+                + '<span style="flex:1;min-width:0">' + escH(inv.username) + knownTag(inv.username) + '</span>'
                 + '<button type="button" class="btn-approve-inv" data-username="' + escH(inv.username) + '" style="font-size:.75rem;padding:.2rem .55rem;border-radius:5px;border:0;background:#16a34a;color:#fff;font-weight:600;cursor:pointer">Approve</button>'
                 + '<button type="button" class="btn-deny-inv" data-username="' + escH(inv.username) + '" style="font-size:.75rem;padding:.2rem .55rem;border-radius:5px;border:0;background:#dc2626;color:#fff;font-weight:600;cursor:pointer">Deny</button></div>';
         });
@@ -1125,14 +1148,15 @@ $btn_meta  = [
     'no'    => ['No',    '#dc2626'],
 ];
 
-function ev_names_block(string $label, array $names, string $color, array $avatars = []): string {
+function ev_names_block(string $label, array $names, string $color, array $avatars = [], array $known = []): string {
     if (empty($names)) return '';
     $out  = '<div style="margin-top:1rem"><div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:' . $color . ';margin-bottom:.35rem">'
           . htmlspecialchars($label) . ' (' . count($names) . ')</div>';
     $out .= '<div style="display:flex;flex-wrap:wrap;gap:.35rem">';
     foreach ($names as $n) {
         $av = $avatars ? avatar_html($n, $avatars[strtolower($n)] ?? null, 20) . ' ' : '';
-        $out .= '<span style="display:inline-flex;align-items:center;gap:.35rem;font-size:.85rem;color:#334155;background:#f1f5f9;border-radius:999px;padding:.2rem .7rem .2rem ' . ($av ? '.3rem' : '.7rem') . '">' . $av . htmlspecialchars($n) . '</span>';
+        $kn = $known[strtolower($n)] ?? '';
+        $out .= '<span style="display:inline-flex;align-items:center;gap:.35rem;font-size:.85rem;color:#334155;background:#f1f5f9;border-radius:999px;padding:.2rem .7rem .2rem ' . ($av ? '.3rem' : '.7rem') . '">' . $av . htmlspecialchars($n) . ($kn !== '' ? ' <span class="pk-known" title="Known as in the league">(' . htmlspecialchars($kn) . ')</span>' : '') . '</span>';
     }
     return $out . '</div></div>';
 }

@@ -131,6 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
+            comment_unlink_attachments($db, "type='post' AND content_id = ?", [$id]);
             $db->prepare("DELETE FROM comments WHERE type='post' AND content_id=?")->execute([$id]);
             $db->prepare('DELETE FROM posts WHERE id=?')->execute([$id]);
             db_log_activity($current['id'], "deleted post: $title" . ($imgs_deleted ? " ($imgs_deleted image(s) removed)" : ''));
@@ -168,6 +169,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
+            comment_unlink_attachments($db, "type='post' AND content_id = ?", [$id]);
             $db->prepare("DELETE FROM comments WHERE type='post' AND content_id=?")->execute([$id]);
             $db->prepare('DELETE FROM posts WHERE id=?')->execute([$id]);
             $deleted++;

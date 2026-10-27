@@ -72,7 +72,7 @@ $messages = [];
 if ($conv) {
     $me = dm_participant($db, (int)$conv['id'], $uid);
     $mark = max((int)($me['cleared_before_id'] ?? 0), 0);
-    $q = $db->prepare('SELECT m.id, m.sender_id, m.body, m.created_at, u.username, u.avatar_path
+    $q = $db->prepare('SELECT m.id, m.sender_id, m.body, m.attachment, m.created_at, u.username, u.avatar_path
                        FROM dm_messages m JOIN users u ON u.id = m.sender_id
                        WHERE m.conversation_id = ? AND m.id > ? ORDER BY m.id');
     $q->execute([(int)$conv['id'], $mark]);
@@ -126,10 +126,17 @@ $lastId = $messages ? (int)end($messages)['id'] : 0;
         .dt-bubble.theirs { background:#f1f5f9; color:#1e293b; align-self:flex-start; border-bottom-left-radius:4px; }
         .dt-bubble.mine { background:#2563eb; color:#fff; align-self:flex-end; border-bottom-right-radius:4px; }
         .dt-bubble a { color:inherit; text-decoration:underline; word-break:break-all; }
+        /* Pictures in a bubble (.pk-pics, style.css) and the composer: the box
+           holds the text AND the pictures being attached (.cm-compose / .cm-thumbs,
+           shared with the comment boxes). */
+        .dt-bubble a.pk-pic { text-decoration:none; }
+        .dt-compose { flex:1; min-width:0; }
+        #dtAttach { min-width:44px; font-size:1.1rem; }
         .dt-sender { font-size:.68rem; font-weight:700; color:#7c3aed; margin-bottom:.15rem; display:flex; align-items:center; gap:.3rem; }
         .dt-when { font-size:.65rem; opacity:.65; margin-top:.2rem; }
         .dt-form { display:flex; gap:.5rem; align-items:flex-end; }
-        .dt-form textarea { flex:1; min-height:64px; padding:.5rem .7rem; border:1.5px solid #e2e8f0; border-radius:10px; font-size:.9rem; font-family:inherit; resize:vertical; }
+        .dt-form textarea { flex:1; min-height:64px; padding:.5rem .7rem; border:0; font-size:.9rem; font-family:inherit; resize:vertical; width:100%; box-sizing:border-box; background:transparent; }
+        .dt-form textarea:focus { outline:none; }
         .dt-add-card { display:none; background:#faf5ff; border:1.5px solid #ddd6fe; border-radius:10px; padding:.6rem .8rem; margin-bottom:.9rem; }
         .dt-add-card.open { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
         .dt-add-card select { flex:1; min-width:180px; padding:.4rem .55rem; border:1.5px solid #ddd6fe; border-radius:8px; font-size:.88rem; }
@@ -183,12 +190,17 @@ $lastId = $messages ? (int)end($messages)['id'] : 0;
             try { $when = (new DateTime((string)$m['created_at'], $utc_tz))->setTimezone($viewer_tz)->format('M j g:ia'); }
             catch (Throwable $e) { $when = ''; }
         ?>
-        <div class="dt-bubble <?= $mine ? 'mine' : 'theirs' ?>"><?php if ($isGroup && !$mine): ?><div class="dt-sender"><?= avatar_html($m['username'], $m['avatar_path'] ?? null, 16) ?> <?= htmlspecialchars($m['username']) ?></div><?php endif; ?><?= dm_linkify($m['body']) ?><div class="dt-when"><?= htmlspecialchars($when) ?></div></div>
+        <div class="dt-bubble <?= $mine ? 'mine' : 'theirs' ?>"><?php if ($isGroup && !$mine): ?><div class="dt-sender"><?= avatar_html($m['username'], $m['avatar_path'] ?? null, 16) ?> <?= htmlspecialchars($m['username']) ?></div><?php endif; ?><?= dm_linkify($m['body']) ?><?= pictures_html(attachment_list($m['attachment'] ?? null), DM_UPLOAD_URL) ?><div class="dt-when"><?= htmlspecialchars($when) ?></div></div>
         <?php endforeach; endif; ?>
     </div>
 
     <div class="dt-form">
-        <textarea id="dtBody" maxlength="4000" placeholder="Write a message&hellip;"></textarea>
+        <div class="dt-compose cm-compose">
+            <textarea id="dtBody" maxlength="4000" placeholder="Write a message&hellip; (paste a screenshot to attach it)"></textarea>
+            <div class="cm-thumbs" id="dtThumbs" hidden></div>
+        </div>
+        <input type="file" id="dtFile" accept="image/jpeg,image/png,image/gif,image/webp" multiple hidden data-act-change="pictureChosen" data-a1="@self">
+        <button class="btn btn-secondary" type="button" id="dtAttach" data-act="pickPicture" title="Attach a picture" aria-label="Attach a picture">&#128247;</button>
         <button class="btn" type="button" id="dtSend" data-act="sendMsg" data-a1="@self">Send</button>
     </div>
 </div>
@@ -205,7 +217,7 @@ function post(data) {
     fd.append('csrf_token', CSRF);
     if (CONV) fd.append('conv_id', CONV);
     else fd.append('user_id', OTHER);
-    for (var k in data) fd.append(k, data[k]);
+    for (var k in data) fd.append(/^image\[\d+\]$/.test(k) ? 'image[]' : k, data[k]);
     return fetch('/messages_dl.php', { method: 'POST', body: fd, credentials: 'same-origin' }).then(function(r) { return r.json(); });
 }
 
@@ -230,7 +242,14 @@ function appendBubble(m) {
         var av = (typeof window.gnAvatarHtml === 'function') ? window.gnAvatarHtml(m.sender, m.avatar_path, 16) + ' ' : '';
         html += '<div class="dt-sender">' + av + senderEsc + '</div>';
     }
-    html += linkify(m.body);
+    html += linkify(m.body || '');
+    if (m.attachments && m.attachments.length) {
+        // The URLs are the server's own paths; escaped like everything else that lands in markup.
+        html += '<div class="pk-pics">' + m.attachments.map(function (a) {
+            var u = String(a).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+            return '<a class="pk-pic" href="' + u + '" target="_blank" rel="noopener"><img src="' + u + '" alt="Picture" loading="lazy"></a>';
+        }).join('') + '</div>';
+    }
     d.innerHTML = html;
     var w = document.createElement('div');
     w.className = 'dt-when';
@@ -240,14 +259,56 @@ function appendBubble(m) {
     d.scrollIntoView({ block: 'nearest' });
 }
 
+// Pictures ride with a message (up to six): picked with the 📷 button, or
+// pasted into the box (a screenshot, say). They show as thumbnails INSIDE the
+// box, each with an ×, until Send. Checked here as the server checks them, so
+// a refusal is instant; the preview is a data: URL (the CSP allows those for
+// images, and not blob:).
+var PENDING_FILES = [];
+var MAX_PICS = 6;
+function pickPicture() { document.getElementById('dtFile').click(); }
+function pictureChosen(inp) { if (inp && inp.files && inp.files.length) { addPictures(inp.files); inp.value = ''; } }
+function addPictures(list) {
+    for (var i = 0; i < list.length; i++) {
+        var file = list[i];
+        if (!/^image\/(jpeg|png|gif|webp)$/.test(file.type || '')) { pkAlert('Only JPEG, PNG, GIF or WebP pictures can be attached.'); continue; }
+        if (file.size > 8 * 1024 * 1024) { pkAlert('A picture is too large (8 MB each at most).'); continue; }
+        if (PENDING_FILES.length >= MAX_PICS) { pkAlert('At most ' + MAX_PICS + ' pictures in one message.'); break; }
+        PENDING_FILES.push(file);
+    }
+    renderThumbs();
+}
+function removePicture(i) { PENDING_FILES.splice(i, 1); renderThumbs(); }
+function renderThumbs() {
+    var box = document.getElementById('dtThumbs');
+    box.innerHTML = '';
+    box.hidden = PENDING_FILES.length === 0;
+    PENDING_FILES.forEach(function (file, i) {
+        var t = document.createElement('div'); t.className = 'cm-thumb';
+        var img = document.createElement('img'); img.alt = file.name || 'Pasted picture'; img.title = img.alt;
+        var r = new FileReader(); r.onload = function () { img.src = String(r.result); }; r.readAsDataURL(file);
+        var x = document.createElement('button'); x.type = 'button'; x.className = 'cm-thumb-x'; x.setAttribute('aria-label', 'Remove ' + img.alt); x.textContent = '\u00d7';
+        x.setAttribute('data-act', 'removePicture'); x.setAttribute('data-a1', String(i));
+        t.appendChild(img); t.appendChild(x); box.appendChild(t);
+    });
+}
+function dropPicture() { PENDING_FILES = []; renderThumbs(); }
+document.getElementById('dtBody').addEventListener('paste', function (e) {
+    var files = e.clipboardData && e.clipboardData.files;
+    if (files && files.length && /^image\//.test(files[0].type || '')) { e.preventDefault(); addPictures(files); }
+});
+
 function sendMsg(btn) {
     var ta = document.getElementById('dtBody');
     var body = ta.value.trim();
-    if (!body) return;
-    var p = post({ action: 'send', body: body }).then(function(j) {
+    if (!body && !PENDING_FILES.length) return;
+    var data = { action: 'send', body: body };
+    PENDING_FILES.forEach(function (f, i) { data['image[' + i + ']'] = f; });
+    var p = post(data).then(function(j) {
         if (!j.ok) { pkAlert(j.error || 'Send failed.'); return; }
         ta.value = '';
-        appendBubble({ mine: true, body: body, when: 'now' });
+        appendBubble({ mine: true, body: body, attachments: j.attachments || [], when: 'now' });
+        dropPicture();
         if (j.id) LAST_ID = Math.max(LAST_ID, j.id);
         if (j.conv_id && !CONV) CONV = j.conv_id;
     });

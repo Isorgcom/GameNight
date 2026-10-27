@@ -545,10 +545,14 @@ function sync_invitees($db, $session_id, $event_id) {
 
 // Get all players for a session (excludes removed players), with approval_status from event_invites
 function get_players($db, $session_id) {
-    $stmt = $db->prepare("SELECT pp.*, COALESCE(ei.approval_status, 'approved') as approval_status
+    // known_as: the name the event's league knows the player by (v1.13.0),
+    // shown beside the roster name on the console; NULL off a league event.
+    $stmt = $db->prepare("SELECT pp.*, COALESCE(ei.approval_status, 'approved') as approval_status, lm.known_as
         FROM poker_players pp
         LEFT JOIN poker_sessions ps ON ps.id = pp.session_id
+        LEFT JOIN events e ON e.id = ps.event_id
         LEFT JOIN event_invites ei ON ei.event_id = ps.event_id AND LOWER(ei.username) = LOWER(pp.display_name) AND ei.occurrence_date IS NULL
+        LEFT JOIN league_members lm ON lm.league_id = e.league_id AND lm.user_id = pp.user_id AND pp.user_id IS NOT NULL
         WHERE pp.session_id = ? AND pp.removed = 0
         ORDER BY pp.eliminated ASC, LOWER(pp.display_name) ASC");
     $stmt->execute([$session_id]);

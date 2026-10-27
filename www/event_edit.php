@@ -687,6 +687,19 @@ const CAN_CREATE_EVENTS = <?= $canCreateEvents ? 'true' : 'false' ?>;
 const CURRENT_USER_ID   = <?= js_json($current['id'] ?? null, JSON_HEX_TAG) ?>;
 const EVENT             = <?= $event ? json_encode($event, JSON_HEX_TAG) : 'null' ?>;
 const EVENT_INVITES     = <?= js_json($eventInvitesRows, JSON_HEX_TAG) ?>;
+<?php
+// The event's league's known-as names by lower-cased screen name (v1.13.0),
+// for the invited list; the picker's rows carry their own known_as.
+$knownByName = [];
+if (!empty($event['league_id'])) {
+    try {
+        $kq = $db->prepare("SELECT LOWER(u.username) AS n, lm.known_as FROM league_members lm JOIN users u ON u.id = lm.user_id WHERE lm.league_id = ? AND lm.known_as IS NOT NULL AND lm.known_as <> ''");
+        $kq->execute([(int)$event['league_id']]);
+        foreach ($kq->fetchAll() as $r) { if (strcasecmp((string)$r['known_as'], (string)$r['n']) !== 0) $knownByName[$r['n']] = (string)$r['known_as']; }
+    } catch (Throwable $e) {}
+}
+?>
+const KNOWN_AS          = <?= js_json($knownByName, JSON_FORCE_OBJECT) ?>;
 const EVENT_POKER       = <?= $pokerRow ? json_encode($pokerRow, JSON_HEX_TAG) : 'null' ?>;
 const PREFILL_DATE      = <?= js_json($prefillDate, JSON_HEX_TAG) ?>;
 const LAST_POKER_DEFAULT = <?= ((int)($current['last_poker_default'] ?? 1)) ? 'true' : 'false' ?>;
@@ -767,6 +780,9 @@ function buildAllUsersList() {
         li.dataset.member   = u.is_league_member ? '1' : '0';
         li.setAttribute('role', 'option'); li.setAttribute('aria-selected', 'false'); li.tabIndex = -1;
         li.textContent = display;
+        if (u.known_as && String(u.known_as).toLowerCase() !== String(display).toLowerCase()) {
+            const kn = document.createElement('span'); kn.className = 'pk-known'; kn.title = 'Known as in the league'; kn.textContent = ' (' + u.known_as + ')'; li.appendChild(kn);
+        }
         if (u.is_pending) {
             const tag = document.createElement('span');
             tag.textContent = ' (pending)';
@@ -869,6 +885,8 @@ function inviteUser(username, phone, email, rsvp, role, approvalStatus) {
     const nameSpan = document.createElement('span');
     nameSpan.textContent = username;
     nameSpan.className = 'inv-name-text';
+    const knownName = (typeof KNOWN_AS === 'object' && KNOWN_AS) ? KNOWN_AS[String(username).toLowerCase()] : '';
+    if (knownName) { const kn = document.createElement('span'); kn.className = 'pk-known'; kn.title = 'Known as in the league'; kn.textContent = ' (' + knownName + ')'; nameSpan.appendChild(kn); }
     li.appendChild(nameSpan);
 
     // Clickable contact indicator: shows an email/phone glyph for whatever is on file (or

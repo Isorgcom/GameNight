@@ -71,6 +71,14 @@ function gdScrollBehavior() {
 // (pk-dialogs assigns innerHTML). Text-node round-trip plus explicit quote
 // escaping, same contract as checkin.php's escHtml. Never used in the render
 // path — everything there is textContent.
+// The league's own name for a player, after the roster name (textContent, so no escaping).
+// Name + known-as as text, and escaped for markup.
+function gdNameT(p) { return (p && p.display_name ? p.display_name : '') + knownAsSuffix(p); }
+function gdNameK(p) { return gdEsc(gdNameT(p)); }
+function knownAsSuffix(p) {
+    var k = p && p.known_as ? String(p.known_as).trim() : '';
+    return (k && k.toLowerCase() !== String(p.display_name || '').toLowerCase()) ? ' (' + k + ')' : '';
+}
 function gdEsc(s) {
     if (!s) return '';
     var div = document.createElement('div');
@@ -622,7 +630,7 @@ function renderLifecycle(force) {
         w.className = 'gd-strip gd-winner';
         var champ = PLAYERS.find(function (p) { return parseInt(p.finish_position) === 1; });
         var amt = payoutForPlace(1);
-        w.textContent = '🏆 ' + (champ ? champ.display_name : 'Winner') + ' wins'
+        w.textContent = '🏆 ' + (champ ? gdNameT(champ) : 'Winner') + ' wins'
                       + (amt > 0 ? ' — ' + gdMoney(amt) : '')
                       + ' · finish & payouts on the console';
         w.style.cursor = 'pointer';
@@ -680,7 +688,7 @@ function checkWalkinArrivals(list) {
     if (!fresh.length) return;
     var names = fresh.map(function (id) {
         var p = (list || []).find(function (x) { return parseInt(x.id) === id; });
-        return p ? p.display_name : 'Someone';
+        return p ? gdNameT(p) : 'Someone';
     });
     walkinToast(names.join(', ') + ' signed up — waiting for approval');
     walkinChirp();
@@ -693,7 +701,7 @@ window.gdApprove = function (pid) {
 };
 window.gdDeny = function (pid) {
     var p = playerById(pid);
-    pkConfirm('Deny ' + gdEsc(p ? p.display_name : 'this player') + '?', { okLabel: 'Deny' }).then(function (ok) {
+    pkConfirm('Deny ' + (p ? gdNameK(p) : 'this player') + '?', { okLabel: 'Deny' }).then(function (ok) {
         if (!ok) return;
         gdAction('deny_player', { player_id: pid }).then(function (j) {
             takePlayers(j.players); takePool(j.pool);
@@ -716,7 +724,7 @@ function renderPending() {
         var row = document.createElement('div');
         row.className = 'gd-pending-row';
         var name = document.createElement('span');
-        name.className = 'gd-pname'; name.textContent = p.display_name;
+        name.className = 'gd-pname'; name.textContent = p.display_name + knownAsSuffix(p);
         var ok = document.createElement('button');
         ok.type = 'button'; ok.className = 'gd-ok'; ok.textContent = 'Approve';
         ok.dataset.act = 'gdApprove'; ok.dataset.a1 = String(parseInt(p.id));
@@ -815,7 +823,7 @@ function buildRow(p) {
 function patchRow(els, p) {
     var pid = parseInt(p.id);
     var st = playerState(p);
-    els.name.textContent = p.display_name;
+    els.name.textContent = p.display_name + knownAsSuffix(p);
     els.root.classList.toggle('gd-out', playerDone(p));
     els.badge.className = 'gd-badge ' + st;
     var bits = [];
@@ -988,7 +996,7 @@ function renderSeats(view) {
             num.className = 'gd-seat-num';
             num.textContent = p.seat_number ? String(p.seat_number) : '—';
             var nm = document.createElement('span');
-            nm.className = 'gd-seat-name'; nm.textContent = p.display_name;
+            nm.className = 'gd-seat-name'; nm.textContent = gdNameT(p);
             row.appendChild(num); row.appendChild(nm);
             // A single-table game has nowhere to move anyone: the picker would
             // be an empty select whose OK silently does nothing.
@@ -1022,7 +1030,7 @@ window.gdRebalance = function () {
             var moves = j.moves || [];
             if (!moves.length) { pkAlert('No moves needed — tables are already balanced.'); return; }
             var lines = moves.map(function (m) {
-                return gdEsc(m.display_name) + '  ' + (m.old_table ? 'T' + m.old_table : 'unseated') + ' → T' + m.new_table;
+                return gdNameK(m) + '  ' + (m.old_table ? 'T' + m.old_table : 'unseated') + ' → T' + m.new_table;
             });
             pkAlert(lines.join('<br>'), { title: 'Players moved' });
         }).catch(gdErr);
@@ -1038,7 +1046,7 @@ window.gdMoveTable = function (pid) {
         if (parseInt(p.table_number) === t) continue;
         opts += '<option value="' + t + '">Table ' + t + '</option>';
     }
-    pkConfirm('Move <b>' + gdEsc(p.display_name) + '</b> to:<br>'
+    pkConfirm('Move <b>' + gdNameK(p) + '</b> to:<br>'
               + '<select id="gdMoveSel" style="margin-top:.4rem;padding:.45rem .5rem;border:1.5px solid #e2e8f0;border-radius:8px;width:100%;font-size:1rem">'
               + opts + '</select>',
               { title: 'Move player', okLabel: 'Move' }).then(function (ok) {
@@ -1116,7 +1124,7 @@ window.gdBuyIn = function (pid) {
     };
     if (ticket) {
         var val = parseInt(ticket.value_cents), buyin = parseInt(SESSION ? SESSION.buyin_amount : 0);
-        var msg = '<b>' + gdEsc(p.display_name) + '</b> holds a <b>' + gdMoney(val) + ' entry ticket</b> for this event. Apply it?';
+        var msg = '<b>' + gdNameK(p) + '</b> holds a <b>' + gdMoney(val) + ' entry ticket</b> for this event. Apply it?';
         if (buyin > val) msg += '<br><br>Collect the remaining <b>' + gdMoney(buyin - val) + '</b> in cash.';
         else if (val > buyin) msg += '<br><br>The extra <b>' + gdMoney(val - buyin) + '</b> joins this game’s prize pool.';
         pkConfirm(msg, { title: 'Entry Ticket', okLabel: 'Apply Ticket' }).then(function (ok) {
@@ -1130,7 +1138,7 @@ window.gdBuyIn = function (pid) {
 window.gdUndoBuyin = function (pid) {
     var p = playerById(pid);
     gdCloseSheet();
-    pkConfirm('Undo <b>' + gdEsc(p ? p.display_name : '') + '</b>’s buy-in? Their seat is released'
+    pkConfirm('Undo <b>' + (p ? gdNameK(p) : '') + '</b>’s buy-in? Their seat is released'
               + ' and any applied entry ticket is returned.', { okLabel: 'Undo buy-in' }).then(function (ok) {
         if (!ok) return;
         gdAction('toggle_buyin', { player_id: pid }).then(function (j) {
@@ -1150,7 +1158,7 @@ window.gdKO = function (pid) {
     // the authoritative place (two racing devices must not both claim 4th).
     var place = PLAYERS.filter(function (x) { return !parseInt(x.eliminated) && parseInt(x.bought_in) && !parseInt(x.removed); }).length;
     var amt = payoutForPlace(place);
-    var msg = 'Eliminate <b>' + gdEsc(p.display_name) + '</b> in <b>' + gdOrdinal(place) + ' place</b>?';
+    var msg = 'Eliminate <b>' + gdNameK(p) + '</b> in <b>' + gdOrdinal(place) + ' place</b>?';
     if (amt > 0) msg += '<br><br>They finish in the money and are owed <b>' + gdMoney(amt) + '</b>.';
     var hasBounty = SESSION && (parseInt(SESSION.bounty_amount) > 0 || parseInt(SESSION.bounty_points) > 0);
     if (hasBounty) {
@@ -1161,7 +1169,7 @@ window.gdKO = function (pid) {
             msg += '<br><br><label style="font-size:.8rem;font-weight:600;color:#0e7490">🎯 Knocked out by</label><br>'
                  + '<select id="gdElimBy" style="margin-top:.3rem;padding:.45rem .5rem;border:1.5px solid #e2e8f0;border-radius:8px;width:100%;font-size:1rem">'
                  + '<option value="0">— not recorded —</option>'
-                 + others.map(function (x) { return '<option value="' + parseInt(x.id) + '">' + gdEsc(x.display_name) + '</option>'; }).join('')
+                 + others.map(function (x) { return '<option value="' + parseInt(x.id) + '">' + gdNameK(x) + '</option>'; }).join('')
                  + '</select>';
         }
     }
@@ -1179,7 +1187,7 @@ window.gdKO = function (pid) {
                 renderLifecycle();
                 pollClock();
             }
-            showSnack((p.display_name) + ' knocked out'
+            showSnack(gdNameT(p) + ' knocked out'
                       + (j.player && parseInt(j.player.finish_position) ? ' — ' + gdOrdinal(parseInt(j.player.finish_position)) : ''),
                       'Undo', function () { gdUndoElim(pid); });
         }).catch(gdErr);
@@ -1212,7 +1220,7 @@ function rebuysClosed() {
 }
 function askPastCutoff(p, level) {
     return pkConfirm('Rebuys closed after level ' + (parseInt(SESSION && SESSION.rebuy_cutoff_level) || 0)
-                     + '; the clock is on level ' + level + '. Record one for <b>' + gdEsc(p ? p.display_name : 'this player') + '</b> anyway?',
+                     + '; the clock is on level ' + level + '. Record one for <b>' + (p ? gdNameK(p) : 'this player') + '</b> anyway?',
                      { okLabel: 'Record anyway', danger: true });
 }
 // update_rebuys with the cutoff handled both ways: this page's view of the
@@ -1246,7 +1254,7 @@ window.gdReenter = function (pid) {
             ? ' Their old bounty chip stays with whoever collected it — they can buy a new one.'
             : ' Any bounty already collected on them stays collected.';
     }
-    pkConfirm('Rebuy and re-enter ' + gdEsc(p.display_name) + '? They come back into the game with a fresh stack.'
+    pkConfirm('Rebuy and re-enter ' + gdNameK(p) + '? They come back into the game with a fresh stack.'
               + bountyNote, { okLabel: 'Re-enter' }).then(function (ok) {
         if (!ok) return;
         rebuyWithCutoff(pid, 1).then(function (j) {
@@ -1277,11 +1285,11 @@ window.gdCashAdd = function (pid) {
     var already = cashIn(p);
     var def = parseInt(SESSION && SESSION.buyin_amount) > 0 ? parseInt(SESSION.buyin_amount) / 100 : 20;
     var msg = back
-        ? '<b>' + gdEsc(p.display_name) + '</b> cashed out for ' + gdMoney(parseInt(p.cash_out) || 0)
+        ? '<b>' + gdNameK(p) + '</b> cashed out for ' + gdMoney(parseInt(p.cash_out) || 0)
           + '. Buying back in clears that cash-out and puts them in a seat again.'
         : (already > 0
-            ? '<b>' + gdEsc(p.display_name) + '</b> is in for ' + gdMoney(already) + '. Add how much more?'
-            : 'How much is <b>' + gdEsc(p.display_name) + '</b> buying in for?');
+            ? '<b>' + gdNameK(p) + '</b> is in for ' + gdMoney(already) + '. Add how much more?'
+            : 'How much is <b>' + gdNameK(p) + '</b> buying in for?');
     pkPrompt(msg, {
         title: back ? 'Back in' : (already > 0 ? 'Add money' : 'Buy in'),
         inputType: 'number', 'default': def, okLabel: back ? 'Back in' : 'Add'
@@ -1300,7 +1308,7 @@ window.gdCashSet = function (pid) {
     var p = playerById(pid);
     if (!p) return;
     gdCloseSheet();
-    pkPrompt('Set <b>' + gdEsc(p.display_name) + '</b>’s <b>total</b> money in. This replaces the running'
+    pkPrompt('Set <b>' + gdNameK(p) + '</b>’s <b>total</b> money in. This replaces the running'
              + ' total (' + gdMoney(cashIn(p)) + '), it does not add to it.',
              { title: 'Correct total in', inputType: 'number', 'default': cashIn(p) / 100, okLabel: 'Save' })
     .then(function (v) {
@@ -1316,7 +1324,7 @@ window.gdCashOut = function (pid) {
     var p = playerById(pid);
     if (!p) return;
     var inAmt = cashIn(p);
-    pkPrompt('What is <b>' + gdEsc(p.display_name) + '</b> leaving the table with?'
+    pkPrompt('What is <b>' + gdNameK(p) + '</b> leaving the table with?'
              + '<br><br>They are in for <b>' + gdMoney(inAmt) + '</b>. Cashing out frees their seat.',
              { title: 'Cash out', inputType: 'number', placeholder: '0.00', okLabel: 'Cash out' })
     .then(function (v) {
@@ -1326,7 +1334,7 @@ window.gdCashOut = function (pid) {
             mergePlayer(j.player); takePool(j.pool);
             refreshSheet();
             var diff = cents - inAmt;
-            showSnack(p.display_name + ' out for ' + gdMoney(cents) + ' (' + signedMoney(diff) + ')',
+            showSnack(gdNameT(p) + ' out for ' + gdMoney(cents) + ' (' + signedMoney(diff) + ')',
                       'Undo', function () { gdUndoCashout(pid); });
         }).catch(gdErr);
     });
@@ -1335,13 +1343,13 @@ window.gdCashOut = function (pid) {
 window.gdBust = function (pid) {
     var p = playerById(pid);
     gdCloseSheet();
-    pkConfirm('Bust <b>' + gdEsc(p ? p.display_name : '') + '</b> out? Records a <b>' + gdMoney(0)
+    pkConfirm('Bust <b>' + (p ? gdNameK(p) : '') + '</b> out? Records a <b>' + gdMoney(0)
               + '</b> cash-out and frees their seat. Adding money later brings them back in.',
               { okLabel: 'Bust out', danger: true }).then(function (ok) {
         if (!ok) return;
         gdAction('set_cashout', { player_id: pid, cash_out: 0 }).then(function (j) {
             mergePlayer(j.player); takePool(j.pool);
-            showSnack((p ? p.display_name : 'Player') + ' busted out', 'Undo',
+            showSnack((p ? gdNameT(p) : 'Player') + ' busted out', 'Undo',
                       function () { gdUndoCashout(pid); });
         }).catch(gdErr);
     });
@@ -1583,7 +1591,7 @@ function renderSheet() {
     var p = SHEET_PID !== null ? playerById(SHEET_PID) : null;
     if (!p) { gdCloseSheet(); return; }
     var pid = parseInt(p.id);
-    el('gdSheetName').textContent = p.display_name;
+    el('gdSheetName').textContent = gdNameT(p);
     var subBits = [seatLabel(p) || 'No seat'];
     if (isCash()) {
         if (cashIn(p) > 0) subBits.push('in ' + gdMoney(cashIn(p)));
@@ -1734,7 +1742,7 @@ function addonCostLine(list, money) {
     var each = money(parseInt(SESSION.addon_amount)) + ' each';
     if (!paid.length) return 'All free with the buy-in; nothing to collect.';
     if (!free.length) return each + '.';
-    var shown = paid.slice(0, 3).map(function (p) { return escHtmlAny(p.display_name); });
+    var shown = paid.slice(0, 3).map(function (p) { return escHtmlAny(gdNameT(p)); });
     var names = paid.length > 3 ? shown.join(', ') + ' and ' + (paid.length - 3) + ' more' : (shown.length > 1 ? shown.slice(0, -1).join(', ') + ' and ' + shown[shown.length - 1] : shown[0]);
     return 'Free for ' + free.length + ' (came with the buy-in). ' + names + ' used their free rebuy and pay ' + each + '.';
 }
@@ -1780,7 +1788,7 @@ window.gdJackpotToggle = function (pid) {
 window.gdNotes = function (pid) {
     var p = playerById(pid);
     gdCloseSheet();
-    pkPrompt('Notes for ' + gdEsc(p ? p.display_name : ''), { 'default': (p && p.notes) || '', okLabel: 'Save' }).then(function (v) {
+    pkPrompt('Notes for ' + (p ? gdNameK(p) : ''), { 'default': (p && p.notes) || '', okLabel: 'Save' }).then(function (v) {
         if (v === null || v === undefined) return;
         gdAction('update_notes', { player_id: pid, notes: v }).then(function (j) {
             mergePlayer(j.player);
@@ -1800,14 +1808,14 @@ window.gdLedger = function (pid) {
                 return gdEsc(line);
             });
             pkAlert(rows.length ? rows.join('<br>') : 'No money entries yet.',
-                    { title: gdEsc((p ? p.display_name : '') + ' — ledger') });
+                    { title: gdEsc((p ? gdNameT(p) : '') + ' — ledger') });
         })
         .catch(function () { gdNoteFail(); pkAlert('Could not load the ledger'); });
 };
 window.gdRemove = function (pid) {
     var p = playerById(pid);
     gdCloseSheet();
-    pkConfirm('Remove <b>' + gdEsc(p ? p.display_name : '') + '</b> from the game and the invite list?',
+    pkConfirm('Remove <b>' + (p ? gdNameK(p) : '') + '</b> from the game and the invite list?',
               { okLabel: 'Remove', danger: true }).then(function (ok) {
         if (!ok) return;
         gdAction('remove_player', { player_id: pid }).then(function (j) {

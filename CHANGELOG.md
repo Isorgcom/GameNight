@@ -11,6 +11,11 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+### Added
+
+- **A league can know its members by name.** A member's account has a screen name, and that is all a league could show, so a host who added "Mike Rivera" to the roster saw "pokerking77" on the Members tab, the standings and the player pages once Mike linked his account, and the typed name was gone. Each membership now carries a **Known as** name (`league_members.known_as`) that owners and managers set on the Members tab (a new column, saved as you type like the other cells) and every member of the league sees as "screen name (known as)" wherever the league shows its people: the Members tab, the standings and champion line, the player history page, post and comment authors on the league page, the event editor's guest lists, the event page's guest lists, comments and the host's invite panel, the check-in console (roster, table view, payouts, prompts and the walk-in suggestions), the table manager, and the members export. When a pending contact links their account, the name the host typed becomes the known-as name on its own. The public league page keeps screen names, and the API's member list gains a `known_as` field.
+- **Pictures in messages and comments.** Direct messages, group chats and event chats, and the comments under an event and under a league or home-page post, take up to six pictures each: attach them with the new 📷 button or paste a screenshot straight into the box. What you attach shows inside the box as thumbnails, each with an × to drop it, before you send; once posted they show as thumbnails that open full size in a new tab. Pictures may go with no words; the conversation list and the notifications then say "📷 Picture" or "📷 3 pictures". JPEG, PNG, GIF or WebP up to 8 MB, counted against the same daily upload limit as other pictures, stored under `uploads/dm/` and `uploads/comments/`, and removed with the message or comment (a comment deleted, an event or post deleted, the last person leaving a group, an account being deleted, or the nightly sweep for a file nothing references).
+
 ## [v1.12.8] - 2026-10-26
 
 ### Security

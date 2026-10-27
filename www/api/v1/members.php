@@ -60,6 +60,7 @@ $stmt = $db->prepare(
             lm.user_id,
             lm.invited_at,
             inv.username AS invited_by_username,
+            lm.known_as,
             COALESCE(u.username, lm.contact_name) AS display_name
      FROM league_members lm
      LEFT JOIN users u   ON u.id   = lm.user_id
@@ -79,6 +80,7 @@ foreach ($stmt->fetchAll() as $r) {
         'member_id'           => (int)$r['member_id'],
         'user_id'             => $r['user_id'] !== null ? (int)$r['user_id'] : null,
         'display_name'        => $name,
+        'known_as'            => isset($r['known_as']) && $r['known_as'] !== null && $r['known_as'] !== '' ? (string)$r['known_as'] : null,   // the league's own name for the member (v1.13.0)
         'role'                => (string)$r['role'],
         'pending'             => $r['user_id'] === null,
         'joined_at'           => (string)($r['joined_at'] ?? ''),
@@ -106,6 +108,7 @@ function handle_members_get_one(int $user_id): void {
                 lm.user_id,
                 lm.invited_at,
                 inv.username AS invited_by_username,
+                lm.known_as,
                 COALESCE(u.username, lm.contact_name) AS display_name
          FROM league_members lm
          LEFT JOIN users u   ON u.id   = lm.user_id
@@ -125,6 +128,7 @@ function handle_members_get_one(int $user_id): void {
         'member_id'           => (int)$r['member_id'],
         'user_id'             => (int)$r['user_id'],
         'display_name'        => $name,
+        'known_as'            => isset($r['known_as']) && $r['known_as'] !== null && $r['known_as'] !== '' ? (string)$r['known_as'] : null,   // the league's own name for the member (v1.13.0)
         'role'                => (string)$r['role'],
         'pending'             => false,
         'joined_at'           => (string)($r['joined_at'] ?? ''),

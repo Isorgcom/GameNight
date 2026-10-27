@@ -569,12 +569,14 @@ Roster. Personal contact info (emails, phones) is **never** returned.
 {
   "ok": true,
   "data": [
-    { "member_id": 1,  "user_id": 6,    "display_name": "Bryce",   "role": "owner",   "pending": false, "joined_at": "2026-04-17 02:36:29", "invited_at": null,                  "invited_by_username": null },
+    { "member_id": 1,  "user_id": 6,    "display_name": "Bryce",   "known_as": "Bryce K.", "role": "owner",   "pending": false, "joined_at": "2026-04-17 02:36:29", "invited_at": null,                  "invited_by_username": null },
     { "member_id": 4,  "user_id": 12,   "display_name": "brad",    "role": "manager", "pending": false, "joined_at": "2026-04-17 13:43:25", "invited_at": null,                  "invited_by_username": null },
     { "member_id": 17, "user_id": null, "display_name": "Crystal", "role": "member",  "pending": true,  "joined_at": "2026-04-25 23:06:29", "invited_at": "2026-04-25 23:06:29", "invited_by_username": "Bryce" }
   ]
 }
 ```
+
+`known_as` is the name the league's owner or manager gave the member on the Members tab (null when none); `display_name` stays the account's screen name.
 
 `pending: true` means the person was invited by email or phone but has not yet created an account; for those rows `user_id` is `null`. Registered members get an integer `user_id` that you can pass back to write endpoints (e.g. as an invitee on `POST /events/{id}/invites`). The display name is their `username` if they have an account, otherwise the contact name on the invite.
 

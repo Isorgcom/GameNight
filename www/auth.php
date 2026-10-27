@@ -898,19 +898,25 @@ function claim_verified_contact(int $user_id, string $email = '', string $phone 
     $email = strtolower(trim($email));
     $phone = $phone !== '' ? normalize_phone(trim($phone)) : '';
     try {
+        // The name the host typed becomes the league's known-as name for the
+        // member (league_members.known_as), unless it is just the screen name.
+        $un = $db->prepare('SELECT username FROM users WHERE id = ?');
+        $un->execute([$user_id]);
+        $username = (string)($un->fetchColumn() ?: '');
+        $carry = "known_as = COALESCE(known_as, CASE WHEN LOWER(COALESCE(contact_name, '')) IN ('', LOWER(?)) THEN NULL ELSE contact_name END)";
         if ($email !== '') {
             $db->prepare("UPDATE league_members
-                          SET user_id = ?, contact_name = NULL, contact_email = NULL, contact_phone = NULL, invite_token = NULL
+                          SET user_id = ?, $carry, contact_name = NULL, contact_email = NULL, contact_phone = NULL, invite_token = NULL
                           WHERE user_id IS NULL AND LOWER(contact_email) = LOWER(?)
-                            AND (invited_user_id IS NULL OR invited_user_id = ?)")->execute([$user_id, $email, $user_id]);
+                            AND (invited_user_id IS NULL OR invited_user_id = ?)")->execute([$user_id, $username, $email, $user_id]);
             $db->prepare("UPDATE user_contacts SET linked_user_id = ? WHERE linked_user_id IS NULL AND LOWER(contact_email) = LOWER(?)")
                ->execute([$user_id, $email]);
         }
         if ($phone !== '') {
             $db->prepare("UPDATE league_members
-                          SET user_id = ?, contact_name = NULL, contact_email = NULL, contact_phone = NULL, invite_token = NULL
+                          SET user_id = ?, $carry, contact_name = NULL, contact_email = NULL, contact_phone = NULL, invite_token = NULL
                           WHERE user_id IS NULL AND contact_phone = ?
-                            AND (invited_user_id IS NULL OR invited_user_id = ?)")->execute([$user_id, $phone, $user_id]);
+                            AND (invited_user_id IS NULL OR invited_user_id = ?)")->execute([$user_id, $username, $phone, $user_id]);
             $db->prepare("UPDATE user_contacts SET linked_user_id = ? WHERE linked_user_id IS NULL AND contact_phone = ?")
                ->execute([$user_id, $phone]);
         }

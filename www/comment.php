@@ -28,23 +28,17 @@ if ($action === 'add') {
     $type       = in_array($_POST['type'] ?? '', ['post', 'event']) ? $_POST['type'] : null;
     $content_id = (int)($_POST['content_id'] ?? 0);
     $body       = mb_substr(strip_tags(trim($_POST['body'] ?? '')), 0, 2000);
-
-    // Security: per-user hourly cap on comment creation. Prevents comment-spam DoS
-    // and cuts down on accidental notification storms when someone repeats submits.
-    $cCap = defined('MAX_COMMENTS_PER_HOUR') ? MAX_COMMENTS_PER_HOUR : 20;
-    $cCnt = $db->prepare("SELECT COUNT(*) FROM comments WHERE user_id = ? AND created_at > datetime('now', '-1 hour')");
-    $cCnt->execute([(int)$user['id']]);
-    if ((int)$cCnt->fetchColumn() >= $cCap) {
-        http_response_code(429);
-        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
-            header('Content-Type: application/json');
-            echo json_encode(['ok' => false, 'error' => 'Comment rate limit reached. Try again in an hour.']);
-            exit;
-        }
-        $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Too many comments. Try again in an hour.'];
-        header('Location: ' . $redirect);
-        exit;
-    }
+    // Pictures may ride with a comment, or stand alone (v1.13.0): up to six,
+    // checked as upload.php checks them (pictures_check, db.php); nothing is
+    // written until every refusal is past.
+    $picFail = function (string $msg) use ($redirect) {
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) { header('Content-Type: application/json'); echo json_encode(['ok' => false, 'error' => $msg]); exit; }
+        $_SESSION['flash'] = ['type' => 'error', 'msg' => $msg];
+        header('Location: ' . $redirect); exit;
+    };
+    $pics = pictures_check('image', (int)$user['id'], $user['role'] === 'admin');
+    if (!$pics['ok']) $picFail($pics['error']);
+    $pics = $pics['files'];
 
     // Visibility check: commenting on a league post requires league membership.
     // Global admin posts (league_id IS NULL) remain open to all logged-in users.
@@ -78,10 +72,18 @@ if ($action === 'add') {
         }
     }
 
-    if ($type && $content_id > 0 && $body !== '') {
-        $db->prepare('INSERT INTO comments (type, content_id, user_id, body) VALUES (?, ?, ?, ?)')
-           ->execute([$type, $content_id, $user['id'], $body]);
+    if ($type && $content_id > 0 && ($body !== '' || $pics)) {
+        $names = pictures_store($pics, COMMENT_UPLOAD_DIR, (int)$user['id']);
+        if ($names === null) $picFail('Could not save the pictures.');
+        try {
+            $db->prepare('INSERT INTO comments (type, content_id, user_id, body, attachment) VALUES (?, ?, ?, ?, ?)')
+               ->execute([$type, $content_id, $user['id'], $body, attachment_store($names)]);
+        } catch (Throwable $e) {
+            foreach ($names as $n) @unlink(COMMENT_UPLOAD_DIR . $n);
+            throw $e;
+        }
         $new_id = (int)$db->lastInsertId(); // capture before db_log_activity overwrites it
+        foreach ($names as $n) db_log_activity($user['id'], 'uploaded image: comments/' . $n);
         db_log_activity($user['id'], "commented on $type id $content_id");
 
         // Notify the event circle (owner, managers, yes/maybe attendees) that a
@@ -94,10 +96,12 @@ if ($action === 'add') {
         }
 
         if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
-            $row    = $db->prepare('SELECT c.id, c.user_id, c.body, c.created_at, u.username FROM comments c JOIN users u ON u.id=c.user_id WHERE c.id=?');
+            $row    = $db->prepare('SELECT c.id, c.user_id, c.body, c.attachment, c.created_at, u.username FROM comments c JOIN users u ON u.id=c.user_id WHERE c.id=?');
             $row->execute([$new_id]);
+            $cm = $row->fetch();
+            if ($cm) { $cm['attachments'] = pictures_urls(attachment_list($cm['attachment'] ?? null), COMMENT_UPLOAD_URL); unset($cm['attachment']); }
             header('Content-Type: application/json');
-            echo json_encode(['ok' => true, 'comment' => $row->fetch()]);
+            echo json_encode(['ok' => true, 'comment' => $cm]);
             exit;
         }
     }
@@ -129,6 +133,7 @@ if ($action === 'add') {
         $stmt->execute([$comment_id]);
         $row = $stmt->fetch();
         if ($row && ($row['user_id'] == $user['id'] || $user['role'] === 'admin')) {
+            comment_unlink_attachments($db, 'id = ?', [$comment_id]);
             $db->prepare('DELETE FROM comments WHERE id = ?')->execute([$comment_id]);
             db_log_activity($user['id'], "deleted comment $comment_id");
             $deleted = true;
@@ -146,6 +151,7 @@ if ($action === 'add') {
             $ids = array_values(array_filter(array_map('intval', $raw), fn($id) => $id > 0));
             if (!empty($ids)) {
                 $ph = implode(',', array_fill(0, count($ids), '?'));
+                comment_unlink_attachments($db, "id IN ($ph)", $ids);
                 $db->prepare("DELETE FROM comments WHERE id IN ($ph)")->execute($ids);
                 db_log_activity($user['id'], "bulk deleted " . count($ids) . " comment(s)");
             }
