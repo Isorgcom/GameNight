@@ -104,6 +104,7 @@ if ($_hb_user && empty($_hb_user['timezone'])) {
 <?php /* Avatars only appear on logged-in screens; a guest has nothing to draw. */ ?>
 <?php if ($_hb_user): ?>
 <script src="/avatar.js?v=<?= htmlspecialchars(APP_VERSION) ?>" defer></script>
+<script src="/pk-comment-pic.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-comment-pic.js') ?: 0)) ?>" defer></script>
 <?php endif; ?>
 <script nonce="<?= csp_nonce() ?>">
 // PWA manifest + service worker for Web Push. The manifest link is injected

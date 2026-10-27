@@ -279,6 +279,8 @@ try {
         ['timer_layouts',     'layout'],
         ['poker_sessions',    'chip_set'],
         ['payout_structures', 'chip_set'],
+        ['dm_messages',       'attachment'],   // message pictures (uploads/dm), v1.13.0
+        ['comments',          'attachment'],   // comment pictures (uploads/comments), v1.13.0
     ];
     foreach ($sources as [$tbl, $col]) {
         try {
@@ -292,7 +294,7 @@ try {
         }
     }
     $cutoff = time() - 86400;
-    foreach (['timer_layouts', 'timer_sounds'] as $sub) {
+    foreach (['timer_layouts', 'timer_sounds', 'dm', 'comments'] as $sub) {
         $dir = __DIR__ . '/uploads/' . $sub;
         if (!is_dir($dir)) continue;
         foreach ((array)scandir($dir) as $f) {
@@ -305,7 +307,7 @@ try {
             if (strpos($refs, $f) !== false) continue;  // referenced somewhere
             if (@unlink($path)) {
                 $swept++;
-                error_log("cron: swept orphaned timer upload $sub/$f");
+                error_log("cron: swept orphaned upload $sub/$f");
             }
         }
     }

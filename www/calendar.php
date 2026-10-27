@@ -159,6 +159,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             require_once __DIR__ . '/_finaltable.php';
             finaltable_cancel_if_live($db, $id);
 
+            comment_unlink_attachments($db, "type='event' AND content_id = ?", [$id]);
             $db->prepare("DELETE FROM comments WHERE type='event' AND content_id=?")->execute([$id]);
             try { require_once __DIR__ . '/_notifications.php'; event_message_unlink_attachments($db, 'event_id = ?', [$id]); $db->prepare('DELETE FROM event_messages WHERE event_id=?')->execute([$id]); } catch (Exception $e) {}
             $db->prepare('DELETE FROM event_exceptions WHERE event_id=?')->execute([$id]);

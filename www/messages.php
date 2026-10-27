@@ -18,6 +18,8 @@ $q = $db->prepare("
     SELECT c.*, p.cleared_before_id, p.last_read_msg_id,
            (SELECT m.body FROM dm_messages m WHERE m.conversation_id = c.id
               AND m.id > p.cleared_before_id ORDER BY m.id DESC LIMIT 1) AS last_body,
+           (SELECT m.attachment FROM dm_messages m WHERE m.conversation_id = c.id
+              AND m.id > p.cleared_before_id ORDER BY m.id DESC LIMIT 1) AS last_attachment,
            (SELECT u2.username FROM dm_messages m JOIN users u2 ON u2.id = m.sender_id
              WHERE m.conversation_id = c.id AND m.id > p.cleared_before_id
              ORDER BY m.id DESC LIMIT 1) AS last_sender,
@@ -142,7 +144,7 @@ $utc_tz    = new DateTimeZone('UTC');
                 <span class="dm-when"><?= htmlspecialchars($when) ?></span>
             </div>
             <?php if ($c['last_body'] !== null): ?>
-            <div class="dm-snippet"><?= $isGroup && $c['last_sender'] ? htmlspecialchars($c['last_sender']) . ': ' : '' ?><?= htmlspecialchars(mb_substr((string)$c['last_body'], 0, 160)) ?></div>
+            <div class="dm-snippet"><?= $isGroup && $c['last_sender'] ? htmlspecialchars($c['last_sender']) . ': ' : '' ?><?= (string)$c['last_body'] !== '' ? htmlspecialchars(mb_substr((string)$c['last_body'], 0, 160)) : (($np = count(attachment_list($c['last_attachment'] ?? null))) > 0 ? '&#128247; ' . ($np === 1 ? 'Picture' : $np . ' pictures') : '') ?></div>
             <?php endif; ?>
         </div>
     </a>

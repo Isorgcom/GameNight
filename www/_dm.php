@@ -319,6 +319,36 @@ function dm_thread_link(array $conv, int $sender_id): string {
  *   - Bell collapse: while an unread 'dm' bell row for this conversation
  *     exists, bump it instead of stacking rows.
  */
+/**
+ * Where message pictures live, and their URL prefix. A file is named
+ * u<uid>_<32 hex>.<ext> at upload time (messages_dl.php), so the owner is
+ * readable from the name and the name cannot be guessed.
+ */
+const DM_UPLOAD_DIR = __DIR__ . '/uploads/dm/';
+const DM_UPLOAD_URL = '/uploads/dm/';
+
+/**
+ * Unlink the picture files of the messages matched by $where (a dm_messages
+ * WHERE clause with ? placeholders). Called before the rows go: the last
+ * member leaving a group (the conversation cascades its messages) and an
+ * account being deleted (its messages cascade). A conversation one person
+ * clears keeps its files: the others still see them.
+ */
+function dm_unlink_attachments(PDO $db, string $where, array $params): int {
+    $n = 0;
+    try {
+        $q = $db->prepare("SELECT attachment FROM dm_messages WHERE attachment IS NOT NULL AND attachment <> '' AND ($where)");
+        $q->execute($params);
+        foreach ($q->fetchAll(PDO::FETCH_COLUMN) as $raw) {
+            foreach (attachment_list((string)$raw) as $f) {
+                $path = DM_UPLOAD_DIR . basename($f);
+                if (is_file($path) && @unlink($path)) $n++;
+            }
+        }
+    } catch (Throwable $e) { /* files are best-effort; the rows still go */ }
+    return $n;
+}
+
 function dm_notify(PDO $db, array $conv, array $sender, string $body): void {
     $conv_id   = (int)$conv['id'];
     $sender_id = (int)$sender['id'];
@@ -346,14 +376,15 @@ function dm_notify(PDO $db, array $conv, array $sender, string $body): void {
                 require_once __DIR__ . '/webpush.php';
                 webpush_notify_user($db, $rid,
                     ($isGroup ? 'New message in ' . dm_conversation_title($db, $conv, $rid) : 'New message from ' . $sender['username']) . ' on ' . $site_name,
-                    ($isGroup ? $sender['username'] . ': ' : '') . mb_substr(trim($body), 0, 120), $link);
+                    ($isGroup ? $sender['username'] . ': ' : '') . (trim($body) !== '' ? mb_substr(trim($body), 0, 120) : '📷 Picture'), $link);
             } catch (Throwable $e) { /* best-effort */ }
             continue;
         }
         $subject = $isGroup
             ? 'New message in ' . dm_conversation_title($db, $conv, $rid) . ' on ' . $site_name
             : 'New message from ' . $sender['username'] . ' on ' . $site_name;
-        $snippet = ($isGroup ? $sender['username'] . ': ' : '') . mb_substr(trim($body), 0, 120);
+        // A picture with no words still needs a line in the inbox and the push.
+        $snippet = ($isGroup ? $sender['username'] . ': ' : '') . (trim($body) !== '' ? mb_substr(trim($body), 0, 120) : '📷 Picture');
         try {
             $db->prepare("INSERT INTO user_notifications (user_id, event_id, notify_type, subject, body, link)
                           VALUES (?, NULL, 'dm', ?, ?, ?)")

@@ -587,6 +587,7 @@ case 'update_member': {
     // Inline single-field update from the spreadsheet grid.
     // Allowed fields:
     //   - linked rows:  role  (only owner can change; owner role cannot be set here — use transfer_ownership)
+    //                   known_as (owner or manager: the name this league knows the member by)
     //   - pending rows: contact_name, contact_email, contact_phone
     $league_id = (int)($_POST['league_id'] ?? 0);
     $member_id = (int)($_POST['member_id'] ?? 0);
@@ -600,6 +601,15 @@ case 'update_member': {
     if (!$row) fail('Member not found', 404);
 
     if (!empty($row['user_id'])) {
+        if ($field === 'known_as') {
+            // Seen by every member of the league, so it is a presentable name,
+            // not a note: short, plain text, cleared when emptied.
+            $value = preg_replace('/[\x00-\x1F\x7F]/', '', $value);
+            if (mb_strlen($value) > 60) fail('Keep the name to 60 characters.');
+            $db->prepare('UPDATE league_members SET known_as = ? WHERE id = ?')->execute([$value !== '' ? $value : null, $member_id]);
+            db_log_activity($uid, "set known-as name for member id=$member_id in league id=$league_id");
+            ok(['known_as' => $value]);
+        }
         // Linked row — role only
         if ($field !== 'role') fail('This field is not editable on a linked member.');
         if (!$isAdmin && $myRole !== 'owner') fail('Only the owner can change roles.');

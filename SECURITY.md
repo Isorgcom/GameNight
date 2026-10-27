@@ -656,6 +656,19 @@ them) and half are conventions someone has to follow.
   Jodit is pinned by `JODIT_VERSION` in the entrypoint with a `.version`
   marker so a bump reaches an existing install; Apache's twelve workers and
   the 384 MB container limit are sized together.
+- Message and comment pictures (v1.13.0): `messages_dl.php` `send` and
+  `comment.php` `add` apply `upload.php`'s checks (real bytes,
+  `getimagesize()`, 8 MB, the daily cap) before anything touches disk, name
+  the file `u<uid>_<32 hex>.<ext>` under `uploads/dm/` or `uploads/comments/`
+  (unguessable, owner in the name, served static with execution off), and
+  `dm_unlink_attachments()` (`_dm.php`) / `comment_unlink_attachments()`
+  (`db.php`) remove the files on every path that deletes the rows (a comment,
+  post, event or account deleted, the last member leaving a group);
+  `cron.php`'s sweep treats `dm_messages.attachment` and
+  `comments.attachment` as references. A league's known-as name
+  (`league_members.known_as`, v1.13.0) is set only by an owner or manager
+  through `update_member`, capped at 60 characters, and shown only on the
+  league's own pages (never the public page).
 - `username_format_error()` in `auth.php` is the single username rule, applied by
   registration, the API and the profile editor.
 - `pk_theme_sanitize_props()` constrains stored theme JSON on every write path.

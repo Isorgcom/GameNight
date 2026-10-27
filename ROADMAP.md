@@ -151,6 +151,7 @@ The biggest blocker right now is 10DLC carrier registration. This milestone is e
 - Native mobile apps (lower priority given PWA path)
 - Multi-tenancy / SaaS mode
 - Payment integration (Stripe) for events with a cover charge
+- Mixed-game tournaments in the Tournament Timer: a game label and a betting structure per blind level (limit bets, bring-in, antes for stud rounds) with display elements for them, so a rotation of limit and pot-limit games can run on one clock. Asked for by a league host on 2026-10-25; they run Tournament Director for it today.
 
 ---
 

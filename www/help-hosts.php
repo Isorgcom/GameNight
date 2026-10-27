@@ -63,6 +63,7 @@ $allow_reg   = get_setting('allow_registration', '1') === '1';
         <h2><span class="step-num">1</span> Set up your league <em style="font-weight:400;color:#94a3b8;font-size:1rem">(optional)</em></h2>
         <p>A <strong>league</strong> is your private group &mdash; your poker crew, board game club, or any circle. It scopes events, contacts, and stats so different groups don't see each other's stuff.</p>
         <p>From the home page, open <a href="/leagues.php"><strong>Leagues</strong></a> in the nav and create one. Give it a name and you're done.</p>
+        <p><strong>Known as.</strong> Members show up under their screen names. On the league's <strong>Members</strong> tab, owners and managers can give each member a <em>Known as</em> name ("Mike R." for pokerking77) that everyone in the league then sees on the standings, the player pages and the guest picker. A name you typed when adding a contact becomes their known-as name on its own once they link their account.</p>
         <img class="help-shot" src="/img/help/leagues-create.png?v=<?= @filemtime(__DIR__ . '/img/help/leagues-create.png') ?: 0 ?>" alt="League creation form">
         <div class="hint"><strong>This step is optional</strong> &mdash; you can create and run events without a league at all. A league only matters when you want to keep separate groups' events, contacts, and stats apart. If you only ever host the same crew, you can skip it.</div>
     </div>

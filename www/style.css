@@ -782,3 +782,22 @@ img.gn-avatar{object-fit:cover;background:transparent}
 @media(prefers-reduced-motion:reduce){
     .pk-view-in-right,.pk-view-in-left{animation:none}
 }
+
+/* The name a league knows a member by, after the screen name (v1.13.0). */
+.pk-known{font-weight:500;font-size:.8em;color:#64748b}
+
+/* Pictures on a message or a comment (v1.13.0): thumbnails that open full size. */
+.pk-pics{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.35rem}
+.pk-pics a.pk-pic{display:block;text-decoration:none}
+.pk-pics img{display:block;max-width:100%;max-height:220px;border-radius:8px}
+/* The box a comment or message is written in: the text and the pictures being
+   attached live in one bordered frame, each picture with its own ×. */
+.cm-compose{border:1.5px solid #cbd5e1;border-radius:8px;background:#fff;padding:.15rem}
+.cm-compose:focus-within{border-color:#2563eb}
+.cm-compose .cm-body,.cm-compose textarea{width:100%;box-sizing:border-box;border:0;outline:none;background:transparent;font:inherit;padding:.4rem .6rem;resize:vertical;display:block}
+.cm-thumbs{display:flex;flex-wrap:wrap;gap:.5rem;padding:.3rem .45rem .45rem}
+.cm-thumbs[hidden]{display:none}
+.cm-thumb{position:relative}
+.cm-thumb img{display:block;height:84px;width:auto;max-width:160px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0}
+.cm-thumb-x{position:absolute;top:-7px;right:-7px;width:22px;height:22px;border-radius:50%;border:1px solid #cbd5e1;background:#fff;color:#334155;font-size:.95rem;line-height:1;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center}
+.cm-thumb-x:hover{background:#fee2e2;border-color:#fca5a5;color:#991b1b}

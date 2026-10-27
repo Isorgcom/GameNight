@@ -44,7 +44,7 @@ api_ok([
         [
             'method'      => 'GET',
             'path'        => $base . '/members',
-            'description' => 'Roster: member_id, user_id, display_name, role, pending, joined_at, invited_at, invited_by_username. user_id is null for pending contacts (people invited but who haven\'t created accounts yet). member_id is the league_members PK and is the only way to address pending rows on the pending-contacts endpoints. Personal contact info (emails, phones) is never returned.',
+            'description' => 'Roster: member_id, user_id, display_name, known_as (the name the league gave the member, or null), role, pending, joined_at, invited_at, invited_by_username. user_id is null for pending contacts (people invited but who haven\'t created accounts yet). member_id is the league_members PK and is the only way to address pending rows on the pending-contacts endpoints. Personal contact info (emails, phones) is never returned.',
         ],
         [
             'method'      => 'GET',

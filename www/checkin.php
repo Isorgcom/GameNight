@@ -498,6 +498,7 @@ if ($session) {
     .pk-mobile-summary:active{background:#f1f5f9}
     .pk-mobile-card .pk-check{width:22px;height:22px}
     .pk-mobile-name{font-weight:600;font-size:.9rem}
+    .pk-known{font-weight:500;font-size:.8em;color:#64748b}
     .pk-mobile-status{font-size:.7rem;font-weight:600;padding:.15rem .4rem;border-radius:4px;min-width:4.5rem;text-align:center;flex-shrink:0}
     /* The chevron is the keyboard's way into a card and the first visible hint
        that the row opens at all: a tap anywhere on the row still works. */
@@ -976,6 +977,19 @@ var ES_LAYOUT_KEY = <?= js_json($event_layout_key) ?>;
 <script nonce="<?= csp_nonce() ?>">
 var CSRF = <?= js_json($csrf, JSON_HEX_TAG) ?>;
 var USE_BETA_TIMER = <?= (int)$use_beta_timer ?>;
+<?php
+// The league's known-as names by lower-cased screen name (v1.13.0), for the
+// walk-in suggestions; the roster rows carry their own from get_players().
+$knownByName = [];
+if (!empty($event['league_id'])) {
+    try {
+        $kq = $db->prepare("SELECT LOWER(u.username) AS n, lm.known_as FROM league_members lm JOIN users u ON u.id = lm.user_id WHERE lm.league_id = ? AND lm.known_as IS NOT NULL AND lm.known_as <> ''");
+        $kq->execute([(int)$event['league_id']]);
+        foreach ($kq->fetchAll() as $r) { if (strcasecmp((string)$r['known_as'], (string)$r['n']) !== 0) $knownByName[$r['n']] = (string)$r['known_as']; }
+    } catch (Throwable $e) {}
+}
+?>
+var KNOWN_AS = <?= js_json($knownByName, JSON_FORCE_OBJECT) ?>;
 <?php /* One-time Tournament Timer ask: any tournament game whose setup has been
          saved, while the user has never answered (users.beta_timer IS NULL).
          Not before setup: a host opening a brand-new game met this on top of
@@ -1077,7 +1091,7 @@ function finishGameConfirm() {
     // stats and payouts" and then finish without a word.
     var inPlay = (PLAYERS || []).filter(function(p) { return !parseInt(p.removed) && parseInt(p.bought_in); });
     var names = function(list) {
-        var n = list.map(function(p) { return '<b>' + escHtml(p.display_name) + '</b>'; });
+        var n = list.map(function(p) { return '<b>' + nameK(p) + '</b>'; });
         if (n.length > 4) n = n.slice(0, 3).concat(['and ' + (n.length - 3) + ' more']);
         return n.join(', ');
     };
@@ -1891,7 +1905,7 @@ function renderPlayerRows() {
         h += '<tr class="' + rowClass + '" data-pid="' + p.id + '">';
         h += '<td><input type="checkbox" class="pk-row-select pk-player-cb" value="' + p.id + '" aria-label="Select ' + nm + '" data-act-change="updateBulkBar"></td>';
         h += '<td>' + num + '</td>';
-        h += '<td class="name-cell">' + escHtml(p.display_name);
+        h += '<td class="name-cell">' + escHtml(p.display_name) + knownAsTag(p);
         if (isWalkin) h += '<span class="walkin-badge" title="Walk-in player" aria-label="Walk-in player">&#128694;</span>';
         if (p.notes) h += ' <span title="' + escHtml(p.notes) + '" style="cursor:help">&#128221;</span>';
         h += '</td>';
@@ -2062,7 +2076,7 @@ function renderMobileCards() {
         h += '<div class="pk-mobile-card ' + cardClass + '" role="group" aria-label="' + nm + '" data-pid="' + p.id + '">';
         h += '<div class="pk-mobile-summary" data-act="toggleMobileExpand" data-a1="' + p.id + '">';
         var seatInfo = p.seat_number ? 'T' + (p.table_number || '?') + ' #' + p.seat_number : '';
-        h += '<span class="pk-mobile-name">' + escHtml(p.display_name) + (seatInfo ? ' <span style="color:#64748b;font-size:.72rem;font-weight:600">' + seatInfo + '</span>' : '') + '</span>';
+        h += '<span class="pk-mobile-name">' + escHtml(p.display_name) + knownAsTag(p) + (seatInfo ? ' <span style="color:#64748b;font-size:.72rem;font-weight:600">' + seatInfo + '</span>' : '') + '</span>';
         if (isPending) {
             // Approve/deny buttons directly on the summary row instead of a status badge
             h += '<span data-stop="1" style="display:flex;align-items:center;gap:.35rem;margin-left:auto;flex-shrink:0">';
@@ -2322,7 +2336,7 @@ function payoutWarningsHtml() {
     });
     if (anomalies.length) {
         h += '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:.45rem .6rem;margin-bottom:.6rem;font-size:.78rem;color:#991b1b;font-weight:600">'
-           + '&#9888; No buy-in recorded for: ' + anomalies.map(function(p) { return escHtml(p.display_name); }).join(', ')
+           + '&#9888; No buy-in recorded for: ' + anomalies.map(function(p) { return nameK(p); }).join(', ')
            + ' — but they have rebuys/add-ons or are checked in. The pool may be short.'
            + '</div>';
     }
@@ -2401,7 +2415,7 @@ function renderPayoutsView() {
             var winHtml = '&mdash;';
             if (win) {
                 var stored = parseInt(win.payout) || 0;
-                winHtml = '<b>' + escHtml(win.display_name) + '</b>';
+                winHtml = '<b>' + nameK(win) + '</b>';
                 // Stored winnings are frozen at finish time; the computed prize
                 // tracks the live pool. If they disagree the game was edited
                 // after finishing — show both rather than quietly picking one.
@@ -2442,7 +2456,7 @@ function renderPayoutsView() {
             placed.forEach(function(p) {
                 var paid = parseInt(p.payout) || 0;
                 var bc   = parseInt(p.bounty_cash) || 0;
-                h += '<div class="pk-payout-row"><span class="pk-payout-place">' + ordinalLabel(p.finish_position) + ' ' + escHtml(p.display_name) + '</span>'
+                h += '<div class="pk-payout-row"><span class="pk-payout-place">' + ordinalLabel(p.finish_position) + ' ' + nameK(p) + '</span>'
                    + '<span>' + (paid > 0 ? '<span style="font-weight:600;color:#15803d">' + formatMoney(paid) + '</span>' : '')
                    + (bc > 0 ? ' <span style="color:#0e7490;font-size:.75rem;font-weight:700">+' + formatMoney(bc) + ' KO</span>' : '')
                    + '<span style="color:#64748b;font-size:.75rem">' + rewardText(p) + '</span></span></div>';
@@ -2483,7 +2497,7 @@ function bountyJackpotHtml() {
         if (koPlayers.length) {
             h += '<div style="margin-top:.4rem;border-top:1px solid #f1f5f9;padding-top:.4rem">';
             koPlayers.forEach(function(p) {
-                h += '<div class="pk-pool-row"><span>' + escHtml(p.display_name) + ' <span style="color:#0e7490;font-weight:700">&#127919; &times;' + parseInt(p.bounties_won) + '</span></span>'
+                h += '<div class="pk-pool-row"><span>' + nameK(p) + ' <span style="color:#0e7490;font-weight:700">&#127919; &times;' + parseInt(p.bounties_won) + '</span></span>'
                    + '<span>' + ((parseInt(p.bounty_cash) || 0) > 0 ? formatMoney(parseInt(p.bounty_cash)) : '') + '</span></div>';
             });
             h += '</div>';
@@ -3542,7 +3556,7 @@ function addJackpotRecipient() {
     row.style.cssText = 'display:flex;gap:.4rem;align-items:center;margin-bottom:.35rem';
     var opts = '<option value="">— player —</option>';
     (PLAYERS || []).filter(function(p) { return !parseInt(p.removed); }).forEach(function(p) {
-        opts += '<option value="' + escHtml(p.display_name) + '">' + escHtml(p.display_name) + '</option>';
+        opts += '<option value="' + escHtml(p.display_name) + '">' + escHtml(p.display_name + (p.known_as && p.known_as.toLowerCase() !== String(p.display_name).toLowerCase() ? ' (' + p.known_as + ')' : '')) + '</option>';
     });
     row.innerHTML = '<select class="jp-name" aria-label="Paid to" style="flex:2;padding:.45rem .5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:.9rem">' + opts + '</select>'
         + '<span class="pk-money-wrap" style="flex:1;min-width:80px"><input type="number" class="jp-amount" aria-label="Amount paid" step="0.01" min="0" placeholder="0"></span>'
@@ -3627,7 +3641,7 @@ function renderTicketsPanel() {
             ? escHtml(t.target_title) + ' (' + (t.target_date || '') + ')'
             : '<span style="color:#dc2626;font-weight:700">⚠ target event cancelled</span>';
         h += '<div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;font-size:.82rem;padding:.3rem 0;border-bottom:1px solid #f1f5f9">';
-        h += '<span style="font-weight:600">' + escHtml(t.display_name) + '</span>';
+        h += '<span style="font-weight:600">' + nameK(t) + '</span>';
         h += '<span style="color:#b45309;font-weight:700">' + formatMoney(parseInt(t.value_cents)) + '</span>';
         h += '<span>&rarr; ' + target + '</span>';
         if (status === 'issued') {
@@ -4258,14 +4272,14 @@ function toggleBuyin(pid) {
     if (player && !buyingIn) {
         // Un-ticking clears the buy-in AND the seat; a slip here cost a real game
         // two buy-ins once, so it asks.
-        pkConfirm('Clear <b>' + escHtml(player.display_name) + '</b>\'s buy-in? Their seat is freed.', { okLabel: 'Clear buy-in', danger: true })
+        pkConfirm('Clear <b>' + nameK(player) + '</b>\'s buy-in? Their seat is freed.', { okLabel: 'Clear buy-in', danger: true })
             .then(function(ok) { if (ok) doPost(0); else refreshUI(); });
         return;
     }
     if (ticket) {
         var val = parseInt(ticket.value_cents);
         var buyin = parseInt(SESSION.buyin_amount);
-        var msg = '<b>' + escHtml(player.display_name) + '</b> holds a <b>' + formatMoney(val) + ' entry ticket</b> for this event. Apply it?';
+        var msg = '<b>' + nameK(player) + '</b> holds a <b>' + formatMoney(val) + ' entry ticket</b> for this event. Apply it?';
         if (buyin > val)      msg += '<br><br>Collect the remaining <b>' + formatMoney(buyin - val) + '</b> in cash.';
         else if (val > buyin) msg += '<br><br>The extra <b>' + formatMoney(val - buyin) + '</b> joins this game\'s prize pool.';
         pkConfirm(msg, { title: 'Entry Ticket', okLabel: 'Apply Ticket' }).then(function(ok) {
@@ -4296,7 +4310,7 @@ function updateRebuys(pid, delta) {
     var p = (PLAYERS || []).find(function(x) { return x.id == pid; });
     var cutoff = parseInt(SESSION.rebuy_cutoff_level) || 0;
     var askPastCutoff = function(level) {
-        return pkConfirm('Rebuys closed after level ' + cutoff + '; the clock is on level ' + level + '. Record one for <b>' + escHtml(p ? p.display_name : 'this player') + '</b> anyway?', { okLabel: 'Record anyway', danger: true });
+        return pkConfirm('Rebuys closed after level ' + cutoff + '; the clock is on level ' + level + '. Record one for <b>' + (p ? nameK(p) : 'this player') + '</b> anyway?', { okLabel: 'Record anyway', danger: true });
     };
     var doPost = function(force) {
         var data = { player_id: pid, delta: delta };
@@ -4333,7 +4347,7 @@ function updateRebuys(pid, delta) {
                 ? ' Their old bounty chip stays with whoever collected it — they can buy a new one.'
                 : ' Any bounty already collected on them stays collected.';
         }
-        pkConfirm('Rebuy and re-enter ' + escHtml(p.display_name) + '? They come back into the game with a fresh stack.' + bountyNote, { okLabel: 'Re-enter' })
+        pkConfirm('Rebuy and re-enter ' + nameK(p) + '? They come back into the game with a fresh stack.' + bountyNote, { okLabel: 'Re-enter' })
             .then(function(ok) { if (ok) start(); });
         return;
     }
@@ -4490,7 +4504,7 @@ function movePlayer(pid, newTable) {
     if (newTable === 'unassign') {
         // Pull them off the table (frees the seat); they drop to the Unassigned group.
         var p = PLAYERS.find(function(x) { return parseInt(x.id) === pid; });
-        pkConfirm('Take <b>' + escHtml(p ? p.display_name : 'this player') + '</b> off the table? Their seat is freed and they move to Unassigned.', { okLabel: 'Take off the table' }).then(function(ok) {
+        pkConfirm('Take <b>' + (p ? nameK(p) : 'this player') + '</b> off the table? Their seat is freed and they move to Unassigned.', { okLabel: 'Take off the table' }).then(function(ok) {
             if (!ok) { refreshUI(); return; }   // the select goes back to Move…
             postAction('set_table', { player_id: pid, table_number: '' }, function(j) {
                 loadSession();
@@ -4536,7 +4550,7 @@ function balanceTables() {
         for (var j = 0; j < players.length; j++) {
             var p = players[j];
             var seatLabel = p.seat_number ? ' (Seat ' + p.seat_number + ')' : '';
-            html += '<option value="' + p.id + '">' + escHtml(p.display_name) + seatLabel + '</option>';
+            html += '<option value="' + p.id + '">' + escHtml(p.display_name + (p.known_as && p.known_as.toLowerCase() !== String(p.display_name).toLowerCase() ? ' (' + p.known_as + ')' : '')) + seatLabel + '</option>';
         }
         html += '</select></div>';
     }
@@ -4565,7 +4579,7 @@ function movesHtml(moves) {
     var msg = moves.length + (moves.length === 1 ? ' player moved:' : ' players moved:') + '<br>';
     for (var i = 0; i < moves.length; i++) {
         var m = moves[i];
-        msg += escHtml(m.display_name) + ': Table ' + (m.old_table || '?') + ' → ' + m.new_table + '<br>';
+        msg += nameK(m) + ': Table ' + (m.old_table || '?') + ' → ' + m.new_table + '<br>';
     }
     return msg;
 }
@@ -4674,7 +4688,7 @@ function renderTableView() {
             var isElim = parseInt(p.eliminated);
             var seatTag = p.seat_number ? '<span style="color:#64748b;font-size:.72rem;font-weight:700;min-width:1.4rem;display:inline-block">' + p.seat_number + '</span> ' : '';
             h += '<div class="pk-tv-player' + (isElim ? ' elim' : '') + '">';
-            h += '<span class="pk-tv-name">' + seatTag + escHtml(p.display_name) + '</span>';
+            h += '<span class="pk-tv-name">' + seatTag + nameK(p) + '</span>';
             h += '<span class="pk-tv-actions">';
             if (isElim) {
                 h += '<button class="pk-act-btn" data-act="uneliminate" data-a1="' + p.id + '" title="Undo eliminate" aria-label="Undo the elimination of ' + escHtml(p.display_name) + '">Undo</button>';
@@ -4706,7 +4720,7 @@ function renderTableView() {
         for (var j = 0; j < unassigned.length; j++) {
             var p = unassigned[j];
             h += '<div class="pk-tv-player">';
-            h += '<span class="pk-tv-name">' + escHtml(p.display_name) + '</span>';
+            h += '<span class="pk-tv-name">' + nameK(p) + '</span>';
             h += '<select class="pk-tv-move" aria-label="Assign ' + escHtml(p.display_name) + ' to a table" data-act-change="movePlayer" data-change-a1="' + p.id + '" data-change-a2="@value">';
             h += '<option value="">Assign\u2026</option>';
             for (var mt = 1; mt <= numTables; mt++) h += '<option value="' + mt + '">Table ' + mt + ' (' + tables[mt].length + ')</option>';
@@ -4731,7 +4745,7 @@ function eliminatePlayer(pid) {
     // Place = number still in (including this player). Backend re-derives it authoritatively.
     var place = PLAYERS.filter(function(p) { return !parseInt(p.eliminated) && parseInt(p.bought_in); }).length;
     var amt = payoutForPlace(place);
-    var msg = 'Eliminate <b>' + escHtml(player ? player.display_name : 'this player') + '</b> in <b>' + place + getOrdinal(place) + ' place</b>?';
+    var msg = 'Eliminate <b>' + (player ? nameK(player) : 'this player') + '</b> in <b>' + place + getOrdinal(place) + ' place</b>?';
     if (amt > 0) msg += '<br><br>They finish in the money and are owed <b>' + formatMoney(amt) + '</b>.';
     // Bounty games: optional (skippable) picker for who scored the knockout.
     if (isTourney() && (parseInt(SESSION.bounty_amount) > 0 || parseInt(SESSION.bounty_points) > 0)) {
@@ -4742,7 +4756,7 @@ function eliminatePlayer(pid) {
             msg += '<br><br><label style="font-size:.8rem;font-weight:600;color:#0e7490">🎯 Knocked out by</label><br>'
                  + '<select id="elimBy" style="margin-top:.25rem;padding:.35rem .5rem;border:1.5px solid #e2e8f0;border-radius:6px;width:100%;font-size:.85rem">'
                  + '<option value="0">— not recorded —</option>'
-                 + others.map(function(p) { return '<option value="' + p.id + '">' + escHtml(p.display_name) + '</option>'; }).join('')
+                 + others.map(function(p) { return '<option value="' + p.id + '">' + escHtml(p.display_name + (p.known_as && p.known_as.toLowerCase() !== String(p.display_name).toLowerCase() ? ' (' + p.known_as + ')' : '')) + '</option>'; }).join('')
                  + '</select>';
         }
     }
@@ -4759,7 +4773,7 @@ function closeElim() {
 // Remove confirmations use the shared pkConfirm (pk-dialogs.js).
 function removePlayerConfirm(pid) {
     var p = PLAYERS.find(function(p) { return parseInt(p.id) === pid; });
-    pkConfirm('Remove <b>' + escHtml(p ? p.display_name : 'this player') + '</b> from the event?',
+    pkConfirm('Remove <b>' + (p ? nameK(p) : 'this player') + '</b> from the event?',
         { title: 'Remove Player', okLabel: 'Remove', danger: true })
         .then(function(ok) { if (ok) removePlayer(pid); });
 }
@@ -4889,7 +4903,7 @@ function commitCashOut(pid, val) {
 
 function undoCashout(pid) {
     var p = PLAYERS.find(function(x) { return parseInt(x.id) === pid; });
-    pkConfirm('Put <b>' + escHtml(p ? p.display_name : 'this player') + '</b> back in play? Their cash-out is cleared.', { okLabel: 'Put back in play' }).then(function(ok) {
+    pkConfirm('Put <b>' + (p ? nameK(p) : 'this player') + '</b> back in play? Their cash-out is cleared.', { okLabel: 'Put back in play' }).then(function(ok) {
         if (!ok) { refreshUI(); return; }   // the field gets its value back
         postAction('set_cashout', { player_id: pid, cash_out: '' }, function(j) {
             updatePlayer(j.player);
@@ -5015,7 +5029,7 @@ function walkinSuggest(val) {
         // Name rides in a data attribute rather than inside the inline handler's
         // JS string: attribute values are HTML-decoded before JS parses them, so
         // an escaped quote would come back and break out of the literal.
-        return '<div class="walkin-dropdown-item" role="option" id="wkopt_' + i + '" aria-selected="false" data-u="' + escHtml(u) + '" data-act-mousedown="walkinPick" data-mousedown-a1="@dataU">' + escHtml(u) + '</div>';
+        return '<div class="walkin-dropdown-item" role="option" id="wkopt_' + i + '" aria-selected="false" data-u="' + escHtml(u) + '" data-act-mousedown="walkinPick" data-mousedown-a1="@dataU">' + escHtml(u) + knownTagByName(u) + '</div>';
     }).join('');
     dd.classList.add('open');
     var inp = document.getElementById('walkinName');
@@ -5140,7 +5154,7 @@ function approvePlayer(pid) {
 
 async function denyPlayer(pid) {
     var p = PLAYERS.find(function(x) { return parseInt(x.id) === pid; });
-    if (!(await pkConfirm('Deny <b>' + escHtml(p ? p.display_name : 'this player') + '</b>? They come off the list.', { okLabel: 'Deny', danger: true }))) return;
+    if (!(await pkConfirm('Deny <b>' + (p ? nameK(p) : 'this player') + '</b>? They come off the list.', { okLabel: 'Deny', danger: true }))) return;
     postAction('deny_player', { player_id: pid }, function(j) {
         PLAYERS = j.players;
         POOL = j.pool;
@@ -5847,6 +5861,18 @@ function focusNextCashInput(el) {
 // NOTE: still not safe for building a JS string literal inside an attribute
 // (e.g. data-act="f" data-a1="'...'") — the parser HTML-decodes before JS parses, so the
 // quote comes back. Pass those through a data-* attribute instead.
+// The name the event's league knows a player by (get_players carries it on
+// league events): a muted suffix after the roster name, which stays the
+// invite name the row is keyed on.
+// The roster name with the league's known-as name after it, escaped for markup.
+function nameK(p) { return escHtml(p && p.display_name ? p.display_name : '') + knownAsTag(p); }
+// The same tag for a bare name (the walk-in suggestions), from the page's KNOWN_AS map.
+function knownTagByName(name) { var k = (typeof KNOWN_AS === 'object' && KNOWN_AS) ? KNOWN_AS[String(name || '').toLowerCase()] : ''; return k ? ' <span class="pk-known" title="Known as in the league">(' + escHtml(k) + ')</span>' : ''; }
+function knownAsTag(p) {
+    var k = p && p.known_as ? String(p.known_as).trim() : '';
+    if (!k || k.toLowerCase() === String(p.display_name || '').toLowerCase()) return '';
+    return ' <span class="pk-known" title="Known as in the league">(' + escHtml(k) + ')</span>';
+}
 function escHtml(s) {
     if (!s) return '';
     var div = document.createElement('div');
@@ -6008,7 +6034,7 @@ function renderChopView() {
     h += '<tbody id="dealRows">';
     for (var i = 0; i < remaining.length; i++) {
         h += '<tr data-player-id="' + remaining[i].id + '" style="border-bottom:1px solid #f1f5f9">';
-        h += '<td style="padding:.4rem">' + escHtml(remaining[i].display_name) + '</td>';
+        h += '<td style="padding:.4rem">' + nameK(remaining[i]) + '</td>';
         h += '<td style="padding:.4rem"><input type="number" class="deal-chips" aria-label="Chips for ' + escHtml(remaining[i].display_name) + '" min="0" step="1" value="" placeholder="0" style="width:100%;padding:.3rem .5rem;border:1.5px solid #e2e8f0;border-radius:4px;text-align:right;font-size:.9rem" data-act-input="recalcDeal"></td>';
         h += '<td style="padding:.4rem;text-align:right;font-weight:600" class="deal-payout">-</td>';
         h += '</tr>';

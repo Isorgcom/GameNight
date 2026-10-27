@@ -38,7 +38,7 @@ $rulesPost = $rulesStmt->fetch() ?: null;
 // ── CSV Export (must happen before any output) ────────────────────────────────
 if ($canManageMembers && (($_GET['action'] ?? '') === 'export_members')) {
     $rows = $db->prepare(
-        "SELECT lm.role, lm.joined_at, lm.invited_at,
+        "SELECT lm.role, lm.joined_at, lm.invited_at, lm.known_as,
                 u.username, u.email, u.phone,
                 lm.contact_name, lm.contact_email, lm.contact_phone,
                 CASE WHEN lm.user_id IS NULL THEN 'pending' ELSE 'linked' END AS status
@@ -55,11 +55,12 @@ if ($canManageMembers && (($_GET['action'] ?? '') === 'export_members')) {
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="league_' . $safeName . '_members_' . date('Ymd_His') . '.csv"');
     $out = fopen('php://output', 'w');
-    fputcsv($out, ['name', 'email', 'phone', 'role', 'status', 'joined_at', 'invited_at']);
+    fputcsv($out, ['name', 'known_as', 'email', 'phone', 'role', 'status', 'joined_at', 'invited_at']);
     foreach ($rows as $r) {
         // csv_cell(): a typed name or address never opens as a formula.
         fputcsv($out, array_map('csv_cell', [
             $r['username'] ?? $r['contact_name'] ?? '',
+            $r['known_as'] ?? '',
             $r['email']    ?? $r['contact_email'] ?? '',
             $r['phone']    ?? $r['contact_phone'] ?? '',
             $r['role'],
@@ -232,7 +233,7 @@ $mStmt = $db->prepare(
             u.username         AS user_username,
             u.email            AS user_email,
             u.phone            AS phone,
-            COALESCE(u.username, lm.contact_name) AS display_name
+            COALESCE(lm.known_as, u.username, lm.contact_name) AS display_name
      FROM league_members lm
      LEFT JOIN users u ON u.id = lm.user_id
      WHERE lm.league_id = ?
@@ -242,6 +243,11 @@ $mStmt = $db->prepare(
 );
 $mStmt->execute([$league_id]);
 $members = $mStmt->fetchAll();
+// The league's known-as names by account id (v1.13.0): post and comment
+// authors are shown as "screen name (known as)" like everywhere else here.
+$knownById = [];
+foreach ($members as $_m) { if (!empty($_m['user_id']) && !empty($_m['known_as']) && strcasecmp((string)$_m['known_as'], (string)($_m['user_username'] ?? '')) !== 0) $knownById[(int)$_m['user_id']] = (string)$_m['known_as']; }
+$knownTag = function ($uid) use ($knownById): string { $k = $knownById[(int)$uid] ?? ''; return $k !== '' ? ' <span class="pk-known" title="Known as">(' . htmlspecialchars($k) . ')</span>' : ''; };
 
 // Load events visible to viewer (scoped to this league)
 $vis = event_visibility_sql('e', $uid);
@@ -384,7 +390,7 @@ if ($tab === 'stats') {
     // the NULLs cash rows produce.
     $stmt = $db->prepare("
         SELECT
-            g.player_key, g.display_name, g.user_id,
+            g.player_key, g.display_name, g.known_as, g.user_id,
             COUNT(*) as games,
             SUM(CASE WHEN g.game_type = 'tournament' THEN 1 ELSE 0 END) as t_games,
             SUM(CASE WHEN g.game_type = 'tournament' AND g.finish_position = 1 THEN 1 ELSE 0 END) as wins,
@@ -401,6 +407,7 @@ if ($tab === 'stats') {
             SELECT
                 pp.user_id,
                 COALESCE(u.username, pp.display_name) as display_name,
+                lm.known_as,
                 COALESCE(CAST(pp.user_id AS TEXT), 'g_' || LOWER(pp.display_name)) as player_key,
                 ps.game_type,
                 CASE WHEN ps.game_type = 'tournament' THEN COALESCE(pp.finish_position, pc.field_size) END as finish_position,
@@ -418,6 +425,7 @@ if ($tab === 'stats') {
             JOIN poker_sessions ps ON ps.id = pp.session_id
             JOIN events e ON e.id = ps.event_id
             LEFT JOIN users u ON u.id = pp.user_id
+            LEFT JOIN league_members lm ON lm.league_id = e.league_id AND lm.user_id = pp.user_id
             JOIN (
                 SELECT session_id, COUNT(*) as field_size
                 FROM poker_players WHERE bought_in = 1 AND removed = 0
@@ -753,6 +761,7 @@ function ordinal($n) {
                 <tr>
                     <th class="mg-status-col">Status</th>
                     <th class="mg-name-col">Name</th>
+                    <th class="mg-known-col" title="The name this league knows the member by, beside their screen name">Known as</th>
                     <?php if ($canManageMembers): ?><th>Email</th>
                     <th class="mg-phone-col">Phone</th><?php endif; ?>
                     <th class="mg-role-col">Role</th>
@@ -771,6 +780,9 @@ function ordinal($n) {
                 // Editability: managers+owners can edit pending rows; only owner can change linked role.
                 $editPending = $canManageMembers && $isPending;
                 $editRole    = $canManageMembers && !$isPending && $m['role'] !== 'owner' && $isOwner;
+                // Known as: owners and managers name a LINKED member for the whole league.
+                $knownAs     = (string)($m['known_as'] ?? '');
+                $editKnown   = $canManageMembers && !$isPending;
             ?>
                 <tr data-member-id="<?= $memId ?>"<?= $isPending ? ' class="mg-pending"' : '' ?>>
                     <td class="mg-status-col">
@@ -784,7 +796,14 @@ function ordinal($n) {
                         <?php if ($editPending): ?>
                             <input type="text" class="mg-cell-input" data-field="contact_name" value="<?= htmlspecialchars($dispName) ?>" placeholder="Name">
                         <?php else: ?>
-                            <div class="mg-cell-ro"><?= htmlspecialchars($dispName) ?></div>
+                            <div class="mg-cell-ro"><?= htmlspecialchars($dispName) ?><?php if (!$isPending && $knownAs !== ''): ?> <span class="pk-known" title="Known as">(<?= htmlspecialchars($knownAs) ?>)</span><?php endif; ?></div>
+                        <?php endif; ?>
+                    </td>
+                    <td class="mg-known-col">
+                        <?php if ($editKnown): ?>
+                            <input type="text" class="mg-cell-input" data-field="known_as" value="<?= htmlspecialchars($knownAs, ENT_QUOTES | ENT_SUBSTITUTE) ?>" placeholder="Known as" maxlength="60" aria-label="Known as, <?= htmlspecialchars($dispName, ENT_QUOTES | ENT_SUBSTITUTE) ?>">
+                        <?php else: ?>
+                            <div class="mg-cell-ro"><?= htmlspecialchars($knownAs) ?></div>
                         <?php endif; ?>
                     </td>
                     <?php if ($canManageMembers): ?>
@@ -1068,7 +1087,7 @@ function ordinal($n) {
             <strong><?= htmlspecialchars($_st_season['name']) ?></strong>
             <span style="color:#94a3b8">(<?= htmlspecialchars($_st_season['start_date']) ?> &rarr; <?= htmlspecialchars($_st_season['end_date']) ?>)</span>
             <?php if ($_season_over && $_champ): ?>
-                &mdash; &#127942; Champion: <strong><?= htmlspecialchars($_champ['display_name']) ?></strong>
+                &mdash; &#127942; Champion: <strong><?= htmlspecialchars($_champ['display_name']) ?><?= !empty($_champ['known_as']) ? ' <span class="pk-known">(' . htmlspecialchars($_champ['known_as']) . ')</span>' : '' ?></strong>
                 <span style="color:#64748b">(<?= $_has_points ? (int)$_champ['points'] . ' pts, ' : 'score ' . $_champ['avg_score'] . ', ' ?><?= (int)$_champ['wins'] ?> win<?= (int)$_champ['wins'] === 1 ? '' : 's' ?>, <?= lg_money((int)$_champ['net']) ?>)</span>
             <?php elseif ($_season_over): ?>
                 &mdash; season complete (no player reached the <?= $LB_MIN_GAMES ?>-game minimum)
@@ -1162,7 +1181,7 @@ function ordinal($n) {
             ?>
                 <tr class="<?= $isMe ? 'is-me' : '' ?>"<?= $qualified ? '' : ' style="opacity:.55"' ?>>
                     <td class="lb-rank<?= $rankCls ?>"><?= $qualified ? $shownRank : '<span title="Needs ' . $LB_MIN_GAMES . ' games to rank">–</span>' ?></td>
-                    <td class="lb-name"><a href="<?= htmlspecialchars($histUrl) ?>" style="color:inherit;text-decoration:none;border-bottom:1px dotted #cbd5e1"><?= htmlspecialchars($row['display_name']) ?></a><?= $isGuest ? ' <span style="font-size:.68rem;color:#94a3b8;font-weight:600" title="Guest / walk-in (no account)">guest</span>' : '' ?></td>
+                    <td class="lb-name"><a href="<?= htmlspecialchars($histUrl) ?>" style="color:inherit;text-decoration:none;border-bottom:1px dotted #cbd5e1"><?= htmlspecialchars($row['display_name']) ?></a><?= !empty($row['known_as']) && strcasecmp((string)$row['known_as'], (string)$row['display_name']) !== 0 ? ' <span class="pk-known" title="Known as">(' . htmlspecialchars($row['known_as']) . ')</span>' : '' ?><?= $isGuest ? ' <span style="font-size:.68rem;color:#94a3b8;font-weight:600" title="Guest / walk-in (no account)">guest</span>' : '' ?></td>
                     <td><?= $games ?><?= $tGames > 0 && $games > $tGames ? '<span class="lb-hide-mobile" style="color:#94a3b8;font-size:.75rem"> (' . $tGames . 'T)</span>' : '' ?></td>
                     <td class="stat-gold"><?= $tGames > 0 ? $wins : '—' ?></td>
                     <td><?= $winPct !== null ? $winPct . '%' : '—' ?></td>
@@ -1360,7 +1379,7 @@ function ordinal($n) {
                     <span title="This post has a public share link" style="font-size:.7rem;font-weight:600;color:#166534;background:#dcfce7;border:1px solid #86efac;border-radius:999px;padding:.1rem .5rem">&#128279; Public link</span>
                 <?php endif; ?>
                 <span>&#128197; <?= htmlspecialchars((new DateTime($lp['created_at'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone(display_timezone()))->format('F j, Y')) ?></span>
-                <?php if (!empty($lp['author_name'])): ?><span>by <?= htmlspecialchars($lp['author_name']) ?></span><?php endif; ?>
+                <?php if (!empty($lp['author_name'])): ?><span>by <?= htmlspecialchars($lp['author_name']) ?><?= $knownTag($lp['author_id'] ?? 0) ?></span><?php endif; ?>
                 <?php if ($lp_can_edit): ?>
                 <?php $__pbtn = 'font-size:.72rem;padding:.25rem .7rem;min-width:72px;text-align:center;line-height:1.2;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center'; ?>
                 <div style="margin-left:auto;display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
@@ -1448,22 +1467,29 @@ function ordinal($n) {
                         <?= avatar_html($c['username'], $c['avatar_path'] ?? null, 30) ?>
                         <div class="comment-content" style="flex:1;min-width:0">
                             <div style="font-size:.75rem;color:#94a3b8;margin-bottom:.15rem">
-                                <strong style="color:#334155"><?= htmlspecialchars($c['username']) ?></strong>
+                                <strong style="color:#334155"><?= htmlspecialchars($c['username']) ?></strong><?= $knownTag($c['user_id'] ?? 0) ?>
                                 <?= htmlspecialchars((new DateTime($c['created_at'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone(display_timezone()))->format('M j, Y g:i A')) ?>
                             </div>
                             <div style="font-size:.9rem;color:#334155"><?= htmlspecialchars($c['body']) ?></div>
+                            <?= pictures_html(attachment_list($c['attachment'] ?? null), COMMENT_UPLOAD_URL) ?>
                         </div>
                     </div>
                     <?php endforeach; ?>
-                    <form method="post" action="/comment.php" class="comment-form" style="margin-top:.5rem">
+                    <form method="post" action="/comment.php" enctype="multipart/form-data" class="comment-form cm-form" style="margin-top:.5rem">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                         <input type="hidden" name="action" value="add">
                         <input type="hidden" name="type" value="post">
                         <input type="hidden" name="content_id" value="<?= (int)$lp['id'] ?>">
                         <input type="hidden" name="redirect" value="/league.php?id=<?= $league_id ?>&tab=posts#post-<?= (int)$lp['id'] ?>">
-                        <textarea name="body" placeholder="Write a comment…" required maxlength="2000"
-                                  style="width:100%;min-height:60px;padding:.4rem .6rem;border:1.5px solid #cbd5e1;border-radius:6px;font:inherit"></textarea>
-                        <button type="submit" class="lg-btn lg-btn-primary" style="margin-top:.35rem;font-size:.8rem">Post</button>
+                        <div class="cm-compose">
+                            <textarea name="body" class="cm-body" placeholder="Write a comment… (paste a screenshot to attach it)" maxlength="2000" style="min-height:60px"></textarea>
+                            <div class="cm-thumbs" hidden></div>
+                        </div>
+                        <input type="file" name="image[]" class="cm-file" accept="image/jpeg,image/png,image/gif,image/webp" multiple hidden>
+                        <div style="display:flex;gap:.4rem;align-items:center;margin-top:.35rem">
+                            <button type="button" class="lg-btn lg-btn-ghost cm-pick" title="Attach pictures" aria-label="Attach pictures" style="font-size:.95rem;min-width:40px">&#128247;</button>
+                            <button type="submit" class="lg-btn lg-btn-primary" style="font-size:.8rem">Post</button>
+                        </div>
                     </form>
                 </div>
             </div>

@@ -72,6 +72,7 @@ $stmt = $db->prepare("
         e.id as event_id, e.title, e.start_date,
         ps.game_type,
         COALESCE(u.username, pp.display_name) as display_name,
+        lm.known_as,
         pp.rebuys, pp.addons,
         CASE WHEN ps.game_type = 'tournament' THEN COALESCE(pp.finish_position, pc.field_size) END as finish_position,
         pc.field_size,
@@ -90,6 +91,7 @@ $stmt = $db->prepare("
     JOIN poker_sessions ps ON ps.id = pp.session_id
     JOIN events e ON e.id = ps.event_id
     LEFT JOIN users u ON u.id = pp.user_id
+    LEFT JOIN league_members lm ON lm.league_id = e.league_id AND lm.user_id = pp.user_id
     JOIN (
         SELECT session_id, COUNT(*) as field_size
         FROM poker_players WHERE bought_in = 1 AND removed = 0
@@ -106,6 +108,7 @@ $stmt->execute($params);
 $games = $stmt->fetchAll();
 
 $player_name = $games ? $games[0]['display_name'] : ($who_params[0] ?? 'Player');
+$player_known = $games && !empty($games[0]['known_as']) && strcasecmp((string)$games[0]['known_as'], (string)$player_name) !== 0 ? (string)$games[0]['known_as'] : '';
 if (!$games && str_starts_with($pk, 'g_')) $player_name = substr($pk, 2);
 $is_guest = str_starts_with($pk, 'g_');
 
@@ -148,7 +151,7 @@ $site_name = get_setting('site_name', 'Game Night');
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= htmlspecialchars($player_name) ?> &ndash; <?= htmlspecialchars($league['name']) ?> stats &ndash; <?= htmlspecialchars($site_name) ?></title>
+    <title><?= htmlspecialchars($player_name . ($player_known !== '' ? ' (' . $player_known . ')' : '')) ?> &ndash; <?= htmlspecialchars($league['name']) ?> stats &ndash; <?= htmlspecialchars($site_name) ?></title>
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
         .lp-wrap { max-width: 760px; margin: 1.25rem auto 2rem; padding: 0 1rem; }
@@ -170,7 +173,7 @@ $site_name = get_setting('site_name', 'Game Night');
     <a href="<?= htmlspecialchars($backUrl) ?>" style="font-size:.85rem;color:#2563eb;text-decoration:none">&larr; <?= htmlspecialchars($league['name']) ?> leaderboard</a>
     <div class="lp-card" style="margin-top:.6rem">
         <h1 style="font-size:1.35rem;font-weight:800;color:#1e293b;margin:0">
-            <?= htmlspecialchars($player_name) ?>
+            <?= htmlspecialchars($player_name) ?><?= $player_known !== '' ? ' <span class="pk-known" style="font-size:.7em" title="Known as">(' . htmlspecialchars($player_known) . ')</span>' : '' ?>
             <?php if ($is_guest): ?><span style="font-size:.7rem;color:#94a3b8;font-weight:600">guest</span><?php endif; ?>
         </h1>
         <div style="font-size:.82rem;color:#64748b;margin-top:.2rem">

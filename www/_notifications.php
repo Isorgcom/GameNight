@@ -1007,7 +1007,7 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
             $cid = (int)($payload['comment_id'] ?? 0);
             $cm = null;
             if ($cid > 0) {
-                $cs = $db->prepare('SELECT c.body, u.username AS commenter FROM comments c JOIN users u ON u.id = c.user_id WHERE c.id = ?');
+                $cs = $db->prepare('SELECT c.body, c.attachment, u.username AS commenter FROM comments c JOIN users u ON u.id = c.user_id WHERE c.id = ?');
                 $cs->execute([$cid]);
                 $cm = $cs->fetch();
             }
@@ -1015,6 +1015,8 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
             $site      = get_setting('site_name', 'Game Night');
             $commenter = ($cm['commenter'] ?? '') !== '' ? $cm['commenter'] : (string)($payload['commenter'] ?? 'Someone');
             $body      = trim((string)$cm['body']);
+            // A picture with no words still needs a line in the notice.
+            if ($body === '' && ($np = count(attachment_list($cm['attachment'] ?? null))) > 0) $body = '📷 ' . ($np === 1 ? 'Picture' : $np . ' pictures');
             // Plain ASCII truncation marker to stay GSM-7 on the SMS channel.
             $snippet   = mb_substr($body, 0, 120) . (mb_strlen($body) > 120 ? '...' : '');
             $subject  = "$commenter commented on \"$title\"";

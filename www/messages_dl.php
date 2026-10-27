@@ -58,7 +58,13 @@ switch ($action) {
     case 'send': {
         [$conv, $other] = resolve_target($db, $current, $uid);
         $body = trim((string)($_POST['body'] ?? ''));
-        if ($body === '') fail('Message is empty.');
+        // Pictures may ride with the words, or stand alone (v1.13.0): up to six,
+        // checked as upload.php checks them (pictures_check, db.php); nothing is
+        // written to disk until every refusal below is past.
+        $pics = pictures_check('image', $uid, ($current['role'] ?? '') === 'admin');
+        if (!$pics['ok']) fail($pics['error'], str_contains($pics['error'], 'Daily') ? 429 : 400);
+        $pics = $pics['files'];
+        if ($body === '' && !$pics) fail('Message is empty.');
         if (mb_strlen($body) > 4000) fail('Message is too long (4000 character max).');
 
         $s = $db->prepare("SELECT COUNT(*) FROM dm_messages WHERE sender_id = ? AND created_at > datetime('now','-1 hour')");
@@ -83,9 +89,17 @@ switch ($action) {
             }
         }
 
-        $db->prepare('INSERT INTO dm_messages (conversation_id, sender_id, body) VALUES (?, ?, ?)')
-           ->execute([(int)$conv['id'], $uid, $body]);
+        $names = pictures_store($pics, DM_UPLOAD_DIR, $uid);
+        if ($names === null) fail('Could not save the pictures.', 500);
+        try {
+            $db->prepare('INSERT INTO dm_messages (conversation_id, sender_id, body, attachment) VALUES (?, ?, ?, ?)')
+               ->execute([(int)$conv['id'], $uid, $body, attachment_store($names)]);
+        } catch (Throwable $e) {
+            foreach ($names as $n) @unlink(DM_UPLOAD_DIR . $n);
+            throw $e;
+        }
         $msg_id = (int)$db->lastInsertId();
+        foreach ($names as $n) db_log_activity($uid, 'uploaded image: dm/' . $n);
         $db->prepare('UPDATE dm_conversations SET last_message_at = CURRENT_TIMESTAMP WHERE id = ?')
            ->execute([(int)$conv['id']]);
         // My own read pointer follows my sends.
@@ -93,7 +107,7 @@ switch ($action) {
            ->execute([$msg_id, (int)$conv['id'], $uid]);
 
         dm_notify($db, $conv, $current, $body);
-        ok(['id' => $msg_id, 'conv_id' => (int)$conv['id']]);
+        ok(['id' => $msg_id, 'conv_id' => (int)$conv['id'], 'attachments' => pictures_urls($names, DM_UPLOAD_URL)]);
     }
 
     case 'clear': {
@@ -118,10 +132,12 @@ switch ($action) {
         }
         $db->prepare('DELETE FROM dm_participants WHERE conversation_id = ? AND user_id = ?')
            ->execute([(int)$conv['id'], $uid]);
-        // Last one out: remove the empty conversation (cascades messages).
+        // Last one out: remove the empty conversation (cascades messages; the
+        // pictures first, since nothing else will).
         $s = $db->prepare('SELECT COUNT(*) FROM dm_participants WHERE conversation_id = ?');
         $s->execute([(int)$conv['id']]);
         if ((int)$s->fetchColumn() === 0) {
+            dm_unlink_attachments($db, 'conversation_id = ?', [(int)$conv['id']]);
             $db->prepare('DELETE FROM dm_conversations WHERE id = ?')->execute([(int)$conv['id']]);
         }
         ok();
@@ -209,7 +225,7 @@ switch ($action) {
         if (!$me) fail('Unknown conversation.', 404);
         dm_touch_seen($db, (int)$conv['id'], $uid);
         $after = max((int)($_POST['after_id'] ?? 0), (int)$me['cleared_before_id']);
-        $s = $db->prepare('SELECT m.id, m.sender_id, m.body, m.created_at, u.username, u.avatar_path
+        $s = $db->prepare('SELECT m.id, m.sender_id, m.body, m.attachment, m.created_at, u.username, u.avatar_path
                            FROM dm_messages m JOIN users u ON u.id = m.sender_id
                            WHERE m.conversation_id = ? AND m.id > ? ORDER BY m.id');
         $s->execute([(int)$conv['id'], $after]);
@@ -226,6 +242,7 @@ switch ($action) {
                 'sender'      => (string)$r['username'],
                 'avatar_path' => $r['avatar_path'] ?? null,
                 'body'        => (string)$r['body'],
+                'attachments' => pictures_urls(attachment_list($r['attachment'] ?? null), DM_UPLOAD_URL),
                 'when'        => $when->format('M j g:ia'),
             ];
         }

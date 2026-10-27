@@ -40,11 +40,16 @@ if (!$row) {
         // An invitation addressed to one account: only that account may accept
         // it, and no contact matching is needed (or allowed).
         if ((int)$row['invited_user_id'] === (int)$current['id']) {
+            // The typed name becomes the league's known-as name for this
+            // member (unless it is just the screen name, which an invitation
+            // to an account stores there).
             $db->prepare(
                 "UPDATE league_members
-                 SET user_id = ?, contact_name = NULL, contact_email = NULL, contact_phone = NULL, invite_token = NULL, invited_user_id = NULL, joined_at = CURRENT_TIMESTAMP
+                 SET user_id = ?,
+                     known_as = COALESCE(known_as, CASE WHEN LOWER(COALESCE(contact_name, '')) IN ('', LOWER(?)) THEN NULL ELSE contact_name END),
+                     contact_name = NULL, contact_email = NULL, contact_phone = NULL, invite_token = NULL, invited_user_id = NULL, joined_at = CURRENT_TIMESTAMP
                  WHERE id = ? AND user_id IS NULL"
-            )->execute([(int)$current['id'], (int)$row['id']]);
+            )->execute([(int)$current['id'], (string)$current['username'], (int)$row['id']]);
             db_log_activity((int)$current['id'], 'accepted league invitation (league id=' . (int)$row['league_id'] . ')');
             header('Location: /league.php?id=' . (int)$row['league_id']);
             exit;
@@ -63,9 +68,11 @@ if (!$row) {
         if ($match) {
             $db->prepare(
                 "UPDATE league_members
-                 SET user_id = ?, contact_name = NULL, contact_email = NULL, contact_phone = NULL, invite_token = NULL
+                 SET user_id = ?,
+                     known_as = COALESCE(known_as, CASE WHEN LOWER(COALESCE(contact_name, '')) IN ('', LOWER(?)) THEN NULL ELSE contact_name END),
+                     contact_name = NULL, contact_email = NULL, contact_phone = NULL, invite_token = NULL
                  WHERE id = ?"
-            )->execute([(int)$current['id'], (int)$row['id']]);
+            )->execute([(int)$current['id'], (string)$current['username'], (int)$row['id']]);
             header('Location: /league.php?id=' . (int)$row['league_id']);
             exit;
         }

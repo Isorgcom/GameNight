@@ -59,6 +59,118 @@ if (!defined('APP_SECRET')) {
 }
 
 /**
+ * The name a league shows for a member: the "known as" name an owner or
+ * manager gave them (league_members.known_as) when there is one, else the
+ * account's screen name. A typed name that only differs from the screen
+ * name in case is not a known-as name.
+ */
+function league_display_name(?string $known_as, string $username): string {
+    $k = trim((string)$known_as);
+    return ($k !== '' && strcasecmp($k, $username) !== 0) ? $k : $username;
+}
+
+/**
+ * Comment pictures live under uploads/comments/ as u<uid>_<32 hex>.<ext>.
+ * comment_unlink_attachments() removes the files of the comments matched by
+ * $where (a comments WHERE clause with ? placeholders); every path that
+ * deletes comment rows calls it first, since a row's file would otherwise
+ * stay on disk forever (cron's sweep covers an orphan nothing references).
+ */
+const COMMENT_UPLOAD_DIR = __DIR__ . '/uploads/comments/';
+const COMMENT_UPLOAD_URL = '/uploads/comments/';
+function comment_unlink_attachments(PDO $db, string $where, array $params): int {
+    $n = 0;
+    try {
+        $q = $db->prepare("SELECT attachment FROM comments WHERE attachment IS NOT NULL AND attachment <> '' AND ($where)");
+        $q->execute($params);
+        foreach ($q->fetchAll(PDO::FETCH_COLUMN) as $raw) {
+            foreach (attachment_list((string)$raw) as $f) {
+                $path = COMMENT_UPLOAD_DIR . basename($f);
+                if (is_file($path) && @unlink($path)) $n++;
+            }
+        }
+    } catch (Throwable $e) { /* files are best-effort; the rows still go */ }
+    return $n;
+}
+
+/**
+ * Pictures posted with a message or a comment (v1.13.0). pictures_check()
+ * validates every file of the $field input (one file, or an image[] array)
+ * the way upload.php does: real bytes of a JPEG / PNG / GIF / WebP that
+ * decode, 8 MB each, at most $max per post, and the sender's daily upload cap
+ * counted per file. Nothing is written. Returns ['ok' => true, 'files' =>
+ * [[tmp, ext], …]] or ['ok' => false, 'error' => …]. pictures_store() then
+ * moves them into $dir as u<uid>_<32 hex>.<ext> and returns the basenames, or
+ * unlinks what it wrote and returns null when a move fails.
+ */
+const PICTURES_PER_POST = 6;
+function pictures_check(string $field, int $uid, bool $isAdmin, int $max = PICTURES_PER_POST): array {
+    if (empty($_FILES[$field])) return ['ok' => true, 'files' => []];
+    $f = $_FILES[$field];
+    $names = is_array($f['name']) ? $f['name'] : [$f['name']];
+    $items = [];
+    foreach ($names as $i => $n) {
+        $err = is_array($f['error']) ? $f['error'][$i] : $f['error'];
+        if ((int)$err === UPLOAD_ERR_NO_FILE) continue;
+        $items[] = [
+            'error' => (int)$err,
+            'size'  => (int)(is_array($f['size']) ? $f['size'][$i] : $f['size']),
+            'tmp'   => (string)(is_array($f['tmp_name']) ? $f['tmp_name'][$i] : $f['tmp_name']),
+        ];
+    }
+    if (!$items) return ['ok' => true, 'files' => []];
+    if (count($items) > $max) return ['ok' => false, 'error' => "At most $max pictures at a time."];
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $exts  = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp'];
+    $out = [];
+    foreach ($items as $it) {
+        if ($it['error'] !== UPLOAD_ERR_OK) return ['ok' => false, 'error' => 'A picture did not upload. Try again.'];
+        if ($it['size'] > 8 * 1024 * 1024) return ['ok' => false, 'error' => 'A picture is too large (8 MB each at most).'];
+        $mime = (string)$finfo->file($it['tmp']);
+        if (!isset($exts[$mime])) return ['ok' => false, 'error' => 'Only JPEG, PNG, GIF or WebP pictures can be attached.'];
+        if (@getimagesize($it['tmp']) === false) return ['ok' => false, 'error' => 'One of the files is not a readable picture.'];
+        $out[] = [$it['tmp'], $exts[$mime]];
+    }
+    if (!$isAdmin) {
+        $capQ = get_db()->prepare("SELECT COUNT(*) FROM activity_log WHERE user_id = ? AND action LIKE 'uploaded image:%' AND created_at > datetime('now', '-1 day')");
+        $capQ->execute([$uid]);
+        if ((int)$capQ->fetchColumn() + count($out) > MAX_UPLOADS_PER_DAY) return ['ok' => false, 'error' => 'Daily picture limit reached. Try again tomorrow.'];
+    }
+    return ['ok' => true, 'files' => $out];
+}
+function pictures_store(array $files, string $dir, int $uid): ?array {
+    if (!$files) return [];
+    if (!is_dir($dir) && !@mkdir($dir, 0755, true)) return null;
+    $names = [];
+    foreach ($files as [$tmp, $ext]) {
+        $name = 'u' . $uid . '_' . bin2hex(random_bytes(16)) . '.' . $ext;
+        if (!move_uploaded_file($tmp, $dir . $name)) { foreach ($names as $n) @unlink($dir . $n); return null; }
+        @chmod($dir . $name, 0644);
+        $names[] = $name;
+    }
+    return $names;
+}
+/** The stored attachment column: a JSON list of basenames (a bare name from the first build reads as a list of one). */
+function attachment_list(?string $raw): array {
+    $raw = trim((string)$raw);
+    if ($raw === '') return [];
+    if ($raw[0] === '[') { $a = json_decode($raw, true); return is_array($a) ? array_values(array_filter(array_map('strval', $a), fn($x) => $x !== '')) : []; }
+    return [$raw];
+}
+function attachment_store(array $names): ?string { return $names ? json_encode(array_values($names)) : null; }
+/** The thumbnails of a message or comment: each opens full size in a new tab. */
+function pictures_html(array $names, string $urlPrefix): string {
+    if (!$names) return '';
+    $h = '<div class="pk-pics">';
+    foreach ($names as $n) {
+        $u = htmlspecialchars($urlPrefix . rawurlencode(basename((string)$n)), ENT_QUOTES | ENT_SUBSTITUTE);
+        $h .= '<a class="pk-pic" href="' . $u . '" target="_blank" rel="noopener"><img src="' . $u . '" alt="Picture" loading="lazy"></a>';
+    }
+    return $h . '</div>';
+}
+function pictures_urls(array $names, string $urlPrefix): array { return array_map(fn($n) => $urlPrefix . basename((string)$n), $names); }
+
+/**
  * One CSV cell for fputcsv(): a value whose first character is one of
  * = + - @ TAB CR gets a leading apostrophe, so a spreadsheet opening the
  * export reads it as text and not as a formula (a guest's name or note is
@@ -1485,6 +1597,11 @@ JSON;
         FOREIGN KEY (conversation_id) REFERENCES dm_conversations(id) ON DELETE CASCADE,
         FOREIGN KEY (sender_id)       REFERENCES users(id) ON DELETE CASCADE
     )"); } catch (Exception $e) {}
+    // A picture attached to a message (v1.13.0): the basename of a file under
+    // uploads/dm/. A message may carry a picture and no text (body = '').
+    try { $pdo->exec("ALTER TABLE dm_messages ADD COLUMN attachment TEXT"); } catch (Exception $e) {}
+    // A picture on an event or post comment (v1.13.0): a basename under uploads/comments/.
+    try { $pdo->exec("ALTER TABLE comments ADD COLUMN attachment TEXT"); } catch (Exception $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_dm_msg_conv   ON dm_messages(conversation_id, id)"); } catch (Exception $e) {}
     // Event chat: a group conversation bound to an event. Membership is synced
     // from the roster (host + approved RSVP-yes registered guests + managers)
@@ -1549,6 +1666,10 @@ JSON;
     // only that account may accept it (league_invite.php), and the row carries
     // only what the inviter typed, never the account's own details.
     try { $pdo->exec("ALTER TABLE league_members ADD COLUMN invited_user_id INTEGER"); } catch (Exception $e) {}
+    // The name this league knows a member by (v1.13.0): set by an owner or
+    // manager, seen by every member beside the screen name. Filled from the
+    // typed contact_name when a pending row links to an account.
+    try { $pdo->exec("ALTER TABLE league_members ADD COLUMN known_as TEXT"); } catch (Exception $e) {}
 
     // Relax user_id NOT NULL if still present (SQLite can't drop NOT NULL directly).
     try {
@@ -1572,12 +1693,14 @@ JSON;
                 invited_by    INTEGER,
                 invited_at    DATETIME,
                 invite_token  TEXT,
+                invited_user_id INTEGER,
+                known_as      TEXT,
                 FOREIGN KEY (league_id) REFERENCES leagues(id),
                 FOREIGN KEY (user_id)   REFERENCES users(id)
             )");
             $pdo->exec("INSERT INTO league_members
-                        (id, league_id, user_id, role, joined_at, contact_name, contact_email, contact_phone, invited_by, invited_at, invite_token)
-                        SELECT id, league_id, user_id, role, joined_at, contact_name, contact_email, contact_phone, invited_by, invited_at, invite_token
+                        (id, league_id, user_id, role, joined_at, contact_name, contact_email, contact_phone, invited_by, invited_at, invite_token, invited_user_id, known_as)
+                        SELECT id, league_id, user_id, role, joined_at, contact_name, contact_email, contact_phone, invited_by, invited_at, invite_token, invited_user_id, known_as
                         FROM league_members_old");
             $pdo->exec("DROP TABLE league_members_old");
             $pdo->exec("COMMIT");
@@ -2775,6 +2898,7 @@ function delete_league_cascade(PDO $db, int $league_id): void {
         $db->prepare("DELETE FROM event_exceptions WHERE event_id IN ($placeholders)")->execute($evIds);
         try { $db->prepare("DELETE FROM event_notifications_sent WHERE event_id IN ($placeholders)")->execute($evIds); } catch (Throwable $e) {}
         try { $db->prepare("DELETE FROM pending_notifications    WHERE event_id IN ($placeholders)")->execute($evIds); } catch (Throwable $e) {}
+        comment_unlink_attachments($db, "type='event' AND content_id IN ($placeholders)", $evIds);
         $db->prepare("DELETE FROM comments WHERE type='event' AND content_id IN ($placeholders)")->execute($evIds);
         $db->prepare("DELETE FROM events   WHERE id IN ($placeholders)")->execute($evIds);
     }
@@ -2786,6 +2910,7 @@ function delete_league_cascade(PDO $db, int $league_id): void {
         $postIds = array_map('intval', array_column($postIds->fetchAll(), 'id'));
         if (!empty($postIds)) {
             $pp = implode(',', array_fill(0, count($postIds), '?'));
+            comment_unlink_attachments($db, "type='post' AND content_id IN ($pp)", $postIds);
             $db->prepare("DELETE FROM comments WHERE type='post' AND content_id IN ($pp)")->execute($postIds);
             $db->prepare("DELETE FROM posts WHERE id IN ($pp)")->execute($postIds);
         }
@@ -2883,6 +3008,7 @@ function delete_user_account(int $user_id): void {
     } catch (RuntimeException $e) { throw $e; } catch (Exception $e) {}
     // Preserve league/global posts authored by this user; null out the author pointer instead of deleting.
     try { $db->prepare('UPDATE posts SET author_id = NULL WHERE author_id = ?')->execute([$user_id]); } catch (Exception $e) {}
+    comment_unlink_attachments($db, 'user_id = ?', [$user_id]);
     $db->prepare('DELETE FROM comments WHERE user_id = ?')->execute([$user_id]);
     $db->prepare('DELETE FROM password_resets WHERE user_id = ?')->execute([$user_id]);
     $db->prepare('DELETE FROM remember_tokens WHERE user_id = ?')->execute([$user_id]);
@@ -2890,6 +3016,9 @@ function delete_user_account(int $user_id): void {
     $db->prepare('DELETE FROM phone_verifications WHERE user_id = ?')->execute([$user_id]);
     try { $db->prepare('DELETE FROM mfa_recovery_codes WHERE user_id = ?')->execute([$user_id]); } catch (Exception $e) {}
     try { $db->prepare('DELETE FROM sms_pending_rsvp WHERE user_id = ?')->execute([$user_id]); } catch (Exception $e) {}
+    // Their message pictures go with their messages (the rows cascade on the
+    // DELETE below; the files would not).
+    try { require_once __DIR__ . '/_dm.php'; dm_unlink_attachments($db, 'sender_id = ?', [$user_id]); } catch (Throwable $e) {}
     $db->prepare('DELETE FROM users WHERE id = ?')->execute([$user_id]);
 }
 

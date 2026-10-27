@@ -126,7 +126,7 @@ if ($league_id > 0) {
 
     // Linked members of the league
     $q1 = $db->prepare(
-        "SELECT u.username, " . ($canManage ? "u.email, u.phone" : "'' AS email, '' AS phone") . ", u.username AS display_name,
+        "SELECT u.username, " . ($canManage ? "u.email, u.phone" : "'' AS email, '' AS phone") . ", u.username AS display_name, lm.known_as,
                 0 AS is_pending, 1 AS is_league_member
          FROM league_members lm
          JOIN users u ON u.id = lm.user_id

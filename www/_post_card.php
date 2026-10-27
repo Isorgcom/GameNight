@@ -120,6 +120,7 @@ $redir = '/' . ($monthFilter ? '?month=' . urlencode($monthFilter) : '') . '#pos
                         <span><?= htmlspecialchars((new DateTime($c['created_at'], new DateTimeZone('UTC')))->setTimezone($local_tz)->format('M j, Y g:i A')) ?></span>
                     </div>
                     <div class="comment-body" id="cbody-<?= (int)$c['id'] ?>"><?= htmlspecialchars($c['body']) ?></div>
+                    <?= pictures_html(attachment_list($c['attachment'] ?? null), COMMENT_UPLOAD_URL) ?>
                     <?php if ($user && ($user['id'] == $c['user_id'] || $isAdmin)): ?>
                     <div class="comment-actions">
                         <button type="button" class="comment-delete"
@@ -140,13 +141,18 @@ $redir = '/' . ($monthFilter ? '?month=' . urlencode($monthFilter) : '') . '#pos
             <?php endforeach; ?>
 
             <?php if ($user): ?>
-            <form method="post" action="/comment.php" class="comment-form">
+            <form method="post" action="/comment.php" enctype="multipart/form-data" class="comment-form cm-form">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
                 <input type="hidden" name="action" value="add">
                 <input type="hidden" name="type" value="post">
                 <input type="hidden" name="content_id" value="<?= (int)$post['id'] ?>">
                 <input type="hidden" name="redirect" value="<?= htmlspecialchars($redir) ?>">
-                <textarea name="body" placeholder="Write a comment…" required maxlength="2000"></textarea>
+                <div class="cm-compose" style="flex:1 1 100%">
+                    <textarea name="body" class="cm-body" placeholder="Write a comment… (paste a screenshot to attach it)" maxlength="2000"></textarea>
+                    <div class="cm-thumbs" hidden></div>
+                </div>
+                <input type="file" name="image[]" class="cm-file" accept="image/jpeg,image/png,image/gif,image/webp" multiple hidden>
+                <button type="button" class="btn btn-outline cm-pick" title="Attach pictures" aria-label="Attach pictures" style="min-width:44px;font-size:1.05rem">&#128247;</button>
                 <button type="submit" class="btn btn-primary btn-post">Post</button>
             </form>
             <?php else: ?>
