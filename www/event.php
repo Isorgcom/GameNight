@@ -927,28 +927,39 @@ function renderInvPanel() {
             + '</select>';
     }
 
-    if (approved.length) {
-        ih += '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin-bottom:.4rem">Invites (' + approved.length + ')</div>';
-        ih += '<div style="display:flex;flex-direction:column;gap:.2rem;max-height:14rem;overflow-y:auto;padding-right:.25rem">';
-        approved.forEach(function(inv) {
-            ih += '<div style="font-size:.875rem;color:#334155;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">' + rsvpSel(inv)
-                + '<span style="flex:1;min-width:0">' + escH(inv.username) + knownTag(inv.username)
-                + (inv.no_contact ? ' <span class="inv-nocontact-tag" title="No email or phone on file">no contact</span>' : '') + '</span>';
-            if (inv.delivery === 'failed') {
-                ih += '<span title="' + escH(inv.delivery_error || 'Delivery failed') + '" style="font-size:.68rem;font-weight:700;color:#dc2626;background:#fef2f2;border:1px solid #fecaca;border-radius:5px;padding:.1rem .4rem;cursor:help">&#10007; failed</span>';
-            } else if (inv.delivery === 'sending') {
-                ih += '<span title="Queued — delivery in progress" style="font-size:.68rem;font-weight:700;color:#1e40af;background:#eff6ff;border:1px solid #bfdbfe;border-radius:5px;padding:.1rem .4rem">&#9203; sending</span>';
-            } else if (inv.delivery === 'delivered') {
-                ih += '<span title="Handed to the provider successfully" style="font-size:.68rem;font-weight:700;color:#166534;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:5px;padding:.1rem .4rem">&#10003;</span>';
-            }
-            if (NOTIFS_ON && (!inv.rsvp || inv.delivery === 'failed')) {
-                var lbl = inv.delivery === 'failed' ? 'Retry' : (inv.sent ? 'Resend' : 'Send');
-                ih += '<button type="button" class="btn-resend-inv" data-username="' + escH(inv.username) + '" title="' + lbl + ' invite SMS/email" style="font-size:.7rem;padding:.15rem .5rem;border-radius:5px;border:1px solid #cbd5e1;background:#fff;color:#475569;font-weight:600;cursor:pointer">' + lbl + '</button>';
-            }
-            ih += '</div>';
-        });
+    // Guests on the list, grouped by answer (Bernard, 2026-10-28): who is
+    // coming, who might, who has not said, each with its count, the same
+    // way the declined list below reads.
+    function invRow(inv) {
+        ih += '<div style="font-size:.875rem;color:#334155;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">' + rsvpSel(inv)
+            + '<span style="flex:1;min-width:0">' + escH(inv.username) + knownTag(inv.username)
+            + (inv.no_contact ? ' <span class="inv-nocontact-tag" title="No email or phone on file">no contact</span>' : '') + '</span>';
+        if (inv.delivery === 'failed') {
+            ih += '<span title="' + escH(inv.delivery_error || 'Delivery failed') + '" style="font-size:.68rem;font-weight:700;color:#dc2626;background:#fef2f2;border:1px solid #fecaca;border-radius:5px;padding:.1rem .4rem;cursor:help">&#10007; failed</span>';
+        } else if (inv.delivery === 'sending') {
+            ih += '<span title="Queued — delivery in progress" style="font-size:.68rem;font-weight:700;color:#1e40af;background:#eff6ff;border:1px solid #bfdbfe;border-radius:5px;padding:.1rem .4rem">&#9203; sending</span>';
+        } else if (inv.delivery === 'delivered') {
+            ih += '<span title="Handed to the provider successfully" style="font-size:.68rem;font-weight:700;color:#166534;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:5px;padding:.1rem .4rem">&#10003;</span>';
+        }
+        if (NOTIFS_ON && (!inv.rsvp || inv.delivery === 'failed')) {
+            var lbl = inv.delivery === 'failed' ? 'Retry' : (inv.sent ? 'Resend' : 'Send');
+            ih += '<button type="button" class="btn-resend-inv" data-username="' + escH(inv.username) + '" title="' + lbl + ' invite SMS/email" style="font-size:.7rem;padding:.15rem .5rem;border-radius:5px;border:1px solid #cbd5e1;background:#fff;color:#475569;font-weight:600;cursor:pointer">' + lbl + '</button>';
+        }
         ih += '</div>';
     }
+    function invGroup(label, list, color, first) {
+        if (!list.length) return;
+        ih += '<div class="inv-group-head" style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:' + color + ';margin-top:' + (first ? '0' : '.7rem') + ';margin-bottom:.4rem">' + label + ' (' + list.length + ')</div>';
+        ih += '<div style="display:flex;flex-direction:column;gap:.2rem;max-height:14rem;overflow-y:auto;padding-right:.25rem">';
+        list.forEach(invRow);
+        ih += '</div>';
+    }
+    var goingL = approved.filter(function(i){ return i.rsvp === 'yes'; });
+    var maybeL = approved.filter(function(i){ return i.rsvp === 'maybe'; });
+    var waitL  = approved.filter(function(i){ return !i.rsvp; });
+    invGroup('Going', goingL, '#15803d', true);
+    invGroup('Maybe', maybeL, '#b45309', !goingL.length);
+    invGroup('No answer yet', waitL, '#64748b', !goingL.length && !maybeL.length);
 
     if (pending.length) {
         ih += '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#d97706;margin-top:.7rem;margin-bottom:.4rem">&#9203; Pending Approval (' + pending.length + ')</div>';

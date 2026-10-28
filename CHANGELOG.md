@@ -11,6 +11,12 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.14.1] - 2026-10-28
+
+### Changed
+
+- **The host's guest list on the event page is grouped by answer.** The Invites panel used to show one list of everyone not declined, with yes and unanswered rows mixed together. It now reads **Going (N)**, **Maybe (N)** when anyone said maybe, and **No answer yet (N)**, each a list of its own with its count, above Pending Approval, Waitlisted and Declined, so the host sees at a glance who is coming. Each row keeps its RSVP picker, delivery mark and Send / Resend button; changing a guest's answer moves them to the matching group. Asked for by a host planning his next tournament.
+
 ## [v1.14.0] - 2026-10-28
 
 ### Changed
