@@ -16,6 +16,11 @@ if (!$event) { http_response_code(404); exit('Event not found'); }
 if (!can_manage_event($db, (int)$event_id, (int)$current['id'], $isAdmin)) {
     http_response_code(403); exit('Access denied');
 }
+// A cancelled event has no game to run; its page says so and offers Duplicate.
+if (!empty($event['cancelled_at'])) {
+    $_SESSION['flash'] = ['type' => 'error', 'msg' => EVENT_CANCELLED_MSG . ' The game cannot be run; duplicate the event to plan a new one.'];
+    header('Location: /event.php?id=' . (int)$event_id); exit;
+}
 
 $site_name = get_setting('site_name', 'Game Night');
 $csrf = csrf_token();

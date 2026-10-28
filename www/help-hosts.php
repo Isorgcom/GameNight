@@ -126,8 +126,9 @@ $allow_reg   = get_setting('allow_registration', '1') === '1';
     <div class="help-step">
         <h2><span class="step-num">6</span> Track RSVPs</h2>
         <p>Open the event and look at the <strong>Invites</strong> list. You'll see each person's response &mdash; yes, no, maybe, or no answer yet &mdash; and you can change it for them or hit <strong>Resend</strong> to send their invitation again.</p>
-        <p>Reminder messages go out automatically before the event &mdash; you don't need to nudge anyone manually.</p>
+        <p>Reminder messages go out automatically before the event &mdash; you don't need to nudge anyone manually. They reach every approved guest, including people you typed in without an account, and anyone you take off the list stops getting them.</p>
         <img class="help-shot" src="/img/help/event-rsvps.png?v=<?= @filemtime(__DIR__ . '/img/help/event-rsvps.png') ?: 0 ?>" alt="Guest RSVP list">
+        <div class="hint"><strong>Calling it off?</strong> Open the event, choose <strong>More &rarr; Cancel event</strong>, and everyone on the guest list is told it is off. The event stays on your calendar and in My Events, marked <em>Cancelled</em>: it takes no RSVPs or walk-ins and its game can't be run, but <strong>Duplicate event</strong> turns it into a new one whenever you are ready. A cancelled or past event can also be deleted for good.</div>
     </div>
 
     <div class="help-step">

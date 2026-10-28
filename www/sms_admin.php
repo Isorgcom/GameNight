@@ -10,7 +10,7 @@
  *   APPROVE <#> <name>  approve a pending/waitlisted invitee (executes immediately)
  *   MSG <#> <message>   broadcast a message to event #'s guests   (needs CONFIRM)
  *   REMIND <#>          send a reminder to event #'s guests        (needs CONFIRM)
- *   CANCEL <#>          cancel event # and notify everyone         (needs CONFIRM)
+ *   CANCEL <#>          cancel event # and notify everyone; the event is kept, marked cancelled (needs CONFIRM)
  *   CONFIRM             confirm the pending MSG/REMIND/CANCEL
  *
  * Event numbers come from the texter's "manageable events" list (see
@@ -406,7 +406,7 @@ function sms_admin_handle_confirm(PDO $db, array $user, string $provider): void 
     $isAdmin = (($user['role'] ?? '') === 'admin');
 
     // Defense in depth: re-verify the event still exists and is still manageable.
-    $ev = $db->prepare('SELECT title, start_date FROM events WHERE id = ?');
+    $ev = $db->prepare('SELECT title, start_date, cancelled_at FROM events WHERE id = ?');
     $ev->execute([$eid]);
     $evRow = $ev->fetch();
     if (!$evRow) {
@@ -418,12 +418,20 @@ function sms_admin_handle_confirm(PDO $db, array $user, string $provider): void 
         return;
     }
     $title = $evRow['title'];
+    // A cancelled event only takes a message to its guests.
+    if (!empty($evRow['cancelled_at']) && $command !== 'msg') {
+        sms_admin_reply($provider, "\"$title\" was already cancelled.");
+        return;
+    }
 
     if ($command === 'cancel') {
-        $res = cancel_event_with_notifications($db, $eid, $actorId);
+        // Cancel and keep (v1.13.1): the event stays on the site, marked, so
+        // it can be duplicated later; guests are told it is off.
+        $res = cancel_event_keep($db, $eid, $actorId);
         $n = $res['notified'] ?? 0;
+        if ($n > 0) drain_queue_async();
         db_log_activity($actorId, "cancelled event id: $eid via SMS");
-        sms_admin_reply($provider, "Cancelled \"$title\". $n guest(s) notified.");
+        sms_admin_reply($provider, "Cancelled \"$title\". $n guest(s) notified. The event stays on the site, marked cancelled.");
         return;
     }
 

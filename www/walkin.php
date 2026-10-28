@@ -17,7 +17,7 @@ $site_name  = get_setting('site_name', 'Game Night');
 // ── Validate event + token ────────────────────────────────────────────────────
 $event = null;
 if ($event_id > 0 && $token !== '') {
-    $stmt = $db->prepare('SELECT id, title, start_date, start_time, end_time, walkin_token, visibility, created_by FROM events WHERE id = ?');
+    $stmt = $db->prepare('SELECT id, title, start_date, start_time, end_time, walkin_token, visibility, created_by, cancelled_at FROM events WHERE id = ?');
     $stmt->execute([$event_id]);
     $row = $stmt->fetch();
     if ($row && hash_equals((string)$row['walkin_token'], $token)) {
@@ -25,6 +25,9 @@ if ($event_id > 0 && $token !== '') {
     }
 }
 
+// A cancelled event takes no walk-ins: the QR at the door says so.
+$walkinCancelled = $event !== null && !empty($event['cancelled_at']);
+if ($walkinCancelled) $event = null;
 $invalid = ($event === null);
 
 // ── Rate limiting: max 5 submissions per IP per hour ──────────────────────────
@@ -419,8 +422,13 @@ $csrf_token = csrf_token();
 
         <?php if ($invalid): ?>
         <div class="walkin-invalid">
+            <?php if (!empty($walkinCancelled)): ?>
+            <h2>Event cancelled</h2>
+            <p>This game was cancelled by the host, so there is nothing to sign up for.</p>
+            <?php else: ?>
             <h2>Invalid Link</h2>
             <p>This registration link is invalid or has expired.</p>
+            <?php endif; ?>
         </div>
 
         <?php elseif ($success !== ''): ?>

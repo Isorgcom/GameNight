@@ -109,8 +109,10 @@ $lines = [
     'DTSTAMP:' . $now,
     $all_day ? 'DTSTART;VALUE=DATE:' . $ics_start : 'DTSTART:' . $ics_start,
     $all_day ? 'DTEND;VALUE=DATE:' . $ics_end     : 'DTEND:' . $ics_end,
-    'SUMMARY:' . ics_escape($title),
+    'SUMMARY:' . ics_escape((!empty($event['cancelled_at']) ? 'Cancelled: ' : '') . $title),
 ];
+// A cancelled event downloads as CANCELLED, which updates a copy already added.
+if (!empty($event['cancelled_at'])) $lines[] = 'STATUS:CANCELLED';
 if ($desc !== '' || $event_link !== '') {
     $lines[] = 'DESCRIPTION:' . ics_escape(trim($desc . ($event_link !== '' ? "\n\n" . $event_link : '')));
 }

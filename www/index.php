@@ -663,9 +663,9 @@ endif; ?>
                              . '&date=' . urlencode($occDate);
                     ?>
                     <a href="<?= htmlspecialchars($evLink) ?>"
-                       class="wk-event"
+                       class="wk-event<?= !empty($ev['cancelled_at']) ? ' pk-ev-cancelled' : '' ?>"
                        style="background:<?= htmlspecialchars($ev['color']) ?>"
-                       title="<?= htmlspecialchars($ev['title']) ?>">
+                       title="<?= !empty($ev['cancelled_at']) ? 'Cancelled: ' : '' ?><?= htmlspecialchars($ev['title']) ?>">
                         <?= htmlspecialchars($ev['title']) ?>
                     </a>
                 <?php endforeach; ?>

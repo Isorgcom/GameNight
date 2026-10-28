@@ -38,7 +38,7 @@ if (!$league) {
 // 'invitees_only' stay out of the public feed (matches league_public.php).
 $cutoff = (new DateTime('now', $site_tz))->modify('-30 days')->format('Y-m-d');
 $st = $db->prepare(
-    "SELECT e.id, e.title, e.start_date, e.end_date, e.start_time, e.end_time, e.venue_name
+    "SELECT e.id, e.title, e.start_date, e.end_date, e.start_time, e.end_time, e.venue_name, e.cancelled_at
        FROM events e
       WHERE e.league_id = ? AND e.visibility IN ('league', 'public')
         AND COALESCE(NULLIF(e.end_date, ''), e.start_date) >= ?
@@ -103,7 +103,11 @@ foreach ($events as $event) {
     $lines[] = 'DTSTAMP:' . $now;
     $lines[] = $all_day ? 'DTSTART;VALUE=DATE:' . $ics_start : 'DTSTART:' . $ics_start;
     $lines[] = $all_day ? 'DTEND;VALUE=DATE:' . $ics_end     : 'DTEND:' . $ics_end;
-    $lines[] = 'SUMMARY:' . ics_escape((string)$event['title']);
+    // A cancelled event stays in the feed as CANCELLED, so a subscribed
+    // calendar strikes it out instead of keeping a game that is not happening.
+    $cx = !empty($event['cancelled_at']);
+    $lines[] = 'SUMMARY:' . ics_escape(($cx ? 'Cancelled: ' : '') . (string)$event['title']);
+    if ($cx) $lines[] = 'STATUS:CANCELLED';
     if ($location !== '') $lines[] = 'LOCATION:' . ics_escape($location);
     $lines[] = 'URL:' . $pubUrl;
     $lines[] = 'END:VEVENT';

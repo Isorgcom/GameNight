@@ -68,6 +68,10 @@ if ($token === '' && $page_eid > 0) {
     }
 
     $canManage = can_manage_event($db, $page_eid, (int)$current['id'], $isAdmin);
+    // Cancelled (cancel_event_keep): the page stays as a record the host can
+    // duplicate, with RSVPs, edits, the game and invitations switched off.
+    $evCancelled = !empty($ev['cancelled_at']);
+    $evUpcoming  = (string)$ev['start_date'] >= (new DateTime('now', new DateTimeZone(get_setting('timezone', 'UTC'))))->format('Y-m-d');
 
     // Played online: the connected app, the game as this side knows it, and
     // (for managers) everything "Set up the table" would send, so the page
@@ -262,7 +266,10 @@ if ($token === '' && $page_eid > 0) {
     <?php endif; ?>
     <div class="evp-card">
         <div style="display:flex;align-items:flex-start;gap:.6rem;flex-wrap:wrap">
-            <h1 style="font-size:1.4rem;font-weight:800;color:#1e293b;margin:0 0 .5rem;flex:1;min-width:0"><?= htmlspecialchars($ev['title']) ?></h1>
+            <h1 style="font-size:1.4rem;font-weight:800;color:<?= $evCancelled ? '#64748b' : '#1e293b' ?>;margin:0 0 .5rem;flex:1;min-width:0"><?= htmlspecialchars($ev['title']) ?></h1>
+            <?php if ($evCancelled): ?>
+            <span class="evp-cancelled-tag">Cancelled</span>
+            <?php endif; ?>
             <?php if (!empty($ev['league_name'])): ?>
             <span style="background:#eef2ff;color:#4338ca;font-size:.72rem;font-weight:700;padding:.2rem .55rem;border-radius:999px"><?= htmlspecialchars($ev['league_name']) ?></span>
             <?php endif; ?>
@@ -293,7 +300,30 @@ if ($token === '' && $page_eid > 0) {
         <div style="margin-top:1rem;font-size:.95rem;color:#334155;line-height:1.55"><?= nl2br(htmlspecialchars($ev['description'])) ?></div>
         <?php endif; ?>
 
-        <?php if ($canManage): ?>
+        <?php if ($evCancelled): ?>
+        <div class="evp-cancelled" role="status">
+            <strong>This event was cancelled</strong> on <?= htmlspecialchars((new DateTime((string)$ev['cancelled_at'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone(display_timezone((int)$current['id'])))->format('M j, Y')) ?>.
+            Everyone on the guest list was told. It no longer takes RSVPs or walk-ins<?= (int)$ev['is_poker'] === 1 ? ', and the game cannot be run' : '' ?>.
+            <?php if ($canManage): ?>Use <strong>Duplicate event</strong> to plan a new one from it.<?php endif; ?>
+        </div>
+        <?php endif; ?>
+        <style>
+        .evp-cancelled-tag { background:#fef2f2;color:#991b1b;border:1px solid #fecaca;font-size:.72rem;font-weight:700;padding:.2rem .55rem;border-radius:999px;text-transform:uppercase;letter-spacing:.04em }
+        .evp-cancelled { margin-top:1rem;background:#fffbeb;border:1px solid #f59e0b;color:#92400e;border-radius:8px;padding:.6rem .8rem;font-size:.9rem;line-height:1.5 }
+        </style>
+
+        <?php if ($canManage && $evCancelled): ?>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1.1rem;align-items:center">
+            <a class="btn btn-primary" style="text-decoration:none" href="/event_edit.php?copy=<?= $page_eid ?>">Duplicate event</a>
+            <form method="post" action="/calendar.php" style="margin:0"
+                  data-confirm="Delete this cancelled event for good? Its guest list and comments go with it. Nobody is notified again." data-confirm-ok="Delete" data-confirm-danger="1">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="id" value="<?= $page_eid ?>">
+                <button type="submit" class="btn btn-outline" style="color:#dc2626;border-color:#fecaca">Delete event</button>
+            </form>
+        </div>
+        <?php elseif ($canManage): ?>
         <!-- Primary host actions stay visible; the rest fold into "More" so the
              event info isn't buried under a wall of buttons on phones. Delete
              lives isolated at the bottom of the menu, away from casual taps. -->
@@ -315,14 +345,26 @@ if ($token === '' && $page_eid > 0) {
                     <?php if ($isAdmin): ?>
                     <a href="/walkin_display.php?event_id=<?= $page_eid ?>" target="_blank" rel="noopener">&#x1F4F1; Walk-up QR</a>
                     <?php endif; ?>
+                    <?php if ($evUpcoming): ?>
+                    <?php /* An upcoming event is cancelled, not deleted: guests are
+                             told, the event stays (marked) so it can be duplicated. */ ?>
                     <form method="post" action="/calendar.php" style="margin:0;border-top:1px solid #f1f5f9"
-                          data-confirm="Delete this event?" data-confirm-ok="Delete" data-confirm-danger="1">
+                          data-confirm="Cancel this event? Everyone on the guest list is told it is off. The event stays here, marked cancelled, so you can duplicate it later." data-confirm-ok="Cancel event" data-confirm-danger="1">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+                        <input type="hidden" name="action" value="cancel">
+                        <input type="hidden" name="id" value="<?= $page_eid ?>">
+                        <button type="submit">Cancel event</button>
+                    </form>
+                    <?php else: ?>
+                    <form method="post" action="/calendar.php" style="margin:0;border-top:1px solid #f1f5f9"
+                          data-confirm="Delete this past event for good? Its guest list, results and comments go with it. Nobody is notified." data-confirm-ok="Delete" data-confirm-danger="1">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="id" value="<?= $page_eid ?>">
                         <input type="hidden" name="month_param" value="<?= htmlspecialchars(substr($occDateQ, 0, 7)) ?>">
                         <button type="submit">Delete event</button>
                     </form>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -338,7 +380,8 @@ if ($token === '' && $page_eid > 0) {
         </style>
         <?php endif; ?>
 
-        <!-- RSVP -->
+        <!-- RSVP (none on a cancelled event: the banner above says why) -->
+        <?php if (!$evCancelled): ?>
         <div style="margin-top:1.4rem;padding-top:1.1rem;border-top:1px solid #e2e8f0">
             <?php if ($isPendingMe): ?>
                 <div style="font-size:.9rem;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:.55rem .7rem">Your sign-up is waiting for host approval.</div>
@@ -385,6 +428,7 @@ if ($token === '' && $page_eid > 0) {
                 <button type="button" class="btn btn-primary" id="evpSignupBtn"<?= $isCreator ? ' title="Put yourself on the guest list for your own event"' : '' ?>><?= $isCreator ? 'Add yourself to the guest list' : 'Sign up to attend' ?></button>
             <?php endif; ?>
         </div>
+        <?php endif; /* !$evCancelled */ ?>
 
         <?php if ($myTicket): ?>
         <div style="margin-top:1rem;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:.6rem .9rem;font-size:.88rem;color:#92400e">
@@ -818,7 +862,10 @@ async function editComment(id) {
 <script nonce="<?= csp_nonce() ?>">
 // ── Manager panel: live roster, approvals, delivery status, invites ─────────
 // Ported from the calendar popup (renderInvitesPanel/pollRsvps) — one view now.
-var NOTIFS_ON   = <?= $notifsEnabled ? 'true' : 'false' ?>;
+// A cancelled event's panel is a read-only record: no Send / Resend / nudge,
+// no approvals, no on-behalf RSVPs (the server refuses them too).
+var EV_CANCELLED = <?= $evCancelled ? 'true' : 'false' ?>;
+var NOTIFS_ON   = <?= ($notifsEnabled && !$evCancelled) ? 'true' : 'false' ?>;
 var ALLOW_MAYBE = <?= $allowMaybe ? 'true' : 'false' ?>;
 var invBase = [], invQueue = {}, sawPending = false;
 var EV_KNOWN = <?= js_json($rosterKnown ?? [], JSON_FORCE_OBJECT) ?>;   // lower(roster name) -> the league's known-as name
@@ -869,6 +916,9 @@ function renderInvPanel() {
 
     function rsvpSel(inv) {
         var r = inv.rsvp || '';
+        if (EV_CANCELLED) {
+            return '<span class="' + (rsvpClass[r] || '') + '" style="min-width:2.6rem;display:inline-block">' + (r ? r.charAt(0).toUpperCase() + r.slice(1) : '&ndash;') + '</span>';
+        }
         return '<select class="inv-rsvp-sel" data-username="' + escH(inv.username) + '">'
             + '<option value=""' + (r===''?' selected':'') + '>--</option>'
             + '<option value="yes"' + (r==='yes'?' selected':'') + '>Yes</option>'
@@ -905,8 +955,8 @@ function renderInvPanel() {
         pending.forEach(function(inv) {
             ih += '<div style="font-size:.875rem;color:#334155;display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;background:#fefce8;border:1px solid #fde68a;border-radius:6px;padding:.35rem .5rem;margin-bottom:.3rem">'
                 + '<span style="flex:1;min-width:0">' + escH(inv.username) + knownTag(inv.username) + '</span>'
-                + '<button type="button" class="btn-approve-inv" data-username="' + escH(inv.username) + '" style="font-size:.75rem;padding:.2rem .55rem;border-radius:5px;border:0;background:#16a34a;color:#fff;font-weight:600;cursor:pointer">Approve</button>'
-                + '<button type="button" class="btn-deny-inv" data-username="' + escH(inv.username) + '" style="font-size:.75rem;padding:.2rem .55rem;border-radius:5px;border:0;background:#dc2626;color:#fff;font-weight:600;cursor:pointer">Deny</button></div>';
+                + (EV_CANCELLED ? '' : '<button type="button" class="btn-approve-inv" data-username="' + escH(inv.username) + '" style="font-size:.75rem;padding:.2rem .55rem;border-radius:5px;border:0;background:#16a34a;color:#fff;font-weight:600;cursor:pointer">Approve</button>'
+                + '<button type="button" class="btn-deny-inv" data-username="' + escH(inv.username) + '" style="font-size:.75rem;padding:.2rem .55rem;border-radius:5px;border:0;background:#dc2626;color:#fff;font-weight:600;cursor:pointer">Deny</button>') + '</div>';
         });
     }
 
@@ -1095,7 +1145,7 @@ if ($token === '') {
 
 // ── Look up the invite + event by token ──────────────────────────────────────
 $stmt = $db->prepare('SELECT ei.id, ei.event_id, ei.username, ei.user_id, ei.rsvp, ei.approval_status,
-                             e.title, e.description, e.location, e.venue_name, e.start_date, e.start_time, e.end_time, e.hide_guest_list, e.created_by
+                             e.title, e.description, e.location, e.venue_name, e.start_date, e.start_time, e.end_time, e.hide_guest_list, e.created_by, e.cancelled_at
                       FROM event_invites ei
                       JOIN events e ON e.id = ei.event_id
                       WHERE ei.rsvp_token = ?');
@@ -1104,6 +1154,15 @@ $invite = $stmt->fetch();
 
 if (!$invite) {
     ev_show_simple('Link Expired', 'This event link is no longer valid. The event may have been updated or removed.');
+    exit;
+}
+
+// A cancelled event takes no RSVPs; its link says so instead.
+if (!empty($invite['cancelled_at'])) {
+    ev_show_simple('Event cancelled',
+        '<strong>' . htmlspecialchars($invite['title']) . '</strong> on '
+        . htmlspecialchars(date('l, F j', strtotime((string)$invite['start_date'])))
+        . ' was cancelled by the host.');
     exit;
 }
 

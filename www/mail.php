@@ -321,8 +321,13 @@ function process_email_retry_queue(PDO $db, int $limit = 50): array {
  */
 function _log_email(string $to, string $subject, string $status, ?string $error): void {
     try {
+        // The dispatcher's correlation context (event + recipient) goes on the
+        // row as it does for texts, so the host's Invites panel can show an
+        // emailed invitation as sent. Before 1.13.1 email rows carried neither,
+        // and every guest invited by email looked never-sent.
+        [$ctx_eid, $ctx_user] = notif_log_context_get();
         $db = get_db();
-        $db->prepare('INSERT INTO sms_log (direction, phone, body, provider, status, error) VALUES (?, ?, ?, ?, ?, ?)')
-           ->execute(['outbound', $to, $subject, 'email', $status, $error]);
+        $db->prepare('INSERT INTO sms_log (direction, phone, body, provider, status, error, event_id, username) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+           ->execute(['outbound', $to, $subject, 'email', $status, $error, $ctx_eid, $ctx_user]);
     } catch (Exception $e) {}
 }
