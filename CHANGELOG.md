@@ -11,6 +11,8 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.14.0] - 2026-10-28
+
 ### Changed
 
 - **Cancelling an event keeps it.** On an upcoming event, the event page's More menu now says **Cancel event** where it said Delete. Everyone on the guest list is told, as before, but the event stays on the site, marked **Cancelled** (a red tag on the event page, My Events and the league's Events tab, a greyed, struck-through chip on the calendar, `STATUS:CANCELLED` in calendar files and the league feed), so the host can open it and use **Duplicate event** to plan a new one with the same details and guest list. Nothing acts on a cancelled event: RSVPs (on the page, by link, by text reply), walk-ins, edits, invitations, reminders, approvals, Manage Game, the Table Manager and timer controls all say "This event was cancelled." Unsent invitations and reminders for it are dropped when it is cancelled. A past or cancelled event can still be deleted for good from its page, and deleting a cancelled one tells nobody a second time. The host's **CANCEL** text command does the same cancel-and-keep. New columns `events.cancelled_at` / `cancelled_by` are added on the first request.
