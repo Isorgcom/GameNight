@@ -30,6 +30,11 @@
 
 function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allowMaybe): array {
     $action = ($_POST['action'] ?? '') === 'edit' ? 'edit' : 'add';
+    // A cancelled event is kept only to be duplicated; saving over it would
+    // re-open it and re-send invitations.
+    if ($action === 'edit' && event_is_cancelled($db, (int)($_POST['id'] ?? 0))) {
+        return ['ok' => false, 'error' => EVENT_CANCELLED_MSG . ' Duplicate it to plan a new one.', 'event_id' => (int)($_POST['id'] ?? 0), 'open_date' => null, 'invites_sent' => 0];
+    }
 
     $inv_usernames   = array_map('trim', (array)($_POST['invite_username']   ?? []));
     $inv_phones      = array_map('trim', (array)($_POST['invite_phone']      ?? []));
@@ -391,6 +396,9 @@ function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allo
         }
         $notify_eid = $id;
         $save_invites($id, $new_invitee_usernames);
+        // Guests dropped from the list lose their unsent reminders and invitations.
+        require_once __DIR__ . '/_notifications.php';
+        purge_queue_for_dropped_guests($db, $id);
         // Auto-add invited people to the creator's personal contacts
         // and, for league events, surface them on the league Members tab.
         for ($__i = 0; $__i < count($inv_usernames); $__i++) {

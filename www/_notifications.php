@@ -249,10 +249,11 @@ function _schedule_drain_at_shutdown(): void {
  * Dedup against event_notifications_sent so re-queuing is safe.
  */
 function queue_reminders_for_event(PDO $db, int $event_id, ?string $occurrence_date = null): int {
-    $ev = $db->prepare('SELECT id, start_date, start_time, reminders_enabled, reminder_offsets FROM events WHERE id = ?');
+    $ev = $db->prepare('SELECT id, start_date, start_time, reminders_enabled, reminder_offsets, cancelled_at FROM events WHERE id = ?');
     $ev->execute([$event_id]);
     $event = $ev->fetch();
     if (!$event) return 0;
+    if (!empty($event['cancelled_at'])) return 0;
     if ((int)$event['reminders_enabled'] !== 1) return 0;
 
     $offsets = [];
@@ -274,13 +275,22 @@ function queue_reminders_for_event(PDO $db, int $event_id, ?string $occurrence_d
     $start->setTimezone(new DateTimeZone('UTC'));
     $now = new DateTime('now', new DateTimeZone('UTC'));
 
+    // Every approved guest on the list, with or without an account. A guest
+    // the host typed in (no account) is addressed by the invite row's name and
+    // reached through the email / phone stored on that row, exactly as their
+    // invitation was; before 1.13.1 they got the invitation and no reminders.
     $inv = $db->prepare(
-        "SELECT DISTINCT u.id, u.username FROM event_invites ei
-         JOIN users u ON u.id = ei.user_id
-         WHERE ei.event_id = ? AND ei.approval_status = 'approved'"
+        "SELECT ei.user_id AS id, COALESCE(u.username, ei.username) AS username
+         FROM event_invites ei
+         LEFT JOIN users u ON u.id = ei.user_id
+         WHERE ei.event_id = ? AND ei.approval_status = 'approved' AND ei.occurrence_date IS NULL"
     );
     $inv->execute([$event_id]);
-    $invitees = $inv->fetchAll();
+    $invitees = [];
+    foreach ($inv->fetchAll() as $r) {
+        $key = $r['id'] !== null ? 'u' . (int)$r['id'] : 'n' . strtolower((string)$r['username']);
+        if ((string)$r['username'] !== '' && !isset($invitees[$key])) $invitees[$key] = $r;
+    }
     if (!$invitees) return 0;
 
     $queued = 0;
@@ -292,7 +302,7 @@ function queue_reminders_for_event(PDO $db, int $event_id, ?string $occurrence_d
         $type_tag = 'reminder_' . $offset_minutes;
         foreach ($invitees as $iv) {
             $uname = (string)$iv['username'];
-            $uid   = (int)$iv['id'];
+            $uid   = $iv['id'] !== null ? (int)$iv['id'] : null;
             // Dedup: if an event_notifications_sent row already exists for this (event, occ, user, type), skip.
             $seen = $db->prepare(
                 "SELECT 1 FROM event_notifications_sent
@@ -304,12 +314,13 @@ function queue_reminders_for_event(PDO $db, int $event_id, ?string $occurrence_d
             // Also skip if already queued (row exists with same event/occ/user/offset + not yet sent or attempts < 3)
             $dup = $db->prepare(
                 "SELECT 1 FROM pending_notifications
-                 WHERE event_id=? AND user_id=? AND notify_type='reminder'
+                 WHERE event_id=? AND " . ($uid !== null ? "user_id = ?" : "user_id IS NULL AND LOWER(username) = LOWER(?)") . "
+                   AND notify_type='reminder'
                    AND (occurrence_date IS ? OR occurrence_date = ?)
                    AND payload = ?"
             );
             $payload_json = json_encode(['offset_minutes' => $offset_minutes]);
-            $dup->execute([$event_id, $uid, $occurrence_date, $occurrence_date, $payload_json]);
+            $dup->execute([$event_id, $uid !== null ? $uid : $uname, $occurrence_date, $occurrence_date, $payload_json]);
             if ($dup->fetchColumn()) continue;
 
             queue_event_notification(
@@ -323,6 +334,46 @@ function queue_reminders_for_event(PDO $db, int $event_id, ?string $occurrence_d
         }
     }
     return $queued;
+}
+
+/**
+ * Is this queue row's recipient still an approved guest of the event? A queued
+ * row names an account (user_id) or, for a guest without one, the invite row's
+ * name. Used by the dispatcher so a reminder never reaches someone who was
+ * removed or denied after it was queued.
+ */
+function queue_recipient_is_guest(PDO $db, int $event_id, ?int $user_id, string $username, bool $approvedOnly = true): bool {
+    $sql = "SELECT 1 FROM event_invites WHERE event_id = ? AND occurrence_date IS NULL AND "
+         . ($user_id !== null ? "user_id = ?" : "user_id IS NULL AND LOWER(username) = LOWER(?)")
+         . ($approvedOnly ? " AND approval_status = 'approved'" : '') . " LIMIT 1";
+    $st = $db->prepare($sql);
+    $st->execute([$event_id, $user_id !== null ? $user_id : $username]);
+    return (bool)$st->fetchColumn();
+}
+
+/**
+ * Drop the unsent queue rows of people no longer on an event's list: reminders
+ * for anyone who is not an approved guest, invitations and RSVP nudges for
+ * anyone not on the list at all. Called after every path that removes or
+ * denies a guest, so the host's queue (and the delivery view) only holds
+ * messages to people who are still invited. Returns the rows removed.
+ */
+function purge_queue_for_dropped_guests(PDO $db, int $event_id): int {
+    $match = "ei.event_id = pn.event_id AND ei.occurrence_date IS NULL AND (
+                (pn.user_id IS NOT NULL AND ei.user_id = pn.user_id)
+             OR (pn.user_id IS NULL AND ei.user_id IS NULL AND LOWER(ei.username) = LOWER(pn.username)))";
+    $st = $db->prepare(
+        "DELETE FROM pending_notifications
+         WHERE id IN (
+            SELECT pn.id FROM pending_notifications pn
+            WHERE pn.event_id = ? AND pn.attempted_at IS NULL AND (
+                (pn.notify_type = 'reminder'
+                 AND NOT EXISTS (SELECT 1 FROM event_invites ei WHERE $match AND ei.approval_status = 'approved'))
+             OR (pn.notify_type IN ('invite', 'rsvp_nudge')
+                 AND NOT EXISTS (SELECT 1 FROM event_invites ei WHERE $match))))"
+    );
+    $st->execute([$event_id]);
+    return $st->rowCount();
 }
 
 /**
@@ -350,27 +401,37 @@ function clear_pending_reminders(PDO $db, int $event_id, ?string $occurrence_dat
  * Returns ['title' => ..., 'notified' => N], or null if the event doesn't exist.
  */
 function cancel_event_with_notifications(PDO $db, int $event_id, int $actor_id): ?array {
-    $row = $db->prepare('SELECT title, start_date FROM events WHERE id=?');
+    $row = $db->prepare('SELECT title, start_date, cancelled_at FROM events WHERE id=?');
     $row->execute([$event_id]);
     $evt = $row->fetch();
     if (!$evt) return null;
     $t = $evt['title'] ?? (string)$event_id;
 
+    // Guests hear about it only when the event is still ahead and was not
+    // already cancelled (cancel_event_keep() sent their notice then). Deleting
+    // last month's game or a cancelled one tells nobody anything.
     $notified = 0;
-    $invStmt = $db->prepare("SELECT username FROM event_invites WHERE event_id=? AND occurrence_date IS NULL");
-    $invStmt->execute([$event_id]);
-    foreach ($invStmt->fetchAll() as $inv) {
-        queue_event_notification($db, $event_id, $inv['username'], 'cancel_event', null, [
-            'title'      => $t,
-            'start_date' => $evt['start_date'],
-        ]);
-        $notified++;
+    $tz = new DateTimeZone(get_setting('timezone', 'UTC'));
+    $today = (new DateTime('now', $tz))->format('Y-m-d');
+    if (empty($evt['cancelled_at']) && (string)$evt['start_date'] >= $today) {
+        $invStmt = $db->prepare("SELECT username, user_id FROM event_invites WHERE event_id=? AND occurrence_date IS NULL");
+        $invStmt->execute([$event_id]);
+        foreach ($invStmt->fetchAll() as $inv) {
+            queue_event_notification($db, $event_id, $inv['username'], 'cancel_event', null, [
+                'title'      => $t,
+                'start_date' => $evt['start_date'],
+            ], null, $inv['user_id'] !== null ? (int)$inv['user_id'] : null);
+            $notified++;
+        }
     }
 
     // A table set up on FinalTable is called off before its record cascades away.
     require_once __DIR__ . '/_finaltable.php';
     finaltable_cancel_if_live($db, $event_id);
 
+    // Comments and their pictures go with the event.
+    comment_unlink_attachments($db, "type='event' AND content_id = ?", [$event_id]);
+    $db->prepare("DELETE FROM comments WHERE type='event' AND content_id=?")->execute([$event_id]);
     $db->prepare('DELETE FROM event_exceptions WHERE event_id=?')->execute([$event_id]);
     $db->prepare('DELETE FROM event_invites WHERE event_id=?')->execute([$event_id]);
     // event_messages has a FOREIGN KEY to events(id) without ON DELETE CASCADE,
@@ -383,6 +444,54 @@ function cancel_event_with_notifications(PDO $db, int $event_id, int $actor_id):
     $db->prepare('DELETE FROM events WHERE id=?')->execute([$event_id]);
     db_log_activity($actor_id, "deleted event: $t");
     return ['title' => $t, 'notified' => $notified];
+}
+
+/**
+ * Cancel an event and KEEP it: every guest on the list is told it is off, the
+ * unsent invitations / reminders / nudges / poll and update notices for it are
+ * dropped, an online table is called off, and events.cancelled_at is set. The
+ * row, its guest list, settings, comments and poker setup stay, so the host
+ * can open it and Duplicate it into a new event later; everything that would
+ * act on it (RSVPs, walk-ins, edits, the game console, reminders) refuses a
+ * cancelled event. Shared by the event page, the calendar and the SMS CANCEL
+ * command. Returns ['title', 'notified', 'already'] or null if no such event.
+ */
+function cancel_event_keep(PDO $db, int $event_id, int $actor_id): ?array {
+    $row = $db->prepare('SELECT title, start_date, cancelled_at FROM events WHERE id=?');
+    $row->execute([$event_id]);
+    $evt = $row->fetch();
+    if (!$evt) return null;
+    $t = $evt['title'] ?? (string)$event_id;
+    if (!empty($evt['cancelled_at'])) return ['title' => $t, 'notified' => 0, 'already' => true];
+
+    // Nothing that was waiting to go out about this event should go now.
+    $db->prepare("DELETE FROM pending_notifications
+                  WHERE event_id = ? AND attempted_at IS NULL
+                    AND notify_type IN ('invite', 'reminder', 'rsvp_nudge', 'event_updated', 'poker_approved',
+                                        'waitlist_promoted', 'online_table', 'event_poll', 'rsvp_deadline_demoted')")
+       ->execute([$event_id]);
+
+    $db->prepare("UPDATE events SET cancelled_at = CURRENT_TIMESTAMP, cancelled_by = ?, reminders_queued = 0 WHERE id = ?")
+       ->execute([$actor_id ?: null, $event_id]);
+
+    // Everyone on the list hears, whatever they answered: a "no" is told too,
+    // so nobody is left wondering, as the old delete did.
+    $notified = 0;
+    $invStmt = $db->prepare("SELECT username, user_id FROM event_invites WHERE event_id=? AND occurrence_date IS NULL");
+    $invStmt->execute([$event_id]);
+    foreach ($invStmt->fetchAll() as $inv) {
+        queue_event_notification($db, $event_id, $inv['username'], 'cancel_event', null, [
+            'title'      => $t,
+            'start_date' => $evt['start_date'],
+        ], null, $inv['user_id'] !== null ? (int)$inv['user_id'] : null);
+        $notified++;
+    }
+
+    require_once __DIR__ . '/_finaltable.php';
+    finaltable_cancel_if_live($db, $event_id);
+
+    db_log_activity($actor_id, "cancelled event: $t (id $event_id, kept)");
+    return ['title' => $t, 'notified' => $notified, 'already' => false];
 }
 
 /**
@@ -651,9 +760,24 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
     $seenStmt->execute([$event_id, $occ_key, strtolower($username), $type_tag]);
     if ($seenStmt->fetchColumn()) return true;
 
-    $evStmt = $db->prepare('SELECT id, title, description, location, venue_name, start_date, end_date, start_time, end_time, created_by FROM events WHERE id = ?');
+    // A reminder goes only to someone who is still an approved guest: a guest
+    // removed or denied after their reminders were queued is skipped here even
+    // if a removal path missed the purge.
+    if ($type === 'reminder') {
+        $row_uid0 = isset($row['user_id']) && $row['user_id'] !== null ? (int)$row['user_id'] : null;
+        if (!queue_recipient_is_guest($db, $event_id, $row_uid0, $username)) return true;
+    }
+
+    $evStmt = $db->prepare('SELECT id, title, description, location, venue_name, start_date, end_date, start_time, end_time, created_by, cancelled_at FROM events WHERE id = ?');
     $evStmt->execute([$event_id]);
     $event = $evStmt->fetch();
+    // A cancelled event sends only its cancellation and what people say about
+    // it (a host message, a comment, an RSVP reply). Invitations, reminders,
+    // nudges and the rest queued before or after are dropped here.
+    if ($event && !empty($event['cancelled_at'])
+        && !in_array($type, ['cancel_event', 'event_message', 'event_comment', 'rsvp_to_creator'], true)) {
+        return true;
+    }
     // For types like cancel_event where the event may already be deleted,
     // the original title/start_date are in the payload.
     if (!$event) {

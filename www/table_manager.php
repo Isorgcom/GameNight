@@ -37,13 +37,17 @@ $isAdmin = ($current['role'] ?? '') === 'admin';
 $event_id = (int)($_GET['event_id'] ?? 0);
 if ($event_id <= 0) { http_response_code(400); exit('Missing event_id'); }
 
-$evq = $db->prepare('SELECT id, title FROM events WHERE id = ?');
+$evq = $db->prepare('SELECT id, title, cancelled_at FROM events WHERE id = ?');
 $evq->execute([$event_id]);
 $event = $evq->fetch();
 if (!$event) { http_response_code(404); exit('Event not found'); }
 
 if (!can_manage_event($db, $event_id, (int)$current['id'], $isAdmin)) {
     http_response_code(403); exit('Access denied');
+}
+if (!empty($event['cancelled_at'])) {
+    $_SESSION['flash'] = ['type' => 'error', 'msg' => EVENT_CANCELLED_MSG . ' The game cannot be run; duplicate the event to plan a new one.'];
+    header('Location: /event.php?id=' . $event_id); exit;
 }
 
 // Read-only bootstrap. No session yet → the console owns creation; send the

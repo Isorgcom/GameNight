@@ -84,11 +84,12 @@ if ($days_apart > 366) {
 
 $stmt = $db->prepare(
     "SELECT id, title, description, location, venue_name, start_date, end_date, start_time, end_time,
-            color, is_poker, created_at
+            color, is_poker, created_at, cancelled_at
      FROM events
      WHERE league_id = ?
        AND start_date <= ?
        AND COALESCE(end_date, start_date) >= ?
+       " . (!empty($_GET['include_cancelled']) ? '' : 'AND cancelled_at IS NULL') . "
      ORDER BY start_date, COALESCE(start_time, '00:00')"
 );
 $stmt->execute([$lid, $to, $from]);
@@ -128,6 +129,7 @@ foreach ($rows as $r) {
         'rsvp_yes_count'    => (int)($ec['yes']   ?? 0),
         'rsvp_no_count'     => (int)($ec['no']    ?? 0),
         'rsvp_maybe_count'  => (int)($ec['maybe'] ?? 0),
+        'cancelled_at'      => !empty($r['cancelled_at']) ? api_db_utc_to_iso((string)$r['cancelled_at']) : null,
         'created_at'        => api_db_utc_to_iso((string)$r['created_at']),
     ];
 }
@@ -519,7 +521,7 @@ function handle_events_delete(): void {
     // Fetch the event. 404 if missing or in a different league. Don't distinguish
     // the two — leaking "this id exists somewhere" would let the API confirm
     // event existence in leagues the key has no business reading.
-    $evtStmt = $db->prepare('SELECT id, title, start_date, league_id FROM events WHERE id = ?');
+    $evtStmt = $db->prepare('SELECT id, title, start_date, league_id, cancelled_at FROM events WHERE id = ?');
     $evtStmt->execute([$event_id]);
     $evt = $evtStmt->fetch();
     if (!$evt || (int)$evt['league_id'] !== $league_id) {
@@ -535,7 +537,8 @@ function handle_events_delete(): void {
     // start_date is also in the site's TZ.
     $site_tz = new DateTimeZone(get_setting('timezone', 'UTC'));
     $today   = (new DateTime('now', $site_tz))->format('Y-m-d');
-    $notify  = ($start_date >= $today);
+    // An event cancelled on the site already told its guests.
+    $notify  = ($start_date >= $today) && empty($evt['cancelled_at']);
 
     $notifications_queued = 0;
 
@@ -656,6 +659,7 @@ function handle_events_patch(): void {
         api_log_request($key_id, 404);
         api_fail('event_not_found', 404);
     }
+    if (event_is_cancelled($db, $event_id)) { api_log_request($key_id, 409); api_fail('event_cancelled', 409); }
 
     $raw  = file_get_contents('php://input');
     $body = json_decode($raw ?: '', true);
@@ -946,6 +950,7 @@ function handle_events_invites_post(): void {
         api_log_request($key_id, 404);
         api_fail('event_not_found', 404);
     }
+    if (event_is_cancelled($db, $event_id)) { api_log_request($key_id, 409); api_fail('event_cancelled', 409); }
 
     $raw  = file_get_contents('php://input');
     $body = json_decode($raw ?: '', true);
@@ -1119,7 +1124,7 @@ function handle_events_get_one(): void {
 
     $stmt = $db->prepare(
         'SELECT id, title, description, location, venue_name, start_date, end_date, start_time, end_time,
-                color, is_poker, league_id, visibility, created_at
+                color, is_poker, league_id, visibility, created_at, cancelled_at
            FROM events WHERE id = ?'
     );
     $stmt->execute([$event_id]);
@@ -1161,6 +1166,7 @@ function handle_events_get_one(): void {
         'rsvp_yes_count'    => (int)($counts['yes']   ?? 0),
         'rsvp_no_count'     => (int)($counts['no']    ?? 0),
         'rsvp_maybe_count'  => (int)($counts['maybe'] ?? 0),
+        'cancelled_at'      => !empty($row['cancelled_at']) ? api_db_utc_to_iso((string)$row['cancelled_at']) : null,
         'created_at'        => api_db_utc_to_iso((string)$row['created_at']),
     ]);
 }
@@ -1256,6 +1262,7 @@ function handle_events_invites_delete(): void {
         api_log_request($key_id, 404);
         api_fail('event_not_found', 404);
     }
+    if (event_is_cancelled($db, $event_id)) { api_log_request($key_id, 409); api_fail('event_cancelled', 409); }
 
     // Resolve user_id → username. Missing user_id collapses to invitee_not_found
     // (don't distinguish "user doesn't exist" from "user not invited").
@@ -1307,6 +1314,7 @@ function handle_events_invites_delete(): void {
                 AND (occurrence_date IS NULL OR occurrence_date >= ?)"
         );
         $del->execute([$event_id, $user_id, $today]);
+        purge_queue_for_dropped_guests($db, $event_id);
 
         $db->commit();
     } catch (Throwable $e) {
@@ -1367,6 +1375,7 @@ function handle_events_invites_patch(): void {
         api_log_request($key_id, 404);
         api_fail('event_not_found', 404);
     }
+    if (event_is_cancelled($db, $event_id)) { api_log_request($key_id, 409); api_fail('event_cancelled', 409); }
 
     if ($user_id <= 0) {
         api_log_request($key_id, 404);

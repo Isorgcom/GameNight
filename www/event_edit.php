@@ -110,6 +110,10 @@ if ($eid > 0) {
     $row->execute([$eid]);
     $event = $row->fetch();
     if (!$event) { http_response_code(404); exit('Event not found.'); }
+    if (!empty($event['cancelled_at'])) {
+        $_SESSION['flash'] = ['type' => 'error', 'msg' => EVENT_CANCELLED_MSG . ' Duplicate it to plan a new one.'];
+        header('Location: /event.php?id=' . $eid); exit;
+    }
 
     // Viewer-tz `_input` fields so date/time inputs pre-fill in the host's tz
     // (same enrichment the calendar applies before embedding its events).

@@ -27,7 +27,7 @@ if ($token === '' || !in_array($rsvp, $valid, true)) {
 }
 
 $db   = get_db();
-$stmt = $db->prepare('SELECT ei.id, ei.event_id, ei.username, ei.user_id, ei.rsvp, ei.approval_status, ei.rsvp_token_flips, e.title, e.description, e.start_date, e.start_time, e.end_time, e.hide_guest_list, e.created_by
+$stmt = $db->prepare('SELECT ei.id, ei.event_id, ei.username, ei.user_id, ei.rsvp, ei.approval_status, ei.rsvp_token_flips, e.title, e.description, e.start_date, e.start_time, e.end_time, e.hide_guest_list, e.created_by, e.cancelled_at
                        FROM event_invites ei
                        JOIN events e ON e.id = ei.event_id
                        WHERE ei.rsvp_token = ?');
@@ -36,6 +36,14 @@ $invite = $stmt->fetch();
 
 if (!$invite) {
     show_page('Link Expired', 'This RSVP link is no longer valid. The event may have been updated.', 'error');
+    exit;
+}
+
+// A cancelled event takes no RSVPs.
+if (!empty($invite['cancelled_at'])) {
+    show_page('Event cancelled',
+        '<strong>' . htmlspecialchars($invite['title']) . '</strong> was cancelled by the host, so there is nothing to answer.',
+        'error');
     exit;
 }
 

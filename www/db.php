@@ -2113,6 +2113,11 @@ JSON;
     // there was a pick. Set beside online_app_id and cleared with it.
     try { $pdo->exec("ALTER TABLE events ADD COLUMN online_game TEXT"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE events ADD COLUMN online_limit TEXT"); } catch (Exception $e) {}
+    // A cancelled event keeps its row (guest list, settings, comments) so the
+    // host can duplicate it later; cancelled_at set means it no longer takes
+    // RSVPs, walk-ins, reminders, edits or a game (cancel_event_keep()).
+    try { $pdo->exec("ALTER TABLE events ADD COLUMN cancelled_at DATETIME"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE events ADD COLUMN cancelled_by INTEGER"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE leagues ADD COLUMN slug TEXT"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE leagues ADD COLUMN public_page INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE leagues ADD COLUMN banner_path TEXT"); } catch (Exception $e) {}
@@ -3466,6 +3471,23 @@ function build_event_by_date(array $events, string $rangeStart, string $rangeEnd
  *  - Logged-in users see: public + events they created + league events for leagues they're in
  *    + events where they are an explicit invitee (matched by username).
  */
+/**
+ * Is this event cancelled? (cancel_event_keep() sets events.cancelled_at.)
+ * A missing event reads as not cancelled; callers check existence themselves.
+ */
+function event_is_cancelled(PDO $db, int $event_id): bool {
+    if ($event_id <= 0) return false;
+    try {
+        $st = $db->prepare('SELECT cancelled_at FROM events WHERE id = ?');
+        $st->execute([$event_id]);
+        $v = $st->fetchColumn();
+        return $v !== false && $v !== null && $v !== '';
+    } catch (Exception $e) { return false; }
+}
+
+/** The words every refusal on a cancelled event uses. */
+const EVENT_CANCELLED_MSG = 'This event was cancelled.';
+
 function event_visibility_sql(string $alias = 'e', ?int $user_id = null): array {
     // Security: $alias is interpolated into SQL. Reject anything that isn't a
     // plain SQL identifier so a future caller can't pass user input through.
@@ -3989,11 +4011,11 @@ function user_active_poker_event_id(PDO $db, int $user_id, bool $is_admin = fals
     if ($user_id <= 0 && !$is_admin) return 0;
     if ($is_admin) {
         $stmt = $db->prepare("SELECT e.id FROM events e JOIN poker_sessions ps ON ps.event_id = e.id
-                              WHERE ps.status = 'active' ORDER BY e.start_date DESC, e.id DESC LIMIT 1");
+                              WHERE ps.status = 'active' AND e.cancelled_at IS NULL ORDER BY e.start_date DESC, e.id DESC LIMIT 1");
         $stmt->execute();
     } else {
         $stmt = $db->prepare("SELECT e.id FROM events e JOIN poker_sessions ps ON ps.event_id = e.id
-            WHERE ps.status = 'active' AND (
+            WHERE ps.status = 'active' AND e.cancelled_at IS NULL AND (
                 e.created_by = ?
                 OR EXISTS (SELECT 1 FROM event_invites ei
                            WHERE ei.event_id = e.id AND ei.user_id = ? AND ei.event_role = 'manager')

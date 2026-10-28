@@ -83,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Non-admins may only update their own RSVP, self-signup, or self-remove
     // When allow_user_events is on, logged-in users can also add/edit/delete their own events
     // Event managers can also edit/delete events they manage
-    $userEventActions = ['add', 'edit', 'delete'];
+    $userEventActions = ['add', 'edit', 'delete', 'cancel'];
     // Per-event management actions that target an existing event via event_id (not id).
     // Each is allowed for anyone who can manage that specific event; the handlers below
     // re-check with can_manage_event(), so this gate just needs to let managers through.
@@ -95,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // (keyed on event_id) if the user can manage this specific event — creator,
         // event-manager, or league owner/manager. Fine-grained checks happen again per-action.
         $isMgr = false;
-        if ($chkIdForMgr > 0 && in_array($action, ['edit', 'delete'], true)) {
+        if ($chkIdForMgr > 0 && in_array($action, ['edit', 'delete', 'cancel'], true)) {
             $isMgr = can_manage_event($db, $chkIdForMgr, (int)$current['id'], $isAdmin);
         } elseif ($chkEidForMgr > 0 && in_array($action, $eventMgmtActions, true)) {
             $isMgr = can_manage_event($db, $chkEidForMgr, (int)$current['id'], $isAdmin);
@@ -112,11 +112,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Ownership check: non-admins can only edit/delete events they're permitted to manage.
     // Routed through the single can_manage_event() helper in db.php so the same rules
     // apply everywhere (creator, event-manager, league owner/manager, or site admin).
-    if (in_array($action, ['edit', 'delete'], true)) {
+    if (in_array($action, ['edit', 'delete', 'cancel'], true)) {
         $chkId = (int)($_POST['id'] ?? 0);
         if ($chkId > 0 && !can_manage_event($db, $chkId, (int)$current['id'], $isAdmin)) {
             http_response_code(403); exit('You can only modify events you manage.');
         }
+    }
+
+    // A cancelled event is a record: it takes no edits, RSVPs, sign-ups,
+    // invitations, reminders or approvals. Deleting it, leaving it, cancelling
+    // a personal reminder and messaging its guests still work.
+    $__cxEid = (int)($_POST['event_id'] ?? 0) ?: (int)($_POST['id'] ?? 0);
+    if ($__cxEid > 0 && in_array($action, ['edit', 'cancel', 'update_rsvp', 'self_signup', 'self_reminder', 'resend_invite',
+            'send_invites', 'nudge_nonresponders', 'approve_invite', 'deny_invite', 'regenerate_walkin_token'], true)
+        && event_is_cancelled($db, $__cxEid)) {
+        if ($__isXhr) {
+            http_response_code(409); header('Content-Type: application/json');
+            echo json_encode(['ok' => false, 'error' => EVENT_CANCELLED_MSG]); exit;
+        }
+        $_SESSION['flash'] = ['type' => 'error', 'msg' => EVENT_CANCELLED_MSG . ' Duplicate it to plan a new one.'];
+        header('Location: /event.php?id=' . $__cxEid); exit;
+    }
+
+    // Cancel and keep (v1.13.1): guests are told, the event stays, marked.
+    if ($action === 'cancel') {
+        $id = (int)($_POST['id'] ?? 0);
+        require_once __DIR__ . '/_notifications.php';
+        $res = $id > 0 ? cancel_event_keep($db, $id, (int)$current['id']) : null;
+        if ($res) {
+            if (($res['notified'] ?? 0) > 0) drain_queue_async();
+            $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event cancelled. '
+                . ($res['notified'] > 0 ? $res['notified'] . ' guest' . ($res['notified'] === 1 ? ' is' : 's are') . ' being told.' : 'Nobody was on the guest list to tell.')];
+        }
+        header('Location: /event.php?id=' . $id); exit;
     }
 
     if ($action === 'add' || $action === 'edit') {
@@ -135,45 +163,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'delete') {
         $id = (int)($_POST['id'] ?? 0);
         if ($id > 0) {
-            $row = $db->prepare('SELECT title, start_date FROM events WHERE id=?');
-            $row->execute([$id]);
-            $evt = $row->fetch();
-            $t = $evt['title'] ?? $id;
-
-            // Queue cancellation notifications for future events (carry title/date in payload
-            // since the event row is about to be deleted below).
-            if ($evt && ($evt['start_date'] ?? '') >= date('Y-m-d')) {
-                require_once __DIR__ . '/_notifications.php';
-                $invStmt = $db->prepare("SELECT ei.username FROM event_invites ei
-                    WHERE ei.event_id=? AND ei.occurrence_date IS NULL");
-                $invStmt->execute([$id]);
-                foreach ($invStmt->fetchAll() as $inv) {
-                    queue_event_notification($db, $id, $inv['username'], 'cancel_event', null, [
-                        'title' => $t,
-                        'start_date' => $evt['start_date'],
-                    ]);
-                }
+            // One delete for every caller (_notifications.php): an upcoming
+            // event that was not cancelled first still tells its guests; a
+            // past or already-cancelled one tells nobody.
+            require_once __DIR__ . '/_notifications.php';
+            if (cancel_event_with_notifications($db, $id, (int)$current['id']) !== null) {
+                $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event deleted.'];
             }
-
-            // A table set up on FinalTable is called off before its record cascades away.
-            require_once __DIR__ . '/_finaltable.php';
-            finaltable_cancel_if_live($db, $id);
-
-            comment_unlink_attachments($db, "type='event' AND content_id = ?", [$id]);
-            $db->prepare("DELETE FROM comments WHERE type='event' AND content_id=?")->execute([$id]);
-            try { require_once __DIR__ . '/_notifications.php'; event_message_unlink_attachments($db, 'event_id = ?', [$id]); $db->prepare('DELETE FROM event_messages WHERE event_id=?')->execute([$id]); } catch (Exception $e) {}
-            $db->prepare('DELETE FROM event_exceptions WHERE event_id=?')->execute([$id]);
-            $db->prepare('DELETE FROM event_invites WHERE event_id=?')->execute([$id]);
-            // Clean up already-sent notification history for this event; leave any unsent
-            // rows (e.g., cancel_event queued seconds ago) alone so the drain can finish them.
-            $db->prepare('DELETE FROM pending_notifications WHERE event_id=? AND attempted_at IS NOT NULL')->execute([$id]);
-            $db->prepare('DELETE FROM event_notifications_sent WHERE event_id=?')->execute([$id]);
-            $db->prepare('DELETE FROM events WHERE id=?')->execute([$id]);
-            db_log_activity($current['id'], "deleted event: $t");
-            $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event deleted.'];
         }
     }
-
     // Personal "also remind me" on top of the host's reminders. Invitee-only;
     // rides the standard reminder queue and the reminder_<offset> dedup tag, so
     // it can never double up with an identical host reminder.
@@ -421,6 +419,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($eid > 0) {
             $db->prepare('DELETE FROM event_invites WHERE event_id=? AND user_id=?')
                ->execute([$eid, (int)$current['id']]);
+            require_once __DIR__ . '/_notifications.php';
+            purge_queue_for_dropped_guests($db, $eid);
             db_log_activity($current['id'], "removed self from event id: $eid");
         }
         if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
@@ -448,6 +448,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } else {
                     $db->prepare("UPDATE event_invites SET approval_status='denied' WHERE event_id=? AND LOWER(username)=LOWER(?)")
                        ->execute([$eid, $target]);
+                    require_once __DIR__ . '/_notifications.php';
+                    purge_queue_for_dropped_guests($db, $eid);
                     db_log_activity($current['id'], "{$action} for $target on event id: $eid");
                 }
 
@@ -1640,13 +1642,13 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
                             if (isset($_lgWords[1])) $_lgTag .= mb_strtoupper(substr($_lgWords[1], 0, 2));
                         }
                     ?>
-                    <div class="cal-event"
+                    <div class="cal-event<?= !empty($ev['cancelled_at']) ? ' pk-ev-cancelled' : '' ?>"
                          style="background:<?= htmlspecialchars($ev['color']) ?>"
                          <?php /* $dateStr, not $ev['start_date']: a multi-day event appears in
                                   every cell it spans, and the event page uses ?date= to decide
                                   which day its "back to calendar" link returns to. */ ?>
                          data-act="viewEvent" data-a1="<?= (int)$ev['id'] ?>" data-a2="<?= htmlspecialchars($dateStr, ENT_QUOTES | ENT_SUBSTITUTE) ?>"
-                         title="<?= htmlspecialchars($_lgName ? $_lgName . ' — ' . $ev['title'] : $ev['title']) ?>">
+                         title="<?= !empty($ev['cancelled_at']) ? 'Cancelled: ' : '' ?><?= htmlspecialchars($_lgName ? $_lgName . ' — ' . $ev['title'] : $ev['title']) ?>">
                         <span class="ev-label">
                             <?php if ($ev['start_time'] && $ev['start_date'] === $dateStr): ?>
                                 <?= htmlspecialchars($ev['start_time_display'] ?: date('g:ia', strtotime($ev['start_time']))) ?>
@@ -1654,7 +1656,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
                             <?php if ($_lgTag !== ''): ?><span class="ev-league-tag" title="<?= htmlspecialchars($_lgName) ?>"><?= htmlspecialchars($_lgTag) ?></span><?php endif; ?>
                             <?= htmlspecialchars($ev['title']) ?>
                         </span>
-                        <?php if ($isAdmin || ($canCreateEvents && (int)$ev['created_by'] === (int)$current['id']) || in_array((int)$ev['id'], $managedEventIds, true)): ?>
+                        <?php if (empty($ev['cancelled_at']) && ($isAdmin || ($canCreateEvents && (int)$ev['created_by'] === (int)$current['id']) || in_array((int)$ev['id'], $managedEventIds, true))): ?>
                         <button class="ev-edit-btn" title="Edit event"
                                 data-act="stopAndGo" data-a1="@event" data-a2="/event_edit.php?id=<?= (int)$ev['id'] ?>&<?= htmlspecialchars($editorCtx) ?>">&#9998;</button>
                         <?php endif; ?>
@@ -1718,15 +1720,15 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
                         if (isset($_lgWords[1])) $_lgTag .= mb_strtoupper(substr($_lgWords[1], 0, 2));
                     }
                 ?>
-                <div class="week-allday-chip"
+                <div class="week-allday-chip<?= !empty($ev['cancelled_at']) ? ' pk-ev-cancelled' : '' ?>"
                      style="background:<?= htmlspecialchars($ev['color']) ?>"
-                     title="<?= htmlspecialchars($_lgName ? $_lgName . ' — ' . $ev['title'] : $ev['title']) ?>"
+                     title="<?= !empty($ev['cancelled_at']) ? 'Cancelled: ' : '' ?><?= htmlspecialchars($_lgName ? $_lgName . ' — ' . $ev['title'] : $ev['title']) ?>"
                      data-act="viewEvent" data-a1="<?= (int)$ev['id'] ?>" data-a2="<?= htmlspecialchars($wkDs2, ENT_QUOTES | ENT_SUBSTITUTE) ?>">
                     <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">
                         <?php if ($_lgTag !== ''): ?><span class="ev-league-tag" title="<?= htmlspecialchars($_lgName) ?>"><?= htmlspecialchars($_lgTag) ?></span><?php endif; ?>
                         <?= htmlspecialchars($ev['title']) ?>
                     </span>
-                    <?php if ($isAdmin || ($canCreateEvents && (int)$ev['created_by'] === (int)$current['id']) || in_array((int)$ev['id'], $managedEventIds, true)): ?>
+                    <?php if (empty($ev['cancelled_at']) && ($isAdmin || ($canCreateEvents && (int)$ev['created_by'] === (int)$current['id']) || in_array((int)$ev['id'], $managedEventIds, true))): ?>
                     <button class="ev-edit-btn" title="Edit event"
                                 data-act="stopAndGo" data-a1="@event" data-a2="/event_edit.php?id=<?= (int)$ev['id'] ?>&<?= htmlspecialchars($editorCtx) ?>">&#9998;</button>
                     <?php endif; ?>
@@ -2944,7 +2946,7 @@ function renderDayCol(col, date) {
         const widthPct = (1 / ev._numCols) * 100;
 
         const chip = document.createElement('div');
-        chip.className = 'week-event';
+        chip.className = 'week-event' + (ev.cancelled_at ? ' pk-ev-cancelled' : '');
         chip.style.cssText = [
             'background:' + ev.color,
             'top:' + startY + 'px',
@@ -2952,7 +2954,7 @@ function renderDayCol(col, date) {
             'left:calc(' + leftPct + '% + 1px)',
             'width:calc(' + widthPct + '% - 3px)',
         ].join(';');
-        chip.title = (ev.league_name ? ev.league_name + ' \u2014 ' : '') + ev.title;
+        chip.title = (ev.cancelled_at ? 'Cancelled: ' : '') + (ev.league_name ? ev.league_name + ' \u2014 ' : '') + ev.title;
         // Scalars, not the event object: viewEvent() concatenates its first
         // argument into the URL, so passing `ev` produced
         // /event.php?id=[object Object]. `date` is the column's occurrence
@@ -2971,7 +2973,7 @@ function renderDayCol(col, date) {
             + '<span class="week-event-title">' + escHtml(ev.title) + '</span>'
             + (heightPx >= 32 ? '<span class="week-event-time">' + escHtml(timeStr) + '</span>' : '');
 
-        if (IS_ADMIN || (CAN_CREATE_EVENTS && CURRENT_USER_ID && ev.created_by == CURRENT_USER_ID) || MANAGED_EVENT_IDS.includes(ev.id)) {
+        if (!ev.cancelled_at && (IS_ADMIN || (CAN_CREATE_EVENTS && CURRENT_USER_ID && ev.created_by == CURRENT_USER_ID) || MANAGED_EVENT_IDS.includes(ev.id))) {
             const editBtn = document.createElement('button');
             editBtn.className = 'ev-edit-btn';
             editBtn.title = 'Edit event';

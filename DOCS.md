@@ -476,6 +476,8 @@ When cron is configured, automatic reminders are sent:
 
 Each reminder is sent only once per user per event occurrence (tracked in the database).
 
+Reminders go to every approved guest on the list. A guest without an account is reached at the email or phone on their invite, the same way their invitation was. Guests awaiting approval or waitlisted get none, and a guest removed or denied loses any reminders already queued for them.
+
 ### SMS RSVP Replies
 
 If you have SMS configured, users can reply to invitation texts with **YES**, **NO**, or **MAYBE** to update their RSVP. The system matches the reply to the user's phone number and updates their most recent pending invite.
@@ -796,6 +798,9 @@ Events for the league within a date window. RSVP counts only include approved in
 |---|---|---|
 | `from` | today (in the league's timezone) | Inclusive |
 | `to` | `from + 90 days` | Inclusive; window is capped at 366 days |
+| `include_cancelled` | off | Set to `1` to include events a host cancelled. Left out by default, so a schedule built from this list never shows a game that is off. |
+
+Every event carries `cancelled_at`: `null`, or the UTC instant the host cancelled it. A cancelled event is kept on the site (so it can be duplicated) but takes no changes: `PATCH` on it and any invite write answer **409** `event_cancelled`. `DELETE` still removes it, and tells nobody again.
 
 ```json
 {
@@ -816,6 +821,7 @@ Events for the league within a date window. RSVP counts only include approved in
         "rsvp_yes_count": 5,
         "rsvp_no_count": 1,
         "rsvp_maybe_count": 0,
+        "cancelled_at": null,
         "created_at": "2026-04-26T20:06:26Z"
       }
     ]
@@ -847,6 +853,7 @@ Same shape as a list-item from `GET /events`, plus `league_id` and `visibility` 
     "rsvp_yes_count": 5,
     "rsvp_no_count": 1,
     "rsvp_maybe_count": 0,
+    "cancelled_at": null,
     "created_at": "2026-04-26T20:06:26Z"
   }
 }

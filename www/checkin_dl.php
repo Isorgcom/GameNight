@@ -1385,6 +1385,10 @@ if (in_array($action, ['approve_player', 'deny_player'], true)) {
     $newStatus = ($action === 'approve_player') ? 'approved' : 'denied';
     $db->prepare("UPDATE event_invites SET approval_status = ? WHERE event_id = ? AND LOWER(username) = LOWER(?) AND occurrence_date IS NULL")
        ->execute([$newStatus, $session['event_id'], $pRow['display_name']]);
+    if ($newStatus === 'denied') {
+        require_once __DIR__ . '/_notifications.php';
+        purge_queue_for_dropped_guests($db, (int)$session['event_id']);
+    }
 
     if ($newStatus === 'approved') {
         league_enrol_if_approved($db, (int)$session['event_id'], $pRow['display_name']);

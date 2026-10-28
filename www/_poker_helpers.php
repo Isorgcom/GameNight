@@ -313,6 +313,12 @@ function verify_event_access($db, $event_id, $current, $isAdmin) {
         echo json_encode(['ok' => false, 'error' => 'Access denied']);
         exit;
     }
+    // Every console, timer-control and setup action stops on a cancelled event.
+    if (event_is_cancelled($db, (int)$event_id)) {
+        http_response_code(409);
+        echo json_encode(['ok' => false, 'error' => EVENT_CANCELLED_MSG]);
+        exit;
+    }
 }
 
 // Check if user has event access without exiting (returns true/false).
@@ -326,17 +332,17 @@ function user_poker_events($db, $user_id, $is_admin = false) {
     $order = "ORDER BY CASE ps.status WHEN 'active' THEN 0 WHEN 'setup' THEN 1 ELSE 2 END, e.start_date DESC, e.id DESC LIMIT 50";
     if ($is_admin) {
         $stmt = $db->prepare("SELECT e.id, e.title, e.start_date, ps.status AS session_status, ps.game_type
-                              FROM events e JOIN poker_sessions ps ON ps.event_id = e.id $order");
+                              FROM events e JOIN poker_sessions ps ON ps.event_id = e.id WHERE e.cancelled_at IS NULL $order");
         $stmt->execute();
     } else {
         if ((int)$user_id <= 0) return [];
         $stmt = $db->prepare("SELECT e.id, e.title, e.start_date, ps.status AS session_status, ps.game_type
             FROM events e JOIN poker_sessions ps ON ps.event_id = e.id
-            WHERE e.created_by = ?
+            WHERE e.cancelled_at IS NULL AND (e.created_by = ?
                OR EXISTS (SELECT 1 FROM event_invites ei
                           WHERE ei.event_id = e.id AND ei.user_id = ? AND ei.event_role = 'manager')
                OR EXISTS (SELECT 1 FROM league_members lm
-                          WHERE lm.league_id = e.league_id AND lm.user_id = ? AND lm.role IN ('owner','manager'))
+                          WHERE lm.league_id = e.league_id AND lm.user_id = ? AND lm.role IN ('owner','manager')))
             $order");
         $stmt->execute([$user_id, $user_id, $user_id]);
     }

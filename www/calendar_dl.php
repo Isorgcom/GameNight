@@ -49,6 +49,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             http_response_code(403); exit('Access denied.');
         }
     }
+    // A cancelled event takes no RSVPs, sign-ups, guest removals or new walk-in codes.
+    $__cxEid = (int)($_POST['event_id'] ?? 0) ?: (int)($_POST['id'] ?? 0);
+    if ($__cxEid > 0 && in_array($action, ['update_rsvp', 'self_signup', 'remove_invitee', 'regenerate_walkin_token'], true)
+        && event_is_cancelled($db, $__cxEid)) {
+        http_response_code(409);
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
+            header('Content-Type: application/json');
+            echo json_encode(['ok' => false, 'error' => EVENT_CANCELLED_MSG]); exit;
+        }
+        $_SESSION['flash'] = ['type' => 'error', 'msg' => EVENT_CANCELLED_MSG];
+        header('Location: /event.php?id=' . $__cxEid); exit;
+    }
+
     // The add/edit save path that used to live here was dead code: nothing in the
     // app posts action=add/edit to this endpoint (the editor modal always posted to
     // calendar.php, now via the shared _event_save.php; the standalone editor page
@@ -84,6 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Delete base row and future per-occurrence rows
             $db->prepare("DELETE FROM event_invites WHERE event_id=? AND LOWER(username)=? AND (occurrence_date IS NULL OR occurrence_date >= ?)")
                ->execute([$id, $target_user, $today_date]);
+            purge_queue_for_dropped_guests($db, $id);
             // Queue removal notification — use event_updated template; user is already removed
             // from the invite list so they just need a heads-up.
             queue_event_notification($db, $id, $target_user, 'cancel_event', null, null, null, $target_uid);
@@ -269,6 +283,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($eid > 0) {
             $db->prepare('DELETE FROM event_invites WHERE event_id=? AND user_id=?')
                ->execute([$eid, (int)$current['id']]);
+            purge_queue_for_dropped_guests($db, $eid);
             db_log_activity($current['id'], "removed self from event id: $eid");
         }
         if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {

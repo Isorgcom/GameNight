@@ -171,6 +171,7 @@ $deadlineEvents = $db->prepare(
        AND e.rsvp_deadline_hours IS NOT NULL
        AND e.rsvp_deadline_hours > 0
        AND e.rsvp_deadline_processed = 0
+       AND e.cancelled_at IS NULL
        AND e.start_date >= ?"
 );
 $deadlineEvents->execute([$now_local->format('Y-m-d')]);

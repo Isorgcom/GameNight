@@ -26,7 +26,7 @@ if ($slug === '') {
     $dStmt = $db->prepare(
         "SELECT l.name, l.description, l.slug, l.approval_mode, l.banner_path, l.banner_fit,
                 (SELECT COUNT(*) FROM league_members lm WHERE lm.league_id = l.id AND lm.user_id IS NOT NULL) AS member_count,
-                (SELECT COUNT(*) FROM events e WHERE e.league_id = l.id AND COALESCE(NULLIF(e.end_date, ''), e.start_date) >= ?) AS upcoming_count
+                (SELECT COUNT(*) FROM events e WHERE e.league_id = l.id AND e.cancelled_at IS NULL AND COALESCE(NULLIF(e.end_date, ''), e.start_date) >= ?) AS upcoming_count
            FROM leagues l
           WHERE l.public_page = 1 AND l.is_hidden = 0 AND l.slug IS NOT NULL AND l.slug <> ''
           ORDER BY LOWER(l.name)"
@@ -178,6 +178,7 @@ $ev = $db->prepare(
     "SELECT e.id, e.title, e.start_date, e.end_date, e.start_time, e.end_time, e.venue_name
        FROM events e
       WHERE e.league_id = ? AND e.visibility IN ('league', 'public')
+        AND e.cancelled_at IS NULL
         AND COALESCE(NULLIF(e.end_date, ''), e.start_date) >= ?
       ORDER BY e.start_date ASC, e.start_time ASC
       LIMIT 20"

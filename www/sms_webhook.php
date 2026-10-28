@@ -309,6 +309,7 @@ if (in_array($keyword, ['events', 'list', 'e', 'status', 's'], true)) {
         JOIN events e ON e.id = ei.event_id
         WHERE ei.user_id = ?
           AND e.start_date >= ?
+          AND e.cancelled_at IS NULL
         ORDER BY e.start_date ASC
         LIMIT 10
     ");
@@ -414,6 +415,7 @@ $invStmt = $db->prepare("
     JOIN events e ON e.id = ei.event_id
     WHERE ei.user_id = ?
       AND e.start_date >= ?
+      AND e.cancelled_at IS NULL
       AND ei.approval_status = 'approved'
     ORDER BY e.start_date ASC
     LIMIT 10
@@ -427,6 +429,7 @@ $pendStmt = $db->prepare("
     JOIN events e ON e.id = ei.event_id
     WHERE ei.user_id = ?
       AND e.start_date >= ?
+      AND e.cancelled_at IS NULL
       AND ei.approval_status = 'pending'
 ");
 $pendStmt->execute([(int)$user['id'], $_sms_today]);

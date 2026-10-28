@@ -36,6 +36,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = $raw_code === '' ? 'Enter the code showing on the TV.' : 'That is not a TV code. It is four letters and numbers, shown in large print on the TV.';
     } elseif (!$event_id || !can_manage_event($db, $event_id, (int)$current['id'], $isAdmin)) {
         $error = 'You can only send a game you run.';
+    } elseif (event_is_cancelled($db, $event_id)) {
+        $error = EVENT_CANCELLED_MSG;
     } else {
         $sq = $db->prepare("SELECT id, game_type FROM poker_sessions WHERE event_id = ?");
         $sq->execute([$event_id]);
@@ -78,7 +80,7 @@ usort($games, fn($a, $b) => [($a['session_status'] ?? '') !== 'active', (string)
                         <=> [($b['session_status'] ?? '') !== 'active', (string)$b['start_date'], (int)$b['id']]);
 // The game the console sent us from goes first, listed even when the filter
 // above left it out (an admin's, or one dated outside the window).
-if ($pick && can_manage_event($db, $pick, (int)$current['id'], $isAdmin)) {
+if ($pick && can_manage_event($db, $pick, (int)$current['id'], $isAdmin) && !event_is_cancelled($db, $pick)) {
     $games = array_values(array_filter($games, fn($e) => (int)$e['id'] !== $pick));
     $pq = $db->prepare("SELECT e.id, e.title, e.start_date, ps.status AS session_status, ps.game_type
                         FROM events e JOIN poker_sessions ps ON ps.event_id = e.id WHERE e.id = ?");

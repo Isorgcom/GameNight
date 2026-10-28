@@ -28,7 +28,7 @@ $cutoff_past = (clone $now)->modify("-{$past_days} days")->format('Y-m-d');
 $stmt = $db->prepare("
     SELECT e.id, e.title, e.description, e.start_date, e.end_date,
            e.start_time, e.end_time, e.color, e.created_by, e.is_poker,
-           e.league_id, e.visibility,
+           e.league_id, e.visibility, e.cancelled_at,
            l.name AS league_name,
            ei.rsvp, ei.approval_status,
            CASE WHEN e.created_by = :uid THEN 1 ELSE 0 END AS is_creator
@@ -173,6 +173,7 @@ function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): strin
                         <?= htmlspecialchars($ev['title']) ?>
                     </a>
                     <?= rsvp_badge($ev['rsvp'], $ev['approval_status'] ?? 'approved') ?>
+                    <?php if (!empty($ev['cancelled_at'])): ?><span class="pk-cancelled-tag">Cancelled</span><?php endif; ?>
                     <?php if (!empty($ev['league_name'])): ?>
                     <a class="ev-league-tag" href="/league.php?id=<?= (int)$ev['league_id'] ?>" title="<?= htmlspecialchars($ev['league_name']) ?>">
                         <?= htmlspecialchars($ev['league_name']) ?>
@@ -181,10 +182,10 @@ function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): strin
                     <?php if ($ev['is_creator']): ?>
                     <span class="me-badge" style="background:#ede9fe;color:#5b21b6;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">Organizer</span>
                     <?php endif; ?>
-                    <?php if (!empty($ev['is_poker']) && !empty($manageable[(int)$ev['id']])): ?>
+                    <?php if (!empty($ev['is_poker']) && !empty($manageable[(int)$ev['id']]) && empty($ev['cancelled_at'])): ?>
                     <a href="/checkin.php?event_id=<?= $ev['id'] ?>" class="me-badge" style="background:#059669;color:#fff;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600;text-decoration:none">Manage Game</a>
                     <?php endif; ?>
-                    <?php if (!empty($manageable[(int)$ev['id']])): ?>
+                    <?php if (!empty($manageable[(int)$ev['id']]) && empty($ev['cancelled_at'])): ?>
                     <a href="/event_edit.php?id=<?= (int)$ev['id'] ?>&m=<?= urlencode($month_str) ?>" class="me-badge" style="background:#2563eb;color:#fff;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600;text-decoration:none">Edit</a>
                     <?php endif; ?>
                 </div>
@@ -239,6 +240,7 @@ function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): strin
                         <?= htmlspecialchars($ev['title']) ?>
                     </a>
                     <?= rsvp_badge($ev['rsvp'], $ev['approval_status'] ?? 'approved') ?>
+                    <?php if (!empty($ev['cancelled_at'])): ?><span class="pk-cancelled-tag">Cancelled</span><?php endif; ?>
                     <?php if (!empty($ev['league_name'])): ?>
                     <a class="ev-league-tag" href="/league.php?id=<?= (int)$ev['league_id'] ?>" title="<?= htmlspecialchars($ev['league_name']) ?>">
                         <?= htmlspecialchars($ev['league_name']) ?>
@@ -247,10 +249,10 @@ function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): strin
                     <?php if ($ev['is_creator']): ?>
                     <span style="background:#f3f4f6;color:#6b7280;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">Organizer</span>
                     <?php endif; ?>
-                    <?php if (!empty($ev['is_poker']) && !empty($manageable[(int)$ev['id']])): ?>
+                    <?php if (!empty($ev['is_poker']) && !empty($manageable[(int)$ev['id']]) && empty($ev['cancelled_at'])): ?>
                     <a href="/checkin.php?event_id=<?= $ev['id'] ?>" style="background:#059669;color:#fff;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600;text-decoration:none">Manage Game</a>
                     <?php endif; ?>
-                    <?php if (!empty($manageable[(int)$ev['id']])): ?>
+                    <?php if (!empty($manageable[(int)$ev['id']]) && empty($ev['cancelled_at'])): ?>
                     <a href="/event_edit.php?id=<?= (int)$ev['id'] ?>&m=<?= urlencode($month_str) ?>" style="background:#2563eb;color:#fff;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600;text-decoration:none">Edit</a>
                     <?php endif; ?>
                 </div>

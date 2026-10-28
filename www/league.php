@@ -253,7 +253,7 @@ $knownTag = function ($uid) use ($knownById): string { $k = $knownById[(int)$uid
 $vis = event_visibility_sql('e', $uid);
 $evStmt = $db->prepare(
     "SELECT e.id, e.title, e.start_date, e.end_date,
-            e.start_time, e.end_time, e.color, e.visibility
+            e.start_time, e.end_time, e.color, e.visibility, e.cancelled_at
      FROM events e
      WHERE e.league_id = ? AND {$vis['sql']}
      ORDER BY e.start_date ASC, e.start_time ASC"
@@ -874,7 +874,7 @@ function ordinal($n) {
             <?php else: foreach ($leagueUpcoming as $e): ?>
                 <div class="lg-card">
                     <div>
-                        <strong><?= htmlspecialchars($e['title']) ?></strong>
+                        <strong><?= htmlspecialchars($e['title']) ?></strong><?php if (!empty($e['cancelled_at'])): ?> <span class="pk-cancelled-tag">Cancelled</span><?php endif; ?>
                         <div style="font-size:.8rem;color:#64748b">
                             <?= htmlspecialchars($e['start_date']) ?>
                             <?php if (!empty($e['start_time'])): ?> &middot; <?= htmlspecialchars($e['start_time_display'] ?: substr($e['start_time'], 0, 5)) ?><?php endif; ?>
@@ -903,7 +903,7 @@ function ordinal($n) {
                 <?php else: foreach ($leaguePast as $e): ?>
                     <div class="lg-card" style="opacity:.85">
                         <div>
-                            <strong><?= htmlspecialchars($e['title']) ?></strong>
+                            <strong><?= htmlspecialchars($e['title']) ?></strong><?php if (!empty($e['cancelled_at'])): ?> <span class="pk-cancelled-tag">Cancelled</span><?php endif; ?>
                             <div style="font-size:.8rem;color:#64748b">
                                 <?= htmlspecialchars($e['start_date']) ?>
                                 <?php if (!empty($e['start_time'])): ?> &middot; <?= htmlspecialchars($e['start_time_display'] ?: substr($e['start_time'], 0, 5)) ?><?php endif; ?>

@@ -11,6 +11,19 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.14.0] - 2026-10-28
+
+### Changed
+
+- **Cancelling an event keeps it.** On an upcoming event, the event page's More menu now says **Cancel event** where it said Delete. Everyone on the guest list is told, as before, but the event stays on the site, marked **Cancelled** (a red tag on the event page, My Events and the league's Events tab, a greyed, struck-through chip on the calendar, `STATUS:CANCELLED` in calendar files and the league feed), so the host can open it and use **Duplicate event** to plan a new one with the same details and guest list. Nothing acts on a cancelled event: RSVPs (on the page, by link, by text reply), walk-ins, edits, invitations, reminders, approvals, Manage Game, the Table Manager and timer controls all say "This event was cancelled." Unsent invitations and reminders for it are dropped when it is cancelled. A past or cancelled event can still be deleted for good from its page, and deleting a cancelled one tells nobody a second time. The host's **CANCEL** text command does the same cancel-and-keep. New columns `events.cancelled_at` / `cancelled_by` are added on the first request.
+- **The API hides cancelled events.** `GET /api/v1/events` leaves them out unless `include_cancelled=1` is passed, every event now carries `cancelled_at` (null or a UTC instant), and changing a cancelled event or its invites answers 409 `event_cancelled`. Sister sites that list a league's schedule drop a cancelled game without any change on their side.
+
+### Fixed
+
+- **Guests invited by email now show as sent in the Invites panel.** The panel marks a guest sent when the delivery log names the event and the guest, and texts were logged that way but emails were not, so every guest who chose email looked like their invitation never went out (it had). Emails sent by the notification queue, and their retries, now carry the event and recipient like texts do. Rows logged before this release stay unmarked; the operator can attach them by hand from the delivery log.
+- **Guests without an account now get reminders too.** A guest the host typed in by name with an email or phone received the invitation and nothing after it, because reminders were queued only for invites linked to an account. Reminders now go to every approved guest on the list, reaching a guest without an account at the email or phone on their invite, the same way the invitation did. Upcoming events pick this up on the next scheduled run, for any reminder time still ahead.
+- **A guest taken off the list no longer gets the event's reminders.** Removing a guest in the editor, by the remove button, by leaving the event, through the API, or denying them (on the event page or in Manage Game) now drops their unsent reminders and invitations from the queue, and the sender checks once more that a reminder's recipient is still an approved guest before it goes out. Before this, a guest dropped after the first save kept their queued reminders and would have been reminded about a game they were no longer invited to.
+
 ## [v1.13.0] - 2026-10-27
 
 ### Added
