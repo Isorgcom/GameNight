@@ -152,6 +152,13 @@ if ($isLanding) {
                                    'Privacy & Approval Controls', 'Multi-Table & Payouts', 'Smart Notifications',
                                    'Posts & Comments', 'WordPress & API'],
                  'publisher' => ['@id' => $ldSite . '/#org']],
+                ['@type' => 'VideoObject', 'name' => 'GameNight intro',
+                 'description' => 'How GameNight runs a home poker game: invites by text, email or WhatsApp, one-tap RSVPs, game-day check-in with buy-ins and payouts, the blind timer on every screen and on your phone, and season standings.',
+                 'thumbnailUrl' => $ldSite . '/img/landing/intro-video.jpg',
+                 'uploadDate' => '2026-10-31', 'duration' => 'PT1M48S',
+                 'embedUrl' => 'https://www.youtube-nocookie.com/embed/AsrxBq926v4',
+                 'contentUrl' => 'https://youtu.be/AsrxBq926v4',
+                 'publisher' => ['@id' => $ldSite . '/#org']],
             ],
         ]);
     endif; ?>

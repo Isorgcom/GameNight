@@ -35,6 +35,19 @@
 .lp-screens figure { margin:0; }
 .lp-screens img { width:100%; height:auto; border-radius:10px; border:1px solid var(--border,#e2e8f0); box-shadow:0 8px 24px rgba(0,0,0,.12); display:block; }
 .lp-screens figcaption { text-align:center; font-size:.85rem; color:#64748b; margin-top:.6rem; }
+/* The intro video: a local poster behind a play button; the YouTube frame is
+   built on the click (lpPlayIntro below), so nothing third-party loads for
+   a visitor who only scrolls past. */
+.lp-video { max-width:900px; margin:1.5rem auto 0; padding:0 1.5rem; }
+.lp-video-play { display:block; position:relative; width:100%; padding:0; border:1px solid var(--border,#e2e8f0); border-radius:12px; overflow:hidden; background:#141a2e; cursor:pointer; box-shadow:0 8px 24px rgba(0,0,0,.12); }
+.lp-video-play img { display:block; width:100%; height:auto; }
+.lp-video-btn { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:84px; height:84px; border-radius:50%; background:rgba(220,38,38,.92); color:#fff; font-size:2rem; line-height:1; display:flex; align-items:center; justify-content:center; padding-left:8px; box-shadow:0 4px 16px rgba(0,0,0,.35); transition:transform .2s; }
+.lp-video-play:hover .lp-video-btn, .lp-video-play:focus-visible .lp-video-btn { transform:translate(-50%,-50%) scale(1.08); }
+.lp-video-play:focus-visible { outline:3px solid #2563eb; outline-offset:3px; }
+.lp-video-frame { position:relative; width:100%; aspect-ratio:16/9; border-radius:12px; overflow:hidden; background:#000; box-shadow:0 8px 24px rgba(0,0,0,.12); }
+.lp-video-frame iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
+.lp-video-link { text-align:center; font-size:.85rem; color:#64748b; margin-top:.6rem; }
+@media (prefers-reduced-motion: reduce) { .lp-video-btn { transition:none; } }
 /* Guest header. _nav.php deliberately renders nothing in landing mode, which
    left the page with no link home and no crawlable path to the league
    directory or the guides: every public page was an orphan except through the
@@ -242,7 +255,41 @@ window.lpGalNav = function (dir) {
     g.scrollTo({ left: f.offsetLeft + f.offsetWidth / 2 - g.clientWidth / 2,
                  behavior: reduce ? 'auto' : 'smooth' });
 };
+// The intro video: swap the poster for the YouTube player on the click, so
+// the third-party frame only loads for someone who asked for it.
+window.lpPlayIntro = function () {
+    var box = document.getElementById('lpVideo');
+    var btn = box && box.querySelector('.lp-video-play');
+    if (!btn) return;
+    var wrap = document.createElement('div');
+    wrap.className = 'lp-video-frame';
+    var f = document.createElement('iframe');
+    f.src = 'https://www.youtube-nocookie.com/embed/AsrxBq926v4?autoplay=1&rel=0';
+    f.title = 'GameNight intro video';
+    f.allow = 'autoplay; encrypted-media; fullscreen; picture-in-picture';
+    f.setAttribute('allowfullscreen', '');
+    f.referrerPolicy = 'strict-origin-when-cross-origin';
+    wrap.appendChild(f);
+    btn.replaceWith(wrap);
+    f.focus();
+};
 </script>
+
+<?php /* The intro video (1:48). The poster is the video's closing frame,
+         served from here; the player is a youtube-nocookie frame (already on
+         the CSP's frame-src for the timer's stream panel) created only on the
+         click. The plain link below it is the no-script path. */ ?>
+<div class="lp-section-head" style="padding-bottom:0">
+    <h2>Watch the intro</h2>
+    <p>One minute forty-eight: invites, one-tap RSVPs, game day, the timer on every screen, season standings.</p>
+</div>
+<div class="lp-video" id="lpVideo">
+    <button type="button" class="lp-video-play" data-act="lpPlayIntro" aria-label="Play the intro video, 1 minute 48 seconds">
+        <picture><source type="image/webp" srcset="/img/landing/intro-video.webp"><img src="/img/landing/intro-video.jpg" width="1280" height="720" decoding="async" loading="lazy" alt="The GameNight neon sign on green felt, with the line The home game, sorted"></picture>
+        <span class="lp-video-btn" aria-hidden="true">&#9654;</span>
+    </button>
+    <p class="lp-video-link"><a href="https://youtu.be/AsrxBq926v4" target="_blank" rel="noopener">Watch on YouTube</a></p>
+</div>
 
 <div class="lp-section-head">
     <h2>Everything you need to run game night</h2>

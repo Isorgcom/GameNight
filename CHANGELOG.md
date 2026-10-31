@@ -11,6 +11,12 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.14.2] - 2026-10-31
+
+### Added
+
+- **The intro video on the landing page.** The public home page (what a signed-out visitor sees when the landing page is on) gains a "Watch the intro" block under the hero: the video's closing frame as a poster with a play button, and the YouTube player (youtube-nocookie, already on the Content-Security-Policy's frame list for the timer's stream panel) is only created when someone clicks, so a visitor who scrolls past loads nothing from YouTube. A plain "Watch on YouTube" link sits under it for anyone without script. The page's structured data gains a VideoObject so search engines can show the video with the site. Files: `www/_landing.php` (markup, styles, the `lpPlayIntro` handler via `data-act`), `www/index.php` (JSON-LD), `www/img/landing/intro-video.jpg|webp`.
+
 ## [v1.14.1] - 2026-10-28
 
 ### Changed
