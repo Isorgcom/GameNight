@@ -264,7 +264,7 @@ window.lpPlayIntro = function () {
     var wrap = document.createElement('div');
     wrap.className = 'lp-video-frame';
     var f = document.createElement('iframe');
-    f.src = 'https://www.youtube-nocookie.com/embed/AsrxBq926v4?autoplay=1&rel=0';
+    f.src = 'https://www.youtube-nocookie.com/embed/vEugRW5RcFg?autoplay=1&rel=0';
     f.title = 'GameNight intro video';
     f.allow = 'autoplay; encrypted-media; fullscreen; picture-in-picture';
     f.setAttribute('allowfullscreen', '');
@@ -288,7 +288,7 @@ window.lpPlayIntro = function () {
         <picture><source type="image/webp" srcset="/img/landing/intro-video.webp"><img src="/img/landing/intro-video.jpg" width="1280" height="720" decoding="async" loading="lazy" alt="The GameNight neon sign on green felt, with the line The home game, sorted"></picture>
         <span class="lp-video-btn" aria-hidden="true">&#9654;</span>
     </button>
-    <p class="lp-video-link"><a href="https://youtu.be/AsrxBq926v4" target="_blank" rel="noopener">Watch on YouTube</a></p>
+    <p class="lp-video-link"><a href="https://youtu.be/vEugRW5RcFg" target="_blank" rel="noopener">Watch on YouTube</a></p>
 </div>
 
 <div class="lp-section-head">

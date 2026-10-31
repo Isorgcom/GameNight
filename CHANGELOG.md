@@ -11,6 +11,12 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.14.3] - 2026-10-31
+
+### Changed
+- **The intro video now has sound.** The cut on YouTube and on the landing page is the one with the effects track (stamps, paper, chips, pings, the thumbs-up sticker), replacing the voice-only upload. The three links that carry the video id moved to the new upload: the README's thumbnail link, the landing page's player and "Watch on YouTube" link in `www/_landing.php`, and the `VideoObject` in the home page's structured data in `www/index.php`. The old upload stays on YouTube only until it is unlisted; nothing on the site points at it.
+
+
 ## [v1.14.2] - 2026-10-31
 
 ### Added

@@ -2,9 +2,9 @@
 
 A self-hosted PHP web application for organizing game night events with full poker tournament and cash-game management. Members can register, RSVP to events on a shared calendar, join leagues, read posts/announcements, vote in event polls, and manage their profiles. Admins get a full dashboard for managing users, events, posts, leagues, and site settings.
 
-**Watch the intro (1:48):** [youtu.be/AsrxBq926v4](https://youtu.be/AsrxBq926v4)
+**Watch the intro (1:48):** [youtu.be/vEugRW5RcFg](https://youtu.be/vEugRW5RcFg)
 
-[![GameNight intro video: invites, one-tap RSVPs, game-day check-in, the blind timer on every screen, season standings](https://img.youtube.com/vi/AsrxBq926v4/hqdefault.jpg)](https://youtu.be/AsrxBq926v4)
+[![GameNight intro video: invites, one-tap RSVPs, game-day check-in, the blind timer on every screen, season standings](https://img.youtube.com/vi/vEugRW5RcFg/hqdefault.jpg)](https://youtu.be/vEugRW5RcFg)
 
 ## Features
 
