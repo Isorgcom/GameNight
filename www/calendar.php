@@ -2102,7 +2102,7 @@ function renderInvitesPanel(eid) {
         if (q && q.failed > 0) {
             ih += '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.5rem .7rem;margin-bottom:.7rem;font-size:.8rem;color:#991b1b;font-weight:600">'
                 + '&#9888; ' + q.failed + ' invitation' + (q.failed === 1 ? '' : 's') + ' could not be sent after several retries. '
-                + '<a href="/sms_log.php?event=' + eid + '&status=failed" style="color:#991b1b">View delivery log</a>'
+                + '<a href="/event_history.php?id=' + eid + '&status=failed" style="color:#991b1b">See what failed</a>'
                 + '</div>';
         }
 

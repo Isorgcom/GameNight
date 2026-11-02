@@ -468,6 +468,8 @@ Notification triggers:
 - **Password reset** — Email with reset link.
 - **Email verification** — Confirmation link on registration.
 
+Hosts can see every send and reply for an event under **More → Message history** on the event page: a timeline of send runs and replies (reminders still to go out on top, notices to the hosts folded away), or one thread per guest, with a Failed-only filter. The log keeps 90 days.
+
 ### Reminder Schedule
 
 When cron is configured, automatic reminders are sent:

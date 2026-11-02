@@ -591,7 +591,7 @@ function notify_user_direct(
     $stmt->execute([$user_id]);
     $u = $stmt->fetch();
     if (!$u || !user_notify_pref_enabled($u, $notify_type)) return;
-    notif_log_context(null, $u['username']);
+    notif_log_context(null, $u['username'], $notify_type);
     send_notification(
         $u['username'], $u['email'] ?? '', $u['phone'] ?? '',
         $u['preferred_contact'] ?? 'email',
@@ -1193,8 +1193,9 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
     $err = null;
     if (!$muted) {
         // Correlate every log row this send produces (email/SMS/WhatsApp, including
-        // parked email retries) with the event and recipient being notified.
-        notif_log_context($event_id, $username);
+        // parked email retries) with the event, the recipient and the kind of
+        // notification being sent.
+        notif_log_context($event_id, $username, $type);
         send_notification(
             $user['username'], $user['email'] ?? '', $user['phone'] ?? '',
             $user['preferred_contact'] ?? 'email',

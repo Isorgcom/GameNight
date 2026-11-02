@@ -338,6 +338,7 @@ if ($token === '' && $page_eid > 0) {
                 <div class="ev-more-panel" id="evMorePanel">
                     <a href="/event_edit.php?copy=<?= $page_eid ?>">Duplicate event</a>
                     <a href="/event_polls.php?event_id=<?= $page_eid ?>">Polls</a>
+                    <a href="/event_history.php?id=<?= $page_eid ?>">Message history</a>
                     <?php if (!empty($isTournament)): ?>
                     <a href="/event_blinds.php?event_id=<?= $page_eid ?>">&#9202; Blinds &amp; timer display</a>
                     <?php endif; ?>
@@ -563,6 +564,9 @@ if ($token === '' && $page_eid > 0) {
         <div style="margin-top:1.25rem;padding-top:1.1rem;border-top:1px solid #e2e8f0">
             <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.45rem">
                 <span style="flex:1;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8">Messages from the host</span>
+                <?php if ($canManage): ?>
+                <a href="/event_history.php?id=<?= $page_eid ?>" style="font-size:.75rem;color:#2563eb;text-decoration:none;white-space:nowrap">Full history</a>
+                <?php endif; ?>
                 <?php if ($canManage && $notifsEnabled): ?>
                 <button type="button" class="btn" style="background:#16a34a;color:#fff;font-size:.78rem;padding:.3rem .8rem" data-act="openEventMsgModal">Message guests</button>
                 <?php endif; ?>
@@ -880,7 +884,11 @@ function renderInvPanel() {
     var declined   = invBase.filter(function(i){ return (i.approval_status||'approved')==='approved' && i.rsvp==='no'; });
     var pending    = invBase.filter(function(i){ return (i.approval_status||'approved')==='pending'; });
     var waitlisted = invBase.filter(function(i){ return i.approval_status==='waitlisted'; });
-    var ih = '';
+    // The panel's own heading, with the way to everything this event sent
+    // and received (event_history.php, v1.15.0).
+    var ih = '<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">'
+        + '<span style="flex:1;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8">Invites</span>'
+        + '<a href="/event_history.php?id=' + EV_EID + '" style="font-size:.75rem;color:#2563eb;text-decoration:none;white-space:nowrap">History</a></div>';
 
     if (NOTIFS_ON) {
         var q = invQueue;
@@ -894,7 +902,7 @@ function renderInvPanel() {
             ih += '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:.5rem .7rem;margin-bottom:.7rem;font-size:.8rem;color:#166534;font-weight:600">&#10003; All queued invitations were sent.</div>';
         }
         if (q.failed > 0) {
-            ih += '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.5rem .7rem;margin-bottom:.7rem;font-size:.8rem;color:#991b1b;font-weight:600">&#9888; ' + q.failed + ' invitation' + (q.failed===1?'':'s') + ' could not be sent after several retries. <a href="/sms_log.php?event=' + EV_EID + '&status=failed" style="color:#991b1b">View delivery log</a></div>';
+            ih += '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.5rem .7rem;margin-bottom:.7rem;font-size:.8rem;color:#991b1b;font-weight:600">&#9888; ' + q.failed + ' invitation' + (q.failed===1?'':'s') + ' could not be sent after several retries. <a href="/event_history.php?id=' + EV_EID + '&status=failed" style="color:#991b1b">See what failed</a></div>';
         }
         var unsent    = approved.filter(function(i){ return !i.sent && !i.no_contact && i.delivery !== 'sending'; });
         var noContact = approved.filter(function(i){ return i.no_contact; });

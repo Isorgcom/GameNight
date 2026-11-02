@@ -14,6 +14,11 @@ if (!$isAdmin) {
         http_response_code(403);
         exit('Access denied.');
     }
+    // A host's view of an event's sends is event_history.php (1.15.0): the
+    // same rows read as invitations, reminders and replies, not provider
+    // lines. The raw log stays the admin's.
+    header('Location: /event_history.php?id=' . $f_event . ((($_GET['status'] ?? '') === 'failed') ? '&status=failed' : ''));
+    exit;
 }
 
 $site_name = get_setting('site_name', 'Game Night');

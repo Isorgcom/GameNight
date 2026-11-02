@@ -321,7 +321,7 @@ function sms_log_inbound(string $phone, string $body, string $provider, string $
 
 function sms_log(string $direction, string $phone, string $body, ?string $provider, string $status, ?string $error, string $raw = ''): ?int {
     try {
-        [$ctx_eid, $ctx_user] = notif_log_context_get();
+        [$ctx_eid, $ctx_user, $ctx_type] = notif_log_context_get();
         // Digits-only conversation key; stays NULL for email rows (address in phone).
         $d = preg_replace('/\D/', '', $phone);
         if (strlen($d) === 11 && $d[0] === '1') $d = substr($d, 1);
@@ -332,8 +332,8 @@ function sms_log(string $direction, string $phone, string $body, ?string $provid
         // the guest's own words and is kept as received.
         if ($direction === 'outbound') $body = redact_secrets($body);
         $db = get_db();
-        $db->prepare('INSERT INTO sms_log (direction, phone, body, provider, status, error, raw_response, event_id, username, phone_digits) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-            ->execute([$direction, $phone, $body, $provider, $status, $error, $raw !== '' ? $raw : null, $ctx_eid, $ctx_user, $digits]);
+        $db->prepare('INSERT INTO sms_log (direction, phone, body, provider, status, error, raw_response, event_id, username, phone_digits, notify_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+            ->execute([$direction, $phone, $body, $provider, $status, $error, $raw !== '' ? $raw : null, $ctx_eid, $ctx_user, $digits, $ctx_type]);
         return (int)$db->lastInsertId();
     } catch (Exception $e) {
         // Don't let logging failures break SMS sending

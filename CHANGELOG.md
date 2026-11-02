@@ -11,6 +11,14 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.15.0] - 2026-11-02
+
+### Added
+- **Every event has a message history.** Open an event and choose **More → Message history** (also **History** at the top of the Invites panel, and **Full history** beside Messages from the host): one page with everything the event has sent and received. **Timeline** lists it newest first, with a send run as one line ("Invitations to 16 guests: 10 texts, 6 emails, 1 failed") that opens to show each person, the number or address it went to, and whether it got through; the reminders still to go out sit on top with their dates; guests' replies and text conversations are entries of their own; the "X replied YES" notices to the hosts are counted but folded behind **Show notices to hosts**. **By guest** gives each person their own thread: invitation, reminders sent and scheduled, their answer, texts either way, the messages they were sent. People taken off the list since, and a name a guest was invited under before, stay in it. **Failed only** narrows both views to what did not get through, and the "could not be sent" banner on the event page now opens it that way. Times are in your timezone; the log keeps 90 days. A host who follows an old link to the admin Notification Log lands here; admins keep the raw log. New `www/event_history.php` and `www/_event_history.php`; links in `www/event.php`, `www/calendar.php` and `www/sms_conversations.php`; the redirect in `www/sms_log.php`.
+
+### Infrastructure
+- **The delivery log records what kind of notification each row was.** `sms_log.notify_type` (and `email_retry_queue.notify_type`, so a parked email keeps it through its retries) is written by the dispatcher and the conversation code through a third argument to `notif_log_context()`. Rows from before this release carry none; the history page works theirs out from the queue row claimed at the same moment, the recipient's in-app inbox row, or the wording of the dispatcher's templates. A new index, `idx_pending_notifications_event`, serves the per-event reads the Invites panel's poll was already making. Both columns and the index are created on the first request after the pull.
+
 ## [v1.14.7] - 2026-11-02
 
 ### Fixed
