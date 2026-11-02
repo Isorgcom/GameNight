@@ -11,6 +11,8 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.14.5] - 2026-11-02
+
 ### Changed
 - **The event editor reads top to bottom on a phone.** On a screen 640px wide or under it was the desktop page squeezed into one 1,800px column: League and Visibility before the title, the switches and the poker fields wrapping into broken rows, two 260px lists of names scrolling inside the scrolling page with every name cut to "Carlos …", two × marks on every guest row (one of them decorative), and the round help button sitting on top of Cancel. The same form is now laid out for a thumb: Title first, Date beside Time, Duration beside Venue, Address, then League and Visibility, then the description. **Poker** and **Reminders** are cards with their switch in the header (off is one line, on shows the fields two to a row). **Guests** is a header band with the Guest options dropdown, then **+ Add from users** and **+ Add Name**, then the Invited list as the only list on the page: each guest on two lines (the full name with one remove button, then contact, RSVP and the manager switch). **+ Add from users** opens the site's user list as a full-screen sheet with the search pinned at the top; a tap adds a name with a green tick, a second tap takes it off, Done comes back to the form. The sticky bar reads Cancel, Save (Add Event on a new one) and Save & Send, and the help button now sits above it. Tablets keep the two stacked lists; desktop is unchanged; every field, option and the way the form saves are the same. The host guide's step 4 and the first-event tips say where the user list went on a phone. In `www/event_edit.php`, `www/help-hosts.php` and `www/db.php` (the tip rewording, one-shot `help_first_event_tips_v3`).
 
