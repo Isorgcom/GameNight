@@ -1906,6 +1906,25 @@ JSON;
         }
     } catch (Exception $e) {}
 
+    // v3 (1.14.5): the phone editor regrouped. All Users is a full-screen sheet
+    // behind + Add from users there, and the phone's quiet save button reads
+    // Add Event / Save. Same rule as v2: only a body still at the v2 text moves.
+    try {
+        if (get_setting('help_first_event_tips_v3', '') !== '1') {
+            $v3 = [
+                ['Invite anyone by name',
+                 "+ Add Name takes a name and an email or phone; nobody needs an account. People you have invited before show up under All Users (beside this list on a computer, above it on a phone).",
+                 "+ Add Name takes a name and an email or phone; nobody needs an account. People you have invited before show up under All Users: beside this list on a computer, or behind + Add from users on a phone."],
+                ['Two ways to save',
+                 "Add Event saves quietly. Once guests are on the list it reads Save without sending, and Save & Send beside it sends every invitation as you save. You can also send later from the event page.",
+                 "Add Event saves quietly. Once guests are on the list it reads Save without sending on a computer, and Save & Send beside it sends every invitation as you save. You can also send later from the event page."],
+            ];
+            $upd = $pdo->prepare('UPDATE help_bubbles SET body = ? WHERE screen_key = ? AND title = ? AND body = ?');
+            foreach ($v3 as $t) $upd->execute([$t[2], 'event_edit', $t[0], $t[1]]);
+            set_setting('help_first_event_tips_v3', '1');
+        }
+    } catch (Exception $e) {}
+
     // The seeded site default was named "Standard (50/30/20)" when presets
     // held only a payout split. The preset bar now sits above every Setup tab
     // and a preset can carry the whole game, so on the Blinds tab that name

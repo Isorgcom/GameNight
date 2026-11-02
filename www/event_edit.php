@@ -338,6 +338,11 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
         .edit-poker-bar select, .edit-poker-bar input { padding:.25rem .35rem;border:1px solid #cbd5e1;border-radius:4px;font-size:.78rem;background:#fff;width:auto; }
         .edit-poker-bar input[type="number"] { width:60px; }
         .edit-notify-row { display:flex;align-items:center;gap:.4rem;font-size:.8rem;cursor:pointer;user-select:none;white-space:nowrap;color:#64748b; }
+        /* Phone-only pieces, inert above 640px: the Guests band wrapper is see-through
+           so the toolbar reads as before, and the sheet's title, count, Done and the
+           + Add from users button stay hidden. */
+        .edit-guests-head { display:contents; }
+        .edit-guests-title, .ee-sheet-title, .ee-sheet-count, .ee-sheet-done, .ee-pick-btn { display:none; }
 
         /* Contact-edit popup (small modal retained on the page) */
         .modal-overlay { display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center;padding:1rem; }
@@ -398,10 +403,120 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
             .invite-pane-list li { padding:.5rem .75rem;font-size:.95rem; }
             .invite-pane input[type="text"] { min-height:44px;font-size:1rem; }
             #eAllUsersList li:not(.dimmed):not(.custom-row)::after { content:'+';float:right;color:#22c55e;font-weight:700;font-size:1.1rem; }
-            #eInvitedList li[data-iname]::after { content:'\00d7';float:right;color:#dc2626;font-weight:700;font-size:1.1rem; }
+            /* No decorative × on an Invited row: the real one is the .inv-remove-x
+               button, and a second mark that a tap does nothing with only confused. */
+            /* The help pill and corner bubbles sit above the sticky save bar, not on
+               top of its Cancel button. */
+            .help-pill, .help-stack, .help-bubble { bottom:calc(84px + env(safe-area-inset-bottom)); }
+            /* Quick taps on a name, a remove button or the bar are taps, never a double-tap zoom. */
+            .invite-pane-list li, .inv-remove-x, .inv-contact-ctl, .cr-remove, .ee-pick-btn, .ee-sheet-done, #eAddNameBtn, .edit-actions-mobile .btn, .edit-notify-row { touch-action:manipulation; }
             .edit-toolbar { gap:.4rem;padding:.4rem .75rem; }
-            .edit-toolbar .btn { width:auto;min-height:38px;font-size:.85rem; }
             .edit-poker-bar { padding:.3rem .75rem; }
+        }
+
+        @media (max-width: 640px) {
+            /* Phone: one column that reads top to bottom, built from the same
+               markup. The toolbar is display:contents so its children join the
+               form's column; the order numbers are the page order. The All Users
+               pane becomes a full-screen sheet (body.ee-picker-open), and the
+               Invited list is the only list on the page, scrolling with it. */
+            .evedit-wrap { padding:0;margin:.35rem 0; }
+            .evedit-card { border-left:0;border-right:0;border-radius:0; }
+            .evedit-head { padding:.6rem .85rem;gap:.6rem; }
+            .evedit-head h1 { font-size:1.05rem; }
+            #eColorDot { width:30px;height:30px; }
+            .evedit-head .btn { font-size:.74rem !important;padding:.32rem .6rem; }
+
+            /* Event fields: title first, date beside time, league and visibility last. */
+            .edit-top-bar { order:1;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:.55rem .6rem;padding:.7rem .85rem .8rem;border-bottom:0; }
+            .edit-top-bar label { min-width:0 !important;flex:none !important; }
+            .edit-top-bar select, .edit-top-bar input[type="text"], .edit-top-bar input[type="date"], .edit-top-bar input[type="time"] { width:100%;box-sizing:border-box;min-height:42px;font-size:.98rem;padding:.4rem .6rem; }
+            .edit-top-bar .edit-title-label { grid-column:span 6;order:1; }
+            .edit-top-bar .edit-title-input { min-height:42px;font-size:1rem; }
+            .edit-top-bar .ef-date   { grid-column:span 3;order:2; }
+            .edit-top-bar .ef-time   { grid-column:span 3;order:3; }
+            .edit-top-bar .ef-dur    { grid-column:span 2;order:4; }
+            .edit-top-bar .ef-venue  { grid-column:span 4;order:5; }
+            .edit-top-bar .ef-addr   { grid-column:span 6;order:6; }
+            .edit-top-bar .ef-league { grid-column:span 3;order:7; }
+            .edit-top-bar .ef-vis    { grid-column:span 3;order:8; }
+            .edit-top-bar .req-note  { grid-column:span 6;order:9;padding:0;align-self:auto;white-space:normal; }
+
+            .edit-toolbar { display:contents; }
+            .edit-toolbar-spacer { display:none; }
+            #eDescToggle { order:2;align-self:flex-start;padding:.55rem .85rem;font-size:.9rem; }
+            #eDescWrap { order:3;padding:0 .85rem .6rem; }
+            .edit-desc-wrap textarea { font-size:.95rem;min-height:96px; }
+
+            /* Poker and Reminders: the switch label is the card's header band, the
+               existing bar below it is the body in two columns. */
+            .edit-notify-row { margin:.6rem .85rem 0;padding:.6rem .8rem;background:#f1f5f9;border:1.5px solid #e2e8f0;border-radius:10px 10px 0 0;font-size:.95rem;font-weight:700;color:#1e293b; }
+            .edit-notify-row.is-off { border-radius:10px; }
+            .edit-notify-row .pk-toggle-slider { margin-left:auto; }
+            #ePokerRow { order:4; }
+            #ePokerFields { order:5; }
+            #eRemRow { order:6; }
+            #eReminderFields { order:7; }
+            .edit-poker-bar { margin:0 .85rem;padding:.6rem .8rem .75rem;background:#fff;border:1.5px solid #e2e8f0;border-top:0;border-radius:0 0 10px 10px;display:grid;grid-template-columns:1fr 1fr;gap:.55rem .6rem;font-size:.78rem;color:#475569; }
+            .edit-poker-bar label { flex-direction:column;align-items:stretch;gap:.15rem;font-weight:600;min-width:0; }
+            .edit-poker-bar select, .edit-poker-bar input { width:100%;box-sizing:border-box;min-height:42px;font-size:.98rem;padding:.35rem .55rem;border:1.5px solid #cbd5e1;border-radius:7px;color:#1e293b; }
+            .edit-poker-bar input[type="number"] { width:100%; }
+            /* The online game pair opens as inline-flex from script; on the phone it
+               takes the card's full width as its own two columns. */
+            #eOnlineGameWrap[style*="inline-flex"] { display:grid !important;grid-column:span 2;grid-template-columns:1fr 1fr;gap:.55rem .6rem; }
+            #eCapacityHint { grid-column:span 2;font-size:.92rem; }
+            #eReminderFields { grid-template-columns:auto 1fr;align-items:center; }
+            #eReminderFields .rem-dd-btn { width:100%;min-height:42px;font-size:.95rem;justify-content:space-between; }
+
+            /* Guests: a header band with the Guest options dropdown, then the
+               Invited pane as the only list on the page. */
+            .edit-guests-head { order:8;display:flex;align-items:center;gap:.6rem;margin:.6rem .85rem 0;padding:.6rem .8rem;background:#f1f5f9;border:1.5px solid #e2e8f0;border-radius:10px 10px 0 0;font-size:.95rem;font-weight:700;color:#1e293b; }
+            .edit-guests-title { display:inline;flex:1; }
+            #eGuestOptsDD .rem-dd-panel { left:auto;right:0; }
+            .edit-invite-panel { order:9;display:block;padding:0 .85rem;margin-bottom:.75rem; }
+            #eInviteData { order:10; }
+            .edit-invite-panel .invite-pane:last-child { border:1.5px solid #e2e8f0;border-top:0;border-radius:0 0 10px 10px;min-height:0;overflow:visible; }
+            .edit-invite-panel .invite-pane:last-child .invite-pane-header { display:flex;gap:.5rem;padding:.6rem .8rem;background:#fff;border-bottom:0; }
+            .ee-invited-title { display:none; }
+            .ee-pick-btn { display:inline-flex;flex:1;justify-content:center;min-height:42px;font-size:.88rem !important;padding:.4rem .5rem !important;text-transform:none;letter-spacing:0; }
+            #eAddNameBtn { flex:1;justify-content:center;min-height:42px;font-size:.88rem !important;padding:.4rem .5rem !important;text-transform:none;letter-spacing:0; }
+            .inv-col-head { display:none; }
+            #eInvitedList { max-height:none;overflow:visible;padding:.1rem .4rem .4rem; }
+            #eInvitedList li[data-iname] { display:grid;grid-template-columns:auto auto 1fr auto;grid-template-areas:"name name name x" "contact rsvp mgr x";align-items:center;gap:.1rem .6rem;padding:.55rem .4rem;white-space:normal;border-top:1px solid #f1f5f9;border-radius:0; }
+            #eInvitedList li[data-iname]:first-child { border-top:0; }
+            #eInvitedList li[data-iname] .inv-name-text { grid-area:name;font-weight:600;font-size:1rem; }
+            #eInvitedList li[data-iname] .inv-contact-ctl { grid-area:contact;justify-self:start;min-width:0;padding:0 .2rem; }
+            #eInvitedList li[data-iname] .inv-col-rsvp { grid-area:rsvp;width:auto;justify-content:flex-start; }
+            #eInvitedList li[data-iname] .inv-col-mgr { grid-area:mgr;width:auto;justify-content:flex-start; }
+            #eInvitedList li[data-iname] .inv-remove-x { grid-area:x;align-self:center;color:#dc2626;font-size:1.3rem; }
+            #eInvitedList li.custom-row { padding:.55rem .4rem;border-top:1px solid #f1f5f9; }
+            .custom-row-inner { display:grid;grid-template-columns:1fr auto;gap:.35rem .5rem;align-items:center; }
+            #eInvitedList li.custom-row .custom-row-inner::before { grid-column:1 / -1; }
+            .custom-row-inner .cr-name { grid-column:1;min-width:0;min-height:42px;font-size:.98rem; }
+            .custom-row-inner .cr-contact { grid-column:1;min-width:0;min-height:42px;font-size:.98rem; }
+            .custom-row-inner .cr-remove { grid-column:2;grid-row:2 / span 2;align-self:center; }
+
+            /* The All Users pane as a sheet. */
+            #eAllUsersPane { display:none; }
+            body.ee-picker-open { overflow:hidden; }
+            body.ee-picker-open #eAllUsersPane { display:flex;position:fixed;inset:0;z-index:150;border:0;border-radius:0;background:#fff;min-height:0; }
+            #eAllUsersPane .invite-pane-header { display:flex;align-items:center;gap:.6rem;padding:.65rem .85rem;font-size:1.05rem;text-transform:none;letter-spacing:0;color:#1e293b;background:#fff; }
+            .ee-pane-title { display:none; }
+            .ee-sheet-title { display:inline; }
+            .ee-sheet-count { display:inline;flex:1;font-weight:500;font-size:.85rem;color:#64748b; }
+            .ee-sheet-done { display:inline-flex;font-size:.9rem;padding:.45rem .9rem;min-height:40px; }
+            body.ee-picker-open #eAllUsersPane .invite-pane-list { flex:1;max-height:none;overflow-y:auto;padding-bottom:calc(.5rem + env(safe-area-inset-bottom)); }
+            #eAllUsersList li { min-height:48px;display:flex;align-items:center;flex-wrap:wrap;white-space:normal; }
+            #eAllUsersList li:not(.dimmed):not(.custom-row)::after { float:none;margin-left:auto;padding-left:.5rem; }
+            #eAllUsersList li.dimmed { color:#15803d;font-weight:600;background:#f0fdf4; }
+            #eAllUsersList li.dimmed:hover { background:#f0fdf4; }
+            /* The help pill and its bubbles stay out of the sheet. */
+            body.ee-picker-open .help-pill, body.ee-picker-open .help-stack, body.ee-picker-open .help-bubble { display:none; }
+
+            /* The sticky bar: Cancel narrow and first, the two saves share the rest. */
+            .edit-actions-mobile { order:11;padding:.6rem .85rem calc(.6rem + env(safe-area-inset-bottom)); }
+            .edit-actions-mobile .btn { min-height:44px;font-size:.92rem;padding:.5rem .6rem; }
+            .edit-actions-mobile .btn-outline { flex:0 0 auto;order:-1; }
         }
     </style>
 </head>
@@ -443,7 +558,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
 
             <!-- ── Unified top bar: league + vis + color + title + date + time + duration ── -->
             <div class="edit-top-bar">
-                <label>League
+                <label class="ef-league">League
                     <select name="league_id" id="eLeagueId" data-act-change="onLeagueChange">
                         <option value="0">None</option>
                         <?php foreach ($myLeaguesForForm as $_lg): ?>
@@ -451,7 +566,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                         <?php endforeach; ?>
                     </select>
                 </label>
-                <label>Visibility
+                <label class="ef-vis">Visibility
                     <select name="visibility" id="eVisibility">
                         <option value="invitees_only">Invitees only</option>
                         <option value="league" id="eVisLeagueOpt" disabled>League members only</option>
@@ -461,9 +576,9 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                 <label class="edit-title-label"><span>Title <span class="req" aria-hidden="true">*</span></span>
                     <input type="text" name="title" id="eTitle" class="edit-title-input" placeholder="Event title" required aria-required="true" autocomplete="off">
                 </label>
-                <label><span>Date <span class="req" aria-hidden="true">*</span></span><input type="date" name="start_date" id="eStartDate" required aria-required="true"></label>
-                <label>Time <input type="time" id="eTimeNative"><input type="hidden" name="start_time" id="eStartTime"></label>
-                <label>Duration
+                <label class="ef-date"><span>Date <span class="req" aria-hidden="true">*</span></span><input type="date" name="start_date" id="eStartDate" required aria-required="true"></label>
+                <label class="ef-time">Time <input type="time" id="eTimeNative"><input type="hidden" name="start_time" id="eStartTime"></label>
+                <label class="ef-dur">Duration
                     <select id="eDuration">
                         <option value="">—</option>
                         <option value="0.5">30m</option><option value="1">1h</option><option value="1.5">1.5h</option>
@@ -471,22 +586,26 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                         <option value="5">5h</option><option value="6">6h</option><option value="8">8h</option>
                     </select>
                 </label>
-                <label style="flex:1;min-width:150px">Venue name
+                <label class="ef-venue" style="flex:1;min-width:150px">Venue name
                     <input type="text" name="venue_name" id="eVenue" placeholder="e.g. Mike's Garage (optional)" maxlength="120" autocomplete="off">
                 </label>
-                <label style="flex:1;min-width:170px">Address
+                <label class="ef-addr" style="flex:1;min-width:170px">Address
                     <input type="text" name="location" id="eLocation" placeholder="Street address (optional)" maxlength="200" autocomplete="off">
                 </label>
                 <span class="req-note"><span class="req" aria-hidden="true">*</span> required</span>
             </div>
 
             <!-- ── Toolbar: toggles + actions ── -->
+            <!-- On a phone (≤640px) this toolbar is display:contents: its children
+                 join the form's column, the two switches head their own cards and
+                 the Guest options dropdown sits with the guests. -->
             <div class="edit-toolbar">
-                <label class="edit-notify-row"><span>Poker</span><input type="checkbox" name="is_poker" id="eIsPoker" value="1" class="pk-toggle-input" data-act-change="togglePokerFields"><span class="pk-toggle-slider"></span></label>
-                <label class="edit-notify-row" title="Send reminders before the event"><span>Reminders</span><input type="checkbox" name="reminders_enabled" id="eRemindersEnabled" value="1" class="pk-toggle-input" data-act-change="toggleReminderFields" checked><span class="pk-toggle-slider"></span></label>
+                <label class="edit-notify-row" id="ePokerRow"><span>Poker</span><input type="checkbox" name="is_poker" id="eIsPoker" value="1" class="pk-toggle-input" data-act-change="togglePokerFields"><span class="pk-toggle-slider"></span></label>
+                <label class="edit-notify-row" id="eRemRow" title="Send reminders before the event"><span>Reminders</span><input type="checkbox" name="reminders_enabled" id="eRemindersEnabled" value="1" class="pk-toggle-input" data-act-change="toggleReminderFields" checked><span class="pk-toggle-slider"></span></label>
                 <!-- Occasional settings live in one dropdown; same element IDs, so
                      the show/hide logic (waitlist needs a capacity, max-guests is
                      non-poker-only) keeps working inside the panel. -->
+                <div class="edit-guests-head"><span class="edit-guests-title">Guests</span>
                 <div class="rem-dd" id="eGuestOptsDD">
                     <button type="button" class="rem-dd-btn" data-act="toggleGuestOptsDD" data-a1="@event" aria-haspopup="true" aria-expanded="false" aria-controls="eGuestOptsPanel">
                         Guest options <span id="eGuestOptsBadge" style="display:none;background:#2563eb;color:#fff;border-radius:999px;font-size:.68rem;font-weight:700;padding:.05rem .38rem"></span> <span style="font-size:.7rem">&#9662;</span>
@@ -510,8 +629,9 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                         </label>
                     </div>
                 </div>
+                </div><!-- /.edit-guests-head -->
                 <button type="button" class="edit-desc-toggle" id="eDescToggle" data-act="toggleDesc" aria-expanded="false" aria-controls="eDescWrap">+ Description</button>
-                <div style="flex:1"></div>
+                <div class="edit-toolbar-spacer" style="flex:1"></div>
                 <button type="submit" class="btn btn-primary" id="eSubmitBtn" data-save="quiet" data-set-value="eSendAfterSave:"><?= $event ? 'Save Changes' : 'Add Event' ?></button>
                 <?php if (get_setting('notifications_enabled', '0') === '1'): ?>
                 <button type="submit" class="btn btn-primary btn-send" id="eSubmitSendBtn" data-save="send" data-set-value="eSendAfterSave:1" title="Save the event and send invitations now">Save &amp; Send Invites</button>
@@ -600,9 +720,10 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
 
             <!-- ── Dual-pane invite panel with arrow buttons ── -->
             <div class="edit-invite-panel">
-                <!-- Left: all users -->
-                <div class="invite-pane">
-                    <div class="invite-pane-header">All Users</div>
+                <!-- Left: all users. On a phone this pane is a full-screen sheet
+                     opened by + Add from users; the count and Done show only there. -->
+                <div class="invite-pane" id="eAllUsersPane">
+                    <div class="invite-pane-header"><span class="ee-pane-title">All Users</span><span class="ee-sheet-title">Add guests</span><span class="ee-sheet-count" aria-live="polite"></span><button type="button" class="btn btn-primary ee-sheet-done" data-act="closeGuestPicker">Done</button></div>
                     <input type="text" id="eUserSearch" class="invite-pane-search"
                            aria-label="<?= $isAdmin ? 'Search name, email, phone' : 'Search name' ?>"
                            placeholder="<?= $isAdmin ? 'Search name, email, phone&hellip;' : 'Search name&hellip;' ?>"
@@ -624,7 +745,8 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                 <!-- Right: invited users -->
                 <div class="invite-pane">
                     <div class="invite-pane-header" style="display:flex;align-items:center;gap:.5rem">
-                        <span style="flex:1">Invited</span>
+                        <span class="ee-invited-title" style="flex:1">Invited</span>
+                        <button type="button" class="btn btn-outline ee-pick-btn" title="Pick people from the site's user list" data-act="openGuestPicker" aria-controls="eAllUsersPane">+ Add from users</button>
                         <button type="button" class="btn btn-outline" style="font-size:.72rem;padding:.18rem .55rem" title="Invite someone who isn't a user — just a name, with optional email/phone" id="eAddNameBtn" data-act="addBlankInviteRow">+ Add Name</button>
                     </div>
                     <div class="inv-col-head" aria-hidden="true">
@@ -1126,8 +1248,30 @@ function syncSaveButtons() {
         if (has) b.title = 'Save the event; invitations stay unsent until you send them from the event page';
         else b.removeAttribute('title');
     });
+    // The phone bar holds three buttons in 374px: the quiet one reads Save or
+    // Add Event there, and the sheet's header carries the count.
+    var mob = document.getElementById('eSubmitBtnMobile');
+    if (mob) mob.textContent = EDIT_MODE ? 'Save' : 'Add Event';
+    document.querySelectorAll('.ee-sheet-count').forEach(function (c) { c.textContent = named + ' invited'; });
     updateDirty();
 }
+
+// ── Phone guest picker: the All Users pane as a full-screen sheet (≤640px).
+// A tap on a name there already invites or un-invites it (the click handler
+// in buildAllUsersList); this only shows and hides the pane.
+function openGuestPicker() {
+    document.body.classList.add('ee-picker-open');
+    var s = document.getElementById('eUserSearch');
+    if (s) setTimeout(function () { s.focus(); }, 30);
+}
+function closeGuestPicker() {
+    document.body.classList.remove('ee-picker-open');
+    var b = document.querySelector('.ee-pick-btn');
+    if (b) b.focus();
+}
+document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && document.body.classList.contains('ee-picker-open')) { e.preventDefault(); closeGuestPicker(); }
+});
 document.getElementById('eInvitedList').addEventListener('input', syncSaveButtons);
 document.getElementById('eInvitedList').addEventListener('click', function(){ setTimeout(syncSaveButtons, 0); });
 
@@ -1570,6 +1714,7 @@ document.getElementById('editForm').addEventListener('submit', function(e) {
 function togglePokerFields() {
     var show = document.getElementById('eIsPoker').checked;
     document.getElementById('ePokerFields').style.display = show ? '' : 'none';
+    var pr = document.getElementById('ePokerRow'); if (pr) pr.classList.toggle('is-off', !show);   // the phone card's folded corners
     // Max-guests cap applies to non-poker events (poker capacity = seats × tables).
     // The waitlist toggle shows for poker always, or for non-poker once a cap is set.
     var mg = document.getElementById('eMaxGuests');
@@ -1605,6 +1750,7 @@ function toggleReminderFields() {
     var bar = document.getElementById('eReminderFields');
     if (!el || !bar) return;
     bar.style.display = el.checked ? '' : 'none';
+    var rr = document.getElementById('eRemRow'); if (rr) rr.classList.toggle('is-off', !el.checked);
 }
 
 // Apply a list of offset values (array of ints) to the reminder checkboxes.
