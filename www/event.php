@@ -909,7 +909,7 @@ function renderInvPanel() {
         var nonresp = approved.filter(function(i){ return i.sent && !i.rsvp && !i.no_contact; });
         if (nonresp.length) {
             ih += '<div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.55rem .7rem;margin-bottom:.7rem">'
-                + '<span style="flex:1;min-width:0;font-size:.8rem;color:#475569;font-weight:600">&#9200; ' + nonresp.length + ' of ' + approved.length + ' haven&rsquo;t answered yet</span>'
+                + '<span style="flex:1;min-width:0;font-size:.8rem;color:#475569;font-weight:600">&#9200; ' + nonresp.length + ' of ' + (approved.length + declined.length) + ' haven&rsquo;t answered yet</span>'
                 + '<button type="button" class="btn-nudge" style="font-size:.78rem;padding:.3rem .8rem;border-radius:6px;border:1.5px solid #cbd5e1;background:#fff;color:#334155;font-weight:600;cursor:pointer">Send reminder</button></div>';
         }
     }

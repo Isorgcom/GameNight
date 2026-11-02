@@ -11,6 +11,11 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.14.7] - 2026-11-02
+
+### Fixed
+- **The "haven't answered yet" total now counts everyone on the list.** The line introduced in 1.14.6 took its total from the panel's "approved" list, which leaves out the people who declined (they have their own group), so an event with 17 on the list and 2 declines read "11 of 15". It reads "11 of 17" now. In `www/event.php`.
+
 ## [v1.14.6] - 2026-11-02
 
 ### Fixed
