@@ -352,6 +352,27 @@ function queue_recipient_is_guest(PDO $db, int $event_id, ?int $user_id, string 
 }
 
 /**
+ * Has this queue row's recipient answered No? A reminder is for people who are
+ * coming or might be; it is checked when the row is sent, so an answer changed
+ * back to Yes or Maybe before then still gets the reminder. A recurring
+ * event's per-date answer (an occurrence row) outranks the base row.
+ */
+function queue_recipient_declined(PDO $db, int $event_id, ?int $user_id, string $username, ?string $occurrence_date = null): bool {
+    $ident = $user_id !== null ? "user_id = ?" : "user_id IS NULL AND LOWER(username) = LOWER(?)";
+    $who   = $user_id !== null ? $user_id : $username;
+    if ($occurrence_date !== null && $occurrence_date !== '') {
+        $st = $db->prepare("SELECT rsvp FROM event_invites WHERE event_id = ? AND occurrence_date = ? AND $ident LIMIT 1");
+        $st->execute([$event_id, $occurrence_date, $who]);
+        $r = $st->fetch(PDO::FETCH_ASSOC);
+        if ($r) return ($r['rsvp'] ?? '') === 'no';
+    }
+    $st = $db->prepare("SELECT rsvp FROM event_invites WHERE event_id = ? AND occurrence_date IS NULL AND $ident LIMIT 1");
+    $st->execute([$event_id, $who]);
+    $r = $st->fetch(PDO::FETCH_ASSOC);
+    return $r ? (($r['rsvp'] ?? '') === 'no') : false;
+}
+
+/**
  * Drop the unsent queue rows of people no longer on an event's list: reminders
  * for anyone who is not an approved guest, invitations and RSVP nudges for
  * anyone not on the list at all. Called after every path that removes or
@@ -766,6 +787,10 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
     if ($type === 'reminder') {
         $row_uid0 = isset($row['user_id']) && $row['user_id'] !== null ? (int)$row['user_id'] : null;
         if (!queue_recipient_is_guest($db, $event_id, $row_uid0, $username)) return true;
+        // Someone who said No gets no reminder (1.15.2). Decided here, at send
+        // time, so a No changed back to Yes or Maybe before the reminder moment
+        // still counts; the row is cleared without a marker or a log row.
+        if (queue_recipient_declined($db, $event_id, $row_uid0, $username, $row['occurrence_date'] ?? null)) return true;
     }
 
     $evStmt = $db->prepare('SELECT id, title, description, location, venue_name, start_date, end_date, start_time, end_time, created_by, cancelled_at FROM events WHERE id = ?');

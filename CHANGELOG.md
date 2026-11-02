@@ -11,6 +11,11 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.15.2] - 2026-11-02
+
+### Fixed
+- **Reminders no longer go to guests who said No.** Reminders were queued for every approved guest when the event was saved, and nothing took them back when someone later declined, so a guest who had answered No still got "Reminder: … is in 2 days" with an RSVP link; on a live event two of the seventeen were due one. The dispatcher now skips a reminder when the person's current answer is No, decided at send time so a No changed back to Yes or Maybe before the reminder moment still counts. The message history says the same thing: a scheduled reminder counts only the people it will reach, lists the decliners under it as "said no, will be skipped", and shows that on their own thread. In `www/_notifications.php` (`queue_recipient_declined()`), `www/_event_history.php`, the host guide and DOCS.
+
 ## [v1.15.1] - 2026-11-02
 
 ### Fixed

@@ -478,7 +478,7 @@ When cron is configured, automatic reminders are sent:
 
 Each reminder is sent only once per user per event occurrence (tracked in the database).
 
-Reminders go to every approved guest on the list. A guest without an account is reached at the email or phone on their invite, the same way their invitation was. Guests awaiting approval or waitlisted get none, and a guest removed or denied loses any reminders already queued for them.
+Reminders go to every approved guest on the list who has not answered No. A guest without an account is reached at the email or phone on their invite, the same way their invitation was. Guests awaiting approval or waitlisted get none, a guest who said No is skipped when the reminder is due (an answer changed back to Yes or Maybe before then still gets it), and a guest removed or denied loses any reminders already queued for them.
 
 ### SMS RSVP Replies
 

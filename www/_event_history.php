@@ -345,6 +345,10 @@ function eh_items(array $d): array {
     $now = time();
     $groups = [];
     $deadNotes = [];
+    // Who has said No: the dispatcher skips their reminders at send time (1.15.2),
+    // so a scheduled reminder counts them as skipped, not as recipients.
+    $declined = [];
+    foreach ($d['invites'] as $i) { if (($i['rsvp'] ?? '') === 'no') $declined[strtolower((string)$i['username'])] = true; }
     foreach ($d['queue'] as $qr) {
         $type = (string)($qr['notify_type'] ?: 'invite');
         $meta = eh_payload_meta($qr);
@@ -363,9 +367,10 @@ function eh_items(array $d): array {
             $gk = ($future ? 'scheduled' : 'sending') . '|' . $type . '|' . ($meta['offset'] ?? '') . '|' . ($meta['occ'] ?? '') . '|' . ($future ? $sched : '');
             if (!isset($groups[$gk])) {
                 $groups[$gk] = ['kind' => $future ? 'scheduled' : 'sending', 'ts' => $future ? $sched : $now + 1,
-                                'type' => $type, 'meta' => $meta, 'ukey' => '', 'name' => '', 'guests' => [], 'host_notice' => false];
+                                'type' => $type, 'meta' => $meta, 'ukey' => '', 'name' => '', 'guests' => [], 'skipped' => [], 'host_notice' => false];
             }
-            $groups[$gk]['guests'][$uk] = $name;
+            if ($type === 'reminder' && isset($declined[$uk])) $groups[$gk]['skipped'][$uk] = $name;
+            else $groups[$gk]['guests'][$uk] = $name;
             continue;
         }
         // Sent (claimed and not released): did anything get logged for this person?
@@ -379,7 +384,7 @@ function eh_items(array $d): array {
             $logByKey[$uk][] = $ats; // so the marker pass below does not add it again
         }
     }
-    foreach ($groups as $g) $items[] = $g; // guests stays a map ukey => name
+    foreach ($groups as $g) { if ($g['guests'] || $g['skipped']) $items[] = $g; } // guests / skipped stay maps ukey => name
 
     // Dedup markers (30 days) for a dispatch nothing was logged for and whose queue
     // row is already pruned (7 days). sent_at is written with date() under the
@@ -545,7 +550,7 @@ function eh_entry_from(array $it): array {
           'type' => $it['type'], 'meta' => $it['meta'], 'ts' => $it['ts'], 'ts_end' => $it['ts'],
           'rows' => [], 'guests' => [], 'by_channel' => [], 'by_status' => [], 'failed' => false,
           'host_notice' => !empty($it['host_notice']), 'direction' => $it['direction'] ?? 'outbound', 'name' => $it['name'] ?? ''];
-    if ($e['kind'] === 'scheduled' || $e['kind'] === 'sending') { $e['guests'] = $it['guests']; return $e; }
+    if ($e['kind'] === 'scheduled' || $e['kind'] === 'sending') { $e['guests'] = $it['guests']; $e['skipped'] = $it['skipped'] ?? []; return $e; }
     eh_entry_add($e, $it);
     return $e;
 }
@@ -624,7 +629,11 @@ function eh_threads(array $items, array $d): array {
         if (!empty($it['meta']['message_id']) && isset($subjects[$it['meta']['message_id']])) $it['meta']['subject'] = $subjects[$it['meta']['message_id']];
         if ($it['kind'] === 'scheduled' || $it['kind'] === 'sending') {
             foreach ($it['guests'] as $uk => $name) {
-                $row = $it; $row['guests'] = null; $row['ukey'] = $uk; $row['name'] = $name; $row['status'] = $it['kind'];
+                $row = $it; $row['guests'] = null; $row['skipped'] = null; $row['ukey'] = $uk; $row['name'] = $name; $row['status'] = $it['kind'];
+                $place($row, $uk);
+            }
+            foreach ($it['skipped'] ?? [] as $uk => $name) {
+                $row = $it; $row['guests'] = null; $row['skipped'] = null; $row['ukey'] = $uk; $row['name'] = $name; $row['status'] = 'skipped';
                 $place($row, $uk);
             }
             continue;
@@ -676,6 +685,7 @@ function eh_status_html(array $it): string {
         case 'queued':    return '<span class="eh-st wait">waiting to retry</span>';
         case 'none':      return '<span class="eh-st none">nothing sent</span>';
         case 'scheduled': return '<span class="eh-st sched">scheduled</span>';
+        case 'skipped':   return '<span class="eh-st none">said no, will be skipped</span>';
         case 'sending':   return '<span class="eh-st send">sending now</span>';
     }
     return '';
@@ -703,7 +713,7 @@ function eh_row_html(array $it, bool $withLabel, bool $withName): string {
     } elseif ($it['kind'] === 'delivery') {
         $h .= eh_channel_chip($it['channel']) . ($it['address'] !== '' ? '<span class="eh-addr">' . eh_h($it['address']) . '</span>' : '');
     } elseif ($it['kind'] === 'scheduled') {
-        $h .= '<span class="eh-addr">for ' . eh_h(eh_local_ts($it['ts'])) . '</span>';
+        $h .= '<span class="eh-addr">' . ($it['status'] === 'skipped' ? 'due ' : 'for ') . eh_h(eh_local_ts($it['ts'])) . '</span>';
     }
     if ($it['kind'] !== 'scheduled' && $it['kind'] !== 'sending') $h .= '<span class="eh-t">' . eh_h(eh_local_ts($it['ts'], 'D M j, g:i:s A')) . '</span>';
     $h .= '</div>';
@@ -736,6 +746,7 @@ function eh_entry_html(array $e): string {
            . '<summary><span class="eh-when">' . eh_h($when) . '</span><span class="eh-title">' . eh_h($title) . '</span>'
            . '<span class="eh-chips">' . eh_status_html(['status' => $e['kind']]) . '</span></summary><ul class="eh-rows eh-names">';
         foreach ($e['guests'] as $name) $h .= '<li>' . eh_h($name) . '</li>';
+        foreach ($e['skipped'] ?? [] as $name) $h .= '<li class="eh-skipped">' . eh_h($name) . ' <span class="eh-tag">said no, will be skipped</span></li>';
         return $h . '</ul></details>';
     }
     if (count($e['rows']) === 1 && in_array($e['rows'][0]['type'], ['conversation', 'auto_reply'], true)) {
