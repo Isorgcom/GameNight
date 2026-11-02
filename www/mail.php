@@ -225,7 +225,7 @@ function send_email(string $toAddress, string $toName, string $subject, string $
  */
 function _enqueue_email_retry(string $toAddress, string $toName, string $subject, string $htmlBody, ?string $error, array $attachments = []): bool {
     $delay = _email_queue_backoff_minutes(1, _smtp_error_is_quota($error));
-    [$ctx_eid, $ctx_user] = notif_log_context_get();
+    [$ctx_eid, $ctx_user, $ctx_type] = notif_log_context_get();
     // The body is stored encrypted (encrypt_value, the app secret): a parked
     // mail is a reset link or a one-click RSVP token sitting in a table for
     // hours, readable by anyone with the database file. The drain decrypts.
@@ -236,9 +236,9 @@ function _enqueue_email_retry(string $toAddress, string $toName, string $subject
     for ($try = 1; $try <= 3; $try++) {
         try {
             get_db()->prepare(
-                "INSERT INTO email_retry_queue (to_address, to_name, subject, body, attempts, last_error, next_attempt_at, event_id, username, attachments)
-                 VALUES (?, ?, ?, ?, 0, ?, datetime('now', ? || ' minutes'), ?, ?, ?)"
-            )->execute([$toAddress, $toName, $subject, $stored, $error, '+' . $delay, $ctx_eid, $ctx_user, $attachments ? json_encode(array_values($attachments)) : null]);
+                "INSERT INTO email_retry_queue (to_address, to_name, subject, body, attempts, last_error, next_attempt_at, event_id, username, attachments, notify_type)
+                 VALUES (?, ?, ?, ?, 0, ?, datetime('now', ? || ' minutes'), ?, ?, ?, ?)"
+            )->execute([$toAddress, $toName, $subject, $stored, $error, '+' . $delay, $ctx_eid, $ctx_user, $attachments ? json_encode(array_values($attachments)) : null, $ctx_type]);
             return true;
         } catch (Exception $e) {
             if ($try === 3 || stripos($e->getMessage(), 'locked') === false) {
@@ -259,7 +259,7 @@ function process_email_retry_queue(PDO $db, int $limit = 50): array {
     $sent = 0; $failed = 0; $requeued = 0;
     try {
         $rows = $db->prepare(
-            "SELECT id, to_address, to_name, subject, body, attempts, event_id, username, attachments
+            "SELECT id, to_address, to_name, subject, body, attempts, event_id, username, attachments, notify_type
              FROM email_retry_queue
              WHERE next_attempt_at <= CURRENT_TIMESTAMP
              ORDER BY next_attempt_at, id LIMIT ?"
@@ -286,7 +286,7 @@ function process_email_retry_queue(PDO $db, int $limit = 50): array {
         $attemptNo = (int)$row['attempts'] + 1; // this attempt's 1-indexed number
         // Restore the delivery-correlation context saved at enqueue time so the
         // retry's log rows still point at the right event/recipient.
-        notif_log_context(isset($row['event_id']) ? (int)$row['event_id'] : null, $row['username'] ?? null);
+        notif_log_context(isset($row['event_id']) ? (int)$row['event_id'] : null, $row['username'] ?? null, $row['notify_type'] ?? null);
         $att = !empty($row['attachments']) ? (json_decode((string)$row['attachments'], true) ?: []) : [];
         // decrypt_value() passes a row parked before the body was encrypted through as it is.
         $err = _email_attempt($row['to_address'], $row['to_name'], $row['subject'], decrypt_value((string)$row['body']), is_array($att) ? $att : []);
@@ -325,9 +325,9 @@ function _log_email(string $to, string $subject, string $status, ?string $error)
         // row as it does for texts, so the host's Invites panel can show an
         // emailed invitation as sent. Before 1.13.1 email rows carried neither,
         // and every guest invited by email looked never-sent.
-        [$ctx_eid, $ctx_user] = notif_log_context_get();
+        [$ctx_eid, $ctx_user, $ctx_type] = notif_log_context_get();
         $db = get_db();
-        $db->prepare('INSERT INTO sms_log (direction, phone, body, provider, status, error, event_id, username) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-           ->execute(['outbound', $to, $subject, 'email', $status, $error, $ctx_eid, $ctx_user]);
+        $db->prepare('INSERT INTO sms_log (direction, phone, body, provider, status, error, event_id, username, notify_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+           ->execute(['outbound', $to, $subject, 'email', $status, $error, $ctx_eid, $ctx_user, $ctx_type]);
     } catch (Exception $e) {}
 }

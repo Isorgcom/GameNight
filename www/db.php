@@ -453,6 +453,11 @@ function db_init(PDO $pdo): void {
     try { $pdo->exec("ALTER TABLE sms_log ADD COLUMN event_id INTEGER"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE sms_log ADD COLUMN username TEXT"); } catch (Exception $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_sms_log_event ON sms_log(event_id)"); } catch (Exception $e) {}
+    // What kind of notification the row was (invite, reminder, event_message,
+    // rsvp_reply, conversation, ...): set through notif_log_context() by the
+    // dispatcher and the conversation code. NULL before 1.15.0 and for sends
+    // outside them; event_history.php classifies NULL rows by correlation.
+    try { $pdo->exec("ALTER TABLE sms_log ADD COLUMN notify_type TEXT"); } catch (Exception $e) {}
     // Conversation key: digits-only 10-digit phone so inbound (provider-native),
     // outbound (E.164) and WhatsApp rows all match. NULL for email rows, whose
     // phone column holds an address (the 10-digit guard excludes them).
@@ -536,6 +541,9 @@ function db_init(PDO $pdo): void {
     // Delivery correlation carried through retries (must run after the CREATE above).
     try { $pdo->exec("ALTER TABLE email_retry_queue ADD COLUMN event_id INTEGER"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE email_retry_queue ADD COLUMN username TEXT"); } catch (Exception $e) {}
+    // A parked email keeps its notification kind, so the recovered row's log
+    // entry carries it (1.15.0, the event's message history).
+    try { $pdo->exec("ALTER TABLE email_retry_queue ADD COLUMN notify_type TEXT"); } catch (Exception $e) {}
     // A parked email keeps its attachments (JSON [{path,name}]) so the retry
     // carries the host's PDF too (v1.9.0, Message guests attachments).
     try { $pdo->exec("ALTER TABLE email_retry_queue ADD COLUMN attachments TEXT"); } catch (Exception $e) {}
@@ -1781,6 +1789,9 @@ JSON;
     // account, reached through the contact details on the invite row.
     try { $pdo->exec("ALTER TABLE pending_notifications ADD COLUMN user_id INTEGER"); } catch (Exception $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_pending_notifications_scheduled ON pending_notifications(scheduled_for) WHERE attempted_at IS NULL"); } catch (Exception $e) {}
+    // Per-event reads (the Invites panel's 4 s poll, the message history page)
+    // walked the whole table before this index.
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_pending_notifications_event ON pending_notifications(event_id)"); } catch (Exception $e) {}
 
     // ─── In-app help bubbles ("ghost bubble" hints) ─────────────────────
     // Admin-authored tips shown as a small floating/anchored chat bubble on
@@ -2316,14 +2327,18 @@ function set_setting(string $key, string $value): void {
 // (email/SMS/WhatsApp alike) record which event and recipient they belong to.
 // Sends outside the dispatcher (password resets, league notices) leave it unset
 // and log with NULLs, exactly as before.
-function notif_log_context(?int $event_id, ?string $username): void {
-    $GLOBALS['_notif_log_ctx'] = ($event_id !== null || $username !== null)
-        ? ['event_id' => $event_id, 'username' => $username]
+// The third element names the kind of notification (the queue row's
+// notify_type, or 'conversation' / 'auto_reply' for the conversation code), so
+// the log row says what it was without reading its wording. Callers that
+// destructure two elements keep working.
+function notif_log_context(?int $event_id, ?string $username, ?string $notify_type = null): void {
+    $GLOBALS['_notif_log_ctx'] = ($event_id !== null || $username !== null || $notify_type !== null)
+        ? ['event_id' => $event_id, 'username' => $username, 'notify_type' => $notify_type]
         : null;
 }
 function notif_log_context_get(): array {
     $c = $GLOBALS['_notif_log_ctx'] ?? null;
-    return [$c['event_id'] ?? null, $c['username'] ?? null];
+    return [$c['event_id'] ?? null, $c['username'] ?? null, $c['notify_type'] ?? null];
 }
 
 // ─── In-app help bubbles ────────────────────────────────────────────────

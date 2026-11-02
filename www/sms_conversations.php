@@ -240,7 +240,11 @@ if ($mode === 'thread') {
     <div class="conv-header">
         <h2>Conversations<?= $event_title !== '' ? ' — ' . htmlspecialchars($event_title) : '' ?></h2>
         <div style="display:flex;gap:.5rem">
+            <?php if ($isAdmin): ?>
             <a href="/sms_log.php?event=<?= $f_event ?>" class="btn btn-outline" style="font-size:.8rem;padding:.35rem .75rem">Notification log</a>
+            <?php else: ?>
+            <a href="/event_history.php?id=<?= $f_event ?>" class="btn btn-outline" style="font-size:.8rem;padding:.35rem .75rem">Message history</a>
+            <?php endif; ?>
             <a href="/event.php?id=<?= $f_event ?>" class="btn btn-outline" style="font-size:.8rem;padding:.35rem .75rem">Back to event</a>
         </div>
     </div>

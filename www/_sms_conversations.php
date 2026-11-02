@@ -250,12 +250,13 @@ function sms_conv_tag_inbound(PDO $db, int $log_id, string $digits, array $attr)
 
 /**
  * Mark a logged message as real conversation so it shows in the host's
- * conversation view (commands/RSVPs/automated sends stay unmarked).
+ * conversation view (commands/RSVPs/automated sends stay unmarked). The row's
+ * kind is set at the same time, unless something already named it.
  */
 function sms_conv_mark(PDO $db, ?int $log_id): void {
     if (!$log_id) return;
     try {
-        $db->prepare('UPDATE sms_log SET is_conversation = 1 WHERE id = ?')->execute([$log_id]);
+        $db->prepare("UPDATE sms_log SET is_conversation = 1, notify_type = COALESCE(notify_type, 'conversation') WHERE id = ?")->execute([$log_id]);
     } catch (Exception $e) { /* best-effort */ }
 }
 

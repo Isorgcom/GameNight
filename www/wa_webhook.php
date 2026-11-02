@@ -159,7 +159,7 @@ if (!$user) {
         sms_conv_notify_hosts($db, (int)$conv_attr['event_id'],
             $conv_attr['username'] ?: $normalized, $body, $digits);
         if (sms_conv_should_ack($db, $digits)) {
-            notif_log_context((int)$conv_attr['event_id'], $conv_attr['username']);
+            notif_log_context((int)$conv_attr['event_id'], $conv_attr['username'], 'auto_reply');
             send_whatsapp($from, 'Got it - we passed your message along to your host.');
             notif_log_context(null, null);
         }
@@ -437,7 +437,7 @@ if (!$rsvp) {
         sms_conv_notify_hosts($db, (int)$conv_attr['event_id'],
             $conv_attr['username'] ?: $user['username'], $body, $digits);
         if (sms_conv_should_ack($db, $digits)) {
-            notif_log_context((int)$conv_attr['event_id'], $conv_attr['username'] ?: $user['username']);
+            notif_log_context((int)$conv_attr['event_id'], $conv_attr['username'] ?: $user['username'], 'auto_reply');
             send_whatsapp($from, 'Got it - passed along to your host. (Reply HELP for commands.)');
             notif_log_context(null, null);
         }

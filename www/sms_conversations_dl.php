@@ -94,7 +94,7 @@ if ($action === 'send') {
     $before_id = (int)$db->query('SELECT COALESCE(MAX(id), 0) FROM sms_log')->fetchColumn();
 
     $channel = sms_conv_channel($db, $phone);
-    notif_log_context($event, $recip_username ?: null);
+    notif_log_context($event, $recip_username ?: null, 'conversation');
     if ($channel === 'whatsapp') {
         $err = send_whatsapp($phone, $body);
     } else {
