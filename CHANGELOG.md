@@ -11,6 +11,11 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.14.6] - 2026-11-02
+
+### Fixed
+- **The host's "no response yet" line said the wrong thing.** On the event page's Invites panel the reminder line read "11 invited, no response yet" when it meant that 11 of the people invited had not answered; with 17 on the list and 6 answers in, it read as if nobody had replied. It now reads "11 of 17 haven't answered yet", the total being everyone approved on the list, and the Send reminder button beside it is unchanged. In `www/event.php`.
+
 ## [v1.14.5] - 2026-11-02
 
 ### Changed
