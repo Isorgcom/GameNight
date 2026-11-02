@@ -512,7 +512,10 @@ function eh_label(string $type, array $meta, int $n = 1, string $direction = 'ou
 function eh_run_key(array $it): ?string {
     if ($it['kind'] !== 'delivery' && $it['kind'] !== 'nosend') return null;
     if (in_array($it['type'], ['conversation', 'auto_reply'], true)) return null;
-    return $it['type'] . '|' . ($it['meta']['message_id'] ?? '') . '|' . ($it['meta']['offset'] ?? '') . '|' . ($it['meta']['occ'] ?? '');
+    // A notice to the hosts is about one person's answer: two answers seconds
+    // apart are two entries, not one named after the first.
+    $who = $it['type'] === 'rsvp_to_creator' ? strtolower((string)($it['meta']['responder'] ?? '')) . '|' . ($it['meta']['rsvp'] ?? '') : '';
+    return $it['type'] . '|' . ($it['meta']['message_id'] ?? '') . '|' . ($it['meta']['offset'] ?? '') . '|' . ($it['meta']['occ'] ?? '') . '|' . $who;
 }
 
 function eh_runs(array $items, array $d): array {

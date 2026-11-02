@@ -11,6 +11,11 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.15.1] - 2026-11-02
+
+### Fixed
+- **Two guests answering seconds apart made one "Notice to hosts" entry, named after the first.** The message history grouped the texts to the hosts by kind alone, so on a live event three answers inside two minutes read as "brad replied YES (2 hosts), 4 texts", and the other two answers were only inside it. A notice is grouped by whose answer it carries now, so each answer is its own entry. In `www/_event_history.php`.
+
 ## [v1.15.0] - 2026-11-02
 
 ### Added
