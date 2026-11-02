@@ -259,7 +259,7 @@ Each sign-in is written to the activity log as `sso_login app=<slug>`, and the a
 
 ## Calendar & Events
 
-The calendar is the heart of Game Night. It defaults to **Week view** with a toggle to switch to Month view.
+The calendar is the heart of Game Night. It defaults to **Week view** with a toggle to switch to Month view. On a phone the week fits the screen and scrolls with the page, with the day header staying put under the nav.
 
 ### Creating Events
 

@@ -11,6 +11,9 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+### Fixed
+- **The calendar's week view works on a phone.** It was a 604px grid on a 390px screen, inside two scrollers that did not know about each other: a sideways swipe on the grid slid Thursday to Saturday under a day bar still reading Sunday to Wednesday and carried the hour labels off the left edge, while a swipe on the day bar moved everything; and the grid was a 480px box inside the page, so seeing the whole week meant scrolling the page to reach the box and then scrolling the box. On a phone or tablet (1024px and under) all seven days now fit the screen, the grid scrolls with the page, the day header and the all-day row stick under the nav as you scroll (following the nav's height, collapsed or not), and nothing scrolls sideways. The page still lands on the evening on first load, with the earliest game of the week just under the header. On a phone the toolbar is two rows instead of three (Week | Month and + Add Event, then the week arrows), chip titles wrap inside their 50px column instead of being cut off, and the edit pencil is left to the event page. Desktop is unchanged. Also: today's number sits under its name in the day header like every other day (it sat beside it), and the 6 am and 11 pm labels are no longer cut in half at the grid's edges. In `www/calendar.php`.
+
 ## [v1.14.3] - 2026-10-31
 
 ### Changed

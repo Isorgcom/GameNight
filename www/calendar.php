@@ -1077,6 +1077,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
             margin-bottom: 1.25rem; flex-wrap: wrap; gap: .75rem;
         }
         .cal-header h1 { font-size: 1.5rem; }
+        .cal-tools { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
         .cal-nav { display: flex; align-items: center; gap: .5rem; }
         .cal-nav a {
             display: inline-flex; align-items: center; justify-content: center;
@@ -1166,6 +1167,8 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
         .cal-add-btn:hover { background: #e2e8f0; color: #2563eb; }
 
         /* ── Week view ───────────────────────────────────────────── */
+        #weekView { max-width: 100%; overflow: hidden; }
+        .week-head { background: #fff; }
         .week-header-row {
             display: grid; grid-template-columns: 52px repeat(7, 1fr);
             border: 1.5px solid #e2e8f0; border-radius: 10px 10px 0 0;
@@ -1190,7 +1193,8 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
         .week-day-hdr.wk-today .wk-day-num {
             background: #2563eb; color: #fff;
             width: 28px; height: 28px; border-radius: 50%;
-            display: inline-flex; align-items: center; justify-content: center;
+            /* flex, not inline-flex: the number stays under its name like every other day */
+            display: flex; margin: 0 auto; align-items: center; justify-content: center;
         }
 
         .week-allday-row {
@@ -1213,6 +1217,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
             display: flex; align-items: center; line-height: 1.6;
         }
         .week-allday-chip:hover { filter: brightness(1.1); }
+        .week-allday-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
         .week-allday-chip .ev-edit-btn {
             display: none; margin-left: auto; flex-shrink: 0;
             background: none; border: none; color: rgba(255,255,255,.85);
@@ -1530,20 +1535,32 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
             /* Bigger RSVP selects */
             .inv-rsvp-sel { min-height:36px;font-size:.85rem !important;padding:.3rem .5rem !important; }
 
-            /* Week view: constrain to viewport, scroll internally */
-            .week-outer {
-                width: 100%;
-                overflow-x: auto;
-                -webkit-overflow-scrolling: touch;
-            }
-            /* Give the week grid a comfortable minimum so columns aren't squashed */
+            /* Week view on a phone or tablet: all seven days fit the width, the
+               grid scrolls with the page and the day header sticks under the
+               nav. Nothing scrolls sideways. (It used to be a 604px grid inside
+               two independent horizontal scrollers, so a swipe on the grid slid
+               the days under a header that stayed put and took the hour labels
+               off the left edge; and the 480px box inside the page meant two
+               nested vertical scrollers.) */
+            #weekView   { overflow: visible; }   /* an overflow:hidden ancestor would pin the sticky head to nothing */
+            .week-outer { width: auto; overflow: visible; }
             .week-header-row,
             .week-allday-row,
             .week-inner {
-                grid-template-columns: 44px repeat(7, 80px);
-                min-width: 604px; /* 44 + 7*80 */
+                grid-template-columns: 40px repeat(7, minmax(0, 1fr));
+                min-width: 0;
             }
-            .week-scroll { height: 480px; }
+            .week-head {
+                position: sticky; top: var(--wk-stick, 48px); z-index: 20;
+            }
+            .week-scroll {
+                height: auto;
+                /* clip, not hidden: trims the half-height 6 am / 11 pm labels at the
+                   grid's edges without becoming a scroll container (which would
+                   break the sticky head). Old Safari falls back to visible. */
+                overflow: visible;
+                overflow: clip;
+            }
 
             /* Full-screen modals on mobile */
             .modal-overlay {
@@ -1560,6 +1577,33 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
                 box-shadow: none !important;
                 overflow-y: auto !important;
             }
+        }
+
+        @media (max-width: 640px) {
+            /* Toolbar in two rows: "Week | Month … + Add Event", then the week
+               arrows with the label and Today. The group's children become
+               direct flex items of .cal-header, which already spreads them with
+               space-between (no margin-left:auto in a wrapping row). */
+            .cal-tools { display: contents; }
+            .cal-header { padding: 0 .5rem; }   /* the grid runs edge to edge; the controls keep a gutter */
+            .view-toggle { order: 1; }
+            .cal-header > .btn-primary { order: 2; padding: .4rem .75rem; font-size: .85rem; }
+            .cal-nav { order: 3; flex: 1 1 100%; }
+
+            /* 50px day columns: smaller type, titles wrap inside the chip (a
+               three-hour game is 180px tall, room for a title on four lines),
+               and no pencil, which the event page offers anyway. */
+            .week-day-hdr { padding: .35rem 0 .3rem; font-size: .62rem; letter-spacing: .02em; }
+            .week-allday-gutter, .week-hour-label { font-size: .58rem; }
+            .week-event { padding: 2px 3px; font-size: .64rem; border-left-width: 2px; }
+            .week-event-title { white-space: normal; overflow-wrap: anywhere; hyphens: auto; }
+            .week-event-time { font-size: .58rem; white-space: normal; }
+            .week-event .ev-edit-btn { display: none; }
+            /* The all-day chip likewise: the title wraps instead of ending in
+               an ellipsis after one letter, and no pencil. */
+            .week-allday-chip { font-size: .6rem; line-height: 1.3; padding: 2px 4px; }
+            .week-allday-text { white-space: normal; overflow-wrap: anywhere; hyphens: auto; }
+            .week-allday-chip .ev-edit-btn { display: none; }
         }
     </style>
     <?php if ($isAdmin): ?><script src="/vendor/qrcode.min.js" defer></script><?php endif; ?>
@@ -1580,7 +1624,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
 
     <!-- Calendar header: view toggle + navigation + add button -->
     <div class="cal-header">
-        <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+        <div class="cal-tools">
             <div class="view-toggle">
                 <a href="/calendar.php?view=week&amp;wk=<?= $currentWeekStr ?>"
                    class="<?= $viewMode === 'week' ? 'vt-active' : '' ?>">Week</a>
@@ -1681,8 +1725,11 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
 
     <?php else: /* week view */ ?>
     <!-- ── Week view ── -->
-    <div id="weekView" style="max-width:100%;overflow:hidden">
+    <div id="weekView">
       <div class="week-outer">
+        <!-- Day header + all-day rows. One wrapper so that on a phone, where the
+             grid scrolls with the page, a single element sticks under the nav. -->
+        <div class="week-head">
         <!-- Day header row -->
         <div class="week-header-row">
             <div class="week-hdr-gutter"></div>
@@ -1724,7 +1771,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
                      style="background:<?= htmlspecialchars($ev['color']) ?>"
                      title="<?= !empty($ev['cancelled_at']) ? 'Cancelled: ' : '' ?><?= htmlspecialchars($_lgName ? $_lgName . ' — ' . $ev['title'] : $ev['title']) ?>"
                      data-act="viewEvent" data-a1="<?= (int)$ev['id'] ?>" data-a2="<?= htmlspecialchars($wkDs2, ENT_QUOTES | ENT_SUBSTITUTE) ?>">
-                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">
+                    <span class="week-allday-text">
                         <?php if ($_lgTag !== ''): ?><span class="ev-league-tag" title="<?= htmlspecialchars($_lgName) ?>"><?= htmlspecialchars($_lgTag) ?></span><?php endif; ?>
                         <?= htmlspecialchars($ev['title']) ?>
                     </span>
@@ -1737,6 +1784,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
             </div>
             <?php $wkCursor2->modify('+1 day'); endfor; ?>
         </div>
+        </div><!-- /.week-head -->
 
         <!-- Scrollable time grid -->
         <div class="week-scroll" id="weekScroll">
@@ -2994,6 +3042,10 @@ function initWeekView() {
         const lbl = document.createElement('div');
         lbl.className = 'week-hour-label';
         lbl.style.top = ((h - GRID_START) * HOUR_PX) + 'px';
+        // Labels are centred on their line; the first and last would be half
+        // outside the grid, so they hang below / above their edge instead.
+        if (h === GRID_START) lbl.style.transform = 'none';
+        else if (h === GRID_END) lbl.style.transform = 'translateY(-100%)';
         lbl.textContent = h === 12 ? '12 pm' : h < 12 ? h + ' am' : (h - 12) + ' pm';
         gutter.appendChild(lbl);
     }
@@ -3002,6 +3054,16 @@ function initWeekView() {
     document.querySelectorAll('.week-day-col').forEach(col => {
         renderDayCol(col, col.dataset.date);
     });
+
+    // On a phone or tablet the grid scrolls with the page and .week-head sticks
+    // under the nav (the ≤1024px styles). The nav is 48px, 42px once the user has
+    // collapsed it, or a banner's height, so the offset is read from the nav
+    // itself and follows it.
+    const view = document.getElementById('weekView');
+    const nav  = document.getElementById('mainNav');
+    const setStick = () => { if (nav) view.style.setProperty('--wk-stick', nav.offsetHeight + 'px'); };
+    setStick();
+    if (nav && window.ResizeObserver) new ResizeObserver(setStick).observe(nav);
 
     // Auto-scroll to where the action is: the earliest timed event of the visible
     // week sits near the top. Poker is an evening pastime, so when a week has no
@@ -3019,7 +3081,19 @@ function initWeekView() {
     });
     let targetMin = (earliestMin !== null ? earliestMin : EVENING_MIN) - 30; // small lead above
     targetMin = Math.max(GRID_START * 60, Math.min(targetMin, GRID_END * 60));
-    scroll.scrollTop = minToY(targetMin);
+    const targetY = minToY(targetMin);
+    if (getComputedStyle(scroll).overflowY === 'auto') {
+        // Desktop: the grid is a box of its own.
+        scroll.scrollTop = targetY;
+    } else if (window.scrollY === 0) {
+        // Phone: the page scrolls; land the minute just under the sticky head.
+        // A position the browser restored (back navigation) is left alone.
+        const head  = view.querySelector('.week-head');
+        const inner = document.getElementById('weekInner');
+        const top   = inner.getBoundingClientRect().top + window.scrollY;
+        const stick = (nav ? nav.offsetHeight : 0) + (head ? head.offsetHeight : 0);
+        window.scrollTo(0, Math.max(0, top + targetY - stick));
+    }
 }
 
 document.addEventListener('DOMContentLoaded', initWeekView);
