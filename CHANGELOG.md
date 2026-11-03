@@ -11,6 +11,12 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.15.4] - 2026-11-03
+
+### Changed
+
+- **The editor's lit contact glyph sits on a filled green chip.** v1.15.3 told the two glyphs apart by colour alone, green against grey, and side by side at that size they were hard to tell apart. The glyph for the address a guest's invites go to is now white on a small green chip, while an address on file but not used stays a bare grey glyph a step smaller, so the pair differs in shape as well as hue. Titles, labels and the amber "off" tag are unchanged (`.inv-ci` / `.inv-ci-off` in `www/event_edit.php`).
+
 ## [v1.15.3] - 2026-11-03
 
 ### Changed

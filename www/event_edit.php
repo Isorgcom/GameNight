@@ -298,10 +298,11 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
         .inv-contact-ctl { flex-shrink:0;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:.15rem;padding:.05rem .3rem;border-radius:4px;line-height:1;background:none;border:0;font:inherit;color:inherit;min-width:24px;min-height:24px; }
         .inv-contact-ctl:focus-visible { outline:2px solid #2563eb;outline-offset:1px; }
         .inv-contact-ctl:hover { background:#e2e8f0; }
-        /* The glyph for the address a guest is notified at is green; one on file
-           but not used is grey and a step smaller, so the pair reads at a glance. */
-        .inv-contact-ctl .inv-ci { color:#16a34a;font-size:1rem;line-height:1; }
-        .inv-contact-ctl .inv-ci-off { color:#64748b;font-size:.82rem; }
+        /* The glyph for the address a guest is notified at sits white on a filled
+           green chip; one on file but not used is a bare grey glyph, a step
+           smaller, so the pair differs in shape and not only in hue. */
+        .inv-contact-ctl .inv-ci { color:#fff;background:#16a34a;font-size:.88rem;line-height:1;border-radius:4px;padding:.14rem .22rem; }
+        .inv-contact-ctl .inv-ci-off { color:#64748b;background:none;font-size:.8rem;padding:.14rem .12rem; }
         .inv-contact-ctl .inv-off { font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:#92400e;background:#fef3c7;border-radius:3px;padding:.05rem .3rem; }
         .inv-contact-ctl .inv-na { font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:#991b1b;background:#fee2e2;border-radius:3px;padding:.05rem .3rem; }
         .inv-capacity-divider { padding:.2rem .6rem;font-size:.68rem;font-weight:700;color:#b45309;background:#fef3c7;border-radius:4px;text-align:center;cursor:default;margin:.15rem 0; }
@@ -318,7 +319,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
         .invite-pane-header { background:#f8fafc;padding:.35rem .65rem;font-size:.7rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;flex-shrink:0;border-bottom:1px solid #e2e8f0; }
         .inv-col-head { display:flex;align-items:center;gap:.4rem;padding:.25rem .6rem;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b;border-bottom:1px solid #eef2f7;flex-shrink:0; }
         .inv-col-head span:not(:first-child) { text-align:center; }
-        .inv-col-contact { width:2.8rem;flex-shrink:0; }
+        .inv-col-contact { width:3.5rem;flex-shrink:0; }
         .inv-col-rsvp    { width:3.4rem;flex-shrink:0; }
         .inv-col-mgr     { width:3.4rem;flex-shrink:0; }
         #eInvitedList li[data-iname] .inv-col-rsvp,
@@ -508,7 +509,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
             #eInvitedList li[data-iname] { display:grid;grid-template-columns:auto auto 1fr auto;grid-template-areas:"name name name x" "contact rsvp mgr x";align-items:center;gap:.1rem .6rem;padding:.55rem .4rem;white-space:normal;border-top:1px solid #f1f5f9;border-radius:0; }
             #eInvitedList li[data-iname]:first-child { border-top:0; }
             #eInvitedList li[data-iname] .inv-name-text { grid-area:name;font-weight:600;font-size:1rem; }
-            #eInvitedList li[data-iname] .inv-contact-ctl { grid-area:contact;justify-self:start;min-width:0;padding:0 .2rem; }
+            #eInvitedList li[data-iname] .inv-contact-ctl { grid-area:contact;justify-self:start;min-width:0;width:auto;justify-content:flex-start;padding:0 .2rem; }
             #eInvitedList li[data-iname] .inv-col-rsvp { grid-area:rsvp;width:auto;justify-content:flex-start; }
             #eInvitedList li[data-iname] .inv-col-mgr { grid-area:mgr;width:auto;justify-content:flex-start; }
             #eInvitedList li[data-iname] .inv-remove-x { grid-area:x;align-self:center;color:#dc2626;font-size:1.3rem; }
