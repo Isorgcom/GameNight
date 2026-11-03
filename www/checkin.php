@@ -4658,6 +4658,7 @@ function renderTableView() {
     var tables = {};
     for (var t = 1; t <= numTables; t++) tables[t] = [];
     var unassigned = [];
+    var declinedCount = 0;
 
     var activePlayers = PLAYERS.filter(function(p) { return !parseInt(p.removed); });
     // Apply current filter
@@ -4673,6 +4674,9 @@ function renderTableView() {
         var tn = parseInt(p.table_number);
         if (tn >= 1 && tn <= numTables) {
             tables[tn].push(p);
+        } else if (isDeclined(p)) {
+            // Said No and never bought in: not waiting for a seat.
+            declinedCount++;
         } else {
             unassigned.push(p);
         }
@@ -4736,6 +4740,9 @@ function renderTableView() {
     }
 
     h += '</div>';
+    if (declinedCount > 0) {
+        h += '<div style="color:#64748b;font-size:.8rem;margin-top:.5rem">' + declinedCount + ' said no and ' + (declinedCount === 1 ? 'is' : 'are') + ' not listed.</div>';
+    }
     return h;
 }
 

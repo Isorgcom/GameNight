@@ -11,6 +11,12 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.16.1] - 2026-11-03
+
+### Fixed
+
+- **The Table view no longer lists guests who said No as Unassigned.** The Manage Game console's player list has hidden RSVP-No guests since 1.9.1, but the Table view grouped players with its own filter and still put anyone who declined and never bought in under Unassigned, as if they were waiting for a seat. They are left out now, with a line under the tables saying how many said no. A guest who said No and then bought in anyway is a player and shows as before (`renderTableView()` in `www/checkin.php`).
+
 ## [v1.16.0] - 2026-11-03
 
 ### Changed
