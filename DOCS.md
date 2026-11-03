@@ -443,7 +443,7 @@ Go to **Settings** (gear icon or nav menu) to:
 - Update your username, email, or phone number. Changing any of these asks for your current password. A new email takes effect only after you use the confirmation link sent to it (the old address is told a change was requested), and a changed phone number must be verified again before SMS two-factor will text it.
 - Change your password. This signs out every other device and browser where you were logged in; a password reset does the same.
 - Turn two-factor authentication on or off and regenerate recovery codes (your password is asked for each), and delete your account (type DELETE and your password).
-- Set your **preferred contact method**: Email, SMS, WhatsApp, Both (email + SMS), or None.
+- Set your **preferred contact method**: Email, SMS, WhatsApp, Both (email + SMS), or None. A new account starts on SMS whenever a phone number is on file, email otherwise.
 
 ### My Events
 
@@ -1101,7 +1101,7 @@ The endpoint is **idempotent on email/phone** — replaying the same request bod
 | `phone` | string, optional | Normalized to `XXX-XXX-XXXX` for US numbers; international numbers stored as entered. |
 | `username` | string, optional | 3–30 chars, letters/numbers/underscores. If omitted, derived from `display_name` with a numeric suffix on collision. |
 | `verification_method` | string, optional | One of `email`, `sms`, `whatsapp`, `none`. One-shot — used only at signup. Default: `email` if email provided, else `sms`. Use `none` if your site handles onboarding itself. |
-| `preferred_contact` | string, optional | One of `email`, `sms`, `whatsapp`, `both`, `none`. Sets the user's ongoing notification channel (the same setting they'd pick on `/settings.php`). Default: matches `verification_method`. **Ignored on existing-user replays** so a leaked write key cannot mute or re-route real accounts. |
+| `preferred_contact` | string, optional | One of `email`, `sms`, `whatsapp`, `both`, `none`. Sets the user's ongoing notification channel (the same setting they'd pick on `/settings.php`). Default: `sms` when a phone is given (`whatsapp` when that is the `verification_method`), else `email`. **Ignored on existing-user replays** so a leaked write key cannot mute or re-route real accounts. |
 
 `verification_method` is consulted only at signup; `preferred_contact` is what the system reads every time it sends a notification afterwards. They can differ — e.g. verify by SMS but prefer email going forward.
 

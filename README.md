@@ -222,6 +222,8 @@ Users choose their notification method in **My Settings > Preferred Contact Meth
 - **Email & SMS** — both
 - **None** — no notifications
 
+A new account starts on **SMS** whenever a phone number is on file, even when an email address was given too (WhatsApp when that was chosen at sign-up); an account with no phone starts on **Email**.
+
 Admins can override a user's preference from the user edit page.
 
 ## User-Created Events

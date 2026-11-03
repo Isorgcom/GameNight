@@ -2957,6 +2957,11 @@ function delete_league_cascade(PDO $db, int $league_id): void {
 
     $db->prepare('DELETE FROM league_join_requests WHERE league_id = ?')->execute([$league_id]);
     $db->prepare('DELETE FROM league_members       WHERE league_id = ?')->execute([$league_id]);
+    // api_keys references the league without ON DELETE CASCADE, so the row
+    // delete below fails while a key exists (a league with an API key could not
+    // be deleted, and its last member's account deletion died the same way).
+    $db->prepare('DELETE FROM api_request_log WHERE key_id IN (SELECT id FROM api_keys WHERE league_id = ?)')->execute([$league_id]);
+    $db->prepare('DELETE FROM api_keys            WHERE league_id = ?')->execute([$league_id]);
     $db->prepare('DELETE FROM leagues              WHERE id = ?')        ->execute([$league_id]);
 }
 

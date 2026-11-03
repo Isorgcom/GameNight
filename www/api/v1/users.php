@@ -211,8 +211,9 @@ if ($username_in !== '') {
 
 // verification_method is the one-shot value used at signup; preferred_contact is
 // the ongoing notification preference. If the caller didn't pass preferred_contact,
-// fall back to verification_method (or walkin.php's contact-channel rule when
-// verification was suppressed). The verification_method column itself doesn't
+// text is the default whenever a phone was given (WhatsApp when that was the
+// verification channel) and email only without a phone: the same rule as
+// register_user() and walkin.php. The verification_method column itself doesn't
 // store 'none' — keep walkin.php's behavior of recording the channel that was
 // available even when no send happened.
 $method    = $verify_in === 'none'
@@ -220,7 +221,7 @@ $method    = $verify_in === 'none'
     : $verify_in;
 $preferred = $pref_in !== ''
     ? $pref_in
-    : $method;
+    : ($has_phone ? ($method === 'whatsapp' ? 'whatsapp' : 'sms') : 'email');
 
 try {
     $db->prepare(

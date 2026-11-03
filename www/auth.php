@@ -642,7 +642,10 @@ function register_user(string $username, string $email, string $password, string
         return 'That username is already taken.';
     }
 
-    $preferred = $verify_method === 'email' ? 'email' : $verify_method;
+    // Text is the default channel whenever a phone number is given, even alongside
+    // an email address (WhatsApp when chosen at signup); email only when there is no
+    // phone. The verification itself still goes by $verify_method.
+    $preferred = $phone !== '' ? ($verify_method === 'whatsapp' ? 'whatsapp' : 'sms') : 'email';
     $hash = password_hash($password, PASSWORD_BCRYPT);
     $db->prepare('INSERT INTO users (username, password_hash, email, phone, role, email_verified, preferred_contact, verification_method, timezone) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)')
        ->execute([$username, $hash, $email !== '' ? $email : null, $phone !== '' ? $phone : null, 'user', $preferred, $verify_method, $timezone !== '' ? $timezone : null]);

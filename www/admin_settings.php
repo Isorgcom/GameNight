@@ -247,8 +247,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 try {
                     $hash = password_hash($password, PASSWORD_BCRYPT);
-                    $db->prepare('INSERT INTO users (username, password_hash, email, role, phone, notes) VALUES (?, ?, ?, ?, ?, ?)')
-                       ->execute([$username, $hash, $email ?: null, $role, $phone ?: null, $notes ?: null]);
+                    // Text is the default channel when a phone is given, email otherwise.
+                    $db->prepare('INSERT INTO users (username, password_hash, email, role, phone, notes, preferred_contact) VALUES (?, ?, ?, ?, ?, ?, ?)')
+                       ->execute([$username, $hash, $email ?: null, $role, $phone ?: null, $notes ?: null, $phone ? 'sms' : 'email']);
                     db_log_activity($current['id'], "created user: $username");
                     $_SESSION['flash'] = ['type' => 'success', 'msg' => "User \"$username\" created."];
                 } catch (PDOException $e) {
@@ -393,7 +394,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $email    = strtolower(trim($row[$offset + 1] ?? ''));
                     $phone    = trim($row[$offset + 2] ?? '');
                     $role     = in_array(trim($row[$offset + 3] ?? ''), ['admin','user']) ? trim($row[$offset + 3]) : 'user';
-                    $pref     = in_array(trim($row[$offset + 4] ?? ''), ['email','sms','both','none']) ? trim($row[$offset + 4]) : 'email';
+                    $pref     = in_array(trim($row[$offset + 4] ?? ''), ['email','sms','both','none']) ? trim($row[$offset + 4]) : ($phone !== '' ? 'sms' : 'email');
                     $notes    = trim($row[$offset + 5] ?? '');
                     if ($username === '') continue;
                     $phone = $phone !== '' ? normalize_phone($phone) : '';
