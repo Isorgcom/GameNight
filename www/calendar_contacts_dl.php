@@ -6,7 +6,9 @@
  *   GET /calendar_contacts_dl.php?league_id=N    → league roster MERGED with user's personal contacts
  *
  * Admins always get the full user list regardless of league_id.
- * Response: {ok: true, users: [{username, email, phone, display_name, is_pending}]}
+ * Response: {ok: true, users: [{username, email, phone, display_name, is_pending, is_league_member, pref}]}
+ * `pref` is how that person is notified (email / sms / whatsapp / both / none),
+ * or '' for the default rule; the editor lights the matching contact glyph.
  */
 require_once __DIR__ . '/auth.php';
 header('Content-Type: application/json');
@@ -39,8 +41,16 @@ function _add_seen(array &$users, array &$seen, array $row): void {
     $users[] = $row;
 }
 
+// The signed-in user's own contacts decide a typed-in guest's channel (the
+// way guest_invite_channel() reads them at send time); pending league rows
+// below look their name up here.
+$hostPrefs = host_contact_prefs($db, $uid);
+$prefOf = function (array $r) use ($hostPrefs): string {
+    return $hostPrefs[strtolower(trim((string)($r['display_name'] ?? '')))] ?? '';
+};
+
 if ($isAdmin) {
-    $rows = $db->query('SELECT id, username, email, phone FROM users ORDER BY LOWER(username)')->fetchAll();
+    $rows = $db->query('SELECT id, username, email, phone, preferred_contact FROM users ORDER BY LOWER(username)')->fetchAll();
     foreach ($rows as $r) {
         _add_seen($users, $seen, [
             'username'         => $r['username'],
@@ -49,6 +59,7 @@ if ($isAdmin) {
             'display_name'     => $r['username'],
             'is_pending'       => 0,
             'is_league_member' => isset($leagueMemberIds[(int)$r['id']]) ? 1 : 0,
+            'pref'             => strtolower((string)($r['preferred_contact'] ?? 'email')),
         ]);
     }
     // Admins also need pending (not-yet-signed-up) league members in the picker
@@ -69,21 +80,26 @@ if ($isAdmin) {
              ORDER BY LOWER(contact_name)"
         );
         $q->execute([$league_id]);
-        foreach ($q->fetchAll() as $r) { _add_seen($users, $seen, $r); }
+        foreach ($q->fetchAll() as $r) { $r['pref'] = $prefOf($r); _add_seen($users, $seen, $r); }
         usort($users, function($a, $b) { return strcasecmp($a['display_name'] ?? '', $b['display_name'] ?? ''); });
     }
     echo json_encode(['ok' => true, 'users' => $users]);
     exit;
 }
 
-// The current user should always appear in their own picker so they can invite themselves.
+// The current user should always appear in their own picker so they can invite
+// themselves. current_user() carries no phone or contact preference, so read them.
+$meRow = $db->prepare('SELECT phone, preferred_contact FROM users WHERE id = ?');
+$meRow->execute([$uid]);
+$me = $meRow->fetch() ?: [];
 _add_seen($users, $seen, [
     'username'         => $current['username'],
     'email'            => $current['email']    ?? '',
-    'phone'            => $current['phone']    ?? '',
+    'phone'            => $me['phone'] ?? '',
     'display_name'     => $current['username'] . ' (you)',
     'is_pending'       => 0,
     'is_league_member' => ($league_id > 0 && isset($leagueMemberIds[$uid])) ? 1 : 0,
+    'pref'             => strtolower((string)($me['preferred_contact'] ?? 'email')),
 ]);
 
 // ── Personal contacts (always included for non-admin) ──────────────────
@@ -96,6 +112,7 @@ $pc = $db->prepare(
             c.contact_phone AS phone,
             c.contact_name  AS display_name,
             CASE WHEN c.linked_user_id IS NULL THEN 1 ELSE 0 END AS is_pending,
+            LOWER(COALESCE(NULLIF(u.preferred_contact, ''), CASE WHEN c.invite_via = 'sms' THEN 'sms' ELSE 'email' END)) AS pref,
             c.linked_user_id AS _linked_uid
      FROM user_contacts c
      LEFT JOIN users u ON u.id = c.linked_user_id
@@ -126,7 +143,7 @@ if ($league_id > 0) {
 
     // Linked members of the league
     $q1 = $db->prepare(
-        "SELECT u.username, " . ($canManage ? "u.email, u.phone" : "'' AS email, '' AS phone") . ", u.username AS display_name, lm.known_as,
+        "SELECT u.username, " . ($canManage ? "u.email, u.phone, LOWER(u.preferred_contact) AS pref" : "'' AS email, '' AS phone, '' AS pref") . ", u.username AS display_name, lm.known_as,
                 0 AS is_pending, 1 AS is_league_member
          FROM league_members lm
          JOIN users u ON u.id = lm.user_id
@@ -154,7 +171,7 @@ if ($league_id > 0) {
          ORDER BY LOWER(contact_name)"
     );
     $q2->execute([$league_id]);
-    foreach ($q2->fetchAll() as $r) { _add_seen($users, $seen, $r); }
+    foreach ($q2->fetchAll() as $r) { $r['pref'] = $prefOf($r); _add_seen($users, $seen, $r); }
     }
 
     // Merge personal contacts (deduped by username-key)

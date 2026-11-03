@@ -123,14 +123,18 @@ if ($eid > 0) {
 
     // Invites: occurrence-specific rows when managing one date, else base rows.
     if ($occDate) {
-        $is = $db->prepare("SELECT username, phone, email, rsvp, event_role, approval_status, sort_order
-                            FROM event_invites WHERE event_id = ? AND occurrence_date = ?
-                            ORDER BY COALESCE(sort_order, 999999), username");
+        $is = $db->prepare("SELECT ei.username, ei.phone, ei.email, ei.rsvp, ei.event_role, ei.approval_status, ei.sort_order,
+                                   u.preferred_contact AS pref
+                            FROM event_invites ei LEFT JOIN users u ON u.id = ei.user_id
+                            WHERE ei.event_id = ? AND ei.occurrence_date = ?
+                            ORDER BY COALESCE(ei.sort_order, 999999), ei.username");
         $is->execute([$eid, $occDate]);
     } else {
-        $is = $db->prepare("SELECT username, phone, email, rsvp, event_role, approval_status, sort_order
-                            FROM event_invites WHERE event_id = ? AND occurrence_date IS NULL
-                            ORDER BY COALESCE(sort_order, 999999), username");
+        $is = $db->prepare("SELECT ei.username, ei.phone, ei.email, ei.rsvp, ei.event_role, ei.approval_status, ei.sort_order,
+                                   u.preferred_contact AS pref
+                            FROM event_invites ei LEFT JOIN users u ON u.id = ei.user_id
+                            WHERE ei.event_id = ? AND ei.occurrence_date IS NULL
+                            ORDER BY COALESCE(ei.sort_order, 999999), ei.username");
         $is->execute([$eid]);
     }
     $eventInvitesRows = $is->fetchAll();
@@ -167,9 +171,11 @@ if ($eid > 0) {
         $event['start_date_input'] = '';
         $event['end_date'] = null;
 
-        $is = $db->prepare("SELECT username, phone, email, event_role, approval_status, sort_order
-                            FROM event_invites WHERE event_id = ? AND occurrence_date IS NULL
-                            ORDER BY COALESCE(sort_order, 999999), username");
+        $is = $db->prepare("SELECT ei.username, ei.phone, ei.email, ei.event_role, ei.approval_status, ei.sort_order,
+                                   u.preferred_contact AS pref
+                            FROM event_invites ei LEFT JOIN users u ON u.id = ei.user_id
+                            WHERE ei.event_id = ? AND ei.occurrence_date IS NULL
+                            ORDER BY COALESCE(ei.sort_order, 999999), ei.username");
         $is->execute([$copyId]);
         foreach ($is->fetchAll() as $r) { $r['rsvp'] = null; $eventInvitesRows[] = $r; }
 
@@ -179,12 +185,25 @@ if ($eid > 0) {
     }
 }
 
+// Which address each saved guest is notified at: an account's own
+// preferred_contact rides on the row from the join above; a typed-in guest
+// takes the host's contact "Invite via" (or the linked account's choice), the
+// way guest_invite_channel() will at send time. Display only, for the glyphs.
+if ($eventInvitesRows) {
+    $prefOwner = $eid > 0 ? (int)($event['created_by'] ?? 0) : (int)$current['id'];
+    $hostPrefs = host_contact_prefs($db, $prefOwner);
+    foreach ($eventInvitesRows as &$_ir) {
+        if (($_ir['pref'] ?? '') === '') $_ir['pref'] = $hostPrefs[strtolower(trim((string)$_ir['username']))] ?? '';
+    }
+    unset($_ir);
+}
+
 // Editor option sources (same as calendar.php)
 $myLeaguesForForm = user_leagues((int)$current['id']);
 $reminder_presets_available = json_decode(get_setting('reminder_offsets_available', '[10080,4320,2880,1440,720,120,30]'), true) ?: [10080,4320,2880,1440,720,120,30];
 $reminder_default_offsets   = json_decode(get_setting('default_reminder_offsets',    '[2880,720]'), true) ?: [2880,720];
 // Admins preload the full user list; everyone else fetches a scoped list async.
-$allUsers = $isAdmin ? $db->query('SELECT username, email, phone FROM users ORDER BY username')->fetchAll() : [];
+$allUsers = $isAdmin ? $db->query('SELECT username, email, phone, preferred_contact AS pref FROM users ORDER BY username')->fetchAll() : [];
 // Where a tournament can be played online: every enabled connected app that
 // holds a game key. None means the choice is not offered at all.
 $onlineApps = [];
@@ -279,7 +298,11 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
         .inv-contact-ctl { flex-shrink:0;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:.15rem;padding:.05rem .3rem;border-radius:4px;line-height:1;background:none;border:0;font:inherit;color:inherit;min-width:24px;min-height:24px; }
         .inv-contact-ctl:focus-visible { outline:2px solid #2563eb;outline-offset:1px; }
         .inv-contact-ctl:hover { background:#e2e8f0; }
-        .inv-contact-ctl .inv-ci { color:#16a34a;font-size:.95rem;line-height:1; }
+        /* The glyph for the address a guest is notified at is green; one on file
+           but not used is grey and a step smaller, so the pair reads at a glance. */
+        .inv-contact-ctl .inv-ci { color:#16a34a;font-size:1rem;line-height:1; }
+        .inv-contact-ctl .inv-ci-off { color:#64748b;font-size:.82rem; }
+        .inv-contact-ctl .inv-off { font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:#92400e;background:#fef3c7;border-radius:3px;padding:.05rem .3rem; }
         .inv-contact-ctl .inv-na { font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:#991b1b;background:#fee2e2;border-radius:3px;padding:.05rem .3rem; }
         .inv-capacity-divider { padding:.2rem .6rem;font-size:.68rem;font-weight:700;color:#b45309;background:#fef3c7;border-radius:4px;text-align:center;cursor:default;margin:.15rem 0; }
         .inv-declined-divider { padding:.2rem .6rem;font-size:.68rem;font-weight:700;color:#475569;background:#f1f5f9;border-radius:4px;text-align:center;cursor:pointer;margin:.15rem 0; }
@@ -903,6 +926,7 @@ function buildAllUsersList() {
         li.dataset.uname    = savedName;
         li.dataset.uemail   = u.email     || '';
         li.dataset.uphone   = u.phone     || '';
+        li.dataset.upref    = u.pref      || '';
         li.dataset.member   = u.is_league_member ? '1' : '0';
         li.setAttribute('role', 'option'); li.setAttribute('aria-selected', 'false'); li.tabIndex = -1;
         li.textContent = display;
@@ -929,7 +953,7 @@ function buildAllUsersList() {
                 if (this.classList.contains('dimmed')) {
                     if (this.dataset.uname) removeInvite(this.dataset.uname);
                 } else if (this.dataset.uname) {
-                    inviteUser(this.dataset.uname, this.dataset.uphone, this.dataset.uemail);
+                    inviteUser(this.dataset.uname, this.dataset.uphone, this.dataset.uemail, '', '', '', this.dataset.upref);
                 }
                 return;
             }
@@ -941,7 +965,7 @@ function buildAllUsersList() {
             if (this.classList.contains('dimmed') || !this.dataset.uname) return;
             e.preventDefault();
             if (window.getSelection) { try { window.getSelection().removeAllRanges(); } catch (err) {} }
-            inviteUser(this.dataset.uname, this.dataset.uphone, this.dataset.uemail);
+            inviteUser(this.dataset.uname, this.dataset.uphone, this.dataset.uemail, '', '', '', this.dataset.upref);
             this.classList.remove('inv-selected');
         });
         ul.appendChild(li);
@@ -993,7 +1017,7 @@ function onHideNonMembersChange() {
 }
 
 // ── Invited pane ──────────────────────────────────────────────────────────────
-function inviteUser(username, phone, email, rsvp, role, approvalStatus) {
+function inviteUser(username, phone, email, rsvp, role, approvalStatus, pref) {
     // Skip if already invited
     const existing = Array.from(document.querySelectorAll('#eInvitedList li[data-iname]'))
         .map(li => li.dataset.iname.toLowerCase());
@@ -1006,6 +1030,7 @@ function inviteUser(username, phone, email, rsvp, role, approvalStatus) {
     li.dataset.irsvp    = rsvp   || '';
     li.dataset.irole    = role   || 'invitee';
     li.dataset.istatus  = approvalStatus || 'approved';
+    li.dataset.ipref    = pref   || '';   // how they are notified: email / sms / whatsapp / both / none, or '' for the default rule
     li.setAttribute('role', 'option'); li.setAttribute('aria-selected', 'false'); li.tabIndex = -1;
 
     const nameSpan = document.createElement('span');
@@ -1021,8 +1046,8 @@ function inviteUser(username, phone, email, rsvp, role, approvalStatus) {
     contactCtl.type = 'button';
     contactCtl.className = 'inv-contact-ctl inv-col-contact';
     contactCtl.title = 'Click to edit email / phone';
-    contactCtl.setAttribute('aria-label', contactLabel(username, li.dataset.iemail, li.dataset.iphone));
-    contactCtl.innerHTML = invContactCtlInner(li.dataset.iemail, li.dataset.iphone);
+    contactCtl.setAttribute('aria-label', contactLabel(username, li.dataset.iemail, li.dataset.iphone, li.dataset.ipref));
+    contactCtl.innerHTML = invContactCtlInner(li.dataset.iemail, li.dataset.iphone, li.dataset.ipref);
     contactCtl.addEventListener('click', function(e) { e.stopPropagation(); openContactEdit(li); });
     contactCtl.addEventListener('dblclick', function(e) { e.stopPropagation(); });
     li.appendChild(contactCtl);
@@ -1105,19 +1130,51 @@ function inviteUser(username, phone, email, rsvp, role, approvalStatus) {
 }
 
 // ── Per-invitee contact icon + inline editor ─────────────────────────────────
-function invContactCtlInner(email, phone) {
+// Which of a guest's addresses their notifications go to, mirroring the
+// server's rule (guest_invite_channel() / send_notification()): an account's
+// own preference, a contact's "Invite via", else email when there is one and
+// otherwise text. A preferred address that is missing falls back to the other.
+function contactChannels(pref, hasE, hasP) {
+    pref = String(pref || '').toLowerCase();
+    var r = { email: false, phone: false, whatsapp: false, off: false };
+    if (!hasE && !hasP) return r;
+    if (pref === 'none') { r.off = true; return r; }
+    if (pref === 'both') { r.email = hasE; r.phone = hasP; return r; }
+    var wantPhone = pref === 'sms' || pref === 'whatsapp';
+    if (wantPhone && hasP)      { r.phone = true; r.whatsapp = pref === 'whatsapp'; }
+    else if (hasE)              { r.email = true; }
+    else                        { r.phone = true; }
+    return r;
+}
+// The way the lit channel is named in titles and labels.
+function contactChannelWord(ch) {
+    if (ch.off) return 'opted out of notifications';
+    if (ch.email && ch.phone) return 'notified by email and text';
+    if (ch.whatsapp) return 'notified by WhatsApp';
+    if (ch.phone) return 'notified by text';
+    if (ch.email) return 'notified by email';
+    return '';
+}
+function invContactCtlInner(email, phone, pref) {
     var hasE = !!(email && String(email).trim());
     var hasP = !!(phone && String(phone).trim());
     if (!hasE && !hasP) return '<span class="inv-na">NA</span>';
+    var ch = contactChannels(pref, hasE, hasP);
+    var word = contactChannelWord(ch);
     var s = '';
-    if (hasE) s += '<span class="inv-ci" title="Has email">&#9993;</span>';
-    if (hasP) s += '<span class="inv-ci" title="Has phone">&#9742;</span>';
+    if (hasE) s += '<span class="inv-ci' + (ch.email ? '' : ' inv-ci-off') + '" title="' + (ch.email ? (ch.phone ? 'Email and text' : 'Notified by email') : 'Has email; ' + word) + '">&#9993;</span>';
+    if (hasP) s += '<span class="inv-ci' + (ch.phone ? '' : ' inv-ci-off') + '" title="' + (ch.phone ? (ch.email ? 'Email and text' : ch.whatsapp ? 'Notified by WhatsApp' : 'Notified by text') : 'Has phone; ' + word) + '">&#9742;</span>';
+    if (ch.off) s += '<span class="inv-off" title="Opted out of notifications">off</span>';
     return s;
 }
-// The spoken name of a row's contact button: what is on file, in words.
-function contactLabel(name, email, phone) {
-    var what = email && phone ? 'email and phone' : email ? 'email' : phone ? 'phone' : 'none on file';
-    return 'Contact for ' + name + ': ' + what;
+// The spoken name of a row's contact button: what is on file, and where the
+// notifications go, in words.
+function contactLabel(name, email, phone, pref) {
+    var hasE = !!(email && String(email).trim());
+    var hasP = !!(phone && String(phone).trim());
+    var what = hasE && hasP ? 'email and phone' : hasE ? 'email' : hasP ? 'phone' : 'none on file';
+    var word = contactChannelWord(contactChannels(pref, hasE, hasP));
+    return 'Contact for ' + name + ': ' + what + (word ? ', ' + word : '');
 }
 function customRowRemoved() { updateDividerLine(); updateDirty(); }
 var _contactEditLi = null;
@@ -1154,8 +1211,8 @@ function saveContactEdit() {
     _contactEditLi.dataset.iphone = document.getElementById('invContactPhone').value.trim();
     var ctl = _contactEditLi.querySelector('.inv-contact-ctl');
     if (ctl) {
-        ctl.innerHTML = invContactCtlInner(_contactEditLi.dataset.iemail, _contactEditLi.dataset.iphone);
-        ctl.setAttribute('aria-label', contactLabel(_contactEditLi.dataset.iname, _contactEditLi.dataset.iemail, _contactEditLi.dataset.iphone));
+        ctl.innerHTML = invContactCtlInner(_contactEditLi.dataset.iemail, _contactEditLi.dataset.iphone, _contactEditLi.dataset.ipref);
+        ctl.setAttribute('aria-label', contactLabel(_contactEditLi.dataset.iname, _contactEditLi.dataset.iemail, _contactEditLi.dataset.iphone, _contactEditLi.dataset.ipref));
     }
     closeContactEdit();
     updateDirty();
@@ -1400,14 +1457,14 @@ function listKeydown(e) {
 function moveRight() {
     var selected = document.querySelectorAll('#eAllUsersList li.inv-selected:not(.dimmed)');
     selected.forEach(function(li) {
-        inviteUser(li.dataset.uname, li.dataset.uphone, li.dataset.uemail);
+        inviteUser(li.dataset.uname, li.dataset.uphone, li.dataset.uemail, '', '', '', li.dataset.upref);
         li.classList.remove('inv-selected');
     });
 }
 function moveAllRight() {
     var visible = document.querySelectorAll('#eAllUsersList li:not(.dimmed):not([style*="display: none"]):not([style*="display:none"])');
     visible.forEach(function(li) {
-        if (li.dataset.uname) inviteUser(li.dataset.uname, li.dataset.uphone, li.dataset.uemail);
+        if (li.dataset.uname) inviteUser(li.dataset.uname, li.dataset.uphone, li.dataset.uemail, '', '', '', li.dataset.upref);
     });
 }
 function moveLeft() {
@@ -2004,7 +2061,7 @@ function regenWalkinFromEdit() {
     buildAllUsersList();
     document.getElementById('eInvitedList').innerHTML = '';
     EVENT_INVITES.forEach(function(inv) {
-        inviteUser(inv.username, inv.phone || '', inv.email || '', inv.rsvp || '', inv.event_role || 'invitee', inv.approval_status || 'approved');
+        inviteUser(inv.username, inv.phone || '', inv.email || '', inv.rsvp || '', inv.event_role || 'invitee', inv.approval_status || 'approved', inv.pref || '');
     });
     syncInviteState();
     filterAllUsers('');

@@ -3196,6 +3196,40 @@ function invitee_contact_from_contacts(PDO $db, int $ownerId, string $username):
     return ['email' => $r['email'] ?? '', 'phone' => $r['phone'] ?? ''];
 }
 
+/**
+ * The channel each of a host's saved contacts is notified by, keyed by the
+ * lower-cased contact name and, when the contact is linked, the account's
+ * screen name: the linked account's own preferred_contact when there is one
+ * (email / sms / whatsapp / both / none), else the contact's "Invite via".
+ * Display only: the event editor lights the matching glyph beside a guest.
+ * The dispatcher decides for real in guest_invite_channel(), which this
+ * mirrors; a preferred address that is missing falls back to the other one
+ * there, and the editor applies the same fallback on the page.
+ */
+function host_contact_prefs(PDO $db, int $ownerId): array {
+    $out = [];
+    if ($ownerId <= 0) return $out;
+    try {
+        $q = $db->prepare(
+            "SELECT c.contact_name, c.invite_via, u.username AS linked_name, u.preferred_contact AS user_pref
+             FROM user_contacts c
+             LEFT JOIN users u ON u.id = c.linked_user_id
+             WHERE c.owner_user_id = ?
+             ORDER BY c.id"
+        );
+        $q->execute([$ownerId]);
+        foreach ($q->fetchAll() as $r) {
+            $pref = strtolower((string)($r['user_pref'] ?? ''));
+            if ($pref === '') $pref = (($r['invite_via'] ?? '') === 'sms') ? 'sms' : 'email';
+            foreach ([$r['contact_name'] ?? '', $r['linked_name'] ?? ''] as $n) {
+                $k = strtolower(trim((string)$n));
+                if ($k !== '' && !isset($out[$k])) $out[$k] = $pref;
+            }
+        }
+    } catch (Throwable $e) { /* pre-migration DBs: no preferences to show */ }
+    return $out;
+}
+
 function get_client_ip(): string {
     // REMOTE_ADDR only. Apache's mod_remoteip (Dockerfile) already replaces it
     // with the X-Real-IP header, but only when the connection itself comes

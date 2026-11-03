@@ -11,6 +11,11 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.15.3] - 2026-11-03
+
+### Changed
+- **The event editor shows which address a guest's invites go to.** Beside each name on the Invited list the envelope and the handset both lit up green for whatever was on file, so a guest with an email and a phone looked the same whichever one the site would actually use. Now the glyph for the channel they are notified by stays green and the other turns grey and a step smaller; a guest on Email & SMS keeps both green, WhatsApp is named in the glyph's title, and someone who has opted out of notifications shows both grey with a small amber "off" tag. The rule is the sender's own: an account's Preferred Contact Method from Settings, a typed-in guest's Invite via from the host's Contacts page, else email when there is one and text otherwise, with the other address used when the preferred one is missing. Names added from All users light the right glyph at once, because the picker rows carry the same preference (`calendar_contacts_dl.php` answers a `pref` per row, and the host's own row there now shows their phone too). `host_contact_prefs()` in `db.php` reads a host's contacts once per page; the invite rows join the account's preference in `event_edit.php`.
+
 ## [v1.15.2] - 2026-11-02
 
 ### Fixed
