@@ -11,6 +11,16 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.16.0] - 2026-11-03
+
+### Changed
+
+- **New accounts default to text when a phone number is on file.** A sign-up that gave both an email address and a phone number used to start on Email; it now starts on SMS (WhatsApp when that was the choice at sign-up), and only an account with no phone starts on Email. The rule applies everywhere an account is made: the sign-up page, the walk-in door page, the API's user create (a `preferred_contact` the caller sends still wins), the admin CSV import (when the `preferred_contact` column is blank) and the admin Add User form. Existing accounts are untouched, and everyone can still change the choice under Settings. (`register_user()` in `www/auth.php`, `www/walkin.php`, `www/api/v1/users.php`, `www/admin_settings.php`.)
+
+### Fixed
+
+- **A league holding an API key can be deleted.** Deleting such a league answered "Delete failed: FOREIGN KEY constraint failed", and the same failure stopped the account deletion of its last member, whose league is removed with them. `delete_league_cascade()` in `www/db.php` now removes the league's keys and their request log first.
+
 ## [v1.15.4] - 2026-11-03
 
 ### Changed

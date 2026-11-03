@@ -239,9 +239,11 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 if ($error === '') {
-                    // Channel the user registered with: email if present, else SMS.
+                    // Verification goes by email when there is one (the link lets them set a
+                    // password), else by SMS code. Ongoing notifications default to text
+                    // whenever a phone was given, even alongside an email.
                     $walkin_method    = $has_email ? 'email' : 'sms';
-                    $walkin_preferred = $walkin_method;
+                    $walkin_preferred = $has_phone ? 'sms' : 'email';
                     // Soft verification: insert the user as unverified, then fire the email link /
                     // SMS code below. The success screen surfaces a verify control but does NOT
                     // block the user from attending — they're already at the event. The verify
