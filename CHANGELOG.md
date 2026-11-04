@@ -11,6 +11,12 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.18.0] - 2026-11-04
+
+### Added
+
+- **Settings lists your own leagues.** Your Settings page has a My Leagues card under Account Info. It shows each league you belong to as a link to its page, along with your role there and the date you joined. With no leagues, it points you to Browse leagues. It is the same list 1.17.0 added to the admin's user page, read in `settings.php` for the signed-in account.
+
 ## [v1.17.0] - 2026-11-04
 
 ### Added
