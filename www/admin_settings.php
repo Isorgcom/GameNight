@@ -759,7 +759,7 @@ $offset   = ($page - 1) * $per_page;
 $log_total = (int)$db->query('SELECT COUNT(*) FROM activity_log')->fetchColumn();
 $log_pages = max(1, (int)ceil($log_total / $per_page));
 $log_rows  = $db->prepare("
-    SELECT a.action, a.ip, a.created_at, a.severity, COALESCE(u.username, '—') AS username
+    SELECT a.action, a.ip, a.created_at, a.severity, u.id AS uid, COALESCE(u.username, '—') AS username
     FROM   activity_log a
     LEFT JOIN users u ON u.id = a.user_id AND a.user_id != 0
     ORDER  BY a.id DESC
@@ -1841,7 +1841,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                                     ->format('M j, Y g:i A')
                             ) ?>
                         </td>
-                        <td><?= htmlspecialchars($a['username']) ?></td>
+                        <td><?php if (!empty($a['uid'])): ?><a href="/user_edit.php?id=<?= (int)$a['uid'] ?>"><?= htmlspecialchars($a['username']) ?></a><?php else: ?><?= htmlspecialchars($a['username']) ?><?php endif; ?></td>
                         <td><?= preg_replace_callback('/event id: (\d+)/', function ($m) use ($log_event_ids) {
                                 $id = (int)$m[1];
                                 return in_array($id, $log_event_ids, true)

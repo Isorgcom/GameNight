@@ -11,6 +11,12 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.16.2] - 2026-11-04
+
+### Changed
+
+- **A name in the activity log opens that person's account.** On Admin → Settings → Logs, the User column links each name to the account's edit page (`/user_edit.php?id=`), so an admin can go from a log line to the person in one click. Rows logged without an account (a failed login, a system task) stay plain text. In `admin_settings.php`, the log query now also reads `u.id`.
+
 ## [v1.16.1] - 2026-11-03
 
 ### Fixed
