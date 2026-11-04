@@ -141,6 +141,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $token = csrf_token();
+
+// Leagues this account belongs to, each linked to its page.
+$lq = $db->prepare(
+    'SELECT l.id, l.name, l.is_hidden, lm.role, lm.joined_at
+     FROM league_members lm
+     JOIN leagues l ON l.id = lm.league_id
+     WHERE lm.user_id = ?
+     ORDER BY LOWER(l.name)'
+);
+$lq->execute([$id]);
+$user_leagues = $lq->fetchAll();
 $sel   = fn($a, $b) => $a === $b ? 'selected' : '';
 $site_name = get_setting('site_name', 'Game Night');
 ?>
@@ -326,6 +337,27 @@ $site_name = get_setting('site_name', 'Game Night');
                 <tr><td style="color:#64748b">Last login</td><td><?= htmlspecialchars($target['last_login'] ?? 'Never') ?></td></tr>
             </tbody>
         </table>
+    </div>
+
+    <!-- Leagues -->
+    <div class="table-card" style="margin-top:1.5rem;max-width:540px">
+        <h3>Leagues (<?= count($user_leagues) ?>)</h3>
+        <?php if (!$user_leagues): ?>
+            <p style="padding:0 1.5rem 1rem;color:#64748b;font-size:.875rem">Not a member of any league.</p>
+        <?php else: ?>
+        <table>
+            <thead><tr><th scope="col">League</th><th scope="col">Role</th><th scope="col">Joined</th></tr></thead>
+            <tbody>
+            <?php foreach ($user_leagues as $l): ?>
+                <tr>
+                    <td><a href="/league.php?id=<?= (int)$l['id'] ?>"><?= htmlspecialchars($l['name']) ?></a><?= (int)$l['is_hidden'] ? ' <span style="color:#64748b;font-size:.8rem">(hidden)</span>' : '' ?></td>
+                    <td><?= htmlspecialchars(ucfirst($l['role'])) ?></td>
+                    <td style="white-space:nowrap"><?= htmlspecialchars($l['joined_at'] ? date('M j, Y', strtotime($l['joined_at'] . ' UTC')) : '') ?></td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+        <?php endif; ?>
     </div>
 
     <!-- Danger zone -->

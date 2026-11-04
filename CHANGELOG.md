@@ -11,6 +11,12 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.17.0] - 2026-11-04
+
+### Added
+
+- **An account's page lists the leagues that person belongs to.** The admin's user page (`/user_edit.php?id=`, opened from the Users tab or a name in the activity log) has a Leagues card under Account Info. It shows each league as a link to its page, along with the person's role there and the date they joined. Hidden leagues are marked. An account with no leagues says so.
+
 ## [v1.16.2] - 2026-11-04
 
 ### Changed
