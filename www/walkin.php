@@ -6,6 +6,8 @@
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/_poker_helpers.php';
+require_once __DIR__ . '/_notifications.php';
+require_once __DIR__ . '/_public_join.php';
 
 session_start_safe();
 
@@ -74,111 +76,38 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (walkin_rate_limited($db)) {
         $error = 'Too many registration attempts from this device. Please try again in an hour.';
     } else {
-        // Auto-detect the combined "Email or phone" input. Contains '@' → email, otherwise phone.
-        // Left the legacy `email` / `phone` POST slots as a fallback so any old bookmark still works.
-        $contact_raw = trim($_POST['contact'] ?? '');
-        if ($contact_raw !== '' && ($_POST['email'] ?? '') === '' && ($_POST['phone'] ?? '') === '') {
-            if (strpos($contact_raw, '@') !== false) {
-                $_POST['email'] = $contact_raw;
-            } else {
-                $_POST['phone'] = $contact_raw;
-            }
-        }
-
-        // Collect + sanitize inputs
-        $display_name = trim($_POST['display_name'] ?? '');
-        $email        = strtolower(trim($_POST['email'] ?? ''));
-        $phone        = trim($_POST['phone'] ?? '');
-
-        // Validate display name → username: allow letters, numbers, spaces, underscores; spaces → underscores
-        $username_raw = preg_replace('/\s+/', '_', $display_name);
-        $username_raw = preg_replace('/[^a-zA-Z0-9_]/', '', $username_raw);
-
-        // Normalize phone early so we can use it for validation + lookup.
-        $phone_normalized = ($phone !== '') ? normalize_phone($phone) : '';
-        $__p_digits       = preg_replace('/\D/', '', $phone_normalized);
-        $has_email = ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL));
-        $has_phone = ($phone_normalized !== '' && strlen($__p_digits) >= 7 && strlen($__p_digits) <= 15);
-
-        if ($display_name === '') {
-            $error = 'Display name is required.';
-        } elseif (strlen($username_raw) < 3 || strlen($username_raw) > 30) {
-            $error = 'Display name must produce a username between 3 and 30 characters (letters, numbers, spaces, underscores).';
-        } elseif (!$has_email && !$has_phone) {
-            $error = 'Enter an email address or phone number.';
-        } elseif ($email !== '' && !$has_email) {
-            $error = 'Invalid email address.';
-        } elseif ($phone !== '' && !$has_phone) {
-            $error = 'Invalid phone number.';
+        $in = public_join_parse($_POST);
+        if ($in['error'] !== '') {
+            $error = $in['error'];
         } else {
             walkin_record_attempt($db);
-
-            // Look up by email if provided, else by phone.
-            if ($has_email) {
-                $stmt = $db->prepare('SELECT id, username, email_verified FROM users WHERE LOWER(email) = ?');
-                $stmt->execute([$email]);
-                $existing = $stmt->fetch();
+            // The account-and-invite rules are shared with the invite link
+            // (_public_join.php): an existing account is never confirmed by
+            // someone typing its address, an approved row is never flipped.
+            $res = public_join_event($db, $event, $in, 'walkin');
+            if ($res['status'] === 'error') {
+                $error = $res['error'];
             } else {
-                $stmt = $db->prepare('SELECT id, username, email_verified FROM users WHERE phone = ?');
-                $stmt->execute([$phone_normalized]);
-                $existing = $stmt->fetch();
-            }
-
-            if ($existing) {
-                // Existing user — RSVP them to this event
-                $uid      = (int)$existing['id'];
-                $username = $existing['username'];
-
-                // Check if already invited (base row, no occurrence_date): the
-                // account's own row, by id. A typed-in row that merely shares the
-                // name is someone else's and is never claimed by walking in.
-                $chk = $db->prepare('SELECT id, approval_status FROM event_invites WHERE event_id = ? AND user_id = ? AND occurrence_date IS NULL');
-                $chk->execute([$event_id, $uid]);
-                $existingInvite = $chk->fetch();
-                $effective_approval = 'approved';
-                $is_new_pending = false;
-
-                if ($existingInvite) {
-                    $existing_status = $existingInvite['approval_status'] ?? 'approved';
-                    if ($existing_status === 'denied') {
-                        // Soft-deny: silently absorb. Don't flip the row, don't reveal the denial.
-                        // The walk-in success message below will say "waiting list" identical to a normal pending signup.
-                        $effective_approval = 'denied';
-                    } elseif ($existing_status === 'pending') {
-                        // Already pending — same waiting-list message, no DB change.
-                        $effective_approval = 'pending';
-                    } else {
-                        // Security: an already-approved invite is NOT flipped from the walk-in form.
-                        // Anyone at the event could type the victim's email to mark them checked-in.
-                        // If they're already on the list, nothing to do — just acknowledge.
-                        $effective_approval = 'approved';
-                    }
-                } else {
-                    // Security: an existing account being "walked in" by someone holding the QR code
-                    // (not necessarily the user themselves) always requires host approval — even if
-                    // the event is otherwise open. The attacker doesn't gain a confirmed RSVP; the
-                    // host sees a pending row and can approve or deny. For brand-new walk-in users
-                    // (the main `else` block far below) we still honor the event's requires_approval
-                    // setting because those identifiers don't belong to anyone yet.
-                    $db->prepare("INSERT INTO event_invites (event_id, username, user_id, email, rsvp, approval_status) VALUES (?, ?, ?, ?, 'yes', 'pending')")
-                       ->execute([$event_id, $username, $uid, $email]);
-                    $effective_approval = 'pending';
-                    $is_new_pending = true;
-                }
-                // League membership follows the host's decision: an approved walk-in
-                // joins now, a pending one when the host approves (see
-                // league_enrol_if_approved()), a denied one never.
-                if ($effective_approval === 'approved') auto_add_to_league($db, $event_id, $uid);
-                db_log_anon_activity("walkin_rsvp: existing user $username for event $event_id" . ($effective_approval !== 'approved' ? ' (waiting list)' : ''));
+                $username = $res['username'];
+                $approved = in_array($res['status'], ['approved', 'already'], true);
+                if ($res["status"] === "already") auto_add_to_league($db, $event_id, (int)$res["user_id"]);
 
                 // Remember for next walk-up (30 days)
-                setcookie('walkin_name', $display_name, time() + 86400 * 30, '/', '', true, true);
-                setcookie('walkin_contact', ($contact_raw !== '' ? $contact_raw : ($email ?: $phone)), time() + 86400 * 30, '/', '', true, true);
+                setcookie('walkin_name', $in['display_name'], time() + 86400 * 30, '/', '', true, true);
+                setcookie('walkin_contact', $in['contact_raw'], time() + 86400 * 30, '/', '', true, true);
 
-                if ($effective_approval === 'approved') {
-                    $success = "Welcome back, " . htmlspecialchars($username) . "! You're registered for <strong>" . htmlspecialchars($event['title']) . "</strong>.";
+                if ($res['is_new_user']) {
+                    $walkin_verify_ui    = $res['verify'];
+                    $walkin_verify_phone = $in['phone'];
+                    $walkin_verify_email = $in['email'];
+                }
 
-                    // Auto-assign table if poker session exists
+                if ($approved) {
+                    $success = $res['is_new_user']
+                        ? "You're registered for <strong>" . htmlspecialchars($event['title']) . "</strong>! Have fun."
+                        : "Welcome back, " . htmlspecialchars($username) . "! You're registered for <strong>" . htmlspecialchars($event['title']) . "</strong>.";
+
+                    // At the door: seat them now if a game is set up.
                     $psess = $db->prepare('SELECT id FROM poker_sessions WHERE event_id = ?');
                     $psess->execute([$event_id]);
                     $psRow = $psess->fetch();
@@ -194,131 +123,16 @@ if (!$invalid && $_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $seatStmt->execute([$ppRow['id']]);
                                 $assigned_seat = $seatStmt->fetchColumn() ?: null;
                                 // Stash player id so verify_phone.php can re-surface the seat tile.
-                                if (session_status() === PHP_SESSION_NONE) session_start_safe();
-                                $_SESSION['walkin_player_id'] = (int)$ppRow['id'];
+                                if (!$res['is_new_user']) {
+                                    if (session_status() === PHP_SESSION_NONE) session_start_safe();
+                                    $_SESSION['walkin_player_id'] = (int)$ppRow['id'];
+                                }
                             }
                         }
                     }
                 } else {
-                    // Pending or denied — show waiting-list message either way (soft-deny).
+                    // Pending or denied: the waiting-list message either way (soft-deny).
                     $success = "You're on the waiting list for <strong>" . htmlspecialchars($event['title']) . "</strong>. The host will approve your registration shortly.";
-                }
-
-                // Notify the event creator about a brand-new pending signup,
-                // and send the walk-in user a confirmation that they're on the waiting list.
-                if ($is_new_pending) {
-                    notify_creator_of_pending($event_id, $username);
-                    // Notify the walk-in user they're on the waiting list
-                    $uNotify = $db->prepare('SELECT username, email, phone, preferred_contact FROM users WHERE id = ?');
-                    $uNotify->execute([$uid]);
-                    $uRow = $uNotify->fetch();
-                    if ($uRow && function_exists('send_notification')) {
-                        $smsBody  = "You're on the waiting list for \"{$event['title']}\" on " . fmt_event_display($event) . ". The host will approve your registration shortly.";
-                        $htmlBody = '<p>You are on the waiting list for <strong>' . htmlspecialchars($event['title']) . '</strong> on ' . htmlspecialchars(fmt_event_display($event)) . '.</p>'
-                                  . '<p style="color:#64748b">The host will approve your registration shortly. You will receive another notification when approved.</p>';
-                        send_notification($uRow['username'], $uRow['email'] ?? '', $uRow['phone'] ?? '',
-                            $uRow['preferred_contact'] ?? 'email',
-                            "Waiting list: " . $event['title'],
-                            $smsBody, $htmlBody);
-                    }
-                }
-
-            } else {
-                // New user — create soft account
-                $base_username = $username_raw;
-                $final_username = $base_username;
-                $suffix = 2;
-                // Ensure username is unique
-                while (true) {
-                    $ucheck = $db->prepare('SELECT id FROM users WHERE LOWER(username) = LOWER(?)');
-                    $ucheck->execute([$final_username]);
-                    if (!$ucheck->fetch()) break;
-                    $final_username = $base_username . $suffix;
-                    $suffix++;
-                    if ($suffix > 999) { $error = 'Could not generate a unique username. Please try a different name.'; break; }
-                }
-
-                if ($error === '') {
-                    // Verification goes by email when there is one (the link lets them set a
-                    // password), else by SMS code. Ongoing notifications default to text
-                    // whenever a phone was given, even alongside an email.
-                    $walkin_method    = $has_email ? 'email' : 'sms';
-                    $walkin_preferred = $has_phone ? 'sms' : 'email';
-                    // Soft verification: insert the user as unverified, then fire the email link /
-                    // SMS code below. The success screen surfaces a verify control but does NOT
-                    // block the user from attending — they're already at the event. The verify
-                    // step is about unlocking future login recovery, not gating event access.
-                    $db->prepare('INSERT INTO users (username, password_hash, email, phone, role, email_verified, phone_verified, must_change_password, preferred_contact, verification_method) VALUES (?, ?, ?, ?, ?, 0, 0, 1, ?, ?)')
-                       ->execute([$final_username, '', $has_email ? $email : null, $has_phone ? $phone_normalized : null, 'user', $walkin_preferred, $walkin_method]);
-                    $new_id = (int)$db->lastInsertId();
-
-                    // Invite to event. Walk-in is a 'self' signup — approval gate fires if requires_approval=1.
-                    $new_walkin_approval = invite_approval_status($event_id, 'self');
-                    $db->prepare('INSERT INTO event_invites (event_id, username, user_id, email, phone, rsvp, approval_status) VALUES (?, ?, ?, ?, ?, ?, ?)')
-                       ->execute([$event_id, $final_username, $new_id, $has_email ? $email : null, $has_phone ? $phone_normalized : null, 'yes', $new_walkin_approval]);
-
-                    if ($new_walkin_approval === 'approved') auto_add_to_league($db, $event_id, $new_id);
-                    db_log_anon_activity("walkin_new_user: $final_username for event $event_id" . ($new_walkin_approval === 'pending' ? ' (waiting list)' : ''));
-
-                    // Soft verification send. Email path: link goes to reset_password.php so they
-                    // can set a real password. Phone path: 6-digit code plus session-stash so the
-                    // inline form on the success screen can POST to /verify_phone.php.
-                    if ($walkin_method === 'email') {
-                        send_verification_email($new_id, $email, $final_username);
-                    } else {
-                        send_verification_code($new_id, $phone_normalized, 'sms');
-                        if (session_status() === PHP_SESSION_NONE) session_start_safe();
-                        $_SESSION['verify_user_id'] = $new_id;
-                        $_SESSION['verify_method']  = 'sms';
-                        // Carry walk-in context so verify_phone.php can surface table/seat on success.
-                        $_SESSION['walkin_event_id'] = (int)$event_id;
-                    }
-
-                    // Variables the render block uses to decide which verify UI to show.
-                    $walkin_verify_ui       = ($walkin_method === 'sms') ? 'phone_inline' : 'email_note';
-                    $walkin_verify_phone    = $has_phone ? $phone_normalized : '';
-                    $walkin_verify_email    = $has_email ? $email : '';
-
-                    // Remember for next walk-up (30 days)
-                    setcookie('walkin_name', $display_name, time() + 86400 * 30, '/', '', true, true);
-                    setcookie('walkin_contact', ($contact_raw !== '' ? $contact_raw : ($email ?: $phone)), time() + 86400 * 30, '/', '', true, true);
-
-                    if ($new_walkin_approval === 'approved') {
-                        $success = "You're registered for <strong>" . htmlspecialchars($event['title']) . "</strong>! Have fun.";
-
-                        // Auto-assign table if poker session exists
-                        $psess = $db->prepare('SELECT id FROM poker_sessions WHERE event_id = ?');
-                        $psess->execute([$event_id]);
-                        $psRow = $psess->fetch();
-                        if ($psRow) {
-                            sync_invitees($db, $psRow['id'], $event_id);
-                            $pp = $db->prepare('SELECT id FROM poker_players WHERE session_id = ? AND LOWER(display_name) = LOWER(?) AND removed = 0');
-                            $pp->execute([$psRow['id'], $final_username]);
-                            $ppRow = $pp->fetch();
-                            if ($ppRow) {
-                                $assigned_table = auto_assign_table($db, $psRow['id'], $ppRow['id']);
-                                if ($assigned_table !== null) {
-                                    $seatStmt = $db->prepare('SELECT seat_number FROM poker_players WHERE id = ?');
-                                    $seatStmt->execute([$ppRow['id']]);
-                                    $assigned_seat = $seatStmt->fetchColumn() ?: null;
-                                }
-                            }
-                        }
-                    } else {
-                        $success = "You're on the waiting list for <strong>" . htmlspecialchars($event['title']) . "</strong>. The host will approve your registration shortly.";
-                        // Notify the host about the pending signup.
-                        notify_creator_of_pending($event_id, $final_username);
-                        // Notify the new user they're on the waiting list (email only — they just registered).
-                        if (function_exists('send_notification')) {
-                            $smsBody  = "You're on the waiting list for \"{$event['title']}\" on " . fmt_event_display($event) . ". The host will approve your registration shortly.";
-                            $htmlBody = '<p>You are on the waiting list for <strong>' . htmlspecialchars($event['title']) . '</strong> on ' . htmlspecialchars(fmt_event_display($event)) . '.</p>'
-                                      . '<p style="color:#64748b">The host will approve your registration shortly. You will receive another notification when approved.</p>';
-                            send_notification($final_username, $email, $phone_normalized,
-                                'email', // new user — default to email since they just gave us their email
-                                "Waiting list: " . $event['title'],
-                                $smsBody, $htmlBody);
-                        }
-                    }
                 }
             }
         }

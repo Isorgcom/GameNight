@@ -2148,6 +2148,22 @@ JSON;
     // RSVPs, walk-ins, reminders, edits or a game (cancel_event_keep()).
     try { $pdo->exec("ALTER TABLE events ADD COLUMN cancelled_at DATETIME"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE events ADD COLUMN cancelled_by INTEGER"); } catch (Exception $e) {}
+    // Share invite link (invite.php): its own token, separate from walkin_token,
+    // so a host can turn off a forwarded link without breaking the door QR.
+    // NULL = no link (never minted, or turned off). share_requires_approval:
+    // people joining through the link wait for the host (default on).
+    try { $pdo->exec("ALTER TABLE events ADD COLUMN share_token TEXT"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE events ADD COLUMN share_requires_approval INTEGER NOT NULL DEFAULT 1"); } catch (Exception $e) {}
+    // How a guest got on the list when they put themselves there: 'share'
+    // (invite link) or 'walkin' (door QR); NULL = added by a host or the API.
+    try { $pdo->exec("ALTER TABLE event_invites ADD COLUMN join_source TEXT"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS share_attempts (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id   INTEGER NOT NULL,
+        ip         TEXT    NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_share_attempts_event ON share_attempts(event_id, ip, created_at)"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE leagues ADD COLUMN slug TEXT"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE leagues ADD COLUMN public_page INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE leagues ADD COLUMN banner_path TEXT"); } catch (Exception $e) {}
@@ -3636,33 +3652,43 @@ function user_leagues(int $user_id): array {
  * After a priority invitee declines, check if there's a waitlisted person to promote.
  * Only applies to poker events with sort_order-based priority.
  */
-function maybe_promote_waitlisted(PDO $db, int $event_id): void {
-    // Capacity source: seats × tables for poker events, max_guests for the rest.
+/**
+ * An event's capacity and how full it is, by the waitlist's own rule:
+ * seats x tables for a poker event, max_guests for the rest; filled = approved
+ * base rows that have not said No. capacity 0 = no limit. waitlist = the
+ * event's waitlist_enabled switch.
+ */
+function event_capacity(PDO $db, int $event_id): array {
     $ev = $db->prepare('SELECT e.id, e.is_poker, e.waitlist_enabled, e.max_guests, ps.seats_per_table, ps.num_tables
                         FROM events e
                         LEFT JOIN poker_sessions ps ON ps.event_id = e.id
                         WHERE e.id = ?');
     $ev->execute([$event_id]);
     $row = $ev->fetch();
-    if (!$row) return;
-    if (!(int)($row['waitlist_enabled'] ?? 1)) return; // waitlist disabled for this event
-
+    $out = ['capacity' => 0, 'filled' => 0, 'waitlist' => false, 'found' => (bool)$row];
+    if (!$row) return $out;
+    $out['waitlist'] = (bool)(int)($row['waitlist_enabled'] ?? 1);
     if ((int)$row['is_poker'] === 1) {
-        if (!$row['seats_per_table']) return;
-        $capacity = (int)$row['seats_per_table'] * (int)$row['num_tables'];
+        $out['capacity'] = $row['seats_per_table'] ? (int)$row['seats_per_table'] * (int)$row['num_tables'] : 0;
     } else {
-        $capacity = (int)($row['max_guests'] ?? 0);
+        $out['capacity'] = (int)($row['max_guests'] ?? 0);
     }
-    if ($capacity <= 0) return;
-
-    // Count approved invitees who haven't declined
     $approved = $db->prepare(
         "SELECT COUNT(*) FROM event_invites
          WHERE event_id = ? AND occurrence_date IS NULL
            AND approval_status = 'approved' AND (rsvp IS NULL OR rsvp != 'no')"
     );
     $approved->execute([$event_id]);
-    $currentFilled = (int)$approved->fetchColumn();
+    $out['filled'] = (int)$approved->fetchColumn();
+    return $out;
+}
+
+function maybe_promote_waitlisted(PDO $db, int $event_id): void {
+    $cap = event_capacity($db, $event_id);
+    if (!$cap['found'] || !$cap['waitlist']) return; // waitlist disabled for this event
+    $capacity = $cap['capacity'];
+    if ($capacity <= 0) return;
+    $currentFilled = $cap['filled'];
 
     if ($currentFilled >= $capacity) return; // no open seats
 

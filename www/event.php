@@ -333,6 +333,9 @@ if ($token === '' && $page_eid > 0) {
             <a class="btn" style="background:#059669;color:#fff;text-decoration:none" href="/checkin.php?event_id=<?= $page_eid ?>">Manage Game</a>
             <a class="btn" style="background:#0f172a;color:#fff;text-decoration:none" href="/table_manager.php?event_id=<?= $page_eid ?>" title="Phone-first table console">&#128242; Table Manager</a>
             <?php endif; ?>
+            <?php if ($evUpcoming): ?>
+            <button type="button" class="btn btn-outline" id="evShareBtn" data-act="toggleSharePanel" aria-expanded="false" aria-controls="evSharePanel">&#128228; Share invite</button>
+            <?php endif; ?>
             <div class="ev-more-dd" id="evMoreDD">
                 <button type="button" class="btn btn-outline" data-act="toggleEvMore" data-a1="@event">More <span style="font-size:.7rem">&#9662;</span></button>
                 <div class="ev-more-panel" id="evMorePanel">
@@ -343,9 +346,7 @@ if ($token === '' && $page_eid > 0) {
                     <a href="/event_blinds.php?event_id=<?= $page_eid ?>">&#9202; Blinds &amp; timer display</a>
                     <?php endif; ?>
                     <a href="javascript:void(0)" data-act="copyEventLinkAndClose" data-a1="@self">&#128279; Copy link</a>
-                    <?php if ($isAdmin): ?>
                     <a href="/walkin_display.php?event_id=<?= $page_eid ?>" target="_blank" rel="noopener">&#x1F4F1; Walk-up QR</a>
-                    <?php endif; ?>
                     <?php if ($evUpcoming): ?>
                     <?php /* An upcoming event is cancelled, not deleted: guests are
                              told, the event stays (marked) so it can be duplicated. */ ?>
@@ -369,6 +370,70 @@ if ($token === '' && $page_eid > 0) {
                 </div>
             </div>
         </div>
+        <?php if ($evUpcoming): ?>
+        <?php /* Share invite (v1.19.0): a link anyone can use to put themselves on
+                 the list, for a host who has no contact details to invite from.
+                 Filled by share_link_dl.php when opened; the token is minted then. */ ?>
+        <section class="ev-share" id="evSharePanel" hidden aria-labelledby="evShareTitle">
+            <h2 class="ev-share-title" id="evShareTitle">Share an invite link</h2>
+            <p class="ev-share-hint">Post it in a group chat, AirDrop it to the phones around you, or let people scan the QR off your screen. Whoever opens it puts themselves on the list with a name and an email or phone. The link shows the venue's name, not the address.</p>
+            <div class="ev-share-off" id="evShareOff" hidden>
+                <p>The link is turned off. Anyone who opens the old one is told it is no longer active.</p>
+                <button type="button" class="btn btn-primary" data-act="shareLinkAction" data-a1="rotate">Turn on with a new link</button>
+            </div>
+            <div id="evShareOn" hidden>
+                <div class="ev-share-url" id="evShareUrl"></div>
+                <div class="ev-share-row">
+                    <button type="button" class="btn btn-primary" id="evShareGo" data-act="shareInvite">Share&hellip;</button>
+                    <button type="button" class="btn btn-outline" data-act="showShareQr">Show QR</button>
+                    <button type="button" class="btn btn-outline" id="evShareCopy" data-act="copyShareLink">Copy link</button>
+                </div>
+                <label class="ev-share-switch">
+                    <input type="checkbox" id="evShareApproval" data-act-change="shareApprovalChanged" data-change-a1="@self">
+                    <span>People who join need my OK</span>
+                </label>
+                <p class="ev-share-count" id="evShareCount" role="status"></p>
+                <div class="ev-share-row ev-share-quiet">
+                    <button type="button" class="btn btn-outline" data-act="shareLinkAction" data-a1="rotate">Make a new link</button>
+                    <button type="button" class="btn btn-outline" data-act="shareLinkAction" data-a1="off">Turn link off</button>
+                </div>
+            </div>
+            <p class="ev-share-err" id="evShareErr" role="alert" hidden></p>
+        </section>
+        <div class="pk-modal-overlay ev-share-qr" id="evShareQr" role="dialog" aria-modal="true" aria-labelledby="evShareQrTitle" data-act-self="closeShareQr">
+            <div class="ev-share-qr-card">
+                <div id="evShareQrImg"></div>
+                <div class="ev-share-qr-title" id="evShareQrTitle"><?= htmlspecialchars($ev['title'], ENT_QUOTES | ENT_SUBSTITUTE) ?></div>
+                <div class="ev-share-qr-sub">Point your camera here to join</div>
+                <button type="button" class="btn btn-outline" data-act="closeShareQr">Done</button>
+            </div>
+        </div>
+        <script src="/vendor/qrcode.min.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/qrcode.min.js') ?: 0)) ?>" defer></script>
+        <style>
+        .ev-share { margin-top:1rem; border:1.5px solid #cbd5e1; border-radius:10px; padding:1rem; background:#fff; }
+        .ev-share-title { font-size:1rem; margin:0 0 .35rem; color:#0f172a; }
+        .ev-share-hint { font-size:.85rem; color:#475569; margin:0 0 .8rem; line-height:1.5; }
+        .ev-share-url { font-family:ui-monospace,monospace; font-size:.78rem; color:#334155; background:#f1f5f9; border-radius:6px; padding:.45rem .6rem; overflow-wrap:anywhere; margin-bottom:.7rem; }
+        .ev-share-row { display:flex; gap:.5rem; flex-wrap:wrap; }
+        .ev-share-row .btn { min-height:36px; }
+        .ev-share-quiet { margin-top:.6rem; }
+        .ev-share-quiet .btn { font-size:.8rem; }
+        .ev-share-switch { display:flex; align-items:center; gap:.5rem; margin:.85rem 0 0; font-size:.88rem; color:#334155; cursor:pointer; min-height:28px; }
+        .ev-share-switch input { width:18px; height:18px; }
+        .ev-share-count { font-size:.82rem; color:#475569; margin:.5rem 0 0; }
+        .ev-share-count:empty { display:none; }
+        .ev-share-off p { font-size:.88rem; color:#92400e; background:#fffbeb; border:1px solid #f59e0b; border-radius:8px; padding:.55rem .7rem; margin:0 0 .6rem; }
+        .ev-share-err { font-size:.85rem; color:#991b1b; margin:.6rem 0 0; }
+        /* .pk-modal-overlay gives display none/.open flex, and tells help-bubble.js to hold its tips. */
+        .pk-modal-overlay.ev-share-qr { z-index:1300; background:#0f172a; padding:1rem; }
+        .ev-share [hidden] { display:none !important; }
+        .ev-share-qr-card { background:#fff; border-radius:16px; padding:1.25rem; text-align:center; width:min(92vw, 440px); box-sizing:border-box; }
+        .ev-share-qr-card img { width:100%; height:auto; image-rendering:pixelated; display:block; }
+        .ev-share-qr-title { font-weight:800; font-size:1.1rem; color:#0f172a; margin:.75rem 0 .2rem; overflow-wrap:anywhere; }
+        .ev-share-qr-sub { font-size:.88rem; color:#475569; margin-bottom:.9rem; }
+        .inv-via-tag { font-size:.65rem; font-weight:700; color:#1e40af; background:#eff6ff; border:1px solid #bfdbfe; border-radius:4px; padding:.05rem .3rem; }
+        </style>
+        <?php endif; ?>
         <style>
         .ev-more-dd { position:relative; }
         .ev-more-panel { display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:60;background:#fff;
@@ -777,6 +842,117 @@ function evpCopyLink(btn) {
 // </body> blocks and the trailing one belongs to a render branch that a normal
 // event view never reaches, so the helper was undefined and the control dead.
 function copyEventLinkAndClose(el) { evpCopyLink(el); toggleEvMore(); }
+
+// ── Share invite (share_link_dl.php, invite.php) ──────────────────────────────
+var EV_TITLE = <?= js_json((string)$ev['title']) ?>;
+var EV_SHARE = null;            // the endpoint's last answer
+var shareWake = null;           // Wake Lock while the QR is up
+function shareCall(action, extra) {
+    var fd = new FormData();
+    fd.append('csrf_token', EV_CSRF);
+    fd.append('action', action);
+    fd.append('event_id', EV_EID);
+    for (var k in (extra || {})) fd.append(k, extra[k]);
+    return fetch('/share_link_dl.php', { method: 'POST', body: fd, headers: {'X-Requested-With': 'XMLHttpRequest'} })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+            var err = document.getElementById('evShareErr');
+            if (!j || !j.ok) {
+                if (err) { err.textContent = (j && j.error) || 'Could not reach the server.'; err.hidden = false; }
+                return null;
+            }
+            if (err) err.hidden = true;
+            EV_SHARE = j;
+            renderSharePanel();
+            return j;
+        });
+}
+function renderSharePanel() {
+    var j = EV_SHARE; if (!j) return;
+    document.getElementById('evShareOn').hidden  = !j.on;
+    document.getElementById('evShareOff').hidden = !!j.on;
+    document.getElementById('evShareUrl').textContent = j.url || '';
+    document.getElementById('evShareApproval').checked = !!j.approval;
+    // On a phone the share sheet carries AirDrop and every app; elsewhere
+    // the main button copies and the separate Copy button would repeat it.
+    var canShare = !!navigator.share;
+    document.getElementById('evShareGo').textContent = canShare ? 'Share\u2026' : 'Copy link';
+    document.getElementById('evShareCopy').hidden = !canShare;
+    var c = '';
+    if (j.joined > 0) {
+        c = j.joined + (j.joined === 1 ? ' person has' : ' people have') + ' joined from this link';
+        if (j.waiting > 0) c += ', ' + j.waiting + ' waiting for your OK (see Pending Approval below)';
+        c += '.';
+    }
+    document.getElementById('evShareCount').textContent = c;
+}
+function toggleSharePanel() {
+    var p = document.getElementById('evSharePanel'), b = document.getElementById('evShareBtn');
+    if (!p) return;
+    var open = p.hidden;
+    p.hidden = !open;
+    if (b) b.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) {
+        shareCall('get').then(function () { var t = document.getElementById('evShareTitle'); if (t) { t.tabIndex = -1; t.focus(); } });
+    }
+}
+function shareText() { return 'Join me for ' + EV_TITLE + '. Save your seat here:'; }
+function copyShareLink() {
+    if (!EV_SHARE || !EV_SHARE.url) return;
+    var url = EV_SHARE.url;
+    pkCopy(url).then(function (ok) {
+        if (ok) evToast('Invite link copied');
+        else pkAlert(url, { title: 'Invite link: copy it from here' });
+    });
+}
+function shareInvite() {
+    if (!EV_SHARE || !EV_SHARE.url) return;
+    if (!navigator.share) { copyShareLink(); return; }
+    // AbortError = the host closed the sheet; nothing to say.
+    navigator.share({ title: EV_TITLE, text: shareText(), url: EV_SHARE.url }).catch(function (e) {
+        if (e && e.name !== 'AbortError') copyShareLink();
+    });
+}
+function showShareQr() {
+    if (!EV_SHARE || !EV_SHARE.url || typeof qrcode !== 'function') return;
+    var qr = qrcode(0, 'M');
+    qr.addData(EV_SHARE.url);
+    qr.make();
+    var holder = document.getElementById('evShareQrImg');
+    var img = document.createElement('img');
+    img.src = qr.createDataURL(8, 4);
+    img.alt = 'QR code for the invite link';
+    holder.replaceChildren(img);
+    var ov = document.getElementById('evShareQr');
+    ov.classList.add('open');
+    var done = ov.querySelector('button'); if (done) done.focus();
+    if (navigator.wakeLock && navigator.wakeLock.request) {
+        navigator.wakeLock.request('screen').then(function (l) { shareWake = l; }).catch(function () {});
+    }
+}
+function closeShareQr() {
+    var ov = document.getElementById('evShareQr');
+    if (!ov || !ov.classList.contains('open')) return;
+    ov.classList.remove('open');
+    if (shareWake) { shareWake.release().catch(function () {}); shareWake = null; }
+    var b = document.querySelector('[data-act="showShareQr"]'); if (b) b.focus();
+}
+document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeShareQr();
+});
+function shareApprovalChanged(el) {
+    shareCall('set_approval', { on: el.checked ? '1' : '0' }).then(function (j) {
+        if (j) evToast(j.approval ? 'Link joiners will wait for your OK' : 'Link joiners go straight on the list');
+    });
+}
+async function shareLinkAction(what) {
+    if (what === 'off') {
+        if (!(await pkConfirm('Turn off this invite link? Anyone who opens it is told it is no longer active. People who already joined stay on the list.', { okLabel: 'Turn off', danger: true }))) return;
+    } else if (EV_SHARE && EV_SHARE.on) {
+        if (!(await pkConfirm('Make a new link? The old one stops working, so anyone you already sent it to will need the new one.', { okLabel: 'Make a new link' }))) return;
+    }
+    shareCall(what).then(function (j) { if (j) evToast(what === 'off' ? 'Invite link turned off' : 'New invite link ready'); });
+}
 // Comment pictures: the form is a .cm-form served by pk-comment-pic.js (footer).
 async function deleteComment(id) {
     if (!(await pkConfirm('Delete this comment?'))) return;
@@ -874,6 +1050,12 @@ var ALLOW_MAYBE = <?= $allowMaybe ? 'true' : 'false' ?>;
 var invBase = [], invQueue = {}, sawPending = false;
 var EV_KNOWN = <?= js_json($rosterKnown ?? [], JSON_FORCE_OBJECT) ?>;   // lower(roster name) -> the league's known-as name
 function knownTag(name) { var k = EV_KNOWN[String(name || '').toLowerCase()]; return k ? ' <span class="pk-known" title="Known as in the league">(' + escH(k) + ')</span>' : ''; }
+// How a guest put themselves on the list (event_invites.join_source).
+function viaTag(inv) {
+    if (inv.via === 'share')  return ' <span class="inv-via-tag" title="Joined through your shared invite link">via link</span>';
+    if (inv.via === 'walkin') return ' <span class="inv-via-tag" title="Signed up at the door with the walk-up QR">walk-in</span>';
+    return '';
+}
 function escH(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 function renderInvPanel() {
@@ -940,7 +1122,7 @@ function renderInvPanel() {
     // way the declined list below reads.
     function invRow(inv) {
         ih += '<div style="font-size:.875rem;color:#334155;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">' + rsvpSel(inv)
-            + '<span style="flex:1;min-width:0">' + escH(inv.username) + knownTag(inv.username)
+            + '<span style="flex:1;min-width:0">' + escH(inv.username) + knownTag(inv.username) + viaTag(inv)
             + (inv.no_contact ? ' <span class="inv-nocontact-tag" title="No email or phone on file">no contact</span>' : '') + '</span>';
         if (inv.delivery === 'failed') {
             ih += '<span title="' + escH(inv.delivery_error || 'Delivery failed') + '" style="font-size:.68rem;font-weight:700;color:#dc2626;background:#fef2f2;border:1px solid #fecaca;border-radius:5px;padding:.1rem .4rem;cursor:help">&#10007; failed</span>';
@@ -973,7 +1155,7 @@ function renderInvPanel() {
         ih += '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#d97706;margin-top:.7rem;margin-bottom:.4rem">&#9203; Pending Approval (' + pending.length + ')</div>';
         pending.forEach(function(inv) {
             ih += '<div style="font-size:.875rem;color:#334155;display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;background:#fefce8;border:1px solid #fde68a;border-radius:6px;padding:.35rem .5rem;margin-bottom:.3rem">'
-                + '<span style="flex:1;min-width:0">' + escH(inv.username) + knownTag(inv.username) + '</span>'
+                + '<span style="flex:1;min-width:0">' + escH(inv.username) + knownTag(inv.username) + viaTag(inv) + '</span>'
                 + (EV_CANCELLED ? '' : '<button type="button" class="btn-approve-inv" data-username="' + escH(inv.username) + '" style="font-size:.75rem;padding:.2rem .55rem;border-radius:5px;border:0;background:#16a34a;color:#fff;font-weight:600;cursor:pointer">Approve</button>'
                 + '<button type="button" class="btn-deny-inv" data-username="' + escH(inv.username) + '" style="font-size:.75rem;padding:.2rem .55rem;border-radius:5px;border:0;background:#dc2626;color:#fff;font-weight:600;cursor:pointer">Deny</button>') + '</div>';
         });

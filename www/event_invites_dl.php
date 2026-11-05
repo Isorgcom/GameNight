@@ -34,7 +34,7 @@ if (!can_manage_event($db, $eid, (int)$current['id'], $isAdmin)) {
 }
 
 $stmt = $db->prepare(
-    "SELECT username, phone, email, rsvp, occurrence_date, approval_status, sort_order, event_role,
+    "SELECT username, phone, email, rsvp, occurrence_date, approval_status, sort_order, event_role, join_source,
             (SELECT 1 FROM event_notifications_sent ens
              WHERE ens.event_id = event_invites.event_id AND ens.notification_type = 'invite'
                AND ens.occurrence_date = '' AND ens.user_identifier = LOWER(event_invites.username)
@@ -103,7 +103,7 @@ foreach ($stmt->fetchAll() as $inv) {
     if ($inv['occurrence_date'] === null) {
         $u = strtolower($inv['username']);
         $delivery = _invite_delivery($q_state[$u] ?? null, $log_state[$u] ?? null);
-        $row = ['username' => $inv['username'], 'rsvp' => $inv['rsvp'], 'approval_status' => $inv['approval_status'], 'sort_order' => $inv['sort_order'], 'event_role' => $inv['event_role'] ?? 'invitee', 'sent' => !empty($inv['invite_sent']), 'phone' => $inv['phone'] ?? '', 'email' => $inv['email'] ?? '', 'no_contact' => (trim((string)($inv['phone'] ?? '')) === '' && trim((string)($inv['email'] ?? '')) === ''), 'delivery' => $delivery['state'], 'delivery_error' => $delivery['error']];
+        $row = ['username' => $inv['username'], 'rsvp' => $inv['rsvp'], 'approval_status' => $inv['approval_status'], 'sort_order' => $inv['sort_order'], 'event_role' => $inv['event_role'] ?? 'invitee', 'sent' => !empty($inv['invite_sent']) || !empty($inv['join_source']), 'via' => (string)($inv['join_source'] ?? ''), 'phone' => $inv['phone'] ?? '', 'email' => $inv['email'] ?? '', 'no_contact' => (trim((string)($inv['phone'] ?? '')) === '' && trim((string)($inv['email'] ?? '')) === ''), 'delivery' => $delivery['state'], 'delivery_error' => $delivery['error']];
         $base[] = $row;
     } else {
         $occ[$inv['occurrence_date']][] = ['username' => $inv['username'], 'rsvp' => $inv['rsvp'], 'approval_status' => $inv['approval_status']];

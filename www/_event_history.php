@@ -177,6 +177,7 @@ function eh_body_meta(string $type, string $body, array $ctx): array {
         if ($o !== null) $meta['offset'] = $o;
     } elseif ($type === 'rsvp_to_creator') {
         if (preg_match('/^(.+?) replied (YES|NO|MAYBE) to /', $body, $m)) { $meta['responder'] = $m[1]; $meta['rsvp'] = strtolower($m[2]); }
+        elseif (preg_match('/^(.+?) joined ".*" from your invite link/s', $body, $m)) { $meta['responder'] = $m[1]; $meta['rsvp'] = 'yes'; $meta['via'] = 'share'; }
     } elseif ($type === 'event_message') {
         $k = strtolower(trim($body));
         if (isset($ctx['subjects'][$k])) $meta['message_id'] = $ctx['subjects'][$k];
@@ -492,6 +493,7 @@ function eh_label(string $type, array $meta, int $n = 1, string $direction = 'ou
         case 'event_updated': return 'Update notice';
         case 'online_table':  return 'Online table seat';
         case 'rsvp_to_creator':
+            if (($meta['via'] ?? '') === 'share' && !empty($meta['responder'])) return 'Notice to hosts: ' . $meta['responder'] . ' joined from the invite link';
             return 'Notice to hosts' . (!empty($meta['responder']) ? ': ' . $meta['responder'] . ' replied ' . strtoupper((string)($meta['rsvp'] ?? '')) : '');
         case 'event_message': return 'Message to guests' . (!empty($meta['subject']) ? ': ' . $meta['subject'] : '');
         case 'event_poll':    return 'Poll';
@@ -499,6 +501,7 @@ function eh_label(string $type, array $meta, int $n = 1, string $direction = 'ou
         case 'waitlist_promoted':     return 'Seat opened up';
         case 'rsvp_deadline_demoted': return 'Moved to the waitlist';
         case 'poker_approved':        return 'Approved to play';
+        case 'joined_event':          return 'On the list (joined from the invite link)';
         case 'conversation':  return $direction === 'inbound' ? ('Text from ' . $name) : 'Reply from the host';
         case 'auto_reply':    return 'Automatic reply';
         case 'rsvp_reply':    return $name . ' replied ' . eh_rsvp_label($meta['rsvp'] ?? null);

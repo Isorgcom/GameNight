@@ -319,6 +319,17 @@ RSVP options: **Yes**, **No**, and optionally **Maybe** (configurable in admin s
 
 Event creators are notified when someone changes their RSVP.
 
+### Share an invite link
+
+For people the host has no contact details for, the event page's **Share invite** button (upcoming events, hosts only) opens a panel with a link to `/invite.php?e=<id>&t=<token>`:
+
+- **Share…** opens the phone's share sheet (AirDrop, Messages, WhatsApp and the rest). Where there is no share sheet, the button copies the link.
+- **Show QR** fills the screen with a QR code for the link and keeps the screen awake while it is up.
+- **People who join need my OK** (on by default): people who join through the link wait in Pending Approval. With it off they go straight on the list, up to the event's capacity, then onto the waiting list. The event's own *requires approval* setting still applies.
+- **Make a new link** / **Turn link off**: the old link then says it is no longer active. People who already joined stay on the list. The walk-up QR uses its own token and is not affected.
+
+The invite page shows the title, date and time, the venue's name, the host and how many seats are left, but **not the street address**, since a link can be forwarded to anyone. The address reaches a guest in their confirmation (or approval notice) through their own event link. A signed-out visitor gives a name and an email or phone. An account found by that address is always Pending, so nobody can confirm a spot for someone else by typing their email. A signed-in visitor joins with one tap. Ten sign-ups per address per hour, and 100 per event per day. Guests who joined this way are tagged *via link* in the host's Invites panel.
+
 ---
 
 ## Poker Game Management
