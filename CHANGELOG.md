@@ -11,6 +11,21 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.19.0] - 2026-11-05
+
+### Added
+
+- **Share an invite link with people you have no contact details for.** An upcoming event's page has a **Share invite** button for its hosts. It opens a panel with a link to a new public page, `invite.php`. **Share…** opens the phone's share sheet (AirDrop to the phones around you, Messages, WhatsApp, a group chat), and on a computer the button copies the link. **Show QR** fills the screen with a code to scan and keeps the screen awake. Whoever opens the link sees the game, the date and time, the venue's name, the host and the seats left, then puts themselves on the list with a name and an email or phone, or with one tap if they're signed in. **People who join need my OK** is on by default, so link sign-ups wait in Pending Approval. With it off they go straight on the list up to capacity, then onto the waiting list. The street address is never on the shared page, since a link can be forwarded anywhere: guests get it in their confirmation, or in the approval notice, which now carries the location and an Event Details link. **Make a new link** and **Turn link off** retire a link that went further than intended. The link has its own token (`events.share_token`), so the walk-up QR is unaffected. Guests who joined this way are tagged *via link* (walk-ins *walk-in*) in the Invites panel, and hosts are told "X joined from your invite link". An account found by a typed email or phone always waits for the host, so nobody can confirm a seat for someone else. Sign-ups are capped at 10 per address per hour and 100 per event per day (`share_attempts`). The join rules now live in `_public_join.php` and are shared with `walkin.php`; the host endpoint is `share_link_dl.php`.
+
+### Changed
+
+- **Every host can open the walk-up QR.** The event page's More menu showed **Walk-up QR** to site admins only, though `walkin_display.php` already let the event's hosts in. It now shows to anyone who can manage the event.
+
+### Fixed
+
+- **A walk-in who gave only a phone number now gets the waiting-list text.** A brand-new walk-in on an event that needs approval was sent the "you're on the waiting list" notice by email only, so a phone-only guest heard nothing. It now goes by the channel the account was set up with.
+- **Walk-ins no longer count as "invitations not sent."** A guest who put themselves on the list at the door was counted in the event page's "Invitations not sent to N people" banner, and the host was offered to send them an invitation. Guests who joined themselves now count as reached.
+
 ## [v1.18.0] - 2026-11-04
 
 ### Added

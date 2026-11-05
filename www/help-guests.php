@@ -73,14 +73,20 @@ $allow_reg   = get_setting('allow_registration', '1') === '1';
     </div>
 
     <div class="help-step">
-        <h2><span class="step-num">3</span> Walking in without an invite?</h2>
+        <h2><span class="step-num">3</span> Got a shared invite link?</h2>
+        <p>A host can share one link for a game, in a group chat, by AirDrop, or as a QR code on their phone. Open it and you'll see the game, when it is and roughly where (the venue's name). Type your name and an email address or phone number, tap <strong>I'm in</strong> or <strong>Ask to join</strong>, and you're on the list or waiting for the host's OK. Signed in already? It's one tap.</p>
+        <div class="hint">The street address isn't on the shared page. It arrives in your confirmation once you're on the list. If the page says the link is no longer active, ask the host for the current one.</div>
+    </div>
+
+    <div class="help-step">
+        <h2><span class="step-num">4</span> Walking in without an invite?</h2>
         <p>Some events have a <strong>walk-in QR code</strong> at the door. Scan it with your phone camera, enter your name and an email address or phone number, and you're checked in. The site can even assign you a table and seat automatically. If you gave a phone number, a 6-digit code arrives by text so you can sign in later; you can skip it, you're already in.</p>
         <img class="help-shot" src="/img/help/walkin-qr.png?v=<?= @filemtime(__DIR__ . '/img/help/walkin-qr.png') ?: 0 ?>" alt="The walk-in registration form on a phone: the event name, date and time, a name field, an email-or-phone field, and the Register button" style="max-width:min(360px, 100%)">
         <div class="hint">Some hosts review walk-ins before adding them to the player list, so you might see a "pending approval" message until the host waves you in.</div>
     </div>
 
     <div class="help-step">
-        <h2><span class="step-num">4</span> Want the full picture?</h2>
+        <h2><span class="step-num">5</span> Want the full picture?</h2>
         <p>You can use everything above without ever creating an account. But if you want to:</p>
         <ul>
             <li>See who else is coming</li>

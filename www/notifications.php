@@ -31,7 +31,7 @@ $typeLabels = [
     'invite' => 'Invitation', 'rsvp_nudge' => 'RSVP reminder', 'reminder' => 'Event reminder',
     'event_updated' => 'Event updated', 'cancel_event' => 'Cancelled', 'cancel_occurrence' => 'Cancelled',
     'event_comment' => 'Comment', 'event_message' => 'Host message', 'event_poll' => 'Poll',
-    'waitlist_promoted' => 'Waitlist', 'rsvp_deadline_demoted' => 'Waitlist', 'poker_approved' => 'Approved',
+    'waitlist_promoted' => 'Waitlist', 'rsvp_deadline_demoted' => 'Waitlist', 'poker_approved' => 'Approved', 'joined_event' => 'Joined',
     'rsvp_to_creator' => 'RSVP reply',
     'dm' => 'Message', 'ticket_reply' => 'Support', 'ticket_admin' => 'Support',
 ];

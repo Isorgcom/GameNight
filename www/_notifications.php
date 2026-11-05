@@ -147,7 +147,8 @@ function queue_rsvp_reply_notifications(
     ?string $occurrence_date,
     string $responder_username,
     string $responder_display,
-    string $rsvp
+    string $rsvp,
+    ?string $via = null
 ): void {
     if ($event_id <= 0 || $rsvp === '') return;
 
@@ -177,7 +178,7 @@ function queue_rsvp_reply_notifications(
             'rsvp'               => $rsvp,
             'responder_username' => $responder_username,
             'responder_display'  => $responder_display,
-        ], null, $u['id']);
+        ] + ($via !== null ? ['via' => $via] : []), null, $u['id']);
     }
 }
 
@@ -574,7 +575,7 @@ function _notify_category(string $type): string {
         'reminder'                                                   => 'reminders',
         'event_updated', 'cancel_event', 'cancel_occurrence', 'online_table' => 'changes',
         'event_comment'                                              => 'comments',
-        'waitlist_promoted', 'rsvp_deadline_demoted', 'poker_approved' => 'status',
+        'waitlist_promoted', 'rsvp_deadline_demoted', 'poker_approved', 'joined_event' => 'status',
         'event_message', 'event_poll', 'sms_reply'                   => 'messages',
         'rsvp_to_creator'                                            => 'rsvp_replies',
         'dm'                                                         => 'dms',
@@ -1052,6 +1053,13 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
         case 'rsvp_to_creator':
             $rsvp      = strtoupper((string)($payload['rsvp'] ?? ''));
             $responder = (string)($payload['responder_display'] ?? $payload['responder_username'] ?? 'Someone');
+            if (($payload['via'] ?? '') === 'share') {
+                // Joined through the host's shared invite link (invite.php).
+                $subject = "$responder joined \"$title\" from your invite link";
+                $smsBody = "$responder joined \"$title\" on $start from your invite link.";
+                $htmlBody = '<p><strong>' . htmlspecialchars($responder) . '</strong> joined <strong>' . htmlspecialchars($title) . '</strong> on ' . htmlspecialchars($start) . ' from your invite link.</p>';
+                break;
+            }
             $subject = "$responder replied $rsvp to \"$title\"";
             $smsBody = "$responder replied $rsvp to \"$title\" on $start.";
             $htmlBody = '<p><strong>' . htmlspecialchars($responder) . '</strong> replied <strong>' . htmlspecialchars($rsvp) . '</strong> to <strong>' . htmlspecialchars($title) . '</strong> on ' . htmlspecialchars($start) . '.</p>';
@@ -1202,9 +1210,34 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
             $table = $payload['table'] ?? null;
             $seat  = $payload['seat'] ?? null;
             $seatLabel = ($table && $seat) ? " Table $table, Seat $seat." : '';
+            // The guest's own event link carries the address, which a guest who
+            // came in through a shared link has not seen before approval.
+            $rsvp_token = _invitee_rsvp_token($db, $event_id, $username);
+            $event_link = $rsvp_token !== '' ? ($site_url . '/event.php?token=' . urlencode($rsvp_token)) : $url;
             $subject = "Approved for $title";
-            $smsBody = "You're approved for \"$title\" on $start.$seatLabel";
-            $htmlBody = '<p>You have been approved for <strong>' . htmlspecialchars($title) . '</strong> on ' . htmlspecialchars($start) . '.' . htmlspecialchars($seatLabel) . '</p>';
+            $smsBody = "You're approved for \"$title\" on $when.$seatLabel$locSms Details: $event_link";
+            $htmlBody = '<p>You have been approved for <strong>' . htmlspecialchars($title) . '</strong> on ' . htmlspecialchars($when) . '.' . htmlspecialchars($seatLabel) . '</p>'
+                      . $locHtml
+                      . '<p style="margin-top:1rem"><a href="' . htmlspecialchars($event_link) . '" style="display:inline-block;padding:.5rem 1.5rem;border-radius:6px;text-decoration:none;font-weight:600;background:#2563eb;color:#fff">Event Details</a></p>';
+            break;
+
+        case 'joined_event':
+            // Confirmation for someone who put themselves on the list through
+            // the host's shared invite link and was let straight in.
+            $rsvp_token = _invitee_rsvp_token($db, $event_id, $username);
+            $event_link = $rsvp_token !== '' ? ($site_url . '/event.php?token=' . urlencode($rsvp_token)) : $url;
+            $subject = "You're on the list: $title ($when)";
+            $smsBody = "You're on the list for \"$title\" on $when.$locSms Details: $event_link";
+            $htmlBody = '<p>Hi ' . htmlspecialchars($user['username']) . ',</p>'
+                      . '<p>You are on the list for <strong>' . htmlspecialchars($title) . '</strong> on ' . htmlspecialchars($when) . '.</p>'
+                      . $locHtml
+                      . '<p style="margin-top:1rem"><a href="' . htmlspecialchars($event_link) . '" style="display:inline-block;padding:.5rem 1.5rem;border-radius:6px;text-decoration:none;font-weight:600;background:#2563eb;color:#fff">Event Details</a></p>';
+            if ($rsvp_token !== '') {
+                $ics_url = $site_url . '/ics.php?token=' . urlencode($rsvp_token);
+                $htmlBody .= '<p style="font-size:.85rem;color:#64748b">&#128197; Add to calendar: '
+                           . '<a href="' . htmlspecialchars($ics_url) . '">Apple / Outlook</a>'
+                           . ' &middot; <a href="' . htmlspecialchars($ics_url . '&google=1') . '">Google</a></p>';
+            }
             break;
 
         default:
