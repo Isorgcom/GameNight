@@ -11,6 +11,12 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.19.4] - 2026-11-05
+
+### Changed
+
+- **A shared invite counts a seat as taken only by a Yes.** The share panel, the QR card and the invite page read "Full" on a game whose host had invited more people than seats, because an invited guest who had not answered yet was counted as holding a seat, and with the link's approval off a new person was put on the waiting list for the same reason. Seats are now counted by the guests who answered Yes: an unanswered or Maybe guest holds nothing, so a ten-seat game with seventeen invited and four Yes reads "6 of 10 seats left" and a link joiner gets a seat (or Pending, when the link asks for the host's OK). The host's own waiting list in the editor keeps its rule: a guest placed beyond capacity there moves up only when an invited guest gives a seat back by answering No, so an unanswered invite still keeps its seat on that list. `event_capacity()` in `www/db.php` now returns both counts (`filled` by Yes, `held` by not-No) and the promotion reads the second.
+
 ## [v1.19.3] - 2026-11-05
 
 ### Changed

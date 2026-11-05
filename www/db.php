@@ -3653,10 +3653,18 @@ function user_leagues(int $user_id): array {
  * Only applies to poker events with sort_order-based priority.
  */
 /**
- * An event's capacity and how full it is, by the waitlist's own rule:
- * seats x tables for a poker event, max_guests for the rest; filled = approved
- * base rows that have not said No. capacity 0 = no limit. waitlist = the
- * event's waitlist_enabled switch.
+ * An event's capacity and how full it is. capacity = seats x tables for a
+ * poker event, max_guests for the rest (0 = no limit); waitlist = the event's
+ * waitlist_enabled switch. Two counts, for two different questions:
+ *   filled  approved base rows that answered Yes: the seats actually taken.
+ *           What the share link, the invite page and the QR card show, and
+ *           what decides whether someone joining by link gets a seat. An
+ *           invited guest who has not answered holds nothing here (v1.19.4).
+ *   held    approved base rows that have not said No: the host's own waiting
+ *           list rule. The editor marks guests beyond capacity as waitlisted
+ *           by their place in the list, and maybe_promote_waitlisted() moves
+ *           one up only when a held seat is given back, so an unanswered
+ *           invite keeps its seat there.
  */
 function event_capacity(PDO $db, int $event_id): array {
     $ev = $db->prepare('SELECT e.id, e.is_poker, e.waitlist_enabled, e.max_guests, ps.seats_per_table, ps.num_tables
@@ -3665,7 +3673,7 @@ function event_capacity(PDO $db, int $event_id): array {
                         WHERE e.id = ?');
     $ev->execute([$event_id]);
     $row = $ev->fetch();
-    $out = ['capacity' => 0, 'filled' => 0, 'waitlist' => false, 'found' => (bool)$row];
+    $out = ['capacity' => 0, 'filled' => 0, 'held' => 0, 'waitlist' => false, 'found' => (bool)$row];
     if (!$row) return $out;
     $out['waitlist'] = (bool)(int)($row['waitlist_enabled'] ?? 1);
     if ((int)$row['is_poker'] === 1) {
@@ -3673,13 +3681,17 @@ function event_capacity(PDO $db, int $event_id): array {
     } else {
         $out['capacity'] = (int)($row['max_guests'] ?? 0);
     }
-    $approved = $db->prepare(
-        "SELECT COUNT(*) FROM event_invites
+    $counts = $db->prepare(
+        "SELECT SUM(CASE WHEN rsvp = 'yes' THEN 1 ELSE 0 END) AS filled,
+                COUNT(*) AS held
+         FROM event_invites
          WHERE event_id = ? AND occurrence_date IS NULL
            AND approval_status = 'approved' AND (rsvp IS NULL OR rsvp != 'no')"
     );
-    $approved->execute([$event_id]);
-    $out['filled'] = (int)$approved->fetchColumn();
+    $counts->execute([$event_id]);
+    $c = $counts->fetch();
+    $out['filled'] = (int)($c['filled'] ?? 0);
+    $out['held']   = (int)($c['held'] ?? 0);
     return $out;
 }
 
@@ -3688,7 +3700,7 @@ function maybe_promote_waitlisted(PDO $db, int $event_id): void {
     if (!$cap['found'] || !$cap['waitlist']) return; // waitlist disabled for this event
     $capacity = $cap['capacity'];
     if ($capacity <= 0) return;
-    $currentFilled = $cap['filled'];
+    $currentFilled = $cap['held']; // an unanswered invite keeps its seat on the host's list
 
     if ($currentFilled >= $capacity) return; // no open seats
 
