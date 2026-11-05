@@ -11,6 +11,12 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.19.1] - 2026-11-05
+
+### Changed
+
+- **The share invite's QR screen looks like an invitation.** **Show QR** used to put a bare code and the event title on a plain background (plain white on a phone). It is now a card on a dark blue background with faint card suits: a "You're invited" band with the site logo and the event title, the date and time, the venue's name, the code in a framed panel, a line telling people to point their camera at it, and the seats or spots left. The code keeps its own white frame, so it scans as before, and the card fits a small phone's screen without scrolling. The overlay keeps its colours on a phone despite `style.css` whitening every other modal there (`event.php`).
+
 ## [v1.19.0] - 2026-11-05
 
 ### Added

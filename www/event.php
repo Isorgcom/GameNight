@@ -400,12 +400,38 @@ if ($token === '' && $page_eid > 0) {
             </div>
             <p class="ev-share-err" id="evShareErr" role="alert" hidden></p>
         </section>
+        <?php
+            // Poster for the full-screen QR: the event's own details, so the code
+            // reads as an invitation rather than a bare square.
+            $qrCap  = event_capacity($db, $page_eid);
+            $qrLeft = ($qrCap['capacity'] ?? 0) > 0 ? max(0, (int)$qrCap['capacity'] - (int)$qrCap['filled']) : null;
+            $qrLogo = get_setting('logo_path', '');
+            $qrDate = ($t = strtotime($date_lbl2)) ? date('D, M j', $t) : $date_lbl2; // the viewer's own date, shortened
+            $qrWhen = trim($qrDate . ($time_lbl2 !== '' ? ' · ' . $time_lbl2 : ''));
+        ?>
         <div class="pk-modal-overlay ev-share-qr" id="evShareQr" role="dialog" aria-modal="true" aria-labelledby="evShareQrTitle" data-act-self="closeShareQr">
+            <span class="ev-qr-suit s1" aria-hidden="true">&spades;</span>
+            <span class="ev-qr-suit s2" aria-hidden="true">&hearts;</span>
+            <span class="ev-qr-suit s3" aria-hidden="true">&clubs;</span>
+            <span class="ev-qr-suit s4" aria-hidden="true">&diams;</span>
             <div class="ev-share-qr-card">
-                <div id="evShareQrImg"></div>
-                <div class="ev-share-qr-title" id="evShareQrTitle"><?= htmlspecialchars($ev['title'], ENT_QUOTES | ENT_SUBSTITUTE) ?></div>
-                <div class="ev-share-qr-sub">Point your camera here to join</div>
-                <button type="button" class="btn btn-outline" data-act="closeShareQr">Done</button>
+                <div class="ev-qr-band">
+                    <?php if ($qrLogo): ?><img class="ev-qr-logo" src="<?= htmlspecialchars($qrLogo, ENT_QUOTES | ENT_SUBSTITUTE) ?>" alt=""><?php endif; ?>
+                    <div class="ev-qr-kicker">You're invited</div>
+                    <div class="ev-share-qr-title" id="evShareQrTitle"><?= htmlspecialchars($ev['title'], ENT_QUOTES | ENT_SUBSTITUTE) ?></div>
+                </div>
+                <div class="ev-qr-body">
+                    <ul class="ev-qr-meta">
+                        <?php if ($qrWhen !== ''): ?><li><span aria-hidden="true">&#128197;</span> <?= htmlspecialchars($qrWhen, ENT_QUOTES | ENT_SUBSTITUTE) ?></li><?php endif; ?>
+                        <?php if (!empty($ev['venue_name'])): ?><li><span aria-hidden="true">&#128205;</span> <?= htmlspecialchars($ev['venue_name'], ENT_QUOTES | ENT_SUBSTITUTE) ?></li><?php endif; ?>
+                    </ul>
+                    <div class="ev-qr-frame"><div id="evShareQrImg"></div></div>
+                    <div class="ev-share-qr-sub"><span aria-hidden="true">&#128247;</span> Point your phone's camera at the code to join</div>
+                    <?php if ($qrLeft !== null): ?>
+                    <div class="ev-qr-seats<?= $qrLeft === 0 ? ' full' : '' ?>"><?= $qrLeft === 0 ? ($qrCap['waitlist'] ? 'Full &middot; you\'ll go on the waiting list' : 'Full') : $qrLeft . ' of ' . (int)$qrCap['capacity'] . ((int)($ev['is_poker'] ?? 0) === 1 ? ' seats' : ' spots') . ' left' ?></div>
+                    <?php endif; ?>
+                    <button type="button" class="btn btn-primary ev-qr-done" data-act="closeShareQr">Done</button>
+                </div>
             </div>
         </div>
         <script src="/vendor/qrcode.min.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/qrcode.min.js') ?: 0)) ?>" defer></script>
@@ -425,12 +451,45 @@ if ($token === '' && $page_eid > 0) {
         .ev-share-off p { font-size:.88rem; color:#92400e; background:#fffbeb; border:1px solid #f59e0b; border-radius:8px; padding:.55rem .7rem; margin:0 0 .6rem; }
         .ev-share-err { font-size:.85rem; color:#991b1b; margin:.6rem 0 0; }
         /* .pk-modal-overlay gives display none/.open flex, and tells help-bubble.js to hold its tips. */
-        .pk-modal-overlay.ev-share-qr { z-index:1300; background:#0f172a; padding:1rem; }
+        /* .pk-modal-overlay gives display none/.open flex, and tells help-bubble.js to hold its tips.
+           style.css whitens every overlay on a phone with !important; this one keeps its poster
+           background (the code sits on its own white frame, so it still scans). */
+        .pk-modal-overlay.ev-share-qr { z-index:1300; padding:1rem; overflow:hidden; align-items:center !important;
+            background: radial-gradient(120% 70% at 50% 0%, #1d4ed8 0%, #1e1b4b 55%, #020617 100%) !important; }
         .ev-share [hidden] { display:none !important; }
-        .ev-share-qr-card { background:#fff; border-radius:16px; padding:1.25rem; text-align:center; width:min(92vw, 440px); box-sizing:border-box; }
-        .ev-share-qr-card img { width:100%; height:auto; image-rendering:pixelated; display:block; }
-        .ev-share-qr-title { font-weight:800; font-size:1.1rem; color:#0f172a; margin:.75rem 0 .2rem; overflow-wrap:anywhere; }
-        .ev-share-qr-sub { font-size:.88rem; color:#475569; margin-bottom:.9rem; }
+        .ev-qr-suit { position:absolute; font-size:9rem; line-height:1; color:rgba(255,255,255,.06); pointer-events:none; user-select:none; }
+        .ev-qr-suit.s1 { top:-1.5rem; left:-1rem; transform:rotate(-14deg); }
+        .ev-qr-suit.s2 { top:12%; right:-1.5rem; transform:rotate(18deg); color:rgba(248,113,113,.09); }
+        .ev-qr-suit.s3 { bottom:6%; left:-1.25rem; transform:rotate(12deg); }
+        .ev-qr-suit.s4 { bottom:-2rem; right:8%; transform:rotate(-10deg); color:rgba(248,113,113,.09); }
+        .ev-share-qr-card { position:relative; background:#fff; border-radius:22px; overflow:hidden; text-align:center;
+            width:min(92vw, 420px); max-height:calc(100vh - 2rem); overflow-y:auto; box-sizing:border-box;
+            box-shadow:0 24px 60px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.08); }
+        .ev-qr-band { background:linear-gradient(135deg, #2563eb 0%, #7c3aed 100%); color:#fff; padding:1.1rem 1.25rem 1rem; }
+        .ev-qr-logo { max-height:34px; max-width:60%; margin:0 auto .45rem; display:block; filter:drop-shadow(0 1px 2px rgba(0,0,0,.25)); }
+        .ev-qr-kicker { font-size:.72rem; font-weight:800; letter-spacing:.14em; text-transform:uppercase; opacity:.85; }
+        .ev-share-qr-title { font-weight:800; font-size:1.45rem; line-height:1.2; margin:.25rem 0 0; overflow-wrap:anywhere; }
+        .ev-qr-body { padding:1rem 1.25rem 1.2rem; }
+        .ev-qr-meta { list-style:none; margin:0 0 .9rem; padding:0; display:flex; flex-direction:column; gap:.25rem; font-size:.92rem; font-weight:600; color:#334155; }
+        .ev-qr-frame { position:relative; margin:0 auto; width:min(68vw, 280px, 46vh); padding:12px; background:#fff; border-radius:16px;
+            box-shadow:0 0 0 2px #e2e8f0, 0 6px 18px rgba(15,23,42,.12); }
+        .ev-qr-frame::before, .ev-qr-frame::after { content:''; position:absolute; width:34px; height:34px; border:4px solid #2563eb; pointer-events:none; }
+        .ev-qr-frame::before { top:-6px; left:-6px; border-right:0; border-bottom:0; border-top-left-radius:18px; }
+        .ev-qr-frame::after { bottom:-6px; right:-6px; border-left:0; border-top:0; border-bottom-right-radius:18px; border-color:#7c3aed; }
+        .ev-qr-frame img { width:100%; height:auto; image-rendering:pixelated; display:block; }
+        .ev-share-qr-sub { font-size:.9rem; color:#475569; margin:1rem 0 .6rem; }
+        .ev-qr-seats { display:inline-block; font-size:.82rem; font-weight:700; color:#166534; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:999px; padding:.25rem .75rem; margin-bottom:.9rem; }
+        .ev-qr-seats.full { color:#92400e; background:#fffbeb; border-color:#f59e0b; }
+        .ev-qr-done { display:block; width:100%; min-height:44px; font-size:1rem; }
+        @media (max-width: 640px), (max-height: 720px) {
+            .ev-qr-band { padding:.85rem 1rem .8rem; }
+            .ev-share-qr-title { font-size:1.2rem; }
+            .ev-qr-body { padding:.8rem 1rem 1rem; }
+            .ev-qr-meta { margin-bottom:.75rem; font-size:.88rem; }
+            .ev-qr-frame { width:min(64vw, 280px, 40vh); padding:10px; }
+            .ev-share-qr-sub { margin:.8rem 0 .5rem; font-size:.85rem; }
+            .ev-qr-seats { margin-bottom:.7rem; }
+        }
         .inv-via-tag { font-size:.65rem; font-weight:700; color:#1e40af; background:#eff6ff; border:1px solid #bfdbfe; border-radius:4px; padding:.05rem .3rem; }
         </style>
         <?php endif; ?>
@@ -920,7 +979,7 @@ function showShareQr() {
     qr.make();
     var holder = document.getElementById('evShareQrImg');
     var img = document.createElement('img');
-    img.src = qr.createDataURL(8, 4);
+    img.src = qr.createDataURL(8, 2);
     img.alt = 'QR code for the invite link';
     holder.replaceChildren(img);
     var ov = document.getElementById('evShareQr');
