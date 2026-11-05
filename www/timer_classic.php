@@ -833,6 +833,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
 <?php endif; ?>
 
 <script src="/vendor/qrcode.min.js"></script>
+<script src="/pk-qr.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-qr.js') ?: 0)) ?>"></script>
 <script src="/vendor/nosleep.min.js"></script>
 <script nonce="<?= csp_nonce() ?>">
 // ─── §7.1  Config from PHP ──────────────────────────────────────

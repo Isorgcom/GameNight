@@ -171,23 +171,21 @@ if (!empty($event['start_time'])) {
 </div>
 
 <script src="/vendor/qrcode.min.js" defer></script>
+<script src="/pk-qr.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-qr.js') ?: 0)) ?>" defer></script>
 <script nonce="<?= csp_nonce() ?>">
 var EVENT_ID = <?= $event_id ?>;
 var WALKIN_URL = <?= js_json($walkin_url) ?>;
 var CSRF = <?= js_json($csrf) ?>;
+var SITE_ICON = <?= js_json(get_setting('banner_path', '')) ?>;
 
 function renderQR() {
     var wrap = document.getElementById('qrWrap');
     wrap.innerHTML = '';
-    var qr = qrcode(0, 'M');
-    qr.addData(WALKIN_URL);
-    qr.make();
     var size = Math.min(window.innerWidth * 0.6, window.innerHeight * 0.4, 400);
     size = Math.max(200, Math.floor(size));
-    // Use the qrcode library's own image output. The previous hand-rolled canvas draw
-    // rendered as a solid black square in some browsers, so render to an <img> instead.
-    var img = document.createElement('img');
-    img.src = qr.createDataURL(8, 4);
+    // pk-qr.js draws the code with the site's icon in the middle (level H).
+    var img = pkQr.image(WALKIN_URL, { logo: SITE_ICON, margin: 4, alt: 'QR code' });
+    if (!img) return;
     img.width = size;
     img.height = size;
     img.style.imageRendering = 'pixelated';

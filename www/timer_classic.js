@@ -4080,14 +4080,17 @@ if (!IS_REMOTE) {
     var qrWrap = document.getElementById('qrWrap');
     if (qrWrap && typeof qrcode !== 'undefined') {
         var remoteUrl = location.origin + '/timer_classic.php?view=remote&key=' + REMOTE_KEY;
-        var qr = qrcode(0, 'M');
-        qr.addData(remoteUrl);
-        qr.make();
         var size = 120;
-        // Use the qrcode library's own image output. The previous hand-rolled canvas draw
-        // rendered as a solid black square in some browsers, so render to an <img> instead.
-        var img = document.createElement('img');
-        img.src = qr.createDataURL(8, 4);
+        // pk-qr.js draws it; no icon on this one, 120px is too small for a logo
+        // to be seen and the extra error correction would crowd the modules.
+        var img = window.pkQr ? pkQr.image(remoteUrl, { margin: 4 }) : null;
+        if (!img) {
+            var qr = qrcode(0, 'M');
+            qr.addData(remoteUrl);
+            qr.make();
+            img = document.createElement('img');
+            img.src = qr.createDataURL(8, 4);
+        }
         img.width = size;
         img.height = size;
         img.style.imageRendering = 'pixelated';

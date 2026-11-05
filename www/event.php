@@ -435,6 +435,7 @@ if ($token === '' && $page_eid > 0) {
             </div>
         </div>
         <script src="/vendor/qrcode.min.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/qrcode.min.js') ?: 0)) ?>" defer></script>
+        <script src="/pk-qr.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-qr.js') ?: 0)) ?>" defer></script>
         <style>
         .ev-share { margin-top:1rem; border:1.5px solid #cbd5e1; border-radius:10px; padding:1rem; background:#fff; }
         .ev-share-title { font-size:1rem; margin:0 0 .35rem; color:#0f172a; }
@@ -905,6 +906,7 @@ function copyEventLinkAndClose(el) { evpCopyLink(el); toggleEvMore(); }
 // ── Share invite (share_link_dl.php, invite.php) ──────────────────────────────
 var EV_TITLE = <?= js_json((string)$ev['title']) ?>;
 var EV_SHARE = null;            // the endpoint's last answer
+var SITE_ICON = <?= js_json(get_setting('banner_path', '')) ?>;  // the icon pk-qr.js sets in the middle of the code
 var shareWake = null;           // Wake Lock while the QR is up
 function shareCall(action, extra) {
     var fd = new FormData();
@@ -973,14 +975,10 @@ function shareInvite() {
     });
 }
 function showShareQr() {
-    if (!EV_SHARE || !EV_SHARE.url || typeof qrcode !== 'function') return;
-    var qr = qrcode(0, 'M');
-    qr.addData(EV_SHARE.url);
-    qr.make();
+    if (!EV_SHARE || !EV_SHARE.url || !window.pkQr) return;
     var holder = document.getElementById('evShareQrImg');
-    var img = document.createElement('img');
-    img.src = qr.createDataURL(8, 2);
-    img.alt = 'QR code for the invite link';
+    var img = pkQr.image(EV_SHARE.url, { logo: SITE_ICON, alt: 'QR code for the invite link' });
+    if (!img) return;
     holder.replaceChildren(img);
     var ov = document.getElementById('evShareQr');
     ov.classList.add('open');

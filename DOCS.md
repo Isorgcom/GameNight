@@ -324,7 +324,7 @@ Event creators are notified when someone changes their RSVP.
 For people the host has no contact details for, the event page's **Share invite** button (upcoming events, hosts only) opens a panel with a link to `/invite.php?e=<id>&t=<token>`:
 
 - **Share…** opens the phone's share sheet (AirDrop, Messages, WhatsApp and the rest). Where there is no share sheet, the button copies the link.
-- **Show QR** fills the screen with a QR code for the link and keeps the screen awake while it is up.
+- **Show QR** fills the screen with a QR code for the link and keeps the screen awake while it is up. The site icon (Admin → Settings → Site Icon / Logo) sits in the middle of the code, as it does on every QR code the site draws; the code is made with extra error correction so it still scans.
 - **People who join need my OK** (on by default): people who join through the link wait in Pending Approval. With it off they go straight on the list, up to the event's capacity, then onto the waiting list. The event's own *requires approval* setting still applies.
 - **Make a new link** / **Turn link off**: the old link then says it is no longer active. People who already joined stay on the list. The walk-up QR uses its own token and is not affected.
 

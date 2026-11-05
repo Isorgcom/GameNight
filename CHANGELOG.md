@@ -11,6 +11,12 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.19.2] - 2026-11-05
+
+### Changed
+
+- **Every QR code carries the site's icon in the middle.** The share invite's **Show QR**, the walk-up QR (its own page and the calendar's modal), the TV pairing code on `/tv` and the Tournament Timer's QR cell (when the cell is at least 160 px) now set the site icon from **Admin → Settings → Site Icon / Logo** on a white plate over the centre of the code, the way branded codes do. A code with the icon is made at error-correction level H, which can rebuild 30% of it, so the covered part (27% of the width) is recovered by any camera; a site with no icon gets the plain code as before. One drawer does it for all of them, `www/pk-qr.js`, which draws on a canvas at about 680px so the icon stays sharp on a TV. The Classic timer's small phone code and the authenticator code on the MFA set-up page stay plain on purpose. The icon setting's hint now says a 200 px picture keeps it sharp in a code.
+
 ## [v1.19.1] - 2026-11-05
 
 ### Changed

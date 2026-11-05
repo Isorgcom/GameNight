@@ -768,7 +768,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
             <!-- Site Icon / Logo -->
             <div class="card">
                 <h2>Site Icon / Logo</h2>
-                <p class="subtitle">Shown in the top-left nav bar and used as the browser tab icon (favicon). JPEG, PNG, GIF, or WebP &mdash; max 2 MB.</p>
+                <p class="subtitle">Shown in the top-left nav bar, used as the browser tab icon (favicon), and set in the middle of every QR code the site draws. JPEG, PNG, GIF, or WebP &mdash; max 2 MB.</p>
                 <?php $banner_path = get_setting('banner_path', ''); ?>
                 <?php if ($banner_path): ?>
                 <div style="background:<?= htmlspecialchars(get_setting('nav_bg_color','') ?: '#0f172a') ?>;padding:.65rem 1rem;border-radius:8px;margin-bottom:.85rem;display:flex;align-items:center">
@@ -793,7 +793,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                         <input type="file" name="banner" required
                                accept="image/jpeg,image/png,image/gif,image/webp"
                                style="display:block;width:100%;padding:.45rem 0;font-size:.875rem">
-                        <p class="hint">Recommended: square PNG with transparency, 32&ndash;64 px.</p>
+                        <p class="hint">Recommended: square PNG with transparency. 32&ndash;64 px is enough for the nav bar; 200 px or more keeps it sharp inside a QR code.</p>
                     </div>
                     <button type="submit" class="btn btn-primary" style="width:100%">Upload</button>
                 </form>

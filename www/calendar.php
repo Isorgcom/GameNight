@@ -1606,7 +1606,8 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
             .week-allday-chip .ev-edit-btn { display: none; }
         }
     </style>
-    <?php if ($isAdmin): ?><script src="/vendor/qrcode.min.js" defer></script><?php endif; ?>
+    <?php if ($isAdmin): ?><script src="/vendor/qrcode.min.js" defer></script>
+    <script src="/pk-qr.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-qr.js') ?: 0)) ?>" defer></script><?php endif; ?>
     <?php if ($current): ?><link href="/vendor/jodit/jodit.min.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/jodit/jodit.min.css') ?: 0)) ?>" rel="stylesheet"><?php endif; ?>
 </head>
 <body>
@@ -3101,15 +3102,12 @@ document.addEventListener('DOMContentLoaded', initWeekView);
 
 <?php if ($isAdmin): ?>
 // ── Walk-up QR modal ──────────────────────────────────────────────────────────
+var SITE_ICON = <?= js_json(get_setting('banner_path', '')) ?>;
 function buildQRCanvas(url, size) {
-    if (typeof qrcode === 'undefined') return null;
-    var qr = qrcode(0, 'M');
-    qr.addData(url);
-    qr.make();
-    // Use the qrcode library's own image output. The previous hand-rolled canvas draw
-    // rendered as a solid black square in some browsers, so render to an <img> instead.
-    var img = document.createElement('img');
-    img.src = qr.createDataURL(8, 4);
+    if (!window.pkQr) return null;
+    // pk-qr.js draws the code with the site's icon in the middle (level H).
+    var img = pkQr.image(url, { logo: SITE_ICON, margin: 4, alt: 'QR code' });
+    if (!img) return null;
     img.width = size; img.height = size;
     img.style.imageRendering = 'pixelated';
     img.alt = 'QR code';

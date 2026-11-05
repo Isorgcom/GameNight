@@ -259,6 +259,8 @@ var TB_KEY      = <?= js_json($remote_key !== '' ? $remote_key : null) ?>;
 // The build stamp this page booted with; get_state carries the current one.
 var TB_ASSET_V  = <?= (int) (@filemtime(__DIR__ . '/timer_display.js') ?: 0) ?>;
 var TB_CAST_KEY = <?= js_json($cast_key ?: null) ?>;
+// The site icon pk-qr.js sets in the middle of the QR cell's code.
+var TB_SITE_ICON = <?= js_json(get_setting('banner_path', '')) ?>;
 var TB_EVENT_TITLE = <?= js_json($event_title) ?>;
 var TB_EMBED       = <?= js_json($is_embed) ?>;
 var TB_PREVIEW     = <?= js_json($is_preview) ?>;
@@ -283,6 +285,7 @@ var TB_EXIT_URL = <?= js_json($event_id ? '/checkin.php?event_id=' . (int)$event
 <script src="/vendor/nosleep.min.js"></script>
 <?php endif; ?>
 <script src="/vendor/qrcode.min.js"></script>
+<script src="/pk-qr.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-qr.js') ?: 0)) ?>"></script>
 <!-- hls.js before the renderer and WITHOUT defer, for the same reason pk-seg.js
      is: buildCell() calls attachHls() as soon as the layout fetch resolves, and
      a deferred library would be a race it loses intermittently. Vendored, so

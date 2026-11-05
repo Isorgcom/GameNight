@@ -76,10 +76,12 @@ header('Cache-Control: no-store');
 </main>
 <iframe id="tvFrame" hidden allow="autoplay; fullscreen; screen-wake-lock" title="Tournament Timer"></iframe>
 <script src="/vendor/qrcode.min.js"></script>
+<script src="/pk-qr.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-qr.js') ?: 0)) ?>"></script>
 <script nonce="<?= csp_nonce() ?>">
 (function () {
     var SECRET = <?= js_json($pair ? $pair['secret'] : '') ?>;
     var SEND_BASE = <?= js_json($send_base) ?>;
+    var SITE_ICON = <?= js_json(get_setting('banner_path', '')) ?>;
     var root = document.documentElement;
     var main = document.getElementById('tvMain');
     var codeEl = document.getElementById('tvCode');
@@ -90,10 +92,8 @@ header('Cache-Control: no-store');
 
     function drawQr(code) {
         try {
-            var qr = qrcode(0, 'M');
-            qr.addData(SEND_BASE + code);
-            qr.make();
-            qrEl.src = qr.createDataURL(8, 2);
+            // pk-qr.js draws the code with the site's icon in the middle (level H).
+            pkQr.into(qrEl, SEND_BASE + code, { logo: SITE_ICON });
         } catch (e) {}
     }
     if (codeEl.textContent.trim()) drawQr(codeEl.textContent.trim());

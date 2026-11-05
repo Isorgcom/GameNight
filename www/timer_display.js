@@ -3004,12 +3004,19 @@ function drawQrCells() {
                            : 'QR code to open this timer on another screen';
         q.el.classList.remove('tb-qr-empty');
         try {
-            var qr = qrcode(0, 'M');
-            qr.addData(url);
-            qr.make();
-            // The library's own image output: a hand-rolled canvas draw rendered
-            // as a solid black square in some browsers (see timer.js).
-            q.img.src = qr.createDataURL(8, 2);
+            if (window.pkQr) {
+                // pk-qr.js: the site's icon over the middle (level H), as on every QR of the
+                // site. Only in a cell with room for it: a logo on a small code costs modules
+                // (H packs ~25% more per side than M) and gains nothing a camera can see.
+                var room = Math.min(q.el.clientWidth || 0, q.el.clientHeight || 0);
+                var icon = typeof TB_SITE_ICON !== 'undefined' ? TB_SITE_ICON : '';
+                pkQr.into(q.img, url, { logo: room >= 160 ? icon : '' });
+            } else {
+                var qr = qrcode(0, 'M');
+                qr.addData(url);
+                qr.make();
+                q.img.src = qr.createDataURL(8, 2);
+            }
         } catch (e) {
             q.drawn = null;
         }
