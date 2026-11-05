@@ -1,11 +1,11 @@
 /* pk-qr.js — one QR drawer for the site (v1.19.2).
  *
  * Draws a code with /vendor/qrcode.min.js (load it first) onto a canvas and
- * composites the site's icon over the middle on a white plate, then hands the
+ * composites the site's icon over the middle on a white disc, then hands the
  * result to an <img> as a PNG data URL. One image, no wrapper markup, so it
  * drops into any container the pages already size (a layout cell, a TV panel,
  * a 220px modal). A code that carries a logo is made at error-correction
- * level H, which can rebuild up to 30% of its codewords; the plate covers 27%
+ * level H, which can rebuild up to 30% of its codewords; the disc spans 30%
  * of the width, about 7% of the area. Without a logo the level stays at M.
  *
  *   pkQr.into(img, text, {logo, margin, alt})  draws into an existing <img>:
@@ -23,7 +23,8 @@
 (function () {
     'use strict';
 
-    var PLATE_PCT  = 0.27;  // of the code's width, quiet zone included
+    var PLATE_PCT  = 0.30;  // the disc's diameter as a share of the code's width, quiet zone included
+    var ICON_PCT   = 0.82;  // the icon's box as a share of the disc; the icon is clipped to the disc
     var TARGET_PX  = 680;   // canvas side; the cell size follows the module count
     var icons = {};         // url -> { img: Image, ok: bool|null, waiting: [fn] }
 
@@ -51,19 +52,6 @@
         rec.img.src = url;
     }
 
-    function roundRect(ctx, x, y, w, h, r) {
-        ctx.beginPath();
-        if (ctx.roundRect) { ctx.roundRect(x, y, w, h, r); }
-        else {
-            ctx.moveTo(x + r, y);
-            ctx.arcTo(x + w, y, x + w, y + h, r);
-            ctx.arcTo(x + w, y + h, x, y + h, r);
-            ctx.arcTo(x, y + h, x, y, r);
-            ctx.arcTo(x, y, x + w, y, r);
-            ctx.closePath();
-        }
-    }
-
     // The code as a PNG data URL; `icon` is a loaded Image or null.
     function draw(text, level, margin, icon) {
         var qr = qrcode(0, level);
@@ -85,18 +73,24 @@
             }
         }
         if (icon) {
-            var plate = Math.round(side * PLATE_PCT);
-            var p0 = Math.round((side - plate) / 2);
+            var mid = side / 2;
+            var rad = Math.round(side * PLATE_PCT) / 2;
             ctx.fillStyle = '#fff';
-            roundRect(ctx, p0, p0, plate, plate, Math.round(plate * 0.18));
+            ctx.beginPath();
+            ctx.arc(mid, mid, rad, 0, Math.PI * 2);
             ctx.fill();
-            var box = Math.round(plate * 0.86);               // the icon's room inside the plate
+            var box = Math.round(rad * 2 * ICON_PCT);        // the icon's room inside the disc
             var iw = icon.naturalWidth, ih = icon.naturalHeight;
             var s = Math.min(box / iw, box / ih);
             var dw = Math.round(iw * s), dh = Math.round(ih * s);
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(mid, mid, rad - 1, 0, Math.PI * 2);      // a hair inside the white edge
+            ctx.clip();
             ctx.imageSmoothingEnabled = true;
             ctx.imageSmoothingQuality = 'high';
-            ctx.drawImage(icon, Math.round((side - dw) / 2), Math.round((side - dh) / 2), dw, dh);
+            ctx.drawImage(icon, Math.round(mid - dw / 2), Math.round(mid - dh / 2), dw, dh);
+            ctx.restore();
         }
         return c.toDataURL('image/png');
     }

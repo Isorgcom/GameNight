@@ -11,6 +11,12 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.19.3] - 2026-11-05
+
+### Changed
+
+- **The icon in the middle of a QR code sits on a round plate.** The white plate under the site icon was a rounded square; it is now a disc, the shape most branded codes use, and the icon is clipped to it so nothing pokes past the edge. The disc is 30% of the code's width, which is the same area as the old square (about 7% of the code), so a code with the icon is still made at error-correction level H and still reads at a third of its size. `www/pk-qr.js` only; every page that draws a code picks the change up through its cache-buster.
+
 ## [v1.19.2] - 2026-11-05
 
 ### Changed
