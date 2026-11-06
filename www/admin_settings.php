@@ -184,6 +184,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 set_setting('show_calendar', isset($_POST['show_calendar']) ? '1' : '0');
                 set_setting('allow_maybe_rsvp', isset($_POST['allow_maybe_rsvp']) ? '1' : '0');
                 set_setting('notifications_enabled', isset($_POST['notifications_enabled']) ? '1' : '0');
+                // Security alerts (security_alert() in auth.php): the switch and the
+                // phone that is texted; the number is stored the way accounts store
+                // theirs (normalize_phone), send_sms() makes it E.164 when it sends.
+                set_setting('security_alerts', isset($_POST['security_alerts']) ? '1' : '0');
+                $__sap = trim((string)($_POST['security_alert_phone'] ?? ''));
+                set_setting('security_alert_phone', $__sap === '' ? '' : normalize_phone($__sap));
                 // Extra browser-push service hosts (comma list; a leading dot matches
                 // subdomains). Hostnames only: the server POSTs to these.
                 $__ph = [];
@@ -1476,6 +1482,21 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                         Enable Notifications
                     </label>
                     <p class="hint">When off, no email, SMS, or WhatsApp notifications will be sent (invites, reminders, updates). Test messages from the Email/SMS tabs still work.</p>
+                </div>
+                <div class="form-group" style="margin-top:.5rem">
+                    <label class="setting-toggle">
+                        <input type="checkbox" name="security_alerts" value="1" class="pk-toggle-input"
+                               <?= get_setting('security_alerts', '1') === '1' ? 'checked' : '' ?>>
+                        <span class="pk-toggle-slider"></span>
+                        Security alerts
+                    </label>
+                    <p class="hint">Tell the admins when the sign-up honeypot is hit, the sign-up or resend-verification limit refuses someone, verification mail is withheld by its per-account cap, an opted-out address is used, or sign-in is locked after failed attempts. At most one message per kind per hour; every hit is in the Logs tab regardless.</p>
+                </div>
+                <div class="form-group" style="margin-top:.5rem">
+                    <label for="security_alert_phone">Text security alerts to</label>
+                    <input type="tel" id="security_alert_phone" name="security_alert_phone" placeholder="555-123-4567" autocomplete="off"
+                           value="<?= htmlspecialchars(get_setting('security_alert_phone', ''), ENT_QUOTES | ENT_SUBSTITUTE) ?>">
+                    <p class="hint">A mobile number for the alerts, texted through the SMS provider even while Enable Notifications is off. Leave it blank and each admin is notified the way their Preferred Contact says. Admins see every alert in their inbox either way.</p>
                 </div>
                 <div class="form-group" style="margin-top:.5rem">
                     <label for="push_extra_hosts">Extra browser-push services</label>

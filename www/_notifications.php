@@ -580,6 +580,7 @@ function _notify_category(string $type): string {
         'rsvp_to_creator'                                            => 'rsvp_replies',
         'dm'                                                         => 'dms',
         'ticket_reply', 'ticket_admin'                               => 'tickets',
+        'security_alert'                                             => 'security',
         'reward_ticket'                                              => 'rewards',
         default                                                      => 'other',
     };
@@ -588,13 +589,15 @@ function _notify_category(string $type): string {
 /**
  * Direct (non-event) notification: writes the in-app inbox row and sends the
  * outbound channels immediately, bypassing the event-keyed pending_notifications
- * queue. Used by DMs and support tickets. The inbox row is always written;
- * outbound honors the site master switch and the user's category preference.
+ * queue. Used by DMs, support tickets and security alerts. The inbox row is
+ * always written; outbound honors the site master switch and the user's
+ * category preference, and is skipped altogether when $outbound is false (a
+ * security alert that already went to the alert phone).
  */
 function notify_user_direct(
     PDO $db, int $user_id, string $notify_type,
     string $subject, string $inbox_body, string $link,
-    ?string $smsBody = null, ?string $htmlBody = null
+    ?string $smsBody = null, ?string $htmlBody = null, bool $outbound = true
 ): void {
     try {
         $db->prepare('INSERT INTO user_notifications (user_id, event_id, notify_type, subject, body, link)
@@ -608,7 +611,7 @@ function notify_user_direct(
         webpush_notify_user($db, $user_id, $subject, $inbox_body, $link);
     } catch (Throwable $e) { /* best-effort */ }
 
-    if (get_setting('notifications_enabled', '0') !== '1') return;
+    if (!$outbound || get_setting('notifications_enabled', '0') !== '1') return;
     $stmt = $db->prepare('SELECT username, email, phone, preferred_contact, notify_prefs FROM users WHERE id = ?');
     $stmt->execute([$user_id]);
     $u = $stmt->fetch();

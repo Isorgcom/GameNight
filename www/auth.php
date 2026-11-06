@@ -364,6 +364,78 @@ function mfa_sms_resend_rate_limited(int $uid): bool {
     return (int)$stmt->fetchColumn() >= 3;
 }
 
+// ── Security alerts (v1.19.9) ───────────────────────────────────────────────
+// Every abuse guard leaves a row in the activity log; this tells the admins as
+// it happens. kind => [the activity_log pattern counted for "N in the last
+// hour", a title, a sentence with %d (the count) and %s (the plural s)].
+const SECURITY_ALERT_KINDS = [
+    'honeypot'     => ['register_honeypot',                  'Honeypot hit',           '%d sign-up post%s filled the honeypot field'],
+    'signup_limit' => ['register_rate_limited',              'Sign-up limit hit',      '%d sign-up%s refused by the hourly per-address limit'],
+    'resend_limit' => ['resend_rate_limited',                'Resend limit hit',       '%d resend-verification request%s refused by the hourly per-address limit'],
+    'verify_cap'   => ['verification % withheld: too many%', 'Verification cap hit',   'verification mail or codes withheld %d time%s by the per-account cap'],
+    'suppressed'   => ['register_suppressed%',               'Opted-out address used', '%d sign-up%s used an address that asked for no sign-up mail'],
+    'login_lock'   => ['login_locked%',                      'Sign-in locked',         'sign-in locked %d time%s after repeated failed attempts'],
+];
+
+/**
+ * Tell the admins that an abuse guard fired: the sign-up honeypot, the sign-up
+ * and resend-verification limits, the per-account caps on verification mail and
+ * codes, a sign-up on an address that opted out, the sign-in lock. At most one
+ * message per kind per hour (the 2026-11-06 scan posted 70 requests in seven
+ * seconds; one text about it is wanted, not seventy), saying how many hits the
+ * hour had and the latest address. Off with the Security alerts switch in
+ * Admin → Settings → General.
+ *
+ * Delivery: the alert phone named there gets one text (an operator channel, so
+ * it waits on neither the master notification switch nor the opt-out footer);
+ * without one, every admin is notified the way their Preferred Contact says.
+ * Admins get the in-app inbox row and a browser push either way. This runs
+ * inside sign-up and login requests, so nothing in it may reach the visitor.
+ */
+function security_alert(string $kind, string $detail = ''): void {
+    try {
+        if (!isset(SECURITY_ALERT_KINDS[$kind]) || get_setting('security_alerts', '1') !== '1') return;
+        $db = get_db();
+        [$pattern, $title, $tpl] = SECURITY_ALERT_KINDS[$kind];
+        $q = $db->prepare("SELECT COUNT(*) FROM activity_log WHERE action LIKE ? AND created_at >= datetime('now', '-1 hour')");
+        $q->execute(['security_alert: ' . $kind . '%']);
+        $already = (int)$q->fetchColumn();
+        $q->closeCursor();
+        if ($already > 0) return;
+        $q->execute([$pattern]);
+        $n = max(1, (int)$q->fetchColumn());
+        $q->closeCursor();
+        // The alert is itself a log row, written before sending so a second
+        // hit arriving meanwhile sees it and stays quiet.
+        db_log_anon_activity("security_alert: $kind", 'warning');
+        $rowId = (int)$db->lastInsertId();
+
+        $site  = get_setting('site_name', 'Game Night');
+        $text  = sprintf($tpl, $n, $n === 1 ? '' : 's') . ' in the last hour, latest from ' . get_client_ip() . ($detail !== '' ? " ($detail)" : '') . '.';
+        $url   = get_site_url() . '/admin_settings.php?tab=logs';
+        $sms   = "$site security: $text $url";
+        $html  = '<p>' . htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE) . '</p>'
+               . '<p><a href="' . htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE) . '">Open the activity log</a></p>';
+        $phone = trim((string)get_setting('security_alert_phone', ''));
+
+        require_once __DIR__ . '/_notifications.php';
+        $admins = $db->query("SELECT id FROM users WHERE role = 'admin'")->fetchAll(PDO::FETCH_COLUMN);
+        foreach ($admins as $aid) {
+            notify_user_direct($db, (int)$aid, 'security_alert', "$site security: $title", $text,
+                               '/admin_settings.php?tab=logs', $sms, $html, $phone === '');
+        }
+        $via = 'notified ' . count($admins) . ' admin' . (count($admins) === 1 ? '' : 's');
+        if ($phone !== '') {
+            require_once __DIR__ . '/sms.php';
+            $err = send_sms($phone, $sms, false);
+            $via = $err === null ? 'texted ***' . substr(preg_replace('/\D/', '', $phone), -4) : 'text failed: ' . $err;
+        }
+        $db->prepare('UPDATE activity_log SET action = ? WHERE id = ?')->execute(["security_alert: $kind ($via)", $rowId]);
+    } catch (Throwable $e) {
+        error_log("GameNight security alert ($kind) failed: " . $e->getMessage());
+    }
+}
+
 function login_rate_limited(): bool {
     $ip = function_exists('get_client_ip') ? get_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? '');
     $db = get_db();
@@ -452,7 +524,18 @@ function attempt_login(string $identifier, string $password): bool|string {
         $authed = false;
     }
     if (!$authed) {
-        db_log_anon_activity('failed_login: ' . strtolower(trim($identifier)), 'critical');
+        $id = strtolower(trim($identifier));
+        db_log_anon_activity('failed_login: ' . $id, 'critical');
+        // The failure that reaches the cap locks sign-in from this address for
+        // 15 minutes (login_rate_limited()) or for this identifier for an hour;
+        // later attempts are turned away above before reaching this point, so
+        // the lock is logged once and the admins told once (v1.19.9).
+        if (login_rate_limited() || login_rate_limited_for_identifier($id)) {
+            $shown = strpos($id, '@') !== false ? email_masked($id)
+                   : (preg_match('/^\+?[\d\s().-]{6,}$/', $id) ? '***' . substr(preg_replace('/\D/', '', $id), -4) : substr($id, 0, 1) . '***');
+            db_log_anon_activity('login_locked: ' . $shown, 'warning');
+            security_alert('login_lock', 'identifier ' . $shown);
+        }
         return false;
     }
     // Verification gate keys off whichever channel this user signed up with.
@@ -631,6 +714,7 @@ function register_user(string $username, string $email, string $password, string
     // v1.19.8) gets the same answer as a registered one: nothing created, nothing sent.
     if ($email !== '' && email_suppressed($email)) {
         db_log_anon_activity('register_suppressed: ' . email_masked($email) . ' opted out of sign-up mail', 'warning');
+        security_alert('suppressed', email_masked($email));
         return REGISTER_EXISTS_SENTINEL;
     }
     if ($phone !== '') {
@@ -696,7 +780,13 @@ function send_verification_code(int $user_id, string $phone, string $method): bo
     $db   = get_db();
     $sent = $db->prepare("SELECT COUNT(*) FROM phone_verifications WHERE user_id = ? AND created_at >= datetime('now', '-1 hour')");
     $sent->execute([$user_id]);
-    if ((int)$sent->fetchColumn() >= VERIFY_CODE_SENDS_PER_HOUR) return false;
+    $issued = (int)$sent->fetchColumn();
+    $sent->closeCursor();
+    if ($issued >= VERIFY_CODE_SENDS_PER_HOUR) {
+        db_log_activity($user_id, 'verification code withheld: too many sent to this account', 'warning');
+        security_alert('verify_cap', 'account ' . $user_id);
+        return false;
+    }
     $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
     $hash = hash('sha256', $code);
     $exp  = date('Y-m-d H:i:s', strtotime('+10 minutes'));
@@ -998,6 +1088,7 @@ function send_verification_email(int $user_id, string $email, string $username, 
     $sent->closeCursor();   // a stepped read holds a snapshot; the writes below must not wait on it
     if ($hour >= VERIFY_EMAIL_SENDS_PER_HOUR || $day >= VERIFY_EMAIL_SENDS_PER_DAY) {
         db_log_activity($user_id, 'verification email withheld: too many sent to this account', 'warning');
+        security_alert('verify_cap', 'account ' . $user_id);
         return false;
     }
     $token = bin2hex(random_bytes(32));

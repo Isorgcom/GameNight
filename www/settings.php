@@ -579,6 +579,10 @@ $site_name = get_setting('site_name', 'Game Night');
                 'tickets'      => ['Support tickets', 'Replies on your support tickets (admins: new tickets)'],
                 'rewards'      => ['Rewards', 'Entry tickets and prizes you win at games'],
             ];
+            // Security alerts go to admins only (security_alert() in auth.php).
+            if (($me['role'] ?? '') === 'admin') {
+                $_np_rows['security'] = ['Security alerts (admins)', 'Sign-up abuse and sign-in lockouts: the honeypot, rate limits, withheld verification mail'];
+            }
             ?>
             <form method="post" action="/settings.php">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">

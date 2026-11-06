@@ -2,7 +2,7 @@
 set -e
 
 # --- Docker ---
-echo "[1/3] Installing Docker..."
+echo "[1/4] Installing Docker..."
 apt-get update -qq
 apt-get install -y -qq ca-certificates curl gnupg
 install -m 0755 -d /etc/apt/keyrings
@@ -17,7 +17,7 @@ systemctl enable --now docker
 echo "Docker $(docker --version) installed."
 
 # --- Portainer ---
-echo "[2/3] Starting Portainer..."
+echo "[2/4] Starting Portainer..."
 docker volume create portainer_data
 docker run -d \
   --name portainer \
@@ -30,7 +30,7 @@ docker run -d \
 echo "Portainer running on :9000 (HTTP) and :9443 (HTTPS)."
 
 # --- Nginx Proxy Manager ---
-echo "[3/3] Starting Nginx Proxy Manager..."
+echo "[3/4] Starting Nginx Proxy Manager..."
 mkdir -p /opt/npm
 cat > /opt/npm/docker-compose.yml <<'EOF'
 services:
@@ -48,6 +48,16 @@ services:
 EOF
 docker compose -f /opt/npm/docker-compose.yml up -d
 echo "Nginx Proxy Manager running."
+
+# --- fail2ban: ban path scanners at the proxy (fail2ban/README.md) ---
+echo "[4/4] Installing fail2ban with the proxy-scanner jail..."
+apt-get install -y -qq fail2ban
+HERE=$(cd "$(dirname "$0")" && pwd)
+install -m 0644 "$HERE/fail2ban/filter.d/npm-scan.conf" /etc/fail2ban/filter.d/npm-scan.conf
+install -m 0644 "$HERE/fail2ban/jail.d/npm-scan.conf"   /etc/fail2ban/jail.d/npm-scan.conf
+systemctl enable --now fail2ban
+fail2ban-client reload
+echo "fail2ban jail npm-scan running (add your own address: see fail2ban/README.md)."
 
 SERVER_IP=$(curl -4 -sf https://ifconfig.me || hostname -I | awk '{print $1}')
 echo ""
