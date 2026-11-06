@@ -11,6 +11,12 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.19.6] - 2026-11-06
+
+### Changed
+
+- **The intro video comes before the screenshots on the home page.** A visitor who is not signed in saw the headline, the sign-up buttons and the strip of app screenshots, and had to scroll past all of that to find **Watch the intro** below. The video now sits inside the dark hero, right under the sign-up buttons and above the screenshot strip, titled **Intro to GameNight** with no caption; the player still loads only when the play button is pressed, and the "Watch on YouTube" link under it is unchanged. The poster is no longer lazy-loaded, since it is now near the top of the page. `www/_landing.php` only.
+
 ## [v1.19.5] - 2026-11-06
 
 ### Changed
