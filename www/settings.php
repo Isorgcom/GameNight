@@ -122,11 +122,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                         if ($emailChanged) {
                             $db->prepare('UPDATE users SET pending_email = ? WHERE id = ?')->execute([$email, $current['id']]);
-                            send_verification_email((int)$current['id'], $email, $username, $email);
+                            $mailed = send_verification_email((int)$current['id'], $email, $username, $email);
                             if ($curEmail !== '') {
                                 send_account_notice((int)$current['id'], 'Email change requested', 'A request was made to change the email address on your account from ' . $curEmail . ' to ' . $email . '. It takes effect only when the link sent to the new address is used.', $curEmail);
                             }
-                            $msgs[] = 'A confirmation link was sent to ' . $email . '; your email changes when you use it.';
+                            $msgs[] = $mailed
+                                ? 'A confirmation link was sent to ' . $email . '; your email changes when you use it.'
+                                : 'The confirmation link to ' . $email . ' could not be sent right now (too many confirmation emails recently). The change stays pending; cancel it below and try again later.';
                         }
                         db_log_activity($current['id'], 'updated profile');
                         $flash = ['type' => 'success', 'msg' => implode(' ', $msgs)];

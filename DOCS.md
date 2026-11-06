@@ -446,6 +446,7 @@ Both posts and events support comments.
 2. Choose a username (3-30 characters, letters/numbers/underscores).
 3. Enter your email, optional phone number, and a password (8+ characters).
 4. Check your email for a verification link. Click it to activate your account.
+   The email also carries a stop link for anyone who receives it without having signed up: it blocks further sign-up mail to that address (and removes the unverified account), and the same page can allow the address again later. A sign-up that is never verified is removed on its own after 7 days.
 5. Log in with your email and password.
 
 ### Profile Settings
@@ -511,6 +512,8 @@ Automated reminders require a cron job that calls the reminder endpoint.
 ```
 
 Or use the Docker container's built-in timer if configured in `docker-compose.yml`.
+
+Besides reminders, each run drains queued notifications, processes RSVP deadlines, prunes expired tokens and old logs, and removes self-registered accounts that never verified within 7 days (`UNVERIFIED_ACCOUNT_DAYS`; accounts with anything attached, or made at the door or through the API, are left alone).
 
 ---
 

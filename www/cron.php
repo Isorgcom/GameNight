@@ -219,6 +219,14 @@ $pruned += $db->exec("DELETE FROM password_resets WHERE used = 1 OR expires_at <
 $pruned += $db->exec("DELETE FROM email_verifications WHERE used = 1 OR expires_at < datetime('now', '-1 day')");
 $pruned += $db->exec("DELETE FROM phone_verifications WHERE used = 1 OR expires_at < datetime('now', '-1 day')");
 
+// Sign-ups that never verified (v1.19.8): a password was set, no sign-in ever,
+// nothing attached, older than UNVERIFIED_ACCOUNT_DAYS (db.php). The address is
+// freed and stops being a target for repeat verification mail.
+try {
+    $swept = sweep_unverified_accounts();
+    if ($swept) echo 'Removed ' . count($swept) . ' unverified sign-up(s): ' . implode(', ', $swept) . "\n";
+} catch (Exception $e) { error_log('GameNight cron: the unverified sign-up sweep failed: ' . $e->getMessage()); }
+
 // Notification dedup: older than 30 days, plus rows for deleted events.
 // (Column is sent_at, not created_at — earlier version had this wrong and silently pruned nothing.)
 $pruned += $db->exec("DELETE FROM event_notifications_sent WHERE sent_at < datetime('now', '-30 days')");

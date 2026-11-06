@@ -16,6 +16,8 @@ if (!defined('DRAIN_PAUSE_ON_429_MINUTES')) define('DRAIN_PAUSE_ON_429_MINUTES',
 // Registration / walk-in attempts per IP per hour (accommodates typos during signup while
 // still blocking brute-force / scraping; bumped from 5 → 20 in 0.18001).
 if (!defined('MAX_REGISTRATION_ATTEMPTS_PER_HOUR')) define('MAX_REGISTRATION_ATTEMPTS_PER_HOUR', 20);
+// A sign-up that never verifies is removed by cron.php after this many days (v1.19.8).
+if (!defined('UNVERIFIED_ACCOUNT_DAYS')) define('UNVERIFIED_ACCOUNT_DAYS', 7);
 // Minimum password length used by every registration / password-change / reset flow.
 if (!defined('MIN_PASSWORD_LENGTH')) define('MIN_PASSWORD_LENGTH', 8);
 // Security rate limits (v0.19015)
@@ -409,6 +411,17 @@ function db_init(PDO $pdo): void {
     // The address a token confirms when it was issued for an email CHANGE from
     // Settings; NULL for the signup verification.
     try { $pdo->exec("ALTER TABLE email_verifications ADD COLUMN new_email TEXT"); } catch (Exception $e) {}
+    // Addresses that used the stop link in a verification email (v1.19.8): no
+    // more sign-up or verification mail goes to them. register_user() answers a
+    // suppressed address like a registered one; send_verification_email()
+    // sends nothing. The same link clears the row again (email_stop.php).
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS email_suppressions (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        email      TEXT    NOT NULL UNIQUE,
+        reason     TEXT    NOT NULL DEFAULT '',
+        ip         TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )"); } catch (Exception $e) {}
 
     // Password reset tokens
     try { $pdo->exec("CREATE TABLE IF NOT EXISTS password_resets (
@@ -3489,6 +3502,119 @@ function db_log_anon_activity(string $action, string $severity = 'info'): void {
         'INSERT INTO activity_log (user_id, action, ip, severity) VALUES (0, ?, ?, ?)'
     );
     $stmt->execute([$action, get_client_ip(), $severity]);
+}
+
+// ── Sign-up mail guard (v1.19.8) ─────────────────────────────────────────────
+// A verification email can reach someone who never signed up: a script that
+// feeds one victim's address to many sites' sign-up forms ("subscription
+// bombing", seen here 2026-11-06). Three guards: the mail carries a stop link
+// whose address lands in email_suppressions and is then refused by
+// register_user() and send_verification_email(); each account gets a bounded
+// number of verification mails (auth.php, VERIFY_EMAIL_SENDS_PER_*); and a
+// sign-up that never verifies is removed after UNVERIFIED_ACCOUNT_DAYS by
+// cron.php through sweep_unverified_accounts(), which frees the address and
+// ends its life as a resend target.
+
+/** The key in a stop link: an HMAC of the address under the app secret. */
+function email_stop_key(string $email): string {
+    return hash_hmac('sha256', 'email-stop:' . strtolower(trim($email)), APP_SECRET);
+}
+
+/** The stop link itself: the address (base64url) and its key. */
+function email_stop_url(string $email): string {
+    $e = rtrim(strtr(base64_encode(strtolower(trim($email))), '+/', '-_'), '=');
+    return get_site_url() . '/email_stop.php?e=' . $e . '&k=' . email_stop_key($email);
+}
+
+/** Decodes a stop link's e= parameter; '' when it is not an address. */
+function email_stop_decode(string $e): string {
+    $raw = base64_decode(strtr($e, '-_', '+/'), true);
+    if ($raw === false) return '';
+    $raw = strtolower(trim($raw));
+    return (strlen($raw) <= 254 && filter_var($raw, FILTER_VALIDATE_EMAIL)) ? $raw : '';
+}
+
+function email_suppressed(string $email): bool {
+    $email = strtolower(trim($email));
+    if ($email === '') return false;
+    $q = get_db()->prepare('SELECT 1 FROM email_suppressions WHERE email = ?');
+    $q->execute([$email]);
+    $hit = (bool)$q->fetchColumn();
+    $q->closeCursor();
+    return $hit;
+}
+
+function email_suppress(string $email, string $reason = ''): void {
+    get_db()->prepare('INSERT OR IGNORE INTO email_suppressions (email, reason, ip) VALUES (?, ?, ?)')
+            ->execute([strtolower(trim($email)), $reason, get_client_ip()]);
+}
+
+function email_unsuppress(string $email): void {
+    get_db()->prepare('DELETE FROM email_suppressions WHERE email = ?')->execute([strtolower(trim($email))]);
+}
+
+/** c***@example.com, for a log line an admin reads. */
+function email_masked(string $email): string {
+    $at = strpos($email, '@');
+    if ($at === false) return $email === '' ? '' : '***';
+    return substr($email, 0, 1) . '***' . substr($email, $at);
+}
+
+/**
+ * Sign-ups that never verified and hold nothing: a password was set (walk-in,
+ * API and admin-made accounts have none and are left alone), never signed in,
+ * the chosen channel still unverified, and no invite, league, game, hosted
+ * event, join request, contact or comment. $olderThanDays keeps to accounts at
+ * least that old; $email to the accounts carrying that address.
+ */
+function unverified_signup_ids(?int $olderThanDays = null, ?string $email = null): array {
+    $sql = "SELECT u.id FROM users u
+            WHERE u.role = 'user' AND u.last_login IS NULL
+              AND COALESCE(u.password_hash, '') <> ''
+              AND ((COALESCE(u.verification_method, 'email') = 'email' AND u.email_verified = 0)
+                   OR (u.verification_method IN ('sms', 'whatsapp') AND u.phone_verified = 0))
+              AND NOT EXISTS (SELECT 1 FROM event_invites ei WHERE ei.user_id = u.id)
+              AND NOT EXISTS (SELECT 1 FROM league_members lm WHERE lm.user_id = u.id)
+              AND NOT EXISTS (SELECT 1 FROM poker_players pp WHERE pp.user_id = u.id)
+              AND NOT EXISTS (SELECT 1 FROM events e WHERE e.created_by = u.id)
+              AND NOT EXISTS (SELECT 1 FROM league_join_requests jr WHERE jr.user_id = u.id)
+              AND NOT EXISTS (SELECT 1 FROM user_contacts uc WHERE uc.owner_user_id = u.id)
+              AND NOT EXISTS (SELECT 1 FROM comments c WHERE c.user_id = u.id)";
+    $args = [];
+    if ($olderThanDays !== null) { $sql .= " AND u.created_at < datetime('now', ?)"; $args[] = '-' . max(1, $olderThanDays) . ' days'; }
+    if ($email !== null)         { $sql .= ' AND LOWER(u.email) = ?'; $args[] = strtolower(trim($email)); }
+    $q = get_db()->prepare($sql . ' ORDER BY u.id');
+    $q->execute($args);
+    $ids = array_map('intval', $q->fetchAll(PDO::FETCH_COLUMN));
+    $q->closeCursor();
+    return $ids;
+}
+
+/**
+ * Removes one such account through delete_user_account() and leaves a line in
+ * the activity log under user 0 (the account's own rows go with it). Returns
+ * the username, '' when the id is gone.
+ */
+function remove_unverified_signup(int $id, string $why): string {
+    $q = get_db()->prepare('SELECT username, email, phone, created_at FROM users WHERE id = ?');
+    $q->execute([$id]);
+    $u = $q->fetch(PDO::FETCH_ASSOC);
+    $q->closeCursor();
+    if (!$u) return '';
+    delete_user_account($id);
+    $contact = ($u['email'] ?? '') !== '' ? email_masked((string)$u['email']) : 'phone ending ' . substr((string)$u['phone'], -4);
+    db_log_anon_activity("removed unverified sign-up {$u['username']} ($contact, registered {$u['created_at']}): $why");
+    return (string)$u['username'];
+}
+
+/** cron.php: every such sign-up older than UNVERIFIED_ACCOUNT_DAYS. Returns the usernames removed. */
+function sweep_unverified_accounts(): array {
+    $gone = [];
+    foreach (unverified_signup_ids(UNVERIFIED_ACCOUNT_DAYS) as $id) {
+        $name = remove_unverified_signup($id, 'never verified within ' . UNVERIFIED_ACCOUNT_DAYS . ' days');
+        if ($name !== '') $gone[] = $name;
+    }
+    return $gone;
 }
 
 /**
