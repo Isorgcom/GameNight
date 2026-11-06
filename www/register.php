@@ -58,7 +58,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ip = function_exists('get_client_ip') ? get_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? '');
         $rlStmt = $db->prepare("SELECT COUNT(*) FROM activity_log WHERE ip = ? AND action LIKE 'register_attempt%' AND created_at > datetime('now', '-1 hour')");
         $rlStmt->execute([$ip]);
-        if ((int)$rlStmt->fetchColumn() >= MAX_REGISTRATION_ATTEMPTS_PER_HOUR) {
+        $rlAttempts = (int)$rlStmt->fetchColumn();
+        // Close the read before the writes below: a statement left stepped at its first
+        // row keeps a read lock, and a second sign-up arriving in the same second then
+        // dies at once with "database is locked" instead of waiting its turn (2026-11-06).
+        $rlStmt->closeCursor();
+        if ($rlAttempts >= MAX_REGISTRATION_ATTEMPTS_PER_HOUR) {
             $error = 'Too many registration attempts. Please try again in an hour.';
         } else {
             db_log_anon_activity('register_attempt');
@@ -99,7 +104,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $timezone = $tz_detected;
             }
 
-            if ($password !== $password2) {
+            // Honeypot (v1.19.7). The form carries an off-screen "website" field that no
+            // person sees or tabs into; a script that fills every field it finds fills it.
+            // Such a post gets the normal "check your inbox" screen (the same answer as a
+            // contact that is already registered, so the script learns nothing) and
+            // creates no account. Logged at warning level for Admin → Settings → Logs.
+            if (trim((string)($_POST['website'] ?? '')) !== '') {
+                db_log_anon_activity('register_honeypot', 'warning');
+                $registered_email  = $email;
+                $registered_method = $verify_method;
+                $registered_phone  = $phone;
+                if ($verify_method !== 'email') {
+                    $registered_uid = -1;
+                    $_SESSION['verify_user_id'] = -1;
+                    $_SESSION['verify_method']  = $verify_method;
+                }
+            } elseif ($password !== $password2) {
                 $error = 'Passwords do not match.';
             } elseif ($contact === '') {
                 $error = 'Enter an email address or phone number.';
@@ -217,6 +237,15 @@ $site_name = get_setting('site_name', 'Game Night');
             <?php if ($redirect !== ''): ?>
             <input type="hidden" name="redirect" value="<?= htmlspecialchars($redirect) ?>">
             <?php endif; ?>
+            <?php /* Honeypot (v1.19.7): parked off-screen by .hp-wrap, never display:none (a scripted
+                     form-filler reads the HTML, not the layout, and fills every field it finds); a
+                     person cannot see it or tab into it, and browsers do not autofill it. The POST
+                     handler above treats a sign-up that fills it as a script: the usual next screen,
+                     no account. */ ?>
+            <div class="hp-wrap" aria-hidden="true">
+                <label for="hp_website">Website</label>
+                <input type="text" id="hp_website" name="website" value="" tabindex="-1" autocomplete="off">
+            </div>
 
             <div class="form-group">
                 <label for="username">Username</label>

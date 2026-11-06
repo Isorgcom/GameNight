@@ -172,6 +172,9 @@ nav .brand:hover { color: #e2e8f0; text-decoration: none; }
 
 /* ── FORM ── */
 .form-group { margin-bottom: 1.1rem; }
+/* The sign-up honeypot (register.php): parked off-screen, not display:none, so a scripted
+   form-filler still fills it while a person never sees it or tabs into it. */
+.hp-wrap { position: absolute; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
 .form-group label { display: block; font-size: .85rem; font-weight: 600; margin-bottom: .35rem; }
 .form-group input {
     width: 100%;

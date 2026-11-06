@@ -11,6 +11,17 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.19.7] - 2026-11-06
+
+### Security
+- **The sign-up form carries a honeypot.** On 2026-11-06 a script on a rented server scanned the site for sign-up and contact forms, found `register.php`, and posted it twice in one second with a made-up name and someone else's Gmail address, which made the site send that address a verification mail. The form now has an off-screen field no person sees or tabs into; a post that fills it is a script, gets the usual "check your inbox" screen (the same answer as an address that is already registered, so it learns nothing) and creates no account. Each such post is logged as `register_honeypot` at warning level in Admin → Settings → Logs. `www/register.php`, `www/style.css` (`.hp-wrap`).
+
+### Fixed
+- **Two sign-ups arriving in the same second no longer crash.** The sign-up page read its hourly rate-limit count and left that statement open, so the request still held a read snapshot when it went to write; with another sign-up committing in between, SQLite refuses the write at once with "database is locked" instead of waiting its turn, and the page died as a bare 500 (the script above hit this). `www/register.php` closes the read before writing. Should two requests still race past the "already registered" checks, `register_user()` in `www/auth.php` now treats the unique-index refusal as the already-registered case rather than crashing.
+
+### Infrastructure
+- **PHP fatal errors now reach the container log.** The image's built-in default is `log_errors Off`, so a crashing page answered a bare 500 with nothing in `docker logs`; `www/.htaccess` turns logging on (the browser still sees nothing). Operator note: `docker logs gamenight` now carries `[php:error]` lines; a pull is enough, no rebuild.
+
 ## [v1.19.6] - 2026-11-06
 
 ### Changed

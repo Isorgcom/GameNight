@@ -647,8 +647,19 @@ function register_user(string $username, string $email, string $password, string
     // phone. The verification itself still goes by $verify_method.
     $preferred = $phone !== '' ? ($verify_method === 'whatsapp' ? 'whatsapp' : 'sms') : 'email';
     $hash = password_hash($password, PASSWORD_BCRYPT);
-    $db->prepare('INSERT INTO users (username, password_hash, email, phone, role, email_verified, preferred_contact, verification_method, timezone) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)')
-       ->execute([$username, $hash, $email !== '' ? $email : null, $phone !== '' ? $phone : null, 'user', $preferred, $verify_method, $timezone !== '' ? $timezone : null]);
+    try {
+        $db->prepare('INSERT INTO users (username, password_hash, email, phone, role, email_verified, preferred_contact, verification_method, timezone) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)')
+           ->execute([$username, $hash, $email !== '' ? $email : null, $phone !== '' ? $phone : null, 'user', $preferred, $verify_method, $timezone !== '' ? $timezone : null]);
+    } catch (PDOException $e) {
+        // Two sign-ups for the same name or address in the same second (a script
+        // posting twice, 2026-11-06): both pass the checks above and the second
+        // INSERT hits a unique index. That is the already-registered case, not a
+        // crash: the first request made the account and sent the verification.
+        if (stripos($e->getMessage(), 'UNIQUE constraint') !== false) {
+            return REGISTER_EXISTS_SENTINEL;
+        }
+        throw $e;
+    }
 
     $id = (int)$db->lastInsertId();
     db_log_activity($id, "registered (verify via $verify_method)");

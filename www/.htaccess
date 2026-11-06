@@ -48,8 +48,11 @@ RewriteRule ^api/v1/pending-contacts/(\d+)/?$ /api/v1/pending_contacts.php?id=$1
 # Public API: /api/v1/<endpoint> → /api/v1/<endpoint>.php
 RewriteRule ^api/v1/([a-z]+)/?$ /api/v1/$1.php [L,QSA]
 
-# Hide PHP errors from the browser
+# Hide PHP errors from the browser, but write them to Apache's error log (the
+# container's stderr, so `docker logs` carries them). PHP's built-in default is
+# log_errors Off, which left a crashing page as a bare 500 nobody could trace.
 php_flag display_errors Off
+php_flag log_errors On
 
 # Block direct web access to internal/partial PHP files
 <FilesMatch "^(auth|db|_nav|_footer|config|mail|_sso|_finaltable)\.php$">
