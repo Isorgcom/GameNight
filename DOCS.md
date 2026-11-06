@@ -119,6 +119,8 @@ chown -R www-data:www-data db/ www/uploads/
 
 The container connects to the `npm_default` Docker network for use with Nginx Proxy Manager. Configure your proxy host to point to the container.
 
+**Banning scanners at the proxy.** The `fail2ban/` directory holds a filter and a jail for Nginx Proxy Manager's access logs: an address that draws 20 answers of 403 or 404 inside two minutes (a script guessing paths) is banned for a day in Docker's `DOCKER-USER` chain, which is where a ban has to go for traffic to a published Docker port. `server-prep.sh` installs it on a fresh host; `fail2ban/README.md` has the steps for an existing one, including the ignore list that keeps your own address safe.
+
 ---
 
 ## First-Time Setup
@@ -158,6 +160,8 @@ Overview of your site: total users, total events, total posts, and recent activi
 | Enable Calendar | On | Show/hide the calendar page and nav link |
 | Allow Maybe RSVP | On | When off, only Yes/No RSVP options are available |
 | Enable Notifications | Off | Master switch for all email/SMS/WhatsApp notifications |
+| Security alerts | On | Tell the admins when the sign-up honeypot is hit, the sign-up or resend-verification limit refuses someone, verification mail or codes are withheld by the per-account cap, an opted-out address is used, or sign-in is locked after failed attempts. One message per kind per hour; every hit is in the Logs tab regardless |
+| Text security alerts to | (blank) | A mobile number that receives the alerts as a text, through the SMS provider, even while Enable Notifications is off. Blank: each admin is notified the way their Preferred Contact says. Admins see every alert in their in-app inbox either way |
 
 #### Search & Sharing
 
@@ -1687,6 +1691,7 @@ Game Night includes several security measures:
 - **Security headers** — CSP, X-Frame-Options, X-Content-Type-Options, and more.
 - **Session security** — HTTPOnly cookies, SameSite=Lax, strict session ids, session regeneration and a fresh CSRF token on login, and every session of an account ends when its password changes or is reset.
 - **Account changes need the password** — changing the username, email or phone, enabling or disabling two-factor, and deleting the account all confirm the current password; a new email is confirmed from a link sent to it before it takes effect; sign-in codes are never texted to an unverified number.
+- **Sign-up abuse guards and alerts** — The sign-up form carries a honeypot; sign-ups, resends, verification mail and codes are rate-limited per address and per account; a verification mail carries a stop link the recipient can use, and a sign-up that never verifies is removed after 7 days. Each guard that fires is a warning in the activity log, and the admins are told once an hour per kind (text or their preferred channel; Admin → Settings → General → Security alerts). The `fail2ban/` jail bans path scanners at the proxy.
 - **Last admin protection** — The last admin account cannot be demoted or deleted.
 - **File upload validation** — MIME type checking on all uploads.
 - **Sign-in bridge** — Connected apps receive a 120-second, single-use, ES256-signed token carrying the username and the path to the member's profile photo; the private key never leaves the server and the token travels in a URL fragment. See [Connected Apps: Sign-In Bridge](#connected-apps-sign-in-bridge).

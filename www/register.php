@@ -64,6 +64,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // dies at once with "database is locked" instead of waiting its turn (2026-11-06).
         $rlStmt->closeCursor();
         if ($rlAttempts >= MAX_REGISTRATION_ATTEMPTS_PER_HOUR) {
+            // Logged under its own name so the refusal shows in Admin → Logs
+            // without extending the limit (which counts register_attempt rows),
+            // and the admins are told once an hour (v1.19.9).
+            db_log_anon_activity('register_rate_limited', 'warning');
+            security_alert('signup_limit');
             $error = 'Too many registration attempts. Please try again in an hour.';
         } else {
             db_log_anon_activity('register_attempt');
@@ -111,6 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // creates no account. Logged at warning level for Admin → Settings → Logs.
             if (trim((string)($_POST['website'] ?? '')) !== '') {
                 db_log_anon_activity('register_honeypot', 'warning');
+                security_alert('honeypot');
                 $registered_email  = $email;
                 $registered_method = $verify_method;
                 $registered_phone  = $phone;

@@ -11,6 +11,14 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.19.9] - 2026-11-06
+
+### Added
+- **Admins are told about sign-up abuse and lockouts as they happen.** The guards added over the last releases each leave a warning in Admin → Settings → Logs, but nobody reads the log at one in the morning; the 2026-11-06 scan was found the next day. Now a hit on the sign-up honeypot, a sign-up or resend-verification request refused by the hourly per-address limit, verification mail or codes withheld by the per-account cap, a sign-up on an address that opted out, or sign-in locking after repeated failed attempts sends the admins one message per kind per hour, saying how many hits the hour had and the latest address, with a link to the log. Admin → Settings → General gains **Security alerts** (on by default) and **Text security alerts to**: give it a mobile number and the alerts are texted there through the SMS provider, even while Enable Notifications is off; leave it blank and each admin is notified the way their Preferred Contact says. Admins see every alert in their in-app inbox either way, and can mute the outbound copy under Settings → Notifications → Security alerts. Three refusals that left no trace before are now logged too: `register_rate_limited`, `resend_rate_limited` and `verification code withheld`, and the sign-in lock leaves a `login_locked` line. `www/auth.php` (`security_alert()`), `www/register.php`, `www/resend_verification.php`, `www/_notifications.php`, `www/admin_settings.php`, `www/settings.php`, `www/notifications.php`.
+
+### Infrastructure
+- **Path scanners are banned at the reverse proxy.** The scan that led to the last three releases asked for 64 guessed paths in two seconds before it found the sign-up form. The new `fail2ban/` directory holds a filter and jail for Nginx Proxy Manager's per-host access logs: an address that draws 20 answers of 403 or 404 inside two minutes is banned for a day. The ban goes into Docker's `DOCKER-USER` chain, because traffic to a published Docker port never passes the host's INPUT chain where a stock jail would put it. `server-prep.sh` installs the jail on a fresh host; `fail2ban/README.md` has the steps for an existing one and the ignore list (private ranges, Docker, Tailscale, your own address) that keeps you from banning yourself. Operator notes: on gamenight.poker the jail went live on 2026-11-06, covering every named proxy host; the proxy's fallback host (a different log format) is not covered; `fail2ban-client set npm-scan unbanip <ip>` lifts a ban.
+
 ## [v1.19.8] - 2026-11-06
 
 ### Security

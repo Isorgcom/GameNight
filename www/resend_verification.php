@@ -55,6 +55,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
             }
+        } else {
+            // Over the per-address limit: nothing is sent, the page still says
+            // "sent", and the refusal is logged under its own name (it does not
+            // count toward the limit) with the admins told once an hour (v1.19.9).
+            db_log_anon_activity('resend_rate_limited', 'warning');
+            security_alert('resend_limit');
         }
         $sent = true; // always show success
     }

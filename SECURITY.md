@@ -5,7 +5,7 @@ history of the CSP gap that is now closed — kept because the reasoning is what
 stops it being reopened, and because the conversion that closed it is still the
 main source of regressions.
 
-Last reviewed: 2026-10-26 (v1.12.8).
+Last reviewed: 2026-11-06 (v1.19.9).
 
 ---
 
@@ -360,6 +360,44 @@ and accepts signed requests from it. What holds it:
   `ftRemove`, `ftCopy`) live in `finaltable.js` and render only when the
   event carries `online_app_id`; give a dev event one before the
   double-dispatch sweep, or it walks `event.php` without them.
+
+## The edge and the alarm: fail2ban on the proxy's logs, alerts to the admins (v1.19.9)
+
+The 2026-11-06 sign-up scan (CHANGELOG v1.19.7) asked for 64 guessed paths in
+two seconds before it found `register.php`, then waited five seconds and
+posted. Two things follow from that shape.
+
+**fail2ban reads Nginx Proxy Manager's per-host access logs** and bans an
+address for a day after 20 answers of 403 or 404 inside two minutes. The filter
+and jail are in `fail2ban/` with a README; `server-prep.sh` installs them. Two
+details are easy to get wrong:
+
+- The ban goes into Docker's `DOCKER-USER` chain
+  (`iptables-allports[chain=DOCKER-USER]`). Traffic to a port Docker publishes
+  is DNAT'ed and forwarded to the container, so the host's INPUT chain, where a
+  stock jail puts its rules, never sees it. A default jail reports bans that
+  stop nothing.
+- The jail's `ignoreip` replaces the `[DEFAULT]` one. The host keeps its own
+  addresses in `jail.d/npm-scan.local`, never in the repo, and the list must
+  carry `172.16.0.0/12`: a sister site on the same host reaches the API from
+  the Docker bridge gateway, and a bug there must not ban it.
+
+Checks: `fail2ban-regex <log> /etc/fail2ban/filter.d/npm-scan.conf` must match
+every 403/404 line; `fail2ban-client status npm-scan` lists bans;
+`fail2ban-client set npm-scan unbanip <ip>` lifts one. Not covered: the proxy's
+fallback host (a different log format), a scanner pacing under the threshold,
+and requests for pages that exist.
+
+**The application tells the admins when a guard fires.** `security_alert()` in
+`auth.php` is called from the honeypot, the sign-up and resend limits, the
+per-account caps on verification mail and codes, a sign-up on a suppressed
+address, and the sign-in lock. It counts the hour's hits from the activity log,
+sends once per kind per hour (its own `security_alert: <kind>` row is the
+throttle, written before the send), and never throws into the request that
+triggered it. Delivery is the alert phone in Admin → Settings → General or,
+without one, each admin's preferred channel; the in-app inbox row always. When
+adding a guard: log the hit at `warning`, give the line a stable prefix, add the
+prefix to `SECURITY_ALERT_KINDS`, call `security_alert()`.
 
 ## CLOSED: CSP no longer allows inline script (v0.2079)
 
