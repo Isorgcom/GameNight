@@ -284,6 +284,7 @@ var TB_EXIT_URL = <?= js_json($event_id ? '/checkin.php?event_id=' . (int)$event
 <div id="tbWakeBanner">Tap anywhere to keep this screen awake</div>
 <script src="/vendor/nosleep.min.js"></script>
 <?php endif; ?>
+<script src="/vendor/qr-code-styling.min.js"></script>
 <script src="/vendor/qrcode.min.js"></script>
 <script src="/pk-qr.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-qr.js') ?: 0)) ?>"></script>
 <!-- hls.js before the renderer and WITHOUT defer, for the same reason pk-seg.js

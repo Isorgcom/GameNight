@@ -45,6 +45,14 @@ if [ ! -f "$VENDOR/qrcode.min.js" ]; then
     curl -fsSL https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js -o "$VENDOR/qrcode.min.js"
 fi
 
+# The styled QR drawer (rounded modules, coloured corners, the icon in the
+# middle) behind pk-qr.js. Served from our own origin like the rest; pk-qr.js
+# falls back to the plain code from qrcode.min.js when this file is missing.
+if [ ! -f "$VENDOR/qr-code-styling.min.js" ]; then
+    echo "[entrypoint] Downloading qr-code-styling 1.9.2..."
+    curl -fsSL https://cdn.jsdelivr.net/npm/qr-code-styling@1.9.2/lib/qr-code-styling.js -o "$VENDOR/qr-code-styling.min.js"
+fi
+
 if [ ! -f "$VENDOR/nosleep.min.js" ]; then
     echo "[entrypoint] Downloading NoSleep.js 0.12.0..."
     curl -fsSL https://cdn.jsdelivr.net/npm/nosleep.js@0.12.0/dist/NoSleep.min.js -o "$VENDOR/nosleep.min.js"

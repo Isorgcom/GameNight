@@ -170,6 +170,7 @@ if (!empty($event['start_time'])) {
     </div>
 </div>
 
+<script src="/vendor/qr-code-styling.min.js" defer></script>
 <script src="/vendor/qrcode.min.js" defer></script>
 <script src="/pk-qr.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-qr.js') ?: 0)) ?>" defer></script>
 <script nonce="<?= csp_nonce() ?>">

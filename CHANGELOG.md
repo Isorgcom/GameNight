@@ -11,6 +11,12 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.19.5] - 2026-11-06
+
+### Changed
+
+- **Every QR code the site draws is now in the site's style.** The share invite's **Show QR**, the walk-up QR (its page and the calendar's modal), the TV pairing code on `/tv`, the Tournament Timer's QR cell and the Classic timer's small code are drawn with rounded modules in the site's navy and the three finder corners in the accent blue, the site icon on its white disc in the middle as before. The drawing is done by [qr-code-styling](https://github.com/kozakdenys/qr-code-styling) 1.9.2, downloaded once into `www/vendor/` by `docker-entrypoint.sh` like the other libraries and served from the site itself, so no page calls out anywhere; `www/pk-qr.js` drives it and falls back to the plain square code from `qrcode.min.js` when the file is missing. The colours follow `--dark` and `--accent` in `style.css` where the page loads it. A code with the icon is still made at level H and still reads at a third of its size. The authenticator code on the MFA set-up page is unchanged. **Operator note:** the entrypoint is baked into the image, so this release needs `docker compose down && docker compose up -d --build` after the pull for the download to happen; until then the plain codes keep drawing.
+
 ## [v1.19.4] - 2026-11-05
 
 ### Changed

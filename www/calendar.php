@@ -1606,7 +1606,8 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
             .week-allday-chip .ev-edit-btn { display: none; }
         }
     </style>
-    <?php if ($isAdmin): ?><script src="/vendor/qrcode.min.js" defer></script>
+    <?php if ($isAdmin): ?><script src="/vendor/qr-code-styling.min.js" defer></script>
+    <script src="/vendor/qrcode.min.js" defer></script>
     <script src="/pk-qr.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-qr.js') ?: 0)) ?>" defer></script><?php endif; ?>
     <?php if ($current): ?><link href="/vendor/jodit/jodit.min.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/jodit/jodit.min.css') ?: 0)) ?>" rel="stylesheet"><?php endif; ?>
 </head>

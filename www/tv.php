@@ -75,6 +75,7 @@ header('Cache-Control: no-store');
     <div class="tv-qr"><img id="tvQr" alt="QR code that opens the page for sending a game to this TV"></div>
 </main>
 <iframe id="tvFrame" hidden allow="autoplay; fullscreen; screen-wake-lock" title="Tournament Timer"></iframe>
+<script src="/vendor/qr-code-styling.min.js"></script>
 <script src="/vendor/qrcode.min.js"></script>
 <script src="/pk-qr.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-qr.js') ?: 0)) ?>"></script>
 <script nonce="<?= csp_nonce() ?>">

@@ -47,6 +47,7 @@ A self-hosted PHP web application for organizing game night events with full pok
 - [PHPMailer](https://github.com/PHPMailer/PHPMailer)
 - [Jodit](https://xdsoft.net/jodit/) / [Quill](https://quilljs.com/) rich-text editors
 - [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) — QR codes for remote timer/registration
+- [qr-code-styling](https://github.com/kozakdenys/qr-code-styling) — the rounded, coloured drawing of those codes with the site icon in the middle
 - Vanilla JS — no frontend framework dependencies; the timer display engine renders layouts client-side from JSON
 
 ## Docker Install (recommended)

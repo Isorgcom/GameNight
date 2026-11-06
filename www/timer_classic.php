@@ -38,7 +38,7 @@
  *          §5.7  #saveThemeOverlay     save theme as
  *          §5.8  #confirmSaveOverlay   theme save confirm
  *          §5.9  #soundOverlay         sound settings
- *  §6    Vendor <script nonce="<?= csp_nonce() ?>">s — qrcode.min.js, nosleep.min.js
+ *  §6    Vendor <script nonce="<?= csp_nonce() ?>">s — qr-code-styling.min.js, qrcode.min.js, nosleep.min.js
  *  §7    Inline <script nonce="<?= csp_nonce() ?>"> (~3,600 lines)
  *          §7.1   Config from PHP (CSRF, TIMER, LEVELS, SOUNDS, IS_REMOTE, ...)
  *          §7.2   Formatters (fmtTime, fmtMoney, fmtChips, fmtBreakClock, ...)
@@ -832,6 +832,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
 </div>
 <?php endif; ?>
 
+<script src="/vendor/qr-code-styling.min.js"></script>
 <script src="/vendor/qrcode.min.js"></script>
 <script src="/pk-qr.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-qr.js') ?: 0)) ?>"></script>
 <script src="/vendor/nosleep.min.js"></script>
