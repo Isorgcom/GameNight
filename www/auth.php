@@ -627,6 +627,12 @@ function register_user(string $username, string $email, string $password, string
             return REGISTER_EXISTS_SENTINEL;
         }
     }
+    // An address that used the stop link in a verification email (email_suppressions,
+    // v1.19.8) gets the same answer as a registered one: nothing created, nothing sent.
+    if ($email !== '' && email_suppressed($email)) {
+        db_log_anon_activity('register_suppressed: ' . email_masked($email) . ' opted out of sign-up mail', 'warning');
+        return REGISTER_EXISTS_SENTINEL;
+    }
     if ($phone !== '') {
         $stmt = $db->prepare('SELECT id FROM users WHERE phone = ?');
         $stmt->execute([$phone]);
@@ -969,8 +975,31 @@ function referer_local_path(string $default = '/'): string {
  * an email CHANGE requested from Settings: the token row records the address
  * it confirms, and verify_email.php applies it to users.email only then.
  */
-function send_verification_email(int $user_id, string $email, string $username, ?string $new_email = null): void {
-    $db    = get_db();
+/**
+ * Send the sign-up verification link (or, with $new_email, the confirmation of
+ * an email change from Settings). Returns false, sending nothing, when the
+ * address asked for no sign-up mail (email_suppressions: the stop link in the
+ * mail itself) or once VERIFY_EMAIL_SENDS_PER_HOUR / _PER_DAY mails went to
+ * the account (activity_log 'verification email sent'): the resend page's
+ * per-address limit does not stop a caller rotating addresses, and every mail
+ * goes to an address the caller typed (v1.19.8).
+ */
+const VERIFY_EMAIL_SENDS_PER_HOUR = 3;
+const VERIFY_EMAIL_SENDS_PER_DAY  = 6;
+function send_verification_email(int $user_id, string $email, string $username, ?string $new_email = null): bool {
+    $db = get_db();
+    if (email_suppressed($new_email ?? $email)) {
+        db_log_activity($user_id, 'verification email withheld: the address opted out of sign-up mail', 'warning');
+        return false;
+    }
+    $sent = $db->prepare("SELECT COALESCE(SUM(created_at >= datetime('now', '-1 hour')), 0), COUNT(*) FROM activity_log WHERE user_id = ? AND action = 'verification email sent' AND created_at >= datetime('now', '-1 day')");
+    $sent->execute([$user_id]);
+    [$hour, $day] = array_map('intval', $sent->fetch(PDO::FETCH_NUM));
+    $sent->closeCursor();   // a stepped read holds a snapshot; the writes below must not wait on it
+    if ($hour >= VERIFY_EMAIL_SENDS_PER_HOUR || $day >= VERIFY_EMAIL_SENDS_PER_DAY) {
+        db_log_activity($user_id, 'verification email withheld: too many sent to this account', 'warning');
+        return false;
+    }
     $token = bin2hex(random_bytes(32));
     $hash  = hash('sha256', $token);
     // Store expiry in UTC: verify_email.php compares against SQLite datetime('now')
@@ -987,21 +1016,28 @@ function send_verification_email(int $user_id, string $email, string $username, 
 
     $site  = get_setting('site_name', 'Game Night');
     $url   = get_site_url() . '/verify_email.php?token=' . $token;
+    // The stop link: whoever holds this mail can refuse any further sign-up
+    // mail to the address, whether or not they are the one who typed it.
+    $stop  = htmlspecialchars(email_stop_url($new_email ?? $email), ENT_QUOTES | ENT_SUBSTITUTE);
 
     require_once __DIR__ . '/mail.php';
     if ($new_email !== null) {
         $html = '<p>Hi ' . htmlspecialchars($username) . ',</p>'
               . '<p>You asked to change the email address on your ' . htmlspecialchars($site) . ' account to this one. Confirm it below; until then the account keeps its old address.</p>'
               . '<p><a href="' . $url . '" style="background:#2563eb;color:#fff;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600">Confirm New Email Address</a></p>'
-              . '<p style="color:#64748b;font-size:.875rem">This link expires in 24 hours. If you did not ask for this, ignore this email and nothing changes.</p>';
+              . '<p style="color:#64748b;font-size:.875rem">This link expires in 24 hours. If you did not ask for this, ignore this email and nothing changes. Want no more mail like this from us? <a href="' . $stop . '">Stop mail to this address</a>.</p>';
         send_email($email, $username, 'Confirm your new ' . $site . ' email address', $html);
-        return;
+        db_log_activity($user_id, 'verification email sent');
+        return true;
     }
     $html = '<p>Hi ' . htmlspecialchars($username) . ',</p>'
           . '<p>Thanks for signing up for ' . htmlspecialchars($site) . '! Please verify your email address to activate your account.</p>'
           . '<p><a href="' . $url . '" style="background:#2563eb;color:#fff;padding:.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600">Verify Email Address</a></p>'
-          . '<p style="color:#64748b;font-size:.875rem">This link expires in 24 hours.</p>';
+          . '<p style="color:#64748b;font-size:.875rem">This link expires in 24 hours.</p>'
+          . '<p style="color:#64748b;font-size:.875rem">Not you? Ignore this email: nobody can use the account without this link, and it is removed after ' . (int)UNVERIFIED_ACCOUNT_DAYS . ' days. Want no more sign-up mail from us? <a href="' . $stop . '">Stop mail to this address</a>.</p>';
     send_email($email, $username, 'Verify your ' . $site . ' email address', $html);
+    db_log_activity($user_id, 'verification email sent');
+    return true;
 }
 
 /**
