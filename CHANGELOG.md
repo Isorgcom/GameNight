@@ -11,6 +11,8 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.19.9] - 2026-11-06
+
 ### Added
 - **Admins are told about sign-up abuse and lockouts as they happen.** The guards added over the last releases each leave a warning in Admin → Settings → Logs, but nobody reads the log at one in the morning; the 2026-11-06 scan was found the next day. Now a hit on the sign-up honeypot, a sign-up or resend-verification request refused by the hourly per-address limit, verification mail or codes withheld by the per-account cap, a sign-up on an address that opted out, or sign-in locking after repeated failed attempts sends the admins one message per kind per hour, saying how many hits the hour had and the latest address, with a link to the log. Admin → Settings → General gains **Security alerts** (on by default) and **Text security alerts to**: give it a mobile number and the alerts are texted there through the SMS provider, even while Enable Notifications is off; leave it blank and each admin is notified the way their Preferred Contact says. Admins see every alert in their in-app inbox either way, and can mute the outbound copy under Settings → Notifications → Security alerts. Three refusals that left no trace before are now logged too: `register_rate_limited`, `resend_rate_limited` and `verification code withheld`, and the sign-in lock leaves a `login_locked` line. `www/auth.php` (`security_alert()`), `www/register.php`, `www/resend_verification.php`, `www/_notifications.php`, `www/admin_settings.php`, `www/settings.php`, `www/notifications.php`.
 
