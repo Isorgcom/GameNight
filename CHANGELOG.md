@@ -11,6 +11,9 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+### Changed
+- **A host sets each reminder as a number and a unit.** The **Send reminders** dropdown in the event editor was a fixed list of seven boxes (1 wk, 3 days, 2 days, 1 day, 12 hr, 2 hr, 30 min), so a reminder 8 hours before, or 45 minutes before, could not be had. It is now a list of rows, each a number, a unit (minutes, hours, days or weeks) and "before": change a number or its unit, **+ Add reminder** for another (up to six, up to 28 days out), × to drop one; the button reads the list back ("2 days, 8 hr, 30 min"). A new event starts with the site default, 2 days and 12 hours, and Admin → Settings → General → Event Reminders now edits that default with the same rows instead of the seven boxes. An event with every row removed sends no reminders; before this release an empty choice quietly fell back to the site default. Events already saved keep their lists unchanged; the message history labels any value as typed ("90 min before"). `www/pk-reminders.js` (new), `www/event_edit.php`, `www/admin_settings.php`, `www/_event_save.php`, `www/_notifications.php`, `www/db.php` (`reminder_offsets_clean()`). API: `reminder_offsets` takes at most six values; an explicit empty list now means none, and a body without the field still means the site default. Operator note: the hidden `reminder_offsets_available` setting is no longer read.
+
 ## [v1.19.9] - 2026-11-06
 
 ### Added

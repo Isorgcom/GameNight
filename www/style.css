@@ -810,3 +810,20 @@ img.gn-avatar{object-fit:cover;background:transparent}
 .pk-cancelled-tag { display:inline-block; background:#fef2f2; color:#991b1b; border:1px solid #fecaca; border-radius:999px;
     padding:.05rem .5rem; font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; vertical-align:middle; }
 .pk-ev-cancelled { text-decoration:line-through; background:#94a3b8 !important; color:#fff; opacity:.75; }
+
+/* Reminder rows (v1.20.0): "2 [days] before ×" per reminder, built by
+   pk-reminders.js inside the editor's Send reminders panel and the admin's
+   site default. The long selectors outrank a page's own .form-group input rules. */
+.pk-rem-list .pk-rem-row{display:flex;align-items:center;gap:.4rem;padding:.2rem 0;font-size:.85rem;color:#334155}
+.pk-rem-list .pk-rem-row input.pk-rem-n{width:4.6rem;min-height:30px;margin:0;padding:.25rem .4rem;border:1.5px solid #cbd5e1;border-radius:6px;font:inherit;font-size:.85rem;color:#334155;background:#fff}
+.pk-rem-list .pk-rem-row select.pk-rem-u{flex:1;min-width:0;width:auto;min-height:30px;margin:0;padding:.25rem .3rem;border:1.5px solid #cbd5e1;border-radius:6px;font:inherit;font-size:.85rem;color:#334155;background:#fff}
+.pk-rem-list .pk-rem-row input.pk-rem-n:focus,.pk-rem-list .pk-rem-row select.pk-rem-u:focus{outline:none;border-color:#2563eb}
+.pk-rem-before{white-space:nowrap;color:#475569}
+.pk-rem-x{width:26px;height:26px;border-radius:50%;border:1px solid #cbd5e1;background:#fff;color:#334155;font-size:1rem;line-height:1;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;flex:none}
+.pk-rem-x:hover{background:#fee2e2;border-color:#fca5a5;color:#991b1b}
+.pk-rem-list .pk-rem-add{display:inline-block;margin-top:.35rem;padding:.3rem .6rem;border:1.5px dashed #cbd5e1;border-radius:7px;background:#fff;color:#2563eb;font:inherit;font-size:.82rem;font-weight:600;cursor:pointer}
+.pk-rem-list .pk-rem-add:hover{border-color:#93c5fd;background:#eff6ff}
+.pk-rem-list .pk-rem-add:disabled{color:#64748b;background:#f8fafc;border-style:solid;cursor:default}
+.pk-rem-empty{margin:.3rem 0 0;font-size:.8rem;color:#64748b}
+.pk-rem-empty[hidden]{display:none}
+@media (pointer:coarse){.pk-rem-list .pk-rem-row input.pk-rem-n,.pk-rem-list .pk-rem-row select.pk-rem-u,.pk-rem-list .pk-rem-add{min-height:36px}.pk-rem-x{width:36px;height:36px}}

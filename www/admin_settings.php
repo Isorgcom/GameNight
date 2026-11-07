@@ -198,17 +198,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($__h !== '' && preg_match('/^\.?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/', $__h)) $__ph[] = $__h;
                 }
                 set_setting('push_extra_hosts', implode(',', array_unique($__ph)));
-                // Reminder default offsets (array of minute values)
-                $__newDefs = [];
-                if (!empty($_POST['reminder_default_offsets']) && is_array($_POST['reminder_default_offsets'])) {
-                    foreach ($_POST['reminder_default_offsets'] as $m) {
-                        $n = (int)$m;
-                        if ($n > 0 && $n <= 40320) $__newDefs[] = $n;
-                    }
-                }
-                $__newDefs = array_values(array_unique($__newDefs));
-                sort($__newDefs);
-                set_setting('default_reminder_offsets', json_encode(array_reverse($__newDefs)));
+                // Site default reminders: the same rows as the event editor, posted
+                // in minutes; an empty list means new events start with none.
+                set_setting('default_reminder_offsets', json_encode(reminder_offsets_clean($_POST['reminder_default_offsets'] ?? [])));
                 set_setting('donation_url', trim($_POST['donation_url'] ?? ''));
                 set_setting('donation_message', trim($_POST['donation_message'] ?? ''));
                 // Search & Sharing: what search engines and link previews show for
@@ -1507,27 +1499,17 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
 
                 <hr style="border:none;border-top:1px solid #e2e8f0;margin:1rem 0">
                 <h3 style="font-size:.95rem;margin:0 0 .5rem">Event Reminders</h3>
-                <p class="hint" style="margin-bottom:.75rem">Default reminder offsets for new events. Event creators can override per event. Values are minutes before event start.</p>
+                <p class="hint" style="margin-bottom:.75rem">Every new event starts with these reminders; the host changes them on the event itself. Each is a number and a unit before the start, up to <?= REMINDER_OFFSETS_MAX ?>.</p>
                 <?php
-                $__avail = json_decode(get_setting('reminder_offsets_available', '[10080,4320,2880,1440,720,120,30]'), true) ?: [10080,4320,2880,1440,720,120,30];
-                $__defs  = json_decode(get_setting('default_reminder_offsets', '[2880,720]'), true) ?: [2880,720];
-                function __reminder_label(int $m): string {
-                    if ($m >= 10080 && $m % 10080 === 0) return ($m/10080) . ' week' . ($m/10080 > 1 ? 's' : '');
-                    if ($m >= 1440  && $m % 1440  === 0) return ($m/1440)  . ' day'  . ($m/1440 > 1 ? 's' : '');
-                    if ($m >= 60    && $m % 60    === 0) return ($m/60)    . ' hr';
-                    return $m . ' min';
-                }
+                $__defs = json_decode(get_setting('default_reminder_offsets', '[2880,720]'), true);
+                if (!is_array($__defs)) $__defs = [2880, 720];
                 ?>
                 <div class="form-group">
-                    <label>Site default reminders (pre-checked for new events)</label>
-                    <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-top:.3rem">
-                    <?php foreach ($__avail as $__m): $__m = (int)$__m; ?>
-                        <label style="display:inline-flex;align-items:center;gap:.25rem;font-weight:500">
-                            <input type="checkbox" name="reminder_default_offsets[]" value="<?= $__m ?>" <?= in_array($__m, $__defs, true) ? 'checked' : '' ?>>
-                            <?= htmlspecialchars(__reminder_label($__m)) ?>
-                        </label>
-                    <?php endforeach; ?>
-                    </div>
+                    <label id="remDefaultsLabel">Site default reminders</label>
+                    <div class="pk-rem-list" id="remDefaults" role="group" aria-labelledby="remDefaultsLabel" style="max-width:360px;margin-top:.3rem"
+                         data-name="reminder_default_offsets[]" data-max="<?= REMINDER_OFFSETS_MAX ?>"
+                         data-empty="New events start with no reminders."
+                         data-offsets="<?= implode(',', array_map('intval', $__defs)) ?>"></div>
                 </div>
 
                 <hr style="border:none;border-top:1px solid #e2e8f0;margin:1rem 0">
@@ -3267,7 +3249,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 <div style="margin-bottom:1.5rem">
                     <h3 style="font-size:.9rem;margin-bottom:.5rem">What does it do?</h3>
                     <div style="font-size:.85rem;color:#475569;line-height:1.7">
-                        <p><strong>Event Reminders</strong> &mdash; Sends automatic reminders to invitees 2 days and 12 hours before each event. Uses each person's preferred contact method (email, SMS, or WhatsApp). Each reminder only fires once per event per person.</p>
+                        <p><strong>Event Reminders</strong> &mdash; Sends the reminders set on each event (the site default, 2 days and 12 hours before, is under General &rarr; Event Reminders). Uses each person's preferred contact method (email, SMS, or WhatsApp). Each reminder only fires once per event per person.</p>
                         <p style="margin-top:.5rem"><strong>Database Maintenance</strong> &mdash; Cleans up stale data to keep the database lean:</p>
                         <ul style="margin:.25rem 0 0 1.25rem;padding:0">
                             <li>Expired verification tokens (password resets, email/phone codes) &mdash; deleted after 24 hours</li>
@@ -3441,6 +3423,7 @@ function updatePreview() {
 }
 </script>
 <script src="/_phone_input.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/_phone_input.js') ?: 0)) ?>"></script>
+<script src="/pk-reminders.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-reminders.js') ?: 0)) ?>"></script>
 <script nonce="<?= csp_nonce() ?>">initPhoneAutoFormat();</script>
 <script nonce="<?= csp_nonce() ?>">
 // Named replacements for former inline expressions (CSP step 2, SECURITY.md).
