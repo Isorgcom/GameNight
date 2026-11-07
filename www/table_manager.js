@@ -1271,10 +1271,18 @@ window.gdReenter = function (pid) {
 };
 
 /* ── Cash-game money actions ───────────────────────────────────────────────
- * Money is typed in dollars and posted in cents. Every amount goes through
- * moneyToCents(), which returns null for blank/negative/junk — a silent
- * NaN posted as 0 would zero someone's buy-in.
+ * Amounts are entered on pkMoney's keypad (pk-dialogs.js) and arrive in
+ * cents, or null when the host cancels: bills ADD to the amount as they are
+ * handed over, multiples of the buy-in SET it, digits type it. The cash box's
+ * two typed fields still go through moneyToCents(), which returns null for
+ * blank/negative/junk — a silent NaN posted as 0 would zero someone's buy-in.
  */
+
+// The game's buy-in in cents, for the keypad's default and its multiples row.
+function gdBuyinCents() {
+    var b = parseInt(SESSION && SESSION.buyin_amount);
+    return b > 0 ? b : 2000;
+}
 
 // One prompt for the three "money in" cases: first buy-in, a top-up, and
 // bringing a cashed-out player back (add_cashin clears cash_out server-side).
@@ -1283,18 +1291,17 @@ window.gdCashAdd = function (pid) {
     if (!p) return;
     var back = cashedOut(p);
     var already = cashIn(p);
-    var def = parseInt(SESSION && SESSION.buyin_amount) > 0 ? parseInt(SESSION.buyin_amount) / 100 : 20;
+    var buyin = gdBuyinCents();
     var msg = back
         ? '<b>' + gdNameK(p) + '</b> cashed out for ' + gdMoney(parseInt(p.cash_out) || 0)
           + '. Buying back in clears that cash-out and puts them in a seat again.'
         : (already > 0
             ? '<b>' + gdNameK(p) + '</b> is in for ' + gdMoney(already) + '. Add how much more?'
             : 'How much is <b>' + gdNameK(p) + '</b> buying in for?');
-    pkPrompt(msg, {
+    pkMoney(msg, {
         title: back ? 'Back in' : (already > 0 ? 'Add money' : 'Buy in'),
-        inputType: 'number', 'default': def, okLabel: back ? 'Back in' : 'Add'
-    }).then(function (v) {
-        var cents = moneyToCents(v);
+        'default': buyin, buyin: buyin, okLabel: back ? 'Back in' : 'Add'
+    }).then(function (cents) {
         if (cents === null || cents <= 0) return;
         gdAction('add_cashin', { player_id: pid, amount: cents }).then(function (j) {
             mergePlayer(j.player); takePool(j.pool);
@@ -1308,11 +1315,10 @@ window.gdCashSet = function (pid) {
     var p = playerById(pid);
     if (!p) return;
     gdCloseSheet();
-    pkPrompt('Set <b>' + gdNameK(p) + '</b>’s <b>total</b> money in. This replaces the running'
-             + ' total (' + gdMoney(cashIn(p)) + '), it does not add to it.',
-             { title: 'Correct total in', inputType: 'number', 'default': cashIn(p) / 100, okLabel: 'Save' })
-    .then(function (v) {
-        var cents = moneyToCents(v);
+    pkMoney('Set <b>' + gdNameK(p) + '</b>’s <b>total</b> money in. This replaces the running'
+            + ' total (' + gdMoney(cashIn(p)) + '), it does not add to it.',
+            { title: 'Correct total in', 'default': cashIn(p), buyin: gdBuyinCents(), allowZero: true, okLabel: 'Save' })
+    .then(function (cents) {
         if (cents === null) return;
         gdAction('set_cashin', { player_id: pid, amount: cents }).then(function (j) {
             mergePlayer(j.player); takePool(j.pool);
@@ -1324,11 +1330,11 @@ window.gdCashOut = function (pid) {
     var p = playerById(pid);
     if (!p) return;
     var inAmt = cashIn(p);
-    pkPrompt('What is <b>' + gdNameK(p) + '</b> leaving the table with?'
-             + '<br><br>They are in for <b>' + gdMoney(inAmt) + '</b>. Cashing out frees their seat.',
-             { title: 'Cash out', inputType: 'number', placeholder: '0.00', okLabel: 'Cash out' })
-    .then(function (v) {
-        var cents = moneyToCents(v);
+    // No multiples here (chips are counted, not bought); $0 is a bust, allowed.
+    pkMoney('What is <b>' + gdNameK(p) + '</b> leaving the table with?'
+            + '<br><br>They are in for <b>' + gdMoney(inAmt) + '</b>. Cashing out frees their seat.',
+            { title: 'Cash out', 'default': null, buyin: 0, allowZero: true, okLabel: 'Cash out' })
+    .then(function (cents) {
         if (cents === null) return;
         gdAction('set_cashout', { player_id: pid, cash_out: cents }).then(function (j) {
             mergePlayer(j.player); takePool(j.pool);

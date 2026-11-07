@@ -94,6 +94,9 @@ $title     = (string)$event['title'];
     /* Phone-first. The desktop gets the same single column, centered. */
     html, body { background:#f1f5f9; }
     body { margin:0; font-family:inherit; }
+    /* A quick second tap (a + twice, a bill twice on the keypad) is a second
+       tap, never a double-tap zoom. manipulation keeps pinch-zoom and scrolling. */
+    html, body, button { touch-action:manipulation; }
     .gd-wrap { max-width:560px; margin:0 auto; padding-bottom:84px; }
 
     /* ── Sticky header: the clock is the page's anchor ── */

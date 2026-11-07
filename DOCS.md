@@ -368,6 +368,7 @@ Toggle **Poker Game** on any event to unlock the check-in dashboard at `/checkin
 - **Cash In** — Track how much each player brings to the table. Add or subtract amounts.
 - **Cash Out** — Record what each player leaves with.
 - **Profit/Loss** — Auto-calculated per player (cash out minus cash in).
+- **On a phone** — The Table Manager (the 📱 button in the Manage Game header, or `table_manager.php?event_id=…`) enters every amount on a keypad: tap the bills as they are handed over (+$5 to +$100 add up), tap a multiple of the buy-in (1× to 4×), or type it. The button names the amount before you confirm ("Add $40"); Cash out opens empty and takes $0 for a bust.
 
 ### Managing Players
 
