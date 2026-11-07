@@ -11,6 +11,10 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+### Added
+- **A keypad for money on the Table Manager.** On the phone page a host runs a cash game from, Buy In, Add money, Back In, Correct total in and Cash out asked for the amount in a plain number field, and an iPhone answered that field with its full keyboard. Each of them now opens a keypad inside the dialog: the amount in large type, a row of bills (+$5, +$10, +$20, +$50, +$100) that **add** to it as the cash is handed over, a row of buy-in multiples ($20, 2× $40, 3× $60, 4× $80, lit when the amount matches) that **set** it, and the digits, a point and backspace for anything else. The button names what it will do ("Add $40", "Cash out $125") and stays off until there is an amount. Buy in and Add money open on the game's buy-in, so the usual case is two taps; Correct total opens on the current total; Cash out opens empty and takes $0 for a bust. A physical keyboard types into it too (digits, point, Backspace, Enter, Escape, Tab across the keys). Nothing in the pad is a text field, so the phone's own keyboard never comes up, and a quick second tap on a key (+$20, +$20) counts twice instead of zooming the page: the Table Manager and every dialog button now carry `touch-action: manipulation`, which keeps pinch-zoom and scrolling. `pkMoney()` in `www/pk-dialogs.js`, used by `www/table_manager.js`; the cash box's two typed fields are unchanged.
+- **Number prompts show the phone's decimal pad.** Every remaining number prompt on the site (the console's "Correct this amount" in a player's ledger, the Classic timer's cash in and cash out) now carries `inputmode="decimal"`, so an iPhone offers its number pad with a point instead of the full keyboard. `www/pk-dialogs.js`.
+
 ## [v1.20.0] - 2026-11-07
 
 ### Changed
