@@ -185,6 +185,29 @@ function csv_cell($v): string {
 }
 
 /**
+ * The reminder list a host or an API caller sent, made storable: whole
+ * minutes from 1 to REMINDER_OFFSETS_MAX_MINUTES (28 days), no repeats,
+ * largest first, at most REMINDER_OFFSETS_MAX of them. Stored as JSON on
+ * events.reminder_offsets and in the default_reminder_offsets setting; the
+ * fixed order keeps a re-save with the same reminders from reading as a
+ * change. An empty result is a real answer (no reminders): see
+ * queue_reminders_for_event() in _notifications.php.
+ */
+const REMINDER_OFFSETS_MAX = 6;
+const REMINDER_OFFSETS_MAX_MINUTES = 40320;
+function reminder_offsets_clean($raw): array {
+    if (!is_array($raw)) return [];
+    $out = [];
+    foreach ($raw as $m) {
+        if (is_array($m) || is_object($m)) continue;
+        $n = (int)$m;
+        if ($n > 0 && $n <= REMINDER_OFFSETS_MAX_MINUTES) $out[$n] = $n;
+    }
+    rsort($out, SORT_NUMERIC);
+    return array_slice($out, 0, REMINDER_OFFSETS_MAX);
+}
+
+/**
  * JSON for a value written INTO A SCRIPT BLOCK: `var X = <?= js_json($v) ?>;`.
  * HEX_TAG keeps "<!--" and "</script>" (and "<script>") out of the output,
  * which the HTML parser would otherwise act on inside the block whatever the
@@ -2078,13 +2101,11 @@ JSON;
     try { $pdo->exec("ALTER TABLE events ADD COLUMN reminder_offsets TEXT"); } catch (Exception $e) {}  // JSON array of minutes; NULL = use site default
     try { $pdo->exec("ALTER TABLE events ADD COLUMN reminders_queued INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
 
-    // Seed default reminder offsets if unset (preserve current 2-day + 12-hour behavior)
+    // Seed the site default reminders if unset (2 days and 12 hours before).
+    // Since 1.20.0 a host types any number and unit, so the former preset
+    // catalog setting (reminder_offsets_available) is no longer read.
     if (get_setting('default_reminder_offsets', '') === '') {
         set_setting('default_reminder_offsets', '[2880,720]');
-    }
-    if (get_setting('reminder_offsets_available', '') === '') {
-        // 1w, 3d, 2d, 1d, 12h, 2h, 30min
-        set_setting('reminder_offsets_available', '[10080,4320,2880,1440,720,120,30]');
     }
 
     // ─── Priority invite ordering + RSVP deadline ───────────────────────

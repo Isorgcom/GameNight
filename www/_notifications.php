@@ -257,16 +257,20 @@ function queue_reminders_for_event(PDO $db, int $event_id, ?string $occurrence_d
     if (!empty($event['cancelled_at'])) return 0;
     if ((int)$event['reminders_enabled'] !== 1) return 0;
 
-    $offsets = [];
-    if (!empty($event['reminder_offsets'])) {
+    // The event's own list when it has one; an explicit empty list means the
+    // host removed every reminder, so none. NULL (an API call that left the
+    // field out, or an event saved before per-event lists) falls back to the
+    // site default, which may itself be empty.
+    $offsets = null;
+    if ($event['reminder_offsets'] !== null && $event['reminder_offsets'] !== '') {
         $decoded = json_decode($event['reminder_offsets'], true);
         if (is_array($decoded)) $offsets = array_map('intval', $decoded);
     }
-    if (!$offsets) {
-        $siteDefault = get_setting('default_reminder_offsets', '[2880,720]');
-        $decoded = json_decode($siteDefault, true);
-        if (is_array($decoded)) $offsets = array_map('intval', $decoded);
+    if ($offsets === null) {
+        $decoded = json_decode(get_setting('default_reminder_offsets', '[2880,720]'), true);
+        $offsets = is_array($decoded) ? array_map('intval', $decoded) : [];
     }
+    $offsets = array_values(array_filter($offsets, fn($m) => $m > 0));
     if (!$offsets) return 0;
 
     $tz = new DateTimeZone(get_setting('timezone', 'UTC'));

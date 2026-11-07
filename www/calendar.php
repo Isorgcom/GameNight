@@ -29,9 +29,6 @@ $allUsers = ($current && $current['role'] === 'admin')
 $allowMaybe = get_setting('allow_maybe_rsvp', '1') === '1';
 // Leagues the current user can pick from when creating/editing events
 $myLeaguesForForm = $current ? user_leagues((int)$current['id']) : [];
-// Reminder preset catalog + site default (used for the event editor checkboxes)
-$reminder_presets_available = json_decode(get_setting('reminder_offsets_available', '[10080,4320,2880,1440,720,120,30]'), true) ?: [10080,4320,2880,1440,720,120,30];
-$reminder_default_offsets   = json_decode(get_setting('default_reminder_offsets',    '[2880,720]'), true) ?: [2880,720];
 // All league names for badge display in event view (lightweight — id+name only)
 $_leagueNames = [];
 foreach ($db->query('SELECT id, name FROM leagues')->fetchAll() as $_ln) {

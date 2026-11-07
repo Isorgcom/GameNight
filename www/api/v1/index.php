@@ -223,7 +223,7 @@ api_ok([
                 'rsvp_deadline_hours'=> 'integer, optional. Hours before start_at when RSVPs lock.',
                 'waitlist_enabled'   => 'boolean, optional (default true). Only meaningful when is_poker=true.',
                 'reminders_enabled'  => 'boolean, optional (default true)',
-                'reminder_offsets'   => 'array of positive minutes, optional. Defaults to the site default (typically [2880, 720]).',
+                'reminder_offsets'   => 'array of positive minutes before the start, optional, at most 6 (each 1..40320). Left out: the site default (typically [2880, 720]). An empty array: no reminders.',
                 'poker_buyin'        => 'number, optional (dollars). Used only when is_poker=true.',
                 'poker_tables'       => 'integer, optional, default 1.',
                 'poker_seats'        => 'integer, optional, default 8.',

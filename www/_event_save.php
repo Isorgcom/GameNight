@@ -209,19 +209,13 @@ function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allo
     $max_guests        = (int)($_POST['max_guests'] ?? 0);
     $max_guests        = ($max_guests > 0 && $max_guests <= 999 && !$is_poker) ? $max_guests : null;
 
-    // Reminder config: per-event override (empty = use site default).
+    // Reminder config. The rows the host set are posted in minutes and stored
+    // as sent (deduped, largest first, capped by reminder_offsets_clean());
+    // an empty list is stored as [] and means NO reminders. NULL (an API
+    // call that left the field out, or an event from before per-event lists)
+    // means the site default; the editor never writes it.
     $reminders_enabled = !empty($_POST['reminders_enabled']) ? 1 : 0;
-    $reminder_offsets_raw = $_POST['reminder_offsets'] ?? [];
-    if (!is_array($reminder_offsets_raw)) $reminder_offsets_raw = [];
-    $reminder_offsets_clean = [];
-    foreach ($reminder_offsets_raw as $m) {
-        $n = (int)$m;
-        if ($n > 0 && $n <= 40320) $reminder_offsets_clean[] = $n; // cap at 28 days
-    }
-    $reminder_offsets_clean = array_values(array_unique($reminder_offsets_clean));
-    $reminder_offsets_json = empty($reminder_offsets_clean)
-        ? null
-        : json_encode($reminder_offsets_clean);
+    $reminder_offsets_json = json_encode(reminder_offsets_clean($_POST['reminder_offsets'] ?? []));
 
     // League + visibility
     // Putting an event on a league's calendar is a league-management act, so it

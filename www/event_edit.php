@@ -198,10 +198,13 @@ if ($eventInvitesRows) {
     unset($_ir);
 }
 
-// Editor option sources (same as calendar.php)
+// Editor option sources
 $myLeaguesForForm = user_leagues((int)$current['id']);
-$reminder_presets_available = json_decode(get_setting('reminder_offsets_available', '[10080,4320,2880,1440,720,120,30]'), true) ?: [10080,4320,2880,1440,720,120,30];
-$reminder_default_offsets   = json_decode(get_setting('default_reminder_offsets',    '[2880,720]'), true) ?: [2880,720];
+// The site default reminders (minutes before the start) a new event starts
+// with; an empty list is a real default (none). An event's own list is
+// applied by the script below, so the panel is built by pk-reminders.js.
+$reminder_default_offsets = json_decode(get_setting('default_reminder_offsets', '[2880,720]'), true);
+if (!is_array($reminder_default_offsets)) $reminder_default_offsets = [2880, 720];
 // Admins preload the full user list; everyone else fetches a scoped list async.
 $allUsers = $isAdmin ? $db->query('SELECT username, email, phone, preferred_contact AS pref FROM users ORDER BY username')->fetchAll() : [];
 // Where a tournament can be played online: every enabled connected app that
@@ -491,6 +494,11 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
             #eCapacityHint { grid-column:span 2;font-size:.92rem; }
             #eReminderFields { grid-template-columns:auto 1fr;align-items:center; }
             #eReminderFields .rem-dd-btn { width:100%;min-height:42px;font-size:.95rem;justify-content:space-between; }
+            /* The reminder rows unfold inside the card instead of floating: a
+               300px panel would run past a 390px screen. The two ids outrank
+               the desktop #eRemPanel rule in the style block further down. */
+            #eRemDD { display:contents; }
+            #eReminderFields #eRemPanel { position:static;grid-column:1 / -1;width:100%;min-width:0;box-shadow:none;padding:.5rem .6rem .6rem; }
 
             /* Guests: a header band with the Guest options dropdown, then the
                Invited pane as the only list on the page. */
@@ -699,7 +707,8 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                 <span id="eCapacityHint" style="font-weight:700;color:#2563eb">8 seats</span>
             </div>
 
-            <!-- ── Reminders bar: dropdown of multi-select presets (hidden when reminders off) ── -->
+            <!-- ── Reminders bar: a dropdown holding one row per reminder (number + unit),
+                    built by pk-reminders.js; hidden when reminders are off ── -->
             <div class="edit-poker-bar" id="eReminderFields">
                 <span style="font-weight:600;color:#475569">Send reminders:</span>
                 <div class="rem-dd" id="eRemDD">
@@ -707,19 +716,9 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
                         <span class="sr-only">Reminders: </span><span id="eRemSummary">&mdash;</span> <span style="font-size:.7rem" aria-hidden="true">&#9662;</span>
                     </button>
                     <div class="rem-dd-panel" id="eRemPanel">
-                        <?php foreach ($reminder_presets_available as $__off):
-                            $__off = (int)$__off;
-                            $__checked = in_array($__off, $reminder_default_offsets, true) ? 'checked' : '';
-                            $__label = $__off >= 10080 && $__off % 10080 === 0 ? ($__off/10080 . ' wk')
-                                    : ($__off >= 1440 && $__off % 1440 === 0 ? ($__off/1440 . ' day')
-                                    : ($__off >= 60   && $__off % 60   === 0 ? ($__off/60   . ' hr')
-                                    : ($__off . ' min')));
-                        ?>
-                        <label>
-                            <input type="checkbox" name="reminder_offsets[]" class="eReminderPreset" value="<?= $__off ?>" <?= $__checked ?> data-act-change="updateRemSummary">
-                            <?= htmlspecialchars($__label) ?> before
-                        </label>
-                        <?php endforeach; ?>
+                        <div class="pk-rem-list" id="eRemList" role="group" aria-label="Reminders before the event"
+                             data-name="reminder_offsets[]" data-max="<?= REMINDER_OFFSETS_MAX ?>"
+                             data-offsets="<?= implode(',', array_map('intval', $reminder_default_offsets)) ?>"></div>
                     </div>
                 </div>
             </div>
@@ -732,6 +731,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
             .rem-dd-panel { display: none; position: absolute; top: calc(100% + 4px); left: 0; z-index: 50;
                 background: #fff; border: 1.5px solid #cbd5e1; border-radius: 9px; padding: .45rem .7rem;
                 box-shadow: 0 8px 24px rgba(0,0,0,.12); min-width: 150px; }
+            #eRemPanel { min-width: 300px; padding: .55rem .7rem .65rem; }
             .rem-dd.open .rem-dd-panel { display: block; }
             .rem-dd-panel label { display: flex; align-items: center; gap: .4rem; font-size: .85rem;
                 font-weight: 500; color: #334155; padding: .18rem 0; white-space: nowrap; cursor: pointer; }
@@ -829,6 +829,8 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
 
 <?php require __DIR__ . '/_footer.php'; ?>
 
+<?php /* Not deferred: initEditor() below applies the event's reminders through it at parse time. */ ?>
+<script src="/pk-reminders.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-reminders.js') ?: 0)) ?>"></script>
 <script nonce="<?= csp_nonce() ?>">
 // ── Server-provided state ─────────────────────────────────────────────────────
 const CSRF              = <?= js_json($token, JSON_HEX_TAG) ?>;
@@ -1811,13 +1813,12 @@ function toggleReminderFields() {
     var rr = document.getElementById('eRemRow'); if (rr) rr.classList.toggle('is-off', !el.checked);
 }
 
-// Apply a list of offset values (array of ints) to the reminder checkboxes.
+// Show this event's reminders (a list of minutes) as rows; null keeps the
+// site default the panel was rendered with. pk-reminders.js builds the rows
+// and may be called here before DOMContentLoaded.
 function applyReminderOffsets(offsets) {
-    var boxes = document.querySelectorAll('.eReminderPreset');
-    if (offsets === null) { updateRemSummary(); return; } // keep the site-default pre-checked state
-    var set = {};
-    offsets.forEach(function(o) { set[parseInt(o,10)] = true; });
-    boxes.forEach(function(b) { b.checked = !!set[parseInt(b.value,10)]; });
+    var list = document.getElementById('eRemList');
+    if (list && window.pkReminders) { if (offsets !== null) pkReminders.set(list, offsets); else pkReminders.init(list); }
     updateRemSummary();
 }
 
@@ -1852,14 +1853,21 @@ function updateGuestOptsBadge() {
         badge.style.display = n > 0 ? '' : 'none';
     }
 }
+// The button reads the rows back: "2 days, 12 hr", or "None".
 function updateRemSummary() {
-    var labels = [];
-    document.querySelectorAll('#eRemPanel label').forEach(function(l) {
-        var cb = l.querySelector('.eReminderPreset');
-        if (cb && cb.checked) labels.push(l.textContent.trim().replace(/\s+before$/, ''));
-    });
-    document.getElementById('eRemSummary').textContent = labels.length ? labels.join(', ') : 'None';
+    var list = document.getElementById('eRemList');
+    var text = (list && window.pkReminders) ? pkReminders.summary(pkReminders.get(list)) : 'None';
+    document.getElementById('eRemSummary').textContent = text;
 }
+// An added or removed row fires no form change, so the summary and the
+// unsaved-changes marker follow the list's own event.
+(function () {
+    var list = document.getElementById('eRemList'); if (!list) return;
+    list.addEventListener('pk-rem-change', function () {
+        updateRemSummary();
+        if (typeof updateDirty === 'function') updateDirty();
+    });
+})();
 document.addEventListener('click', function(e) {
     ['eRemDD', 'eGuestOptsDD'].forEach(function(id) {
         var dd = document.getElementById(id);
@@ -2024,12 +2032,17 @@ function regenWalkinFromEdit() {
     // Reminder config: on for new events; for edits, respect the stored toggle.
     var remEnabled = ev ? (parseInt(ev.reminders_enabled ?? 1) === 1) : true;
     document.getElementById('eRemindersEnabled').checked = remEnabled;
+    // Always applied here, so the rows (and their hidden inputs) exist before
+    // markSaved() takes the unsaved-changes baseline below; null = the site
+    // default the panel was rendered with.
+    var remList = null;
     if (ev && ev.reminder_offsets) {
         try {
             var parsed = JSON.parse(ev.reminder_offsets);
-            if (Array.isArray(parsed)) applyReminderOffsets(parsed);
+            if (Array.isArray(parsed)) remList = parsed;
         } catch (e) { /* leave defaults */ }
     }
+    applyReminderOffsets(remList);
     toggleReminderFields();
     // Flag for onLeagueChange so it knows this is a fresh-event open (not an existing session)
     _isNewEventOpen = !ev;

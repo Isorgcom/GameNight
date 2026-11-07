@@ -254,20 +254,17 @@ function handle_events_post(): void {
         ? (!empty($body['reminders_enabled']) ? 1 : 0)
         : 1;
 
-    // reminder_offsets — array of positive minutes
+    // reminder_offsets: a list of minutes before the start. An explicit empty
+    // list means no reminders; a body without the field means the site
+    // default (NULL). Cleaned by reminder_offsets_clean() (1..40320, unique,
+    // largest first, at most six).
     $reminder_offsets_json = null;
     if (isset($body['reminder_offsets'])) {
         if (!is_array($body['reminder_offsets'])) {
             api_log_request($key_id, 400);
             api_fail('reminder_offsets must be an array of minutes', 400);
         }
-        $clean = [];
-        foreach ($body['reminder_offsets'] as $m) {
-            $n = (int)$m;
-            if ($n > 0 && $n <= 40320) $clean[] = $n;
-        }
-        $clean = array_values(array_unique($clean));
-        if (!empty($clean)) $reminder_offsets_json = json_encode($clean);
+        $reminder_offsets_json = json_encode(reminder_offsets_clean($body['reminder_offsets']));
     }
 
     $rsvp_deadline_hrs = null;
@@ -756,13 +753,8 @@ function handle_events_patch(): void {
             api_log_request($key_id, 400);
             api_fail('reminder_offsets must be an array of minutes', 400);
         }
-        $clean = [];
-        foreach ($body['reminder_offsets'] as $m) {
-            $n = (int)$m;
-            if ($n > 0 && $n <= 40320) $clean[] = $n;
-        }
-        $clean = array_values(array_unique($clean));
-        $new_json = empty($clean) ? null : json_encode($clean);
+        // An explicit empty list is stored as [] and means no reminders.
+        $new_json = json_encode(reminder_offsets_clean($body['reminder_offsets']));
         if ($new_json !== ($current['reminder_offsets'] ?? null)) {
             $updates['reminder_offsets'] = $new_json; $fields_changed[] = 'reminder_offsets';
         }

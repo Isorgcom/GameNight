@@ -489,9 +489,7 @@ Hosts can see every send and reply for an event under **More → Message history
 
 ### Reminder Schedule
 
-When cron is configured, automatic reminders are sent:
-- **2 days before** the event
-- **12 hours before** the event
+When cron is configured, each event's reminders are sent automatically. The host sets them in the event editor under **Send reminders**: one row per reminder, each a number and a unit (minutes, hours, days or weeks) before the start, up to six, up to 28 days out. A new event starts with the site default, **2 days** and **12 hours** before, which the admin changes under **Settings → General → Event Reminders** with the same rows. An event whose rows have all been removed sends none; the **Reminders** switch on the event turns them off altogether.
 
 Each reminder is sent only once per user per event occurrence (tracked in the database).
 
@@ -1197,7 +1195,7 @@ curl -X POST -H 'Authorization: Bearer YOUR_WRITE_KEY' \
 | `rsvp_deadline_hours` | integer, optional | Hours before `start_at` when RSVPs lock. |
 | `waitlist_enabled` | boolean, optional | Default `true`. Only meaningful when `is_poker=true`. |
 | `reminders_enabled` | boolean, optional | Default `true`. |
-| `reminder_offsets` | array of integers, optional | Minutes before `start_at` for each reminder send. Defaults to the site default (typically `[2880, 720]` = 48h and 12h). |
+| `reminder_offsets` | array of integers, optional | Minutes before `start_at` for each reminder send, each 1..40320 (28 days), at most 6. Left out: the site default (typically `[2880, 720]` = 48h and 12h). An empty array: no reminders. |
 | `poker_buyin` | number, optional | Dollars (e.g. `20.00`). Used only when `is_poker=true`. |
 | `poker_tables` | integer, optional | Default 1. |
 | `poker_seats` | integer, optional | Default 8. Capacity = `poker_tables * poker_seats`. |
