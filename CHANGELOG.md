@@ -11,6 +11,11 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.21.1] - 2026-11-08
+
+### Changed
+- **The Table Manager's money line can be read across the table.** Under each player on the phone page, "in $40 · out $95 · +$55" was eleven-pixel light grey text, and a cashed-out or busted player's whole row was faded on top of that, so on the Cashed view, where every row is a finished player, the figures a host reads back at the end of the night were the faintest thing on the screen. The line is larger and darker, the amounts are bold with the night's result in green or red, and a finished row now fades only its name and its button. The same line at the top of a player's sheet and the small hints in the sheet's rows ("first 2 free, then $20 each") are darker too. Tournament rows (rebuys, add-ons, bounties, the place) get the same size and colour. `www/table_manager.php`, `www/table_manager.js`.
+
 ## [v1.21.0] - 2026-11-07
 
 ### Added

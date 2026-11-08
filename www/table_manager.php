@@ -161,13 +161,22 @@ $title     = (string)$event['title'];
         border:1.5px solid #e2e8f0; border-radius:12px; padding:.55rem .7rem; margin-bottom:.5rem;
         cursor:pointer; -webkit-tap-highlight-color:transparent; }
     .gd-row:active { background:#f8fafc; }
-    .gd-row.gd-out { opacity:.62; }
+    /* A finished player's row stays legible: the name and the button fade, the
+       money line does not (it is what the host reads back at cash-out). */
+    .gd-row.gd-out .gd-row-name { color:#64748b; }
+    .gd-row.gd-out .gd-primary { opacity:.72; }
     .gd-row.gd-flash { animation:gdFlash 1.6s ease-out; }
     @keyframes gdFlash { 0% { background:#dbeafe; } 100% { background:#fff; } }
     .gd-row-main { flex:1; min-width:0; }
     .gd-row-name { font-weight:700; color:#1e293b; font-size:.95rem;
         overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .gd-row-meta { font-size:.72rem; color:#94a3b8; margin-top:.1rem; display:flex; gap:.45rem; align-items:center; }
+    .gd-row-meta { font-size:.8rem; color:#64748b; margin-top:.15rem; display:flex; flex-wrap:wrap;
+        gap:.15rem .45rem; align-items:center; }
+    /* The money figures darker than their labels, the net green or red. */
+    .gd-amt { color:#334155; font-weight:600; }
+    .gd-net { color:#334155; font-weight:800; }
+    .gd-net.pos { color:#15803d; }
+    .gd-net.neg { color:#dc2626; }
     .gd-badge { font-size:.62rem; font-weight:800; text-transform:uppercase; letter-spacing:.04em;
         padding:.1rem .4rem; border-radius:4px; }
     .gd-badge.playing { background:#dcfce7; color:#166534; }
@@ -232,11 +241,11 @@ $title     = (string)$event['title'];
     .gd-sheet.open { transform:translateY(0); }
     .gd-sheet-grip { width:38px; height:4px; border-radius:2px; background:#cbd5e1; margin:.3rem auto .5rem; }
     .gd-sheet-name { font-weight:800; font-size:1.05rem; color:#1e293b; }
-    .gd-sheet-sub { font-size:.75rem; color:#94a3b8; margin-bottom:.6rem; }
+    .gd-sheet-sub { font-size:.85rem; color:#64748b; margin-bottom:.6rem; }
     .gd-sheet-grid { display:flex; flex-direction:column; gap:.45rem; }
     .gd-sheet-row { display:flex; align-items:center; gap:.6rem; }
     .gd-sheet-row .gd-lbl { flex:1; font-weight:600; font-size:.9rem; color:#334155; }
-    .gd-sheet-row .gd-sub { font-size:.72rem; color:#94a3b8; font-weight:400; display:block; }
+    .gd-sheet-row .gd-sub { font-size:.75rem; color:#64748b; font-weight:400; display:block; }
     .gd-counter { display:flex; align-items:center; gap:.15rem; }
     .gd-counter button { width:48px; height:48px; border:1.5px solid #cbd5e1; background:#fff;
         border-radius:10px; font-size:1.3rem; font-weight:700; color:#334155; cursor:pointer; }

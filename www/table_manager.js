@@ -155,6 +155,22 @@ function isDeclined(p) { return !!p && p.rsvp === 'no' && !parseInt(p.bought_in)
 function cashIn(p) { return parseInt(p && p.cash_in) || 0; }
 function cashProfit(p) { return cashedOut(p) ? (parseInt(p.cash_out) || 0) - cashIn(p) : null; }
 function signedMoney(cents) { return (cents >= 0 ? '+' : '−') + gdMoney(Math.abs(cents)); }
+// The roster line and the sheet's sub-line are a list of bits joined by " · ".
+// A money bit is {text, cls} so the figure can be drawn darker than its label
+// and the net green or red; a plain string is drawn as it is. The container's
+// textContent reads the same either way ("in $40 · out $95 · +$55").
+function moneyBit(label, cents) { return { text: label + ' ' + gdMoney(cents), cls: 'gd-amt' }; }
+function netBit(cents) { return { text: signedMoney(cents), cls: 'gd-net' + (cents > 0 ? ' pos' : cents < 0 ? ' neg' : '') }; }
+function fillBits(node, bits) {
+    node.textContent = '';
+    bits.forEach(function (b, i) {
+        if (i) node.appendChild(document.createTextNode(' · '));
+        if (typeof b === 'string') { node.appendChild(document.createTextNode(b)); return; }
+        var s = document.createElement('span');
+        s.className = b.cls; s.textContent = b.text;
+        node.appendChild(s);
+    });
+}
 // Money on the table right now — the cash game's headline number.
 function onTable() {
     if (!POOL) return 0;
@@ -831,10 +847,10 @@ function patchRow(els, p) {
         els.badge.textContent = st === 'playing' ? 'Playing'
                               : st === 'out' ? 'Busted'
                               : st === 'cashed' ? 'Cashed out' : 'Not in';
-        if (cashIn(p) > 0) bits.push('in ' + gdMoney(cashIn(p)));
+        if (cashIn(p) > 0) bits.push(moneyBit('in', cashIn(p)));
         if (cashedOut(p)) {
-            bits.push('out ' + gdMoney(parseInt(p.cash_out) || 0));
-            bits.push(signedMoney(cashProfit(p)));
+            bits.push(moneyBit('out', parseInt(p.cash_out) || 0));
+            bits.push(netBit(cashProfit(p)));
         }
     } else {
         els.badge.textContent = st === 'playing' ? 'Playing'
@@ -845,7 +861,7 @@ function patchRow(els, p) {
         if (parseInt(p.bounties_won) > 0) bits.push('🎯 ' + parseInt(p.bounties_won));
     }
     els.seat.textContent = seatLabel(p);
-    els.extras.textContent = bits.join(' · ');
+    fillBits(els.extras, bits);
 
     var prim = primaryFor(p);
     if (prim) {
@@ -1600,16 +1616,16 @@ function renderSheet() {
     el('gdSheetName').textContent = gdNameT(p);
     var subBits = [seatLabel(p) || 'No seat'];
     if (isCash()) {
-        if (cashIn(p) > 0) subBits.push('in ' + gdMoney(cashIn(p)));
+        if (cashIn(p) > 0) subBits.push(moneyBit('in', cashIn(p)));
         if (cashedOut(p)) {
-            subBits.push('out ' + gdMoney(parseInt(p.cash_out) || 0));
-            subBits.push(signedMoney(cashProfit(p)));
+            subBits.push(moneyBit('out', parseInt(p.cash_out) || 0));
+            subBits.push(netBit(cashProfit(p)));
         }
     } else {
         if (parseInt(p.bought_in)) subBits.push('bought in');
         if (parseInt(p.eliminated)) subBits.push('out' + (parseInt(p.finish_position) ? ' · ' + gdOrdinal(parseInt(p.finish_position)) : ''));
     }
-    el('gdSheetSub').textContent = subBits.join(' · ');
+    fillBits(el('gdSheetSub'), subBits);
 
     var grid = el('gdSheetGrid');
     grid.textContent = '';
