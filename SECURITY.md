@@ -392,8 +392,11 @@ and requests for pages that exist.
 `auth.php` is called from the honeypot, the scripted-post check (a sign-up
 whose hidden browser-timezone field arrived empty, so the page's script never
 ran; v1.21.2), the sign-up and resend limits, the per-account caps on
-verification mail and codes, a sign-up on a suppressed address, and the sign-in
-lock. It counts the hour's hits from the activity log,
+verification mail and codes, a sign-up on a suppressed address, the sign-in
+lock, and the sign-up burst alarm (`signup_burst_alarm()`, v1.21.3: the hour's
+sign-up posts across every address reach the General setting
+`signup_burst_per_hour`, default 10, the case a bot rotating addresses under the
+per-address limit presents). It counts the hour's hits from the activity log,
 sends once per kind per hour (its own `security_alert: <kind>` row is the
 throttle, written before the send), and never throws into the request that
 triggered it. Delivery is the alert phone in Admin → Settings → General or,

@@ -72,6 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'Too many registration attempts. Please try again in an hour.';
         } else {
             db_log_anon_activity('register_attempt');
+            signup_burst_alarm();
 
             $username  = trim($_POST['username'] ?? '');
             $contact   = trim($_POST['contact'] ?? '');

@@ -190,6 +190,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 set_setting('security_alerts', isset($_POST['security_alerts']) ? '1' : '0');
                 $__sap = trim((string)($_POST['security_alert_phone'] ?? ''));
                 set_setting('security_alert_phone', $__sap === '' ? '' : normalize_phone($__sap));
+                // The sign-up burst alarm (signup_burst_alarm() in auth.php): posts per
+                // hour across every address before the admins are told; 0 turns it off.
+                set_setting('signup_burst_per_hour', (string)max(0, min(1000, (int)($_POST['signup_burst_per_hour'] ?? SIGNUP_BURST_PER_HOUR_DEFAULT))));
                 // Extra browser-push service hosts (comma list; a leading dot matches
                 // subdomains). Hostnames only: the server POSTs to these.
                 $__ph = [];
@@ -1482,13 +1485,19 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                         <span class="pk-toggle-slider"></span>
                         Security alerts
                     </label>
-                    <p class="hint">Tell the admins when the sign-up honeypot is hit, the sign-up or resend-verification limit refuses someone, verification mail is withheld by its per-account cap, an opted-out address is used, or sign-in is locked after failed attempts. At most one message per kind per hour; every hit is in the Logs tab regardless.</p>
+                    <p class="hint">Tell the admins when the sign-up honeypot is hit, a sign-up is posted by a client that never ran the page, the sign-up or resend-verification limit refuses someone, verification mail is withheld by its per-account cap, an opted-out address is used, sign-in is locked after failed attempts, or sign-up posts in one hour reach the burst alarm below. At most one message per kind per hour; every hit is in the Logs tab regardless.</p>
                 </div>
                 <div class="form-group" style="margin-top:.5rem">
                     <label for="security_alert_phone">Text security alerts to</label>
                     <input type="tel" id="security_alert_phone" name="security_alert_phone" placeholder="555-123-4567" autocomplete="off"
                            value="<?= htmlspecialchars(get_setting('security_alert_phone', ''), ENT_QUOTES | ENT_SUBSTITUTE) ?>">
                     <p class="hint">A mobile number for the alerts, texted through the SMS provider even while Enable Notifications is off. Leave it blank and each admin is notified the way their Preferred Contact says. Admins see every alert in their inbox either way.</p>
+                </div>
+                <div class="form-group" style="margin-top:.5rem">
+                    <label for="signup_burst_per_hour">Sign-up burst alarm</label>
+                    <input type="number" id="signup_burst_per_hour" name="signup_burst_per_hour" min="0" max="1000" step="1" inputmode="numeric" style="max-width:8rem"
+                           value="<?= (int)get_setting('signup_burst_per_hour', (string)SIGNUP_BURST_PER_HOUR_DEFAULT) ?>">
+                    <p class="hint">Alert when this many sign-up posts arrive within one hour, counted across every address, refused posts included. The message says how many posts came from how many addresses. A normal day sees one or two posts; a bot that paces each of its addresses under the per-address limit still adds up here. 0 turns it off.</p>
                 </div>
                 <div class="form-group" style="margin-top:.5rem">
                     <label for="push_extra_hosts">Extra browser-push services</label>
