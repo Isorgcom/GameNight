@@ -11,6 +11,11 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.21.3] - 2026-11-10
+
+### Added
+- **A sign-up burst alarm.** Every sign-up guard so far fires on one post or one address, and the 2026-11-10 bot tripped none of them: six rented addresses, one post each every ten minutes, 29 posts in three hours and not a word to the admins. Admin → Settings → General gains **Sign-up burst alarm**, the number of sign-up posts in one hour, counted across every address and including refused ones, at which the admins are told (default 10; 0 turns it off). The message is the usual security alert, once per hour while it lasts, and says how many posts came from how many addresses, with the latest one. `www/auth.php` (`signup_burst_alarm()`, the `signup_burst` kind), `www/register.php`, `www/admin_settings.php`.
+
 ## [v1.21.2] - 2026-11-10
 
 ### Security
