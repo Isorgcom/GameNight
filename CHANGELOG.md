@@ -11,6 +11,14 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.21.4] - 2026-11-10
+
+### Fixed
+- **The Privacy Policy and Terms pages no longer throw session warnings on every visit, and show a signed-in visitor their own nav.** Both pages sent their HTML before anything had started the session; the nav and footer they include then tried to start it, which PHP refuses once output has begun, so every visit wrote five warnings to the server log and the visitor was drawn as signed out even when they were not. Each page now calls `current_user()` before its first byte, the way the help pages do. Found in the live log on 2026-11-10. `www/privacy.php`, `www/terms.php`.
+
+### Infrastructure
+- **A permanent blacklist at the proxy.** The `npm-scan` jail bans a path scanner for a day on its own evidence; the 2026-11-10 sign-up bot never tripped it, because it asked only for pages that exist, and it kept posting after every application-side guard had closed on it. A second fail2ban jail, `npm-blacklist`, holds what the operator bans by hand: `fail2ban-client set npm-blacklist banip <address or range>` drops the traffic in Docker's `DOCKER-USER` chain for good, fail2ban keeps the ban in its database across restarts, and `unbanip` lifts it. The jail reads no log. `fail2ban/filter.d/npm-blacklist.conf`, `fail2ban/jail.d/npm-blacklist.conf`, `server-prep.sh` installs both, `fail2ban/README.md` has the commands. On the live host the bot's six ranges (five at CloudBackbone, one at HostVDS) and the two GorillaServers addresses from the Nov 6 and Nov 9 probes were banned the same day.
+
 ## [v1.21.3] - 2026-11-10
 
 ### Added

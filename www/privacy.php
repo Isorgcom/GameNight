@@ -1,7 +1,11 @@
 <?php
 // auth.php (not db.php alone) so this public page goes out with the same
-// security headers and CSP as every other; it starts no session by itself.
+// security headers and CSP as every other. current_user() runs BEFORE the first
+// byte of HTML, as on the help pages: the nav and footer partials start the
+// session, and starting it after output has begun fails with five PHP warnings
+// per visit and shows a signed-in visitor the signed-out nav (v1.21.4).
 require_once __DIR__ . '/auth.php';
+$current   = current_user();
 $site_name = get_setting('site_name', 'Game Night');
 ?>
 <!DOCTYPE html>

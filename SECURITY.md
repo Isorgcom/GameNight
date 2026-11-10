@@ -384,7 +384,10 @@ details are easy to get wrong:
 
 Checks: `fail2ban-regex <log> /etc/fail2ban/filter.d/npm-scan.conf` must match
 every 403/404 line; `fail2ban-client status npm-scan` lists bans;
-`fail2ban-client set npm-scan unbanip <ip>` lifts one. Not covered: the proxy's
+`fail2ban-client set npm-scan unbanip <ip>` lifts one. A second jail,
+`npm-blacklist` (v1.21.4), reads no log and holds what an operator bans by hand
+with `fail2ban-client set npm-blacklist banip <ip-or-cidr>`, permanently and
+across restarts; the 2026-11-10 sign-up bot's six ranges are its first entries. Not covered: the proxy's
 fallback host (a different log format), a scanner pacing under the threshold,
 and requests for pages that exist.
 

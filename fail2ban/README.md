@@ -63,6 +63,35 @@ addresses. To unban one:
 fail2ban-client set npm-scan unbanip 203.0.113.7
 ```
 
+## Keeping an address out for good
+
+`npm-scan` bans on its own evidence and lets go after a day. The second jail,
+`npm-blacklist`, is for what a person decides: a hosting range that keeps coming
+back, the sign-up bot of 2026-11-10 that rotated six addresses in two
+providers' ranges and paced each one under every limit. It reads no log; its
+filter matches nothing and its `logpath` is `/dev/null`. Addresses go in by
+hand, a range or a single address, and `bantime = -1` keeps them out until
+someone lifts the ban. fail2ban stores the ban in its database and puts it back
+after a restart.
+
+```bash
+fail2ban-client set npm-blacklist banip 203.0.113.0/24 198.51.100.7
+fail2ban-client status npm-blacklist
+fail2ban-client get npm-blacklist banip --with-time
+fail2ban-client set npm-blacklist unbanip 203.0.113.0/24
+```
+
+The jail's `ignoreip` is the same private list as `npm-scan`'s, so a slip of the
+hand cannot ban the proxy's own networks; repeat your own address in a
+`jail.d/npm-blacklist.local` the same way. The list of what is banned lives on
+the host, not in this repository: `fail2ban-client status npm-blacklist` is the
+record.
+
+| File | Where it goes on the host |
+|---|---|
+| `filter.d/npm-blacklist.conf` | `/etc/fail2ban/filter.d/npm-blacklist.conf` |
+| `jail.d/npm-blacklist.conf` | `/etc/fail2ban/jail.d/npm-blacklist.conf` |
+
 ## What it does not cover
 
 - The proxy's fallback host (requests that name no configured host, typically
