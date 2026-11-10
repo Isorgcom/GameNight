@@ -5,7 +5,7 @@ history of the CSP gap that is now closed — kept because the reasoning is what
 stops it being reopened, and because the conversion that closed it is still the
 main source of regressions.
 
-Last reviewed: 2026-11-06 (v1.19.9).
+Last reviewed: 2026-11-10 (v1.21.2).
 
 ---
 
@@ -389,9 +389,11 @@ fallback host (a different log format), a scanner pacing under the threshold,
 and requests for pages that exist.
 
 **The application tells the admins when a guard fires.** `security_alert()` in
-`auth.php` is called from the honeypot, the sign-up and resend limits, the
-per-account caps on verification mail and codes, a sign-up on a suppressed
-address, and the sign-in lock. It counts the hour's hits from the activity log,
+`auth.php` is called from the honeypot, the scripted-post check (a sign-up
+whose hidden browser-timezone field arrived empty, so the page's script never
+ran; v1.21.2), the sign-up and resend limits, the per-account caps on
+verification mail and codes, a sign-up on a suppressed address, and the sign-in
+lock. It counts the hour's hits from the activity log,
 sends once per kind per hour (its own `security_alert: <kind>` row is the
 throttle, written before the send), and never throws into the request that
 triggered it. Delivery is the alert phone in Admin → Settings → General or,

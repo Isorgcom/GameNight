@@ -11,6 +11,11 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.21.2] - 2026-11-10
+
+### Security
+- **A sign-up post that never ran the page is treated as a script.** On 2026-11-10 a bot posted the sign-up form 29 times in three hours from six rented addresses, fetching the form and posting it in the same second without loading a single script or stylesheet, and pacing each address well under the hourly limit. Its first post was well formed, so it made an account and the site sent one verification mail to the Gmail address it was aimed at; the honeypot never saw it, because this bot fills only the fields it is handed. The form's own script fills a hidden field with the browser's timezone the moment the page runs, so a post that arrives with that field empty came from a client that never ran the page. Such a post now gets the honeypot treatment: the usual "check your inbox" screen, no account, no mail, a `register_noscript` warning in Admin → Settings → Logs, and a security alert to the admins ("Scripted sign-up"). A person browsing with JavaScript turned off sees a notice above the form saying sign-up needs it; the rest of the site needs it too. `www/register.php`, `www/auth.php` (`SECURITY_ALERT_KINDS`).
+
 ## [v1.21.1] - 2026-11-08
 
 ### Changed

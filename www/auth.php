@@ -370,6 +370,7 @@ function mfa_sms_resend_rate_limited(int $uid): bool {
 // hour", a title, a sentence with %d (the count) and %s (the plural s)].
 const SECURITY_ALERT_KINDS = [
     'honeypot'     => ['register_honeypot',                  'Honeypot hit',           '%d sign-up post%s filled the honeypot field'],
+    'noscript'     => ['register_noscript',                  'Scripted sign-up',       '%d sign-up post%s came from a client that never ran the page'],
     'signup_limit' => ['register_rate_limited',              'Sign-up limit hit',      '%d sign-up%s refused by the hourly per-address limit'],
     'resend_limit' => ['resend_rate_limited',                'Resend limit hit',       '%d resend-verification request%s refused by the hourly per-address limit'],
     'verify_cap'   => ['verification % withheld: too many%', 'Verification cap hit',   'verification mail or codes withheld %d time%s by the per-account cap'],

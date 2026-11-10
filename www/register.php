@@ -114,9 +114,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Such a post gets the normal "check your inbox" screen (the same answer as a
             // contact that is already registered, so the script learns nothing) and
             // creates no account. Logged at warning level for Admin → Settings → Logs.
+            //
+            // Scripted post (v1.21.2). The page's own script fills the hidden tz_detected
+            // field with the browser's zone as soon as it runs, so a post that arrives with
+            // it empty came from a client that fetched the form and replayed it without
+            // ever running the page. The 2026-11-10 sign-up bot did exactly that: GET and
+            // POST in the same second, not one script or stylesheet loaded, and its first
+            // post went through every other check. Same treatment as the honeypot; logged
+            // as register_noscript. A person with JavaScript off sees the <noscript> notice
+            // above the form, since this screen would otherwise leave them waiting for mail.
+            $scripted = '';
             if (trim((string)($_POST['website'] ?? '')) !== '') {
-                db_log_anon_activity('register_honeypot', 'warning');
-                security_alert('honeypot');
+                $scripted = 'honeypot';
+            } elseif ($tz_detected === '') {
+                $scripted = 'noscript';
+            }
+            if ($scripted !== '') {
+                db_log_anon_activity('register_' . $scripted, 'warning');
+                security_alert($scripted);
                 $registered_email  = $email;
                 $registered_method = $verify_method;
                 $registered_phone  = $phone;
@@ -237,6 +252,10 @@ $site_name = get_setting('site_name', 'Game Night');
         <?php if ($error): ?>
             <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
         <?php endif; ?>
+        <?php /* Shown only when the browser is not running scripts: the POST handler treats a
+                 sign-up that never ran this page's script as a bot (v1.21.2), so a person with
+                 JavaScript off is told why the form will not work for them. */ ?>
+        <noscript><div class="alert alert-error">Signing up needs JavaScript turned on in your browser.</div></noscript>
 
         <form method="post" action="/register.php" novalidate data-act-submit="validateRegister">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
