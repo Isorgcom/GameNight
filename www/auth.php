@@ -371,6 +371,7 @@ function mfa_sms_resend_rate_limited(int $uid): bool {
 const SECURITY_ALERT_KINDS = [
     'honeypot'     => ['register_honeypot',                  'Honeypot hit',           '%d sign-up post%s filled the honeypot field'],
     'noscript'     => ['register_noscript',                  'Scripted sign-up',       '%d sign-up post%s came from a client that never ran the page'],
+    'signup_burst' => ['register_attempt%',                  'Sign-up burst',          '%d sign-up post%s from {ips} address{es}'],
     'signup_limit' => ['register_rate_limited',              'Sign-up limit hit',      '%d sign-up%s refused by the hourly per-address limit'],
     'resend_limit' => ['resend_rate_limited',                'Resend limit hit',       '%d resend-verification request%s refused by the hourly per-address limit'],
     'verify_cap'   => ['verification % withheld: too many%', 'Verification cap hit',   'verification mail or codes withheld %d time%s by the per-account cap'],
@@ -406,6 +407,16 @@ function security_alert(string $kind, string $detail = ''): void {
         $q->execute([$pattern]);
         $n = max(1, (int)$q->fetchColumn());
         $q->closeCursor();
+        // A kind whose sentence carries {ips} also says how many addresses the
+        // hour's hits came from (the burst alarm: one address is a clumsy script,
+        // six is the 2026-11-10 bot rotating through a hosting range).
+        if (strpos($tpl, '{ips}') !== false) {
+            $q2 = $db->prepare("SELECT COUNT(DISTINCT ip) FROM activity_log WHERE action LIKE ? AND created_at >= datetime('now', '-1 hour')");
+            $q2->execute([$pattern]);
+            $ips = max(1, (int)$q2->fetchColumn());
+            $q2->closeCursor();
+            $tpl = str_replace(['{ips}', '{es}'], [(string)$ips, $ips === 1 ? '' : 'es'], $tpl);
+        }
         // The alert is itself a log row, written before sending so a second
         // hit arriving meanwhile sees it and stays quiet.
         db_log_anon_activity("security_alert: $kind", 'warning');
@@ -434,6 +445,30 @@ function security_alert(string $kind, string $detail = ''): void {
         $db->prepare('UPDATE activity_log SET action = ? WHERE id = ?')->execute(["security_alert: $kind ($via)", $rowId]);
     } catch (Throwable $e) {
         error_log("GameNight security alert ($kind) failed: " . $e->getMessage());
+    }
+}
+
+const SIGNUP_BURST_PER_HOUR_DEFAULT = 10;
+
+/**
+ * The sign-up burst alarm (v1.21.3). Every guard above fires on one post or one
+ * address; the 2026-11-10 bot tripped none of them by rotating six addresses at
+ * one post each every ten minutes. This counts sign-up posts across every
+ * address over the last hour and raises the "Sign-up burst" alert once the
+ * count reaches the setting signup_burst_per_hour (Admin → Settings → General;
+ * 0 turns it off). Called from register.php right after the post is logged, so
+ * refused posts count too; security_alert() keeps it to one message per hour.
+ */
+function signup_burst_alarm(): void {
+    try {
+        $cap = (int)get_setting('signup_burst_per_hour', (string)SIGNUP_BURST_PER_HOUR_DEFAULT);
+        if ($cap <= 0) return;
+        $q = get_db()->query("SELECT COUNT(*) FROM activity_log WHERE action LIKE 'register_attempt%' AND created_at >= datetime('now', '-1 hour')");
+        $n = (int)$q->fetchColumn();
+        $q->closeCursor();
+        if ($n >= $cap) security_alert('signup_burst');
+    } catch (Throwable $e) {
+        error_log('GameNight sign-up burst alarm failed: ' . $e->getMessage());
     }
 }
 
