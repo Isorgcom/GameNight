@@ -92,6 +92,12 @@ function pk_lo_img($v): ?string {
     if (preg_match('#^/img/timer_beta/[a-z0-9._-]{1,80}$#', $v)) return $v;
     return null;
 }
+// Glow: `true` = a halo in the text's own colour, or a stated colour string.
+// Same fence as every other colour (pk_lo_style_str); anything else drops.
+function pk_lo_glow($v) {
+    if ($v === true) return true;
+    return pk_lo_style_str($v, 40);
+}
 function pk_lo_num($v, float $min, float $max): ?float {
     if (!is_numeric($v)) return null;
     return max($min, min($max, (float)$v));
@@ -251,7 +257,9 @@ function pk_lo_cell($cell, array &$err): ?array {
     if (isset($cell['chipSize'])) { $n = pk_lo_num($cell['chipSize'], 0.5, 30); if ($n !== null) $out['chipSize'] = $n; }
     foreach (['fit', 'bold', 'clockColors'] as $b) if (!empty($cell[$b])) $out[$b] = true;
     foreach (['color', 'bg', 'border'] as $k) if (isset($cell[$k])) { $v = pk_lo_style_str($cell[$k]); if ($v !== null) $out[$k] = $v; }
-    foreach (['pad', 'spacing'] as $k) if (isset($cell[$k])) { $v = pk_lo_style_str($cell[$k], 32); if ($v !== null) $out[$k] = $v; }
+    foreach (['pad', 'spacing', 'radius'] as $k) if (isset($cell[$k])) { $v = pk_lo_style_str($cell[$k], 32); if ($v !== null) $out[$k] = $v; }
+    // Neon halo on the text (and along the frame when the cell has a border).
+    if (isset($cell['glow'])) { $g = pk_lo_glow($cell['glow']); if ($g !== null) $out['glow'] = $g; }
     if (isset($cell['align']) && in_array($cell['align'], ['left', 'center', 'right'], true)) $out['align'] = $cell['align'];
     if (isset($cell['font']) && in_array($cell['font'], PK_LO_FONTS, true)) $out['font'] = $cell['font'];
     // Shared-style reference; refs to names the layout doesn't define are
@@ -344,6 +352,7 @@ function pk_lo_cell($cell, array &$err): ?array {
             foreach (['color', 'bg'] as $k) if (isset($v[$k])) { $cv = pk_lo_style_str($v[$k]); if ($cv !== null) $vo[$k] = $cv; }
             if (!empty($v['bold'])) $vo['bold'] = true;
             if (isset($v['opacity'])) { $n = pk_lo_num($v['opacity'], 0, 1); if ($n !== null) $vo['opacity'] = $n; }
+            if (isset($v['glow'])) { $g = pk_lo_glow($v['glow']); if ($g !== null) $vo['glow'] = $g; }
             if ($vo) $vs[] = $vo;
         }
         if ($vs) $out['variants'] = $vs;
@@ -384,9 +393,10 @@ function pk_lo_node($node, int $depth, int &$count, array &$err): ?array {
     }
     // Shared box props (both containers and cell nodes carry these).
     if (isset($node['weight'])) { $n = pk_lo_num($node['weight'], 0, 50); if ($n !== null) $out['weight'] = $n; }
-    foreach (['pad' => 32, 'bg' => 80, 'border' => 80] as $k => $max) {
+    foreach (['pad' => 32, 'bg' => 80, 'border' => 80, 'radius' => 32] as $k => $max) {
         if (isset($node[$k])) { $v = pk_lo_style_str($node[$k], $max); if ($v !== null) $out[$k] = $v; }
     }
+    if (isset($node['glow'])) { $g = pk_lo_glow($node['glow']); if ($g !== null) $out['glow'] = $g; }
     return $out;
 }
 
@@ -438,7 +448,8 @@ function pk_lo_styles($styles): array {
         if (isset($st['size'])) { $v = pk_lo_num($st['size'], 0.5, 40); if ($v !== null) $s['size'] = $v; }
         foreach (['fit', 'bold'] as $b) if (!empty($st[$b])) $s[$b] = true;
         foreach (['color', 'bg'] as $k) if (isset($st[$k])) { $v = pk_lo_style_str($st[$k]); if ($v !== null) $s[$k] = $v; }
-        foreach (['pad', 'spacing'] as $k) if (isset($st[$k])) { $v = pk_lo_style_str($st[$k], 32); if ($v !== null) $s[$k] = $v; }
+        foreach (['pad', 'spacing', 'radius'] as $k) if (isset($st[$k])) { $v = pk_lo_style_str($st[$k], 32); if ($v !== null) $s[$k] = $v; }
+        if (isset($st['glow'])) { $g = pk_lo_glow($st['glow']); if ($g !== null) $s['glow'] = $g; }
         if (isset($st['align']) && in_array($st['align'], ['left', 'center', 'right'], true)) $s['align'] = $st['align'];
         if (isset($st['font']) && in_array($st['font'], PK_LO_FONTS, true)) $s['font'] = $st['font'];
         if (isset($st['opacity'])) { $v = pk_lo_num($st['opacity'], 0, 1); if ($v !== null) $s['opacity'] = $v; }
@@ -737,15 +748,20 @@ function pk_lo_gc_images(PDO $db, array $candidateNames, int $exceptId, int $uid
 // the admin gave it one. The built-ins are listed by the editor itself, which
 // has them in code. Same visibility as get_layouts' site rows: any signed-in
 // host may browse and use them.
+// The whole document rides along: the card draws the layout live through the
+// display page, so the gallery needs what the display would get. updated_at
+// busts the browser's day-long cache on the card picture.
 if ($action === 'get_library') {
-    $rows = $db->query('SELECT id, name, layout FROM timer_layouts WHERE is_global = 1 ORDER BY LOWER(name)');
+    $rows = $db->query('SELECT id, name, layout, updated_at FROM timer_layouts WHERE is_global = 1 ORDER BY LOWER(name)');
     $out = [];
     foreach ($rows as $r) {
         $doc = json_decode((string)$r['layout'], true);
         $lib = (is_array($doc) && isset($doc['library']) && is_array($doc['library'])) ? $doc['library'] : [];
         $out[] = ['id' => (int)$r['id'], 'name' => $r['name'],
                   'description' => is_string($lib['description'] ?? null) ? $lib['description'] : '',
-                  'preview' => is_string($lib['preview'] ?? null) ? $lib['preview'] : ''];
+                  'preview' => is_string($lib['preview'] ?? null) ? $lib['preview'] : '',
+                  'layout' => is_array($doc) ? $doc : null,
+                  'updated_at' => (string)($r['updated_at'] ?? '')];
     }
     echo json_encode(['ok' => true, 'layouts' => $out]);
     exit;

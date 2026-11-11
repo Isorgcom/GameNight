@@ -281,6 +281,8 @@
 .tbe-color { display: flex; gap: .35rem; align-items: center; }
 .tbe-color input[type=color] { width: 38px; height: 32px; padding: 2px; border: 1.5px solid #cbd5e1; border-radius: 7px; background: #fff; }
 .tbe-color input[type=text] { flex: 1; }
+.tbe-glow { display: flex; flex-direction: column; gap: .35rem; }
+.tbe-glow > select { width: 100%; padding: .35rem .5rem; border: 1.5px solid #cbd5e1; border-radius: 7px; font-size: .8rem; background: #fff; }
 .tbe-elrow select { width: 100%; padding: .35rem .5rem; border: 1.5px solid #cbd5e1; border-radius: 7px; font-size: .8rem; background: #fff; }
 
 @media (pointer: coarse) {
@@ -379,8 +381,13 @@
 .tbe-lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: .9rem; }
 .tbe-lib-card { display: flex; flex-direction: column; border: 1.5px solid #e2e8f0; border-radius: 10px; overflow: hidden; background: #fff; }
 .tbe-lib-card:hover { border-color: #93c5fd; }
-.tbe-lib-pic { aspect-ratio: 16 / 9; background: #0f172a; color: #94a3b8; font-size: .8rem; display: flex; align-items: center; justify-content: center; }
+.tbe-lib-pic { aspect-ratio: 16 / 9; background: #0f172a; color: #94a3b8; font-size: .8rem; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
 .tbe-lib-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* The live card: the display page at its own size, scaled to the card by the
+   editor (transform set in JS), fading in over the picture once it has drawn. */
+.tbe-lib-frame { position: absolute; left: 0; top: 0; border: 0; transform-origin: 0 0; pointer-events: none; background: #000; opacity: 0; transition: opacity .32s cubic-bezier(.4,0,.2,1); }
+.tbe-lib-frame-on { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .tbe-lib-frame { transition: none; } }
 .tbe-lib-text { display: flex; flex-direction: column; gap: .35rem; padding: .6rem .75rem .75rem; flex: 1; }
 .tbe-lib-text h3 { margin: 0; font-size: .95rem; color: #0f172a; display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; }
 .tbe-lib-text p { margin: 0; font-size: .8rem; line-height: 1.45; color: #475569; flex: 1; }

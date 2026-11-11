@@ -30,13 +30,31 @@ field list.
   background-image — applyEmphasis uses backgroundColor for exactly that
   reason).
 - containers: `weight` (flex-grow; unweighted = content-sized), `gap`, `pad`,
-  `bg`, `border`, `justify`
+  `bg`, `border`, `radius`, `glow` (frame halo; needs a border), `justify`
 - cells: `text` with `<elements>` and newlines, `size` (vh units) or
-  `fit: true`, `color`, `bg`, `bold`, `pad`, `align`, `when`, `clockColors`,
-  `variants`, `scroll` (`up` | `left`) + `scrollSpeed` + `scrollPhase` (see
+  `fit: true`, `color`, `bg`, `bold`, `pad`, `align`, `radius`, `glow`, `when`,
+  `clockColors`, `variants`, `scroll` (`up` | `left`) + `scrollSpeed` + `scrollPhase` (see
   Scrolling cells), `payouts` + `payoutsRemaining` (see Payout table),
   `players` + `playersPhoto` / `playersName` / `playersPlace` / `playersLayout` /
   `playersWho` (see Players list)
+
+**Glow and corners.** `radius` is a border-radius string (`1.6vh`, `12px`),
+set once like `border`; the cell's `overflow: hidden` means it clips the box
+image too. `glow` is `true` (a halo in the element's own colour, through
+`currentColor`, so an `elStyles` span, a variant colour and the clock's
+warn/critical colours each glow in theirs) or a colour string. A cell gets two
+wide rings of `text-shadow` in em (`glowText()`, so it scales with the type)
+and, when it has a border, a `box-shadow` along the frame, outside and in
+(`glowBox()`); a container gets the frame glow only, since a text-shadow on it
+would inherit into every child. The rings are faded through `color-mix()`
+(`glowFade()`), never drawn at full strength and never tight: a 0.12em ring in
+the text's own colour smudged the counters of small type into a blob at 720p.
+The glyph stays crisp; only soft light sits behind it. A browser without
+`color-mix()` (`glowMix` false) gets the same wide rings at full strength,
+which still reads. Glow is an emphasis prop (`VARIANT_PROPS`,
+`applyEmphasis()`), so a variant can switch it; radius is base-only. Both ride
+shared styles (`SHARED_KEYS`) and `pk_lo_styles()`. A glowing fit cell wants a
+little `pad`: the halo is drawn inside the cell's clip.
 
 Rendering is nested flexbox, so overlap and off-screen are impossible by
 construction. That property is the whole reason this engine exists; the
@@ -237,22 +255,43 @@ timestamp in get_state).
 
 A gallery of ready-made layouts behind the editor's **Library** button (beside
 Load…): every site layout (`is_global = 1`) under *Ready-made*, then the seven
-built-ins. A name in a dropdown never sold a look, so each card is a picture
-and a line of description.
+built-ins. A name in a dropdown never sold a look, so each card is the layout
+itself, drawn live, and a line of description.
 
+- **Live cards.** A card's picture area holds an `<iframe>` of
+  `timer.php?embed=1` (the page the editor's preview is) at `LIB_W × LIB_H`
+  (1280×720), CSS-scaled to the card's width (`libFit()`, re-fitted on window
+  resize). Once the frame answers as `TBPreview` the gallery hands it a deep
+  copy of the layout (`libLayoutOf()`: a built-in from `PV.builtins`, a site
+  layout from the `get_library` row), switches its sound off (the sample clock
+  loops, and the last-minute tick would otherwise fire in every frame),
+  refreshes, waits a frame, `document.fonts.ready` and one more frame, then
+  fades the frame in over the card picture (`.tbe-lib-frame-on`). Frames are
+  heavy, so an `IntersectionObserver` on the library's scroll box queues a card
+  when it comes within 160px of view, `libPump()` starts at most `LIB_LOAD` (2)
+  at a time, and once `LIB_ALIVE` (8) are up the oldest one out of view is
+  dropped to make room (it draws again when scrolled back). A frame that never
+  answers within ~6 s (a signed-out session gets the login page there) is
+  dropped for good and the card keeps its picture. Frames have no pointer, no
+  tab stop and `aria-hidden`. Cards were static pictures before this; nothing
+  retook them when a layout changed.
 - **Card data.** A site layout's card lives in the layout document itself as
   `library: {description, preview}` (description ≤ 400 chars of plain text,
-  preview an `/uploads/timer_layouts/` image), so it rides along with undo,
-  the unsaved marker and export. `pk_layout_sanitize()` keeps it;
+  preview an `/uploads/timer_layouts/` image shown until the live frame has
+  drawn, and for good if it never does), so it rides along with undo, the
+  unsaved marker and export. `pk_layout_sanitize()` keeps it;
   `pk_lo_image_names()` counts the preview as a reference so a save or delete
   never sweeps it (the cron sweep already matches basenames in the raw text).
-  Admins edit it in the Screen inspector's *Library card* section.
+  Admins edit it in the Screen inspector's *Library card* section. The gallery
+  appends `?v=<updated_at>` to the picture: uploads are cached for a day, and a
+  picture replaced under its old name stayed the old picture until then.
 - **Built-in cards** are in code: `BUILTIN_CARDS` in `timer_layouts.js`, with
-  pictures at `/img/timer_library/<key>.jpg` (the sample game, 1280×720 JPEG).
-  `/img` is cached for a year, so the page passes `TBE_LIB_V` (APP_VERSION +
-  newest picture mtime) and the gallery appends it.
+  placeholder pictures at `/img/timer_library/<key>.jpg` (the sample game,
+  1280×720 JPEG). `/img` is cached for a year, so the page passes `TBE_LIB_V`
+  (APP_VERSION + newest picture mtime) and the gallery appends it.
 - **Endpoint.** `timer_layouts_dl.php?action=get_library` returns the site
-  layouts with `{id, name, description, preview}`; any signed-in host.
+  layouts with `{id, name, description, preview, layout, updated_at}`; any
+  signed-in host (the same rows `get_layout` would hand them one by one).
 - **Use for this game** (event context only) calls the binding bar's
   `bindEvent()`: a built-in by key, a site layout **by id, with no copy**, so
   the admin's later edits reach every game using it. `curSiteId` is the
@@ -265,6 +304,13 @@ and a line of description.
 - The six ready-made layouts on gamenight.poker (Neon Nights, Dusty Trail
   Saloon, Zen Minimal, Emerald High Roller, Pixel Arcade, Watch Party) are
   the blog's downloads, imported as admin-owned site layouts with a card each.
+  The seventh, **Synthwave** (v1.22.0, after the Ultimate Holdem Timer's
+  synthwave screen), is the reference layout for `glow` and `radius`: its
+  background scene is an SVG rendered to `www/img/timer_beta/synth-scene.jpg`
+  (the generator and the layout JSON live in the session scratchpad and on
+  the share under `temp/synthwave/`), and it was seeded through the
+  sanitizer by a script rather than the editor, with a 1280×720 card picture
+  uploaded as `u1_synthwave_card.jpg`.
 
 ## Built-in layouts
 
@@ -348,6 +394,28 @@ percent that digit widths can then vary by.
 
 `timer.css` had already pinned tnum on its clock. The BETA renderer was the one
 that missed it.
+
+**Digit boxes (v1.22.0).** The tnum request only works where the face has the
+feature, and of the ten bundled faces only Bebas Neue and DSEG7 do (measured
+in Chromium: Orbitron's `1` is 39 units to the `0`'s 83, `4` 73, `7` 66;
+Oswald, Anton, Cinzel, Playfair, Rye, Monoton and Lobster are proportional
+too). So the elements that tick, `clock`, `nextBreak`, `currentTime` and
+`elapsedTime` (`DIGIT_BOX_ELEMENTS`, keyed by canonical name), are painted by
+`setDigitBoxes()`: every digit in a `<span class="tb-dg">` of width
+`calc(1ch + var(--tb-ls, 0px))`, centred, built from nodes and rebuilt only
+when the value changes (`data-dg` caches it). `1ch` is the font's own `0`
+advance, so the boxes are the tabular figures the font lacks. The cell build
+sets `--tb-ls` to the cell's `spacing` beside `letter-spacing`, because the
+spacing lands inside each box after its digit and the box must be that much
+wider, or the gaps vanish. Other numeric elements (blinds, pot, counts) stay
+plain: they change once a level, and boxing a proportional `1` loosens a line
+for nothing. `fitShape()` still keys the re-fit on digit-normalised text, so
+nothing about when a fit cell re-measures changed, except one addition found
+while proving this: `document.fonts` `loadingdone` now calls `scheduleRefit()`.
+A fit cell is measured at first paint, before a bundled face has arrived, on
+the same-shape fallback, and a fitted Orbitron clock came out 5% larger than
+the face it ended up in; it held that size until the next resize or shape
+change. A font arriving re-fits like a resize now.
 
 ## Right-click menus in the editor
 

@@ -3,15 +3,20 @@
  *
  * A layout is a JSON tree:
  *   node       := { row: [node…], …props } | { col: [node…], …props } | { cell: {…} }
- *   container  := weight (flex-grow), gap ("0.5vh"), pad, bg, align, border
+ *   container  := weight (flex-grow), gap ("0.5vh"), pad, bg, align, border,
+ *                 radius (border-radius), glow (frame halo, needs a border)
  *   cell       := text        string; may contain <elements> and newlines
  *                 size        font size as % of viewport height (scales anywhere)
  *                 fit         true = fill the box instead (clock cells)
  *                 color/bg/bold/pad/align/weight/border/opacity/spacing
+ *                 radius      border-radius ("1.6vh"); clips the box image too
+ *                 glow        true = a neon halo in the text's own colour, or a
+ *                             colour string; a bordered cell glows along its
+ *                             frame as well (see glowText / glowBox)
  *                 clockColors true = colour tracks warn/critical thresholds
  *                 when        visibility gate: a WHEN key or a condition object
  *                             {state,hasAnte,hasRebuys,round}; false = cell hidden
- *                 variants    [{ when, text?, color?, bg?, bold?, opacity? }] —
+ *                 variants    [{ when, text?, color?, bg?, bold?, opacity?, glow? }] —
  *                             conditional emphasis, first match wins over base
  *                             (conditional per-cell styling). Structural props
  *                             (size/align/weight) stay base-only.
@@ -45,7 +50,7 @@
  *
  * A layout may carry `styles` — a name → {visual props} map. A cell opts in
  * with style:"name" and inherits size/fit/color/bg/bold/pad/align/opacity/
- * spacing from it; the cell's own props win over the shared ones. Text,
+ * spacing/font/glow/radius from it; the cell's own props win over the shared ones. Text,
  * when, variants and images never come from a shared style.
  *
  * The tree renders to nested flexbox, so nothing can overlap or leave the
@@ -1445,7 +1450,40 @@ function applyBox(el, node) {
     if (node.bg) el.style.background = node.bg;
     applyBoxImage(el, node);
     if (node.border) el.style.border = node.border;
+    if (node.radius) el.style.borderRadius = node.radius;
+    // A container's frame glow is static (it has no variants). A cell's rides
+    // applyEmphasis so a variant can switch it, together with the text halo.
+    if (node.glow && node.border && !node.cell) el.style.boxShadow = glowBox(node.glow);
     if (node.justify) el.style.justifyContent = node.justify;
+}
+
+/* Glow: a neon halo. `true` glows in the element's own colour (currentColor,
+ * so an elStyles span, a variant colour and the clock's warn/critical colours
+ * each glow in theirs); a string names the colour. Text gets two wide rings of
+ * text-shadow in em, so the halo scales with the type; a bordered box glows
+ * along its frame too, outside and in. A container has no text of its own and
+ * gets the frame glow only (a text-shadow on it would inherit into every
+ * child cell). The cell keeps overflow:hidden, so a fit cell wants a little
+ * padding or the halo is cut at the box's edge.
+ *
+ * The rings are FADED with color-mix(), never full strength: a tight ring in
+ * the text's own colour at 100% smudged the counters of small type (a 2.6vh
+ * label at 720p) into an unreadable blob. The glyph itself stays crisp; only a
+ * soft light sits behind it. A browser without color-mix (an older TV set)
+ * gets the same rings at full strength, which still reads because there is no
+ * tight ring. */
+var glowMix = (function () {
+    try { return !!(window.CSS && CSS.supports && CSS.supports('color', 'color-mix(in srgb, red 50%, transparent)')); } catch (e) { return false; }
+})();
+function glowColour(g) { return g === true ? 'currentColor' : (typeof g === 'string' && g) ? g : ''; }
+function glowFade(c, pct) { return glowMix ? 'color-mix(in srgb, ' + c + ' ' + pct + '%, transparent)' : c; }
+function glowText(g) {
+    var c = glowColour(g);
+    return c ? '0 0 0.3em ' + glowFade(c, 55) + ', 0 0 0.9em ' + glowFade(c, 40) : '';
+}
+function glowBox(g) {
+    var c = glowColour(g);
+    return c ? '0 0 0.9vh ' + glowFade(c, 75) + ', inset 0 0 0.5vh ' + glowFade(c, 45) : '';
 }
 
 /* A box's OWN background image — a plate that moves and resizes WITH the box,
@@ -1550,7 +1588,7 @@ function buildInner(inner, text, elList, elStyles) {
 // Only these props may differ between a cell's base and its conditional
 // variants; structural props (size/align/weight) stay base-only so a variant
 // can never reflow the layout, only re-emphasise it.
-var VARIANT_PROPS = ['text', 'color', 'bg', 'bold', 'opacity'];
+var VARIANT_PROPS = ['text', 'color', 'bg', 'bold', 'opacity', 'glow'];
 
 // Named fonts: key → CSS stack. A layout carries the KEY, never a raw
 // font-family string — the same rule as image paths and QR targets: a layout
@@ -1595,6 +1633,10 @@ function applyEmphasis(el, spec) {
     el.style.backgroundColor = spec.bg || '';
     el.style.fontWeight = spec.bold ? '700' : '';
     el.style.opacity = spec.opacity !== undefined ? String(spec.opacity) : '';
+    // The halo follows the variant like the colour does. The frame glow only
+    // where the cell draws a frame; an unframed cell leaves box-shadow alone.
+    el.style.textShadow = glowText(spec.glow);
+    if (el.style.borderStyle) el.style.boxShadow = glowBox(spec.glow);
 }
 
 // Only same-origin timer-layout upload paths are allowed as image sources;
@@ -2141,13 +2183,17 @@ function buildCell(spec) {
     // `border` on cells, but nothing painted it — a cell border only rendered
     // when the author happened to put it on the node wrapper instead.
     if (spec.border) el.style.border = spec.border;
+    if (spec.radius) el.style.borderRadius = spec.radius;
     applyBoxImage(el, spec);
     // As a RATIO of the cell's font, not a fixed vh: capCell() shrinks
     // overflowing text by font-size, and discs pinned in vh would ignore the
     // shrink and overflow the bar on a narrow screen while their numbers
     // dutifully got smaller beside them.
     if (spec.chipSize) el.style.setProperty('--tb-chip-disc', (spec.chipSize / (spec.size || 2.4)).toFixed(3) + 'em');
-    if (spec.spacing) el.style.letterSpacing = spec.spacing;
+    // The digit boxes (.tb-dg) read the spacing back as --tb-ls, so a spaced
+    // clock keeps its gaps: letter-spacing lands inside each box, after the
+    // digit, and the box has to be that much wider to hold it.
+    if (spec.spacing) { el.style.letterSpacing = spec.spacing; el.style.setProperty('--tb-ls', spec.spacing); }
     // Base-only like size/align: a font swap changes metrics, so it must not
     // arrive via a variant and reflow the layout mid-game.
     if (spec.font && FONTS[spec.font]) el.style.fontFamily = FONTS[spec.font];
@@ -2172,7 +2218,7 @@ function buildCell(spec) {
 // style:"name". Merge order: shared props under the cell's own (cell wins).
 // Only visual props transfer — text/when/variants/image stay per-cell.
 var sharedStyles = {};
-var SHARED_KEYS = ['size', 'fit', 'color', 'bg', 'bold', 'pad', 'align', 'opacity', 'spacing', 'font'];
+var SHARED_KEYS = ['size', 'fit', 'color', 'bg', 'bold', 'pad', 'align', 'opacity', 'spacing', 'font', 'glow', 'radius'];
 
 function withSharedStyle(spec) {
     var st = (spec && typeof spec.style === 'string') ? sharedStyles[spec.style] : null;
@@ -2330,9 +2376,39 @@ function paintElSpan(t) {
                 t.el.appendChild(document.createTextNode(ls[j]));
             }
         }
+    } else if (DIGIT_BOX_ELEMENTS[resolveElement(t.name)]) {
+        setDigitBoxes(t.el, v);
     } else if (t.el.textContent !== v) {
         t.el.textContent = v;
     }
+}
+
+/* The ticking elements paint each digit in a box one "0" wide (.tb-dg, 1ch),
+ * so the text keeps its width whatever the digits say. .tb-cell-inner asks
+ * the font for tabular figures, but the request only works where the face
+ * has them: of the bundled fonts only Bebas Neue and DSEG7 do, and in
+ * Orbitron a 1 is less than half the width of a 0, so 12:31 came out
+ * narrower than 12:32 and a centred clock shuffled sideways every second
+ * (and a width-limited fit cell re-fitted on top of that). Only the elements
+ * that change every second or minute get boxes; a blinds line changes once a
+ * level, and boxing its digits would only loosen it. Nodes, never innerHTML. */
+var DIGIT_BOX_ELEMENTS = { clock: 1, nextBreak: 1, currentTime: 1, elapsedTime: 1 };
+function setDigitBoxes(el, v) {
+    if (el.getAttribute('data-dg') === v) return;
+    el.setAttribute('data-dg', v);
+    el.textContent = '';
+    var run = '';
+    for (var i = 0; i < v.length; i++) {
+        var ch = v.charAt(i);
+        if (ch >= '0' && ch <= '9') {
+            if (run) { el.appendChild(document.createTextNode(run)); run = ''; }
+            var d = document.createElement('span');
+            d.className = 'tb-dg';
+            d.textContent = ch;
+            el.appendChild(d);
+        } else run += ch;
+    }
+    if (run) el.appendChild(document.createTextNode(run));
 }
 
 // The active spec for a cell right now: its base, with the first matching
@@ -2519,6 +2595,11 @@ function scheduleRefit() {
     setTimeout(fitAll, 180);
     setTimeout(fitAll, 500);
 }
+// A bundled face arriving after the first paint changes every metric a fit
+// was measured on (the fallback is the same shape, not the same width: a
+// fitted Orbitron clock measured on the fallback came out 5% too big), so a
+// font load re-fits the way a resize does.
+if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', scheduleRefit);
 
 /* ── Scrolling cells ──────────────────────────────────────────────────────
  * Two motions, both CSS keyframes on the cell's TRACK (see buildCell), with

@@ -52,6 +52,13 @@ body.tb-letterbox { background: #000; }
    the clock visibly pumps. timer.css already pins tnum on its clock for the
    same reason. */
 .tb-cell-inner { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+/* The request above only works where the face has tabular figures, and most of
+   the bundled faces do not (Orbitron's 1 is under half the width of its 0). So
+   the ticking elements (clock, next break, time of day, elapsed) paint each
+   digit in a box one "0" wide, centred, and the text never changes width
+   between ticks. --tb-ls is the cell's letter-spacing (set by the renderer),
+   which lands inside the box after the digit and must be room in the box. */
+.tb-dg { display: inline-block; width: calc(1ch + var(--tb-ls, 0px)); text-align: center; }
 
 /* Keep-awake prompt. iOS will not start either mechanism without a real
    gesture, so the viewer has to be told once; it removes itself the moment a
