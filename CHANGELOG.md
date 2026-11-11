@@ -11,6 +11,8 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.22.0] - 2026-11-11
+
 ### Added
 - **Timer layouts can glow and have rounded corners.** Two new look settings in the layout editor, on cells and on boxes, in the inspector and the right-click menu (Box → Corners, Box → Glow). Glow draws a neon halo round the text, in the text's own colour or one you pick, and a cell or box with a border glows along its frame too; a variant can switch it, so a paused clock can glow red. Corner radius rounds the box (`1.5vh`, or `999px` for a pill) and clips the box's image with it. Both can live in a shared style. `www/timer_display.js`, `www/timer_layouts.js`, `www/timer_layouts_dl.php` (the sanitizer keeps `glow` as `true` or a colour and `radius` as a short style string, the same fence as every other colour), the Timer Guide.
 - **A ready-made Synthwave layout in the Library.** Sunset over a neon grid: the event name in pink neon script, the clock in cyan over the sky, LEVEL above it and BLINDS below with the big blind in pink, a PAYOUTS panel on the left, PRIZE POOL / PLAYERS LEFT / NEXT BREAK panels on the right and NEXT LEVEL in a red frame, all with the new glow and rounded corners; a Break screen with the clock and the QR code, and a stacked Phone screen. A chime at each level and a tick through the last minute. The background scene is drawn by the site and ships with the PCF art (`www/img/timer_beta/synth-scene.jpg`, 171 KB), so the layout needs no upload; the layout itself is seeded on gamenight.poker as an admin-owned site layout, like the other six.
