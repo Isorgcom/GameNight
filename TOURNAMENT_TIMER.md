@@ -30,9 +30,10 @@ field list.
   background-image — applyEmphasis uses backgroundColor for exactly that
   reason).
 - containers: `weight` (flex-grow; unweighted = content-sized), `gap`, `pad`,
-  `bg`, `border`, `radius`, `glow` (frame halo; needs a border), `justify`
+  `bg`, `border`, `radius`, `glow` (frame halo; needs a border), `ring` (the
+  countdown ring, see below), `justify`
 - cells: `text` with `<elements>` and newlines, `size` (vh units) or
-  `fit: true`, `color`, `bg`, `bold`, `pad`, `align`, `radius`, `glow`, `when`,
+  `fit: true`, `color`, `bg`, `bold`, `pad`, `align`, `radius`, `glow`, `ring`, `when`,
   `clockColors`, `variants`, `scroll` (`up` | `left`) + `scrollSpeed` + `scrollPhase` (see
   Scrolling cells), `payouts` + `payoutsRemaining` (see Payout table),
   `players` + `playersPhoto` / `playersName` / `playersPlace` / `playersLayout` /
@@ -55,6 +56,50 @@ which still reads. Glow is an emphasis prop (`VARIANT_PROPS`,
 `applyEmphasis()`), so a variant can switch it; radius is base-only. Both ride
 shared styles (`SHARED_KEYS`) and `pk_lo_styles()`. A glowing fit cell wants a
 little `pad`: the halo is drawn inside the cell's clip.
+
+**Countdown ring (v1.23.0).** `ring` on a box or a cell draws the level's
+progress as a circle inscribed in the element's shorter side, behind its
+content: `{style: 'ticks' | 'arc', ticks: 4..120, width: 0.02..0.45, color,
+done, rim, direction: 'cw' | 'ccw'}`. `ticks` are marks that go out one by one
+(Classic's radial-checks), `arc` a band that drains (radial-ring);
+`width` is the band's thickness as a fraction of the radius; `color` is the
+time left (`true` = currentColor, through `glowColour()`, so a ring on a
+`clockColors` clock cell turns amber and red with the digits), `done` the time
+gone, `rim` an optional thin circle at the outer edge; `direction` is which
+way the time gone fills from 12 o'clock. `mountRing()` builds an
+`<svg class="tb-ring" viewBox="0 0 100 100">` from nodes (`svgEl()`,
+`arcPath()` for the marks, Classic's maths), inset 0 with
+`preserveAspectRatio meet`, as the element's first child; CSS makes the
+element `position: relative` (`.tb-ringed`) and lifts every other child above
+the svg. A cell's ring lives in its spec (mounted by `buildCell()`), a
+container's on the node (`applyBox()`). `ringFraction()` is time gone over
+the level's length (`findLevel(S.level).duration_minutes`, `liveRemaining()`),
+0 with no schedule, a break level counted the same way. `drawRings()` runs
+from `updateAll()` after the clock colours: the arc sets `stroke-dashoffset`
+(`C × fraction`, negative for a clockwise fill, since a negative offset pulls
+the single dash forward from the top), the marks re-stroke only when the
+count of gone ones changes (never 120 attribute writes a tick). Registry
+`ringNodes`, cleared with the other cell lists. The sanitizer's
+`pk_lo_ring()` requires the style and fences the colours like every colour.
+A ringed element pads itself (`layoutRings()`, run first thing in `fitAll()`
+so a fit cell inside measures the padded box): its content sits in a
+rectangle inscribed in the band's inner circle, 1.6R wide by 1.1R tall,
+whatever the box's shape, so the author's `pad` is overridden and the stack
+inside can never cross the ring; `fitCell()` subtracts that padding on a
+ringed cell. The circle is the box's shorter side, so a ring box in a row is
+as round as its weight makes it. Editor: the Countdown ring fields
+(`ringInput()`) on cells and boxes, Box → Ring in the menu (`ringPanel()`),
+`LOOK_KEYS` copies it.
+
+**Short numbers (v1.23.0).** A layout-level `numbers: 'short'` (absent =
+full) makes `fmtChips()` print whole numbers from a thousand up as `1.6K`,
+`51.1K`, `460K`, `1.5M` (`fmtShort()`: one decimal, trimmed, none from three
+digits up). It covers everything that goes through `fmtChips()`: blinds, next
+blinds, antes, `chips.*` and the chip legend's values; money (`fmtMoney`) keeps
+its dollars. `renderLayoutObj()` sets `NUM_SHORT` from the document; the
+sanitizer keeps only `'short'`; the editor's Whole layout section and the
+Screen menu offer Full / Short, and `normalizeLayout()` carries the key across
+a single-screen rebuild like `aspect`.
 
 Rendering is nested flexbox, so overlap and off-screen are impossible by
 construction. That property is the whole reason this engine exists; the

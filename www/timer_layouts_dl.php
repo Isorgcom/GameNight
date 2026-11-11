@@ -94,6 +94,23 @@ function pk_lo_img($v): ?string {
 }
 // Glow: `true` = a halo in the text's own colour, or a stated colour string.
 // Same fence as every other colour (pk_lo_style_str); anything else drops.
+// A countdown ring: the level's progress drawn as a circle behind the box's
+// content. `style` is required (ticks = marks that go out one by one, arc = a
+// band that drains); the colours go through the same fence as every colour.
+function pk_lo_ring($v): ?array {
+    if (!is_array($v)) return null;
+    $style = $v['style'] ?? null;
+    if (!in_array($style, ['ticks', 'arc'], true)) return null;
+    $out = ['style' => $style];
+    if (isset($v['ticks'])) { $n = pk_lo_num($v['ticks'], 4, 120); if ($n !== null) $out['ticks'] = (int)round($n); }
+    if (isset($v['width'])) { $n = pk_lo_num($v['width'], 0.02, 0.45); if ($n !== null) $out['width'] = round($n, 3); }
+    if (isset($v['color'])) { $c = pk_lo_glow($v['color']); if ($c !== null) $out['color'] = $c; }
+    foreach (['done', 'rim'] as $k) {
+        if (isset($v[$k])) { $c = pk_lo_style_str($v[$k], 40); if ($c !== null) $out[$k] = $c; }
+    }
+    if (isset($v['direction']) && in_array($v['direction'], ['cw', 'ccw'], true)) $out['direction'] = $v['direction'];
+    return $out;
+}
 function pk_lo_glow($v) {
     if ($v === true) return true;
     return pk_lo_style_str($v, 40);
@@ -260,6 +277,7 @@ function pk_lo_cell($cell, array &$err): ?array {
     foreach (['pad', 'spacing', 'radius'] as $k) if (isset($cell[$k])) { $v = pk_lo_style_str($cell[$k], 32); if ($v !== null) $out[$k] = $v; }
     // Neon halo on the text (and along the frame when the cell has a border).
     if (isset($cell['glow'])) { $g = pk_lo_glow($cell['glow']); if ($g !== null) $out['glow'] = $g; }
+    if (isset($cell['ring'])) { $r = pk_lo_ring($cell['ring']); if ($r !== null) $out['ring'] = $r; }
     if (isset($cell['align']) && in_array($cell['align'], ['left', 'center', 'right'], true)) $out['align'] = $cell['align'];
     if (isset($cell['font']) && in_array($cell['font'], PK_LO_FONTS, true)) $out['font'] = $cell['font'];
     // Shared-style reference; refs to names the layout doesn't define are
@@ -397,6 +415,7 @@ function pk_lo_node($node, int $depth, int &$count, array &$err): ?array {
         if (isset($node[$k])) { $v = pk_lo_style_str($node[$k], $max); if ($v !== null) $out[$k] = $v; }
     }
     if (isset($node['glow'])) { $g = pk_lo_glow($node['glow']); if ($g !== null) $out['glow'] = $g; }
+    if (isset($node['ring'])) { $r = pk_lo_ring($node['ring']); if ($r !== null) $out['ring'] = $r; }
     return $out;
 }
 
@@ -542,6 +561,9 @@ function pk_layout_sanitize($doc, array &$err): ?array {
     // cropped to fill the screen while the text spreads across all of it.
     // Locking the ratio letterboxes both together instead.
     if (isset($doc['aspect'])) { $n = pk_lo_num($doc['aspect'], 0.4, 4.0); if ($n !== null) $out['aspect'] = $n; }
+    // How chip counts and blinds print: absent = full (1,600), short = 1.6K.
+    // Layout-level, one look for every screen; money keeps its dollars.
+    if (($doc['numbers'] ?? null) === 'short') $out['numbers'] = 'short';
 
     // How the video stream's audio behaves around an alarm. Layout-level rather
     // than per-trigger because it is a property of the room's sound, not of any
