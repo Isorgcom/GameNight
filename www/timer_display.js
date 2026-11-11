@@ -1503,44 +1503,114 @@ function arcPath(cx, cy, r, a0, a1) {
     var p0 = pt(a0), p1 = pt(a1), large = (a1 - a0) <= 180 ? 0 : 1;
     return 'M ' + p0[0].toFixed(3) + ' ' + p0[1].toFixed(3) + ' A ' + r + ' ' + r + ' 0 ' + large + ' 1 ' + p1[0].toFixed(3) + ' ' + p1[1].toFixed(3);
 }
+var RING_STYLES = ['ticks', 'pills', 'dots', 'spokes', 'wedges', 'arc', 'comet', 'pie'];
+// A point on the ring: degrees from the top, clockwise.
+function ringPt(r, a) { var rad = (a - 90) * Math.PI / 180; return [50 + r * Math.cos(rad), 50 + r * Math.sin(rad)]; }
+function pts(list) { return list.map(function (p) { return p[0].toFixed(2) + ' ' + p[1].toFixed(2); }).join(' L '); }
+// A tapered mark: half-widths w0 at radius r0 (inside) and w1 at r1 (outside),
+// as angular offsets so the sides stay radial.
+function wedgePath(a, r0, r1, w0, w1) {
+    var d0 = (w0 / r0) * 180 / Math.PI, d1 = (w1 / r1) * 180 / Math.PI;
+    return 'M ' + pts([ringPt(r0, a - d0), ringPt(r0, a + d0), ringPt(r1, a + d1), ringPt(r1, a - d1)]) + ' Z';
+}
+// The time left as a band thick at the head (where it is draining) and
+// tapering to nothing at its far end: outer edge forward, inner edge back.
+function cometPath(f, cw, Rin, Rout) {
+    var span = 360 * (1 - f);
+    if (span < 0.5) return '';
+    var head = cw ? 360 * f : 360 - 360 * f;
+    var n = Math.max(8, Math.ceil(span / 6)), outer = [], inner = [];
+    for (var k = 0; k <= n; k++) {
+        var u = k / n, a = cw ? head + span * u : head - span * u;
+        outer.push(ringPt(Rout, a));
+        inner.push(ringPt(Rout - (Rout - Rin) * (1 - u), a));
+    }
+    inner.reverse();
+    return 'M ' + pts(outer) + ' L ' + pts(inner) + ' Z';
+}
+// The time left as a filled slice from the centre.
+function piePath(f, cw, R) {
+    var span = 360 * (1 - f);
+    if (span < 0.2) return '';
+    if (span > 359.8) return 'M 50 ' + (50 - R) + ' A ' + R + ' ' + R + ' 0 1 1 50 ' + (50 + R) + ' A ' + R + ' ' + R + ' 0 1 1 50 ' + (50 - R) + ' Z';
+    var a0 = cw ? 360 * f : 0, a1 = a0 + span, p0 = ringPt(R, a0), p1 = ringPt(R, a1);
+    return 'M 50 50 L ' + p0[0].toFixed(2) + ' ' + p0[1].toFixed(2) + ' A ' + R + ' ' + R + ' 0 ' + (span > 180 ? 1 : 0) + ' 1 ' + p1[0].toFixed(2) + ' ' + p1[1].toFixed(2) + ' Z';
+}
 function mountRing(el, ring) {
     if (!ring || typeof ring !== 'object') return;
-    var style = ring.style === 'arc' ? 'arc' : 'ticks';
+    var style = RING_STYLES.indexOf(ring.style) >= 0 ? ring.style : 'ticks';
+    var oval = ring.shape === 'oval';
     var ticks = Math.max(4, Math.min(120, Math.round(Number(ring.ticks) || 60)));
     var width = Math.max(0.02, Math.min(0.45, Number(ring.width) || 0.12));
     var left = glowColour(ring.color) || '#e8c547';
     var done = (typeof ring.done === 'string' && ring.done) ? ring.done : 'rgba(255,255,255,0.3)';
     var rim = (typeof ring.rim === 'string' && ring.rim) ? ring.rim : '';
     var cw = ring.direction !== 'ccw';
-    var svg = svgEl('svg', { viewBox: '0 0 100 100', preserveAspectRatio: 'xMidYMid meet', 'aria-hidden': 'true' });
-    svg.setAttribute('class', 'tb-ring');
+    // Oval: the drawing is stretched to the box instead of inscribed in its
+    // shorter side; strokes are then set in pixels (layoutRings) so a
+    // stretched ring keeps an even line.
+    var svg = svgEl('svg', { viewBox: '0 0 100 100', preserveAspectRatio: oval ? 'none' : 'xMidYMid meet', 'aria-hidden': 'true' });
+    svg.setAttribute('class', 'tb-ring' + (oval ? ' tb-ring-oval' : ''));
     // Units are percent of the shorter side (50 = the whole radius): the rim
-    // at the edge, a gap, then the band.
+    // at the edge, a gap, then the band from Rout in to Rin.
     var rimW = rim ? 1.2 : 0;
     var bandW = 50 * width;
-    var r = 50 - (rim ? rimW + 2 : 0) - bandW / 2;
-    var rec = { el: el, style: style, ticks: ticks, cw: cw, left: left, done: done, lit: -1, lastOff: null, paths: [], fg: null, C: 0 };
-    if (rim) svg.appendChild(svgEl('circle', { cx: 50, cy: 50, r: (50 - rimW / 2).toFixed(2), fill: 'none', stroke: rim, 'stroke-width': rimW }));
+    var Rout = 50 - (rim ? rimW + 2 : 0), Rin = Rout - bandW, r = Rout - bandW / 2;
+    var rec = { el: el, svg: svg, style: style, oval: oval, ticks: ticks, cw: cw, left: left, done: done,
+                lit: -1, lastOff: null, lastFrac: -1, paths: [], attr: 'stroke', fg: null, C: 0, r: r, Rin: Rin, Rout: Rout, innerR: Rin };
+    var stroked = function (e, sw) {
+        e.setAttribute('stroke-width', sw.toFixed(2));
+        e.setAttribute('data-sw', sw.toFixed(3));
+        if (oval) e.setAttribute('vector-effect', 'non-scaling-stroke');
+        return e;
+    };
+    if (rim) svg.appendChild(stroked(svgEl('circle', { cx: 50, cy: 50, r: (50 - rimW / 2).toFixed(2), fill: 'none', stroke: rim }), rimW));
+    var step = 360 / ticks, slot = 2 * Math.PI * r / ticks;   // the tangential room each mark has
     if (style === 'arc') {
-        svg.appendChild(svgEl('circle', { cx: 50, cy: 50, r: r.toFixed(3), fill: 'none', stroke: done, 'stroke-width': bandW.toFixed(2) }));
+        svg.appendChild(stroked(svgEl('circle', { cx: 50, cy: 50, r: r.toFixed(3), fill: 'none', stroke: done }), bandW));
         var C = 2 * Math.PI * r;
         // One dash the length of the circle, starting at the top: the offset
         // decides how much of it shows, and its sign which way it drains.
-        var fg = svgEl('circle', { cx: 50, cy: 50, r: r.toFixed(3), fill: 'none', stroke: left, 'stroke-width': bandW.toFixed(2),
-                                   'stroke-dasharray': C.toFixed(3), 'stroke-dashoffset': '0', transform: 'rotate(-90 50 50)' });
+        var fg = stroked(svgEl('circle', { cx: 50, cy: 50, r: r.toFixed(3), fill: 'none', stroke: left,
+                                           'stroke-dasharray': C.toFixed(3), 'stroke-dashoffset': '0', transform: 'rotate(-90 50 50)' }), bandW);
         fg.setAttribute('class', 'tb-ring-fg');
         svg.appendChild(fg);
         rec.fg = fg; rec.C = C;
+    } else if (style === 'comet') {
+        // A thin track for the whole circle, the tapered band over it.
+        svg.appendChild(stroked(svgEl('circle', { cx: 50, cy: 50, r: r.toFixed(3), fill: 'none', stroke: done }), Math.max(0.6, bandW * 0.18)));
+        rec.fg = svgEl('path', { d: '', fill: left });
+        svg.appendChild(rec.fg);
+    } else if (style === 'pie') {
+        svg.appendChild(svgEl('circle', { cx: 50, cy: 50, r: Rout.toFixed(3), fill: done }));
+        rec.fg = svgEl('path', { d: '', fill: left });
+        svg.appendChild(rec.fg);
+        rec.innerR = Rout * 0.98;   // nothing to stay clear of but the edge
     } else {
-        var step = 360 / ticks, gap = Math.min(6, step * 0.18), wedge = step - gap;
+        var gap = Math.min(6, step * 0.18), wedge = step - gap, p;
         for (var i = 0; i < ticks; i++) {
-            var a0 = i * step + gap / 2;
-            var p = svgEl('path', { d: arcPath(50, 50, r, a0, a0 + wedge), fill: 'none', stroke: left, 'stroke-width': bandW.toFixed(2) });
+            var a = i * step;
+            if (style === 'ticks') {
+                p = stroked(svgEl('path', { d: arcPath(50, 50, r, a + gap / 2, a + gap / 2 + wedge), fill: 'none', stroke: left }), bandW);
+            } else if (style === 'spokes') {
+                var q0 = ringPt(Rin, a), q1 = ringPt(Rout, a);
+                p = stroked(svgEl('line', { x1: q0[0].toFixed(2), y1: q0[1].toFixed(2), x2: q1[0].toFixed(2), y2: q1[1].toFixed(2), stroke: left }), Math.max(0.5, slot * 0.22));
+            } else if (style === 'pills') {
+                var sw = Math.max(0.8, Math.min(slot * 0.55, bandW * 0.9));
+                var s0 = ringPt(Rin + sw / 2, a), s1 = ringPt(Rout - sw / 2, a);   // shortened so the round caps stay in the band
+                p = stroked(svgEl('line', { x1: s0[0].toFixed(2), y1: s0[1].toFixed(2), x2: s1[0].toFixed(2), y2: s1[1].toFixed(2), stroke: left, 'stroke-linecap': 'round' }), sw);
+            } else if (style === 'dots') {
+                var c = ringPt(r, a);
+                p = svgEl('circle', { cx: c[0].toFixed(2), cy: c[1].toFixed(2), r: Math.max(0.6, Math.min(bandW / 2, slot * 0.38)).toFixed(2), fill: left });
+                rec.attr = 'fill';
+            } else {   // wedges
+                p = svgEl('path', { d: wedgePath(a, Rin, Rout, slot * 0.09, slot * 0.39), fill: left });
+                rec.attr = 'fill';
+            }
             svg.appendChild(p);
             rec.paths.push(p);
         }
     }
-    rec.innerR = r - bandW / 2;   // percent of the shorter side: the band's inner edge
     el.classList.add('tb-ringed');
     el.insertBefore(svg, el.firstChild);
     ringNodes.push(rec);
@@ -1548,16 +1618,29 @@ function mountRing(el, ring) {
 /* A ringed element pads itself: its content sits in a rectangle inscribed in
  * the band's inner circle (1.6R wide by 1.1R tall, wider than tall because a
  * clock is), whatever the box's shape, so the stack inside can never cross
- * the ring. Run from fitAll (so a fit cell inside measures the padded box)
- * and so on every resize; the author's `pad` is overridden. */
+ * the ring; an oval ring scales the two axes apart. Run from fitAll (so a fit
+ * cell inside measures the padded box) and so on every resize; the author's
+ * `pad` is overridden. An oval's strokes are set here in pixels. */
 function layoutRings() {
     for (var i = 0; i < ringNodes.length; i++) {
         var r = ringNodes[i], el = r.el;
         var w = el.clientWidth, h = el.clientHeight;
         if (!w || !h) continue;
-        var R = Math.min(w, h) / 100 * r.innerR;
-        var cw = R * 1.6, ch = R * 1.1;
-        el.style.padding = Math.max(0, (h - ch) / 2).toFixed(1) + 'px ' + Math.max(0, (w - cw) / 2).toFixed(1) + 'px';
+        var Rx = (r.oval ? w : Math.min(w, h)) / 100 * r.innerR, Ry = (r.oval ? h : Math.min(w, h)) / 100 * r.innerR;
+        el.style.padding = Math.max(0, (h - Ry * 1.1) / 2).toFixed(1) + 'px ' + Math.max(0, (w - Rx * 1.6) / 2).toFixed(1) + 'px';
+        if (r.oval) {
+            var k = Math.min(w, h) / 100, els = r.svg.querySelectorAll('[data-sw]');
+            for (var j = 0; j < els.length; j++) els[j].setAttribute('stroke-width', (parseFloat(els[j].getAttribute('data-sw')) * k).toFixed(2));
+            // A non-scaling stroke measures its dashes along the STRETCHED path
+            // in pixels, so the arc's one dash must be the ellipse's perimeter
+            // in pixels (Ramanujan), or it repeats round the ring.
+            if (r.style === 'arc') {
+                var a = r.r * w / 100, b = r.r * h / 100;
+                r.C = Math.PI * (3 * (a + b) - Math.sqrt((3 * a + b) * (a + 3 * b)));
+                r.fg.setAttribute('stroke-dasharray', r.C.toFixed(3));
+                r.lastOff = null;   // re-offset on the next tick
+            }
+        }
     }
 }
 function ringFraction() {
@@ -1577,13 +1660,17 @@ function drawRings() {
         if (r.style === 'arc') {
             var off = (r.C * frac * (r.cw ? -1 : 1)).toFixed(3);
             if (r.lastOff !== off) { r.lastOff = off; r.fg.setAttribute('stroke-dashoffset', off); }
+        } else if (r.style === 'comet' || r.style === 'pie') {
+            if (Math.abs(frac - r.lastFrac) < 0.001) continue;
+            r.lastFrac = frac;
+            r.fg.setAttribute('d', r.style === 'pie' ? piePath(frac, r.cw, r.Rout) : cometPath(frac, r.cw, r.Rin, r.Rout));
         } else {
             var lit = Math.round(r.ticks * frac);
             if (lit === r.lit) continue;
             r.lit = lit;
             for (var k = 0; k < r.paths.length; k++) {
                 var idx = r.cw ? k : (r.ticks - 1 - k);
-                r.paths[k].setAttribute('stroke', idx < lit ? r.done : r.left);
+                r.paths[k].setAttribute(r.attr, idx < lit ? r.done : r.left);
             }
         }
     }
