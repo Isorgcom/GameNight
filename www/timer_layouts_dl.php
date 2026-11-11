@@ -100,8 +100,9 @@ function pk_lo_img($v): ?string {
 function pk_lo_ring($v): ?array {
     if (!is_array($v)) return null;
     $style = $v['style'] ?? null;
-    if (!in_array($style, ['ticks', 'arc'], true)) return null;
+    if (!in_array($style, ['ticks', 'pills', 'dots', 'spokes', 'wedges', 'arc', 'comet', 'pie'], true)) return null;
     $out = ['style' => $style];
+    if (isset($v['shape']) && in_array($v['shape'], ['circle', 'oval'], true)) $out['shape'] = $v['shape'];
     if (isset($v['ticks'])) { $n = pk_lo_num($v['ticks'], 4, 120); if ($n !== null) $out['ticks'] = (int)round($n); }
     if (isset($v['width'])) { $n = pk_lo_num($v['width'], 0.02, 0.45); if ($n !== null) $out['width'] = round($n, 3); }
     if (isset($v['color'])) { $c = pk_lo_glow($v['color']); if ($c !== null) $out['color'] = $c; }

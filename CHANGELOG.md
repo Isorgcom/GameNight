@@ -11,6 +11,9 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+### Added
+- **Six more countdown ring styles, and an oval shape.** Beside tick marks and the solid arc, a ring can be drawn as Pills (rounded dashes), Dots, Spokes (thin lines, a sunburst), Wedges (tapered marks, narrow inside and wide outside), a Comet (a band thick where the time is draining, tapering away to nothing) or a Pie (a filled slice behind the content). Shape makes the ring a circle in the box's shorter side, as before, or an oval that fills the box, with an even line all the way round. All of them share the marks count, thickness, colours, rim and fill direction, in the inspector and under Box → Ring. `www/timer_display.js`, `www/timer_layouts.js`, `www/timer_layouts_dl.php`, the Timer Guide.
+
 ## [v1.23.0] - 2026-11-11
 
 ### Added

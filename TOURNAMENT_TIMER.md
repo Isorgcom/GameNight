@@ -59,10 +59,29 @@ little `pad`: the halo is drawn inside the cell's clip.
 
 **Countdown ring (v1.23.0).** `ring` on a box or a cell draws the level's
 progress as a circle inscribed in the element's shorter side, behind its
-content: `{style: 'ticks' | 'arc', ticks: 4..120, width: 0.02..0.45, color,
-done, rim, direction: 'cw' | 'ccw'}`. `ticks` are marks that go out one by one
-(Classic's radial-checks), `arc` a band that drains (radial-ring);
-`width` is the band's thickness as a fraction of the radius; `color` is the
+content: `{style, shape: 'circle' | 'oval', ticks: 4..120, width: 0.02..0.45,
+color, done, rim, direction: 'cw' | 'ccw'}`. Eight styles (`RING_STYLES`):
+five kinds of mark that go out one by one, `ticks` (arc segments, Classic's
+radial-checks), `pills` (radial dashes with round caps, shortened so the caps
+stay in the band), `dots` (beads at the band's centre), `spokes` (thin radial
+lines) and `wedges` (`wedgePath()`: tapered, narrow inside, wide outside, the
+sides kept radial through angular half-widths); and three bands, `arc` (a
+circle with one dash the length of its circumference, draining by offset,
+radial-ring), `comet` (`cometPath()`: the time left as a polygon thick at the
+head where it is draining and tapering to nothing at its far end, over a thin
+track, rebuilt when the fraction moves by 0.001) and `pie` (`piePath()`: a
+filled slice from the centre over a faint full disc; a full circle is two
+arcs). Marks are sized from the tangential room each has (`slot` = 2πr/N)
+so a hundred dots stay apart; a mark's colour is its `stroke` or its `fill`
+(`rec.attr`). `shape: 'oval'` sets `preserveAspectRatio` to `none`, so the
+drawing stretches to the box; every stroked element then carries
+`vector-effect: non-scaling-stroke` and `layoutRings()` sets its width in
+pixels (`data-sw` × the shorter side / 100), so a stretched ring keeps an
+even line; an oval `arc` also gets its one dash set from the ellipse's
+perimeter in pixels (Ramanujan's approximation), because a non-scaling
+stroke measures dashes along the stretched path and a dash the length of
+the circle in drawing units repeated round the ring. `width` is the band's
+thickness as a fraction of the radius; `color` is the
 time left (`true` = currentColor, through `glowColour()`, so a ring on a
 `clockColors` clock cell turns amber and red with the digits), `done` the time
 gone, `rim` an optional thin circle at the outer edge; `direction` is which

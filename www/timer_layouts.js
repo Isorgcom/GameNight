@@ -771,9 +771,9 @@ function ringInput(ring, onchange) {
     var wrap = document.createElement('span');
     wrap.className = 'tbe-ring';
     var cur = (ring && typeof ring === 'object') ? ring : null;
-    var mode = cur ? (cur.style === 'arc' ? 'arc' : 'ticks') : 'none';
+    var mode = cur ? (RING_STYLES.some(function (o) { return o[0] === cur.style; }) ? cur.style : 'ticks') : 'none';
     var s = document.createElement('select');
-    [['none', 'None'], ['ticks', 'Tick marks'], ['arc', 'Solid arc']].forEach(function (o) {
+    [['none', 'None']].concat(RING_STYLES).forEach(function (o) {
         var op = document.createElement('option'); op.value = o[0]; op.textContent = o[1]; s.appendChild(op);
     });
     s.value = mode;
@@ -788,7 +788,9 @@ function ringInput(ring, onchange) {
     if (!cur) return wrap;
     var set = function (k, v) { if (v === undefined || v === '') delete cur[k]; else cur[k] = v; onchange(cur); };
     var sub = function (label, input) { var f = field(label, input); f.classList.add('tbe-ring-sub'); wrap.appendChild(f); };
-    if (mode === 'ticks') sub('Marks', numInput(cur.ticks !== undefined ? cur.ticks : 60, 4, 120, 1, function (v) { set('ticks', v); }));
+    sub('Shape', selInput(cur.shape === 'oval' ? 'oval' : 'circle', ['circle', 'oval'],
+        function (v) { set('shape', v === 'circle' ? undefined : v); }, ['Circle', 'Oval (fills the box)']));
+    if (RING_MARK_STYLES.indexOf(mode) >= 0) sub('Marks', numInput(cur.ticks !== undefined ? cur.ticks : 60, 4, 120, 1, function (v) { set('ticks', v); }));
     var wv = String(cur.width !== undefined ? cur.width : 0.12);
     var wvals = RING_WIDTHS.map(function (w) { return w[0]; }), wlabels = RING_WIDTHS.map(function (w) { return w[1]; });
     if (wvals.indexOf(wv) < 0) { wvals.push(wv); wlabels.push(wv); }
@@ -2664,6 +2666,9 @@ var GLOWS   = ['#ff2ec4', '#22d3ee', '#fbbf24', '#22c55e', '#ffffff'];   // neon
 // The countdown ring: thickness choices (a fraction of the radius), the swatch
 // row for the time-left colour (gold, cyan, white, pink, green) and what a
 // fresh ring starts as.
+var RING_STYLES  = [['ticks', 'Tick marks'], ['pills', 'Pills'], ['dots', 'Dots'], ['spokes', 'Spokes'], ['wedges', 'Wedges'],
+                    ['arc', 'Solid arc'], ['comet', 'Comet'], ['pie', 'Pie']];
+var RING_MARK_STYLES = ['ticks', 'pills', 'dots', 'spokes', 'wedges'];   // the ones with a marks count
 var RING_WIDTHS  = [['0.06', 'Thin'], ['0.12', 'Medium'], ['0.2', 'Thick']];
 var RING_COLOURS = ['#e8c547', '#22d3ee', '#ffffff', '#ff2ec4', '#22c55e'];
 var RING_DEFAULT = { ticks: 60, width: 0.12, color: '#e8c547', done: 'rgba(255,255,255,0.3)' };
@@ -2779,12 +2784,13 @@ function openNodeMenu(path, x, y, opener) {
     function ringPanel(t) {
         return function (panel, addRow, addSwatches) {
             var cur = (t.ring && typeof t.ring === 'object') ? t.ring : null;
-            var style = cur ? (cur.style === 'arc' ? 'arc' : 'ticks') : 'none';
+            var style = cur ? (RING_STYLES.some(function (o) { return o[0] === cur.style; }) ? cur.style : 'ticks') : 'none';
             function pick(st) { return edit(function () { if (!st) delete t.ring; else t.ring = Object.assign({}, cur || RING_DEFAULT, { style: st }); }); }
             addRow('None', style === 'none', pick(null), 'menuitemradio');
-            addRow('Tick marks', style === 'ticks', pick('ticks'), 'menuitemradio');
-            addRow('Solid arc', style === 'arc', pick('arc'), 'menuitemradio');
+            RING_STYLES.forEach(function (o) { addRow(o[1], style === o[0], pick(o[0]), 'menuitemradio'); });
             if (cur) {
+                addRow('Oval (fills the box)', cur.shape === 'oval',
+                    edit(function () { if (t.ring.shape === 'oval') delete t.ring.shape; else t.ring.shape = 'oval'; }), 'menuitemcheckbox');
                 addSwatches(RING_COLOURS, typeof cur.color === 'string' ? cur.color : undefined, function (c) { edit(function () { t.ring.color = c; })(); });
                 addRow('Fills counter-clockwise', cur.direction === 'ccw',
                     edit(function () { if (t.ring.direction === 'ccw') delete t.ring.direction; else t.ring.direction = 'ccw'; }), 'menuitemcheckbox');
