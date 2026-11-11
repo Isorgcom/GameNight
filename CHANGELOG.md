@@ -11,6 +11,8 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.23.0] - 2026-11-11
+
 ### Added
 - **A countdown ring on any box or cell of a timer layout.** The Classic timer's circular countdown comes to the layout engine: Box → Ring in the right-click menu, or the inspector's Countdown ring fields, draws the level's progress as a circle behind a box's content, so the level, the clock and the next break can stack inside it. Tick marks (sixty by default) go out one by one as the time goes; a solid arc drains instead. The colour of the time left (or the text's own colour, so a clock's amber and red reach the ring), the colour of the time gone, an optional rim circle, the thickness and the fill direction are all settable. `www/timer_display.js`, `www/timer_display.css`, `www/timer_layouts.js`, `www/timer_layouts_dl.php` (the sanitizer fences the colours like every colour), the Timer Guide.
 - **Short numbers for a layout.** A Numbers setting in the Screen inspector's Whole layout section (and the Screen menu) prints chip counts and blinds as 1.6K, 51.1K and 460K instead of 1,600, 51,100 and 460,000, the way most tournament clocks do; money keeps its dollars. One setting for every screen of the layout. `www/timer_layouts.js`, `www/timer_display.js`, `www/timer_layouts_dl.php`.
