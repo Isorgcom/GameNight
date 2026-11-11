@@ -392,7 +392,13 @@ per-box way: the felt is the only full-screen image, and every plate is its own
 transparent PNG carried by its box (`bgImage`), so plates move, resize and
 reflow WITH their boxes. No aspect lock, no registration, no geometry constants
 to keep in step — on a 21:9 screen the layout fills the width instead of
-letterboxing, and the plates simply stretch with their boxes. Tabs ("Blinds",
+letterboxing, and the plates simply stretch with their boxes. Since v1.23.2 it
+also carries a `Phone` screen (`when: mobile`) and a `Phone break` screen
+(`when: 'mobile and onBreak'`: in an expression the break word is `onBreak`;
+the bare `on_break` is the legacy state shorthand and does not combine),
+stacked in the same plates and ordered first, so the most specific screen
+wins and a phone never gets the TV layout squeezed into portrait; a phone at
+the final table keeps the Phone screen (no seat map that small). Tabs ("Blinds",
 "On Break") and the "Chips:" label are baked into their plates' pixels: flex
 boxes cannot overlap, but a plate's own art can hold its tab. Art ships in
 `www/img/timer_beta/` (why `safeImageSrc()`/`pk_lo_img()` allow that prefix); a

@@ -11,6 +11,11 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.23.2] - 2026-11-11
+
+### Fixed
+- **The PCF built-in layout has its own phone screens.** It was drawn before layouts could carry a Phone screen, so a phone that scanned its QR code got the TV layout squeezed into portrait: the clock broke onto two lines and the panels crushed. It now carries a stacked Phone screen in the same glossy plates (logo, clock, game, blinds, next blinds, the stats panel, the payout bar) and a phone screen for breaks (the orange clock, the On Break panel with the next blinds, the stats). The TV screens are unchanged. `www/timer_display.js` (`LAYOUTS.pcf`), the Library card's line.
+
 ## [v1.23.1] - 2026-11-11
 
 ### Added

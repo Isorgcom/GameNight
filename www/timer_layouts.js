@@ -3829,7 +3829,7 @@ var BUILTIN_CARDS = {
     black_green: 'Black with green bars: a huge clock, the blinds in green, and the counts tucked into the strips at the top and bottom.',
     minimalist:  'Just the clock and the blinds, white on black, readable from across any room.',
     two_column:  'A column of game numbers and payouts on the left, the clock and blinds on green on the right.',
-    pcf:         'Glossy plates on dark felt, made for the Poker Chip Forum: an orange blinds plate, the stats panel, a payout bar, and a seat map at the final table.',
+    pcf:         'Glossy plates on dark felt, made for the Poker Chip Forum: an orange blinds plate, the stats panel, a payout bar, a seat map at the final table, and its own stacked screens for a phone, in play and on a break.',
     cardroom:    'A casino tournament clock in green: payouts down both sides, the level and clock in the middle, blinds and chip counts below, and a ticker along the bottom.'
 };
 var libWrap = null, libOpener = null;
