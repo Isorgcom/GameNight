@@ -492,10 +492,28 @@ function ordinal(n) {
     var suf = (v >= 11 && v <= 13) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' })[n % 10] || 'th';
     return n + suf;
 }
+/* Short numbers: a layout with `numbers: 'short'` prints chip counts and
+ * blinds as 1.6K, 51.1K, 460K, 1.5M (one decimal, trimmed; three digits and
+ * up keep none). Whole numbers from a thousand up only; money keeps its
+ * dollars (fmtMoney never comes here). Set per layout in renderLayoutObj. */
+var NUM_SHORT = false;
+function fmtShort(v) {
+    var unit = Math.abs(v) >= 1e6 ? [1e6, 'M'] : [1e3, 'K'];
+    var q = v / unit[0];
+    return (Math.abs(q) >= 100 ? q.toFixed(0) : q.toFixed(1).replace(/\.0$/, '')) + unit[1];
+}
+// The server sends the chip total and the average already formatted
+// ("67,500"); a short-numbers layout wants them short too, so a plain
+// formatted number is read back and re-printed, and anything else passes.
+function fmtPre(v) {
+    var s = String(v);
+    return (NUM_SHORT && /^[0-9][0-9,]*$/.test(s)) ? fmtChips(Number(s.replace(/,/g, ''))) : s;
+}
 function fmtChips(n) {
     if (n === null || n === undefined || n === '') return '-';
     var v = Number(n);
     if (!isFinite(v)) return '-';
+    if (NUM_SHORT && v % 1 === 0 && Math.abs(v) >= 1000) return fmtShort(v);
     return (v % 1 === 0)
         ? v.toLocaleString('en-US')
         : v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -600,8 +618,8 @@ var ELEMENTS = {
     entries:      function () { return String(S.entries); },
     rebuys:       function () { return String(S.rebuys); },
     pot:          function () { return String(S.pot); },
-    chipCount:    function () { return String(S.chipCount); },
-    avgStack:     function () { return String(S.avgStack); },
+    chipCount:    function () { return fmtPre(S.chipCount); },
+    avgStack:     function () { return fmtPre(S.avgStack); },
     buyinLine:    function () { return S.sample ? '$25.00 Buy-in  ·  $25.00 Rebuys' : ''; },
     currentTime:  function () {
         var d = new Date(), h = d.getHours(), m = String(d.getMinutes()).padStart(2, '0');
@@ -1455,6 +1473,120 @@ function applyBox(el, node) {
     // applyEmphasis so a variant can switch it, together with the text halo.
     if (node.glow && node.border && !node.cell) el.style.boxShadow = glowBox(node.glow);
     if (node.justify) el.style.justifyContent = node.justify;
+    // A cell's ring lives in its spec (mounted by buildCell); a container's here.
+    if (node.ring && !node.cell) mountRing(el, node.ring);
+}
+
+/* ── Countdown ring ──
+ * `ring` on a box or a cell draws the level's progress as a circle inscribed
+ * in the element's shorter side, behind its content: a band that drains
+ * (`arc`) or marks that go out one by one (`ticks`), the Classic timer's
+ * radial-ring and radial-checks brought across. The svg is inset 0 with
+ * preserveAspectRatio meet, so it is the box's own size and moves with it;
+ * the content stacks above it (CSS .tb-ringed). `color` is the time left
+ * (`true` = currentColor, so a ring on a clockColors clock cell turns amber
+ * and red with the digits), `done` the time gone, `rim` an optional thin
+ * circle at the outer edge, `width` the band's thickness as a fraction of
+ * the radius, `direction` which way the time gone fills from 12 o'clock.
+ * Progress is time gone over the level's length; a break level counts the
+ * same way; with no schedule nothing is gone. Nodes, never innerHTML. */
+var ringNodes = [];
+var SVG_NS = 'http://www.w3.org/2000/svg';
+function svgEl(tag, attrs) {
+    var e = document.createElementNS(SVG_NS, tag);
+    for (var k in attrs) if (attrs.hasOwnProperty(k)) e.setAttribute(k, attrs[k]);
+    return e;
+}
+// One arc of a circle: degrees, 0 at the top, increasing clockwise.
+function arcPath(cx, cy, r, a0, a1) {
+    function pt(a) { var rad = (a - 90) * Math.PI / 180; return [cx + r * Math.cos(rad), cy + r * Math.sin(rad)]; }
+    var p0 = pt(a0), p1 = pt(a1), large = (a1 - a0) <= 180 ? 0 : 1;
+    return 'M ' + p0[0].toFixed(3) + ' ' + p0[1].toFixed(3) + ' A ' + r + ' ' + r + ' 0 ' + large + ' 1 ' + p1[0].toFixed(3) + ' ' + p1[1].toFixed(3);
+}
+function mountRing(el, ring) {
+    if (!ring || typeof ring !== 'object') return;
+    var style = ring.style === 'arc' ? 'arc' : 'ticks';
+    var ticks = Math.max(4, Math.min(120, Math.round(Number(ring.ticks) || 60)));
+    var width = Math.max(0.02, Math.min(0.45, Number(ring.width) || 0.12));
+    var left = glowColour(ring.color) || '#e8c547';
+    var done = (typeof ring.done === 'string' && ring.done) ? ring.done : 'rgba(255,255,255,0.3)';
+    var rim = (typeof ring.rim === 'string' && ring.rim) ? ring.rim : '';
+    var cw = ring.direction !== 'ccw';
+    var svg = svgEl('svg', { viewBox: '0 0 100 100', preserveAspectRatio: 'xMidYMid meet', 'aria-hidden': 'true' });
+    svg.setAttribute('class', 'tb-ring');
+    // Units are percent of the shorter side (50 = the whole radius): the rim
+    // at the edge, a gap, then the band.
+    var rimW = rim ? 1.2 : 0;
+    var bandW = 50 * width;
+    var r = 50 - (rim ? rimW + 2 : 0) - bandW / 2;
+    var rec = { el: el, style: style, ticks: ticks, cw: cw, left: left, done: done, lit: -1, lastOff: null, paths: [], fg: null, C: 0 };
+    if (rim) svg.appendChild(svgEl('circle', { cx: 50, cy: 50, r: (50 - rimW / 2).toFixed(2), fill: 'none', stroke: rim, 'stroke-width': rimW }));
+    if (style === 'arc') {
+        svg.appendChild(svgEl('circle', { cx: 50, cy: 50, r: r.toFixed(3), fill: 'none', stroke: done, 'stroke-width': bandW.toFixed(2) }));
+        var C = 2 * Math.PI * r;
+        // One dash the length of the circle, starting at the top: the offset
+        // decides how much of it shows, and its sign which way it drains.
+        var fg = svgEl('circle', { cx: 50, cy: 50, r: r.toFixed(3), fill: 'none', stroke: left, 'stroke-width': bandW.toFixed(2),
+                                   'stroke-dasharray': C.toFixed(3), 'stroke-dashoffset': '0', transform: 'rotate(-90 50 50)' });
+        fg.setAttribute('class', 'tb-ring-fg');
+        svg.appendChild(fg);
+        rec.fg = fg; rec.C = C;
+    } else {
+        var step = 360 / ticks, gap = Math.min(6, step * 0.18), wedge = step - gap;
+        for (var i = 0; i < ticks; i++) {
+            var a0 = i * step + gap / 2;
+            var p = svgEl('path', { d: arcPath(50, 50, r, a0, a0 + wedge), fill: 'none', stroke: left, 'stroke-width': bandW.toFixed(2) });
+            svg.appendChild(p);
+            rec.paths.push(p);
+        }
+    }
+    rec.innerR = r - bandW / 2;   // percent of the shorter side: the band's inner edge
+    el.classList.add('tb-ringed');
+    el.insertBefore(svg, el.firstChild);
+    ringNodes.push(rec);
+}
+/* A ringed element pads itself: its content sits in a rectangle inscribed in
+ * the band's inner circle (1.6R wide by 1.1R tall, wider than tall because a
+ * clock is), whatever the box's shape, so the stack inside can never cross
+ * the ring. Run from fitAll (so a fit cell inside measures the padded box)
+ * and so on every resize; the author's `pad` is overridden. */
+function layoutRings() {
+    for (var i = 0; i < ringNodes.length; i++) {
+        var r = ringNodes[i], el = r.el;
+        var w = el.clientWidth, h = el.clientHeight;
+        if (!w || !h) continue;
+        var R = Math.min(w, h) / 100 * r.innerR;
+        var cw = R * 1.6, ch = R * 1.1;
+        el.style.padding = Math.max(0, (h - ch) / 2).toFixed(1) + 'px ' + Math.max(0, (w - cw) / 2).toFixed(1) + 'px';
+    }
+}
+function ringFraction() {
+    var lv = findLevel(S.level);
+    var total = lv ? (lv.duration_minutes | 0) * 60 : 0;
+    if (total <= 0) return 0;
+    var f = (total - liveRemaining()) / total;
+    return f < 0 ? 0 : f > 1 ? 1 : f;
+}
+/* Per tick, from updateAll: the arc moves its offset, the marks flip only
+ * when the count of spent ones changes (never 120 attribute writes a tick). */
+function drawRings() {
+    if (!ringNodes.length) return;
+    var frac = ringFraction();
+    for (var i = 0; i < ringNodes.length; i++) {
+        var r = ringNodes[i];
+        if (r.style === 'arc') {
+            var off = (r.C * frac * (r.cw ? -1 : 1)).toFixed(3);
+            if (r.lastOff !== off) { r.lastOff = off; r.fg.setAttribute('stroke-dashoffset', off); }
+        } else {
+            var lit = Math.round(r.ticks * frac);
+            if (lit === r.lit) continue;
+            r.lit = lit;
+            for (var k = 0; k < r.paths.length; k++) {
+                var idx = r.cw ? k : (r.ticks - 1 - k);
+                r.paths[k].setAttribute('stroke', idx < lit ? r.done : r.left);
+            }
+        }
+    }
 }
 
 /* Glow: a neon halo. `true` glows in the element's own colour (currentColor,
@@ -2184,6 +2316,7 @@ function buildCell(spec) {
     // when the author happened to put it on the node wrapper instead.
     if (spec.border) el.style.border = spec.border;
     if (spec.radius) el.style.borderRadius = spec.radius;
+    if (spec.ring) mountRing(el, spec.ring);
     applyBoxImage(el, spec);
     // As a RATIO of the cell's font, not a fixed vh: capCell() shrinks
     // overflowing text by font-size, and discs pinned in vh would ignore the
@@ -2309,7 +2442,7 @@ function buildScreen(idx) {
         ? CURRENT_LAYOUT.styles : {};
     rebuildElementIndex();
     var screen = CURRENT_LAYOUT.screens[idx] || { root: { col: [] } };
-    fitCells = []; clockCells = []; allCells = []; whenBoxes = []; qrCells = []; chipCells = []; seatCells = []; videoFrames = []; payoutCells = []; playerCells = [];
+    fitCells = []; clockCells = []; allCells = []; whenBoxes = []; qrCells = []; chipCells = []; seatCells = []; videoFrames = []; payoutCells = []; playerCells = []; ringNodes = [];
     root.textContent = '';
     root.style.background = '';
     root.style.backgroundImage = '';
@@ -2346,6 +2479,7 @@ function buildScreen(idx) {
 }
 
 function renderLayoutObj(layout) {
+    NUM_SHORT = !!(layout && layout.numbers === 'short');
     CURRENT_LAYOUT = normalizeScreens(layout);
     _cycScreen = -1;   // new layout, new screen indices — restart any rotation
     // New layout, new triggers: drop armed/fired state and cancel any takeover
@@ -2525,6 +2659,7 @@ function updateAll() {
         el.classList.toggle('tb-warn', rem > 30 && rem <= S.warnSecs);
         el.classList.toggle('tb-paused', !S.running && !S.sample);
     }
+    drawRings();
 
     // Re-fit only the fit cells whose rendered text actually changed SHAPE.
     // Digits are interchangeable here: with tabular figures every digit is the
@@ -2545,6 +2680,14 @@ function fitShape(t) { return String(t).replace(/[0-9]/g, '0'); }
 function fitCell(fc) {
     var boxW = fc.el.clientWidth, boxH = fc.el.clientHeight;
     if (!boxW || !boxH) return;
+    // A ringed cell's padding is the ring's: measure the box inside it, or the
+    // text fits the whole cell and crosses the band.
+    if (fc.el.classList.contains('tb-ringed')) {
+        var cs = getComputedStyle(fc.el);
+        boxW -= (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+        boxH -= (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+        if (boxW <= 0 || boxH <= 0) return;
+    }
     fc.inner.style.fontSize = '100px';
     var w = fc.inner.scrollWidth, h = fc.inner.scrollHeight;
     if (!w || !h) return;
@@ -2576,6 +2719,7 @@ function capCell(rec) {
     rec.inner.style.fontSize = scaled + 'px';
 }
 function fitAll() {
+    layoutRings();
     for (var i = 0; i < fitCells.length; i++) fitCell(fitCells[i]);
     for (var j = 0; j < allCells.length; j++) {
         if (!allCells[j].isFit) capCell(allCells[j]);

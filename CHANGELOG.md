@@ -11,6 +11,11 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+### Added
+- **A countdown ring on any box or cell of a timer layout.** The Classic timer's circular countdown comes to the layout engine: Box → Ring in the right-click menu, or the inspector's Countdown ring fields, draws the level's progress as a circle behind a box's content, so the level, the clock and the next break can stack inside it. Tick marks (sixty by default) go out one by one as the time goes; a solid arc drains instead. The colour of the time left (or the text's own colour, so a clock's amber and red reach the ring), the colour of the time gone, an optional rim circle, the thickness and the fill direction are all settable. `www/timer_display.js`, `www/timer_display.css`, `www/timer_layouts.js`, `www/timer_layouts_dl.php` (the sanitizer fences the colours like every colour), the Timer Guide.
+- **Short numbers for a layout.** A Numbers setting in the Screen inspector's Whole layout section (and the Screen menu) prints chip counts and blinds as 1.6K, 51.1K and 460K instead of 1,600, 51,100 and 460,000, the way most tournament clocks do; money keeps its dollars. One setting for every screen of the layout. `www/timer_layouts.js`, `www/timer_display.js`, `www/timer_layouts_dl.php`.
+- **A ready-made Gold Ring layout in the Library.** The classic black board: the event name across the top, cyan labels and white figures, Players / Entries / Re-Entries and the chip legend on the left with Total Chips and Average under them, the level and the blinds top right over the prize pool and the payouts with the next level below, and in the middle the countdown ring, sixty gold marks inside a yellow rim with the level, the big clock and the next break inside it. Short numbers, a Break screen with the ring and the QR code, a stacked Phone screen, a chime per level and a tick through the last minute. Seeded on gamenight.poker as an admin-owned site layout like the others.
+
 ## [v1.22.0] - 2026-11-11
 
 ### Added

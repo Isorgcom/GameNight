@@ -39,7 +39,7 @@ function normalizeLayout() {
         // a hand-written list silently DROPPED anything not named here, so a
         // single-screen layout lost its triggers, custom elements and stream
         // audio settings the moment it was opened in the editor.
-        var carried = { v: LAYOUT.v || 1, aspect: LAYOUT.aspect,
+        var carried = { v: LAYOUT.v || 1, aspect: LAYOUT.aspect, numbers: LAYOUT.numbers,
                         triggers: LAYOUT.triggers, customElements: LAYOUT.customElements,
                         styles: LAYOUT.styles, stream: LAYOUT.stream,
                         screens: [{ name: 'Main', bg: LAYOUT.bg || null, root: LAYOUT.root || { col: [] } }] };
@@ -763,6 +763,63 @@ function colorInput(value, onchange) {
  * A select for the mode and a colour field that shows only for a stated
  * colour. A container has no text of its own, so its picker (boxOnly) offers
  * none or a colour: its glow is the frame's, and needs a border to show. */
+// The countdown ring's fields: the style select, then (once there is a ring)
+// its marks, thickness, the two colours, the rim and the fill direction. The
+// ring is one object on the cell or box; `onchange` receives it (or undefined
+// for none). Changing the style re-renders the inspector so the fields follow.
+function ringInput(ring, onchange) {
+    var wrap = document.createElement('span');
+    wrap.className = 'tbe-ring';
+    var cur = (ring && typeof ring === 'object') ? ring : null;
+    var mode = cur ? (cur.style === 'arc' ? 'arc' : 'ticks') : 'none';
+    var s = document.createElement('select');
+    [['none', 'None'], ['ticks', 'Tick marks'], ['arc', 'Solid arc']].forEach(function (o) {
+        var op = document.createElement('option'); op.value = o[0]; op.textContent = o[1]; s.appendChild(op);
+    });
+    s.value = mode;
+    s.setAttribute('aria-label', 'Countdown ring style');
+    s.addEventListener('change', function () {
+        pushUndo();
+        if (s.value === 'none') onchange(undefined);
+        else onchange(Object.assign({}, cur || RING_DEFAULT, { style: s.value }));
+        refresh(true); renderInspector();
+    });
+    wrap.appendChild(s);
+    if (!cur) return wrap;
+    var set = function (k, v) { if (v === undefined || v === '') delete cur[k]; else cur[k] = v; onchange(cur); };
+    var sub = function (label, input) { var f = field(label, input); f.classList.add('tbe-ring-sub'); wrap.appendChild(f); };
+    if (mode === 'ticks') sub('Marks', numInput(cur.ticks !== undefined ? cur.ticks : 60, 4, 120, 1, function (v) { set('ticks', v); }));
+    var wv = String(cur.width !== undefined ? cur.width : 0.12);
+    var wvals = RING_WIDTHS.map(function (w) { return w[0]; }), wlabels = RING_WIDTHS.map(function (w) { return w[1]; });
+    if (wvals.indexOf(wv) < 0) { wvals.push(wv); wlabels.push(wv); }
+    sub('Thickness', selInput(wv, wvals, function (v) { set('width', parseFloat(v)); }, wlabels));
+    // Time left: the text's own colour (so a clock cell's warning colours
+    // reach the ring) or a colour of its own.
+    var cm = document.createElement('span'); cm.className = 'tbe-glow';
+    var cs = document.createElement('select');
+    [['text', 'Text colour'], ['custom', 'Colour…']].forEach(function (o) {
+        var op = document.createElement('option'); op.value = o[0]; op.textContent = o[1]; cs.appendChild(op);
+    });
+    cs.value = cur.color === true ? 'text' : 'custom';
+    cs.setAttribute('aria-label', 'Time left colour');
+    var cc = colorInput(typeof cur.color === 'string' ? cur.color : '#e8c547', function (v) { set('color', v || undefined); });
+    cc.style.display = cs.value === 'custom' ? '' : 'none';
+    cs.addEventListener('change', function () {
+        pushUndo();
+        if (cs.value === 'text') set('color', true);
+        else set('color', cc.querySelector('input[type=text]').value.trim() || '#e8c547');
+        cc.style.display = cs.value === 'custom' ? '' : 'none';
+        refresh(true);
+    });
+    cm.appendChild(cs); cm.appendChild(cc);
+    sub('Time left', cm);
+    sub('Time gone', colorInput(cur.done, function (v) { set('done', v); }));
+    sub('Rim', colorInput(cur.rim, function (v) { set('rim', v); }));
+    sub('Fills', selInput(cur.direction === 'ccw' ? 'ccw' : 'cw', ['cw', 'ccw'],
+        function (v) { set('direction', v === 'cw' ? undefined : v); }, ['Clockwise', 'Counter-clockwise']));
+    return wrap;
+}
+
 function glowInput(value, onchange, boxOnly) {
     var wrap = document.createElement('span');
     wrap.className = 'tbe-glow';
@@ -1925,6 +1982,11 @@ function renderInspector() {
         }, ['Keep the painted panels', 'Let the artwork show through']));
         panelsWrap.appendChild(inspNote('Whether cells paint their own backgrounds or let the artwork show through. Applies to every screen.'));
         insp.appendChild(panelsWrap);
+        var numWrap = field('Numbers', selInput(LAYOUT.numbers === 'short' ? 'short' : 'full', ['full', 'short'], function (v) {
+            if (v === 'short') LAYOUT.numbers = 'short'; else delete LAYOUT.numbers;
+        }, ['Full (1,600)', 'Short (1.6K)']));
+        numWrap.appendChild(inspNote('How chip counts and blinds print. Money keeps its dollars. Applies to every screen.'));
+        insp.appendChild(numWrap);
 
         // The Library card (admins): what every host sees for this layout in
         // the Library once it is a Site layout.
@@ -2245,6 +2307,7 @@ function renderInspector() {
         insp.appendChild(field('Border', textInput(cell.border, function (v) { setOrDelete(cell, 'border', v); }, 'e.g. 3px solid #d4af37')));
         insp.appendChild(field('Corner radius', textInput(cell.radius, function (v) { setOrDelete(cell, 'radius', v); }, 'e.g. 1.5vh')));
         insp.appendChild(field('Glow', glowInput(cell.glow, function (v) { setOrDelete(cell, 'glow', v); })));
+        insp.appendChild(field('Countdown ring', ringInput(cell.ring, function (v) { setOrDelete(cell, 'ring', v); })));
         insp.appendChild(field('Align', selInput(cell.align || 'center', ['center', 'left', 'right'], function (v) { setOrDelete(cell, 'align', v === 'center' ? undefined : v); })));
         if (!cell.fit) scrollFields(cell).forEach(function (f) { insp.appendChild(f); });
         insp.appendChild(padField(cell));
@@ -2262,6 +2325,7 @@ function renderInspector() {
         insp.appendChild(field('Border', textInput(node.border, function (v) { setOrDelete(node, 'border', v); }, 'e.g. 2px solid rgba(212,175,55,0.6)')));
         insp.appendChild(field('Corner radius', textInput(node.radius, function (v) { setOrDelete(node, 'radius', v); }, 'e.g. 1.5vh')));
         insp.appendChild(field('Glow (with a border)', glowInput(node.glow, function (v) { setOrDelete(node, 'glow', v); }, true)));
+        insp.appendChild(field('Countdown ring', ringInput(node.ring, function (v) { setOrDelete(node, 'ring', v); })));
         insp.appendChild(field('Show when', condEditor(node.when, function (v) { pushUndo(); setOrDelete(node, 'when', v); refresh(true); })));
         insp.appendChild(field('Justify', selInput(node.justify || 'flex-start',
             ['flex-start', 'center', 'flex-end', 'space-between', 'space-around'],
@@ -2317,7 +2381,7 @@ function dupNode() {
 // look (never its content or kind) with placeholder text, and it is selected
 // so the author can type straight away. Like dupNode it acts on the
 // selection: the menu select()s the pointed-at node first.
-var LOOK_KEYS = ['size', 'fit', 'color', 'bg', 'bold', 'font', 'align', 'pad', 'style', 'opacity', 'border', 'radius', 'glow'];
+var LOOK_KEYS = ['size', 'fit', 'color', 'bg', 'bold', 'font', 'align', 'pad', 'style', 'opacity', 'border', 'radius', 'glow', 'ring'];
 function splitNode(dir) {   // dir: 'row' = left / right, 'col' = top / bottom
     if (!selPath) return;
     var n = nodeAt(selPath).node;
@@ -2597,6 +2661,12 @@ var SPACING = [['None', undefined], ['Tight', '-0.02em'], ['Wide', '0.08em']];
 var OPACITY = [['100%', undefined], ['75%', 0.75], ['50%', 0.5], ['25%', 0.25]];
 var RADII   = [['Square', undefined], ['Soft', '0.8vh'], ['Round', '1.6vh'], ['Pill', '999px']];
 var GLOWS   = ['#ff2ec4', '#22d3ee', '#fbbf24', '#22c55e', '#ffffff'];   // neon pink, cyan, amber, green, white
+// The countdown ring: thickness choices (a fraction of the radius), the swatch
+// row for the time-left colour (gold, cyan, white, pink, green) and what a
+// fresh ring starts as.
+var RING_WIDTHS  = [['0.06', 'Thin'], ['0.12', 'Medium'], ['0.2', 'Thick']];
+var RING_COLOURS = ['#e8c547', '#22d3ee', '#ffffff', '#ff2ec4', '#22c55e'];
+var RING_DEFAULT = { ticks: 60, width: 0.12, color: '#e8c547', done: 'rgba(255,255,255,0.3)' };
 var BORDERS = [['None', undefined], ['Thin', '1px solid rgba(255,255,255,0.35)'],
                ['Medium', '2px solid rgba(255,255,255,0.55)'], ['Accent', '2px solid #2563eb']];
 var JUSTIFY = [['Start', 'flex-start'], ['Center', 'center'], ['End', 'flex-end'],
@@ -2704,6 +2774,23 @@ function openNodeMenu(path, x, y, opener) {
             addSwatches(GLOWS, typeof t.glow === 'string' ? t.glow : undefined, function (c) { edit(function () { t.glow = c; })(); });
         };
     }
+    // The countdown ring: its style, then the time-left colour and the fill
+    // direction once there is one. The finer settings are the inspector's.
+    function ringPanel(t) {
+        return function (panel, addRow, addSwatches) {
+            var cur = (t.ring && typeof t.ring === 'object') ? t.ring : null;
+            var style = cur ? (cur.style === 'arc' ? 'arc' : 'ticks') : 'none';
+            function pick(st) { return edit(function () { if (!st) delete t.ring; else t.ring = Object.assign({}, cur || RING_DEFAULT, { style: st }); }); }
+            addRow('None', style === 'none', pick(null), 'menuitemradio');
+            addRow('Tick marks', style === 'ticks', pick('ticks'), 'menuitemradio');
+            addRow('Solid arc', style === 'arc', pick('arc'), 'menuitemradio');
+            if (cur) {
+                addSwatches(RING_COLOURS, typeof cur.color === 'string' ? cur.color : undefined, function (c) { edit(function () { t.ring.color = c; })(); });
+                addRow('Fills counter-clockwise', cur.direction === 'ccw',
+                    edit(function () { if (t.ring.direction === 'ccw') delete t.ring.direction; else t.ring.direction = 'ccw'; }), 'menuitemcheckbox');
+            }
+        };
+    }
 
     // ── The folded groups ──────────────────────────────────────────────────
 
@@ -2780,6 +2867,7 @@ function openNodeMenu(path, x, y, opener) {
         x.sub('Border',     choices(BORDERS, t.border,  function (v) { setOrDelete(t, 'border', v); }));
         x.sub('Corners',    choices(RADII,   t.radius,  function (v) { setOrDelete(t, 'radius', v); }));
         x.sub('Glow',       glowPanel(t, !cell));
+        x.sub('Ring',       ringPanel(t));
         if (!isRoot) {
             x.sep();
             x.sub('Size in parent', function (panel2, addRow2) {
@@ -2941,6 +3029,11 @@ function openNodeMenu(path, x, y, opener) {
             var on = panelColoursOn();
             addRow('Keep the painted panels', on, function () { setPanelColours(true); }, 'menuitemradio');
             addRow('Let the artwork show through', !on, function () { setPanelColours(false); }, 'menuitemradio');
+        });
+        sub('Numbers', function (panel, addRow) {
+            var short = LAYOUT.numbers === 'short';
+            addRow('Full (1,600)', !short, edit(function () { delete LAYOUT.numbers; }), 'menuitemradio');
+            addRow('Short (1.6K)', short, edit(function () { LAYOUT.numbers = 'short'; }), 'menuitemradio');
         });
     }
 
