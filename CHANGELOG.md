@@ -11,6 +11,18 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.22.0] - 2026-11-11
+
+### Added
+- **Timer layouts can glow and have rounded corners.** Two new look settings in the layout editor, on cells and on boxes, in the inspector and the right-click menu (Box → Corners, Box → Glow). Glow draws a neon halo round the text, in the text's own colour or one you pick, and a cell or box with a border glows along its frame too; a variant can switch it, so a paused clock can glow red. Corner radius rounds the box (`1.5vh`, or `999px` for a pill) and clips the box's image with it. Both can live in a shared style. `www/timer_display.js`, `www/timer_layouts.js`, `www/timer_layouts_dl.php` (the sanitizer keeps `glow` as `true` or a colour and `radius` as a short style string, the same fence as every other colour), the Timer Guide.
+- **A ready-made Synthwave layout in the Library.** Sunset over a neon grid: the event name in pink neon script, the clock in cyan over the sky, LEVEL above it and BLINDS below with the big blind in pink, a PAYOUTS panel on the left, PRIZE POOL / PLAYERS LEFT / NEXT BREAK panels on the right and NEXT LEVEL in a red frame, all with the new glow and rounded corners; a Break screen with the clock and the QR code, and a stacked Phone screen. A chime at each level and a tick through the last minute. The background scene is drawn by the site and ships with the PCF art (`www/img/timer_beta/synth-scene.jpg`, 171 KB), so the layout needs no upload; the layout itself is seeded on gamenight.poker as an admin-owned site layout, like the other six.
+
+### Changed
+- **Library cards show the layout itself, live.** A card in the layout editor's Library was a picture somebody took once, and nothing retook it when the layout changed, so a card could show a look the layout no longer had. Each card now runs the layout on the sample game through the real display, scaled down to the card, the way the editor's own preview does, so it always shows the layout as it is now. Cards draw as they scroll into view, a couple at a time, and far-off ones make room for near ones; the card picture an admin uploads stays as the placeholder while a card loads. The picture was also served from a day-long browser cache under an unchanging name, so a replaced picture looked unchanged until the next day; it carries the layout's last-saved time now. `www/timer_layouts.js`, `www/timer_layouts.css`, `www/timer_layouts_dl.php` (`get_library` returns the layout document with each row), the Timer Guide.
+
+### Fixed
+- **The clock no longer shuffles sideways as the seconds change.** In a layout set in one of the bundled display fonts the clock's width changed with its digits: the display asks every font for equal-width figures, but only two of the ten bundled faces have them, and in Orbitron a 1 is under half the width of a 0, so 12:31 drew narrower than 12:32, a centred clock moved every second, and a clock fitted to its box re-fitted on top of that. The elements that tick (the clock, next break, time of day and time elapsed) now paint each digit in a box one "0" wide, so their width holds whatever the digits say; a clock with letter-spacing keeps its gaps. Lines that change once a level, like the blinds, are left as they were. Found alongside: a cell fitted to its box was measured before its bundled font had arrived, on the stand-in face, and kept that size until the next resize; a font arriving now re-fits the layout the way a resize does. `www/timer_display.js`, `www/timer_display.css`.
+
 ## [v1.21.4] - 2026-11-10
 
 ### Fixed

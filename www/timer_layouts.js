@@ -759,6 +759,35 @@ function colorInput(value, onchange) {
     wrap.appendChild(c); wrap.appendChild(t);
     return wrap;
 }
+/* Glow: none, the text's own colour (stored as `true`), or a stated colour.
+ * A select for the mode and a colour field that shows only for a stated
+ * colour. A container has no text of its own, so its picker (boxOnly) offers
+ * none or a colour: its glow is the frame's, and needs a border to show. */
+function glowInput(value, onchange, boxOnly) {
+    var wrap = document.createElement('span');
+    wrap.className = 'tbe-glow';
+    var mode = (value === true) ? 'text' : (typeof value === 'string' && value) ? 'custom' : 'none';
+    if (boxOnly && mode === 'text') mode = 'custom';
+    var s = document.createElement('select');
+    var opts = boxOnly ? [['none', 'None'], ['custom', 'Colour…']]
+                       : [['none', 'None'], ['text', 'Text colour'], ['custom', 'Other colour…']];
+    opts.forEach(function (o) {
+        var op = document.createElement('option'); op.value = o[0]; op.textContent = o[1]; s.appendChild(op);
+    });
+    s.value = mode;
+    var c = colorInput(typeof value === 'string' ? value : '#22d3ee', function (v) { onchange(v || undefined); });
+    c.style.display = mode === 'custom' ? '' : 'none';
+    s.addEventListener('change', function () {
+        pushUndo();
+        if (s.value === 'none') onchange(undefined);
+        else if (s.value === 'text') onchange(true);
+        else onchange(c.querySelector('input[type=text]').value.trim() || '#22d3ee');
+        c.style.display = s.value === 'custom' ? '' : 'none';
+        refresh(true);
+    });
+    wrap.appendChild(s); wrap.appendChild(c);
+    return wrap;
+}
 // Upload an image via timer_layouts_dl.php's upload_image action (byte-level MIME
 // check + getimagesize, size cap, per-user daily limit). Stores under
 // /uploads/timer_layouts/ and calls back with that URL.
@@ -1099,6 +1128,7 @@ function renderVariants(cell) {
         card.appendChild(field('Colour', colorInput(v.color, function (c) { setOrDelete(v, 'color', c); })));
         card.appendChild(field('Background', colorInput(v.bg, function (c) { setOrDelete(v, 'bg', c); })));
         card.appendChild(field('Bold', boolInput(v.bold, function (c) { setOrDelete(v, 'bold', c); })));
+        card.appendChild(field('Glow', glowInput(v.glow, function (c) { setOrDelete(v, 'glow', c); })));
         box.appendChild(card);
     });
 
@@ -1767,6 +1797,8 @@ function renderSharedStyles() {
         card.appendChild(field('Font', fontInput(s.font, function (v) { setOrDelete(s, 'font', v || undefined); })));
         card.appendChild(field('Colour', colorInput(s.color, function (v) { setOrDelete(s, 'color', v); })));
         card.appendChild(field('Background', colorInput(s.bg, function (v) { setOrDelete(s, 'bg', v); })));
+        card.appendChild(field('Glow', glowInput(s.glow, function (v) { setOrDelete(s, 'glow', v); })));
+        card.appendChild(field('Corner radius', textInput(s.radius, function (v) { setOrDelete(s, 'radius', v); }, 'e.g. 1.5vh')));
         card.appendChild(field('Align', selInput(s.align || 'center', ['center', 'left', 'right'], function (v) { setOrDelete(s, 'align', v === 'center' ? undefined : v); })));
         box.appendChild(card);
     });
@@ -1915,7 +1947,7 @@ function renderInspector() {
             insp.appendChild(field('Description', ta));
             var pvWrap = document.createElement('div');
             pvWrap.className = 'tbe-field';
-            var pvl = document.createElement('span'); pvl.textContent = 'Preview picture'; pvWrap.appendChild(pvl);
+            var pvl = document.createElement('span'); pvl.textContent = 'Card picture'; pvWrap.appendChild(pvl);
             if (lib.preview) {
                 var pth = document.createElement('img'); pth.className = 'tbe-img-thumb'; pth.src = lib.preview; pth.alt = 'Library preview';
                 pvWrap.appendChild(pth);
@@ -1929,7 +1961,7 @@ function renderInspector() {
             }
             insp.appendChild(pvWrap);
             insp.appendChild(inspNote(isGlobal
-                ? 'Shown on this layout’s card in the Library. A 16:9 screenshot works best.'
+                ? 'The card draws the layout itself; the picture holds its place while that loads. A 16:9 screenshot works best.'
                 : 'Shown in the Library once this is a Site layout (the Site layout button above).'));
         }
 
@@ -2211,6 +2243,8 @@ function renderInspector() {
         insp.appendChild(field('Colour', colorInput(cell.color, function (v) { setOrDelete(cell, 'color', v); })));
         insp.appendChild(field('Background', colorInput(cell.bg, function (v) { setOrDelete(cell, 'bg', v); })));
         insp.appendChild(field('Border', textInput(cell.border, function (v) { setOrDelete(cell, 'border', v); }, 'e.g. 3px solid #d4af37')));
+        insp.appendChild(field('Corner radius', textInput(cell.radius, function (v) { setOrDelete(cell, 'radius', v); }, 'e.g. 1.5vh')));
+        insp.appendChild(field('Glow', glowInput(cell.glow, function (v) { setOrDelete(cell, 'glow', v); })));
         insp.appendChild(field('Align', selInput(cell.align || 'center', ['center', 'left', 'right'], function (v) { setOrDelete(cell, 'align', v === 'center' ? undefined : v); })));
         if (!cell.fit) scrollFields(cell).forEach(function (f) { insp.appendChild(f); });
         insp.appendChild(padField(cell));
@@ -2226,6 +2260,8 @@ function renderInspector() {
         insp.appendChild(padField(node));
         insp.appendChild(field('Background', colorInput(node.bg, function (v) { setOrDelete(node, 'bg', v); })));
         insp.appendChild(field('Border', textInput(node.border, function (v) { setOrDelete(node, 'border', v); }, 'e.g. 2px solid rgba(212,175,55,0.6)')));
+        insp.appendChild(field('Corner radius', textInput(node.radius, function (v) { setOrDelete(node, 'radius', v); }, 'e.g. 1.5vh')));
+        insp.appendChild(field('Glow (with a border)', glowInput(node.glow, function (v) { setOrDelete(node, 'glow', v); }, true)));
         insp.appendChild(field('Show when', condEditor(node.when, function (v) { pushUndo(); setOrDelete(node, 'when', v); refresh(true); })));
         insp.appendChild(field('Justify', selInput(node.justify || 'flex-start',
             ['flex-start', 'center', 'flex-end', 'space-between', 'space-around'],
@@ -2281,7 +2317,7 @@ function dupNode() {
 // look (never its content or kind) with placeholder text, and it is selected
 // so the author can type straight away. Like dupNode it acts on the
 // selection: the menu select()s the pointed-at node first.
-var LOOK_KEYS = ['size', 'fit', 'color', 'bg', 'bold', 'font', 'align', 'pad', 'style', 'opacity', 'border'];
+var LOOK_KEYS = ['size', 'fit', 'color', 'bg', 'bold', 'font', 'align', 'pad', 'style', 'opacity', 'border', 'radius', 'glow'];
 function splitNode(dir) {   // dir: 'row' = left / right, 'col' = top / bottom
     if (!selPath) return;
     var n = nodeAt(selPath).node;
@@ -2559,6 +2595,8 @@ var PADS    = [['None', undefined], ['Small', '0.5vh 0.5vw'], ['Medium', '1vh 1v
 var GAPS    = [['None', undefined], ['Small', '0.5vh'], ['Medium', '1vh'], ['Large', '2vh']];
 var SPACING = [['None', undefined], ['Tight', '-0.02em'], ['Wide', '0.08em']];
 var OPACITY = [['100%', undefined], ['75%', 0.75], ['50%', 0.5], ['25%', 0.25]];
+var RADII   = [['Square', undefined], ['Soft', '0.8vh'], ['Round', '1.6vh'], ['Pill', '999px']];
+var GLOWS   = ['#ff2ec4', '#22d3ee', '#fbbf24', '#22c55e', '#ffffff'];   // neon pink, cyan, amber, green, white
 var BORDERS = [['None', undefined], ['Thin', '1px solid rgba(255,255,255,0.35)'],
                ['Medium', '2px solid rgba(255,255,255,0.55)'], ['Accent', '2px solid #2563eb']];
 var JUSTIFY = [['Start', 'flex-start'], ['Center', 'center'], ['End', 'flex-end'],
@@ -2657,6 +2695,15 @@ function openNodeMenu(path, x, y, opener) {
             addRow(clearLabel || 'Default', current === undefined, edit(function () { apply(undefined); }), 'menuitemradio');
         };
     }
+    // Glow: none, the text's own colour, or one of the neon swatches. A
+    // container glows along its frame only, so it is offered no "Text colour".
+    function glowPanel(t, boxOnly) {
+        return function (panel, addRow, addSwatches) {
+            addRow('None', t.glow === undefined, edit(function () { setOrDelete(t, 'glow', undefined); }), 'menuitemradio');
+            if (!boxOnly) addRow('Text colour', t.glow === true, edit(function () { t.glow = true; }), 'menuitemradio');
+            addSwatches(GLOWS, typeof t.glow === 'string' ? t.glow : undefined, function (c) { edit(function () { t.glow = c; })(); });
+        };
+    }
 
     // ── The folded groups ──────────────────────────────────────────────────
 
@@ -2731,6 +2778,8 @@ function openNodeMenu(path, x, y, opener) {
         x.sub('Padding',    choices(PADS,    t.pad,     function (v) { setOrDelete(t, 'pad', v); }));
         if (cell) x.sub('Opacity', choices(OPACITY, t.opacity, function (v) { setOrDelete(t, 'opacity', v); }));
         x.sub('Border',     choices(BORDERS, t.border,  function (v) { setOrDelete(t, 'border', v); }));
+        x.sub('Corners',    choices(RADII,   t.radius,  function (v) { setOrDelete(t, 'radius', v); }));
+        x.sub('Glow',       glowPanel(t, !cell));
         if (!isRoot) {
             x.sep();
             x.sub('Size in parent', function (panel2, addRow2) {
@@ -3686,8 +3735,103 @@ var BUILTIN_CARDS = {
 };
 var libWrap = null, libOpener = null;
 
+/* ── Live cards ──
+ * A card's picture area is the real display page (timer.php?embed=1, the
+ * same page the editor's preview is) running the layout on the sample game,
+ * drawn at LIB_W x LIB_H and scaled down to the card, so a card can never
+ * show an old look: a card picture was a screenshot somebody took once, and
+ * nothing retook it when the layout changed. Each frame is a page of its own,
+ * so frames are made only as cards scroll into view, LIB_LOAD at a time, and
+ * once LIB_ALIVE are up the oldest one out of view makes room for the next
+ * (it draws again when it scrolls back). The card picture, or the plain tile,
+ * holds the place until the frame has painted, and stays if the frame never
+ * does (a signed-out session gets the login page there, which never answers
+ * as TBPreview). Frames have no pointer, no tab stop and no sound. */
+var LIB_W = 1280, LIB_H = 720, LIB_LOAD = 2, LIB_ALIVE = 8;
+var libObs = null, libQueue = [], libLoading = 0, libLive = [];
+
+function libLayoutOf(card) {
+    // A copy: the renderer may normalise what it is handed, and a built-in is
+    // the preview frame's own constant.
+    var src = card.key ? (PV && PV.builtins[card.key]) : card.layout;
+    return (src && typeof src === 'object') ? JSON.parse(JSON.stringify(src)) : null;
+}
+function libFit(st) {
+    var w = st.pic.clientWidth;
+    if (st.frame && w > 0) st.frame.style.transform = 'scale(' + (w / LIB_W) + ')';
+}
+function libFitAll() { libLive.forEach(libFit); }
+// Take a card's frame down. `state` is what the card becomes: idle (draws
+// again on its next scroll into view) or failed (keeps its picture for good).
+function libDrop(st, state) {
+    if (st.state === 'loading') libLoading--;
+    if (st.frame) { st.frame.remove(); st.frame = null; }
+    var i = libLive.indexOf(st); if (i >= 0) libLive.splice(i, 1);
+    i = libQueue.indexOf(st); if (i >= 0) libQueue.splice(i, 1);
+    st.state = state || 'idle';
+    if (st.ph) st.ph.textContent = st.state === 'failed' ? 'No preview' : 'Loading preview…';
+}
+function libPump() {
+    while (libLoading < LIB_LOAD && libQueue.length) {
+        var st = libQueue.shift();
+        if (st.state !== 'queued') continue;
+        if (libLive.length >= LIB_ALIVE) {
+            for (var i = 0; i < libLive.length; i++) {
+                if (!libLive[i].visible) { libDrop(libLive[i]); break; }
+            }
+        }
+        libStart(st);
+    }
+}
+function libStart(st) {
+    var layout = libLayoutOf(st.card);
+    if (!layout) { libDrop(st, 'failed'); return; }
+    st.state = 'loading'; libLoading++;
+    libLive.push(st);
+    var fr = document.createElement('iframe');
+    fr.className = 'tbe-lib-frame';
+    fr.title = st.card.name + ' layout on a sample game';
+    fr.setAttribute('aria-hidden', 'true');
+    fr.tabIndex = -1;
+    fr.style.width = LIB_W + 'px'; fr.style.height = LIB_H + 'px';
+    st.frame = fr;
+    var done = function (ok) {
+        if (st.frame !== fr) return;   // dropped, or the library closed, meanwhile
+        if (ok) { st.state = 'live'; libLoading--; fr.classList.add('tbe-lib-frame-on'); }
+        else libDrop(st, 'failed');
+        libPump();
+    };
+    var tries = 0;
+    var hand = function () {
+        if (st.frame !== fr) return;
+        var w = fr.contentWindow, api = w && w.TBPreview;
+        if (!api) { if (++tries > 100) done(false); else setTimeout(hand, 60); return; }
+        try {
+            api.setLayout(layout);
+            if (api.sound && api.sound.set) api.sound.set(false);
+            api.refresh();
+            // One frame so the fonts start loading, their arrival, one more so
+            // the glyphs are painted: then the picture may go.
+            w.requestAnimationFrame(function () {
+                var fonts = fr.contentDocument && fr.contentDocument.fonts;
+                (fonts && fonts.ready ? fonts.ready : Promise.resolve()).then(function () {
+                    try { w.requestAnimationFrame(function () { done(true); }); } catch (e) { done(true); }
+                }, function () { done(true); });
+            });
+        } catch (e) { done(false); }
+    };
+    fr.addEventListener('load', hand);
+    st.pic.appendChild(fr);
+    libFit(st);
+    fr.src = '/timer.php?embed=1';
+}
+
 function closeLibrary() {
     if (!libWrap) return;
+    if (libObs) { libObs.disconnect(); libObs = null; }
+    libLive.slice().forEach(function (st) { libDrop(st); });
+    libQueue = []; libLoading = 0; libLive = [];
+    window.removeEventListener('resize', libFitAll);
     libWrap.remove(); libWrap = null;
     if (libOpener && document.contains(libOpener)) libOpener.focus();
 }
@@ -3706,15 +3850,21 @@ function libCard(card) {
     art.className = 'tbe-lib-card';
     var pic = document.createElement('div');
     pic.className = 'tbe-lib-pic';
+    var st = { card: card, pic: pic, ph: null, frame: null, state: 'idle', visible: false };
     if (card.preview) {
         var img = document.createElement('img');
         img.src = card.preview; img.loading = 'lazy';
         img.alt = card.name + ' layout, shown on a sample game';
         pic.appendChild(img);
     } else {
-        pic.textContent = 'No preview yet';
+        st.ph = document.createElement('span');
+        st.ph.textContent = 'Loading preview…';
+        pic.appendChild(st.ph);
     }
     art.appendChild(pic);
+    art.__lib = st;
+    if (libObs) libObs.observe(art);
+    else { st.visible = true; st.state = 'queued'; libQueue.push(st); }   // no IntersectionObserver: draw them all
     var body = document.createElement('div');
     body.className = 'tbe-lib-text';
     var h = document.createElement('h3');
@@ -3813,6 +3963,17 @@ function openLibrary() {
     document.body.appendChild(wrap);
     libWrap = wrap;
     x.focus();
+    // Cards draw as they come into view of the library's own scroll box.
+    libObs = window.IntersectionObserver ? new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) {
+            var st = en.target.__lib;
+            if (!st) return;
+            st.visible = en.isIntersecting;
+            if (st.visible && st.state === 'idle') { st.state = 'queued'; libQueue.push(st); }
+        });
+        libPump();
+    }, { root: body, rootMargin: '160px 0px' }) : null;
+    window.addEventListener('resize', libFitAll);
 
     var builtins = Object.keys(PV.builtins).map(function (k) {
         return { key: k, name: PV.builtins[k].name, description: BUILTIN_CARDS[k] || '',
@@ -3824,6 +3985,11 @@ function openLibrary() {
         .catch(function () { return []; })
         .then(function (site) {
             if (libWrap !== wrap) return;   // closed while loading
+            // Uploads are cached for a day, and a card picture replaced under
+            // its old name stayed the old picture until then.
+            site.forEach(function (l) {
+                if (l.preview) l.preview += (l.preview.indexOf('?') < 0 ? '?v=' : '&v=') + encodeURIComponent(l.updated_at || '');
+            });
             body.textContent = '';
             if (site.length) body.appendChild(libSection('Ready-made', site));
             body.appendChild(libSection('Built-in', builtins));
