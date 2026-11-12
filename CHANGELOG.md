@@ -11,6 +11,8 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.24.0] - 2026-11-12
+
 ### Changed
 
 - **New games start on the Tournament Timer.** Until now a host who had never said which clock they wanted got Tournament Timer Classic, so every new host's first game opened on the original clock and the layouts stayed out of sight until they answered the one-time question. The default is now the Tournament Timer: a host who has never chosen gets it on any game whose timer has not been opened yet, and a brand-new game shows the Setup → Timer box unticked with the layout tools live. A host who chose Classic, in Settings or by answering "no" to the one-time question, keeps Classic for new games, and no game that already has a timer changes clock. The one-time question now appears only on a game that is still on Classic, since that is the only host left with something to decide, and Settings shows Tournament Timer selected for a host who has not chosen. The rule lives in `pk_user_beta_pref()` in `www/_poker_helpers.php`; `www/checkin.php` and `get_blinds` in `www/event_setup_dl.php` use it for a game with no timer row yet, so the box and the clock the Timer button opens always agree. Operator note: a host whose preference was recorded as Classic, including one who saved the Settings page without touching that dropdown, stays on Classic until they change it.
