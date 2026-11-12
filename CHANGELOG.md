@@ -11,6 +11,12 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.23.3] - 2026-11-12
+
+### Fixed
+
+- **The tournament clock counts down at an even pace.** The time shown was always right, but the display repainted on a free-running half-second timer that had nothing to do with when the second actually turned over. On a screen where the two happened to sit close together, a second could stay up for half a second and the next for a second and a half, so the count appeared to stumble; and even a well-placed timer lands a few tens of milliseconds late by a different amount each time, which the eye still reads as an uneven beat. The clock in `www/timer_display.js` now turns over on the screen's own refresh: a frame loop (`runFrameLoop()`) repaints on the first frame after the displayed second changes, so every second holds for the same number of frames, and a timer loop (`runTickLoop()` / `nextTickDelay()`) keeps a half-second beat for everything else and covers a hidden tab, where no frames run. Measured on dev, each second now holds for 1000ms to within a millisecond or two. Open displays pick the fix up by themselves through the existing build-stamp reload.
+
 ## [v1.23.2] - 2026-11-11
 
 ### Fixed

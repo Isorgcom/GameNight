@@ -3684,6 +3684,57 @@ function tick() {
     updateAll();
 }
 
+/* The repaint loop, locked to the clock's own second boundary.
+ * A free-running setInterval(tick, 500) paints the right VALUE but at a phase
+ * that has nothing to do with when the second turns over. Where the two sat
+ * close together, timer jitter and each poll's few-ms change to the clock
+ * offset carried the boundary back and forth across the tick, and a second
+ * stayed up for half a second or a second and a half: the count stumbled.
+ *
+ * Two drivers, one job each:
+ *  - A FRAME loop watches for the displayed second to change and repaints on
+ *    the very frame it does. A timer cannot do this well: setTimeout lands
+ *    anywhere from on time to a few tens of ms late (coarse OS timers, a busy
+ *    thread), and that lateness differs second to second, which the eye reads
+ *    as an uneven beat even at 1000ms +/- 40. A frame callback is tied to the
+ *    screen's refresh, so every second turns over on the first frame it can
+ *    and holds for the same number of frames.
+ *  - A TIMER loop beats on the half second for everything else that rides
+ *    updateAll, and covers the boundary too when frames are not running (a
+ *    hidden tab gets no animation frames). */
+var TICK_LAND_MS = 12;
+var paintedSec = null;      // the whole second the last tick painted
+var framePaintAt = 0;       // when the frame loop last painted a boundary
+function shownSec() {
+    var rem = liveRemaining();
+    return isFinite(rem) ? Math.max(0, Math.floor(rem)) : null;
+}
+function nextTickDelay() {
+    var rem = liveRemaining();
+    if (!S.running || !isFinite(rem) || rem <= 0) return 500;
+    var toBoundary = (rem - Math.floor(rem)) * 1000 + TICK_LAND_MS;   // ms until fmtClock's floor() drops
+    if (toBoundary > 500 + TICK_LAND_MS) toBoundary -= 500;
+    return Math.max(TICK_LAND_MS, toBoundary);
+}
+function safeTick() {
+    try { tick(); } catch (e) { if (window.console) console.error(e); }
+    paintedSec = shownSec();
+}
+function runTickLoop() {
+    // The frame loop has just painted this boundary: do not repaint it a few
+    // ms later, the work would only compete with the next frame.
+    if (!(paintedSec === shownSec() && Date.now() - framePaintAt < 120)) safeTick();
+    setTimeout(runTickLoop, nextTickDelay());
+}
+function runFrameLoop() {
+    if (S.running && shownSec() !== paintedSec) { safeTick(); framePaintAt = Date.now(); }
+    requestAnimationFrame(runFrameLoop);
+}
+function startClockLoops() {
+    setTimeout(runTickLoop, 500);
+    if (window.requestAnimationFrame) requestAnimationFrame(runFrameLoop);
+}
+
 /* ── Embed mode: the editor drives this page inside an iframe ─────────── */
 
 if (window.TB_EMBED) {
@@ -3791,7 +3842,7 @@ if (window.TB_EMBED) {
     // arrays start empty. Seeding a trigger-free built-in is not an option
     // either, since any visible seed that differs from what the editor loads
     // brings the flash right back.
-    setInterval(tick, 500);
+    startClockLoops();
 } else {
 
 /* ── Preview mode: the layout editor's Preview button ────────────────────
@@ -4002,7 +4053,7 @@ refreshDerived();
 if (window.TB_PREVIEW) bootPreview();
 else applyPick(LAYOUTS[pick] ? pick : DEFAULT_LAYOUT);
 poll();   // a no-op with no session and no key, as in a preview tab
-setInterval(tick, 500);
+startClockLoops();
 setInterval(poll, 2000);
 }
 })();
