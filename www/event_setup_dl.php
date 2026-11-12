@@ -68,7 +68,7 @@ if ($action === 'get_blinds') {
     echo json_encode(['ok' => true, 'levels' => $levels, 'is_local' => $is_local,
         'current_level' => $timer ? (int)$timer['current_level'] : 0,
         'is_running' => $timer ? (int)$timer['is_running'] : 0,
-        'use_beta' => $timer ? (int)($timer['use_beta'] ?? 0) : 0]);
+        'use_beta' => $timer ? (int)($timer['use_beta'] ?? 0) : pk_user_beta_pref($db, (int)$current['id'])]);
     exit;
 }
 

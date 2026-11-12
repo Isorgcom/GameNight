@@ -3756,7 +3756,10 @@ function updateEventBtn() {
         evStatus.appendChild(val);
     }
     evToggle.checked = bound;
-    if (evBtn._word) evBtn._word.textContent = bound ? 'Yes' : 'No';
+    // The word is fixed: the sentence reads "Use this layout for <game>: Yes"
+    // and the switch alone says whether that is on. A word that flipped to
+    // "No" made the bar read as a statement ("Use this layout for test No").
+    if (evBtn._word) evBtn._word.textContent = 'Yes';
     evToggle.title = bound
         ? "This game's display is showing the layout below — switch off to go back to the default"
         : "Switch on to show the layout below on this game's display (custom work is saved to your library first; the live display follows within seconds)";

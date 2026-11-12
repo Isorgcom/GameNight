@@ -528,7 +528,7 @@ $site_name = get_setting('site_name', 'Game Night');
                     <label for="beta_timer">Tournament timer</label>
                     <select id="beta_timer" name="beta_timer" style="width:100%;padding:.5rem .75rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.95rem;background:#fff">
                         <option value="0">Tournament Timer Classic</option>
-                        <option value="1"<?= (int)($me['beta_timer'] ?? 0) === 1 ? ' selected' : '' ?>>Tournament Timer (designable layouts)</option>
+                        <option value="1"<?= (int)($me['beta_timer'] ?? 1) === 1 ? ' selected' : '' ?>>Tournament Timer (designable layouts)</option>
                     </select>
                     <p class="hint">New games you set up will use this timer display. Each game can still switch in its Setup, and this doesn't change games you've already configured.</p>
                 </div>

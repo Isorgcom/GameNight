@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/_poker_helpers.php';   // pk_user_beta_pref(), for a game with no timer row yet
 
 $current = require_login();
 $db = get_db();
@@ -108,7 +109,10 @@ if ($session) {
         $ubq = $db->prepare('SELECT use_beta, layout_id, layout_builtin FROM timer_state WHERE session_id = ?');
         $ubq->execute([(int)$session['id']]);
         $ubrow = $ubq->fetch();
-        $use_beta_timer = (int)($ubrow['use_beta'] ?? 0);
+        // No timer row yet: show what it will be born as (the viewer's default),
+        // so the Setup box and the clock the Timer button opens agree.
+        $use_beta_timer = $ubrow ? (int)($ubrow['use_beta'] ?? 0)
+                                 : pk_user_beta_pref($db, $current ? (int)$current['id'] : 0);
         $event_layout_id = (int)($ubrow['layout_id'] ?? 0) ?: null;
         $event_layout_key = ($ubrow['layout_builtin'] ?? null) ?: null;
     } catch (Exception $e) {}
@@ -1005,6 +1009,10 @@ var KNOWN_AS = <?= js_json($knownByName, JSON_FORCE_OBJECT) ?>;
          answer is stored; it is never asked twice. */ ?>
 var BETA_TIMER_ASK = <?= ($is_tournament_session
                           && !empty($session['setup_saved'])
+                          // The Tournament Timer is the default now, so the only
+                          // host with a question to answer is one whose game is
+                          // still on Classic.
+                          && !$use_beta_timer
                           && array_key_exists('beta_timer', $current) && $current['beta_timer'] === null) ? 1 : 0 ?>;
 // "Not now" is remembered per browser rather than as an answer: the host has
 // not chosen, so the server keeps them in the unanswered state and the banner
@@ -1497,6 +1505,16 @@ function initSession() {
         data.addon_chips = 0;
     }
     postAction('init_session', data, function(j) {
+        // The layout chooser + editor behind Setup → Timer (#ckDisplayHome,
+        // its stylesheet and script) is written into the page by PHP only for
+        // a tournament session that existed at load. A game created just now
+        // had none, so the Timer tab showed the Classic box over an empty
+        // space until the host happened to reload. Load the page again, this
+        // time with the session behind it.
+        if (j.session && j.session.game_type === 'tournament' && !document.getElementById('ckDisplayHome')) {
+            location.reload();
+            return;
+        }
         SESSION = j.session;
         PLAYERS = j.players;
         PAYOUTS = j.payouts;
@@ -2732,9 +2750,12 @@ function refreshSettingsView() {
 function renderTimerPane() {
     var h = '<div class="pk-cfg-section" style="border-top:none;padding-top:0;margin-top:0">';
     h += '<div class="pk-cfg-title">Tournament timer</div>';
-    h += '<label class="es-toggle" style="margin:.4rem 0"><input type="checkbox" id="ckUseBeta"' + (USE_BETA_TIMER ? ' checked' : '') + ' data-act-change="toggleBetaTimer"> Use the Tournament Timer (off: Classic)</label>';
-    h += '<p class="es-note" style="margin:.2rem 0 .8rem">On, the Timer button (and any link to this game\'s timer) opens the Tournament Timer: designable layouts, multi-screen rotation, break screens. Off, it opens Tournament Timer Classic, the original clock. Switch any time.</p>';
-    h += '<p class="es-note">Pick which layout this game\'s display shows, and build or tweak layouts, right below. ' +
+    // The box asks for CLASSIC, the exception; the stored flag (use_beta) is
+    // its inverse and is left alone, so presets and the per-host default keep
+    // their meaning.
+    h += '<label class="es-toggle" style="margin:.4rem 0"><input type="checkbox" id="ckUseClassic"' + (USE_BETA_TIMER ? '' : ' checked') + ' data-act-change="toggleBetaTimer"> Use Tournament Timer Classic</label>';
+    h += '<p class="es-note" style="margin:.2rem 0 .8rem">Ticked, the Timer button (and any link to this game\'s timer) opens Tournament Timer Classic, the original clock, and the layouts below do not apply. Unticked, it opens the Tournament Timer: designable layouts, multi-screen rotation, break screens. Switch any time.</p>';
+    h += '<p class="es-note pk-timer-layout-note' + (USE_BETA_TIMER ? '' : ' pk-classic-off') + '" id="ckLayoutNote">Pick which layout this game\'s display shows, and build or tweak layouts, right below. ' +
          '<a href="/help-timer.php" target="_blank">Timer guide</a> covers layouts, casting and conditions.</p>';
     h += '</div>';
 
@@ -2764,7 +2785,18 @@ function renderChipsPane() {
 // The layout chooser + editor (#ckDisplayHome) is rendered once outside the
 // settings panes (the preview iframe would reload on every pane re-render)
 // and shown only while Setup → Timer is active.
+// Classic ignores layouts, so while it is chosen everything about them is
+// greyed and locked: `inert` takes the block (and the editor's iframe) out of
+// clicks, focus and the tab order; the class only dims it.
+function syncClassicLock() {
+    var off = !USE_BETA_TIMER;
+    var home = document.getElementById('ckDisplayHome');
+    if (home) { home.classList.toggle('pk-classic-off', off); home.inert = off; }
+    var note = document.getElementById('ckLayoutNote');
+    if (note) { note.classList.toggle('pk-classic-off', off); note.inert = off; }
+}
 function syncDisplayHome() {
+    syncClassicLock();
     var home = document.getElementById('ckDisplayHome');
     if (!home) return;
     var show = SETTINGS_OPEN && VIEW_MODE === 'settings' && SETTINGS_TAB === 'timer';
@@ -2778,20 +2810,21 @@ function syncDisplayHome() {
 }
 
 function toggleBetaTimer() {
-    var cb = document.getElementById('ckUseBeta');
-    var on = cb && cb.checked ? 1 : 0;
+    var cb = document.getElementById('ckUseClassic');
+    var on = cb && cb.checked ? 0 : 1;      // ticked = Classic = use_beta off
     var body = new URLSearchParams();
     body.set('action', 'set_beta'); body.set('csrf_token', CSRF);
     body.set('event_id', EVENT_ID); body.set('on', on);
     fetch('/event_setup_dl.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: String(body) })
         .then(function (r) { return r.json(); })
         .then(function (j) {
-            if (!j.ok) { if (cb) cb.checked = !on; (window.pkAlert || alert)(j.error || 'Could not switch'); return; }
+            if (!j.ok) { if (cb) cb.checked = !!on; (window.pkAlert || alert)(j.error || 'Could not switch'); return; }
             USE_BETA_TIMER = on;
+            syncClassicLock();
             var a = document.getElementById('timerLink');
             if (a) a.href = (on ? '/timer.php' : '/timer.php') + '?event_id=' + EVENT_ID;
         })
-        .catch(function () { if (cb) cb.checked = !on; (window.pkAlert || alert)('Network error'); });
+        .catch(function () { if (cb) cb.checked = !!on; (window.pkAlert || alert)('Network error'); });
 }
 
 // Setup → Blinds: the pane is a mounted component (event_blinds.js), shared
@@ -4054,6 +4087,9 @@ async function loadPayoutStructure() {
                 USE_BETA_TIMER = j.use_beta ? 1 : 0;
                 var tl = document.getElementById('timerLink');
                 if (tl) tl.href = (USE_BETA_TIMER ? '/timer.php' : '/timer.php') + '?event_id=' + EVENT_ID;
+                var ccb = document.getElementById('ckUseClassic');
+                if (ccb) ccb.checked = !USE_BETA_TIMER;
+                syncClassicLock();
             }
             // Capture an unsaved game-type choice BEFORE the redraw. Both
             // renderDashboard() and refreshSettingsView() rebuild the pane from
