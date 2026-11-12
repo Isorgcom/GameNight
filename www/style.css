@@ -827,3 +827,8 @@ img.gn-avatar{object-fit:cover;background:transparent}
 .pk-rem-empty{margin:.3rem 0 0;font-size:.8rem;color:#64748b}
 .pk-rem-empty[hidden]{display:none}
 @media (pointer:coarse){.pk-rem-list .pk-rem-row input.pk-rem-n,.pk-rem-list .pk-rem-row select.pk-rem-u,.pk-rem-list .pk-rem-add{min-height:36px}.pk-rem-x{width:36px;height:36px}}
+
+/* Setup → Timer with Classic chosen: layouts do not apply, so the layout note
+   and the whole chooser + editor read as switched off. The lock itself is the
+   `inert` attribute (checkin.php syncClassicLock); this only dims. */
+.pk-classic-off { opacity: .4; filter: grayscale(1); pointer-events: none; user-select: none; }

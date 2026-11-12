@@ -11,6 +11,20 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.24.0] - 2026-11-12
+
+### Changed
+
+- **New games start on the Tournament Timer.** Until now a host who had never said which clock they wanted got Tournament Timer Classic, so every new host's first game opened on the original clock and the layouts stayed out of sight until they answered the one-time question. The default is now the Tournament Timer: a host who has never chosen gets it on any game whose timer has not been opened yet, and a brand-new game shows the Setup → Timer box unticked with the layout tools live. A host who chose Classic, in Settings or by answering "no" to the one-time question, keeps Classic for new games, and no game that already has a timer changes clock. The one-time question now appears only on a game that is still on Classic, since that is the only host left with something to decide, and Settings shows Tournament Timer selected for a host who has not chosen. The rule lives in `pk_user_beta_pref()` in `www/_poker_helpers.php`; `www/checkin.php` and `get_blinds` in `www/event_setup_dl.php` use it for a game with no timer row yet, so the box and the clock the Timer button opens always agree. Operator note: a host whose preference was recorded as Classic, including one who saved the Settings page without touching that dropdown, stays on Classic until they change it.
+
+- **Setup → Timer asks for Classic by name, and greys out the layout tools when Classic is on.** The switch read "Use the Tournament Timer (off: Classic)", which made a host work out what unticking meant, and with Classic chosen the layout chooser and editor underneath stayed fully live even though Classic ignores them. The box in `www/checkin.php` now reads **Use Tournament Timer Classic**: ticked opens Classic, unticked opens the Tournament Timer. While it is ticked, the layout note and the whole layout chooser and editor are dimmed and locked (`syncClassicLock()`, the `inert` attribute plus `.pk-classic-off` in `www/style.css`), and they come back the moment it is unticked. No game changes clock: the stored setting is the same one, shown the other way round, so a game on the Tournament Timer simply shows the box unticked. The timer guide's sentence about the switch is updated to match.
+
+- **The layout bar's switch no longer says "No".** The bar above the layout editor read "Use this layout for *your game*" followed by a switch and a word that flipped between No and Yes, so with the switch off it read like a statement: use this layout for the game, no. The word is now always **Yes** and the switch position alone shows whether it is on (`updateEventBtn()` in `www/timer_layouts.js`).
+
+### Fixed
+
+- **A game you have just created shows the layout chooser and editor under Setup → Timer.** The chooser and the layout editor are written into the check-in page only when a tournament session already exists as the page loads. Creating the session from the "Start Poker Session" card carried on without loading the page again, so on a brand-new game the Timer tab showed the Classic switch above an empty space, and nothing appeared whichever way the switch was set, until the host happened to reload. `initSession()` in `www/checkin.php` now reloads the page once a tournament session has been created, so the editor is there from the first visit.
+
 ## [v1.23.3] - 2026-11-12
 
 ### Fixed

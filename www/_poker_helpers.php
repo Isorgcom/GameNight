@@ -227,15 +227,20 @@ function pk_clean_blind_levels($levels): array {
     return $clean;
 }
 
-// The acting user's Tournament Timer preference, as a creation DEFAULT: 1 only when
-// they opted in (Settings, or the check-in console's one-time ask). NULL
-// (never asked), 0, an unknown id and guests all mean classic. Only consulted
-// when a timer row is born — a game's own Setup switch owns the value after.
+// The acting user's timer preference, as a creation DEFAULT. The Tournament
+// Timer is the default (since v1.24.0): 0 only when they chose Classic
+// (Settings, or "no" to the check-in console's one-time ask). NULL (never
+// answered) and 1 both mean the Tournament Timer. No user at all (a guest, an
+// unknown id) still means Classic: a default belongs to somebody. Only
+// consulted when a timer row is born — a game's own Setup switch owns the
+// value after.
 function pk_user_beta_pref(PDO $db, $user_id): int {
     if (!$user_id) return 0;
     $q = $db->prepare('SELECT beta_timer FROM users WHERE id = ?');
     $q->execute([(int)$user_id]);
-    return (int)$q->fetchColumn() === 1 ? 1 : 0;
+    $row = $q->fetch(PDO::FETCH_NUM);
+    if (!$row) return 0;
+    return ($row[0] !== null && (int)$row[0] === 0) ? 0 : 1;
 }
 
 // The timer row is created lazily; callers that need one get it here.

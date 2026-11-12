@@ -147,7 +147,7 @@ $help_sections = [
 
     <div class="help-step" id="two-timers">
         <h2><span class="step-num">1</span> Two timers, one switch</h2>
-        <p>Every game can use the <strong>Tournament Timer</strong>, with designable layouts, break screens and the clock on any TV or phone, or <strong>Tournament Timer Classic</strong>, the original clock. Switch per game in check-in under <strong>Setup &rarr; Timer</strong>: the switch reads <em>Use the Tournament Timer (off: Classic)</em>. The Timer button then opens whichever one is on, and you can switch back any time.</p>
+        <p>Every game can use the <strong>Tournament Timer</strong>, with designable layouts, break screens and the clock on any TV or phone, or <strong>Tournament Timer Classic</strong>, the original clock. Switch per game in check-in under <strong>Setup &rarr; Timer</strong>: the switch reads <em>Use Tournament Timer Classic</em>. Tick it and the Timer button opens Classic, and the layout tools below it grey out because Classic does not use layouts; untick it and the button opens the Tournament Timer. You can switch back any time.</p>
         <p>You can also make the new timer your default. The first time you open a tournament's check-in console you'll be asked once which timer you'd like; whichever you answer is remembered, and it's never asked again. After that, <strong>new games you set up start on the timer you chose</strong>, while each game's own switch still wins and games you've already configured are left alone. Change your mind any time under <strong>Settings &rarr; Tournament timer</strong>.</p>
     </div>
 
