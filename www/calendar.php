@@ -469,64 +469,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // Answer one of the guest-messaging actions below from a service result
+    // (svc/messages.php, shared with the API): JSON for the page's fetch
+    // calls, a flash and redirect-through for a plain form post.
+    $gnReply = function (array $res, bool $isXhr, callable $okJson, ?string $okFlash) {
+        if (empty($res['ok'])) {
+            $c    = (string)($res['code'] ?? '');
+            $code = (int)($res['http'] ?? 400);
+            $msg  = (string)($res['message'] ?? 'Request failed.');
+            // An event that is not the caller's to manage has always been one answer here.
+            if ($c === 'event_not_found' || $c === 'not_event_host') { $code = 403; $msg = 'Permission denied.'; }
+            if ($isXhr) {
+                // "Notifications are off" has always been a 200 with ok:false for the page's fetch calls.
+                if ($c !== 'notifications_off') http_response_code($code);
+                header('Content-Type: application/json');
+                echo json_encode(['ok' => false, 'error' => $msg]);
+                exit;
+            }
+            http_response_code($c === 'notifications_off' ? 400 : $code);
+            exit($msg);
+        }
+        if ($isXhr) { header('Content-Type: application/json'); echo json_encode(['ok' => true] + $okJson($res)); exit; }
+        if ($okFlash !== null) $_SESSION['flash'] = ['type' => 'success', 'msg' => $okFlash];
+    };
+
     // Resend an invite SMS/email to a single invitee. Allowed for admin, event creator, or event manager.
     // Clears the dedup marker so the queue drain will actually fire, then re-queues.
     if ($action === 'resend_invite' && $current) {
+        require_once __DIR__ . '/svc/messages.php';
         $eid    = (int)($_POST['event_id'] ?? 0);
         $target = trim($_POST['target_username'] ?? '');
         $isXhr  = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest';
-        if ($eid > 0 && $target !== '' && can_manage_event($db, $eid, (int)$current['id'], $isAdmin)) {
-            // Verify the invitee actually exists on this event before doing anything.
-            $chk = $db->prepare('SELECT user_id FROM event_invites WHERE event_id=? AND LOWER(username)=LOWER(?) AND occurrence_date IS NULL');
-            $chk->execute([$eid, $target]);
-            $targetRow = $chk->fetch();
-            if (!$targetRow) {
-                if ($isXhr) {
-                    http_response_code(404);
-                    header('Content-Type: application/json');
-                    echo json_encode(['ok' => false, 'error' => 'Invitee not found on this event.']);
-                    exit;
-                }
-                http_response_code(404);
-                exit('Invitee not found.');
-            }
-            if (get_setting('notifications_enabled', '0') !== '1') {
-                if ($isXhr) {
-                    header('Content-Type: application/json');
-                    echo json_encode(['ok' => false, 'error' => 'Notifications are currently disabled site-wide.']);
-                    exit;
-                }
-                http_response_code(400);
-                exit('Notifications are currently disabled.');
-            }
-            // Clear the dedup marker so the queue drain will actually fire for this invitee.
-            $db->prepare("DELETE FROM event_notifications_sent WHERE event_id=? AND occurrence_date='' AND user_identifier=? AND notification_type='invite'")
-               ->execute([$eid, strtolower($target)]);
-            // Drop any dead (retries-exhausted) rows for this recipient so the fresh
-            // send's status isn't shadowed by an old failure in the delivery view.
-            $db->prepare("DELETE FROM pending_notifications WHERE event_id=? AND LOWER(username)=LOWER(?) AND notify_type IN ('invite','rsvp_nudge') AND attempted_at IS NULL AND attempts >= 3")
-               ->execute([$eid, $target]);
-            // Queue a fresh invite notification.
-            $db->prepare("INSERT INTO pending_notifications (event_id, username, user_id, notify_type) VALUES (?, ?, ?, 'invite')")
-               ->execute([$eid, $target, $targetRow['user_id'] !== null ? (int)$targetRow['user_id'] : null]);
-            db_log_activity((int)$current['id'], "resent invite to $target on event id: $eid");
-            drain_queue_async();
-            if ($isXhr) {
-                header('Content-Type: application/json');
-                echo json_encode(['ok' => true]);
-                exit;
-            }
-            $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Invite resent to ' . $target . '.'];
-        } else {
-            if ($isXhr) {
-                http_response_code(403);
-                header('Content-Type: application/json');
-                echo json_encode(['ok' => false, 'error' => 'Permission denied.']);
-                exit;
-            }
-            http_response_code(403);
-            exit('Permission denied.');
-        }
+        $res = ($eid > 0 && $target !== '')
+            ? gn_invite_resend($db, gn_web_actor($current), $eid, $target)
+            : gn_err('event_not_found', 'Permission denied.', 403);
+        $gnReply($res, $isXhr, fn($r) => [], 'Invite resent to ' . $target . '.');
     }
 
     // Bulk-send invites for an event to every approved base invitee who has not been sent one yet.
@@ -534,100 +511,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Unlike resend_invite, this does NOT clear existing dedup markers, so re-clicking only reaches
     // people who still haven't been notified (newly added invitees, failed/never-sent rows).
     if ($action === 'send_invites' && $current) {
+        require_once __DIR__ . '/svc/messages.php';
         $eid   = (int)($_POST['event_id'] ?? 0);
         $isXhr = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest';
-        if ($eid > 0 && can_manage_event($db, $eid, (int)$current['id'], $isAdmin)) {
-            if (get_setting('notifications_enabled', '0') !== '1') {
-                if ($isXhr) {
-                    header('Content-Type: application/json');
-                    echo json_encode(['ok' => false, 'error' => 'Notifications are currently disabled site-wide.']);
-                    exit;
-                }
-                http_response_code(400);
-                exit('Notifications are currently disabled.');
-            }
-            // Approved base invitees with no existing 'invite' dedup marker for this event.
-            $rows = $db->prepare(
-                "SELECT ei.username, ei.user_id FROM event_invites ei
-                 WHERE ei.event_id = ? AND ei.occurrence_date IS NULL AND ei.approval_status = 'approved'
-                   AND NOT EXISTS (
-                       SELECT 1 FROM event_notifications_sent ens
-                       WHERE ens.event_id = ei.event_id AND ens.notification_type = 'invite'
-                         AND ens.occurrence_date = '' AND ens.user_identifier = LOWER(ei.username)
-                   )"
-            );
-            $rows->execute([$eid]);
-            $targets = $rows->fetchAll();
-            $queueStmt = $db->prepare("INSERT INTO pending_notifications (event_id, username, user_id, notify_type) VALUES (?, ?, ?, 'invite')");
-            $sent = 0;
-            foreach ($targets as $t) { $queueStmt->execute([$eid, $t['username'], $t['user_id'] !== null ? (int)$t['user_id'] : null]); $sent++; }
-            if ($sent > 0) {
-                db_log_activity((int)$current['id'], "sent invites to $sent invitee(s) on event id: $eid");
-                drain_queue_async();
-            }
-            if ($isXhr) {
-                header('Content-Type: application/json');
-                echo json_encode(['ok' => true, 'sent' => $sent]);
-                exit;
-            }
-            $_SESSION['flash'] = ['type' => 'success', 'msg' => $sent > 0 ? "Invitations sent to $sent invitee(s)." : 'Everyone has already been invited.'];
-        } else {
-            if ($isXhr) {
-                http_response_code(403);
-                header('Content-Type: application/json');
-                echo json_encode(['ok' => false, 'error' => 'Permission denied.']);
-                exit;
-            }
-            http_response_code(403);
-            exit('Permission denied.');
-        }
+        $res = $eid > 0 ? gn_invitations_send($db, gn_web_actor($current), $eid) : gn_err('event_not_found', 'Permission denied.', 403);
+        $sent = (int)($res['sent'] ?? 0);
+        $gnReply($res, $isXhr, fn($r) => ['sent' => (int)$r['sent']], $sent > 0 ? "Invitations sent to $sent invitee(s)." : 'Everyone has already been invited.');
     }
 
     // Nudge approved invitees whose invite went out but who never RSVPed.
     // Deduped per day (rsvp_nudge_<date> marker) so re-clicks are harmless and
     // the host can chase remaining stragglers again on a later day.
     if ($action === 'nudge_nonresponders' && $current) {
-        $eid   = (int)($_POST['event_id'] ?? 0);
-        $isXhr = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest';
-        if ($eid > 0 && can_manage_event($db, $eid, (int)$current['id'], $isAdmin)) {
-            if (get_setting('notifications_enabled', '0') !== '1') {
-                header('Content-Type: application/json');
-                echo json_encode(['ok' => false, 'error' => 'Notifications are currently disabled site-wide.']);
-                exit;
-            }
-            $today = date('Y-m-d');
-            $rows = $db->prepare(
-                "SELECT ei.username FROM event_invites ei
-                 WHERE ei.event_id = ? AND ei.occurrence_date IS NULL AND ei.approval_status = 'approved'
-                   AND ei.rsvp IS NULL
-                   AND EXISTS (
-                       SELECT 1 FROM event_notifications_sent ens
-                       WHERE ens.event_id = ei.event_id AND ens.notification_type = 'invite'
-                         AND ens.occurrence_date = '' AND ens.user_identifier = LOWER(ei.username))
-                   AND NOT EXISTS (
-                       SELECT 1 FROM event_notifications_sent ens2
-                       WHERE ens2.event_id = ei.event_id AND ens2.notification_type = ?
-                         AND ens2.occurrence_date = '' AND ens2.user_identifier = LOWER(ei.username))"
-            );
-            $rows->execute([$eid, 'rsvp_nudge_' . $today]);
-            require_once __DIR__ . '/_notifications.php';
-            $sent = 0;
-            foreach ($rows->fetchAll() as $r) {
-                queue_event_notification($db, $eid, $r['username'], 'rsvp_nudge', null, ['day' => $today]);
-                $sent++;
-            }
-            if ($sent > 0) {
-                db_log_activity((int)$current['id'], "nudged $sent non-responder(s) on event id: $eid");
-                drain_queue_async();
-            }
-            header('Content-Type: application/json');
-            echo json_encode(['ok' => true, 'sent' => $sent]);
-            exit;
-        }
-        http_response_code(403);
-        header('Content-Type: application/json');
-        echo json_encode(['ok' => false, 'error' => 'Permission denied.']);
-        exit;
+        require_once __DIR__ . '/svc/messages.php';
+        $eid = (int)($_POST['event_id'] ?? 0);
+        $res = $eid > 0 ? gn_guests_nudge($db, gn_web_actor($current), $eid) : gn_err('event_not_found', 'Permission denied.', 403);
+        $gnReply($res, true, fn($r) => ['sent' => (int)$r['sent']], null);
     }
 
     // Host-authored "final details" message to attendees (owner/manager only).
@@ -644,28 +543,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (get_setting('notifications_enabled', '0') !== '1') {
             $fail('Notifications are currently disabled site-wide.');
         }
+        // The per-event daily limit, checked before a PDF is stored for a
+        // message that will not go out (svc/messages.php, shared with the API).
+        require_once __DIR__ . '/svc/messages.php';
+        if ($__lim = gn_host_message_limit($db, $eid)) $fail((string)$__lim['message'], 429);
         $subject  = trim($_POST['subject'] ?? '');
         $audience = in_array($_POST['audience'] ?? '', ['yes', 'yes_maybe', 'all'], true) ? $_POST['audience'] : 'yes';
         $body     = sanitize_html((string)($_POST['body'] ?? ''));
         if ($subject === '' || trim(strip_tags($body)) === '') {
             $fail('A subject and a message are required.');
         }
-        // Event date for display/storage on the message row.
-        $evStmt = $db->prepare('SELECT start_date FROM events WHERE id = ?');
-        $evStmt->execute([$eid]);
-        $occ = (string)($_POST['occurrence_date'] ?? '');
-        $occ = preg_match('/^\d{4}-\d{2}-\d{2}$/', $occ) ? $occ : ($evStmt->fetchColumn() ?: null);
-
-        // Recipients by audience, among approved base invitees.
-        $rsvpFilter = $audience === 'yes' ? "AND rsvp = 'yes'"
-                    : ($audience === 'yes_maybe' ? "AND rsvp IN ('yes','maybe')" : '');
-        $rows = $db->prepare(
-            "SELECT username FROM event_invites
-             WHERE event_id = ? AND occurrence_date IS NULL AND approval_status = 'approved' $rsvpFilter"
-        );
-        $rows->execute([$eid]);
-        $targets = array_column($rows->fetchAll(), 'username');
-
         // Store the message (history + tokenized view link).
         $token = bin2hex(random_bytes(16));
 
@@ -690,19 +577,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $attName = mb_substr($attName, 0, 80);
             if (!preg_match('/\.pdf$/i', $attName)) $attName .= '.pdf';
         }
-        $db->prepare('INSERT INTO event_messages (event_id, occurrence_date, token, subject, body_html, audience, created_by, attachment_name, attachment_file) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-           ->execute([$eid, $occ, $token, $subject, $body, $audience, (int)$current['id'], $attName, $attFile]);
-        $msgId = (int)$db->lastInsertId();
-
-        require_once __DIR__ . '/_notifications.php';
-        $sent = 0;
-        foreach ($targets as $uname) {
-            // queue_event_notification() schedules a single shutdown drain itself;
-            // do NOT also call drain_queue_async() here or two drains race.
-            queue_event_notification($db, $eid, $uname, 'event_message', null, ['message_id' => $msgId]);
-            $sent++;
+        // Storing the message, choosing who gets it and queueing the sends is
+        // the service's (the same function the API calls).
+        $res = gn_host_message_send($db, gn_web_actor($current), $eid, [
+            'subject' => $subject, 'body' => (string)($_POST['body'] ?? ''), 'audience' => $audience,
+            'occurrence_date' => (string)($_POST['occurrence_date'] ?? ''),
+            'token' => $token, 'attachment_name' => $attName, 'attachment_file' => $attFile,
+        ]);
+        if (empty($res['ok'])) {
+            if ($attFile) @unlink(__DIR__ . '/uploads/event_messages/' . $attFile);
+            $fail((string)$res['message'], (int)($res['http'] ?? 400));
         }
-        db_log_activity((int)$current['id'], "sent event message ($audience) to $sent guest(s) on event id: $eid");
+        $sent = (int)$res['sent']; $msgId = (int)$res['message_id'];
 
         if ($isXhr) { header('Content-Type: application/json'); echo json_encode(['ok' => true, 'sent' => $sent, 'msg_id' => $msgId]); exit; }
         $_SESSION['flash'] = ['type' => 'success', 'msg' => "Message sent to $sent guest(s)."];

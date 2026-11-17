@@ -81,22 +81,17 @@ if ($canManageMembers && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['actio
         $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid request token.'];
         header('Location: ' . $back); exit;
     }
-    $sn = trim($_POST['season_name'] ?? '');
-    $sd = $_POST['season_start'] ?? '';
-    $se = $_POST['season_end'] ?? '';
-    if ($sn === '' || mb_strlen($sn) > 60
-        || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $sd)
-        || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $se)
-        || $se < $sd) {
-        $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Season needs a name and a valid start/end date (end after start).'];
+    // The rules for a season (and the insert) are in svc/leagues.php, shared with the API.
+    require_once __DIR__ . '/svc/leagues.php';
+    $res = gn_season_add($db, gn_web_actor($current), $league_id, [
+        'name' => (string)($_POST['season_name'] ?? ''), 'start_date' => (string)($_POST['season_start'] ?? ''), 'end_date' => (string)($_POST['season_end'] ?? ''),
+    ]);
+    if (empty($res['ok'])) {
+        $_SESSION['flash'] = ['type' => 'error', 'msg' => (string)$res['message']];
         header('Location: ' . $back); exit;
     }
-    $db->prepare('INSERT INTO league_seasons (league_id, name, start_date, end_date, created_by) VALUES (?, ?, ?, ?, ?)')
-       ->execute([$league_id, $sn, $sd, $se, $uid]);
-    $newSeasonId = (int)$db->lastInsertId();
-    db_log_activity($uid, "added season '$sn' ($sd to $se) to league id=$league_id");
     $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Season added.'];
-    header('Location: ' . $back . '&range=season:' . $newSeasonId); exit;
+    header('Location: ' . $back . '&range=season:' . (int)$res['season']['id']); exit;
 }
 if ($canManageMembers && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'season_delete') {
     $back = '/league.php?id=' . $league_id . '&tab=stats';
@@ -104,9 +99,8 @@ if ($canManageMembers && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['actio
         $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid request token.'];
         header('Location: ' . $back); exit;
     }
-    $sid = (int)($_POST['season_id'] ?? 0);
-    $db->prepare('DELETE FROM league_seasons WHERE id = ? AND league_id = ?')->execute([$sid, $league_id]);
-    db_log_activity($uid, "deleted season id=$sid from league id=$league_id");
+    require_once __DIR__ . '/svc/leagues.php';
+    gn_season_delete($db, gn_web_actor($current), $league_id, (int)($_POST['season_id'] ?? 0));
     $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Season deleted.'];
     header('Location: ' . $back); exit;
 }

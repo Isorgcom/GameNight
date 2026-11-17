@@ -372,7 +372,9 @@ and accepts signed requests from it. What holds it:
 - **The request log stores route patterns.** `api_token_log()` is given `/api/v2/events/{id}/game`, not the URI, so the log (and the Recent activity list built from it) never holds an id or a query string, and a path cannot be spelled around a per-route limit later. An unmatched path is logged as `/api/v2/(unknown)`.
 - **`www/svc/` is not web-reachable** (`RewriteRule ^svc/ - [F,L]`); the files only define functions.
 
-Suites: `api_v2_read_check.js` (who sees what, across host, member and outsider), `token_activity_check.js`, `settings_layout_check.js`.
+- **Writes (v1.27.0).** An event is created and changed through `event_save()`, the editor's own function, never a second INSERT; `keep_invites` and `reminder_offsets_json` are `$opts`, which cannot arrive from a form. Sending is a separate scope (`messages`) from changing (`events`), and nothing under `events` queues a notification, so a token's ability to email or text people is exactly one checkbox. A guest named by `user_id` must pass `gn_can_name_user()` (a league co-member, a contact, yourself): an id is not an oracle for who has an account. `DELETE /events/{id}` refuses without `"confirm": true`. Host messages are capped per event per day in `gn_host_message_limit()`, which the event page calls too. Each route allows 60 successful writes an hour per token; a repeated `Idempotency-Key` replays the stored answer and is scoped to the token and the exact path.
+
+Suites: `api_v2_read_check.js` (who sees what, across host, member and outsider), `api_v2_write_check.js` (who may change what, with mail and SMS parked), `token_activity_check.js`, `settings_layout_check.js`, `seasons_form_check.js`.
 
 ## The edge and the alarm: fail2ban on the proxy's logs, alerts to the admins (v1.19.9)
 

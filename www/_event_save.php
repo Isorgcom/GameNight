@@ -8,7 +8,8 @@
  * divergent add/edit path that nothing posts to (dead since the modal began
  * posting to calendar.php); it is slated for removal, not consolidation.
  *
- * Reads the editor's $_POST directly (action, id, title, dates, invite_*[],
+ * event_save_from_post() hands the editor's $_POST to event_save(), which reads
+ * the editor's field names (action, id, title, dates, invite_*[],
  * poker fields, reminder fields, send_after_save) and performs: validation, viewer-tz to
  * site-tz conversion, INSERT/UPDATE of the event, poker session upsert,
  * invite replacement via the RSVP/token-preserving snapshot logic, contact +
@@ -29,22 +30,40 @@
  */
 
 function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allowMaybe): array {
-    $action = ($_POST['action'] ?? '') === 'edit' ? 'edit' : 'add';
+    return event_save($db, $current, $isAdmin, $allowMaybe, $_POST);
+}
+
+/**
+ * The save itself, on an explicit input array (the editor's field names) so a
+ * caller other than the editor form can use it: the personal API builds $in
+ * from the stored event and overlays what the request changed.
+ *
+ * $opts are for such callers and can NOT arrive from a form:
+ *   keep_invites          => true  leave the guest list exactly as stored. The
+ *                                  editor always posts the whole list, which is
+ *                                  why the default rewrites it.
+ *   reminder_offsets_json => string|null  store this as-is instead of deriving
+ *                                  it from $in (NULL means "site default", a
+ *                                  state the editor never writes).
+ */
+function event_save(PDO $db, array $current, bool $isAdmin, bool $allowMaybe, array $in, array $opts = []): array {
+    $keep_invites = !empty($opts['keep_invites']);
+    $action = ($in['action'] ?? '') === 'edit' ? 'edit' : 'add';
     // A cancelled event is kept only to be duplicated; saving over it would
     // re-open it and re-send invitations.
-    if ($action === 'edit' && event_is_cancelled($db, (int)($_POST['id'] ?? 0))) {
-        return ['ok' => false, 'error' => EVENT_CANCELLED_MSG . ' Duplicate it to plan a new one.', 'event_id' => (int)($_POST['id'] ?? 0), 'open_date' => null, 'invites_sent' => 0];
+    if ($action === 'edit' && event_is_cancelled($db, (int)($in['id'] ?? 0))) {
+        return ['ok' => false, 'error' => EVENT_CANCELLED_MSG . ' Duplicate it to plan a new one.', 'event_id' => (int)($in['id'] ?? 0), 'open_date' => null, 'invites_sent' => 0];
     }
 
-    $inv_usernames   = array_map('trim', (array)($_POST['invite_username']   ?? []));
-    $inv_phones      = array_map('trim', (array)($_POST['invite_phone']      ?? []));
-    $inv_emails      = array_map('trim', (array)($_POST['invite_email']      ?? []));
-    $inv_rsvps       = array_map('trim', (array)($_POST['invite_rsvp']       ?? []));
-    $inv_roles       = array_map('trim', (array)($_POST['invite_role']       ?? []));
-    $inv_sort_orders = array_map('intval', (array)($_POST['invite_sort_order'] ?? []));
+    $inv_usernames   = array_map('trim', (array)($in['invite_username']   ?? []));
+    $inv_phones      = array_map('trim', (array)($in['invite_phone']      ?? []));
+    $inv_emails      = array_map('trim', (array)($in['invite_email']      ?? []));
+    $inv_rsvps       = array_map('trim', (array)($in['invite_rsvp']       ?? []));
+    $inv_roles       = array_map('trim', (array)($in['invite_role']       ?? []));
+    $inv_sort_orders = array_map('intval', (array)($in['invite_sort_order'] ?? []));
     $valid_rsvps     = array_merge(['', 'yes', 'no'], $allowMaybe ? ['maybe'] : []);
     // occurrence_date: null = manage base (all occurrences), date = manage this date only
-    $invite_occ_date = (preg_match('/^\d{4}-\d{2}-\d{2}$/', $_POST['occurrence_date'] ?? '')) ? $_POST['occurrence_date'] : null;
+    $invite_occ_date = (preg_match('/^\d{4}-\d{2}-\d{2}$/', $in['occurrence_date'] ?? '')) ? $in['occurrence_date'] : null;
 
     $save_invites = function(int $eid, array &$new_usernames = []) use ($db, $inv_usernames, $inv_phones, $inv_emails, $inv_rsvps, $inv_roles, $inv_sort_orders, $valid_rsvps, $invite_occ_date): void {
         // Capture existing rows (token + flip count) keyed by lowercase username BEFORE the
@@ -113,15 +132,15 @@ function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allo
         }
     };
 
-    $id    = (int)($_POST['id'] ?? 0);
-    $title = trim($_POST['title'] ?? '');
-    $desc  = trim($_POST['description'] ?? '');
-    $sd    = trim($_POST['start_date'] ?? '');
-    $ed    = trim($_POST['end_date'] ?? '') ?: null;
-    $st    = trim($_POST['start_time'] ?? '') ?: null;
-    $et    = trim($_POST['end_time'] ?? '') ?: null;
-    $color = in_array($_POST['color'] ?? '', ['#2563eb','#16a34a','#dc2626','#d97706','#7c3aed','#0891b2','#db2777'])
-             ? $_POST['color'] : '#2563eb';
+    $id    = (int)($in['id'] ?? 0);
+    $title = trim($in['title'] ?? '');
+    $desc  = trim($in['description'] ?? '');
+    $sd    = trim($in['start_date'] ?? '');
+    $ed    = trim($in['end_date'] ?? '') ?: null;
+    $st    = trim($in['start_time'] ?? '') ?: null;
+    $et    = trim($in['end_time'] ?? '') ?: null;
+    $color = in_array($in['color'] ?? '', ['#2563eb','#16a34a','#dc2626','#d97706','#7c3aed','#0891b2','#db2777'])
+             ? $in['color'] : '#2563eb';
     // Count non-empty invitees for the per-event cap.
     $__inv_count = 0;
     foreach ($inv_usernames as $__u) { if (trim((string)$__u) !== '') $__inv_count++; }
@@ -161,30 +180,30 @@ function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allo
         }
     }
 
-    $location = trim((string)($_POST['location'] ?? ''));
+    $location = trim((string)($in['location'] ?? ''));
     if (strlen($location) > 200) $location = substr($location, 0, 200);
     $location = $location !== '' ? $location : null;
-    $venue_name = trim((string)($_POST['venue_name'] ?? ''));
+    $venue_name = trim((string)($in['venue_name'] ?? ''));
     if (strlen($venue_name) > 120) $venue_name = substr($venue_name, 0, 120);
     $venue_name = $venue_name !== '' ? $venue_name : null;
 
-    $is_poker = !empty($_POST['is_poker']) ? 1 : 0;
+    $is_poker = !empty($in['is_poker']) ? 1 : 0;
     if ($is_poker) require_once __DIR__ . '/_poker_helpers.php';
     if ($is_poker) require_once __DIR__ . '/_finaltable.php';   // the games an online table may play
-    $requires_approval = !empty($_POST['requires_approval']) ? 1 : 0;
-    $hide_guest_list   = !empty($_POST['hide_guest_list']) ? 1 : 0;
-    $poker_game_type   = in_array($_POST['poker_game_type'] ?? '', ['tournament','cash'], true) ? $_POST['poker_game_type'] : 'tournament';
-    $poker_buyin       = (int)(round(floatval($_POST['poker_buyin'] ?? 20) * 100));
-    $poker_tables      = max(1, (int)($_POST['poker_tables'] ?? 1));
-    $poker_seats       = max(2, (int)($_POST['poker_seats']  ?? 8));
+    $requires_approval = !empty($in['requires_approval']) ? 1 : 0;
+    $hide_guest_list   = !empty($in['hide_guest_list']) ? 1 : 0;
+    $poker_game_type   = in_array($in['poker_game_type'] ?? '', ['tournament','cash'], true) ? $in['poker_game_type'] : 'tournament';
+    $poker_buyin       = (int)(round(floatval($in['poker_buyin'] ?? 20) * 100));
+    $poker_tables      = max(1, (int)($in['poker_tables'] ?? 1));
+    $poker_seats       = max(2, (int)($in['poker_seats']  ?? 8));
     // Online play: only a poker TOURNAMENT, only on an enabled connected app
     // that holds a game key. The field is written when the form carried it
     // (or when the event stops being a poker tournament, which clears it);
     // a write path that does not carry it leaves the column alone.
     $online_app_id     = null;
-    $online_app_posted = isset($_POST['online_app_id']);
+    $online_app_posted = isset($in['online_app_id']);
     if ($online_app_posted && $is_poker && $poker_game_type === 'tournament') {
-        $cand = (int)$_POST['online_app_id'];
+        $cand = (int)$in['online_app_id'];
         if ($cand > 0) {
             $oa = $db->prepare("SELECT id FROM sso_apps WHERE id = ? AND enabled = 1 AND api_key IS NOT NULL AND api_key <> ''");
             $oa->execute([$cand]);
@@ -197,16 +216,16 @@ function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allo
     // in-person event stores NULL, which reads as Hold'em no-limit.
     $online_game = null; $online_limit = null;
     if ($online_app_id !== null) {
-        $og = (string)($_POST['online_game']  ?? '');
-        $ol = (string)($_POST['online_limit'] ?? '');
+        $og = (string)($in['online_game']  ?? '');
+        $ol = (string)($in['online_limit'] ?? '');
         if (isset(finaltable_catalog()[$og])) {
             $online_game  = $og;
             $online_limit = isset(finaltable_limit_names()[$ol]) ? $ol : finaltable_catalog()[$og]['limit'];
         }
     }
-    $rsvp_deadline_hrs = (int)($_POST['rsvp_deadline_hours'] ?? 0) ?: null;
-    $waitlist_enabled  = !empty($_POST['waitlist_enabled']) ? 1 : 0;
-    $max_guests        = (int)($_POST['max_guests'] ?? 0);
+    $rsvp_deadline_hrs = (int)($in['rsvp_deadline_hours'] ?? 0) ?: null;
+    $waitlist_enabled  = !empty($in['waitlist_enabled']) ? 1 : 0;
+    $max_guests        = (int)($in['max_guests'] ?? 0);
     $max_guests        = ($max_guests > 0 && $max_guests <= 999 && !$is_poker) ? $max_guests : null;
 
     // Reminder config. The rows the host set are posted in minutes and stored
@@ -214,14 +233,16 @@ function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allo
     // an empty list is stored as [] and means NO reminders. NULL (an API
     // call that left the field out, or an event from before per-event lists)
     // means the site default; the editor never writes it.
-    $reminders_enabled = !empty($_POST['reminders_enabled']) ? 1 : 0;
-    $reminder_offsets_json = json_encode(reminder_offsets_clean($_POST['reminder_offsets'] ?? []));
+    $reminders_enabled = !empty($in['reminders_enabled']) ? 1 : 0;
+    $reminder_offsets_json = array_key_exists('reminder_offsets_json', $opts)
+        ? $opts['reminder_offsets_json']
+        : json_encode(reminder_offsets_clean($in['reminder_offsets'] ?? []));
 
     // League + visibility
     // Putting an event on a league's calendar is a league-management act, so it
     // takes an owner/manager role — plain membership used to be enough, which
     // also handed the creator can_manage_event() rights over a league event.
-    $req_league_id = (int)($_POST['league_id'] ?? 0);
+    $req_league_id = (int)($in['league_id'] ?? 0);
     $league_id     = null;
     if ($req_league_id > 0) {
         $role = league_role($req_league_id, (int)$current['id']);
@@ -235,8 +256,8 @@ function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allo
         }
         if ($may) $league_id = $req_league_id;
     }
-    $visibility = in_array($_POST['visibility'] ?? '', ['public','league','invitees_only'], true)
-                  ? $_POST['visibility'] : 'invitees_only';
+    $visibility = in_array($in['visibility'] ?? '', ['public','league','invitees_only'], true)
+                  ? $in['visibility'] : 'invitees_only';
     if ($visibility === 'league' && $league_id === null) $visibility = 'invitees_only';
     if ($visibility === 'public' && !$isAdmin) $visibility = 'invitees_only';
 
@@ -393,13 +414,13 @@ function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allo
             }
         }
         $notify_eid = $id;
-        $save_invites($id, $new_invitee_usernames);
+        if (!$keep_invites) $save_invites($id, $new_invitee_usernames);
         // Guests dropped from the list lose their unsent reminders and invitations.
         require_once __DIR__ . '/_notifications.php';
-        purge_queue_for_dropped_guests($db, $id);
+        if (!$keep_invites) purge_queue_for_dropped_guests($db, $id);
         // Auto-add invited people to the creator's personal contacts
         // and, for league events, surface them on the league Members tab.
-        for ($__i = 0; $__i < count($inv_usernames); $__i++) {
+        for ($__i = 0; !$keep_invites && $__i < count($inv_usernames); $__i++) {
             if (($inv_usernames[$__i] ?? '') === '') continue;
             auto_add_contact($db, (int)$current['id'], (string)$inv_usernames[$__i], (string)($inv_emails[$__i] ?? ''), (string)($inv_phones[$__i] ?? ''));
             if (!empty($league_id)) {
@@ -432,7 +453,7 @@ function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allo
     // host find the post-save "Send Invitations" prompt. Mirrors the explicit send_invites
     // action (approved base invitees with no existing 'invite' marker).
     $invites_sent = 0;
-    if (!empty($_POST['send_after_save']) && get_setting('notifications_enabled', '0') === '1') {
+    if (!empty($in['send_after_save']) && get_setting('notifications_enabled', '0') === '1') {
         $rows = $db->prepare(
             "SELECT ei.username, ei.user_id FROM event_invites ei
              WHERE ei.event_id = ? AND ei.occurrence_date IS NULL AND ei.approval_status = 'approved'

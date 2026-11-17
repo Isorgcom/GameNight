@@ -30,7 +30,7 @@ A self-hosted PHP web application for organizing game night events with full pok
 - **In-app guides** — Host, Guest and Timer guides covering setup, running a night, and building a display
 - **Contacts** — personal address book for non-registered invitees, auto-imported from event invites, with CSV import/export
 - **REST API** — league-scoped read/write JSON API (v1) authenticated with API keys, exposing league info, members, events, and posts (see [Leagues](#leagues) below)
-- **Personal API** — `/api/v2`, where a token you mint in Settings reads your own leagues, events, guest lists, games, results and standings, exactly as you would see them signed in. Built for assistants and scripts of your own (see [DOCS.md](DOCS.md#personal-api-v2))
+- **Personal API** — `/api/v2`, where a token you mint in Settings reads your leagues, events, guest lists, games, results and standings as you would see them signed in, and can create and change events and guest lists and message your guests. Built for assistants and scripts of your own (see [DOCS.md](DOCS.md#personal-api-v2))
 - **Admin panel** — manage users (with account settings like email verification, password reset, notification preferences), posts, events, leagues, and all site settings, plus a live site-activity snapshot
 - **Email** — transactional mail via SMTP (SendGrid or any provider)
 - **SMS** — multi-provider notifications with two-way RSVP and host↔guest conversations (see [SMS](#sms) below)
@@ -276,7 +276,7 @@ Each league can expose a versioned, read-only-by-default JSON API (write access 
 
 This is what lets a sister site embed a league's upcoming events, roster, or posts.
 
-That API belongs to a league. For a person, there is the **personal API** at `/api/v2/`: a token minted under **Settings → Security → API Tokens** sees what its owner sees on the site, in every league they belong to and every event they host or are invited to, including a game's players, prize pool and payouts, its results, and league standings. It is read-only for now. Details are in [DOCS.md](DOCS.md#personal-api-v2).
+That API belongs to a league. For a person, there is the **personal API** at `/api/v2/`: a token minted under **Settings → Security → API Tokens** sees what its owner sees on the site, in every league they belong to and every event they host or are invited to, including a game's players, prize pool and payouts, its results, and league standings. With the matching permissions it also creates and changes events and guest lists, looks after a league's seasons and posts, and sends invitations and messages. Details are in [DOCS.md](DOCS.md#personal-api-v2).
 
 ## Online tables (FinalTable)
 

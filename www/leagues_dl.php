@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/svc/leagues.php';
 require_once __DIR__ . '/sms.php'; // for shorten_url() used throughout notification bodies
 header('Content-Type: application/json');
 
@@ -75,72 +76,7 @@ function league_unique_slug(PDO $db, string $base, int $excludeId = 0): string {
     }
 }
 
-/**
- * Add ONE contact to a league using the same rules as the single "Add" action:
- * resolve to an existing user by email/phone (linked path: add as member +
- * "Added to {league}" notice) or create a pending invited member (pending path:
- * + "invite to join" link). Dedups against current membership. Returns:
- *   'linked'  — added an existing user as a member (notified)
- *   'invited' — the email/phone belongs to an account: it was invited (accept link sent)
- *   'pending' — created a pending invite (invite sent)
- *   'already' — already a member, or already a pending contact for that email
- *   'invalid' — missing name, no email/phone, or a malformed email
- * Notifications run through send_notification(), which honors the site
- * notifications toggle and each recipient's preferred contact method.
- * Used by both the single add_contact action and bulk import_contacts.
- */
-function league_add_one_contact(PDO $db, int $league_id, string $lname, string $name, string $email, string $phone, int $invitedBy): string {
-    $name  = trim($name);
-    $email = strtolower(trim($email));
-    $phone = trim($phone) !== '' ? normalize_phone(trim($phone)) : '';
-    if ($name === '') return 'invalid';
-    if ($email === '' && $phone === '') return 'invalid';
-    if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) return 'invalid';
-
-    // Resolve to an existing user by email, then phone.
-    $existing = null;
-    if ($email !== '') {
-        $u = $db->prepare('SELECT id, username, email, phone, preferred_contact FROM users WHERE LOWER(email) = ? LIMIT 1');
-        $u->execute([$email]);
-        $existing = $u->fetch() ?: null;
-    }
-    if (!$existing && $phone !== '') {
-        $u = $db->prepare('SELECT id, username, email, phone, preferred_contact FROM users WHERE phone = ? LIMIT 1');
-        $u->execute([$phone]);
-        $existing = $u->fetch() ?: null;
-    }
-
-    if ($existing) {
-        // A registered account is invited, never enrolled by someone else's act:
-        // it gets an accept link addressed to it (league_invite_account()).
-        return league_invite_account($db, $league_id, (int)$existing['id'], $email, $phone, $invitedBy, true);
-    }
-
-    // Pending path — dedup against an existing pending row for this email.
-    if ($email !== '') {
-        $dup = $db->prepare('SELECT 1 FROM league_members WHERE league_id = ? AND user_id IS NULL AND LOWER(contact_email) = ? LIMIT 1');
-        $dup->execute([$league_id, $email]);
-        if ($dup->fetchColumn()) return 'already';
-    }
-    $token = bin2hex(random_bytes(16));
-    $db->prepare(
-        "INSERT INTO league_members (league_id, user_id, role, contact_name, contact_email, contact_phone, invited_by, invited_at, invite_token)
-         VALUES (?, NULL, 'member', ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)"
-    )->execute([$league_id, $name, $email ?: null, $phone ?: null, $invitedBy, $token]);
-    $inviteUrl = get_site_url() . '/league_invite.php?token=' . $token;
-    if (get_setting('url_shortener_enabled') === '1') { $inviteUrl = shorten_url($inviteUrl); }
-    send_notification(
-        $name, $email, $phone,
-        $email !== '' ? 'email' : 'sms',
-        'Invitation to join ' . $lname,
-        'You have been invited to join the league "' . $lname . '". Sign up: ' . $inviteUrl,
-        '<p>Hi ' . htmlspecialchars($name) . ',</p>'
-        . '<p>You have been invited to join the league <strong>' . htmlspecialchars($lname) . '</strong>.</p>'
-        . '<p><a href="' . htmlspecialchars($inviteUrl) . '" style="background:#2563eb;color:#fff;padding:.5rem 1rem;border-radius:6px;text-decoration:none;font-weight:600">Accept invite &amp; sign up</a></p>'
-    );
-    db_log_activity($invitedBy, "invited contact to league id=$league_id (" . ($email !== '' ? $email : $name) . ")");
-    return 'pending';
-}
+// league_add_one_contact() lives in svc/leagues.php, shared with the API.
 
 switch ($action) {
 
@@ -423,104 +359,12 @@ case 'cancel_request': {
 
 case 'approve_request':
 case 'deny_request': {
-    $req_id = (int)($_POST['request_id'] ?? 0);
-    $r = $db->prepare('SELECT * FROM league_join_requests WHERE id = ?');
-    $r->execute([$req_id]);
-    $req = $r->fetch();
-    if (!$req) fail('Request not found', 404);
-
-    league_role_or_fail($db, (int)$req['league_id'], $uid, ['owner', 'manager'], $isAdmin);
-    if ($req['status'] !== 'pending') fail('Already decided');
-
-    $newStatus = $action === 'approve_request' ? 'approved' : 'denied';
-    $db->beginTransaction();
-    try {
-        // Clear any prior approved/denied history rows for this (league, user) so the
-        // UNIQUE(league_id, user_id, status) constraint doesn't block flipping the pending row.
-        $db->prepare(
-            "DELETE FROM league_join_requests
-             WHERE league_id = ? AND user_id = ? AND status = ? AND id <> ?"
-        )->execute([(int)$req['league_id'], (int)$req['user_id'], $newStatus, $req_id]);
-
-        $db->prepare(
-            "UPDATE league_join_requests SET status = ?, decided_at = CURRENT_TIMESTAMP, decided_by = ? WHERE id = ?"
-        )->execute([$newStatus, $uid, $req_id]);
-
-        if ($newStatus === 'approved') {
-            $db->prepare('INSERT OR IGNORE INTO league_members (league_id, user_id, role) VALUES (?, ?, ?)')
-                ->execute([(int)$req['league_id'], (int)$req['user_id'], 'member']);
-        }
-        $db->commit();
-    } catch (Throwable $e) {
-        $db->rollBack();
-        fail('Failed: ' . $e->getMessage(), 500);
+    $res = gn_join_request_decide($db, gn_web_actor($current), (int)($_POST['request_id'] ?? 0), $action === 'approve_request');
+    if (empty($res['ok'])) {
+        // The page's own wording for the two answers it has always given.
+        $c = (string)$res['code'];
+        fail($c === 'request_not_found' ? 'Request not found' : ($c === 'already_decided' ? 'Already decided' : ($c === 'not_league_manager' ? 'Not allowed' : (string)$res['message'])), (int)$res['http'] === 409 ? 400 : (int)$res['http']);
     }
-
-    $L = $db->prepare('SELECT name FROM leagues WHERE id = ?');
-    $L->execute([(int)$req['league_id']]);
-    $lname = (string)$L->fetchColumn();
-
-    if ($newStatus === 'approved') {
-        $lurl = get_site_url() . '/league.php?id=' . (int)$req['league_id'];
-        if (get_setting('url_shortener_enabled') === '1') { $lurl = shorten_url($lurl); }
-        notify_user($db, (int)$req['user_id'],
-            'You joined ' . $lname,
-            'Your request to join "' . $lname . '" was approved. View: ' . $lurl,
-            '<p>Your request to join <strong>' . htmlspecialchars($lname) . '</strong> was approved. <a href="' . htmlspecialchars($lurl) . '">View league</a></p>'
-        );
-    } else {
-        notify_user($db, (int)$req['user_id'],
-            'Request declined — ' . $lname,
-            'Your request to join "' . $lname . '" was declined.',
-            '<p>Your request to join <strong>' . htmlspecialchars($lname) . '</strong> was declined.</p>'
-        );
-    }
-    db_log_activity($uid, "$newStatus join request id=$req_id (league id=" . (int)$req['league_id'] . ", user #" . (int)$req['user_id'] . ")");
-    ok();
-}
-
-case 'remove_member': {
-    $league_id  = (int)($_POST['league_id'] ?? 0);
-    $member_id  = (int)($_POST['member_id'] ?? 0);
-    $target_uid = (int)($_POST['user_id']   ?? 0);  // legacy path
-    $myRole     = league_role_or_fail($db, $league_id, $uid, ['owner', 'manager'], $isAdmin);
-
-    // Look up the row either by league_members.id (preferred) or by user_id (legacy callers)
-    if ($member_id > 0) {
-        $rs = $db->prepare('SELECT * FROM league_members WHERE id = ? AND league_id = ?');
-        $rs->execute([$member_id, $league_id]);
-    } else {
-        $rs = $db->prepare('SELECT * FROM league_members WHERE league_id = ? AND user_id = ?');
-        $rs->execute([$league_id, $target_uid]);
-    }
-    $row = $rs->fetch();
-    if (!$row) fail('Not a member');
-
-    $tRole = $row['role'] ?? 'member';
-    if ($tRole === 'owner') fail('Cannot remove the owner — transfer ownership first');
-    if ($myRole === 'manager' && $tRole === 'manager') fail('Managers cannot remove other managers');
-
-    $db->prepare('DELETE FROM league_members WHERE id = ?')->execute([(int)$row['id']]);
-
-    if (!empty($row['user_id'])) {
-        // Linked member: clean up any historic join-request rows and notify.
-        $db->prepare("DELETE FROM league_join_requests WHERE league_id = ? AND user_id = ?")
-            ->execute([$league_id, (int)$row['user_id']]);
-        $L = $db->prepare('SELECT name FROM leagues WHERE id = ?');
-        $L->execute([$league_id]);
-        $lname = (string)$L->fetchColumn();
-        notify_user($db, (int)$row['user_id'],
-            'Removed from ' . $lname,
-            'You were removed from "' . $lname . '".',
-            '<p>You were removed from the league <strong>' . htmlspecialchars($lname) . '</strong>.</p>'
-        );
-        // Out of the league is out of its online games: end their sessions on
-        // every FinalTable that has a key. Best effort, never blocks the removal.
-        require_once __DIR__ . '/_finaltable.php';
-        finaltable_sign_out_everywhere($db, (int)$row['user_id']);
-    }
-    // Pending contacts: no notification (their invite is being rescinded silently).
-    db_log_activity($uid, "removed member from league id=$league_id (member id=" . (int)$row['id'] . (!empty($row['user_id']) ? ", user #" . (int)$row['user_id'] : ", pending contact") . ")");
     ok();
 }
 

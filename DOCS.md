@@ -1686,7 +1686,7 @@ No API key. Returns `{issuer, connect_url, token: {format, claims, carried}, key
 
 `/api/v2` is the API for a **person**. Where a league key on `/api/v1` belongs to a league and acts as its owner, a personal token belongs to you: it sees what you would see signed in to the site, and nothing else. It is what an AI assistant or a script of your own uses to answer "who is coming Friday", "what did everyone get paid last month" or "show me the season standings".
 
-This release is the read side. Creating and changing events, running a game and messaging guests arrive in later releases; the permissions for them can already be chosen when a token is made, and take effect as those parts arrive.
+It can read everything you can see, create and change events and guest lists, look after a league's seasons, posts and join requests, and send invitations and messages to guests. Running a game through the API (buy-ins, knockouts, the clock) comes in a later release; the permission for it can already be chosen on a token and takes effect then.
 
 ### Tokens
 
@@ -1699,9 +1699,9 @@ A token's row shows what it may do, when it was created and last used, and how m
 | Permission | Allows |
 |---|---|
 | `read` | Read your leagues, events, guest lists, games, results and standings. Every token has it. |
-| `events` | Create and change events, guest lists, leagues and posts. *(Not yet in use.)* |
+| `events` | Create and change events and guest lists; add and remove seasons; post to a league; answer requests to join. Never sends anything to a guest by itself. |
 | `game` | Set up and run poker games. *(Not yet in use.)* |
-| `messages` | Send invitations, reminders and messages to guests. *(Not yet in use.)* |
+| `messages` | Anything that emails or texts people: invitations, nudges, a host message, inviting someone to a league. |
 | `money` | Change a league's jackpot fund and convert entry tickets. *(Not yet in use.)* |
 
 **Revoke** removes a token at once. Changing your password, or signing out everywhere, revokes every token on the account. Up to 10 tokens per account.
@@ -1715,13 +1715,18 @@ curl -H 'Authorization: Bearer gnp_YOUR_TOKEN' https://your-site.com/api/v2/me
 - The token goes in the `Authorization` header only. There is no `?key=` form: a token that will be able to run a game does not belong in a URL.
 - `GET /api/v2/` (with the trailing slash) lists every endpoint and needs no token.
 - A league key sent to `/api/v2` is refused with `league_key_not_accepted`.
-- 120 requests a minute per token; past that, `429` with `Retry-After: 30`.
+- 120 requests a minute per token; past that, `429` with `Retry-After: 30`. On top of that, 60 successful changes an hour per token on any one route.
 
 ### Conventions
 
 - **Envelope.** `{"ok": true, "data": {...}}` on success; `{"ok": false, "error": "snake_case_code", "message": "A sentence."}` on failure. Branch on `error`; show `message`.
 - **Money** is integer cents, in fields ending `_cents`. `2000` is $20.00.
 - **Time** is ISO 8601 UTC (`2026-12-12T01:00:00Z`). A date with no time of day is `YYYY-MM-DD`. Query dates (`from`, `to`) are days in the site's timezone.
+- **Writes** take a JSON object. A field the endpoint does not know is refused by name (`unknown_field`), so a typo cannot be silently ignored. A `PATCH` changes only what you send.
+- **Asking twice does it once.** A `POST` may carry an `Idempotency-Key` header (8 to 128 letters, digits, `.`, `:`, `-`, `_`). Sent again within a day with the same key, it returns the first answer (with `Idempotent-Replay: true`) instead of creating a second event. Use one whenever a retry is possible.
+- **What cannot be undone asks first.** Deleting an event needs `{"confirm": true}`. Without it the answer is `409 confirmation_required`, and its `message` says what would be lost.
+- **Creating and changing never notify.** Adding a guest tells nobody. Invitations, nudges and messages are their own calls under the `messages` permission, so a token without it cannot cause a single email or text.
+- **Busy means try again.** `503 busy` (with `Retry-After`) means the site was writing something else, usually notifications going out. Nothing was changed.
 - **Nothing is cached.** Every answer is sent `Cache-Control: no-store`; a game changes by the second.
 - **Not found means not yours.** An event or league you cannot see answers `404`, exactly as one that does not exist. `403` is reserved for something you can see but may not do (a guest asking for the host's game view).
 
@@ -1755,6 +1760,75 @@ An account holder's email address and phone number are never returned, to anyone
 | `GET /leagues/{id}/members` | The roster |
 | `GET /leagues/{id}/standings` | The leaderboard. `range=7\|30\|90\|365\|ytd\|all\|custom` (with `from`, `to`) or `season_id`; `rank=score\|net\|wins\|points` |
 | `GET /leagues/{id}/players/{key}` | One player's finished games. `{key}` is a user id, or `g_<name>` for a guest without an account. Same range parameters |
+| `GET /leagues/{id}/posts` | The league's posts, pinned first then newest. `limit` (default 20, at most 50), `offset` |
+| `GET /leagues/{id}/requests` | *Owner or manager.* People waiting for an answer on a request to join |
+| `GET /events/{id}/messages` | *Host.* The messages sent to the event's guests, and the daily limit |
+
+Changes. The permission each needs is in the second column.
+
+| Method and path | Needs | What it does |
+|---|---|---|
+| `POST /events` | `events` | Create an event. See below |
+| `PATCH /events/{id}` | `events` | *Host.* Change any of the create fields except `guests` |
+| `POST /events/{id}/cancel` | `events` | *Host.* Call it off and keep it: every guest is told, and it can still be duplicated |
+| `DELETE /events/{id}` | `events` | *Host.* Delete for good, with guest list, messages and game. Needs `{"confirm": true}` |
+| `POST /events/{id}/duplicate` | `events` | *Host.* A new event copied from this one, guest list included, nobody's answer carried over. Body: `start_at` (required), `title`, `end_at` |
+| `POST /events/{id}/invites` | `events` | *Host.* Add guests: `{"guests": [...]}`. Someone already listed is skipped |
+| `PATCH /events/{id}/invites/{invite_id}` | `events` | *Host.* `rsvp` (`yes`, `no`, `maybe` or `null`), `role` (`invitee` or `manager` for a co-host) |
+| `DELETE /events/{id}/invites/{invite_id}` | `events` | *Host.* Take a guest off the list. On an upcoming event they are told |
+| `POST /events/{id}/invites/{invite_id}/approve`, `.../deny` | `events` | *Host.* Answer a guest who asked to come or is on the waitlist. Approving tells them and, for a poker game, seats them |
+| `POST /events/{id}/invitations/send` | `messages` | *Host.* Invite every approved guest who has not had an invitation. Safe to repeat |
+| `POST /events/{id}/invites/{invite_id}/resend` | `messages` | *Host.* Send one guest their invitation again |
+| `POST /events/{id}/nudge` | `messages` | *Host.* Remind invited guests who have not answered. Once a day per guest at most |
+| `POST /events/{id}/messages` | `messages` | *Host.* Message the guests. Body: `subject`, `body`, `audience` (`yes`, `yes_maybe` or `all`; default `yes`) |
+| `POST /leagues/{id}/seasons` | `events` | *Owner or manager.* Body: `name`, `start_date`, `end_date` |
+| `DELETE /leagues/{id}/seasons/{season_id}` | `events` | *Owner or manager.* Games and results are untouched |
+| `POST /leagues/{id}/posts` | `events` | *Owner or manager.* Body: `title`, `body`. Nobody is notified |
+| `POST /leagues/{id}/requests/{request_id}/approve`, `.../deny` | `events` | *Owner or manager.* The person is told either way |
+| `POST /leagues/{id}/members` | `messages` | *Owner or manager.* Add someone by `name` and `email` or `phone`. They are sent an invitation |
+
+Creating, renaming and deleting a league, changing who manages it, and removing a member are done on the site.
+
+#### `POST /api/v2/events`
+
+Only `title` and `start_at` are required. The event is made exactly as the editor would make it, by the same code.
+
+| Field | Type | Notes |
+|---|---|---|
+| `title` | string | Up to 200 characters |
+| `start_at` | string | `2026-12-12T19:00:00-06:00` (an offset or `Z` is required), or `2026-12-12` for an all-day event |
+| `end_at` | string | Same forms. Optional |
+| `description`, `location`, `venue_name` | string | Optional |
+| `color` | string | One of `#2563eb`, `#16a34a`, `#dc2626`, `#d97706`, `#7c3aed`, `#0891b2`, `#db2777` |
+| `league_id` | integer | Put it on a league's calendar. You must own or manage the league |
+| `visibility` | string | `invitees_only` (default), `league` (default with a league), or `public` (site admins only) |
+| `is_poker` | boolean | Sets up a game |
+| `poker` | object | `game_type` (`tournament` or `cash`), `buyin_cents`, `tables`, `seats_per_table`. The rest of the game's setup comes from your last game, as on the site |
+| `requires_approval`, `hide_guest_list`, `waitlist_enabled` | boolean | `waitlist_enabled` defaults to on |
+| `max_guests` | integer | For an event that is not a poker game |
+| `rsvp_deadline_hours` | integer | Hours before the start |
+| `reminders_enabled` | boolean | Default on |
+| `reminder_minutes` | array | Minutes before the start, e.g. `[1440, 120]`. Leave out for the site's schedule; `[]` for none |
+| `guests` | array | Each is `{"user_id": 12}` or `{"name": "Dave", "email": "...", "phone": "..."}`, optionally with `"role": "manager"` |
+
+A guest given by `user_id` must be someone you can already name: a member of a league you are in, one of your contacts, or yourself. Anyone else answers `guest_not_found`, so an id cannot be used to find out who has an account. A typed-in name that matches an account's username is linked to that account, as the editor does.
+
+```bash
+curl -X POST https://your-site.com/api/v2/events \
+  -H 'Authorization: Bearer gnp_YOUR_TOKEN' -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: december-ttt-2026' \
+  -d '{"title": "December Tournament", "start_at": "2026-12-12T19:00:00-06:00",
+       "is_poker": true, "poker": {"buyin_cents": 4000, "tables": 2, "seats_per_table": 9},
+       "guests": [{"name": "Dave", "phone": "555-010-0199"}, {"user_id": 301}]}'
+```
+
+The answer is the event, as `GET /events/{id}` returns it, with `"created": true`. No invitation has gone out; `POST /events/{id}/invitations/send` does that.
+
+Where a site lets only its admins create events, this answers `403 events_not_allowed`, as the calendar would.
+
+#### Host messages and their limit
+
+`POST /events/{id}/messages` emails or texts every guest in the audience at once, and is not counted against the per-person daily notification limit. So an event may send **3 host messages in any 24 hours**, on the site and through the API alike; the next is refused with `429 host_message_limit`. A site admin can change the number with the `host_message_daily_cap` setting (`0` removes the limit). `body` may be plain text, whose line breaks are kept, or simple HTML, which is sanitised.
 
 #### `GET /api/v2/events/{id}/game`
 
@@ -1835,13 +1909,14 @@ These are the figures on the league's **Stats** tab, from the same query. A play
 
 | HTTP | `error` | Meaning |
 |---|---|---|
-| `400` | `bad_date`, `bad_window`, `bad_range`, `bad_rank`, `bad_role`, `bad_player_key` | A query parameter is wrong; `message` says which |
+| `400` | `bad_date`, `bad_window`, `bad_range`, `bad_rank`, `bad_role`, `bad_player_key`, `bad_json`, `bad_field`, `unknown_field`, `nothing_to_change`, `too_many_guests`, `bad_idempotency_key`, `event_not_saved` | The request is wrong; `message` says how |
 | `401` | `missing_token`, `invalid_token`, `token_expired`, `league_key_not_accepted` | No usable token |
-| `403` | `not_event_host`, `guest_list_hidden`, `results_not_available`, `missing_scope` | You can see it, but may not do or read this |
-| `404` | `event_not_found`, `league_not_found`, `season_not_found`, `player_not_found`, `game_not_set_up`, `not_found` | It does not exist, or it is not yours to see |
+| `403` | `not_event_host`, `not_league_manager`, `guest_list_hidden`, `results_not_available`, `missing_scope`, `public_needs_admin`, `events_not_allowed` | You can see it, but may not do or read this |
+| `404` | `event_not_found`, `league_not_found`, `season_not_found`, `player_not_found`, `invite_not_found`, `guest_not_found`, `request_not_found`, `game_not_set_up`, `not_found` | It does not exist, or it is not yours to see |
 | `405` | `method_not_allowed` | The path exists but not with that method |
-| `409` | `not_a_poker_event` | The event has no game to ask about |
-| `429` | `rate_limited` | More than 120 requests in a minute |
+| `409` | `not_a_poker_event`, `event_cancelled`, `confirmation_required`, `already_decided`, `needs_account`, `notifications_off` | It cannot be done as things stand; `message` says why |
+| `429` | `rate_limited`, `write_limit`, `host_message_limit` | Too many requests in a minute, changes in an hour, or host messages in a day |
+| `503` | `busy` | The site was busy writing. Nothing changed; ask again |
 
 ## Security
 
