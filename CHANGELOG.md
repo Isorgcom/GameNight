@@ -11,6 +11,8 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.25.0] - 2026-11-17
+
 ### Added
 
 - **Round prizes to the nearest $5, $10 or $20.** A host paying out in bills does not hand over $298 and $186, and until now had to do the adjusting by hand at the end of the night. Setup → Payout Structure has a new **Round prizes to** choice: Exact amounts (as before), Nearest $5, Nearest $10 or Nearest $20. Every place but first is rounded to that step and first place takes the difference, so the prizes still add up to exactly what the percentages assigned; on a $660 pool, $297.99 / $186.12 / $118.80 / $57.09 becomes $300 / $185 / $120 / $55. A pool too small to round sensibly is paid exactly. The choice is saved with the game (`poker_sessions.payout_round`, in cents), remembered for the host's next game and carried in a saved preset. One piece of arithmetic now serves every screen: `pk_payout_amounts()` in `www/_poker_helpers.php` records the winnings, and its twin `pkPayoutAmounts()` in the new `www/pk-payouts.js` draws them on Manage Game, the Table Manager, the Tournament Timer and Classic. Thanks to Bmann for the report.
