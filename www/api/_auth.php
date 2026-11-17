@@ -163,7 +163,7 @@ const API_TOKEN_SCOPES = [
     'events'   => 'Create and change events, guest lists, leagues and posts',
     'game'     => 'Set up and run poker games: buy-ins, rebuys, knockouts, seating, the clock',
     'messages' => 'Send invitations, reminders and messages to guests',
-    'money'    => 'Change a league\'s jackpot fund and convert entry tickets',
+    'money'    => 'Put a jackpot amount on a game (the jackpot is the league\'s fund)',
 ];
 
 const API_TOKEN_PREFIX = 'gnp_';

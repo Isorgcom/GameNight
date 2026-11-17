@@ -54,6 +54,8 @@ function v2_finish(array $actor, string $pattern, array $res, ?array $idem = nul
  * The routes: [method, pattern, scope, summary, handler(actor, path params, query, body)].
  * {id}-style segments are digits; {key} is any single segment. The summary is
  * what the discovery document prints. $b is the decoded JSON body of a write.
+ * $f finishes the request with a service result; only the game actions use it,
+ * because they answer from inside the console's own endpoint (gn_game_act()).
  */
 function v2_routes(): array {
     $db = get_db();
@@ -131,6 +133,55 @@ function v2_routes(): array {
         ['POST', '/events/{id}/messages', 'messages', 'Host. Send a message to the guests. Body: subject, body (text or simple HTML), audience (yes, yes_maybe or all; default yes). Limited per event per day.',
             fn($a, $p, $q, $b) => v2_host_message($db, $a, $p['id'], $b)],
 
+        ['PUT', '/events/{id}/game', 'game', 'Host. Change the game\'s setup; only what you send changes. Fields: game_type, buyin_cents, rebuy_cents, addon_cents, starting_chips, addon_chips, tables, seats_per_table, rebuy_allowed, addon_allowed, max_rebuys, rebuys_included, addons_included, addons_share_rebuys, rebuy_cutoff_level, auto_assign_tables, payout_round_cents, bounty_cents, bounty_points, bounty_optional, jackpot_cents, jackpot_optional.',
+            fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'setup', $b, $f)],
+        ['PUT', '/events/{id}/game/blinds', 'game', 'Host. Replace the blind schedule. Body: {"levels": [{"small_blind", "big_blind", "ante", "minutes"} or {"is_break": true, "minutes"}]}.',
+            fn($a, $p, $q, $b, $f) => gn_game_blinds_set($db, $a, $p['id'], $b)],
+        ['PUT', '/events/{id}/game/payouts', 'game', 'Host. Replace the payout table. Body: {"places": [{"place", "percentage", "points", "ticket_cents", "label"}]}. Percentages may total at most 100.',
+            fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'payouts', $b, $f)],
+        ['POST', '/events/{id}/game/start', 'game', 'Host. Start the game.',
+            fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'start', [], $f)],
+        ['POST', '/events/{id}/game/finish', 'game', 'Host. Finish the game: results and payouts are recorded, tickets issued, winners told. Body: {"confirm": true}.',
+            fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'finish', $b, $f)],
+        ['POST', '/events/{id}/game/reopen', 'game', 'Host. Reopen a finished game. Refused once a ticket it issued has been used or jackpot money paid out.',
+            fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'reopen', [], $f)],
+        ['POST', '/events/{id}/game/players', 'game', 'Host. Add a walk-in. Body: {"name": "..."}. They join the guest list as coming.',
+            fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'walk_in', $b, $f)],
+        ['POST', '/events/{id}/game/players/{pid}/buy-in', 'game', 'Host. Take the player\'s buy-in. Already bought in: nothing changes.',
+            fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'buy_in', ['player_id' => $p['pid']], $f)],
+        ['DELETE', '/events/{id}/game/players/{pid}/buy-in', 'game', 'Host. Reverse the buy-in.',
+            fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'undo_buy_in', ['player_id' => $p['pid']], $f)],
+        ['POST', '/events/{id}/game/players/{pid}/rebuy', 'game', 'Host. One rebuy. A player who was out comes back in. Past the game\'s rebuy cutoff it is refused unless the body says {"after_cutoff": true}.',
+            fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'rebuy', ['player_id' => $p['pid']] + $b, $f)],
+        ['DELETE', '/events/{id}/game/players/{pid}/rebuy', 'game', 'Host. Take back one rebuy.',
+            fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'undo_rebuy', ['player_id' => $p['pid']], $f)],
+        ['POST', '/events/{id}/game/players/{pid}/add-on', 'game', 'Host. One add-on.',
+            fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'add_on', ['player_id' => $p['pid']], $f)],
+        ['DELETE', '/events/{id}/game/players/{pid}/add-on', 'game', 'Host. Take back one add-on.',
+            fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'undo_add_on', ['player_id' => $p['pid']], $f)],
+        ['POST', '/events/{id}/game/add-ons', 'game', 'Host. An add-on for several players at once. Body: {"player_ids": [..]}.',
+            fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'bulk_add_on', $b, $f)],
+        ['POST', '/events/{id}/game/players/{pid}/eliminate', 'game', 'Host. Knock the player out. Their place is the number still in unless finish_position is given; by_player_id records who did it (and pays a bounty). The last one standing is crowned and the game finishes.',
+            fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'eliminate', ['player_id' => $p['pid']] + $b, $f)],
+        ['POST', '/events/{id}/game/players/{pid}/reinstate', 'game', 'Host. Undo a knockout. A finished game is reopened.',
+            fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'reinstate', ['player_id' => $p['pid']], $f)],
+        ['POST', '/events/{id}/game/players/{pid}/cash-in', 'game', 'Host, cash game. Body: {"amount_cents": 4000}. Adds to what the player has put on the table.',
+            fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'cash_in', ['player_id' => $p['pid']] + $b, $f)],
+        ['POST', '/events/{id}/game/players/{pid}/cash-out', 'game', 'Host, cash game. Body: {"amount_cents": 6500}, or null to clear it. Cannot exceed the money left on the table.',
+            fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'cash_out', ['player_id' => $p['pid']] + $b, $f)],
+        ['PATCH', '/events/{id}/game/players/{pid}', 'game', 'Host. One of: {"table": 2} to seat or move the player (a seat is picked), {"table": null} to unseat, {"notes": "..."}.',
+            fn($a, $p, $q, $b, $f) => v2_game_player_patch($db, $a, $p['id'], $p['pid'], $b, $f)],
+        ['DELETE', '/events/{id}/game/players/{pid}', 'game', 'Host. Take a player who has not bought in off the roster and the guest list.',
+            fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'remove', ['player_id' => $p['pid']], $f)],
+        ['POST', '/events/{id}/game/tables/rebalance', 'game', 'Host. Even out the tables. The answer lists who moved.',
+            fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'rebalance', [], $f)],
+        ['POST', '/events/{id}/game/tables/{n}/break-up', 'game', 'Host. Break up table {n} and seat its players at the others.',
+            fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'break_up_table', ['table' => $p['n']], $f)],
+        ['POST', '/events/{id}/game/ledger/{eid}/void', 'game', 'Host. Void one money entry (a buy-in, rebuy, add-on, cash in or cash out) from a player\'s ledger. It stays in the log, struck out.',
+            fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'void_entry', ['entry_id' => $p['eid']], $f)],
+        ['POST', '/events/{id}/game/clock', 'game', 'Host. Body: {"command": "play" | "pause" | "next" | "previous" | "add_minute" | "subtract_minute" | "reset_level" | "undo" | "reset"}. reset needs "confirm": true.',
+            fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'clock', $b, $f)],
+
         ['GET', '/events/{id}/game', 'read', 'Host only. The whole game in one read: setup, players, prize pool, payouts with amounts, blinds and the clock.',
             fn($a, $p, $q) => gn_game_state($db, $a, $p['id'])],
         ['GET', '/events/{id}/game/results', 'read', 'How the game came out: finishing order, payouts, points. Open to the host and to members of the event\'s league.',
@@ -164,6 +215,17 @@ function v2_me(PDO $db, array $actor): array {
         ],
         'leagues' => $leagues['leagues'],
     ]);
+}
+
+function v2_game_player_patch(PDO $db, array $actor, int $event_id, int $pid, array $b, callable $f): array {
+    $keys = array_keys($b);
+    if (count($keys) !== 1 || !in_array($keys[0], ['table', 'notes'], true)) {
+        return gn_err('bad_field', 'Send exactly one of "table" or "notes".', 400);
+    }
+    if ($keys[0] === 'notes') return gn_game_act($db, $actor, $event_id, 'notes', ['player_id' => $pid, 'notes' => $b['notes']], $f);
+    return $b['table'] === null
+        ? gn_game_act($db, $actor, $event_id, 'unseat', ['player_id' => $pid], $f)
+        : gn_game_act($db, $actor, $event_id, 'move', ['player_id' => $pid, 'table' => $b['table']], $f);
 }
 
 function v2_invite_resend(PDO $db, array $actor, int $event_id, int $invite_id): array {
@@ -249,7 +311,7 @@ if ($path === '') {
 // Match the path first, so a wrong method on a real path is 405 and not 404.
 $match = null; $path_known = false; $known_pattern = ''; $params = [];
 foreach ($routes as $r) {
-    $re = '#^' . preg_replace(['#\{(id|pid|sid|iid|rid)\}#', '#\{(key)\}#'], ['(?P<$1>\d{1,12})', '(?P<$1>[^/]{1,200})'], $r[1]) . '$#';
+    $re = '#^' . preg_replace(['#\{(id|pid|sid|iid|rid|eid|n)\}#', '#\{(key)\}#'], ['(?P<$1>\d{1,12})', '(?P<$1>[^/]{1,200})'], $r[1]) . '$#';
     if (!preg_match($re, $path, $m)) continue;
     $path_known = true; $known_pattern = $r[1];
     if ($r[0] !== $method) continue;
@@ -329,7 +391,8 @@ if ($method !== 'GET') {
 }
 
 try {
-    $res = ($match[4])($actor, $params, $_GET, $body);
+    $finish = function (array $r) use ($actor, $match, &$idem): void { v2_finish($actor, $match[1], $r, $idem); };
+    $res = ($match[4])($actor, $params, $_GET, $body, $finish);
 } catch (Throwable $e) {
     if ($e instanceof PDOException && stripos($e->getMessage(), 'database is locked') !== false) {
         // Another writer (usually the notification queue going out) held the

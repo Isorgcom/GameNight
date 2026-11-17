@@ -30,7 +30,7 @@ A self-hosted PHP web application for organizing game night events with full pok
 - **In-app guides** — Host, Guest and Timer guides covering setup, running a night, and building a display
 - **Contacts** — personal address book for non-registered invitees, auto-imported from event invites, with CSV import/export
 - **REST API** — league-scoped read/write JSON API (v1) authenticated with API keys, exposing league info, members, events, and posts (see [Leagues](#leagues) below)
-- **Personal API** — `/api/v2`, where a token you mint in Settings reads your leagues, events, guest lists, games, results and standings as you would see them signed in, and can create and change events and guest lists and message your guests. Built for assistants and scripts of your own (see [DOCS.md](DOCS.md#personal-api-v2))
+- **Personal API** — `/api/v2`, where a token you mint in Settings reads your leagues, events, guest lists, games, results and standings as you would see them signed in, and can create and change events and guest lists, message your guests, and run a poker game from buy-in to payout. Built for assistants and scripts of your own (see [DOCS.md](DOCS.md#personal-api-v2))
 - **Admin panel** — manage users (with account settings like email verification, password reset, notification preferences), posts, events, leagues, and all site settings, plus a live site-activity snapshot
 - **Email** — transactional mail via SMTP (SendGrid or any provider)
 - **SMS** — multi-provider notifications with two-way RSVP and host↔guest conversations (see [SMS](#sms) below)

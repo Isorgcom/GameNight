@@ -63,6 +63,7 @@ A complete guide to setting up, configuring, and using Game Night — your self-
   - [Endpoints](#endpoints)
   - [Reference: reading](#reference-reading)
   - [Reference: changing](#reference-changing)
+  - [Reference: running a game](#reference-running-a-game)
   - [A worked example](#a-worked-example)
   - [Errors](#errors)
 - [Security](#security)
@@ -1697,7 +1698,7 @@ No API key. Returns `{issuer, connect_url, token: {format, claims, carried}, key
 
 `/api/v2` is the API for a **person**. Where a league key on `/api/v1` belongs to a league and acts as its owner, a personal token belongs to you: it sees what you would see signed in to the site, and nothing else. It is what an AI assistant or a script of your own uses to answer "who is coming Friday", "what did everyone get paid last month" or "show me the season standings".
 
-It can read everything you can see, create and change events and guest lists, look after a league's seasons, posts and join requests, and send invitations and messages to guests. Running a game through the API (buy-ins, knockouts, the clock) comes in a later release; the permission for it can already be chosen on a token and takes effect then.
+It can read everything you can see, create and change events and guest lists, look after a league's seasons, posts and join requests, send invitations and messages to guests, and run a poker game from setup to the final payout: buy-ins, rebuys, knockouts, seating, the clock.
 
 ### Tokens
 
@@ -1711,9 +1712,9 @@ A token's row shows what it may do, when it was created and last used, and how m
 |---|---|
 | `read` | Read your leagues, events, guest lists, games, results and standings. Every token has it. |
 | `events` | Create and change events and guest lists; add and remove seasons; post to a league; answer requests to join. Never sends anything to a guest by itself. |
-| `game` | Set up and run poker games. *(Not yet in use.)* |
+| `game` | Set up and run poker games: setup, blinds, payouts, buy-ins, rebuys and add-ons, knockouts, seating, the clock, finishing. |
 | `messages` | Anything that emails or texts people: invitations, nudges, a host message, inviting someone to a league. |
-| `money` | Change a league's jackpot fund and convert entry tickets. *(Not yet in use.)* |
+| `money` | Needed, with `game`, to put a jackpot amount on a game (the jackpot is the league's fund). Paying out and adjusting the fund through the API is not available yet. |
 
 **Revoke** removes a token at once. Changing your password, or signing out everywhere, revokes every token on the account. Up to 10 tokens per account.
 
@@ -1735,7 +1736,7 @@ curl -H 'Authorization: Bearer gnp_YOUR_TOKEN' https://your-site.com/api/v2/me
 - **Time** is ISO 8601 UTC (`2026-12-12T01:00:00Z`). A date with no time of day is `YYYY-MM-DD`. Query dates (`from`, `to`) are days in the site's timezone.
 - **Writes** take a JSON object. A field the endpoint does not know is refused by name (`unknown_field`), so a typo cannot be silently ignored. A `PATCH` changes only what you send.
 - **Asking twice does it once.** A `POST` may carry an `Idempotency-Key` header (8 to 128 letters, digits, `.`, `:`, `-`, `_`). Sent again within a day with the same key, it returns the first answer (with `Idempotent-Replay: true`) instead of creating a second event. Use one whenever a retry is possible.
-- **What cannot be undone asks first.** Deleting an event needs `{"confirm": true}`. Without it the answer is `409 confirmation_required`, and its `message` says what would be lost.
+- **What cannot be undone asks first.** Deleting an event, finishing a game and resetting the clock need `{"confirm": true}`. Without it the answer is `409 confirmation_required`, and its `message` says what would be lost.
 - **Creating and changing never notify.** Adding a guest tells nobody. Invitations, nudges and messages are their own calls under the `messages` permission, so a token without it cannot cause a single email or text.
 - **Busy means try again.** `503 busy` (with `Retry-After`) means the site was writing something else, usually notifications going out. Nothing was changed.
 - **Nothing is cached.** Every answer is sent `Cache-Control: no-store`; a game changes by the second.
@@ -1799,6 +1800,35 @@ Changes. The permission each needs is in the second column.
 | `POST /leagues/{id}/members` | `messages` | *Owner or manager.* Add someone by `name` and `email` or `phone`. They are sent an invitation |
 
 Creating, renaming and deleting a league, changing who manages it, and removing a member are done on the site.
+
+Running a game. Every one of these is for the host and needs the `game` permission.
+
+| Method and path | What it does |
+|---|---|
+| `PUT /events/{id}/game` | Change the game's setup. Only what you send changes |
+| `PUT /events/{id}/game/blinds` | Replace the blind schedule |
+| `PUT /events/{id}/game/payouts` | Replace the payout table |
+| `POST /events/{id}/game/start` | Start the game |
+| `POST /events/{id}/game/finish` | Finish it. Needs `{"confirm": true}` |
+| `POST /events/{id}/game/reopen` | Reopen a finished game |
+| `POST /events/{id}/game/players` | Add a walk-in: `{"name": "..."}` |
+| `POST /events/{id}/game/players/{pid}/buy-in` | Take the buy-in |
+| `DELETE /events/{id}/game/players/{pid}/buy-in` | Reverse the buy-in |
+| `POST /events/{id}/game/players/{pid}/rebuy` | One rebuy |
+| `DELETE /events/{id}/game/players/{pid}/rebuy` | Take one rebuy back |
+| `POST /events/{id}/game/players/{pid}/add-on` | One add-on |
+| `DELETE /events/{id}/game/players/{pid}/add-on` | Take one add-on back |
+| `POST /events/{id}/game/add-ons` | An add-on for several players: `{"player_ids": [...]}` |
+| `POST /events/{id}/game/players/{pid}/eliminate` | Knock the player out. Optional `by_player_id`, `finish_position` |
+| `POST /events/{id}/game/players/{pid}/reinstate` | Undo a knockout |
+| `POST /events/{id}/game/players/{pid}/cash-in` | Cash game: `{"amount_cents": 4000}` |
+| `POST /events/{id}/game/players/{pid}/cash-out` | Cash game: `{"amount_cents": 6500}`, or `null` to clear |
+| `PATCH /events/{id}/game/players/{pid}` | One of `{"table": 2}`, `{"table": null}`, `{"notes": "..."}` |
+| `DELETE /events/{id}/game/players/{pid}` | Remove a player who has not bought in |
+| `POST /events/{id}/game/tables/rebalance` | Even out the tables |
+| `POST /events/{id}/game/tables/{n}/break-up` | Break up table `n` |
+| `POST /events/{id}/game/ledger/{entry_id}/void` | Void one money entry |
+| `POST /events/{id}/game/clock` | `{"command": "..."}` |
 
 #### `POST /api/v2/events`
 
@@ -2176,6 +2206,100 @@ Approving a request to join makes the person a member; either answer is sent to 
 
 `POST /leagues/{id}/members` takes `name` and at least one of `email`, `phone`. `result` is `pending` (no account yet: added as a pending member and sent a link to sign up), `invited` (has an account: sent an invitation to accept, and joins when they do), or `already` (on the roster or already invited; nothing sent).
 
+### Reference: running a game
+
+The API does not have its own rules for a poker game. Each call here runs the check-in console's own action as you, so a rebuy, a knockout or a finish does exactly what pressing the button does, and anything the console would refuse is refused here in the console's words (`409 game_refused`). `{pid}` is a player's `id` from `GET /events/{id}/game`.
+
+Unless noted, an answer is:
+
+```json
+{
+  "event_id": 886, "action": "rebuy", "changed": true, "game_status": "active",
+  "player": { "id": 1858, "name": "Dave", "status": "playing", "bought_in": true, "rebuys": 1, "addons": 0,
+              "table": 1, "seat": 8, "finish_position": null, "payout_cents": 0 },
+  "pool": { "prize_pool_cents": 17000, "bought_in": 5, "still_playing": 5, "eliminated": 0, "rebuys": 1, "chips_in_play": 60000 }
+}
+```
+
+`player` is the player the call was about, in the same shape as in the game. `changed: false` means the game was already as asked (buying in someone who is in, starting a game that is running) and nothing was done.
+
+#### `PUT /api/v2/events/{id}/game`
+
+| Field | Type | Notes |
+|---|---|---|
+| `game_type` | string | `tournament` or `cash` |
+| `buyin_cents`, `rebuy_cents`, `addon_cents` | integer | |
+| `starting_chips`, `addon_chips` | integer | |
+| `tables`, `seats_per_table` | integer | 1 to 50, 2 to 12 |
+| `auto_assign_tables` | boolean | Seat players as they buy in |
+| `rebuy_allowed`, `addon_allowed` | boolean | |
+| `max_rebuys` | integer | `0` for no limit |
+| `rebuys_included`, `addons_included` | integer | How many come with the buy-in |
+| `addons_share_rebuys` | boolean | Unused included rebuys can be taken as add-ons |
+| `rebuy_cutoff_level` | integer | No rebuys once the clock is past this level; `0` for none |
+| `payout_round_cents` | integer | `0`, `500`, `1000` or `2000` |
+| `bounty_cents`, `bounty_points`, `bounty_optional` | | A bounty on each player, taken from the buy-in or bought on the side |
+| `jackpot_cents`, `jackpot_optional` | | Needs the `money` permission too, a league event, and you managing that league |
+
+The answer carries `session`, the setup as it now stands. Changing the number of tables or seats may reseat players.
+
+#### `PUT /api/v2/events/{id}/game/blinds`, `PUT /api/v2/events/{id}/game/payouts`
+
+```json
+{ "levels": [
+    { "small_blind": 25, "big_blind": 50, "minutes": 15 },
+    { "small_blind": 50, "big_blind": 100, "minutes": 15 },
+    { "is_break": true, "minutes": 10 },
+    { "small_blind": 100, "big_blind": 200, "ante": 25, "minutes": 15 } ] }
+```
+
+The whole schedule is replaced. It is saved as this game's own schedule, so a schedule from the library that the game was using is not changed. A clock that has not started takes the new first level. The answer is `blinds` and `clock`.
+
+```json
+{ "places": [
+    { "place": 1, "percentage": 50, "points": 10 },
+    { "place": 2, "percentage": 30, "points": 6 },
+    { "place": 3, "percentage": 20, "points": 3, "label": "Bubble trophy" } ] }
+```
+
+The whole table is replaced. Percentages may total at most 100. `points` count toward league standings; `ticket_cents` is an entry ticket to the game's target event; `label` names a prize that is not money. The answer is `payouts`, with what each place pays from the pool as it stands.
+
+#### Buy-ins, rebuys, add-ons
+
+- **Buy-in.** Taking a buy-in also marks the guest as coming and approved, and seats them when tables are assigned automatically. `DELETE` reverses it.
+- **Rebuy.** One call is one rebuy. A player who was knocked out comes back into the game (`"reentered": true`), and a game that had finished reopens (`"reopened": true`). When the game has a rebuy cutoff and the clock is past it, the answer is `409 rebuys_closed`; send `{"after_cutoff": true}` to record it anyway, as the console lets a host do.
+- **Add-on.** One call is one add-on. `POST /game/add-ons` with `{"player_ids": [...]}` gives one to each and answers with `recorded` and `skipped`.
+- **Taking one back.** `DELETE` on the same path removes one rebuy or add-on. A single wrong entry can also be struck out with `POST /game/ledger/{entry_id}/void`, using an entry's `id` from the player's ledger; it stays in the log, marked voided.
+
+#### Knockouts
+
+`POST .../eliminate` gives the player the next place from the bottom (with five still in, they finish 5th) unless `finish_position` says otherwise. `by_player_id` records who knocked them out, which is what pays a bounty. When one player is left they are crowned and the game finishes by itself: the answer then has `"game_status": "finished"` and `winner`, the winning player in the same shape as `player`. `POST .../reinstate` undoes a knockout and reopens a game it had finished.
+
+#### Start, finish, reopen
+
+Finishing records the results and payouts, issues entry tickets, banks jackpot money to the league fund and tells the winners, so it needs `{"confirm": true}`. A finished game can be reopened, except once a ticket it issued has been used or jackpot money has been paid out; then the console refuses and says why.
+
+#### Tables
+
+`PATCH .../players/{pid}` with `{"table": 2}` seats or moves a player (a free seat is picked), `{"table": null}` unseats them. Rebalance and break-up answer with `moves`: each player moved, with `from_table` and `to_table`.
+
+#### `POST /api/v2/events/{id}/game/clock`
+
+| `command` | |
+|---|---|
+| `play`, `pause` | Start or stop. Asking for what it is already doing answers `changed: false` |
+| `next`, `previous` | Move a level |
+| `add_minute`, `subtract_minute` | Adjust the time left |
+| `reset_level` | Back to the start of the current level |
+| `undo` | Take back the last command, within ten minutes |
+| `reset` | Back to level 1, paused. Needs `"confirm": true` |
+
+The answer is the `clock`. Every screen showing the timer follows within a few seconds.
+
+#### A cash game
+
+Set `{"game_type": "cash"}` in the setup. Buy-in marks a player as sitting down; `cash-in` adds to what they have put on the table and `cash-out` records what they left with, which cannot be more than is left on the table. Rebuys, add-ons, knockouts, blinds, payouts and the clock belong to tournaments and answer `409 not_a_tournament`.
+
 ### A worked example
 
 Set up next month's game, invite the usual people, and chase the stragglers a week later.
@@ -2220,9 +2344,9 @@ curl -H "$AUTH" "$API/leagues/27/standings?range=ytd&rank=points"
 | `400` | `bad_date`, `bad_window`, `bad_range`, `bad_rank`, `bad_role`, `bad_player_key`, `bad_json`, `bad_field`, `unknown_field`, `nothing_to_change`, `too_many_guests`, `bad_idempotency_key`, `event_not_saved` | The request is wrong; `message` says how |
 | `401` | `missing_token`, `invalid_token`, `token_expired`, `league_key_not_accepted` | No usable token |
 | `403` | `not_event_host`, `not_league_manager`, `guest_list_hidden`, `results_not_available`, `missing_scope`, `public_needs_admin`, `events_not_allowed` | You can see it, but may not do or read this |
-| `404` | `event_not_found`, `league_not_found`, `season_not_found`, `player_not_found`, `invite_not_found`, `guest_not_found`, `request_not_found`, `game_not_set_up`, `not_found` | It does not exist, or it is not yours to see |
+| `404` | `event_not_found`, `league_not_found`, `season_not_found`, `player_not_found`, `invite_not_found`, `guest_not_found`, `request_not_found`, `entry_not_found`, `game_not_set_up`, `not_found` | It does not exist, or it is not yours to see |
 | `405` | `method_not_allowed` | The path exists but not with that method |
-| `409` | `not_a_poker_event`, `event_cancelled`, `confirmation_required`, `already_decided`, `needs_account`, `notifications_off` | It cannot be done as things stand; `message` says why |
+| `409` | `not_a_poker_event`, `event_cancelled`, `confirmation_required`, `already_decided`, `needs_account`, `notifications_off`, `game_refused`, `rebuys_closed`, `rebuy_limit`, `not_a_tournament`, `not_a_cash_game`, `not_bought_in`, `already_out`, `not_out`, `nothing_to_undo`, `already_voided`, `player_has_money_in`, `game_finished`, `game_not_finished`, `last_table` | It cannot be done as things stand; `message` says why |
 | `429` | `rate_limited`, `write_limit`, `host_message_limit` | Too many requests in a minute, changes in an hour, or host messages in a day |
 | `503` | `busy` | The site was busy writing. Nothing changed; ask again |
 
