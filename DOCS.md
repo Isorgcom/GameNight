@@ -56,6 +56,15 @@ A complete guide to setting up, configuring, and using Game Night — your self-
   - [Revoking a Key](#api-revoking-a-key)
   - [Connected Apps: Sign-In Bridge](#connected-apps-sign-in-bridge)
 - [Personal API (v2)](#personal-api-v2)
+  - [Tokens](#tokens)
+  - [Calling it](#calling-it)
+  - [Conventions](#conventions)
+  - [Who can see what](#who-can-see-what)
+  - [Endpoints](#endpoints)
+  - [Reference: reading](#reference-reading)
+  - [Reference: changing](#reference-changing)
+  - [A worked example](#a-worked-example)
+  - [Errors](#errors)
 - [Security](#security)
 - [Troubleshooting](#troubleshooting)
 
@@ -527,6 +536,8 @@ Besides reminders, each run drains queued notifications, processes RSVP deadline
 GameNight exposes a small JSON API at `/api/v1/` so a separate website (for example, a poker league's main marketing site) can pull league data, or push new users into a league, without copy-pasting. Each API key is bound to **one league** at issuance and is restricted to that league's data — keys cannot read or write across leagues.
 
 The API was designed for a single trusted server-to-server consumer model (one shared key in the consumer's config). It is not an OAuth provider and does not have per-end-user tokens.
+
+> **Looking for an API for yourself rather than for a website?** This section is `/api/v1`, where a key belongs to a league. The [Personal API (v2)](#personal-api-v2) is the one where a token belongs to you, sees every league and event you can, and can run your events and reach your guests. An assistant or a script of your own wants v2.
 
 ### Scopes
 
@@ -1904,6 +1915,303 @@ Like opening the check-in console, this first brings the roster level with the g
 ```
 
 These are the figures on the league's **Stats** tab, from the same query. A player with fewer than `min_games_to_qualify` games is listed with `"qualified": false` and sorts after everyone who qualifies. Pass a `player_key` to `GET /leagues/{id}/players/{key}` for that player's games.
+
+### Reference: reading
+
+Each answer below is the `data` object; the `{"ok": true, "data": ...}` envelope is left off.
+
+#### `GET /api/v2/me`
+
+```json
+{
+  "user":  { "id": 270, "name": "Bryce", "site_admin": false, "timezone": "America/Chicago" },
+  "token": { "scopes": ["read", "events", "messages"] },
+  "site":  { "name": "Game Night", "url": "https://your-site.com", "timezone": "America/Chicago", "version": "1.27.0" },
+  "leagues": [ { "id": 27, "name": "Northside Poker League", "my_role": "manager", "member_count": 5 } ]
+}
+```
+
+The first call to make: it says who the token is, what it may do, and which leagues it can work in. `site.timezone` is the timezone query dates are read in.
+
+#### `GET /api/v2/events` and `GET /api/v2/events/{id}`
+
+| Query param | Default | Notes |
+|---|---|---|
+| `from`, `to` | today, today + 90 days | `YYYY-MM-DD`, at most 366 days apart |
+| `role` | `any` | `host` for events you run, `guest` for ones you are invited to |
+| `league_id` | | Only that league's events |
+| `include_cancelled` | off | `1` to include events that were called off and kept |
+
+```json
+{
+  "from": "2026-12-01", "to": "2026-12-31", "count": 1,
+  "events": [
+    { "id": 886, "title": "December Tournament", "description": "", "location": "12 Elm St", "venue_name": "",
+      "start_at": "2026-12-13T01:00:00Z", "end_at": "2026-12-13T05:00:00Z", "color": "#2563eb",
+      "is_poker": true, "league_id": 27, "visibility": "league",
+      "requires_approval": false, "waitlist_enabled": true,
+      "rsvp": { "yes": 9, "no": 2, "maybe": 1 },
+      "my_role": "host", "my_rsvp": null,
+      "cancelled_at": null, "created_at": "2026-11-12T19:47:15Z",
+      "url": "https://your-site.com/event.php?id=886" }
+  ]
+}
+```
+
+`my_role` is `host`, `guest` or `viewer` (you can see it, for example through your league, but are not on the list). `GET /events/{id}` returns one such object as `event`, with these added: `capacity` (seats, or `null` for no limit), `rsvp_deadline_hours`, `guest_list_hidden`, `league_name`, and `game` (`status`, `game_type`, `buyin_cents`, `tables`, `seats_per_table`; `null` when it is not a poker event or has no game yet).
+
+#### `GET /api/v2/events/{id}/invites`
+
+```json
+{
+  "event_id": 886, "is_host": true, "count": 2,
+  "invites": [
+    { "invite_id": 3583, "user_id": 301, "name": "Sam", "rsvp": "yes", "role": "manager",
+      "status": "approved", "has_account": true, "email": null, "phone": null, "joined_via": null },
+    { "invite_id": 3584, "user_id": null, "name": "Dave", "rsvp": null, "role": "invitee",
+      "status": "waitlisted", "has_account": false, "email": null, "phone": "+15550100199", "joined_via": null }
+  ]
+}
+```
+
+- `invite_id` is what the guest endpoints take.
+- `rsvp` is `yes`, `no`, `maybe` or `null` (not answered). `role` is `invitee` or `manager` (a co-host).
+- `status`, `has_account`, `email`, `phone` and `joined_via` are for the host only. `status` is `approved`, `pending` (asked to come, waiting on you), `waitlisted` or `denied`. A guest sees approved people's `name`, `rsvp` and `role`, or `403 guest_list_hidden`.
+- `email` and `phone` are filled only for a guest typed in by hand; for someone with an account they are always `null`.
+
+#### `GET /api/v2/events/{id}/messages`
+
+```json
+{
+  "event_id": 886, "count": 1, "daily_limit": 3,
+  "messages": [
+    { "message_id": 97, "subject": "Parking", "text": "Park on Elm.\nNot in the drive.",
+      "audience": "all", "sent_by": "Bryce", "has_attachment": false, "sent_at": "2026-12-10T18:02:11Z" }
+  ]
+}
+```
+
+#### `GET /api/v2/events/{id}/game/log`, `.../game/clock`, `.../game/players/{pid}/ledger`
+
+The log and a player's ledger share one entry shape, newest first:
+
+```json
+{ "id": 2652, "type": "rebuy", "player_id": 1858, "player": "Dave", "amount_cents": 1000,
+  "detail": "Rebuy — $10", "voided": false, "by": "Bryce", "at": "2026-12-13T02:14:09Z" }
+```
+
+`type` is what happened (`buyin`, `rebuy`, `addon`, `eliminate`, `cashin`, `cashout`, `void` and others the console writes). The ledger is the money entries for one player; `{pid}` is the player's `id` from the game. The clock answers `{"event_id", "clock", "blinds"}` with the same `clock` and `blinds` as the game.
+
+#### `GET /api/v2/leagues`, `GET /api/v2/leagues/{id}`, `GET /api/v2/leagues/{id}/members`
+
+```json
+{ "league": { "id": 27, "name": "Northside Poker League", "description": "", "my_role": "manager",
+              "member_count": 5, "approval_mode": "auto", "hidden": false,
+              "public_page": "https://your-site.com/league/northside", "created_at": "2026-07-13T21:50:26Z",
+              "url": "https://your-site.com/league.php?id=27",
+              "seasons": [ { "id": 4, "name": "Fall 2026", "start_date": "2026-09-01", "end_date": "2026-12-31" } ] } }
+```
+
+`my_role` is `owner`, `manager` or `member` (`admin` for a site admin who is not a member). The list returns `leagues` without `seasons`.
+
+```json
+{ "league_id": 27, "count": 3,
+  "members": [
+    { "member_id": 365, "user_id": 301, "name": "Sam", "known_as": "Sammy", "role": "owner", "pending": false, "joined_at": "2026-07-13T21:50:26Z" },
+    { "member_id": 391, "user_id": null, "name": "Pat", "known_as": null, "role": "member", "pending": true,
+      "joined_at": null, "invited_at": "2026-11-17T20:58:40Z", "email": "pat@example.com", "phone": null }
+  ] }
+```
+
+A `pending` member was added by contact and has not joined; only the owner and managers see those rows, with the contact details the league entered. `known_as` is the league's own name for a member, where it differs.
+
+#### `GET /api/v2/leagues/{id}/players/{key}`
+
+```json
+{
+  "league_id": 27, "player_key": "301", "name": "Sam", "known_as": null, "is_guest": false,
+  "range": "all", "from": null, "to": null, "season": null,
+  "totals": { "games": 12, "tournaments": 12, "wins": 3, "in_the_money": 7, "invested_cents": 26000,
+              "winnings_cents": 31500, "points": 64, "net_cents": 5500, "roi_percent": 21, "avg_score": 71.4 },
+  "games": [
+    { "event_id": 886, "title": "December Tournament", "date": "2026-12-12", "game_type": "tournament",
+      "finish_position": 1, "field_size": 9, "score": 100, "rebuys": 0, "addons": 1, "bounties_won": 2,
+      "points": 10, "invested_cents": 2500, "winnings_cents": 9000, "net_cents": 6500 }
+  ]
+}
+```
+
+`{key}` is the `player_key` from the standings. A guest's key contains a space, so encode it: `g_dave%20smith`.
+
+#### `GET /api/v2/leagues/{id}/posts`, `GET /api/v2/leagues/{id}/requests`
+
+```json
+{ "league_id": 27, "count": 1, "limit": 20, "offset": 0,
+  "posts": [ { "id": 37, "title": "Season opener", "text": "First game March 6.\nBring a friend.",
+               "html": "First game March 6.<br />\nBring a friend.", "pinned": false,
+               "author": "Sam", "posted_at": "2026-11-17T21:10:02Z" } ] }
+```
+
+```json
+{ "league_id": 27, "count": 1,
+  "requests": [ { "request_id": 12, "user_id": 322, "name": "Jo", "message": "Let me in", "requested_at": "2026-11-16T15:00:00Z" } ] }
+```
+
+### Reference: changing
+
+#### `PATCH /api/v2/events/{id}`
+
+Takes any of the create fields except `guests`, and changes only those. The answer is the event with `"updated": true` and `"time_changed"`.
+
+- Moving `start_at` without sending `end_at` moves the end by the same amount, so the event keeps its length. Send `"end_at": null` to remove the end.
+- An end before the start is refused (`bad_field`).
+- When the start moves, the event's reminders are re-timed. Guests are not otherwise told, as on the site; `time_changed: true` is your cue to message them.
+- The game's buy-in, tables and seats change only if `poker` is sent. Everything else about the game is set from the game's own Setup.
+- A cancelled event answers `409 event_cancelled`: duplicate it instead.
+
+#### `POST /api/v2/events/{id}/cancel`, `DELETE /api/v2/events/{id}`, `POST /api/v2/events/{id}/duplicate`
+
+```json
+{ "event_id": 886, "title": "December Tournament", "cancelled": true, "already_cancelled": false, "guests_notified": 12 }
+```
+
+Cancelling tells everyone on the list, whatever they answered, and keeps the event, its guest list and its game so it can be duplicated. It needs the `events` permission, not `messages`: the notice is part of calling an event off, on the site and here.
+
+```json
+{ "event_id": 886, "title": "December Tournament", "deleted": true, "guests_notified": 0 }
+```
+
+Deleting removes the event with its guest list, messages, comments and game results. Guests of an event still ahead that was not already cancelled are told. Without `{"confirm": true}`:
+
+```json
+{ "ok": false, "error": "confirmation_required",
+  "message": "Deleting \"December Tournament\" removes it for good, with its guest list (12), messages, comments and any game results. It cannot be undone. To keep the record and only call it off, use cancel. Send {\"confirm\": true} to delete." }
+```
+
+Duplicating takes `start_at` (required), and optionally `title` and `end_at`. The copy has the original's details, game settings, reminder schedule and guest list (people who were turned down are left off), with every answer cleared, and no end unless one is sent. The answer is the new event with `"created": true` and `"copied_from"`.
+
+#### `POST /api/v2/events/{id}/invites`
+
+```json
+{ "guests": [ { "name": "Gil" }, { "name": "Hal", "phone": "555-010-0142" }, { "user_id": 301, "role": "manager" } ] }
+```
+
+```json
+{
+  "event_id": 886,
+  "added": [ { "invite_id": 3838, "name": "Gil", "has_account": false, "status": "approved" },
+             { "invite_id": 3839, "name": "Hal", "has_account": false, "status": "waitlisted" } ],
+  "already_on_list": ["Sam"], "waitlisted": 1, "invitations_sent": false
+}
+```
+
+Someone already on the list is skipped, so sending the same list twice is harmless. With a waitlist, anyone past capacity (seats times tables for a poker game, `max_guests` otherwise) is added as `waitlisted`. A hand-typed guest is also added to your contacts and, for a league event, to the league's pending list, as the editor does. At most 200 guests per event.
+
+#### `PATCH`, `DELETE /api/v2/events/{id}/invites/{invite_id}`, and `.../approve`, `.../deny`
+
+```json
+{ "event_id": 886, "invite_id": 3836, "name": "Erin", "changed": ["rsvp"], "promoted_from_waitlist": 1 }
+```
+
+- `rsvp`: `yes`, `no`, `maybe` or `null` to clear it. The host may answer for a guest at any time; a "no" can free a seat, and `promoted_from_waitlist` says how many moved up.
+- `role`: `manager` makes the guest a co-host who can do everything a host can on this event. Only someone with an account can be one (`409 needs_account`).
+
+```json
+{ "event_id": 886, "invite_id": 3839, "name": "Hal", "removed": true, "guest_notified": true }
+```
+
+```json
+{ "event_id": 886, "invite_id": 3839, "name": "Hal", "status": "approved", "changed": true, "seat": "Table 1, Seat 4" }
+```
+
+Approving tells the guest and, for a poker game, puts them on the roster with a seat when tables are assigned automatically. Asking for a decision that already stands answers `"changed": false`.
+
+#### Invitations, nudges and messages
+
+All three answer with how many were queued, and all three need the `messages` permission and refuse a cancelled event.
+
+```json
+{ "event_id": 886, "sent": 9 }
+```
+
+| Call | Who it reaches |
+|---|---|
+| `POST /events/{id}/invitations/send` | Every approved guest who has not been sent an invitation. `0` means everyone already has one |
+| `POST /events/{id}/invites/{invite_id}/resend` | That guest, again |
+| `POST /events/{id}/nudge` | Approved guests who were invited and have not answered, at most once a day each |
+| `POST /events/{id}/messages` | Approved guests in the `audience`: `yes` (said yes), `yes_maybe`, or `all` |
+
+`sent` counts messages queued, not delivered: a guest with no email or phone on file is counted and then cannot be reached. Each guest gets it by the route they chose (email, text or WhatsApp), and someone who turned that kind of notification off does not get it. With notifications switched off for the whole site, all four answer `409 notifications_off`.
+
+```json
+{ "event_id": 886, "message_id": 97, "audience": "all", "sent": 12,
+  "url": "https://your-site.com/event_message.php?token=1b0e42ed31c94e0f8a7d5b6c2f3a9e10" }
+```
+
+`url` is the page a text recipient opens to read the whole message.
+
+#### League seasons, posts, requests and members
+
+```json
+{ "league_id": 27, "season": { "id": 8, "name": "Spring 2027", "start_date": "2027-01-01", "end_date": "2027-06-30" } }
+```
+
+A season is a named window of dates. Pass its `id` to the standings as `season_id`. Deleting one removes only the window.
+
+```json
+{ "league_id": 27, "post_id": 37, "title": "Season opener", "url": "https://your-site.com/league.php?id=27&tab=posts" }
+```
+
+A post appears in the league's feed. Nobody is notified. `body` may be plain text or simple HTML.
+
+```json
+{ "league_id": 27, "request_id": 12, "name": "Jo", "status": "approved" }
+```
+
+Approving a request to join makes the person a member; either answer is sent to them. A request already answered gives `409 already_decided`.
+
+```json
+{ "league_id": 27, "name": "Pat", "result": "pending", "message_sent": true }
+```
+
+`POST /leagues/{id}/members` takes `name` and at least one of `email`, `phone`. `result` is `pending` (no account yet: added as a pending member and sent a link to sign up), `invited` (has an account: sent an invitation to accept, and joins when they do), or `already` (on the roster or already invited; nothing sent).
+
+### A worked example
+
+Set up next month's game, invite the usual people, and chase the stragglers a week later.
+
+```bash
+API=https://your-site.com/api/v2
+AUTH='Authorization: Bearer gnp_YOUR_TOKEN'
+
+# 1. Copy last month's game to the new date. The guest list comes with it.
+curl -X POST $API/events/886/duplicate -H "$AUTH" -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: january-game-2027' \
+  -d '{"start_at": "2027-01-09T19:00:00-06:00", "title": "January Tournament"}'
+#    -> data.event.id is the new event, say 1022
+
+# 2. One more guest.
+curl -X POST $API/events/1022/invites -H "$AUTH" -H 'Content-Type: application/json' \
+  -d '{"guests": [{"name": "Gil", "phone": "555-010-0142"}]}'
+
+# 3. Send the invitations (needs the messages permission).
+curl -X POST $API/events/1022/invitations/send -H "$AUTH"
+
+# 4. A week later: who has not answered?
+curl -H "$AUTH" $API/events/1022/invites
+#    -> the invites with "rsvp": null
+
+# 5. Remind them.
+curl -X POST $API/events/1022/nudge -H "$AUTH"
+
+# 6. The day before: tell the people coming where to park.
+curl -X POST $API/events/1022/messages -H "$AUTH" -H 'Content-Type: application/json' \
+  -d '{"subject": "Parking", "body": "Park on Elm, not in the drive.", "audience": "yes"}'
+
+# 7. Afterwards: how did it come out, and where does the season stand?
+curl -H "$AUTH" $API/events/1022/game/results
+curl -H "$AUTH" "$API/leagues/27/standings?range=ytd&rank=points"
+```
 
 ### Errors
 
