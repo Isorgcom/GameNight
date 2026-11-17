@@ -652,6 +652,7 @@ function db_init(PDO $pdo): void {
         rebuys_included INTEGER NOT NULL DEFAULT 0,
         addons_included INTEGER NOT NULL DEFAULT 0,
         addons_share_rebuys INTEGER NOT NULL DEFAULT 0,
+        payout_round    INTEGER NOT NULL DEFAULT 0,
         rebuy_cutoff_level INTEGER NOT NULL DEFAULT 0,
         starting_chips  INTEGER NOT NULL DEFAULT 5000,
         num_tables      INTEGER NOT NULL DEFAULT 1,
@@ -763,6 +764,7 @@ function db_init(PDO $pdo): void {
         rebuys_included     INTEGER DEFAULT 0,
         addons_included     INTEGER DEFAULT 0,
         addons_share_rebuys INTEGER DEFAULT 0,
+        payout_round        INTEGER DEFAULT 0,
         rebuy_cutoff_level  INTEGER DEFAULT 0,
         num_tables          INTEGER DEFAULT 1,
         seats_per_table     INTEGER DEFAULT 8,
@@ -926,6 +928,11 @@ function db_init(PDO $pdo): void {
     // of it is left (pk_addon_allowance, calc_pool).
     try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN addons_share_rebuys INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE user_session_defaults ADD COLUMN addons_share_rebuys INTEGER DEFAULT 0"); } catch (Exception $e) {}
+    // Round payouts (v1.25.0): cents each place's prize is rounded to (500 =
+    // the nearest $5), 0 = exact. First place takes the difference, so the
+    // prizes still add up to what the percentages assign (pk_payout_amounts).
+    try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN payout_round INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE user_session_defaults ADD COLUMN payout_round INTEGER DEFAULT 0"); } catch (Exception $e) {}
     // Rebuy cutoff (v1.9.0): no rebuys once the clock is past this blind level
     // (0 = all game). Enforced in checkin_dl.php update_rebuys, host override.
     try { $pdo->exec("ALTER TABLE poker_sessions ADD COLUMN rebuy_cutoff_level INTEGER NOT NULL DEFAULT 0"); } catch (Exception $e) {}

@@ -3463,6 +3463,8 @@ function poll() {
             S.lastElimPlace = (j.last_eliminated && j.last_eliminated.place) ? (j.last_eliminated.place | 0) : 0;
             var rows = [];
             var pay = j.payouts || [], poolCents = p ? (p.pool_total | 0) : 0;
+            // Rounded when the game asks for it (pk-payouts.js).
+            var payAmts = window.pkPayoutAmounts ? pkPayoutAmounts(poolCents, pay, p ? p.payout_round : 0) : null;
             for (var i = 0; i < pay.length; i++) {
                 // A place's reward is whatever the structure grants — a cut of
                 // a real pool, points, an entry ticket, a named prize, or
@@ -3472,7 +3474,8 @@ function poll() {
                 // BLANK on a live game because nothing else was consulted.
                 var parts = [];
                 if (poolCents && Number(pay[i].percentage) > 0) {
-                    parts.push('$' + Math.round(poolCents * Number(pay[i].percentage) / 100 / 100).toLocaleString('en-US'));
+                    var payCents = payAmts ? (payAmts[pay[i].place | 0] || 0) : Math.round(poolCents * Number(pay[i].percentage) / 100);
+                    parts.push('$' + Math.round(payCents / 100).toLocaleString('en-US'));
                 }
                 if ((pay[i].points | 0) > 0) parts.push((pay[i].points | 0) + ' pts');
                 if ((pay[i].ticket_cents | 0) > 0) parts.push('🎟 $' + ((pay[i].ticket_cents | 0) / 100).toLocaleString('en-US'));
@@ -4016,24 +4019,35 @@ function hideWakeBanner() {
     wakeBanner.style.opacity = '0';
     setTimeout(function () { if (wakeBanner) wakeBanner.remove(); wakeBanner = null; }, 600);
 }
+// On an iPhone or iPad the wake lock being granted has not kept the screen on
+// (see pk-keepawake.js), so there it is not proof of anything: the banner stays
+// until the silent clip is playing, which needs a tap. A page that does not
+// load pk-keepawake.js is unaffected.
+function wakeNeedsVideo() { return !!(window.pkKeepAwakeNeedsVideo && window.pkKeepAwakeNeedsVideo()); }
+function startWakeVideo() {
+    if (!wakeNeedsVideo()) return;
+    try { window.pkKeepAwakeVideo().then(function () { hideWakeBanner(); }).catch(function () {}); } catch (e) {}
+}
 function requestWakeLock() {
     if (!('wakeLock' in navigator) || wakeHeld) return;
     try {
         navigator.wakeLock.request('screen').then(function (wl) {
-            wakeLock = wl; wakeHeld = true; hideWakeBanner();
-            wl.addEventListener('release', function () { wakeLock = null; wakeHeld = false; });
+            wakeLock = wl; wakeHeld = true; if (!wakeNeedsVideo()) hideWakeBanner();
+            // iOS can drop the lock while the page is still showing; ask again.
+            wl.addEventListener('release', function () { wakeLock = null; wakeHeld = false; if (document.visibilityState === 'visible') setTimeout(requestWakeLock, 1000); });
         }).catch(function () {});
     } catch (e) {}
 }
 function acquireWakeFromGesture() {
     requestWakeLock();                       // the gesture is captured at call time
+    startWakeVideo();
     if (!noSleep || noSleepOn) return;
     var p;
     try { p = noSleep.enable(); } catch (e) { return; }
     if (p && typeof p.then === 'function') {
-        p.then(function () { noSleepOn = true; hideWakeBanner(); }).catch(function () {});
+        p.then(function () { noSleepOn = true; if (!wakeNeedsVideo()) hideWakeBanner(); }).catch(function () {});
     } else {
-        noSleepOn = true; hideWakeBanner();  // older builds resolve synchronously
+        noSleepOn = true; if (!wakeNeedsVideo()) hideWakeBanner();  // older builds resolve synchronously
     }
 }
 // Nothing to prompt on a desktop: it does not sleep out from under a viewer,

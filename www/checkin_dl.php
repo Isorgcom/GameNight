@@ -608,6 +608,13 @@ if ($action === 'update_config') {
            ->execute([pk_chip_set_json($_POST['chip_set']), $session_id]);
     }
 
+    // Payout rounding. Written only when the request carries it, for the
+    // same reason as the chip set.
+    if (array_key_exists('payout_round', $_POST)) {
+        $db->prepare('UPDATE poker_sessions SET payout_round = ? WHERE id = ?')
+           ->execute([pk_payout_round_clean($_POST['payout_round']), $session_id]);
+    }
+
     // Bounty changes move the net pool, so re-derive winnings immediately.
     pk_apply_tournament_payouts($db, $session_id);
 
@@ -646,6 +653,7 @@ if ($action === 'update_config') {
         'addons_included'    => (int)($srow['addons_included'] ?? 0),
         'addons_share_rebuys'=> (int)($srow['addons_share_rebuys'] ?? 0),
         'rebuy_cutoff_level' => (int)($srow['rebuy_cutoff_level'] ?? 0),
+        'payout_round'       => pk_payout_round_clean($srow['payout_round'] ?? 0),
         'num_tables'         => (int)$srow['num_tables'],
         'seats_per_table'    => (int)$srow['seats_per_table'],
         'auto_assign_tables' => (int)$srow['auto_assign_tables'],
@@ -1892,6 +1900,7 @@ if ($action === 'save_payout_structure') {
               'auto_assign_tables', 'bounty_optional', 'jackpot_optional'] as $k) {
         if (isset($_POST['gc_' . $k])) $gc[$k] = max(0, (int)$_POST['gc_' . $k]);
     }
+    if (isset($_POST['gc_payout_round'])) $gc['payout_round'] = pk_payout_round_clean($_POST['gc_payout_round']);
     $game_config = $gc ? json_encode($gc) : null;
 
     // Blind schedule + timer settings ride too, so a preset restores the WHOLE
@@ -2046,6 +2055,8 @@ if ($action === 'load_payout_structure') {
         foreach ($allowed as $k) {
             if (isset($gc[$k])) { $sets[] = "$k = ?"; $vals[] = max(0, (int)$gc[$k]); }
         }
+        // A preset saved before rounding existed leaves the game's own choice alone.
+        if (isset($gc['payout_round'])) { $sets[] = 'payout_round = ?'; $vals[] = pk_payout_round_clean($gc['payout_round']); }
         if ($sets) {
             $vals[] = $session_id;
             $db->prepare('UPDATE poker_sessions SET ' . implode(', ', $sets) . ' WHERE id = ?')->execute($vals);

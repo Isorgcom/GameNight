@@ -275,6 +275,8 @@ function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allo
                    (int)$__def['auto_assign_tables'],
                    $poker_game_type,
                ]);
+            $db->prepare('UPDATE poker_sessions SET payout_round = ? WHERE event_id = ? AND setup_saved = 0')
+               ->execute([pk_payout_round_clean($__def['payout_round'] ?? 0), $notify_eid]);
             // Also refresh the user's last-used with what they just chose.
             if (function_exists('save_user_session_defaults')) {
                 save_user_session_defaults($db, (int)$current['id'], $league_id, [
@@ -378,6 +380,8 @@ function event_save_from_post(PDO $db, array $current, bool $isAdmin, bool $allo
                        (int)$__def['rebuy_allowed'], (int)$__def['addon_allowed'], (int)$__def['max_rebuys'], (int)($__def['rebuys_included'] ?? 0), (int)($__def['addons_included'] ?? 0), (int)($__def['addons_share_rebuys'] ?? 0), (int)($__def['rebuy_cutoff_level'] ?? 0),
                        $poker_tables, $poker_seats, (int)$__def['auto_assign_tables'], $poker_game_type,
                    ]);
+                $db->prepare('UPDATE poker_sessions SET payout_round = ? WHERE event_id = ?')
+                   ->execute([pk_payout_round_clean($__def['payout_round'] ?? 0), $id]);
             }
             if (function_exists('save_user_session_defaults')) {
                 save_user_session_defaults($db, (int)$current['id'], $league_id, [
