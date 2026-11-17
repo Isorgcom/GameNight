@@ -364,83 +364,14 @@ if ($tab === 'stats') {
     $from_sql = $_st_from_date ? $_st_from_date->format('Y-m-d') : null;
     $to_sql   = $_st_to_date   ? $_st_to_date->format('Y-m-d')   : null;
 
-    $where_date = '';
-    $params     = [$league_id];
-    if ($from_sql) { $where_date .= " AND e.start_date >= ?"; $params[] = $from_sql; }
-    if ($to_sql)   { $where_date .= " AND e.start_date <= ?"; $params[] = $to_sql;   }
-
     // Ranking metric (?rank=): score (tournament placement quality, default),
-    // net (money won/lost), or wins. Players under the min-games threshold are
-    // listed but sort after everyone who qualifies, so a one-game wonder can't
-    // top a 20-game regular.
-    $LB_MIN_GAMES = 3;
+    // net (money won/lost), wins or points. The query itself, and the rule
+    // that players under the minimum sort last, live in svc/stats.php, shared
+    // with the player page, the public teaser and the API.
+    require_once __DIR__ . '/svc/stats.php';
+    $LB_MIN_GAMES = GN_STANDINGS_MIN_GAMES;
     $_st_rank = in_array($_GET['rank'] ?? 'score', ['score', 'net', 'wins', 'points'], true) ? ($_GET['rank'] ?? 'score') : 'score';
-    $order_by = [
-        'score'  => 'qualified DESC, avg_score IS NULL, avg_score DESC, net DESC, games ASC',
-        'net'    => 'qualified DESC, net DESC, avg_score DESC, games ASC',
-        'wins'   => 'qualified DESC, wins DESC, avg_score DESC, games ASC',
-        'points' => 'qualified DESC, points DESC, wins DESC, avg_score DESC, games ASC',
-    ][$_st_rank];
-
-    // One row per player per finished session (tournaments AND cash games, guests
-    // included via the g_<name> player_key). Money is in cents:
-    //   tournament: invested = buyin+rebuys+addons, winnings = recorded payout
-    //   cash:       invested = cash_in,             winnings = cash_out
-    // Placement stats (finish/score/wins/ITM) are tournament-only; AVG/MIN skip
-    // the NULLs cash rows produce.
-    $stmt = $db->prepare("
-        SELECT
-            g.player_key, g.display_name, g.known_as, g.user_id,
-            COUNT(*) as games,
-            SUM(CASE WHEN g.game_type = 'tournament' THEN 1 ELSE 0 END) as t_games,
-            SUM(CASE WHEN g.game_type = 'tournament' AND g.finish_position = 1 THEN 1 ELSE 0 END) as wins,
-            SUM(CASE WHEN g.game_type = 'tournament' AND g.winnings > 0 THEN 1 ELSE 0 END) as itm,
-            MIN(CASE WHEN g.game_type = 'tournament' THEN g.finish_position END) as best_finish,
-            ROUND(AVG(CASE WHEN g.game_type = 'tournament' THEN g.finish_position END), 1) as avg_finish,
-            ROUND(AVG(CASE WHEN g.game_type = 'tournament' THEN g.score END), 1) as avg_score,
-            SUM(g.invested) as invested,
-            SUM(g.winnings) as winnings,
-            SUM(g.winnings - g.invested) as net,
-            SUM(g.points) as points,
-            (COUNT(*) >= $LB_MIN_GAMES) as qualified
-        FROM (
-            SELECT
-                pp.user_id,
-                COALESCE(u.username, pp.display_name) as display_name,
-                lm.known_as,
-                COALESCE(CAST(pp.user_id AS TEXT), 'g_' || LOWER(pp.display_name)) as player_key,
-                ps.game_type,
-                CASE WHEN ps.game_type = 'tournament' THEN COALESCE(pp.finish_position, pc.field_size) END as finish_position,
-                CASE WHEN ps.game_type = 'tournament'
-                     THEN pp.bought_in * ps.buyin_amount + MAX(0, pp.rebuys - COALESCE(ps.rebuys_included, 0)) * COALESCE(ps.rebuy_amount, 0) + MAX(0, pp.addons - CASE WHEN COALESCE(ps.addons_share_rebuys, 0) = 1 THEN MAX(0, COALESCE(ps.rebuys_included, 0) - pp.rebuys) ELSE COALESCE(ps.addons_included, 0) END) * COALESCE(ps.addon_amount, 0)
-                     ELSE COALESCE(pp.cash_in, 0) END as invested,
-                CASE WHEN ps.game_type = 'tournament' THEN COALESCE(pp.payout, 0) + COALESCE(pp.bounty_cash, 0)
-                     ELSE COALESCE(pp.cash_out, 0) END as winnings,
-                COALESCE(pp.points, 0) as points,
-                CASE WHEN ps.game_type = 'tournament' AND pc.field_size > 1
-                    THEN ROUND(CAST(pc.field_size - COALESCE(pp.finish_position, pc.field_size) AS REAL) / pc.field_size * 80 + 20, 1)
-                    WHEN ps.game_type = 'tournament' THEN 100
-                END as score
-            FROM poker_players pp
-            JOIN poker_sessions ps ON ps.id = pp.session_id
-            JOIN events e ON e.id = ps.event_id
-            LEFT JOIN users u ON u.id = pp.user_id
-            LEFT JOIN league_members lm ON lm.league_id = e.league_id AND lm.user_id = pp.user_id
-            JOIN (
-                SELECT session_id, COUNT(*) as field_size
-                FROM poker_players WHERE bought_in = 1 AND removed = 0
-                GROUP BY session_id
-            ) pc ON pc.session_id = pp.session_id
-            WHERE pp.bought_in = 1 AND pp.removed = 0
-              AND ps.status = 'finished'
-              AND e.league_id = ?
-              $where_date
-        ) g
-        GROUP BY g.player_key
-        ORDER BY $order_by
-    ");
-    $stmt->execute($params);
-    $leaderboard = $stmt->fetchAll();
+    $leaderboard = gn_standings_rows($db, $league_id, $from_sql, $to_sql, $_st_rank);
 
     $myKey = (string)$uid;
     foreach ($leaderboard as $row) {
@@ -1524,9 +1455,9 @@ function ordinal($n) {
         <div class="lg-card" style="display:block">
             <h3 style="margin:0 0 .5rem">API keys</h3>
             <p style="font-size:.85rem;color:#64748b;margin:0 0 1rem;line-height:1.55">
-                Issue read-only API keys for sister sites or other trusted consumers. Each key
-                is bound to <strong><?= htmlspecialchars($league['name']) ?></strong> and can
-                read this league's events, posts, and member roster via
+                Issue API keys for sister sites or other trusted consumers. Each key
+                is bound to <strong><?= htmlspecialchars($league['name']) ?></strong>. A read-only key can
+                read this league's events, posts, and member roster; a read + write key can also change them, via
                 <code style="background:#f1f5f9;padding:.1rem .35rem;border-radius:4px">/api/v1/...</code>.
                 Keys are hashed at rest; the plaintext is shown exactly once at creation.
                 Personal contact info (emails, phones) is never returned by the API.
@@ -1546,7 +1477,7 @@ function ordinal($n) {
                     Scope
                     <select name="scopes" style="padding:.5rem .65rem;border:1.5px solid #cbd5e1;border-radius:6px;font:inherit;background:#fff">
                         <option value="read">Read-only</option>
-                        <option value="read,write">Read + write (create users)</option>
+                        <option value="read,write">Read + write (events, guests, posts, members)</option>
                     </select>
                 </label>
                 <button type="submit" class="lg-btn">Mint key</button>
@@ -1601,7 +1532,7 @@ function ordinal($n) {
                 Use the key in an <code style="background:#f1f5f9;padding:.1rem .35rem;border-radius:4px">Authorization</code>
                 header. Every endpoint returns JSON with <code style="background:#f1f5f9;padding:.1rem .35rem;border-radius:4px">{"ok": true, "data": ...}</code>
                 on success or <code style="background:#f1f5f9;padding:.1rem .35rem;border-radius:4px">{"ok": false, "error": "..."}</code>
-                on failure. All endpoints are read-only (GET); the key cannot be used to write data.
+                on failure. The read endpoints are listed below. A read + write key can also create and change events, guest lists, posts and members; those endpoints are in the full reference.
             </p>
 
             <h4 style="font-size:.85rem;font-weight:700;color:#0f172a;margin:1.25rem 0 .5rem">Authentication</h4>
@@ -1665,7 +1596,9 @@ function ordinal($n) {
                 <li><code style="background:#f1f5f9;padding:.05rem .3rem;border-radius:3px">401</code> &mdash; missing, malformed, or revoked key.</li>
                 <li><code style="background:#f1f5f9;padding:.05rem .3rem;border-radius:3px">400</code> &mdash; bad parameter (e.g. <code style="background:#f1f5f9;padding:.05rem .3rem;border-radius:3px">from</code> after <code style="background:#f1f5f9;padding:.05rem .3rem;border-radius:3px">to</code>, window over 366 days).</li>
                 <li><code style="background:#f1f5f9;padding:.05rem .3rem;border-radius:3px">404</code> &mdash; the league bound to the key was deleted.</li>
-                <li><code style="background:#f1f5f9;padding:.05rem .3rem;border-radius:3px">405</code> &mdash; non-GET method.</li>
+                <li><code style="background:#f1f5f9;padding:.05rem .3rem;border-radius:3px">403</code> &mdash; a read-only key used on a write endpoint.</li>
+                <li><code style="background:#f1f5f9;padding:.05rem .3rem;border-radius:3px">405</code> &mdash; a method the endpoint does not accept.</li>
+                <li><code style="background:#f1f5f9;padding:.05rem .3rem;border-radius:3px">429</code> &mdash; more than 120 requests in a minute, or 60 writes in an hour on one endpoint.</li>
             </ul>
 
             <h4 style="font-size:.85rem;font-weight:700;color:#0f172a;margin:1.25rem 0 .5rem">Caching &amp; rate limits</h4>

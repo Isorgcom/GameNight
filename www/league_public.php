@@ -188,43 +188,11 @@ $events = $ev->fetchAll();
 
 // Stats teaser: collapsed version of the league.php all-time leaderboard.
 // Names are truncated to "First L." and money columns are deliberately absent.
-$LB_MIN_GAMES = 3;
-$lbStmt = $db->prepare("
-    SELECT
-        g.display_name,
-        COUNT(*) as games,
-        SUM(CASE WHEN g.game_type = 'tournament' AND g.finish_position = 1 THEN 1 ELSE 0 END) as wins,
-        ROUND(AVG(CASE WHEN g.game_type = 'tournament' THEN g.score END), 1) as avg_score,
-        (COUNT(*) >= $LB_MIN_GAMES) as qualified
-    FROM (
-        SELECT
-            COALESCE(u.username, pp.display_name) as display_name,
-            COALESCE(CAST(pp.user_id AS TEXT), 'g_' || LOWER(pp.display_name)) as player_key,
-            ps.game_type,
-            CASE WHEN ps.game_type = 'tournament' THEN COALESCE(pp.finish_position, pc.field_size) END as finish_position,
-            CASE WHEN ps.game_type = 'tournament' AND pc.field_size > 1
-                THEN ROUND(CAST(pc.field_size - COALESCE(pp.finish_position, pc.field_size) AS REAL) / pc.field_size * 80 + 20, 1)
-                WHEN ps.game_type = 'tournament' THEN 100
-            END as score
-        FROM poker_players pp
-        JOIN poker_sessions ps ON ps.id = pp.session_id
-        JOIN events e ON e.id = ps.event_id
-        LEFT JOIN users u ON u.id = pp.user_id
-        JOIN (
-            SELECT session_id, COUNT(*) as field_size
-            FROM poker_players WHERE bought_in = 1 AND removed = 0
-            GROUP BY session_id
-        ) pc ON pc.session_id = pp.session_id
-        WHERE pp.bought_in = 1 AND pp.removed = 0
-          AND ps.status = 'finished'
-          AND e.league_id = ?
-    ) g
-    GROUP BY g.player_key
-    ORDER BY qualified DESC, avg_score IS NULL, avg_score DESC, games ASC
-    LIMIT 5
-");
-$lbStmt->execute([$league_id]);
-$teaser = $lbStmt->fetchAll();
+// The same ranked rows as the league's own stats tab, cut to the top five;
+// the template below prints only name, games, wins and score.
+require_once __DIR__ . '/svc/stats.php';
+$LB_MIN_GAMES = GN_STANDINGS_MIN_GAMES;
+$teaser = array_slice(gn_standings_rows($db, $league_id, null, null, 'score'), 0, 5);
 
 // League posts the managers explicitly made public (share_token minted via the
 // posts tab). Same gate as post_public.php: a revoked share link (share_token

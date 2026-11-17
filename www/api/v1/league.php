@@ -10,6 +10,13 @@
 
 require_once __DIR__ . '/../_auth.php';
 
+// A browser sends OPTIONS before a request that carries an Authorization header.
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
+    api_send_headers(0);
+    http_response_code(204);
+    exit;
+}
+
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
     api_log_request(null, 405);
     api_fail('Method not allowed', 405);

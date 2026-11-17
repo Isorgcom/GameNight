@@ -6,6 +6,8 @@ $db      = get_db();
 
 // _delete_user_account is defined in db.php
 $flash   = ['type' => '', 'msg' => ''];
+// The page's sections, in the order the switcher shows them.
+const ST_PANES = ['profile' => 'Profile', 'preferences' => 'Preferences', 'notifications' => 'Notifications', 'security' => 'Security', 'account' => 'Account'];
 
 session_start_safe();
 if (!empty($_SESSION['flash'])) {
@@ -255,6 +257,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        // ── Personal API tokens ──────────────────────────────────────────────
+        // A token is a way into the account from another program, so minting
+        // one asks for the password, exactly like turning off two-factor. The
+        // plaintext is shown once, on the page that follows; only its hash is kept.
+        elseif ($action === 'api_token_create') {
+            require_once __DIR__ . '/api/_auth.php';
+            $label   = trim(preg_replace('/[\x00-\x1F\x7F]/', '', (string)($_POST['label'] ?? '')));
+            $scopes  = api_token_clean_scopes((array)($_POST['scopes'] ?? []));
+            $pwCheck = confirm_current_password((int)$current['id'], (string)($_POST['current_password'] ?? ''));
+            $have    = (int)$db->query('SELECT COUNT(*) FROM api_tokens WHERE client_id IS NULL AND user_id = ' . (int)$current['id'])->fetchColumn();
+            if ($pwCheck !== 'ok') {
+                $flash = ['type' => 'error', 'msg' => password_confirm_message($pwCheck) . ' No token was created.'];
+            } elseif ($label === '' || mb_strlen($label) > 80) {
+                $flash = ['type' => 'error', 'msg' => 'Give the token a name of up to 80 characters, so you can tell later what it is for.'];
+            } elseif ($have >= 10) {
+                $flash = ['type' => 'error', 'msg' => 'You already have 10 tokens. Revoke one you no longer use first.'];
+            } else {
+                [$plain, $hash] = api_token_generate();
+                $db->prepare('INSERT INTO api_tokens (user_id, token_hash, label, scopes) VALUES (?, ?, ?, ?)')
+                   ->execute([$current['id'], $hash, $label, implode(',', $scopes)]);
+                db_log_activity($current['id'], "created API token '$label' (scopes: " . implode(',', $scopes) . ')');
+                send_account_notice((int)$current['id'], 'An API token was created', "An API token named \"$label\" was created on your account from Settings. It lets another program act as you. If this was not you, change your password, which also revokes every token.");
+                $_SESSION['new_api_token'] = ['token' => $plain, 'label' => $label];
+                $flash = ['type' => 'success', 'msg' => 'Token created. Copy it now: it is shown only once.'];
+            }
+        }
+
+        elseif ($action === 'api_token_revoke') {
+            $tid = (int)($_POST['token_id'] ?? 0);
+            $row = $db->prepare('SELECT label FROM api_tokens WHERE id = ? AND user_id = ?');
+            $row->execute([$tid, $current['id']]);
+            $label = $row->fetchColumn();
+            if ($label === false) {
+                $flash = ['type' => 'error', 'msg' => 'That token no longer exists.'];
+            } else {
+                $db->prepare('DELETE FROM api_tokens WHERE id = ? AND user_id = ?')->execute([$tid, $current['id']]);
+                db_log_activity($current['id'], "revoked API token '$label'");
+                $flash = ['type' => 'success', 'msg' => 'Token revoked. Anything still using it stops working now.'];
+            }
+        }
+
         elseif ($action === 'cancel_email_change') {
             $db->prepare('UPDATE users SET pending_email = NULL WHERE id = ?')->execute([$current['id']]);
             $db->prepare('UPDATE email_verifications SET used = 1 WHERE user_id = ? AND used = 0 AND new_email IS NOT NULL')->execute([$current['id']]);
@@ -297,6 +340,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // Come back on the section the form was in: each form carries st_pane.
+    if (isset(ST_PANES[(string)($_POST['st_pane'] ?? '')])) $_SESSION['st_pane'] = (string)$_POST['st_pane'];
     $_SESSION['flash'] = $flash;
     header('Location: /settings.php');
     exit;
@@ -322,6 +367,50 @@ $lq = $db->prepare(
 $lq->execute([$current['id']]);
 $my_leagues = $lq->fetchAll();
 
+// Personal API tokens: the list, and the one just minted (shown once).
+require_once __DIR__ . '/api/_auth.php';
+$tq = $db->prepare('SELECT t.id, t.label, t.scopes, t.created_at, t.last_used_at,
+                            (SELECT COUNT(*) FROM api_request_log r WHERE r.token_id = t.id) AS requests
+                       FROM api_tokens t WHERE t.user_id = ? AND t.client_id IS NULL ORDER BY t.id DESC');
+// Stored UTC to the viewer's own timezone.
+$st_when = fn(?string $utc, string $fmt) => $utc ? (new DateTime($utc, new DateTimeZone('UTC')))->setTimezone(new DateTimeZone(date_default_timezone_get()))->format($fmt) : '';
+$tq->execute([$current['id']]);
+$api_tokens    = $tq->fetchAll();
+// Each token's most recent requests, for its "Recent activity" list. The path
+// stored is the route pattern (/api/v2/events/{id}), never the raw address.
+$token_activity = [];
+$aq = $db->prepare('SELECT method, path, status, ip, created_at FROM api_request_log WHERE token_id = ? ORDER BY id DESC LIMIT 25');
+foreach ($api_tokens as $_t) {
+    $aq->execute([(int)$_t['id']]);
+    $token_activity[(int)$_t['id']] = $aq->fetchAll();
+}
+// What a status code means to the person reading the list.
+$st_status = fn(int $c) => match (true) {
+    $c >= 200 && $c < 300 => 'OK',
+    $c === 401 => 'Refused: token not accepted',
+    $c === 403 => 'Refused: not allowed',
+    $c === 404 => 'Not found',
+    $c === 405 => 'Wrong method',
+    $c === 409 => 'Refused: conflict',
+    $c === 429 => 'Refused: too many requests',
+    $c >= 500 => 'Server error',
+    default => 'Bad request',
+};
+$new_api_token = $_SESSION['new_api_token'] ?? null;
+unset($_SESSION['new_api_token']);
+
+// The section to open, decided here so the first paint is already right: the
+// one a form was just saved from, or Security when the password must change
+// or a token was just created.
+$st_pane = (string)($_SESSION['st_pane'] ?? 'profile');
+unset($_SESSION['st_pane']);
+if (!isset(ST_PANES[$st_pane])) $st_pane = 'profile';
+if (!empty($_GET['must_change']) || $new_api_token) $st_pane = 'security';
+// Attributes for a section: a tab panel, hidden unless it is the open one.
+// hidden="until-found" keeps a closed section findable with the browser's
+// find-in-page; where that is not supported it behaves as plain hidden.
+$st_panel = fn(string $p) => 'class="st-pane" id="st-' . $p . '" data-pane="' . $p . '" role="tabpanel" aria-labelledby="st-tab-' . $p . '"' . ($p === $st_pane ? '' : ' hidden="until-found"');
+
 $token = csrf_token();
 $site_name = get_setting('site_name', 'Game Night');
 ?>
@@ -333,43 +422,191 @@ $site_name = get_setting('site_name', 'Game Night');
     <title><?= htmlspecialchars($site_name) ?></title>
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
-        .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-        @media (max-width: 640px) { .settings-grid { grid-template-columns: 1fr; } }
+        /* Settings: one column of cards, switched by the segmented control.
+           The open section is decided on the server, so the first paint is right. */
+        .st-wrap { max-width: 820px; container: settings / inline-size; }
+        .st-head { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.25rem; }
+        .st-head h1 { font-size: 1.35rem; line-height: 1.2; margin: 0; text-wrap: balance; }
+        .st-head p { margin: .2rem 0 0; color: var(--muted); font-size: .88rem; overflow-wrap: anywhere; }
+        .st-wrap h2 { text-wrap: balance; }
+        .st-wrap p { text-wrap: pretty; }
+
+        /* The section switcher. It scrolls sideways if five buttons cannot fit,
+           and each end fades while there is more beyond it. */
+        @property --st-fade-start { syntax: "<length>"; inherits: false; initial-value: 0px; }
+        @property --st-fade-end   { syntax: "<length>"; inherits: false; initial-value: 0px; }
+        .st-nav { overflow-x: auto; margin-bottom: 1.25rem; scrollbar-width: none; -webkit-overflow-scrolling: touch; scroll-padding-inline: 2rem;
+            --st-fade: 2rem;
+            mask:
+                linear-gradient(black, black) no-clip subtract,
+                linear-gradient(to right, black, transparent) 0 0 / var(--st-fade-start) 100% no-repeat no-clip,
+                linear-gradient(to right, transparent, black) 100% 0 / var(--st-fade-end) 100% no-repeat no-clip;
+            transition: --st-fade-start .2s, --st-fade-end .2s; }
+        .st-nav::-webkit-scrollbar { display: none; }
+        @supports (animation-timeline: scroll()) {
+            .st-nav { animation: st-fade-in linear both, st-fade-out linear both; animation-timeline: scroll(self inline);
+                animation-range: 0 var(--st-fade), calc(100% - var(--st-fade)) 100%; }
+        }
+        @keyframes st-fade-in  { to   { --st-fade-start: var(--st-fade); } }
+        @keyframes st-fade-out { from { --st-fade-end:   var(--st-fade); } }
+        /* Where scroll-driven animations are missing, script marks the ends. */
+        .st-nav.more-start { --st-fade-start: var(--st-fade); }
+        .st-nav.more-end   { --st-fade-end:   var(--st-fade); }
+        .st-nav .pk-seg { display: flex; width: max-content; min-width: 100%; }
+        .st-nav .pk-seg button { flex: 1 0 auto; min-block-size: 40px; padding: .5rem .9rem; font-size: .86rem; }
+
+        .st-pane { display: flex; flex-direction: column; gap: 1.25rem; }
+        /* A plainly hidden section (no until-found support) is removed; one
+           hidden until found is left to the browser, which hides its contents. */
+        .st-pane[hidden]:not([hidden="until-found"]) { display: none; }
+        .st-wrap .card { max-width: 100%; margin: 0; padding: 1.5rem; }
+        .st-wrap .card h2 { font-size: 1.1rem; margin-bottom: .25rem; }
+        .st-wrap .card .subtitle { margin-bottom: 1.1rem; }
+        .st-two { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; align-items: start; }
+        /* Fields run in ONE column, a comfortable line long, so the eye goes straight down. */
+        .st-fields { max-inline-size: 34rem; }
+        .st-wrap .form-group { margin-block-end: 1.1rem; }
+        .st-wrap .form-group label { margin-block-end: .3rem; }
+        .st-select, .st-wrap .form-group input:not([type=checkbox]) { font: inherit; font-size: max(1rem, 1em); min-block-size: 44px; box-sizing: border-box; }
+        .st-select { inline-size: 100%; padding: .5rem .75rem; border: 1.5px solid var(--border); border-radius: 8px; background: #fff; }
+        .st-wrap :is(input, select):focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; }
+        .st-wrap .hint { font-size: .8rem; line-height: 1.45; color: var(--muted); margin-top: .3rem; }
+        .st-actions { display: flex; justify-content: flex-start; gap: .6rem; flex-wrap: wrap; margin-top: .75rem; }
+        .st-actions .btn { min-inline-size: 11rem; min-block-size: 44px; }
+        .st-photo { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.25rem; padding-bottom: 1.25rem; border-bottom: 1px solid #f1f5f9; }
+        .st-fieldset { border: 0; padding: 0; margin: .25rem 0 0; min-inline-size: 0; }
+        .st-fieldset legend { font-size: .85rem; font-weight: 600; padding: 0; }
+        /* Rows: a label on the left, a control or value on the right. */
+        .st-rows { display: flex; flex-direction: column; }
+        .st-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .7rem 0; border-bottom: 1px solid #f1f5f9; min-block-size: 48px; }
+        .st-rows > .st-row:last-child { border-bottom: none; }
+        .st-row-main { min-inline-size: 0; }
+        .st-row-title { display: block; font-size: .92rem; font-weight: 600; color: #1e293b; overflow-wrap: break-word; }
+        a.st-row-title { color: var(--accent); overflow-wrap: anywhere; }
+        .st-row-sub { display: block; font-size: .8rem; color: var(--muted); margin-top: .1rem; }
+        .st-row-val { flex: none; font-size: .9rem; color: #334155; text-align: end; }
+        label.st-row { cursor: pointer; }
+        /* A checkbox drawn as a switch. It stays a real checkbox: it submits,
+           takes Space, and is announced as a switch. */
+        .st-switch { appearance: none; -webkit-appearance: none; flex: none; inline-size: 44px; block-size: 26px; margin: 0; border-radius: 13px; background: #94a3b8; position: relative; cursor: pointer; transition: background .15s; accent-color: var(--accent); }
+        .st-switch::after { content: ""; position: absolute; inset-block-start: 3px; inset-inline-start: 3px; inline-size: 20px; block-size: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(15,23,42,.3); transition: translate .15s; }
+        .st-switch:checked { background: var(--accent); }
+        .st-switch:checked::after { translate: 18px 0; }
+        .st-switch:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 3px; }
+        .st-switch:disabled { opacity: .55; cursor: default; }
+        /* A token: its row, then a disclosure with what it has been doing. */
+        .st-token { border-bottom: 1px solid #f1f5f9; }
+        .st-token:last-child { border-bottom: none; }
+        .st-token > .st-row { border-bottom: none; }
+        .st-activity { margin: 0 0 .75rem; }
+        .st-activity summary { cursor: pointer; font-size: .85rem; font-weight: 600; color: var(--accent); min-block-size: 32px; display: flex; align-items: center; gap: .4rem; inline-size: fit-content; list-style: none; }
+        .st-activity summary::-webkit-details-marker { display: none; }
+        .st-activity summary::before { content: ""; inline-size: .45rem; block-size: .45rem; border-inline-end: 2px solid currentColor; border-block-end: 2px solid currentColor; rotate: -45deg; transition: rotate .15s; }
+        .st-activity[open] summary::before { rotate: 45deg; }
+        .st-activity summary:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; border-radius: 4px; }
+        .st-activity-list { list-style: none; margin: .4rem 0 0; padding: 0; border: 1px solid var(--border); border-radius: 8px; max-block-size: 22rem; overflow-y: auto; }
+        .st-activity-list li { display: grid; grid-template-columns: 9.5rem minmax(0, 1fr) auto; gap: .15rem .9rem; align-items: baseline; padding: .5rem .75rem; border-bottom: 1px solid #f1f5f9; font-size: .82rem; }
+        .st-activity-list li:last-child { border-bottom: none; }
+        .st-activity-list time { color: var(--muted); font-variant-numeric: tabular-nums; }
+        .st-activity-list code { font-size: .8rem; overflow-wrap: anywhere; }
+        .st-activity-status { color: #166534; font-weight: 600; text-align: end; }
+        .st-activity-status.is-refused { color: #991b1b; }
+        .st-activity-ip { grid-column: 2 / -1; color: var(--muted); font-size: .76rem; }
+        .st-note { font-size: .8rem; color: var(--muted); margin: .75rem 0 0; }
+        .st-token-new { background: #fffbeb; border: 1.5px solid #f59e0b; border-radius: 8px; padding: .85rem 1rem; margin-bottom: 1rem; }
+        .st-token-new code { display: block; overflow-wrap: anywhere; background: #fff; border: 1px solid #fde68a; border-radius: 6px; padding: .5rem .6rem; font-size: .8rem; }
+        .st-danger { border-color: #fca5a5 !important; }
+        .st-danger h2 { color: #dc2626; }
+        .btn-danger { background: #dc2626; color: #fff; }
+        .btn-danger-outline { background: transparent; border: 1.5px solid #fca5a5; color: #dc2626; }
+
+        /* Layout answers to the width of the settings column, not the window. */
+        @container settings (inline-size < 44rem) {
+            .st-two { grid-template-columns: 1fr; }
+            .st-fields { max-inline-size: none; }
+            .st-actions .btn { inline-size: 100%; min-block-size: 48px; }
+            /* The site flattens cards on small screens; here they stay cards,
+               so the sections of a long page read as separate things. */
+            .st-wrap .card { padding: 1.1rem 1rem; border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+            .st-wrap .form-group label { font-size: .85rem; }
+            .st-wrap .form-group input:not([type=checkbox]), .st-select { padding: .55rem .75rem; }
+            .st-nav .pk-seg button { padding: .5rem .3rem; font-size: .76rem; }
+            /* The activity list stacks: when, then what, then how it went. */
+            .st-activity-list li { grid-template-columns: minmax(0, 1fr) auto; }
+            .st-activity-list time { grid-column: 1 / -1; }
+            .st-activity-ip { grid-column: 1 / -1; }
+            .st-head h1 { font-size: 1.2rem; }
+        }
+        @media (max-width: 720px) {
+            .st-wrap { padding: 0 .75rem !important; margin-top: 1rem !important; }
+        }
+        /* A finger is less exact than a mouse pointer, whatever the screen size. */
+        @media (pointer: coarse) {
+            .st-wrap :is(.btn, .st-select, .form-group input:not([type=checkbox])) { min-block-size: 48px; }
+            .st-nav .pk-seg button { min-block-size: 44px; }
+            .st-row { min-block-size: 52px; }
+            .st-activity summary { min-block-size: 44px; }
+        }
+        /* Forced colours drop backgrounds, which is all the sliding thumb and
+           the switch are drawn with: mark the open section with a border, and
+           hand the switch back to the browser. */
+        @media (forced-colors: active) {
+            #stSeg button[aria-selected="true"]::after { content: ""; position: absolute; inset: auto 0 0; border-block-end: 3px solid Highlight; }
+            .st-switch { appearance: auto; -webkit-appearance: auto; inline-size: auto; block-size: auto; }
+            .st-switch::after { display: none; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .st-switch, .st-switch::after, .st-nav, .st-activity summary::before { transition: none; }
+        }
     </style>
+    <!-- Without script the switcher cannot work, so every section shows. -->
+    <noscript><style>.st-nav { display: none; } .st-pane[hidden] { display: flex !important; content-visibility: visible !important; }</style></noscript>
 </head>
 <body>
 
 <?php $nav_active = 'settings'; $nav_user = $me; require __DIR__ . '/_nav.php'; ?>
 </nav>
 
-<div class="dash-wrap">
+<div class="dash-wrap st-wrap" id="stWrap">
 
-    <div class="dash-header">
-        <h1>Account Settings</h1>
-        <p>Update your profile and password.</p>
+    <div class="st-head">
+        <?= avatar_html($current['username'], $current['avatar_path'] ?? null, 56) ?>
+        <div style="min-width:0">
+            <h1><?= htmlspecialchars($me['username'], ENT_QUOTES | ENT_SUBSTITUTE) ?></h1>
+            <p><?= htmlspecialchars($me['email'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE) ?><?= $me['role'] === 'admin' ? ' &middot; <span class="badge badge-admin">admin</span>' : '' ?></p>
+        </div>
     </div>
 
     <?php if (!empty($_GET['must_change'])): ?>
-        <div class="alert alert-error" style="margin-bottom:1.5rem">
+        <div class="alert alert-error" style="margin-bottom:1.25rem">
             You are using the default password. You must change it before continuing.
         </div>
     <?php endif; ?>
 
     <?php if ($flash['msg']): ?>
-        <div class="alert alert-<?= $flash['type'] === 'error' ? 'error' : 'success' ?>" style="margin-bottom:1.5rem">
+        <div class="alert alert-<?= $flash['type'] === 'error' ? 'error' : 'success' ?>" style="margin-bottom:1.25rem">
             <?= htmlspecialchars($flash['msg']) ?>
         </div>
     <?php endif; ?>
 
-    <div class="settings-grid">
+    <!-- Section switcher: the house segmented control (pk-seg.js). -->
+    <div class="st-nav">
+        <div class="pk-seg" id="stSeg" data-seg-role="tablist" aria-label="Settings sections">
+            <span class="pk-seg-thumb"></span>
+            <?php foreach (ST_PANES as $_p => $_label): ?>
+            <button type="button" id="st-tab-<?= $_p ?>" data-pane="<?= $_p ?>" data-act="stTab" role="tab" aria-selected="<?= $_p === $st_pane ? 'true' : 'false' ?>"<?= $_p === $st_pane ? ' class="active"' : '' ?>><?= $_label ?></button>
+            <?php endforeach; ?>
+        </div>
+    </div>
 
-        <!-- Profile -->
-        <div class="card" style="max-width:100%">
-            <h2>Profile</h2>
-            <p class="subtitle">Update your name and email address.</p>
+    <!-- ═══ Profile ═══ -->
+    <section <?= $st_panel('profile') ?>>
+        <div class="card">
+            <h2 id="st-h-profile">Profile</h2>
+            <p class="subtitle">Your name, photo and how you sign in.</p>
 
             <!-- Profile photo -->
-            <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.1rem">
+            <div class="st-photo">
                 <span id="stAvatarPreview"><?= avatar_html($current['username'], $current['avatar_path'] ?? null, 64) ?></span>
                 <div>
                     <div style="font-size:.85rem;font-weight:600;color:#475569;margin-bottom:.35rem">Profile photo</div>
@@ -378,7 +615,7 @@ $site_name = get_setting('site_name', 'Game Night');
                         <input type="file" id="stAvatarFile" accept="image/*" style="display:none">
                         <?php if (!empty($current['avatar_path'])): ?>
                         <form method="post" action="/settings.php" style="margin:0" data-confirm="Remove your profile photo?" data-confirm-ok="Remove" data-confirm-danger="1">
-                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>"><input type="hidden" name="st_pane" value="profile">
                             <input type="hidden" name="action" value="remove_avatar">
                             <button type="submit" class="btn btn-outline" style="font-size:.82rem;color:#dc2626;border-color:#fecaca">Remove</button>
                         </form>
@@ -388,7 +625,7 @@ $site_name = get_setting('site_name', 'Game Night');
                 </div>
             </div>
             <form id="stAvatarForm" method="post" action="/settings.php" style="display:none">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>"><input type="hidden" name="st_pane" value="profile">
                 <input type="hidden" name="action" value="set_avatar">
                 <input type="hidden" name="avatar_path" id="stAvatarPath">
             </form>
@@ -442,19 +679,23 @@ $site_name = get_setting('site_name', 'Game Night');
             });
             </script>
 
-            <form method="post" action="/settings.php">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+
+            <!-- The one profile form. The Preferences and Notifications panes hold
+                 more of its fields, tied to it by the form="stProfileForm" attribute. -->
+            <form method="post" action="/settings.php" id="stProfileForm" aria-labelledby="st-h-profile">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>"><input type="hidden" name="st_pane" value="profile">
                 <input type="hidden" name="action" value="update_profile">
+                <div class="st-fields">
                 <div class="form-group">
                     <label for="username">Username</label>
                     <input type="text" id="username" name="username"
-                           autocomplete="username" required
+                           autocomplete="username" autocorrect="off" autocapitalize="none" spellcheck="false" required
                            value="<?= htmlspecialchars($me['username']) ?>">
                 </div>
                 <div class="form-group">
                     <label for="email">Email <span style="color:#94a3b8;font-size:.8rem;font-weight:400">(used to sign in)</span></label>
                     <input type="email" id="email" name="email"
-                           autocomplete="email" required
+                           autocomplete="email" autocorrect="off" autocapitalize="none" spellcheck="false" required
                            value="<?= htmlspecialchars($me['email'] ?? '') ?>">
                     <?php if (!empty($me['pending_email'])): ?>
                     <p class="hint" style="margin-top:.3rem">Pending: <strong><?= htmlspecialchars($me['pending_email']) ?></strong>. A confirmation link was sent there; your email changes when you use it.
@@ -495,28 +736,40 @@ $site_name = get_setting('site_name', 'Game Night');
                     <p style="margin-top:.4rem;font-size:.75rem;line-height:1.4;color:#64748b">By providing your phone number, you consent to receive event-related SMS messages (invites, reminders, RSVP updates). Message frequency varies. Message and data rates may apply. Reply STOP to unsubscribe, HELP for help. <a href="/privacy.php" target="_blank">Privacy Policy</a>.</p>
                 </div>
                 <div class="form-group">
-                    <label for="preferred_contact">Preferred Contact Method</label>
-                    <select id="preferred_contact" name="preferred_contact" style="width:100%;padding:.5rem .75rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.95rem;background:#fff">
-                        <option value="email"<?= ($me['preferred_contact'] ?? 'email') === 'email' ? ' selected' : '' ?>>Email</option>
-                        <option value="sms"<?= ($me['preferred_contact'] ?? '') === 'sms'   ? ' selected' : '' ?>>SMS (text message)</option>
-                        <option value="whatsapp"<?= ($me['preferred_contact'] ?? '') === 'whatsapp' ? ' selected' : '' ?>>WhatsApp</option>
-                        <option value="both"<?= ($me['preferred_contact'] ?? '') === 'both'  ? ' selected' : '' ?>>Email &amp; SMS</option>
-                        <option value="none"<?= ($me['preferred_contact'] ?? '') === 'none'  ? ' selected' : '' ?>>None (do not notify me)</option>
-                    </select>
-                    <p class="hint">How you want to be notified when invited to an event.</p>
+                    <label for="profile_current_password">Current password <span style="color:#94a3b8;font-size:.8rem;font-weight:400">(needed to change your username, email or phone)</span></label>
+                    <input type="password" id="profile_current_password" name="current_password" autocomplete="current-password">
                 </div>
-                <div class="form-group">
-                    <label for="my_events_past_days">My Events — Past Range</label>
-                    <select id="my_events_past_days" name="my_events_past_days" style="width:100%;padding:.5rem .75rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.95rem;background:#fff">
-                        <?php foreach ([7=>'7 days',14=>'14 days',30=>'30 days',60=>'60 days',90=>'90 days',180=>'6 months',365=>'1 year'] as $v=>$l): ?>
-                        <option value="<?= $v ?>"<?= (int)($me['my_events_past_days'] ?? 30) === $v ? ' selected' : '' ?>><?= $l ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                    <p class="hint">How far back past events appear on the My Events page.</p>
                 </div>
+                <div class="st-actions"><button type="submit" class="btn btn-primary">Save Profile</button></div>
+            </form>
+
+            <!-- Phone-verification and email-change helper forms: kept OUTSIDE the profile
+                 form (forms can't nest). The visible buttons + code input live next to the
+                 phone and email fields above and target these via the HTML form="..." attribute. -->
+            <form id="emailCancelForm" method="post" action="/settings.php" style="display:none">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>"><input type="hidden" name="st_pane" value="profile">
+                <input type="hidden" name="action" value="cancel_email_change">
+            </form>
+            <form id="phSendForm" method="post" action="/settings.php" style="display:none">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>"><input type="hidden" name="st_pane" value="profile">
+                <input type="hidden" name="action" value="send_phone_code">
+            </form>
+            <form id="phVerifyForm" method="post" action="/settings.php" style="display:none">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>"><input type="hidden" name="st_pane" value="profile">
+                <input type="hidden" name="action" value="verify_phone_code">
+            </form>
+        </div>
+    </section>
+
+    <!-- ═══ Preferences ═══ -->
+    <section <?= $st_panel('preferences') ?>>
+        <div class="card">
+            <h2>Preferences</h2>
+            <p class="subtitle">How the site looks and behaves for you.</p>
+            <div class="st-fields">
                 <div class="form-group">
                     <label for="timezone">Timezone</label>
-                    <select id="timezone" name="timezone" style="width:100%;padding:.5rem .75rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.95rem;background:#fff">
+                    <select id="timezone" name="timezone" class="st-select" form="stProfileForm">
                         <option value="">Use site default (<?= htmlspecialchars(get_setting('timezone', 'UTC')) ?>)</option>
                         <?php foreach (get_timezone_options() as $tz_label => $tz_id): ?>
                         <option value="<?= htmlspecialchars($tz_id) ?>"<?= ($me['timezone'] ?? '') === $tz_id ? ' selected' : '' ?>><?= htmlspecialchars($tz_label) ?></option>
@@ -525,44 +778,59 @@ $site_name = get_setting('site_name', 'Game Night');
                     <p class="hint">Event times and the footer clock will display in this timezone. Notifications sent to you will also use it.</p>
                 </div>
                 <div class="form-group">
+                    <label for="my_events_past_days">My Events — Past Range</label>
+                    <select id="my_events_past_days" name="my_events_past_days" class="st-select" form="stProfileForm">
+                        <?php foreach ([7=>'7 days',14=>'14 days',30=>'30 days',60=>'60 days',90=>'90 days',180=>'6 months',365=>'1 year'] as $v=>$l): ?>
+                        <option value="<?= $v ?>"<?= (int)($me['my_events_past_days'] ?? 30) === $v ? ' selected' : '' ?>><?= $l ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <p class="hint">How far back past events appear on the My Events page.</p>
+                </div>
+                <div class="form-group">
                     <label for="beta_timer">Tournament timer</label>
-                    <select id="beta_timer" name="beta_timer" style="width:100%;padding:.5rem .75rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.95rem;background:#fff">
+                    <select id="beta_timer" name="beta_timer" class="st-select" form="stProfileForm">
                         <option value="0">Tournament Timer Classic</option>
                         <option value="1"<?= (int)($me['beta_timer'] ?? 1) === 1 ? ' selected' : '' ?>>Tournament Timer (designable layouts)</option>
                     </select>
                     <p class="hint">New games you set up will use this timer display. Each game can still switch in its Setup, and this doesn't change games you've already configured.</p>
                 </div>
-                <div class="form-group">
-                    <label for="profile_current_password">Current password <span style="color:#94a3b8;font-size:.8rem;font-weight:400">(needed to change your username, email or phone)</span></label>
-                    <input type="password" id="profile_current_password" name="current_password" autocomplete="current-password">
-                </div>
-                <button type="submit" class="btn btn-primary" style="width:100%">Save Profile</button>
-            </form>
-
-            <!-- Phone-verification and email-change helper forms: kept OUTSIDE the profile
-                 form (forms can't nest). The visible buttons + code input live next to the
-                 phone and email fields above and target these via the HTML form="..." attribute. -->
-            <form id="emailCancelForm" method="post" action="/settings.php" style="display:none">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
-                <input type="hidden" name="action" value="cancel_email_change">
-            </form>
-            <form id="phSendForm" method="post" action="/settings.php" style="display:none">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
-                <input type="hidden" name="action" value="send_phone_code">
-            </form>
-            <form id="phVerifyForm" method="post" action="/settings.php" style="display:none">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
-                <input type="hidden" name="action" value="verify_phone_code">
-            </form>
+            </div>
+            <div class="st-actions"><button type="submit" form="stProfileForm" name="st_pane" value="preferences" class="btn btn-primary">Save Preferences</button></div>
         </div>
 
-        <!-- Right column: Change Password with Two-Factor grouped beneath it -->
-        <div style="display:flex;flex-direction:column;gap:1.5rem">
+        <div class="card">
+            <h2>Help Tips</h2>
+            <p class="subtitle">Bring back the in-app help bubbles you've dismissed. They'll show again on every screen that has tips.</p>
+            <form method="post" action="/settings.php">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>"><input type="hidden" name="st_pane" value="preferences">
+                <input type="hidden" name="action" value="reset_help">
+                <div class="st-actions" style="margin-top:0"><button type="submit" class="btn btn-outline">Show all help tips again</button></div>
+            </form>
+        </div>
+    </section>
 
-        <!-- Notification preferences -->
-        <div class="card" style="max-width:100%">
-            <h2>Notifications</h2>
-            <p class="subtitle">Choose which notifications reach you by email/text. Everything still appears in your <a href="/notifications.php">in-app inbox</a>.</p>
+    <!-- ═══ Notifications ═══ -->
+    <section <?= $st_panel('notifications') ?>>
+        <div class="card">
+            <h2>How to reach you</h2>
+            <p class="subtitle">Where invitations, reminders and updates are sent.</p>
+                <div class="form-group">
+                    <label for="preferred_contact">Preferred Contact Method</label>
+                    <select id="preferred_contact" name="preferred_contact" class="st-select" form="stProfileForm">
+                        <option value="email"<?= ($me['preferred_contact'] ?? 'email') === 'email' ? ' selected' : '' ?>>Email</option>
+                        <option value="sms"<?= ($me['preferred_contact'] ?? '') === 'sms'   ? ' selected' : '' ?>>SMS (text message)</option>
+                        <option value="whatsapp"<?= ($me['preferred_contact'] ?? '') === 'whatsapp' ? ' selected' : '' ?>>WhatsApp</option>
+                        <option value="both"<?= ($me['preferred_contact'] ?? '') === 'both'  ? ' selected' : '' ?>>Email &amp; SMS</option>
+                        <option value="none"<?= ($me['preferred_contact'] ?? '') === 'none'  ? ' selected' : '' ?>>None (do not notify me)</option>
+                    </select>
+                    <p class="hint">How you want to be notified when invited to an event.</p>
+                </div>
+            <div class="st-actions"><button type="submit" form="stProfileForm" name="st_pane" value="notifications" class="btn btn-primary">Save contact method</button></div>
+        </div>
+
+        <div class="card">
+            <h2 id="st-h-notify">What to send</h2>
+            <p class="subtitle">Choose which notifications reach you by email or text. Everything still appears in your <a href="/notifications.php">in-app inbox</a>.</p>
             <?php
             $_np = json_decode((string)($me['notify_prefs'] ?? ''), true);
             if (!is_array($_np)) $_np = [];
@@ -584,28 +852,28 @@ $site_name = get_setting('site_name', 'Game Night');
                 $_np_rows['security'] = ['Security alerts (admins)', 'Sign-up abuse and sign-in lockouts: the honeypot, rate limits, withheld verification mail'];
             }
             ?>
-            <form method="post" action="/settings.php">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+            <form method="post" action="/settings.php" aria-labelledby="st-h-notify">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>"><input type="hidden" name="st_pane" value="notifications">
                 <input type="hidden" name="action" value="notify_prefs">
-                <div style="display:flex;flex-direction:column;gap:.55rem;margin-bottom:1rem">
+                <div class="st-rows" role="group" aria-labelledby="st-h-notify">
                     <?php foreach ($_np_rows as $_c => [$_l, $_d]): ?>
-                    <label style="display:flex;align-items:flex-start;gap:.6rem;cursor:pointer">
-                        <input type="checkbox" name="np_<?= $_c ?>" value="1" <?= $_np_on($_c) ? 'checked' : '' ?> style="margin-top:.2rem">
-                        <span style="min-width:0">
-                            <span style="font-size:.9rem;font-weight:600;color:#1e293b"><?= $_l ?></span><br>
-                            <span style="font-size:.78rem;color:#94a3b8"><?= $_d ?></span>
+                    <label class="st-row">
+                        <span class="st-row-main">
+                            <span class="st-row-title"><?= $_l ?></span>
+                            <span class="st-row-sub"><?= $_d ?></span>
                         </span>
+                        <input type="checkbox" switch role="switch" class="st-switch" name="np_<?= $_c ?>" value="1" <?= $_np_on($_c) ? 'checked' : '' ?>>
                     </label>
                     <?php endforeach; ?>
                 </div>
-                <button type="submit" class="btn btn-primary" style="width:100%">Save Notification Preferences</button>
+                <div class="st-actions"><button type="submit" class="btn btn-primary">Save Notifications</button></div>
             </form>
         </div>
 
-        <!-- Browser (Web Push) notifications -->
-        <div class="card" style="max-width:100%">
-            <h2>Browser Notifications</h2>
-            <p class="subtitle">Get notifications on this device even when the site isn't open. Each device you enable gets its own subscription.</p>
+        <div class="st-two">
+            <div class="card">
+                <h2>On this device</h2>
+                <p class="subtitle">Get notifications on this device even when the site isn't open. Each device you enable gets its own subscription.</p>
             <p id="pushStatus" style="font-size:.85rem;color:#64748b;margin-bottom:.8rem">Checking this browser&hellip;</p>
             <div style="display:flex;gap:.6rem;flex-wrap:wrap">
                 <button type="button" class="btn btn-primary" id="pushEnableBtn" data-act="pushEnable" style="display:none">Enable on this device</button>
@@ -613,25 +881,29 @@ $site_name = get_setting('site_name', 'Game Night');
                 <button type="button" class="btn btn-outline" id="pushTestBtn" data-act="pushTest" style="display:none">Send test notification</button>
             </div>
             <p style="font-size:.75rem;color:#94a3b8;margin-top:.7rem">iPhone/iPad: add this site to your Home Screen first (Share &rarr; Add to Home Screen), then enable from the installed app.</p>
-        </div>
-
-        <!-- Install as an app: the permanent home for the Add to Home Screen
-             card, for anyone who dismissed it or never saw it (a laptop). -->
-        <div class="card" style="max-width:100%">
-            <h2>Install as an App</h2>
-            <p class="subtitle">Put <?= htmlspecialchars($site_name, ENT_QUOTES | ENT_SUBSTITUTE) ?> on your Home Screen. It opens full screen like an app, and on iPhone and iPad it is what makes notifications possible.</p>
-            <div style="display:flex;gap:.6rem;flex-wrap:wrap">
-                <button type="button" class="btn btn-primary" data-act="a2hsInstallNow">Add to Home Screen</button>
             </div>
-            <p style="font-size:.75rem;color:#94a3b8;margin-top:.7rem">iPhone/iPad: Safari, then Share &rarr; Add to Home Screen. Android: Chrome offers an Install button. Computers: Chrome and Edge show an install icon in the address bar.</p>
-        </div>
 
-        <!-- Change password -->
-        <div class="card" style="max-width:100%">
-            <h2>Change Password</h2>
-            <p class="subtitle">Minimum <?= (int)MIN_PASSWORD_LENGTH ?> characters. Changing it signs out every other device.</p>
-            <form method="post" action="/settings.php">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+            <!-- Install as an app: the permanent home for the Add to Home Screen
+                 card, for anyone who dismissed it or never saw it (a laptop). -->
+            <div class="card">
+                <h2>Install as an App</h2>
+                <p class="subtitle">Put <?= htmlspecialchars($site_name, ENT_QUOTES | ENT_SUBSTITUTE) ?> on your Home Screen. It opens full screen like an app, and on iPhone and iPad it is what makes notifications possible.</p>
+                <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+                    <button type="button" class="btn btn-primary" data-act="a2hsInstallNow">Add to Home Screen</button>
+                </div>
+                <p class="st-note">iPhone/iPad: Safari, then Share &rarr; Add to Home Screen. Android: Chrome offers an Install button. Computers: Chrome and Edge show an install icon in the address bar.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══ Security ═══ -->
+    <section <?= $st_panel('security') ?>>
+        <div class="st-two">
+            <div class="card">
+                <h2 id="st-h-password">Password</h2>
+                <p class="subtitle" id="st-pw-help">Minimum <?= (int)MIN_PASSWORD_LENGTH ?> characters. Changing it signs out every other device and revokes every API token.</p>
+            <form method="post" action="/settings.php" aria-labelledby="st-h-password">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>"><input type="hidden" name="st_pane" value="security">
                 <input type="hidden" name="action" value="update_password">
                 <div class="form-group">
                     <label for="current_password">Current Password</label>
@@ -641,21 +913,20 @@ $site_name = get_setting('site_name', 'Game Night');
                 <div class="form-group">
                     <label for="new_password">New Password</label>
                     <input type="password" id="new_password" name="new_password"
-                           autocomplete="new-password" required>
+                           autocomplete="new-password" minlength="<?= (int)MIN_PASSWORD_LENGTH ?>" aria-describedby="st-pw-help" required>
                 </div>
                 <div class="form-group">
                     <label for="confirm_password">Confirm New Password</label>
                     <input type="password" id="confirm_password" name="confirm_password"
                            autocomplete="new-password" required>
                 </div>
-                <button type="submit" class="btn btn-primary" style="width:100%">Update Password</button>
+                <div class="st-actions"><button type="submit" class="btn btn-primary">Update Password</button></div>
             </form>
-        </div>
+            </div>
 
-        <!-- Two-Factor Authentication -->
-        <div class="card" style="max-width:100%">
-            <h2>Two-Factor Authentication</h2>
-            <p class="subtitle">Add a second step at sign-in using an authenticator app or a texted code.</p>
+            <div class="card">
+                <h2>Two-Factor Authentication</h2>
+                <p class="subtitle">Add a second step at sign-in using an authenticator app or a texted code.</p>
 
             <?php if ($mfa_on): ?>
                 <!-- Enabled -->
@@ -665,107 +936,176 @@ $site_name = get_setting('site_name', 'Game Night');
                     &middot; <?= (int)$mfa_recovery_left ?> recovery code<?= $mfa_recovery_left === 1 ? '' : 's' ?> left
                 </p>
                 <form method="post" action="/mfa_setup.php" style="margin-bottom:.75rem">
-                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>"><input type="hidden" name="st_pane" value="security">
                     <input type="hidden" name="action" value="regen">
                     <div class="form-group">
                         <label for="mfa_regen_pw">Enter your password to regenerate recovery codes</label>
                         <input type="password" id="mfa_regen_pw" name="current_password"
                                autocomplete="current-password" required>
                     </div>
-                    <button type="submit" class="btn" style="width:100%">Regenerate Recovery Codes</button>
+                    <div class="st-actions"><button type="submit" class="btn btn-outline">Regenerate Recovery Codes</button></div>
                 </form>
                 <form method="post" action="/settings.php">
-                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>"><input type="hidden" name="st_pane" value="security">
                     <input type="hidden" name="action" value="mfa_disable">
                     <div class="form-group">
                         <label for="mfa_disable_pw">Enter your password to turn off two-factor</label>
                         <input type="password" id="mfa_disable_pw" name="current_password"
                                autocomplete="current-password" required>
                     </div>
-                    <button type="submit" class="btn" style="width:100%;background:#dc2626;color:#fff;border:none;font-weight:600">Disable Two-Factor</button>
+                    <div class="st-actions"><button type="submit" class="btn btn-danger">Disable Two-Factor</button></div>
                 </form>
 
             <?php else: ?>
                 <!-- Off: enrollment happens on the dedicated setup page -->
                 <p style="color:#64748b;margin-bottom:1rem">Currently <strong>off</strong>. Protect your account with an authenticator app or texted codes.</p>
-                <a href="/mfa_setup.php" class="btn btn-primary" style="width:100%;display:block;text-align:center;text-decoration:none">Set up two-factor authentication</a>
+                <div class="st-actions"><a href="/mfa_setup.php" class="btn btn-primary" style="text-align:center;text-decoration:none">Set up two-factor authentication</a></div>
+            <?php endif; ?>
+            </div>
+        </div>
+
+        <!-- Personal API tokens -->
+        <div class="card" id="api-tokens">
+            <h2 id="st-h-tokens">API Tokens</h2>
+            <p class="subtitle">A token lets another program, such as an AI assistant, work with your events and games as you. It can do only what you allow below, and never more than you can do yourself.</p>
+
+            <?php if ($new_api_token): ?>
+                <div class="st-token-new">
+                    <p style="margin:0 0 .5rem;color:#92400e;font-weight:600">Copy this token now. It will not be shown again.</p>
+                    <code id="stNewToken"><?= htmlspecialchars($new_api_token['token'], ENT_QUOTES | ENT_SUBSTITUTE) ?></code>
+                    <button type="button" class="btn btn-outline" data-act="stCopyToken" style="margin-top:.6rem">Copy</button>
+                </div>
+            <?php endif; ?>
+
+            <?php if ($api_tokens): ?>
+                <div class="st-rows" style="margin-bottom:1.25rem">
+                <?php foreach ($api_tokens as $t): $_acts = $token_activity[(int)$t['id']] ?? []; ?>
+                  <div class="st-token">
+                    <div class="st-row">
+                        <div class="st-row-main">
+                            <span class="st-row-title"><?= htmlspecialchars($t['label'], ENT_QUOTES | ENT_SUBSTITUTE) ?></span>
+                            <span class="st-row-sub">Can: <?= htmlspecialchars(implode(', ', api_token_clean_scopes((string)$t['scopes'])), ENT_QUOTES | ENT_SUBSTITUTE) ?></span>
+                            <span class="st-row-sub">
+                                Created <?= htmlspecialchars($st_when((string)$t['created_at'], 'M j, Y'), ENT_QUOTES | ENT_SUBSTITUTE) ?>
+                                &middot; <?= $t['last_used_at'] ? 'last used ' . htmlspecialchars($st_when((string)$t['last_used_at'], 'M j, Y g:i A'), ENT_QUOTES | ENT_SUBSTITUTE) : 'never used' ?>
+                                &middot; <?= (int)$t['requests'] ?> request<?= (int)$t['requests'] === 1 ? '' : 's' ?> in the last 30 days
+                            </span>
+                        </div>
+                        <form method="post" action="/settings.php" style="margin:0;flex:none">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>"><input type="hidden" name="st_pane" value="security">
+                            <input type="hidden" name="action" value="api_token_revoke">
+                            <input type="hidden" name="token_id" value="<?= (int)$t['id'] ?>">
+                            <button type="submit" class="btn btn-sm btn-danger-outline">Revoke</button>
+                        </form>
+                    </div>
+                    <?php if ($_acts): ?>
+                    <details class="st-activity">
+                        <summary>Recent activity</summary>
+                        <ol class="st-activity-list">
+                        <?php foreach ($_acts as $_a): $_code = (int)$_a['status']; ?>
+                            <li>
+                                <time datetime="<?= htmlspecialchars(str_replace(' ', 'T', (string)$_a['created_at']) . 'Z', ENT_QUOTES | ENT_SUBSTITUTE) ?>"><?= htmlspecialchars($st_when((string)$_a['created_at'], 'M j, g:i:s A'), ENT_QUOTES | ENT_SUBSTITUTE) ?></time>
+                                <code><?= htmlspecialchars($_a['method'] . ' ' . (preg_replace('#^/api/v2#', '', (string)$_a['path']) ?: '/'), ENT_QUOTES | ENT_SUBSTITUTE) ?></code>
+                                <span class="st-activity-status<?= $_code >= 400 ? ' is-refused' : '' ?>"><?= $_code ?> <?= htmlspecialchars($st_status($_code), ENT_QUOTES | ENT_SUBSTITUTE) ?></span>
+                                <span class="st-activity-ip">from <?= htmlspecialchars((string)$_a['ip'], ENT_QUOTES | ENT_SUBSTITUTE) ?></span>
+                            </li>
+                        <?php endforeach; ?>
+                        </ol>
+                        <p class="st-note" style="margin-top:.5rem">The latest <?= count($_acts) ?> of <?= (int)$t['requests'] ?> in the last 30 days, newest first. Requests are kept for 30 days.</p>
+                    </details>
+                    <?php endif; ?>
+                  </div>
+                <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+
+            <form method="post" action="/settings.php" aria-labelledby="st-h-tokens">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>"><input type="hidden" name="st_pane" value="security">
+                <input type="hidden" name="action" value="api_token_create">
+                <div class="st-fields">
+                    <div class="form-group">
+                        <label for="api_token_label">Name for a new token</label>
+                        <input type="text" id="api_token_label" name="label" maxlength="80" autocomplete="off" aria-describedby="st-token-name-help" required>
+                        <p class="hint" id="st-token-name-help">Something that tells you later what it is for, such as "Claude on my laptop".</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="api_token_pw">Your password</label>
+                        <input type="password" id="api_token_pw" name="current_password" autocomplete="current-password" required>
+                    </div>
+                </div>
+                <fieldset class="st-fieldset">
+                <legend>What it may do</legend>
+                <div class="st-rows">
+                    <?php foreach (API_TOKEN_SCOPES as $sc => $desc): ?>
+                    <label class="st-row">
+                        <span class="st-row-main"><span class="st-row-title" style="font-weight:500"><?= htmlspecialchars($desc) ?></span></span>
+                        <input type="checkbox" switch role="switch" class="st-switch" name="scopes[]" value="<?= htmlspecialchars($sc) ?>" <?= $sc === 'read' ? 'checked disabled' : '' ?>>
+                    </label>
+                    <?php endforeach; ?>
+                </div>
+                </fieldset>
+                <div class="st-actions"><button type="submit" class="btn btn-primary">Create Token</button></div>
+            </form>
+            <p class="st-note">Only reading is available so far; the other permissions take effect as those parts of the API arrive.</p>
+        </div>
+    </section>
+
+    <!-- ═══ Account ═══ -->
+    <section <?= $st_panel('account') ?>>
+        <div class="card">
+            <h2>Account</h2>
+            <div class="st-rows" style="margin-top:.5rem">
+                <div class="st-row"><span class="st-row-title">Role</span><span class="st-row-val"><span class="badge badge-<?= $me['role'] === 'admin' ? 'admin' : 'user' ?>"><?= htmlspecialchars($me['role']) ?></span></span></div>
+                <div class="st-row"><span class="st-row-title">Member since</span><span class="st-row-val"><?= htmlspecialchars($me['created_at'] ? date('M j, Y', strtotime($me['created_at'] . ' UTC')) : '') ?></span></div>
+                <div class="st-row"><span class="st-row-title">Last sign-in</span><span class="st-row-val"><?= htmlspecialchars(!empty($me['last_login']) ? date('M j, Y g:i A', strtotime($me['last_login'] . ' UTC')) : 'Never') ?></span></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>My Leagues (<?= count($my_leagues) ?>)</h2>
+            <?php if (!$my_leagues): ?>
+                <p class="st-note" style="margin-top:.5rem">You're not in a league yet. <a href="/leagues.php">Browse leagues</a></p>
+            <?php else: ?>
+            <div class="st-rows" style="margin-top:.5rem">
+            <?php foreach ($my_leagues as $l): ?>
+                <div class="st-row">
+                    <span class="st-row-main">
+                        <a class="st-row-title" href="/league.php?id=<?= (int)$l['id'] ?>"><?= htmlspecialchars($l['name']) ?></a>
+                        <span class="st-row-sub"><?= (int)$l['is_hidden'] ? 'Hidden league &middot; ' : '' ?><?= htmlspecialchars($l['joined_at'] ? 'Joined ' . date('M j, Y', strtotime($l['joined_at'] . ' UTC')) : '') ?></span>
+                    </span>
+                    <span class="st-row-val"><span class="badge badge-<?= $l['role'] === 'member' ? 'user' : 'admin' ?>"><?= htmlspecialchars(ucfirst($l['role'])) ?></span></span>
+                </div>
+            <?php endforeach; ?>
+            </div>
             <?php endif; ?>
         </div>
 
-        </div><!-- /right column -->
-
-    </div>
-
-    <!-- Account info (read-only) -->
-    <div class="table-card" style="margin-top:1.5rem;max-width:540px">
-        <h3>Account Info</h3>
-        <table>
-            <tbody>
-                <tr><td style="color:#64748b;width:140px">Role</td><td><span class="badge badge-<?= $me['role'] === 'admin' ? 'admin' : 'user' ?>"><?= htmlspecialchars($me['role']) ?></span></td></tr>
-                <tr><td style="color:#64748b">Member since</td><td><?= htmlspecialchars($me['created_at']) ?></td></tr>
-                <tr><td style="color:#64748b">Last login</td><td><?= htmlspecialchars($me['last_login'] ?? 'Never') ?></td></tr>
-            </tbody>
-        </table>
-    </div>
-
-    <!-- Leagues -->
-    <div class="table-card" style="margin-top:1.5rem;max-width:540px">
-        <h3>My Leagues (<?= count($my_leagues) ?>)</h3>
-        <?php if (!$my_leagues): ?>
-            <p style="padding:0 1.5rem 1rem;color:#64748b;font-size:.875rem">You're not in a league yet. <a href="/leagues.php">Browse leagues</a></p>
-        <?php else: ?>
-        <table>
-            <thead><tr><th scope="col">League</th><th scope="col">Role</th><th scope="col">Joined</th></tr></thead>
-            <tbody>
-            <?php foreach ($my_leagues as $l): ?>
-                <tr>
-                    <td><a href="/league.php?id=<?= (int)$l['id'] ?>"><?= htmlspecialchars($l['name']) ?></a><?= (int)$l['is_hidden'] ? ' <span style="color:#64748b;font-size:.8rem">(hidden)</span>' : '' ?></td>
-                    <td><?= htmlspecialchars(ucfirst($l['role'])) ?></td>
-                    <td style="white-space:nowrap"><?= htmlspecialchars($l['joined_at'] ? date('M j, Y', strtotime($l['joined_at'] . ' UTC')) : '') ?></td>
-                </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
-        <?php endif; ?>
-    </div>
-
-    <!-- Help tips -->
-    <div class="card" style="max-width:540px;margin-top:1.5rem">
-        <h2>Help Tips</h2>
-        <p class="subtitle" style="color:#64748b">Bring back the in-app help bubbles you've dismissed. They'll show again on every screen that has tips.</p>
-        <form method="post" action="/settings.php">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
-            <input type="hidden" name="action" value="reset_help">
-            <button type="submit" class="btn" style="width:100%">Show all help tips again</button>
-        </form>
-    </div>
-
-    <!-- Delete account -->
-    <div class="card" style="max-width:540px;margin-top:1.5rem;border-color:#fca5a5">
-        <h2 style="color:#dc2626">Delete Account</h2>
-        <p class="subtitle" style="color:#64748b">Permanently delete your account and all associated data. This cannot be undone.</p>
-        <form method="post" action="/settings.php" data-act-submit="confirmDeleteTyped">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
-            <input type="hidden" name="action" value="delete_account">
-            <div class="form-group">
-                <label for="confirm_delete">Type <strong style="color:#dc2626">DELETE</strong> to confirm</label>
-                <!-- text-transform only UPPERCASES the display; keep the submitted value in sync
-                     (oninput) so typing "delete" doesn't silently submit lowercase and fail. -->
-                <input type="text" id="confirm_delete" name="confirm_delete" required
-                       autocomplete="off" placeholder="DELETE"
-                       data-uppercase="1"
-                       style="border-color:#fca5a5;text-transform:uppercase">
-            </div>
-            <div class="form-group">
-                <label for="delete_current_password">Your password</label>
-                <input type="password" id="delete_current_password" name="current_password" required
-                       autocomplete="current-password" style="border-color:#fca5a5">
-            </div>
-            <button type="submit" class="btn" style="width:100%;background:#dc2626;color:#fff;border:none;font-weight:600;padding:.6rem">
-                Permanently Delete My Account
-            </button>
-        </form>
-    </div>
+        <div class="card st-danger">
+            <h2 id="st-h-delete">Delete Account</h2>
+            <p class="subtitle">Permanently delete your account and all associated data. This cannot be undone.</p>
+            <form method="post" action="/settings.php" data-act-submit="confirmDeleteTyped" aria-labelledby="st-h-delete">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>"><input type="hidden" name="st_pane" value="account">
+                <input type="hidden" name="action" value="delete_account">
+                <div class="st-fields">
+                    <div class="form-group">
+                        <label for="confirm_delete">Type <strong style="color:#dc2626">DELETE</strong> to confirm</label>
+                        <!-- text-transform only UPPERCASES the display; keep the submitted value in sync
+                             (oninput) so typing "delete" doesn't silently submit lowercase and fail. -->
+                        <input type="text" id="confirm_delete" name="confirm_delete" required
+                               autocomplete="off" autocorrect="off" spellcheck="false"
+                               data-uppercase="1"
+                               style="border-color:#fca5a5;text-transform:uppercase">
+                    </div>
+                    <div class="form-group">
+                        <label for="delete_current_password">Your password</label>
+                        <input type="password" id="delete_current_password" name="current_password" required
+                               autocomplete="current-password" style="border-color:#fca5a5">
+                    </div>
+                </div>
+                <div class="st-actions"><button type="submit" class="btn btn-danger">Permanently Delete My Account</button></div>
+            </form>
+        </div>
+    </section>
 
 </div>
 
@@ -773,8 +1113,77 @@ $site_name = get_setting('site_name', 'Game Night');
 <script src="/_phone_input.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/_phone_input.js') ?: 0)) ?>"></script>
 <script nonce="<?= csp_nonce() ?>">initPhoneAutoFormat();</script>
 <script nonce="<?= csp_nonce() ?>">
+// ── Section switcher ────────────────────────────────────────────────────────
+// The server already rendered the open section; this only switches. A closed
+// section is hidden="until-found", so the browser's find-in-page can still
+// reach into it (it fires beforematch, handled below). Sections can be linked
+// to: /settings.php#security.
+var ST_PANES = <?= js_json(array_keys(ST_PANES)) ?>;
+var ST_ALIAS = { 'api-tokens': 'security' };
+var stCurrent = <?= js_json($st_pane) ?>;
+function stShow(name, animate) {
+    if (ST_PANES.indexOf(name) < 0 || name === stCurrent) return;
+    var from = stCurrent; stCurrent = name;
+    var btns = document.querySelectorAll('#stSeg button');
+    for (var i = 0; i < btns.length; i++) btns[i].classList.toggle('active', btns[i].getAttribute('data-pane') === name);
+    var shown = null;
+    for (var j = 0; j < ST_PANES.length; j++) {
+        var pane = document.getElementById('st-' + ST_PANES[j]);
+        if (ST_PANES[j] === name) { pane.hidden = false; shown = pane; }
+        else pane.hidden = 'until-found';   // plain hidden where until-found is not supported
+    }
+    positionSegThumb('stSeg', !!animate);   // also sets aria-selected from .active
+    // A section that was closed measured its own controls at zero width.
+    positionAllSegThumbs(false);
+    if (animate && shown) slideViewIn(shown, segTravelDirection('stSeg', 'data-pane', from, name));
+    var active = document.querySelector('#stSeg button.active');
+    // container: 'nearest' scrolls the strip only, never the page.
+    if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest', inline: 'nearest', container: 'nearest' });
+    try { history.replaceState(null, '', '#' + name); } catch (e) {}
+}
+function stTab() { stShow(this.getAttribute('data-pane'), true); }
+(function () {
+    function fromHash(animate) {
+        var h = (location.hash || '').replace('#', '');
+        var to = ST_ALIAS[h] || (ST_PANES.indexOf(h) >= 0 ? h : null);
+        if (!to) return;
+        stShow(to, animate);
+        var el = ST_ALIAS[h] ? document.getElementById(h) : null;
+        if (el && el.scrollIntoView) el.scrollIntoView({ block: 'start' });
+    }
+    positionSegThumb('stSeg', false);
+    fromHash(false);
+    <?php if ($new_api_token): ?>
+    var card = document.getElementById('api-tokens');
+    if (card && card.scrollIntoView) card.scrollIntoView({ block: 'start' });
+    <?php endif; ?>
+    // A link to another section followed while the page is already open.
+    window.addEventListener('hashchange', function () { fromHash(true); });
+    // Find-in-page matched text inside a closed section: open that section.
+    document.getElementById('stWrap').addEventListener('beforematch', function (e) {
+        var pane = e.target.closest ? e.target.closest('.st-pane') : null;
+        if (pane) stShow(pane.getAttribute('data-pane'), false);
+    });
+    // Edge fades for the switcher where scroll-driven animations are missing.
+    var nav = document.querySelector('.st-nav'), seg = document.getElementById('stSeg');
+    if (nav && seg && window.IntersectionObserver && !(window.CSS && CSS.supports && CSS.supports('animation-timeline', 'scroll()'))) {
+        var tabs = seg.querySelectorAll('button'), first = tabs[0], last = tabs[tabs.length - 1];
+        var io = new IntersectionObserver(function (entries) {
+            entries.forEach(function (en) { nav.classList.toggle(en.target === first ? 'more-start' : 'more-end', en.intersectionRatio < 1); });
+        }, { root: nav, threshold: 1, rootMargin: '1px' });
+        io.observe(first); io.observe(last);
+    }
+})();
 function confirmDeleteTyped() {
     return document.getElementById('confirm_delete').value.trim().toUpperCase() === 'DELETE';
+}
+// Copy the token that was just created (shown once).
+function stCopyToken() {
+    var el = document.getElementById('stNewToken'), btn = this;
+    if (!el) return;
+    pkCopy(el.textContent.trim()).then(function (ok) {
+        if (btn && btn.nodeType === 1) btn.textContent = ok ? 'Copied' : 'Select and copy it by hand';
+    });
 }
 </script>
 <script nonce="<?= csp_nonce() ?>">

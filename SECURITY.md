@@ -361,6 +361,19 @@ and accepts signed requests from it. What holds it:
   event carries `online_app_id`; give a dev event one before the
   double-dispatch sweep, or it walks `event.php` without them.
 
+## Personal API tokens and the service layer (v1.26.0)
+
+`/api/v2` authenticates a **person**, not a league. The rules that keep that from becoming a second, weaker way into the site:
+
+- **A token is a session in another program.** Minting one asks for the password. The token (`gnp_` + 64 hex) is shown once and stored as `sha256`; `invalidate_other_sessions()` deletes every token on the account, so a password change or "sign out everywhere" ends them. Header only: `api_token_actor()` (`www/api/_auth.php`) never reads a token from the query string, where it would land in logs and history.
+- **Permission is decided in the service function, never in the route.** Every `gn_*()` function in `www/svc/` takes an `$actor` and applies the same helpers the pages use (`can_manage_event()`, `league_role()`, `event_visibility_sql()`). A route in `www/api/v2/index.php` only checks the token's scope and calls one. A new endpoint that does its own SQL instead of calling a service function has skipped the check: that is the review question for anything added there.
+- **Not visible is not found.** `gn_event_visible()` and `gn_league_guard()` answer a thing the actor cannot see exactly as a thing that does not exist (`404`), so ids cannot be probed. `403` is only for something visible that the actor may not do.
+- **An account's contact details are never returned.** `gn_event_invites()` and `gn_league_members()` give out an email or phone only when it sits on the invite or roster row itself (a guest or contact someone typed in by hand), never from `users`. This keeps rule 2c's spirit: the API never turns "I can see this person on a list" into "I have their address".
+- **The request log stores route patterns.** `api_token_log()` is given `/api/v2/events/{id}/game`, not the URI, so the log (and the Recent activity list built from it) never holds an id or a query string, and a path cannot be spelled around a per-route limit later. An unmatched path is logged as `/api/v2/(unknown)`.
+- **`www/svc/` is not web-reachable** (`RewriteRule ^svc/ - [F,L]`); the files only define functions.
+
+Suites: `api_v2_read_check.js` (who sees what, across host, member and outsider), `token_activity_check.js`, `settings_layout_check.js`.
+
 ## The edge and the alarm: fail2ban on the proxy's logs, alerts to the admins (v1.19.9)
 
 The 2026-11-06 sign-up scan (CHANGELOG v1.19.7) asked for 64 guessed paths in
