@@ -11,6 +11,12 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.29.0] - 2026-11-17
+
+### Added
+
+- **Claude can work with your events and games.** The site is now a Model Context Protocol server at `/mcp`. Connect an assistant such as Claude with a personal token and it gets 41 tools that do what the personal API does: find your events, see who has not answered, copy last month's game to a new date and invite the same people, take buy-ins and rebuys, knock players out, work the clock, read the results and the league standings. It acts as you and can do only what the token allows: a token with just the read permission is offered only the tools that look, and the tools that send email or texts are not offered at all without the messages permission. People are named the way a host says them ("knock out Dave"); a name that fits two people is refused with both, never guessed. Deleting an event, finishing a game and resetting the clock take a second, confirmed call. Every tool call is listed under the token's **Recent activity** in Settings. Settings → Security → API Tokens has a **Use it with Claude** section with the address and the one command Claude Code needs; `DOCS.md` has a "Connecting Claude (MCP)" section. Adding the site as a connector from the Claude apps by signing in, without a token, is not available yet. (`www/mcp.php`, `www/_mcp_tools.php`, `www/settings.php`)
+
 ## [v1.28.0] - 2026-11-17
 
 ### Added
