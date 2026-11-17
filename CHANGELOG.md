@@ -11,6 +11,18 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.27.0] - 2026-11-17
+
+### Added
+
+- **The personal API can now make and change things, not only read them.** With the **events** permission on a token, `/api/v2` creates an event (with its game set up and its guest list), changes one, cancels one and keeps it, deletes one, and makes a copy of one for a new date; it adds guests, answers for a guest, makes someone a co-host, takes someone off the list, and approves or turns down someone who asked to come. For a league it adds and removes seasons, posts to the feed, and answers requests to join. An event made this way is made by the same code as the editor's, so nothing about it differs from one made on the site. A change touches only the fields that were sent, and moving an event's start moves its end with it. Deleting an event needs `"confirm": true` and otherwise answers with what would be lost; a `POST` sent with an `Idempotency-Key` header and repeated within a day returns the first answer instead of making a second event; a field the API does not know is refused by name. Each token may make 60 changes an hour on any one route. (`www/svc/events.php`, `www/svc/leagues.php`, `www/api/v2/index.php`, `www/_event_save.php`: `event_save()`; new table `api_idempotency`)
+
+- **Reaching guests through the API is its own permission.** Creating an event or adding a guest tells nobody. Sending invitations, sending one again, nudging the people who have not answered, writing a message to the guests, and inviting someone to a league all need the **messages** permission, so a token without it cannot cause a single email or text. (`www/svc/messages.php`)
+
+### Changed
+
+- **An event can send three host messages a day.** A message from the host goes to every guest at once and has never counted against the per-person daily notification limit, so nothing stopped a host, or now a program acting for one, from sending the same guests message after message. An event may send 3 in any 24 hours; the fourth is refused, on the event page and through the API, with a note to try again tomorrow. Invitations, reminders and nudges are not affected. A site admin can change the number by setting `host_message_daily_cap` (`0` for no limit). (`www/svc/messages.php`, `www/calendar.php`)
+
 ## [v1.26.0] - 2026-11-17
 
 ### Added

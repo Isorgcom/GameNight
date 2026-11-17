@@ -1046,7 +1046,7 @@ $site_name = get_setting('site_name', 'Game Night');
                 </fieldset>
                 <div class="st-actions"><button type="submit" class="btn btn-primary">Create Token</button></div>
             </form>
-            <p class="st-note">Only reading is available so far; the other permissions take effect as those parts of the API arrive.</p>
+            <p class="st-note">Reading, events and guest lists, and messaging work today. Running a game and the jackpot permission take effect when those parts of the API arrive.</p>
         </div>
     </section>
 

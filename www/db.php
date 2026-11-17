@@ -1381,6 +1381,20 @@ JSON;
     // api_request_log rows made with a personal token carry token_id (key_id NULL).
     try { $pdo->exec("ALTER TABLE api_request_log ADD COLUMN token_id INTEGER"); } catch (Exception $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_api_request_log_token ON api_request_log(token_id, created_at)"); } catch (Exception $e) {}
+    // Replays of a POST that carried an Idempotency-Key (API v2, v1.27.0): the
+    // first answer is kept for a day and handed back, so a client that never
+    // saw it (a dropped connection, a retrying agent) cannot create a second
+    // event by asking again.
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS api_idempotency (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        token_id   INTEGER NOT NULL,
+        idem_key   TEXT    NOT NULL,
+        path       TEXT    NOT NULL,
+        status     INTEGER NOT NULL,
+        body       TEXT    NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (token_id, idem_key, path)
+    )"); } catch (Exception $e) {}
     // One-shot: prune any pre-existing revoked api_keys rows. Revoke now hard-deletes,
     // so legacy soft-revoked rows would just sit invisible forever. Guarded by a
     // site_setting flag so it runs once and then no-ops on every db_init thereafter.
