@@ -1046,7 +1046,7 @@ $site_name = get_setting('site_name', 'Game Night');
                 </fieldset>
                 <div class="st-actions"><button type="submit" class="btn btn-primary">Create Token</button></div>
             </form>
-            <p class="st-note">Reading, events and guest lists, and messaging work today. Running a game and the jackpot permission take effect when those parts of the API arrive.</p>
+            <p class="st-note">The jackpot permission is only needed to put a jackpot amount on a game. <a href="https://github.com/Isorgcom/GameNight/blob/main/DOCS.md#personal-api-v2" target="_blank" rel="noopener">How to use a token</a></p>
         </div>
     </section>
 

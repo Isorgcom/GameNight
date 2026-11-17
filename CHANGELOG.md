@@ -11,6 +11,12 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.28.0] - 2026-11-17
+
+### Added
+
+- **The personal API can run a poker game.** With the **game** permission on a token, `/api/v2` changes a game's setup, replaces its blind schedule and payout table, adds a walk-in, takes buy-ins, rebuys and add-ons and takes them back, knocks players out and reinstates them, records cash in and cash out for a cash game, seats and moves players, rebalances and breaks up tables, voids a ledger entry, starts, finishes and reopens the game, and works the clock (play, pause, next, previous, a minute more or less, undo, reset). The API has no rules of its own for any of this: each call runs the check-in console's own action as the token's owner, so a rebuy brings a knocked-out player back, the last knockout crowns the winner and finishes the game, and anything the console would refuse is refused in the console's words. Finishing a game and resetting the clock need `"confirm": true`; a rebuy past the game's cutoff is refused unless the call says to record it anyway, as the console asks a host. Putting a jackpot on a game also needs the **money** permission. `DOCS.md` has a "Reference: running a game" section. (`www/svc/game.php`: `gn_game_act()`, `gn_legacy_bridge()`, `gn_game_blinds_set()`; `www/api/v2/index.php`; `www/auth.php`: `gn_act_as()`)
+
 ## [v1.27.0] - 2026-11-17
 
 ### Added

@@ -298,7 +298,29 @@ function clear_remember_cookie(): void {
     unset($_COOKIE[REMEMBER_COOKIE]);
 }
 
+/**
+ * Act as a user for the rest of THIS request, without a session.
+ *
+ * The personal API authenticates a person by token (api/_auth.php). To run a
+ * game it drives the check-in console's own endpoint in-process (see
+ * gn_legacy_bridge() in svc/game.php), and that endpoint asks current_user()
+ * who is calling and csrf_verify() whether the form was ours. Called with a
+ * users row this makes both answer for that person; called with null it stops.
+ * Called with no argument it only reports.
+ *
+ * The value lives in a static inside this function. Nothing a browser sends
+ * can reach it: it is set by code that has already checked a token, and only
+ * for the request that code is serving.
+ */
+function gn_act_as(?array $user = null): ?array {
+    static $acting = null;
+    if (func_num_args() > 0) $acting = $user;
+    return $acting;
+}
+
 function current_user(): ?array {
+    // A token-authenticated API request acting as its owner (see gn_act_as()).
+    if (($acting = gn_act_as()) !== null) return $acting;
     session_start_safe();
     $id = $_SESSION['user_id'] ?? null;
 
@@ -1226,6 +1248,9 @@ function send_account_notice(int $user_id, string $subject, string $text, ?strin
 }
 
 function csrf_verify(): bool {
+    // An in-process API call has no form and no browser to forge one: the
+    // bearer token it arrived with is not sent by a browser on its own.
+    if (gn_act_as() !== null) return true;
     $sessionToken = $_SESSION['csrf_token'] ?? '';
     // A token-less session must never validate — otherwise an empty POSTed
     // token would match an empty session token (hash_equals('','')===true).
