@@ -120,9 +120,8 @@ function findLevel(n) {
 
 function payoutForPlace(place) {
     if (!POOL) return 0;
-    var row = PAYOUTS.find(function (p) { return parseInt(p.place) === place; });
-    if (!row) return 0;
-    return Math.round((parseInt(POOL.pool_total) || 0) * (parseFloat(row.percentage) || 0) / 100);
+    // Rounded when the game asks for it; pk-payouts.js holds the arithmetic.
+    return pkPayoutAmounts(parseInt(POOL.pool_total) || 0, PAYOUTS || [], POOL.payout_round)[parseInt(place)] || 0;
 }
 
 function playerById(pid) {
@@ -460,15 +459,25 @@ function hideWakeBanner() {
     if (!wakeBanner) return;
     wakeBanner.remove(); wakeBanner = null;
 }
+// On an iPhone or iPad the wake lock being granted has not kept the screen on
+// (see pk-keepawake.js), so there it is not proof of anything: the banner stays
+// until the silent clip is playing, which needs a tap. A page that does not
+// load pk-keepawake.js is unaffected.
+function wakeNeedsVideo() { return !!(window.pkKeepAwakeNeedsVideo && window.pkKeepAwakeNeedsVideo()); }
+function startWakeVideo() {
+    if (!wakeNeedsVideo()) return;
+    try { window.pkKeepAwakeVideo().then(function () { hideWakeBanner(); }).catch(function () {}); } catch (e) {}
+}
 function requestWakeLock() {
     if (!('wakeLock' in navigator) || wakeLockAcquired) return;
     navigator.wakeLock.request('screen').then(function (wl) {
-        wakeLock = wl; wakeLockAcquired = true; hideWakeBanner();
-        wl.addEventListener('release', function () { wakeLock = null; wakeLockAcquired = false; });
+        wakeLock = wl; wakeLockAcquired = true; if (!wakeNeedsVideo()) hideWakeBanner();
+        wl.addEventListener('release', function () { wakeLock = null; wakeLockAcquired = false; if (document.visibilityState === 'visible') setTimeout(requestWakeLock, 1000); });
     }).catch(function () {});
 }
 function acquireWakeFromGesture() {
     requestWakeLock();
+    startWakeVideo();
     // Prime the walk-in chirp's AudioContext inside the same gesture window.
     try {
         var ctx = window._pkAC || (window._pkAC = new (window.AudioContext || window.webkitAudioContext)());
@@ -478,8 +487,8 @@ function acquireWakeFromGesture() {
         var p;
         try { p = noSleep.enable(); } catch (e) { return; }
         if (p && typeof p.then === 'function') {
-            p.then(function () { noSleepEnabled = true; hideWakeBanner(); }).catch(function () {});
-        } else { noSleepEnabled = true; hideWakeBanner(); }
+            p.then(function () { noSleepEnabled = true; if (!wakeNeedsVideo()) hideWakeBanner(); }).catch(function () {});
+        } else { noSleepEnabled = true; if (!wakeNeedsVideo()) hideWakeBanner(); }
     }
 }
 function initWakeLock() {
@@ -830,8 +839,17 @@ function buildRow(p) {
     primary.type = 'button';
     primary.className = 'gd-primary';
 
-    root.appendChild(main); root.appendChild(primary);
-    var els = { root: root, name: name, badge: badge, seat: seat, extras: extras, primary: primary };
+    // Rebuys and add-ons live in the player's sheet, and the sheet opens on a
+    // tap anywhere on the row; nothing on the row said so. This button names
+    // them and opens the same sheet.
+    var more = document.createElement('button');
+    more.type = 'button';
+    more.className = 'gd-more';
+    more.dataset.act = 'gdOpenSheet';
+    more.dataset.a1 = String(pid);
+
+    root.appendChild(main); root.appendChild(more); root.appendChild(primary);
+    var els = { root: root, name: name, badge: badge, seat: seat, extras: extras, primary: primary, more: more };
     rowEls.set(pid, els);
     return els;
 }
@@ -862,6 +880,12 @@ function patchRow(els, p) {
     }
     els.seat.textContent = seatLabel(p);
     fillBits(els.extras, bits);
+
+    var rb = !isCash() && st === 'playing' && SESSION && GD.status !== 'finished' && parseInt(SESSION.rebuy_allowed);
+    var ao = !isCash() && st === 'playing' && SESSION && GD.status !== 'finished' && parseInt(SESSION.addon_allowed);
+    els.more.style.display = (rb || ao) ? '' : 'none';
+    els.more.textContent = rb && ao ? 'Rebuy / Add-on' : (rb ? 'Rebuy' : 'Add-on');
+    els.more.setAttribute('aria-label', els.more.textContent + ' for ' + p.display_name);
 
     var prim = primaryFor(p);
     if (prim) {

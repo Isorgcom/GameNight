@@ -8,6 +8,7 @@ const USER_SESSION_DEFAULT_COLS = [
     'game_type', 'buyin_amount', 'rebuy_amount', 'addon_amount',
     'starting_chips', 'addon_chips', 'rebuy_allowed', 'addon_allowed',
     'max_rebuys', 'rebuys_included', 'addons_included', 'addons_share_rebuys', 'rebuy_cutoff_level', 'num_tables', 'seats_per_table', 'auto_assign_tables',
+    'payout_round',
     'bounty_amount', 'bounty_points', 'jackpot_amount',
     'bounty_optional', 'jackpot_optional',
 ];
@@ -28,6 +29,7 @@ function default_session_defaults(): array {
         'addons_included'    => 0,
         'addons_share_rebuys'=> 0,
         'rebuy_cutoff_level' => 0,
+        'payout_round'       => 0,
         'num_tables'         => 1,
         'seats_per_table'    => 8,
         'auto_assign_tables' => 1,
@@ -371,7 +373,7 @@ function get_session_from_player($db, $player_id) {
 
 // Calculate pool stats for a session
 function calc_pool($db, $session_id) {
-    $sess = $db->prepare('SELECT buyin_amount, rebuy_amount, addon_amount, rebuys_included, addons_included, addons_share_rebuys, starting_chips, addon_chips, game_type, bounty_amount, jackpot_amount, bounty_optional, jackpot_optional FROM poker_sessions WHERE id = ?');
+    $sess = $db->prepare('SELECT buyin_amount, rebuy_amount, addon_amount, rebuys_included, addons_included, addons_share_rebuys, starting_chips, addon_chips, game_type, bounty_amount, jackpot_amount, bounty_optional, jackpot_optional, payout_round FROM poker_sessions WHERE id = ?');
     $sess->execute([$session_id]);
     $s = $sess->fetch();
     // Rebuys and add-ons that came with the buy-in: a player's first N of each
@@ -495,6 +497,9 @@ function calc_pool($db, $session_id) {
         'rebuy_total'    => $rebuy_total,
         'addon_total'    => $addon_total,
         'pool_total'     => $pool_total,
+        // Rides with the pool so every screen that turns a percentage into
+        // dollars has the rounding step beside the number it applies to.
+        'payout_round'   => pk_payout_round_clean($s['payout_round'] ?? 0),
         'cashed_out'     => (int)$r['cashed_out'],
         'total_cash_out' => (int)$r['total_cash_out'],
         'total_cash_in'  => (int)$r['total_cash_in'],
@@ -752,6 +757,52 @@ function rebalance_tables($db, $session_id, array $protected_ids = []): array {
     return $moves;
 }
 
+/* ── Rounded payouts ─────────────────────────────────────────────────────
+ * A host pays out in bills, not in $298 and $186. With a rounding step set,
+ * every place but the first is rounded to the nearest step and first place
+ * takes whatever is left of the money the percentages assigned, so the prizes
+ * always add up to exactly what they did unrounded: nothing is created and
+ * nothing goes missing. When the assigned money is itself a multiple of the
+ * step (the usual case: $5 buy-ins, 100% paid out) first place lands on the
+ * step as well.
+ *
+ * pkPayoutAmounts() in pk-payouts.js is this function's twin and must stay
+ * identical: the screens show what this one records.
+ *
+ * $rows: payout rows with 'place' and 'percentage'. Returns [place => cents]. */
+const PK_PAYOUT_ROUND_STEPS = [0, 500, 1000, 2000];
+function pk_payout_round_clean($v): int {
+    $v = (int)$v;
+    return in_array($v, PK_PAYOUT_ROUND_STEPS, true) ? $v : 0;
+}
+function pk_payout_amounts(int $poolTotal, array $rows, int $step): array {
+    $raw = [];
+    foreach ($rows as $r) {
+        $place = (int)($r['place'] ?? 0);
+        $pct   = (float)($r['percentage'] ?? 0);
+        if ($place > 0) $raw[$place] = $pct > 0 ? (int)round($poolTotal * $pct / 100) : 0;
+    }
+    $step = pk_payout_round_clean($step);
+    if ($step <= 0 || $poolTotal <= 0) return $raw;
+    ksort($raw);
+    $first = null;
+    foreach ($raw as $place => $amt) { if ($amt > 0) { $first = $place; break; } }
+    if ($first === null) return $raw;
+    $out = $raw; $others = 0;
+    foreach ($raw as $place => $amt) {
+        if ($place === $first || $amt <= 0) continue;
+        $out[$place] = intdiv($amt + intdiv($step, 2), $step) * $step;
+        $others += $out[$place];
+    }
+    $out[$first] = array_sum($raw) - $others;
+    // A pool too small to round (first place would fall below second, or
+    // below nothing at all) is paid exactly instead.
+    foreach ($out as $place => $amt) {
+        if ($place !== $first && $amt > $out[$first]) return $raw;
+    }
+    return $out[$first] > 0 ? $out : $raw;
+}
+
 // Get payouts for a session
 function get_payouts($db, $session_id) {
     $stmt = $db->prepare('SELECT * FROM poker_payouts WHERE session_id = ? ORDER BY place ASC');
@@ -766,7 +817,7 @@ function get_payouts($db, $session_id) {
 // Idempotent; safe to re-run. No-op for cash games (cash_out is their record).
 // NOT covered here: ticket issuance (not recompute-safe) — see pk_finish_session().
 function pk_apply_tournament_payouts($db, $session_id) {
-    $sess = $db->prepare('SELECT game_type, bounty_amount, bounty_points, bounty_optional FROM poker_sessions WHERE id = ?');
+    $sess = $db->prepare('SELECT game_type, bounty_amount, bounty_points, bounty_optional, payout_round FROM poker_sessions WHERE id = ?');
     $sess->execute([$session_id]);
     $s = $sess->fetch();
     if (($s['game_type'] ?? '') !== 'tournament') return;
@@ -777,10 +828,12 @@ function pk_apply_tournament_payouts($db, $session_id) {
     $poolTotal = (int)(calc_pool($db, $session_id)['pool_total'] ?? 0);
     $pctByPlace = [];
     $ptsByPlace = [];
-    foreach (get_payouts($db, $session_id) as $po) {
+    $payoutRows = get_payouts($db, $session_id);
+    foreach ($payoutRows as $po) {
         $pctByPlace[(int)$po['place']] = (float)$po['percentage'];
         $ptsByPlace[(int)$po['place']] = (int)($po['points'] ?? 0);
     }
+    $amtByPlace = pk_payout_amounts($poolTotal, $payoutRows, (int)($s['payout_round'] ?? 0));
 
     // Tickets converted back to cash land in the holder's payout so the value
     // isn't lost when a target evaporates; survives every recompute.
@@ -818,7 +871,7 @@ function pk_apply_tournament_payouts($db, $session_id) {
     foreach ($players->fetchAll() as $p) {
         $pid = (int)$p['id'];
         $pos = (int)($p['finish_position'] ?? 0);
-        $amt = ($pos > 0 && isset($pctByPlace[$pos])) ? (int)round($poolTotal * $pctByPlace[$pos] / 100) : 0;
+        $amt = ($pos > 0 && isset($pctByPlace[$pos])) ? (int)($amtByPlace[$pos] ?? 0) : 0;
         $amt += $converted[$pid] ?? 0;
         $kos = ($koCount[$pid] ?? 0) + (int)($p['bounties_banked'] ?? 0);
         // Cash: baked mode — winner keeps their own head-bounty unless it was

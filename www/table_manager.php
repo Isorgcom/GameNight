@@ -189,6 +189,12 @@ $title     = (string)$event['title'];
         font-weight:800; font-size:.85rem; cursor:pointer; flex-shrink:0;
         -webkit-tap-highlight-color:transparent; }
     .gd-primary:active { filter:brightness(.92); }
+    /* The row's way into the sheet for a rebuy or an add-on: quieter than the
+       primary so KO stays the one loud button. */
+    .gd-more { border:1.5px solid #c4b5fd; border-radius:10px; background:#f5f3ff; color:#6d28d9;
+        min-height:44px; max-width:5.2rem; padding:.2rem .55rem; font-weight:700; font-size:.76rem;
+        line-height:1.15; cursor:pointer; flex-shrink:0; -webkit-tap-highlight-color:transparent; }
+    .gd-more:active { background:#ede9fe; }
     .gd-primary.buyin   { background:#16a34a; color:#fff; }
     .gd-primary.ko      { background:#dc2626; color:#fff; }
     .gd-primary.reenter { background:#2563eb; color:#fff; }
@@ -394,6 +400,7 @@ window.GD = {
 <script src="/pk-dialogs.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-dialogs.js') ?: 0)) ?>" defer></script>
 <script src="/pk-dispatch.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-dispatch.js') ?: 0)) ?>" defer></script>
 <script src="/vendor/nosleep.min.js" defer></script>
+<script src="/pk-payouts.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-payouts.js') ?: 0)) ?>" defer></script>
 <script src="/table_manager.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/table_manager.js') ?: 0)) ?>" defer></script>
 </body>
 </html>

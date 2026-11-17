@@ -357,9 +357,11 @@ function renderAll() {
         if (GAME_TYPE === 'tournament' && PAYOUTS && PAYOUTS.length > 0 && POOL && POOL.pool_total > 0) {
             var h = '';
             var ordinals = ['1st','2nd','3rd','4th','5th','6th','7th','8th','9th','10th'];
+            // Rounded when the game asks for it (pk-payouts.js).
+            var payAmts = pkPayoutAmounts(POOL.pool_total, PAYOUTS, POOL.payout_round);
             for (var i = 0; i < PAYOUTS.length; i++) {
                 var pct = parseFloat(PAYOUTS[i].percentage) || 0;
-                var amt = Math.round(POOL.pool_total * pct / 100);
+                var amt = payAmts[parseInt(PAYOUTS[i].place)] || 0;
                 // Reward suffixes (points / entry ticket / prize label) ride in
                 // the same themeable row as the cash amount.
                 var extra = '';
@@ -787,13 +789,23 @@ function hideWakeBanner() {
     setTimeout(function() { if (wakeBanner) wakeBanner.remove(); wakeBanner = null; }, 600);
 }
 
+// On an iPhone or iPad the wake lock being granted has not kept the screen on
+// (see pk-keepawake.js), so there it is not proof of anything: the banner stays
+// until the silent clip is playing, which needs a tap. A page that does not
+// load pk-keepawake.js is unaffected.
+function wakeNeedsVideo() { return !!(window.pkKeepAwakeNeedsVideo && window.pkKeepAwakeNeedsVideo()); }
+function startWakeVideo() {
+    if (!wakeNeedsVideo()) return;
+    try { window.pkKeepAwakeVideo().then(function () { hideWakeBanner(); }).catch(function () {}); } catch (e) {}
+}
 async function requestWakeLock() {
     if (!('wakeLock' in navigator) || wakeLockAcquired) return;
     try {
         wakeLock = await navigator.wakeLock.request('screen');
         wakeLockAcquired = true;
-        hideWakeBanner();
-        wakeLock.addEventListener('release', function() { wakeLock = null; wakeLockAcquired = false; });
+        if (!wakeNeedsVideo()) hideWakeBanner();
+        // iOS can drop the lock while the page is still showing; ask again.
+        wakeLock.addEventListener('release', function() { wakeLock = null; wakeLockAcquired = false; if (document.visibilityState === 'visible') setTimeout(requestWakeLock, 1000); });
     } catch(e) {}
 }
 
@@ -803,18 +815,19 @@ async function requestWakeLock() {
 // for LAN dev access; on HTTPS production both engage and whichever sticks wins.
 function acquireWakeFromGesture() {
     requestWakeLock();  // promise; gesture is captured at call time
+    startWakeVideo();
     if (noSleep && !noSleepEnabled) {
         var p;
         try { p = noSleep.enable(); } catch(e) { return; }
         if (p && typeof p.then === 'function') {
             p.then(function() {
                 noSleepEnabled = true;
-                hideWakeBanner();
+                if (!wakeNeedsVideo()) hideWakeBanner();
             }).catch(function() {});
         } else {
             // Older NoSleep builds return undefined synchronously.
             noSleepEnabled = true;
-            hideWakeBanner();
+            if (!wakeNeedsVideo()) hideWakeBanner();
         }
     }
 }

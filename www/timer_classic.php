@@ -836,6 +836,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
 <script src="/vendor/qrcode.min.js"></script>
 <script src="/pk-qr.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-qr.js') ?: 0)) ?>"></script>
 <script src="/vendor/nosleep.min.js"></script>
+<script src="/pk-keepawake.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-keepawake.js') ?: 0)) ?>"></script>
 <script nonce="<?= csp_nonce() ?>">
 // ─── §7.1  Config from PHP ──────────────────────────────────────
 var IS_REMOTE = <?= js_json($is_remote) ?>;
@@ -1013,6 +1014,7 @@ var SOUNDS = {
     warning_sound: <?= js_json($timer['warning_sound'] ?? null) ?>
 };
 </script>
+<script src="/pk-payouts.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-payouts.js') ?: 0)) ?>"></script>
 <script src="/timer_classic.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/timer_classic.js') ?: 0)) ?>"></script>
 <script src="/pk-dialogs.js?v=<?= @filemtime(__DIR__ . '/pk-dialogs.js') ?>" defer></script>
 </body>

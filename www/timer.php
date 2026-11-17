@@ -283,6 +283,7 @@ var TB_EXIT_URL = <?= js_json($event_id ? '/checkin.php?event_id=' . (int)$event
          mode — the editor preview is an iframe, not a screen anyone watches. */ ?>
 <div id="tbWakeBanner">Tap anywhere to keep this screen awake</div>
 <script src="/vendor/nosleep.min.js"></script>
+<script src="/pk-keepawake.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-keepawake.js') ?: 0)) ?>"></script>
 <?php endif; ?>
 <script src="/vendor/qr-code-styling.min.js"></script>
 <script src="/vendor/qrcode.min.js"></script>
@@ -293,6 +294,7 @@ var TB_EXIT_URL = <?= js_json($event_id ? '/checkin.php?event_id=' . (int)$event
      this is script-src 'self'. Absent (download failed) the renderer falls back
      to a native src, which still plays on Safari and iOS. -->
 <script src="/vendor/hls.min.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/hls.min.js') ?: 0)) ?>"></script>
+<script src="/pk-payouts.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-payouts.js') ?: 0)) ?>"></script>
 <script src="/timer_display.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/timer_display.js') ?: 0)) ?>"></script>
 <?php if ($cast_sender): ?>
 <script nonce="<?= csp_nonce() ?>">

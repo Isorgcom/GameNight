@@ -972,6 +972,7 @@ if ($session) {
 <div id="ckDisplayHome" hidden>
     <?php require __DIR__ . '/_timer_layouts_editor.php'; ?>
 </div>
+<script src="/pk-payouts.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-payouts.js') ?: 0)) ?>"></script>
 <script nonce="<?= csp_nonce() ?>">
 var ES_CSRF = <?= js_json($csrf) ?>;
 var ES_EVENT_ID = <?= (int)$event_id ?>;
@@ -2312,7 +2313,7 @@ function renderInlineSummary() {
         h += '<span>Pool: <b style="color:#15803d">' + formatMoney(POOL.pool_total) + '</b></span>';
         for (var pi = 0; pi < PAYOUTS.length && pi < 3; pi++) {
             var pct = parseFloat(PAYOUTS[pi].percentage);
-            var amt = Math.round(POOL.pool_total * pct / 100);
+            var amt = payoutForPlace(PAYOUTS[pi].place);
             var pl = PAYOUTS[pi].place == 1 ? '1st' : PAYOUTS[pi].place == 2 ? '2nd' : PAYOUTS[pi].place == 3 ? '3rd' : PAYOUTS[pi].place + 'th';
             h += '<span>' + pl + ': <b>' + formatMoney(amt) + '</b></span>';
         }
@@ -2379,7 +2380,7 @@ function renderPayoutCard() {
         var pay = PAYOUTS[i];
         var pct = parseFloat(pay.percentage);
         totalPct += pct;
-        var amt = Math.round(POOL.pool_total * pct / 100);
+        var amt = payoutForPlace(pay.place);
         var placeLabel = pay.place == 1 ? '1st' : pay.place == 2 ? '2nd' : pay.place == 3 ? '3rd' : pay.place + 'th';
         var extras = '';
         if (parseInt(pay.points) > 0) extras += ' <span style="color:#7c3aed;font-size:.75rem;font-weight:700">+' + parseInt(pay.points) + ' pts</span>';
@@ -2431,7 +2432,7 @@ function renderPayoutsView() {
         for (var i = 0; i < PAYOUTS.length; i++) {
             var pay = PAYOUTS[i];
             var pct = parseFloat(pay.percentage) || 0;
-            var amt = Math.round(POOL.pool_total * pct / 100);
+            var amt = payoutForPlace(pay.place);
             sumPct += pct; sumAmt += amt;
             // Who finished in this place, and what they were actually credited.
             var win = (PLAYERS || []).filter(function(p) { return parseInt(p.finish_position) === parseInt(pay.place); })[0];
@@ -3120,6 +3121,16 @@ function renderPayoutsPane() {
     h += '<button data-act="autoSplitPayouts">Auto Split</button>';
     h += '</div>';
     h += '<div id="payoutSum" style="margin-top:.3rem;font-size:.8rem;color:#64748b"></div>';
+    var pr = parseInt(SESSION.payout_round) || 0;
+    h += '<div class="pk-settings-grid" style="margin-top:.7rem">';
+    h += '<div><label for="cfg_payout_round">Round prizes to</label><select id="cfg_payout_round">'
+       + '<option value="0"' + (pr === 0 ? ' selected' : '') + '>Exact amounts</option>'
+       + '<option value="500"' + (pr === 500 ? ' selected' : '') + '>Nearest $5</option>'
+       + '<option value="1000"' + (pr === 1000 ? ' selected' : '') + '>Nearest $10</option>'
+       + '<option value="2000"' + (pr === 2000 ? ' selected' : '') + '>Nearest $20</option>'
+       + '</select></div>';
+    h += '</div>';
+    h += '<div style="font-size:.78rem;color:#64748b;margin-top:.35rem">For paying out in bills: $186 becomes $185. First place takes the difference, so the prizes still add up to the pool.</div>';
     h += '</div>';
     return h;
 }
@@ -3211,12 +3222,12 @@ function ordinalLabel(n) {
 function payoutForPlace(place) {
     place = parseInt(place);
     if (!place) return 0;
-    for (var i = 0; i < PAYOUTS.length; i++) {
-        if (parseInt(PAYOUTS[i].place) === place) {
-            return Math.round((POOL.pool_total || 0) * parseFloat(PAYOUTS[i].percentage) / 100);
-        }
-    }
-    return 0;
+    return payoutAmounts()[place] || 0;
+}
+// Every place's prize at once, rounded when the game asks for it (Setup,
+// Payout Structure, "Round prizes to"). pk-payouts.js holds the arithmetic.
+function payoutAmounts() {
+    return pkPayoutAmounts((POOL && POOL.pool_total) || 0, PAYOUTS || [], POOL && POOL.payout_round);
 }
 
 function previewGameType(val) {
@@ -4198,6 +4209,7 @@ function buildPresetFormData() {
     fd.append('gc_rebuy_cutoff_level', Math.max(0, parseInt((document.getElementById('cfg_rebuy_cutoff') || {}).value || 0)));
     fd.append('gc_addons_included', Math.max(0, parseInt((document.getElementById('cfg_addons_included') || {}).value || 0)));
     fd.append('gc_addons_share_rebuys', (document.getElementById('cfg_free_stack') || {}).value === '1' ? 1 : 0);
+    fd.append('gc_payout_round', parseInt((document.getElementById('cfg_payout_round') || {}).value || 0) || 0);
     fd.append('gc_addon_allowed', (document.getElementById('cfg_addon_allowed') || {}).checked ? 1 : 0);
     fd.append('gc_num_tables', parseInt((document.getElementById('cfg_tables') || {}).value || 1));
     fd.append('gc_seats_per_table', parseInt((document.getElementById('cfg_seats_per_table') || {}).value || 8));
@@ -5268,6 +5280,7 @@ function saveSettings() {
         data.jackpot_amount = Math.max(0, Math.round(parseFloat((document.getElementById('cfg_jackpot') || {}).value || 0))) * 100;
         data.bounty_optional = svModeVal('cfg_bounty_mode', '0') === '1' ? 1 : 0;
         data.jackpot_optional = svModeVal('cfg_jackpot_mode', '1') === '1' ? 1 : 0;
+        data.payout_round = parseInt((document.getElementById('cfg_payout_round') || {}).value || 0) || 0;
         // Sent as JSON, and only for a tournament — a cash game has no legend.
         data.chip_set = JSON.stringify(CHIP_SET.filter(function (c) { return (+c.v || 0) > 0; }));
     } else {
