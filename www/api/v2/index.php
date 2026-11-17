@@ -304,6 +304,7 @@ if ($path === '') {
             'writes'   => 'Send a JSON object. An unknown field is refused by name. A POST may carry an Idempotency-Key header (8 to 128 characters): asked again within a day, it returns the first answer instead of doing the thing twice. Something that cannot be undone needs "confirm": true.',
         ],
         'endpoints' => array_map(fn($r) => ['method' => $r[0], 'path' => API_V2_BASE . $r[1], 'scope' => $r[2], 'summary' => $r[3]], $routes),
+        'mcp'  => ['url' => $site . '/mcp', 'note' => 'The same abilities as tools for an assistant, over the Model Context Protocol (Streamable HTTP), with the same personal token.'],
         'docs' => 'https://github.com/Isorgcom/GameNight/blob/main/DOCS.md#personal-api-v2',
     ]]);
 }

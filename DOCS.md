@@ -55,6 +55,7 @@ A complete guide to setting up, configuring, and using Game Night — your self-
   - [Examples](#api-examples)
   - [Revoking a Key](#api-revoking-a-key)
   - [Connected Apps: Sign-In Bridge](#connected-apps-sign-in-bridge)
+- [Connecting Claude (MCP)](#connecting-claude-mcp)
 - [Personal API (v2)](#personal-api-v2)
   - [Tokens](#tokens)
   - [Calling it](#calling-it)
@@ -1696,7 +1697,7 @@ No API key. Returns `{issuer, connect_url, token: {format, claims, carried}, key
 
 ## Personal API (v2)
 
-`/api/v2` is the API for a **person**. Where a league key on `/api/v1` belongs to a league and acts as its owner, a personal token belongs to you: it sees what you would see signed in to the site, and nothing else. It is what an AI assistant or a script of your own uses to answer "who is coming Friday", "what did everyone get paid last month" or "show me the season standings".
+`/api/v2` is the API for a **person**. (To use it from Claude without writing any code, see [Connecting Claude](#connecting-claude-mcp).) Where a league key on `/api/v1` belongs to a league and acts as its owner, a personal token belongs to you: it sees what you would see signed in to the site, and nothing else. It is what an AI assistant or a script of your own uses to answer "who is coming Friday", "what did everyone get paid last month" or "show me the season standings".
 
 It can read everything you can see, create and change events and guest lists, look after a league's seasons, posts and join requests, send invitations and messages to guests, and run a poker game from setup to the final payout: buy-ins, rebuys, knockouts, seating, the clock.
 
@@ -2349,6 +2350,60 @@ curl -H "$AUTH" "$API/leagues/27/standings?range=ytd&rank=points"
 | `409` | `not_a_poker_event`, `event_cancelled`, `confirmation_required`, `already_decided`, `needs_account`, `notifications_off`, `game_refused`, `rebuys_closed`, `rebuy_limit`, `not_a_tournament`, `not_a_cash_game`, `not_bought_in`, `already_out`, `not_out`, `nothing_to_undo`, `already_voided`, `player_has_money_in`, `game_finished`, `game_not_finished`, `last_table` | It cannot be done as things stand; `message` says why |
 | `429` | `rate_limited`, `write_limit`, `host_message_limit` | Too many requests in a minute, changes in an hour, or host messages in a day |
 | `503` | `busy` | The site was busy writing. Nothing changed; ask again |
+
+## Connecting Claude (MCP)
+
+The site is a Model Context Protocol server. An assistant such as Claude connects to it and gets a set of tools: list my events, who has not answered, copy last month's game to a new date, take a buy-in, knock a player out, what are the standings. Each tool is the same thing the [Personal API](#personal-api-v2) does, with the same permissions, so nothing Claude can do here differs from what you could do on the site.
+
+### What you need
+
+1. A personal token, from **Settings → Security → API Tokens**. Give it only the permissions you want Claude to have. A token with just **read** can look but not touch; add **events** to let it set up events and guest lists, **messages** to let it send invitations and messages, **game** to let it run a poker game.
+2. The address: `https://your-site.com/mcp` (the Settings card shows yours).
+
+### Claude Code
+
+```bash
+claude mcp add --transport http gamenight https://your-site.com/mcp --header "Authorization: Bearer gnp_YOUR_TOKEN"
+```
+
+Then, in Claude Code, ask in your own words: "what's on my game night calendar next month", "who hasn't answered for Saturday", "set up the December tournament like November's and invite the same people". `claude mcp list` shows whether it connected, and `claude mcp remove gamenight` takes it away. To share the setup without the token in it, a project's `.mcp.json` can read the token from the environment:
+
+```json
+{ "mcpServers": { "gamenight": { "type": "http", "url": "https://your-site.com/mcp",
+    "headers": { "Authorization": "Bearer ${GAMENIGHT_TOKEN}" } } } }
+```
+
+Any other MCP client that speaks Streamable HTTP and can send an `Authorization` header works the same way. Adding the site as a connector from the Claude apps, by signing in instead of pasting a token, is planned and not available yet.
+
+### What Claude will and will not do on its own
+
+- **It asks before it reaches people.** The tools that send email or texts say so in capitals in their descriptions (`send_invitations`, `nudge_guests`, `message_guests`, `resend_invitation`, `add_league_member`), and `cancel_event` says it tells every guest. Without the **messages** permission on the token those tools are not offered at all.
+- **Deleting an event, finishing a game and resetting the clock need a second step.** The first call answers with what would happen; only a call with `confirm: true` does it.
+- **It names people the way you do.** "Knock out Dave" works. If two players are called Dave, the tool answers with both and does nothing, so Claude has to ask you which.
+- **It cannot see or do more than you can.** Someone else's event is "not found" to it.
+- **Everything is on the record.** Each tool call is listed under the token's **Recent activity** in Settings, as `Claude: player_action` and so on, and a game's own log shows your name against each buy-in and knockout. Revoking the token cuts Claude off at once.
+
+### The tools
+
+| Permission | Tools |
+|---|---|
+| `read` | `whoami`, `list_events`, `get_event`, `list_guests`, `list_messages`, `get_league`, `get_standings`, `get_player_history`, `list_league_posts`, `list_join_requests`, `get_game`, `get_results`, `get_game_log` |
+| `events` | `create_event`, `update_event`, `cancel_event`, `delete_event`, `duplicate_event`, `add_guests`, `update_guest`, `remove_guest`, `decide_guest`, `add_season`, `delete_season`, `create_league_post`, `decide_join_request` |
+| `messages` | `send_invitations`, `resend_invitation`, `nudge_guests`, `message_guests`, `add_league_member` |
+| `game` | `configure_game`, `set_blinds`, `set_payouts`, `game_status`, `add_walk_in`, `player_action`, `add_on_for_players`, `manage_tables`, `void_ledger_entry`, `clock` |
+
+`player_action` covers one thing for one player: `buy_in`, `rebuy`, `add_on` and their undos, `eliminate`, `reinstate`, `cash_in`, `cash_out`, `seat`, `unseat`, `notes`, `remove`. Putting a jackpot amount on a game is not offered as a tool; do that in the game's Setup.
+
+### For people building a client
+
+- **Transport:** Streamable HTTP at `/mcp`. `POST` one JSON-RPC 2.0 message; the answer is one `application/json` body (never a stream). `GET` and `DELETE` answer `405`. A batch is refused.
+- **Stateless:** no session id is issued and nothing is remembered between requests.
+- **Protocol versions:** `2026-07-28` (no handshake: send the version in `params._meta` and the `MCP-Protocol-Version` header; `server/discover` describes the server), and `2025-11-25`, `2025-06-18`, `2025-03-26` (open with `initialize`; `ping` is answered). Where the `MCP-Protocol-Version`, `Mcp-Method` or `Mcp-Name` header is sent it must agree with the body, or the answer is `400` with JSON-RPC error `-32020`. An unsupported version answers `-32022` with the supported list.
+- **Authentication:** `Authorization: Bearer gnp_...` on every request. Without it: `401` with `WWW-Authenticate: Bearer`.
+- **Capabilities:** tools only. The tool list depends on the token's permissions, so `tools/list` and `server/discover` are marked `cacheScope: "private"`.
+- **Results:** a tool answers with the data as `structuredContent` and as JSON text. Something the site refuses is a normal result with `isError: true`, the reason in the text and `structuredContent.error` holding the same code the API uses (`event_not_found`, `confirmation_required`, `ambiguous_name`, `game_refused`, `missing_scope`...). Only an unknown tool or a malformed call is a JSON-RPC error (`-32602`).
+- **Limits:** 120 requests a minute per token, and 60 successful uses an hour of any one tool that changes something.
+- **Origin:** a request with an `Origin` header from another site is refused with `403`; the site's own origin and `localhost` are accepted.
 
 ## Security
 

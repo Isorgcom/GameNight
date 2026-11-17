@@ -1005,7 +1005,9 @@ $site_name = get_setting('site_name', 'Game Night');
                         <?php foreach ($_acts as $_a): $_code = (int)$_a['status']; ?>
                             <li>
                                 <time datetime="<?= htmlspecialchars(str_replace(' ', 'T', (string)$_a['created_at']) . 'Z', ENT_QUOTES | ENT_SUBSTITUTE) ?>"><?= htmlspecialchars($st_when((string)$_a['created_at'], 'M j, g:i:s A'), ENT_QUOTES | ENT_SUBSTITUTE) ?></time>
-                                <code><?= htmlspecialchars($_a['method'] . ' ' . (preg_replace('#^/api/v2#', '', (string)$_a['path']) ?: '/'), ENT_QUOTES | ENT_SUBSTITUTE) ?></code>
+                                <code><?= htmlspecialchars(str_starts_with((string)$_a['path'], '/mcp')
+                                    ? 'Claude: ' . (preg_replace('#^/mcp/(tools/)?#', '', (string)$_a['path']) ?: 'connect')
+                                    : $_a['method'] . ' ' . (preg_replace('#^/api/v2#', '', (string)$_a['path']) ?: '/'), ENT_QUOTES | ENT_SUBSTITUTE) ?></code>
                                 <span class="st-activity-status<?= $_code >= 400 ? ' is-refused' : '' ?>"><?= $_code ?> <?= htmlspecialchars($st_status($_code), ENT_QUOTES | ENT_SUBSTITUTE) ?></span>
                                 <span class="st-activity-ip">from <?= htmlspecialchars((string)$_a['ip'], ENT_QUOTES | ENT_SUBSTITUTE) ?></span>
                             </li>
@@ -1047,6 +1049,17 @@ $site_name = get_setting('site_name', 'Game Night');
                 <div class="st-actions"><button type="submit" class="btn btn-primary">Create Token</button></div>
             </form>
             <p class="st-note">The jackpot permission is only needed to put a jackpot amount on a game. <a href="https://github.com/Isorgcom/GameNight/blob/main/DOCS.md#personal-api-v2" target="_blank" rel="noopener">How to use a token</a></p>
+
+            <details class="st-activity" style="margin-top:1rem">
+                <summary>Use it with Claude</summary>
+                <div style="margin-top:.5rem;font-size:.88rem;line-height:1.55">
+                    <p style="margin:0 0 .5rem">This site is an MCP server, so Claude can work with your events and games directly. Create a token above, then point Claude at:</p>
+                    <code id="stMcpUrl" style="display:block;overflow-wrap:anywhere;background:#f1f5f9;border-radius:6px;padding:.5rem .6rem;font-size:.8rem"><?= htmlspecialchars(rtrim(get_site_url(), '/') . '/mcp', ENT_QUOTES | ENT_SUBSTITUTE) ?></code>
+                    <p style="margin:.75rem 0 .35rem">In Claude Code, one command (put your token in place of <code>TOKEN</code>):</p>
+                    <code style="display:block;overflow-wrap:anywhere;background:#f1f5f9;border-radius:6px;padding:.5rem .6rem;font-size:.8rem">claude mcp add --transport http gamenight <?= htmlspecialchars(rtrim(get_site_url(), '/') . '/mcp', ENT_QUOTES | ENT_SUBSTITUTE) ?> --header "Authorization: Bearer TOKEN"</code>
+                    <p class="st-note">Claude can then do whatever the token allows, and nothing more. Give it only the permissions you want it to have. <a href="https://github.com/Isorgcom/GameNight/blob/main/DOCS.md#connecting-claude-mcp" target="_blank" rel="noopener">More about connecting Claude</a></p>
+                </div>
+            </details>
         </div>
     </section>
 
