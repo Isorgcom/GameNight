@@ -343,18 +343,6 @@ if ($action === 'list_target_events') {
 
 // ─── GET: jackpot_log ──────────────────────────────────────
 // The league jackpot's ledger (newest first), for the 💎 modal's history view.
-// How much of a session's jackpot money is already banked in the fund. The
-// client subtracts this from what the game has collected to show what is still
-// pending, so an early bank at hit time does not get counted twice.
-function pk_jackpot_contributed($db, int $session_id): int {
-    try {
-        $q = $db->prepare("SELECT COALESCE(SUM(amount), 0) FROM league_jackpot_log
-                           WHERE session_id = ? AND event_type = 'contribution' AND voided = 0");
-        $q->execute([$session_id]);
-        return (int)$q->fetchColumn();
-    } catch (Exception $e) { return 0; /* pre-migration DB */ }
-}
-
 if ($action === 'jackpot_log') {
     $session_id = (int)($_GET['session_id'] ?? 0);
     $sess = $db->prepare('SELECT ps.*, e.league_id FROM poker_sessions ps JOIN events e ON e.id = ps.event_id WHERE ps.id = ?');

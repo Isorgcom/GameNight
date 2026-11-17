@@ -1358,6 +1358,29 @@ JSON;
     // adding write endpoints (e.g. POST /api/v1/users) cannot be exercised by an old
     // sister-site key without an explicit re-mint.
     try { $pdo->exec("ALTER TABLE api_keys ADD COLUMN scopes TEXT NOT NULL DEFAULT 'read'"); } catch (Exception $e) {}
+    // Personal API tokens (API v2, v1.26.0). Where an api_keys row belongs to a
+    // league and acts as its owner, a token belongs to a PERSON and can do what
+    // that person can do on the site. Stored as sha256 of the whole token
+    // ("gnp_" + 64 hex), shown once at minting. client_id / expires_at /
+    // refresh_hash are for tokens issued through the OAuth sign-in; a token
+    // minted by hand in Settings leaves them NULL and does not expire.
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS api_tokens (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id      INTEGER NOT NULL,
+        token_hash   TEXT    NOT NULL UNIQUE,
+        label        TEXT    NOT NULL DEFAULT '',
+        scopes       TEXT    NOT NULL DEFAULT 'read',
+        client_id    INTEGER,
+        created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_used_at DATETIME,
+        expires_at   DATETIME,
+        refresh_hash TEXT,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_api_tokens_user ON api_tokens(user_id)"); } catch (Exception $e) {}
+    // api_request_log rows made with a personal token carry token_id (key_id NULL).
+    try { $pdo->exec("ALTER TABLE api_request_log ADD COLUMN token_id INTEGER"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_api_request_log_token ON api_request_log(token_id, created_at)"); } catch (Exception $e) {}
     // One-shot: prune any pre-existing revoked api_keys rows. Revoke now hard-deletes,
     // so legacy soft-revoked rows would just sit invisible forever. Guarded by a
     // site_setting flag so it runs once and then no-ops on every db_init thereafter.

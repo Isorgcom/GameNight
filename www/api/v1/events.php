@@ -527,67 +527,44 @@ function handle_events_delete(): void {
     }
 
     $title      = (string)$evt['title'];
-    $start_date = (string)$evt['start_date'];
-
-    // Future events get cancel_event notifications; past events are deleted
-    // silently (mirrors calendar.php:432). "Today" is in the site's TZ — stored
-    // start_date is also in the site's TZ.
-    $site_tz = new DateTimeZone(get_setting('timezone', 'UTC'));
-    $today   = (new DateTime('now', $site_tz))->format('Y-m-d');
-    // An event cancelled on the site already told its guests.
-    $notify  = ($start_date >= $today) && empty($evt['cancelled_at']);
 
     $notifications_queued = 0;
+
+    // The delete is recorded against the league owner, the same account that
+    // POST /events records as the creator.
+    $ow = $db->prepare('SELECT owner_id FROM leagues WHERE id = ?');
+    $ow->execute([$league_id]);
+    $owner_id = (int)$ow->fetchColumn();
 
     try {
         $db->beginTransaction();
 
-        // Clear all queued notifications for this event FIRST. The UI handler
-        // only purges already-attempted rows, which orphans pending reminders
-        // for events that get deleted before the reminder fires. We want a
-        // clean slate, then we re-queue the cancel notifications below.
+        // Drop everything still queued for this event first, so a reminder
+        // that has not fired yet cannot outlive the event. The cancellation
+        // notices are queued after this, by the shared function.
         $db->prepare('DELETE FROM pending_notifications WHERE event_id=?')->execute([$event_id]);
 
-        if ($notify) {
-            $invStmt = $db->prepare(
-                "SELECT username FROM event_invites
-                  WHERE event_id = ? AND occurrence_date IS NULL"
-            );
-            $invStmt->execute([$event_id]);
-            foreach ($invStmt->fetchAll() as $inv) {
-                queue_event_notification(
-                    $db,
-                    $event_id,
-                    (string)$inv['username'],
-                    'cancel_event',
-                    null,
-                    ['title' => $title, 'start_date' => $start_date]
-                );
-                $notifications_queued++;
-            }
-        }
-
-        // Cascade. Order matches calendar.php:430-464 — calendar_dl.php is
-        // missing the comments cleanup, so we don't follow that one. We add
-        // an explicit poker_sessions delete (and the chained poker tables)
-        // because SQLite ignores ON DELETE CASCADE unless foreign_keys=ON,
-        // and that PRAGMA isn't set on this connection.
-        $db->prepare("DELETE FROM comments WHERE type='event' AND content_id=?")->execute([$event_id]);
-        $db->prepare('DELETE FROM event_exceptions WHERE event_id=?')->execute([$event_id]);
-        $db->prepare('DELETE FROM event_invites WHERE event_id=?')->execute([$event_id]);
-        $db->prepare('DELETE FROM event_notifications_sent WHERE event_id=?')->execute([$event_id]);
-        // Poker chain — delete leaves first, then session.
+        // timer_state has no foreign key to poker_sessions, so the clock row
+        // is removed by hand; the session, players and payouts cascade.
         $sids = $db->prepare('SELECT id FROM poker_sessions WHERE event_id=?');
         $sids->execute([$event_id]);
         $session_ids = array_column($sids->fetchAll(), 'id');
         if (!empty($session_ids)) {
             $sph = implode(',', array_fill(0, count($session_ids), '?'));
-            $db->prepare("DELETE FROM poker_players WHERE session_id IN ($sph)")->execute($session_ids);
-            $db->prepare("DELETE FROM poker_payouts WHERE session_id IN ($sph)")->execute($session_ids);
-            $db->prepare("DELETE FROM timer_state   WHERE session_id IN ($sph)")->execute($session_ids);
-            $db->prepare('DELETE FROM poker_sessions WHERE event_id=?')->execute([$event_id]);
+            $db->prepare("DELETE FROM timer_state WHERE session_id IN ($sph)")->execute($session_ids);
         }
-        $db->prepare('DELETE FROM events WHERE id=?')->execute([$event_id]);
+
+        // The one notify-then-delete sequence, shared with the event page and
+        // the SMS CANCEL command: it calls off an online table, removes comment
+        // pictures and host messages (event_messages has a foreign key to
+        // events with no cascade, so the event row cannot go before them), and
+        // tells the guests only when the event is still ahead and was not
+        // already cancelled.
+        $res = cancel_event_with_notifications($db, $event_id, $owner_id);
+        if ($res === null) {
+            throw new RuntimeException('event vanished');
+        }
+        $notifications_queued = (int)$res['notified'];
 
         $db->commit();
     } catch (Throwable $e) {

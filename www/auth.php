@@ -657,6 +657,9 @@ function invalidate_other_sessions(int $user_id, bool $keep_current = false): vo
     $db = get_db();
     $db->prepare('UPDATE users SET session_epoch = session_epoch + 1 WHERE id = ?')->execute([$user_id]);
     try { $db->prepare('DELETE FROM remember_tokens WHERE user_id = ?')->execute([$user_id]); } catch (Exception $e) {}
+    // Personal API tokens are sessions that happen to live in another program:
+    // a password change or "sign out everywhere" ends them too.
+    try { $db->prepare('DELETE FROM api_tokens WHERE user_id = ?')->execute([$user_id]); } catch (Exception $e) {}
     if ($keep_current) {
         session_start_safe();
         $_SESSION['session_epoch'] = user_session_epoch($user_id);

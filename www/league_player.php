@@ -51,61 +51,14 @@ if ($range === 'custom') {
     $to_date   = $today;
 }
 
-// ── Player match: numeric pk → user id, g_<name> → guest display name ─────────
-if (str_starts_with($pk, 'g_')) {
-    $who_sql    = 'pp.user_id IS NULL AND LOWER(pp.display_name) = ?';
-    $who_params = [substr($pk, 2)];
-} elseif (ctype_digit($pk)) {
-    $who_sql    = 'pp.user_id = ?';
-    $who_params = [(int)$pk];
-} else {
-    http_response_code(400); exit('Bad player key');
-}
-
-$where_date = '';
-$params = array_merge([$league_id], $who_params);
-if ($from_date) { $where_date .= ' AND e.start_date >= ?'; $params[] = $from_date->format('Y-m-d'); }
-if ($to_date)   { $where_date .= ' AND e.start_date <= ?'; $params[] = $to_date->format('Y-m-d'); }
-
-$stmt = $db->prepare("
-    SELECT
-        e.id as event_id, e.title, e.start_date,
-        ps.game_type,
-        COALESCE(u.username, pp.display_name) as display_name,
-        lm.known_as,
-        pp.rebuys, pp.addons,
-        CASE WHEN ps.game_type = 'tournament' THEN COALESCE(pp.finish_position, pc.field_size) END as finish_position,
-        pc.field_size,
-        CASE WHEN ps.game_type = 'tournament'
-             THEN pp.bought_in * ps.buyin_amount + MAX(0, pp.rebuys - COALESCE(ps.rebuys_included, 0)) * COALESCE(ps.rebuy_amount, 0) + MAX(0, pp.addons - CASE WHEN COALESCE(ps.addons_share_rebuys, 0) = 1 THEN MAX(0, COALESCE(ps.rebuys_included, 0) - pp.rebuys) ELSE COALESCE(ps.addons_included, 0) END) * COALESCE(ps.addon_amount, 0)
-             ELSE COALESCE(pp.cash_in, 0) END as invested,
-        CASE WHEN ps.game_type = 'tournament' THEN COALESCE(pp.payout, 0) + COALESCE(pp.bounty_cash, 0)
-             ELSE COALESCE(pp.cash_out, 0) END as winnings,
-        COALESCE(pp.points, 0) as points,
-        COALESCE(pp.bounties_won, 0) as bounties_won,
-        CASE WHEN ps.game_type = 'tournament' AND pc.field_size > 1
-            THEN ROUND(CAST(pc.field_size - COALESCE(pp.finish_position, pc.field_size) AS REAL) / pc.field_size * 80 + 20, 1)
-            WHEN ps.game_type = 'tournament' THEN 100
-        END as score
-    FROM poker_players pp
-    JOIN poker_sessions ps ON ps.id = pp.session_id
-    JOIN events e ON e.id = ps.event_id
-    LEFT JOIN users u ON u.id = pp.user_id
-    LEFT JOIN league_members lm ON lm.league_id = e.league_id AND lm.user_id = pp.user_id
-    JOIN (
-        SELECT session_id, COUNT(*) as field_size
-        FROM poker_players WHERE bought_in = 1 AND removed = 0
-        GROUP BY session_id
-    ) pc ON pc.session_id = pp.session_id
-    WHERE pp.bought_in = 1 AND pp.removed = 0
-      AND ps.status = 'finished'
-      AND e.league_id = ?
-      AND $who_sql
-      $where_date
-    ORDER BY e.start_date DESC, e.id DESC
-");
-$stmt->execute($params);
-$games = $stmt->fetchAll();
+// ── The player's games: the shared query in svc/stats.php ─────────────────────
+// A numeric key is a user id, g_<name> a guest's display name.
+require_once __DIR__ . '/svc/stats.php';
+$games = gn_player_game_rows($db, $league_id, $pk,
+    $from_date ? $from_date->format('Y-m-d') : null,
+    $to_date   ? $to_date->format('Y-m-d')   : null);
+if ($games === null) { http_response_code(400); exit('Bad player key'); }
+$who_params = [str_starts_with($pk, 'g_') ? substr($pk, 2) : (int)$pk];
 
 $player_name = $games ? $games[0]['display_name'] : ($who_params[0] ?? 'Player');
 $player_known = $games && !empty($games[0]['known_as']) && strcasecmp((string)$games[0]['known_as'], (string)$player_name) !== 0 ? (string)$games[0]['known_as'] : '';

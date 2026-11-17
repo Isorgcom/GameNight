@@ -78,6 +78,18 @@ function pk_jackpot_balance($db, ?int $league_id): int {
     } catch (Exception $e) { return 0; /* pre-migration DB */ }
 }
 
+// How much of a session's jackpot money is already banked in the fund. The
+// client subtracts this from what the game has collected to show what is still
+// pending, so an early bank at hit time does not get counted twice.
+function pk_jackpot_contributed($db, int $session_id): int {
+    try {
+        $q = $db->prepare("SELECT COALESCE(SUM(amount), 0) FROM league_jackpot_log
+                           WHERE session_id = ? AND event_type = 'contribution' AND voided = 0");
+        $q->execute([$session_id]);
+        return (int)$q->fetchColumn();
+    } catch (Exception $e) { return 0; /* pre-migration DB */ }
+}
+
 // Bring the league fund up to date with what this session has collected in
 // jackpot entries. Returns the amount added (0 if nothing was owed).
 //

@@ -11,6 +11,26 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.26.0] - 2026-11-17
+
+### Added
+
+- **A personal API, and tokens to use it.** A host asked whether an AI assistant could work with his games, and the existing API could not serve that: a key there belongs to a league, acts as the league's owner, and cannot see a poker game at all. `/api/v2` is the API for a person. A token made under **Settings → Security → API Tokens** sees what its owner would see signed in, across every league they belong to and every event they host or are invited to: leagues and rosters, events and guest lists, a game's players, prize pool, payouts with the amount each place pays, blinds and clock, its activity log, the results of a finished game, league standings and any player's history. Money is in cents and times in UTC throughout. This release is the read side; creating events, running a game and messaging guests follow, and the permissions for them can already be chosen on a token. An event or league that is not yours answers "not found", and an account holder's email and phone are never returned to anyone. Making a token asks for your password, the token is shown once and only its hash is kept, and changing your password revokes every token. `GET /api/v2/` lists the endpoints; `DOCS.md` has a "Personal API (v2)" section. League keys and `/api/v1` are unchanged. (`www/api/v2/index.php`, `www/api/_auth.php`, `www/svc/`, `www/settings.php`, `www/db.php`: new table `api_tokens`, new column `api_request_log.token_id`)
+
+- **Each token shows what it has been doing.** A token's row in Settings lists what it may do, when it was created and last used, and how many requests it has made, with a **Recent activity** list of its latest 25: the time, the kind of request, how it went (`200 OK`, `404 Not found`, `403 Refused: not allowed`) and the address it came from. A token you do not recognise in use is one click from revoked. Requests are recorded by the kind of thing asked for, never the exact address, so the list cannot say which event; records are kept for 30 days. (`www/settings.php`)
+
+### Changed
+
+- **Account Settings is five sections instead of one long page.** The page had grown to ten cards in two columns with more below, and on a phone it was a long scroll past things unrelated to what you came for. It is now **Profile**, **Preferences**, **Notifications**, **Security** and **Account**, switched with the same sliding control as the check-in console, under a header with your photo, name and email. Timezone, the My Events range and the timer choice moved to Preferences; how you want to be reached sits with the notification choices, which are on/off switches rather than small checkboxes; password, two-factor and API tokens are together under Security; your leagues are a list rather than a table that ran off a phone's screen. Fields run in one column at a readable width, buttons are a normal size on a computer and full width on a phone, and everything is sized for a finger on a touch screen. After a save the page comes back on the section you saved from, a section can be linked to (`/settings.php#security`), and searching the page with the browser finds text in a section that is not open. Nothing about what the settings do has changed. (`www/settings.php`)
+
+### Fixed
+
+- **Deleting an event through the API no longer fails when the host has sent the guests a message.** `DELETE /api/v1/events/{id}` carried its own copy of the delete steps, and the copy never removed the event's host messages; those hold a reference to the event, so the database refused the delete and the call answered `500 Failed to delete event` with nothing removed. It now runs `cancel_event_with_notifications()`, the same sequence as the event page and the SMS CANCEL command, so it also calls off a table set up on FinalTable and removes pictures attached to comments, which the copy skipped. Reminders still queued for the event are dropped as before, and the delete is recorded in the activity log against the league owner. (`www/api/v1/events.php`)
+
+- **A browser can call `/api/v1/league` and `/api/v1/rules` with the key in a header.** A browser asks permission with an `OPTIONS` request before sending an `Authorization` header to another site, and these two endpoints answered it `405`, so the real request was never sent. They answer `204` like the other endpoints. (`www/api/v1/league.php`, `www/api/v1/rules.php`)
+
+- **The API notes say what the API does.** The league's **API** tab still called keys read-only and described the write scope as "create users", from before events, guest lists, posts and members could be changed through it. `DOCS.md` said there was no rate limit (there are two: 120 requests a minute per key, and 60 writes an hour per endpoint), that answers were publicly cacheable (they are private to the caller), and that a revoked key's row is kept (it is deleted). (`www/league.php`, `DOCS.md`)
+
 ## [v1.25.0] - 2026-11-17
 
 ### Added

@@ -55,6 +55,7 @@ A complete guide to setting up, configuring, and using Game Night — your self-
   - [Examples](#api-examples)
   - [Revoking a Key](#api-revoking-a-key)
   - [Connected Apps: Sign-In Bridge](#connected-apps-sign-in-bridge)
+- [Personal API (v2)](#personal-api-v2)
 - [Security](#security)
 - [Troubleshooting](#troubleshooting)
 
@@ -1231,7 +1232,7 @@ curl -X POST -H 'Authorization: Bearer YOUR_WRITE_KEY' \
 
 | HTTP code | Meaning |
 |---|---|
-| `400` | Invalid request body. Examples: missing `title`, unparseable `start_at`, unknown `color` / `recurrence`, `recurrence_end` missing when recurrence is set, invitee user_id not in this league. |
+| `400` | Invalid request body. Examples: missing `title`, unparseable `start_at`, unknown `color`, a `recurrence` value (repeating events are not supported), invitee user_id not in this league. |
 | `401` | Missing, malformed, or revoked API key. |
 | `403` | API key lacks the `write` scope. |
 | `404` | The league bound to the key was deleted. |
@@ -1501,7 +1502,8 @@ The cascade clears all related rows:
 | `event_exceptions` | Any per-occurrence overrides for this event |
 | `event_invites` | All invite rows |
 | `event_notifications_sent` | The dedup audit trail |
-| `poker_sessions` (+ `poker_players`, `poker_payouts`, `timer_state`) | Explicitly deleted; SQLite is not configured to honor the schema's ON DELETE CASCADE foreign key. |
+| `event_messages` | Host messages sent to the guests, with any attached PDF |
+| `poker_sessions` (+ `poker_players`, `poker_payouts`, `timer_state`) | The game, its players, payouts and clock |
 | `events` | The event itself |
 
 Future-event detection: `start_date >= today` (in the league's display timezone). When true, every base invitee (rows with `occurrence_date IS NULL`) gets a `cancel_event` notification queued before the deletion runs. The `notifications_queued` field in the response tells you how many.
@@ -1561,15 +1563,15 @@ This matches the shape used by every internal `_dl.php` endpoint, so if you've i
 | `404` | The league bound to the key was deleted (key is dead, mint a new one for a different league). |
 | `405` | Method not allowed for this endpoint. |
 | `409` | Conflict on `POST /users` — `username_taken` or `contact_taken`. |
-| `429` | Per-key write rate limit exceeded (60 successful user creations per hour). |
+| `429` | Rate limit exceeded: 120 requests per minute per key across all endpoints, or 60 successful writes per hour per key on one write endpoint. |
 
 ### API Caching
 
-Successful responses include `Cache-Control: public, max-age=60`. Consumers should cache for at least one minute. The data does not change every second; hammering the API with one request per page view is wasteful.
+Successful `GET` responses include `Cache-Control: private, max-age=60`; writes and errors are sent with `no-store`. Consumers should cache for at least one minute. The data does not change every second; hammering the API with one request per page view is wasteful.
 
 CORS is allowed from any origin (`Access-Control-Allow-Origin: *`), so a JavaScript client running in a browser can call the API directly. Note: putting the key in browser-side JS exposes it to anyone who views your page source. Do that only if you accept the consequences of revocation when (not if) the key leaks.
 
-There is no hard rate limit yet, but every call is logged with the key id, IP, path, and status. Abusive patterns will result in the key being revoked.
+Each key is limited to 120 requests per minute across all endpoints (a `429` with `Retry-After: 30` when exceeded), and each write endpoint to 60 successful calls per hour per key. Every call is logged with the key id, IP, path, and status for 30 days. Abusive patterns will result in the key being revoked.
 
 ### API Examples
 
@@ -1617,7 +1619,7 @@ curl -H 'Authorization: Bearer YOUR_KEY' https://your-site.com/api/v1/rules
 
 ### API Revoking a Key
 
-If a key leaks, click **Revoke** on its row in the league's API tab. Consumers using that key start getting `401` responses immediately. The revocation is permanent (soft-delete: the row stays in the database with `revoked_at` set, so audit logs continue to make sense).
+If a key leaks, click **Revoke** on its row in the league's API tab. Consumers using that key start getting `401` responses immediately. The revocation is permanent: the key's row is deleted. Its past requests stay in the request log under the old key id.
 
 To rotate a key: mint a new key with a different label, update the consumer to use the new key, then revoke the old one. Keys do not expire on their own — rotate them on whatever cadence makes sense for your operation (annual is reasonable for a low-traffic sister site).
 
@@ -1679,6 +1681,167 @@ No API key. Returns `{issuer, connect_url, token: {format, claims, carried}, key
 - **Inbound.** FinalTable POSTs each game event to `/finaltable_webhook.php`: JSON, headers `X-FinalTable-Event`, `X-FinalTable-Delivery`, `X-FinalTable-Timestamp` (milliseconds) and `X-FinalTable-Signature: sha256=<hex>`, an HMAC-SHA256 keyed with the secret this side generated for that game (48 hex characters, stored encrypted beside the game) over `<timestamp>.<body>`. The receiver takes the body once, finds the game by `game.id`, refuses a stale timestamp (five minutes) or a bad signature with 401 before reading anything else, answers 404 for a game it does not hold (FinalTable retries for a day, then gives up and logs it), and dedupes on `(game, delivery_id)` with a UNIQUE row that is the lock: a repeat answers 200 and is dropped. A heartbeat has no delivery id and skips the dedupe. A delivery this side fails to apply answers 500 so FinalTable tries again. Events handled: `tournament.started`, `tournament.level`, `tournament.paused`, `tournament.resumed`, `tournament.heartbeat`, `player.eliminated`, `player.reentered`, `tournament.completed`, `tournament.cancelled`; anything else is acknowledged and ignored.
 
 ---
+
+## Personal API (v2)
+
+`/api/v2` is the API for a **person**. Where a league key on `/api/v1` belongs to a league and acts as its owner, a personal token belongs to you: it sees what you would see signed in to the site, and nothing else. It is what an AI assistant or a script of your own uses to answer "who is coming Friday", "what did everyone get paid last month" or "show me the season standings".
+
+This release is the read side. Creating and changing events, running a game and messaging guests arrive in later releases; the permissions for them can already be chosen when a token is made, and take effect as those parts arrive.
+
+### Tokens
+
+1. Open **Settings → Security → API Tokens**.
+2. Name the token for where it will live ("Claude on my laptop"), choose what it may do, and enter your password.
+3. Copy the token (`gnp_` followed by 64 characters). It is shown once; only a hash of it is stored.
+
+A token's row shows what it may do, when it was created and last used, and how many requests it has made. **Recent activity** lists its latest 25 requests: the time, the kind of request (for example `GET /events/{id}/game`), how it went, and the address it came from. Request records are kept for 30 days.
+
+| Permission | Allows |
+|---|---|
+| `read` | Read your leagues, events, guest lists, games, results and standings. Every token has it. |
+| `events` | Create and change events, guest lists, leagues and posts. *(Not yet in use.)* |
+| `game` | Set up and run poker games. *(Not yet in use.)* |
+| `messages` | Send invitations, reminders and messages to guests. *(Not yet in use.)* |
+| `money` | Change a league's jackpot fund and convert entry tickets. *(Not yet in use.)* |
+
+**Revoke** removes a token at once. Changing your password, or signing out everywhere, revokes every token on the account. Up to 10 tokens per account.
+
+### Calling it
+
+```bash
+curl -H 'Authorization: Bearer gnp_YOUR_TOKEN' https://your-site.com/api/v2/me
+```
+
+- The token goes in the `Authorization` header only. There is no `?key=` form: a token that will be able to run a game does not belong in a URL.
+- `GET /api/v2/` (with the trailing slash) lists every endpoint and needs no token.
+- A league key sent to `/api/v2` is refused with `league_key_not_accepted`.
+- 120 requests a minute per token; past that, `429` with `Retry-After: 30`.
+
+### Conventions
+
+- **Envelope.** `{"ok": true, "data": {...}}` on success; `{"ok": false, "error": "snake_case_code", "message": "A sentence."}` on failure. Branch on `error`; show `message`.
+- **Money** is integer cents, in fields ending `_cents`. `2000` is $20.00.
+- **Time** is ISO 8601 UTC (`2026-12-12T01:00:00Z`). A date with no time of day is `YYYY-MM-DD`. Query dates (`from`, `to`) are days in the site's timezone.
+- **Nothing is cached.** Every answer is sent `Cache-Control: no-store`; a game changes by the second.
+- **Not found means not yours.** An event or league you cannot see answers `404`, exactly as one that does not exist. `403` is reserved for something you can see but may not do (a guest asking for the host's game view).
+
+### Who can see what
+
+| You are | You can read |
+|---|---|
+| The host of an event (its creator, a co-host, or an owner or manager of its league) | Everything about it, including the game, its log and each player's ledger |
+| A guest, or a member of the event's league | The event, the guest list unless the host hid it, and the game's **results** if you are in its league |
+| A member of a league | The league, its roster (names and roles), standings and any player's history |
+| An owner or manager of a league | Also the people added by contact who have not joined, with the contact details the league entered |
+| Nobody in particular | `404` |
+
+An account holder's email address and phone number are never returned, to anyone. The only contact details the API gives out are ones a host or league typed in by hand for someone without an account.
+
+### Endpoints
+
+| Method and path | What it returns |
+|---|---|
+| `GET /me` | The token's owner, its permissions, the site's name and timezone, and your leagues |
+| `GET /events`, `GET /me/events` | Events you can see. `from`, `to` (default today to +90 days, at most 366 days), `role=any\|host\|guest`, `league_id`, `include_cancelled=1` |
+| `GET /events/{id}` | One event: RSVP totals, your role and answer, capacity, and a summary of its game |
+| `GET /events/{id}/invites` | The guest list. The host also gets each invite's state |
+| `GET /events/{id}/game` | *Host.* The whole game: setup, players, prize pool, payouts with amounts, blinds, clock |
+| `GET /events/{id}/game/results` | *Host or league member.* Finishing order with what each player put in and took home |
+| `GET /events/{id}/game/log` | *Host.* The activity log, newest first. `limit` (default 200, at most 500) |
+| `GET /events/{id}/game/clock` | *Host.* The tournament clock and blind schedule |
+| `GET /events/{id}/game/players/{pid}/ledger` | *Host.* One player's buy-in, rebuy, add-on and cash entries |
+| `GET /leagues` | Your leagues, with your role in each |
+| `GET /leagues/{id}` | One league, with its seasons |
+| `GET /leagues/{id}/members` | The roster |
+| `GET /leagues/{id}/standings` | The leaderboard. `range=7\|30\|90\|365\|ytd\|all\|custom` (with `from`, `to`) or `season_id`; `rank=score\|net\|wins\|points` |
+| `GET /leagues/{id}/players/{key}` | One player's finished games. `{key}` is a user id, or `g_<name>` for a guest without an account. Same range parameters |
+
+#### `GET /api/v2/events/{id}/game`
+
+Like opening the check-in console, this first brings the roster level with the guest list, so someone who just said yes is in the answer. `game` is `null` when the event has no game set up yet.
+
+```json
+{
+  "ok": true,
+  "data": {
+    "event_id": 886,
+    "cancelled": false,
+    "game": {
+      "session": { "status": "active", "game_type": "tournament", "buyin_cents": 2000, "rebuy_cents": 1000,
+                   "rebuy_allowed": true, "starting_chips": 10000, "tables": 1, "seats_per_table": 8,
+                   "payout_round_cents": 500 },
+      "pool": { "prize_pool_cents": 12000, "bought_in": 6, "still_playing": 4, "eliminated": 2, "rebuys": 1,
+                "chips_in_play": 70000 },
+      "players": [
+        { "id": 1858, "user_id": null, "name": "Dave", "status": "playing", "bought_in": true, "rebuys": 1,
+          "addons": 0, "table": 1, "seat": 8, "finish_position": null, "payout_cents": 0, "points": 0 }
+      ],
+      "payouts": [ { "place": 1, "percentage": 50, "amount_cents": 6000, "points": 10, "label": "" } ],
+      "blinds": [ { "level": 1, "is_break": false, "small_blind": 50, "big_blind": 100, "ante": 0, "minutes": 15 } ],
+      "clock": { "running": true, "level": 3, "seconds_remaining": 412, "current": { "level": 3 }, "next": { "level": 4 } },
+      "rebuy_level": 3
+    }
+  }
+}
+```
+
+- A player's `status` is `not_bought_in`, `playing`, `eliminated`, or `cashed_out` (cash games).
+- `payouts[].amount_cents` is what each place pays from the pool as it stands, after the game's rounding (`payout_round_cents`). The amounts add up to `prize_pool_cents`.
+- `clock` is `null` until the game has a timer. Reading a running clock that has run past the end of its level moves it on, as a display does.
+- A `jackpot` block is added for someone who manages the league's money.
+
+#### `GET /api/v2/events/{id}/game/results`
+
+```json
+{
+  "ok": true,
+  "data": {
+    "event_id": 886, "title": "November Tournament", "date": "2026-11-12", "league_id": 27,
+    "game_type": "tournament", "status": "finished", "final": true,
+    "prize_pool_cents": 7000, "entries": 3,
+    "payouts": [ { "place": 1, "percentage": 50, "amount_cents": 3500 } ],
+    "players": [
+      { "player_id": 2001, "user_id": 301, "name": "Sam", "known_as": null, "finish_position": 1,
+        "rebuys": 0, "addons": 0, "payout_cents": 3500, "bounties_won": 0, "bounty_cash_cents": 0, "points": 10,
+        "invested_cents": 2000, "winnings_cents": 3500, "net_cents": 1500 }
+    ]
+  }
+}
+```
+
+`final` is `false` while the game is still being played; the list is then the standings so far. A cash game is ordered by `net_cents`.
+
+#### `GET /api/v2/leagues/{id}/standings`
+
+```json
+{
+  "ok": true,
+  "data": {
+    "league_id": 27, "range": "all", "from": null, "to": null, "season": null, "rank": "score",
+    "min_games_to_qualify": 3, "games_counted": 14,
+    "standings": [
+      { "position": 1, "player_key": "301", "user_id": 301, "name": "Sam", "known_as": null,
+        "games": 12, "tournaments": 12, "wins": 3, "in_the_money": 7, "best_finish": 1,
+        "avg_finish": 3.2, "avg_score": 71.4, "points": 64,
+        "invested_cents": 26000, "winnings_cents": 31500, "net_cents": 5500, "qualified": true }
+    ]
+  }
+}
+```
+
+These are the figures on the league's **Stats** tab, from the same query. A player with fewer than `min_games_to_qualify` games is listed with `"qualified": false` and sorts after everyone who qualifies. Pass a `player_key` to `GET /leagues/{id}/players/{key}` for that player's games.
+
+### Errors
+
+| HTTP | `error` | Meaning |
+|---|---|---|
+| `400` | `bad_date`, `bad_window`, `bad_range`, `bad_rank`, `bad_role`, `bad_player_key` | A query parameter is wrong; `message` says which |
+| `401` | `missing_token`, `invalid_token`, `token_expired`, `league_key_not_accepted` | No usable token |
+| `403` | `not_event_host`, `guest_list_hidden`, `results_not_available`, `missing_scope` | You can see it, but may not do or read this |
+| `404` | `event_not_found`, `league_not_found`, `season_not_found`, `player_not_found`, `game_not_set_up`, `not_found` | It does not exist, or it is not yours to see |
+| `405` | `method_not_allowed` | The path exists but not with that method |
+| `409` | `not_a_poker_event` | The event has no game to ask about |
+| `429` | `rate_limited` | More than 120 requests in a minute |
 
 ## Security
 

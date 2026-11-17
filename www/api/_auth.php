@@ -147,3 +147,120 @@ function api_require_scope(array $key, string $needed): void {
         api_fail('API key lacks required scope: ' . $needed, 403);
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Personal tokens (API v2)
+//
+// A league key above belongs to a league and acts as its owner. A personal
+// token belongs to a PERSON: it can do what that person can do on the site,
+// narrowed by the token's scopes, and everything it does is recorded under
+// their name. Format: "gnp_" + 64 hex. Stored as sha256 of the whole token.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Every scope a token can carry, with what it allows, in the order Settings lists them. */
+const API_TOKEN_SCOPES = [
+    'read'     => 'Read your leagues, events, guest lists, games, results and standings',
+    'events'   => 'Create and change events, guest lists, leagues and posts',
+    'game'     => 'Set up and run poker games: buy-ins, rebuys, knockouts, seating, the clock',
+    'messages' => 'Send invitations, reminders and messages to guests',
+    'money'    => 'Change a league\'s jackpot fund and convert entry tickets',
+];
+
+const API_TOKEN_PREFIX = 'gnp_';
+
+/** A new plaintext token and the hash to store for it. */
+function api_token_generate(): array {
+    $plain = API_TOKEN_PREFIX . bin2hex(random_bytes(32));
+    return [$plain, hash('sha256', $plain)];
+}
+
+/** Keep only known scopes, in canonical order; 'read' is always present. */
+function api_token_clean_scopes($scopes): array {
+    if (is_string($scopes)) $scopes = explode(',', $scopes);
+    $want = array_map('trim', is_array($scopes) ? $scopes : []);
+    $out = [];
+    foreach (array_keys(API_TOKEN_SCOPES) as $s) {
+        if ($s === 'read' || in_array($s, $want, true)) $out[] = $s;
+    }
+    return $out;
+}
+
+/** Log one v2 request. $path is the ROUTE PATTERN (/api/v2/events/{id}), never the raw URI. */
+function api_token_log(?int $token_id, int $status, string $path): void {
+    try {
+        get_db()->prepare(
+            'INSERT INTO api_request_log (key_id, token_id, ip, method, path, status) VALUES (NULL, ?, ?, ?, ?, ?)'
+        )->execute([$token_id, $_SERVER['REMOTE_ADDR'] ?? '', $_SERVER['REQUEST_METHOD'] ?? 'GET', $path, $status]);
+    } catch (Exception $e) { /* logging is best-effort */ }
+}
+
+/**
+ * Resolve the bearer token to an actor, or return a failure array
+ * ['ok' => false, 'code', 'message', 'http']. Never exits: the v2 front
+ * controller and the MCP endpoint each answer in their own format.
+ *
+ * Only the Authorization header is read. There is no ?key= fallback: a token
+ * that can run a game does not belong in a URL, where it lands in logs and
+ * browser history.
+ */
+function api_token_actor(): array {
+    $hdr = '';
+    if (function_exists('getallheaders')) {
+        foreach (getallheaders() as $k => $v) {
+            if (strcasecmp($k, 'Authorization') === 0) { $hdr = (string)$v; break; }
+        }
+    }
+    if ($hdr === '' && isset($_SERVER['HTTP_AUTHORIZATION']))          $hdr = (string)$_SERVER['HTTP_AUTHORIZATION'];
+    if ($hdr === '' && isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) $hdr = (string)$_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
+    $token = stripos($hdr, 'Bearer ') === 0 ? trim(substr($hdr, 7)) : '';
+
+    $fail = fn(string $code, string $msg, int $http) => ['ok' => false, 'code' => $code, 'message' => $msg, 'http' => $http];
+
+    if ($token === '') {
+        return $fail('missing_token', 'Send your personal token in the Authorization header: "Authorization: Bearer gnp_...".', 401);
+    }
+    if (preg_match('/^[a-f0-9]{64}$/i', $token)) {
+        return $fail('league_key_not_accepted', 'That is a league API key. League keys work on /api/v1; /api/v2 takes a personal token, minted under Settings.', 401);
+    }
+    if (!preg_match('/^gnp_[a-f0-9]{64}$/', $token)) {
+        return $fail('invalid_token', 'That token is not valid.', 401);
+    }
+
+    $db = get_db();
+    $st = $db->prepare(
+        "SELECT t.id AS token_id, t.scopes, t.expires_at, u.id, u.username, u.role, u.email_verified
+           FROM api_tokens t JOIN users u ON u.id = t.user_id
+          WHERE t.token_hash = ?");
+    $st->execute([hash('sha256', $token)]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$row) return $fail('invalid_token', 'That token is not valid. It may have been revoked.', 401);
+    if (!empty($row['expires_at']) && strtotime($row['expires_at'] . ' UTC') < time()) {
+        return $fail('token_expired', 'That token has expired.', 401);
+    }
+
+    $tid = (int)$row['token_id'];
+    // The same ceiling as a league key, counted per token.
+    $rate_max = defined('API_RATE_LIMIT_PER_MINUTE') ? (int)API_RATE_LIMIT_PER_MINUTE : 120;
+    if ($rate_max > 0) {
+        try {
+            $cs = $db->prepare('SELECT COUNT(*) FROM api_request_log WHERE token_id = ? AND created_at >= ?');
+            $cs->execute([$tid, gmdate('Y-m-d H:i:s', time() - 60)]);
+            if ((int)$cs->fetchColumn() >= $rate_max) {
+                header('Retry-After: 30');
+                $f = $fail('rate_limited', "Rate limit exceeded ({$rate_max} requests a minute). Try again shortly.", 429);
+                $f['token_id'] = $tid;
+                return $f;
+            }
+        } catch (Exception $e) { /* a counter glitch never locks out a real client */ }
+    }
+    try { $db->prepare('UPDATE api_tokens SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([$tid]); } catch (Exception $e) {}
+
+    return [
+        'id'       => (int)$row['id'],
+        'username' => (string)$row['username'],
+        'is_admin' => $row['role'] === 'admin',
+        'via'      => 'api',
+        'token_id' => $tid,
+        'scopes'   => api_token_clean_scopes((string)$row['scopes']),
+    ];
+}
