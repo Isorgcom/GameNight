@@ -1765,7 +1765,8 @@ An account holder's email address and phone number are never returned, to anyone
 | `GET /events`, `GET /me/events` | Events you can see. `from`, `to` (default today to +90 days, at most 366 days), `role=any\|host\|guest`, `league_id`, `include_cancelled=1` |
 | `GET /events/{id}` | One event: RSVP totals, your role and answer, capacity, and a summary of its game |
 | `GET /events/{id}/invites` | The guest list. The host also gets each invite's state |
-| `GET /events/{id}/game` | *Host.* The whole game: setup, players, prize pool, payouts with amounts, blinds, clock |
+| `GET /events/{id}/game` | *Host.* The whole game: setup, players, prize pool, payouts with amounts, blinds, clock, and which timer display and layout it uses |
+| `GET /presets` | What a game can be set up from, as the check-in console lists it: `game_presets` (saved setups), `blind_schedules` and `timer_layouts` (the built-ins and saved ones). Each says whose it is: `site default`, `site`, `league` or `mine` |
 | `GET /events/{id}/game/results` | *Host or league member.* Finishing order with what each player put in and took home |
 | `GET /events/{id}/game/log` | *Host.* The activity log, newest first. `limit` (default 200, at most 500) |
 | `GET /events/{id}/game/clock` | *Host.* The tournament clock and blind schedule |
@@ -1786,6 +1787,8 @@ Changes. The permission each needs is in the second column.
 | `POST /me/contacts` | `events` | Add one contact, or `{"contacts": [...]}` for up to 200 |
 | `PATCH /me/contacts/{contact_id}` | `events` | Change a contact. Only what you send changes |
 | `DELETE /me/contacts/{contact_id}` | `events` | Remove a contact |
+| `PATCH /leagues/{league_id}/members/{member_id}` | `events` | Owner or manager. A pending contact: `name`, `email`, `phone`, keeping at least an email or a phone. A member with an account: `known_as` only; their own details are theirs. Only what you send changes |
+| `POST /leagues/{league_id}/members/{member_id}/resend` | `messages` | Owner or manager. Send a pending contact their invitation again, with a fresh link |
 | `DELETE /leagues/{league_id}/members/{member_id}` | `events` | Owner or manager. Remove a member, or a person added by contact who has not joined. A member with an account is told; the owner cannot be removed (`409 cannot_remove_owner`) |
 | `POST /events` | `events` | Create an event. See below |
 | `PATCH /events/{id}` | `events` | *Host.* Change any of the create fields except `guests` |
@@ -1806,7 +1809,7 @@ Changes. The permission each needs is in the second column.
 | `POST /leagues/{id}/requests/{request_id}/approve`, `.../deny` | `events` | *Owner or manager.* The person is told either way |
 | `POST /leagues/{id}/members` | `messages` | *Owner or manager.* Add someone by `name` and `email` or `phone`. They are sent an invitation |
 
-Creating, renaming and deleting a league, changing who manages it, and removing a member are done on the site.
+Creating, renaming and deleting a league, and changing who manages it, are done on the site.
 
 Running a game. Every one of these is for the host and needs the `game` permission.
 
@@ -1814,6 +1817,9 @@ Running a game. Every one of these is for the host and needs the `game` permissi
 |---|---|
 | `PUT /events/{id}/game` | Change the game's setup. Only what you send changes |
 | `PUT /events/{id}/game/blinds` | Replace the blind schedule |
+| `POST /events/{id}/game/preset` | Load a setup preset: `{"preset_id": 12}` from `GET /presets`. Whatever it holds of settings, payouts, bounty and jackpot, blinds and timer layout replaces the game's. A preset with a jackpot also needs the `money` permission |
+| `POST /events/{id}/game/blinds/load` | Replace the blind schedule with a saved one: `{"schedule_id": 7}`. The game gets its own copy |
+| `PUT /events/{id}/game/timer` | What the Timer button shows: `layout` (a built-in key: `classic`, `black_green`, `minimalist`, `two_column`, `showcase`, `pcf`, `cardroom`) or `layout_id` (a saved layout; `0` clears), and/or `classic` (`true` for Tournament Timer Classic). A layout without `classic` switches to the layout display |
 | `PUT /events/{id}/game/payouts` | Replace the payout table |
 | `POST /events/{id}/game/start` | Start the game |
 | `POST /events/{id}/game/finish` | Finish it. Needs `{"confirm": true}` |
@@ -2389,9 +2395,9 @@ curl -H "$AUTH" "$API/leagues/27/standings?range=ytd&rank=points"
 | `400` | `bad_date`, `bad_window`, `bad_range`, `bad_rank`, `bad_role`, `bad_player_key`, `bad_json`, `bad_field`, `unknown_field`, `nothing_to_change`, `too_many_guests`, `bad_idempotency_key`, `event_not_saved` | The request is wrong; `message` says how |
 | `401` | `missing_token`, `invalid_token`, `token_expired`, `league_key_not_accepted` | No usable token |
 | `403` | `not_event_host`, `not_league_manager`, `guest_list_hidden`, `results_not_available`, `missing_scope`, `public_needs_admin`, `events_not_allowed` | You can see it, but may not do or read this |
-| `404` | `event_not_found`, `league_not_found`, `season_not_found`, `player_not_found`, `invite_not_found`, `guest_not_found`, `contact_not_found`, `member_not_found`, `request_not_found`, `entry_not_found`, `game_not_set_up`, `not_found` | It does not exist, or it is not yours to see |
+| `404` | `event_not_found`, `league_not_found`, `season_not_found`, `player_not_found`, `invite_not_found`, `guest_not_found`, `contact_not_found`, `member_not_found`, `request_not_found`, `entry_not_found`, `preset_not_found`, `schedule_not_found`, `layout_not_found`, `game_not_set_up`, `not_found` | It does not exist, or it is not yours to see |
 | `405` | `method_not_allowed` | The path exists but not with that method |
-| `409` | `not_a_poker_event`, `event_cancelled`, `confirmation_required`, `already_decided`, `duplicate_contact`, `cannot_remove_owner`, `needs_account`, `notifications_off`, `game_refused`, `rebuys_closed`, `rebuy_limit`, `not_a_tournament`, `not_a_cash_game`, `not_bought_in`, `already_out`, `not_out`, `nothing_to_undo`, `already_voided`, `player_has_money_in`, `game_finished`, `game_not_finished`, `last_table` | It cannot be done as things stand; `message` says why |
+| `409` | `not_a_poker_event`, `event_cancelled`, `confirmation_required`, `already_decided`, `duplicate_contact`, `cannot_remove_owner`, `already_member`, `schedule_empty`, `needs_account`, `notifications_off`, `game_refused`, `rebuys_closed`, `rebuy_limit`, `not_a_tournament`, `not_a_cash_game`, `not_bought_in`, `already_out`, `not_out`, `nothing_to_undo`, `already_voided`, `player_has_money_in`, `game_finished`, `game_not_finished`, `last_table` | It cannot be done as things stand; `message` says why |
 | `429` | `rate_limited`, `write_limit`, `host_message_limit` | Too many requests in a minute, changes in an hour, or host messages in a day |
 | `503` | `busy` | The site was busy writing. Nothing changed; ask again |
 
@@ -2443,7 +2449,7 @@ Any other MCP client that speaks Streamable HTTP works the same way, by OAuth or
 
 ### What Claude will and will not do on its own
 
-- **It asks before it reaches people.** The tools that send email or texts say so in capitals in their descriptions (`send_invitations`, `nudge_guests`, `message_guests`, `resend_invitation`, `add_league_member`), and `cancel_event` says it tells every guest. Without the **messages** permission on the token those tools are not offered at all.
+- **It asks before it reaches people.** The tools that send email or texts say so in capitals in their descriptions (`send_invitations`, `nudge_guests`, `message_guests`, `resend_invitation`, `add_league_member`, `resend_league_invite`), and `cancel_event` says it tells every guest. Without the **messages** permission on the token those tools are not offered at all.
 - **Deleting an event, finishing a game and resetting the clock need a second step.** The first call answers with what would happen; only a call with `confirm: true` does it.
 - **It names people the way you do.** "Knock out Dave" works. If two players are called Dave, the tool answers with both and does nothing, so Claude has to ask you which.
 - **It cannot see or do more than you can.** Someone else's event is "not found" to it.
@@ -2453,10 +2459,10 @@ Any other MCP client that speaks Streamable HTTP works the same way, by OAuth or
 
 | Permission | Tools |
 |---|---|
-| `read` | `whoami`, `list_events`, `get_event`, `list_guests`, `list_messages`, `list_contacts`, `get_league`, `get_standings`, `get_player_history`, `list_league_posts`, `list_join_requests`, `get_game`, `get_results`, `get_game_log` |
-| `events` | `create_event`, `update_event`, `cancel_event`, `delete_event`, `duplicate_event`, `add_guests`, `update_guest`, `remove_guest`, `decide_guest`, `add_contacts`, `update_contact`, `delete_contact`, `remove_league_member`, `add_season`, `delete_season`, `create_league_post`, `decide_join_request` |
-| `messages` | `send_invitations`, `resend_invitation`, `nudge_guests`, `message_guests`, `add_league_member` |
-| `game` | `configure_game`, `set_blinds`, `set_payouts`, `game_status`, `add_walk_in`, `player_action`, `add_on_for_players`, `manage_tables`, `void_ledger_entry`, `clock` |
+| `read` | `whoami`, `list_events`, `get_event`, `list_guests`, `list_messages`, `list_contacts`, `get_league`, `get_standings`, `get_player_history`, `list_league_posts`, `list_join_requests`, `get_game`, `get_results`, `get_game_log`, `list_game_presets` |
+| `events` | `create_event`, `update_event`, `cancel_event`, `delete_event`, `duplicate_event`, `add_guests`, `update_guest`, `remove_guest`, `decide_guest`, `add_contacts`, `update_contact`, `delete_contact`, `update_league_member`, `remove_league_member`, `add_season`, `delete_season`, `create_league_post`, `decide_join_request` |
+| `messages` | `send_invitations`, `resend_invitation`, `nudge_guests`, `message_guests`, `add_league_member`, `resend_league_invite` |
+| `game` | `configure_game`, `apply_game_preset`, `set_blinds`, `apply_blind_schedule`, `set_timer_layout`, `set_payouts`, `game_status`, `add_walk_in`, `player_action`, `add_on_for_players`, `manage_tables`, `void_ledger_entry`, `clock` |
 
 `player_action` covers one thing for one player: `buy_in`, `rebuy`, `add_on` and their undos, `eliminate`, `reinstate`, `cash_in`, `cash_out`, `seat`, `unseat`, `notes`, `remove`. Putting a jackpot amount on a game is not offered as a tool; do that in the game's Setup.
 
