@@ -63,6 +63,7 @@ A complete guide to setting up, configuring, and using Game Night — your self-
   - [Who can see what](#who-can-see-what)
   - [Endpoints](#endpoints)
   - [Reference: reading](#reference-reading)
+  - [Reference: contacts](#reference-contacts)
   - [Reference: changing](#reference-changing)
   - [Reference: running a game](#reference-running-a-game)
   - [A worked example](#a-worked-example)
@@ -1712,7 +1713,7 @@ A token's row shows what it may do, when it was created and last used, and how m
 | Permission | Allows |
 |---|---|
 | `read` | Read your leagues, events, guest lists, games, results and standings. Every token has it. |
-| `events` | Create and change events and guest lists; add and remove seasons; post to a league; answer requests to join. Never sends anything to a guest by itself. |
+| `events` | Create and change events, guest lists and your contacts; add and remove seasons; post to a league; answer requests to join. Never sends anything to a guest by itself. |
 | `game` | Set up and run poker games: setup, blinds, payouts, buy-ins, rebuys and add-ons, knockouts, seating, the clock, finishing. |
 | `messages` | Anything that emails or texts people: invitations, nudges, a host message, inviting someone to a league. |
 | `money` | Needed, with `game`, to put a jackpot amount on a game (the jackpot is the league's fund). Paying out and adjusting the fund through the API is not available yet. |
@@ -1760,6 +1761,7 @@ An account holder's email address and phone number are never returned, to anyone
 | Method and path | What it returns |
 |---|---|
 | `GET /me` | The token's owner, its permissions, the site's name and timezone, and your leagues |
+| `GET /me/contacts` | Your contacts. `search` matches name, email or phone |
 | `GET /events`, `GET /me/events` | Events you can see. `from`, `to` (default today to +90 days, at most 366 days), `role=any\|host\|guest`, `league_id`, `include_cancelled=1` |
 | `GET /events/{id}` | One event: RSVP totals, your role and answer, capacity, and a summary of its game |
 | `GET /events/{id}/invites` | The guest list. The host also gets each invite's state |
@@ -1781,6 +1783,9 @@ Changes. The permission each needs is in the second column.
 
 | Method and path | Needs | What it does |
 |---|---|---|
+| `POST /me/contacts` | `events` | Add one contact, or `{"contacts": [...]}` for up to 200 |
+| `PATCH /me/contacts/{contact_id}` | `events` | Change a contact. Only what you send changes |
+| `DELETE /me/contacts/{contact_id}` | `events` | Remove a contact |
 | `POST /events` | `events` | Create an event. See below |
 | `PATCH /events/{id}` | `events` | *Host.* Change any of the create fields except `guests` |
 | `POST /events/{id}/cancel` | `events` | *Host.* Call it off and keep it: every guest is told, and it can still be duplicated |
@@ -2088,6 +2093,44 @@ A `pending` member was added by contact and has not joined; only the owner and m
   "requests": [ { "request_id": 12, "user_id": 322, "name": "Jo", "message": "Let me in", "requested_at": "2026-11-16T15:00:00Z" } ] }
 ```
 
+### Reference: contacts
+
+Your contacts are your own address book: the people you invite from. Nobody else can see them, and adding someone tells nobody.
+
+```json
+{ "count": 2, "contacts": [
+    { "id": 41, "name": "Sam Ortiz", "email": "sam@example.com", "phone": null, "notes": "",
+      "invite_via": "email", "has_account": true, "user_id": 301, "account_name": "Sam" },
+    { "id": 57, "name": "Dave Stone", "email": null, "phone": "555-010-0199", "notes": "Brings chips",
+      "invite_via": "sms", "has_account": false, "user_id": null, "account_name": null } ] }
+```
+
+- `has_account` says the contact's email or phone belongs to someone registered on the site, as the **Linked** badge does on the contacts page. Their `user_id` can be used as a guest (`{"user_id": 301}`) when adding people to an event.
+- `invite_via` is how an invitation reaches a contact who has no account: `email` or `sms`. Someone with an account is reached the way they chose in their own settings.
+- People with accounts are listed first, then by name.
+
+A contact needs a `name` and at least one of `email`, `phone`. One contact per email address. `POST /me/contacts` takes one contact:
+
+```json
+{ "name": "Dave Stone", "phone": "555-010-0199", "notes": "Brings chips", "invite_via": "sms" }
+```
+
+or several, which is the way to bring in a list:
+
+```json
+{ "contacts": [ { "name": "Erin Cole", "email": "erin@example.com" }, { "name": "Fay Wu", "phone": "555-010-0142" } ] }
+```
+
+```json
+{ "added":   [ { "id": 58, "name": "Erin Cole", "email": "erin@example.com", "phone": null, "notes": "", "invite_via": "email" } ],
+  "skipped": [ { "index": 1, "name": "Fay Wu", "message": "Already in your contacts." } ],
+  "errors":  [] }
+```
+
+With a list, each contact is taken on its own: one whose email you already have is skipped, one that is not valid is reported with its position in the list, and the rest are still added. A single contact that is not valid, or is a duplicate (`409 duplicate_contact`), is simply refused. The answer to an add does not say whether the person has an account; the list does.
+
+`PATCH /me/contacts/{contact_id}` changes only the fields sent. Send `""` to clear the email or the phone; one of the two has to remain. `DELETE` removes the contact and leaves any event they are already invited to as it is.
+
 ### Reference: changing
 
 #### `PATCH /api/v2/events/{id}`
@@ -2345,9 +2388,9 @@ curl -H "$AUTH" "$API/leagues/27/standings?range=ytd&rank=points"
 | `400` | `bad_date`, `bad_window`, `bad_range`, `bad_rank`, `bad_role`, `bad_player_key`, `bad_json`, `bad_field`, `unknown_field`, `nothing_to_change`, `too_many_guests`, `bad_idempotency_key`, `event_not_saved` | The request is wrong; `message` says how |
 | `401` | `missing_token`, `invalid_token`, `token_expired`, `league_key_not_accepted` | No usable token |
 | `403` | `not_event_host`, `not_league_manager`, `guest_list_hidden`, `results_not_available`, `missing_scope`, `public_needs_admin`, `events_not_allowed` | You can see it, but may not do or read this |
-| `404` | `event_not_found`, `league_not_found`, `season_not_found`, `player_not_found`, `invite_not_found`, `guest_not_found`, `request_not_found`, `entry_not_found`, `game_not_set_up`, `not_found` | It does not exist, or it is not yours to see |
+| `404` | `event_not_found`, `league_not_found`, `season_not_found`, `player_not_found`, `invite_not_found`, `guest_not_found`, `contact_not_found`, `request_not_found`, `entry_not_found`, `game_not_set_up`, `not_found` | It does not exist, or it is not yours to see |
 | `405` | `method_not_allowed` | The path exists but not with that method |
-| `409` | `not_a_poker_event`, `event_cancelled`, `confirmation_required`, `already_decided`, `needs_account`, `notifications_off`, `game_refused`, `rebuys_closed`, `rebuy_limit`, `not_a_tournament`, `not_a_cash_game`, `not_bought_in`, `already_out`, `not_out`, `nothing_to_undo`, `already_voided`, `player_has_money_in`, `game_finished`, `game_not_finished`, `last_table` | It cannot be done as things stand; `message` says why |
+| `409` | `not_a_poker_event`, `event_cancelled`, `confirmation_required`, `already_decided`, `duplicate_contact`, `needs_account`, `notifications_off`, `game_refused`, `rebuys_closed`, `rebuy_limit`, `not_a_tournament`, `not_a_cash_game`, `not_bought_in`, `already_out`, `not_out`, `nothing_to_undo`, `already_voided`, `player_has_money_in`, `game_finished`, `game_not_finished`, `last_table` | It cannot be done as things stand; `message` says why |
 | `429` | `rate_limited`, `write_limit`, `host_message_limit` | Too many requests in a minute, changes in an hour, or host messages in a day |
 | `503` | `busy` | The site was busy writing. Nothing changed; ask again |
 
@@ -2409,8 +2452,8 @@ Any other MCP client that speaks Streamable HTTP works the same way, by OAuth or
 
 | Permission | Tools |
 |---|---|
-| `read` | `whoami`, `list_events`, `get_event`, `list_guests`, `list_messages`, `get_league`, `get_standings`, `get_player_history`, `list_league_posts`, `list_join_requests`, `get_game`, `get_results`, `get_game_log` |
-| `events` | `create_event`, `update_event`, `cancel_event`, `delete_event`, `duplicate_event`, `add_guests`, `update_guest`, `remove_guest`, `decide_guest`, `add_season`, `delete_season`, `create_league_post`, `decide_join_request` |
+| `read` | `whoami`, `list_events`, `get_event`, `list_guests`, `list_messages`, `list_contacts`, `get_league`, `get_standings`, `get_player_history`, `list_league_posts`, `list_join_requests`, `get_game`, `get_results`, `get_game_log` |
+| `events` | `create_event`, `update_event`, `cancel_event`, `delete_event`, `duplicate_event`, `add_guests`, `update_guest`, `remove_guest`, `decide_guest`, `add_contacts`, `update_contact`, `delete_contact`, `add_season`, `delete_season`, `create_league_post`, `decide_join_request` |
 | `messages` | `send_invitations`, `resend_invitation`, `nudge_guests`, `message_guests`, `add_league_member` |
 | `game` | `configure_game`, `set_blinds`, `set_payouts`, `game_status`, `add_walk_in`, `player_action`, `add_on_for_players`, `manage_tables`, `void_ledger_entry`, `clock` |
 

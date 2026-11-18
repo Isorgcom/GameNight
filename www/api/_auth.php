@@ -159,8 +159,8 @@ function api_require_scope(array $key, string $needed): void {
 
 /** Every scope a token can carry, with what it allows, in the order Settings lists them. */
 const API_TOKEN_SCOPES = [
-    'read'     => 'Read your leagues, events, guest lists, games, results and standings',
-    'events'   => 'Create and change events, guest lists, leagues and posts',
+    'read'     => 'Read your leagues, events, guest lists, contacts, games, results and standings',
+    'events'   => 'Create and change events, guest lists, contacts, leagues and posts',
     'game'     => 'Set up and run poker games: buy-ins, rebuys, knockouts, seating, the clock',
     'messages' => 'Send invitations, reminders and messages to guests',
     'money'    => 'Put a jackpot amount on a game (the jackpot is the league\'s fund)',
