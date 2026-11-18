@@ -207,6 +207,55 @@ function gn_league_member_add(PDO $db, array $actor, int $league_id, array $body
                   'message_sent' => $res !== 'already' && get_setting('notifications_enabled', '0') === '1']);
 }
 
+/**
+ * Remove someone from a league (owner or manager): a member, or a person who
+ * was added by contact and has not joined. The owner cannot be removed, and a
+ * manager cannot remove another manager. A member with an account is told
+ * and is signed out of the league's online tables; a pending contact is not
+ * told (their invitation is simply withdrawn). $member_id is
+ * league_members.id; $user_id is the older way to name a member.
+ */
+function gn_league_member_remove(PDO $db, array $actor, int $league_id, int $member_id, int $user_id = 0): array {
+    $l = gn_league_guard($db, $actor, $league_id, ['owner', 'manager']);
+    if (isset($l['ok'])) return $l;
+    if ($member_id > 0) {
+        $rs = $db->prepare('SELECT * FROM league_members WHERE id = ? AND league_id = ?');
+        $rs->execute([$member_id, $league_id]);
+    } else {
+        $rs = $db->prepare('SELECT * FROM league_members WHERE league_id = ? AND user_id = ?');
+        $rs->execute([$league_id, $user_id]);
+    }
+    $row = $rs->fetch(PDO::FETCH_ASSOC);
+    if (!$row) return gn_err('member_not_found', 'Not a member', 404);
+    $tRole = $row['role'] ?? 'member';
+    if ($tRole === 'owner') return gn_err('cannot_remove_owner', 'Cannot remove the owner — transfer ownership first', 409);
+    if ($l['_standing'] === 'manager' && $tRole === 'manager') return gn_err('forbidden', 'Managers cannot remove other managers', 403);
+
+    $db->prepare('DELETE FROM league_members WHERE id = ?')->execute([(int)$row['id']]);
+    $linked = !empty($row['user_id']);
+    $name = (string)($row['contact_name'] ?? '');
+    if ($linked) {
+        $u = $db->prepare('SELECT username, email, phone, preferred_contact FROM users WHERE id = ?');
+        $u->execute([(int)$row['user_id']]);
+        $who = $u->fetch(PDO::FETCH_ASSOC) ?: [];
+        $name = (string)(($who['username'] ?? '') ?: $name);
+        // Linked member: clean up any historic join-request rows and notify.
+        $db->prepare('DELETE FROM league_join_requests WHERE league_id = ? AND user_id = ?')->execute([$league_id, (int)$row['user_id']]);
+        $lname = (string)$l['name'];
+        if ($who) send_notification((string)($who['username'] ?? ''), (string)($who['email'] ?? ''), (string)($who['phone'] ?? ''), (string)($who['preferred_contact'] ?? 'email'),
+            'Removed from ' . $lname,
+            'You were removed from "' . $lname . '".',
+            '<p>You were removed from the league <strong>' . htmlspecialchars($lname) . '</strong>.</p>'
+        );
+        // Out of the league is out of its online games: end their sessions on
+        // every FinalTable that has a key. Best effort, never blocks the removal.
+        require_once __DIR__ . '/../_finaltable.php';
+        finaltable_sign_out_everywhere($db, (int)$row['user_id']);
+    }
+    db_log_activity((int)$actor['id'], "removed member from league id=$league_id (member id=" . (int)$row['id'] . ($linked ? ', user #' . (int)$row['user_id'] : ', pending contact') . ')');
+    return gn_ok(['league_id' => $league_id, 'member_id' => (int)$row['id'], 'name' => $name, 'removed' => true, 'was_pending' => !$linked, 'told' => $linked]);
+}
+
 /** Add a season: a named date window for standings (owner or manager). */
 function gn_season_add(PDO $db, array $actor, int $league_id, array $body): array {
     $l = gn_league_guard($db, $actor, $league_id, ['owner', 'manager']);
