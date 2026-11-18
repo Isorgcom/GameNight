@@ -284,6 +284,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        elseif ($action === 'oauth_disconnect') {
+            $cpk = (int)($_POST['client_pk'] ?? 0);
+            $nm  = $db->prepare('SELECT label FROM api_tokens WHERE user_id = ? AND client_id = ? LIMIT 1');
+            $nm->execute([$current['id'], $cpk]);
+            $label = $nm->fetchColumn();
+            if ($label === false) {
+                $flash = ['type' => 'error', 'msg' => 'That app is no longer connected.'];
+            } else {
+                $db->prepare('DELETE FROM api_tokens WHERE user_id = ? AND client_id = ?')->execute([$current['id'], $cpk]);
+                db_log_activity($current['id'], "disconnected app '$label'");
+                $flash = ['type' => 'success', 'msg' => $label . ' is disconnected. It can no longer act as you.'];
+            }
+        }
+
         elseif ($action === 'api_token_revoke') {
             $tid = (int)($_POST['token_id'] ?? 0);
             $row = $db->prepare('SELECT label FROM api_tokens WHERE id = ? AND user_id = ?');
@@ -376,11 +390,18 @@ $tq = $db->prepare('SELECT t.id, t.label, t.scopes, t.created_at, t.last_used_at
 $st_when = fn(?string $utc, string $fmt) => $utc ? (new DateTime($utc, new DateTimeZone('UTC')))->setTimezone(new DateTimeZone(date_default_timezone_get()))->format($fmt) : '';
 $tq->execute([$current['id']]);
 $api_tokens    = $tq->fetchAll();
+// Apps connected by signing in (OAuth): one row per app.
+$cq = $db->prepare('SELECT t.id, t.label, t.scopes, t.created_at, t.last_used_at, t.client_id AS client_pk, c.client_id AS client_ref, c.kind,
+                           (SELECT COUNT(*) FROM api_request_log r WHERE r.token_id = t.id) AS requests
+                      FROM api_tokens t JOIN oauth_clients c ON c.id = t.client_id
+                     WHERE t.user_id = ? ORDER BY t.id DESC');
+$cq->execute([$current['id']]);
+$connected_apps = $cq->fetchAll();
 // Each token's most recent requests, for its "Recent activity" list. The path
 // stored is the route pattern (/api/v2/events/{id}), never the raw address.
 $token_activity = [];
 $aq = $db->prepare('SELECT method, path, status, ip, created_at FROM api_request_log WHERE token_id = ? ORDER BY id DESC LIMIT 25');
-foreach ($api_tokens as $_t) {
+foreach (array_merge($api_tokens, $connected_apps) as $_t) {
     $aq->execute([(int)$_t['id']]);
     $token_activity[(int)$_t['id']] = $aq->fetchAll();
 }
@@ -964,6 +985,55 @@ $site_name = get_setting('site_name', 'Game Night');
             </div>
         </div>
 
+        <!-- Apps connected by signing in -->
+        <div class="card" id="connected-apps">
+            <h2 id="st-h-apps">Connected Apps</h2>
+            <p class="subtitle">Apps you have signed in to with this account, such as Claude. Each can act as you, within what you allowed.</p>
+            <?php if (!$connected_apps): ?>
+                <p class="st-note" style="margin-top:0">Nothing is connected. To connect Claude, add this address as a custom connector in Claude (Customize, then Connectors, then Add custom connector) and sign in when it asks:</p>
+                <code style="display:block;overflow-wrap:anywhere;background:#f1f5f9;border-radius:6px;padding:.5rem .6rem;font-size:.8rem;margin-top:.5rem"><?= htmlspecialchars(rtrim(get_site_url(), '/') . '/mcp', ENT_QUOTES | ENT_SUBSTITUTE) ?></code>
+            <?php else: ?>
+                <div class="st-rows">
+                <?php foreach ($connected_apps as $t): $_acts = $token_activity[(int)$t['id']] ?? []; ?>
+                  <div class="st-token">
+                    <div class="st-row">
+                        <div class="st-row-main">
+                            <span class="st-row-title"><?= htmlspecialchars($t['label'], ENT_QUOTES | ENT_SUBSTITUTE) ?></span>
+                            <span class="st-row-sub">Can: <?= htmlspecialchars(implode(', ', api_token_clean_scopes((string)$t['scopes'])), ENT_QUOTES | ENT_SUBSTITUTE) ?></span>
+                            <span class="st-row-sub">
+                                Connected <?= htmlspecialchars($st_when((string)$t['created_at'], 'M j, Y'), ENT_QUOTES | ENT_SUBSTITUTE) ?>
+                                &middot; <?= $t['last_used_at'] ? 'last used ' . htmlspecialchars($st_when((string)$t['last_used_at'], 'M j, Y g:i A'), ENT_QUOTES | ENT_SUBSTITUTE) : 'never used' ?>
+                                &middot; <?= (int)$t['requests'] ?> request<?= (int)$t['requests'] === 1 ? '' : 's' ?> in the last 30 days
+                            </span>
+                        </div>
+                        <form method="post" action="/settings.php" style="margin:0;flex:none">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>"><input type="hidden" name="st_pane" value="security">
+                            <input type="hidden" name="action" value="oauth_disconnect">
+                            <input type="hidden" name="client_pk" value="<?= (int)$t['client_pk'] ?>">
+                            <button type="submit" class="btn btn-sm btn-danger-outline">Disconnect</button>
+                        </form>
+                    </div>
+                    <?php if ($_acts): ?>
+                    <details class="st-activity">
+                        <summary>Recent activity</summary>
+                        <ol class="st-activity-list">
+                        <?php foreach ($_acts as $_a): $_code = (int)$_a['status']; ?>
+                            <li>
+                                <time datetime="<?= htmlspecialchars(str_replace(' ', 'T', (string)$_a['created_at']) . 'Z', ENT_QUOTES | ENT_SUBSTITUTE) ?>"><?= htmlspecialchars($st_when((string)$_a['created_at'], 'M j, g:i:s A'), ENT_QUOTES | ENT_SUBSTITUTE) ?></time>
+                                <code><?= htmlspecialchars('Claude: ' . (preg_replace('#^/mcp/(tools/)?#', '', (string)$_a['path']) ?: 'connect'), ENT_QUOTES | ENT_SUBSTITUTE) ?></code>
+                                <span class="st-activity-status<?= $_code >= 400 ? ' is-refused' : '' ?>"><?= $_code ?> <?= htmlspecialchars($st_status($_code), ENT_QUOTES | ENT_SUBSTITUTE) ?></span>
+                                <span class="st-activity-ip">from <?= htmlspecialchars((string)$_a['ip'], ENT_QUOTES | ENT_SUBSTITUTE) ?></span>
+                            </li>
+                        <?php endforeach; ?>
+                        </ol>
+                    </details>
+                    <?php endif; ?>
+                  </div>
+                <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+        </div>
+
         <!-- Personal API tokens -->
         <div class="card" id="api-tokens">
             <h2 id="st-h-tokens">API Tokens</h2>
@@ -1053,9 +1123,9 @@ $site_name = get_setting('site_name', 'Game Night');
             <details class="st-activity" style="margin-top:1rem">
                 <summary>Use it with Claude</summary>
                 <div style="margin-top:.5rem;font-size:.88rem;line-height:1.55">
-                    <p style="margin:0 0 .5rem">This site is an MCP server, so Claude can work with your events and games directly. Create a token above, then point Claude at:</p>
+                    <p style="margin:0 0 .5rem">Most people do not need a token for Claude: add this site as a connector in Claude and sign in when it asks (see Connected Apps above). A token is for a program that cannot sign in that way. With one, point it at:</p>
                     <code id="stMcpUrl" style="display:block;overflow-wrap:anywhere;background:#f1f5f9;border-radius:6px;padding:.5rem .6rem;font-size:.8rem"><?= htmlspecialchars(rtrim(get_site_url(), '/') . '/mcp', ENT_QUOTES | ENT_SUBSTITUTE) ?></code>
-                    <p style="margin:.75rem 0 .35rem">In Claude Code, one command (put your token in place of <code>TOKEN</code>):</p>
+                    <p style="margin:.75rem 0 .35rem">In Claude Code, with a token in place of <code>TOKEN</code> (leave off <code>--header</code> and everything after it to sign in instead):</p>
                     <code style="display:block;overflow-wrap:anywhere;background:#f1f5f9;border-radius:6px;padding:.5rem .6rem;font-size:.8rem">claude mcp add --transport http gamenight <?= htmlspecialchars(rtrim(get_site_url(), '/') . '/mcp', ENT_QUOTES | ENT_SUBSTITUTE) ?> --header "Authorization: Bearer TOKEN"</code>
                     <p class="st-note">Claude can then do whatever the token allows, and nothing more. Give it only the permissions you want it to have. <a href="https://github.com/Isorgcom/GameNight/blob/main/DOCS.md#connecting-claude-mcp" target="_blank" rel="noopener">More about connecting Claude</a></p>
                 </div>

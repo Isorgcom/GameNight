@@ -30,7 +30,7 @@ A self-hosted PHP web application for organizing game night events with full pok
 - **In-app guides** — Host, Guest and Timer guides covering setup, running a night, and building a display
 - **Contacts** — personal address book for non-registered invitees, auto-imported from event invites, with CSV import/export
 - **REST API** — league-scoped read/write JSON API (v1) authenticated with API keys, exposing league info, members, events, and posts (see [Leagues](#leagues) below)
-- **Works with Claude** — the site is an MCP server at `/mcp`: connect Claude with a personal token and it can look after your events, guest lists and poker games in plain language, limited to the permissions you give the token (see [DOCS.md](DOCS.md#connecting-claude-mcp))
+- **Works with Claude** — the site is an MCP server at `/mcp`: add it as a connector in Claude and sign in (or use a personal token), and Claude can look after your events, guest lists and poker games in plain language, limited to what you allow (see [DOCS.md](DOCS.md#connecting-claude-mcp))
 - **Personal API** — `/api/v2`, where a token you mint in Settings reads your leagues, events, guest lists, games, results and standings as you would see them signed in, and can create and change events and guest lists, message your guests, and run a poker game from buy-in to payout. Built for assistants and scripts of your own (see [DOCS.md](DOCS.md#personal-api-v2))
 - **Admin panel** — manage users (with account settings like email verification, password reset, notification preferences), posts, events, leagues, and all site settings, plus a live site-activity snapshot
 - **Email** — transactional mail via SMTP (SendGrid or any provider)

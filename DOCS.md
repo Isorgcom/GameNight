@@ -2355,25 +2355,47 @@ curl -H "$AUTH" "$API/leagues/27/standings?range=ytd&rank=points"
 
 The site is a Model Context Protocol server. An assistant such as Claude connects to it and gets a set of tools: list my events, who has not answered, copy last month's game to a new date, take a buy-in, knock a player out, what are the standings. Each tool is the same thing the [Personal API](#personal-api-v2) does, with the same permissions, so nothing Claude can do here differs from what you could do on the site.
 
-### What you need
+### Connecting by signing in
 
-1. A personal token, from **Settings → Security → API Tokens**. Give it only the permissions you want Claude to have. A token with just **read** can look but not touch; add **events** to let it set up events and guest lists, **messages** to let it send invitations and messages, **game** to let it run a poker game.
+No token to copy. Claude sends you to this site, you sign in and choose what it may do, and you land back in Claude.
+
+**In the Claude apps (claude.ai, desktop, mobile):** open **Customize**, then **Connectors**, choose **Add custom connector**, give it a name and the address `https://your-site.com/mcp`, and add it. When Claude asks you to sign in, you are brought to this site's **Connect Claude?** page.
+
+**In Claude Code:**
+
+```bash
+claude mcp add --transport http gamenight https://your-site.com/mcp
+claude mcp login gamenight
+```
+
+The **Connect** page shows three things: the account you are signed in as (with a link to switch), where your browser will be sent afterwards, and a switch for each thing the app is asking to do. Reading is always on; switch off creating and changing events, running games, or sending messages if you do not want Claude doing them. Then **Allow**.
+
+- The address shown is where the app really is. The name is only what the app calls itself, and this site has not checked who runs it, so the page says so. For Claude's apps the address is `claude.ai`; for Claude Code it is "a program on this computer".
+- You get an email each time an app is connected to your account.
+- **Settings → Security → Connected Apps** lists what is connected, what each may do, when it was last used and what it has done, with a **Disconnect** button. Changing your password disconnects everything.
+- Putting a jackpot amount on a game is never granted this way.
+
+The site must be reachable over HTTPS for the Claude apps to connect, since the sign-in starts from Anthropic's servers.
+
+### Connecting with a token
+
+For a program that cannot open a browser to sign in, or when you want a fixed set of permissions that does not depend on a sign-in.
+
+1. A personal token, from **Settings → Security → API Tokens**. Give it only the permissions you want the program to have. A token with just **read** can look but not touch; add **events** to let it set up events and guest lists, **messages** to let it send invitations and messages, **game** to let it run a poker game.
 2. The address: `https://your-site.com/mcp` (the Settings card shows yours).
-
-### Claude Code
 
 ```bash
 claude mcp add --transport http gamenight https://your-site.com/mcp --header "Authorization: Bearer gnp_YOUR_TOKEN"
 ```
 
-Then, in Claude Code, ask in your own words: "what's on my game night calendar next month", "who hasn't answered for Saturday", "set up the December tournament like November's and invite the same people". `claude mcp list` shows whether it connected, and `claude mcp remove gamenight` takes it away. To share the setup without the token in it, a project's `.mcp.json` can read the token from the environment:
+Either way, ask in your own words: "what's on my game night calendar next month", "who hasn't answered for Saturday", "set up the December tournament like November's and invite the same people". `claude mcp list` shows whether it connected, and `claude mcp remove gamenight` takes it away. To share a token setup without the token in it, a project's `.mcp.json` can read it from the environment:
 
 ```json
 { "mcpServers": { "gamenight": { "type": "http", "url": "https://your-site.com/mcp",
     "headers": { "Authorization": "Bearer ${GAMENIGHT_TOKEN}" } } } }
 ```
 
-Any other MCP client that speaks Streamable HTTP and can send an `Authorization` header works the same way. Adding the site as a connector from the Claude apps, by signing in instead of pasting a token, is planned and not available yet.
+Any other MCP client that speaks Streamable HTTP works the same way, by OAuth or with an `Authorization` header.
 
 ### What Claude will and will not do on its own
 
@@ -2399,7 +2421,8 @@ Any other MCP client that speaks Streamable HTTP and can send an `Authorization`
 - **Transport:** Streamable HTTP at `/mcp`. `POST` one JSON-RPC 2.0 message; the answer is one `application/json` body (never a stream). `GET` and `DELETE` answer `405`. A batch is refused.
 - **Stateless:** no session id is issued and nothing is remembered between requests.
 - **Protocol versions:** `2026-07-28` (no handshake: send the version in `params._meta` and the `MCP-Protocol-Version` header; `server/discover` describes the server), and `2025-11-25`, `2025-06-18`, `2025-03-26` (open with `initialize`; `ping` is answered). Where the `MCP-Protocol-Version`, `Mcp-Method` or `Mcp-Name` header is sent it must agree with the body, or the answer is `400` with JSON-RPC error `-32020`. An unsupported version answers `-32022` with the supported list.
-- **Authentication:** `Authorization: Bearer gnp_...` on every request. Without it: `401` with `WWW-Authenticate: Bearer`.
+- **Authentication:** `Authorization: Bearer <token>` on every request: a personal token (`gnp_...`), or an access token from the sign-in (`gna_...`). Without one: `401` with `WWW-Authenticate: Bearer resource_metadata="https://your-site.com/.well-known/oauth-protected-resource"`.
+- **OAuth 2.1:** the site is its own authorization server. Discovery: `/.well-known/oauth-protected-resource` (also at `.../oauth-protected-resource/mcp`) and `/.well-known/oauth-authorization-server`. Endpoints: `/oauth/authorize`, `/oauth/token`, `/oauth/register`, `/oauth/revoke`. Authorization code with PKCE `S256` only; public clients only (`token_endpoint_auth_method: none`); `resource` must be the `/mcp` address. A client is identified by a Client ID Metadata Document (an `https` URL as `client_id`, preferred) or by Dynamic Client Registration. Redirect URIs must be `https`, or `http` on the loopback, where any port matches. Access tokens last an hour; refresh tokens rotate on every use and expire after 60 days unused; a code is good for five minutes, once, and replaying one withdraws the tokens it bought. Scopes: `read`, `events`, `game`, `messages`; a request with no `scope` is offered all four and the person chooses. The authorization response carries `iss`. An access token from the sign-in is accepted at `/mcp` only, not at `/api/v2`.
 - **Capabilities:** tools only. The tool list depends on the token's permissions, so `tools/list` and `server/discover` are marked `cacheScope: "private"`.
 - **Results:** a tool answers with the data as `structuredContent` and as JSON text. Something the site refuses is a normal result with `isError: true`, the reason in the text and `structuredContent.error` holding the same code the API uses (`event_not_found`, `confirmation_required`, `ambiguous_name`, `game_refused`, `missing_scope`...). Only an unknown tool or a malformed call is a JSON-RPC error (`-32602`).
 - **Limits:** 120 requests a minute per token, and 60 successful uses an hour of any one tool that changes something.

@@ -202,8 +202,14 @@ function api_token_log(?int $token_id, int $status, string $path): void {
  * Only the Authorization header is read. There is no ?key= fallback: a token
  * that can run a game does not belong in a URL, where it lands in logs and
  * browser history.
+ *
+ * $audience is who is asking: 'api' for /api/v2, 'mcp' for the MCP endpoint.
+ * A personal token ("gnp_", minted by hand in Settings) is good for both. A
+ * token issued through the OAuth sign-in ("gna_") was granted for the MCP
+ * endpoint and is accepted there only: a token is good for the thing it was
+ * asked for, never for its neighbours.
  */
-function api_token_actor(): array {
+function api_token_actor(string $audience = 'api'): array {
     $hdr = '';
     if (function_exists('getallheaders')) {
         foreach (getallheaders() as $k => $v) {
@@ -222,18 +228,21 @@ function api_token_actor(): array {
     if (preg_match('/^[a-f0-9]{64}$/i', $token)) {
         return $fail('league_key_not_accepted', 'That is a league API key. League keys work on /api/v1; /api/v2 takes a personal token, minted under Settings.', 401);
     }
-    if (!preg_match('/^gnp_[a-f0-9]{64}$/', $token)) {
+    if (!preg_match('/^gn[pa]_[a-f0-9]{64}$/', $token)) {
         return $fail('invalid_token', 'That token is not valid.', 401);
     }
 
     $db = get_db();
     $st = $db->prepare(
-        "SELECT t.id AS token_id, t.scopes, t.expires_at, u.id, u.username, u.role, u.email_verified
+        "SELECT t.id AS token_id, t.scopes, t.expires_at, t.client_id, u.id, u.username, u.role, u.email_verified
            FROM api_tokens t JOIN users u ON u.id = t.user_id
           WHERE t.token_hash = ?");
     $st->execute([hash('sha256', $token)]);
     $row = $st->fetch(PDO::FETCH_ASSOC);
     if (!$row) return $fail('invalid_token', 'That token is not valid. It may have been revoked.', 401);
+    if ($row['client_id'] !== null && $audience !== 'mcp') {
+        return $fail('invalid_token', 'That token was issued for the MCP endpoint and is not accepted here. Mint a personal token under Settings for the API.', 401);
+    }
     if (!empty($row['expires_at']) && strtotime($row['expires_at'] . ' UTC') < time()) {
         return $fail('token_expired', 'That token has expired.', 401);
     }

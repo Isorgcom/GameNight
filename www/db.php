@@ -1381,6 +1381,42 @@ JSON;
     // api_request_log rows made with a personal token carry token_id (key_id NULL).
     try { $pdo->exec("ALTER TABLE api_request_log ADD COLUMN token_id INTEGER"); } catch (Exception $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_api_request_log_token ON api_request_log(token_id, created_at)"); } catch (Exception $e) {}
+    // OAuth sign-in for assistants (v1.30.0). An app such as Claude that connects
+    // to /mcp sends the person here to sign in and say what it may do, instead
+    // of the person copying a token. oauth_clients is who has asked: either
+    // registered itself (kind 'dcr', client_id is a random string we issued)
+    // or identified by a URL whose document we fetched (kind 'cimd', client_id
+    // IS that URL). oauth_codes are the short-lived, single-use codes the
+    // consent page hands back. The tokens themselves are api_tokens rows with
+    // client_id set, so everything that revokes, limits and logs a personal
+    // token does the same for these.
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS oauth_clients (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id     TEXT    NOT NULL UNIQUE,
+        kind          TEXT    NOT NULL DEFAULT 'dcr',
+        client_name   TEXT    NOT NULL DEFAULT '',
+        redirect_uris TEXT    NOT NULL DEFAULT '[]',
+        created_ip    TEXT,
+        created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+        fetched_at    DATETIME
+    )"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS oauth_codes (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        code_hash      TEXT    NOT NULL UNIQUE,
+        client_pk      INTEGER NOT NULL,
+        user_id        INTEGER NOT NULL,
+        redirect_uri   TEXT    NOT NULL,
+        code_challenge TEXT    NOT NULL,
+        scopes         TEXT    NOT NULL,
+        resource       TEXT    NOT NULL,
+        expires_at     DATETIME NOT NULL,
+        used_at        DATETIME,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )"); } catch (Exception $e) {}
+    // For a token issued through the sign-in: when its refresh token stops
+    // being good (pushed forward each time it is used).
+    try { $pdo->exec("ALTER TABLE api_tokens ADD COLUMN refresh_expires_at DATETIME"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_api_tokens_refresh ON api_tokens(refresh_hash)"); } catch (Exception $e) {}
     // Replays of a POST that carried an Idempotency-Key (API v2, v1.27.0): the
     // first answer is kept for a day and handed back, so a client that never
     // saw it (a dropped connection, a retrying agent) cannot create a second

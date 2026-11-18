@@ -6,7 +6,9 @@
  * guests and games: it offers the tools in _mcp_tools.php, each a wrapper
  * over the same service functions /api/v2 calls. The caller is a person,
  * known by their personal token (Settings → Security → API Tokens), and a
- * tool is offered only if the token has the permission it needs.
+ * tool is offered only if the token has the permission it needs. An app can
+ * also get a token by sending the person to sign in (the OAuth endpoints
+ * under /oauth, described by /.well-known/oauth-protected-resource).
  *
  * Stateless by design: every request stands alone, is answered with one JSON
  * body, and nothing is remembered between requests. Two generations of the
@@ -107,11 +109,17 @@ if ($method !== 'POST') {
     mcp_error(405, null, -32600, 'This MCP server answers POST requests only.');
 }
 
-$actor = api_token_actor();
+$actor = api_token_actor('mcp');
 if (isset($actor['ok'])) {
     api_token_log($actor['token_id'] ?? null, (int)$actor['http'], '/mcp');
-    if ((int)$actor['http'] === 401) header('WWW-Authenticate: Bearer realm="GameNight"');
-    mcp_error((int)$actor['http'], null, -32001, (string)$actor['message'] . ' Mint a personal token under Settings → Security → API Tokens.');
+    // Tell an app where the sign-in lives (RFC 9728). No scope is named: the
+    // app then asks for everything on offer and the person chooses on the
+    // consent page what it actually gets.
+    if ((int)$actor['http'] === 401) {
+        header('WWW-Authenticate: Bearer realm="GameNight", resource_metadata="' . rtrim(get_site_url(), '/') . '/.well-known/oauth-protected-resource"'
+             . (($actor['code'] ?? '') !== 'missing_token' ? ', error="invalid_token"' : ''));
+    }
+    mcp_error((int)$actor['http'], null, -32001, (string)$actor['message'] . ' Connect by signing in, or mint a personal token under Settings → Security → API Tokens.');
 }
 $actor['via'] = 'mcp';
 $tid = (int)$actor['token_id'];
