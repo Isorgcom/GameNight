@@ -86,6 +86,8 @@ function v2_routes(): array {
         ['GET', '/leagues/{id}/players/{key}', 'read', 'One player\'s finished games in the league. {key} is a user id, or g_<name> for a guest without an account. Same range query as standings.',
             fn($a, $p, $q) => gn_player_history($db, $a, $p['id'], $p['key'], $q)],
 
+        ['DELETE', '/leagues/{id}/members/{mid}', 'events', 'Owner or manager. Remove someone from the league: a member, or a person added by contact who has not joined. A member with an account is told. The owner cannot be removed.',
+            fn($a, $p, $q, $b) => gn_league_member_remove($db, $a, $p['id'], $p['mid'])],
         ['POST', '/leagues/{id}/members', 'messages', 'Owner or manager. Add someone by name and email or phone. They are sent an invitation to join (or to accept, if they have an account). Body: name, email, phone.',
             fn($a, $p, $q, $b) => gn_league_member_add($db, $a, $p['id'], $b)],
         ['GET', '/leagues/{id}/requests', 'read', 'Owner or manager. People waiting for an answer on a request to join.',
@@ -322,7 +324,7 @@ if ($path === '') {
 // Match the path first, so a wrong method on a real path is 405 and not 404.
 $match = null; $path_known = false; $known_pattern = ''; $params = [];
 foreach ($routes as $r) {
-    $re = '#^' . preg_replace(['#\{(id|pid|sid|iid|rid|eid|cid|n)\}#', '#\{(key)\}#'], ['(?P<$1>\d{1,12})', '(?P<$1>[^/]{1,200})'], $r[1]) . '$#';
+    $re = '#^' . preg_replace(['#\{(id|pid|sid|iid|rid|eid|cid|mid|n)\}#', '#\{(key)\}#'], ['(?P<$1>\d{1,12})', '(?P<$1>[^/]{1,200})'], $r[1]) . '$#';
     if (!preg_match($re, $path, $m)) continue;
     $path_known = true; $known_pattern = $r[1];
     if ($r[0] !== $method) continue;

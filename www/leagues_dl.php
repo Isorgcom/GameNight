@@ -368,6 +368,14 @@ case 'deny_request': {
     ok();
 }
 
+case 'remove_member': {
+    // By league_members.id (the page), or by user_id (older callers).
+    $league_id = (int)($_POST['league_id'] ?? 0);
+    $res = gn_league_member_remove($db, gn_web_actor($current), $league_id, (int)($_POST['member_id'] ?? 0), (int)($_POST['user_id'] ?? 0));
+    if (empty($res['ok'])) fail((string)$res['message'], (int)($res['http'] ?? 400) === 409 ? 400 : (int)($res['http'] ?? 400));
+    ok();
+}
+
 case 'add_contact': {
     $league_id = (int)($_POST['league_id'] ?? 0);
     league_role_or_fail($db, $league_id, $uid, ['owner', 'manager'], $isAdmin);

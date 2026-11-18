@@ -11,6 +11,16 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.32.0] - 2026-11-18
+
+### Added
+
+- **Claude, and the personal API, can remove someone from a league.** Asking Claude to take a person off a league's roster used to end with it saying it could not, because it had no tool for that. It has one now: an owner or manager can remove a member, or a person who was added by contact and never joined, by name, email or id. The rules are the league page's: the owner cannot be removed, a manager cannot remove another manager, a member with an account is told, and a pending contact is not. In the API it is `DELETE /api/v2/leagues/{league_id}/members/{member_id}`, under the events permission. (`www/svc/leagues.php`, `www/_mcp_tools.php`, `www/api/v2/index.php`)
+
+### Fixed
+
+- **The Remove button on a league's Members tab works again.** Since 1.27.0 clicking it, for a member or a pending contact, answered "Unknown action" and removed nobody: the action was lost from the server when the league code was reorganised for the API. It is back, and now shares one function with the API so the two cannot drift apart. (`www/leagues_dl.php`, `www/svc/leagues.php`)
+
 ## [v1.31.0] - 2026-11-18
 
 ### Added

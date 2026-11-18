@@ -79,6 +79,22 @@ function mcp_guest(PDO $db, array $actor, int $event_id, $ref): array {
     return mcp_pick($ref, $rows, [], 'guest', 'invite_not_found');
 }
 
+/** Someone on a league's roster (member or pending contact) by name, email or member id. Checks the caller runs the league first. */
+function mcp_league_member(PDO $db, array $actor, int $league_id, $ref): array {
+    $l = gn_league_guard($db, $actor, $league_id, ['owner', 'manager']);
+    if (isset($l['ok'])) return $l;
+    $st = $db->prepare('SELECT lm.id, lm.known_as, lm.contact_name, lm.contact_email, u.username FROM league_members lm LEFT JOIN users u ON u.id = lm.user_id WHERE lm.league_id = ?');
+    $st->execute([$league_id]);
+    $rows = []; $alias = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $name = trim((string)($r['username'] ?? '')) ?: trim((string)($r['contact_name'] ?? ''));
+        if ($name === '') continue;
+        $rows[(int)$r['id']] = $name;
+        $alias[(int)$r['id']] = (string)(($r['known_as'] ?? '') !== '' ? $r['known_as'] : ($r['contact_email'] ?? ''));
+    }
+    return mcp_pick($ref, $rows, $alias, 'league member', 'member_not_found');
+}
+
 /** One of the actor's own contacts by name or id. */
 function mcp_contact(PDO $db, array $actor, $ref): array {
     $st = $db->prepare('SELECT id, contact_name, contact_email FROM user_contacts WHERE owner_user_id = ?');
@@ -249,6 +265,13 @@ function gn_mcp_tools(): array {
             'run' => function ($db, $a, $x) {
                 $c = mcp_contact($db, $a, $x['contact'] ?? '');
                 return isset($c['ok']) ? $c : gn_contact_delete($db, $a, $c['id']);
+            }],
+        'remove_league_member' => ['title' => 'Remove someone from a league', 'scope' => 'events', 'hints' => ['readOnlyHint' => false, 'destructiveHint' => true], 'required' => ['league_id', 'member'],
+            'description' => 'League owner or manager. Remove someone from a league\'s roster: a member, or a person who was added by contact and has not joined yet (shown as pending in get_league). A member with an account is told they were removed; a pending contact is not told. The owner cannot be removed. This does not touch the user\'s own contacts (that is delete_contact). Confirm with the user who and which league before calling this.',
+            'args' => ['league_id' => mcp_i('The league\'s id.'), 'member' => mcp_ref('Their name or email, or their member_id from get_league.')],
+            'run' => function ($db, $a, $x) {
+                $m = mcp_league_member($db, $a, (int)$x['league_id'], $x['member'] ?? '');
+                return isset($m['ok']) ? $m : gn_league_member_remove($db, $a, (int)$x['league_id'], $m['id']);
             }],
         'add_season' => ['title' => 'Add a league season', 'scope' => 'events', 'hints' => $wr, 'required' => ['league_id', 'name', 'start_date', 'end_date'],
             'description' => 'League owner or manager. Add a season: a named range of dates that standings can be limited to.',
