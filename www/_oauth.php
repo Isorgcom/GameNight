@@ -131,7 +131,7 @@ function oauth_cimd_fetch(string $url): ?array {
     ]);
     $ok = curl_exec($ch);
     $code = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-    curl_close($ch);
+    // (No curl_close(): it has done nothing since PHP 8.0 and is deprecated in 8.5, which live runs.)
     if ($ok === false || $code !== 200) return null;
     $doc = json_decode($body, true);
     return is_array($doc) ? $doc : null;

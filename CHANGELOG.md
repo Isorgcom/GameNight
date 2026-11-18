@@ -11,6 +11,12 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.30.1] - 2026-11-18
+
+### Fixed
+
+- **The sign-in for apps no longer writes a deprecation notice to the server log.** On PHP 8.5, fetching an app's identity document logged "curl_close() is deprecated" each time. The call has done nothing since PHP 8.0 and is gone. Nothing about signing in changes. (`www/_oauth.php`)
+
 ## [v1.30.0] - 2026-11-18
 
 ### Added
