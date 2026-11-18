@@ -11,6 +11,13 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.32.1] - 2026-11-18
+
+### Added
+
+- **Claude, and the personal API, can set a game up from your saved presets.** Asking Claude to use your usual Friday setup, load a blind schedule or put a particular layout on the timer used to end with it saying it could not. Now it can list what the check-in console offers (setup presets, saved blind schedules, and the built-in and saved timer layouts) and apply any of them by name. A setup preset does what Load does in the Setup editor: whatever it holds of buy-in and chips, rebuys and add-ons, tables, payouts, bounty and jackpot, blinds and timer layout replaces the game's. A loaded blind schedule becomes the game's own copy, so the saved one is never changed. Choosing a timer layout also switches the game off Tournament Timer Classic, unless you say to keep Classic, because a layout on a game left on Classic would never be seen. The tools are `list_game_presets`, `apply_game_preset`, `apply_blind_schedule` and `set_timer_layout`; in the API they are `GET /presets`, `POST /events/{id}/game/preset`, `POST /events/{id}/game/blinds/load` and `PUT /events/{id}/game/timer`, and `get_game` now says which display and layout a game uses. (`www/svc/game.php`, `www/_mcp_tools.php`, `www/api/v2/index.php`)
+- **Claude can fix a league contact's details and resend their invitation.** An owner or manager can change the name, email or phone of someone added to the league who has not joined yet, as the Members tab does, and send them their invitation again with a fresh link. For a member with an account, only the name the league knows them by can be changed; their own name, email and phone stay theirs. The tools are `update_league_member` and `resend_league_invite` (which sends, so Claude asks first); in the API they are `PATCH /leagues/{id}/members/{member_id}` and `POST /leagues/{id}/members/{member_id}/resend`. The Members tab's edits and Resend button now save through the same code, so the two cannot drift apart. Roles are still changed on the site. (`www/svc/leagues.php`, `www/leagues_dl.php`, `www/_mcp_tools.php`, `www/api/v2/index.php`)
+
 ## [v1.32.0] - 2026-11-18
 
 ### Added

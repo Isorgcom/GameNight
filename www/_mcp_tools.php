@@ -104,6 +104,30 @@ function mcp_contact(PDO $db, array $actor, $ref): array {
     return mcp_pick($ref, $rows, $alias, 'contact', 'contact_not_found');
 }
 
+/** A setup preset, blind schedule or saved timer layout from the actor's library, by name or id. */
+function mcp_library(array $rows, $ref, string $what, string $nf_code): array {
+    $named = [];
+    foreach ($rows as $r) $named[(int)$r['id']] = (string)$r['name'];
+    return mcp_pick($ref, $named, [], $what, $nf_code);
+}
+
+/** A timer layout: a built-in by key or name, else a saved one by name or id. Returns ['layout' => key] or ['layout_id' => id]. */
+function mcp_timer_layout(PDO $db, array $actor, $ref): array {
+    if (is_string($ref)) {
+        $q = mb_strtolower(trim($ref));
+        foreach (GN_TIMER_BUILTINS as $k => [$name]) {
+            if ($q === $k || $q === mb_strtolower($name)) return ['layout' => $k];
+        }
+    }
+    $named = [];
+    foreach (gn_visible_timer_layouts($db, $actor) as $r) $named[(int)$r['id']] = (string)$r['name'];
+    $hit = mcp_pick($ref, $named, [], 'timer layout', 'layout_not_found');
+    if (isset($hit['ok']) && ($hit['code'] ?? '') === 'layout_not_found') {
+        $hit['message'] .= ' Built-in: ' . implode(', ', array_map(fn($b) => $b[0], GN_TIMER_BUILTINS)) . '.';
+    }
+    return isset($hit['ok']) ? $hit : ['layout_id' => $hit['id']];
+}
+
 /** Keep only the arguments a service body may carry, dropping the tool's own addressing arguments. */
 function mcp_body(array $a, array $drop): array { return array_diff_key($a, array_flip($drop)); }
 
@@ -187,8 +211,11 @@ function gn_mcp_tools(): array {
             'description' => 'People waiting for an answer on a request to join a league the user owns or manages.',
             'run' => fn($db, $a, $x) => gn_join_requests_list($db, $a, (int)$x['league_id'])],
         'get_game' => ['title' => 'Get the game', 'scope' => 'read', 'hints' => $ro, 'args' => $eid, 'required' => ['event_id'],
-            'description' => 'Host only. The poker game of an event as it stands right now: its setup, every player (bought in or not, rebuys, table and seat, finishing place), the prize pool, what each place pays, the blind schedule and the clock. Money is in cents. Look here before changing a game.',
+            'description' => 'Host only. The poker game of an event as it stands right now: its setup, every player (bought in or not, rebuys, table and seat, finishing place), the prize pool, what each place pays, the blind schedule, the clock and which timer display it uses. Money is in cents. Look here before changing a game.',
             'run' => fn($db, $a, $x) => gn_game_state($db, $a, (int)$x['event_id'])],
+        'list_game_presets' => ['title' => 'Setup presets, blind schedules and timer layouts', 'scope' => 'read', 'hints' => $ro, 'args' => [], 'required' => [],
+            'description' => 'What a game can be set up from, the same lists the check-in console offers: game_presets (whole saved setups: buy-in, payouts, blinds, timer), blind_schedules (saved blind structures) and timer_layouts (built-in and saved displays). scope says whose each is: site default, site, league or mine. Use with apply_game_preset, apply_blind_schedule and set_timer_layout.',
+            'run' => fn($db, $a, $x) => gn_setup_library($db, $a)],
         'get_results' => ['title' => 'Game results', 'scope' => 'read', 'hints' => $ro, 'args' => $eid, 'required' => ['event_id'],
             'description' => 'How a poker game came out: finishing order, what each player put in and took home, points. For the host and for members of the event\'s league. While the game is still running it is the standings so far ("final": false).',
             'run' => fn($db, $a, $x) => gn_game_results($db, $a, (int)$x['event_id'])],
@@ -273,6 +300,15 @@ function gn_mcp_tools(): array {
                 $m = mcp_league_member($db, $a, (int)$x['league_id'], $x['member'] ?? '');
                 return isset($m['ok']) ? $m : gn_league_member_remove($db, $a, (int)$x['league_id'], $m['id']);
             }],
+        'update_league_member' => ['title' => 'Edit someone on a league roster', 'scope' => 'events', 'hints' => $wr + ['idempotentHint' => true], 'required' => ['league_id', 'member'],
+            'description' => 'League owner or manager. Change someone on a league\'s roster, as the Members tab does. For a pending contact (added by contact, not joined yet; pending in get_league) you can change name, email and phone; they keep at least an email or a phone. For a member with an account you can change only known_as, the name the league shows for them; their own name, email and phone are theirs to change. Only what you send changes. Roles are changed on the site.',
+            'args' => ['league_id' => mcp_i('The league\'s id.'), 'member' => mcp_ref('Their name or email, or their member_id from get_league.'),
+                       'name' => mcp_s('Pending contact: their name.'), 'email' => mcp_s('Pending contact: their email, or "" to clear it.'), 'phone' => mcp_s('Pending contact: their phone, or "" to clear it.'),
+                       'known_as' => mcp_s('Member with an account: the name the league knows them by, or "" to clear it.')],
+            'run' => function ($db, $a, $x) {
+                $m = mcp_league_member($db, $a, (int)$x['league_id'], $x['member'] ?? '');
+                return isset($m['ok']) ? $m : gn_league_member_update($db, $a, (int)$x['league_id'], $m['id'], mcp_body($x, ['league_id', 'member']));
+            }],
         'add_season' => ['title' => 'Add a league season', 'scope' => 'events', 'hints' => $wr, 'required' => ['league_id', 'name', 'start_date', 'end_date'],
             'description' => 'League owner or manager. Add a season: a named range of dates that standings can be limited to.',
             'args' => ['league_id' => mcp_i('The league\'s id.'), 'name' => mcp_s('E.g. "Spring 2027".'), 'start_date' => mcp_s('YYYY-MM-DD.'), 'end_date' => mcp_s('YYYY-MM-DD.')],
@@ -324,6 +360,14 @@ function gn_mcp_tools(): array {
             'args' => ['league_id' => mcp_i('The league\'s id.'), 'name' => mcp_s('Their name.'), 'email' => mcp_s('Their email.'), 'phone' => mcp_s('Their phone, if no email.')],
             'run' => fn($db, $a, $x) => gn_league_member_add($db, $a, (int)$x['league_id'], mcp_body($x, ['league_id']))],
 
+        'resend_league_invite' => ['title' => 'Resend a league invitation', 'scope' => 'messages', 'hints' => $wr + ['openWorldHint' => true], 'required' => ['league_id', 'member'],
+            'description' => 'League owner or manager. SENDS a pending contact (someone added to the league who has not joined; pending in get_league) a reminder of their invitation, with a fresh sign-up link. Fix a wrong email or phone with update_league_member first. Say who it will go to and get the user\'s go-ahead.',
+            'args' => ['league_id' => mcp_i('The league\'s id.'), 'member' => mcp_ref('Their name or email, or their member_id from get_league.')],
+            'run' => function ($db, $a, $x) {
+                $m = mcp_league_member($db, $a, (int)$x['league_id'], $x['member'] ?? '');
+                return isset($m['ok']) ? $m : gn_league_invite_resend($db, $a, (int)$x['league_id'], $m['id']);
+            }],
+
         // ── Running a game (permission: game) ────────────────────────────────
         'configure_game' => ['title' => 'Set up the game', 'scope' => 'game', 'hints' => $wr + ['idempotentHint' => true], 'required' => ['event_id'],
             'description' => 'Host only. Change a poker game\'s setup. Only what you give changes. All money is in cents (2000 is $20). Changing tables or seats may reseat players.',
@@ -340,6 +384,36 @@ function gn_mcp_tools(): array {
                 'small_blind' => ['type' => 'number', 'description' => 'Small blind.'], 'big_blind' => ['type' => 'number', 'description' => 'Big blind.'], 'ante' => ['type' => 'number', 'description' => 'Ante, if any.'],
                 'minutes' => mcp_i('How long the level lasts.'), 'is_break' => mcp_b('True for a break instead of a level.')], 'required' => ['minutes']]]],
             'run' => fn($db, $a, $x) => gn_game_blinds_set($db, $a, (int)$x['event_id'], ['levels' => $x['levels'] ?? null])],
+        'apply_game_preset' => ['title' => 'Set up the game from a preset', 'scope' => 'game', 'hints' => $wr + ['idempotentHint' => true], 'required' => ['event_id', 'preset'],
+            'description' => 'Host only. Load a saved setup preset into a game, as the Setup editor\'s Load does: whatever the preset holds of buy-in and chips, rebuys and add-ons, tables, payouts, bounty and jackpot, blind schedule and timer layout replaces the game\'s own. list_game_presets lists them. Tell the user what will change if the game already has a setup they made.',
+            'args' => $eid + ['preset' => mcp_ref('The preset\'s name or id, from list_game_presets.')],
+            'run' => function ($db, $a, $x, $f) {
+                $ev = gn_event_guard($db, $a, (int)$x['event_id']); if (isset($ev['ok'])) return $ev;
+                $p = mcp_library(gn_visible_game_presets($db, $a), $x['preset'] ?? '', 'setup preset', 'preset_not_found');
+                return isset($p['ok']) ? $p : gn_game_act($db, $a, (int)$x['event_id'], 'load_preset', ['preset_id' => $p['id']], $f);
+            }],
+        'apply_blind_schedule' => ['title' => 'Load a saved blind schedule', 'scope' => 'game', 'hints' => $wr + ['idempotentHint' => true], 'required' => ['event_id', 'schedule'],
+            'description' => 'Host only. Replace a tournament\'s blind schedule with a saved one from the library (list_game_presets, blind_schedules). It becomes the game\'s own copy; the saved schedule is not changed. To write levels by hand use set_blinds.',
+            'args' => $eid + ['schedule' => mcp_ref('The schedule\'s name or id, from list_game_presets.')],
+            'run' => function ($db, $a, $x) {
+                $ev = gn_event_guard($db, $a, (int)$x['event_id']); if (isset($ev['ok'])) return $ev;
+                $p = mcp_library(gn_visible_blind_schedules($db, $a), $x['schedule'] ?? '', 'blind schedule', 'schedule_not_found');
+                return isset($p['ok']) ? $p : gn_game_blind_schedule_load($db, $a, (int)$x['event_id'], $p['id']);
+            }],
+        'set_timer_layout' => ['title' => 'Choose the timer display', 'scope' => 'game', 'hints' => $wr + ['idempotentHint' => true], 'required' => ['event_id'],
+            'description' => 'Host only. Choose what a tournament\'s Timer button shows: a layout (built-in, or a saved one from list_game_presets, timer_layouts), or Tournament Timer Classic. Choosing a layout also switches the game to the layout display unless classic is given. layout "default" clears the choice so the display uses its default layout. The answer has the timer page link.',
+            'args' => $eid + ['layout' => mcp_ref('A built-in layout\'s name or key (Classic, Black & Green, Minimalist, Two Column, Showcase, PCF, Cardroom), a saved layout\'s name or id, or "default".'),
+                              'classic' => mcp_b('true shows Tournament Timer Classic instead of a layout; false shows the layout display.')],
+            'run' => function ($db, $a, $x) {
+                $ev = gn_event_guard($db, $a, (int)$x['event_id']); if (isset($ev['ok'])) return $ev;
+                $body = [];
+                if (array_key_exists('classic', $x)) $body['classic'] = $x['classic'];
+                if (array_key_exists('layout', $x)) {
+                    if (is_string($x['layout']) && mb_strtolower(trim($x['layout'])) === 'default') $body['layout_id'] = 0;
+                    else { $l = mcp_timer_layout($db, $a, $x['layout']); if (isset($l['ok'])) return $l; $body += $l; }
+                }
+                return gn_game_timer_set($db, $a, (int)$x['event_id'], $body);
+            }],
         'set_payouts' => ['title' => 'Set the payout table', 'scope' => 'game', 'hints' => $wr + ['idempotentHint' => true], 'required' => ['event_id', 'places'],
             'description' => 'Host only. Replace a tournament\'s whole payout table: what share of the pool each place gets, and optionally league points. Percentages may total at most 100.',
             'args' => $eid + ['places' => ['type' => 'array', 'description' => 'Every paid place.', 'items' => ['type' => 'object', 'properties' => [

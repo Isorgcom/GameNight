@@ -213,6 +213,7 @@ function gn_game_state(PDO $db, array $actor, int $event_id): array {
         'blinds'  => $blinds,
         'clock'   => $type === 'tournament' ? gn_clock_shape($db, $sid, $blinds) : null,
         'rebuy_level' => $type === 'tournament' ? pk_timer_blind_level($db, $sid) : 0,
+        'timer'   => $type === 'tournament' ? gn_timer_shape($db, $sid) : null,
     ];
     if ($league_id && pk_can_manage_league_money($db, $league_id, (int)$actor['id'], (bool)$actor['is_admin'])) {
         $game['jackpot'] = [
@@ -435,7 +436,7 @@ function gn_game_after(PDO $db, int $event_id, ?int $player_id): array {
 /** The actions gn_game_act() knows. */
 const GN_GAME_ACTS = ['setup', 'payouts', 'start', 'finish', 'reopen', 'walk_in', 'buy_in', 'undo_buy_in', 'rebuy', 'undo_rebuy',
     'add_on', 'undo_add_on', 'bulk_add_on', 'eliminate', 'reinstate', 'cash_in', 'cash_out', 'move', 'unseat', 'notes',
-    'remove', 'rebalance', 'break_up_table', 'void_entry', 'clock'];
+    'remove', 'rebalance', 'break_up_table', 'void_entry', 'clock', 'load_preset'];
 
 /**
  * Do one thing in a game, as the host. Returns a failure array when the
@@ -676,6 +677,38 @@ function gn_game_act(PDO $db, array $actor, int $event_id, string $act, array $a
             $pid = (int)($row['player_id'] ?? 0);
             break;
         }
+        case 'load_preset': {
+            // A setup preset is the whole Setup editor saved under a name: the
+            // game's settings, payouts, bounty and jackpot, blinds and timer
+            // layout. The console applies it (load_payout_structure).
+            if ($e = $only(['preset_id'])) return $e;
+            $want = $a['preset_id'] ?? null;
+            if (!is_int($want) || $want < 1) return gn_err('bad_field', 'preset_id must be a setup preset\'s id, from the presets list.', 400);
+            $struct = null;
+            foreach (gn_visible_game_presets($db, $actor) as $r) if ((int)$r['id'] === $want) { $struct = $r; break; }
+            if (!$struct) return gn_err('preset_not_found', 'No such setup preset that you can use.', 404);
+            if ($s['status'] === 'finished') return gn_err('game_finished', 'This game is finished. Reopen it to change its setup.', 409);
+            $league_id = (int)($ev['league_id'] ?? 0) ?: null;
+            if ($league_id && (int)($struct['jackpot_amount'] ?? 0) > 0) {
+                if (!pk_can_manage_league_money($db, $league_id, (int)$actor['id'], (bool)$actor['is_admin'])) {
+                    return gn_err('not_league_manager', 'This preset sets a jackpot, which is the league\'s money: only its owner or a manager can load it.', 403);
+                }
+                if (!gn_actor_has_scope($actor, 'money')) return gn_err('missing_scope', 'This preset sets a jackpot, which needs the "money" permission on the token.', 403);
+            }
+            $post = ['action' => 'load_payout_structure', 'session_id' => $sid, 'structure_id' => $want];
+            $extra = function (array $l) use ($db, $event_id, $sid, $struct) {
+                $ns = gn_game_session($db, $event_id);
+                $pool = calc_pool($db, $sid);
+                $blinds = ($ns['game_type'] ?? '') === 'tournament' ? gn_blinds_shape($db, $sid) : [];
+                $out = ['preset' => ['id' => (int)$struct['id'], 'name' => (string)$struct['name']],
+                        'session' => $ns ? gn_session_shape($ns) : null,
+                        'payouts' => gn_payouts_shape(get_payouts($db, $sid), $pool), 'blinds' => $blinds,
+                        'timer' => gn_timer_shape($db, $sid)];
+                if (!empty($l['no_blinds'])) $out['warning'] = 'This preset carries no blind schedule and the game has none yet. Set the blinds before the game starts.';
+                return $out;
+            };
+            break;
+        }
         case 'clock': {
             if ($e = $tournament_only()) return $e;
             if ($e = $only(['command', 'confirm'])) return $e;
@@ -756,4 +789,196 @@ function gn_game_blinds_set(PDO $db, array $actor, int $event_id, array $body): 
     db_log_activity((int)$actor['id'], "saved event blind schedule: event #$event_id (" . count($clean) . ' levels)');
     $blinds = gn_blinds_shape($db, (int)$s['id']);
     return gn_ok(['event_id' => $event_id, 'blinds' => $blinds, 'clock' => gn_clock_shape($db, (int)$s['id'], $blinds), 'made_own_copy' => !empty($res['created_copy'])]);
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Game setup from the library: setup presets (payout_structures, the whole
+// Setup editor saved under a name), blind schedules (blind_presets) and timer
+// layouts (timer_layouts, plus the built-ins). Each list uses the same
+// visibility rule as the page that offers it, so a token sees what its owner
+// sees in the console and no more.
+// ═════════════════════════════════════════════════════════════════════════════
+
+const GN_TIMER_BUILTINS = [
+    'classic'     => ['Classic', 'Royal blue with the clock in the middle, the game\'s numbers down both sides and the payouts along the bottom.'],
+    'black_green' => ['Black & Green', 'Black with green bars: a huge clock, the blinds in green, and the counts in the strips at the top and bottom.'],
+    'minimalist'  => ['Minimalist', 'Just the clock and the blinds, white on black, readable from across any room.'],
+    'two_column'  => ['Two Column', 'A column of game numbers and payouts on the left, the clock and blinds on green on the right.'],
+    'showcase'    => ['Showcase', 'Navy and gold: a big clock, the blinds in a gold box, next level and break, players, average stack, prize pool and a QR code.'],
+    'pcf'         => ['PCF', 'Glossy plates on dark felt: an orange blinds plate, the stats panel, a payout bar and a seat map at the final table.'],
+    'cardroom'    => ['Cardroom', 'A casino tournament clock in green: payouts down both sides, level and clock in the middle, a ticker along the bottom.'],
+];
+
+/** Where a library row came from, in words a host uses. */
+function gn_library_scope(array $r): string {
+    if ((int)($r['is_default'] ?? 0) === 1) return 'site default';
+    if ((int)($r['is_global'] ?? 0) === 1) return 'site';
+    if (!empty($r['league_id'])) return 'league';
+    return 'mine';
+}
+
+/** Setup presets the actor may load (the console's list_payout_structures rule). */
+function gn_visible_game_presets(PDO $db, array $actor): array {
+    $st = $db->prepare(
+        'SELECT ps.*, l.name AS league_name FROM payout_structures ps LEFT JOIN leagues l ON l.id = ps.league_id
+          WHERE ps.is_default = 1 OR ps.is_global = 1 OR ps.created_by = ?
+             OR ps.league_id IN (SELECT league_id FROM league_members WHERE user_id = ?)
+          ORDER BY ps.is_default DESC, ps.is_global DESC, LOWER(ps.name)');
+    $st->execute([(int)$actor['id'], (int)$actor['id']]);
+    return $st->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/** Library blind schedules the actor may load (timer_dl.php get_presets rule; never a game's own copy). */
+function gn_visible_blind_schedules(PDO $db, array $actor): array {
+    $st = $db->prepare(
+        'SELECT bp.*, l.name AS league_name,
+                (SELECT COUNT(*) FROM blind_preset_levels v WHERE v.preset_id = bp.id AND v.is_break = 0) AS level_count,
+                (SELECT COUNT(*) FROM blind_preset_levels v WHERE v.preset_id = bp.id AND v.is_break = 1) AS break_count,
+                (SELECT duration_minutes FROM blind_preset_levels v WHERE v.preset_id = bp.id AND v.is_break = 0 ORDER BY level_number LIMIT 1) AS first_minutes
+           FROM blind_presets bp LEFT JOIN leagues l ON l.id = bp.league_id
+          WHERE bp.session_id IS NULL
+            AND (bp.is_default = 1 OR bp.is_global = 1 OR bp.created_by = ?
+                 OR bp.league_id IN (SELECT league_id FROM league_members WHERE user_id = ?))
+          ORDER BY bp.is_default DESC, bp.is_global DESC, LOWER(bp.name)');
+    $st->execute([(int)$actor['id'], (int)$actor['id']]);
+    return $st->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/** Saved timer layouts the actor may put on a display (event_setup_dl.php set_layout rule). */
+function gn_visible_timer_layouts(PDO $db, array $actor): array {
+    $st = $db->prepare(
+        'SELECT t.id, t.name, t.created_by, t.is_global, t.league_id, l.name AS league_name, t.updated_at
+           FROM timer_layouts t LEFT JOIN leagues l ON l.id = t.league_id
+          WHERE t.is_global = 1 OR t.created_by = ?
+             OR t.league_id IN (SELECT league_id FROM league_members WHERE user_id = ?)
+          ORDER BY t.is_global DESC, LOWER(t.name)');
+    $st->execute([(int)$actor['id'], (int)$actor['id']]);
+    return $st->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/** Everything a game can be set up from: setup presets, blind schedules, timer layouts. */
+function gn_setup_library(PDO $db, array $actor): array {
+    $presets = [];
+    foreach (gn_visible_game_presets($db, $actor) as $r) {
+        $gc = json_decode((string)($r['game_config'] ?? ''), true) ?: [];
+        $tc = json_decode((string)($r['timer_config'] ?? ''), true) ?: [];
+        $places = $db->prepare('SELECT COUNT(*) FROM payout_structure_places WHERE structure_id = ?');
+        $places->execute([(int)$r['id']]);
+        $presets[] = [
+            'id' => (int)$r['id'], 'name' => (string)$r['name'], 'scope' => gn_library_scope($r),
+            'league' => $r['league_id'] ? ['id' => (int)$r['league_id'], 'name' => (string)$r['league_name']] : null,
+            'buyin_cents' => isset($gc['buyin_amount']) ? (int)$gc['buyin_amount'] : null,
+            'starting_chips' => isset($gc['starting_chips']) ? (int)$gc['starting_chips'] : null,
+            'paid_places' => (int)$places->fetchColumn(),
+            'has_blinds' => !empty($r['blind_levels']),
+            'has_timer_layout' => !empty($tc['layout_id']) || !empty($tc['layout_builtin']),
+            'bounty_cents' => $r['bounty_amount'] !== null ? (int)$r['bounty_amount'] : null,
+            'jackpot_cents' => $r['jackpot_amount'] !== null ? (int)$r['jackpot_amount'] : null,
+        ];
+    }
+    $schedules = array_map(fn($r) => [
+        'id' => (int)$r['id'], 'name' => (string)$r['name'], 'scope' => gn_library_scope($r),
+        'league' => $r['league_id'] ? ['id' => (int)$r['league_id'], 'name' => (string)$r['league_name']] : null,
+        'levels' => (int)$r['level_count'], 'breaks' => (int)$r['break_count'],
+        'first_level_minutes' => $r['first_minutes'] !== null ? (int)$r['first_minutes'] : null,
+    ], gn_visible_blind_schedules($db, $actor));
+    $layouts = [];
+    foreach (GN_TIMER_BUILTINS as $k => [$name, $desc]) $layouts[] = ['id' => null, 'key' => $k, 'name' => $name, 'scope' => 'built-in', 'description' => $desc];
+    foreach (gn_visible_timer_layouts($db, $actor) as $r) {
+        $layouts[] = ['id' => (int)$r['id'], 'key' => null, 'name' => (string)$r['name'],
+            'scope' => (int)$r['is_global'] === 1 ? 'site' : ($r['league_id'] ? 'league' : 'mine'),
+            'league' => $r['league_id'] ? ['id' => (int)$r['league_id'], 'name' => (string)$r['league_name']] : null];
+    }
+    return gn_ok(['game_presets' => $presets, 'blind_schedules' => $schedules, 'timer_layouts' => $layouts]);
+}
+
+/** What the game's Timer button shows: the layout display (and which layout) or Tournament Timer Classic. */
+function gn_timer_shape(PDO $db, int $session_id): array {
+    $t = $db->prepare('SELECT use_beta, layout_id, layout_builtin FROM timer_state WHERE session_id = ?');
+    $t->execute([$session_id]);
+    $row = $t->fetch(PDO::FETCH_ASSOC) ?: [];
+    $layout = null;
+    if (!empty($row['layout_builtin']) && isset(GN_TIMER_BUILTINS[$row['layout_builtin']])) {
+        $layout = ['id' => null, 'key' => (string)$row['layout_builtin'], 'name' => GN_TIMER_BUILTINS[$row['layout_builtin']][0]];
+    } elseif (!empty($row['layout_id'])) {
+        $n = $db->prepare('SELECT name FROM timer_layouts WHERE id = ?');
+        $n->execute([(int)$row['layout_id']]);
+        $name = $n->fetchColumn();
+        if ($name !== false) $layout = ['id' => (int)$row['layout_id'], 'key' => null, 'name' => (string)$name];
+    }
+    return ['display' => (int)($row['use_beta'] ?? 0) === 1 ? 'layout' : 'classic', 'layout' => $layout];
+}
+
+/**
+ * Load a library blind schedule into a tournament (host). Written as the
+ * game's own copy, exactly as the blind editor's Load then Save does: the
+ * library schedule is never changed by what the game does to it later.
+ */
+function gn_game_blind_schedule_load(PDO $db, array $actor, int $event_id, int $schedule_id): array {
+    $ev = gn_event_guard($db, $actor, $event_id);
+    if (isset($ev['ok'])) return $ev;
+    $s = gn_game_session($db, $event_id);
+    if (!$s) return gn_err('game_not_set_up', 'This event has no game set up yet.', 404);
+    if (($s['game_type'] ?? 'tournament') !== 'tournament') return gn_err('not_a_tournament', 'Only a tournament has a blind schedule.', 409);
+    $row = null;
+    foreach (gn_visible_blind_schedules($db, $actor) as $r) if ((int)$r['id'] === $schedule_id) { $row = $r; break; }
+    if (!$row) return gn_err('schedule_not_found', 'No such blind schedule that you can use.', 404);
+    $lq = $db->prepare('SELECT level_number, small_blind, big_blind, ante, duration_minutes, is_break FROM blind_preset_levels WHERE preset_id = ? ORDER BY level_number');
+    $lq->execute([$schedule_id]);
+    $clean = pk_clean_blind_levels($lq->fetchAll(PDO::FETCH_ASSOC));
+    if (!$clean) return gn_err('schedule_empty', 'That blind schedule has no levels.', 409);
+    $res = pk_apply_event_blinds($db, (int)$s['id'], $event_id, $clean, (int)$actor['id']);
+    db_log_activity((int)$actor['id'], "loaded blind schedule id=$schedule_id into event #$event_id (" . count($clean) . ' levels)');
+    $blinds = gn_blinds_shape($db, (int)$s['id']);
+    return gn_ok(['event_id' => $event_id, 'schedule' => ['id' => $schedule_id, 'name' => (string)$row['name']], 'blinds' => $blinds,
+                  'clock' => gn_clock_shape($db, (int)$s['id'], $blinds), 'made_own_copy' => !empty($res['created_copy'])]);
+}
+
+/**
+ * Choose what a tournament's Timer button shows (host). Body: layout_id (a
+ * saved layout) or layout (a built-in key), and/or classic (true for
+ * Tournament Timer Classic, false for the layout display). Choosing a layout
+ * without saying classic switches the game to the layout display, because a
+ * layout on a game left on Classic would not be seen. layout_id 0 clears the
+ * choice, so the display uses its default layout.
+ */
+function gn_game_timer_set(PDO $db, array $actor, int $event_id, array $body): array {
+    $ev = gn_event_guard($db, $actor, $event_id);
+    if (isset($ev['ok'])) return $ev;
+    $s = gn_game_session($db, $event_id);
+    if (!$s) return gn_err('game_not_set_up', 'This event has no game set up yet.', 404);
+    if (($s['game_type'] ?? 'tournament') !== 'tournament') return gn_err('not_a_tournament', 'Only a tournament has a timer display.', 409);
+    $bad = array_diff(array_keys($body), ['layout_id', 'layout', 'classic']);
+    if ($bad) return gn_err('unknown_field', 'Unknown field: ' . implode(', ', $bad) . '.', 400);
+    if (!$body) return gn_err('nothing_to_change', 'Send layout_id, layout or classic.', 400);
+    if (array_key_exists('layout_id', $body) && array_key_exists('layout', $body)) return gn_err('bad_field', 'Send layout_id for a saved layout or layout for a built-in one, not both.', 400);
+    if (array_key_exists('classic', $body) && !is_bool($body['classic'])) return gn_err('bad_field', 'classic must be true or false.', 400);
+
+    $sets = []; $args = []; $what = [];
+    if (array_key_exists('layout', $body)) {
+        $k = $body['layout'];
+        if (!is_string($k) || !isset(GN_TIMER_BUILTINS[$k])) return gn_err('bad_field', 'layout must be a built-in key: ' . implode(', ', array_keys(GN_TIMER_BUILTINS)) . '.', 400);
+        $sets[] = 'layout_id = NULL'; $sets[] = 'layout_builtin = ?'; $args[] = $k; $what[] = $k;
+    }
+    if (array_key_exists('layout_id', $body)) {
+        $lid = $body['layout_id'];
+        if (!is_int($lid) || $lid < 0) return gn_err('bad_field', 'layout_id must be a layout\'s id, or 0 to clear.', 400);
+        if ($lid > 0) {
+            $ok = false;
+            foreach (gn_visible_timer_layouts($db, $actor) as $r) if ((int)$r['id'] === $lid) { $ok = true; break; }
+            if (!$ok) return gn_err('layout_not_found', 'No such timer layout that you can use.', 404);
+        }
+        $sets[] = 'layout_id = ?'; $args[] = $lid ?: null; $sets[] = 'layout_builtin = NULL'; $what[] = $lid ?: 'none';
+    }
+    $classic = $body['classic'] ?? null;
+    $chose_layout = array_key_exists('layout', $body) || (array_key_exists('layout_id', $body) && $body['layout_id'] > 0);
+    if ($classic === null && $chose_layout) $classic = false;
+    if ($classic !== null) { $sets[] = 'use_beta = ?'; $args[] = $classic ? 0 : 1; $what[] = $classic ? 'classic' : 'layout display'; }
+
+    $timer = pk_ensure_timer_row($db, (int)$s['id'], pk_user_beta_pref($db, (int)$actor['id']));
+    $args[] = (int)$timer['id'];
+    $db->prepare('UPDATE timer_state SET ' . implode(', ', $sets) . ", updated_at = datetime('now') WHERE id = ?")->execute($args);
+    db_log_activity((int)$actor['id'], "set event timer display: event #$event_id → " . implode(', ', $what));
+    return gn_ok(['event_id' => $event_id, 'timer' => gn_timer_shape($db, (int)$s['id']), 'changed' => true,
+                  'timer_url' => rtrim(get_site_url(), '/') . '/timer.php?event_id=' . $event_id]);
 }

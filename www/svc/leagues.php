@@ -256,6 +256,121 @@ function gn_league_member_remove(PDO $db, array $actor, int $league_id, int $mem
     return gn_ok(['league_id' => $league_id, 'member_id' => (int)$row['id'], 'name' => $name, 'removed' => true, 'was_pending' => !$linked, 'told' => $linked]);
 }
 
+/**
+ * Change someone on a league's roster (owner or manager). The fields follow
+ * the Members grid: a member with an account has only the name the league
+ * knows them by (known_as); a pending contact, someone added by contact who
+ * has not joined, has name, email and phone. Only what is sent changes. The
+ * Members grid saves through here too (leagues_dl.php update_member), so the
+ * two cannot drift. Roles stay on the site.
+ */
+function gn_league_member_update(PDO $db, array $actor, int $league_id, int $member_id, array $body): array {
+    $l = gn_league_guard($db, $actor, $league_id, ['owner', 'manager']);
+    if (isset($l['ok'])) return $l;
+    $rs = $db->prepare('SELECT * FROM league_members WHERE id = ? AND league_id = ?');
+    $rs->execute([$member_id, $league_id]);
+    $row = $rs->fetch(PDO::FETCH_ASSOC);
+    if (!$row) return gn_err('member_not_found', 'No such person on this league\'s roster.', 404);
+    $linked = !empty($row['user_id']);
+
+    $allowed = $linked ? ['known_as'] : ['name', 'email', 'phone'];
+    $bad = array_diff(array_keys($body), $allowed);
+    if ($bad) {
+        return gn_err('unknown_field', $linked
+            ? 'For a member with an account only known_as can be changed; their own name, email and phone are theirs to change. Unknown field: ' . implode(', ', $bad) . '.'
+            : 'For a pending contact name, email and phone can be changed. Unknown field: ' . implode(', ', $bad) . '.', 400);
+    }
+    if (!$body) return gn_err('nothing_to_change', 'Send at least one field to change.', 400);
+    foreach ($body as $k => $v) {
+        if ($v !== null && !is_string($v)) return gn_err('bad_field', "\"$k\" must be text, or null to clear it.", 400);
+    }
+
+    if ($linked) {
+        // Seen by every member of the league, so it is a presentable name,
+        // not a note: short, plain text, cleared when emptied.
+        $v = preg_replace('/[\x00-\x1F\x7F]/', '', trim((string)($body['known_as'] ?? '')));
+        if (mb_strlen($v) > 60) return gn_err('bad_field', 'Keep the name to 60 characters.', 400);
+        $db->prepare('UPDATE league_members SET known_as = ? WHERE id = ?')->execute([$v !== '' ? $v : null, $member_id]);
+        db_log_activity((int)$actor['id'], "set known-as name for member id=$member_id in league id=$league_id");
+    } else {
+        $set = [];
+        if (array_key_exists('name', $body)) {
+            $v = preg_replace('/[\x00-\x1F\x7F]/', '', trim((string)$body['name']));
+            if ($v === '') return gn_err('bad_field', 'Name is required.', 400);
+            if (mb_strlen($v) > 100) return gn_err('bad_field', 'Keep the name to 100 characters.', 400);
+            $set['contact_name'] = $v;
+        }
+        if (array_key_exists('email', $body)) {
+            $v = strtolower(trim((string)$body['email']));
+            if ($v !== '' && !filter_var($v, FILTER_VALIDATE_EMAIL)) return gn_err('bad_field', 'Invalid email.', 400);
+            if ($v !== '') {
+                $dup = $db->prepare('SELECT 1 FROM league_members WHERE league_id = ? AND user_id IS NULL AND LOWER(contact_email) = ? AND id <> ? LIMIT 1');
+                $dup->execute([$league_id, $v, $member_id]);
+                if ($dup->fetchColumn()) return gn_err('duplicate_contact', 'Another pending contact in this league already uses that email.', 409);
+            }
+            $set['contact_email'] = $v;
+        }
+        if (array_key_exists('phone', $body)) {
+            $raw = trim((string)$body['phone']);
+            $v = $raw !== '' ? normalize_phone($raw) : '';
+            if (mb_strlen($v) > 40) return gn_err('bad_field', 'That is not a phone number.', 400);
+            $set['contact_phone'] = $v;
+        }
+        $email = array_key_exists('contact_email', $set) ? $set['contact_email'] : (string)($row['contact_email'] ?? '');
+        $phone = array_key_exists('contact_phone', $set) ? $set['contact_phone'] : (string)($row['contact_phone'] ?? '');
+        if ($email === '' && $phone === '') return gn_err('bad_field', 'A pending contact must keep at least an email or a phone.', 400);
+        foreach ($set as $col => $v) {   // $col is one of three fixed names above
+            $db->prepare("UPDATE league_members SET $col = ? WHERE id = ?")->execute([$v !== '' ? $v : null, $member_id]);
+        }
+        db_log_activity((int)$actor['id'], 'updated pending contact id=' . $member_id . ' field=' . implode(',', array_keys($set)) . " in league id=$league_id");
+    }
+
+    $members = gn_league_members($db, $actor, $league_id);
+    foreach ($members['members'] ?? [] as $m) {
+        if ($m['member_id'] === $member_id) return gn_ok(['league_id' => $league_id, 'member' => $m, 'changed' => true]);
+    }
+    return gn_ok(['league_id' => $league_id, 'member_id' => $member_id, 'changed' => true]);
+}
+
+/**
+ * Send a pending contact their invitation to join the league again, with a
+ * fresh link (owner or manager). Shared with the Members grid's Resend.
+ */
+function gn_league_invite_resend(PDO $db, array $actor, int $league_id, int $member_id): array {
+    $l = gn_league_guard($db, $actor, $league_id, ['owner', 'manager']);
+    if (isset($l['ok'])) return $l;
+    $rs = $db->prepare('SELECT * FROM league_members WHERE id = ? AND league_id = ?');
+    $rs->execute([$member_id, $league_id]);
+    $row = $rs->fetch(PDO::FETCH_ASSOC);
+    if (!$row) return gn_err('member_not_found', 'No such person on this league\'s roster.', 404);
+    if (!empty($row['user_id'])) return gn_err('already_member', 'They have already joined the league; there is no invitation to resend.', 409);
+
+    $token = bin2hex(random_bytes(16));
+    $db->prepare('UPDATE league_members SET invite_token = ? WHERE id = ?')->execute([$token, (int)$row['id']]);
+
+    $lname = (string)$l['name'];
+    $inviteUrl = get_site_url() . '/league_invite.php?token=' . $token;
+    if (get_setting('url_shortener_enabled') === '1') { $inviteUrl = shorten_url($inviteUrl); }
+    // An invitation addressed to an account goes to that account's own details,
+    // not to whatever the inviter typed.
+    $to = ['name' => (string)$row['contact_name'], 'email' => (string)($row['contact_email'] ?? ''), 'phone' => (string)($row['contact_phone'] ?? ''), 'pref' => !empty($row['contact_email']) ? 'email' : 'sms'];
+    if (!empty($row['invited_user_id'])) {
+        $au = $db->prepare('SELECT username, email, phone, preferred_contact FROM users WHERE id = ?');
+        $au->execute([(int)$row['invited_user_id']]);
+        if ($a = $au->fetch(PDO::FETCH_ASSOC)) $to = ['name' => (string)$a['username'], 'email' => (string)($a['email'] ?? ''), 'phone' => (string)($a['phone'] ?? ''), 'pref' => (string)($a['preferred_contact'] ?? 'email')];
+    }
+    send_notification(
+        $to['name'], $to['email'], $to['phone'], $to['pref'],
+        'Reminder: invitation to join ' . $lname,
+        'Reminder: you have been invited to join "' . $lname . '". Sign up: ' . $inviteUrl,
+        '<p>Reminder: you have been invited to join the league <strong>' . htmlspecialchars($lname, ENT_QUOTES | ENT_SUBSTITUTE) . '</strong>.</p>'
+        . '<p><a href="' . htmlspecialchars($inviteUrl, ENT_QUOTES | ENT_SUBSTITUTE) . '">Accept invite &amp; sign up</a></p>'
+    );
+
+    db_log_activity((int)$actor['id'], "resent league invite (member id=$member_id, league id=$league_id)");
+    return gn_ok(['league_id' => $league_id, 'member_id' => $member_id, 'name' => $to['name'], 'sent' => true]);
+}
+
 /** Add a season: a named date window for standings (owner or manager). */
 function gn_season_add(PDO $db, array $actor, int $league_id, array $body): array {
     $l = gn_league_guard($db, $actor, $league_id, ['owner', 'manager']);

@@ -88,6 +88,10 @@ function v2_routes(): array {
 
         ['DELETE', '/leagues/{id}/members/{mid}', 'events', 'Owner or manager. Remove someone from the league: a member, or a person added by contact who has not joined. A member with an account is told. The owner cannot be removed.',
             fn($a, $p, $q, $b) => gn_league_member_remove($db, $a, $p['id'], $p['mid'])],
+        ['PATCH', '/leagues/{id}/members/{mid}', 'events', 'Owner or manager. Change someone on the roster. A pending contact: name, email, phone (at least an email or a phone stays). A member with an account: known_as only. Only what you send changes.',
+            fn($a, $p, $q, $b) => gn_league_member_update($db, $a, $p['id'], $p['mid'], $b)],
+        ['POST', '/leagues/{id}/members/{mid}/resend', 'messages', 'Owner or manager. Send a pending contact their invitation to join again, with a fresh link.',
+            fn($a, $p, $q, $b) => gn_league_invite_resend($db, $a, $p['id'], $p['mid'])],
         ['POST', '/leagues/{id}/members', 'messages', 'Owner or manager. Add someone by name and email or phone. They are sent an invitation to join (or to accept, if they have an account). Body: name, email, phone.',
             fn($a, $p, $q, $b) => gn_league_member_add($db, $a, $p['id'], $b)],
         ['GET', '/leagues/{id}/requests', 'read', 'Owner or manager. People waiting for an answer on a request to join.',
@@ -149,6 +153,13 @@ function v2_routes(): array {
             fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'setup', $b, $f)],
         ['PUT', '/events/{id}/game/blinds', 'game', 'Host. Replace the blind schedule. Body: {"levels": [{"small_blind", "big_blind", "ante", "minutes"} or {"is_break": true, "minutes"}]}.',
             fn($a, $p, $q, $b, $f) => gn_game_blinds_set($db, $a, $p['id'], $b)],
+        ['POST', '/events/{id}/game/preset', 'game', 'Host. Load a setup preset into the game, as the Setup editor\'s Load does: its settings, payouts, bounty and jackpot, blinds and timer layout replace the game\'s. Body: {"preset_id": n} from GET /presets.',
+            fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'load_preset', $b, $f)],
+        ['POST', '/events/{id}/game/blinds/load', 'game', 'Host. Replace the blind schedule with a saved one. Body: {"schedule_id": n} from GET /presets. The game gets its own copy.',
+            fn($a, $p, $q, $b, $f) => (($bad = array_diff(array_keys($b), ['schedule_id'])) ? gn_err('unknown_field', 'Unknown field: ' . implode(', ', $bad) . '.', 400)
+                : (is_int($b['schedule_id'] ?? null) ? gn_game_blind_schedule_load($db, $a, $p['id'], $b['schedule_id']) : gn_err('bad_field', 'schedule_id must be a blind schedule\'s id.', 400)))],
+        ['PUT', '/events/{id}/game/timer', 'game', 'Host. What the Timer button shows. Body: layout_id (a saved layout; 0 clears) or layout (a built-in key), and/or classic (true for Tournament Timer Classic). A layout without classic switches to the layout display.',
+            fn($a, $p, $q, $b, $f) => gn_game_timer_set($db, $a, $p['id'], $b)],
         ['PUT', '/events/{id}/game/payouts', 'game', 'Host. Replace the payout table. Body: {"places": [{"place", "percentage", "points", "ticket_cents", "label"}]}. Percentages may total at most 100.',
             fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'payouts', $b, $f)],
         ['POST', '/events/{id}/game/start', 'game', 'Host. Start the game.',
@@ -194,6 +205,8 @@ function v2_routes(): array {
         ['POST', '/events/{id}/game/clock', 'game', 'Host. Body: {"command": "play" | "pause" | "next" | "previous" | "add_minute" | "subtract_minute" | "reset_level" | "undo" | "reset"}. reset needs "confirm": true.',
             fn($a, $p, $q, $b, $f) => gn_game_act($db, $a, $p['id'], 'clock', $b, $f)],
 
+        ['GET', '/presets', 'read', 'What a game can be set up from: game_presets (saved setups), blind_schedules and timer_layouts (built-in and saved), as the check-in console lists them.',
+            fn($a, $p, $q) => gn_setup_library($db, $a)],
         ['GET', '/events/{id}/game', 'read', 'Host only. The whole game in one read: setup, players, prize pool, payouts with amounts, blinds and the clock.',
             fn($a, $p, $q) => gn_game_state($db, $a, $p['id'])],
         ['GET', '/events/{id}/game/results', 'read', 'How the game came out: finishing order, payouts, points. Open to the host and to members of the event\'s league.',

@@ -452,18 +452,9 @@ case 'update_member': {
     $row = $rs->fetch();
     if (!$row) fail('Member not found', 404);
 
-    if (!empty($row['user_id'])) {
-        if ($field === 'known_as') {
-            // Seen by every member of the league, so it is a presentable name,
-            // not a note: short, plain text, cleared when emptied.
-            $value = preg_replace('/[\x00-\x1F\x7F]/', '', $value);
-            if (mb_strlen($value) > 60) fail('Keep the name to 60 characters.');
-            $db->prepare('UPDATE league_members SET known_as = ? WHERE id = ?')->execute([$value !== '' ? $value : null, $member_id]);
-            db_log_activity($uid, "set known-as name for member id=$member_id in league id=$league_id");
-            ok(['known_as' => $value]);
-        }
-        // Linked row — role only
-        if ($field !== 'role') fail('This field is not editable on a linked member.');
+    // Roles stay here; everything else the grid edits is shared with the API
+    // (gn_league_member_update in svc/leagues.php), so the two cannot drift.
+    if (!empty($row['user_id']) && $field === 'role') {
         if (!$isAdmin && $myRole !== 'owner') fail('Only the owner can change roles.');
         if ($row['role'] === 'owner') fail('Use Transfer Ownership to change the owner.');
         if (!in_array($value, ['member', 'manager'], true)) fail('Invalid role.');
@@ -481,76 +472,17 @@ case 'update_member': {
         db_log_activity($uid, "changed member role to $value in league id=$league_id (user #" . (int)$row['user_id'] . ")");
         ok();
     }
-
-    // Pending contact
-    if (!in_array($field, ['contact_name', 'contact_email', 'contact_phone'], true)) {
-        fail('This field is not editable.');
-    }
-    if ($field === 'contact_email') {
-        $value = strtolower($value);
-        if ($value !== '' && !filter_var($value, FILTER_VALIDATE_EMAIL)) fail('Invalid email.');
-    }
-    if ($field === 'contact_phone') {
-        $value = $value !== '' ? normalize_phone($value) : '';
-    }
-    if ($field === 'contact_name' && $value === '') fail('Name is required.');
-
-    // If this row had neither email nor phone, block clearing whichever is the last identifier.
-    if ($field !== 'contact_name' && $value === '') {
-        $other = $field === 'contact_email' ? ($row['contact_phone'] ?? '') : ($row['contact_email'] ?? '');
-        if ($other === '' || $other === null) fail('A pending contact must keep at least an email or a phone.');
-    }
-
-    // Email uniqueness across pending rows in this league
-    if ($field === 'contact_email' && $value !== '') {
-        $dup = $db->prepare('SELECT 1 FROM league_members WHERE league_id = ? AND user_id IS NULL AND LOWER(contact_email) = ? AND id <> ? LIMIT 1');
-        $dup->execute([$league_id, $value, $member_id]);
-        if ($dup->fetchColumn()) fail('Another pending contact already uses that email.');
-    }
-
-    $db->prepare("UPDATE league_members SET $field = ? WHERE id = ?")
-        ->execute([$value !== '' ? $value : null, $member_id]);
-    db_log_activity($uid, "updated pending contact id=$member_id field=$field in league id=$league_id");
+    $map = !empty($row['user_id']) ? ['known_as' => 'known_as'] : ['contact_name' => 'name', 'contact_email' => 'email', 'contact_phone' => 'phone'];
+    if (!isset($map[$field])) fail(!empty($row['user_id']) ? 'This field is not editable on a linked member.' : 'This field is not editable.');
+    $res = gn_league_member_update($db, gn_web_actor($current), $league_id, $member_id, [$map[$field] => $value]);
+    if (empty($res['ok'])) fail((string)$res['message'], (int)($res['http'] ?? 400) === 409 ? 400 : (int)($res['http'] ?? 400));
+    if ($field === 'known_as') ok(['known_as' => (string)($res['member']['known_as'] ?? '')]);
     ok();
 }
 
 case 'resend_contact_invite': {
-    $league_id = (int)($_POST['league_id'] ?? 0);
-    $member_id = (int)($_POST['member_id'] ?? 0);
-    league_role_or_fail($db, $league_id, $uid, ['owner', 'manager'], $isAdmin);
-
-    $rs = $db->prepare('SELECT * FROM league_members WHERE id = ? AND league_id = ? AND user_id IS NULL');
-    $rs->execute([$member_id, $league_id]);
-    $row = $rs->fetch();
-    if (!$row) fail('Pending contact not found.');
-
-    $token = bin2hex(random_bytes(16));
-    $db->prepare('UPDATE league_members SET invite_token = ? WHERE id = ?')
-        ->execute([$token, (int)$row['id']]);
-
-    $L = $db->prepare('SELECT name FROM leagues WHERE id = ?');
-    $L->execute([$league_id]);
-    $lname = (string)$L->fetchColumn();
-
-    $inviteUrl = get_site_url() . '/league_invite.php?token=' . $token;
-    if (get_setting('url_shortener_enabled') === '1') { $inviteUrl = shorten_url($inviteUrl); }
-    // An invitation addressed to an account goes to that account's own details,
-    // not to whatever the inviter typed.
-    $to = ['name' => (string)$row['contact_name'], 'email' => (string)($row['contact_email'] ?? ''), 'phone' => (string)($row['contact_phone'] ?? ''), 'pref' => !empty($row['contact_email']) ? 'email' : 'sms'];
-    if (!empty($row['invited_user_id'])) {
-        $au = $db->prepare('SELECT username, email, phone, preferred_contact FROM users WHERE id = ?');
-        $au->execute([(int)$row['invited_user_id']]);
-        if ($a = $au->fetch()) $to = ['name' => (string)$a['username'], 'email' => (string)($a['email'] ?? ''), 'phone' => (string)($a['phone'] ?? ''), 'pref' => (string)($a['preferred_contact'] ?? 'email')];
-    }
-    send_notification(
-        $to['name'], $to['email'], $to['phone'], $to['pref'],
-        'Reminder: invitation to join ' . $lname,
-        'Reminder: you have been invited to join "' . $lname . '". Sign up: ' . $inviteUrl,
-        '<p>Reminder: you have been invited to join the league <strong>' . htmlspecialchars($lname) . '</strong>.</p>'
-        . '<p><a href="' . htmlspecialchars($inviteUrl) . '">Accept invite &amp; sign up</a></p>'
-    );
-
-    db_log_activity($uid, "resent league invite (member id=$member_id, league id=$league_id)");
+    $res = gn_league_invite_resend($db, gn_web_actor($current), (int)($_POST['league_id'] ?? 0), (int)($_POST['member_id'] ?? 0));
+    if (empty($res['ok'])) fail($res['code'] === 'member_not_found' || $res['code'] === 'already_member' ? 'Pending contact not found.' : (string)$res['message'], (int)($res['http'] ?? 400) === 409 ? 400 : (int)($res['http'] ?? 400));
     ok();
 }
 
