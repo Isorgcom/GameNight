@@ -11,6 +11,12 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.30.0] - 2026-11-18
+
+### Added
+
+- **Connect Claude by signing in.** Until now, letting Claude work with your events and games meant making a token in Settings and pasting it into a command, which only works in Claude Code. The site is now its own sign-in server for apps: add it as a custom connector in Claude (Customize, then Connectors, then Add custom connector, with the site's `/mcp` address), and Claude sends you here to sign in. A **Connect** page shows which account you are signed in as, where your browser will be sent afterwards, and a switch for each thing the app wants to do; reading is always on, and creating and changing events, running games and sending messages can each be switched off before you press Allow. The page says plainly that the site has not checked who runs the app: the name is what it calls itself, the address is where it really is. You get an email each time an app is connected. **Settings → Security → Connected Apps** lists what is connected, what it may do and what it has done, with a Disconnect button, and changing your password disconnects everything. In Claude Code, `claude mcp login` does the same. Personal tokens still work as before. The site has to be reachable over HTTPS for the Claude apps to connect. (`www/oauth/`, `www/_oauth.php`, `www/mcp.php`, `www/api/_auth.php`, `www/settings.php`, `www/db.php`: new tables `oauth_clients`, `oauth_codes`; new column `api_tokens.refresh_expires_at`)
+
 ## [v1.29.0] - 2026-11-17
 
 ### Added
