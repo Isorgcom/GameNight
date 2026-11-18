@@ -11,6 +11,12 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.31.0] - 2026-11-18
+
+### Added
+
+- **Claude, and the personal API, can look after your contacts.** Your contacts are the address book you invite from, and until now the only way to fill it was the contacts page, one at a time or by CSV. Claude has four new tools: list your contacts (with a search), add a whole list of people in one go, change one, and remove one. So "add these twelve people to my contacts" with names and numbers pasted in works, as does "what's Dave's number" or "change Erin's email". A person already in your contacts is skipped, one with no email or phone is reported back, and the rest are added. A contact can be named the way you say it; if two fit, Claude is told both and has to ask. Adding a contact tells nobody. The same is at `/api/v2/me/contacts`. Looking needs the read permission and changing needs the events permission, whose description now says so. The contacts page saves through the same rules as before, now shared with these. (`www/svc/contacts.php`, `www/contacts_dl.php`, `www/_mcp_tools.php`, `www/api/v2/index.php`)
+
 ## [v1.30.1] - 2026-11-18
 
 ### Fixed

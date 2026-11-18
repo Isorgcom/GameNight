@@ -21,6 +21,7 @@ require_once __DIR__ . '/svc/leagues.php';
 require_once __DIR__ . '/svc/stats.php';
 require_once __DIR__ . '/svc/game.php';
 require_once __DIR__ . '/svc/messages.php';
+require_once __DIR__ . '/svc/contacts.php';
 
 // ── Argument schema shorthands ───────────────────────────────────────────────
 function mcp_s(string $d, array $more = []): array { return ['type' => 'string', 'description' => $d] + $more; }
@@ -78,6 +79,15 @@ function mcp_guest(PDO $db, array $actor, int $event_id, $ref): array {
     return mcp_pick($ref, $rows, [], 'guest', 'invite_not_found');
 }
 
+/** One of the actor's own contacts by name or id. */
+function mcp_contact(PDO $db, array $actor, $ref): array {
+    $st = $db->prepare('SELECT id, contact_name, contact_email FROM user_contacts WHERE owner_user_id = ?');
+    $st->execute([(int)$actor['id']]);
+    $rows = []; $alias = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) { $rows[(int)$r['id']] = (string)$r['contact_name']; $alias[(int)$r['id']] = (string)($r['contact_email'] ?? ''); }
+    return mcp_pick($ref, $rows, $alias, 'contact', 'contact_not_found');
+}
+
 /** Keep only the arguments a service body may carry, dropping the tool's own addressing arguments. */
 function mcp_body(array $a, array $drop): array { return array_diff_key($a, array_flip($drop)); }
 
@@ -130,6 +140,10 @@ function gn_mcp_tools(): array {
         'list_messages' => ['title' => 'List host messages', 'scope' => 'read', 'hints' => $ro, 'args' => $eid, 'required' => ['event_id'],
             'description' => 'Messages the host has sent to an event\'s guests, newest first, and how many may be sent per day.',
             'run' => fn($db, $a, $x) => gn_host_messages_list($db, $a, (int)$x['event_id'])],
+        'list_contacts' => ['title' => 'List contacts', 'scope' => 'read', 'hints' => $ro, 'required' => [],
+            'description' => 'The user\'s own contacts: the address book they invite people from. Each has a name, email and/or phone, notes, how a typed-in invitation reaches them (invite_via), and whether that person has an account on the site (has_account, with a user_id that add_guests accepts). Use search to find someone.',
+            'args' => ['search' => mcp_s('Optional: part of a name, email or phone.')],
+            'run' => fn($db, $a, $x) => gn_contacts_list($db, $a, $x)],
         'get_league' => ['title' => 'Get a league', 'scope' => 'read', 'hints' => $ro, 'args' => ['league_id' => mcp_i('The league\'s id, from whoami.'), 'include_members' => mcp_b('Also list the members.')], 'required' => ['league_id'],
             'description' => 'A league: its details and seasons, and optionally its roster. Owners and managers also see people who were added but have not joined yet.',
             'run' => function ($db, $a, $x) {
@@ -216,6 +230,25 @@ function gn_mcp_tools(): array {
                 if (!in_array($x['decision'] ?? '', ['approve', 'deny'], true)) return gn_err('bad_field', 'decision must be approve or deny.', 400);
                 $g = mcp_guest($db, $a, (int)$x['event_id'], $x['guest'] ?? '');
                 return isset($g['ok']) ? $g : gn_invite_decide($db, $a, (int)$x['event_id'], $g['id'], $x['decision'] === 'approve');
+            }],
+        'add_contacts' => ['title' => 'Add contacts', 'scope' => 'events', 'hints' => $wr + ['idempotentHint' => true], 'required' => ['contacts'],
+            'description' => 'Add people to the user\'s contacts. Each needs a name and an email or a phone (or both). Give them all in one call (up to 200): someone already there with the same email is skipped, one that is not valid is reported, and the rest are added. Nobody is told; a contact is only an address book entry.',
+            'args' => ['contacts' => ['type' => 'array', 'description' => 'The people to add.', 'items' => ['type' => 'object', 'properties' => ['name' => mcp_s('Their name.'), 'email' => mcp_s('Email.'), 'phone' => mcp_s('Phone.'), 'notes' => mcp_s('A note to yourself about them.'), 'invite_via' => mcp_e(['email', 'sms'], 'How invitations should reach them. Default email.')], 'required' => ['name']]]],
+            'run' => fn($db, $a, $x) => gn_contacts_add($db, $a, ['contacts' => $x['contacts'] ?? null])],
+        'update_contact' => ['title' => 'Change a contact', 'scope' => 'events', 'hints' => $wr + ['idempotentHint' => true], 'required' => ['contact'],
+            'description' => 'Change one of the user\'s contacts: their name, email, phone, notes, or how invitations reach them. Only what you give changes; give an empty string to clear the email or the phone (one of the two must remain).',
+            'args' => ['contact' => mcp_ref('The contact\'s name or email, or their id from list_contacts.'), 'name' => mcp_s('New name.'), 'email' => mcp_s('New email, or "" to clear.'), 'phone' => mcp_s('New phone, or "" to clear.'),
+                       'notes' => mcp_s('New notes, or "" to clear.'), 'invite_via' => mcp_e(['email', 'sms'], 'How invitations should reach them.')],
+            'run' => function ($db, $a, $x) {
+                $c = mcp_contact($db, $a, $x['contact'] ?? '');
+                return isset($c['ok']) ? $c : gn_contact_update($db, $a, $c['id'], mcp_body($x, ['contact']));
+            }],
+        'delete_contact' => ['title' => 'Delete a contact', 'scope' => 'events', 'hints' => ['readOnlyHint' => false, 'destructiveHint' => true], 'required' => ['contact'],
+            'description' => 'Remove one person from the user\'s contacts. Events they are already invited to are not changed. Confirm with the user which contact before calling this.',
+            'args' => ['contact' => mcp_ref('The contact\'s name or email, or their id from list_contacts.')],
+            'run' => function ($db, $a, $x) {
+                $c = mcp_contact($db, $a, $x['contact'] ?? '');
+                return isset($c['ok']) ? $c : gn_contact_delete($db, $a, $c['id']);
             }],
         'add_season' => ['title' => 'Add a league season', 'scope' => 'events', 'hints' => $wr, 'required' => ['league_id', 'name', 'start_date', 'end_date'],
             'description' => 'League owner or manager. Add a season: a named range of dates that standings can be limited to.',

@@ -21,6 +21,7 @@ require_once __DIR__ . '/../../svc/leagues.php';
 require_once __DIR__ . '/../../svc/stats.php';
 require_once __DIR__ . '/../../svc/game.php';
 require_once __DIR__ . '/../../svc/messages.php';
+require_once __DIR__ . '/../../svc/contacts.php';
 
 const API_V2_BASE = '/api/v2';
 
@@ -64,6 +65,15 @@ function v2_routes(): array {
             fn($a, $p, $q) => v2_me($db, $a)],
         ['GET', '/me/events', 'read', 'Events you can see. Query: from, to (YYYY-MM-DD), role=any|host|guest, league_id, include_cancelled=1.',
             fn($a, $p, $q) => gn_events_list($db, $a, $q)],
+
+        ['GET', '/me/contacts', 'read', 'Your contacts: the address book you invite from. Query: search (matches name, email or phone).',
+            fn($a, $p, $q, $b) => gn_contacts_list($db, $a, $q)],
+        ['POST', '/me/contacts', 'events', 'Add a contact: name, and email or phone (or both); optionally notes and invite_via (email or sms). Or {"contacts": [...]} for up to 200 at once: ones already there are skipped.',
+            fn($a, $p, $q, $b) => gn_contacts_add($db, $a, $b)],
+        ['PATCH', '/me/contacts/{cid}', 'events', 'Change a contact. Only what you send changes.',
+            fn($a, $p, $q, $b) => gn_contact_update($db, $a, $p['cid'], $b)],
+        ['DELETE', '/me/contacts/{cid}', 'events', 'Remove a contact from your address book. Events they are invited to are not touched.',
+            fn($a, $p, $q, $b) => gn_contact_delete($db, $a, $p['cid'])],
 
         ['GET', '/leagues', 'read', 'The leagues you belong to, with your role in each.',
             fn($a, $p, $q) => gn_leagues_list($db, $a)],
@@ -312,7 +322,7 @@ if ($path === '') {
 // Match the path first, so a wrong method on a real path is 405 and not 404.
 $match = null; $path_known = false; $known_pattern = ''; $params = [];
 foreach ($routes as $r) {
-    $re = '#^' . preg_replace(['#\{(id|pid|sid|iid|rid|eid|n)\}#', '#\{(key)\}#'], ['(?P<$1>\d{1,12})', '(?P<$1>[^/]{1,200})'], $r[1]) . '$#';
+    $re = '#^' . preg_replace(['#\{(id|pid|sid|iid|rid|eid|cid|n)\}#', '#\{(key)\}#'], ['(?P<$1>\d{1,12})', '(?P<$1>[^/]{1,200})'], $r[1]) . '$#';
     if (!preg_match($re, $path, $m)) continue;
     $path_known = true; $known_pattern = $r[1];
     if ($r[0] !== $method) continue;

@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/svc/contacts.php';   // gn_contact_save(): the one set of rules for a contact
 header('Content-Type: application/json');
 
 $current = require_login();
@@ -45,135 +46,55 @@ if (!csrf_verify()) fail('Invalid CSRF token', 403);
 
 $action = $_POST['action'] ?? '';
 
-/**
- * Resolve a users.id for a given email/phone — null if no match.
- */
-function resolve_user_id(PDO $db, string $email, string $phone): ?int {
-    if ($email !== '') {
-        $s = $db->prepare('SELECT id FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1');
-        $s->execute([$email]);
-        $id = $s->fetchColumn();
-        if ($id) return (int)$id;
-    }
-    if ($phone !== '') {
-        $s = $db->prepare('SELECT id FROM users WHERE phone = ? LIMIT 1');
-        $s->execute([$phone]);
-        $id = $s->fetchColumn();
-        if ($id) return (int)$id;
-    }
-    return null;
+/** Answer with a service failure in this page's own shape (its errors are 400, or 404 for a contact that is not yours). */
+function fail_from(array $res): void {
+    fail((string)$res['message'], (int)($res['http'] ?? 400) === 404 ? 404 : 400);
 }
 
 switch ($action) {
 
 case 'add_contact': {
-    $name  = trim($_POST['contact_name']  ?? '');
-    $email = strtolower(trim($_POST['contact_email'] ?? ''));
-    $phoneRaw = trim($_POST['contact_phone'] ?? '');
-    $phone = $phoneRaw !== '' ? normalize_phone($phoneRaw) : '';
-    $notes = trim($_POST['notes'] ?? '');
-
-    if ($name === '')                                                fail('Name is required.');
-    if ($email === '' && $phone === '')                              fail('Provide an email or phone.');
-    if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) fail('Invalid email.');
-
-    // Duplicate check
-    if ($email !== '') {
-        $dup = $db->prepare('SELECT 1 FROM user_contacts WHERE owner_user_id = ? AND LOWER(contact_email) = ? LIMIT 1');
-        $dup->execute([$uid, $email]);
-        if ($dup->fetchColumn()) fail('A contact with that email already exists.');
-    }
-
-    $linked = resolve_user_id($db, $email, $phone);
-    $db->prepare('INSERT INTO user_contacts (owner_user_id, linked_user_id, contact_name, contact_email, contact_phone, notes) VALUES (?, ?, ?, ?, ?, ?)')
-       ->execute([$uid, $linked, $name, $email ?: null, $phone ?: null, $notes ?: null]);
-    $cid = (int)$db->lastInsertId();
-    db_log_activity($uid, "added contact: $name (contact id: $cid)");
+    $res = gn_contact_save($db, $uid, null, [
+        'name' => $_POST['contact_name'] ?? '', 'email' => $_POST['contact_email'] ?? '',
+        'phone' => $_POST['contact_phone'] ?? '', 'notes' => $_POST['notes'] ?? '',
+    ]);
+    if (empty($res['ok'])) fail_from($res);
     // Whether the typed email or phone matches an account stays server-side:
     // the page reloads and shows the Linked badge for contacts the owner
     // already has, but the save response itself is not a lookup service.
-    ok(['id' => $cid]);
+    ok(['id' => (int)$res['id']]);
 }
 
 case 'update_contact': {
+    // One cell edited on the page: the stored row with that one field changed.
     $cid   = (int)($_POST['contact_id'] ?? 0);
     $field = (string)($_POST['field'] ?? '');
-    $value = trim((string)($_POST['value'] ?? ''));
-
-    if (!in_array($field, ['contact_name', 'contact_email', 'contact_phone', 'notes', 'invite_via'], true)) fail('Field not editable.');
-
-    // Verify ownership
+    $map   = ['contact_name' => 'name', 'contact_email' => 'email', 'contact_phone' => 'phone', 'notes' => 'notes', 'invite_via' => 'invite_via'];
+    if (!isset($map[$field])) fail('Field not editable.');
     $rs = $db->prepare('SELECT * FROM user_contacts WHERE id = ? AND owner_user_id = ?');
     $rs->execute([$cid, $uid]);
     $row = $rs->fetch();
     if (!$row) fail('Contact not found.', 404);
-
-    if ($field === 'contact_email') {
-        $value = strtolower($value);
-        if ($value !== '' && !filter_var($value, FILTER_VALIDATE_EMAIL)) fail('Invalid email.');
-        if ($value !== '') {
-            $dup = $db->prepare('SELECT 1 FROM user_contacts WHERE owner_user_id = ? AND LOWER(contact_email) = ? AND id <> ? LIMIT 1');
-            $dup->execute([$uid, $value, $cid]);
-            if ($dup->fetchColumn()) fail('Another contact already uses that email.');
-        }
-    }
-    if ($field === 'contact_phone') {
-        $value = $value !== '' ? normalize_phone($value) : '';
-    }
-    if ($field === 'contact_name' && $value === '') fail('Name is required.');
-    if ($field === 'invite_via' && !in_array($value, ['email', 'sms'], true)) fail('Invalid invite channel.');
-
-    // Must keep at least one of email/phone
-    if (($field === 'contact_email' || $field === 'contact_phone') && $value === '') {
-        $other = $field === 'contact_email' ? ($row['contact_phone'] ?? '') : ($row['contact_email'] ?? '');
-        if ($other === '' || $other === null) fail('Keep at least an email or phone.');
-    }
-
-    $db->prepare("UPDATE user_contacts SET $field = ? WHERE id = ?")->execute([$value !== '' ? $value : null, $cid]);
-
-    // If email/phone changed, re-resolve linked_user_id
-    if ($field === 'contact_email' || $field === 'contact_phone') {
-        $rs2 = $db->prepare('SELECT contact_email, contact_phone FROM user_contacts WHERE id = ?');
-        $rs2->execute([$cid]);
-        $r2 = $rs2->fetch();
-        $linked = resolve_user_id($db, (string)($r2['contact_email'] ?? ''), (string)($r2['contact_phone'] ?? ''));
-        $db->prepare('UPDATE user_contacts SET linked_user_id = ? WHERE id = ?')->execute([$linked, $cid]);
-    }
-    db_log_activity($uid, "updated contact id=$cid field=$field");
+    $f = ['name' => $row['contact_name'], 'email' => $row['contact_email'], 'phone' => $row['contact_phone'],
+          'notes' => $row['notes'], 'invite_via' => $row['invite_via'] ?: 'email'];
+    $f[$map[$field]] = trim((string)($_POST['value'] ?? ''));
+    $res = gn_contact_save($db, $uid, $cid, $f);
+    if (empty($res['ok'])) fail_from($res);
     ok();
 }
 
 case 'save_row': {
     // Explicit whole-row save (the per-row Save button): validates and writes
     // every field in one shot, so nothing depends on per-cell blur autosaves.
-    $cid   = (int)($_POST['contact_id'] ?? 0);
-    $rs = $db->prepare('SELECT * FROM user_contacts WHERE id = ? AND owner_user_id = ?');
-    $rs->execute([$cid, $uid]);
-    $row = $rs->fetch();
-    if (!$row) fail('Contact not found.', 404);
-
-    $name  = trim((string)($_POST['contact_name'] ?? ''));
-    $email = strtolower(trim((string)($_POST['contact_email'] ?? '')));
-    $phoneRaw = trim((string)($_POST['contact_phone'] ?? ''));
-    $phone = $phoneRaw !== '' ? normalize_phone($phoneRaw) : '';
-    $notes = trim((string)($_POST['notes'] ?? ''));
-    $via   = (string)($_POST['invite_via'] ?? 'email');
-
-    if ($name === '')                                                fail('Name is required.');
-    if ($email === '' && $phone === '')                              fail('Keep at least an email or phone.');
-    if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) fail('Invalid email.');
-    if (!in_array($via, ['email', 'sms'], true)) $via = 'email';
-    if ($email !== '') {
-        $dup = $db->prepare('SELECT 1 FROM user_contacts WHERE owner_user_id = ? AND LOWER(contact_email) = ? AND id <> ? LIMIT 1');
-        $dup->execute([$uid, $email, $cid]);
-        if ($dup->fetchColumn()) fail('Another contact already uses that email.');
-    }
-
-    $linked = resolve_user_id($db, $email, $phone);
-    $db->prepare('UPDATE user_contacts SET contact_name = ?, contact_email = ?, contact_phone = ?, notes = ?, invite_via = ?, linked_user_id = ? WHERE id = ?')
-       ->execute([$name, $email ?: null, $phone ?: null, $notes ?: null, $via, $linked, $cid]);
-    db_log_activity($uid, "saved contact id=$cid");
-    ok(['phone' => $phone]);
+    $cid = (int)($_POST['contact_id'] ?? 0);
+    $via = (string)($_POST['invite_via'] ?? 'email');
+    $res = gn_contact_save($db, $uid, $cid, [
+        'name' => $_POST['contact_name'] ?? '', 'email' => $_POST['contact_email'] ?? '',
+        'phone' => $_POST['contact_phone'] ?? '', 'notes' => $_POST['notes'] ?? '',
+        'invite_via' => in_array($via, ['email', 'sms'], true) ? $via : 'email',
+    ]);
+    if (empty($res['ok'])) fail_from($res);
+    ok(['phone' => (string)($res['phone'] ?? '')]);
 }
 
 case 'delete_contact': {
@@ -209,25 +130,15 @@ case 'import_csv': {
     $imported = 0; $skipped = 0; $errors = 0;
     while (($row = fgetcsv($handle)) !== false) {
         $name  = trim((string)($row[$colIdx['name']]  ?? ''));
-        $email = strtolower(trim((string)($row[$colIdx['email']] ?? '')));
-        $phoneRaw = trim((string)($row[$colIdx['phone']] ?? ''));
-        $phone = $phoneRaw !== '' ? normalize_phone($phoneRaw) : '';
+        $email = trim((string)($row[$colIdx['email']] ?? ''));
+        $phone = trim((string)($row[$colIdx['phone']] ?? ''));
         if ($name === '' && $email === '' && $phone === '') continue;
-        if ($name === '' || ($email === '' && $phone === '')) { $errors++; continue; }
-        if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) { $errors++; continue; }
-
-        // Dup check by email
-        if ($email !== '') {
-            $dup = $db->prepare('SELECT 1 FROM user_contacts WHERE owner_user_id = ? AND LOWER(contact_email) = ? LIMIT 1');
-            $dup->execute([$uid, $email]);
-            if ($dup->fetchColumn()) { $skipped++; continue; }
-        }
-        $linked = resolve_user_id($db, $email, $phone);
         try {
-            $db->prepare('INSERT INTO user_contacts (owner_user_id, linked_user_id, contact_name, contact_email, contact_phone) VALUES (?, ?, ?, ?, ?)')
-               ->execute([$uid, $linked, $name, $email ?: null, $phone ?: null]);
-            $imported++;
-        } catch (Throwable $e) { $errors++; }
+            $res = gn_contact_save($db, $uid, null, ['name' => $name, 'email' => $email, 'phone' => $phone], false);
+        } catch (Throwable $e) { $errors++; continue; }
+        if (!empty($res['ok']))                               $imported++;
+        elseif (($res['code'] ?? '') === 'duplicate_contact') $skipped++;
+        else                                                  $errors++;
     }
     fclose($handle);
     $msg = "Imported $imported contact" . ($imported !== 1 ? 's' : '') . ".";
