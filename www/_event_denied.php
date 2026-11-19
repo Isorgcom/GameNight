@@ -45,7 +45,7 @@ $isMissing  = ($denyReason === 'missing');
 
 <?php $nav_active = ''; $nav_user = $current; require __DIR__ . '/_nav.php'; ?>
 
-<div class="deny-wrap">
+<div role="main" class="deny-wrap">
     <div class="deny-card">
         <div class="deny-icon"><?= $isMissing ? '&#128269;' : '&#128274;' ?></div>
         <?php if ($isMissing): ?>

@@ -23,7 +23,7 @@ if (get_setting('allow_registration', '1') !== '1') {
     </head>
     <body>
     <?php $nav_active = ''; require __DIR__ . '/_nav.php'; ?>
-    <div class="card-wrap">
+    <div role="main" class="card-wrap">
         <div class="card" style="text-align:center">
             <h2>Registration Closed</h2>
             <p class="subtitle">New account registration is not currently available.</p>
@@ -196,7 +196,7 @@ $site_name = get_setting('site_name', 'Game Night');
 
 <?php $nav_active = ''; require __DIR__ . '/_nav.php'; ?>
 
-<div class="card-wrap">
+<div role="main" class="card-wrap">
     <div class="card">
         <?php
         $__resend_query = $registered_email !== ''
@@ -231,7 +231,7 @@ $site_name = get_setting('site_name', 'Game Night');
         <form method="post" action="/verify_phone.php" style="margin-top:1rem">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
             <div class="form-group" style="text-align:center">
-                <input type="text" name="code" placeholder="6-digit code" maxlength="6" pattern="\d{6}"
+                <input type="text" name="code" aria-label="Verification code" placeholder="6-digit code" maxlength="6" pattern="\d{6}"
                        inputmode="numeric" autocomplete="one-time-code" required autofocus
                        style="width:180px;font-size:1.5rem;text-align:center;letter-spacing:.3em;padding:.6rem;border:2px solid #e2e8f0;border-radius:10px">
             </div>
@@ -329,7 +329,7 @@ $site_name = get_setting('site_name', 'Game Night');
                            autocomplete="new-password" required minlength="8"
                            style="width:100%; padding-right:2.5rem;">
                     <button type="button" aria-label="Show password"
-                            style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; padding:4px; color:#94a3b8; display:flex; align-items:center; -webkit-tap-highlight-color:transparent;">
+                            style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; padding:4px; color:#64748b; display:flex; align-items:center; -webkit-tap-highlight-color:transparent;">
                         <svg class="eye-show" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="pointer-events:none; display:block;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                         <svg class="eye-hide" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="pointer-events:none; display:none;"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
                     </button>
@@ -344,7 +344,7 @@ $site_name = get_setting('site_name', 'Game Night');
                            autocomplete="new-password" required minlength="8"
                            style="width:100%; padding-right:2.5rem;">
                     <button type="button" aria-label="Show password"
-                            style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; padding:4px; color:#94a3b8; display:flex; align-items:center; -webkit-tap-highlight-color:transparent;">
+                            style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; padding:4px; color:#64748b; display:flex; align-items:center; -webkit-tap-highlight-color:transparent;">
                         <svg class="eye-show" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="pointer-events:none; display:block;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                         <svg class="eye-hide" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="pointer-events:none; display:none;"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
                     </button>
@@ -356,7 +356,7 @@ $site_name = get_setting('site_name', 'Game Night');
             </button>
         </form>
 
-        <p style="text-align:center;margin-top:1rem;font-size:.8125rem;color:#94a3b8;line-height:1.5">
+        <p style="text-align:center;margin-top:1rem;font-size:.8125rem;color:#64748b;line-height:1.5">
             By creating an account you agree to our
             <a href="/terms.php">Terms &amp; Conditions</a>
             and <a href="/privacy.php">Privacy Policy</a>.

@@ -210,7 +210,7 @@ $now_local = (new DateTime('now', $local_tz))->format('Y-m-d H:i:s');
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <link href="/vendor/jodit/jodit.min.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/jodit/jodit.min.css') ?: 0)) ?>" rel="stylesheet">
     <style>
-        .hint { font-size: .78rem; color: #94a3b8; margin-top: .35rem; }
+        .hint { font-size: .78rem; color: #64748b; margin-top: .35rem; }
 
         /* Modal */
         .modal-overlay {
@@ -253,7 +253,7 @@ $now_local = (new DateTime('now', $local_tz))->format('Y-m-d H:i:s');
         .btn-sm-text:hover { background: #f1f5f9; color: #1e293b; text-decoration: none; }
         .btn-sm-text.danger { border-color: #fca5a5; color: #ef4444; }
         .btn-sm-text.danger:hover { background: #fee2e2; }
-        .btn-sm-text.muted { border-color: #e2e8f0; color: #94a3b8; }
+        .btn-sm-text.muted { border-color: #e2e8f0; color: #64748b; }
         .btn-sm-text.muted:hover { background: #f1f5f9; color: #475569; }
         .hidden-badge {
             font-size: .68rem; font-weight: 600; color: #64748b;
@@ -275,7 +275,6 @@ $now_local = (new DateTime('now', $local_tz))->format('Y-m-d H:i:s');
             width: 100%; padding: .45rem .75rem .45rem 2rem;
             border: 1px solid #e2e8f0; border-radius: 7px;
             font-size: .875rem; background: #f8fafc; color: #1e293b;
-            outline: none;
         }
         .search-wrap input:focus { border-color: #93c5fd; background: #fff; }
         .search-wrap::before {
@@ -300,7 +299,7 @@ $now_local = (new DateTime('now', $local_tz))->format('Y-m-d H:i:s');
 
 <?php $nav_active = 'posts'; require __DIR__ . '/_nav.php'; ?>
 
-<div class="dash-wrap">
+<div role="main" class="dash-wrap">
 
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:1rem">
         <h1 style="font-size:1.5rem">Manage Posts</h1>
@@ -429,7 +428,7 @@ $now_local = (new DateTime('now', $local_tz))->format('Y-m-d H:i:s');
     <div class="modal">
         <div class="modal-header">
             <h2 id="modalTitle">New Post</h2>
-            <button class="modal-close" data-act="closeModal">&#x2715;</button>
+            <button aria-label="Close" class="modal-close" data-act="closeModal">&#x2715;</button>
         </div>
         <form method="post" action="/admin_posts.php" id="postForm">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">

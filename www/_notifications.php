@@ -1153,7 +1153,7 @@ function dispatch_queued_notification(PDO $db, array $row): bool {
                       . '<p style="font-weight:700;margin:.75rem 0 .25rem">' . htmlspecialchars($poll['title']) . '</p>'
                       . '<ul style="color:#475569">' . $qList . '</ul>'
                       . '<p style="margin-top:1.25rem"><a href="' . htmlspecialchars($pollUrl) . '" style="display:inline-block;padding:.55rem 1.4rem;border-radius:7px;text-decoration:none;font-weight:600;background:#2563eb;color:#fff">Answer the poll</a></p>'
-                      . '<p style="color:#94a3b8;font-size:.8rem">Answers show as counts only — nobody sees who picked what.</p>';
+                      . '<p style="color:#64748b;font-size:.8rem">Answers show as counts only — nobody sees who picked what.</p>';
 
             // SMS/WhatsApp: poll header + Q1 with numbered options + link fallback.
             $smsBody = $site . ': Poll for "' . $title . '" - ' . $poll['title']

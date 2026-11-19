@@ -107,7 +107,7 @@ if (isset($_GET['view']) && $_GET['view'] === 'remote' && !empty($_GET['key'])) 
         // (Do not name the closing tag in a comment either: it ends PHP mode.)
         echo '<!DOCTYPE html><html><head><title>Invalid Link</title><link rel="stylesheet" href="/style.css?v='
            . htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0))
-           . '"></head><body style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0f172a;color:#fff"><div class="card" style="text-align:center"><h2>Invalid Timer Link</h2><p>This timer link is no longer valid.</p></div></body></html>';
+           . '"></head><body style="display:flex;align-items:center;justify-content:center;min-height:100vh;min-height:100dvh;background:#0f172a;color:#fff"><div class="card" style="text-align:center"><h2>Invalid Timer Link</h2><p>This timer link is no longer valid.</p></div></body></html>';
         exit;
     }
 
@@ -340,7 +340,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
     <title>Tournament Timer Classic &mdash; <?= htmlspecialchars($site_name) ?></title>
     <link rel="icon" href="/favicon.php">
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
-    <link rel="stylesheet" href="/vendor/fonts/fonts.css">
+    <link rel="stylesheet" href="/vendor/fonts/fonts.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/fonts/fonts.css') ?: 0)) ?>">
     <script nonce="<?= csp_nonce() ?>">window.TIMER_THEME = <?= js_json($themeProps, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?>; window.TIMER_THEME_ID = <?= $themeId ? (int)$themeId : 'null' ?>;</script>
     <style id="themeStyle"><?= $themeCss ?></style>
     <link rel="stylesheet" href="/timer_classic.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/timer_classic.css') ?: 0)) ?>">
@@ -371,7 +371,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
 <div class="layout-inspector" id="layoutInspector">
     <div class="layout-inspector-header" id="inspectorHeader">
         <h4 id="inspectorTitle">Element</h4>
-        <button class="layout-inspector-close" type="button" data-act="closeInspector" title="Close">&times;</button>
+        <button aria-label="Close" class="layout-inspector-close" type="button" data-act="closeInspector" title="Close">&times;</button>
     </div>
     <div class="layout-inspector-body" id="inspectorBody"></div>
 </div>
@@ -380,7 +380,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
 <div class="layout-objects-panel" id="layoutObjectsPanel">
     <div class="layout-objects-header" id="objectsHeader">
         <h4>Objects</h4>
-        <button class="layout-inspector-close" type="button" data-act="closeObjectsPanel" title="Close">&times;</button>
+        <button aria-label="Close" class="layout-inspector-close" type="button" data-act="closeObjectsPanel" title="Close">&times;</button>
     </div>
     <div class="layout-objects-body" id="objectsBody"></div>
 </div>
@@ -461,9 +461,9 @@ $themeCss   = timer_theme_css_vars($themeProps);
             <button data-act="skipLevel" data-a1="1" title="Next level">&#9197;<span class="tray-label">Next</span></button>
             <span class="timer-tray-sep"></span>
             <span class="timer-min-group">
-                <button data-act="adjustTime" data-a1="-60" title="Remove 1 minute">&#9660;</button>
+                <button aria-label="Remove 1 minute" data-act="adjustTime" data-a1="-60" title="Remove 1 minute">&#9660;</button>
                 <span class="timer-min-label">Min</span>
-                <button data-act="adjustTime" data-a1="60" title="Add 1 minute">&#9650;</button>
+                <button aria-label="Add 1 minute" data-act="adjustTime" data-a1="60" title="Add 1 minute">&#9650;</button>
             </span>
             <span class="timer-reset-group">
                 <button data-act="resetLevel" title="Reset level">&#8635;<span class="tray-label">Level</span></button>
@@ -505,7 +505,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
 <div class="player-panel" id="playerPanel">
     <div class="player-panel-header">
         <span>Players</span>
-        <button data-act="togglePlayerPanel" style="background:none;border:none;color:#94a3b8;font-size:1.3rem;cursor:pointer">&times;</button>
+        <button aria-label="Close" data-act="togglePlayerPanel" style="background:none;border:none;color:#94a3b8;font-size:1.3rem;cursor:pointer">&times;</button>
     </div>
     <div class="player-panel-body" id="playerPanelBody">
         <div style="text-align:center;padding:2rem;color:#64748b">Loading...</div>
@@ -532,7 +532,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
 <!-- Levels editor overlay -->
 <div class="timer-levels-overlay" id="levelsOverlay" data-act-self="closeLevels">
     <div class="timer-levels-panel" style="position:relative">
-        <button data-act="closeLevels" style="position:absolute;top:0.75rem;right:0.75rem;z-index:7;background:none;border:none;color:#94a3b8;font-size:1.5rem;cursor:pointer;line-height:1;padding:0.25rem">&times;</button>
+        <button aria-label="Close" data-act="closeLevels" style="position:absolute;top:0.75rem;right:0.75rem;z-index:7;background:none;border:none;color:#94a3b8;font-size:1.5rem;cursor:pointer;line-height:1;padding:0.25rem">&times;</button>
         <div class="timer-editor-head">
             <div class="timer-editor-titlebar">
                 <h3>Blind Structure</h3>
@@ -571,7 +571,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
 <!-- Unsaved-changes confirmation (closing the levels editor) -->
 <div class="timer-levels-overlay" id="closeConfirmOverlay" data-act-self="closeCloseConfirm">
     <div class="timer-levels-panel" style="max-width:420px;position:relative">
-        <button data-act="closeCloseConfirm" type="button"
+        <button aria-label="Close" data-act="closeCloseConfirm" type="button"
                 style="position:absolute;top:0.75rem;right:0.75rem;background:none;border:none;color:#94a3b8;font-size:1.5rem;cursor:pointer;line-height:1;padding:0.25rem">&times;</button>
         <h3>Unsaved changes</h3>
         <p style="color:#cbd5e1;font-size:.9rem;margin:0 0 1rem">You have unsaved changes to the blind structure. Discard them, or keep editing?</p>
@@ -585,7 +585,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
 <!-- Save Preset As modal -->
 <div class="timer-levels-overlay" id="savePresetOverlay" data-act-self="closeSavePresetModal">
     <div class="timer-levels-panel" style="max-width:440px;position:relative">
-        <button data-act="closeSavePresetModal" type="button"
+        <button aria-label="Close" data-act="closeSavePresetModal" type="button"
                 style="position:absolute;top:0.75rem;right:0.75rem;background:none;border:none;color:#94a3b8;font-size:1.5rem;cursor:pointer;line-height:1;padding:0.25rem">&times;</button>
         <h3>Save Preset As</h3>
         <div style="display:flex;flex-direction:column;gap:1rem;margin-bottom:1rem">
@@ -611,7 +611,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
 <!-- Structure generator modal — build a full blind schedule from a few inputs -->
 <div class="timer-levels-overlay" id="genOverlay" data-act-self="closeGenerator">
     <div class="timer-levels-panel" style="max-width:460px;position:relative">
-        <button data-act="closeGenerator" type="button"
+        <button aria-label="Close" data-act="closeGenerator" type="button"
                 style="position:absolute;top:0.75rem;right:0.75rem;background:none;border:none;color:#94a3b8;font-size:1.5rem;cursor:pointer;line-height:1;padding:0.25rem">&times;</button>
         <h3>Generate Structure</h3>
         <p style="font-size:.8rem;color:#94a3b8;margin:0 0 1rem">Builds a full blind schedule you can then fine-tune. Big blind is always twice the small blind.</p>
@@ -646,7 +646,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
 <!-- Theme library modal — pick / load / save-as / delete / set-default a saved theme. -->
 <div class="timer-levels-overlay" id="themeOverlay" data-act-self="closeThemes">
     <div class="timer-levels-panel" style="max-width:520px;position:relative">
-        <button data-act="closeThemes" type="button"
+        <button aria-label="Close" data-act="closeThemes" type="button"
                 style="position:absolute;top:0.75rem;right:0.75rem;background:none;border:none;color:#94a3b8;font-size:1.5rem;cursor:pointer;line-height:1;padding:0.25rem">&times;</button>
         <h3>Theme Library</h3>
         <p style="font-size:.8rem;color:#94a3b8;margin:0 0 .75rem">Pick a saved theme, save your current edits as a new one, or set the default.</p>
@@ -672,7 +672,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
 <!-- Preset theme gallery — built-in .gnt.json presets with live mini-previews. -->
 <div class="timer-levels-overlay" id="presetOverlay" data-act-self="closePresets">
     <div class="timer-levels-panel" style="max-width:760px;position:relative">
-        <button data-act="closePresets" type="button"
+        <button aria-label="Close" data-act="closePresets" type="button"
                 style="position:absolute;top:0.75rem;right:0.75rem;background:none;border:none;color:#94a3b8;font-size:1.5rem;cursor:pointer;line-height:1;padding:0.25rem">&times;</button>
         <h3>Preset Themes</h3>
         <p style="font-size:.8rem;color:#94a3b8;margin:0 0 .75rem">Browse built-in presets. Loading one saves it as your own editable theme.</p>
@@ -690,7 +690,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
 <!-- Save Theme As modal -->
 <div class="timer-levels-overlay" id="saveThemeOverlay" data-act-self="closeSaveThemeModal">
     <div class="timer-levels-panel" style="max-width:440px;position:relative">
-        <button data-act="closeSaveThemeModal" type="button"
+        <button aria-label="Close" data-act="closeSaveThemeModal" type="button"
                 style="position:absolute;top:0.75rem;right:0.75rem;background:none;border:none;color:#94a3b8;font-size:1.5rem;cursor:pointer;line-height:1;padding:0.25rem">&times;</button>
         <h3>Save Theme As</h3>
         <div style="display:flex;flex-direction:column;gap:1rem;margin-bottom:1rem">
@@ -716,7 +716,7 @@ $themeCss   = timer_theme_css_vars($themeProps);
 <!-- Confirm Save modal — overwrite current theme or branch to Save As New -->
 <div class="timer-levels-overlay" id="confirmSaveOverlay" data-act-self="closeConfirmSave">
     <div class="timer-levels-panel" style="max-width:420px;position:relative">
-        <button data-act="closeConfirmSave" type="button"
+        <button aria-label="Close" data-act="closeConfirmSave" type="button"
                 style="position:absolute;top:0.75rem;right:0.75rem;background:none;border:none;color:#94a3b8;font-size:1.5rem;cursor:pointer;line-height:1;padding:0.25rem">&times;</button>
         <h3>Save Theme</h3>
         <p style="color:#cbd5e1;font-size:.9rem;margin:0 0 .5rem">Saving to: <b id="confirmSaveName" style="color:#fff">My Theme</b></p>
@@ -832,10 +832,10 @@ $themeCss   = timer_theme_css_vars($themeProps);
 </div>
 <?php endif; ?>
 
-<script src="/vendor/qr-code-styling.min.js"></script>
-<script src="/vendor/qrcode.min.js"></script>
+<script src="/vendor/qr-code-styling.min.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/qr-code-styling.min.js') ?: 0)) ?>"></script>
+<script src="/vendor/qrcode.min.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/qrcode.min.js') ?: 0)) ?>"></script>
 <script src="/pk-qr.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-qr.js') ?: 0)) ?>"></script>
-<script src="/vendor/nosleep.min.js"></script>
+<script src="/vendor/nosleep.min.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/nosleep.min.js') ?: 0)) ?>"></script>
 <script src="/pk-keepawake.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-keepawake.js') ?: 0)) ?>"></script>
 <script nonce="<?= csp_nonce() ?>">
 // ─── §7.1  Config from PHP ──────────────────────────────────────

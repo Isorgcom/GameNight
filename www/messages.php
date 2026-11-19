@@ -75,7 +75,7 @@ $utc_tz    = new DateTimeZone('UTC');
         .dm-top { display:flex; align-items:baseline; gap:.5rem; flex-wrap:wrap; }
         .dm-name { font-weight:700; color:#1e293b; font-size:.95rem; flex:1; min-width:0; }
         .dm-group-tag { font-size:.62rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#7c3aed; background:#f3e8ff; border:1px solid #ddd6fe; border-radius:5px; padding:.06rem .35rem; }
-        .dm-when { font-size:.72rem; color:#94a3b8; white-space:nowrap; }
+        .dm-when { font-size:.72rem; color:#64748b; white-space:nowrap; }
         .dm-pill { background:#dc2626; color:#fff; font-size:.65rem; font-weight:700; border-radius:999px; padding:.05rem .4rem; }
         .dm-snippet { font-size:.82rem; color:#64748b; margin-top:.25rem; overflow:hidden; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; }
         .dm-new { display:flex; gap:.5rem; margin-bottom:.6rem; flex-wrap:wrap; }
@@ -90,7 +90,7 @@ $utc_tz    = new DateTimeZone('UTC');
 </head>
 <body>
 <?php $nav_active = 'messages'; require __DIR__ . '/_nav.php'; ?>
-<div class="dm-wrap">
+<div role="main" class="dm-wrap">
     <h1 style="font-size:1.3rem;font-weight:800;color:#1e293b;margin:0 0 1rem">Messages</h1>
 
     <?php if ($eligible): ?>

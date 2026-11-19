@@ -8,7 +8,7 @@
  */
 $csrf = csrf_token();
 ?>
-<div class="tbe-wrap">
+<div class="tbe-wrap" role="main">
     <div class="tbe-header">
         <h1>Tournament Timer <span class="tb-sub">Layouts</span></h1>
         <div class="tbe-header-controls">

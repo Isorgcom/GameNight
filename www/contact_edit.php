@@ -46,7 +46,7 @@ $canMsg   = $isLinked && (int)$c['linked_user_id'] !== $uid;
             width: 100%; padding: .5rem .65rem; border: 1.5px solid #cbd5e1; border-radius: 8px;
             font: inherit; color: #1e293b; box-sizing: border-box; background: #fff;
         }
-        .ce-field .ce-hint { font-size: .75rem; color: #94a3b8; margin-top: .25rem; }
+        .ce-field .ce-hint { font-size: .75rem; color: #64748b; margin-top: .25rem; }
         .ce-actions { display: flex; gap: .6rem; align-items: center; margin-top: 1.1rem; flex-wrap: wrap; }
         .ce-del { margin-left: auto; background: #fff; color: #dc2626; border: 1.5px solid #fecaca; border-radius: 8px; padding: .45rem .9rem; font-size: .85rem; font-weight: 600; cursor: pointer; }
         .ce-del:hover { background: #fee2e2; }
@@ -57,7 +57,7 @@ $canMsg   = $isLinked && (int)$c['linked_user_id'] !== $uid;
 </head>
 <body>
 <?php $nav_active = 'contacts'; $nav_user = $current; require __DIR__ . '/_nav.php'; ?>
-<div class="ce-wrap">
+<div role="main" class="ce-wrap">
     <div class="ce-head">
         <a href="/contacts.php" class="btn btn-outline" style="font-size:.8rem;padding:.3rem .6rem">&laquo; Contacts</a>
         <h1>Edit Contact</h1>

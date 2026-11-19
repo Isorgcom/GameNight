@@ -1,13 +1,21 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
+    /* The page is light-only for now. Declared so the browser draws its own
+       controls (scrollbars, date pickers, autofill) to match instead of
+       guessing. A dark theme redefines these tokens and switches this to
+       "light dark"; until every page reads its colours from tokens, a dark
+       theme would leave inline-styled white cards on a dark page. */
+    color-scheme: light;
     --sidebar:  220px;
     --accent:   #2563eb;
     --accent-h: #1d4ed8;
     --dark:     #0f172a;
     --mid:      #1e293b;
     --surface:  #ffffff;
-    --muted:    #64748b;
+    --bg:       #f8fafc;   /* page background */
+    --text:     #1e293b;   /* body text */
+    --muted:    #64748b;   /* secondary text: 4.7:1 on white, the lightest grey for text */
     --border:   #e2e8f0;
     --radius:   10px;
     --shadow:   0 4px 24px rgba(0,0,0,.08);
@@ -15,8 +23,8 @@
 
 body {
     font-family: system-ui, -apple-system, sans-serif;
-    background: #f8fafc;
-    color: #1e293b;
+    background: var(--bg);
+    color: var(--text);
     line-height: 1.6;
 }
 
@@ -99,7 +107,7 @@ nav .brand:hover { color: #e2e8f0; text-decoration: none; }
 }
 .nav-links a.active {
     color: #fff;
-    border-bottom-color: #2563eb;
+    border-bottom-color: var(--accent);
     font-weight: 600;
 }
 
@@ -185,7 +193,7 @@ nav .brand:hover { color: #e2e8f0; text-decoration: none; }
     transition: border-color .15s;
     background: #f8fafc;
 }
-.form-group input:focus { outline: none; border-color: var(--accent); background: #fff; }
+.form-group input:focus { border-color: var(--accent); background: var(--surface); }
 .form-footer { margin-top: 1.25rem; font-size: .85rem; color: var(--muted); text-align: center; }
 
 /* ── ALERTS ── */
@@ -289,12 +297,19 @@ tr:hover td { background: #f8fafc; }
     text-decoration: none;
 }
 .nav-dropdown a.active { color: #fff; font-weight: 600; }
-.nav-dropdown a.nav-dropdown-signout {
+.nav-dropdown a.nav-dropdown-signout, .nav-dropdown button.nav-dropdown-signout {
     border-top: 1px solid rgba(255,255,255,.1);
     margin-top: .25rem;
     color: #f87171;
 }
-.nav-dropdown a.nav-dropdown-signout:hover { background: rgba(239,68,68,.15); color: #fca5a5; }
+/* Sign out is a POST form (logout.php); the button looks like its neighbours. */
+.nav-signout-form { margin: 0; }
+.nav-dropdown button.nav-dropdown-signout {
+    display: block; width: 100%; text-align: left; background: none;
+    border-left: 0; border-right: 0; border-bottom: 0; cursor: pointer;
+    padding: .6rem 1rem; font: inherit; font-size: .875rem; white-space: nowrap;
+}
+.nav-dropdown a.nav-dropdown-signout:hover, .nav-dropdown button.nav-dropdown-signout:hover { background: rgba(239,68,68,.15); color: #fca5a5; }
 
 /* Hidden on desktop, revealed on mobile via .nav-mobile-link/.nav-mobile-divider */
 .nav-mobile-link    { display: none; }
@@ -349,13 +364,13 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
     .modal-overlay {
         padding: 0;
         align-items: stretch;
-        background: #fff;
+        background: var(--surface);
     }
     .modal {
         border-radius: 0;
         max-width: 100%;
         width: 100%;
-        max-height: 100vh;
+        max-height:100vh;max-height:100dvh;
         height: 100%;
         overflow-y: auto;
         padding: 1rem;
@@ -365,15 +380,15 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
     .modal-header {
         position: sticky;
         top: 0;
-        background: #fff;
+        background: var(--surface);
         z-index: 10;
         padding-bottom: .75rem;
-        border-bottom: 1px solid #e2e8f0;
+        border-bottom: 1px solid var(--border);
         margin-bottom: 1rem;
     }
     .pk-modal-overlay {
         align-items: stretch !important;
-        background: #fff !important;
+        background: var(--surface) !important;
     }
     .pk-modal {
         border-radius: 0 !important;
@@ -441,7 +456,7 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
 
 /* ── Comments ───────────────────────────────────────────────────────────────── */
 .comments-section {
-    border-top: 1px solid #e2e8f0;
+    border-top: 1px solid var(--border);
     margin-top: 1.75rem;
     padding-top: 1.25rem;
 }
@@ -451,7 +466,7 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
     justify-content: space-between;
     font-size: .82rem;
     font-weight: 600;
-    color: #64748b;
+    color: var(--muted);
     margin-bottom: .6rem;
     text-transform: uppercase;
     letter-spacing: .04em;
@@ -461,7 +476,7 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
     font-weight: 400;
     text-transform: none;
     letter-spacing: 0;
-    color: #94a3b8;
+    color: var(--muted);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -483,7 +498,7 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
 .comment-sel {
     flex-shrink: 0;
     cursor: pointer;
-    accent-color: #2563eb;
+    accent-color: var(--accent);
     width: 14px;
     height: 14px;
     margin-top: 2px;
@@ -509,7 +524,7 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
     border-radius: 50%;
     background: #e2e8f0;
     display: flex; align-items: center; justify-content: center;
-    font-size: .75rem; font-weight: 700; color: #64748b;
+    font-size: .75rem; font-weight: 700; color: var(--muted);
     text-transform: uppercase;
 }
 .comment-content { flex: 1; min-width: 0; }
@@ -518,7 +533,7 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
     align-items: center;
     gap: .5rem;
     font-size: .76rem;
-    color: #94a3b8;
+    color: var(--muted);
     margin-bottom: .25rem;
     flex-wrap: wrap;
 }
@@ -559,15 +574,14 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
     resize: vertical;
     font-size: .875rem;
     padding: .5rem .75rem;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border);
     border-radius: 8px;
     font-family: inherit;
     line-height: 1.6;
     color: #0f172a;
 }
 .comment-form textarea:focus {
-    outline: none;
-    border-color: #2563eb;
+    border-color: var(--accent);
     box-shadow: 0 0 0 3px rgba(37,99,235,.08);
 }
 .comment-form .btn-post {
@@ -577,7 +591,7 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
 }
 .comment-login {
     font-size: .83rem;
-    color: #94a3b8;
+    color: var(--muted);
     margin-top: .75rem;
 }
 
@@ -586,14 +600,14 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
     display: flex;
     flex-wrap: wrap;
     gap: 0;
-    border-bottom: 2px solid #e2e8f0;
+    border-bottom: 2px solid var(--border);
     margin-bottom: 1.75rem;
 }
 .tab-btn {
     padding: .6rem .9rem;
     font-size: .875rem;
     font-weight: 500;
-    color: #64748b;
+    color: var(--muted);
     background: none;
     border: none;
     border-bottom: 2px solid transparent;
@@ -602,7 +616,7 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
     text-decoration: none;
 }
 .tab-btn:hover { color: #1e293b; }
-.tab-btn.active { color: #2563eb; border-bottom-color: #2563eb; font-weight: 600; }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
 @media (max-width: 1024px) {
     .tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; }
     .tab-btn { white-space: nowrap; padding: .55rem .85rem; font-size: .85rem; }
@@ -640,7 +654,7 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
     box-sizing: border-box;
     background: #1e293b;
     border: 1.5px solid #475569;
-    border-left: 4px solid var(--accent, #2563eb);
+    border-left: 4px solid var(--accent);
     border-radius: 14px;
     /* The pale ring is what keeps the bubble visible over a dark backdrop:
        anchored to a control in a dark header (check-in's Timer button, say)
@@ -698,7 +712,7 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
     line-height: 1;
     cursor: pointer;
 }
-.help-bubble__arrow:hover { background: var(--accent, #2563eb); border-color: var(--accent, #2563eb); color: #fff; }
+.help-bubble__arrow:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
 .help-bubble__arrow:disabled { opacity: .4; cursor: default; }
 .help-bubble__arrow:disabled:hover { background: #334155; border-color: #64748b; }
 /* Tail pointer for anchored bubbles */
@@ -728,7 +742,7 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
     height: 38px;
     border-radius: 50%;
     border: none;
-    background: var(--accent, #2563eb);
+    background: var(--accent);
     color: #fff;
     font-size: 1.15rem;
     font-weight: 700;
@@ -742,10 +756,10 @@ footer { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-siz
 .pk-modal-overlay.open{display:flex}
 .pk-modal{background:var(--surface,#fff);border-radius:12px;padding:1.5rem;width:90%;max-width:400px;box-shadow:0 10px 40px rgba(0,0,0,.25)}
 .pk-modal h3{margin:0 0 .75rem}
-.pk-modal textarea{width:100%;height:100px;padding:.5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:.9rem;resize:vertical;box-sizing:border-box}
+.pk-modal textarea{width:100%;height:100px;padding:.5rem;border:1.5px solid var(--border);border-radius:6px;font-size:.9rem;resize:vertical;box-sizing:border-box}
 .pk-modal-actions{display:flex;gap:.5rem;justify-content:flex-end;margin-top:.75rem}
-.pk-modal-actions button{padding:.4rem 1rem;border-radius:6px;font-size:.85rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border,#e2e8f0);background:#fff}
-.pk-modal-actions .pk-save{background:var(--accent,#2563eb);color:#fff;border-color:transparent}
+.pk-modal-actions button{padding:.4rem 1rem;border-radius:6px;font-size:.85rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border);background:var(--surface)}
+.pk-modal-actions .pk-save{background:var(--accent);color:#fff;border-color:transparent}
 
 /* ── Shared circular avatar (photo, or deterministic colored initial) ── */
 .gn-avatar{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;color:#fff;font-weight:700;line-height:1;text-transform:uppercase;flex-shrink:0;vertical-align:middle;overflow:hidden;box-sizing:border-box}
@@ -760,13 +774,13 @@ img.gn-avatar{object-fit:cover;background:transparent}
    Timings are shared on purpose — thumb .2s, content .32s, both on the same
    easing curve. Don't introduce new durations for the same gesture. */
 .pk-seg{position:relative;display:inline-flex;border:1.5px solid #cbd5e1;border-radius:8px;background:#dde3ec;padding:3px;box-shadow:inset 0 1px 2px rgba(15,23,42,.14)}
-.pk-seg-thumb{position:absolute;top:3px;bottom:3px;left:0;width:0;border-radius:6px;background:var(--accent,#2563eb);box-shadow:0 1px 3px rgba(37,99,235,.5);z-index:0;transition:transform .2s cubic-bezier(.4,0,.2,1),width .2s cubic-bezier(.4,0,.2,1)}
+.pk-seg-thumb{position:absolute;top:3px;bottom:3px;left:0;width:0;border-radius:6px;background:var(--accent);box-shadow:0 1px 3px rgba(37,99,235,.5);z-index:0;transition:transform .2s cubic-bezier(.4,0,.2,1),width .2s cubic-bezier(.4,0,.2,1)}
 .pk-seg button{position:relative;z-index:1;border:none;background:transparent;cursor:pointer;padding:.34rem .75rem;font-size:.76rem;font-weight:600;color:#475569;white-space:nowrap;transition:color .15s}
 .pk-seg button:hover:not(.active){color:#1e293b}
 .pk-seg button.active{color:#fff}
 /* Keyboard focus inside the pill: a ring drawn inside the button, white on the
    accent thumb so it shows there too. */
-.pk-seg button:focus-visible{outline:2px solid #1d4ed8;outline-offset:-2px;border-radius:6px}
+.pk-seg button:focus-visible{outline:2px solid var(--accent-h);outline-offset:-2px;border-radius:6px}
 .pk-seg button.active:focus-visible{outline-color:#fff}
 /* For when the selection lives outside the control, so no segment is current —
    parking the thumb under a stale button would look like two things selected. */
@@ -787,7 +801,7 @@ img.gn-avatar{object-fit:cover;background:transparent}
 }
 
 /* The name a league knows a member by, after the screen name (v1.13.0). */
-.pk-known{font-weight:500;font-size:.8em;color:#64748b}
+.pk-known{font-weight:500;font-size:.8em;color:var(--muted)}
 
 /* Pictures on a message or a comment (v1.13.0): thumbnails that open full size. */
 .pk-pics{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.35rem}
@@ -795,14 +809,14 @@ img.gn-avatar{object-fit:cover;background:transparent}
 .pk-pics img{display:block;max-width:100%;max-height:220px;border-radius:8px}
 /* The box a comment or message is written in: the text and the pictures being
    attached live in one bordered frame, each picture with its own ×. */
-.cm-compose{border:1.5px solid #cbd5e1;border-radius:8px;background:#fff;padding:.15rem}
-.cm-compose:focus-within{border-color:#2563eb}
+.cm-compose{border:1.5px solid #cbd5e1;border-radius:8px;background:var(--surface);padding:.15rem}
+.cm-compose:focus-within{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
 .cm-compose .cm-body,.cm-compose textarea{width:100%;box-sizing:border-box;border:0;outline:none;background:transparent;font:inherit;padding:.4rem .6rem;resize:vertical;display:block}
 .cm-thumbs{display:flex;flex-wrap:wrap;gap:.5rem;padding:.3rem .45rem .45rem}
 .cm-thumbs[hidden]{display:none}
 .cm-thumb{position:relative}
-.cm-thumb img{display:block;height:84px;width:auto;max-width:160px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0}
-.cm-thumb-x{position:absolute;top:-7px;right:-7px;width:22px;height:22px;border-radius:50%;border:1px solid #cbd5e1;background:#fff;color:#334155;font-size:.95rem;line-height:1;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center}
+.cm-thumb img{display:block;height:84px;width:auto;max-width:160px;object-fit:cover;border-radius:6px;border:1px solid var(--border)}
+.cm-thumb-x{position:absolute;top:-7px;right:-7px;width:22px;height:22px;border-radius:50%;border:1px solid #cbd5e1;background:var(--surface);color:#334155;font-size:.95rem;line-height:1;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center}
 .cm-thumb-x:hover{background:#fee2e2;border-color:#fca5a5;color:#991b1b}
 
 /* A cancelled event (v1.13.1) stays listed, marked: a small red pill beside the
@@ -815,16 +829,16 @@ img.gn-avatar{object-fit:cover;background:transparent}
    pk-reminders.js inside the editor's Send reminders panel and the admin's
    site default. The long selectors outrank a page's own .form-group input rules. */
 .pk-rem-list .pk-rem-row{display:flex;align-items:center;gap:.4rem;padding:.2rem 0;font-size:.85rem;color:#334155}
-.pk-rem-list .pk-rem-row input.pk-rem-n{width:4.6rem;min-height:30px;margin:0;padding:.25rem .4rem;border:1.5px solid #cbd5e1;border-radius:6px;font:inherit;font-size:.85rem;color:#334155;background:#fff}
-.pk-rem-list .pk-rem-row select.pk-rem-u{flex:1;min-width:0;width:auto;min-height:30px;margin:0;padding:.25rem .3rem;border:1.5px solid #cbd5e1;border-radius:6px;font:inherit;font-size:.85rem;color:#334155;background:#fff}
-.pk-rem-list .pk-rem-row input.pk-rem-n:focus,.pk-rem-list .pk-rem-row select.pk-rem-u:focus{outline:none;border-color:#2563eb}
+.pk-rem-list .pk-rem-row input.pk-rem-n{width:4.6rem;min-height:30px;margin:0;padding:.25rem .4rem;border:1.5px solid #cbd5e1;border-radius:6px;font:inherit;font-size:.85rem;color:#334155;background:var(--surface)}
+.pk-rem-list .pk-rem-row select.pk-rem-u{flex:1;min-width:0;width:auto;min-height:30px;margin:0;padding:.25rem .3rem;border:1.5px solid #cbd5e1;border-radius:6px;font:inherit;font-size:.85rem;color:#334155;background:var(--surface)}
+.pk-rem-list .pk-rem-row input.pk-rem-n:focus,.pk-rem-list .pk-rem-row select.pk-rem-u:focus{border-color:var(--accent)}
 .pk-rem-before{white-space:nowrap;color:#475569}
-.pk-rem-x{width:26px;height:26px;border-radius:50%;border:1px solid #cbd5e1;background:#fff;color:#334155;font-size:1rem;line-height:1;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;flex:none}
+.pk-rem-x{width:26px;height:26px;border-radius:50%;border:1px solid #cbd5e1;background:var(--surface);color:#334155;font-size:1rem;line-height:1;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;flex:none}
 .pk-rem-x:hover{background:#fee2e2;border-color:#fca5a5;color:#991b1b}
-.pk-rem-list .pk-rem-add{display:inline-block;margin-top:.35rem;padding:.3rem .6rem;border:1.5px dashed #cbd5e1;border-radius:7px;background:#fff;color:#2563eb;font:inherit;font-size:.82rem;font-weight:600;cursor:pointer}
+.pk-rem-list .pk-rem-add{display:inline-block;margin-top:.35rem;padding:.3rem .6rem;border:1.5px dashed #cbd5e1;border-radius:7px;background:var(--surface);color:var(--accent);font:inherit;font-size:.82rem;font-weight:600;cursor:pointer}
 .pk-rem-list .pk-rem-add:hover{border-color:#93c5fd;background:#eff6ff}
-.pk-rem-list .pk-rem-add:disabled{color:#64748b;background:#f8fafc;border-style:solid;cursor:default}
-.pk-rem-empty{margin:.3rem 0 0;font-size:.8rem;color:#64748b}
+.pk-rem-list .pk-rem-add:disabled{color:var(--muted);background:#f8fafc;border-style:solid;cursor:default}
+.pk-rem-empty{margin:.3rem 0 0;font-size:.8rem;color:var(--muted)}
 .pk-rem-empty[hidden]{display:none}
 @media (pointer:coarse){.pk-rem-list .pk-rem-row input.pk-rem-n,.pk-rem-list .pk-rem-row select.pk-rem-u,.pk-rem-list .pk-rem-add{min-height:36px}.pk-rem-x{width:36px;height:36px}}
 
@@ -832,3 +846,27 @@ img.gn-avatar{object-fit:cover;background:transparent}
    and the whole chooser + editor read as switched off. The lock itself is the
    `inert` attribute (checkin.php syncClassicLock); this only dims. */
 .pk-classic-off { opacity: .4; filter: grayscale(1); pointer-events: none; user-select: none; }
+
+/* Keyboard focus ring for every control (WCAG 2.4.7). :where() keeps it at zero
+   specificity, so a component that draws its own focus state (the grid cells,
+   .pk-seg) or deliberately hands focus to a wrapper (.cm-compose) still wins.
+   Never add outline:none to a :focus rule without a replacement. */
+:where(:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+:where(input, select, textarea, [contenteditable]):focus-visible { outline-offset: 0; }
+
+/* Skip link (_nav.php): off-screen until a keyboard user tabs to it. */
+.skip-link { position: absolute; left: .5rem; top: -3rem; z-index: 10000; padding: .5rem .9rem;
+    background: var(--accent); color: #fff; border-radius: 6px; font-weight: 600; }
+.skip-link:focus { top: .5rem; text-decoration: none; }
+#content:focus { outline: none; }
+
+/* Visually hidden until focused: a keyboard way in to a control that is
+   otherwise a tap anywhere on a larger area (table_manager.php header). */
+.pk-sr-only-focusable:not(:focus):not(:focus-visible) {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.nav-collapse-banner-btn { background: none; border: 0; padding: 0; cursor: pointer; line-height: 0; order: -1; margin-right: .3rem; }
+/* Visually hidden, still read by screen readers (pkAnnounce's live region). */
+.pk-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+

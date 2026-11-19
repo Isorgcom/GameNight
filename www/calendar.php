@@ -1008,7 +1008,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
         .cal-cell.other-month { background: #f8fafc; }
         .cal-cell.today { background: #eff6ff; }
         .cal-day {
-            font-size: .8rem; font-weight: 600; color: #94a3b8;
+            font-size: .8rem; font-weight: 600; color: #64748b;
             margin-bottom: .25rem; line-height: 1;
         }
         .cal-cell.today .cal-day {
@@ -1030,7 +1030,12 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
             background: none; border: none; color: rgba(255,255,255,.85);
             cursor: pointer; font-size: .7rem; padding: 0 2px; line-height: 1;
         }
-        .cal-event:hover .ev-edit-btn { display: block; }
+        .cal-event:hover .ev-edit-btn, .cal-event:focus-within .ev-edit-btn { display: block; }
+        /* Chip titles are links (keyboard + middle-click); they keep the chip's colours.
+           The chip clips overflow, so the focus ring is drawn inside. */
+        .cal-event .ev-label, .week-allday-text, .week-event-title { color: inherit; text-decoration: none; }
+        .cal-event .ev-label:hover, .week-allday-text:hover, .week-event-title:hover { text-decoration: none; }
+        .cal-event a:focus-visible, .week-allday-chip a:focus-visible, .week-event a:focus-visible { outline: 2px solid #fff; outline-offset: -2px; }
         .cal-event:hover { filter: brightness(1.1); }
         /* Compact league identifier shown at the start of an event chip. */
         .ev-league-tag {
@@ -1044,11 +1049,12 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
             position: absolute; top: .3rem; right: .3rem;
             width: 20px; height: 20px; border-radius: 4px;
             background: transparent; border: none;
-            color: #cbd5e1; font-size: 1rem; cursor: pointer;
-            display: none; align-items: center; justify-content: center;
+            color: #64748b; font-size: 1rem; cursor: pointer;
+            display: flex; opacity: 0; align-items: center; justify-content: center;
             line-height: 1; padding: 0;
         }
-        .cal-cell:hover .cal-add-btn { display: flex; }
+        /* opacity, not display:none, so a keyboard user can still tab to it. */
+        .cal-cell:hover .cal-add-btn, .cal-add-btn:focus-visible { opacity: 1; }
         .cal-add-btn:hover { background: #e2e8f0; color: #2563eb; }
 
         /* ── Week view ───────────────────────────────────────────── */
@@ -1088,7 +1094,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
             min-height: 26px; background: #fff;
         }
         .week-allday-gutter {
-            font-size: .62rem; color: #94a3b8; text-align: right;
+            font-size: .62rem; color: #64748b; text-align: right;
             padding: .3rem .45rem 0 0; border-right: 1.5px solid #e2e8f0;
         }
         .week-allday-col {
@@ -1108,7 +1114,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
             background: none; border: none; color: rgba(255,255,255,.85);
             cursor: pointer; font-size: .65rem; padding: 0 2px; line-height: 1;
         }
-        .week-allday-chip:hover .ev-edit-btn { display: block; }
+        .week-allday-chip:hover .ev-edit-btn, .week-allday-chip:focus-within .ev-edit-btn { display: block; }
 
         .week-scroll {
             height: 540px; overflow-y: auto;
@@ -1127,7 +1133,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
         }
         .week-hour-label {
             position: absolute; right: 6px;
-            font-size: .63rem; color: #94a3b8;
+            font-size: .63rem; color: #64748b;
             transform: translateY(-50%);
             white-space: nowrap; user-select: none;
         }
@@ -1172,7 +1178,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
             background: none; border: none; color: rgba(255,255,255,.85);
             cursor: pointer; font-size: .7rem; padding: 0 2px; line-height: 1;
         }
-        .week-event:hover .ev-edit-btn { display: block; }
+        .week-event:hover .ev-edit-btn, .week-event:focus-within .ev-edit-btn { display: block; }
 
         /* Modal */
         .modal-overlay {
@@ -1193,10 +1199,10 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
            id-scoped so the orientation overrides win on specificity. */
         #viewModal .modal { max-width:520px; max-height:88vh; }
         @media (max-width:1024px) {
-            #viewModal .modal { max-width:100%; width:100%; max-height:100vh; height:100%; border-radius:0; }
+            #viewModal .modal { max-width:100%; width:100%; max-height:100vh;max-height:100dvh; height:100%; border-radius:0; }
         }
         @media (pointer:coarse) and (min-width:1025px) and (max-width:1366px) {
-            #viewModal .modal { max-width:100%; width:100%; max-height:100vh; height:100%; border-radius:0; }
+            #viewModal .modal { max-width:100%; width:100%; max-height:100vh;max-height:100dvh; height:100%; border-radius:0; }
             #viewModal.modal-overlay { padding:0; align-items:stretch; }
         }
         /* ── Edit modal ── */
@@ -1210,7 +1216,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
         .edit-top-bar select, .edit-top-bar input[type="text"], .edit-top-bar input[type="date"], .edit-top-bar input[type="time"] {
             padding:.32rem .45rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.82rem;background:#fff;color:#1e293b;
         }
-        .edit-top-bar select:focus, .edit-top-bar input:focus { border-color:#2563eb;outline:none; }
+        .edit-top-bar select:focus, .edit-top-bar input:focus { border-color:#2563eb; }
         .edit-top-bar .edit-title-input { flex:1;min-width:140px; }
         .edit-top-bar label { font-size:.72rem;font-weight:600;color:#64748b;display:flex;flex-direction:column;gap:.1rem; }
         .edit-header-row .form-group { margin:0; }
@@ -1222,14 +1228,14 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
         #eColorPicker .color-swatch { width:26px;height:26px; }
         #eColorDotWrap { position:relative;flex-shrink:0; }
         .edit-title-input { flex:1;min-width:140px;padding:.45rem .7rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.95rem;font-weight:500; }
-        .edit-title-input:focus { outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
-        .edit-hdr-label { font-size:.72rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.2rem;display:block; }
+        .edit-title-input:focus {border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
+        .edit-hdr-label { font-size:.72rem;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.2rem;display:block; }
         .edit-hdr-field { display:flex;flex-direction:column; }
         .edit-hdr-dur { display:flex;align-items:center;gap:.3rem; }
         .edit-hdr-dur input { width:4.5rem;padding:.45rem .5rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.875rem;text-align:center; }
-        .edit-hdr-dur input:focus { outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
+        .edit-hdr-dur input:focus {border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
         .edit-hdr-dur span { font-size:.8rem;color:#64748b;white-space:nowrap; }
-        #eTimeNative:focus { outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
+        #eTimeNative:focus {border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
 
         /* Manager toggle in invite pane */
         .inv-name-text { flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis; }
@@ -1246,7 +1252,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
            automatically on add/remove with no JS. */
         #eInvitedList { counter-reset: inv; }
         #eInvitedList li[data-iname] { counter-increment: inv; }
-        #eInvitedList li[data-iname] .inv-name-text::before { content: counter(inv) ". "; color:#94a3b8;font-weight:600; }
+        #eInvitedList li[data-iname] .inv-name-text::before { content: counter(inv) ". "; color:#64748b;font-weight:600; }
         .inv-rsvp-badge { font-size:.6rem;font-weight:700;padding:.1rem .35rem;border-radius:3px;text-transform:uppercase;letter-spacing:.03em;flex-shrink:0; }
         .inv-rsvp-yes { background:#dcfce7;color:#166534; }
         .inv-rsvp-no { background:#fee2e2;color:#991b1b; }
@@ -1280,7 +1286,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
         .arrow-mobile { display:none; }
         .invite-pane { display:flex;flex-direction:column;border:1.5px solid #e2e8f0;border-radius:8px;overflow:hidden;min-height:200px; }
         .invite-pane-header { background:#f8fafc;padding:.35rem .65rem;font-size:.7rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;flex-shrink:0;border-bottom:1px solid #e2e8f0; }
-        .inv-col-head { display:flex;align-items:center;gap:.4rem;padding:.25rem .6rem;font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#94a3b8;border-bottom:1px solid #eef2f7;flex-shrink:0; }
+        .inv-col-head { display:flex;align-items:center;gap:.4rem;padding:.25rem .6rem;font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b;border-bottom:1px solid #eef2f7;flex-shrink:0; }
         .inv-col-head span:not(:first-child) { text-align:center; }
         /* Fixed-width trailing columns so the Invited header lines up with each row */
         .inv-col-contact { width:2.8rem;flex-shrink:0; }
@@ -1290,14 +1296,14 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
         #eInvitedList li[data-iname] .inv-col-mgr { display:inline-flex;align-items:center;justify-content:center; }
         #eInvitedList li[data-iname] .inv-col-mgr .mgr-toggle { margin-left:0; }
         .invite-pane-search { width:100%;padding:.38rem .65rem;border:none;border-bottom:1.5px solid #e2e8f0;font-size:.85rem;box-sizing:border-box;flex-shrink:0; }
-        .invite-pane-search:focus { outline:none;border-color:#2563eb; }
+        .invite-pane-search:focus {border-color:#2563eb; }
         .invite-pane-list { flex:1;overflow-y:auto;list-style:none;margin:0;padding:.2rem; }
         .invite-pane-list li { padding:.35rem .6rem;border-radius:5px;font-size:.875rem;cursor:pointer;user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
         .invite-pane-list li:hover { background:#f1f5f9; }
         .invite-pane-list li.inv-selected { background:#dbeafe !important;color:#1e40af; }
         /* Already-invited contacts: a green check + muted (but still legible) text so it's
            obvious at a glance which of many names are already on the right. */
-        .invite-pane-list li.dimmed { color:#94a3b8;cursor:default; }
+        .invite-pane-list li.dimmed { color:#64748b;cursor:default; }
         .invite-pane-list li.dimmed::before { content:'\2713\00a0';color:#16a34a;font-weight:700; }
         .invite-pane-list li.dimmed:hover { background:transparent; }
         .invite-pane-list li.custom-row { padding:.2rem .4rem;cursor:default; }
@@ -1309,7 +1315,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
         .custom-row-inner input { padding:.28rem .45rem;border:1.5px solid #e2e8f0;border-radius:5px;font-size:.8rem;min-width:0; }
         .custom-row-inner .cr-name    { flex:1.5;min-width:110px; }
         .custom-row-inner .cr-contact { flex:2.5;min-width:160px; }
-        .custom-row-inner .cr-remove  { flex-shrink:0;padding:.2rem .4rem;border:1px solid #e2e8f0;border-radius:5px;background:#fff;cursor:pointer;color:#94a3b8;font-size:.85rem;line-height:1; }
+        .custom-row-inner .cr-remove  { flex-shrink:0;padding:.2rem .4rem;border:1px solid #e2e8f0;border-radius:5px;background:#fff;cursor:pointer;color:#64748b;font-size:.85rem;line-height:1; }
         .custom-row-inner .cr-remove:hover { background:#fee2e2;color:#dc2626;border-color:#fca5a5; }
         /* hidden invite inputs container */
         #eInviteData { display:none; }
@@ -1319,7 +1325,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
         .edit-toolbar .btn { font-size:.78rem;padding:.3rem .65rem; }
         .edit-desc-wrap { padding:0 1rem .5rem;flex-shrink:0; }
         .edit-desc-wrap textarea { width:100%;resize:vertical;min-height:80px;max-height:150px;padding:.5rem .7rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.85rem;box-sizing:border-box;font-family:inherit; }
-        .edit-desc-wrap textarea:focus { outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
+        .edit-desc-wrap textarea:focus {border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
         .edit-desc-toggle { font-size:.82rem;color:#2563eb;cursor:pointer;padding:.3rem 1rem;flex-shrink:0; }
         .edit-desc-toggle:hover { text-decoration:underline; }
         .edit-poker-bar { display:flex;align-items:center;gap:.5rem;padding:.3rem 1rem;flex-wrap:wrap;flex-shrink:0;background:#f0f9ff;border-top:1px solid #bfdbfe;font-size:.78rem;color:#475569; }
@@ -1455,7 +1461,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
             }
             .modal-overlay .modal {
                 max-width: 100% !important;
-                max-height: 100vh !important;
+                max-height:100vh !important;max-height:100dvh !important;
                 width: 100% !important;
                 height: 100% !important;
                 border-radius: 0 !important;
@@ -1491,16 +1497,16 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
             .week-allday-chip .ev-edit-btn { display: none; }
         }
     </style>
-    <?php if ($isAdmin): ?><script src="/vendor/qr-code-styling.min.js" defer></script>
-    <script src="/vendor/qrcode.min.js" defer></script>
+    <?php if ($isAdmin): ?><script src="/vendor/qr-code-styling.min.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/qr-code-styling.min.js') ?: 0)) ?>" defer></script>
+    <script src="/vendor/qrcode.min.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/qrcode.min.js') ?: 0)) ?>" defer></script>
     <script src="/pk-qr.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-qr.js') ?: 0)) ?>" defer></script><?php endif; ?>
-    <?php if ($current): ?><link href="/vendor/jodit/jodit.min.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/jodit/jodit.min.css') ?: 0)) ?>" rel="stylesheet"><?php endif; ?>
+    <?php /* Jodit loads on first use: pkLoadJodit() in _emEnsureEditor(). */ ?>
 </head>
 <body>
 
 <?php $nav_active = 'calendar'; $nav_user = $current; require __DIR__ . '/_nav.php'; ?>
 
-<div class="dash-wrap">
+<div role="main" class="dash-wrap">
 
     <?php if ($flash['msg']): ?>
         <div class="alert alert-<?= $flash['type'] === 'error' ? 'error' : 'success' ?>" style="margin-bottom:1rem">
@@ -1578,23 +1584,23 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
                          <?php /* $dateStr, not $ev['start_date']: a multi-day event appears in
                                   every cell it spans, and the event page uses ?date= to decide
                                   which day its "back to calendar" link returns to. */ ?>
-                         data-act="viewEvent" data-a1="<?= (int)$ev['id'] ?>" data-a2="<?= htmlspecialchars($dateStr, ENT_QUOTES | ENT_SUBSTITUTE) ?>"
+                         data-act-self="viewEvent" data-a1="<?= (int)$ev['id'] ?>" data-a2="<?= htmlspecialchars($dateStr, ENT_QUOTES | ENT_SUBSTITUTE) ?>"
                          title="<?= !empty($ev['cancelled_at']) ? 'Cancelled: ' : '' ?><?= htmlspecialchars($_lgName ? $_lgName . ' — ' . $ev['title'] : $ev['title']) ?>">
-                        <span class="ev-label">
+                        <a class="ev-label" href="/event.php?id=<?= (int)$ev['id'] ?>&amp;date=<?= urlencode($dateStr) ?>">
                             <?php if ($ev['start_time'] && $ev['start_date'] === $dateStr): ?>
                                 <?= htmlspecialchars($ev['start_time_display'] ?: date('g:ia', strtotime($ev['start_time']))) ?>
                             <?php endif; ?>
                             <?php if ($_lgTag !== ''): ?><span class="ev-league-tag" title="<?= htmlspecialchars($_lgName) ?>"><?= htmlspecialchars($_lgTag) ?></span><?php endif; ?>
                             <?= htmlspecialchars($ev['title']) ?>
-                        </span>
+                        </a>
                         <?php if (empty($ev['cancelled_at']) && ($isAdmin || ($canCreateEvents && (int)$ev['created_by'] === (int)$current['id']) || in_array((int)$ev['id'], $managedEventIds, true))): ?>
-                        <button class="ev-edit-btn" title="Edit event"
+                        <button aria-label="Edit event" class="ev-edit-btn" title="Edit event"
                                 data-act="stopAndGo" data-a1="@event" data-a2="/event_edit.php?id=<?= (int)$ev['id'] ?>&<?= htmlspecialchars($editorCtx) ?>">&#9998;</button>
                         <?php endif; ?>
                     </div>
                 <?php endforeach; ?>
                 <?php if ($canCreateEvents): ?>
-                    <button class="cal-add-btn" data-act="stopAndGo" data-a1="@event" data-a2="/event_edit.php?date=<?= $dateStr ?>&<?= htmlspecialchars($editorCtx) ?>" title="Add event">&#43;</button>
+                    <button aria-label="Add event" class="cal-add-btn" data-act="stopAndGo" data-a1="@event" data-a2="/event_edit.php?date=<?= $dateStr ?>&<?= htmlspecialchars($editorCtx) ?>" title="Add event">&#43;</button>
                 <?php endif; ?>
             </div>
         <?php endfor; ?>
@@ -1657,13 +1663,13 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
                 <div class="week-allday-chip<?= !empty($ev['cancelled_at']) ? ' pk-ev-cancelled' : '' ?>"
                      style="background:<?= htmlspecialchars($ev['color']) ?>"
                      title="<?= !empty($ev['cancelled_at']) ? 'Cancelled: ' : '' ?><?= htmlspecialchars($_lgName ? $_lgName . ' — ' . $ev['title'] : $ev['title']) ?>"
-                     data-act="viewEvent" data-a1="<?= (int)$ev['id'] ?>" data-a2="<?= htmlspecialchars($wkDs2, ENT_QUOTES | ENT_SUBSTITUTE) ?>">
-                    <span class="week-allday-text">
+                     data-act-self="viewEvent" data-a1="<?= (int)$ev['id'] ?>" data-a2="<?= htmlspecialchars($wkDs2, ENT_QUOTES | ENT_SUBSTITUTE) ?>">
+                    <a class="week-allday-text" href="/event.php?id=<?= (int)$ev['id'] ?>&amp;date=<?= urlencode($wkDs2) ?>">
                         <?php if ($_lgTag !== ''): ?><span class="ev-league-tag" title="<?= htmlspecialchars($_lgName) ?>"><?= htmlspecialchars($_lgTag) ?></span><?php endif; ?>
                         <?= htmlspecialchars($ev['title']) ?>
-                    </span>
+                    </a>
                     <?php if (empty($ev['cancelled_at']) && ($isAdmin || ($canCreateEvents && (int)$ev['created_by'] === (int)$current['id']) || in_array((int)$ev['id'], $managedEventIds, true))): ?>
-                    <button class="ev-edit-btn" title="Edit event"
+                    <button aria-label="Edit event" class="ev-edit-btn" title="Edit event"
                                 data-act="stopAndGo" data-a1="@event" data-a2="/event_edit.php?id=<?= (int)$ev['id'] ?>&<?= htmlspecialchars($editorCtx) ?>">&#9998;</button>
                     <?php endif; ?>
                 </div>
@@ -1707,9 +1713,9 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
                 <h2 id="vTitle" class="ev-view-title" style="margin:0"></h2>
             </div>
             <div style="display:flex;gap:.3rem;align-items:center">
-                <button class="modal-close" id="vCopyLinkBtn" title="Copy link to this event"
+                <button aria-label="Copy link to this event" class="modal-close" id="vCopyLinkBtn" title="Copy link to this event"
                         data-act="copyEventLink" style="font-size:.95rem">&#128279;</button>
-                <button class="modal-close" data-act="closeView">&#x2715;</button>
+                <button aria-label="Close" class="modal-close" data-act="closeView">&#x2715;</button>
             </div>
         </div>
         <!-- Single scroll region: header stays pinned, everything else (incl. the
@@ -1816,7 +1822,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
                 <input type="hidden" name="type" value="event">
                 <input type="hidden" name="content_id" id="vCommentEventId" value="">
                 <input type="hidden" name="redirect" id="vCommentRedirect" value="">
-                <textarea name="body" placeholder="Write a comment…" required maxlength="2000"></textarea>
+                <textarea name="body" aria-label="Comment" placeholder="Write a comment…" required maxlength="2000"></textarea>
                 <button type="submit" class="btn btn-primary btn-post">Post</button>
             </form>
             <?php else: ?>
@@ -1833,7 +1839,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
     <div class="modal" style="max-width:380px;text-align:center">
         <div class="modal-header" style="justify-content:space-between">
             <h2 style="font-size:1rem;font-weight:700">Walk-up Registration</h2>
-            <button class="modal-close" data-act="closeWalkinQR">&#x2715;</button>
+            <button aria-label="Close" class="modal-close" data-act="closeWalkinQR">&#x2715;</button>
         </div>
         <div id="walkinQRCode" style="display:flex;justify-content:center;margin:.5rem 0 1rem"></div>
         <div id="walkinQRUrl" style="font-size:.72rem;color:#64748b;word-break:break-all;margin-bottom:.75rem;padding:0 .5rem"></div>
@@ -1891,6 +1897,7 @@ function viewEvent(id, date) {
 function showSavedBar(msg) {
     const bar = document.getElementById('vSavedBar');
     bar.textContent = msg || 'Saved';
+    if (typeof pkAnnounce === 'function') pkAnnounce(bar.textContent);
     bar.classList.remove('rsvp-saved-anim');
     bar.style.visibility = 'visible';
     bar.style.opacity    = '1';
@@ -1930,9 +1937,9 @@ function renderCommentsPanel(eid) {
             : '';
         const actBtns = canAct ? `
             <div class="comment-actions">
-                <button type="button" class="comment-delete" title="Edit"
-                        data-act="editCalComment" data-a1="${c.id}" data-a2="@self" data-a3="${escHtml(JSON.stringify(c.body))}">&#9998;</button>
-                <button type="button" class="comment-delete" title="Delete"
+                <button aria-label="Edit" type="button" class="comment-delete" title="Edit"
+                        data-act="editCalComment" data-a1="${c.id}" data-a2="@self" data-a3="${escHtml(c.body)}">&#9998;</button>
+                <button aria-label="Delete" type="button" class="comment-delete" title="Delete"
                         data-act="deleteCalComment" data-a1="${c.id}">&#x2715;</button>
             </div>` : '';
         return `
@@ -2020,7 +2027,7 @@ function renderInvitesPanel(eid) {
     }
 
     if (approved.length) {
-        ih += '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin-bottom:.4rem">Invites (' + approved.length + ')</div>';
+        ih += '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin-bottom:.4rem">Invites (' + approved.length + ')</div>';
         ih += '<div style="display:flex;flex-direction:column;gap:.2rem;max-height:8.5rem;overflow-y:auto;padding-right:.25rem">';
         approved.forEach(inv => {
             ih += '<div style="font-size:.875rem;color:#334155;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">';
@@ -2117,7 +2124,7 @@ function renderInvitesPanel(eid) {
     if ((canManage && NOTIFS_ENABLED) || msgs.length) {
         ih += '<div style="margin-top:.8rem;border-top:1px solid #f1f5f9;padding-top:.6rem">';
         ih += '<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.45rem">'
-            + '<span style="flex:1;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8">Messages from the host</span>';
+            + '<span style="flex:1;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#64748b">Messages from the host</span>';
         if (canManage && NOTIFS_ENABLED) {
             ih += '<button type="button" class="btn-msg-guests" data-eid="' + eid + '" style="font-size:.75rem;padding:.25rem .7rem;border-radius:6px;border:0;background:#16a34a;color:#fff;font-weight:600;cursor:pointer">Message guests</button>';
         }
@@ -2127,21 +2134,21 @@ function renderInvitesPanel(eid) {
             msgs.forEach(m => {
                 const aud = m.audience === 'all' ? 'All guests' : (m.audience === 'yes_maybe' ? 'Yes &amp; Maybe' : 'Going (Yes)');
                 const delBtn = (m.can_manage && m.id)
-                    ? '<button type="button" class="btn-del-msg" data-eid="' + eid + '" data-mid="' + m.id + '" title="Delete this message" style="background:none;border:0;color:#cbd5e1;cursor:pointer;font-size:1.15rem;line-height:1;padding:0 .15rem">&times;</button>'
+                    ? '<button aria-label="Delete this message" type="button" class="btn-del-msg" data-eid="' + eid + '" data-mid="' + m.id + '" title="Delete this message" style="background:none;border:0;color:#cbd5e1;cursor:pointer;font-size:1.15rem;line-height:1;padding:0 .15rem">&times;</button>'
                     : '';
                 ih += '<div style="border:1px solid #e2e8f0;border-radius:8px;padding:.5rem .6rem;background:#fff">'
                     + '<div style="display:flex;align-items:flex-start;gap:.5rem">'
                     +   '<div style="flex:1;min-width:0;font-weight:600;font-size:.85rem;color:#1e293b">' + escHtml(m.subject) + '</div>'
                     +   delBtn
                     + '</div>'
-                    + '<div style="font-size:.7rem;color:#94a3b8;margin:.1rem 0 .4rem">' + escHtml(m.created_at) + (m.can_manage ? ' &middot; ' + aud : '') + '</div>'
+                    + '<div style="font-size:.7rem;color:#64748b;margin:.1rem 0 .4rem">' + escHtml(m.created_at) + (m.can_manage ? ' &middot; ' + aud : '') + '</div>'
                     + '<div style="font-size:.85rem;color:#334155;line-height:1.5">' + m.body_html + '</div>'
                     + (m.attachment ? '<div style="margin-top:.4rem;font-size:.8rem"><a href="' + escHtml(m.attachment.url) + '" target="_blank" rel="noopener">&#128206; ' + escHtml(m.attachment.name) + '</a></div>' : '')
                     + '</div>';
             });
             ih += '</div>';
         } else if (canManage) {
-            ih += '<div style="font-size:.78rem;color:#94a3b8">No messages sent yet. Use “Message guests” to send the address and final details.</div>';
+            ih += '<div style="font-size:.78rem;color:#64748b">No messages sent yet. Use “Message guests” to send the address and final details.</div>';
         }
         ih += '</div>';
     }
@@ -2251,9 +2258,9 @@ if (vCommentForm) {
             const canAct = CAL_CURRENT_ID && CAL_CURRENT_ID == c.user_id;
             const actBtns = canAct ? `
                 <div class="comment-actions">
-                    <button type="button" class="comment-delete" title="Edit"
-                            data-act="editCalComment" data-a1="${c.id}" data-a2="@self" data-a3="${escHtml(JSON.stringify(c.body))}">&#9998;</button>
-                    <button type="button" class="comment-delete" title="Delete"
+                    <button aria-label="Edit" type="button" class="comment-delete" title="Edit"
+                            data-act="editCalComment" data-a1="${c.id}" data-a2="@self" data-a3="${escHtml(c.body)}">&#9998;</button>
+                    <button aria-label="Delete" type="button" class="comment-delete" title="Delete"
                             data-act="deleteCalComment" data-a1="${c.id}">&#x2715;</button>
                 </div>` : '';
             const div = document.createElement('div');
@@ -2293,7 +2300,7 @@ function updateRsvpStatusBadge(rsvp) {
     if (rsvp && cls[rsvp]) {
         el.innerHTML = '<span class="' + cls[rsvp] + '">' + text[rsvp] + '</span>';
     } else {
-        el.innerHTML = '<span style="font-size:.78rem;color:#94a3b8">--</span>';
+        el.innerHTML = '<span style="font-size:.78rem;color:#64748b">--</span>';
     }
 }
 
@@ -2894,7 +2901,9 @@ function renderDayCol(col, date) {
         // argument into the URL, so passing `ev` produced
         // /event.php?id=[object Object]. `date` is the column's occurrence
         // date, which is what a recurring event needs.
-        chip.addEventListener('click', () => viewEvent(ev.id, date));
+        // The title is a real link; only a click on the chip's own padding or time
+        // goes through here, so Ctrl-click on the title opens one new tab.
+        chip.addEventListener('click', e => { if (!e.target.closest('a, button')) viewEvent(ev.id, date); });
 
         const timeStr = (ev.start_time_display || fmt12(ev.start_time)) + (ev.end_time ? '\u2013' + (ev.end_time_display || fmt12(ev.end_time)) : '');
         let _lgTag = '';
@@ -2905,13 +2914,14 @@ function renderDayCol(col, date) {
         }
         chip.innerHTML =
             (_lgTag ? '<span class="ev-league-tag" title="' + escHtml(ev.league_name) + '">' + escHtml(_lgTag) + '</span>' : '')
-            + '<span class="week-event-title">' + escHtml(ev.title) + '</span>'
+            + '<a class="week-event-title" href="/event.php?id=' + encodeURIComponent(ev.id) + (date ? '&amp;date=' + encodeURIComponent(date) : '') + '">' + escHtml(ev.title) + '</a>'
             + (heightPx >= 32 ? '<span class="week-event-time">' + escHtml(timeStr) + '</span>' : '');
 
         if (!ev.cancelled_at && (IS_ADMIN || (CAN_CREATE_EVENTS && CURRENT_USER_ID && ev.created_by == CURRENT_USER_ID) || MANAGED_EVENT_IDS.includes(ev.id))) {
             const editBtn = document.createElement('button');
             editBtn.className = 'ev-edit-btn';
             editBtn.title = 'Edit event';
+            editBtn.setAttribute('aria-label', 'Edit event');
             editBtn.textContent = '\u270e';
             editBtn.addEventListener('click', e => { e.stopPropagation(); location.href = '/event_edit.php?id=' + ev.id + '&' + EDITOR_CTX; });
             chip.appendChild(editBtn);
@@ -3074,7 +3084,7 @@ function copyWalkinLink() {
     <div class="modal" style="max-width:640px;display:flex;flex-direction:column;max-height:92vh">
         <div class="modal-header" style="display:flex;align-items:center;gap:.6rem;border-bottom:1px solid #e2e8f0;padding-bottom:.6rem;margin-bottom:.75rem">
             <h2 style="margin:0;flex:1;font-size:1.15rem">Message going guests</h2>
-            <a href="javascript:void(0)" data-act="closeEventMsgModal" aria-label="Close" style="font-size:1.5rem;line-height:1;color:#94a3b8;text-decoration:none">&times;</a>
+            <button type="button" class="modal-close" data-act="closeEventMsgModal" aria-label="Close" style="font-size:1.5rem;line-height:1;color:#64748b;background:none;border:0;padding:0 .2rem;cursor:pointer">&times;</button>
         </div>
         <p class="subtitle" style="margin-top:0">Send a message to your guests. They'll get it by their preferred channel; text recipients get a link to read it.</p>
         <input type="hidden" id="emEventId" value="">
@@ -3104,11 +3114,19 @@ function copyWalkinLink() {
         </div>
     </div>
 </div>
-<script src="/vendor/jodit/jodit.min.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/jodit/jodit.min.js') ?: 0)) ?>" defer></script>
 <script nonce="<?= csp_nonce() ?>">
 let _emEditor = null;
+const EM_JODIT_JS = <?= js_json('/vendor/jodit/jodit.min.js?v=' . APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/jodit/jodit.min.js') ?: 0), JSON_HEX_TAG) ?>;
+const EM_JODIT_CSS = <?= js_json('/vendor/jodit/jodit.min.css?v=' . APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/jodit/jodit.min.css') ?: 0), JSON_HEX_TAG) ?>;
+// Resolves once the editor exists, or without one (load failed): the send path
+// then reads the plain textarea, which is what it falls back to anyway.
 function _emEnsureEditor() {
-    if (_emEditor || typeof Jodit === 'undefined') return;
+    if (_emEditor) return Promise.resolve();
+    if (typeof pkLoadJodit !== 'function') return Promise.resolve();
+    return pkLoadJodit(EM_JODIT_JS, EM_JODIT_CSS).then(_emMakeEditor, function () {});
+}
+function _emMakeEditor() {
+    if (_emEditor) return;
     _emEditor = Jodit.make('#emBody', {
         // Jodit pulls js-beautify and ACE from cdnjs on load. script-src is 'self',
         // so both are refused and the features never worked here — this just stops
@@ -3128,9 +3146,10 @@ function openEventMsgModal(eid) {
     document.getElementById('emAudience').value = 'yes';
     document.getElementById('emSubject').value = '';
     const emf = document.getElementById('emFile'); if (emf) emf.value = '';
-    _emEnsureEditor();
+    document.getElementById('emBody').value = '';
     if (_emEditor) _emEditor.value = '';
     document.getElementById('eventMsgModal').classList.add('open');
+    _emEnsureEditor();
 }
 function closeEventMsgModal() {
     document.getElementById('eventMsgModal').classList.remove('open');

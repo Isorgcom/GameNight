@@ -123,7 +123,7 @@ $redir = '/' . ($monthFilter ? '?month=' . urlencode($monthFilter) : '') . '#pos
                     <?= pictures_html(attachment_list($c['attachment'] ?? null), COMMENT_UPLOAD_URL) ?>
                     <?php if ($user && ($user['id'] == $c['user_id'] || $isAdmin)): ?>
                     <div class="comment-actions">
-                        <button type="button" class="comment-delete"
+                        <button aria-label="Edit" type="button" class="comment-delete"
                                 data-pc="edit-comment" data-comment="<?= (int)$c['id'] ?>"
                                 title="Edit">&#9998;</button>
                         <form method="post" action="/comment.php" style="margin:0;display:contents"
@@ -132,7 +132,7 @@ $redir = '/' . ($monthFilter ? '?month=' . urlencode($monthFilter) : '') . '#pos
                             <input type="hidden" name="action" value="delete">
                             <input type="hidden" name="comment_id" value="<?= (int)$c['id'] ?>">
                             <input type="hidden" name="redirect" value="<?= htmlspecialchars($redir) ?>">
-                            <button type="submit" class="comment-delete" title="Delete">&#x2715;</button>
+                            <button aria-label="Delete" type="submit" class="comment-delete" title="Delete">&#x2715;</button>
                         </form>
                     </div>
                     <?php endif; ?>

@@ -20,7 +20,7 @@ $site_name = get_setting('site_name', 'Game Night');
 <body>
 <?php $nav_active = ''; require __DIR__ . '/_nav.php'; ?>
 
-<div class="card-wrap">
+<div role="main" class="card-wrap">
     <div class="card" style="max-width:720px">
         <h2>Terms &amp; Conditions</h2>
         <p class="subtitle">Last updated: <?= date('F j, Y') ?></p>

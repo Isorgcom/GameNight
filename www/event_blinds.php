@@ -84,7 +84,7 @@ $csrf = csrf_token();
 <body>
 <?php $nav_user = $current; require __DIR__ . '/_nav.php'; ?>
 
-<div class="es-wrap">
+<div role="main" class="es-wrap">
     <?php $es_active = 'blinds'; require __DIR__ . '/_event_setup_strip.php'; ?>
 
 <?php if (!$session): ?>

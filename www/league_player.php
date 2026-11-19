@@ -112,9 +112,9 @@ $site_name = get_setting('site_name', 'Game Night');
         .lp-tiles { display:grid; grid-template-columns:repeat(auto-fit, minmax(92px, 1fr)); gap:.6rem; margin:1rem 0 1.25rem; }
         .lp-tile { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:.6rem .4rem; text-align:center; }
         .lp-tile .v { font-size:1.15rem; font-weight:800; color:#1e293b; }
-        .lp-tile .l { font-size:.68rem; font-weight:600; color:#94a3b8; text-transform:uppercase; letter-spacing:.04em; margin-top:.1rem; }
+        .lp-tile .l { font-size:.68rem; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:.04em; margin-top:.1rem; }
         .lp-table { width:100%; border-collapse:collapse; font-size:.85rem; }
-        .lp-table th { text-align:left; font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:#94a3b8; padding:.4rem .5rem; border-bottom:2px solid #e2e8f0; }
+        .lp-table th { text-align:left; font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:#64748b; padding:.4rem .5rem; border-bottom:2px solid #e2e8f0; }
         .lp-table td { padding:.45rem .5rem; border-bottom:1px solid #f1f5f9; color:#334155; }
         .lp-pos { font-weight:700; }
         @media (max-width: 640px) { .lp-hide-m { display:none; } }
@@ -122,12 +122,12 @@ $site_name = get_setting('site_name', 'Game Night');
 </head>
 <body>
 <?php require __DIR__ . '/_nav.php'; ?>
-<div class="lp-wrap">
+<div role="main" class="lp-wrap">
     <a href="<?= htmlspecialchars($backUrl) ?>" style="font-size:.85rem;color:#2563eb;text-decoration:none">&larr; <?= htmlspecialchars($league['name']) ?> leaderboard</a>
     <div class="lp-card" style="margin-top:.6rem">
         <h1 style="font-size:1.35rem;font-weight:800;color:#1e293b;margin:0">
             <?= htmlspecialchars($player_name) ?><?= $player_known !== '' ? ' <span class="pk-known" style="font-size:.7em" title="Known as">(' . htmlspecialchars($player_known) . ')</span>' : '' ?>
-            <?php if ($is_guest): ?><span style="font-size:.7rem;color:#94a3b8;font-weight:600">guest</span><?php endif; ?>
+            <?php if ($is_guest): ?><span style="font-size:.7rem;color:#64748b;font-weight:600">guest</span><?php endif; ?>
         </h1>
         <div style="font-size:.82rem;color:#64748b;margin-top:.2rem">
             <?= htmlspecialchars($league['name']) ?> ·
@@ -164,7 +164,7 @@ $site_name = get_setting('site_name', 'Game Night');
                     <td><a href="/event.php?id=<?= (int)$g['event_id'] ?>" style="color:#2563eb;text-decoration:none"><?= htmlspecialchars($g['title']) ?></a></td>
                     <td class="lp-hide-m"><?= $isT ? 'Tourney' : 'Cash' ?></td>
                     <td class="lp-pos" style="<?= $isT && (int)$g['finish_position'] === 1 ? 'color:#d4a017' : '' ?>">
-                        <?= $isT ? lp_ordinal($g['finish_position']) . ' <span style="color:#94a3b8;font-weight:400">/ ' . (int)$g['field_size'] . '</span>' : '—' ?>
+                        <?= $isT ? lp_ordinal($g['finish_position']) . ' <span style="color:#64748b;font-weight:400">/ ' . (int)$g['field_size'] . '</span>' : '—' ?>
                     </td>
                     <td class="lp-hide-m">$<?= number_format((int)$g['invested'] / 100, ((int)$g['invested'] % 100) ? 2 : 0) ?></td>
                     <td class="lp-hide-m">$<?= number_format((int)$g['winnings'] / 100, ((int)$g['winnings'] % 100) ? 2 : 0) ?></td>
@@ -175,7 +175,7 @@ $site_name = get_setting('site_name', 'Game Night');
             <?php endforeach; ?>
             </tbody>
         </table>
-        <p style="font-size:.72rem;color:#94a3b8;margin-top:.6rem">Finished games only. Tournament winnings use recorded payouts; older games may predate payout tracking.</p>
+        <p style="font-size:.72rem;color:#64748b;margin-top:.6rem">Finished games only. Tournament winnings use recorded payouts; older games may predate payout tracking.</p>
         <?php endif; ?>
     </div>
 </div>

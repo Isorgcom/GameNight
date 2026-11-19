@@ -169,7 +169,7 @@ $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
         .sa-help { color:#64748b; font-size:.875rem; line-height:1.55; margin:0 0 1rem; }
         .sa-table { width:100%; border-collapse:collapse; font-size:.875rem; }
         .sa-table th, .sa-table td { padding:.55rem .6rem; border-bottom:1px solid #f1f5f9; text-align:left; vertical-align:middle; }
-        .sa-table th { font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:#94a3b8; font-weight:700; }
+        .sa-table th { font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:#64748b; font-weight:700; }
         .sa-btn { border:none; border-radius:6px; padding:.3rem .8rem; font-size:.78rem; font-weight:600; cursor:pointer; color:#fff; background:#475569; }
         .sa-btn.danger { background:#dc2626; }
         .sa-btn.primary { background:var(--accent); }
@@ -186,11 +186,11 @@ $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
         .sa-form input { width:100%; box-sizing:border-box; padding:.45rem .6rem; border:1.5px solid #e2e8f0; border-radius:6px; font-size:.875rem; }
         .sa-warn { background:#fffbeb; border:1.5px solid #f59e0b; color:#92400e; border-radius:8px; padding:.75rem 1rem; font-size:.85rem; line-height:1.5; margin-top:1rem; }
         .sa-steps { background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:8px; padding:.9rem 1rem; }
-        .sa-steps-head { font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:#94a3b8; font-weight:700; margin-bottom:.5rem; }
+        .sa-steps-head { font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:#64748b; font-weight:700; margin-bottom:.5rem; }
         .sa-steps ol { margin:0; padding-left:1.15rem; font-size:.875rem; color:#334155; line-height:1.6; }
         .sa-steps li + li { margin-top:.5rem; }
         .sa-kv { display:grid; grid-template-columns:auto 1fr; gap:.3rem .7rem; align-items:center; margin-top:.45rem; }
-        .sa-kv span { font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:#94a3b8; font-weight:700; }
+        .sa-kv span { font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:#64748b; font-weight:700; }
         .sa-kv code { background:#fff; border:1px solid #e2e8f0; border-radius:5px; padding:.2rem .45rem; font-size:.8rem; }
         .sa-details { margin-top:1rem; border-top:1px solid #f1f5f9; padding-top:.75rem; }
         .sa-details > summary { cursor:pointer; font-size:.8rem; color:#64748b; font-weight:600; }
@@ -199,7 +199,7 @@ $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
         .sa-keyform { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; margin:0; }
         .sa-keyform input[type=password] { width:260px; max-width:100%; box-sizing:border-box; padding:.35rem .55rem; border:1.5px solid #e2e8f0; border-radius:6px; font-size:.8rem; }
         .sa-keyform label { font-size:.75rem; color:#64748b; display:flex; align-items:center; gap:.25rem; }
-        .sa-keyform .sa-keylbl { font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:#94a3b8; font-weight:700; }
+        .sa-keyform .sa-keylbl { font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:#64748b; font-weight:700; }
         .sa-btn[disabled] { opacity:.45; cursor:default; }
         @media (max-width: 720px) { .sa-form { grid-template-columns:1fr; } }
     </style>
@@ -207,7 +207,7 @@ $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
 <body>
 <?php $nav_active = 'site-settings'; $nav_user = $current; require __DIR__ . '/_nav.php'; ?>
 
-<div class="dash-wrap">
+<div role="main" class="dash-wrap">
     <?php $admin_tab = 'sso'; require __DIR__ . '/_admin_tabs.php'; ?>
     <h1 style="font-size:1.5rem;font-weight:700;margin:0 0 1rem">Connected Apps</h1>
     <p class="sa-help">
@@ -224,7 +224,7 @@ $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
     <div class="sa-card">
         <h2>Registered apps</h2>
         <?php if (empty($apps)): ?>
-            <p style="color:#94a3b8;font-size:.9rem;margin:0 0 1rem">No apps connected yet.</p>
+            <p style="color:#64748b;font-size:.9rem;margin:0 0 1rem">No apps connected yet.</p>
         <?php else: ?>
         <table class="sa-table">
             <thead>
@@ -283,7 +283,7 @@ $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
                             <input type="hidden" name="action" value="test">
                             <input type="hidden" name="id" value="<?= (int)$a['id'] ?>">
                             <button type="submit" class="sa-btn" <?= (int)$a['has_key'] ? '' : 'disabled' ?>>Test</button>
-                            <span style="font-size:.75rem;color:#94a3b8;margin-left:.4rem">Proves the address and the key with two requests; nothing is made.</span>
+                            <span style="font-size:.75rem;color:#64748b;margin-left:.4rem">Proves the address and the key with two requests; nothing is made.</span>
                         </form>
                     </td>
                 </tr>

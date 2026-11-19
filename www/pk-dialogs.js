@@ -162,7 +162,7 @@
                 '<h3 class="pk-dialog-title" id="pkDialogTitle"></h3>' +
                 '<p class="pk-dialog-msg" id="pkDialogMsg" style="font-size:.9rem;color:#475569;line-height:1.45;margin:0"></p>' +
                 '<div class="pk-dialog-input" style="display:none;margin-top:.6rem">' +
-                    '<input class="pk-dialog-field" style="width:100%;padding:.5rem;border:1.5px solid var(--border,#e2e8f0);border-radius:6px;font-size:1rem;box-sizing:border-box">' +
+                    '<input class="pk-dialog-field" aria-labelledby="pkDialogTitle pkDialogMsg" style="width:100%;padding:.5rem;border:1.5px solid #94a3b8;border-radius:6px;font-size:1rem;box-sizing:border-box">' +
                 '</div>' +
                 '<div class="pk-money" style="display:none">' +
                     '<div class="pk-money-amt" role="status" aria-live="polite" aria-label="Amount">' +
@@ -206,7 +206,9 @@
         cancelBtn.addEventListener('click', function () { dismiss(); });
         okBtn.addEventListener('click', function () { submit(); });
         overlay.addEventListener('click', function (e) { if (e.target === overlay) dismiss(); });
-        inputEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
+        // isComposing: Enter that picks an IME candidate (Chinese, Japanese, Korean)
+        // must not submit the half-typed text.
+        inputEl.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); submit(); } });
         // One delegated listener serves every key and chip (no inline handlers:
         // the CSP is closed).
         moneyWrap.addEventListener('click', function (e) {
@@ -517,5 +519,50 @@
             } catch (e) { /* fall through to the textarea path */ }
         }
         return Promise.resolve(copyViaTextarea(text));
+    };
+
+    // ── Screen-reader announcements ─────────────────────────────────────
+    // One persistent, visually hidden polite region for every toast and
+    // "Saved" flash. A region created with its text already inside is often
+    // not read out, so the region exists first and only its text changes.
+    var live = null;
+    window.pkAnnounce = function (msg) {
+        if (!document.body) return;
+        if (!live) {
+            live = document.createElement('div');
+            live.id = 'pkLive';
+            live.className = 'pk-sr-only';
+            live.setAttribute('role', 'status');
+            live.setAttribute('aria-live', 'polite');
+            document.body.appendChild(live);
+        }
+        live.textContent = '';
+        setTimeout(function () { live.textContent = String(msg == null ? '' : msg); }, 60);
+    };
+    if (document.body) window.pkAnnounce('');
+    else document.addEventListener('DOMContentLoaded', function () { window.pkAnnounce(''); });
+
+    // ── Load the Jodit editor on first use ──────────────────────────────
+    // ~270 KB compressed, and the pages that offer it (the event message
+    // composer) mostly never open it, so it is fetched when the composer opens.
+    // Jodit needs BOTH files: without the stylesheet the typing area collapses
+    // to one line and the toolbar icons render at full size. Resolves with
+    // window.Jodit, or rejects so the caller falls back to the plain textarea.
+    var joditP = null;
+    window.pkLoadJodit = function (jsUrl, cssUrl) {
+        if (window.Jodit) return Promise.resolve(window.Jodit);
+        if (joditP) return joditP;
+        joditP = new Promise(function (resolve, reject) {
+            var css = document.createElement('link');
+            css.rel = 'stylesheet'; css.href = cssUrl;
+            var cssDone = new Promise(function (r) { css.onload = r; css.onerror = r; });
+            document.head.appendChild(css);
+            var js = document.createElement('script');
+            js.src = jsUrl;
+            js.onload = function () { cssDone.then(function () { window.Jodit ? resolve(window.Jodit) : reject(new Error('Jodit missing')); }); };
+            js.onerror = function () { joditP = null; reject(new Error('Jodit failed to load')); };
+            document.head.appendChild(js);
+        });
+        return joditP;
     };
 })();

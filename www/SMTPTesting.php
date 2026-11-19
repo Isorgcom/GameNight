@@ -19,7 +19,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_verify()) {
         set_setting('smtp_host',     trim($_POST['smtp_host']     ?? ''));
         set_setting('smtp_port',     trim($_POST['smtp_port']     ?? '587'));
         set_setting('smtp_username', trim($_POST['smtp_username'] ?? ''));
-        set_setting('smtp_password', trim($_POST['smtp_password'] ?? ''));
+        // Blank keeps the stored secret: the form never shows it (below).
+        if (trim($_POST['smtp_password'] ?? '') !== '') {
+            set_setting('smtp_password', trim($_POST['smtp_password']));
+        }
         set_setting('smtp_from',     trim($_POST['smtp_from']     ?? ''));
         set_setting('smtp_from_name',trim($_POST['smtp_from_name']?? ''));
         db_log_activity($current['id'], 'updated SMTP credentials');
@@ -69,12 +72,12 @@ $configured     = $smtp_host && $smtp_username && $smtp_password && $smtp_from;
         .smtp-grid { display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; }
         @media (max-width:640px) { .smtp-grid { grid-template-columns:1fr; } }
         .result-box { background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:8px; padding:1rem; margin-top:1rem; font-size:.875rem; }
-        .cred-note { font-size:.78rem; color:#94a3b8; margin-top:.25rem; }
+        .cred-note { font-size:.78rem; color:#64748b; margin-top:.25rem; }
     </style>
 </head>
 <body>
 <?php $nav_active = ''; require __DIR__ . '/_nav.php'; ?>
-<div class="dash-wrap">
+<div role="main" class="dash-wrap">
 
     <div class="dash-header">
         <h1>SMTP Testing</h1>
@@ -112,7 +115,10 @@ $configured     = $smtp_host && $smtp_username && $smtp_password && $smtp_from;
                 </div>
                 <div class="form-group">
                     <label>Password / API Key</label>
-                    <input type="password" name="smtp_password" value="<?= htmlspecialchars($smtp_password) ?>" autocomplete="new-password">
+                    <?php /* The stored secret is never written into the page, where any
+                             script on it could read it. Blank keeps it. */ ?>
+                    <input type="password" name="smtp_password" value="" autocomplete="new-password"
+                           placeholder="<?= $smtp_password !== '' ? 'Saved (leave blank to keep)' : '' ?>">
                     <p class="cred-note">SendGrid: your API key starting with <code>SG.</code></p>
                 </div>
                 <div class="form-group">

@@ -400,7 +400,7 @@ function ordinal($n) {
         .lg-head { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 1.2rem; margin-bottom: 1rem; }
         .lg-head h1 { font-size: 1.5rem; font-weight: 700; margin: 0 0 .25rem; }
         .lg-head p { color: #64748b; margin: 0 0 .5rem; font-size: .9rem; }
-        .lg-head .lg-meta { font-size: .8rem; color: #94a3b8; }
+        .lg-head .lg-meta { font-size: .8rem; color: #64748b; }
         .lg-pill { display: inline-block; font-size: .7rem; font-weight: 700; padding: .15rem .5rem; border-radius: 999px; background: #e2e8f0; color: #475569; }
         .lg-pill.hidden { background: #fef3c7; color: #92400e; }
         .lg-tabs { display: flex; gap: .25rem; border-bottom: 1.5px solid #e2e8f0; margin-bottom: 1rem; overflow-x: auto; }
@@ -418,7 +418,7 @@ function ordinal($n) {
         .lg-role-manager { background: #dbeafe; color: #1e40af; }
         .lg-role-member  { background: #e2e8f0; color: #475569; }
         .lg-actions { display: flex; gap: .4rem; flex-wrap: wrap; }
-        .lg-empty { text-align: center; padding: 2rem; color: #94a3b8; }
+        .lg-empty { text-align: center; padding: 2rem; color: #64748b; }
         .lg-form label { display: block; margin-bottom: 1rem; font-weight: 600; color: #334155; font-size: .9rem; }
         .lg-form input[type=text], .lg-form textarea, .lg-form select { width: 100%; padding: .5rem; border: 1.5px solid #cbd5e1; border-radius: 6px; font: inherit; margin-top: .3rem; }
         .lg-form textarea { min-height: 80px; resize: vertical; }
@@ -481,7 +481,7 @@ function ordinal($n) {
 
 <?php $nav_active = 'leagues'; $nav_user = $current; require __DIR__ . '/_nav.php'; ?>
 
-<div class="lg-wrap">
+<div role="main" class="lg-wrap">
     <?php if (!empty($_SESSION['flash'])):
         $_flash = $_SESSION['flash']; unset($_SESSION['flash']);
         if (($_flash['type'] ?? '') === 'created' && !empty($_flash['plaintext'])): ?>
@@ -597,7 +597,7 @@ function ordinal($n) {
                     data-act="toggleLgWrap" data-a1="lgContactsWrap" data-a2="block">
                 &#128101; Import from Contacts
             </button>
-            <span style="color:#94a3b8;font-size:.78rem;margin-left:auto">CSV columns: <code>name, email, phone</code></span>
+            <span style="color:#64748b;font-size:.78rem;margin-left:auto">CSV columns: <code>name, email, phone</code></span>
         </div>
         <div id="lgImportWrap" class="lg-card" style="display:none;gap:.75rem;flex-wrap:wrap;align-items:center;background:#fffbeb;border-color:#fde68a">
             <form method="post" action="/league.php?id=<?= $league_id ?>" enctype="multipart/form-data"
@@ -765,11 +765,11 @@ function ordinal($n) {
                         <?php else: ?>
                             <div class="mg-act-wrap">
                                 <?php if ($isPending): ?>
-                                    <button class="mg-iconbtn" title="Resend invite" data-act="resendInvite" data-a1="<?= $memId ?>">&#9993;</button>
+                                    <button aria-label="Resend invite" class="mg-iconbtn" title="Resend invite" data-act="resendInvite" data-a1="<?= $memId ?>">&#9993;</button>
                                 <?php elseif ($isOwner): ?>
-                                    <button class="mg-iconbtn" title="Transfer ownership" data-act="act" data-a1="transfer_ownership" data-a2="<?= (int)$targetUid ?>" data-a3="Transfer ownership to this member? You will be demoted to member.">&#9812;</button>
+                                    <button aria-label="Transfer ownership" class="mg-iconbtn" title="Transfer ownership" data-act="act" data-a1="transfer_ownership" data-a2="<?= (int)$targetUid ?>" data-a3="Transfer ownership to this member? You will be demoted to member.">&#9812;</button>
                                 <?php endif; ?>
-                                <button class="mg-iconbtn mg-iconbtn-danger" title="Remove" data-act="removeMember" data-a1="<?= (int)$memId ?>" data-a2="<?= htmlspecialchars($isPending ? 'Remove this pending contact?' : 'Remove this member from the league?', ENT_QUOTES | ENT_SUBSTITUTE) ?>">&times;</button>
+                                <button aria-label="Remove" class="mg-iconbtn mg-iconbtn-danger" title="Remove" data-act="removeMember" data-a1="<?= (int)$memId ?>" data-a2="<?= htmlspecialchars($isPending ? 'Remove this pending contact?' : 'Remove this member from the league?', ENT_QUOTES | ENT_SUBSTITUTE) ?>">&times;</button>
                             </div>
                         <?php endif; ?>
                     </td>
@@ -779,7 +779,7 @@ function ordinal($n) {
             <?php if (empty($members)):
                 $colCount = 4 + ($canManageMembers ? 3 : 0); // status+name+role+date + (email+phone+actions)
             ?>
-                <tr><td colspan="<?= $colCount ?>" style="padding:1.5rem;text-align:center;color:#94a3b8">No members yet.</td></tr>
+                <tr><td colspan="<?= $colCount ?>" style="padding:1.5rem;text-align:center;color:#64748b">No members yet.</td></tr>
             <?php endif; ?>
             </tbody>
         </table>
@@ -849,7 +849,7 @@ function ordinal($n) {
                 <div>
                     <strong><?= htmlspecialchars($r['username']) ?></strong>
                     <?php if ($r['message']): ?><div style="font-size:.85rem;color:#475569;margin-top:.2rem"><em>"<?= htmlspecialchars($r['message']) ?>"</em></div><?php endif; ?>
-                    <div style="font-size:.75rem;color:#94a3b8;margin-top:.2rem">Requested <?= htmlspecialchars($r['requested_at']) ?></div>
+                    <div style="font-size:.75rem;color:#64748b;margin-top:.2rem">Requested <?= htmlspecialchars($r['requested_at']) ?></div>
                 </div>
                 <div class="lg-actions">
                     <button class="lg-btn"            data-act="decide" data-a1="<?= (int)$r['id'] ?>" data-a2="approve_request">Approve</button>
@@ -869,7 +869,7 @@ function ordinal($n) {
             .my-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:.5rem; margin-bottom:1.5rem; background:#fff; border:1.5px solid #e2e8f0; border-radius:10px; padding:1rem; }
             .stat-item { text-align:center; padding:.5rem .25rem; }
             .stat-value { font-size:1.4rem; font-weight:800; color:#1e293b; line-height:1.2; }
-            .stat-label { font-size:.7rem; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:#94a3b8; margin-top:.15rem; }
+            .stat-label { font-size:.7rem; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:#64748b; margin-top:.15rem; }
             .stat-gold { color:#f59e0b; }
             .stat-negative { color:#dc2626; }
             .lb-table { width:100%; border-collapse:collapse; background:#fff; border:1.5px solid #e2e8f0; border-radius:10px; overflow:hidden; }
@@ -877,10 +877,10 @@ function ordinal($n) {
             .lb-table td { padding:.5rem .6rem; font-size:.85rem; border-bottom:1px solid #f1f5f9; }
             .lb-table tr:last-child td { border-bottom:none; }
             .lb-table tr.is-me { background:#eff6ff; }
-            .lb-rank { font-weight:700; color:#94a3b8; width:2rem; text-align:center; }
-            .lb-rank-1 { color:#f59e0b; } .lb-rank-2 { color:#94a3b8; } .lb-rank-3 { color:#b45309; }
+            .lb-rank { font-weight:700; color:#64748b; width:2rem; text-align:center; }
+            .lb-rank-1 { color:#f59e0b; } .lb-rank-2 { color:#64748b; } .lb-rank-3 { color:#b45309; }
             .lb-name { font-weight:600; }
-            .no-stats { text-align:center; padding:2.5rem 1rem; color:#94a3b8; }
+            .no-stats { text-align:center; padding:2.5rem 1rem; color:#64748b; }
             .no-stats .icon { font-size:3rem; margin-bottom:.75rem; }
             @media(max-width:640px) {
                 .my-stats { grid-template-columns:repeat(3,1fr); gap:.35rem; padding:.6rem; }
@@ -952,7 +952,7 @@ function ordinal($n) {
                     <?php foreach ($_st_seasons as $s): ?>
                     <div style="display:flex;align-items:center;gap:.6rem;font-size:.83rem;color:#334155">
                         <strong style="min-width:0"><?= htmlspecialchars($s['name']) ?></strong>
-                        <span style="color:#94a3b8"><?= htmlspecialchars($s['start_date']) ?> &rarr; <?= htmlspecialchars($s['end_date']) ?></span>
+                        <span style="color:#64748b"><?= htmlspecialchars($s['start_date']) ?> &rarr; <?= htmlspecialchars($s['end_date']) ?></span>
                         <form method="post" action="/league.php?id=<?= $league_id ?>" style="margin:0 0 0 auto"
                               data-confirm="Delete this season? Standings history is unaffected — only the saved date window is removed." data-confirm-ok="Delete" data-confirm-danger="1">
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
@@ -970,7 +970,7 @@ function ordinal($n) {
                     <input type="text" name="season_name" placeholder="Season name (e.g. 2026 Fall)" required maxlength="60"
                            style="font-size:.83rem;padding:.35rem .5rem;border:1.5px solid #e2e8f0;border-radius:6px;flex:1;min-width:160px">
                     <input type="date" name="season_start" required style="font-size:.83rem;padding:.35rem .5rem;border:1.5px solid #e2e8f0;border-radius:6px">
-                    <span style="color:#94a3b8">&rarr;</span>
+                    <span style="color:#64748b">&rarr;</span>
                     <input type="date" name="season_end" required style="font-size:.83rem;padding:.35rem .5rem;border:1.5px solid #e2e8f0;border-radius:6px">
                     <button type="submit" style="font-size:.8rem;font-weight:600;padding:.4rem .75rem;border:none;border-radius:6px;background:#2563eb;color:#fff;cursor:pointer">Add season</button>
                 </form>
@@ -1010,7 +1010,7 @@ function ordinal($n) {
         ?>
         <div style="background:<?= $_season_over ? '#fffbeb' : '#eff6ff' ?>;border:1px solid <?= $_season_over ? '#fde68a' : '#bfdbfe' ?>;border-radius:8px;padding:.6rem .8rem;margin-bottom:1rem;font-size:.88rem;color:#334155">
             <strong><?= htmlspecialchars($_st_season['name']) ?></strong>
-            <span style="color:#94a3b8">(<?= htmlspecialchars($_st_season['start_date']) ?> &rarr; <?= htmlspecialchars($_st_season['end_date']) ?>)</span>
+            <span style="color:#64748b">(<?= htmlspecialchars($_st_season['start_date']) ?> &rarr; <?= htmlspecialchars($_st_season['end_date']) ?>)</span>
             <?php if ($_season_over && $_champ): ?>
                 &mdash; &#127942; Champion: <strong><?= htmlspecialchars($_champ['display_name']) ?><?= !empty($_champ['known_as']) ? ' <span class="pk-known">(' . htmlspecialchars($_champ['known_as']) . ')</span>' : '' ?></strong>
                 <span style="color:#64748b">(<?= $_has_points ? (int)$_champ['points'] . ' pts, ' : 'score ' . $_champ['avg_score'] . ', ' ?><?= (int)$_champ['wins'] ?> win<?= (int)$_champ['wins'] === 1 ? '' : 's' ?>, <?= lg_money((int)$_champ['net']) ?>)</span>
@@ -1106,8 +1106,8 @@ function ordinal($n) {
             ?>
                 <tr class="<?= $isMe ? 'is-me' : '' ?>"<?= $qualified ? '' : ' style="opacity:.55"' ?>>
                     <td class="lb-rank<?= $rankCls ?>"><?= $qualified ? $shownRank : '<span title="Needs ' . $LB_MIN_GAMES . ' games to rank">–</span>' ?></td>
-                    <td class="lb-name"><a href="<?= htmlspecialchars($histUrl) ?>" style="color:inherit;text-decoration:none;border-bottom:1px dotted #cbd5e1"><?= htmlspecialchars($row['display_name']) ?></a><?= !empty($row['known_as']) && strcasecmp((string)$row['known_as'], (string)$row['display_name']) !== 0 ? ' <span class="pk-known" title="Known as">(' . htmlspecialchars($row['known_as']) . ')</span>' : '' ?><?= $isGuest ? ' <span style="font-size:.68rem;color:#94a3b8;font-weight:600" title="Guest / walk-in (no account)">guest</span>' : '' ?></td>
-                    <td><?= $games ?><?= $tGames > 0 && $games > $tGames ? '<span class="lb-hide-mobile" style="color:#94a3b8;font-size:.75rem"> (' . $tGames . 'T)</span>' : '' ?></td>
+                    <td class="lb-name"><a href="<?= htmlspecialchars($histUrl) ?>" style="color:inherit;text-decoration:none;border-bottom:1px dotted #cbd5e1"><?= htmlspecialchars($row['display_name']) ?></a><?= !empty($row['known_as']) && strcasecmp((string)$row['known_as'], (string)$row['display_name']) !== 0 ? ' <span class="pk-known" title="Known as">(' . htmlspecialchars($row['known_as']) . ')</span>' : '' ?><?= $isGuest ? ' <span style="font-size:.68rem;color:#64748b;font-weight:600" title="Guest / walk-in (no account)">guest</span>' : '' ?></td>
+                    <td><?= $games ?><?= $tGames > 0 && $games > $tGames ? '<span class="lb-hide-mobile" style="color:#64748b;font-size:.75rem"> (' . $tGames . 'T)</span>' : '' ?></td>
                     <td class="stat-gold"><?= $tGames > 0 ? $wins : '—' ?></td>
                     <td><?= $winPct !== null ? $winPct . '%' : '—' ?></td>
                     <td class="lb-hide-mobile"><?= $itmPct !== null ? $itmPct . '%' : '—' ?></td>
@@ -1121,7 +1121,7 @@ function ordinal($n) {
             <?php endforeach; ?>
             </tbody>
         </table>
-        <p style="font-size:.75rem;color:#94a3b8;margin-top:.5rem">
+        <p style="font-size:.75rem;color:#64748b;margin-top:.5rem">
             Net counts tournament buy-ins/rebuys/add-ons vs recorded payouts, and cash-game buy-ins vs cash-outs, across finished games.
             Players need <?= $LB_MIN_GAMES ?> games to be ranked. Click a player for their game history.
         </p>
@@ -1287,7 +1287,7 @@ function ordinal($n) {
         <?php endif; ?>
 
         <?php if (empty($leaguePosts)): ?>
-            <div class="lg-card" style="display:block;text-align:center;color:#94a3b8;padding:2.5rem 1rem">
+            <div class="lg-card" style="display:block;text-align:center;color:#64748b;padding:2.5rem 1rem">
                 <div style="font-size:2rem">&#128196;</div>
                 <p style="margin-top:.5rem">No posts yet.</p>
             </div>
@@ -1298,7 +1298,7 @@ function ordinal($n) {
             $lp_comments = $lp_comments_stmt->fetchAll();
         ?>
         <div class="lg-card" style="display:block" id="post-<?= (int)$lp['id'] ?>">
-            <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem;font-size:.78rem;color:#94a3b8;flex-wrap:wrap">
+            <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem;font-size:.78rem;color:#64748b;flex-wrap:wrap">
                 <?php if ($lp['pinned']): ?><span class="pin-badge">&#128204; Pinned</span><?php endif; ?>
                 <?php if (!empty($lp['share_token'])): ?>
                     <span title="This post has a public share link" style="font-size:.7rem;font-weight:600;color:#166534;background:#dcfce7;border:1px solid #86efac;border-radius:999px;padding:.1rem .5rem">&#128279; Public link</span>
@@ -1380,9 +1380,9 @@ function ordinal($n) {
             <div class="post-body" style="line-height:1.75;color:#334155"><?= sanitize_html($lp['content']) ?></div>
 
             <div class="comments-section" id="csec-<?= (int)$lp['id'] ?>" style="margin-top:1rem;padding-top:.75rem;border-top:1px solid #e2e8f0">
-                <div class="comments-heading" data-act="toggleComments" data-a1="<?= (int)$lp['id'] ?>" style="cursor:pointer;user-select:none">
+                <div class="comments-heading" data-act="toggleComments" data-a1="<?= (int)$lp['id'] ?>" role="button" tabindex="0" aria-expanded="false" aria-controls="cmts-body-<?= (int)$lp['id'] ?>" style="cursor:pointer;user-select:none">
                     <span class="cmts-toggle-label" style="display:flex;align-items:center;gap:.4rem;color:#475569;font-size:.85rem;font-weight:600">
-                        <span class="cmts-chevron" style="font-size:.65rem;color:#94a3b8">&#9658;</span>
+                        <span class="cmts-chevron" style="font-size:.65rem;color:#64748b">&#9658;</span>
                         <?= count($lp_comments) ?> Comment<?= count($lp_comments) !== 1 ? 's' : '' ?>
                     </span>
                 </div>
@@ -1391,7 +1391,7 @@ function ordinal($n) {
                     <div class="comment" style="display:flex;gap:.6rem;margin-bottom:.6rem">
                         <?= avatar_html($c['username'], $c['avatar_path'] ?? null, 30) ?>
                         <div class="comment-content" style="flex:1;min-width:0">
-                            <div style="font-size:.75rem;color:#94a3b8;margin-bottom:.15rem">
+                            <div style="font-size:.75rem;color:#64748b;margin-bottom:.15rem">
                                 <strong style="color:#334155"><?= htmlspecialchars($c['username']) ?></strong><?= $knownTag($c['user_id'] ?? 0) ?>
                                 <?= htmlspecialchars((new DateTime($c['created_at'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone(display_timezone()))->format('M j, Y g:i A')) ?>
                             </div>
@@ -1426,6 +1426,8 @@ function ordinal($n) {
             var body = document.getElementById('cmts-body-' + pid);
             if (!body) return;
             body.style.display = body.style.display === 'none' ? '' : 'none';
+            var head = document.querySelector('[data-act="toggleComments"][data-a1="' + pid + '"]');
+            if (head) head.setAttribute('aria-expanded', body.style.display === 'none' ? 'false' : 'true');
         }
         </script>
 
@@ -1478,15 +1480,15 @@ function ordinal($n) {
             </form>
 
             <?php if (empty($api_keys)): ?>
-                <p style="color:#94a3b8;font-size:.9rem;margin:0">No keys yet.</p>
+                <p style="color:#64748b;font-size:.9rem;margin:0">No keys yet.</p>
             <?php else: ?>
             <table style="width:100%;border-collapse:collapse;font-size:.875rem">
                 <thead>
                     <tr style="text-align:left">
-                        <th style="font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;padding:.55rem .6rem;border-bottom:1px solid #f1f5f9">Label</th>
-                        <th style="font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;padding:.55rem .6rem;border-bottom:1px solid #f1f5f9">Scope</th>
-                        <th style="font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;padding:.55rem .6rem;border-bottom:1px solid #f1f5f9">Created</th>
-                        <th style="font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;padding:.55rem .6rem;border-bottom:1px solid #f1f5f9">Last used</th>
+                        <th style="font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:#64748b;padding:.55rem .6rem;border-bottom:1px solid #f1f5f9">Label</th>
+                        <th style="font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:#64748b;padding:.55rem .6rem;border-bottom:1px solid #f1f5f9">Scope</th>
+                        <th style="font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:#64748b;padding:.55rem .6rem;border-bottom:1px solid #f1f5f9">Created</th>
+                        <th style="font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:#64748b;padding:.55rem .6rem;border-bottom:1px solid #f1f5f9">Last used</th>
                         <th style="border-bottom:1px solid #f1f5f9"></th>
                     </tr>
                 </thead>
@@ -1532,7 +1534,7 @@ function ordinal($n) {
             <h4 style="font-size:.85rem;font-weight:700;color:#0f172a;margin:1.25rem 0 .5rem">Authentication</h4>
             <pre style="background:#0f172a;color:#e2e8f0;border-radius:6px;padding:.75rem 1rem;font-size:.78rem;line-height:1.55;overflow-x:auto;margin:0 0 .5rem"><code>curl -H 'Authorization: Bearer YOUR_KEY' \
      <?= htmlspecialchars($api_base) ?>/league</code></pre>
-            <p style="font-size:.78rem;color:#94a3b8;margin:0 0 1rem">
+            <p style="font-size:.78rem;color:#64748b;margin:0 0 1rem">
                 Header is preferred. If your client can't set headers,
                 <code style="background:#f1f5f9;padding:.1rem .35rem;border-radius:4px">?key=YOUR_KEY</code>
                 works as a fallback (still over HTTPS).
@@ -1541,7 +1543,7 @@ function ordinal($n) {
             <h4 style="font-size:.85rem;font-weight:700;color:#0f172a;margin:1.25rem 0 .5rem">Endpoints</h4>
             <table style="width:100%;border-collapse:collapse;font-size:.82rem">
                 <thead>
-                    <tr style="text-align:left;color:#94a3b8;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em">
+                    <tr style="text-align:left;color:#64748b;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em">
                         <th style="padding:.45rem .55rem;border-bottom:1px solid #f1f5f9;width:32%">Path</th>
                         <th style="padding:.45rem .55rem;border-bottom:1px solid #f1f5f9">What it returns</th>
                     </tr>
@@ -1612,7 +1614,7 @@ function ordinal($n) {
                 Keys cannot be undeleted &mdash; revocation is permanent.
             </p>
 
-            <p style="font-size:.78rem;color:#94a3b8;margin:1.25rem 0 0">
+            <p style="font-size:.78rem;color:#64748b;margin:1.25rem 0 0">
                 Full developer reference is in <a href="https://github.com/Isorgcom/GameNight/blob/main/DOCS.md#api-for-sister-sites" target="_blank" rel="noopener" style="color:#2563eb">DOCS.md</a>
                 under "API for Sister Sites".
             </p>
@@ -1665,7 +1667,7 @@ function ordinal($n) {
                 <label style="display:flex;align-items:flex-start;gap:.5rem;font-size:.9rem;margin-bottom:.65rem">
                     <input type="checkbox" id="ppSeoIndex" style="margin-top:.2rem" <?= (int)($league['seo_index'] ?? 0) === 1 ? 'checked' : '' ?> <?= (int)($league['public_page'] ?? 0) === 1 ? '' : 'disabled' ?>>
                     <span>Let search engines list this page
-                        <span style="display:block;font-size:.78rem;color:#94a3b8">Off, the page is reachable only by its link or QR code. On, Google and Bing may show it in results; remember the leaderboard shows first names and last initials.</span>
+                        <span style="display:block;font-size:.78rem;color:#64748b">Off, the page is reachable only by its link or QR code. On, Google and Bing may show it in results; remember the leaderboard shows first names and last initials.</span>
                     </span>
                 </label>
                 <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.5rem">
@@ -1712,7 +1714,7 @@ function ordinal($n) {
                             <option value="contain"<?= $ppFit === 'contain' ? ' selected' : '' ?>>Fit whole image (no cropping)</option>
                         </select>
                     </div>
-                    <div style="font-size:.75rem;color:#94a3b8;margin-top:.35rem">
+                    <div style="font-size:.75rem;color:#64748b;margin-top:.35rem">
                         JPEG, PNG, GIF, or WebP up to 4 MB. Shown on the public page and in link previews.
                         Wide banner images look best on Fill; logos and tall images usually want Fit.
                     </div>
@@ -1851,6 +1853,7 @@ function importContacts() {
     function flashSaved() {
         if (!savedInd) return;
         savedInd.style.display = 'block';
+        if (typeof pkAnnounce === 'function') pkAnnounce(savedInd.textContent || 'Saved');
         clearTimeout(savedTimer);
         savedTimer = setTimeout(function() { savedInd.style.display = 'none'; }, 1500);
     }
@@ -2029,7 +2032,7 @@ function openDeleteLeague() {
             list.innerHTML = j.events.map(function(e) {
                 var label = '<div style="padding:.15rem 0">'
                           + '<span style="font-weight:600">' + escapeHtml(e.title) + '</span>'
-                          + ' <span style="color:#94a3b8">&middot; ' + escapeHtml(e.start_date) + '</span>';
+                          + ' <span style="color:#64748b">&middot; ' + escapeHtml(e.start_date) + '</span>';
                 if (e.is_poker) label += ' <span style="color:#b45309">(poker)</span>';
                 if (e.paid_players > 0) label += ' <span style="color:#dc2626">&middot; ' + e.paid_players + ' paid player' + (e.paid_players === 1 ? '' : 's') + '</span>';
                 return label + '</div>';

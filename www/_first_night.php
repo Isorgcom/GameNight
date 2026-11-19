@@ -68,7 +68,7 @@ foreach ($fnSteps as $s) { if (!$fnDone[$s['key']]) { $fnNext = $s['key']; break
     .fn-head h2 { margin:0; font-size:1.15rem; color:#0f172a; }
     .fn-head p { margin:.2rem 0 0; font-size:.88rem; color:#64748b; }
     .fn-dismiss { margin:0 0 0 auto; }
-    .fn-dismiss button { background:none; border:none; color:#94a3b8; cursor:pointer; font-size:1.3rem; line-height:1; padding:.1rem .3rem; }
+    .fn-dismiss button { background:none; border:none; color:#64748b; cursor:pointer; font-size:1.3rem; line-height:1; padding:.1rem .3rem; }
     .fn-dismiss button:hover { color:#0f172a; }
     .fn-steps { list-style:none; margin:.9rem 0 0; padding:0; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:.6rem; }
     .fn-step { display:flex; flex-direction:column; gap:.45rem; padding:.7rem .75rem; border:1px solid #e2e8f0; border-radius:8px; background:#f8fafc; }

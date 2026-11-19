@@ -236,7 +236,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
         /* Page frame: the editor fills the viewport below the nav, with the invite
            panes scrolling internally — same layout the 95vh modal provided. */
         .evedit-wrap { max-width: 1280px; margin: 1rem auto; padding: 0 1rem; }
-        .evedit-card { background:#fff; border:1.5px solid #e2e8f0; border-radius:12px; box-shadow:0 4px 18px rgba(15,23,42,.06); display:flex; flex-direction:column; min-height:0; height:calc(100vh - 170px); min-height:540px; overflow:hidden; }
+        .evedit-card { background:#fff; border:1.5px solid #e2e8f0; border-radius:12px; box-shadow:0 4px 18px rgba(15,23,42,.06); display:flex; flex-direction:column; min-height:0; height:calc(100vh - 170px);height:calc(100dvh - 170px); min-height:540px; overflow:hidden; }
         .evedit-head { display:flex; align-items:center; gap:.75rem; padding:.9rem 1.25rem; border-bottom:1px solid #e2e8f0; flex-shrink:0; }
         .evedit-head h1 { font-size:1.15rem; font-weight:700; margin:0; flex:1; }
         .evedit-card form { display:flex; flex-direction:column; flex:1; min-height:0; overflow-y:auto; }
@@ -247,7 +247,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
         .edit-top-bar select, .edit-top-bar input[type="text"], .edit-top-bar input[type="date"], .edit-top-bar input[type="time"] {
             padding:.32rem .45rem;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.82rem;background:#fff;color:#1e293b;
         }
-        .edit-top-bar select:focus, .edit-top-bar input:focus { border-color:#2563eb;outline:none; }
+        .edit-top-bar select:focus, .edit-top-bar input:focus { border-color:#2563eb; }
         .edit-top-bar .edit-title-label { flex:1;min-width:140px; }
         .edit-top-bar .edit-title-input { width:100%;box-sizing:border-box; }
         .edit-top-bar .edit-title-input.is-invalid { border-color:#dc2626;box-shadow:0 0 0 3px rgba(220,38,38,.12); }
@@ -266,7 +266,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
         #eColorDot:focus-visible, .color-swatch:focus-visible { outline:2px solid #2563eb;outline-offset:2px; }
         .color-swatch.selected { border-color:#1e293b; }
         .edit-title-input { flex:1;min-width:140px;padding:.45rem .7rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.95rem;font-weight:500; }
-        .edit-title-input:focus { outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
+        .edit-title-input:focus {border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
         .inv-name-text { flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis; }
         .mgr-toggle { display:inline-flex;align-items:center;gap:.25rem;margin-left:auto;cursor:pointer;flex-shrink:0;user-select:none;min-height:24px;position:relative; }
         .mgr-toggle .mgr-label { font-size:.62rem;font-weight:700;text-transform:uppercase;color:#7c3aed; }
@@ -329,7 +329,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
         #eInvitedList li[data-iname] .inv-col-mgr { display:inline-flex;align-items:center;justify-content:center; }
         #eInvitedList li[data-iname] .inv-col-mgr .mgr-toggle { margin-left:0; }
         .invite-pane-search { width:100%;padding:.38rem .65rem;border:none;border-bottom:1.5px solid #e2e8f0;font-size:.85rem;box-sizing:border-box;flex-shrink:0; }
-        .invite-pane-search:focus { outline:none;border-color:#2563eb; }
+        .invite-pane-search:focus {border-color:#2563eb; }
         .invite-pane-list { flex:1;overflow-y:auto;list-style:none;margin:0;padding:.2rem; }
         .invite-pane-list li { padding:.35rem .6rem;border-radius:5px;font-size:.875rem;cursor:pointer;user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
         .invite-pane-list li:hover { background:#f1f5f9; }
@@ -357,7 +357,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
         #eAddNameBtn { min-height:24px; }
         .edit-desc-wrap { padding:0 1rem .5rem;flex-shrink:0; }
         .edit-desc-wrap textarea { width:100%;resize:vertical;min-height:80px;max-height:150px;padding:.5rem .7rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.85rem;box-sizing:border-box;font-family:inherit; }
-        .edit-desc-wrap textarea:focus { outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
+        .edit-desc-wrap textarea:focus {border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
         .edit-desc-toggle { font-size:.82rem;color:#2563eb;cursor:pointer;padding:.3rem 1rem;flex-shrink:0;background:none;border:0;font-family:inherit; }
         .edit-desc-toggle:hover { text-decoration:underline; }
         .edit-poker-bar { display:flex;align-items:center;gap:.5rem;padding:.3rem 1rem;flex-wrap:wrap;flex-shrink:0;background:#f0f9ff;border-top:1px solid #bfdbfe;font-size:.78rem;color:#475569; }
@@ -556,7 +556,7 @@ $pageHeading = $isCopy ? 'Duplicate Event' : ($event ? 'Edit Event' : 'Add Event
 
 <?php $nav_active = 'calendar'; $nav_user = $current; require __DIR__ . '/_nav.php'; ?>
 
-<div class="evedit-wrap">
+<div role="main" class="evedit-wrap">
     <?php if ($flash && !empty($flash['msg'])): ?>
         <div class="alert alert-<?= ($flash['type'] ?? '') === 'error' ? 'error' : 'success' ?>" style="margin-bottom:.75rem" role="alert">
             <?= htmlspecialchars($flash['msg']) ?>

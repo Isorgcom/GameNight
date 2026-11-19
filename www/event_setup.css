@@ -131,7 +131,7 @@ th.es-th-num, .es-cell-num { text-align: right; font-variant-numeric: tabular-nu
    what pushed Start Time off the edge on a tablet. */
 .es-grid input[type=number] { max-width: 6em; margin-left: auto; display: block; background: transparent; border-color: transparent; padding: .34rem .4rem; }
 .es-grid input[type=number]:hover:not(:disabled) { border-color: #e2e8f0; background: #fff; }
-.es-grid input[type=number]:focus { border-color: #2563eb; background: #fff; outline: none; box-shadow: 0 0 0 2px rgba(37, 99, 235, .16); }
+.es-grid input[type=number]:focus { border-color: #2563eb; background: #fff; box-shadow: 0 0 0 2px rgba(37, 99, 235, .16); }
 .es-grid input[type=number]:disabled { background: transparent; }
 /* Steppers would double the visual noise across five columns; arrow keys and
    Alt+arrow row moves cover the same ground. */
@@ -149,7 +149,7 @@ th.es-th-num, .es-cell-num { text-align: right; font-variant-numeric: tabular-nu
 .es-grid .es-lbl { overflow: hidden; text-overflow: ellipsis; }
 .es-drag { color: #cbd5e1; cursor: grab; font-size: .95rem; line-height: 1; letter-spacing: -.05em; padding: .15rem .1rem; }
 .es-drag:active { cursor: grabbing; }
-.es-grid tbody tr:hover .es-drag { color: #94a3b8; }
+.es-grid tbody tr:hover .es-drag { color: #64748b; }
 
 .es-row-sel td { background: #eff6ff; }
 .es-row-sel.es-row-break td { background: #fef3c7; }

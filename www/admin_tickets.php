@@ -50,7 +50,7 @@ $utc_tz    = new DateTimeZone('UTC');
 </head>
 <body>
 <?php $nav_active = 'site-settings'; $nav_user = $current; require __DIR__ . '/_nav.php'; ?>
-<div class="at-wrap">
+<div role="main" class="at-wrap">
     <?php $admin_tab = 'tickets'; require __DIR__ . '/_admin_tabs.php'; ?>
     <h1 style="font-size:1.3rem;font-weight:800;color:#1e293b;margin:.75rem 0 .2rem">Support Tickets</h1>
     <p style="color:#64748b;font-size:.88rem;margin:0"><?= $openCount ?> open</p>
@@ -61,7 +61,7 @@ $utc_tz    = new DateTimeZone('UTC');
     </div>
 
     <?php if (!$rows): ?>
-    <p style="color:#94a3b8">No tickets<?= $filter !== '' ? " with status \"$filter\"" : '' ?>.</p>
+    <p style="color:#64748b">No tickets<?= $filter !== '' ? " with status \"$filter\"" : '' ?>.</p>
     <?php else: ?>
     <div style="overflow-x:auto">
     <table class="at-table">
@@ -77,7 +77,7 @@ $utc_tz    = new DateTimeZone('UTC');
             <td><?= htmlspecialchars($t['owner_name']) ?></td>
             <td style="font-weight:600;color:#1e293b"><?= htmlspecialchars($t['subject']) ?></td>
             <td><?= (int)$t['msg_count'] ?></td>
-            <td style="white-space:nowrap;color:#94a3b8"><?= htmlspecialchars($when) ?></td>
+            <td style="white-space:nowrap;color:#64748b"><?= htmlspecialchars($when) ?></td>
         </tr>
         <?php endforeach; ?>
         </tbody>

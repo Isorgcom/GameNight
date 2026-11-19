@@ -125,6 +125,8 @@ Rules that keep it from breaking:
 - **Amber means warning, blue means information.** Warnings use `#fffbeb` / `#f59e0b` / `#92400e` (see `.pk-setup-cta`, the ticket-target warning, the seat-cutoff divider). A warning styled in blue reads as a tip and gets ignored.
 - **Never `margin-left: auto` in a wrapping flex row.** It pins to the right end of whichever *line* the element lands on, so the element drifts between rows as the window resizes. Group the row's children instead so it breaks in one deliberate place.
 - Full pages over modals for multi-step flows.
+- **Keyboard and screen readers (v1.33.1).** Never write `outline:none` on a `:focus` rule without a visible replacement: `style.css` ends with a zero-specificity `:where(:focus-visible)` ring that any such rule silently defeats. A clickable thing is a `<button>` or an `<a href>`, never a `div`/`span`/`img` with `data-act`, and never `href="javascript:…"` (the CSP blocks it). An icon-only button gets an `aria-label`; `title` is not a name. Page modals built as `.modal-overlay > .modal` get dialog semantics, focus handling and Escape from `pk-modal.js` (footer) with no wiring; a modal that declares `role="dialog"` itself is left to manage its own. Toasts and "Saved" flashes call `pkAnnounce(msg)` so screen readers hear them.
+- **Heavy libraries load on first use.** Jodit via `pkLoadJodit(js, css)` (`pk-dialogs.js`), hls.js via `tbLoadHls()` (`timer_display.js`). Don't add a `<script src>` for either to a page.
 - All dialogs go through the `pk*` helpers in `pk-dialogs.js` — never native `alert`/`confirm`/`prompt`. Use `pkCopy()` for clipboard writes; `navigator.clipboard` is undefined outside a secure context and throws synchronously.
 
 ## Dates & Times

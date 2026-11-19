@@ -156,7 +156,7 @@ $csrf_token = csrf_token();
     <style>
         body { background: var(--bg, #f8fafc); }
         .walkin-wrap {
-            min-height: 100vh;
+            min-height:100vh;min-height:100dvh;
             display: flex;
             align-items: center;
             justify-content: center;

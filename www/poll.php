@@ -86,7 +86,7 @@ if (!$recipient || !$poll || !$event || empty($poll['questions'])) {
         .po-bar { background:#2563eb; height:100%; border-radius:6px; min-width:2px; }
         .po-bar.mine { background:#16a34a; }
         .po-bar-label { position:absolute; left:.55rem; top:0; line-height:22px; font-size:.74rem; font-weight:700; color:#1e293b; white-space:nowrap; }
-        .po-meta { font-size:.78rem; color:#94a3b8; }
+        .po-meta { font-size:.78rem; color:#64748b; }
     </style>
 </head>
 <body>

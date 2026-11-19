@@ -40,17 +40,17 @@ $utc_tz    = new DateTimeZone('UTC');
         .sp-row:hover { border-color: #93c5fd; }
         .sp-top { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
         .sp-subject { font-weight: 700; color: #1e293b; font-size: .92rem; flex: 1; min-width: 0; }
-        .sp-when { font-size: .72rem; color: #94a3b8; white-space: nowrap; }
+        .sp-when { font-size: .72rem; color: #64748b; white-space: nowrap; }
         .sp-chip { font-size: .66rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; border-radius: 5px; padding: .08rem .4rem; }
         .sp-open { color: #92400e; background: #fef3c7; border: 1px solid #fde68a; }
         .sp-resolved { color: #166534; background: #dcfce7; border: 1px solid #bbf7d0; }
-        .sp-shot-hint { font-size: .75rem; color: #94a3b8; margin-top: .25rem; }
+        .sp-shot-hint { font-size: .75rem; color: #64748b; margin-top: .25rem; }
         #spShotPreview { display: none; max-width: 140px; max-height: 100px; border-radius: 8px; border: 1.5px solid #e2e8f0; margin-top: .4rem; }
     </style>
 </head>
 <body>
 <?php $nav_active = 'support'; require __DIR__ . '/_nav.php'; ?>
-<div class="sp-wrap">
+<div role="main" class="sp-wrap">
     <h1 style="font-size:1.3rem;font-weight:800;color:#1e293b;margin:0 0 .35rem">Support</h1>
     <p style="color:#64748b;font-size:.88rem;margin:0 0 1rem">Problem, question, or idea? Open a ticket and the site admins will get back to you.</p>
     <?php if ($isAdmin): ?>
@@ -68,7 +68,7 @@ $utc_tz    = new DateTimeZone('UTC');
             <textarea id="spBody" rows="4" maxlength="5000" placeholder="What did you do, what did you expect, what happened instead?"></textarea>
         </div>
         <div class="sp-field">
-            <label for="spShot">Screenshot <span style="font-weight:400;color:#94a3b8">(optional)</span></label>
+            <label for="spShot">Screenshot <span style="font-weight:400;color:#64748b">(optional)</span></label>
             <input type="file" id="spShot" accept="image/*" style="font-size:.85rem">
             <div class="sp-shot-hint">JPEG/PNG/GIF/WebP, up to 8 MB.</div>
             <img id="spShotPreview" alt="Screenshot preview">
@@ -78,7 +78,7 @@ $utc_tz    = new DateTimeZone('UTC');
 
     <h2 style="font-size:1rem;font-weight:800;color:#1e293b;margin:0 0 .6rem">My tickets</h2>
     <?php if (!$tickets): ?>
-    <p style="color:#94a3b8;font-size:.88rem">No tickets yet.</p>
+    <p style="color:#64748b;font-size:.88rem">No tickets yet.</p>
     <?php else: foreach ($tickets as $t):
         try { $when = (new DateTime((string)$t['updated_at'], $utc_tz))->setTimezone($viewer_tz)->format('M j, g:i A'); }
         catch (Throwable $e) { $when = ''; }

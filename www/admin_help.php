@@ -59,7 +59,7 @@ $tips = $tipsStmt->fetchAll();
             width:100%; box-sizing:border-box; padding:.5rem .6rem; border:1.5px solid #e2e8f0;
             border-radius:8px; font-size:.9rem; font-family:inherit;
         }
-        .hlp-field .hint { font-size:.72rem; color:#94a3b8; margin:.25rem 0 0; }
+        .hlp-field .hint { font-size:.72rem; color:#64748b; margin:.25rem 0 0; }
         .hlp-tip { border:1px solid #e2e8f0; border-radius:8px; padding:.7rem .8rem; margin-bottom:.6rem; }
         .hlp-tip.off { opacity:.55; }
         .hlp-tip-head { display:flex; align-items:center; gap:.5rem; margin-bottom:.25rem; }
@@ -76,7 +76,7 @@ $tips = $tipsStmt->fetchAll();
         .hlp-badge { font-size:.68rem; font-weight:700; padding:.1rem .4rem; border-radius:5px; }
         .hlp-badge.on { background:#dcfce7; color:#166534; }
         .hlp-badge.off { background:#f1f5f9; color:#64748b; }
-        .hlp-empty { color:#94a3b8; font-size:.88rem; }
+        .hlp-empty { color:#64748b; font-size:.88rem; }
         .hlp-help { margin-top:.5rem; border:1px solid #e2e8f0; border-radius:8px; background:#f8fafc; }
         .hlp-help > summary { cursor:pointer; padding:.5rem .7rem; font-size:.78rem; font-weight:600; color:#2563eb; list-style:none; }
         .hlp-help > summary::-webkit-details-marker { display:none; }
@@ -94,7 +94,7 @@ $tips = $tipsStmt->fetchAll();
 
 <?php $nav_active = 'site-settings'; $nav_user = $current; require __DIR__ . '/_nav.php'; ?>
 
-<div class="dash-wrap">
+<div role="main" class="dash-wrap">
     <?php $admin_tab = 'help'; require __DIR__ . '/_admin_tabs.php'; ?>
     <h1 style="font-size:1.5rem;font-weight:700;margin:0 0 .35rem">Help Tips</h1>
     <p style="color:#64748b;margin:0 0 1.25rem;font-size:.9rem;line-height:1.55">
@@ -126,7 +126,7 @@ $tips = $tipsStmt->fetchAll();
             <form id="tipForm" data-act-submit="cancelSubmit">
                 <input type="hidden" id="tipId" value="">
                 <div class="hlp-field">
-                    <label for="tipTitle">Title <span style="font-weight:400;color:#94a3b8">(optional)</span></label>
+                    <label for="tipTitle">Title <span style="font-weight:400;color:#64748b">(optional)</span></label>
                     <input type="text" id="tipTitle" maxlength="120" placeholder="e.g. Adding an event">
                 </div>
                 <div class="hlp-field">
@@ -134,7 +134,7 @@ $tips = $tipsStmt->fetchAll();
                     <textarea id="tipBody" rows="4" placeholder="Keep it short and friendly. Line breaks are preserved."></textarea>
                 </div>
                 <div class="hlp-field">
-                    <label for="tipAnchor">Anchor selector <span style="font-weight:400;color:#94a3b8">(optional)</span></label>
+                    <label for="tipAnchor">Anchor selector <span style="font-weight:400;color:#64748b">(optional)</span></label>
                     <input type="text" id="tipAnchor" placeholder="e.g. .cal-add-btn  or  #addEventBtn">
                     <p class="hint">Leave blank and the bubble floats in the bottom-right corner. Enter a CSS selector to make the bubble point at a specific button or area on the page.</p>
                     <details class="hlp-help">
@@ -153,7 +153,7 @@ $tips = $tipsStmt->fetchAll();
                     </details>
                 </div>
                 <div class="hlp-field">
-                    <label for="tipIndex">Step index <span style="font-weight:400;color:#94a3b8">(optional)</span></label>
+                    <label for="tipIndex">Step index <span style="font-weight:400;color:#64748b">(optional)</span></label>
                     <input type="number" id="tipIndex" min="1" step="1" placeholder="e.g. 1" style="max-width:140px">
                     <p class="hint">Tips that share the same index number appear together as one step (Back/Next moves between steps). Leave blank and the tip is its own step.</p>
                 </div>
@@ -209,7 +209,7 @@ function renderList() {
         const on = Number(t.enabled) === 1;
         return `<div class="hlp-tip ${on ? '' : 'off'}">
             <div class="hlp-tip-head">
-                <span class="hlp-tip-title">${t.title ? esc(t.title) : '<span style="color:#94a3b8;font-weight:400">(no title)</span>'}</span>
+                <span class="hlp-tip-title">${t.title ? esc(t.title) : '<span style="color:#64748b;font-weight:400">(no title)</span>'}</span>
                 ${Number(t.always_show) === 1 ? '<span class="hlp-badge" style="background:#fef3c7;color:#92400e">&#128204; Pinned</span>' : ''}
                 ${Number(t.hosts_only) === 1 ? '<span class="hlp-badge" style="background:#dbeafe;color:#1e40af">Hosts only</span>' : ''}
                 <span class="hlp-badge ${on ? 'on' : 'off'}">${on ? 'Shown' : 'Hidden'}</span>
@@ -218,8 +218,8 @@ function renderList() {
             ${t.anchor_selector ? `<div class="hlp-tip-anchor">&#128279; ${esc(t.anchor_selector)}</div>` : ''}
             ${(t.bubble_index !== null && t.bubble_index !== undefined && t.bubble_index !== '') ? `<div class="hlp-tip-anchor" style="color:#2563eb">&#9635; Step index ${esc(t.bubble_index)}</div>` : ''}
             <div class="hlp-tip-actions">
-                <button class="hlp-btn" data-act="moveTip" data-a1="${i}" data-a2="-1" ${i === 0 ? 'disabled' : ''}>&#9650;</button>
-                <button class="hlp-btn" data-act="moveTip" data-a1="${i}" data-a2="1" ${i === TIPS.length - 1 ? 'disabled' : ''}>&#9660;</button>
+                <button aria-label="Move up" class="hlp-btn" data-act="moveTip" data-a1="${i}" data-a2="-1" ${i === 0 ? 'disabled' : ''}>&#9650;</button>
+                <button aria-label="Move down" class="hlp-btn" data-act="moveTip" data-a1="${i}" data-a2="1" ${i === TIPS.length - 1 ? 'disabled' : ''}>&#9660;</button>
                 <button class="hlp-btn" data-act="editTip" data-a1="${t.id}">Edit</button>
                 <button class="hlp-btn" data-act="toggleTip" data-a1="${t.id}">${on ? 'Hide' : 'Show'}</button>
                 <button class="hlp-btn danger" data-act="deleteTip" data-a1="${t.id}">Delete</button>

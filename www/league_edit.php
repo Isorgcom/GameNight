@@ -58,7 +58,7 @@ $vals = $league ?: [
 
 <?php $nav_active = 'leagues'; $nav_user = $current; require __DIR__ . '/_nav.php'; ?>
 
-<div class="le-wrap">
+<div role="main" class="le-wrap">
     <div class="le-card">
         <h1><?= $isEdit ? 'Edit' : 'Create' ?> League</h1>
         <div class="le-err" id="err"></div>

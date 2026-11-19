@@ -571,6 +571,10 @@ function sendCommand(cmd) {
 // ─── §7.5  Poll server (everyone does this — server is master) ──
 var prevLevel = TIMER.current_level;
 function pollState() {
+    // A remote viewer (QR phone) with the tab hidden has no screen to update and
+    // no sound to play; the visibilitychange handler resyncs on return. The host's
+    // own timer keeps polling hidden, since its level sounds still matter.
+    if (IS_REMOTE && document.hidden) return;
     var url;
     // Remote viewers are not authenticated — always use the public key endpoint.
     // session_id endpoint requires login and would return {ok:false} for QR-scan visitors.
@@ -1263,11 +1267,11 @@ function renderLevelsTable() {
         h += '<td><input type="number" value="' + lv.duration_minutes + '" data-idx="' + i + '" data-field="duration_minutes" data-act-input="markLevelsDirty" style="width:55px"></td>';
         h += '<td>' + (brk ? 'BREAK' : 'Play') + '</td>';
         h += '<td class="lvl-actions">';
-        h += '<button class="lvl-move" data-act="moveLevel" data-a1="' + i + '" data-a2="-1" title="Move up" style="color:#94a3b8"' + (i === 0 ? ' disabled' : '') + '>&#9650;</button>';
-        h += '<button class="lvl-move" data-act="moveLevel" data-a1="' + i + '" data-a2="1" title="Move down" style="color:#94a3b8"' + (i === LEVELS.length - 1 ? ' disabled' : '') + '>&#9660;</button>';
-        h += '<button data-act="insertLevel" data-a1="' + i + '" data-a2="false" title="Insert level here" style="color:#22c55e;font-size:0.9rem">+</button>';
-        h += '<button data-act="insertLevel" data-a1="' + i + '" data-a2="true" title="Insert break here" style="color:#fbbf24;font-size:0.9rem">&#9202;</button>';
-        h += '<button data-act="removeLevel" data-a1="' + i + '" title="Remove">&times;</button>';
+        h += '<button aria-label="Move up" class="lvl-move" data-act="moveLevel" data-a1="' + i + '" data-a2="-1" title="Move up" style="color:#94a3b8"' + (i === 0 ? ' disabled' : '') + '>&#9650;</button>';
+        h += '<button aria-label="Move down" class="lvl-move" data-act="moveLevel" data-a1="' + i + '" data-a2="1" title="Move down" style="color:#94a3b8"' + (i === LEVELS.length - 1 ? ' disabled' : '') + '>&#9660;</button>';
+        h += '<button aria-label="Insert level here" data-act="insertLevel" data-a1="' + i + '" data-a2="false" title="Insert level here" style="color:#22c55e;font-size:0.9rem">+</button>';
+        h += '<button aria-label="Insert break here" data-act="insertLevel" data-a1="' + i + '" data-a2="true" title="Insert break here" style="color:#fbbf24;font-size:0.9rem">&#9202;</button>';
+        h += '<button aria-label="Remove" data-act="removeLevel" data-a1="' + i + '" title="Remove">&times;</button>';
         h += '</td>';
         h += '</tr>';
     }
@@ -2474,7 +2478,7 @@ function renderPresetCard(preset) {
             '<span class="preset-name" title="' + esc(preset.name) + '">' + esc(preset.name) + '</span>' +
             '<span style="display:flex;gap:.3rem;flex:0 0 auto">' +
                 '<button data-act="loadPresetTheme" data-a1="' + esc(preset.key) + '">Load</button>' +
-                (IS_ADMIN ? '<button data-act="deletePresetTheme" data-a1="' + esc(preset.key) + '" title="Delete preset file">&times;</button>' : '') +
+                (IS_ADMIN ? '<button aria-label="Delete preset file" data-act="deletePresetTheme" data-a1="' + esc(preset.key) + '" title="Delete preset file">&times;</button>' : '') +
             '</span>' +
         '</div>';
     return card;
@@ -3311,8 +3315,8 @@ function renderObjectsPanel() {
               +           ' title="Toggle visibility">' + eyeGlyph + '</button>'
               +   '<span class="obj-label">' + meta.label + '</span>'
               +   '<span class="obj-move">'
-              +     '<button type="button" title="Bring forward" data-act="objectsRowUp" data-a1="@event" data-a2="' + safeKey + '"' + upDis + '>&#9650;</button>'
-              +     '<button type="button" title="Send backward" data-act="objectsRowDown" data-a1="@event" data-a2="' + safeKey + '"' + dnDis + '>&#9660;</button>'
+              +     '<button aria-label="Bring forward" type="button" title="Bring forward" data-act="objectsRowUp" data-a1="@event" data-a2="' + safeKey + '"' + upDis + '>&#9650;</button>'
+              +     '<button aria-label="Send backward" type="button" title="Send backward" data-act="objectsRowDown" data-a1="@event" data-a2="' + safeKey + '"' + dnDis + '>&#9660;</button>'
               +   '</span>'
               + '</div>';
     });
@@ -3535,9 +3539,9 @@ function renderInspector(key) {
     rows.push(''
         + '<div class="layout-inspector-row"><label>Size</label>'
         + '<span style="display:inline-flex;align-items:center;gap:.3rem">'
-        + '<button type="button" class="ins-btn" data-act="onInspectorScale" data-a1="'+key+'" data-a2="-0.1">&minus;</button>'
+        + '<button aria-label="Smaller" type="button" class="ins-btn" data-act="onInspectorScale" data-a1="'+key+'" data-a2="-0.1">&minus;</button>'
         + '<span class="ins-scale" id="ins_scale_'+key+'">'+Math.round(sc*100)+'%</span>'
-        + '<button type="button" class="ins-btn" data-act="onInspectorScale" data-a1="'+key+'" data-a2="0.1">+</button>'
+        + '<button aria-label="Larger" type="button" class="ins-btn" data-act="onInspectorScale" data-a1="'+key+'" data-a2="0.1">+</button>'
         + '</span></div>');
 
     // Reset position
@@ -4233,14 +4237,14 @@ function renderPlayerPanel() {
             if (isTourney) {
                 if (parseInt(p.bought_in)) {
                     if (PP_SESSION && parseInt(PP_SESSION.rebuy_allowed)) {
-                        h += '<div class="pp-counter"><span style="font-size:.55rem;color:#94a3b8;font-weight:700;letter-spacing:.03em;min-width:1.2rem">RE</span><button data-act="ppRebuy" data-a1="' + p.id + '" data-a2="-1">-</button><span>' + (p.rebuys||0) + '</span><button data-act="ppRebuy" data-a1="' + p.id + '" data-a2="1">+</button></div>';
+                        h += '<div class="pp-counter"><span style="font-size:.55rem;color:#94a3b8;font-weight:700;letter-spacing:.03em;min-width:1.2rem">RE</span><button aria-label="Remove a rebuy" data-act="ppRebuy" data-a1="' + p.id + '" data-a2="-1">-</button><span>' + (p.rebuys||0) + '</span><button aria-label="Add a rebuy" data-act="ppRebuy" data-a1="' + p.id + '" data-a2="1">+</button></div>';
                     }
                     if (PP_SESSION && parseInt(PP_SESSION.addon_allowed)) {
                         var aoCount = parseInt(p.addons || 0);
                         h += '<div class="pp-counter" style="gap:.25rem;align-items:center">'
                            + '<span style="font-size:.55rem;color:#94a3b8;font-weight:700;letter-spacing:.03em;min-width:1.2rem">AO</span>'
-                           + '<button data-act="ppAddAddon" data-a1="' + p.id + '" style="font-size:.7rem;padding:.15rem .45rem;border-radius:3px;border:1px solid #c4b5fd;background:#f5f3ff;color:#6d28d9;cursor:pointer;font-weight:600">+</button>'
-                           + (aoCount > 0 ? '<span data-act="ppRemoveAddon" data-a1="' + p.id + '" title="Tap to remove last" style="display:inline-flex;align-items:center;justify-content:center;min-width:1.1rem;height:1.1rem;padding:0 .3rem;border-radius:9px;background:#7c3aed;color:#fff;font-size:.65rem;font-weight:700;cursor:pointer">' + aoCount + '</span>' : '')
+                           + '<button aria-label="Add an add-on" data-act="ppAddAddon" data-a1="' + p.id + '" style="font-size:.7rem;padding:.15rem .45rem;border-radius:3px;border:1px solid #c4b5fd;background:#f5f3ff;color:#6d28d9;cursor:pointer;font-weight:600">+</button>'
+                           + (aoCount > 0 ? '<button type="button" data-act="ppRemoveAddon" data-a1="' + p.id + '" title="Tap to remove last" aria-label="' + aoCount + ' add-ons, remove the last" style="display:inline-flex;align-items:center;justify-content:center;min-width:1.1rem;height:1.1rem;padding:0 .3rem;border:0;border-radius:9px;background:#7c3aed;color:#fff;font:inherit;font-size:.65rem;font-weight:700;cursor:pointer">' + aoCount + '</button>' : '')
                            + '</div>';
                     }
                     h += '<button class="pp-elim" data-act="ppEliminate" data-a1="' + p.id + '">Elim</button>';

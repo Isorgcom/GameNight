@@ -150,7 +150,7 @@ unset($_SESSION['flash']);
         <input type="text" name="q" value="<?= htmlspecialchars($f_q) ?>" placeholder="Recipient (name, email, phone)"
                style="padding:.35rem .5rem;border:1.5px solid #e2e8f0;border-radius:6px;min-width:200px">
         <input type="date" name="from" value="<?= htmlspecialchars($f_from) ?>" style="padding:.32rem .5rem;border:1.5px solid #e2e8f0;border-radius:6px">
-        <span style="color:#94a3b8">&rarr;</span>
+        <span style="color:#64748b">&rarr;</span>
         <input type="date" name="to" value="<?= htmlspecialchars($f_to) ?>" style="padding:.32rem .5rem;border:1.5px solid #e2e8f0;border-radius:6px">
         <button type="submit" class="btn btn-primary" style="font-size:.8rem;padding:.4rem .8rem">Filter</button>
         <?php if ($f_status || $f_channel || $f_q !== '' || $f_from || $f_to): ?>
@@ -159,7 +159,7 @@ unset($_SESSION['flash']);
     </form>
 
     <?php if (empty($smsRows)): ?>
-        <p style="color:#94a3b8">No notifications match<?= $where ? ' these filters' : '' ?>.</p>
+        <p style="color:#64748b">No notifications match<?= $where ? ' these filters' : '' ?>.</p>
     <?php else: ?>
     <div class="table-card" style="overflow:visible">
         <div class="sms-log-table-wrap">
@@ -189,12 +189,12 @@ unset($_SESSION['flash']);
                             <?php endif; ?>
                         </td>
                         <td class="col-phone"><?= htmlspecialchars($log['phone']) ?></td>
-                        <td class="col-phone"><?= htmlspecialchars($log['username'] ?? '') ?: '<span style="color:#cbd5e1">&mdash;</span>' ?></td>
+                        <td class="col-phone"><?= htmlspecialchars($log['username'] ?? '') ?: '<span style="color:#64748b">&mdash;</span>' ?></td>
                         <td class="col-phone">
                             <?php if (!empty($log['event_id'])): ?>
                                 <a href="/event.php?id=<?= (int)$log['event_id'] ?>" style="color:#2563eb;text-decoration:none">#<?= (int)$log['event_id'] ?></a>
                             <?php else: ?>
-                                <span style="color:#cbd5e1">&mdash;</span>
+                                <span style="color:#64748b">&mdash;</span>
                             <?php endif; ?>
                         </td>
                         <td class="col-msg" title="<?= htmlspecialchars($log['body']) ?>"><?= htmlspecialchars($log['body']) ?></td>
@@ -215,7 +215,7 @@ unset($_SESSION['flash']);
                                         data-act="copySmsRaw" data-a1="@self"
                                         class="btn btn-outline btn-sm">Copy</button>
                             <?php else: ?>
-                                <span style="color:#94a3b8">&mdash;</span>
+                                <span style="color:#64748b">&mdash;</span>
                             <?php endif; ?>
                         </td>
                     </tr>

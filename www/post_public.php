@@ -49,7 +49,7 @@ if (!$post || (int)($post['hidden'] ?? 0) === 1 || (int)($post['league_id'] ?? 0
         <meta name="robots" content="noindex,nofollow">
         <title>Link Not Found — <?= htmlspecialchars($site_name) ?></title>
         <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
-    </head><body style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:1rem">
+    </head><body style="display:flex;align-items:center;justify-content:center;min-height:100vh;min-height:100dvh;padding:1rem">
         <div style="max-width:480px;width:100%;text-align:center">
             <div style="background:#fef2f2;border:2px solid #dc2626;border-radius:12px;padding:2rem 1.5rem;margin-bottom:1.5rem">
                 <h1 style="font-size:1.5rem;color:#dc2626;margin:0 0 .75rem">Link Not Found</h1>
@@ -89,7 +89,7 @@ $redir = '/post_public.php?token=' . urlencode($token);
     <style>
         .page-layout { max-width: 740px; margin: 2rem auto 0; padding: 0 1.5rem; }
         .post-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:1.75rem; margin-bottom:1.5rem; }
-        .post-meta { font-size:.78rem; color:#94a3b8; margin-bottom:.6rem; display:flex; align-items:center; gap:.75rem; flex-wrap:wrap; }
+        .post-meta { font-size:.78rem; color:#64748b; margin-bottom:.6rem; display:flex; align-items:center; gap:.75rem; flex-wrap:wrap; }
         .post-title { font-size:1.4rem; font-weight:700; color:#0f172a; margin-bottom:.85rem; }
         .post-body { line-height:1.75; color:#334155; font-size:.97rem; overflow:hidden; }
         .post-body p { margin-bottom:.85rem; }
@@ -128,7 +128,7 @@ $redir = '/post_public.php?token=' . urlencode($token);
 </nav>
 <?php endif; ?>
 
-<div class="page-layout">
+<div class="page-layout" role="main">
     <div class="share-banner">
         Shared from <?= htmlspecialchars($post['league_name'] ?? 'a league') ?>.
         <?php if (!$user): ?>

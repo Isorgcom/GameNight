@@ -198,7 +198,7 @@ function show_page(string $title, string $body, string $type): void {
     <title><?= htmlspecialchars($title) ?> — <?= htmlspecialchars($site_name) ?></title>
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
 </head>
-<body style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:1rem">
+<body style="display:flex;align-items:center;justify-content:center;min-height:100vh;min-height:100dvh;padding:1rem">
     <div style="max-width:480px;width:100%;text-align:center">
         <div style="background:<?= $bg ?>;border:2px solid <?= $color ?>;border-radius:12px;padding:2rem 1.5rem;margin-bottom:1.5rem">
             <h1 style="font-size:1.5rem;color:<?= $color ?>;margin:0 0 .75rem"><?= htmlspecialchars($title) ?></h1>

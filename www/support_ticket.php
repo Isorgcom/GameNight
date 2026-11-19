@@ -54,7 +54,7 @@ $utc_tz    = new DateTimeZone('UTC');
         .sp-resolved { color: #166534; background: #dcfce7; border: 1px solid #bbf7d0; }
         .st-msg { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: .65rem .85rem; margin-bottom: .55rem; }
         .st-msg.admin { background: #eff6ff; border-color: #bfdbfe; }
-        .st-meta { display: flex; gap: .5rem; align-items: baseline; font-size: .75rem; color: #94a3b8; margin-bottom: .3rem; }
+        .st-meta { display: flex; gap: .5rem; align-items: baseline; font-size: .75rem; color: #64748b; margin-bottom: .3rem; }
         .st-meta .who { font-weight: 700; color: #334155; }
         .st-admin-tag { font-size: .62rem; font-weight: 700; text-transform: uppercase; color: #1e40af; background: #dbeafe; border-radius: 4px; padding: .05rem .3rem; }
         .st-body { font-size: .9rem; color: #334155; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; }
@@ -64,7 +64,7 @@ $utc_tz    = new DateTimeZone('UTC');
 </head>
 <body>
 <?php $nav_active = 'support'; require __DIR__ . '/_nav.php'; ?>
-<div class="st-wrap">
+<div role="main" class="st-wrap">
     <div class="st-head">
         <a href="<?= $isAdmin ? '/admin_tickets.php' : '/support.php' ?>" class="btn btn-outline" style="font-size:.8rem;padding:.3rem .6rem;text-decoration:none">&laquo; Tickets</a>
         <h1>#<?= (int)$ticket['id'] ?> &middot; <?= htmlspecialchars($ticket['subject']) ?></h1>
@@ -74,7 +74,7 @@ $utc_tz    = new DateTimeZone('UTC');
                 data-act="toggleStatus" data-a1="@self"><?= $ticket['status'] === 'open' ? 'Mark resolved' : 'Reopen' ?></button>
         <?php endif; ?>
     </div>
-    <p style="font-size:.78rem;color:#94a3b8;margin:0 0 1rem">Opened by <?= htmlspecialchars($ticket['owner_name']) ?></p>
+    <p style="font-size:.78rem;color:#64748b;margin:0 0 1rem">Opened by <?= htmlspecialchars($ticket['owner_name']) ?></p>
 
     <?php foreach ($messages as $m):
         try { $when = (new DateTime((string)$m['created_at'], $utc_tz))->setTimezone($viewer_tz)->format('M j, g:i A'); }
@@ -102,7 +102,7 @@ $utc_tz    = new DateTimeZone('UTC');
             </label>
         </div>
         <?php if ($ticket['status'] === 'resolved' && !$isAdmin): ?>
-        <p style="font-size:.78rem;color:#94a3b8;margin-top:.4rem">This ticket is resolved — replying will reopen it.</p>
+        <p style="font-size:.78rem;color:#64748b;margin-top:.4rem">This ticket is resolved — replying will reopen it.</p>
         <?php endif; ?>
     </div>
 </div>

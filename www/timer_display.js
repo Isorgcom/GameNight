@@ -1980,8 +1980,39 @@ function tbStartLiveSync(vid, h) {
 // never loads the library. Live position is steered by tbStartLiveSync() against
 // the stream's PROGRAM-DATE-TIME, so several screens agree with each other and
 // not merely with their own idea of the live edge.
+// hls.js is loaded on first use, not with the page. attachHls() returns at once
+// with a handle whose destroy() works before or after the library arrives; the
+// buildCell() caller keeps it in videoCache and only ever calls destroy().
+var tbHlsLib = null;
+function tbLoadHls() {
+    if (window.Hls) return Promise.resolve(window.Hls);
+    if (tbHlsLib) return tbHlsLib;
+    tbHlsLib = new Promise(function (resolve) {
+        var s = document.createElement('script');
+        s.src = window.TB_HLS_URL || '/vendor/hls.min.js';
+        s.onload = function () { resolve(window.Hls || null); };
+        s.onerror = function () { resolve(null); };   // native fallback below
+        document.head.appendChild(s);
+    });
+    return tbHlsLib;
+}
 function attachHls(vid, src) {
     if (!/\.m3u8(\?|$)/i.test(src)) { vid.src = src; return; }
+    if (window.Hls) return attachHlsNow(vid, src);
+    var handle = {
+        h: null, dead: false,
+        destroy: function () { this.dead = true; if (this.h) this.h.destroy(); }
+    };
+    tbLoadHls().then(function () {
+        if (handle.dead) return;
+        handle.h = attachHlsNow(vid, src) || null;
+        // The first play() ran before there was a source; try again now, with
+        // the same sound-first, muted-if-refused handling.
+        if (vid.paused && vid.isConnected) tbTryPlay(vid);
+    });
+    return handle;
+}
+function attachHlsNow(vid, src) {
     // hls.js FIRST, native only as the fallback — hls.js's own documented order,
     // and it must be this way round. Chromium answers "maybe" to
     // canPlayType('application/vnd.apple.mpegurl'), which is truthy, but cannot
@@ -2086,7 +2117,12 @@ function tbTryPlay(vid) {
     var p;
     try { p = vid.play(); } catch (e) { return; }
     if (p && p.catch) {
-        p.catch(function () {
+        p.catch(function (err) {
+            // Only an autoplay-policy refusal means "not allowed with sound".
+            // Anything else (no source attached yet while hls.js is still
+            // loading, an aborted load) must not be taken as one, or the
+            // stream is muted for no reason; play is retried once it attaches.
+            if (err && err.name && err.name !== 'NotAllowedError') return;
             if (!vid.muted) {
                 // A page that has never been clicked has no user activation, so
                 // autoplay WITH SOUND is refused. Fall back to muted rather than
@@ -2667,6 +2703,11 @@ function updateAll() {
         try { show = matchCond(box.when); } catch (e) { show = true; }
         if (show !== box.shown) { box.shown = show; box.el.style.display = show ? '' : 'none'; }
     }
+    // Cells whose overflow self-heal needs a measurement. Measured after the
+    // loop, all reads together, so a tick costs one layout instead of one per
+    // cell (reading scrollWidth right after the writes above forced a fresh
+    // layout every iteration).
+    var healCheck = [];
     for (var a = 0; a < allCells.length; a++) {
         var rec = allCells[a];
 
@@ -2732,11 +2773,18 @@ function updateAll() {
             // measured (iOS grows vh fonts later than the resize event), and a
             // ticking clock never changes shape — without this the overflow
             // sticks until the text itself does.
-            else if (rec.inner.scrollWidth > rec.el.clientWidth + 1
-                  || (rec.scroll !== 'up' && rec.inner.scrollHeight > rec.el.clientHeight + 1)) capCell(rec);
+            else { healCheck.push(rec); continue; }   // syncScroll runs after the heal pass
         }
         // After the cap, so the measured font (and so the pace) is final.
         if (rec.scroll && !blank) syncScroll(rec);
+    }
+    if (healCheck.length) {
+        var overflowing = healCheck.filter(function (r) {
+            return r.inner.scrollWidth > r.el.clientWidth + 1
+                || (r.scroll !== 'up' && r.inner.scrollHeight > r.el.clientHeight + 1);
+        });
+        for (var hc = 0; hc < overflowing.length; hc++) capCell(overflowing[hc]);
+        for (var hs = 0; hs < healCheck.length; hs++) if (healCheck[hs].scroll) syncScroll(healCheck[hs]);
     }
 
     var rem = liveRemaining();

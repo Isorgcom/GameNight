@@ -223,7 +223,7 @@
                font list can still outgrow a small window. Scroll the panel
                rather than lose the bottom rows: every panel is its own
                body-level element, so nothing clips it. */
-            max-height: calc(100vh - 12px); overflow-y: auto; }
+            max-height:calc(100vh - 12px);max-height:calc(100dvh - 12px); overflow-y: auto; }
 .tbe-menu-item { display: block; width: 100%; text-align: left; padding: .42rem .6rem;
                  border: 0; background: none; font-size: .82rem; color: #334155;
                  border-radius: 6px; cursor: pointer; }

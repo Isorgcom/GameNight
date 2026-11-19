@@ -63,7 +63,7 @@ $token = csrf_token();
 
 <?php $nav_active = ''; $nav_user = null; require __DIR__ . '/_nav.php'; ?>
 
-<div class="card-wrap">
+<div role="main" class="card-wrap">
     <div class="card">
         <?php if ($success): ?>
         <h2>Account Verified!</h2>
@@ -150,7 +150,7 @@ $token = csrf_token();
         <form method="post" action="/verify_phone.php">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
             <div class="form-group" style="text-align:center">
-                <input type="text" name="code" placeholder="000000" maxlength="6" pattern="\d{6}"
+                <input type="text" name="code" aria-label="Verification code" placeholder="000000" maxlength="6" pattern="\d{6}"
                        inputmode="numeric" autocomplete="one-time-code" required autofocus
                        value="<?= htmlspecialchars($_POST['code'] ?? '') ?>"
                        style="width:180px;font-size:1.5rem;text-align:center;letter-spacing:.3em;padding:.6rem;border:2px solid #e2e8f0;border-radius:10px">

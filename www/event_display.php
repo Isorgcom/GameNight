@@ -65,7 +65,7 @@ $csrf = csrf_token();
 <body class="<?= $is_tournament ? 'tbe-body' : '' ?>">
 <?php $nav_user = $current; require __DIR__ . '/_nav.php'; ?>
 
-<div class="es-wrap es-wide">
+<div role="main" class="es-wrap es-wide">
     <?php $es_active = 'display'; require __DIR__ . '/_event_setup_strip.php'; ?>
 
 <?php if (!$session): ?>

@@ -62,7 +62,7 @@ function sso_render_error(int $code, string $title, string $message): void {
 </head>
 <body>
 <?php $nav_active = ''; require __DIR__ . '/_nav.php'; ?>
-<div class="card-wrap">
+<div role="main" class="card-wrap">
     <div class="card">
         <h2><?= htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE) ?></h2>
         <p class="subtitle"><?= htmlspecialchars($message, ENT_QUOTES | ENT_SUBSTITUTE) ?></p>
@@ -154,7 +154,7 @@ $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
 
 <?php $nav_active = ''; require __DIR__ . '/_nav.php'; ?>
 
-<div class="card-wrap">
+<div role="main" class="card-wrap">
     <div class="card">
         <h2>Continue to <?= $e($app['name']) ?>?</h2>
         <p class="subtitle"><?= $e($app['name']) ?> wants to sign you in with your <?= $e($site_name) ?> account.</p>

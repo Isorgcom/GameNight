@@ -6,13 +6,38 @@ VENDOR="/var/www/html/vendor"
 # Download vendor libraries on first start if not present.
 # Files are written to the mounted ./www/vendor/ path so they
 # persist on the host and are only downloaded once.
+#
+# Every file is pinned to a SHA-256. These are served from our own origin, so a
+# browser has no CDN integrity attribute to check them against; the check
+# happens here instead. A download that does not match is discarded and logged
+# (the container still starts: the editor, QR or video feature that needed it
+# is simply missing). Bumping a version means updating its hash in the same
+# change: `curl -fsSL <url> | sha256sum`.
+
+# fetch_verified URL OUT SHA256: download to OUT, keep it only if it matches.
+fetch_verified() {
+    local url="$1" out="$2" want="$3" got
+    if ! curl -fsSL "$url" -o "$out"; then
+        echo "[entrypoint] WARNING: download failed: $url"
+        rm -f "$out"; return 1
+    fi
+    got="$(sha256sum "$out" | cut -d' ' -f1)"
+    if [ "$got" != "$want" ]; then
+        echo "[entrypoint] ERROR: checksum mismatch for $url (expected $want, got $got); not installed."
+        rm -f "$out"; return 1
+    fi
+}
+# fetch_pinned URL DEST SHA256: verified download, then swapped into place.
+fetch_pinned() {
+    fetch_verified "$1" "$2.new" "$3" && mv "$2.new" "$2"
+}
 
 if [ ! -f "$VENDOR/phpmailer/PHPMailer.php" ]; then
     echo "[entrypoint] Downloading PHPMailer 7.0.2..."
     mkdir -p "$VENDOR/phpmailer"
-    curl -fsSL https://raw.githubusercontent.com/PHPMailer/PHPMailer/v7.0.2/src/Exception.php -o "$VENDOR/phpmailer/Exception.php"
-    curl -fsSL https://raw.githubusercontent.com/PHPMailer/PHPMailer/v7.0.2/src/PHPMailer.php  -o "$VENDOR/phpmailer/PHPMailer.php"
-    curl -fsSL https://raw.githubusercontent.com/PHPMailer/PHPMailer/v7.0.2/src/SMTP.php        -o "$VENDOR/phpmailer/SMTP.php"
+    fetch_pinned https://raw.githubusercontent.com/PHPMailer/PHPMailer/v7.0.2/src/Exception.php "$VENDOR/phpmailer/Exception.php" 22ab858ae438d98f58f41f38ad2191d1b0d59570aebea0463a7948cfae1021b7 || true
+    fetch_pinned https://raw.githubusercontent.com/PHPMailer/PHPMailer/v7.0.2/src/PHPMailer.php "$VENDOR/phpmailer/PHPMailer.php" 01038c4104554fe7fdb958eb4653883c5cf93af76a3c8797794001c35c1bf553 || true
+    fetch_pinned https://raw.githubusercontent.com/PHPMailer/PHPMailer/v7.0.2/src/SMTP.php "$VENDOR/phpmailer/SMTP.php" f7c8210e4047871f9f0b0639d7387d5574738fb9984f744d58d85378da77c68e || true
 fi
 
 # Jodit: fetched when missing OR when the pinned version changes (the .version
@@ -22,8 +47,8 @@ JODIT_VERSION="4.18.10"
 if [ ! -f "$VENDOR/jodit/jodit.min.js" ] || [ "$(cat "$VENDOR/jodit/.version" 2>/dev/null)" != "$JODIT_VERSION" ]; then
     echo "[entrypoint] Downloading Jodit $JODIT_VERSION..."
     mkdir -p "$VENDOR/jodit"
-    if curl -fsSL "https://cdn.jsdelivr.net/npm/jodit@${JODIT_VERSION}/es2021/jodit.min.js"  -o "$VENDOR/jodit/jodit.min.js.new" \
-    && curl -fsSL "https://cdn.jsdelivr.net/npm/jodit@${JODIT_VERSION}/es2021/jodit.min.css" -o "$VENDOR/jodit/jodit.min.css.new"; then
+    if fetch_verified "https://cdn.jsdelivr.net/npm/jodit@${JODIT_VERSION}/es2021/jodit.min.js"  "$VENDOR/jodit/jodit.min.js.new"  06223c1281f1cd5539b06bb61dbe4362363159f490f1ff66801fc0f72f5ea281 \
+    && fetch_verified "https://cdn.jsdelivr.net/npm/jodit@${JODIT_VERSION}/es2021/jodit.min.css" "$VENDOR/jodit/jodit.min.css.new" d9ba17faee055dfae5f2aad40e3b6c3d154aa8084a187dbbc33d15114531070f; then
         mv "$VENDOR/jodit/jodit.min.js.new" "$VENDOR/jodit/jodit.min.js"
         mv "$VENDOR/jodit/jodit.min.css.new" "$VENDOR/jodit/jodit.min.css"
         echo "$JODIT_VERSION" > "$VENDOR/jodit/.version"
@@ -37,12 +62,12 @@ PHPADMIN="/var/www/html/phpadmin"
 if [ ! -f "$PHPADMIN/phpliteadmin.php" ]; then
     echo "[entrypoint] Downloading pla-ng 2.0.4..."
     mkdir -p "$PHPADMIN"
-    curl -fsSL "https://github.com/emanueleg/pla-ng/releases/download/v2.0.4/phpliteadmin.php" -o "$PHPADMIN/phpliteadmin.php"
+    fetch_pinned "https://github.com/emanueleg/pla-ng/releases/download/v2.0.4/phpliteadmin.php" "$PHPADMIN/phpliteadmin.php" 07f7b5d8147d286414225edf0b15535c7560097a2efe26553ca410f128025652 || true
 fi
 
 if [ ! -f "$VENDOR/qrcode.min.js" ]; then
     echo "[entrypoint] Downloading qrcode-generator 1.4.4..."
-    curl -fsSL https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js -o "$VENDOR/qrcode.min.js"
+    fetch_pinned https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js "$VENDOR/qrcode.min.js" bb2365e4902f4f84852cf4025e6f6a60325a682aeafa43fb63b7fc8f098d1ef2 || true
 fi
 
 # The styled QR drawer (rounded modules, coloured corners, the icon in the
@@ -50,12 +75,12 @@ fi
 # falls back to the plain code from qrcode.min.js when this file is missing.
 if [ ! -f "$VENDOR/qr-code-styling.min.js" ]; then
     echo "[entrypoint] Downloading qr-code-styling 1.9.2..."
-    curl -fsSL https://cdn.jsdelivr.net/npm/qr-code-styling@1.9.2/lib/qr-code-styling.js -o "$VENDOR/qr-code-styling.min.js"
+    fetch_pinned https://cdn.jsdelivr.net/npm/qr-code-styling@1.9.2/lib/qr-code-styling.js "$VENDOR/qr-code-styling.min.js" 429de523c7563fc0647e618f5a8ea567d5a16412a13ef5d6a082b4502f5a54f9 || true
 fi
 
 if [ ! -f "$VENDOR/nosleep.min.js" ]; then
     echo "[entrypoint] Downloading NoSleep.js 0.12.0..."
-    curl -fsSL https://cdn.jsdelivr.net/npm/nosleep.js@0.12.0/dist/NoSleep.min.js -o "$VENDOR/nosleep.min.js"
+    fetch_pinned https://cdn.jsdelivr.net/npm/nosleep.js@0.12.0/dist/NoSleep.min.js "$VENDOR/nosleep.min.js" 887b763e53ecaeba7bdddcacb29f7ffaf9da8a3576c2cca7ea4a1ecd14ff731c || true
 fi
 
 # HLS playback for the Timer BETA video cell. Safari plays .m3u8 natively;
@@ -64,7 +89,7 @@ fi
 # script-src 'self' and needs no CSP exception.
 if [ ! -f "$VENDOR/hls.min.js" ]; then
     echo "[entrypoint] Downloading hls.js 1.5.17..."
-    curl -fsSL https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js -o "$VENDOR/hls.min.js"
+    fetch_pinned https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js "$VENDOR/hls.min.js" 484054e8cd03d3f6d1781fb7f402bdc318d8a4c527f933a95c624e27cc9a9470 || true
 fi
 
 # Self-hosted Google Fonts for the tournament timer theme system.

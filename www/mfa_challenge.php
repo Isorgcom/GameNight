@@ -132,7 +132,7 @@ $token = csrf_token();
 
 <?php $nav_active = ''; $nav_user = null; require __DIR__ . '/_nav.php'; ?>
 
-<div class="card-wrap">
+<div role="main" class="card-wrap">
     <div class="card">
         <h2>Two-Factor Verification</h2>
         <?php if ($method === 'sms'): ?>
@@ -175,7 +175,7 @@ $token = csrf_token();
         <?php endif; ?>
 
         <details style="margin-top:1rem">
-            <summary style="cursor:pointer;text-align:center;font-size:.8rem;color:#94a3b8">Lost your device? Use a recovery code</summary>
+            <summary style="cursor:pointer;text-align:center;font-size:.8rem;color:#64748b">Lost your device? Use a recovery code</summary>
             <form method="post" action="/mfa_challenge.php" style="margin-top:.6rem">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
                 <div class="form-group">
@@ -188,7 +188,7 @@ $token = csrf_token();
             </form>
         </details>
 
-        <p style="text-align:center;margin-top:.75rem;font-size:.8rem;color:#94a3b8">
+        <p style="text-align:center;margin-top:.75rem;font-size:.8rem;color:#64748b">
             <a href="/login.php">Back to sign in</a>
         </p>
     </div>
