@@ -903,7 +903,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
     <title><?= htmlspecialchars($site_name) ?></title>
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
-        .hint { font-size: .78rem; color: #94a3b8; margin-top: .35rem; }
+        .hint { font-size: .78rem; color: #64748b; margin-top: .35rem; }
         .pk-toggle-input { display:none; }
         .pk-toggle-slider { position:relative;width:36px;height:20px;background:#cbd5e1;border-radius:99px;transition:background .2s;flex-shrink:0;cursor:pointer; }
         .pk-toggle-slider::after { content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.2); }
@@ -912,7 +912,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
         .form-group .setting-toggle { display:flex !important;align-items:center;gap:.6rem;cursor:pointer;font-weight:500;margin-bottom:0; }
         .sms-grid { display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; }
         @media (max-width:640px) { .sms-grid { grid-template-columns:1fr; } }
-        .cred-note { font-size:.78rem; color:#94a3b8; margin-top:.25rem; }
+        .cred-note { font-size:.78rem; color:#64748b; margin-top:.25rem; }
 
         /* .tabs / .tab-btn styles live in style.css (shared with API Keys + Help Tips pages) */
         .tab-panel { display: none; }
@@ -992,7 +992,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
             background: #eff6ff; outline: 2px solid #2563eb;
             outline-offset: -2px; border-radius: 2px;
         }
-        .ug-id-cell   { color: #94a3b8; font-size: .78rem; text-align: center; width: 44px; }
+        .ug-id-cell   { color: #64748b; font-size: .78rem; text-align: center; width: 44px; }
         .ug-cb-cell   { width: 36px; text-align: center; }
         .ug-act-cell  { text-align: center; width: 44px; }
         .ug-del-btn {
@@ -1062,7 +1062,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
             width: 100%; padding: .6rem .85rem; border: 1.5px solid #e2e8f0;
             border-radius: 7px; font-size: .95rem; background: #f8fafc;
         }
-        .modal select:focus { outline: none; border-color: #2563eb; background: #fff; }
+        .modal select:focus { border-color: #2563eb; background: #fff; }
 
         /* ── Mobile/tablet touch optimization ── */
         @media (max-width: 1024px) {
@@ -1086,7 +1086,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
 
 <?php $nav_active = 'site-settings'; require __DIR__ . '/_nav.php'; ?>
 
-<div class="dash-wrap">
+<div role="main" class="dash-wrap">
 
     <?php if ($flash['msg']): ?>
         <div class="alert alert-<?= $flash['type'] === 'error' ? 'error' : 'success' ?>"
@@ -1273,7 +1273,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
         <p style="color:#64748b;font-size:.875rem;margin-bottom:1rem">
             Live snapshot of current site usage &mdash; auto-refreshes every 30s.
             <button type="button" class="btn btn-outline" id="actRefresh" style="margin-left:.5rem;padding:.2rem .6rem;font-size:.8rem">Refresh now</button>
-            <span id="actAsOf" style="color:#94a3b8;font-size:.8rem;margin-left:.5rem">as of <?= htmlspecialchars($act['as_of']) ?></span>
+            <span id="actAsOf" style="color:#64748b;font-size:.8rem;margin-left:.5rem">as of <?= htmlspecialchars($act['as_of']) ?></span>
         </p>
 
         <div class="stats">
@@ -1295,7 +1295,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
         <div id="actDeadRows" style="<?= (int)$act['notif_dead'] > 0 ? '' : 'display:none;' ?>margin-top:.75rem;padding:.55rem .75rem;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;font-size:.83rem;color:#b45309;font-weight:600">
             &#9888; <span id="actDeadCount"><?= (int)$act['notif_dead'] ?></span> notification(s) gave up after 3 retries. <a href="/sms_log.php?status=failed" style="color:#b45309">View the delivery log</a> for errors; resend from the event roster.
         </div>
-        <p style="color:#94a3b8;font-size:.78rem;margin-top:.5rem">
+        <p style="color:#64748b;font-size:.78rem;margin-top:.5rem">
             &ldquo;Active users&rdquo; is an estimate from logged activity in the last hour (individual connections aren&rsquo;t tracked). &ldquo;Live timers&rdquo; counts tournament clocks that have polled within the last 2 minutes. &ldquo;Failed &middot; 24h&rdquo; counts provider-level delivery failures in the notification log.
         </p>
 
@@ -1798,11 +1798,11 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                     <span id="previewBrand" style="font-weight:700;font-size:1.15rem;color:<?= htmlspecialchars(get_setting('nav_text_color','') ?: '#ffffff') ?>">
                         <?= $banner_path ? '<img src="' . htmlspecialchars($banner_path) . '" style="max-height:36px;vertical-align:middle">' : htmlspecialchars($site_name) ?>
                     </span>
-                    <span style="color:#94a3b8;font-size:.875rem"><?= htmlspecialchars($current['username']) ?> &#9776;</span>
+                    <span style="color:#64748b;font-size:.875rem"><?= htmlspecialchars($current['username']) ?> &#9776;</span>
                 </div>
                 <div id="previewLinks" style="height:40px;background:rgba(0,0,0,.2);padding:0 2rem;display:flex;align-items:center;gap:1.5rem">
                     <span id="previewAccent" style="font-size:.9rem;font-weight:600;color:<?= htmlspecialchars(get_setting('accent_color','') ?: '#2563eb') ?>">Home</span>
-                    <span style="font-size:.9rem;color:#94a3b8">Calendar</span>
+                    <span style="font-size:.9rem;color:#64748b">Calendar</span>
                 </div>
             </div>
         </div>
@@ -1899,7 +1899,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 <span style="color:#64748b;font-size:.82rem;margin-left:auto" id="ugCount">
                     <?= count($users) ?> user<?= count($users) !== 1 ? 's' : '' ?>
                 </span>
-                <span style="color:#94a3b8;font-size:.75rem">Click any cell to edit &bull; Changes save automatically</span>
+                <span style="color:#64748b;font-size:.75rem">Click any cell to edit &bull; Changes save automatically</span>
                 <a href="/admin_settings.php?action=export_users" class="btn btn-outline btn-sm" style="padding:.4rem .85rem;font-size:.82rem">&#8681; Export CSV</a>
                 <button class="btn btn-outline btn-sm" data-act="toggleUgImport" style="padding:.4rem .85rem;font-size:.82rem">&#8679; Import CSV</button>
                 <button class="btn btn-primary btn-sm" data-act="openUserModal" style="padding:.4rem .85rem;font-size:.82rem">+ New User</button>
@@ -1915,7 +1915,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                            style="font-size:.82rem;border:1.5px solid #e2e8f0;border-radius:7px;padding:.3rem .5rem;background:#fff">
                     <button type="submit" class="btn btn-primary btn-sm" style="padding:.4rem .85rem;font-size:.82rem">Import</button>
                 </form>
-                <span style="font-size:.78rem;color:#94a3b8">
+                <span style="font-size:.78rem;color:#64748b">
                     CSV columns: <code>username, email, phone, role, preferred_contact, notes</code>
                     &bull; Existing usernames are skipped &bull; Imported users must change password on first login
                     &bull; <a href="/sample_users.csv" download style="color:#2563eb">Download sample CSV</a>
@@ -2042,14 +2042,14 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                                 <input type="hidden" name="action" value="delete">
                                 <input type="hidden" name="tab" value="users">
                                 <input type="hidden" name="id" value="<?= $uid ?>">
-                                <button type="submit" class="ug-del-btn" title="Delete">&#128465;</button>
+                                <button aria-label="Delete" type="submit" class="ug-del-btn" title="Delete">&#128465;</button>
                             </form>
                             <?php endif; ?>
                         </td>
                     </tr>
                 <?php endforeach; ?>
                 <?php if (empty($users)): ?>
-                    <tr><td colspan="12" style="text-align:center;color:#94a3b8;padding:2rem">No users found.</td></tr>
+                    <tr><td colspan="12" style="text-align:center;color:#64748b;padding:2rem">No users found.</td></tr>
                 <?php endif; ?>
                 </tbody>
             </table>
@@ -2287,7 +2287,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 outline-offset: -2px;
                 border-radius: 2px;
             }
-            .ev-id-cell { color: #94a3b8; font-size: .78rem; text-align: center; width: 44px; }
+            .ev-id-cell { color: #64748b; font-size: .78rem; text-align: center; width: 44px; }
             .ev-invites-cell { text-align: center; width: 60px; color: #475569; }
             .ev-creator-cell { color: #475569; }
             .ev-del-cell { text-align: center; width: 44px; }
@@ -2353,7 +2353,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 <span style="color:#64748b;font-size:.82rem;margin-left:auto">
                     <?= count($admin_events) ?> event<?= count($admin_events) !== 1 ? 's' : '' ?>
                 </span>
-                <span style="color:#94a3b8;font-size:.75rem">Click any cell to edit &bull; Changes save automatically</span>
+                <span style="color:#64748b;font-size:.75rem">Click any cell to edit &bull; Changes save automatically</span>
             </div>
 
             <table id="eventsGrid">
@@ -2415,13 +2415,13 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                                 <input type="hidden" name="action" value="delete_event">
                                 <input type="hidden" name="tab" value="events">
                                 <input type="hidden" name="id" value="<?= $eid ?>">
-                                <button type="submit" class="ev-del-btn" title="Delete event">&#128465;</button>
+                                <button aria-label="Delete event" type="submit" class="ev-del-btn" title="Delete event">&#128465;</button>
                             </form>
                         </td>
                     </tr>
                 <?php endforeach; ?>
                 <?php if (empty($admin_events)): ?>
-                    <tr><td colspan="10" style="text-align:center;color:#94a3b8;padding:2rem">No events found.</td></tr>
+                    <tr><td colspan="10" style="text-align:center;color:#64748b;padding:2rem">No events found.</td></tr>
                 <?php endif; ?>
                 </tbody>
             </table>
@@ -2494,7 +2494,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
             <h2>Leagues (<?= count($all_leagues) ?>)</h2>
             <p style="color:#64748b;font-size:.875rem;margin:0 0 1rem">All leagues, including hidden ones. As an admin, clicking a league opens its normal management page, where you have full owner-level privileges regardless of your actual role.</p>
             <?php if (empty($all_leagues)): ?>
-                <p style="color:#94a3b8;text-align:center;padding:1.5rem 0">No leagues have been created yet.</p>
+                <p style="color:#64748b;text-align:center;padding:1.5rem 0">No leagues have been created yet.</p>
             <?php else: ?>
             <div style="margin-bottom:.75rem">
                 <input type="search" id="adminLgSearch" placeholder="Search by name, description, or owner&hellip;" autocomplete="off"
@@ -2541,7 +2541,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 <?php endforeach; ?>
                 </tbody>
             </table>
-            <div id="adminLgNoResults" style="display:none;text-align:center;color:#94a3b8;padding:1rem">No leagues match your search.</div>
+            <div id="adminLgNoResults" style="display:none;text-align:center;color:#64748b;padding:1rem">No leagues match your search.</div>
             </div>
             <?php endif; ?>
         </div>
@@ -2626,7 +2626,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                         <input type="text" name="smtp_user" autocomplete="off" value="<?= htmlspecialchars(get_setting('smtp_user','')) ?>">
                     </div>
                     <div class="form-group">
-                        <label>Password <span style="color:#94a3b8;font-weight:400">(leave blank to keep current)</span></label>
+                        <label>Password <span style="color:#64748b;font-weight:400">(leave blank to keep current)</span></label>
                         <input type="password" name="smtp_pass" autocomplete="new-password">
                     </div>
                     <div class="form-group">
@@ -2893,7 +2893,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                        style="flex:1;font-family:monospace;font-size:.85rem;background:#f1f5f9;border:1.5px solid #e2e8f0;border-radius:7px;padding:.5rem .75rem;color:#1e293b;cursor:text">
                 <button type="button" data-act="copyWebhookUrl" data-a1="@self" style="white-space:nowrap" class="btn btn-outline btn-sm">Copy</button>
             </div>
-            <p style="font-size:.78rem;color:#94a3b8;margin-top:.6rem">
+            <p style="font-size:.78rem;color:#64748b;margin-top:.6rem">
                 <strong>Telnyx:</strong> Messaging &rsaquo; Messaging Profiles &rsaquo; your profile &rsaquo; Inbound Settings &rsaquo; Webhook URL<br>
                 <strong>Twilio:</strong> Phone Numbers &rsaquo; your number &rsaquo; Messaging &rsaquo; Webhook (HTTP POST)<br>
                 <strong>Plivo:</strong> Phone Numbers &rsaquo; your number &rsaquo; Message URL<br>
@@ -2956,7 +2956,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 <div style="border-top:1px solid #e2e8f0;padding-top:1rem">
                     <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem">
                         <span style="font-weight:700;font-size:.9rem">Session Status:</span>
-                        <span id="wahaStatus" style="font-weight:600;font-size:.85rem;color:#94a3b8">Checking...</span>
+                        <span id="wahaStatus" style="font-weight:600;font-size:.85rem;color:#64748b">Checking...</span>
                     </div>
                     <div id="wahaQrWrap" style="display:none;text-align:center;margin:1rem 0">
                         <p style="font-size:.85rem;color:#64748b;margin-bottom:.75rem">Scan this QR code with your WhatsApp app:</p>
@@ -2970,7 +2970,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                                 <li>Tap <strong>Link a Device</strong></li>
                                 <li>Point your phone camera at the QR code above</li>
                             </ol>
-                            <p style="font-size:.72rem;color:#94a3b8;margin-top:.5rem;margin-bottom:0">Use a dedicated WhatsApp number for GameNight to keep your personal account separate.</p>
+                            <p style="font-size:.72rem;color:#64748b;margin-top:.5rem;margin-bottom:0">Use a dedicated WhatsApp number for GameNight to keep your personal account separate.</p>
                         </div>
                     </div>
                     <div style="display:flex;gap:.5rem;flex-wrap:wrap">
@@ -3176,7 +3176,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
     <div class="modal">
         <div class="modal-header">
             <h2>New User</h2>
-            <button class="modal-close" data-act="closeUserModal" title="Close">&#x2715;</button>
+            <button aria-label="Close" class="modal-close" data-act="closeUserModal" title="Close">&#x2715;</button>
         </div>
         <form method="post" action="/admin_settings.php">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">
@@ -3313,7 +3313,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                 <p style="font-size:.82rem;color:#475569;line-height:1.6;margin:0">
                     <strong>No setup needed.</strong> The GameNight container has a built-in background scheduler that automatically runs every 5 minutes. On first start, it generates a secure cron token and saves it. The scheduler runs inside the container alongside Apache &mdash; no external cron job, no manual configuration. Just <code>docker compose up</code> and everything works.
                 </p>
-                <p style="font-size:.78rem;color:#94a3b8;margin-top:.4rem;margin-bottom:0">
+                <p style="font-size:.78rem;color:#64748b;margin-top:.4rem;margin-bottom:0">
                     Technical detail: <code>docker-entrypoint.sh</code> launches a background loop that curls <code>http://localhost/cron.php?token=...</code> every 300 seconds (5 min). The loop runs as a child process of the entrypoint and dies automatically when the container stops.
                 </p>
             </div>
@@ -3362,7 +3362,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                         ? round($dbSize / 1024, 1) . ' KB'
                         : round($dbSize / (1024*1024), 2) . ' MB';
                 ?>
-                <p style="font-size:.75rem;color:#94a3b8;margin-top:.75rem">Database size: <?= $dbSizeStr ?></p>
+                <p style="font-size:.75rem;color:#64748b;margin-top:.75rem">Database size: <?= $dbSizeStr ?></p>
             </div>
 
             <!-- Restore backup -->
@@ -3381,7 +3381,7 @@ $act = ($tab === 'activity') ? admin_activity_snapshot($db) : null;
                     <button type="submit" class="btn" style="width:100%;background:#dc2626;color:#fff;border:none">Restore Backup</button>
                 </form>
                 <?php if (file_exists(DB_PATH . '.before_restore')): ?>
-                <p style="font-size:.75rem;color:#94a3b8;margin-top:.75rem">Pre-restore backup saved: <?= date('Y-m-d H:i:s', filemtime(DB_PATH . '.before_restore')) ?></p>
+                <p style="font-size:.75rem;color:#64748b;margin-top:.75rem">Pre-restore backup saved: <?= date('Y-m-d H:i:s', filemtime(DB_PATH . '.before_restore')) ?></p>
                 <?php endif; ?>
             </div>
         </div>

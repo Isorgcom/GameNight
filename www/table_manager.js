@@ -681,6 +681,7 @@ function pendingIds(list) {
 function walkinToast(msg) {
     var t = document.createElement('div');
     t.textContent = msg;
+    if (typeof pkAnnounce === 'function') pkAnnounce(msg);
     t.style.cssText = 'position:fixed;bottom:calc(70px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);z-index:99999;'
         + 'background:#1e293b;color:#fff;padding:.6rem 1.1rem;border-radius:999px;font-size:.9rem;font-weight:600;'
         + 'box-shadow:0 6px 24px rgba(0,0,0,.3);cursor:pointer;max-width:90vw';

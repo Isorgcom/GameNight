@@ -170,14 +170,14 @@ $site_name = get_setting('site_name', 'Game Night');
             border: 1.5px solid #e2e8f0; border-radius: 7px;
             font-size: .95rem; background: #f8fafc;
         }
-        select.form-select:focus { outline: none; border-color: #2563eb; background: #fff; }
+        select.form-select:focus { border-color: #2563eb; background: #fff; }
     </style>
 </head>
 <body>
 
 <?php $nav_active = 'site-settings'; require __DIR__ . '/_nav.php'; ?>
 
-<div class="dash-wrap">
+<div role="main" class="dash-wrap">
 
     <div class="dash-header">
         <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
@@ -332,7 +332,7 @@ $site_name = get_setting('site_name', 'Game Night');
                 <tr><td style="color:#64748b">Two-Factor</td>
                     <td><?= (int)($target['mfa_enabled'] ?? 0)
                         ? '<span style="color:#22c55e;font-weight:600">On (' . htmlspecialchars($target['mfa_method'] === 'sms' ? 'SMS' : 'app') . ')</span>'
-                        : '<span style="color:#94a3b8">Off</span>' ?></td></tr>
+                        : '<span style="color:#64748b">Off</span>' ?></td></tr>
                 <tr><td style="color:#64748b">Member since</td><td><?= htmlspecialchars($target['created_at']) ?></td></tr>
                 <tr><td style="color:#64748b">Last login</td><td><?= htmlspecialchars($target['last_login'] ?? 'Never') ?></td></tr>
             </tbody>

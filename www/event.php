@@ -31,7 +31,7 @@ function ev_show_simple(string $heading, string $body, string $type = 'error'): 
     <title><?= htmlspecialchars($heading) ?> &ndash; <?= htmlspecialchars($site_name) ?></title>
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
 </head>
-<body style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:1rem">
+<body style="display:flex;align-items:center;justify-content:center;min-height:100vh;min-height:100dvh;padding:1rem">
     <div style="max-width:480px;width:100%;text-align:center">
         <div style="background:<?= $bg ?>;border:2px solid <?= $color ?>;border-radius:12px;padding:2rem 1.5rem;margin-bottom:1.5rem">
             <h1 style="font-size:1.5rem;color:<?= $color ?>;margin:0 0 .75rem"><?= htmlspecialchars($heading) ?></h1>
@@ -228,7 +228,7 @@ if ($token === '' && $page_eid > 0) {
         .evp-meta { color:#475569; font-size:.95rem; margin-bottom:.15rem; }
         .evp-comment { border-top:1px solid #f1f5f9; padding:.55rem 0; }
         .evp-comment .who { font-weight:600; font-size:.85rem; color:#334155; }
-        .evp-comment .when { color:#94a3b8; font-size:.75rem; margin-left:.4rem; }
+        .evp-comment .when { color:#64748b; font-size:.75rem; margin-left:.4rem; }
         .evp-comment .body { font-size:.9rem; color:#334155; margin-top:.15rem; white-space:pre-wrap; }
         /* The "not set up yet" call-to-action, checkin.php's warning palette. */
         .pk-setup-cta{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin:0;padding:.7rem .9rem;
@@ -239,14 +239,14 @@ if ($token === '' && $page_eid > 0) {
             padding:.45rem 1rem;font-size:.82rem;font-weight:700;cursor:pointer}
         .pk-setup-cta button:hover{background:#b45309}
         .pk-setup-cta button[disabled]{opacity:.5;cursor:default}
-        .ft-head{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin-bottom:.45rem}
+        .ft-head{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin-bottom:.45rem}
         .ft-status{font-size:.9rem;color:#334155;line-height:1.5}
         .ft-row{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.6rem;align-items:center}
         .ft-ent{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;font-size:.85rem;color:#475569;padding:.2rem 0;border-top:1px solid #f1f5f9}
         .ft-ent:first-child{border-top:0}
         .ft-ent .n{flex:1;min-width:0;font-weight:600;color:#334155}
         .ft-ent .c{font-variant-numeric:tabular-nums}
-        .ft-ent .out{color:#94a3b8;text-decoration:line-through}
+        .ft-ent .out{color:#64748b;text-decoration:line-through}
         .ft-mini{border:1px solid #cbd5e1;background:#fff;color:#334155;border-radius:6px;padding:.2rem .55rem;font-size:.75rem;font-weight:600;cursor:pointer}
         .ft-mini:hover{background:#f1f5f9}
         .ft-note{font-size:.8rem;color:#64748b;margin-top:.4rem}
@@ -254,7 +254,7 @@ if ($token === '' && $page_eid > 0) {
 </head>
 <body>
 <?php require __DIR__ . '/_nav.php'; ?>
-<div class="evp-wrap">
+<div role="main" class="evp-wrap">
     <?php
     $flash = $_SESSION['flash'] ?? null;
     unset($_SESSION['flash']);
@@ -345,7 +345,7 @@ if ($token === '' && $page_eid > 0) {
                     <?php if (!empty($isTournament)): ?>
                     <a href="/event_blinds.php?event_id=<?= $page_eid ?>">&#9202; Blinds &amp; timer display</a>
                     <?php endif; ?>
-                    <a href="javascript:void(0)" data-act="copyEventLinkAndClose" data-a1="@self">&#128279; Copy link</a>
+                    <button type="button" data-act="copyEventLinkAndClose" data-a1="@self">&#128279; Copy link</button>
                     <a href="/walkin_display.php?event_id=<?= $page_eid ?>" target="_blank" rel="noopener">&#x1F4F1; Walk-up QR</a>
                     <?php if ($evUpcoming): ?>
                     <?php /* An upcoming event is cancelled, not deleted: guests are
@@ -476,7 +476,7 @@ if ($token === '' && $page_eid > 0) {
         .ev-qr-suit.s3 { bottom:6%; left:-1.25rem; transform:rotate(12deg); }
         .ev-qr-suit.s4 { bottom:-2rem; right:8%; transform:rotate(-10deg); color:rgba(248,113,113,.09); }
         .ev-share-qr-card { position:relative; background:#fff; border-radius:22px; overflow:hidden; text-align:center;
-            width:min(92vw, 420px); max-height:calc(100vh - 2rem); overflow-y:auto; box-sizing:border-box;
+            width:min(92vw, 420px); max-height:calc(100vh - 2rem);max-height:calc(100dvh - 2rem); overflow-y:auto; box-sizing:border-box;
             box-shadow:0 24px 60px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.08); }
         .ev-qr-band { background:linear-gradient(135deg, #2563eb 0%, #7c3aed 100%); color:#fff; padding:1.1rem 1.25rem 1rem; }
         .ev-qr-logo { max-height:34px; max-width:60%; margin:0 auto .45rem; display:block; filter:drop-shadow(0 1px 2px rgba(0,0,0,.25)); }
@@ -548,7 +548,7 @@ if ($token === '' && $page_eid > 0) {
                         </select>
                     </label>
                     <?php if (!$isCreator): ?>
-                    <a href="javascript:void(0)" id="evpLeaveBtn" style="margin-left:auto;font-size:.78rem;color:#dc2626;text-decoration:none">Leave this event</a>
+                    <button type="button" id="evpLeaveBtn" style="margin-left:auto;font:inherit;font-size:.78rem;color:#dc2626;background:none;border:0;padding:0;cursor:pointer">Leave this event</button>
                     <?php endif; ?>
                 </div>
                 <style>
@@ -582,10 +582,10 @@ if ($token === '' && $page_eid > 0) {
         if ($chatEligible): ?>
         <div style="margin-top:1.1rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
             <a class="btn btn-outline" style="text-decoration:none" href="/message_thread.php?event=<?= $page_eid ?>">&#128172; Event chat</a>
-            <span style="font-size:.78rem;color:#94a3b8">group chat for the host and everyone going</span>
+            <span style="font-size:.78rem;color:#64748b">group chat for the host and everyone going</span>
             <?php if ($canManage): ?>
             <a class="btn btn-outline" style="text-decoration:none" href="/sms_conversations.php?event=<?= $page_eid ?>">&#128241; Text conversations</a>
-            <span style="font-size:.78rem;color:#94a3b8">SMS/WhatsApp replies from your guests</span>
+            <span style="font-size:.78rem;color:#64748b">SMS/WhatsApp replies from your guests</span>
             <?php endif; ?>
         </div>
         <?php endif; ?>
@@ -700,7 +700,7 @@ if ($token === '' && $page_eid > 0) {
         <?php if ($evMsgs || ($canManage && $notifsEnabled)): ?>
         <div style="margin-top:1.25rem;padding-top:1.1rem;border-top:1px solid #e2e8f0">
             <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.45rem">
-                <span style="flex:1;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8">Messages from the host</span>
+                <span style="flex:1;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#64748b">Messages from the host</span>
                 <?php if ($canManage): ?>
                 <a href="/event_history.php?id=<?= $page_eid ?>" style="font-size:.75rem;color:#2563eb;text-decoration:none;white-space:nowrap">Full history</a>
                 <?php endif; ?>
@@ -717,10 +717,10 @@ if ($token === '' && $page_eid > 0) {
                     <div style="display:flex;align-items:flex-start;gap:.5rem">
                         <div style="flex:1;min-width:0;font-weight:600;font-size:.85rem;color:#1e293b"><?= htmlspecialchars($m['subject']) ?></div>
                         <?php if ($canManage): ?>
-                        <button type="button" title="Delete this message" data-act="deleteEventMsg" data-a1="<?= (int)$m['id'] ?>" data-a2="@self" style="background:none;border:0;color:#cbd5e1;cursor:pointer;font-size:1.15rem;line-height:1;padding:0 .15rem">&times;</button>
+                        <button aria-label="Delete this message" type="button" title="Delete this message" data-act="deleteEventMsg" data-a1="<?= (int)$m['id'] ?>" data-a2="@self" style="background:none;border:0;color:#cbd5e1;cursor:pointer;font-size:1.15rem;line-height:1;padding:0 .15rem">&times;</button>
                         <?php endif; ?>
                     </div>
-                    <div style="font-size:.7rem;color:#94a3b8;margin:.1rem 0 .4rem"><?= htmlspecialchars($m['created_at']) ?><?= $canManage ? ' &middot; ' . htmlspecialchars($aud) : '' ?></div>
+                    <div style="font-size:.7rem;color:#64748b;margin:.1rem 0 .4rem"><?= htmlspecialchars($m['created_at']) ?><?= $canManage ? ' &middot; ' . htmlspecialchars($aud) : '' ?></div>
                     <div style="font-size:.85rem;color:#334155;line-height:1.5"><?= $m['body_html'] /* sanitized at store time */ ?></div>
                     <?php if (!empty($m['attachment_file'])): ?>
                     <div style="margin-top:.4rem;font-size:.8rem"><a href="/uploads/event_messages/<?= rawurlencode(basename((string)$m['attachment_file'])) ?>" target="_blank" rel="noopener">&#128206; <?= htmlspecialchars((string)$m['attachment_name'], ENT_QUOTES | ENT_SUBSTITUTE) ?></a></div>
@@ -729,14 +729,14 @@ if ($token === '' && $page_eid > 0) {
                 <?php endforeach; ?>
             </div>
             <?php elseif ($canManage): ?>
-            <div style="font-size:.78rem;color:#94a3b8">No messages sent yet. Use &ldquo;Message guests&rdquo; to send the address and final details.</div>
+            <div style="font-size:.78rem;color:#64748b">No messages sent yet. Use &ldquo;Message guests&rdquo; to send the address and final details.</div>
             <?php endif; ?>
         </div>
         <?php endif; ?>
 
         <!-- Comments -->
         <div style="margin-top:1.25rem;padding-top:1.1rem;border-top:1px solid #e2e8f0">
-            <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin-bottom:.3rem">
+            <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin-bottom:.3rem">
                 <?= count($comments) ?> <?= count($comments) === 1 ? 'Comment' : 'Comments' ?>
             </div>
             <?php foreach ($comments as $c):
@@ -748,8 +748,8 @@ if ($token === '' && $page_eid > 0) {
                     <span class="who"><?= htmlspecialchars($c['username']) ?><?= isset($rosterKnown[strtolower((string)$c['username'])]) ? ' <span class="pk-known" title="Known as in the league">(' . htmlspecialchars($rosterKnown[strtolower((string)$c['username'])]) . ')</span>' : '' ?><?= '' ?></span><span class="when"><?= htmlspecialchars($c['created_at']) ?></span>
                     <?php if ($canModC): ?>
                     <span style="float:right;display:inline-flex;gap:.3rem">
-                        <button type="button" title="Edit" data-act="editComment" data-a1="<?= (int)$c['id'] ?>" style="background:none;border:0;color:#94a3b8;cursor:pointer;font-size:.85rem;padding:0">&#9998;</button>
-                        <button type="button" title="Delete" data-act="deleteComment" data-a1="<?= (int)$c['id'] ?>" style="background:none;border:0;color:#94a3b8;cursor:pointer;font-size:.85rem;padding:0">&#x2715;</button>
+                        <button aria-label="Edit" type="button" title="Edit" data-act="editComment" data-a1="<?= (int)$c['id'] ?>" style="background:none;border:0;color:#64748b;cursor:pointer;font-size:.85rem;padding:0">&#9998;</button>
+                        <button aria-label="Delete" type="button" title="Delete" data-act="deleteComment" data-a1="<?= (int)$c['id'] ?>" style="background:none;border:0;color:#64748b;cursor:pointer;font-size:.85rem;padding:0">&#x2715;</button>
                     </span>
                     <?php endif; ?>
                     <div class="body" id="evcb-<?= (int)$c['id'] ?>"><?= htmlspecialchars($c['body']) ?></div>
@@ -764,7 +764,7 @@ if ($token === '' && $page_eid > 0) {
                 <input type="hidden" name="content_id" value="<?= $page_eid ?>">
                 <input type="hidden" name="redirect" value="<?= htmlspecialchars($selfUrl) ?>">
                 <div class="cm-compose" style="flex:1;min-width:200px">
-                    <textarea name="body" id="evCommentBody" class="cm-body" maxlength="2000" placeholder="Write a comment… (paste a screenshot to attach it)" rows="2"></textarea>
+                    <textarea name="body" id="evCommentBody" class="cm-body" aria-label="Comment" maxlength="2000" placeholder="Write a comment… (paste a screenshot to attach it)" rows="2"></textarea>
                     <div class="cm-thumbs" hidden></div>
                 </div>
                 <input type="file" name="image[]" class="cm-file" accept="image/jpeg,image/png,image/gif,image/webp" multiple hidden>
@@ -885,6 +885,7 @@ function evPost(action, extra) {
 function evToast(msg) {
     var t = document.createElement('div');
     t.textContent = msg || 'Saved';
+    if (typeof pkAnnounce === 'function') pkAnnounce(t.textContent);
     t.style.cssText = 'position:fixed;bottom:1.2rem;left:50%;transform:translateX(-50%);background:#dcfce7;color:#166534;border:1px solid #86efac;border-radius:8px;padding:.45rem 1rem;font-size:.85rem;font-weight:600;z-index:1200';
     document.body.appendChild(t);
     setTimeout(function () { t.remove(); }, 2500);
@@ -1072,7 +1073,7 @@ async function editComment(id) {
     <div class="modal" style="display:flex;flex-direction:column;max-height:92vh">
         <div style="display:flex;align-items:center;gap:.6rem;border-bottom:1px solid #e2e8f0;padding-bottom:.6rem;margin-bottom:.75rem">
             <h2 style="margin:0;flex:1;font-size:1.15rem">Message going guests</h2>
-            <a href="javascript:void(0)" data-act="closeEventMsgModal" aria-label="Close" style="font-size:1.5rem;line-height:1;color:#94a3b8;text-decoration:none">&times;</a>
+            <button type="button" class="modal-close" data-act="closeEventMsgModal" aria-label="Close" style="font-size:1.5rem;line-height:1;color:#64748b;background:none;border:0;padding:0 .2rem;cursor:pointer">&times;</button>
         </div>
         <p style="margin-top:0;color:#64748b;font-size:.85rem">Send a message to your guests. They'll get it by their preferred channel; text recipients get a link to read it.</p>
         <div class="form-group">
@@ -1106,8 +1107,7 @@ async function editComment(id) {
      SVG icons render at natural size, one of which covers the modal as a giant
      black X. Lost in the v0.2038 port of this composer from the calendar popup,
      which loads the stylesheet (calendar.php) as do league.php and admin_posts.php. -->
-<link rel="stylesheet" href="/vendor/jodit/jodit.min.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/jodit/jodit.min.css') ?: 0)) ?>">
-<script src="/vendor/jodit/jodit.min.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/jodit/jodit.min.js') ?: 0)) ?>" defer></script>
+<?php /* Both are fetched on first use by pkLoadJodit() (pk-dialogs.js). */ ?>
 <script nonce="<?= csp_nonce() ?>">
 // ── Manager panel: live roster, approvals, delivery status, invites ─────────
 // Ported from the calendar popup (renderInvitesPanel/pollRsvps) — one view now.
@@ -1138,7 +1138,7 @@ function renderInvPanel() {
     // The panel's own heading, with the way to everything this event sent
     // and received (event_history.php, v1.15.0).
     var ih = '<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">'
-        + '<span style="flex:1;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8">Invites</span>'
+        + '<span style="flex:1;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#64748b">Invites</span>'
         + '<a href="/event_history.php?id=' + EV_EID + '" style="font-size:.75rem;color:#2563eb;text-decoration:none;white-space:nowrap">History</a></div>';
 
     if (NOTIFS_ON) {
@@ -1322,8 +1322,17 @@ if (evPanel) {
 
 // Message-guests compose (Jodit), reloading after send so history refreshes
 var _emEditor = null;
+var EM_JODIT_JS = <?= js_json('/vendor/jodit/jodit.min.js?v=' . APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/jodit/jodit.min.js') ?: 0), JSON_HEX_TAG) ?>;
+var EM_JODIT_CSS = <?= js_json('/vendor/jodit/jodit.min.css?v=' . APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/jodit/jodit.min.css') ?: 0), JSON_HEX_TAG) ?>;
+// Resolves once the editor exists, or without one (load failed): the send path
+// then reads the plain textarea.
 function _emEnsureEditor() {
-    if (_emEditor || typeof Jodit === 'undefined') return;
+    if (_emEditor) return Promise.resolve();
+    if (typeof pkLoadJodit !== 'function') return Promise.resolve();
+    return pkLoadJodit(EM_JODIT_JS, EM_JODIT_CSS).then(_emMakeEditor, function () {});
+}
+function _emMakeEditor() {
+    if (_emEditor) return;
     _emEditor = Jodit.make('#emBody', {
         // Jodit pulls js-beautify and ACE from cdnjs on load. script-src is 'self',
         // so both are refused and the features never worked here — this just stops
@@ -1341,9 +1350,10 @@ function openEventMsgModal() {
     document.getElementById('emAudience').value = 'yes';
     document.getElementById('emSubject').value = '';
     var emf = document.getElementById('emFile'); if (emf) emf.value = '';
-    _emEnsureEditor();
+    document.getElementById('emBody').value = '';
     if (_emEditor) _emEditor.value = '';
     document.getElementById('eventMsgModal').classList.add('open');
+    _emEnsureEditor();
 }
 function closeEventMsgModal() {
     document.getElementById('eventMsgModal').classList.remove('open');
@@ -1498,7 +1508,7 @@ function ev_names_block(string $label, array $names, string $color, array $avata
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
         body { background: var(--bg, #f8fafc); }
-        .ev-wrap { min-height:100vh; display:flex; align-items:flex-start; justify-content:center; padding:1.5rem; }
+        .ev-wrap { min-height:100vh;min-height:100dvh; display:flex; align-items:flex-start; justify-content:center; padding:1.5rem; }
         .ev-card { background:#fff; border-radius:14px; box-shadow:0 8px 32px rgba(0,0,0,.12); padding:1.75rem 1.75rem 1.5rem; width:100%; max-width:480px; margin-top:1rem; }
         .ev-rsvp-btn { display:inline-block; flex:1; text-align:center; padding:.6rem .5rem; border-radius:8px; text-decoration:none; font-weight:700; font-size:.95rem; border:2px solid; }
     </style>
@@ -1602,7 +1612,7 @@ function ev_names_block(string $label, array $names, string $color, array $avata
 
         <!-- Exit / close the public event page -->
         <div style="text-align:center;margin-top:1.5rem">
-            <a href="/" style="color:#94a3b8;text-decoration:none;font-size:.84rem">Done &middot; Go to <?= htmlspecialchars($site_name) ?></a>
+            <a href="/" style="color:#64748b;text-decoration:none;font-size:.84rem">Done &middot; Go to <?= htmlspecialchars($site_name) ?></a>
         </div>
     </div>
 </div>

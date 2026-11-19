@@ -69,7 +69,7 @@ function api_keys_admin_fmt(?string $utc_dt, DateTimeZone $local_tz): string {
         .ak-card { background:#fff; border:1.5px solid #e2e8f0; border-radius:10px; padding:1.25rem; margin-bottom:1rem; }
         .ak-table { width:100%; border-collapse:collapse; font-size:.875rem; }
         .ak-table th, .ak-table td { padding:.55rem .6rem; border-bottom:1px solid #f1f5f9; text-align:left; }
-        .ak-table th { font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:#94a3b8; font-weight:700; }
+        .ak-table th { font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:#64748b; font-weight:700; }
         .ak-btn { background:#dc2626; color:#fff; border:none; border-radius:6px; padding:.3rem .8rem; font-size:.78rem; font-weight:600; cursor:pointer; }
         .ak-flash { border:1.5px solid; border-radius:10px; padding:1rem 1.25rem; margin-bottom:1rem; font-size:.9rem; }
         .ak-flash.success { background:#f0fdf4; border-color:#86efac; color:#166534; }
@@ -80,7 +80,7 @@ function api_keys_admin_fmt(?string $utc_dt, DateTimeZone $local_tz): string {
 
 <?php $nav_active = 'site-settings'; $nav_user = $current; require __DIR__ . '/_nav.php'; ?>
 
-<div class="dash-wrap">
+<div role="main" class="dash-wrap">
     <?php $admin_tab = 'apikeys'; require __DIR__ . '/_admin_tabs.php'; ?>
     <h1 style="font-size:1.5rem;font-weight:700;margin:0 0 1rem">API Keys (audit view)</h1>
     <p style="color:#64748b;margin:0 0 1.25rem;font-size:.9rem;line-height:1.55">
@@ -95,7 +95,7 @@ function api_keys_admin_fmt(?string $utc_dt, DateTimeZone $local_tz): string {
 
     <div class="ak-card">
         <?php if (empty($keys)): ?>
-            <p style="color:#94a3b8;font-size:.9rem;margin:0">No keys exist yet.</p>
+            <p style="color:#64748b;font-size:.9rem;margin:0">No keys exist yet.</p>
         <?php else: ?>
         <table class="ak-table">
             <thead>
@@ -115,7 +115,7 @@ function api_keys_admin_fmt(?string $utc_dt, DateTimeZone $local_tz): string {
                         <?php if (!empty($k['league_name'])): ?>
                             <a href="/league.php?id=<?= (int)$k['league_id'] ?>&tab=api" style="color:#2563eb;text-decoration:none"><?= htmlspecialchars($k['league_name']) ?></a>
                         <?php else: ?>
-                            <span style="color:#94a3b8">league <?= (int)$k['league_id'] ?></span>
+                            <span style="color:#64748b">league <?= (int)$k['league_id'] ?></span>
                         <?php endif; ?>
                     </td>
                     <td><?= htmlspecialchars(api_keys_admin_fmt($k['created_at'], $local_tz)) ?></td>

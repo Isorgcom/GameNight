@@ -198,7 +198,7 @@ if ($isLanding) {
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: .08em;
-            color: #94a3b8;
+            color: #64748b;
             margin-bottom: .8rem;
             padding-bottom: .5rem;
             border-bottom: 1px solid #f1f5f9;
@@ -208,7 +208,7 @@ if ($isLanding) {
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: .06em;
-            color: #cbd5e1;
+            color: #64748b;
             margin: .7rem 0 .2rem 1.35rem;
         }
         .tl-year-label:first-of-type { margin-top: 0; }
@@ -261,7 +261,7 @@ if ($isLanding) {
         .tl-count {
             margin-left: auto;
             font-size: .68rem;
-            color: #94a3b8;
+            color: #64748b;
             background: #f1f5f9;
             border-radius: 99px;
             padding: .05rem .42rem;
@@ -317,7 +317,7 @@ if ($isLanding) {
         }
         .post-meta {
             font-size: .78rem;
-            color: #94a3b8;
+            color: #64748b;
             margin-bottom: .6rem;
             display: flex;
             align-items: center;
@@ -470,7 +470,7 @@ if ($isLanding) {
         .no-posts {
             text-align: center;
             padding: 4rem 2rem;
-            color: #94a3b8;
+            color: #64748b;
         }
         .no-posts p { font-size: 1rem; margin-top: .5rem; }
 
@@ -501,7 +501,7 @@ if ($isLanding) {
         }
         .cmts-chevron {
             font-size: .65rem;
-            color: #94a3b8;
+            color: #64748b;
             transition: transform .18s;
             display: inline-block;
             line-height: 1;
@@ -543,7 +543,7 @@ if ($isLanding) {
             line-height: 1.6; text-decoration: none;
         }
         .wk-event:hover { filter: brightness(1.1); }
-        .wk-more { font-size: .62rem; color: #94a3b8; }
+        .wk-more { font-size: .62rem; color: #64748b; }
         @media (max-width: 600px) {
             .week-preview { padding: 1rem; }
             /* Switch from a 7-col grid to a horizontal scroll strip */
@@ -576,7 +576,7 @@ if ($isLanding) {
     exit;
 endif; ?>
 
-<div class="page-layout">
+<div class="page-layout" role="main">
 
 <!-- ── Timeline sidebar ── -->
 <?php if (!empty($tlMonths)): ?>
@@ -733,7 +733,7 @@ endif; ?>
         <?php endforeach; ?>
 
         <div id="posts-sentinel" style="height:1px"></div>
-        <div id="posts-loading" style="display:none;text-align:center;padding:1.5rem 0;color:#94a3b8;font-size:.88rem">
+        <div id="posts-loading" style="display:none;text-align:center;padding:1.5rem 0;color:#64748b;font-size:.88rem">
             Loading&hellip;
         </div>
     <?php endif; ?>

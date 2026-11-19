@@ -54,19 +54,19 @@ $utc_tz    = new DateTimeZone('UTC');
         .nf-tag { font-size:.66rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#2563eb; background:#eff6ff; border:1px solid #bfdbfe; border-radius:5px; padding:.08rem .4rem; }
         .nf-row.unread .nf-tag { background:#fff; }
         .nf-subject { font-weight:700; color:#1e293b; font-size:.92rem; flex:1; min-width:0; }
-        .nf-when { font-size:.72rem; color:#94a3b8; white-space:nowrap; }
+        .nf-when { font-size:.72rem; color:#64748b; white-space:nowrap; }
         .nf-body { font-size:.82rem; color:#64748b; margin-top:.25rem; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
         .pager { display:flex; justify-content:center; gap:.6rem; align-items:center; margin-top:1rem; font-size:.85rem; color:#64748b; }
     </style>
 </head>
 <body>
 <?php $nav_active = 'notifications'; require __DIR__ . '/_nav.php'; ?>
-<div class="nf-wrap">
+<div role="main" class="nf-wrap">
     <h1 style="font-size:1.3rem;font-weight:800;color:#1e293b;margin:0 0 1rem">Notifications</h1>
 
     <?php if (!$notifs): ?>
     <p style="color:#64748b">Nothing here yet — invitations, reminders, and updates for your events will collect here.</p>
-    <p style="color:#94a3b8;font-size:.82rem">Tip: you can choose which of these also reach you by email or text in <a href="/settings.php">My Settings</a>.</p>
+    <p style="color:#64748b;font-size:.82rem">Tip: you can choose which of these also reach you by email or text in <a href="/settings.php">My Settings</a>.</p>
     <?php else: ?>
 
     <?php foreach ($notifs as $n):

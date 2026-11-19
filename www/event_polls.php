@@ -169,7 +169,7 @@ $backUrl   = '/calendar.php?m=' . urlencode(substr($event['start_date'], 0, 7)) 
         .pl-badge { font-size:.68rem; font-weight:700; padding:.12rem .45rem; border-radius:5px; }
         .pl-badge.open { background:#dcfce7; color:#166534; }
         .pl-badge.closed { background:#f1f5f9; color:#64748b; }
-        .pl-meta { font-size:.78rem; color:#94a3b8; }
+        .pl-meta { font-size:.78rem; color:#64748b; }
         .pl-names { font-size:.78rem; color:#64748b; line-height:1.5; }
         .pl-actions { display:flex; gap:.4rem; flex-wrap:wrap; margin-top:.75rem; }
     </style>
@@ -178,7 +178,7 @@ $backUrl   = '/calendar.php?m=' . urlencode(substr($event['start_date'], 0, 7)) 
 
 <?php $nav_active = 'calendar'; $nav_user = $current; require __DIR__ . '/_nav.php'; ?>
 
-<div class="pl-wrap">
+<div role="main" class="pl-wrap">
     <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-bottom:1rem">
         <h1 style="font-size:1.4rem;font-weight:700;margin:0">Polls &mdash; <?= htmlspecialchars($event['title']) ?></h1>
         <a href="<?= htmlspecialchars($backUrl) ?>" class="btn btn-outline" style="margin-left:auto;font-size:.8rem;text-decoration:none">Back to event</a>
@@ -219,7 +219,7 @@ $backUrl   = '/calendar.php?m=' . urlencode(substr($event['start_date'], 0, 7)) 
 
     <!-- ── Existing polls ── -->
     <?php if (empty($polls)): ?>
-        <p style="color:#94a3b8">No polls yet for this event.</p>
+        <p style="color:#64748b">No polls yet for this event.</p>
     <?php endif; ?>
     <?php foreach ($polls as $p): $t = $p['turnout']; ?>
     <div class="pl-card">
@@ -307,7 +307,7 @@ function addQuestion() {
     div.innerHTML =
         '<div style="display:flex;gap:.4rem;align-items:center">' +
         '<input type="text" name="question[' + i + ']" placeholder="Question ' + (i + 1) + '" maxlength="200" style="flex:1;padding:.45rem .6rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.9rem">' +
-        '<button type="button" class="pl-btn danger" data-remove-closest=".pl-q\" title="Remove question">&times;</button>' +
+        '<button aria-label="Remove question" type="button" class="pl-btn danger" data-remove-closest=".pl-q\" title="Remove question">&times;</button>' +
         '</div>' +
         '<div class="pl-opts"></div>' +
         '<button type="button" class="pl-btn" style="margin-top:.4rem" data-act="addOption" data-a1="@self" data-a2="' + i + '">+ Option</button>';
@@ -321,7 +321,7 @@ function addOption(btn, qi) {
     row.className = 'pl-opt-row';
     row.innerHTML =
         '<input type="text" name="options[' + qi + '][]" placeholder="Option" maxlength="80" style="padding:.4rem .55rem;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.85rem">' +
-        '<button type="button" class="pl-btn" data-remove-closest=".pl-opt-row\" title="Remove option">&times;</button>';
+        '<button aria-label="Remove option" type="button" class="pl-btn" data-remove-closest=".pl-opt-row\" title="Remove option">&times;</button>';
     opts.appendChild(row);
 }
 addQuestion(); // start with one empty question

@@ -282,28 +282,27 @@ var TB_EXIT_URL = <?= js_json($event_id ? '/checkin.php?event_id=' . (int)$event
          which has no Wake Lock API over plain HTTP at all. Skipped in embed
          mode — the editor preview is an iframe, not a screen anyone watches. */ ?>
 <div id="tbWakeBanner">Tap anywhere to keep this screen awake</div>
-<script src="/vendor/nosleep.min.js"></script>
-<script src="/pk-keepawake.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-keepawake.js') ?: 0)) ?>"></script>
+<script nonce="<?= csp_nonce() ?>" src="/vendor/nosleep.min.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/nosleep.min.js') ?: 0)) ?>"></script>
+<script nonce="<?= csp_nonce() ?>" src="/pk-keepawake.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-keepawake.js') ?: 0)) ?>"></script>
 <?php endif; ?>
-<script src="/vendor/qr-code-styling.min.js"></script>
-<script src="/vendor/qrcode.min.js"></script>
-<script src="/pk-qr.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-qr.js') ?: 0)) ?>"></script>
-<!-- hls.js before the renderer and WITHOUT defer, for the same reason pk-seg.js
-     is: buildCell() calls attachHls() as soon as the layout fetch resolves, and
-     a deferred library would be a race it loses intermittently. Vendored, so
-     this is script-src 'self'. Absent (download failed) the renderer falls back
-     to a native src, which still plays on Safari and iOS. -->
-<script src="/vendor/hls.min.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/hls.min.js') ?: 0)) ?>"></script>
-<script src="/pk-payouts.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-payouts.js') ?: 0)) ?>"></script>
-<script src="/timer_display.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/timer_display.js') ?: 0)) ?>"></script>
+<script nonce="<?= csp_nonce() ?>" src="/vendor/qr-code-styling.min.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/qr-code-styling.min.js') ?: 0)) ?>"></script>
+<script nonce="<?= csp_nonce() ?>" src="/vendor/qrcode.min.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/qrcode.min.js') ?: 0)) ?>"></script>
+<script nonce="<?= csp_nonce() ?>" src="/pk-qr.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-qr.js') ?: 0)) ?>"></script>
+<?php /* hls.js (~125 KB compressed) is fetched by attachHls() only when a
+         layout actually has a video cell; most timers never need it. Vendored,
+         so the injected script is script-src 'self'. If it fails to load, the
+         renderer falls back to a native src (Safari and iOS play HLS directly). */ ?>
+<script nonce="<?= csp_nonce() ?>">window.TB_HLS_URL = <?= js_json('/vendor/hls.min.js?v=' . APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/hls.min.js') ?: 0), JSON_HEX_TAG) ?>;</script>
+<script nonce="<?= csp_nonce() ?>" src="/pk-payouts.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-payouts.js') ?: 0)) ?>"></script>
+<script nonce="<?= csp_nonce() ?>" src="/timer_display.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/timer_display.js') ?: 0)) ?>"></script>
 <?php if ($cast_sender): ?>
 <script nonce="<?= csp_nonce() ?>">
 var TB_CAST_APP_ID = <?= js_json($cast_app_id) ?>;
 </script>
 <?php /* pk-cast.js defines __onGCastApiAvailable, so it must run before the
          SDK, which calls it once loaded. */ ?>
-<script src="/pk-cast.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-cast.js') ?: 0)) ?>"></script>
-<script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
+<script nonce="<?= csp_nonce() ?>" src="/pk-cast.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-cast.js') ?: 0)) ?>"></script>
+<script nonce="<?= csp_nonce() ?>" src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
 <?php endif; ?>
 </body>
 </html>

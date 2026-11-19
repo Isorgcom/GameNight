@@ -9,6 +9,10 @@ Options -Indexes
 # IfModule guard keeps the site up on an Apache without mod_headers (the
 # Dockerfile enables it; a rebuild is what activates this on a running host).
 <IfModule mod_headers.c>
+    # PHP pages get nosniff from auth.php; files Apache serves directly (assets,
+    # uploads) only get it from here. Without it a browser may guess a type for
+    # an upload instead of trusting its Content-Type.
+    Header always set X-Content-Type-Options "nosniff"
     <FilesMatch "\.(css|js|png|jpe?g|webp|gif|svg|ico|woff2?)$">
         Header set Cache-Control "public, max-age=31536000, immutable"
     </FilesMatch>

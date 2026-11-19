@@ -144,7 +144,7 @@ $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
     <link rel="stylesheet" href="/style.css?v=<?= $h(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
         body { background: var(--bg, #f8fafc); }
-        .iv-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1.5rem 1rem; box-sizing: border-box; }
+        .iv-wrap { min-height:100vh;min-height:100dvh; display: flex; align-items: center; justify-content: center; padding: 1.5rem 1rem; box-sizing: border-box; }
         .iv-card { background: #fff; border-radius: 14px; box-shadow: 0 8px 32px rgba(0,0,0,.12); padding: 1.75rem 1.5rem 1.5rem; width: 100%; max-width: 440px; box-sizing: border-box; }
         .iv-site { text-align: center; font-size: .85rem; color: #64748b; margin-bottom: 1rem; }
         .iv-site img { max-height: 48px; }

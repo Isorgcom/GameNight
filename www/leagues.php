@@ -62,7 +62,7 @@ $csrf = csrf_token();
         .lg-card { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 1rem 1.2rem; margin-bottom: .75rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
         .lg-card .lg-title { font-size: 1.05rem; font-weight: 700; color: #1e293b; margin: 0 0 .25rem; }
         .lg-card .lg-desc { font-size: .85rem; color: #64748b; margin: 0; }
-        .lg-card .lg-meta { font-size: .75rem; color: #94a3b8; margin-top: .4rem; }
+        .lg-card .lg-meta { font-size: .75rem; color: #64748b; margin-top: .4rem; }
         .lg-role { display: inline-block; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: .15rem .5rem; border-radius: 999px; margin-left: .4rem; vertical-align: middle; }
         .lg-role-owner   { background: #fef3c7; color: #92400e; }
         .lg-role-manager { background: #dbeafe; color: #1e40af; }
@@ -71,7 +71,7 @@ $csrf = csrf_token();
         .lg-btn:hover { background: #1d4ed8; }
         .lg-btn-ghost { background: transparent; color: #475569; border: 1.5px solid #cbd5e1; }
         .lg-btn-ghost:hover { background: #f1f5f9; color: #1e293b; }
-        .lg-empty { text-align: center; padding: 2.5rem 1rem; color: #94a3b8; }
+        .lg-empty { text-align: center; padding: 2.5rem 1rem; color: #64748b; }
         .lg-create-bar { margin-bottom: 1rem; }
         .lg-modal-bg { position: fixed; inset: 0; background: rgba(15,23,42,.55); z-index: 100; display: none; align-items: center; justify-content: center; padding: 1rem; }
         .lg-modal-bg.open { display: flex; }
@@ -85,7 +85,7 @@ $csrf = csrf_token();
 
 <?php $nav_active = 'leagues'; $nav_user = $current; require __DIR__ . '/_nav.php'; ?>
 
-<div class="lg-wrap">
+<div role="main" class="lg-wrap">
     <div class="lg-header">
         <h1>Leagues</h1>
         <a class="lg-btn" href="/league_edit.php">+ Create League</a>

@@ -11,7 +11,53 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+## [v1.33.1] - 2026-11-19
+
+### Security
+
+- **Signing out is a button, not a link, and it clears the browser's copy of the session.** Sign out used to be a plain link to `/logout.php`, so any other website could sign a visitor out by loading that address. It is now a small form in the account menu that only works from this site, and opening `/logout.php` directly shows a "Sign out?" page with one button, so an old bookmark still works. On HTTPS the response also tells the browser to drop this site's cached pages and cookies. Push notifications on that device are left alone. (`www/logout.php`, `www/_nav.php`, `www/style.css`)
+- **Session cookies can no longer be planted from a neighbouring site.** Over HTTPS the sign-in cookies are now named `__Host-gnsid` and `__Host-gn_remember`, a prefix browsers only accept on a secure, whole-site cookie set by this exact host. Nobody is signed out by the change: a browser still holding the old cookies is carried over once, and only if the server already knows that session. Plain HTTP (a local install) keeps the old names. (`www/auth.php`)
+- **The timer's Chromecast button no longer opens the page to all of Google's script host.** To load the Cast SDK, the timer and the Chromecast receiver allowed any script from `www.gstatic.com`, which serves many unrelated Google libraries, some of them known ways around a content policy. Those two pages now trust only their own nonced scripts and what those load (`'strict-dynamic'`). (`www/auth.php`, `www/timer.php`, `www/cast_receiver.php`)
+- **More security headers, and blocked scripts are reported.** Every page now sends `Cross-Origin-Resource-Policy` and, over HTTPS, `Cross-Origin-Opener-Policy`, except the OAuth pages and the SSO hand-off, which need their cross-site popup link. Payment, USB, serial and HID access are switched off alongside camera, microphone and location. Files Apache serves directly (scripts, styles, uploads) now carry `nosniff` too. When the content policy blocks something, such as a forgotten inline handler that would otherwise just never fire, the browser reports it to `csp_report.php`, which writes one line to the container log: `docker logs gamenight 2>&1 | grep csp-report`. (`www/auth.php`, `www/csp_report.php`, `www/.htaccess`)
+- **The SMTP test page no longer writes the stored mail password into the page.** The field is now blank, with "Saved (leave blank to keep)" when a password exists, as Site Settings already did. (`www/SMTPTesting.php`)
+
+### Changed
+
+- **The whole site works from the keyboard and with a screen reader.** This comes from a web best-practice audit:
+  - Every page has a **Skip to content** link (the first Tab stop), a main landmark and a labelled navigation bar, and the current page is marked in the menus.
+  - Every control now shows a clear focus ring. Many text fields, and the sign-in form, used to remove it.
+  - Calendar events are real links, so Tab and Enter open them, and Ctrl-click opens a new tab. The day's **+** and the event's edit pencil appear when tabbed to, not only on hover.
+  - The page pop-ups (the event messenger, walk-up registration, New User, New Post) behave like dialogs. Focus moves in, Tab stays inside, Escape closes, and focus returns to the button that opened it.
+  - The account and Help menus say whether they are open, and Escape closes them.
+  - 62 icon-only buttons (✕, ☰, ✎, ▲ and the like) now have spoken names.
+  - "Saved" messages are announced.
+  - Pale grey text on white was darkened where it fell below a readable contrast.
+  - Several controls that were not buttons (league comment toggles, the nav banner, the add-on counter) now are.
+
+  (`www/_nav.php`, `www/nav.js`, `www/pk-modal.js`, `www/pk-dialogs.js`, `www/style.css`, `www/calendar.php`, `www/event.php`, `www/league.php` and most pages)
+- **Pages load faster.** Specifically:
+  - The check-in console's script and styles (about 350 KB) are cached files now, not re-sent with every load.
+  - The rich-text editor (about 270 KB) loads only when you open the event messenger. hls.js loads only when a timer layout has a video.
+  - The help-page screenshots load as you scroll and no longer make the page jump.
+  - The nav banner reserves its space before it loads.
+  - The Tournament Timer measures its cells once per tick instead of once per cell.
+  - Remote timer viewers (phones that came in by QR code) stop polling while their screen is off.
+  - Public pages can now be restored instantly with the browser's Back button.
+  - Text responses are Brotli-compressed, which needs a container rebuild to take effect.
+
+  (`www/checkin.php`, `www/checkin.js`, `www/checkin.css`, `www/timer_display.js`, `www/timer.php`, `www/help-hosts.php`, `www/help-guests.php`, `www/auth.php`, `Dockerfile`)
+
+### Fixed
+
+- **Editing a comment on the calendar shows the comment, not its code.** The edit box opened with the text wrapped in quote marks and `\n` where the line breaks were. (`www/calendar.php`)
+- **Typing in Chinese, Japanese or Korean no longer sends a message halfway through a word.** In those languages Enter also picks a character, and the message composer, the text prompt, the walk-in name box and the cash adjustment box treated that Enter as Send. (`www/message_thread.php`, `www/pk-dialogs.js`, `www/checkin.php`)
+- **Phone pop-ups fit the screen.** Full-screen pop-ups and centred pages were sized to the browser's largest height, so on a phone the bottom could sit under the address bar. They now use the visible height. (`www/style.css`, `www/calendar.php`, `www/event.php` and others)
+- **Some vendor scripts could stay stale for a year after an upgrade.** The QR code, keep-awake and timer-font files were cached for a year with no version in their address. (`www/timer.php`, `www/timer_classic.php`, `www/calendar.php` and others)
+
 ### Infrastructure
+
+- **Downloaded libraries are checked before they are installed.** `docker-entrypoint.sh` now checks each vendored library (PHPMailer, Jodit, hls.js, the QR libraries, NoSleep, phpLiteAdmin) against a pinned SHA-256 and discards one that does not match, so a tampered or wrong download is never served. Bumping a version means updating its hash in the same change. (`docker-entrypoint.sh`)
+- **Brotli compression.** The Dockerfile enables Apache's Brotli module for HTML, CSS, JavaScript and JSON, with gzip still used for clients that do not accept Brotli; JSON was not being compressed at all. Deploying this release needs `docker compose down && docker compose up -d --build`. (`Dockerfile`)
 
 - **Banned addresses stay banned after the server restarts.** fail2ban puts its bans into a firewall chain that Docker creates, and when the server rebooted on 2026-11-19 fail2ban started a minute before Docker. Every saved ban failed to restore, while `fail2ban-client status` went on listing them as banned, and the sign-up bot of 2026-11-10 was posting to the registration form again within the hour from ranges that were supposed to be blocked. A systemd drop-in now starts fail2ban after Docker. `server-prep.sh` installs it on a new host; on an existing one, install `fail2ban/systemd/after-docker.conf` as `/etc/systemd/system/fail2ban.service.d/after-docker.conf` and run `systemctl daemon-reload`. `fail2ban/README.md` explains how to check that the bans are really in the firewall, not just on the jail's list. (`fail2ban/systemd/after-docker.conf`, `fail2ban/README.md`, `server-prep.sh`)
 

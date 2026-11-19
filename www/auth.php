@@ -6,7 +6,31 @@ header_remove('X-Powered-By');
 header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: DENY');
 header('Referrer-Policy: strict-origin-when-cross-origin');
-header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
+// Powerful features no page here uses are switched off for this origin and for
+// every frame it embeds (the timer's YouTube/Twitch/Vimeo/Kick/Prime players).
+// Not fullscreen: the timer and its videos use it. Only names Chrome ships:
+// an unknown one (bluetooth, focus-without-user-activation) is logged as a
+// console error on every page.
+header('Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=(), usb=(), serial=(), hid=()');
+// Resources and windows: a cross-origin page can neither embed these responses
+// as a no-cors subresource (CORP) nor keep a handle on a window we open or that
+// opens us (COOP). allow-popups keeps the windows this site opens itself. The
+// OAuth pages and the SSO hand-off are left out: the assistant's sign-in popup
+// (claude.ai) and a connected app may rely on the opener link across origins.
+// Uploaded images are served by Apache directly, not here, so email clients
+// that load them cross-origin are unaffected.
+header('Cross-Origin-Resource-Policy: same-origin');
+$_script = $_SERVER['SCRIPT_NAME'] ?? '';
+// HTTPS only: browsers ignore COOP on a plain-HTTP origin and log an error
+// for it on every page (dev).
+if (_is_https() && !str_starts_with($_script, '/oauth/') && $_script !== '/connect.php') {
+    header('Cross-Origin-Opener-Policy: same-origin-allow-popups');
+}
+unset($_script);
+// Where browsers send CSP violation reports (csp_report.php logs them). Without
+// this a script the policy blocks fails silently: an inline handler added by
+// mistake simply never fires, and nothing says why.
+header('Reporting-Endpoints: csp="/csp_report.php"');
 // CSP: allow inline scripts/styles (required by Jodit editor), block everything else external.
 // frame-src allows the tournament-timer streaming panel to embed video (YouTube/Twitch/Prime).
 $_frame_src = "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com "
@@ -55,9 +79,9 @@ $_csp = implode('; ', [
     // refuse them outright. Carrying the nonce on script-src as well is what
     // protects browsers with no CSP3 granularity: a nonce makes 'unsafe-inline'
     // ignored there too, so they get the same guarantee rather than none.
-    "script-src 'self' 'nonce-" . CSP_NONCE . "'",
-    "script-src-elem 'self' 'nonce-" . CSP_NONCE . "'",
-    "script-src-attr 'none'",
+    "script-src 'self' 'nonce-" . CSP_NONCE . "' 'report-sample'",
+    "script-src-elem 'self' 'nonce-" . CSP_NONCE . "' 'report-sample'",
+    "script-src-attr 'none' 'report-sample'",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https://*.ytimg.com https://*.twitch.tv https://*.jtvnw.net",
     "object-src 'none'",
@@ -86,6 +110,10 @@ $_csp = implode('; ', [
     // never covered. Concedes nothing extra — media-src already allows https:,
     // and a blob: URL can only carry data this origin's own script produced.
     "media-src 'self' https: data: blob:",
+    // report-to for current browsers (Reporting-Endpoints above), report-uri
+    // for Firefox, which does not implement the Reporting API for CSP yet.
+    "report-to csp",
+    "report-uri /csp_report.php",
 ]);
 header("Content-Security-Policy: {$_csp}");
 if (!defined('CSP_POLICY')) define('CSP_POLICY', $_csp);
@@ -142,15 +170,22 @@ function _csp_amend(string $from, string $to): void {
 /**
  * Let this response load Google's Cast SDK. Scoped to the two pages that need
  * it, never site-wide: timer.php as the SENDER (the Cast button) and
- * cast_receiver.php as the RECEIVER the Chromecast loads. Both SDKs are served
- * from www.gstatic.com and load further pieces from there, which is why a host
- * source is needed and not only a nonce. The receiver also talks to the
- * device's own runtime over a websocket on localhost:8008.
+ * cast_receiver.php as the RECEIVER the Chromecast loads. The receiver also
+ * talks to the device's own runtime over a websocket on localhost:8008.
+ *
+ * 'strict-dynamic', not a gstatic host allowlist. www.gstatic.com serves a
+ * great many unrelated Google libraries, some of them known CSP-bypass gadgets,
+ * so allowing the whole origin let any of them run here. With strict-dynamic a
+ * CSP3 browser ignores 'self' and host sources and trusts only nonced script
+ * elements plus whatever those load (the SDK pulls its framework from gstatic
+ * that way, and timer_display.js injects hls.js). So on these two pages EVERY
+ * <script> carries the nonce. The host stays listed for any CSP2 browser,
+ * which ignores strict-dynamic instead.
  */
 function csp_allow_cast_sdk(bool $receiver = false): void {
     $g = 'https://www.gstatic.com';
-    _csp_amend("script-src 'self'", "script-src 'self' " . $g);
-    _csp_amend("script-src-elem 'self'", "script-src-elem 'self' " . $g);
+    _csp_amend("script-src 'self'", "script-src 'self' 'strict-dynamic' " . $g);
+    _csp_amend("script-src-elem 'self'", "script-src-elem 'self' 'strict-dynamic' " . $g);
     if ($receiver) {
         _csp_amend("style-src 'self'", "style-src 'self' " . $g);
         _csp_amend("connect-src 'self'", "connect-src 'self' ws://localhost:8008");
@@ -199,7 +234,41 @@ function session_start_safe(): void {
             'httponly' => true,
             'samesite' => 'Lax',
         ]);
+        // Over HTTPS the session cookie is __Host- prefixed: the browser then
+        // only accepts it Secure, for path / and with no Domain, so a sibling
+        // subdomain or a plain-HTTP response can never plant or overwrite it.
+        // A browser still holding the old PHPSESSID carries its session over
+        // once (strict mode only accepts an id this server already has), so the
+        // rename signs nobody out. Plain HTTP (dev) keeps PHPSESSID: the prefix
+        // requires Secure.
+        if (_is_https()) {
+            session_name(SESSION_COOKIE_HTTPS);
+            // Carried over only if this server already holds that session's file:
+            // an id set through session_id() is not one strict mode vets, so the
+            // check is made here and a planted value can never mint a session.
+            $old = $_COOKIE['PHPSESSID'] ?? '';
+            if (!isset($_COOKIE[SESSION_COOKIE_HTTPS]) && preg_match('/^[A-Za-z0-9,-]{22,256}$/', $old)
+                && is_file(rtrim(session_save_path() ?: sys_get_temp_dir(), '/') . '/sess_' . $old)) {
+                session_id($old);
+            }
+        }
+        // PHP's default cache limiter sends no-store on every page, which keeps
+        // even the public pages (home, help, league directory) out of the
+        // browser's back/forward cache. A visitor with no session and no
+        // remember-me cookie gets no-cache instead: the page is revalidated on
+        // every load but can be restored on Back. Anyone signed in keeps
+        // no-store, so their pages never sit in a cache. A page may still send
+        // its own Cache-Control afterwards (connect.php does).
+        session_cache_limiter('');
         session_start();
+        if (isset($_COOKIE['PHPSESSID']) && _is_https() && !headers_sent()) {
+            setcookie('PHPSESSID', '', ['expires' => time() - 3600, 'path' => '/', 'secure' => true, 'httponly' => true, 'samesite' => 'Lax']);
+        }
+        if (!headers_sent()) {
+            $guest = empty($_SESSION['user_id']) && empty($_SESSION['mfa_user_id'])
+                  && remember_cookie_value() === '';
+            header($guest ? 'Cache-Control: private, no-cache' : 'Cache-Control: private, no-store');
+        }
     }
 }
 
@@ -209,8 +278,24 @@ function session_start_safe(): void {
 // 30-day signed cookie that silently re-establishes the session after idle
 // periods or browser restarts. Rotated on every use for theft detection.
 
-const REMEMBER_COOKIE   = 'gn_remember';
+const REMEMBER_COOKIE   = 'gn_remember';          // plain HTTP (dev), and the pre-1.33.1 name
+const REMEMBER_COOKIE_HTTPS = '__Host-gn_remember';
+const SESSION_COOKIE_HTTPS  = '__Host-gnsid';
 const REMEMBER_LIFETIME = 2592000; // 30 days in seconds
+
+/** The remember-me cookie's name for this request (__Host- prefixed on HTTPS). */
+function remember_cookie_name(): string {
+    return _is_https() ? REMEMBER_COOKIE_HTTPS : REMEMBER_COOKIE;
+}
+
+/**
+ * The remember-me cookie's value, under its current name or, once, under the
+ * old unprefixed one: a token issued before the rename still signs its owner
+ * in, and consuming it reissues it under the new name (and clears the old).
+ */
+function remember_cookie_value(): string {
+    return (string)($_COOKIE[remember_cookie_name()] ?? $_COOKIE[REMEMBER_COOKIE] ?? '');
+}
 
 // Returned by register_user() when the email/phone is already registered. The
 // caller must treat this like success (show the verification-pending screen)
@@ -231,18 +316,19 @@ function issue_remember_token(int $user_id): void {
        ->execute([$user_id, $hash, $expires, $ua, $ip]);
     $row_id = (int)$db->lastInsertId();
 
-    setcookie(REMEMBER_COOKIE, $row_id . ':' . $raw, [
+    setcookie(remember_cookie_name(), $row_id . ':' . $raw, [
         'expires'  => time() + REMEMBER_LIFETIME,
         'path'     => '/',
         'secure'   => _is_https(),
         'httponly' => true,
         'samesite' => 'Lax',
     ]);
-    $_COOKIE[REMEMBER_COOKIE] = $row_id . ':' . $raw;
+    $_COOKIE[remember_cookie_name()] = $row_id . ':' . $raw;
+    _clear_legacy_remember_cookie();
 }
 
 function consume_remember_cookie(): ?int {
-    $cookie = $_COOKIE[REMEMBER_COOKIE] ?? '';
+    $cookie = remember_cookie_value();
     if ($cookie === '' || !str_contains($cookie, ':')) return null;
 
     [$id_part, $raw] = explode(':', $cookie, 2);
@@ -288,13 +374,21 @@ function clear_remember_cookie(): void {
     // would let anyone force-log-out arbitrary "remember me" users. Server-side
     // token invalidation happens where the actor is authenticated — logout() below
     // and the password/profile-change flows (each scoped by user_id).
-    setcookie(REMEMBER_COOKIE, '', [
+    setcookie(remember_cookie_name(), '', [
         'expires'  => time() - 3600,
         'path'     => '/',
         'secure'   => _is_https(),
         'httponly' => true,
         'samesite' => 'Lax',
     ]);
+    unset($_COOKIE[remember_cookie_name()]);
+    _clear_legacy_remember_cookie();
+}
+
+/** On HTTPS, expire the pre-__Host- remember cookie if the browser still has it. */
+function _clear_legacy_remember_cookie(): void {
+    if (!_is_https() || !isset($_COOKIE[REMEMBER_COOKIE]) || headers_sent()) return;
+    setcookie(REMEMBER_COOKIE, '', ['expires' => time() - 3600, 'path' => '/', 'secure' => true, 'httponly' => true, 'samesite' => 'Lax']);
     unset($_COOKIE[REMEMBER_COOKIE]);
 }
 
@@ -649,7 +743,7 @@ function logout(): void {
         // Invalidate this device's remember-me token server-side. Scoped by
         // user_id so a manipulated cookie id can only ever remove the current
         // (authenticated) user's own token — never someone else's.
-        $cookie = $_COOKIE[REMEMBER_COOKIE] ?? '';
+        $cookie = remember_cookie_value();
         if ($cookie !== '' && str_contains($cookie, ':')) {
             $tid = (int)explode(':', $cookie, 2)[0];
             if ($tid > 0) {

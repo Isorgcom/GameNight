@@ -311,6 +311,9 @@ $title     = (string)$event['title'];
         <div class="gd-title-line">
             <a class="gd-back" href="/checkin.php?event_id=<?= (int)$event_id ?>" data-stop="1" title="Back to the check-in console">&#8592;</a>
             <span><?= htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE) ?></span>
+            <?php /* Tapping anywhere on the header toggles the controls; this is the
+                     keyboard way in, invisible until it has focus. */ ?>
+            <button type="button" class="pk-sr-only-focusable" data-act="gdToggleControls" aria-controls="gdControls">Clock controls</button>
         </div>
         <div class="gd-head-top">
             <span class="gd-level" id="gdLevel">&mdash;</span>
@@ -328,12 +331,12 @@ $title     = (string)$event['title'];
             <a href="/timer.php?event_id=<?= (int)$event_id ?>">open the timer once</a> to enable clock controls.</div>
         <?php endif; ?>
         <div class="gd-controls" id="gdControls">
-            <button type="button" data-act="gdCmd" data-a1="skip_prev" title="Previous level">&#9198;</button>
-            <button type="button" class="gd-play" id="gdPlayBtn" data-act="gdCmd" data-a1="toggle_play" title="Play / pause">&#9654;</button>
-            <button type="button" data-act="gdCmd" data-a1="skip_next" title="Next level">&#9197;</button>
+            <button aria-label="Previous level" type="button" data-act="gdCmd" data-a1="skip_prev" title="Previous level">&#9198;</button>
+            <button aria-label="Play / pause" type="button" class="gd-play" id="gdPlayBtn" data-act="gdCmd" data-a1="toggle_play" title="Play / pause">&#9654;</button>
+            <button aria-label="Next level" type="button" data-act="gdCmd" data-a1="skip_next" title="Next level">&#9197;</button>
             <button type="button" data-act="gdCmd" data-a1="sub_time" title="Subtract a minute">&minus;1m</button>
             <button type="button" data-act="gdCmd" data-a1="add_time" title="Add a minute">+1m</button>
-            <button type="button" data-act="gdCmd" data-a1="undo" title="Undo the last timer action">&#8630;</button>
+            <button aria-label="Undo the last timer action" type="button" data-act="gdCmd" data-a1="undo" title="Undo the last timer action">&#8630;</button>
         </div>
     </header>
 
@@ -399,7 +402,7 @@ window.GD = {
 <script src="/pk-seg.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-seg.js') ?: 0)) ?>" defer></script>
 <script src="/pk-dialogs.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-dialogs.js') ?: 0)) ?>" defer></script>
 <script src="/pk-dispatch.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-dispatch.js') ?: 0)) ?>" defer></script>
-<script src="/vendor/nosleep.min.js" defer></script>
+<script src="/vendor/nosleep.min.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/nosleep.min.js') ?: 0)) ?>" defer></script>
 <script src="/pk-payouts.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-payouts.js') ?: 0)) ?>" defer></script>
 <script src="/table_manager.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/table_manager.js') ?: 0)) ?>" defer></script>
 </body>

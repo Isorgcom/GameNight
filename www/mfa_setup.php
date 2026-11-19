@@ -166,7 +166,7 @@ $site_name = get_setting('site_name', 'Game Night');
 
 <?php $nav_active = 'settings'; $nav_user = $me; require __DIR__ . '/_nav.php'; ?>
 
-<div class="card-wrap">
+<div role="main" class="card-wrap">
     <div class="card" style="max-width:480px">
 
         <?php if ($error): ?>
@@ -199,7 +199,7 @@ $site_name = get_setting('site_name', 'Game Night');
                     <label for="code">2. Enter the 6-digit code from your app</label>
                     <input type="text" id="code" name="code" inputmode="numeric"
                            autocomplete="one-time-code" maxlength="6" pattern="\d{6}" required autofocus
-                           placeholder="000000" style="letter-spacing:.3em;font-size:1.3rem;text-align:center">
+                           aria-label="Verification code" placeholder="000000" style="letter-spacing:.3em;font-size:1.3rem;text-align:center">
                 </div>
                 <button type="submit" class="btn btn-primary" style="width:100%">Confirm &amp; Enable</button>
             </form>
@@ -215,7 +215,7 @@ $site_name = get_setting('site_name', 'Game Night');
                 <div class="form-group">
                     <input type="text" id="code" name="code" inputmode="numeric"
                            autocomplete="one-time-code" maxlength="6" pattern="\d{6}" required autofocus
-                           placeholder="000000" style="letter-spacing:.3em;font-size:1.3rem;text-align:center">
+                           aria-label="Verification code" placeholder="000000" style="letter-spacing:.3em;font-size:1.3rem;text-align:center">
                 </div>
                 <button type="submit" class="btn btn-primary" style="width:100%">Confirm &amp; Enable</button>
             </form>
@@ -258,7 +258,7 @@ $site_name = get_setting('site_name', 'Game Night');
 </div>
 
 <?php if ($totp_uri): ?>
-<script src="/vendor/qrcode.min.js" defer></script>
+<script src="/vendor/qrcode.min.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/vendor/qrcode.min.js') ?: 0)) ?>" defer></script>
 <script nonce="<?= csp_nonce() ?>">
 // qrcode.min.js is deferred, so draw on DOMContentLoaded (deferred scripts
 // are guaranteed to have run by then).

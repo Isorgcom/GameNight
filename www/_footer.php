@@ -55,7 +55,7 @@ if ($_hb_user) {
         ];
         ?>
         <script nonce="<?= csp_nonce() ?>">window.__help = <?= js_json($_hb_payload, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;</script>
-        <script src="/help-bubble.js?v=<?= htmlspecialchars(APP_VERSION) ?>" defer></script>
+        <script src="/help-bubble.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/help-bubble.js') ?: 0)) ?>" defer></script>
         <?php
     }
 }
@@ -103,7 +103,8 @@ if ($_hb_user && empty($_hb_user['timezone'])) {
 <script src="/pk-dispatch.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-dispatch.js') ?: 0)) ?>" defer></script>
 <?php /* Avatars only appear on logged-in screens; a guest has nothing to draw. */ ?>
 <?php if ($_hb_user): ?>
-<script src="/avatar.js?v=<?= htmlspecialchars(APP_VERSION) ?>" defer></script>
+<script src="/avatar.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/avatar.js') ?: 0)) ?>" defer></script>
+<script src="/pk-modal.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-modal.js') ?: 0)) ?>" defer></script>
 <script src="/pk-comment-pic.js?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/pk-comment-pic.js') ?: 0)) ?>" defer></script>
 <?php endif; ?>
 <script nonce="<?= csp_nonce() ?>">

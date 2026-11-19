@@ -37,7 +37,7 @@ $reason = $denyReason ?? 'hidden_non_member';
 
 <?php $nav_active = 'leagues'; $nav_user = $current; require __DIR__ . '/_nav.php'; ?>
 
-<div class="deny-wrap">
+<div role="main" class="deny-wrap">
     <div class="deny-card">
         <div class="deny-icon">&#128274;</div>
         <h1>This league is private</h1>

@@ -25,8 +25,8 @@
 .lp-gallery img { height:320px; width:auto; max-width:100%; object-fit:contain; display:block;
   border-radius:10px; border:1px solid rgba(255,255,255,.14);
   box-shadow:0 10px 30px rgba(0,0,0,.35); }
-.lp-gallery figcaption { font-size:.75rem; color:#94a3b8; margin-top:.35rem; text-align:center; }
-.lp-gallery-hint { color:#94a3b8; font-size:.85rem; margin:.6rem auto 0; max-width:700px; }
+.lp-gallery figcaption { font-size:.75rem; color:#64748b; margin-top:.35rem; text-align:center; }
+.lp-gallery-hint { color:#64748b; font-size:.85rem; margin:.6rem auto 0; max-width:700px; }
 @media (max-width:640px) { .lp-gallery img { height:210px; } .lp-gallery { gap:10px; } }
 .lp-section-head { text-align:center; padding:3rem 1.5rem .5rem; }
 .lp-section-head h2 { font-size:1.6rem; margin-bottom:.5rem; }
@@ -49,7 +49,7 @@
 .lp-video-play:focus-visible { outline:3px solid #fff; outline-offset:3px; }
 .lp-video-frame { position:relative; width:100%; aspect-ratio:16/9; border-radius:12px; overflow:hidden; background:#000; box-shadow:0 10px 30px rgba(0,0,0,.35); }
 .lp-video-frame iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
-.hero .lp-video-link { font-size:.85rem; color:#94a3b8; margin:.6rem auto 0; }
+.hero .lp-video-link { font-size:.85rem; color:#64748b; margin:.6rem auto 0; }
 .hero .lp-video-link a { color:#cbd5e1; text-decoration:underline; }
 .hero .lp-video-link a:hover { color:#fff; }
 @media (max-width:640px) { .lp-video { margin-top:2rem; padding:0 .75rem; } .lp-video-btn { width:64px; height:64px; font-size:1.5rem; } }
@@ -66,7 +66,7 @@
 .lp-topbar nav a:hover { color:#fff; text-decoration:underline; }
 .lp-topbar nav a.lp-cta { color:#fff; background:#2563eb; border-radius:7px; padding:.4rem .85rem; }
 .lp-topbar nav a.lp-cta:hover { background:#1d4ed8; text-decoration:none; }
-.hero-kicker { color:#94a3b8; font-size:.8rem; letter-spacing:.14em; text-transform:uppercase; font-weight:700; margin:0 0 .6rem; }
+.hero-kicker { color:#64748b; font-size:.8rem; letter-spacing:.14em; text-transform:uppercase; font-weight:700; margin:0 0 .6rem; }
 </style>
 <!-- ── SaaS-style marketing landing page for visitors ── -->
 <header class="lp-topbar" aria-label="Site">

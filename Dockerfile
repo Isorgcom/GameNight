@@ -45,6 +45,15 @@ RUN printf 'RemoteIPHeader X-Real-IP\nRemoteIPInternalProxy 172.16.0.0/12\n' \
 RUN printf '<IfModule mpm_prefork_module>\n    StartServers            2\n    MinSpareServers         2\n    MaxSpareServers         6\n    MaxRequestWorkers       12\n    MaxConnectionsPerChild  500\n</IfModule>\n' > /etc/apache2/conf-available/mpm-tuning.conf \
     && a2enconf mpm-tuning
 
+# Brotli for text responses, gzip for clients that don't accept br. Listed as
+# BROTLI_COMPRESS;DEFLATE so one filter applies per response: Brotli when the
+# client sends Accept-Encoding: br, deflate (gzip) otherwise. JSON is included
+# because every *_dl.php answer is JSON and the stock deflate.conf leaves it out.
+RUN printf '<IfModule mod_brotli.c>\n    BrotliCompressionQuality 5\n    AddOutputFilterByType BROTLI_COMPRESS;DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json image/svg+xml\n</IfModule>\n' \
+       > /etc/apache2/conf-available/compression.conf \
+    && a2enmod brotli \
+    && a2enconf compression
+
 # Raise PHP upload limits
 RUN echo "upload_max_filesize=20M\npost_max_size=22M" > /usr/local/etc/php/conf.d/uploads.ini
 

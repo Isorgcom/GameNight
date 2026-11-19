@@ -132,7 +132,7 @@ $backUrl   = '/event.php?id=' . $eid;
 
 <?php $nav_active = 'calendar'; $nav_user = $current; require __DIR__ . '/_nav.php'; ?>
 
-<div class="eh-wrap">
+<div role="main" class="eh-wrap">
     <div class="eh-head">
         <h1>Message history &mdash; <?= htmlspecialchars($event['title']) ?></h1>
         <div class="eh-head-links">

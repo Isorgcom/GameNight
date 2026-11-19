@@ -44,7 +44,7 @@ $help_sections = [
         /* ── Sidebar: always in view, always says where you are ── */
         .docs-side { position: sticky; top: calc(var(--pk-nav-h, 64px) + 1.25rem);
                      align-self: start; padding-top: 2rem;
-                     max-height: calc(100vh - var(--pk-nav-h, 64px) - 2rem); overflow-y: auto; }
+                     max-height:calc(100vh - var(--pk-nav-h, 64px) - 2rem);max-height:calc(100dvh - var(--pk-nav-h, 64px) - 2rem); overflow-y: auto; }
         .docs-side-title { font-size: 1.05rem; font-weight: 700; color: #0f172a; margin-bottom: .9rem; }
         /* The global `nav` element style (dark, sticky, z-100) is for the site
            bar; this inner nav is a light rail and must opt out of all of it. */
@@ -114,7 +114,7 @@ $help_sections = [
             .docs-side { display: none; position: fixed; top: var(--pk-nav-h, 56px); left: 0; right: 0;
                          background: #fff; z-index: 90; padding: 1rem 1.5rem 1.25rem;
                          border-bottom: 1px solid #e2e8f0; box-shadow: 0 12px 24px rgba(15,23,42,.12);
-                         max-height: calc(100vh - var(--pk-nav-h, 56px)); }
+                         max-height:calc(100vh - var(--pk-nav-h, 56px));max-height:calc(100dvh - var(--pk-nav-h, 56px)); }
             .docs-side.open { display: block; }
             .docs-m-toggle { display: flex; align-items: center; gap: .5rem; position: sticky;
                              top: var(--pk-nav-h, 56px); z-index: 80; width: 100%;
@@ -129,7 +129,7 @@ $help_sections = [
 <body>
 <?php require __DIR__ . '/_nav.php'; ?>
 
-<div class="docs">
+<div role="main" class="docs">
     <aside class="docs-side" id="docsSide">
         <div class="docs-side-title">Timer Guide</div>
         <nav aria-label="Sections">

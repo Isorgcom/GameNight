@@ -59,7 +59,7 @@ $prefLabels = ['email' => 'Email', 'sms' => 'Text', 'whatsapp' => 'WhatsApp', 'b
         #cGrid tr.c-pending td { background: #fffbeb33; }
         #cGrid tr.c-pending:hover td { background: #fef3c7; }
 
-        .c-num-col { width: 44px; text-align: right; color: #94a3b8; font-weight: 600; }
+        .c-num-col { width: 44px; text-align: right; color: #64748b; font-weight: 600; }
         .c-status-col { width: 100px; text-align: center; }
         .c-name-col { min-width: 160px; }
         .c-phone-col { width: 150px; }
@@ -69,7 +69,7 @@ $prefLabels = ['email' => 'Email', 'sms' => 'Text', 'whatsapp' => 'WhatsApp', 'b
         #cGrid tbody tr { cursor: pointer; }
         .c-name-link { color: #2563eb; font-weight: 600; text-decoration: none; }
         .c-name-link:hover { text-decoration: underline; }
-        .c-muted { color: #94a3b8; }
+        .c-muted { color: #64748b; }
         .c-msg-btn { background: #fff; color: #2563eb; border: 1.5px solid #bfdbfe; border-radius: 6px; padding: .22rem .6rem; font-size: .75rem; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-block; }
         .c-msg-btn:hover { background: #eff6ff; }
 
@@ -91,10 +91,10 @@ $prefLabels = ['email' => 'Email', 'sms' => 'Text', 'whatsapp' => 'WhatsApp', 'b
 
 <?php $nav_active = 'contacts'; $nav_user = $current; require __DIR__ . '/_nav.php'; ?>
 
-<div class="c-wrap">
+<div role="main" class="c-wrap">
     <div class="c-header">
         <div>
-            <h1>My Contacts <span style="color:#94a3b8;font-weight:600">(<?= count($contacts) ?>)</span></h1>
+            <h1>My Contacts <span style="color:#64748b;font-weight:600">(<?= count($contacts) ?>)</span></h1>
             <p>Your private address book. Only visible to you — never shared with other users.</p>
         </div>
     </div>
@@ -134,7 +134,7 @@ $prefLabels = ['email' => 'Email', 'sms' => 'Text', 'whatsapp' => 'WhatsApp', 'b
     <?php endif; ?>
 
     <?php if (empty($contacts)): ?>
-        <div style="background:#fff;border:1.5px dashed #cbd5e1;border-radius:10px;padding:2.5rem;text-align:center;color:#94a3b8">
+        <div style="background:#fff;border:1.5px dashed #cbd5e1;border-radius:10px;padding:2.5rem;text-align:center;color:#64748b">
             No contacts yet. Add one above, import a CSV, or invite people to an event — they'll be saved here automatically.
         </div>
     <?php else: ?>
@@ -196,7 +196,7 @@ $prefLabels = ['email' => 'Email', 'sms' => 'Text', 'whatsapp' => 'WhatsApp', 'b
         </tbody>
     </table>
     </div>
-    <p style="color:#94a3b8;font-size:.78rem;margin-top:.5rem">Click any contact to edit their details, invite channel, or notes.</p>
+    <p style="color:#64748b;font-size:.78rem;margin-top:.5rem">Click any contact to edit their details, invite channel, or notes.</p>
     <?php endif; ?>
 </div>
 

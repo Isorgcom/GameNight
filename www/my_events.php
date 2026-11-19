@@ -131,7 +131,7 @@ function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): strin
 
 <?php $nav_active = 'my-events'; require __DIR__ . '/_nav.php'; ?>
 
-<div style="max-width:760px;margin:2rem auto;padding:0 1rem">
+<div role="main" style="max-width:760px;margin:2rem auto;padding:0 1rem">
 
     <div style="display:flex;align-items:center;flex-wrap:wrap;gap:.75rem;margin-bottom:1.75rem">
         <h2 style="font-size:1.4rem;font-weight:700;color:#1e293b;margin:0">My Events</h2>
@@ -155,7 +155,7 @@ function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): strin
     </h3>
 
     <?php if (empty($upcoming)): ?>
-    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:1.5rem;text-align:center;color:#94a3b8;margin-bottom:2rem">
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:1.5rem;text-align:center;color:#64748b;margin-bottom:2rem">
         No upcoming events.
     </div>
     <?php else: ?>
@@ -198,7 +198,7 @@ function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): strin
                     <?php endif; ?>
                 </div>
                 <?php if (!empty($ev['description'])): ?>
-                <div style="font-size:.825rem;color:#94a3b8;margin-top:.3rem;white-space:pre-wrap;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">
+                <div style="font-size:.825rem;color:#64748b;margin-top:.3rem;white-space:pre-wrap;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">
                     <?= htmlspecialchars($ev['description']) ?>
                 </div>
                 <?php endif; ?>
@@ -222,7 +222,7 @@ function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): strin
         </summary>
 
     <?php if (empty($past)): ?>
-    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:1.5rem;text-align:center;color:#94a3b8">
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:1.5rem;text-align:center;color:#64748b">
         No past events.
     </div>
     <?php else: ?>
@@ -256,7 +256,7 @@ function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): strin
                     <a href="/event_edit.php?id=<?= (int)$ev['id'] ?>&m=<?= urlencode($month_str) ?>" style="background:#2563eb;color:#fff;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600;text-decoration:none">Edit</a>
                     <?php endif; ?>
                 </div>
-                <div style="font-size:.85rem;color:#94a3b8">
+                <div style="font-size:.85rem;color:#64748b">
                     <?= fmt_date($ev['start_date'], $ev['start_time'], $local_tz, $viewer_tz) ?>
                 </div>
             </div>

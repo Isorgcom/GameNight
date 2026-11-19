@@ -113,17 +113,17 @@ if ($mode === 'thread') {
         .conv-list a { display:flex; justify-content:space-between; gap:1rem; align-items:center; padding:.75rem 1rem; text-decoration:none; color:inherit; }
         .conv-list .conv-who { font-weight:600; white-space:nowrap; }
         .conv-list .conv-preview { color:#64748b; font-size:.85rem; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
-        .conv-list .conv-when { color:#94a3b8; font-size:.78rem; white-space:nowrap; }
+        .conv-list .conv-when { color:#64748b; font-size:.78rem; white-space:nowrap; }
         .conv-badge { display:inline-block; font-size:.68rem; padding:.1rem .45rem; border-radius:999px; background:#f1f5f9; color:#475569; vertical-align:middle; margin-left:.4rem; }
         .conv-thread { display:flex; flex-direction:column; gap:.5rem; padding:1rem 0; }
         .conv-bubble { max-width:75%; padding:.55rem .85rem; border-radius:14px; font-size:.92rem; line-height:1.35; white-space:pre-wrap; word-break:break-word; }
         .conv-in  { align-self:flex-start; background:#dcfce7; border-bottom-left-radius:4px; }
         .conv-out { align-self:flex-end; background:#dbeafe; border-bottom-right-radius:4px; }
-        .conv-meta { font-size:.7rem; color:#94a3b8; margin-top:.25rem; }
+        .conv-meta { font-size:.7rem; color:#64748b; margin-top:.25rem; }
         .conv-err { font-size:.75rem; color:#dc2626; margin-top:.2rem; }
         .conv-compose { display:flex; gap:.5rem; align-items:flex-end; margin-top:.75rem; }
         .conv-compose textarea { flex:1; min-height:60px; padding:.55rem .7rem; border:1.5px solid #e2e8f0; border-radius:10px; font:inherit; resize:vertical; }
-        .conv-note { font-size:.75rem; color:#94a3b8; margin-top:.5rem; }
+        .conv-note { font-size:.75rem; color:#64748b; margin-top:.5rem; }
         .conv-warn { background:#fef9c3; border:1px solid #fde047; border-radius:8px; padding:.5rem .8rem; font-size:.82rem; color:#713f12; margin-bottom:.75rem; }
         .assign-table { width:100%; border-collapse:collapse; font-size:.85rem; }
         .assign-table th { text-align:left; padding:.5rem .75rem; background:#f1f5f9; font-size:.75rem; color:#64748b; text-transform:uppercase; }
@@ -160,7 +160,7 @@ if ($mode === 'thread') {
         </div>
         <?php endforeach; ?>
         <?php if (empty($messages)): ?>
-        <p style="color:#94a3b8">No messages yet.</p>
+        <p style="color:#64748b">No messages yet.</p>
         <?php endif; ?>
     </div>
 
@@ -249,7 +249,7 @@ if ($mode === 'thread') {
         </div>
     </div>
     <?php if (empty($convos)): ?>
-    <p style="color:#94a3b8">No text conversations for this event yet. Free-text replies from your guests will show up here (commands, RSVPs, and automated messages stay in the notification log).</p>
+    <p style="color:#64748b">No text conversations for this event yet. Free-text replies from your guests will show up here (commands, RSVPs, and automated messages stay in the notification log).</p>
     <?php else: ?>
     <ul class="conv-list">
         <?php foreach ($convos as $c): ?>
@@ -278,7 +278,7 @@ if ($mode === 'thread') {
         Inbound texts that couldn't be matched to an event. Assign them so the host sees the conversation.
     </p>
     <?php if (empty($unassigned)): ?>
-    <p style="color:#94a3b8">Nothing unassigned. All inbound texts were matched to an event.</p>
+    <p style="color:#64748b">Nothing unassigned. All inbound texts were matched to an event.</p>
     <?php else: ?>
     <div class="table-card" style="overflow:visible">
         <table class="assign-table">

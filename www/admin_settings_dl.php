@@ -487,7 +487,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
     <title><?= htmlspecialchars($site_name) ?></title>
     <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
     <style>
-        .hint { font-size: .78rem; color: #94a3b8; margin-top: .35rem; }
+        .hint { font-size: .78rem; color: #64748b; margin-top: .35rem; }
 
         .tabs {
             display: flex;
@@ -570,14 +570,14 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
             width: 100%; padding: .6rem .85rem; border: 1.5px solid #e2e8f0;
             border-radius: 7px; font-size: .95rem; background: #f8fafc;
         }
-        .modal select:focus { outline: none; border-color: #2563eb; background: #fff; }
+        .modal select:focus { border-color: #2563eb; background: #fff; }
     </style>
 </head>
 <body>
 
 <?php $nav_active = 'site-settings'; require __DIR__ . '/_nav.php'; ?>
 
-<div class="dash-wrap">
+<div role="main" class="dash-wrap">
 
     <div class="dash-header">
         <h1>Site Settings</h1>
@@ -858,11 +858,11 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                     <span id="previewBrand" style="font-weight:700;font-size:1.15rem;color:<?= htmlspecialchars(get_setting('nav_text_color','') ?: '#ffffff') ?>">
                         <?= $banner_path ? '<img src="' . htmlspecialchars($banner_path) . '" style="max-height:36px;vertical-align:middle">' : htmlspecialchars($site_name) ?>
                     </span>
-                    <span style="color:#94a3b8;font-size:.875rem"><?= htmlspecialchars($current['username']) ?> &#9776;</span>
+                    <span style="color:#64748b;font-size:.875rem"><?= htmlspecialchars($current['username']) ?> &#9776;</span>
                 </div>
                 <div id="previewLinks" style="height:40px;background:rgba(0,0,0,.2);padding:0 2rem;display:flex;align-items:center;gap:1.5rem">
                     <span id="previewAccent" style="font-size:.9rem;font-weight:600;color:<?= htmlspecialchars(get_setting('accent_color','') ?: '#2563eb') ?>">Home</span>
-                    <span style="font-size:.9rem;color:#94a3b8">Calendar</span>
+                    <span style="font-size:.9rem;color:#64748b">Calendar</span>
                 </div>
             </div>
         </div>
@@ -998,7 +998,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="tab" value="users">
                                     <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
-                                    <button type="submit" class="btn-icon danger" title="Delete">&#128465;</button>
+                                    <button aria-label="Delete" type="submit" class="btn-icon danger" title="Delete">&#128465;</button>
                                 </form>
                                 <?php endif; ?>
                             </div>
@@ -1039,7 +1039,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
                         <p class="hint">SendGrid: literally the word <code>apikey</code></p>
                     </div>
                     <div class="form-group">
-                        <label>Password / API Key <span style="color:#94a3b8;font-weight:400">(leave blank to keep current)</span></label>
+                        <label>Password / API Key <span style="color:#64748b;font-weight:400">(leave blank to keep current)</span></label>
                         <input type="password" name="smtp_password" autocomplete="new-password">
                         <p class="hint">SendGrid: your API key starting with <code>SG.</code></p>
                     </div>
@@ -1135,7 +1135,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
     <div class="modal">
         <div class="modal-header">
             <h2>New User</h2>
-            <button class="modal-close" data-act="closeUserModal" title="Close">&#x2715;</button>
+            <button aria-label="Close" class="modal-close" data-act="closeUserModal" title="Close">&#x2715;</button>
         </div>
         <form method="post" action="/admin_settings.php">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token) ?>">

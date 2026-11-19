@@ -85,7 +85,7 @@ if ($slug === '') {
 </nav>
 <?php endif; ?>
 
-<div class="ld-layout">
+<div class="ld-layout" role="main">
     <h1 class="ld-head">&#127942; Leagues</h1>
     <p class="ld-sub">Regular crews playing on <?= htmlspecialchars($site_name) ?>. Open a league to see its schedule and join.</p>
 
@@ -140,7 +140,7 @@ if (!$league) {
         <meta name="robots" content="noindex,nofollow">
         <title>League Not Found &mdash; <?= htmlspecialchars($site_name) ?></title>
         <link rel="stylesheet" href="/style.css?v=<?= htmlspecialchars(APP_VERSION . '.' . (@filemtime(__DIR__ . '/style.css') ?: 0)) ?>">
-    </head><body style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:1rem">
+    </head><body style="display:flex;align-items:center;justify-content:center;min-height:100vh;min-height:100dvh;padding:1rem">
         <div style="max-width:480px;width:100%;text-align:center">
             <div style="background:#fef2f2;border:2px solid #dc2626;border-radius:12px;padding:2rem 1.5rem;margin-bottom:1.5rem">
                 <h1 style="font-size:1.5rem;color:#dc2626;margin:0 0 .75rem">League Not Found</h1>
@@ -313,7 +313,7 @@ $autoJoin = $user && $myRole === null && !$pending && ($_GET['join'] ?? '') === 
         .lp-cal-row { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
         .lp-cal-row input { flex: 1; min-width: 220px; padding: .5rem .6rem; border: 1px solid #cbd5e1; border-radius: 6px; font-family: ui-monospace, monospace; font-size: .78rem; background: #fff; color: #334155; }
         .lp-post { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.1rem 1.25rem; margin-bottom: .75rem; }
-        .lp-post-meta { font-size: .75rem; color: #94a3b8; margin-bottom: .35rem; display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
+        .lp-post-meta { font-size: .75rem; color: #64748b; margin-bottom: .35rem; display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
         .lp-post-title { font-weight: 700; color: #0f172a; margin-bottom: .5rem; font-size: 1.05rem; }
         .lp-post-body { line-height: 1.65; color: #334155; font-size: .92rem; overflow: hidden; }
         .lp-post-body img { max-width: 100%; height: auto; border-radius: 6px; }
@@ -347,7 +347,7 @@ $autoJoin = $user && $myRole === null && !$pending && ($_GET['join'] ?? '') === 
 </nav>
 <?php endif; ?>
 
-<div class="lp-layout">
+<div class="lp-layout" role="main">
     <?php if ($banner !== ''): ?>
     <div class="lp-hero<?= ($league['banner_fit'] ?? 'cover') === 'contain' ? ' fit' : '' ?>"><img src="<?= htmlspecialchars($banner) ?>" alt="<?= htmlspecialchars($league['name']) ?>"></div>
     <?php endif; ?>

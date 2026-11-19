@@ -56,6 +56,14 @@ $_header_banner_height = max(20, min(200, (int)get_setting('header_banner_height
 // Cache-busting version strings using file modification time
 $_banner_v        = $_banner        ? @filemtime(__DIR__ . $_banner)        : 0;
 $_header_banner_v = $_header_banner ? @filemtime(__DIR__ . $_header_banner) : 0;
+// Intrinsic size for the banner <img>s, so the nav reserves its height before
+// the image decodes instead of pushing the page down (CLS). With width:auto and
+// a max-height in CSS, the attributes only supply the aspect ratio.
+$_nav_img_dims = function ($p) {
+    if (!$p || !preg_match('#^/[A-Za-z0-9._/-]+$#', $p) || !is_file(__DIR__ . $p)) return '';
+    $d = @getimagesize(__DIR__ . $p);
+    return ($d && $d[0] > 0 && $d[1] > 0) ? ' width="' . (int)$d[0] . '" height="' . (int)$d[1] . '"' : '';
+};
 $_nav_bg        = get_setting('nav_bg_color', '');
 $_nav_text      = get_setting('nav_text_color', '');
 $_accent        = get_setting('accent_color', '');
@@ -75,7 +83,8 @@ $_accent        = get_setting('accent_color', '');
 <?php if (!$_nu && get_setting('show_landing_page', '0') === '1'): ?>
 <!-- SaaS landing mode: no nav for guests -->
 <?php return; endif; ?>
-<nav<?= $_nu ? ' class="nav-has-user"' : '' ?> id="mainNav">
+<a class="skip-link" href="#content">Skip to content</a>
+<nav<?= $_nu ? ' class="nav-has-user"' : '' ?> id="mainNav" aria-label="Primary">
     <div class="nav-top">
         <?php if (!$_banner): ?>
         <a class="brand nav-collapsible" href="/">
@@ -84,7 +93,7 @@ $_accent        = get_setting('accent_color', '');
         <?php endif; ?>
         <?php if ($_header_banner): ?>
         <div class="nav-banner-wrap" style="flex:1;min-width:0;overflow:hidden;text-align:center;padding:0 .5rem">
-            <img class="nav-banner-img" src="<?= htmlspecialchars($_header_banner) ?>?v=<?= $_header_banner_v ?>" alt="<?= htmlspecialchars($site_name) ?>"
+            <img class="nav-banner-img" src="<?= htmlspecialchars($_header_banner) ?>?v=<?= $_header_banner_v ?>"<?= $_nav_img_dims($_header_banner) ?> alt="<?= htmlspecialchars($site_name) ?>"
                  style="max-height:<?= $_is_mobile ? '45' : ($_header_banner_height - 10) ?>px;width:auto;display:block;margin:0 auto;">
         </div>
         <?php else: ?>
@@ -106,30 +115,33 @@ $_accent        = get_setting('accent_color', '');
                             <?= avatar_html($_nu['username'], $_nu['avatar_path'] ?? null, 40) ?>
                             <div class="nav-account-name"><?= htmlspecialchars($_nu['username']) ?></div>
                         </div>
-                        <a href="/notifications.php"<?= $_active === 'notifications' ? ' class="active"' : '' ?>>Notifications <span class="js-bell-badge nav-menu-count" style="<?= $_nf_unread > 0 ? '' : 'display:none' ?>"><?= $_nf_unread > 99 ? '99+' : $_nf_unread ?></span></a>
-                        <a href="/messages.php"<?= $_active === 'messages' ? ' class="active"' : '' ?>>Messages <span class="js-dm-badge nav-menu-count" style="<?= $_dm_unread > 0 ? '' : 'display:none' ?>"><?= $_dm_unread > 99 ? '99+' : $_dm_unread ?></span></a>
-                        <a href="/my_events.php"<?= $_active === 'my-events' ? ' class="active"' : '' ?>>My Events</a>
-                        <a href="/contacts.php"<?= $_active === 'contacts' ? ' class="active"' : '' ?>>Contacts</a>
-                        <a href="/settings.php"<?= $_active === 'settings' ? ' class="active"' : '' ?>>My Settings</a>
+                        <a href="/notifications.php"<?= $_active === 'notifications' ? ' class="active" aria-current="page"' : '' ?>>Notifications <span class="js-bell-badge nav-menu-count" style="<?= $_nf_unread > 0 ? '' : 'display:none' ?>"><?= $_nf_unread > 99 ? '99+' : $_nf_unread ?></span></a>
+                        <a href="/messages.php"<?= $_active === 'messages' ? ' class="active" aria-current="page"' : '' ?>>Messages <span class="js-dm-badge nav-menu-count" style="<?= $_dm_unread > 0 ? '' : 'display:none' ?>"><?= $_dm_unread > 99 ? '99+' : $_dm_unread ?></span></a>
+                        <a href="/my_events.php"<?= $_active === 'my-events' ? ' class="active" aria-current="page"' : '' ?>>My Events</a>
+                        <a href="/contacts.php"<?= $_active === 'contacts' ? ' class="active" aria-current="page"' : '' ?>>Contacts</a>
+                        <a href="/settings.php"<?= $_active === 'settings' ? ' class="active" aria-current="page"' : '' ?>>My Settings</a>
                         <div class="nav-mobile-divider"></div>
-                        <a href="/logout.php" class="nav-dropdown-signout">Sign out</a>
+                        <form method="post" action="/logout.php" class="nav-signout-form">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token(), ENT_QUOTES | ENT_SUBSTITUTE) ?>">
+                            <button type="submit" class="nav-dropdown-signout">Sign out</button>
+                        </form>
                     </div>
                 </div>
                 <!-- Hamburger = site navigation only -->
                 <div class="nav-dropdown-wrap">
-                    <button class="nav-hamburger" title="Menu" data-nav="dropdown">&#9776;</button>
+                    <button aria-label="Menu" class="nav-hamburger" title="Menu" data-nav="dropdown">&#9776;</button>
                     <div class="nav-dropdown">
                         <!-- Page links shown only on mobile (nav-links row hidden) -->
-                        <a href="/" class="nav-mobile-link<?= $_active === 'home' ? ' active' : '' ?>">Home</a>
-                        <a href="/leagues.php" class="nav-mobile-link<?= $_active === 'leagues' ? ' active' : '' ?>">Leagues</a>
+                        <a href="/" class="nav-mobile-link<?= $_active === 'home' ? ' active" aria-current="page' : '' ?>">Home</a>
+                        <a href="/leagues.php" class="nav-mobile-link<?= $_active === 'leagues' ? ' active" aria-current="page' : '' ?>">Leagues</a>
                         <?php if (get_setting('show_calendar', '1') === '1'): ?>
-                        <a href="/calendar.php" class="nav-mobile-link<?= $_active === 'calendar' ? ' active' : '' ?>">Calendar</a>
+                        <a href="/calendar.php" class="nav-mobile-link<?= $_active === 'calendar' ? ' active" aria-current="page' : '' ?>">Calendar</a>
                         <?php endif; ?>
                         <?php if ($_nu && $_nu['role'] === 'admin'): ?>
-                        <a href="/admin_posts.php" class="nav-mobile-link<?= $_active === 'posts' ? ' active' : '' ?>">Posts</a>
-                        <a href="/admin_settings.php" class="nav-mobile-link<?= $_active === 'site-settings' ? ' active' : '' ?>">Site Settings<?php if ($_show_update_dot): ?> <span class="nav-update-dot" title="Update available: v<?= htmlspecialchars(get_setting('latest_version')) ?>"></span><?php endif; ?></a>
+                        <a href="/admin_posts.php" class="nav-mobile-link<?= $_active === 'posts' ? ' active" aria-current="page' : '' ?>">Posts</a>
+                        <a href="/admin_settings.php" class="nav-mobile-link<?= $_active === 'site-settings' ? ' active" aria-current="page' : '' ?>">Site Settings<?php if ($_show_update_dot): ?> <span class="nav-update-dot" title="Update available: v<?= htmlspecialchars(get_setting('latest_version')) ?>"></span><?php endif; ?></a>
                         <?php endif; ?>
-                        <a href="/timer_layouts.php" class="nav-mobile-link<?= $_active === 'timer-layouts' ? ' active' : '' ?>">Tournament Timer</a>
+                        <a href="/timer_layouts.php" class="nav-mobile-link<?= $_active === 'timer-layouts' ? ' active" aria-current="page' : '' ?>">Tournament Timer</a>
                         <a href="<?= htmlspecialchars($_timer_classic_href, ENT_QUOTES | ENT_SUBSTITUTE) ?>" class="nav-mobile-link">Tournament Timer Classic</a>
                         <div class="nav-mobile-divider"></div>
                         <div class="nav-help-group<?= $_active === 'help' || $_active === 'support' ? ' open' : '' ?>">
@@ -138,14 +150,14 @@ $_accent        = get_setting('accent_color', '');
                                 <a href="/help-hosts.php">Host Guide</a>
                                 <a href="/help-guests.php">Guest Guide</a>
                                 <a href="/help-timer.php">Timer Guide</a>
-                                <a href="/support.php"<?= $_active === 'support' ? ' class="active"' : '' ?>>Support</a>
+                                <a href="/support.php"<?= $_active === 'support' ? ' class="active" aria-current="page"' : '' ?>>Support</a>
                             </div>
                         </div>
                     </div>
                 </div>
             <?php else: ?>
                 <div class="nav-dropdown-wrap">
-                    <button class="nav-hamburger" title="Menu" data-nav="dropdown">&#9776;</button>
+                    <button aria-label="Menu" class="nav-hamburger" title="Menu" data-nav="dropdown">&#9776;</button>
                     <div class="nav-dropdown">
                         <?php if (get_setting('show_landing_page', '0') !== '1'): ?>
                         <a href="/timer.php" class="nav-mobile-link">Tournament Timer</a>
@@ -170,30 +182,29 @@ $_accent        = get_setting('accent_color', '');
             <?php endif; ?>
         </div>
         <?php if ($_banner): ?>
-        <img class="nav-collapse-btn nav-collapse-banner" id="navCollapseBtn"
-             src="<?= htmlspecialchars($_banner) ?>?v=<?= $_banner_v ?>"
-             alt="<?= htmlspecialchars($site_name) ?>"
-             style="max-height:38px;width:auto"
-             data-nav="collapse" title="Toggle navigation">
+        <button type="button" class="nav-collapse-banner-btn" id="navCollapseBtn" data-nav="collapse"
+                title="Toggle navigation" aria-label="Toggle navigation"><img class="nav-collapse-btn nav-collapse-banner"
+             src="<?= htmlspecialchars($_banner) ?>?v=<?= $_banner_v ?>"<?= $_nav_img_dims($_banner) ?>
+             alt="" style="max-height:38px;width:auto"></button>
         <?php else: ?>
-        <button class="nav-collapse-btn" id="navCollapseBtn" title="Toggle navigation" data-nav="collapse">&#x25B2;</button>
+        <button aria-label="Toggle navigation" class="nav-collapse-btn" id="navCollapseBtn" title="Toggle navigation" data-nav="collapse">&#x25B2;</button>
         <?php endif; ?>
     </div>
     <div class="nav-links nav-collapsible">
-        <a href="/"<?= $_active === 'home' ? ' class="active"' : '' ?>>Home</a>
+        <a href="/"<?= $_active === 'home' ? ' class="active" aria-current="page"' : '' ?>>Home</a>
         <?php if ($_nu): ?>
-        <a href="/leagues.php"<?= $_active === 'leagues' ? ' class="active"' : '' ?>>Leagues</a>
+        <a href="/leagues.php"<?= $_active === 'leagues' ? ' class="active" aria-current="page"' : '' ?>>Leagues</a>
         <?php endif; ?>
         <?php if (get_setting('show_calendar', '1') === '1'): ?>
-        <a href="/calendar.php"<?= $_active === 'calendar' ? ' class="active"' : '' ?>>Calendar</a>
+        <a href="/calendar.php"<?= $_active === 'calendar' ? ' class="active" aria-current="page"' : '' ?>>Calendar</a>
         <?php endif; ?>
         <?php if ($_nu): ?>
-        <a href="/timer_layouts.php"<?= $_active === 'timer-layouts' ? ' class="active"' : '' ?>>Tournament Timer</a>
+        <a href="/timer_layouts.php"<?= $_active === 'timer-layouts' ? ' class="active" aria-current="page"' : '' ?>>Tournament Timer</a>
         <?php endif; ?>
         <?php /* My Events / Contacts / Messages now live in the account (avatar) menu */ ?>
         <?php if ($_nu && $_nu['role'] === 'admin'): ?>
-            <a href="/admin_posts.php"<?= $_active === 'posts' ? ' class="active"' : '' ?>>Posts</a>
-            <a href="/admin_settings.php"<?= $_active === 'site-settings' ? ' class="active"' : '' ?>>Site Settings<?php if ($_show_update_dot): ?> <span class="nav-update-dot" title="Update available: v<?= htmlspecialchars(get_setting('latest_version')) ?>"></span><?php endif; ?></a>
+            <a href="/admin_posts.php"<?= $_active === 'posts' ? ' class="active" aria-current="page"' : '' ?>>Posts</a>
+            <a href="/admin_settings.php"<?= $_active === 'site-settings' ? ' class="active" aria-current="page"' : '' ?>>Site Settings<?php if ($_show_update_dot): ?> <span class="nav-update-dot" title="Update available: v<?= htmlspecialchars(get_setting('latest_version')) ?>"></span><?php endif; ?></a>
         <?php endif; ?>
         <!-- Same Help group as the hamburger, as a drop-down off the bar.
              Guides are public; Support needs an account. -->
@@ -204,12 +215,13 @@ $_accent        = get_setting('accent_color', '');
                 <a href="/help-guests.php">Guest Guide</a>
                 <a href="/help-timer.php">Timer Guide</a>
                 <?php if ($_nu): ?>
-                <a href="/support.php"<?= $_active === 'support' ? ' class="active"' : '' ?>>Support</a>
+                <a href="/support.php"<?= $_active === 'support' ? ' class="active" aria-current="page"' : '' ?>>Support</a>
                 <?php endif; ?>
             </div>
         </div>
     </div>
 </nav>
+<span id="content" tabindex="-1"></span>
 <?php if ($_banner): ?>
 <script nonce="<?= csp_nonce() ?>">
 (function(){

@@ -120,7 +120,7 @@ $lastId = $messages ? (int)end($messages)['id'] : 0;
         .dt-wrap { max-width: 680px; margin: 1.25rem auto 2rem; padding: 0 1rem; }
         .dt-head { display:flex; align-items:center; gap:.6rem; margin-bottom:.35rem; flex-wrap:wrap; }
         .dt-head h1 { font-size:1.3rem; font-weight:800; color:#1e293b; margin:0; flex:1; min-width:0; }
-        .dt-members { font-size:.78rem; color:#94a3b8; margin:0 0 .9rem; }
+        .dt-members { font-size:.78rem; color:#64748b; margin:0 0 .9rem; }
         .dt-msgs { display:flex; flex-direction:column; gap:.45rem; margin-bottom:1rem; }
         .dt-bubble { max-width:78%; padding:.5rem .8rem; border-radius:12px; font-size:.9rem; white-space:pre-wrap; word-wrap:break-word; }
         .dt-bubble.theirs { background:#f1f5f9; color:#1e293b; align-self:flex-start; border-bottom-left-radius:4px; }
@@ -144,7 +144,7 @@ $lastId = $messages ? (int)end($messages)['id'] : 0;
 </head>
 <body>
 <?php $nav_active = 'messages'; require __DIR__ . '/_nav.php'; ?>
-<div class="dt-wrap">
+<div role="main" class="dt-wrap">
     <div class="dt-head">
         <a href="/messages.php" class="btn btn-outline" style="font-size:.8rem;padding:.3rem .6rem">&laquo; Messages</a>
         <h1><?= htmlspecialchars($title) ?></h1>
@@ -348,7 +348,7 @@ function addMember(btn) {
 }
 
 document.getElementById('dtBody').addEventListener('keydown', function(e) {
-    if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 700) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229 && window.innerWidth > 700) {
         e.preventDefault();
         sendMsg(document.getElementById('dtSend'));
     }

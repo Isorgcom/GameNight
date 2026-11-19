@@ -31,7 +31,7 @@ csp_allow_cast_sdk(true);
         #idle p { font-size: 1.6rem; margin: 0; color: #94a3b8; }
         #tv { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; display: none; background: #000; }
     </style>
-    <script src="https://www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
+    <script nonce="<?= csp_nonce() ?>" src="https://www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
 </head>
 <body>
 <div id="idle">

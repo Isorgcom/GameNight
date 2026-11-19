@@ -588,7 +588,7 @@ $site_name = get_setting('site_name', 'Game Night');
 <?php $nav_active = 'settings'; $nav_user = $me; require __DIR__ . '/_nav.php'; ?>
 </nav>
 
-<div class="dash-wrap st-wrap" id="stWrap">
+<div role="main" class="dash-wrap st-wrap" id="stWrap">
 
     <div class="st-head">
         <?= avatar_html($current['username'], $current['avatar_path'] ?? null, 56) ?>
@@ -642,7 +642,7 @@ $site_name = get_setting('site_name', 'Game Night');
                         </form>
                         <?php endif; ?>
                     </div>
-                    <div style="font-size:.75rem;color:#94a3b8;margin-top:.3rem">JPEG/PNG/GIF/WebP. Big pictures are shrunk to 256&nbsp;px when you upload them. No photo shows your initial in a colored circle.</div>
+                    <div style="font-size:.75rem;color:#64748b;margin-top:.3rem">JPEG/PNG/GIF/WebP. Big pictures are shrunk to 256&nbsp;px when you upload them. No photo shows your initial in a colored circle.</div>
                 </div>
             </div>
             <form id="stAvatarForm" method="post" action="/settings.php" style="display:none">
@@ -714,7 +714,7 @@ $site_name = get_setting('site_name', 'Game Night');
                            value="<?= htmlspecialchars($me['username']) ?>">
                 </div>
                 <div class="form-group">
-                    <label for="email">Email <span style="color:#94a3b8;font-size:.8rem;font-weight:400">(used to sign in)</span></label>
+                    <label for="email">Email <span style="color:#64748b;font-size:.8rem;font-weight:400">(used to sign in)</span></label>
                     <input type="email" id="email" name="email"
                            autocomplete="email" autocorrect="off" autocapitalize="none" spellcheck="false" required
                            value="<?= htmlspecialchars($me['email'] ?? '') ?>">
@@ -757,7 +757,7 @@ $site_name = get_setting('site_name', 'Game Night');
                     <p style="margin-top:.4rem;font-size:.75rem;line-height:1.4;color:#64748b">By providing your phone number, you consent to receive event-related SMS messages (invites, reminders, RSVP updates). Message frequency varies. Message and data rates may apply. Reply STOP to unsubscribe, HELP for help. <a href="/privacy.php" target="_blank">Privacy Policy</a>.</p>
                 </div>
                 <div class="form-group">
-                    <label for="profile_current_password">Current password <span style="color:#94a3b8;font-size:.8rem;font-weight:400">(needed to change your username, email or phone)</span></label>
+                    <label for="profile_current_password">Current password <span style="color:#64748b;font-size:.8rem;font-weight:400">(needed to change your username, email or phone)</span></label>
                     <input type="password" id="profile_current_password" name="current_password" autocomplete="current-password">
                 </div>
                 </div>
@@ -901,7 +901,7 @@ $site_name = get_setting('site_name', 'Game Night');
                 <button type="button" class="btn btn-outline" id="pushDisableBtn" data-act="pushDisable" style="display:none">Disable on this device</button>
                 <button type="button" class="btn btn-outline" id="pushTestBtn" data-act="pushTest" style="display:none">Send test notification</button>
             </div>
-            <p style="font-size:.75rem;color:#94a3b8;margin-top:.7rem">iPhone/iPad: add this site to your Home Screen first (Share &rarr; Add to Home Screen), then enable from the installed app.</p>
+            <p style="font-size:.75rem;color:#64748b;margin-top:.7rem">iPhone/iPad: add this site to your Home Screen first (Share &rarr; Add to Home Screen), then enable from the installed app.</p>
             </div>
 
             <!-- Install as an app: the permanent home for the Add to Home Screen

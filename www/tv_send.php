@@ -114,7 +114,7 @@ $tv_label = preg_replace('#^https?://#', '', rtrim(get_site_url(), '/')) . '/tv'
         .tvs-code { width: 100%; box-sizing: border-box; font-size: 2rem; font-weight: 800; letter-spacing: .25em;
                     text-transform: uppercase; text-align: center; padding: .5rem; border: 2px solid #cbd5e1;
                     border-radius: 10px; font-variant-numeric: tabular-nums; }
-        .tvs-code:focus { outline: none; border-color: #2563eb; }
+        .tvs-code:focus { border-color: #2563eb; }
         .tvs-label { display: block; font-weight: 600; font-size: .9rem; margin: 0 0 .4rem; }
         .tvs-games { display: flex; flex-direction: column; gap: .6rem; margin-top: 1.4rem; }
         .tvs-game { display: flex; align-items: center; justify-content: space-between; gap: .8rem; width: 100%;
