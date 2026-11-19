@@ -424,9 +424,11 @@ function clear_pending_reminders(PDO $db, int $event_id, ?string $occurrence_dat
  * (calendar_dl.php) and the SMS CANCEL command (sms_admin.php) so the
  * notify-then-delete sequence lives in one place. The title/date are carried in
  * each notification payload because the event row is gone before the drain runs.
+ * With $notify false (a silent delete) nobody is told, and unsent notices for
+ * the event are dropped too.
  * Returns ['title' => ..., 'notified' => N], or null if the event doesn't exist.
  */
-function cancel_event_with_notifications(PDO $db, int $event_id, int $actor_id): ?array {
+function cancel_event_with_notifications(PDO $db, int $event_id, int $actor_id, bool $notify = true): ?array {
     $row = $db->prepare('SELECT title, start_date, cancelled_at FROM events WHERE id=?');
     $row->execute([$event_id]);
     $evt = $row->fetch();
@@ -439,7 +441,7 @@ function cancel_event_with_notifications(PDO $db, int $event_id, int $actor_id):
     $notified = 0;
     $tz = new DateTimeZone(get_setting('timezone', 'UTC'));
     $today = (new DateTime('now', $tz))->format('Y-m-d');
-    if (empty($evt['cancelled_at']) && (string)$evt['start_date'] >= $today) {
+    if ($notify && empty($evt['cancelled_at']) && (string)$evt['start_date'] >= $today) {
         $invStmt = $db->prepare("SELECT username, user_id FROM event_invites WHERE event_id=? AND occurrence_date IS NULL");
         $invStmt->execute([$event_id]);
         foreach ($invStmt->fetchAll() as $inv) {
@@ -465,10 +467,13 @@ function cancel_event_with_notifications(PDO $db, int $event_id, int $actor_id):
     // attached PDFs go with them.
     event_message_unlink_attachments($db, 'event_id = ?', [$event_id]);
     $db->prepare('DELETE FROM event_messages WHERE event_id=?')->execute([$event_id]);
-    $db->prepare('DELETE FROM pending_notifications WHERE event_id=? AND attempted_at IS NOT NULL')->execute([$event_id]);
+    // A silent delete also drops anything still waiting to go out (invitations,
+    // reminders, nudges), so nobody hears about the event at all from here on.
+    $db->prepare($notify ? 'DELETE FROM pending_notifications WHERE event_id=? AND attempted_at IS NOT NULL'
+                         : 'DELETE FROM pending_notifications WHERE event_id=?')->execute([$event_id]);
     $db->prepare('DELETE FROM event_notifications_sent WHERE event_id=?')->execute([$event_id]);
     $db->prepare('DELETE FROM events WHERE id=?')->execute([$event_id]);
-    db_log_activity($actor_id, "deleted event: $t");
+    db_log_activity($actor_id, $notify ? "deleted event: $t" : "deleted event silently: $t");
     return ['title' => $t, 'notified' => $notified];
 }
 

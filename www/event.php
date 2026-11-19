@@ -357,6 +357,17 @@ if ($token === '' && $page_eid > 0) {
                         <input type="hidden" name="id" value="<?= $page_eid ?>">
                         <button type="submit">Cancel event</button>
                     </form>
+                    <?php /* Silent delete: for an event that should simply vanish
+                             (a duplicate, a test, a plan that never went out). */ ?>
+                    <form method="post" action="/calendar.php" style="margin:0"
+                          data-confirm="Delete this event for good WITHOUT telling anyone? Guests get no cancellation notice, and any invitations or reminders not yet sent are dropped. Its guest list and comments go with it. This cannot be undone." data-confirm-ok="Delete silently" data-confirm-danger="1">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+                        <input type="hidden" name="action" value="delete">
+                        <input type="hidden" name="silent" value="1">
+                        <input type="hidden" name="id" value="<?= $page_eid ?>">
+                        <input type="hidden" name="month_param" value="<?= htmlspecialchars(substr($occDateQ, 0, 7)) ?>">
+                        <button type="submit" style="color:#dc2626">Delete without notifying</button>
+                    </form>
                     <?php else: ?>
                     <form method="post" action="/calendar.php" style="margin:0;border-top:1px solid #f1f5f9"
                           data-confirm="Delete this past event for good? Its guest list, results and comments go with it. Nobody is notified." data-confirm-ok="Delete" data-confirm-danger="1">

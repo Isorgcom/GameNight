@@ -514,16 +514,26 @@ function gn_event_cancel(PDO $db, array $actor, int $event_id): array {
 
 /**
  * Delete an event for good: its guest list, messages, comments and game go
- * with it, and guests of an upcoming event are told. Needs confirm: true.
+ * with it, and guests of an upcoming event are told unless notify is false
+ * (a silent delete). Needs confirm: true.
  */
 function gn_event_delete(PDO $db, array $actor, int $event_id, array $body): array {
     $ev = gn_event_guard($db, $actor, $event_id, true);
     if (isset($ev['ok'])) return $ev;
+    $bad = array_diff(array_keys($body), ['confirm', 'notify']);
+    if ($bad) return gn_err('unknown_field', 'Unknown field: ' . implode(', ', $bad) . '.', 400);
+    if (array_key_exists('notify', $body) && !is_bool($body['notify'])) return gn_err('bad_field', 'notify must be true or false.', 400);
+    $notify = ($body['notify'] ?? true) !== false;
     if (($body['confirm'] ?? null) !== true) {
         $n = $db->prepare('SELECT COUNT(*) FROM event_invites WHERE event_id = ? AND occurrence_date IS NULL');
         $n->execute([$event_id]);
+        $tz = new DateTimeZone(get_setting('timezone', 'UTC'));
+        $wouldTell = $notify && empty($ev['cancelled_at']) && (string)$ev['start_date'] >= (new DateTime('now', $tz))->format('Y-m-d');
         return gn_err('confirmation_required', 'Deleting "' . $ev['title'] . '" removes it for good, with its guest list (' . (int)$n->fetchColumn()
-            . '), messages, comments and any game results. It cannot be undone. To keep the record and only call it off, use cancel. Send {"confirm": true} to delete.', 409);
+            . '), messages, comments and any game results. It cannot be undone. '
+            . ($wouldTell ? 'Every guest is told it is cancelled; send "notify": false to delete without telling anyone. '
+                          : 'Nobody is notified. ')
+            . 'To keep the record and only call it off, use cancel. Send {"confirm": true} to delete.', 409);
     }
     $db->beginTransaction();
     try {
@@ -531,7 +541,7 @@ function gn_event_delete(PDO $db, array $actor, int $event_id, array $body): arr
         $sids = $db->prepare('SELECT id FROM poker_sessions WHERE event_id = ?');
         $sids->execute([$event_id]);
         foreach ($sids->fetchAll(PDO::FETCH_COLUMN) as $sid) $db->prepare('DELETE FROM timer_state WHERE session_id = ?')->execute([(int)$sid]);
-        $res = cancel_event_with_notifications($db, $event_id, (int)$actor['id']);
+        $res = cancel_event_with_notifications($db, $event_id, (int)$actor['id'], $notify);
         $db->commit();
     } catch (Throwable $e) { if ($db->inTransaction()) $db->rollBack(); throw $e; }
     if ($res === null) return gn_err('event_not_found', 'No such event.', 404);

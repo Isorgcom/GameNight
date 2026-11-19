@@ -163,9 +163,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // One delete for every caller (_notifications.php): an upcoming
             // event that was not cancelled first still tells its guests; a
             // past or already-cancelled one tells nobody.
+            // silent=1 ("Delete without notifying") tells nobody, upcoming or not.
             require_once __DIR__ . '/_notifications.php';
-            if (cancel_event_with_notifications($db, $id, (int)$current['id']) !== null) {
-                $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Event deleted.'];
+            $silent = ($_POST['silent'] ?? '') === '1';
+            if (cancel_event_with_notifications($db, $id, (int)$current['id'], !$silent) !== null) {
+                $_SESSION['flash'] = ['type' => 'success', 'msg' => $silent ? 'Event deleted. Nobody was notified.' : 'Event deleted.'];
             }
         }
     }
