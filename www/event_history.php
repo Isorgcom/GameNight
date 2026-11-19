@@ -72,7 +72,7 @@ $backUrl   = '/event.php?id=' . $eid;
         .eh-chip.ch.whatsapp { background:#ecfdf5; color:#065f46; }
         .eh-chip.fail { background:#fef2f2; color:#b91c1c; }
         .eh-chip.wait { background:#fffbeb; color:#92400e; }
-        .eh-chip.none { background:#f1f5f9; color:#64748b; }
+        .eh-chip.none { background:#f1f5f9; color:#475569; }
         .eh-rows { list-style:none; margin:0; padding:.15rem .85rem .55rem; border-top:1px solid #f1f5f9; }
         .eh-row { padding:.45rem 0; border-bottom:1px solid #f1f5f9; font-size:.85rem; }
         .eh-row:last-child { border-bottom:0; }
@@ -88,7 +88,7 @@ $backUrl   = '/event.php?id=' . $eid;
         .eh-st.ok { background:#f0fdf4; color:#15803d; }
         .eh-st.fail { background:#fef2f2; color:#b91c1c; }
         .eh-st.wait { background:#fffbeb; color:#92400e; }
-        .eh-st.none { background:#f1f5f9; color:#64748b; }
+        .eh-st.none { background:#f1f5f9; color:#475569; }
         .eh-st.sched { background:#f8fafc; color:#64748b; border:1px dashed #cbd5e1; }
         .eh-st.send { background:#eff6ff; color:#1e40af; }
         .eh-body { font-size:.85rem; color:#334155; margin-top:.3rem; line-height:1.45; overflow-wrap:anywhere; }
@@ -105,13 +105,13 @@ $backUrl   = '/event.php?id=' . $eid;
         .eh-names { display:flex; flex-wrap:wrap; gap:.3rem .9rem; font-size:.82rem; color:#334155; padding-top:.5rem; }
         .eh-thread-head { display:flex; align-items:center; gap:.4rem .5rem; flex-wrap:wrap; padding:.6rem .85rem; }
         .eh-thread-name { font-weight:700; font-size:.95rem; color:#1e293b; }
-        .eh-tag { font-size:.68rem; font-weight:600; padding:.1rem .4rem; border-radius:5px; background:#f1f5f9; color:#64748b; white-space:nowrap; }
+        .eh-tag { font-size:.68rem; font-weight:600; padding:.1rem .4rem; border-radius:5px; background:#f1f5f9; color:#475569; white-space:nowrap; }
         .eh-gone .eh-thread-name { color:#475569; }
         .eh-rsvp { font-size:.72rem; font-weight:700; padding:.12rem .55rem; border-radius:999px; }
         .eh-rsvp.rsvp-yes { background:#f0fdf4; color:#15803d; }
         .eh-rsvp.rsvp-no { background:#fef2f2; color:#b91c1c; }
         .eh-rsvp.rsvp-maybe { background:#fffbeb; color:#b45309; }
-        .eh-rsvp.rsvp-none { background:#f1f5f9; color:#64748b; }
+        .eh-rsvp.rsvp-none { background:#f1f5f9; color:#475569; }
         .eh-none { padding:0 .85rem .7rem; font-size:.8rem; color:#64748b; }
         .eh-empty { color:#64748b; font-size:.9rem; margin:.5rem 0; }
         body:not(.eh-show-hosts) [data-host="1"] { display:none; }

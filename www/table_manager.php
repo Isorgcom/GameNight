@@ -181,7 +181,7 @@ $title     = (string)$event['title'];
         padding:.1rem .4rem; border-radius:4px; }
     .gd-badge.playing { background:#dcfce7; color:#166534; }
     .gd-badge.out     { background:#fee2e2; color:#991b1b; }
-    .gd-badge.idle    { background:#f1f5f9; color:#64748b; }
+    .gd-badge.idle    { background:#f1f5f9; color:#475569; }
     .gd-badge.champ   { background:#fef3c7; color:#92400e; }
     /* Cash-out is a normal exit; busting for $0 keeps the red `out` badge. */
     .gd-badge.cashed  { background:#e0f2fe; color:#075985; }

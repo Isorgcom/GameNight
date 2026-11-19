@@ -238,7 +238,7 @@ $now_local = (new DateTime('now', $local_tz))->format('Y-m-d H:i:s');
         .modal-close {
             width: 32px; height: 32px; border-radius: 7px;
             border: none; background: #f1f5f9; cursor: pointer;
-            font-size: 1.1rem; color: #64748b;
+            font-size: 1.1rem; color: #475569;
             display: flex; align-items: center; justify-content: center;
         }
         .modal-close:hover { background: #e2e8f0; }
@@ -256,7 +256,7 @@ $now_local = (new DateTime('now', $local_tz))->format('Y-m-d H:i:s');
         .btn-sm-text.muted { border-color: #e2e8f0; color: #64748b; }
         .btn-sm-text.muted:hover { background: #f1f5f9; color: #475569; }
         .hidden-badge {
-            font-size: .68rem; font-weight: 600; color: #64748b;
+            font-size: .68rem; font-weight: 600; color: #475569;
             background: #f1f5f9; border: 1px solid #e2e8f0;
             border-radius: 4px; padding: .1rem .38rem; margin-right: .35rem;
             vertical-align: middle;

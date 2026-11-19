@@ -11,6 +11,14 @@ lands and that heading is renamed when a release is cut.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Grey labels on light-grey backgrounds are easier to read.** Table headings, "No response" and status badges, and the home page's timeline counts used a grey that measured 4.3:1 against their light-grey fill, just under the 4.5:1 needed for readable text. About twenty of them now use a darker slate, and `style.css` has a `--muted-strong` token for grey text on a tinted surface. (`www/style.css`, `www/index.php`, `www/my_events.php`, `www/sms_log.php`, `www/checkin.css` and others)
+
+### Infrastructure
+
+- **Trusted Types, report-only.** Every page now also sends a report-only policy, `require-trusted-types-for 'script'`. It blocks nothing; Chrome reports each place a plain string is written into the page as HTML, which is the list to work through before it could ever be enforced. Reports go to `csp_report.php`, which now logs each distinct one once per day (a small seen-list beside the database), so a busy page does not repeat the same lines all day. The browser only sends these from an HTTPS site, so they appear on live, not on a plain-HTTP dev copy: `docker logs gamenight 2>&1 | grep csp-report`. (`www/auth.php`, `www/csp_report.php`)
+
 ## [v1.33.1] - 2026-11-19
 
 ### Security

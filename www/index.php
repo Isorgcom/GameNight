@@ -261,7 +261,7 @@ if ($isLanding) {
         .tl-count {
             margin-left: auto;
             font-size: .68rem;
-            color: #64748b;
+            color: #475569;
             background: #f1f5f9;
             border-radius: 99px;
             padding: .05rem .42rem;

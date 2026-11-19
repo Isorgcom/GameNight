@@ -16,6 +16,7 @@
     --bg:       #f8fafc;   /* page background */
     --text:     #1e293b;   /* body text */
     --muted:    #64748b;   /* secondary text: 4.7:1 on white, the lightest grey for text */
+    --muted-strong: #475569; /* secondary text on a tinted surface (#f1f5f9): --muted is 4.3:1 there */
     --border:   #e2e8f0;
     --radius:   10px;
     --shadow:   0 4px 24px rgba(0,0,0,.08);
@@ -232,7 +233,7 @@ nav .brand:hover { color: #e2e8f0; text-decoration: none; }
 }
 .table-card h3 { padding: 1rem 1.5rem; font-size: 1rem; border-bottom: 1px solid var(--border); }
 table { width: 100%; border-collapse: collapse; font-size: .875rem; }
-th { background: #f1f5f9; text-align: left; padding: .65rem 1.5rem; font-size: .78rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+th { background: #f1f5f9; text-align: left; padding: .65rem 1.5rem; font-size: .78rem; color: var(--muted-strong); text-transform: uppercase; letter-spacing: .04em; }
 td { padding: .7rem 1.5rem; border-top: 1px solid var(--border); }
 tr:hover td { background: #f8fafc; }
 

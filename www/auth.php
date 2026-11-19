@@ -116,6 +116,12 @@ $_csp = implode('; ', [
     "report-uri /csp_report.php",
 ]);
 header("Content-Security-Policy: {$_csp}");
+// Trusted Types, REPORT-ONLY. Nothing is blocked: Chrome only reports each
+// place a plain string is written into an HTML sink (innerHTML and the like),
+// which is the list to work through before this could ever be enforced. The
+// reports land in the container log via csp_report.php, once per distinct
+// sink per day: `docker logs gamenight 2>&1 | grep csp-report | grep trusted`.
+header("Content-Security-Policy-Report-Only: require-trusted-types-for 'script'; report-to csp; report-uri /csp_report.php");
 if (!defined('CSP_POLICY')) define('CSP_POLICY', $_csp);
 unset($_csp, $_frame_src, $_connect_src);
 // HSTS: enforce HTTPS for 1 year (only sent when already on HTTPS)

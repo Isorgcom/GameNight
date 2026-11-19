@@ -126,7 +126,7 @@ if ($mode === 'thread') {
         .conv-note { font-size:.75rem; color:#64748b; margin-top:.5rem; }
         .conv-warn { background:#fef9c3; border:1px solid #fde047; border-radius:8px; padding:.5rem .8rem; font-size:.82rem; color:#713f12; margin-bottom:.75rem; }
         .assign-table { width:100%; border-collapse:collapse; font-size:.85rem; }
-        .assign-table th { text-align:left; padding:.5rem .75rem; background:#f1f5f9; font-size:.75rem; color:#64748b; text-transform:uppercase; }
+        .assign-table th { text-align:left; padding:.5rem .75rem; background:#f1f5f9; font-size:.75rem; color:#475569; text-transform:uppercase; }
         .assign-table td { padding:.5rem .75rem; border-top:1px solid #e2e8f0; vertical-align:middle; }
     </style>
 </head>

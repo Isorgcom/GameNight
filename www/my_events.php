@@ -97,7 +97,7 @@ function rsvp_badge(?string $rsvp, ?string $approval_status = 'approved'): strin
     if ($rsvp === 'yes')   return '<span class="me-badge" style="background:#dcfce7;color:#166534;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">Yes</span>';
     if ($rsvp === 'no')    return '<span class="me-badge" style="background:#fee2e2;color:#991b1b;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">No</span>';
     if ($rsvp === 'maybe') return '<span class="me-badge" style="background:#fef9c3;color:#854d0e;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">Maybe</span>';
-    return '<span class="me-badge" style="background:#f1f5f9;color:#64748b;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">No response</span>';
+    return '<span class="me-badge" style="background:#f1f5f9;color:#475569;border-radius:4px;padding:.1rem .5rem;font-size:.75rem;font-weight:600">No response</span>';
 }
 ?>
 <!DOCTYPE html>

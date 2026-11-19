@@ -480,13 +480,13 @@ body.view-payouts #payoutCard{display:none}
 .pk-log-tag.t-add,.pk-log-tag.t-approve{background:#f1f5f9;color:#475569}
 .pk-log-tag.t-eliminate{background:#fee2e2;color:#991b1b}
 .pk-log-tag.t-uneliminate{background:#ede9fe;color:#5b21b6}
-.pk-log-tag.t-remove,.pk-log-tag.t-unbuyin{background:#f1f5f9;color:#64748b}
+.pk-log-tag.t-remove,.pk-log-tag.t-unbuyin{background:#f1f5f9;color:#475569}
 .pk-log-tag.t-void{background:#fee2e2;color:#991b1b}
 .pk-log-tag.t-edit{background:#e0f2fe;color:#075985}
 .pk-log-tag.t-bounty{background:#cffafe;color:#155e75}
 .pk-log-tag.t-jackpot{background:#ede9fe;color:#5b21b6}
 .pk-log-tag.t-ticket_issue,.pk-log-tag.t-ticket_redeem{background:#fef3c7;color:#92400e}
-.pk-log-tag.t-ticket_void{background:#f1f5f9;color:#64748b}
+.pk-log-tag.t-ticket_void{background:#f1f5f9;color:#475569}
 /* Cleared rows: same treatment as the ledger, via a class so the row can
    still carry an actions block that is NOT struck through. */
 .pk-log-row.voided{opacity:.55}

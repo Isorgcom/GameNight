@@ -75,7 +75,7 @@ $tips = $tipsStmt->fetchAll();
         .hlp-btn.primary:hover { filter:brightness(1.05); }
         .hlp-badge { font-size:.68rem; font-weight:700; padding:.1rem .4rem; border-radius:5px; }
         .hlp-badge.on { background:#dcfce7; color:#166534; }
-        .hlp-badge.off { background:#f1f5f9; color:#64748b; }
+        .hlp-badge.off { background:#f1f5f9; color:#475569; }
         .hlp-empty { color:#64748b; font-size:.88rem; }
         .hlp-help { margin-top:.5rem; border:1px solid #e2e8f0; border-radius:8px; background:#f8fafc; }
         .hlp-help > summary { cursor:pointer; padding:.5rem .7rem; font-size:.78rem; font-weight:600; color:#2563eb; list-style:none; }
