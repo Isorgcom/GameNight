@@ -563,7 +563,7 @@ $dash_posts  = (int)$db->query('SELECT COUNT(*) FROM posts')->fetchColumn();
         .modal-close {
             width: 32px; height: 32px; border-radius: 7px; border: none;
             background: #f1f5f9; cursor: pointer; font-size: 1.1rem;
-            color: #64748b; display: flex; align-items: center; justify-content: center;
+            color: #475569; display: flex; align-items: center; justify-content: center;
         }
         .modal-close:hover { background: #e2e8f0; }
         .modal select {

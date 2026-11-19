@@ -168,7 +168,7 @@ $backUrl   = '/calendar.php?m=' . urlencode(substr($event['start_date'], 0, 7)) 
         .pl-bar-label { position:absolute; left:.5rem; top:0; line-height:20px; font-size:.72rem; font-weight:700; color:#1e293b; }
         .pl-badge { font-size:.68rem; font-weight:700; padding:.12rem .45rem; border-radius:5px; }
         .pl-badge.open { background:#dcfce7; color:#166534; }
-        .pl-badge.closed { background:#f1f5f9; color:#64748b; }
+        .pl-badge.closed { background:#f1f5f9; color:#475569; }
         .pl-meta { font-size:.78rem; color:#64748b; }
         .pl-names { font-size:.78rem; color:#64748b; line-height:1.5; }
         .pl-actions { display:flex; gap:.4rem; flex-wrap:wrap; margin-top:.75rem; }

@@ -95,7 +95,7 @@ unset($_SESSION['flash']);
         .sms-log-actions { display:flex; gap:.5rem; align-items:center; }
         .sms-log-table-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
         .sms-log-table { width:100%; border-collapse:collapse; font-size:.85rem; }
-        .sms-log-table th { background:#f1f5f9; text-align:left; padding:.6rem 1rem; font-size:.78rem; color:#64748b; text-transform:uppercase; letter-spacing:.04em; white-space:nowrap; position:sticky; top:0; z-index:1; }
+        .sms-log-table th { background:#f1f5f9; text-align:left; padding:.6rem 1rem; font-size:.78rem; color:#475569; text-transform:uppercase; letter-spacing:.04em; white-space:nowrap; position:sticky; top:0; z-index:1; }
         .sms-log-table td { padding:.55rem 1rem; border-top:1px solid #e2e8f0; }
         .sms-log-table tr:hover td { background:#f8fafc; }
         .sms-log-table .col-time { white-space:nowrap; color:#64748b; }

@@ -1271,7 +1271,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
         }
         .inv-declined-divider {
             padding:.4rem .5rem;text-align:center;font-size:.75rem;font-weight:700;
-            color:#64748b;background:#f1f5f9;border-top:1.5px solid #e2e8f0;
+            color:#475569;background:#f1f5f9;border-top:1.5px solid #e2e8f0;
             margin:.3rem 0 .1rem;cursor:pointer !important;user-select:none;
         }
         .inv-declined-divider:hover { background:#e2e8f0; }
@@ -1384,7 +1384,7 @@ $editorCtx = ($wkStart !== null) ? 'wk=' . urlencode($wkStartStr) : 'm=' . urlen
         .modal-close {
             width: 30px; height: 30px; border-radius: 6px;
             border: none; background: #f1f5f9; cursor: pointer;
-            font-size: 1rem; color: #64748b;
+            font-size: 1rem; color: #475569;
         }
         .modal-close:hover { background: #e2e8f0; }
 

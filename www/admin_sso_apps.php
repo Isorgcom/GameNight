@@ -178,7 +178,7 @@ $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE);
         .sa-flash.error   { background:#fef2f2; border-color:#fca5a5; color:#991b1b; }
         .sa-pill { display:inline-block; padding:.1rem .5rem; border-radius:999px; font-size:.72rem; font-weight:700; }
         .sa-pill.on  { background:#dcfce7; color:#166534; }
-        .sa-pill.off { background:#f1f5f9; color:#64748b; }
+        .sa-pill.off { background:#f1f5f9; color:#475569; }
         .sa-pre { width:100%; box-sizing:border-box; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.75rem; line-height:1.4; border:1.5px solid #e2e8f0; border-radius:8px; padding:.6rem .75rem; background:#f8fafc; color:#1e293b; resize:vertical; }
         .sa-row { display:flex; gap:.6rem; flex-wrap:wrap; align-items:center; margin-top:.5rem; }
         .sa-form { display:grid; grid-template-columns:1fr 1fr 2fr auto; gap:.6rem; align-items:end; }
